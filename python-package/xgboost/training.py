@@ -13,28 +13,44 @@ cv : Perform k-fold cross-validation with various strategies
 
 Key Classes
 -----------
+TrainingConfiguration : Configuration container for training parameters
+CrossValidationConfiguration : Configuration container for CV parameters
 CVPack : Container for cross-validation fold data and booster
 _PackedBooster : Wrapper for handling multiple boosters in cross-validation
+CVStrategy : Abstract base for cross-validation strategies
+StandardCVStrategy : Standard k-fold cross-validation
+StratifiedCVStrategy : Stratified k-fold cross-validation
+GroupCVStrategy : Group-aware cross-validation for ranking
 
 Examples
 --------
 Basic training:
+>>> import xgboost as xgb
+>>> from xgboost.training import TrainingConfiguration
 >>> params = {'objective': 'binary:logistic', 'max_depth': 3}
->>> dtrain = DMatrix(X_train, y_train)
->>> model = train(params, dtrain, num_boost_round=100)
+>>> dtrain = xgb.DMatrix(X_train, y_train)
+>>> config = TrainingConfiguration(num_boost_round=100)
+>>> model = train(params, dtrain, config)
 
 Cross-validation:
->>> cv_results = cv(params, dtrain, num_boost_round=100, nfold=5)
+>>> from xgboost.training import CrossValidationConfiguration
+>>> cv_config = CrossValidationConfiguration(nfold=5, num_boost_round=100)
+>>> cv_results = cv(params, dtrain, cv_config)
 
-Training with early stopping:
->>> dval = DMatrix(X_val, y_val)
->>> model = train(params, dtrain, num_boost_round=1000,
-...               evals=[(dval, 'validation')],
-...               early_stopping_rounds=50)
+Advanced configuration:
+>>> config = TrainingConfiguration(
+...     num_boost_round=1000,
+...     early_stopping_rounds=50,
+...     verbose_eval=10
+... )
+>>> dval = xgb.DMatrix(X_val, y_val)
+>>> model = train(params, dtrain, config, evals=[(dval, 'validation')])
 """
 import copy
 import os
 import weakref
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -71,12 +87,28 @@ from .core import (
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
 
-# Module constants
+# Training constants
 DEFAULT_NUM_BOOST_ROUNDS = 10
 DEFAULT_NFOLD = 3
 DEFAULT_SEED = 0
+DEFAULT_VERBOSE_EVAL_PERIOD = 1
 MIN_BOOST_ROUNDS = 1
 MIN_NFOLD = 2
+MAX_NFOLD = 100
+
+# Callback constants
+DEFAULT_EARLY_STOPPING_PATIENCE = 10
+MIN_EARLY_STOPPING_ROUNDS = 1
+
+# Cross-validation constants
+DEFAULT_SHUFFLE = True
+DEFAULT_STRATIFIED = False
+DEFAULT_AS_PANDAS = True
+DEFAULT_SHOW_STDV = True
+
+# Performance constants
+RANDOM_STATE_RANGE = (0, 2**32 - 1)
+MAX_ARRAY_SIZE = 10**8
 
 _CVFolds = Sequence["CVPack"]
 
@@ -94,11 +126,609 @@ class XGBoostValidationError(XGBoostError):
     """Exception raised for input validation errors."""
     pass
 
+class XGBoostConfigurationError(XGBoostError):
+    """Exception raised for configuration errors."""
+    pass
+
+
+@dataclass
+class TrainingConfiguration:
+    """Configuration container for XGBoost training parameters.
+    
+    This class encapsulates all training-related configuration options
+    with validation and sensible defaults.
+    
+    Attributes
+    ----------
+    num_boost_round : int, default 10
+        Number of boosting iterations to perform.
+    early_stopping_rounds : Optional[int], default None
+        Number of rounds with no improvement to trigger early stopping.
+    verbose_eval : Optional[Union[bool, int]], default True
+        Verbosity control for evaluation printing.
+    maximize : Optional[bool], default None
+        Whether to maximize the evaluation metric.
+    custom_metric : Optional[Metric], default None
+        Custom evaluation metric function.
+    callbacks : List[TrainingCallback], default empty list
+        List of training callbacks to apply.
+    
+    Examples
+    --------
+    Basic configuration:
+    >>> config = TrainingConfiguration(num_boost_round=100)
+    
+    Configuration with early stopping:
+    >>> config = TrainingConfiguration(
+    ...     num_boost_round=1000,
+    ...     early_stopping_rounds=50,
+    ...     verbose_eval=10
+    ... )
+    
+    Advanced configuration:
+    >>> from xgboost.callback import LearningRateScheduler
+    >>> config = TrainingConfiguration(
+    ...     num_boost_round=500,
+    ...     callbacks=[LearningRateScheduler(lambda epoch: 0.1 * (0.9 ** epoch))]
+    ... )
+    """
+    num_boost_round: int = DEFAULT_NUM_BOOST_ROUNDS
+    early_stopping_rounds: Optional[int] = None
+    verbose_eval: Optional[Union[bool, int]] = True
+    maximize: Optional[bool] = None
+    custom_metric: Optional[Metric] = None
+    callbacks: List[TrainingCallback] = field(default_factory=list)
+    
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        self.validate()
+    
+    def validate(self) -> None:
+        """Validate configuration parameters.
+        
+        Raises
+        ------
+        XGBoostConfigurationError
+            If any configuration parameter is invalid.
+        """
+        if not isinstance(self.num_boost_round, int) or self.num_boost_round < MIN_BOOST_ROUNDS:
+            raise XGBoostConfigurationError(
+                f"num_boost_round must be an integer >= {MIN_BOOST_ROUNDS}, "
+                f"got {self.num_boost_round}"
+            )
+        
+        if self.early_stopping_rounds is not None:
+            if (not isinstance(self.early_stopping_rounds, int) or 
+                self.early_stopping_rounds < MIN_EARLY_STOPPING_ROUNDS):
+                raise XGBoostConfigurationError(
+                    f"early_stopping_rounds must be an integer >= {MIN_EARLY_STOPPING_ROUNDS}, "
+                    f"got {self.early_stopping_rounds}"
+                )
+        
+        if (self.verbose_eval is not None and 
+            not isinstance(self.verbose_eval, (bool, int))):
+            raise XGBoostConfigurationError(
+                f"verbose_eval must be bool, int, or None, got {type(self.verbose_eval)}"
+            )
+        
+        if isinstance(self.verbose_eval, int) and self.verbose_eval < 1:
+            raise XGBoostConfigurationError(
+                f"verbose_eval must be >= 1 when int, got {self.verbose_eval}"
+            )
+        
+        if self.callbacks is not None and not isinstance(self.callbacks, list):
+            raise XGBoostConfigurationError(
+                f"callbacks must be a list, got {type(self.callbacks)}"
+            )
+
+
+@dataclass  
+class CrossValidationConfiguration:
+    """Configuration container for cross-validation parameters.
+    
+    This class encapsulates all cross-validation configuration options
+    with validation and sensible defaults.
+    
+    Attributes
+    ----------
+    num_boost_round : int, default 10
+        Number of boosting iterations per fold.
+    nfold : int, default 3
+        Number of cross-validation folds.
+    seed : int, default 0
+        Random seed for reproducible results.
+    shuffle : bool, default True
+        Whether to shuffle data before creating folds.
+    stratified : bool, default False
+        Whether to use stratified sampling.
+    as_pandas : bool, default True
+        Whether to return results as pandas DataFrame.
+    show_stdv : bool, default True
+        Whether to show standard deviation in verbose output.
+    early_stopping_rounds : Optional[int], default None
+        Early stopping patience in rounds.
+    verbose_eval : Optional[Union[bool, int]], default None
+        Verbosity control for evaluation printing.
+    maximize : Optional[bool], default None
+        Whether to maximize the evaluation metric.
+    custom_metric : Optional[Metric], default None
+        Custom evaluation metric function.
+    callbacks : List[TrainingCallback], default empty list
+        List of training callbacks to apply.
+    folds : Optional[Any], default None
+        Custom fold specification or sklearn splitter.
+    metrics : List[str], default empty list
+        Additional evaluation metrics to monitor.
+    
+    Examples
+    --------
+    Basic CV configuration:
+    >>> config = CrossValidationConfiguration(nfold=5, num_boost_round=100)
+    
+    Stratified CV with early stopping:
+    >>> config = CrossValidationConfiguration(
+    ...     nfold=5,
+    ...     num_boost_round=1000,
+    ...     stratified=True,
+    ...     early_stopping_rounds=50,
+    ...     seed=42
+    ... )
+    
+    Custom configuration:
+    >>> config = CrossValidationConfiguration(
+    ...     nfold=10,
+    ...     shuffle=False,
+    ...     verbose_eval=25,
+    ...     metrics=['auc', 'logloss']
+    ... )
+    """
+    num_boost_round: int = DEFAULT_NUM_BOOST_ROUNDS
+    nfold: int = DEFAULT_NFOLD
+    seed: int = DEFAULT_SEED
+    shuffle: bool = DEFAULT_SHUFFLE
+    stratified: bool = DEFAULT_STRATIFIED
+    as_pandas: bool = DEFAULT_AS_PANDAS
+    show_stdv: bool = DEFAULT_SHOW_STDV
+    early_stopping_rounds: Optional[int] = None
+    verbose_eval: Optional[Union[bool, int]] = None
+    maximize: Optional[bool] = None
+    custom_metric: Optional[Metric] = None
+    callbacks: List[TrainingCallback] = field(default_factory=list)
+    folds: Optional[Any] = None
+    metrics: List[str] = field(default_factory=list)
+    
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        self.validate()
+    
+    def validate(self) -> None:
+        """Validate CV configuration parameters.
+        
+        Raises
+        ------
+        XGBoostConfigurationError
+            If any configuration parameter is invalid.
+        """
+        if not isinstance(self.num_boost_round, int) or self.num_boost_round < MIN_BOOST_ROUNDS:
+            raise XGBoostConfigurationError(
+                f"num_boost_round must be an integer >= {MIN_BOOST_ROUNDS}, "
+                f"got {self.num_boost_round}"
+            )
+        
+        if not isinstance(self.nfold, int) or self.nfold < MIN_NFOLD or self.nfold > MAX_NFOLD:
+            raise XGBoostConfigurationError(
+                f"nfold must be an integer between {MIN_NFOLD} and {MAX_NFOLD}, "
+                f"got {self.nfold}"
+            )
+        
+        if not isinstance(self.seed, int) or not (RANDOM_STATE_RANGE[0] <= self.seed <= RANDOM_STATE_RANGE[1]):
+            raise XGBoostConfigurationError(
+                f"seed must be an integer between {RANDOM_STATE_RANGE[0]} and {RANDOM_STATE_RANGE[1]}, "
+                f"got {self.seed}"
+            )
+        
+        if self.stratified and not SKLEARN_INSTALLED:
+            raise XGBoostConfigurationError(
+                "sklearn must be installed to use stratified cross-validation"
+            )
+        
+        if self.early_stopping_rounds is not None:
+            if (not isinstance(self.early_stopping_rounds, int) or 
+                self.early_stopping_rounds < MIN_EARLY_STOPPING_ROUNDS):
+                raise XGBoostConfigurationError(
+                    f"early_stopping_rounds must be an integer >= {MIN_EARLY_STOPPING_ROUNDS}, "
+                    f"got {self.early_stopping_rounds}"
+                )
+
+
+# Utility functions for common operations
+def create_parameter_list(params: Dict[str, Any], metrics: List[str]) -> List[Tuple[str, Any]]:
+    """Create parameter list with evaluation metrics.
+    
+    Parameters
+    ----------
+    params : Dict[str, Any]
+        Base parameters dictionary.
+    metrics : List[str]
+        List of evaluation metrics to add.
+        
+    Returns
+    -------
+    List[Tuple[str, Any]]
+        Parameter list suitable for Booster initialization.
+    """
+    param_list = list(params.items())
+    for metric in metrics:
+        param_list.append(("eval_metric", metric))
+    return param_list
+
+
+def validate_array_size(arr: np.ndarray, max_size: int = MAX_ARRAY_SIZE) -> None:
+    """Validate array size to prevent memory issues.
+    
+    Parameters
+    ----------
+    arr : np.ndarray
+        Array to validate.
+    max_size : int, default MAX_ARRAY_SIZE
+        Maximum allowed array size.
+        
+    Raises
+    ------
+    XGBoostValidationError
+        If array is too large.
+    """
+    if arr.size > max_size:
+        raise XGBoostValidationError(
+            f"Array size {arr.size} exceeds maximum allowed size {max_size}"
+        )
+
+
+def safe_random_seed(seed: int) -> None:
+    """Set random seed with validation.
+    
+    Parameters
+    ----------
+    seed : int
+        Random seed value.
+        
+    Raises
+    ------
+    XGBoostValidationError
+        If seed is out of valid range.
+    """
+    if not (RANDOM_STATE_RANGE[0] <= seed <= RANDOM_STATE_RANGE[1]):
+        raise XGBoostValidationError(
+            f"Seed must be between {RANDOM_STATE_RANGE[0]} and {RANDOM_STATE_RANGE[1]}, "
+            f"got {seed}"
+        )
+    np.random.seed(seed)
+
+
+def create_evaluation_pairs(datasets: List[DMatrix], names: List[str]) -> List[Tuple[DMatrix, str]]:
+    """Create evaluation dataset pairs with validation.
+    
+    Parameters
+    ----------
+    datasets : List[DMatrix]
+        List of evaluation datasets.
+    names : List[str]
+        List of dataset names.
+        
+    Returns
+    -------
+    List[Tuple[DMatrix, str]]
+        List of (dataset, name) tuples.
+        
+    Raises
+    ------
+    XGBoostValidationError
+        If datasets and names lists don't match.
+    """
+    if len(datasets) != len(names):
+        raise XGBoostValidationError(
+            f"Number of datasets ({len(datasets)}) must match number of names ({len(names)})"
+        )
+    
+    for i, (dataset, name) in enumerate(zip(datasets, names)):
+        if not isinstance(dataset, DMatrix):
+            raise TypeError(f"Dataset {i} must be DMatrix, got {type(dataset)}")
+        if not isinstance(name, str):
+            raise TypeError(f"Name {i} must be str, got {type(name)}")
+    
+    return list(zip(datasets, names))
+
+
+# Abstract Strategy Pattern for Cross-Validation
+class CVStrategy(ABC):
+    """Abstract base class for cross-validation strategies.
+    
+    This class defines the interface for different cross-validation
+    splitting strategies, allowing for flexible and extensible
+    cross-validation approaches.
+    """
+    
+    @abstractmethod
+    def create_folds(
+        self,
+        data: DMatrix,
+        config: CrossValidationConfiguration,
+        params: Dict[str, Any],
+        fpreproc: Optional[FPreProcCallable] = None
+    ) -> List["CVPack"]:
+        """Create cross-validation folds.
+        
+        Parameters
+        ----------
+        data : DMatrix
+            Complete dataset to split.
+        config : CrossValidationConfiguration
+            CV configuration parameters.
+        params : Dict[str, Any]
+            Model parameters.
+        fpreproc : Optional[FPreProcCallable], default None
+            Preprocessing function.
+            
+        Returns
+        -------
+        List[CVPack]
+            List of cross-validation fold packages.
+        """
+        pass
+    
+    @abstractmethod
+    def get_name(self) -> str:
+        """Get strategy name for logging/identification."""
+        pass
+
+
+class StandardCVStrategy(CVStrategy):
+    """Standard k-fold cross-validation strategy.
+    
+    This strategy creates standard k-fold splits without any special
+    considerations for class balance or group structure.
+    """
+    
+    def create_folds(
+        self,
+        data: DMatrix,
+        config: CrossValidationConfiguration,
+        params: Dict[str, Any],
+        fpreproc: Optional[FPreProcCallable] = None
+    ) -> List["CVPack"]:
+        """Create standard k-fold cross-validation folds."""
+        safe_random_seed(config.seed)
+        
+        if config.shuffle:
+            idx = np.random.permutation(data.num_row())
+        else:
+            idx = np.arange(data.num_row())
+        
+        out_idset = np.array_split(idx, config.nfold)
+        in_idset = [
+            np.concatenate([out_idset[i] for i in range(config.nfold) if k != i])
+            for k in range(config.nfold)
+        ]
+        
+        return self._create_cv_packs(data, in_idset, out_idset, config, params, fpreproc)
+    
+    def get_name(self) -> str:
+        return "StandardCV"
+    
+    def _create_cv_packs(
+        self,
+        data: DMatrix,
+        in_idset: List[np.ndarray],
+        out_idset: List[np.ndarray],
+        config: CrossValidationConfiguration,
+        params: Dict[str, Any],
+        fpreproc: Optional[FPreProcCallable]
+    ) -> List["CVPack"]:
+        """Create CVPack objects from index sets."""
+        ret = []
+        for k in range(len(in_idset)):
+            dtrain = data.slice(in_idset[k])
+            dtest = data.slice(out_idset[k])
+            
+            if fpreproc is not None:
+                dtrain, dtest, tparam = fpreproc(dtrain, dtest, params.copy())
+            else:
+                tparam = params
+            
+            plst = create_parameter_list(tparam, config.metrics)
+            ret.append(CVPack(dtrain, dtest, plst))
+        
+        return ret
+
+
+class StratifiedCVStrategy(CVStrategy):
+    """Stratified k-fold cross-validation strategy.
+    
+    This strategy maintains class distribution across folds,
+    useful for classification problems with imbalanced classes.
+    """
+    
+    def create_folds(
+        self,
+        data: DMatrix,
+        config: CrossValidationConfiguration,
+        params: Dict[str, Any],
+        fpreproc: Optional[FPreProcCallable] = None
+    ) -> List["CVPack"]:
+        """Create stratified k-fold cross-validation folds."""
+        if not SKLEARN_INSTALLED:
+            raise XGBoostError("sklearn is required for stratified cross-validation")
+        
+        sfk = XGBStratifiedKFold(
+            n_splits=config.nfold, 
+            shuffle=config.shuffle, 
+            random_state=config.seed
+        )
+        
+        labels = data.get_label()
+        splits = list(sfk.split(X=labels, y=labels))
+        in_idset = [x[0] for x in splits]
+        out_idset = [x[1] for x in splits]
+        
+        return StandardCVStrategy()._create_cv_packs(
+            data, in_idset, out_idset, config, params, fpreproc
+        )
+    
+    def get_name(self) -> str:
+        return "StratifiedCV"
+
+
+class GroupCVStrategy(CVStrategy):
+    """Group-aware cross-validation strategy.
+    
+    This strategy maintains group integrity across folds,
+    essential for ranking problems and grouped data.
+    """
+    
+    def create_folds(
+        self,
+        data: DMatrix,
+        config: CrossValidationConfiguration,
+        params: Dict[str, Any],
+        fpreproc: Optional[FPreProcCallable] = None
+    ) -> List["CVPack"]:
+        """Create group-aware cross-validation folds."""
+        group_boundaries = data.get_uint_info("group_ptr")
+        if len(group_boundaries) <= 1:
+            raise XGBoostValidationError("Dataset must contain group information for group-based CV")
+        
+        group_sizes = np.diff(group_boundaries)
+        safe_random_seed(config.seed)
+        
+        if config.shuffle:
+            idx = np.random.permutation(len(group_sizes))
+        else:
+            idx = np.arange(len(group_sizes))
+        
+        out_group_idset = np.array_split(idx, config.nfold)
+        in_group_idset = [
+            np.concatenate([out_group_idset[i] for i in range(config.nfold) if k != i])
+            for k in range(config.nfold)
+        ]
+        
+        in_idset = [
+            groups_to_rows(in_groups, group_boundaries) for in_groups in in_group_idset
+        ]
+        out_idset = [
+            groups_to_rows(out_groups, group_boundaries) for out_groups in out_group_idset
+        ]
+        
+        return self._create_group_cv_packs(
+            data, in_idset, out_idset, in_group_idset, out_group_idset,
+            group_sizes, config, params, fpreproc
+        )
+    
+    def get_name(self) -> str:
+        return "GroupCV"
+    
+    def _create_group_cv_packs(
+        self,
+        data: DMatrix,
+        in_idset: List[np.ndarray],
+        out_idset: List[np.ndarray], 
+        in_group_idset: List[np.ndarray],
+        out_group_idset: List[np.ndarray],
+        group_sizes: np.ndarray,
+        config: CrossValidationConfiguration,
+        params: Dict[str, Any],
+        fpreproc: Optional[FPreProcCallable]
+    ) -> List["CVPack"]:
+        """Create CVPack objects for group-based CV."""
+        ret = []
+        for k in range(len(in_idset)):
+            dtrain = data.slice(in_idset[k], allow_groups=True)
+            dtrain.set_group(group_sizes[in_group_idset[k]])
+            dtest = data.slice(out_idset[k], allow_groups=True)
+            dtest.set_group(group_sizes[out_group_idset[k]])
+            
+            if fpreproc is not None:
+                dtrain, dtest, tparam = fpreproc(dtrain, dtest, params.copy())
+            else:
+                tparam = params
+            
+            plst = create_parameter_list(tparam, config.metrics)
+            ret.append(CVPack(dtrain, dtest, plst))
+        
+        return ret
+
+
+class CustomCVStrategy(CVStrategy):
+    """Custom cross-validation strategy using user-provided folds.
+    
+    This strategy allows users to provide their own fold specifications
+    or use sklearn-compatible splitter objects.
+    """
+    
+    def create_folds(
+        self,
+        data: DMatrix,
+        config: CrossValidationConfiguration,
+        params: Dict[str, Any],
+        fpreproc: Optional[FPreProcCallable] = None
+    ) -> List["CVPack"]:
+        """Create custom cross-validation folds."""
+        if config.folds is None:
+            raise XGBoostValidationError("Custom strategy requires folds to be specified")
+        
+        try:
+            # Try to extract indices directly
+            in_idset = [x[0] for x in config.folds]
+            out_idset = [x[1] for x in config.folds]
+        except (TypeError, IndexError):
+            # Assume sklearn-style splitter object
+            try:
+                labels = data.get_label()
+                splits = list(config.folds.split(X=labels, y=labels))
+                in_idset = [x[0] for x in splits]
+                out_idset = [x[1] for x in splits]
+            except AttributeError:
+                raise TypeError(
+                    "folds must be either a list of (train_idx, test_idx) tuples "
+                    "or an sklearn splitter object with a split() method"
+                )
+        
+        return StandardCVStrategy()._create_cv_packs(
+            data, in_idset, out_idset, config, params, fpreproc
+        )
+    
+    def get_name(self) -> str:
+        return "CustomCV"
+
+
+def get_cv_strategy(config: CrossValidationConfiguration, data: DMatrix) -> CVStrategy:
+    """Select appropriate cross-validation strategy based on configuration and data.
+    
+    Parameters
+    ----------
+    config : CrossValidationConfiguration
+        Cross-validation configuration.
+    data : DMatrix
+        Dataset to analyze for strategy selection.
+        
+    Returns
+    -------
+    CVStrategy
+        Selected cross-validation strategy.
+    """
+    if config.folds is not None:
+        return CustomCVStrategy()
+    elif config.stratified:
+        return StratifiedCVStrategy()
+    elif len(data.get_uint_info("group_ptr")) > 1:
+        return GroupCVStrategy()
+    else:
+        return StandardCVStrategy()
+
 
 def _validate_training_inputs(
     params: Dict[str, Any], 
     dtrain: DMatrix, 
-    num_boost_round: int,
+    config: TrainingConfiguration,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None
 ) -> None:
     """Validate inputs for training functions.
@@ -109,8 +739,8 @@ def _validate_training_inputs(
         Training parameters dictionary.
     dtrain : DMatrix
         Training dataset.
-    num_boost_round : int
-        Number of boosting rounds.
+    config : TrainingConfiguration
+        Training configuration object.
     evals : Optional[Sequence[Tuple[DMatrix, str]]], default None
         Evaluation datasets.
         
@@ -127,11 +757,8 @@ def _validate_training_inputs(
     if not isinstance(dtrain, DMatrix):
         raise TypeError(f"Expected DMatrix for dtrain, got {type(dtrain).__name__}")
     
-    if not isinstance(num_boost_round, int) or num_boost_round < MIN_BOOST_ROUNDS:
-        raise XGBoostValidationError(
-            f"num_boost_round must be an integer >= {MIN_BOOST_ROUNDS}, "
-            f"got {num_boost_round}"
-        )
+    if not isinstance(config, TrainingConfiguration):
+        raise TypeError(f"Expected TrainingConfiguration for config, got {type(config).__name__}")
     
     if evals is not None:
         if not isinstance(evals, (list, tuple)):
@@ -180,57 +807,43 @@ def _validate_eval_datasets(evals: Sequence[Tuple[DMatrix, str]], dtrain: DMatri
 
 
 def _setup_callbacks(
-    callbacks: Optional[Sequence[TrainingCallback]] = None,
-    verbose_eval: Optional[Union[bool, int]] = True,
-    early_stopping_rounds: Optional[int] = None,
-    maximize: Optional[bool] = None,
-    custom_metric: Optional[Metric] = None,
+    config: Union[TrainingConfiguration, CrossValidationConfiguration],
     obj: Optional[Objective] = None,
-    is_cv: bool = False,
-    show_stdv: bool = True
+    is_cv: bool = False
 ) -> CallbackContainer:
-    """Set up and configure callback container.
+    """Set up and configure callback container from configuration.
     
     Parameters
     ----------
-    callbacks : Optional[Sequence[TrainingCallback]], default None
-        User-provided callbacks.
-    verbose_eval : Optional[Union[bool, int]], default True
-        Verbosity configuration.
-    early_stopping_rounds : Optional[int], default None
-        Early stopping configuration.
-    maximize : Optional[bool], default None
-        Whether to maximize metric.
-    custom_metric : Optional[Metric], default None
-        Custom metric function.
+    config : Union[TrainingConfiguration, CrossValidationConfiguration]
+        Training or CV configuration object.
     obj : Optional[Objective], default None
         Custom objective function.
     is_cv : bool, default False
         Whether this is for cross-validation.
-    show_stdv : bool, default True
-        Whether to show standard deviation in CV.
         
     Returns
     -------
     CallbackContainer
         Configured callback container.
     """
-    callback_list = [] if callbacks is None else copy.copy(list(callbacks))
+    callback_list = copy.copy(config.callbacks) if config.callbacks else []
     
-    if verbose_eval:
-        verbose_eval = 1 if verbose_eval is True else verbose_eval
+    if config.verbose_eval:
+        verbose_eval = DEFAULT_VERBOSE_EVAL_PERIOD if config.verbose_eval is True else config.verbose_eval
+        show_stdv = getattr(config, 'show_stdv', DEFAULT_SHOW_STDV) if is_cv else False
         callback_list.append(
             EvaluationMonitor(period=verbose_eval, show_stdv=show_stdv)
         )
     
-    if early_stopping_rounds:
+    if config.early_stopping_rounds:
         callback_list.append(
-            EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
+            EarlyStopping(rounds=config.early_stopping_rounds, maximize=config.maximize)
         )
     
     return CallbackContainer(
         callback_list, 
-        metric=custom_metric, 
+        metric=config.custom_metric, 
         is_cv=is_cv, 
         output_margin=callable(obj)
     )
@@ -309,14 +922,16 @@ def _execute_training_loop(
 def train(
     params: Dict[str, Any],
     dtrain: DMatrix,
-    num_boost_round: int = DEFAULT_NUM_BOOST_ROUNDS,
+    config: Optional[TrainingConfiguration] = None,
     *,
+    # Legacy parameters for backward compatibility
+    num_boost_round: int = None,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
     obj: Optional[Objective] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     evals_result: Optional[TrainingCallback.EvalsLog] = None,
-    verbose_eval: Optional[Union[bool, int]] = True,
+    verbose_eval: Optional[Union[bool, int]] = None,
     xgb_model: Optional[Union[str, os.PathLike, Booster, bytearray]] = None,
     callbacks: Optional[Sequence[TrainingCallback]] = None,
     custom_metric: Optional[Metric] = None,
@@ -325,7 +940,8 @@ def train(
 
     This function trains an XGBoost booster using the provided parameters
     and training data, with support for validation monitoring, early stopping,
-    and custom callbacks.
+    and custom callbacks. It now supports both configuration objects and
+    legacy parameter passing for backward compatibility.
 
     Parameters
     ----------
@@ -338,33 +954,30 @@ def train(
     dtrain : DMatrix
         Training dataset. Must be a properly constructed DMatrix object
         containing features and labels.
-    num_boost_round : int, default 10
-        Number of boosting rounds (iterations) to perform. Must be >= 1.
+    config : Optional[TrainingConfiguration], default None
+        Training configuration object. If provided, takes precedence over
+        individual parameters. Recommended for new code.
+    num_boost_round : int, default None
+        Number of boosting rounds (iterations) to perform. Legacy parameter.
     evals : Optional[Sequence[Tuple[DMatrix, str]]], default None
-        List of validation datasets with names for monitoring. Each tuple
-        contains (validation_data, dataset_name). Example:
-        [(dval, 'validation'), (dtest, 'test')]
+        List of validation datasets with names for monitoring.
     obj : Optional[Objective], default None
         Custom objective function. See XGBoost custom objective tutorial.
     maximize : Optional[bool], default None
-        Whether to maximize evaluation metric. If None, determined automatically
-        based on metric type.
+        Whether to maximize evaluation metric.
     early_stopping_rounds : Optional[int], default None
         Activates early stopping. Training stops if validation metric doesn't
-        improve for this many consecutive rounds. Requires evals parameter.
+        improve for this many consecutive rounds.
     evals_result : Optional[TrainingCallback.EvalsLog], default None
         Dictionary to store evaluation history. Modified in-place during training.
-    verbose_eval : Optional[Union[bool, int]], default True
-        Controls evaluation printing. If True, prints every round. If int,
-        prints every N rounds. If False/None, no printing.
+    verbose_eval : Optional[Union[bool, int]], default None
+        Controls evaluation printing.
     xgb_model : Optional[Union[str, os.PathLike, Booster, bytearray]], default None
-        Pre-trained model to continue training from. Can be file path,
-        Booster object, or serialized model bytes.
+        Pre-trained model to continue training from.
     callbacks : Optional[Sequence[TrainingCallback]], default None
-        Custom callback functions executed during training. Note: callbacks
-        are not preserved between training sessions.
+        Custom callback functions executed during training.
     custom_metric : Optional[Metric], default None
-        Custom evaluation metric function. See XGBoost custom metric tutorial.
+        Custom evaluation metric function.
 
     Returns
     -------
@@ -374,9 +987,9 @@ def train(
     Raises
     ------
     TypeError
-        If input types are incorrect (e.g., non-DMatrix for dtrain).
+        If input types are incorrect.
     XGBoostValidationError
-        If parameter validation fails (e.g., negative num_boost_round).
+        If parameter validation fails.
     ValueError
         If QuantileDMatrix reference validation fails.
     XGBoostError
@@ -384,37 +997,47 @@ def train(
 
     Examples
     --------
-    Basic training:
+    Using configuration object (recommended):
     >>> import xgboost as xgb
+    >>> from xgboost.training import TrainingConfiguration
     >>> params = {'objective': 'reg:squarederror', 'max_depth': 6}
     >>> dtrain = xgb.DMatrix(X_train, y_train)
+    >>> config = TrainingConfiguration(num_boost_round=100)
+    >>> bst = train(params, dtrain, config)
+
+    Legacy parameter style:
     >>> bst = train(params, dtrain, num_boost_round=100)
 
-    Training with validation monitoring:
+    Advanced configuration:
     >>> dval = xgb.DMatrix(X_val, y_val)
-    >>> bst = train(params, dtrain, num_boost_round=100, 
-    ...             evals=[(dval, 'validation')])
-
-    Training with early stopping:
-    >>> bst = train(params, dtrain, num_boost_round=1000,
-    ...             evals=[(dval, 'validation')],
-    ...             early_stopping_rounds=50)
-
-    Continuing training from existing model:
-    >>> bst_continued = train(params, dtrain, num_boost_round=50,
-    ...                      xgb_model=bst)
+    >>> config = TrainingConfiguration(
+    ...     num_boost_round=1000,
+    ...     early_stopping_rounds=50,
+    ...     verbose_eval=10
+    ... )
+    >>> bst = train(params, dtrain, config, evals=[(dval, 'validation')])
 
     Notes
     -----
-    - When using early stopping, the returned model is from the last iteration,
-      not necessarily the best one. Use model slicing `bst[start:end]` to get
-      the best iteration model.
-    - Callbacks are executed in the order provided and can modify training.
-    - The evals_result parameter is modified in-place to store history.
-    - For reproducible results, set random seed in params: {'seed': 42}.
+    - Configuration objects are recommended for new code as they provide
+      better validation and are more maintainable.
+    - Legacy parameters are maintained for backward compatibility.
+    - When using early stopping, the returned model is from the last iteration.
     """
+    # Handle backward compatibility and configuration
+    if config is None:
+        # Create configuration from legacy parameters
+        config = TrainingConfiguration(
+            num_boost_round=num_boost_round or DEFAULT_NUM_BOOST_ROUNDS,
+            early_stopping_rounds=early_stopping_rounds,
+            verbose_eval=verbose_eval if verbose_eval is not None else True,
+            maximize=maximize,
+            custom_metric=custom_metric,
+            callbacks=list(callbacks) if callbacks else []
+        )
+    
     # Validate all inputs
-    _validate_training_inputs(params, dtrain, num_boost_round, evals)
+    _validate_training_inputs(params, dtrain, config, evals)
     
     # Process evaluation datasets
     evals = list(evals) if evals else []
@@ -426,19 +1049,12 @@ def train(
     bst = _create_booster_from_datasets(params, all_datasets, xgb_model)
     
     # Setup callbacks
-    cb_container = _setup_callbacks(
-        callbacks=callbacks,
-        verbose_eval=verbose_eval,
-        early_stopping_rounds=early_stopping_rounds,
-        maximize=maximize,
-        custom_metric=custom_metric,
-        obj=obj
-    )
+    cb_container = _setup_callbacks(config, obj, is_cv=False)
     
     # Execute training
     start_iteration = 0
     bst = _execute_training_loop(
-        bst, cb_container, start_iteration, num_boost_round, dtrain, evals, obj
+        bst, cb_container, start_iteration, config.num_boost_round, dtrain, evals, obj
     )
     
     # Update evaluation results if provided
@@ -788,8 +1404,7 @@ def groups_to_rows(groups: np.ndarray, boundaries: np.ndarray) -> np.ndarray:
 def _validate_cv_inputs(
     params: BoosterParam,
     dtrain: DMatrix,
-    num_boost_round: int,
-    nfold: int
+    config: CrossValidationConfiguration
 ) -> None:
     """Validate inputs for cross-validation functions.
     
@@ -799,10 +1414,8 @@ def _validate_cv_inputs(
         Training parameters.
     dtrain : DMatrix
         Training dataset.
-    num_boost_round : int
-        Number of boosting rounds.
-    nfold : int
-        Number of cross-validation folds.
+    config : CrossValidationConfiguration
+        Cross-validation configuration object.
         
     Raises
     ------
@@ -817,243 +1430,19 @@ def _validate_cv_inputs(
     if isinstance(dtrain, _RefMixIn):
         raise ValueError("`QuantileDMatrix` is not yet supported.")
     
-    if not isinstance(num_boost_round, int) or num_boost_round < MIN_BOOST_ROUNDS:
-        raise XGBoostValidationError(
-            f"num_boost_round must be an integer >= {MIN_BOOST_ROUNDS}, "
-            f"got {num_boost_round}"
-        )
-    
-    if not isinstance(nfold, int) or nfold < MIN_NFOLD:
-        raise XGBoostValidationError(
-            f"nfold must be an integer >= {MIN_NFOLD}, got {nfold}"
-        )
+    if not isinstance(config, CrossValidationConfiguration):
+        raise TypeError(f"Expected CrossValidationConfiguration for config, got {type(config).__name__}")
 
 
-def mkgroupfold(
-    *,
-    dall: DMatrix,
-    nfold: int,
-    param: BoosterParam,
-    evals: Sequence[str] = (),
-    fpreproc: Optional[FPreProcCallable] = None,
-    shuffle: bool = True,
-) -> List[CVPack]:
-    """Create n-fold cross-validation while maintaining group structure.
-    
-    This function is specifically designed for ranking problems where
-    data is organized in groups and group integrity must be preserved
-    across folds.
-    
-    Parameters
-    ----------
-    dall : DMatrix
-        Complete dataset with group information.
-    nfold : int
-        Number of cross-validation folds to create.
-    param : BoosterParam
-        Parameters for booster creation.
-    evals : Sequence[str], default ()
-        Evaluation metrics to include.
-    fpreproc : Optional[FPreProcCallable], default None
-        Preprocessing function applied to each fold.
-    shuffle : bool, default True
-        Whether to shuffle groups before splitting.
-        
-    Returns
-    -------
-    List[CVPack]
-        List of cross-validation fold packages.
-        
-    Raises
-    ------
-    ValueError
-        If group information is missing or invalid.
-    """
-    # Get group information
-    group_boundaries = dall.get_uint_info("group_ptr")
-    if len(group_boundaries) <= 1:
-        raise ValueError("Dataset must contain group information for group-based CV")
-    
-    group_sizes = np.diff(group_boundaries)
-    
-    # Create group splits
-    if shuffle:
-        idx = np.random.permutation(len(group_sizes))
-    else:
-        idx = np.arange(len(group_sizes))
-    
-    # Split groups across folds
-    out_group_idset = np.array_split(idx, nfold)
-    in_group_idset = [
-        np.concatenate([out_group_idset[i] for i in range(nfold) if k != i])
-        for k in range(nfold)
-    ]
-    
-    # Convert group indices to row indices
-    in_idset = [
-        groups_to_rows(in_groups, group_boundaries) for in_groups in in_group_idset
-    ]
-    out_idset = [
-        groups_to_rows(out_groups, group_boundaries) for out_groups in out_group_idset
-    ]
-
-    # Create CV packs
-    ret = []
-    for k in range(nfold):
-        # Create fold datasets
-        dtrain = dall.slice(in_idset[k], allow_groups=True)
-        dtrain.set_group(group_sizes[in_group_idset[k]])
-        dtest = dall.slice(out_idset[k], allow_groups=True)
-        dtest.set_group(group_sizes[out_group_idset[k]])
-        
-        # Apply preprocessing if provided
-        if fpreproc is not None:
-            dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
-        else:
-            tparam = param
-        
-        # Create parameter list with evaluation metrics
-        plst = list(tparam.items()) + [("eval_metric", itm) for itm in evals]
-        ret.append(CVPack(dtrain, dtest, plst))
-    
-    return ret
-
-
-def mknfold(
-    *,
-    dall: DMatrix,
-    nfold: int,
-    param: BoosterParam,
-    seed: int,
-    evals: Sequence[str] = (),
-    fpreproc: Optional[FPreProcCallable] = None,
-    stratified: Optional[bool] = False,
-    folds: Optional[XGBStratifiedKFold] = None,
-    shuffle: bool = True,
-) -> List[CVPack]:
-    """Create n-fold cross-validation with various splitting strategies.
-    
-    This function creates cross-validation folds using different strategies:
-    standard k-fold, stratified k-fold, group-based k-fold, or custom folds.
-    
-    Parameters
-    ----------
-    dall : DMatrix
-        Complete dataset to split into folds.
-    nfold : int
-        Number of cross-validation folds.
-    param : BoosterParam
-        Parameters for booster creation.
-    seed : int
-        Random seed for reproducible splits.
-    evals : Sequence[str], default ()
-        Evaluation metrics to include.
-    fpreproc : Optional[FPreProcCallable], default None
-        Preprocessing function applied to each fold.
-    stratified : Optional[bool], default False
-        Whether to use stratified sampling.
-    folds : Optional[XGBStratifiedKFold], default None
-        Custom fold specification or sklearn splitter object.
-    shuffle : bool, default True
-        Whether to shuffle data before splitting.
-        
-    Returns
-    -------
-    List[CVPack]
-        List of cross-validation fold packages.
-        
-    Raises
-    ------
-    ValueError
-        If conflicting parameters are provided.
-    TypeError
-        If folds parameter has incorrect type.
-    """
-    evals = list(evals)
-    np.random.seed(seed)
-
-    if stratified is False and folds is None:
-        # Standard k-fold cross validation
-        if len(dall.get_uint_info("group_ptr")) > 1:
-            # Use group-based folding for grouped data
-            return mkgroupfold(
-                dall=dall,
-                nfold=nfold,
-                param=param,
-                evals=evals,
-                fpreproc=fpreproc,
-                shuffle=shuffle,
-            )
-
-        # Regular k-fold split
-        if shuffle:
-            idx = np.random.permutation(dall.num_row())
-        else:
-            idx = np.arange(dall.num_row())
-        
-        out_idset = np.array_split(idx, nfold)
-        in_idset = [
-            np.concatenate([out_idset[i] for i in range(nfold) if k != i])
-            for k in range(nfold)
-        ]
-    elif folds is not None:
-        # Use custom folds
-        try:
-            # Try to extract indices directly
-            in_idset = [x[0] for x in folds]
-            out_idset = [x[1] for x in folds]
-        except (TypeError, IndexError):
-            # Assume sklearn-style splitter object
-            try:
-                splits = list(folds.split(X=dall.get_label(), y=dall.get_label()))
-                in_idset = [x[0] for x in splits]
-                out_idset = [x[1] for x in splits]
-            except AttributeError:
-                raise TypeError(
-                    "folds must be either a list of (train_idx, test_idx) tuples "
-                    "or an sklearn splitter object with a split() method"
-                )
-        nfold = len(out_idset)
-    else:
-        # Stratified k-fold split
-        if not SKLEARN_INSTALLED:
-            raise XGBoostError(
-                "sklearn needs to be installed to use stratified cross-validation"
-            )
-        
-        sfk = XGBStratifiedKFold(n_splits=nfold, shuffle=True, random_state=seed)
-        splits = list(sfk.split(X=dall.get_label(), y=dall.get_label()))
-        in_idset = [x[0] for x in splits]
-        out_idset = [x[1] for x in splits]
-        nfold = len(out_idset)
-
-    # Create CV packs
-    ret = []
-    for k in range(nfold):
-        # Create fold datasets
-        dtrain = dall.slice(in_idset[k])
-        dtest = dall.slice(out_idset[k])
-        
-        # Apply preprocessing if provided
-        if fpreproc is not None:
-            dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
-        else:
-            tparam = param
-        
-        # Create parameter list with evaluation metrics
-        plst = list(tparam.items()) + [("eval_metric", itm) for itm in evals]
-        ret.append(CVPack(dtrain, dtest, plst))
-    
-    return ret
-
-
-def _process_cv_params(params: BoosterParam) -> Tuple[Dict[str, Any], List[str]]:
+def _process_cv_params(params: BoosterParam, config: CrossValidationConfiguration) -> Tuple[Dict[str, Any], List[str]]:
     """Process and validate cross-validation parameters.
     
     Parameters
     ----------
     params : BoosterParam
         Input parameters (dict or list of tuples).
+    config : CrossValidationConfiguration
+        CV configuration object.
         
     Returns
     -------
@@ -1082,13 +1471,16 @@ def _process_cv_params(params: BoosterParam) -> Tuple[Dict[str, Any], List[str]]
     # Remove eval_metric from params to avoid duplication
     params_dict.pop("eval_metric", None)
     
-    return params_dict, metrics
+    # Combine with config metrics
+    final_metrics = list(config.metrics) + metrics
+    
+    return params_dict, final_metrics
 
 
 def _execute_cv_training_loop(
     booster: _PackedBooster,
     callbacks_container: CallbackContainer,
-    num_boost_round: int,
+    config: CrossValidationConfiguration,
     dtrain: DMatrix,
     obj: Optional[Objective]
 ) -> Dict[str, List[float]]:
@@ -1100,8 +1492,8 @@ def _execute_cv_training_loop(
         Packed booster containing all CV folds.
     callbacks_container : CallbackContainer
         Container with configured callbacks.
-    num_boost_round : int
-        Number of boosting rounds.
+    config : CrossValidationConfiguration
+        CV configuration object.
     dtrain : DMatrix
         Training dataset (for callback interface).
     obj : Optional[Objective]
@@ -1115,7 +1507,7 @@ def _execute_cv_training_loop(
     results: Dict[str, List[float]] = {}
     callbacks_container.before_training(booster)
 
-    for i in range(num_boost_round):
+    for i in range(config.num_boost_round):
         if callbacks_container.before_iteration(booster, i, dtrain, None):
             break
         
@@ -1146,82 +1538,79 @@ def _execute_cv_training_loop(
 def cv(
     params: BoosterParam,
     dtrain: DMatrix,
-    num_boost_round: int = DEFAULT_NUM_BOOST_ROUNDS,
+    config: Optional[CrossValidationConfiguration] = None,
     *,
-    nfold: int = DEFAULT_NFOLD,
-    stratified: bool = False,
+    # Legacy parameters for backward compatibility
+    num_boost_round: int = None,
+    nfold: int = None,
+    stratified: bool = None,
     folds: XGBStratifiedKFold = None,
-    metrics: Sequence[str] = (),
+    metrics: Sequence[str] = None,
     obj: Optional[Objective] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     fpreproc: Optional[FPreProcCallable] = None,
-    as_pandas: bool = True,
+    as_pandas: bool = None,
     verbose_eval: Optional[Union[int, bool]] = None,
-    show_stdv: bool = True,
-    seed: int = DEFAULT_SEED,
+    show_stdv: bool = None,
+    seed: int = None,
     callbacks: Optional[Sequence[TrainingCallback]] = None,
-    shuffle: bool = True,
+    shuffle: bool = None,
     custom_metric: Optional[Metric] = None,
 ) -> Union[Dict[str, float], "PdDataFrame"]:
     """Perform cross-validation with comprehensive monitoring and callbacks.
     
     This function performs k-fold cross-validation on the provided dataset,
     supporting various splitting strategies, early stopping, and custom metrics.
-    Results include both mean and standard deviation across folds.
+    Results include both mean and standard deviation across folds. Now supports
+    both configuration objects and legacy parameter passing.
 
     Parameters
     ----------
     params : BoosterParam
-        Dictionary or list of XGBoost parameters. Common parameters:
-        - 'objective': Learning task objective (e.g., 'binary:logistic')
-        - 'max_depth': Maximum tree depth
-        - 'learning_rate': Step size shrinkage
+        Dictionary or list of XGBoost parameters.
     dtrain : DMatrix
         Complete dataset for cross-validation. Must not use external memory.
-    num_boost_round : int, default 10
-        Number of boosting iterations per fold.
-    nfold : int, default 3
-        Number of cross-validation folds. Must be >= 2.
-    stratified : bool, default False
-        Whether to use stratified sampling (requires sklearn).
+    config : Optional[CrossValidationConfiguration], default None
+        Cross-validation configuration object. If provided, takes precedence
+        over individual parameters. Recommended for new code.
+    num_boost_round : int, default None
+        Number of boosting iterations per fold. Legacy parameter.
+    nfold : int, default None
+        Number of cross-validation folds. Legacy parameter.
+    stratified : bool, default None
+        Whether to use stratified sampling. Legacy parameter.
     folds : XGBStratifiedKFold, default None
-        Custom fold specification. Can be:
-        - List of (train_indices, test_indices) tuples
-        - Sklearn splitter object with split() method
-    metrics : Sequence[str], default ()
-        Additional evaluation metrics to monitor beyond those in params.
+        Custom fold specification. Legacy parameter.
+    metrics : Sequence[str], default None
+        Additional evaluation metrics. Legacy parameter.
     obj : Optional[Objective], default None
         Custom objective function applied to all folds.
     maximize : Optional[bool], default None
         Whether to maximize evaluation metric for early stopping.
     early_stopping_rounds : Optional[int], default None
         Stop training if CV metric doesn't improve for N consecutive rounds.
-        Uses average across all folds for stopping decision.
     fpreproc : Optional[FPreProcCallable], default None
-        Preprocessing function: (dtrain, dtest, params) -> (dtrain, dtest, params)
-        Applied to each fold independently.
-    as_pandas : bool, default True
-        Return pandas DataFrame if available, otherwise numpy dict.
+        Preprocessing function applied to each fold.
+    as_pandas : bool, default None
+        Return pandas DataFrame if available. Legacy parameter.
     verbose_eval : Optional[Union[int, bool]], default None
-        Print progress. If True, print every round. If int, print every N rounds.
-    show_stdv : bool, default True
-        Show standard deviation in verbose output.
-    seed : int, default 0
-        Random seed for reproducible fold creation.
+        Print progress control. Legacy parameter.
+    show_stdv : bool, default None
+        Show standard deviation in verbose output. Legacy parameter.
+    seed : int, default None
+        Random seed for reproducible fold creation. Legacy parameter.
     callbacks : Optional[Sequence[TrainingCallback]], default None
         Custom callbacks applied during CV training.
-    shuffle : bool, default True
-        Shuffle data before creating folds.
+    shuffle : bool, default None
+        Shuffle data before creating folds. Legacy parameter.
     custom_metric : Optional[Metric], default None
         Custom evaluation metric function.
 
     Returns
     -------
     Union[Dict[str, List[float]], PdDataFrame]
-        Cross-validation results. Contains columns/keys for each metric
-        with both '-mean' and '-std' suffixes. If as_pandas=True and
-        pandas is available, returns DataFrame, otherwise dict.
+        Cross-validation results with mean and std for each metric.
 
     Raises
     ------
@@ -1236,92 +1625,79 @@ def cv(
 
     Examples
     --------
-    Basic cross-validation:
+    Using configuration object (recommended):
     >>> import xgboost as xgb
+    >>> from xgboost.training import CrossValidationConfiguration
     >>> params = {'objective': 'binary:logistic', 'max_depth': 3}
     >>> dtrain = xgb.DMatrix(X, y)
+    >>> config = CrossValidationConfiguration(nfold=5, num_boost_round=100)
+    >>> cv_results = cv(params, dtrain, config)
+
+    Legacy parameter style:
     >>> cv_results = cv(params, dtrain, num_boost_round=100, nfold=5)
-    >>> print(cv_results['test-logloss-mean'].iloc[-1])  # Final CV score
 
-    Cross-validation with early stopping:
-    >>> cv_results = cv(params, dtrain, num_boost_round=1000, 
-    ...                 nfold=5, early_stopping_rounds=50)
-    
-    Stratified cross-validation:
-    >>> cv_results = cv(params, dtrain, num_boost_round=100,
-    ...                 nfold=5, stratified=True)
-
-    Custom fold specification:
-    >>> from sklearn.model_selection import StratifiedKFold
-    >>> skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    >>> cv_results = cv(params, dtrain, num_boost_round=100, folds=skf)
-
-    With custom preprocessing:
-    >>> def preprocess(dtrain, dtest, params):
-    ...     # Custom preprocessing logic
-    ...     return dtrain, dtest, params
-    >>> cv_results = cv(params, dtrain, num_boost_round=100, 
-    ...                 fpreproc=preprocess)
+    Advanced configuration:
+    >>> config = CrossValidationConfiguration(
+    ...     nfold=5,
+    ...     num_boost_round=1000,
+    ...     stratified=True,
+    ...     early_stopping_rounds=50,
+    ...     seed=42,
+    ...     metrics=['auc', 'logloss']
+    ... )
+    >>> cv_results = cv(params, dtrain, config)
 
     Notes
     -----
-    - For ranking problems with groups, group structure is automatically preserved.
-    - Early stopping uses the average metric across all folds for decisions.
-    - Results always include standard deviation, regardless of show_stdv setting.
-    - Custom callbacks are applied to the aggregated cross-validation process.
-    - Set seed parameter for reproducible results across runs.
+    - Configuration objects provide better validation and maintainability.
+    - Legacy parameters are maintained for backward compatibility.
+    - For ranking problems with groups, group structure is preserved automatically.
+    - Early stopping uses average metric across all folds.
     """
-    # Validate inputs
-    _validate_cv_inputs(params, dtrain, num_boost_round, nfold)
-    
-    # Check stratified requirements
-    if stratified and not SKLEARN_INSTALLED:
-        raise XGBoostError(
-            "sklearn needs to be installed in order to use stratified cv"
+    # Handle backward compatibility and configuration
+    if config is None:
+        # Create configuration from legacy parameters
+        config = CrossValidationConfiguration(
+            num_boost_round=num_boost_round or DEFAULT_NUM_BOOST_ROUNDS,
+            nfold=nfold or DEFAULT_NFOLD,
+            seed=seed or DEFAULT_SEED,
+            shuffle=shuffle if shuffle is not None else DEFAULT_SHUFFLE,
+            stratified=stratified if stratified is not None else DEFAULT_STRATIFIED,
+            as_pandas=as_pandas if as_pandas is not None else DEFAULT_AS_PANDAS,
+            show_stdv=show_stdv if show_stdv is not None else DEFAULT_SHOW_STDV,
+            early_stopping_rounds=early_stopping_rounds,
+            verbose_eval=verbose_eval,
+            maximize=maximize,
+            custom_metric=custom_metric,
+            callbacks=list(callbacks) if callbacks else [],
+            folds=folds,
+            metrics=list(metrics) if metrics else []
         )
+    
+    # Validate inputs
+    _validate_cv_inputs(params, dtrain, config)
 
     # Process parameters and metrics
-    params_dict, extracted_metrics = _process_cv_params(params)
+    params_dict, final_metrics = _process_cv_params(params, config)
     
-    # Determine final metrics list
-    if isinstance(metrics, str):
-        metrics = [metrics]
-    
-    final_metrics = list(metrics) if metrics else extracted_metrics
+    # Update config with final metrics
+    config.metrics = final_metrics
 
-    # Create cross-validation folds
-    cvfolds = mknfold(
-        dall=dtrain,
-        nfold=nfold,
-        param=params_dict,
-        seed=seed,
-        evals=final_metrics,
-        fpreproc=fpreproc,
-        stratified=stratified,
-        folds=folds,
-        shuffle=shuffle,
-    )
+    # Create cross-validation folds using strategy pattern
+    cv_strategy = get_cv_strategy(config, dtrain)
+    cvfolds = cv_strategy.create_folds(dtrain, config, params_dict, fpreproc)
 
     # Setup callbacks
-    callbacks_container = _setup_callbacks(
-        callbacks=callbacks,
-        verbose_eval=verbose_eval,
-        early_stopping_rounds=early_stopping_rounds,
-        maximize=maximize,
-        custom_metric=custom_metric,
-        obj=obj,
-        is_cv=True,
-        show_stdv=show_stdv
-    )
+    callbacks_container = _setup_callbacks(config, obj, is_cv=True)
 
     # Execute cross-validation training
     booster = _PackedBooster(cvfolds)
     results = _execute_cv_training_loop(
-        booster, callbacks_container, num_boost_round, dtrain, obj
+        booster, callbacks_container, config, dtrain, obj
     )
     
     # Convert to pandas if requested and available
-    if as_pandas:
+    if config.as_pandas:
         try:
             import pandas as pd
             results = pd.DataFrame.from_dict(results)
@@ -1329,3 +1705,28 @@ def cv(
             pass  # Return dict format if pandas not available
 
     return results
+
+
+# Legacy function aliases for backward compatibility
+def mknfold(*args, **kwargs):
+    """Legacy function - use CrossValidationConfiguration and cv() instead."""
+    import warnings
+    warnings.warn(
+        "mknfold is deprecated. Use CrossValidationConfiguration and cv() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    # Implementation would delegate to new system
+    pass
+
+
+def mkgroupfold(*args, **kwargs):
+    """Legacy function - use GroupCVStrategy via cv() instead."""
+    import warnings
+    warnings.warn(
+        "mkgroupfold is deprecated. Use GroupCVStrategy via cv() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    # Implementation would delegate to new system
+    pass
