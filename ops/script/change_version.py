@@ -61,7 +61,7 @@ def pypkg(
     with open(pyprj_path, "w") as fd:
         fd.write(pyprj)
 
-    make_pyproject(use_cpu_suffix=0, require_nccl_dep=1)
+    make_pyproject(use_suffix="na", require_nccl_dep="cu12")
 
 
 @cd(R_PACKAGE)
