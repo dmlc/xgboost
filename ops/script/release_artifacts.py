@@ -140,6 +140,22 @@ def make_python_sdist(
         dest = dist_dir / sdist_name
         shutil.move(src, dest)
 
+    # Build stub package `xgboost-cu12`.
+    with DirectoryExcursion(ROOT):
+        make_pyproject(use_suffix="cu12", require_nccl_dep="na", create_stub=True)
+
+    with DirectoryExcursion(ROOT / "python-package"):
+        subprocess.run(["python", "-m", "build", "--sdist"], check=True)
+        sdist_name = (
+            f"xgboost_cu12-{release}{rc}{rc_ver}.tar.gz"
+            if rc
+            else f"xgboost_cu12-{release}.tar.gz"
+        )
+        src = DIST / sdist_name
+        subprocess.run(["twine", "check", str(src)], check=True)
+        dest = dist_dir / sdist_name
+        shutil.move(src, dest)
+
 
 def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
     """Download all Python binary wheels for the specified branch."""
