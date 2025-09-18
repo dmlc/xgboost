@@ -2,16 +2,20 @@
 
 import argparse
 import os
+import tomllib
 
+from packaging.version import Version
 from test_utils import PY_PACKAGE
 
 IN_PATH = os.path.join(PY_PACKAGE, "pyproject.toml.in")
+STUB_IN_PATH = os.path.join(PY_PACKAGE, "pyproject.toml.stub.in")
 OUT_PATH = os.path.join(PY_PACKAGE, "pyproject.toml")
 
 NCCL_WHL = """    \"nvidia-nccl-{0} ; platform_system == 'Linux' and platform_machine != 'aarch64'\","""
 
 NAME = "{{ name }}"
 NCCL = "{{ nccl }}"
+VERSION = "{{ version }}"
 CUDA_VARIANTS = ["cu12", "cu13"]
 
 
@@ -22,7 +26,9 @@ def copyfile(src: str, dst: str) -> None:
         fd.write(content)
 
 
-def make_pyproject(*, use_suffix: str, require_nccl_dep: str) -> None:
+def make_pyproject(
+    *, use_suffix: str, require_nccl_dep: str, create_stub: bool
+) -> None:
     if use_suffix == "cpu" and require_nccl_dep != "na":
         raise ValueError(
             "xgboost-cpu cannot require NCCL dependency. "
@@ -38,17 +44,34 @@ def make_pyproject(*, use_suffix: str, require_nccl_dep: str) -> None:
             "When --use-suffix is set to one of {{{0}}}, --require-nccl-dep must be "
             "set to identical value as --use-suffix.".format(",".join(CUDA_VARIANTS))
         )
+    if create_stub:
+        if use_suffix == "na":
+            raise ValueError("To create a stub package, --use-suffix must not be 'na'")
+        if require_nccl_dep != "na":
+            raise ValueError(
+                "To create a stub package, --require-nccl-dep must be 'na'"
+            )
 
-    with open(IN_PATH) as fd:
+    with open(STUB_IN_PATH if create_stub else IN_PATH) as fd:
         pyproject = fd.read()
 
     readme_dft = os.path.join(PY_PACKAGE, "README.dft.rst")
     readme_cpu = os.path.join(PY_PACKAGE, "README.cpu.rst")
+    readme_stub = os.path.join(PY_PACKAGE, "README.stub.rst")
     readme = os.path.join(PY_PACKAGE, "README.rst")
     pyproject = pyproject.replace(
         NAME, f"xgboost-{use_suffix}" if use_suffix != "na" else "xgboost"
     )
-    copyfile(readme_cpu if use_suffix == "cpu" else readme_dft, readme)
+    if create_stub:
+        copyfile(readme_stub, readme)
+        pyproject_parsed = tomllib.loads(pyproject)
+        pyproject = pyproject.replace(
+            VERSION, str(Version(pyproject_parsed["project"]["version"]))
+        )
+    elif use_suffix == "cpu":
+        copyfile(readme_cpu, readme)
+    else:
+        copyfile(readme_dft, readme)
     pyproject = pyproject.replace(
         NCCL, NCCL_WHL.format(require_nccl_dep) if require_nccl_dep != "na" else ""
     )
@@ -76,8 +99,14 @@ if __name__ == "__main__":
         required=True,
         help="Which NCCL dependency to use; select 'na' to remove NCCL dependency",
     )
+    parser.add_argument(
+        "--create-stub",
+        action="store_true",
+        help="Create a stub package that redirects users to install `xgboost`",
+    )
     args = parser.parse_args()
     make_pyproject(
         use_suffix=args.use_suffix,
         require_nccl_dep=args.require_nccl_dep,
+        create_stub=args.create_stub,
     )

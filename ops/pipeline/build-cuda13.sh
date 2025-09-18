@@ -56,10 +56,10 @@ fi
 pydistcheck --config python-package/pyproject.toml python-package/dist/*.whl
 
 echo "--- Upload Python wheel"
-#if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-#then
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
   python3 ops/pipeline/manage-artifacts.py upload \
     --s3-bucket xgboost-nightly-builds \
     --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
     python-package/dist/*.whl
-#fi
+fi
