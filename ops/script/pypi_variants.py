@@ -27,7 +27,7 @@ def copyfile(src: str, dst: str) -> None:
 
 
 def make_pyproject(
-    *, use_suffix: str, require_nccl_dep: str, create_stub: bool
+    *, use_suffix: str, require_nccl_dep: str, create_stub: bool = False
 ) -> None:
     if use_suffix == "cpu" and require_nccl_dep != "na":
         raise ValueError(
