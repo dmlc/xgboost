@@ -61,7 +61,11 @@ Customized Objective Function
 During model training, the objective function plays an important role: provide gradient
 information, both first and second order gradient, based on model predictions and observed
 data labels (or targets).  Therefore, a valid objective function should accept two inputs,
-namely prediction and labels.  For implementing ``SLE``, we define:
+namely prediction and labels. There are two ways to define the objective function. Here we are implementing ``SLE``:
+
+*****************************
+Version 1: low-level API
+*****************************
 
 .. code-block:: python
 
@@ -107,6 +111,53 @@ a callback function for XGBoost during training by passing it as an argument to
 Notice that in our definition of the objective, whether we subtract the labels from the
 prediction or the other way around is important.  If you find the training error goes up
 instead of down, this might be the reason.
+
+*****************************
+Version 2: hign-level API
+*****************************
+
+.. code-block:: python
+
+    import numpy as np
+    from typing import Tuple
+    from xgboost import XGBRegressor
+
+    def gradient(dtrain: np.ndarray, predt: np.ndarray) -> np.ndarray:
+        '''Compute the gradient squared log error.'''
+        y = dtrain.get_label()
+        return (np.log1p(predt) - np.log1p(y)) / (predt + 1)
+
+    def hessian(dtrain: np.ndarray, predt: np.ndarray) -> np.ndarray:
+        '''Compute the hessian for squared log error.'''
+        y = dtrain.get_label()
+        return ((-np.log1p(predt) + np.log1p(y) + 1) /
+                np.power(predt + 1, 2))
+
+    def squared_log(dtrain: np.ndarray,
+                    predt: np.ndarray
+                    ) -> Tuple[np.ndarray, np.ndarray]:
+        '''Squared Log Error objective. A simplified version for RMSLE used as
+        objective function.
+        '''
+        predt[predt < -1] = -1 + 1e-6
+        grad = gradient(dtrain, predt)
+        hess = hessian(dtrain, predt)
+        return grad, hess
+
+In the above code snippet, again ``squared_log`` is the objective function we want. Now it accepts a
+numpy array ``predt`` as model prediction, and numpy array ``dtrain`` as training data. Notice that
+``squared_log`` accepts first the training data and then the prediction, which is different from 
+the low-level API. This objective is then used as a callback function for XGBoost during training 
+by passing it as an argument to ``objective`` parameter of ``XGBRegressor``:
+
+.. code-block:: python
+
+    xgb_model = XGBRegressor(
+        objective=squared_log,
+        tree_method='hist', 
+        random_state=1994,
+        n_estimators=10,
+    )
 
 
 **************************
