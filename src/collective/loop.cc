@@ -215,7 +215,6 @@ Result Loop::Stop(bool from_destructor) {
 
   if (curr_exce_) {
     if (from_destructor) {
-      // Из деструктора - возвращаем ошибку через Result
       try {
         std::rethrow_exception(curr_exce_);
       } catch (const std::exception& e) {
@@ -224,7 +223,6 @@ Result Loop::Stop(bool from_destructor) {
         return Fail("Unknown exception in loop");
       }
     } else {
-      // Обычный вызов - бросаем исключение как раньше
       std::rethrow_exception(curr_exce_);
     }
   }
