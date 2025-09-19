@@ -63,9 +63,7 @@ information, both first and second order gradient, based on model predictions an
 data labels (or targets).  Therefore, a valid objective function should accept two inputs,
 namely prediction and labels. There are two ways to define the objective function. Here we are implementing ``SLE``:
 
-*****************************
-Version 1: low-level API
-*****************************
+**Version 1: low-level API**
 
 .. code-block:: python
 
@@ -110,11 +108,11 @@ a callback function for XGBoost during training by passing it as an argument to
 
 Notice that in our definition of the objective, whether we subtract the labels from the
 prediction or the other way around is important.  If you find the training error goes up
-instead of down, this might be the reason.
+instead of down, this might be the reason. Notice that ``squared_log`` accepts 
+the predicted values and then the true values. This order is important for
+cases of using custom objective with relative error.
 
-*****************************
-Version 2: high-level API
-*****************************
+**Version 2: high-level API**
 
 .. code-block:: python
 
@@ -146,9 +144,10 @@ Version 2: high-level API
 
 In the above code snippet, again ``squared_log`` is the objective function we want. Now it accepts a
 numpy array ``predt`` as model prediction, and numpy array ``dtrain`` as training data. Notice that
-``squared_log`` accepts first the training data and then the prediction, which is different from 
-the low-level API. This objective is then used as a callback function for XGBoost during training 
-by passing it as an argument to ``objective`` parameter of ``XGBRegressor``:
+``squared_log`` accepts first the true values and then the predicted values, which is different from 
+the low-level API. This order is important for cases of using custom objective with relative error. 
+This objective is then used during training  by passing it as an argument to ``objective`` parameter 
+of ``XGBRegressor``:
 
 .. code-block:: python
 
