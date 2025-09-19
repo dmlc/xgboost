@@ -199,7 +199,7 @@ void Loop::Process() {
   }
 }
 
-Result Loop::Stop() {
+Result Loop::Stop(bool from_destructor) {
   // Finish all remaining tasks
   CHECK_EQ(this->Block().OK(), this->rc_.OK());
 
@@ -214,7 +214,19 @@ Result Loop::Stop() {
   }
 
   if (curr_exce_) {
-    std::rethrow_exception(curr_exce_);
+    if (from_destructor) {
+      // Из деструктора - возвращаем ошибку через Result
+      try {
+        std::rethrow_exception(curr_exce_);
+      } catch (const std::exception& e) {
+        return Fail("Exception in loop: " + std::string(e.what()));
+      } catch (...) {
+        return Fail("Unknown exception in loop");
+      }
+    } else {
+      // Обычный вызов - бросаем исключение как раньше
+      std::rethrow_exception(curr_exce_);
+    }
   }
 
   return Success();
