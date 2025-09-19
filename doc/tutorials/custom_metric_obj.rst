@@ -113,7 +113,7 @@ prediction or the other way around is important.  If you find the training error
 instead of down, this might be the reason.
 
 *****************************
-Version 2: hign-level API
+Version 2: high-level API
 *****************************
 
 .. code-block:: python
