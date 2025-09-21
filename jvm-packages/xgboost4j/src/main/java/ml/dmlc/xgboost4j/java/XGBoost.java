@@ -388,8 +388,8 @@ public class XGBoost {
   // visiable for testing
 
   /**
-   * Decides whether the evaluation metrics are to be maximized or not. 
-   * 
+   * Decides whether the evaluation metrics are to be maximized or not.
+   *
    * @param evalInfo The evaluation log string from which the metric name is inferred.
    * @param evalNames The names of the evaluation matrices.
    * @param params The parameters that contain information regarding whethe the
