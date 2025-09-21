@@ -32,9 +32,7 @@ fi
 
 set -x
 
-# Remove nvidia-nccl-cu12 from the list of Python deps
-# nvidia-nccl-cu13 is not yet available on PyPI
-python3 ops/script/pypi_variants.py --use-cpu-suffix=0 --require-nccl-dep=0
+python3 ops/script/pypi_variants.py --use-suffix=cu13 --require-nccl-dep=cu13
 
 python3 ops/docker_run.py \
   --image-uri ${BUILD_IMAGE_URI} \
@@ -56,3 +54,12 @@ fi
 
 # Check size of wheel
 pydistcheck --config python-package/pyproject.toml python-package/dist/*.whl
+
+echo "--- Upload Python wheel"
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
+  python3 ops/pipeline/manage-artifacts.py upload \
+    --s3-bucket xgboost-nightly-builds \
+    --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+    python-package/dist/*.whl
+fi
