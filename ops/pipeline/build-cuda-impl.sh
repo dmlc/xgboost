@@ -11,14 +11,14 @@ else
   cmake_args=''
 fi
 
-if [[ "${USE_FEDERATED:-}" == 1 ]]
+if [[ "${USE_FEDERATED:-0}" == 1 ]]
 then
   cmake_args="${cmake_args} -DPLUGIN_FEDERATED=ON"
 else
   cmake_args="${cmake_args} -DPLUGIN_FEDERATED=OFF"
 fi
 
-if [[ "${USE_RMM:-}" == 1 ]]
+if [[ "${USE_RMM:-0}" == 1 ]]
 then
   cmake_prefix_path='/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake'
   cmake_args="${cmake_args} -DPLUGIN_RMM=ON"

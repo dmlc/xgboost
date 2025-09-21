@@ -111,7 +111,7 @@ def make_python_sdist(
 
     # Build sdist for `xgboost-cpu`.
     with DirectoryExcursion(ROOT):
-        make_pyproject(use_cpu_suffix=1, require_nccl_dep=0)
+        make_pyproject(use_suffix="cpu", require_nccl_dep="na")
     with DirectoryExcursion(ROOT / "python-package"):
         subprocess.run(["python", "-m", "build", "--sdist"], check=True)
         sdist_name = (
@@ -126,7 +126,7 @@ def make_python_sdist(
 
     # Build sdist for `xgboost`.
     with DirectoryExcursion(ROOT):
-        make_pyproject(use_cpu_suffix=0, require_nccl_dep=1)
+        make_pyproject(use_suffix="na", require_nccl_dep="cu12")
 
     with DirectoryExcursion(ROOT / "python-package"):
         subprocess.run(["python", "-m", "build", "--sdist"], check=True)
@@ -134,6 +134,22 @@ def make_python_sdist(
             f"xgboost-{release}{rc}{rc_ver}.tar.gz"
             if rc
             else f"xgboost-{release}.tar.gz"
+        )
+        src = DIST / sdist_name
+        subprocess.run(["twine", "check", str(src)], check=True)
+        dest = dist_dir / sdist_name
+        shutil.move(src, dest)
+
+    # Build stub package `xgboost-cu12`.
+    with DirectoryExcursion(ROOT):
+        make_pyproject(use_suffix="cu12", require_nccl_dep="na", create_stub=True)
+
+    with DirectoryExcursion(ROOT / "python-package"):
+        subprocess.run(["python", "-m", "build", "--sdist"], check=True)
+        sdist_name = (
+            f"xgboost_cu12-{release}{rc}{rc_ver}.tar.gz"
+            if rc
+            else f"xgboost_cu12-{release}.tar.gz"
         )
         src = DIST / sdist_name
         subprocess.run(["twine", "check", str(src)], check=True)

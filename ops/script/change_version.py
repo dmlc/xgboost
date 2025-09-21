@@ -52,16 +52,17 @@ def pypkg(
     with open(pyver_path, "w") as fd:
         fd.write(pyver + "\n")
 
-    pyprj_path = os.path.join("pyproject.toml.in")
-    with open(pyprj_path, "r") as fd:
-        pyprj = fd.read()
-    matched = re.search('version = "' + r"([0-9]+\.[0-9]+\.[0-9]+.*)" + '"', pyprj)
-    assert matched, "Couldn't find version string in pyproject.toml."
-    pyprj = pyprj[: matched.start(1)] + pyver + pyprj[matched.end(1) :]
-    with open(pyprj_path, "w") as fd:
-        fd.write(pyprj)
+    for pyprj_file in ["pyproject.toml.in", "pyproject.toml.stub.in"]:
+        pyprj_path = os.path.join(pyprj_file)
+        with open(pyprj_path, "r") as fd:
+            pyprj = fd.read()
+        matched = re.search('version = "' + r"([0-9]+\.[0-9]+\.[0-9]+.*)" + '"', pyprj)
+        assert matched, "Couldn't find version string in pyproject.toml."
+        pyprj = pyprj[: matched.start(1)] + pyver + pyprj[matched.end(1) :]
+        with open(pyprj_path, "w") as fd:
+            fd.write(pyprj)
 
-    make_pyproject(use_cpu_suffix=0, require_nccl_dep=1)
+    make_pyproject(use_suffix="na", require_nccl_dep="cu12")
 
 
 @cd(R_PACKAGE)
