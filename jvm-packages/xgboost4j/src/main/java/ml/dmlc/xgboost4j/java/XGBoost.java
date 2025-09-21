@@ -388,24 +388,8 @@ public class XGBoost {
   // visiable for testing
 
   /**
-   * This methods decides whether the evaluation metrics are to be maximized or
-   * not. The decision is made in the following order:
-   * <ul>
-   *   <li>If the {@code params} object contains the key "maximize_evaluation_metrics",
-   *   then it will make a decision whether the value corresponding to the
-   *   parameter is true or false.</li>
-   *   <li>If the {@code params} does not contain this key, then it will make a decision
-   *   whether the "eval_metric" parameter present or not.</li>
-   *   <li>If this parameter is null, then the metric name is inferred from the logs.
-   *   The parameters {@code evalInfo} and {@code evalNames} are passed to get the
-   *   metric name.</li>
-   *   <li>If the value is not null, then the metric name would be the value of the
-   *   parameter "eval_matric".</li>
-   *   <li>Finally if "mape" is the metric name, then return false.</li>
-   *   <li>If "mape" is not the metric name, then we iterate through the list of
-   *   all the values in {@code MAXIMIZ_METRICES}. If the value starts with any of
-   *   of the values in the array, return true.</li>
-   * </ul>
+   * Decides whether the evaluation metrics are to be maximized or not. 
+   * 
    * @param evalInfo The evaluation log string from which the metric name is inferred.
    * @param evalNames The names of the evaluation matrices.
    * @param params The parameters that contain information regarding whethe the
