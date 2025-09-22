@@ -1,0 +1,159 @@
+###################
+3.1.0 (2025 Sep 22)
+###################
+
+We are delighted to share the latest 3.1.0 update for XGBoost.
+
+********************
+Categorical Re-coder
+********************
+
+This release features a major update to categorical feature support by introducing a
+re-coder. This re-coder saves categories in the trained model and re-codes the data during
+inference, to keep the categorical encoding consistent. Aside from primitive types like
+integers, it also supports string-based categories. The implementation works with all
+supported Python DataFrame implementations. (#11609, #11665, #11605, #11628, #11598,
+#11591, #11568, #11561, #11650, #11621, #11611, #11313, #11311, #11310, #11315, #11303,
+#11612, #11098, #11347)
+
+In addition, categorical support for polars is now available (#11565). See
+:ref:`cat-recode` for more information. (#11297)
+
+Lastly, we removed the experimental tag for categorical feature support in this
+release. (#11690)
+
+***************
+External Memory
+***************
+
+We continue the work on external memory support on 3.1. In this release, XGBoost features
+an adaptive cache for CUDA external memory. The improved cache can split the data between
+CPU memory and GPU memory according to the underlying hardware and data size. (#11556,
+#11465, #11664, #11594, #11469, #11547, #11339, #11477, #11453, #11446, #11458, #11426,
+#11566, #11497)
+
+Also, there's an optional support (opt-in) for using ``nvcomp`` and the GB200
+decompression engine to handle sparse data (requires nvcomp as a plugin) (#11451, #11464,
+#11460, #11512, #11520). We improved the memory usage of quantile sketching with external
+memory (#11641) and optimized the predictor for training (#11548). To help ensure the
+training performance, the latest XGBoost features detection for NUMA node (#11538, #11576)
+for checking cross-socket data access. We are working on more tooling to help improve NUMA
+node performance. Aside from features, we have also added various documentation
+improvements. (#11412, #11631)
+
+Lastly, external memory support with text file input has been removed (#11562). Moving
+forward, we will focus on iterator inputs.
+
+
+****************************
+Multi-Target/Class Intercept
+****************************
+
+Starting with 3.1, the base-score (intercept) is estimated and stored as a vector when the
+model has multiple outputs, be it multi-target regression for multi-class
+classification. This enhances the initial estimation for multi-output models and will be
+the starting point for future work on vector-leaf. (#11277, #11651, #11625, #11649,
+#11630, #11647, #11656, #11663)
+
+********
+Features
+********
+
+- Support leaf prediction with QDM on CPU. (#11620)
+- Improve seed with mean sampling for the first iteration. (#11639)
+- Optionally include git hash in CMake build. (#11587)
+
+****************************
+Removing Deprecated Features
+****************************
+
+This version removes some deprecated features, notably, the binary IO format, along with
+features deprecated in 2.0.
+
+- Binary serialization format has been removed in 3.1. The format has been formally
+  deprecated in `1.6 <https://github.com/dmlc/xgboost/issues/7547>`. (#11307, #11553,
+  #11552, #11602)
+
+- Removed old GPU-related parameters including ``use_gpu`` (pyspark), ``gpu_id``,
+  ``gpu_hist``, and ``gpu_coord_descent``. These parameters have been deprecated in
+  2.0. Use the ``device`` parameter instead. (#11395, #11554, #11549, #11543, #11539,
+  #11402)
+
+- Remove deprecated C functions: ``XGDMatrixCreateFromCSREx``,
+  ``XGDMatrixCreateFromCSCEx``. (#11514, #11513)
+
+- XGBoost starts emit warning for text inputs. (#11590)
+
+
+*************
+Optimizations
+*************
+
+- Optimize CPU inference with Array-Based Tree Traversal (#11519)
+- Specialize for GPU dense histogram. (#11443)
+- [sycl] Improve L1 cache locality for histogram building. (#11555)
+- [sycl] Reduce predictor memory consumption and improve L2 locality (#11603)
+
+*****
+Fixes
+*****
+
+- Fix static linking C++ libraries on macOS (#11522)
+- Rename param.hh/cc to hist_param.hh/cc to fix xcode build (#11378)
+- [sycl] Fix build with updated compiler (#11618)
+- [sycl] Various fixes for fp32-only devices. (#11527, #11524)
+- Fix compilation on android older than API 26 (#11366)
+- Fix loading Gamma model from 1.3. (#11377)
+
+**************
+Python Package
+**************
+
+- Support mixing Python metrics and built-in metrics for the skl interface. (#11536)
+- CUDA 13 Support for PyPI with the new ``xgboost-cu13`` package. (#11677, #11662)
+- Remove wheels for manylinux2014. (#11673)
+- Initial support for building variant wheels (#11531, #11645, #11294)
+- Minimum PySpark version is now set to 3.4 (#11364). In addition, the PySpark interface
+  now checks the validation indicator column type and has a fix for None column
+  input. (#11535, #11523)
+- [dask] Small cleanup for the predict function. (#11423)
+
+*********
+R Package
+*********
+
+With most the deprecated features have been removed in this release. We will try to bring
+the latest R package back to CRAN.
+
+- Implement Booster reset. (#11357)
+- Improvements for documentation, including having code examples in XGBoost's sphinx
+  documentation side, and notes for R-universe release. (#11369, #11410, #11685, #11316)
+
+************
+JVM Packages
+************
+
+- Support columnar inputs for cpu pipeline (#11352)
+- Rewrite the `LabeledPoint` as a Java class (#11545)
+- Various fixes and document updates. (#11525, #11508, #11489, #11682)
+
+*********
+Documents
+*********
+
+Changes for general documentation:
+
+- Update notes about GPU memory usage. (#11375)
+- Various fixes and updates. (#11503, #11532, #11328, #11344, #11626)
+
+
+******************
+CI and Maintenance
+******************
+
+- Code cleanups. (#11367, #11342, #11658, #11528, #11585, #11672, #11642, #11667, #11495,
+  #11567)
+- Various cleanup and fixes for tests. (#11405, #11389, #11396, #11456)
+- Support CMake 4.0 (#11382)
+- Various CI updates and fixes (#11318, #11349, #11653, #11637, #11683, #11638, #11644,
+  #11306, #11560, #11323, #11617, #11341)
