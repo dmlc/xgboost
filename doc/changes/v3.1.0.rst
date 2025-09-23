@@ -8,7 +8,7 @@ We are delighted to share the latest 3.1.0 update for XGBoost.
 Categorical Re-coder
 ********************
 
-This release features a major update to categorical feature support by introducing a
+This release features a major update to categorical data support by introducing a
 re-coder. This re-coder saves categories in the trained model and re-codes the data during
 inference, to keep the categorical encoding consistent. Aside from primitive types like
 integers, it also supports string-based categories. The implementation works with all
@@ -39,7 +39,7 @@ decompression engine to handle sparse data (requires nvcomp as a plugin) (:pr:`1
 quantile sketching with external memory (:pr:`11641`) and optimized the predictor for
 training (:pr:`11548`). To help ensure the training performance, the latest XGBoost
 features detection for NUMA node (:pr:`11538`, :pr:`11576`) for checking cross-socket data
-access. We are working on more tooling to help improve NUMA node performance. Aside from
+access. We are working on additional tooling to enhance NUMA node performance. Aside from
 features, we have also added various documentation improvements. (:pr:`11412`,
 :pr:`11631`)
 
@@ -53,9 +53,9 @@ Multi-Target/Class Intercept
 
 Starting with 3.1, the base-score (intercept) is estimated and stored as a vector when the
 model has multiple outputs, be it multi-target regression or multi-class
-classification. This enhances the initial estimation for multi-output models and will be
-the starting point for future work on vector-leaf. (:pr:`11277`, :pr:`11651`, :pr:`11625`,
-:pr:`11649`, :pr:`11630`, :pr:`11647`, :pr:`11656`, :pr:`11663`)
+classification. This change enhances the initial estimation for multi-output models and
+will be the starting point for future work on vector-leaf. (:pr:`11277`, :pr:`11651`,
+:pr:`11625`, :pr:`11649`, :pr:`11630`, :pr:`11647`, :pr:`11656`, :pr:`11663`)
 
 ********
 Features
