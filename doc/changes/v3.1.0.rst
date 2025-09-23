@@ -15,10 +15,9 @@ integers, it also supports string-based categories. The implementation works wit
 supported Python DataFrame implementations. (:pr:`11609`, :pr:`11665`, :pr:`11605`,
 :pr:`11628`, :pr:`11598`, :pr:`11591`, :pr:`11568`, :pr:`11561`, :pr:`11650`, :pr:`11621`,
 :pr:`11611`, :pr:`11313`, :pr:`11311`, :pr:`11310`, :pr:`11315`, :pr:`11303`, :pr:`11612`,
-:pr:`11098`, :pr:`11347`)
+:pr:`11098`, :pr:`11347`) See :ref:`cat-recode` for more information. (:pr:`11297`)
 
-In addition, categorical support for polars is now available (:pr:`11565`). See
-:ref:`cat-recode` for more information. (:pr:`11297`)
+In addition, categorical support for polars is now available (:pr:`11565`).
 
 Lastly, we removed the experimental tag for categorical feature support in this
 release. (:pr:`11690`)
@@ -161,4 +160,4 @@ CI and Maintenance
 - Support CMake 4.0 (:pr:`11382`)
 - Various CI updates and fixes (:pr:`11318`, :pr:`11349`, :pr:`11653`, :pr:`11637`,
   :pr:`11683`, :pr:`11638`, :pr:`11644`, :pr:`11306`, :pr:`11560`, :pr:`11323`, :pr:`11617`,
-  :pr:`11341`)
+  :pr:`11341`, :pr:`11693`)
