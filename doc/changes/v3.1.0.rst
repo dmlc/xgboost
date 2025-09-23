@@ -52,7 +52,7 @@ Multi-Target/Class Intercept
 ****************************
 
 Starting with 3.1, the base-score (intercept) is estimated and stored as a vector when the
-model has multiple outputs, be it multi-target regression for multi-class
+model has multiple outputs, be it multi-target regression or multi-class
 classification. This enhances the initial estimation for multi-output models and will be
 the starting point for future work on vector-leaf. (:pr:`11277`, :pr:`11651`, :pr:`11625`,
 :pr:`11649`, :pr:`11630`, :pr:`11647`, :pr:`11656`, :pr:`11663`)
@@ -73,7 +73,7 @@ This version removes some deprecated features, notably, the binary IO format, al
 features deprecated in 2.0.
 
 - Binary serialization format has been removed in 3.1. The format has been formally
-  deprecated in `1.6 <https://github.com/dmlc/xgboost/issues/7547>`. (:pr:`11307`,
+  deprecated in `1.6 <https://github.com/dmlc/xgboost/issues/7547>`__. (:pr:`11307`,
   :pr:`11553`, :pr:`11552`, :pr:`11602`)
 
 - Removed old GPU-related parameters including ``use_gpu`` (pyspark), ``gpu_id``,
@@ -124,8 +124,8 @@ Python Package
 R Package
 *********
 
-With most the deprecated features have been removed in this release. We will try to bring
-the latest R package back to CRAN.
+With most of the deprecated features have been removed in this release. We will try to
+bring the latest R package back to CRAN.
 
 - Implement Booster reset. (:pr:`11357`)
 - Improvements for documentation, including having code examples in XGBoost's sphinx
