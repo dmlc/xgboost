@@ -58,7 +58,7 @@ follow_imports = "silent"
 
 [tool.pylint.main]
 ignore = ["tests"]
-extension-pkg-whitelist = ["numpy"]
+extension-pkg-whitelist = ["numpy", "cuda"]
 disable = [
     "import-error",
     "attribute-defined-outside-init",
