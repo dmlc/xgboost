@@ -17,7 +17,7 @@ supported Python DataFrame implementations. (:pr:`11609`, :pr:`11665`, :pr:`1160
 :pr:`11611`, :pr:`11313`, :pr:`11311`, :pr:`11310`, :pr:`11315`, :pr:`11303`, :pr:`11612`,
 :pr:`11098`, :pr:`11347`) See :ref:`cat-recode` for more information. (:pr:`11297`)
 
-In addition, categorical support for polars is now available (:pr:`11565`).
+In addition, categorical support for Polars data frames is now available (:pr:`11565`).
 
 Lastly, we removed the experimental tag for categorical feature support in this
 release. (:pr:`11690`)
@@ -38,7 +38,7 @@ decompression engine to handle sparse data (requires nvcomp as a plugin) (:pr:`1
 :pr:`11464`, :pr:`11460`, :pr:`11512`, :pr:`11520`). We improved the memory usage of
 quantile sketching with external memory (:pr:`11641`) and optimized the predictor for
 training (:pr:`11548`). To help ensure the training performance, the latest XGBoost
-features detection for NUMA node (:pr:`11538`, :pr:`11576`) for checking cross-socket data
+features detection for NUMA (Non-Uniform Memory Access) node (:pr:`11538`, :pr:`11576`) for checking cross-socket data
 access. We are working on additional tooling to enhance NUMA node performance. Aside from
 features, we have also added various documentation improvements. (:pr:`11412`,
 :pr:`11631`)
@@ -124,7 +124,7 @@ Python Package
 R Package
 *********
 
-With most of the deprecated features have been removed in this release. We will try to
+Now that most of the deprecated features have been removed in this release, we will try to
 bring the latest R package back to CRAN.
 
 - Implement Booster reset. (:pr:`11357`)
