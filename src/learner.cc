@@ -1344,8 +1344,6 @@ class LearnerImpl : public LearnerIO {
   PredictionContainer output_predictions_;
 };
 
-constexpr int32_t LearnerImpl::kRandSeedMagic;
-
 Learner* Learner::Create(
     const std::vector<std::shared_ptr<DMatrix> >& cache_data) {
   return new LearnerImpl(cache_data);

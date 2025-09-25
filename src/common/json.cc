@@ -330,8 +330,6 @@ bool JsonBoolean::operator==(Value const& rhs) const {
 
 void JsonBoolean::Save(JsonWriter* writer) const { writer->Visit(this); }
 
-size_t constexpr JsonReader::kMaxNumLength;
-
 Json JsonReader::Parse() {
   while (true) {
     SkipSpaces();
