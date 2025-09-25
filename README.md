@@ -1,7 +1,6 @@
 <img src="https://xgboost.ai/images/logo/xgboost-logo-trimmed.png" width=200/> eXtreme Gradient Boosting
 ===========
 
-[![Build Status](https://badge.buildkite.com/aca47f40a32735c00a8550540c5eeff6a4c1d246a580cae9b0.svg?branch=master)](https://buildkite.com/xgboost/xgboost-ci)
 [![XGBoost-CI](https://github.com/dmlc/xgboost/workflows/XGBoost%20CI/badge.svg?branch=master)](https://github.com/dmlc/xgboost/actions)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
 [![GitHub license](https://dmlc.github.io/img/apache2.svg)](./LICENSE)
