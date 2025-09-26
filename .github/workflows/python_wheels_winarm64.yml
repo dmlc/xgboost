@@ -59,6 +59,9 @@ jobs:
             --s3-bucket xgboost-nightly-builds `
             --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public `
             $wheelFile
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
       - name: Clean up
         run: |
@@ -82,7 +85,6 @@ jobs:
             --s3-bucket xgboost-nightly-builds `
             --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public `
             $wheelFile
-
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
