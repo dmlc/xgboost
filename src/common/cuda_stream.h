@@ -4,9 +4,11 @@
 #pragma once
 #include <cuda_runtime.h>
 
-#include <memory>  // for unique_ptr
+#include <memory>   // for unique_ptr
+#include <utility>  // for swap
 
 #include "common.h"
+
 namespace xgboost::curt {
 class StreamView;
 

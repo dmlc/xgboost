@@ -786,7 +786,7 @@ inline auto CachingThrustPolicy() {
 #if THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
   return thrust::cuda::par_nosync(alloc).on(::xgboost::curt::DefaultStream());
 #else
-  return thrust::cuda::par(alloc).on(DefaultStream());
+  return thrust::cuda::par(alloc).on(::xgboost::curt::DefaultStream());
 #endif  // THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
 }
 
