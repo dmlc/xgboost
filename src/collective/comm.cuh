@@ -30,7 +30,7 @@ class NCCLComm : public Comm {
   ncclComm_t nccl_comm_{nullptr};
   std::shared_ptr<NcclStub> stub_;
   ncclUniqueId nccl_unique_id_{};
-  curt::StreamView stream_;
+  curt::StreamRef stream_;
   std::string nccl_path_;
 
  public:
@@ -45,7 +45,7 @@ class NCCLComm : public Comm {
   }
   ~NCCLComm() override;
   [[nodiscard]] bool IsFederated() const override { return false; }
-  [[nodiscard]] curt::StreamView Stream() const { return stream_; }
+  [[nodiscard]] curt::StreamRef Stream() const { return stream_; }
   [[nodiscard]] Result Block() const override {
     auto rc = this->Stream().Sync(false);
     return GetCUDAResult(rc);
@@ -60,11 +60,11 @@ class NCCLChannel : public Channel {
   std::int32_t rank_{-1};
   ncclComm_t nccl_comm_{};
   std::shared_ptr<NcclStub> stub_;
-  curt::StreamView stream_;
+  curt::StreamRef stream_;
 
  public:
   explicit NCCLChannel(Comm const& comm, std::int32_t rank, ncclComm_t nccl_comm,
-                       std::shared_ptr<NcclStub> stub, curt::StreamView stream)
+                       std::shared_ptr<NcclStub> stub, curt::StreamRef stream)
       : rank_{rank},
         nccl_comm_{nccl_comm},
         stub_{std::move(stub)},

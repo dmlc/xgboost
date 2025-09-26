@@ -20,8 +20,8 @@ class StreamPool {
   StreamPool(StreamPool const& that) = delete;
   StreamPool& operator=(StreamPool const& that) = delete;
 
-  [[nodiscard]] curt::StreamView operator[](std::size_t i) const { return stream_[i].View(); }
-  [[nodiscard]] curt::StreamView Next() const { return stream_[(next_++) % stream_.size()].View(); }
+  [[nodiscard]] curt::StreamRef operator[](std::size_t i) const { return stream_[i].View(); }
+  [[nodiscard]] curt::StreamRef Next() const { return stream_[(next_++) % stream_.size()].View(); }
   [[nodiscard]] std::size_t Size() const { return stream_.size(); }
 };
 }  // namespace xgboost::curt

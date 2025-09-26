@@ -10,7 +10,7 @@
 #include "common.h"
 
 namespace xgboost::curt {
-class StreamView;
+class StreamRef;
 
 class Event {
   std::unique_ptr<cudaEvent_t, void (*)(cudaEvent_t *)> event_;
@@ -30,7 +30,7 @@ class Event {
                  }
                }} {}
 
-  inline void Record(StreamView stream);  // NOLINT
+  inline void Record(StreamRef stream);  // NOLINT
   // Define swap-based ctor to make sure an event is always valid.
   Event(Event &&e) : Event() { std::swap(this->event_, e.event_); }
   Event &operator=(Event &&e) {
@@ -43,11 +43,11 @@ class Event {
   void Sync() { dh::safe_cuda(cudaEventSynchronize(*this->data())); }
 };
 
-class StreamView {
+class StreamRef {
   cudaStream_t stream_{nullptr};
 
  public:
-  explicit StreamView(cudaStream_t s) : stream_{s} {}
+  explicit StreamRef(cudaStream_t s) : stream_{s} {}
   void Wait(Event const &e) {
 #if defined(__CUDACC_VER_MAJOR__)
 #if __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0
@@ -73,13 +73,13 @@ class StreamView {
   }
 };
 
-inline void Event::Record(StreamView stream) {  // NOLINT
+inline void Event::Record(StreamRef stream) {  // NOLINT
   dh::safe_cuda(cudaEventRecord(*event_, cudaStream_t{stream}));
 }
 
 // Changing this has effect on prediction return, where we need to pass the pointer to
 // third-party libraries like cuPy
-inline StreamView DefaultStream() { return StreamView{cudaStreamPerThread}; }
+inline StreamRef DefaultStream() { return StreamRef{cudaStreamPerThread}; }
 
 class Stream {
   cudaStream_t stream_;
@@ -88,7 +88,7 @@ class Stream {
   Stream() { dh::safe_cuda(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking)); }
   ~Stream() { dh::safe_cuda(cudaStreamDestroy(stream_)); }
 
-  [[nodiscard]] StreamView View() const { return StreamView{stream_}; }
+  [[nodiscard]] StreamRef View() const { return StreamRef{stream_}; }
   [[nodiscard]] cudaStream_t Handle() const { return stream_; }
 
   void Sync() { this->View().Sync(); }

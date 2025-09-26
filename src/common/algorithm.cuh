@@ -70,7 +70,7 @@ void DeviceSegmentedRadixSortPair(void *d_temp_storage,
                                   const ValueT *d_values_in, ValueT *d_values_out,
                                   std::size_t num_items, std::size_t num_segments,
                                   BeginOffsetIteratorT d_begin_offsets,
-                                  EndOffsetIteratorT d_end_offsets, curt::StreamView stream,
+                                  EndOffsetIteratorT d_end_offsets, curt::StreamRef stream,
                                   int begin_bit = 0, int end_bit = sizeof(KeyT) * 8) {
   cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
   cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(d_values_in), d_values_out);
@@ -338,7 +338,7 @@ void InclusiveSum(Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out
 }
 
 template <typename... Args>
-void RunLengthEncode(curt::StreamView stream, Args &&...args) {
+void RunLengthEncode(curt::StreamRef stream, Args &&...args) {
   std::size_t n_bytes = 0;
   dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(nullptr, n_bytes, args..., stream));
   dh::CachingDeviceUVector<char> tmp(n_bytes);
@@ -346,7 +346,7 @@ void RunLengthEncode(curt::StreamView stream, Args &&...args) {
 }
 
 template <typename... Args>
-void SegmentedSum(curt::StreamView stream, Args &&...args) {
+void SegmentedSum(curt::StreamRef stream, Args &&...args) {
   std::size_t n_bytes = 0;
   dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, args..., stream));
   dh::CachingDeviceUVector<char> tmp(n_bytes);

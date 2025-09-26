@@ -77,7 +77,7 @@ XGBOOST_DEVICE std::uint32_t GetUncompressedSize(std::uint8_t const* src, std::s
 void FillDecompParams(void const* const* d_in_chunk_ptrs, std::size_t const* d_in_chunk_nbytes,
                       common::Span<CUmemDecompressParams> de_params, size_t* d_act_nbytes,
                       std::size_t const* d_out_chunk_nbytes, std::int32_t* statuses,
-                      curt::StreamView stream) {
+                      curt::StreamRef stream) {
   auto n_chunks = de_params.size();
   dh::LaunchN(n_chunks, stream,
               [d_in_chunk_ptrs, d_in_chunk_nbytes, d_out_chunk_nbytes, d_act_nbytes, de_params,
@@ -156,7 +156,7 @@ void SafeNvComp(nvcompStatus_t status) {
   return de;
 }
 
-SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(curt::StreamView s,
+SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(curt::StreamRef s,
                                            std::shared_ptr<HostPinnedMemPool> pool,
                                            CuMemParams params,
                                            common::Span<std::uint8_t const> in_compressed_data)
@@ -254,7 +254,7 @@ SnappyDecomprMgr::~SnappyDecomprMgr() = default;
 
 SnappyDecomprMgrImpl* SnappyDecomprMgr::Impl() const { return this->pimpl_.get(); }
 
-void DecompressSnappy(curt::StreamView stream, SnappyDecomprMgr const& mgr,
+void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
                       common::Span<common::CompressedByteT> out, bool allow_fallback) {
   xgboost_NVTX_FN_RANGE();
   auto mgr_impl = mgr.Impl();
@@ -410,7 +410,7 @@ void DecompressSnappy(curt::StreamView stream, SnappyDecomprMgr const& mgr,
 }
 
 [[nodiscard]] common::RefResourceView<std::uint8_t> CoalesceCompressedBuffersToHost(
-    curt::StreamView stream, std::shared_ptr<HostPinnedMemPool> pool,
+    curt::StreamRef stream, std::shared_ptr<HostPinnedMemPool> pool,
     CuMemParams const& in_params, dh::DeviceUVector<std::uint8_t> const& in_buf,
     CuMemParams* p_out) {
   std::size_t n_total_act_bytes = in_params.TotalSrcActBytes();

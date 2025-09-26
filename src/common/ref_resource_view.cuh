@@ -54,7 +54,7 @@ template <typename T>
 template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithPinnedMemPool(
     std::shared_ptr<cuda_impl::HostPinnedMemPool> pool, std::size_t n_elements,
-    curt::StreamView stream) {
+    curt::StreamRef stream) {
   auto resource = std::make_shared<common::HostPinnedMemPoolResource>(
       std::move(pool), n_elements * sizeof(T), stream);
   auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};

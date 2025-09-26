@@ -85,12 +85,12 @@ class CudaPinnedResource : public ResourceHandler {
 class HostPinnedMemPoolResource : public ResourceHandler {
   std::shared_ptr<cuda_impl::HostPinnedMemPool> pool_;
   std::size_t n_bytes_;
-  curt::StreamView stream_;
+  curt::StreamRef stream_;
   void* ptr_;
 
  public:
   explicit HostPinnedMemPoolResource(std::shared_ptr<cuda_impl::HostPinnedMemPool> pool,
-                                     std::size_t n_bytes, curt::StreamView stream)
+                                     std::size_t n_bytes, curt::StreamRef stream)
       : ResourceHandler{kCudaPinnedMemPool},
         pool_{std::move(pool)},
         n_bytes_{n_bytes},

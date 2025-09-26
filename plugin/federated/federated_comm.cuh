@@ -12,7 +12,7 @@
 
 namespace xgboost::collective {
 class CUDAFederatedComm : public FederatedComm {
-  curt::StreamView stream_;
+  curt::StreamRef stream_;
 
  public:
   explicit CUDAFederatedComm(Context const* ctx, std::shared_ptr<FederatedComm const> impl);

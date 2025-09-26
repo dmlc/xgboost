@@ -723,7 +723,7 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
 
 template <class Src, class Dst>
 void CopyTo(Src const &src, Dst *dst,
-            ::xgboost::curt::StreamView stream = ::xgboost::curt::DefaultStream()) {
+            ::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {
   if (src.empty()) {
     dst->clear();
     return;

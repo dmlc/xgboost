@@ -27,7 +27,7 @@ void ArrayInterfaceHandler::SyncCudaStream(std::int64_t stream) {
       // default per-thread stream
     default: {
       curt::Event e;
-      e.Record(curt::StreamView{reinterpret_cast<cudaStream_t>(stream)});
+      e.Record(curt::StreamRef{reinterpret_cast<cudaStream_t>(stream)});
       curt::DefaultStream().Wait(e);
     }
   }
