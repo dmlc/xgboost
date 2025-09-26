@@ -9,7 +9,7 @@
 #include "compressed_iterator.h"    // for CompressedByteT
 #include "cuda_dr_utils.h"          // for CUDA_HW_DECOM_AVAILABLE
 #include "cuda_pinned_allocator.h"  // for HostPinnedMemPool
-#include "cuda_stream.h"            // for StreamView
+#include "cuda_stream.h"            // for StreamRef
 #include "device_compression.h"     // for CuMemParams
 #include "device_vector.cuh"        // for DeviceUVector
 #include "ref_resource_view.h"      // for RefResourceView
@@ -114,7 +114,7 @@ struct SnappyDecomprMgrImpl {
   return mgr;
 }
 #else
-[[nodiscard]] inline auto MakeSnappyDecomprMgr(curt::StreamView,
+[[nodiscard]] inline auto MakeSnappyDecomprMgr(curt::StreamRef,
                                                std::shared_ptr<HostPinnedMemPool>, CuMemParams,
                                                common::Span<std::uint8_t const>) {
   SnappyDecomprMgr mgr;

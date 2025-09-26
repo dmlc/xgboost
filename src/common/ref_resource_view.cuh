@@ -7,7 +7,7 @@
 #include <memory>   // for make_shared
 
 #include "cuda_context.cuh"     // for CUDAContext
-#include "cuda_stream.h"        // for StreamView
+#include "cuda_stream.h"        // for StreamRef
 #include "ref_resource_view.h"  // for RefResourceView
 #include "resource.cuh"         // for CudaAllocResource
 #include "xgboost/context.h"    // for Context

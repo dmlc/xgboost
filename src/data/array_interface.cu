@@ -3,7 +3,7 @@
  */
 #include <cstdint>  // for int64_t
 
-#include "../common/cuda_stream.h"  // for Event, StreamView, DefaultStream
+#include "../common/cuda_stream.h"  // for Event, StreamRef, DefaultStream
 #include "array_interface.h"
 #include "xgboost/logging.h"
 

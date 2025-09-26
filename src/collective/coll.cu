@@ -13,7 +13,7 @@
 #include <type_traits>  // for invoke_result_t, is_same_v, enable_if_t
 #include <utility>      // for move
 
-#include "../common/cuda_stream.h"       // for StreamView, Event
+#include "../common/cuda_stream.h"       // for StreamRef, Event
 #include "../common/device_helpers.cuh"  // for device_vector
 #include "../common/threadpool.h"        // for ThreadPool
 #include "../common/utils.h"             // for MakeCleanup

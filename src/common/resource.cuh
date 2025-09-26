@@ -7,7 +7,7 @@
 #include <utility>     // for move
 
 #include "cuda_pinned_allocator.h"  // for SamAllocator, HostPinnedMemPool
-#include "cuda_stream.h"            // for StreamView
+#include "cuda_stream.h"            // for StreamRef
 #include "device_vector.cuh"        // for DeviceUVector, GrowOnlyVirtualMemVec
 #include "io.h"                     // for ResourceHandler, MMAPFile
 #include "xgboost/string_view.h"    // for StringView

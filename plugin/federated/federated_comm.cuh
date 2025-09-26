@@ -6,7 +6,7 @@
 #include <memory>  // for shared_ptr
 
 #include "../../src/collective/coll.h"          // for Coll
-#include "../../src/common/cuda_stream.h"       // for StreamView
+#include "../../src/common/cuda_stream.h"       // for StreamRef
 #include "federated_comm.h"                     // for FederatedComm
 #include "xgboost/context.h"                    // for Context
 

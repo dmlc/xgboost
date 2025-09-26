@@ -11,7 +11,7 @@
 #include <memory>   // for shared_ptr
 
 #include "device_compression.cuh"
-#include "cuda_stream.h"        // for StreamView
+#include "cuda_stream.h"        // for StreamRef
 #include "device_helpers.cuh"  // for MemcpyBatchAsync
 #include "xgboost/span.h"      // for Span
 
@@ -463,7 +463,7 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
 
 namespace xgboost::dc {
 // Impl
-SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(curt::StreamView,
+SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(curt::StreamRef,
                                            std::shared_ptr<common::cuda_impl::HostPinnedMemPool>,
                                            CuMemParams,
                                            common::Span<common::CompressedByteT const>) {}
@@ -479,7 +479,7 @@ SnappyDecomprMgrImpl* SnappyDecomprMgr::Impl() const { return nullptr; }
 [[nodiscard]] std::size_t SnappyDecomprMgr::DecompressedBytes() const { return 0; }
 
 // Round-trip compression
-void DecompressSnappy(curt::StreamView, SnappyDecomprMgr const&,
+void DecompressSnappy(curt::StreamRef, SnappyDecomprMgr const&,
                       common::Span<common::CompressedByteT>, bool) {
   common::AssertNvCompSupport();
 }
@@ -495,7 +495,7 @@ void DecompressSnappy(curt::StreamView, SnappyDecomprMgr const&,
 }
 
 [[nodiscard]] common::RefResourceView<std::uint8_t> CoalesceCompressedBuffersToHost(
-    curt::StreamView, std::shared_ptr<HostPinnedMemPool>, CuMemParams const& in_params,
+    curt::StreamRef, std::shared_ptr<HostPinnedMemPool>, CuMemParams const& in_params,
     dh::DeviceUVector<std::uint8_t> const&, CuMemParams*) {
   std::size_t n_total_bytes = in_params.TotalSrcBytes();
   if (n_total_bytes == 0) {

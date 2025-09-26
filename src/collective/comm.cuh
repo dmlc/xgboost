@@ -9,7 +9,7 @@
 
 #include <utility>  // for move
 
-#include "../common/cuda_stream.h"  // for StreamView
+#include "../common/cuda_stream.h"  // for StreamRef
 #include "coll.h"
 #include "comm.h"
 #include "nccl_stub.h"  // for NcclStub

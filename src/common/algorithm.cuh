@@ -18,7 +18,7 @@
 
 #include "common.h"            // safe_cuda
 #include "cuda_context.cuh"    // CUDAContext
-#include "cuda_stream.h"       // for StreamView
+#include "cuda_stream.h"       // for StreamRef
 #include "device_helpers.cuh"  // TemporaryArray,SegmentId,LaunchN,Iota
 #include "device_vector.cuh"   // for device_vector
 #include "xgboost/base.h"      // XGBOOST_DEVICE
