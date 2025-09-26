@@ -109,36 +109,22 @@ def make_python_sdist(
     dist_dir = outdir / "dist"
     dist_dir.mkdir(exist_ok=True)
 
-    # Build sdist for `xgboost-cpu`.
-    with DirectoryExcursion(ROOT):
-        make_pyproject(use_suffix="cpu", require_nccl_dep="na")
-    with DirectoryExcursion(ROOT / "python-package"):
-        subprocess.run(["python", "-m", "build", "--sdist"], check=True)
-        sdist_name = (
-            f"xgboost_cpu-{release}{rc}{rc_ver}.tar.gz"
-            if rc
-            else f"xgboost_cpu-{release}.tar.gz"
-        )
-        src = DIST / sdist_name
-        subprocess.run(["twine", "check", str(src)], check=True)
-        dest = dist_dir / sdist_name
-        shutil.move(src, dest)
-
-    # Build sdist for `xgboost`.
-    with DirectoryExcursion(ROOT):
-        make_pyproject(use_suffix="na", require_nccl_dep="cu12")
-
-    with DirectoryExcursion(ROOT / "python-package"):
-        subprocess.run(["python", "-m", "build", "--sdist"], check=True)
-        sdist_name = (
-            f"xgboost-{release}{rc}{rc_ver}.tar.gz"
-            if rc
-            else f"xgboost-{release}.tar.gz"
-        )
-        src = DIST / sdist_name
-        subprocess.run(["twine", "check", str(src)], check=True)
-        dest = dist_dir / sdist_name
-        shutil.move(src, dest)
+    # Build sdist for `xgboost-cpu`, `xgboost`.
+    for suffix, nccl_dep in [("cpu", "na"), ("na", "na")]:
+        with DirectoryExcursion(ROOT):
+            make_pyproject(use_suffix=suffix, require_nccl_dep=nccl_dep)
+        with DirectoryExcursion(ROOT / "python-package"):
+            subprocess.run(["python", "-m", "build", "--sdist"], check=True)
+            pkg_name = "xgboost" if suffix == "na" else f"xgboost_{suffix}"
+            sdist_name = (
+                f"{pkg_name}-{release}{rc}{rc_ver}.tar.gz"
+                if rc
+                else f"{pkg_name}-{release}.tar.gz"
+            )
+            src = DIST / sdist_name
+            subprocess.run(["twine", "check", str(src)], check=True)
+            dest = dist_dir / sdist_name
+            shutil.move(src, dest)
 
     # Build stub package `xgboost-cu12`.
     with DirectoryExcursion(ROOT):
@@ -166,6 +152,9 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
         "macosx_10_15_x86_64",
         "macosx_12_0_arm64",
     ]
+    cu13_platforms = [
+        "manylinux_2_28_x86_64",
+    ]
     minimal_platforms = [
         "win_amd64",
         "win_arm64",
@@ -179,6 +168,7 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
     for pkg_name, platforms in [
         ("xgboost", full_platforms),
         ("xgboost_cpu", minimal_platforms),
+        ("xgboost_cu13", cu13_platforms),
     ]:
         src_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
         target_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
