@@ -53,7 +53,7 @@ TEST(HostPinnedMemPool, Alloc) {
     // pool goes out of scope before refs does. Test memory safety.
     auto pool = std::make_shared<cuda_impl::HostPinnedMemPool>();
     for (std::size_t i = 0; i < 4; ++i) {
-      auto ref = MakeFixedVecWithPinnedMemPool<double>(pool, 128 + i, dh::DefaultStream());
+      auto ref = MakeFixedVecWithPinnedMemPool<double>(pool, 128 + i, curt::DefaultStream());
       refs.emplace_back(std::move(ref));
     }
     for (std::size_t i = 0; i < 4; ++i) {
@@ -69,7 +69,7 @@ TEST(HostPinnedMemPool, Alloc) {
     std::vector<std::future<RefResourceView<double>>> alloc_futs;
     for (std::int32_t i = 0, n = n_threads * 4; i < n; ++i) {
       auto fut = workers.Submit([i, pool] {
-        auto ref = MakeFixedVecWithPinnedMemPool<double>(pool, 128 + i, dh::DefaultStream());
+        auto ref = MakeFixedVecWithPinnedMemPool<double>(pool, 128 + i, curt::DefaultStream());
         return ref;
       });
       alloc_futs.emplace_back(std::move(fut));

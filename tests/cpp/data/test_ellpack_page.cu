@@ -7,6 +7,7 @@
 
 #include "../../../src/common/categorical.h"          // for AsCat
 #include "../../../src/common/compressed_iterator.h"  // for CompressedByteT
+#include "../../../src/common/cuda_stream.h"          // for DefaultStream
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/device_adapter.cuh"  // for CupyAdapter
 #include "../../../src/data/ellpack_page.cuh"
@@ -364,7 +365,7 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
                         false,      d_row_counts,    {},
                         n_features, n_samples,       cuts};
     this->CheckBasic(&ctx, batch, null_column, impl);
-    dh::DefaultStream().Sync();
+    curt::DefaultStream().Sync();
   }
 
   void CheckFromToGHist(std::size_t null_column) {

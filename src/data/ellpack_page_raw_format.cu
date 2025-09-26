@@ -7,6 +7,7 @@
 #include <vector>   // for vector
 
 #include "../common/cuda_rt_utils.h"
+#include "../common/cuda_stream.h"          // for Event
 #include "../common/io.h"                   // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
 #include "../common/ref_resource_view.h"    // for ReadVec, WriteVec
@@ -40,7 +41,8 @@ template <typename T>
   }
 
   *vec = common::MakeFixedVecWithCudaMalloc<T>(n);
-  dh::safe_cuda(cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, dh::DefaultStream()));
+  dh::safe_cuda(
+      cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, curt::DefaultStream()));
   return true;
 }
 }  // namespace
@@ -71,7 +73,7 @@ template <typename T>
 
   impl->SetCuts(this->cuts_);
 
-  dh::DefaultStream().Sync();
+  curt::DefaultStream().Sync();
   return true;
 }
 
@@ -92,7 +94,7 @@ template <typename T>
   bytes += fo->Write(impl->base_rowid);
   bytes += fo->Write(impl->NumSymbols());
 
-  dh::DefaultStream().Sync();
+  curt::DefaultStream().Sync();
   return bytes;
 }
 
@@ -110,7 +112,7 @@ template <typename T>
   };
 
   if (ConsoleLogger::GlobalVerbosity() == ConsoleLogger::LogVerbosity::kDebug) {
-    dh::CUDAEvent start{false}, stop{false};
+    curt::Event start{false}, stop{false};
     float milliseconds = 0;
     start.Record(ctx.CUDACtx()->Stream());
 
@@ -126,7 +128,7 @@ template <typename T>
     dispatch();
   }
 
-  dh::DefaultStream().Sync();
+  curt::DefaultStream().Sync();
 
   return true;
 }
@@ -136,7 +138,7 @@ template <typename T>
   xgboost_NVTX_FN_RANGE_C(3, 252, 198);
 
   bool new_page = fo->Write(page);
-  dh::DefaultStream().Sync();
+  curt::DefaultStream().Sync();
 
   if (new_page) {
     auto cache = fo->Share();
