@@ -59,6 +59,10 @@ jobs:
             --s3-bucket xgboost-nightly-builds `
             --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public `
             $wheelFile
+
+      - name: Clean up
+        run: |
+          $wheelFile = Get-ChildItem python-package/wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
           Remove-Item -Path $wheelFile -Verbose
           
       - name: Build Python wheel xgboost-cpu for Win-ARM64
