@@ -2,23 +2,15 @@
 Categorical Data
 ################
 
-.. note::
+Since version 1.5, XGBoost has support for categorical data.  For numerical data, the
+split condition is defined as :math:`value < threshold`, while for categorical data the
+split is defined depending on whether partitioning or onehot encoding is used. For
+partition-based splits, the splits are specified as :math:`value \in categories`, where
+``categories`` is the set of categories in one feature.  If onehot encoding is used
+instead, then the split is defined as :math:`value == category`. More advanced categorical
+split strategy is planned for future releases and this tutorial details how to inform
+XGBoost about the data type.
 
-   As of XGBoost 1.6, the feature is experimental and has limited features. Only the
-   Python package is fully supported.
-
-.. versionadded:: 3.0
-
-   Support for the R package using ``factor``.
-
-Starting from version 1.5, the XGBoost Python package has experimental support for
-categorical data available for public testing. For numerical data, the split condition is
-defined as :math:`value < threshold`, while for categorical data the split is defined
-depending on whether partitioning or onehot encoding is used. For partition-based splits,
-the splits are specified as :math:`value \in categories`, where ``categories`` is the set
-of categories in one feature.  If onehot encoding is used instead, then the split is
-defined as :math:`value == category`. More advanced categorical split strategy is planned
-for future releases and this tutorial details how to inform XGBoost about the data type.
 
 ************************************
 Training with scikit-learn Interface
@@ -69,6 +61,9 @@ for a worked example of using categorical data with ``scikit-learn`` interface w
 one-hot encoding.  A comparison between using one-hot encoded data and XGBoost's
 categorical data support can be found :ref:`sphx_glr_python_examples_cat_in_the_dat.py`.
 
+.. versionadded:: 3.0
+
+   Support for the R package using ``factor``.
 
 ********************
 Optimal Partitioning

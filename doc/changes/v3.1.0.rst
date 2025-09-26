@@ -1,0 +1,163 @@
+###################
+3.1.0 (2025 Sep 22)
+###################
+
+We are delighted to share the latest 3.1.0 update for XGBoost.
+
+********************
+Categorical Re-coder
+********************
+
+This release features a major update to categorical data support by introducing a
+re-coder. This re-coder saves categories in the trained model and re-codes the data during
+inference, to keep the categorical encoding consistent. Aside from primitive types like
+integers, it also supports string-based categories. The implementation works with all
+supported Python DataFrame implementations. (:pr:`11609`, :pr:`11665`, :pr:`11605`,
+:pr:`11628`, :pr:`11598`, :pr:`11591`, :pr:`11568`, :pr:`11561`, :pr:`11650`, :pr:`11621`,
+:pr:`11611`, :pr:`11313`, :pr:`11311`, :pr:`11310`, :pr:`11315`, :pr:`11303`, :pr:`11612`,
+:pr:`11098`, :pr:`11347`) See :ref:`cat-recode` for more information. (:pr:`11297`)
+
+In addition, categorical support for Polars data frames is now available (:pr:`11565`).
+
+Lastly, we removed the experimental tag for categorical feature support in this
+release. (:pr:`11690`)
+
+***************
+External Memory
+***************
+
+We continue the work on external memory support on 3.1. In this release, XGBoost features
+an adaptive cache for CUDA external memory. The improved cache can split the data between
+CPU memory and GPU memory according to the underlying hardware and data
+size. (:pr:`11556`, :pr:`11465`, :pr:`11664`, :pr:`11594`, :pr:`11469`, :pr:`11547`,
+:pr:`11339`, :pr:`11477`, :pr:`11453`, :pr:`11446`, :pr:`11458`, :pr:`11426`, :pr:`11566`,
+:pr:`11497`)
+
+Also, there's an optional support (opt-in) for using ``nvcomp`` and the GB200
+decompression engine to handle sparse data (requires nvcomp as a plugin) (:pr:`11451`,
+:pr:`11464`, :pr:`11460`, :pr:`11512`, :pr:`11520`). We improved the memory usage of
+quantile sketching with external memory (:pr:`11641`) and optimized the predictor for
+training (:pr:`11548`). To help ensure the training performance, the latest XGBoost
+features detection for NUMA (Non-Uniform Memory Access) node (:pr:`11538`, :pr:`11576`) for checking cross-socket data
+access. We are working on additional tooling to enhance NUMA node performance. Aside from
+features, we have also added various documentation improvements. (:pr:`11412`,
+:pr:`11631`)
+
+Lastly, external memory support with text file input has been removed
+(:pr:`11562`). Moving forward, we will focus on iterator inputs.
+
+
+****************************
+Multi-Target/Class Intercept
+****************************
+
+Starting with 3.1, the base-score (intercept) is estimated and stored as a vector when the
+model has multiple outputs, be it multi-target regression or multi-class
+classification. This change enhances the initial estimation for multi-output models and
+will be the starting point for future work on vector-leaf. (:pr:`11277`, :pr:`11651`,
+:pr:`11625`, :pr:`11649`, :pr:`11630`, :pr:`11647`, :pr:`11656`, :pr:`11663`)
+
+********
+Features
+********
+
+- Support leaf prediction with QDM on CPU. (:pr:`11620`)
+- Improve seed with mean sampling for the first iteration. (:pr:`11639`)
+- Optionally include git hash in CMake build. (:pr:`11587`)
+
+****************************
+Removing Deprecated Features
+****************************
+
+This version removes some deprecated features, notably, the binary IO format, along with
+features deprecated in 2.0.
+
+- Binary serialization format has been removed in 3.1. The format has been formally
+  deprecated in `1.6 <https://github.com/dmlc/xgboost/issues/7547>`__. (:pr:`11307`,
+  :pr:`11553`, :pr:`11552`, :pr:`11602`)
+
+- Removed old GPU-related parameters including ``use_gpu`` (pyspark), ``gpu_id``,
+  ``gpu_hist``, and ``gpu_coord_descent``. These parameters have been deprecated in
+  2.0. Use the ``device`` parameter instead. (:pr:`11395`, :pr:`11554`, :pr:`11549`,
+  :pr:`11543`, :pr:`11539`, :pr:`11402`)
+
+- Remove deprecated C functions: ``XGDMatrixCreateFromCSREx``,
+  ``XGDMatrixCreateFromCSCEx``. (:pr:`11514`, :pr:`11513`)
+
+- XGBoost starts emit warning for text inputs. (:pr:`11590`)
+
+
+*************
+Optimizations
+*************
+
+- Optimize CPU inference with Array-Based Tree Traversal (:pr:`11519`)
+- Specialize for GPU dense histogram. (:pr:`11443`)
+- [sycl] Improve L1 cache locality for histogram building. (:pr:`11555`)
+- [sycl] Reduce predictor memory consumption and improve L2 locality (:pr:`11603`)
+
+*****
+Fixes
+*****
+
+- Fix static linking C++ libraries on macOS (:pr:`11522`)
+- Rename param.hh/cc to hist_param.hh/cc to fix xcode build (:pr:`11378`)
+- [sycl] Fix build with updated compiler (:pr:`11618`)
+- [sycl] Various fixes for fp32-only devices. (:pr:`11527`, :pr:`11524`)
+- Fix compilation on android older than API 26 (:pr:`11366`)
+- Fix loading Gamma model from 1.3. (:pr:`11377`)
+
+**************
+Python Package
+**************
+
+- Support mixing Python metrics and built-in metrics for the skl interface. (:pr:`11536`)
+- CUDA 13 Support for PyPI with the new ``xgboost-cu13`` package. (:pr:`11677`, :pr:`11662`)
+- Remove wheels for manylinux2014. (:pr:`11673`)
+- Initial support for building variant wheels (:pr:`11531`, :pr:`11645`, :pr:`11294`)
+- Minimum PySpark version is now set to 3.4 (:pr:`11364`). In addition, the PySpark
+  interface now checks the validation indicator column type and has a fix for None column
+  input. (:pr:`11535`, :pr:`11523`)
+- [dask] Small cleanup for the predict function. (:pr:`11423`)
+
+*********
+R Package
+*********
+
+Now that most of the deprecated features have been removed in this release, we will try to
+bring the latest R package back to CRAN.
+
+- Implement Booster reset. (:pr:`11357`)
+- Improvements for documentation, including having code examples in XGBoost's sphinx
+  documentation side, and notes for R-universe release. (:pr:`11369`, :pr:`11410`,
+  :pr:`11685`, :pr:`11316`)
+
+************
+JVM Packages
+************
+
+- Support columnar inputs for cpu pipeline (:pr:`11352`)
+- Rewrite the `LabeledPoint` as a Java class (:pr:`11545`)
+- Various fixes and document updates. (:pr:`11525`, :pr:`11508`, :pr:`11489`, :pr:`11682`)
+
+*********
+Documents
+*********
+
+Changes for general documentation:
+
+- Update notes about GPU memory usage. (:pr:`11375`)
+- Various fixes and updates. (:pr:`11503`, :pr:`11532`, :pr:`11328`, :pr:`11344`, :pr:`11626`)
+
+
+******************
+CI and Maintenance
+******************
+
+- Code cleanups. (:pr:`11367`, :pr:`11342`, :pr:`11658`, :pr:`11528`, :pr:`11585`,
+  :pr:`11672`, :pr:`11642`, :pr:`11667`, :pr:`11495`, :pr:`11567`)
+- Various cleanup and fixes for tests. (:pr:`11405`, :pr:`11389`, :pr:`11396`, :pr:`11456`)
+- Support CMake 4.0 (:pr:`11382`)
+- Various CI updates and fixes (:pr:`11318`, :pr:`11349`, :pr:`11653`, :pr:`11637`,
+  :pr:`11683`, :pr:`11638`, :pr:`11644`, :pr:`11306`, :pr:`11560`, :pr:`11323`, :pr:`11617`,
+  :pr:`11341`, :pr:`11693`)
