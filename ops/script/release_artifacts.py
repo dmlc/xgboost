@@ -109,8 +109,8 @@ def make_python_sdist(
     dist_dir = outdir / "dist"
     dist_dir.mkdir(exist_ok=True)
 
-    # Build sdist for `xgboost-cpu`, `xgboost-cu13`, `xgboost`.
-    for suffix, nccl_dep in [("cpu", "na"), ("cu13", "cu13"), ("na", "cu12")]:
+    # Build sdist for `xgboost-cpu`, `xgboost`.
+    for suffix, nccl_dep in [("cpu", "na"), ("na", "na")]:
         with DirectoryExcursion(ROOT):
             make_pyproject(use_suffix=suffix, require_nccl_dep=nccl_dep)
         with DirectoryExcursion(ROOT / "python-package"):
