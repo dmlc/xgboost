@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #include <thrust/fill.h>
 
@@ -7,6 +7,7 @@
 #include <cstddef>  // for size_t
 #include <cstdint>
 
+#include "cuda_stream.h"  // for DefaultStream
 #include "device_helpers.cuh"
 #include "device_vector.cuh"  // for DeviceUVector
 #include "xgboost/data.h"
@@ -92,7 +93,7 @@ class HostDeviceVectorImpl {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       auto s_data = dh::ToSpan(*data_d_);
-      dh::LaunchN(data_d_->size(), dh::DefaultStream(),
+      dh::LaunchN(data_d_->size(), curt::DefaultStream(),
                   [=] XGBOOST_DEVICE(size_t i) { s_data[i] = v; });
     }
   }
@@ -141,7 +142,7 @@ class HostDeviceVectorImpl {
       CHECK_EQ(this->Device(), other->Device());
       dh::safe_cuda(cudaMemcpyAsync(this->DevicePointer() + ori_size, ptr,
                                     other->Size() * sizeof(T), cudaMemcpyDeviceToDevice,
-                                    dh::DefaultStream()));
+                                    curt::DefaultStream()));
     }
   }
 
@@ -215,7 +216,7 @@ class HostDeviceVectorImpl {
     LazyResizeDevice(data_h_.size());
     SetDevice();
     dh::safe_cuda(cudaMemcpyAsync(data_d_->data(), data_h_.data(), data_d_->size() * sizeof(T),
-                                  cudaMemcpyHostToDevice, dh::DefaultStream()));
+                                  cudaMemcpyHostToDevice, curt::DefaultStream()));
     gpu_access_ = access;
   }
 
@@ -242,7 +243,7 @@ class HostDeviceVectorImpl {
       SetDevice();
       dh::safe_cuda(cudaMemcpyAsync(data_d_->data(), other->data_d_->data(),
                                     data_d_->size() * sizeof(T), cudaMemcpyDefault,
-                                    dh::DefaultStream()));
+                                    curt::DefaultStream()));
     }
   }
 
@@ -251,7 +252,7 @@ class HostDeviceVectorImpl {
     gpu_access_ = GPUAccess::kWrite;
     SetDevice();
     dh::safe_cuda(cudaMemcpyAsync(data_d_->data(), begin, data_d_->size() * sizeof(T),
-                                  cudaMemcpyDefault, dh::DefaultStream()));
+                                  cudaMemcpyDefault, curt::DefaultStream()));
   }
 
   void LazyResizeDevice(size_t new_size) {

@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <algorithm>  // for sort
@@ -113,7 +113,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
 
   for (std::int32_t r = 0; r < root.World(); ++r) {
     this->channels_.emplace_back(
-        std::make_shared<NCCLChannel>(root, r, nccl_comm_, stub_, dh::DefaultStream()));
+        std::make_shared<NCCLChannel>(root, r, nccl_comm_, stub_, curt::DefaultStream()));
   }
 }
 

@@ -11,9 +11,10 @@
 #include "../common/common.h"                // for HumanMemUnit, safe_cuda
 #include "../common/cuda_dr_utils.h"         // for CUDA_HW_DECOM_AVAILABLE
 #include "../common/cuda_rt_utils.h"         // for SetDevice, GetDrVersionGlobal
-#include "../common/cuda_stream_pool.cuh"    // for StreamPool
+#include "../common/cuda_stream.h"           // for StreamRef, DefaultStream, Event
+#include "../common/cuda_stream_pool.h"      // for StreamPool
 #include "../common/device_compression.cuh"  // for CompressSnappy, MakeSnappyDecomprMgr
-#include "../common/device_helpers.cuh"      // for CUDAStreamView, DefaultStream
+#include "../common/device_helpers.cuh"      // for CurrentDevice
 #include "../common/numa_topo.h"             // for NumaMemCanCross, GetNumaMemBind
 #include "../common/ref_resource_view.cuh"   // for MakeFixedVecWithCudaMalloc
 #include "../common/resource.cuh"            // for PrivateCudaMmapConstStream
@@ -334,7 +335,7 @@ class EllpackHostCacheStreamImpl {
         auto out = out_impl->gidx_buffer.ToSpan().subspan(h_page->gidx_buffer.size_bytes(),
                                                           c_page->first.DecompressedBytes());
         dc::DecompressSnappy(stream, c_page->first, out, this->cache_->allow_decomp_fallback);
-        dh::CUDAEvent e;
+        curt::Event e;
         e.Record(stream);
         ctx->CUDACtx()->Stream().Wait(e);
       }

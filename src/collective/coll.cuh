@@ -1,21 +1,21 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #pragma once
 
 #include <cstdint>  // for int8_t, int64_t
 
-#include "../common/device_helpers.cuh"  // for CUDAStream
-#include "../common/threadpool.h"        // for ThreadPool
-#include "../data/array_interface.h"     // for ArrayInterfaceHandler
-#include "coll.h"                        // for Coll
-#include "comm.h"                        // for Comm
-#include "xgboost/span.h"                // for Span
+#include "../common/cuda_stream.h"    // for Stream
+#include "../common/threadpool.h"     // for ThreadPool
+#include "../data/array_interface.h"  // for ArrayInterfaceHandler
+#include "coll.h"                     // for Coll
+#include "comm.h"                     // for Comm
+#include "xgboost/span.h"             // for Span
 
 namespace xgboost::collective {
 class NCCLColl : public Coll {
   common::ThreadPool pool_;
-  dh::CUDAStream stream_;
+  curt::Stream stream_;
 
  public:
   NCCLColl();

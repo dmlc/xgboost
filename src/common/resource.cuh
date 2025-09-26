@@ -7,7 +7,7 @@
 #include <utility>     // for move
 
 #include "cuda_pinned_allocator.h"  // for SamAllocator, HostPinnedMemPool
-#include "device_helpers.cuh"       // for CUDAStreamView
+#include "cuda_stream.h"            // for StreamRef
 #include "device_vector.cuh"        // for DeviceUVector, GrowOnlyVirtualMemVec
 #include "io.h"                     // for ResourceHandler, MMAPFile
 #include "xgboost/string_view.h"    // for StringView
@@ -85,12 +85,12 @@ class CudaPinnedResource : public ResourceHandler {
 class HostPinnedMemPoolResource : public ResourceHandler {
   std::shared_ptr<cuda_impl::HostPinnedMemPool> pool_;
   std::size_t n_bytes_;
-  dh::CUDAStreamView stream_;
+  curt::StreamRef stream_;
   void* ptr_;
 
  public:
   explicit HostPinnedMemPoolResource(std::shared_ptr<cuda_impl::HostPinnedMemPool> pool,
-                                     std::size_t n_bytes, dh::CUDAStreamView stream)
+                                     std::size_t n_bytes, curt::StreamRef stream)
       : ResourceHandler{kCudaPinnedMemPool},
         pool_{std::move(pool)},
         n_bytes_{n_bytes},
