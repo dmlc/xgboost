@@ -7,7 +7,8 @@
 #include <vector>
 
 #include "../../../src/common/cuda_pinned_allocator.h"
-#include "../../../src/common/cuda_stream.h"  // for DefaultStream
+#include "../../../src/common/cuda_stream.h"       // for DefaultStream
+#include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/numeric.h"      // for Iota
 
 namespace xgboost {
