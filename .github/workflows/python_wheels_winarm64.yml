@@ -59,14 +59,13 @@ jobs:
             --s3-bucket xgboost-nightly-builds `
             --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public `
             $wheelFile
-          Remove-Item -Path $wheelFile
+          Remove-Item -Path $wheelFile -Verbose
           
       - name: Build Python wheel xgboost-cpu for Win-ARM64
         run: |
           # Patch to rename pkg to xgboost-cpu
           python ops/script/pypi_variants.py --use-suffix=cpu --require-nccl-dep=na
           cd python-package
-          mkdir -p wheelhouse
           pip wheel --no-deps -v . --wheel-dir wheelhouse/
           $wheelFile = Get-ChildItem wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
           python -m wheel tags --python-tag py3 --abi-tag none --platform win_arm64 --remove $wheelFile
