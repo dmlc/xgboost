@@ -267,7 +267,7 @@ void ParallelFor1d(Index size, std::int32_t n_threads, Func&& fn) {
   static_assert(std::is_void_v<std::invoke_result_t<Func, common::Range1d>>);
   auto const n_blocks = DivRoundUp(size, kBlockOfRowsSize);
   common::ParallelFor(n_blocks, n_threads, [&](auto block_id) {
-    auto const block_beg = block_id * kBlockOfRowsSize;
+    std::size_t const block_beg = block_id * kBlockOfRowsSize;
     auto const block_size = std::min(static_cast<std::size_t>(size - block_beg), kBlockOfRowsSize);
     fn(common::Range1d{block_beg, block_beg + block_size});
   });

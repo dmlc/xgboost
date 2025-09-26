@@ -1579,7 +1579,9 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle, const void *buf,
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(buf);
-  auto buffer = common::Span<char const>{static_cast<char const *>(buf), len};
+  using CharT = std::add_const_t<char>;
+  using IdxType = common::Span<CharT>::index_type;
+  auto buffer = common::Span{static_cast<CharT *>(buf), static_cast<IdxType>(len)};
   // Don't warn, we have to guess the format with buffer input.
   auto in = DispatchModelType(buffer, "", false);
   common::MemoryFixSizeBuffer fs((void *)buf, len);  // NOLINT(*)

@@ -253,7 +253,9 @@ if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
 endif()
 
-find_package(Threads REQUIRED)
+if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Emscripten"))
+  find_package(Threads REQUIRED)
+endif()
 
 # -- OpenMP
 include(cmake/FindOpenMPMacOS.cmake)
