@@ -15,7 +15,7 @@ authors = [
     { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
     { name = "Jiaming Yuan", email = "jm.yuan@outlook.com" }
 ]
-version = "3.1.0-dev"
+version = "3.2.0-dev"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 classifiers = [
@@ -45,7 +45,7 @@ pandas = ["pandas>=1.2"]
 scikit-learn = ["scikit-learn"]
 dask = ["dask", "pandas", "distributed"]
 plotting = ["graphviz", "matplotlib"]
-pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
+pyspark = ["pyspark>=3.4", "scikit-learn", "cloudpickle"]
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 
