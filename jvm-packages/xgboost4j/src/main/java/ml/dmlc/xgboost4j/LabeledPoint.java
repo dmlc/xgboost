@@ -45,8 +45,6 @@ public final class LabeledPoint implements Serializable {
       float label, int size, int[] indices, float[] values, float weight,
       int group, float baseMargin
   ) {
-    assert (indices == null || indices.length == values.length):
-      "indices and values must have the same number of elements";
     assert (indices == null || size >= indices.length):
       "feature dimensionality must be greater equal than size of indices";
     this.label = label;
