@@ -61,6 +61,8 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue* qu,
   BinIdxType* sort_data = reinterpret_cast<BinIdxType*>(sort_buff.Data());
 
   for (auto &batch : dmat->GetBatches<SparsePage>()) {
+    batch.data.SetDevice(ctx->Device());
+    batch.offset.SetDevice(ctx->Device());
     const xgboost::Entry *data_ptr = batch.data.ConstDevicePointer();
     const bst_idx_t *offset_vec = batch.offset.ConstDevicePointer();
     size_t batch_size = batch.Size();
