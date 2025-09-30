@@ -7,8 +7,9 @@
 #include <vector>
 
 #include "../../../src/common/cuda_pinned_allocator.h"
-#include "../../../src/common/device_helpers.cuh"  // for DefaultStream
-#include "../../../src/common/numeric.h"           // for Iota
+#include "../../../src/common/cuda_stream.h"       // for DefaultStream
+#include "../../../src/common/device_helpers.cuh"
+#include "../../../src/common/numeric.h"      // for Iota
 
 namespace xgboost {
 TEST(CudaHostMalloc, Pinned) {
@@ -33,12 +34,12 @@ TEST(CudaHostMalloc, Managed) {
   loc.type = cudaMemLocationTypeDevice;
   loc.id = 0;
   dh::safe_cuda(
-      cudaMemPrefetchAsync(vec.data(), vec.size() * sizeof(float), loc, 0, dh::DefaultStream()));
+      cudaMemPrefetchAsync(vec.data(), vec.size() * sizeof(float), loc, 0, curt::DefaultStream()));
 #else
   dh::safe_cuda(
-      cudaMemPrefetchAsync(vec.data(), vec.size() * sizeof(float), 0, dh::DefaultStream()));
+      cudaMemPrefetchAsync(vec.data(), vec.size() * sizeof(float), 0, curt::DefaultStream()));
 #endif  // (CUDA_VERSION / 1000) >= 13
 #endif
-  dh::DefaultStream().Sync();
+  curt::DefaultStream().Sync();
 }
 }  // namespace xgboost

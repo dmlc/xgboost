@@ -7,7 +7,7 @@
 #include <cstdint>  // for int32_t
 #include <set>      // for set
 
-#include "../../../src/common/cuda_stream_pool.cuh"
+#include "../../../src/common/cuda_stream_pool.h"
 
 namespace xgboost::curt {
 TEST(RtUtils, StreamPool) {

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
@@ -23,7 +23,7 @@ TEST(ArrayInterface, Stream) {
   HostDeviceVector<float> storage;
   auto arr_str = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
 
-  dh::CUDAStream stream;
+  curt::Stream stream;
 
   auto j_arr = Json::Load(StringView{arr_str});
   j_arr["stream"] = Integer(reinterpret_cast<int64_t>(stream.Handle()));
