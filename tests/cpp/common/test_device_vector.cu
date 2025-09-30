@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thread>  // for thread
@@ -24,6 +24,18 @@ TEST(DeviceUVector, Basic) {
   auto n_bytes = sizeof(decltype(uvec)::value_type) * uvec.size();
   ASSERT_EQ(peak, n_bytes);
   std::swap(verbosity, xgboost::GlobalConfigThreadLocalStore::Get()->verbosity);
+
+  DeviceUVector<double> uvec1{16};
+  ASSERT_EQ(uvec1.size(), 16);
+  uvec1.resize(3);
+  ASSERT_EQ(uvec1.size(), 3);
+  ASSERT_EQ(uvec1.Capacity(), 16);
+  uvec1.resize(32);
+  ASSERT_EQ(uvec1.size(), 32);
+  ASSERT_EQ(uvec1.Capacity(), 32);
+  uvec1.clear();
+  ASSERT_EQ(uvec1.size(), 0);
+  ASSERT_EQ(uvec1.Capacity(), 32);
 }
 
 #if defined(__linux__)
