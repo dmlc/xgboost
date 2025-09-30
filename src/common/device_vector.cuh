@@ -486,31 +486,31 @@ class DeviceUVectorImpl {
       return;
     }
     CHECK_LE(this->size(), this->Capacity());
+    auto s = ::xgboost::curt::DefaultStream();
 
-    decltype(data_) new_ptr{
-        [&]() {
+    decltype(data_) new_ptr{[n, this, s]() {
 #if defined(XGBOOST_USE_RMM)
-          auto n_bytes = SizeBytes<T>(n);
-          auto p = this->mr_.allocate_async(n_bytes, rmm::cuda_stream_per_thread);
-          return static_cast<T *>(p);
+                              auto n_bytes = SizeBytes<T>(n);
+                              auto p = this->mr_.allocate_async(n_bytes, rmm::cuda_stream_view{s});
+                              return static_cast<T *>(p);
 #else
-          auto p = Alloc{}.allocate(n);
-          return thrust::raw_pointer_cast(p);
+                              auto p = Alloc{}.allocate(n);
+                              return thrust::raw_pointer_cast(p);
 #endif
-        }(),
-        [&](T *ptr) {
-          if (ptr) {
+                            }(),
+                            [n, this, s](T *ptr) {
+                              if (ptr) {
 #if defined(XGBOOST_USE_RMM)
-            auto n_bytes = SizeBytes<T>(this->Capacity());
-            this->mr_.deallocate_async(ptr, n_bytes, rmm::cuda_stream_per_thread);
+                                auto n_bytes = SizeBytes<T>(n);
+                                this->mr_.deallocate_async(ptr, n_bytes, rmm::cuda_stream_view{s});
 #else
-            Alloc{}.deallocate(thrust::device_pointer_cast(ptr), this->Capacity());
+                                Alloc{}.deallocate(thrust::device_pointer_cast(ptr), n);
 #endif
-          }
-        }};
+                              }
+                            }};
     CHECK(new_ptr.get());
     safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), SizeBytes<T>(this->size()),
-                              cudaMemcpyDefault, ::xgboost::curt::DefaultStream()));
+                              cudaMemcpyDefault, s));
     this->size_ = n;
     this->capacity_ = n;
 
