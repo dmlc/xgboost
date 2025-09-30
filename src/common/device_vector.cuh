@@ -450,7 +450,7 @@ class DeviceUVectorImpl {
  private:
 #if defined(XGBOOST_USE_RMM)
   rmm::device_async_resource_ref mr_{GlobalLoggingResource()};
-  // #else
+#else
   using Alloc =
       std::conditional_t<is_caching, dh::XGBCachingDeviceAllocator<T>, dh::XGBDeviceAllocator<T>>;
 #endif
@@ -509,7 +509,7 @@ class DeviceUVectorImpl {
         }};
     CHECK(new_ptr.get());
     safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), SizeBytes<T>(this->size()),
-                              cudaMemcpyDefault, rmm::cuda_stream_per_thread.value()));
+                              cudaMemcpyDefault, ::xgboost::curt::DefaultStream()));
     this->size_ = n;
     this->capacity_ = n;
 
