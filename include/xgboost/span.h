@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2024, XGBoost contributors
+ * Copyright 2018-2025, XGBoost contributors
  * \brief span class based on ISO++20 span
  *
  * About NOLINTs in this file:

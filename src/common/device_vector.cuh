@@ -492,10 +492,11 @@ class DeviceUVectorImpl {
 #if defined(XGBOOST_USE_RMM)
           auto n_bytes = SizeBytes<T>(n);
           auto p = this->mr_.allocate_async(n_bytes, rmm::cuda_stream_per_thread);
+          return static_cast<T *>(p);
 #else
           auto p = Alloc{}.allocate(n);
+          return thrust::raw_pointer_cast(p);
 #endif
-          return static_cast<T *>(p);
         }(),
         [&](T *ptr) {
           if (ptr) {
@@ -503,7 +504,7 @@ class DeviceUVectorImpl {
             auto n_bytes = SizeBytes<T>(this->Capacity());
             this->mr_.deallocate_async(ptr, n_bytes, rmm::cuda_stream_per_thread);
 #else
-            Alloc{}.deallocate(this->ptr_, this->Capacity());
+            Alloc{}.deallocate(thrust::device_pointer_cast(ptr), this->Capacity());
 #endif
           }
         }};
