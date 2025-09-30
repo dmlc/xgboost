@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022-2023 by XGBoost Contributors
+/**
+ * Copyright 2022-2025, XGBoost Contributors
  *
  * \brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
@@ -8,6 +8,7 @@
 #include <thrust/sort.h>     // thrust::stable_sort
 
 #include "../../common/cuda_context.cuh"  // for CUDAContext
+#include "../../common/cuda_stream.h"     // for DefaultStream
 #include "../../common/device_helpers.cuh"
 #include "../../common/hist_util.h"  // common::HistogramCuts
 #include "evaluate_splits.cuh"
@@ -70,7 +71,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
   dh::XGBCachingDeviceAllocator<char> alloc;
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
-  dh::Iota(sorted_idx, dh::DefaultStream());
+  dh::Iota(sorted_idx, curt::DefaultStream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
   auto it = thrust::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);

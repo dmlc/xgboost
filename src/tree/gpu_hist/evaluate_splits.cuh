@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
@@ -7,6 +7,7 @@
 
 #include "../../common/categorical.h"
 #include "../../common/cuda_pinned_allocator.h"
+#include "../../common/cuda_stream.h"  // for Stream
 #include "../split_evaluator.h"
 #include "../updater_gpu_common.cuh"  // for DeviceSplitCandidate
 #include "expand_entry.cuh"
@@ -65,7 +66,7 @@ class GPUHistEvaluator {
   // host storage for categories for each node, used for sort based splits.
   std::vector<CatST, Alloc> h_split_cats_;
   // stream for copying categories from device back to host for expanding the decision tree.
-  dh::CUDAStream copy_stream_;
+  curt::Stream copy_stream_;
   // storage for sorted index of feature histogram, used for sort based splits.
   dh::device_vector<bst_feature_t> cat_sorted_idx_;
   // cached input for sorting the histogram, used for sort based splits.

@@ -13,7 +13,8 @@
 #include <type_traits>  // for invoke_result_t, is_same_v, enable_if_t
 #include <utility>      // for move
 
-#include "../common/device_helpers.cuh"  // for CUDAStreamView, CUDAEvent, device_vector
+#include "../common/cuda_stream.h"       // for StreamRef, Event
+#include "../common/device_helpers.cuh"  // for device_vector
 #include "../common/threadpool.h"        // for ThreadPool
 #include "../common/utils.h"             // for MakeCleanup
 #include "../data/array_interface.h"     // for ArrayInterfaceHandler
@@ -87,16 +88,16 @@ struct Chan {
 };
 }  // namespace
 
-template <typename Fn, typename R = std::invoke_result_t<Fn, dh::CUDAStreamView>>
+template <typename Fn, typename R = std::invoke_result_t<Fn, curt::StreamRef>>
 [[nodiscard]] std::enable_if_t<std::is_same_v<R, Result>, Result> AsyncLaunch(
     common::ThreadPool* pool, NCCLComm const* nccl, std::shared_ptr<NcclStub> stub,
-    dh::CUDAStreamView stream, Fn&& fn) {
-  dh::CUDAEvent e0;
+    curt::StreamRef stream, Fn&& fn) {
+  curt::Event e0;
   e0.Record(nccl->Stream());
   stream.Wait(e0);
 
   auto cleanup = common::MakeCleanup([&] {
-    dh::CUDAEvent e1;
+    curt::Event e1;
     e1.Record(stream);
     nccl->Stream().Wait(e1);
   });
@@ -180,7 +181,7 @@ bool IsBitwiseOp(Op const& op) {
 }
 
 template <typename Func>
-void RunBitwiseAllreduce(dh::CUDAStreamView stream, common::Span<std::int8_t> out_buffer,
+void RunBitwiseAllreduce(curt::StreamRef stream, common::Span<std::int8_t> out_buffer,
                          std::int8_t const* device_buffer, Func func, std::int32_t world_size,
                          std::size_t size) {
   dh::LaunchN(size, stream, [=] __device__(std::size_t idx) {
@@ -194,13 +195,13 @@ void RunBitwiseAllreduce(dh::CUDAStreamView stream, common::Span<std::int8_t> ou
 
 [[nodiscard]] Result BitwiseAllReduce(common::ThreadPool* pool, NCCLComm const* pcomm,
                                       common::Span<std::int8_t> data, Op op,
-                                      dh::CUDAStreamView stream) {
+                                      curt::StreamRef stream) {
   dh::device_vector<std::int8_t> buffer(data.size() * pcomm->World());
   auto* device_buffer = buffer.data().get();
   auto stub = pcomm->Stub();
 
   // First gather data from all the workers.
-  auto rc = AsyncLaunch(pool, pcomm, stub, stream, [&](dh::CUDAStreamView s) {
+  auto rc = AsyncLaunch(pool, pcomm, stub, stream, [&](curt::StreamRef s) {
     return stub->Allgather(data.data(), device_buffer, data.size(), ncclInt8, pcomm->Handle(), s);
   });
   if (!rc.OK()) {
@@ -263,7 +264,7 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
         using T = decltype(t);
         auto rdata = common::RestoreType<T>(data);
         return AsyncLaunch(
-            &this->pool_, nccl, stub, this->stream_.View(), [&](dh::CUDAStreamView s) {
+            &this->pool_, nccl, stub, this->stream_.View(), [&](curt::StreamRef s) {
               return stub->Allreduce(data.data(), data.data(), rdata.size(), GetNCCLType(type),
                                      GetNCCLRedOp(op), nccl->Handle(), s);
             });
@@ -285,7 +286,7 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
   return Success() << [&] {
     return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(),
-                       [data, nccl, root, stub](dh::CUDAStreamView s) {
+                       [data, nccl, root, stub](curt::StreamRef s) {
                          return stub->Broadcast(data.data(), data.data(), data.size_bytes(),
                                                 ncclInt8, root, nccl->Handle(), s);
                        });
@@ -306,7 +307,7 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   auto send = data.subspan(comm.Rank() * size, size);
   return Success() << [&] {
     return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(),
-                       [send, data, size, nccl, stub](dh::CUDAStreamView s) {
+                       [send, data, size, nccl, stub](curt::StreamRef s) {
                          return stub->Allgather(send.data(), data.data(), size, ncclInt8,
                                                 nccl->Handle(), s);
                        });
@@ -321,7 +322,7 @@ namespace cuda_impl {
  *
  * https://arxiv.org/abs/1812.05964
  */
-Result BroadcastAllgatherV(NCCLComm const* comm, dh::CUDAStreamView s,
+Result BroadcastAllgatherV(NCCLComm const* comm, curt::StreamRef s,
                            common::Span<std::int8_t const> data,
                            common::Span<std::int64_t const> sizes, common::Span<std::int8_t> recv) {
   auto stub = comm->Stub();
@@ -379,7 +380,7 @@ Result BroadcastAllgatherV(NCCLComm const* comm, dh::CUDAStreamView s,
       };
     }
     case AllgatherVAlgo::kBcast: {
-      return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(), [&](dh::CUDAStreamView s) {
+      return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(), [&](curt::StreamRef s) {
         return cuda_impl::BroadcastAllgatherV(nccl, s, data, sizes, recv);
       });
     }

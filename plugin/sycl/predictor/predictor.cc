@@ -206,7 +206,9 @@ class Predictor : public xgboost::Predictor {
       xgboost::Predictor::Predictor{context},
       cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)),
       qu_(device_manager.GetQueue(context->Device())),
-      device_prop_(qu_->get_device()) {}
+      device_prop_(qu_->get_device()) {
+        device_model.SetDevice(context->Device());
+      }
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
                     const gbm::GBTreeModel &model, bst_tree_t tree_begin,

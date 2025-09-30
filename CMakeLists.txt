@@ -4,7 +4,7 @@ if(PLUGIN_SYCL)
   string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-project(xgboost LANGUAGES CXX C VERSION 3.1.0)
+project(xgboost LANGUAGES CXX C VERSION 3.2.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 
@@ -253,7 +253,9 @@ if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
 endif()
 
-find_package(Threads REQUIRED)
+if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Emscripten"))
+  find_package(Threads REQUIRED)
+endif()
 
 # -- OpenMP
 include(cmake/FindOpenMPMacOS.cmake)
