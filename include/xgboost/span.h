@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2024, XGBoost contributors
+ * Copyright 2018-2025, XGBoost contributors
  * \brief span class based on ISO++20 span
  *
  * About NOLINTs in this file:
@@ -358,6 +358,11 @@ XGBOOST_DEVICE bool LexicographicalCompare(InputIt1 first1, InputIt1 last1,
 
 }  // namespace detail
 
+template <typename T>
+XGBOOST_DEVICE std::enable_if_t<!std::is_reference_v<T> && !std::is_pointer_v<T>, std::size_t>
+SizeBytes(std::size_t n) {
+  return n * sizeof(T);
+}
 
 /*!
  * \brief span class implementation, based on ISO++20 span<T>. The interface
@@ -556,7 +561,7 @@ class Span {
     return size_;
   }
   XGBOOST_DEVICE constexpr index_type size_bytes() const __span_noexcept {  // NOLINT
-    return size() * sizeof(T);
+    return SizeBytes<T>(size());
   }
 
   XGBOOST_DEVICE constexpr bool empty() const __span_noexcept {  // NOLINT

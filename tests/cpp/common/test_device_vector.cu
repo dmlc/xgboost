@@ -1,17 +1,18 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <thread>  // for thread
+#include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
+#include <thrust/sequence.h>                    // for sequence
 
-#include <numeric>                     // for iota
-#include <thrust/detail/sequence.inl>  // for sequence
+#include <numeric>  // for iota
+#include <thread>   // for thread
 
 #include "../../../src/common/cuda_rt_utils.h"     // for DrVersion
 #include "../../../src/common/device_helpers.cuh"  // for CachingThrustPolicy, PinnedMemory
 #include "../../../src/common/device_vector.cuh"
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
-#include "xgboost/windefs.h"  // for xgboost_IS_WIN
+#include "xgboost/windefs.h"        // for xgboost_IS_WIN
 
 namespace dh {
 TEST(DeviceUVector, Basic) {
@@ -24,6 +25,26 @@ TEST(DeviceUVector, Basic) {
   auto n_bytes = sizeof(decltype(uvec)::value_type) * uvec.size();
   ASSERT_EQ(peak, n_bytes);
   std::swap(verbosity, xgboost::GlobalConfigThreadLocalStore::Get()->verbosity);
+
+  DeviceUVector<double> uvec1{16};
+  ASSERT_EQ(uvec1.size(), 16);
+  uvec1.resize(3);
+  ASSERT_EQ(uvec1.size(), 3);
+  ASSERT_EQ(uvec1.Capacity(), 16);
+  ASSERT_EQ(std::distance(uvec1.begin(), uvec1.end()), uvec1.size());
+  auto orig = uvec1.size();
+
+  thrust::sequence(dh::CachingThrustPolicy(), uvec1.begin(), uvec1.end(), 0);
+  uvec1.resize(32);
+  ASSERT_EQ(uvec1.size(), 32);
+  ASSERT_EQ(uvec1.Capacity(), 32);
+  auto eq = thrust::equal(dh::CachingThrustPolicy(), uvec1.cbegin(), uvec1.cbegin() + orig,
+                          thrust::make_counting_iterator(0));
+  ASSERT_TRUE(eq);
+
+  uvec1.clear();
+  ASSERT_EQ(uvec1.size(), 0);
+  ASSERT_EQ(uvec1.Capacity(), 32);
 }
 
 #if defined(__linux__)
