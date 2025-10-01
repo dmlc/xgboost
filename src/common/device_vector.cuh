@@ -512,11 +512,10 @@ class DeviceUVectorImpl {
     CHECK_LE(this->size(), this->Capacity());
     auto s = ::xgboost::curt::DefaultStream();
 
-    decltype(data_) new_ptr{[n, this, s]() {
+    decltype(data_) new_ptr{[n, this, s = cuda::stream_ref{s}]() {
 #if defined(XGBOOST_USE_RMM)
                               auto n_bytes = SizeBytes<T>(n);
-                              auto p = this->mr_.allocate_async(n_bytes, std::alignment_of_v<T>,
-                                                                cuda::stream_ref{s});
+                              auto p = this->mr_.allocate_async(n_bytes, std::alignment_of_v<T>, s);
                               return static_cast<T *>(p);
 #else
                               auto p = Alloc{}.allocate(n);
