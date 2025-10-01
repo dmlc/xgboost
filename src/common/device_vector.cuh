@@ -6,9 +6,9 @@
 #include <thrust/device_ptr.h>               // for device_ptr
 #include <thrust/device_vector.h>            // for device_vector
 
-#include <cuda/memory_resource>  // for async_resource_ref
-
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#include <cuda/memory_resource>                      // for async_resource_ref
+#include <cuda/stream_ref>                           // for stream_ref
 #include <rmm/mr/device/device_memory_resource.hpp>  // for device_memory_resource
 #include <rmm/mr/device/per_device_resource.hpp>     // for get_current_device_resource
 
@@ -512,10 +512,11 @@ class DeviceUVectorImpl {
     CHECK_LE(this->size(), this->Capacity());
     auto s = ::xgboost::curt::DefaultStream();
 
-    decltype(data_) new_ptr{[n, this, s = cuda::stream_ref{s}]() {
+    decltype(data_) new_ptr{[n, this, s]() {
 #if defined(XGBOOST_USE_RMM)
                               auto n_bytes = SizeBytes<T>(n);
-                              auto p = this->mr_.allocate_async(n_bytes, std::alignment_of_v<T>, s);
+                              auto p = this->mr_.allocate_async(n_bytes, std::alignment_of_v<T>,
+                                                                cuda::stream_ref{s});
                               return static_cast<T *>(p);
 #else
                               auto p = Alloc{}.allocate(n);
