@@ -452,9 +452,11 @@ class DeviceUVectorImpl {
     }
     CHECK_LE(this->size(), this->Capacity());
 
-    decltype(data_) new_ptr{thrust::raw_pointer_cast(this->alloc_.allocate(n)), [n, this](T *ptr) {
+    Alloc alloc = this->alloc_;
+    decltype(data_) new_ptr{thrust::raw_pointer_cast(this->alloc_.allocate(n)),
+                            [=](T *ptr) mutable {
                               if (ptr) {
-                                this->alloc_.deallocate(thrust::device_pointer_cast(ptr), n);
+                                alloc.deallocate(thrust::device_pointer_cast(ptr), n);
                               }
                             }};
     CHECK(new_ptr.get());
