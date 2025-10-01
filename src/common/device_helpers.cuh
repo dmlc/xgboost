@@ -16,6 +16,7 @@
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
+#include <cuda/std/iterator>  // for iterator_traits
 #include <variant>            // for variant, visit
 #include <vector>             // for vector
 
@@ -616,7 +617,7 @@ size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy
                        KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
                        ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
                        CompValue comp, CompKey comp_key = thrust::equal_to<size_t>{}) {
-  using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
+  using Key = thrust::pair<size_t, typename cuda::std::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
       [=] __device__(size_t i) {
@@ -662,16 +663,13 @@ size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy
  * \tparam val_out            output iterator for values
  * \tparam comp               binary comparison operator
  */
-template <typename DerivedPolicy, typename SegInIt, typename SegOutIt,
-          typename KeyInIt, typename ValInIt, typename ValOutIt, typename Comp>
-size_t SegmentedUniqueByKey(
-    const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
-    SegInIt key_segments_first, SegInIt key_segments_last, KeyInIt key_first,
-    KeyInIt key_last, ValInIt val_first, SegOutIt key_segments_out,
-    ValOutIt val_out, Comp comp) {
-  using Key =
-      thrust::pair<size_t,
-                   typename thrust::iterator_traits<KeyInIt>::value_type>;
+template <typename DerivedPolicy, typename SegInIt, typename SegOutIt, typename KeyInIt,
+          typename ValInIt, typename ValOutIt, typename Comp>
+size_t SegmentedUniqueByKey(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                            SegInIt key_segments_first, SegInIt key_segments_last,
+                            KeyInIt key_first, KeyInIt key_last, ValInIt val_first,
+                            SegOutIt key_segments_out, ValOutIt val_out, Comp comp) {
+  using Key = thrust::pair<size_t, typename cuda::std::iterator_traits<KeyInIt>::value_type>;
 
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
