@@ -274,9 +274,9 @@ class ThrustAllocMrAdapter : public thrust::device_malloc_allocator<T> {
   pointer allocate(size_type n) {  // NOLINT(readability-identifier-naming)
     auto mr = rmm::mr::get_current_device_resource();
     auto n_bytes = xgboost::common::SizeBytes<T>(n);
-    auto s = ::xgboost::curt::DefaultStream();
-    return thrust::device_pointer_cast(
-        static_cast<T *>(mr->allocate_async(n_bytes, cuda::stream_ref{s})));
+    auto s = cuda::stream_ref{::xgboost::curt::DefaultStream()};
+    auto p = static_cast<T *>(mr->allocate_async(n_bytes, std::alignment_of_v<T>, s));
+    return thrust::device_pointer_cast(p);
   }
   void deallocate(pointer ptr, size_type n) {  // NOLINT(readability-identifier-naming)
     auto mr = rmm::mr::get_current_device_resource();
