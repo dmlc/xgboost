@@ -49,12 +49,12 @@ private[scala] object Utils {
      * This is needed for constructing a [[ml.dmlc.xgboost4j.scala.DMatrix]]
      * for prediction.
      */
-    // TODO support sparsevector
+    // TODO more elaborate SparseVector support
     def asXGB: XGBLabeledPoint = v match {
       case v: DenseVector =>
         new XGBLabeledPoint(0.0f, v.size, null, v.values.map(_.toFloat))
       case v: SparseVector =>
-        new XGBLabeledPoint(0.0f, v.size, v.indices, v.toDense.values.map(_.toFloat))
+        new XGBLabeledPoint(0.0f, v.size, v.indices, v.values.map(_.toFloat))
     }
   }
 
