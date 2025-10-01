@@ -7,19 +7,10 @@
 #include <thrust/device_vector.h>            // for device_vector
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include <rmm/mr/device/device_memory_resource.hpp>    // for device_memory_resource
-#include <rmm/mr/device/per_device_resource.hpp>       // for get_current_device_resource
-#include <rmm/mr/device/thrust_allocator_adaptor.hpp>  // for thrust_allocator
-#include <rmm/version_config.hpp>                      // for RMM_VERSION_MAJOR
+#include <rmm/mr/device/device_memory_resource.hpp>  // for device_memory_resource
+#include <rmm/mr/device/per_device_resource.hpp>     // for get_current_device_resource
 
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
-
-#if !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
-
-#error "Please use RMM version 0.18 or later"
-#elif RMM_VERSION_MAJOR == 0 && RMM_VERSION_MINOR < 18
-#error "Please use RMM version 0.18 or later"
-#endif  // !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
 
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
@@ -264,8 +255,39 @@ inline detail::MemoryLogger &GlobalMemoryLogger() {
 
 namespace detail {
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+/**
+ * @brief Similar to `rmm::mr::thrust_allocator`.
+ */
 template <typename T>
-using XGBBaseDeviceAllocator = rmm::mr::thrust_allocator<T>;
+class ThrustAllocMrAdapter : public thrust::device_malloc_allocator<T> {
+ public:
+  using Super = thrust::device_malloc_allocator<T>;
+  using pointer = typename Super::pointer;      // NOLINT(readability-identifier-naming)
+  using size_type = typename Super::size_type;  // NOLINT(readability-identifier-naming)
+
+  template <typename U>
+  struct rebind {                           // NOLINT(readability-identifier-naming)
+    using other = ThrustAllocMrAdapter<U>;  // NOLINT(readability-identifier-naming)
+  };
+
+  ThrustAllocMrAdapter() = default;
+  pointer allocate(size_type n) {  // NOLINT(readability-identifier-naming)
+    auto mr = rmm::mr::get_current_device_resource();
+    auto n_bytes = xgboost::common::SizeBytes<T>(n);
+    auto s = ::xgboost::curt::DefaultStream();
+    return thrust::device_pointer_cast(
+        static_cast<T *>(mr->allocate_async(n_bytes, cuda::stream_ref{s})));
+  }
+  void deallocate(pointer ptr, size_type n) {  // NOLINT(readability-identifier-naming)
+    auto mr = rmm::mr::get_current_device_resource();
+    auto n_bytes = xgboost::common::SizeBytes<T>(n);
+    auto s = ::xgboost::curt::DefaultStream();
+    return mr->deallocate_async(thrust::raw_pointer_cast(ptr), n_bytes, cuda::stream_ref{s});
+  }
+};
+
+template <typename T>
+using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
 #else   // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 template <typename T>
 using XGBBaseDeviceAllocator = thrust::device_malloc_allocator<T>;
@@ -298,10 +320,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     GlobalMemoryLogger().RegisterDeallocation(n * sizeof(T));
     SuperT::deallocate(ptr, n);
   }
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  XGBDefaultDeviceAllocatorImpl()
-      : SuperT(rmm::cuda_stream_per_thread, rmm::mr::get_current_device_resource()) {}
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  XGBDefaultDeviceAllocatorImpl() : SuperT{} {}
 };
 
 /**
@@ -357,8 +376,7 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBCachingDeviceAllocatorImpl()
-      : SuperT(rmm::cuda_stream_per_thread, rmm::mr::get_current_device_resource()),
-        use_cub_allocator_(!xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm) {}
+      : SuperT{}, use_cub_allocator_(!xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm) {}
 #endif                                   // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBOOST_DEVICE void construct(T *) {}  // NOLINT
  private:
@@ -385,6 +403,7 @@ template <typename T>
 using device_vector = thrust::device_vector<T, XGBDeviceAllocator<T>>;  // NOLINT
 template <typename T>
 using caching_device_vector = thrust::device_vector<T, XGBCachingDeviceAllocator<T>>;  // NOLINT
+
 
 #if defined(XGBOOST_USE_RMM)
 /**
@@ -491,7 +510,7 @@ class DeviceUVectorImpl {
     decltype(data_) new_ptr{[n, this, s]() {
 #if defined(XGBOOST_USE_RMM)
                               auto n_bytes = SizeBytes<T>(n);
-                              auto p = this->mr_.allocate_async(n_bytes, rmm::cuda_stream_view{s});
+                              auto p = this->mr_.allocate_async(n_bytes, cuda::stream_ref{s});
                               return static_cast<T *>(p);
 #else
                               auto p = Alloc{}.allocate(n);
@@ -502,7 +521,7 @@ class DeviceUVectorImpl {
                               if (ptr) {
 #if defined(XGBOOST_USE_RMM)
                                 auto n_bytes = SizeBytes<T>(n);
-                                this->mr_.deallocate_async(ptr, n_bytes, rmm::cuda_stream_view{s});
+                                this->mr_.deallocate_async(ptr, n_bytes, cuda::stream_ref{s});
 #else
                                 Alloc{}.deallocate(thrust::device_pointer_cast(ptr), n);
 #endif

@@ -359,8 +359,7 @@ XGBOOST_DEVICE bool LexicographicalCompare(InputIt1 first1, InputIt1 last1,
 }  // namespace detail
 
 template <typename T>
-XGBOOST_DEVICE std::enable_if_t<!std::is_reference_v<T> && !std::is_pointer_v<T>, std::size_t>
-SizeBytes(std::size_t n) {
+XGBOOST_DEVICE std::enable_if_t<!std::is_reference_v<T>, std::size_t> SizeBytes(std::size_t n) {
   return n * sizeof(T);
 }
 
