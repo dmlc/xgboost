@@ -410,74 +410,15 @@ using device_vector = thrust::device_vector<T, XGBDeviceAllocator<T>>;  // NOLIN
 template <typename T>
 using caching_device_vector = thrust::device_vector<T, XGBCachingDeviceAllocator<T>>;  // NOLINT
 
-#if defined(XGBOOST_USE_RMM)
-/**
- * @brief Similar to `rmm::logging_resource_adaptor`, but uses XGBoost memory logger instead.
- */
-class LoggingResource : public rmm::mr::device_memory_resource {
-  rmm::mr::device_memory_resource *mr_{rmm::mr::get_current_device_resource()};
-
- public:
-  LoggingResource() = default;
-  ~LoggingResource() override = default;
-  LoggingResource(LoggingResource const &) = delete;
-  LoggingResource &operator=(LoggingResource const &) = delete;
-  LoggingResource(LoggingResource &&) noexcept = delete;
-  LoggingResource &operator=(LoggingResource &&) noexcept = delete;
-
-  [[nodiscard]] DeviceAsyncResourceRef get_upstream_resource() const noexcept {  // NOLINT
-    return mr_;
-  }
-  [[nodiscard]] rmm::mr::device_memory_resource *get_upstream() const noexcept {  // NOLINT
-    return mr_;
-  }
-
-  void *do_allocate(std::size_t bytes, rmm::cuda_stream_view stream) override {  // NOLINT
-    try {
-      auto const ptr = mr_->allocate(bytes, stream);
-      GlobalMemoryLogger().RegisterAllocation(bytes);
-      return ptr;
-    } catch (rmm::bad_alloc const &e) {
-      detail::ThrowOOMError(e.what(), bytes);
-    }
-    return nullptr;
-  }
-
-  void do_deallocate(void *ptr, std::size_t bytes,  // NOLINT
-                     rmm::cuda_stream_view stream) override {
-    mr_->deallocate(ptr, bytes, stream);
-    GlobalMemoryLogger().RegisterDeallocation(bytes);
-  }
-
-  [[nodiscard]] bool do_is_equal(  // NOLINT
-      device_memory_resource const &other) const noexcept override {
-    if (this == &other) {
-      return true;
-    }
-    auto const *cast = dynamic_cast<LoggingResource const *>(&other);
-    if (cast == nullptr) {
-      return mr_->is_equal(other);
-    }
-    return get_upstream_resource() == cast->get_upstream_resource();
-  }
-};
-
-LoggingResource *GlobalLoggingResource();
-
-#endif  // defined(XGBOOST_USE_RMM)
-
 /**
  * @brief Container class that doesn't initialize the data when RMM is used.
  */
 template <typename T, bool is_caching>
 class DeviceUVectorImpl {
  private:
-#if defined(XGBOOST_USE_RMM)
-  DeviceAsyncResourceRef mr_{GlobalLoggingResource()};
-#else
   using Alloc =
       std::conditional_t<is_caching, dh::XGBCachingDeviceAllocator<T>, dh::XGBDeviceAllocator<T>>;
-#endif
+  Alloc alloc_;
 
   std::size_t size_{0};
   std::size_t capacity_{0};
@@ -510,30 +451,15 @@ class DeviceUVectorImpl {
       return;
     }
     CHECK_LE(this->size(), this->Capacity());
-    auto s = ::xgboost::curt::DefaultStream();
 
-    decltype(data_) new_ptr{[n, this, s]() {
-#if defined(XGBOOST_USE_RMM)
-                              auto n_bytes = SizeBytes<T>(n);
-                              auto p = this->mr_.allocate_async(n_bytes, std::alignment_of_v<T>,
-                                                                cuda::stream_ref{s});
-                              return static_cast<T *>(p);
-#else
-                              auto p = Alloc{}.allocate(n);
-                              return thrust::raw_pointer_cast(p);
-#endif
-                            }(),
-                            [n, this, s](T *ptr) {
+    decltype(data_) new_ptr{thrust::raw_pointer_cast(this->alloc_.allocate(n)), [n, this](T *ptr) {
                               if (ptr) {
-#if defined(XGBOOST_USE_RMM)
-                                auto n_bytes = SizeBytes<T>(n);
-                                this->mr_.deallocate_async(ptr, n_bytes, cuda::stream_ref{s});
-#else
-                                Alloc{}.deallocate(thrust::device_pointer_cast(ptr), n);
-#endif
+                                this->alloc_.deallocate(thrust::device_pointer_cast(ptr), n);
                               }
                             }};
     CHECK(new_ptr.get());
+
+    auto s = ::xgboost::curt::DefaultStream();
     safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), SizeBytes<T>(this->size()),
                               cudaMemcpyDefault, s));
     this->size_ = n;

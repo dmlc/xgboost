@@ -96,13 +96,4 @@ GrowOnlyVirtualMemVec::GrowOnlyVirtualMemVec(CUmemLocationType type)
   return std::accumulate(it, it + this->va_ranges_.size(), static_cast<std::size_t>(0));
 }
 }  // namespace detail
-
-#if defined(XGBOOST_USE_RMM)
-LoggingResource *GlobalLoggingResource() {
-  static std::unique_ptr<LoggingResource> mr;
-  static std::once_flag flag;
-  std::call_once(flag, [&] { mr = std::make_unique<LoggingResource>(); });
-  return mr.get();
-}
-#endif  // defined(XGBOOST_USE_RMM)
 }  // namespace dh
