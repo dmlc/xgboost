@@ -25,7 +25,6 @@
 #include "xgboost/host_device_vector.h"
 
 namespace xgboost::common {
-constexpr float SketchContainer::kFactor;
 
 namespace detail {
 size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
