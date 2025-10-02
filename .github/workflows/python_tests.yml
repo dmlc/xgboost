@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, windows-latest, ubuntu-latest]
+        os: [macos-14-large, windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,13 +32,13 @@ jobs:
       - name: Install extra package for MacOS
         run: |
           mamba install -c conda-forge llvm-openmp
-        if: matrix.os == 'macos-14'
+        if: matrix.os == 'macos-14-large'
       - name: Build and install XGBoost
         run: bash ops/pipeline/test-python-sdist.sh
 
   python-tests-on-macos:
-    name: Test XGBoost Python package on macos-14
-    runs-on: macos-14
+    name: Test XGBoost Python package on macos-14-large
+    runs-on: macos-14-large
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
