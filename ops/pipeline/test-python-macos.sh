@@ -10,7 +10,7 @@ pushd build
 # Set prefix, to use OpenMP library from Conda env
 # See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025038228
 # to learn why we don't use libomp from Homebrew.
-cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
+cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
 ninja
 popd
 
