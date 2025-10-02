@@ -205,7 +205,7 @@ jobs:
           SCALA_VERSION: ${{ matrix.scala_version }}
 
   deploy-jvm-packages:
-    name: Deploy JVM packages to S3 (${{ matrix.variant.name }})
+    name: Deploy JVM packages to S3 (${{ matrix.variant.name }}, Scala ${{ matrix.scala_version }})
     needs: [build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
     runs-on:
       - runs-on
