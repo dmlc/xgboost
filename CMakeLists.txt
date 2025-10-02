@@ -207,6 +207,9 @@ endif()
 if(PLUGIN_DENSE_PARSER)
   message(SEND_ERROR "The option `PLUGIN_DENSE_PARSER` has been removed from XGBoost.")
 endif()
+if(BUILD_DEPRECATED_CLI)
+  message(SEND_ERROR  "The option `BUILD_DEPRECATED_CLI` is removed from XGBoost.")
+endif()
 
 #-- Sanitizer
 if(USE_SANITIZER)
@@ -384,28 +387,6 @@ target_include_directories(xgboost
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 #-- End shared library
 
-#-- CLI for xgboost
-if(BUILD_DEPRECATED_CLI)
-  add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
-  target_link_libraries(runxgboost PRIVATE objxgboost)
-  target_include_directories(runxgboost
-    PRIVATE
-    ${xgboost_SOURCE_DIR}/include
-    ${xgboost_SOURCE_DIR}/dmlc-core/include
-  )
-  set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
-  xgboost_target_properties(runxgboost)
-  xgboost_target_link_libraries(runxgboost)
-  xgboost_target_defs(runxgboost)
-
-  if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
-    set_output_directory(runxgboost ${xgboost_BINARY_DIR})
-  else()
-    set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
-  endif()
-endif()
-#-- End CLI for xgboost
-
 # Common setup for all targets
 foreach(target xgboost objxgboost dmlc)
   xgboost_target_properties(${target})
@@ -427,11 +408,6 @@ if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
   set_output_directory(xgboost ${xgboost_BINARY_DIR}/lib)
 else()
   set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
-endif()
-
-# Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
-if(BUILD_DEPRECATED_CLI)
-  add_dependencies(xgboost runxgboost)
 endif()
 
 #-- Installing XGBoost
@@ -468,17 +444,9 @@ install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
 #
 # https://github.com/dmlc/xgboost/issues/6085
 if(BUILD_STATIC_LIB)
-  if(BUILD_DEPRECATED_CLI)
-    set(INSTALL_TARGETS xgboost runxgboost objxgboost dmlc)
-  else()
-    set(INSTALL_TARGETS xgboost objxgboost dmlc)
-  endif()
+  set(INSTALL_TARGETS xgboost objxgboost dmlc)
 else()
-  if(BUILD_DEPRECATED_CLI)
-    set(INSTALL_TARGETS xgboost runxgboost)
-  else()
-    set(INSTALL_TARGETS xgboost)
-  endif()
+  set(INSTALL_TARGETS xgboost)
 endif()
 
 install(TARGETS ${INSTALL_TARGETS}
@@ -523,21 +491,6 @@ if(GOOGLE_TEST)
     NAME TestXGBoostLib
     COMMAND testxgboost
     WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-  # CLI tests
-  configure_file(
-    ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in
-    ${xgboost_BINARY_DIR}/tests/cli/machine.conf
-    @ONLY
-    NEWLINE_STYLE UNIX)
-  if(BUILD_DEPRECATED_CLI)
-    add_test(
-      NAME TestXGBoostCLI
-      COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
-      WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-    set_tests_properties(TestXGBoostCLI
-      PROPERTIES
-      PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
-  endif()
 endif()
 
 # Add xgboost.pc

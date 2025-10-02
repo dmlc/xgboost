@@ -29,12 +29,6 @@ jobs:
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/build-cpu.sh
-      - name: Stash CLI executable
-        run: |
-          python3 ops/pipeline/manage-artifacts.py upload \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix cache/${{ github.run_id }}/build-cpu \
-            ./xgboost
 
   build-cuda:
     name: Build CUDA + manylinux_2_28_x86_64 wheel
@@ -57,7 +51,7 @@ jobs:
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/build-cuda \
-            build/testxgboost ./xgboost python-package/dist/*.whl
+            build/testxgboost python-package/dist/*.whl
 
   build-cuda-with-rmm:
     name: Build CUDA with RMM
@@ -120,7 +114,7 @@ jobs:
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/build-python-wheels-arm64 \
-            ./xgboost python-package/dist/*.whl
+            python-package/dist/*.whl
 
   build-python-wheels-cpu:
     name: Build CPU wheel for ${{ matrix.manylinux_target }}_${{ matrix.arch }}
@@ -262,8 +256,6 @@ jobs:
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
             --dest-dir wheelhouse \
-            *.whl xgboost
-          mv -v wheelhouse/xgboost .
-          chmod +x ./xgboost
+            *.whl
       - name: Run Python tests, ${{ matrix.description }}
         run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.image_repo }}

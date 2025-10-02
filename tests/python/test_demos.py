@@ -1,6 +1,5 @@
 import os
 import subprocess
-import sys
 import tempfile
 
 import pytest
@@ -216,37 +215,3 @@ def test_json_model() -> None:
 # - gamma regression is not tested as it requires running a R script first.
 # - aft viz is not tested due to ploting is not controlled
 # - aft tunning is not tested due to extra dependency.
-
-
-def test_cli_regression_demo() -> None:
-    reg_dir = os.path.join(CLI_DEMO_DIR, "regression")
-    script = os.path.join(reg_dir, "mapfeat.py")
-    cmd = ["python", script]
-    subprocess.check_call(cmd, cwd=reg_dir)
-
-    script = os.path.join(reg_dir, "mknfold.py")
-    cmd = ["python", script, "machine.txt", "1"]
-    subprocess.check_call(cmd, cwd=reg_dir)
-
-    exe = os.path.join(DEMO_DIR, os.path.pardir, "xgboost")
-    if not os.path.exists(exe):
-        pytest.skip("CLI executable not found.")
-    conf = os.path.join(reg_dir, "machine.conf")
-    subprocess.check_call([exe, conf], cwd=reg_dir)
-
-
-@pytest.mark.skipif(
-    condition=sys.platform.startswith("win"), reason="Test requires sh execution."
-)
-def test_cli_binary_classification() -> None:
-    cls_dir = os.path.join(CLI_DEMO_DIR, "binary_classification")
-    exe = os.path.join(DEMO_DIR, os.path.pardir, "xgboost")
-    if not os.path.exists(exe):
-        pytest.skip("CLI executable not found.")
-    with tm.DirectoryExcursion(cls_dir, cleanup=True):
-        subprocess.check_call(["./runexp.sh"])
-        os.remove("0002.ubj")
-
-
-# year prediction is not tested due to data size being too large.
-# rank is not tested as it requires unrar command.
