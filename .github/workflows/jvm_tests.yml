@@ -77,7 +77,7 @@ jobs:
           - description: "MacOS (Intel)"
             script: ops/pipeline/build-jvm-macos-intel.sh
             libname: libxgboost4j_intel.dylib
-            runner: macos-14-large
+            runner: macos-15-intel
     steps:
       - uses: actions/checkout@v4
         with:
@@ -132,7 +132,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-14-large]
+        os: [windows-latest, macos-15-intel]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -152,7 +152,7 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
       - name: Test XGBoost4J (Core) on macos
-        if: matrix.os == 'macos-14-large'
+        if: matrix.os == 'macos-15-intel'
         run: |
           cd jvm-packages
           mvn test -B -pl :xgboost4j_2.12 -Duse.openmp=OFF
