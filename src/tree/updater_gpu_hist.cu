@@ -526,9 +526,9 @@ struct GPUHistMakerDevice {
     monitor.Start("Partition-BuildHist");
 
     std::int32_t k{0};
-    for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(prefetch_copy))) {
-      curt::Event e;
+    curt::Event e;
 
+    for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(prefetch_copy))) {
       page.Impl()->Visit(ctx_, {}, [&](auto&& d_matrix) {
         using Acc = std::remove_reference_t<decltype(d_matrix)>;
         auto go_left = GoLeftOp<Acc>{d_matrix};
@@ -552,9 +552,8 @@ struct GPUHistMakerDevice {
         }
       });
       ++k;
-
-      this->ctx_->CUDACtx()->Stream().Wait(e);
     }
+    this->ctx_->CUDACtx()->Stream().Wait(e);
 
     monitor.Stop("Partition-BuildHist");
 
