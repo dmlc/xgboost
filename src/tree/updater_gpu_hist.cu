@@ -12,10 +12,11 @@
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"
-#include "../common/categorical.h"     // for KCatBitField
-#include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../common/cuda_rt_utils.h"   // for SetDevice
-#include "../common/cuda_stream.h"     // for DefaultStream
+#include "../common/categorical.h"       // for KCatBitField
+#include "../common/cuda_context.cuh"    // for CUDAContext
+#include "../common/cuda_rt_utils.h"     // for SetDevice
+#include "../common/cuda_stream.h"       // for DefaultStream
+#include "../common/cuda_stream_pool.h"  // for StreamPool
 #include "../common/device_helpers.cuh"
 #include "../common/device_vector.cuh"  // for device_vector
 #include "../common/hist_util.h"        // for HistogramCuts
@@ -111,6 +112,8 @@ struct GPUHistMakerDevice {
   HistMakerTrainParam const* hist_param_;
   std::shared_ptr<common::HistogramCuts const> const cuts_;
   std::unique_ptr<FeatureGroups> feature_groups_;
+
+  curt::StreamPool streams_{2};
 
   struct PartitionNodes {
     std::vector<bst_node_t> nidx;
@@ -333,12 +336,12 @@ struct GPUHistMakerDevice {
     this->monitor.Stop(__func__);
   }
 
-  void BuildHist(EllpackPage const& page, std::int32_t k, bst_bin_t nidx) {
+  void BuildHist(curt::StreamRef s, EllpackPage const& page, std::int32_t k, bst_bin_t nidx) {
     monitor.Start(__func__);
     auto d_node_hist = histogram_.GetNodeHistogram(nidx);
     auto d_ridx = partitioners_.at(k)->GetRows(nidx);
     page.Impl()->Visit(this->ctx_, {}, [&](auto&& acc) {
-      this->histogram_.BuildHistogram(ctx_->CUDACtx(), acc,
+      this->histogram_.BuildHistogram(s, acc,
                                       feature_groups_->DeviceAccessor(ctx_->Device()), this->gpair,
                                       d_ridx, d_node_hist, *quantiser);
     });
@@ -367,7 +370,7 @@ struct GPUHistMakerDevice {
     std::int32_t k = 0;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
       for (auto nidx : need_build) {
-        this->BuildHist(page, k, nidx);
+        this->BuildHist(this->ctx_->CUDACtx()->Stream(), page, k, nidx);
       }
       ++k;
     }
@@ -524,6 +527,8 @@ struct GPUHistMakerDevice {
 
     std::int32_t k{0};
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(prefetch_copy))) {
+      curt::Event e;
+
       page.Impl()->Visit(ctx_, {}, [&](auto&& d_matrix) {
         using Acc = std::remove_reference_t<decltype(d_matrix)>;
         auto go_left = GoLeftOp<Acc>{d_matrix};
@@ -541,10 +546,14 @@ struct GPUHistMakerDevice {
         monitor.Stop("UpdatePositionBatch");
 
         for (auto nidx : build_nidx) {
-          this->BuildHist(page, k, nidx);
+          auto s = this->streams_.Next();
+          this->BuildHist(s, page, k, nidx);
+          e.Record(s);
         }
       });
       ++k;
+
+      this->ctx_->CUDACtx()->Stream().Wait(e);
     }
 
     monitor.Stop("Partition-BuildHist");
@@ -747,7 +756,7 @@ struct GPUHistMakerDevice {
     std::int32_t k = 0;
     CHECK_EQ(p_fmat->NumBatches(), this->partitioners_.size());
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-      this->BuildHist(page, k, kRootNIdx);
+      this->BuildHist(this->ctx_->CUDACtx()->Stream(), page, k, kRootNIdx);
       ++k;
     }
     this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), kRootNIdx, 1);
