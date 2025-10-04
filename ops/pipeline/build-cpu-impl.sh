@@ -24,7 +24,6 @@ case "${suite}" in
       -DUSE_DMLC_GTEST=ON \
       -DENABLE_ALL_WARNINGS=ON \
       -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-      -DBUILD_DEPRECATED_CLI=ON \
       -DCMAKE_PREFIX_PATH='/opt/grpc' \
       -DPLUGIN_FEDERATED=ON
     time ninja -v
@@ -40,7 +39,6 @@ case "${suite}" in
       -DUSE_DMLC_GTEST=ON \
       -DENABLE_ALL_WARNINGS=ON \
       -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-      -DBUILD_DEPRECATED_CLI=ON \
       -DUSE_SANITIZER=ON \
       -DENABLED_SANITIZERS="address;leak;undefined" \
       -DCMAKE_BUILD_TYPE=Debug \

@@ -6,7 +6,6 @@ Before running XGBoost, we must set three types of parameters: general parameter
 - **General parameters** relate to which booster we are using to do boosting, commonly tree or linear model
 - **Booster parameters** depend on which booster you have chosen
 - **Learning task parameters** decide on the learning scenario. For example, regression tasks may use different parameters with ranking tasks.
-- **Command line parameters** relate to behavior of CLI version of XGBoost.
 
 .. note:: Parameters in R package
 
@@ -574,64 +573,3 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 * ``ndcg_exp_gain`` [default = ``true``]
 
   Whether we should use exponential gain function for ``NDCG``. There are two forms of gain function for ``NDCG``, one is using relevance value directly while the other is using :math:`2^{rel} - 1` to emphasize on retrieving relevant documents. When ``ndcg_exp_gain`` is true (the default), relevance degree cannot be greater than 31.
-
-***********************
-Command Line Parameters
-***********************
-The following parameters are only used in the console version of XGBoost. The CLI has been
-deprecated and will be removed in future releases.
-
-* ``num_round``
-
-  - The number of rounds for boosting
-
-* ``data``
-
-  - The path of training data
-
-* ``test:data``
-
-  - The path of test data to do prediction
-
-* ``save_period`` [default=0]
-
-  - The period to save the model. Setting ``save_period=10`` means that for every 10 rounds XGBoost will save the model. Setting it to 0 means not saving any model during the training.
-
-* ``task`` [default= ``train``] options: ``train``, ``pred``, ``eval``, ``dump``
-
-  - ``train``: training using data
-  - ``pred``: making prediction for test:data
-  - ``eval``: for evaluating statistics specified by ``eval[name]=filename``
-  - ``dump``: for dump the learned model into text format
-
-* ``model_in`` [default=NULL]
-
-  - Path to input model, needed for ``test``, ``eval``, ``dump`` tasks. If it is specified in training, XGBoost will continue training from the input model.
-
-* ``model_out`` [default=NULL]
-
-  - Path to output model after training finishes. If not specified, XGBoost will output files with such names as ``0003.model`` where ``0003`` is number of boosting rounds.
-
-* ``model_dir`` [default= ``models/``]
-
-  - The output directory of the saved models during training
-
-* ``fmap``
-
-  - Feature map, used for dumping model
-
-* ``dump_format`` [default= ``text``] options: ``text``, ``json``
-
-  - Format of model dump file
-
-* ``name_dump`` [default= ``dump.txt``]
-
-  - Name of model dump file
-
-* ``name_pred`` [default= ``pred.txt``]
-
-  - Name of prediction file, used in pred mode
-
-* ``pred_margin`` [default=0]
-
-  - Predict margin instead of transformed probability

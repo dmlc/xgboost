@@ -35,7 +35,7 @@ jobs:
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/build-cuda13 \
-            build/testxgboost ./xgboost python-package/dist/*.whl
+            build/testxgboost python-package/dist/*.whl
   test-cpp-cuda13:
     name: Google Test (C++) with CUDA 13
     needs: [build-cuda13]
@@ -82,8 +82,6 @@ jobs:
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/build-cuda13 \
             --dest-dir wheelhouse \
-            *.whl xgboost
-          mv -v wheelhouse/xgboost .
-          chmod +x ./xgboost
+            *.whl
       - name: Run Python tests
         run: bash ops/pipeline/test-python-wheel-cuda13.sh
