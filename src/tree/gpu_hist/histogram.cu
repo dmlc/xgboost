@@ -396,7 +396,7 @@ class DeviceHistogramDispatchAccessor {
     }
   }
 
-  void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix,
+  void BuildHistogram(curt::StreamRef s, Accessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
                       common::Span<const cuda_impl::RowIndexT> d_ridx,
@@ -418,7 +418,7 @@ class DeviceHistogramDispatchAccessor {
       grid_size = std::min(grid_size, static_cast<std::uint32_t>(
                                           common::DivRoundUp(items_per_group, kMinItemsPerBlock)));
       dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups()),  // NOLINT
-                       static_cast<uint32_t>(kBlockThreads), kernel_->smem_size, ctx->Stream()}(
+                       static_cast<uint32_t>(kBlockThreads), kernel_->smem_size, s}(
           kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding);
     };
 
@@ -464,12 +464,12 @@ struct DeviceHistogramBuilderImpl {
   }
 
   template <typename Accessor, typename... Args>
-  void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix, Args&&... args) {
+  void BuildHistogram(curt::StreamRef s, Accessor const& matrix, Args&&... args) {
     if constexpr (std::is_same_v<Accessor, EllpackDeviceAccessor>) {
-      this->simpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
+      this->simpl.BuildHistogram(s, matrix, std::forward<Args>(args)...);
     } else {
       static_assert(std::is_same_v<Accessor, DoubleEllpackAccessor>);
-      this->dimpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
+      this->dimpl.BuildHistogram(s, matrix, std::forward<Args>(args)...);
     }
   }
 };
@@ -490,7 +490,7 @@ void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hi
   this->monitor_.Stop(__func__);
 }
 
-void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+void DeviceHistogramBuilder::BuildHistogram(curt::StreamRef s, EllpackAccessor const& matrix,
                                             FeatureGroupsAccessor const& feature_groups,
                                             common::Span<GradientPair const> gpair,
                                             common::Span<const cuda_impl::RowIndexT> ridx,
@@ -499,8 +499,7 @@ void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAcces
   this->monitor_.Start(__func__);
   std::visit(
       [&](auto&& matrix) {
-        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram,
-                                      rounding);
+        this->p_impl_->BuildHistogram(s, matrix, feature_groups, gpair, ridx, histogram, rounding);
       },
       matrix);
   this->monitor_.Stop(__func__);
