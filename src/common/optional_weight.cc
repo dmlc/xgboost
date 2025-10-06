@@ -8,11 +8,11 @@
 #include "xgboost/base.h"     // for bst_idx_t
 #include "xgboost/context.h"  // for Context
 
-#if !defined(XGBOOST_USE_CUDA)
+#if !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
 
 #include "common.h"  // for AssertGPUSupport
 
-#endif  // !defined(XGBOOST_USE_CUDA)
+#endif  // !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
 
 namespace xgboost::common {
 #if defined(XGBOOST_USE_CUDA)
