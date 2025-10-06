@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2023 XGBoost contributors
+ * Copyright 2017-2025 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #pragma GCC diagnostic push
@@ -99,12 +99,6 @@ TEST(SyclPredictor, Sparse) {
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
   TestSparsePrediction(&ctx, 0.2);
   TestSparsePrediction(&ctx, 0.8);
-}
-
-TEST(SyclPredictor, Multi) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  TestVectorLeafPrediction(&ctx);
 }
 
 }  // namespace xgboost

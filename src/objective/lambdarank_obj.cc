@@ -359,16 +359,17 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
       return;
     }
 
+    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
     bst_group_t n_groups = p_cache_->Groups();
     auto gptr = p_cache_->DataGroupPtr(ctx_);
 
-    out_gpair->SetDevice(ctx_->Device());
+    out_gpair->SetDevice(device);
     out_gpair->Reshape(info.num_row_, 1);
 
     auto h_gpair = out_gpair->HostView();
     auto h_predt = predt.ConstHostSpan();
     auto h_label = info.labels.HostView();
-    auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
+    auto h_weight = common::MakeOptionalWeights(device, info.weights_);
     auto make_range = [&](bst_group_t g) {
       return linalg::Range(gptr[g], gptr[g + 1]);
     };
@@ -486,14 +487,15 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
     bst_group_t n_groups = p_cache_->Groups();
 
     CHECK_EQ(info.labels.Shape(1), 1) << "multi-target for learning to rank is not yet supported.";
-    out_gpair->SetDevice(ctx_->Device());
+    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
+    out_gpair->SetDevice(device);
     out_gpair->Reshape(info.num_row_, this->Targets(info));
 
     auto h_gpair = out_gpair->HostView();
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
     auto h_predt = predt.ConstHostSpan();
     auto rank_idx = p_cache_->SortedIdx(ctx_, h_predt);
-    auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
+    auto h_weight = common::MakeOptionalWeights(device, info.weights_);
 
     auto make_range = [&](bst_group_t g) {
       return linalg::Range(gptr[g], gptr[g + 1]);
@@ -590,7 +592,7 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
     auto h_gpair = out_gpair->HostView();
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
     auto h_predt = predt.ConstHostSpan();
-    auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
+    auto h_weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
 
     auto make_range = [&](bst_group_t g) {
       return linalg::Range(gptr[g], gptr[g + 1]);

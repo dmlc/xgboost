@@ -138,7 +138,7 @@ TEST(Linalg, SmallHistogram) {
       linalg::MakeTensorView(&ctx, dh::ToSpan(values), values.size(), 1);
   dh::CachingDeviceUVector<float> bins(n_bins);
   HostDeviceVector<float> weights;
-  SmallHistogram(&ctx, indices, common::MakeOptionalWeights(&ctx, weights),
+  SmallHistogram(&ctx, indices, common::MakeOptionalWeights(ctx.Device(), weights),
                  linalg::MakeTensorView(&ctx, dh::ToSpan(bins), bins.size()));
 
   std::vector<float> h_bins(n_bins);

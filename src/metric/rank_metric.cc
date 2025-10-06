@@ -325,7 +325,7 @@ class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
     auto rank_idx = p_cache->SortedIdx(ctx_, predt.ConstHostSpan());
 
-    auto weight = common::MakeOptionalWeights(ctx_, info.weights_);
+    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
     auto pre = p_cache->Pre(ctx_);
 
     common::ParallelFor(p_cache->Groups(), ctx_->Threads(), [&](auto g) {
@@ -389,7 +389,7 @@ class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
 
     auto h_label = info.labels.HostView();
     auto h_predt = linalg::MakeTensorView(ctx_, &preds, preds.Size());
-    auto weights = common::MakeOptionalWeights(ctx_, info.weights_);
+    auto weights = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
 
     common::ParallelFor(n_groups, ctx_->Threads(), [&](auto g) {
       auto g_predt = h_predt.Slice(linalg::Range(group_ptr[g], group_ptr[g + 1]));
@@ -465,7 +465,7 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
     });
 
     auto sw = 0.0;
-    auto weight = common::MakeOptionalWeights(ctx_, info.weights_);
+    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
     if (!weight.Empty()) {
       CHECK_EQ(weight.weights.size(), p_cache->Groups());
     }

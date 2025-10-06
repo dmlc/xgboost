@@ -591,13 +591,13 @@ auto MakeTensorView(Context const *ctx, Order order, common::Span<T, ext> data, 
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> *data, S &&...shape) {
-  auto span = ctx->IsCUDA() ? data->DeviceSpan() : data->HostSpan();
+  auto span = ctx->IsCPU() ? data->HostSpan() : data->DeviceSpan();
   return MakeTensorView(ctx->Device(), span, std::forward<S>(shape)...);
 }
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> const *data, S &&...shape) {
-  auto span = ctx->IsCUDA() ? data->ConstDeviceSpan() : data->ConstHostSpan();
+  auto span = ctx->IsCPU() ? data->ConstHostSpan() : data->ConstDeviceSpan();
   return MakeTensorView(ctx->Device(), span, std::forward<S>(shape)...);
 }
 
@@ -647,13 +647,13 @@ auto MakeVec(T *ptr, size_t s, DeviceOrd device = DeviceOrd::CPU()) {
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> *data) {
-  return MakeVec(data->Device().IsCUDA() ? data->DevicePointer() : data->HostPointer(),
+  return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(),
                  data->Size(), data->Device());
 }
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> const *data) {
-  return MakeVec(data->Device().IsCUDA() ? data->ConstDevicePointer() : data->ConstHostPointer(),
+  return MakeVec(data->Device().IsCPU() ? data->ConstHostPointer() : data->ConstDevicePointer(),
                  data->Size(), data->Device());
 }
 
@@ -759,7 +759,7 @@ class Tensor {
     for (auto i = D; i < kDim; ++i) {
       shape_[i] = 1;
     }
-    if (device.IsCUDA()) {
+    if (!device.IsCPU()) {
       data_.SetDevice(device);
       data_.ConstDevicePointer();  // Pull to device;
     }
@@ -788,11 +788,11 @@ class Tensor {
       shape_[i] = 1;
     }
     auto size = detail::CalcSize(shape_);
-    if (device.IsCUDA()) {
+    if (!device.IsCPU()) {
       data_.SetDevice(device);
     }
     data_.Resize(size);
-    if (device.IsCUDA()) {
+    if (!device.IsCPU()) {
       data_.DevicePointer();  // Pull to device
     }
   }

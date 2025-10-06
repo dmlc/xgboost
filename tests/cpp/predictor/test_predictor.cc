@@ -33,7 +33,7 @@ void TestBasic(DMatrix* dmat, Context const *ctx) {
   size_t const kRows = dmat->Info().num_row_;
   size_t const kCols = dmat->Info().num_col_;
 
-  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
 
   gbm::GBTreeModel model = CreateTestModel(&mparam, ctx);
 
@@ -127,7 +127,7 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
                           {"num_feature", std::to_string(kCols)},
                           {"num_class", std::to_string(kClasses)},
                           {"max_bin", std::to_string(bins)},
-                          {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
+                          {"device", ctx->DeviceName()}});
   learner->Configure();
 
   for (size_t i = 0; i < kIters; ++i) {
@@ -622,8 +622,7 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
   learner->LoadModel(model);
   learner->SetParam("device", ctx->DeviceName());
   learner->Configure();
-
-  if (ctx->IsCUDA()) {
+  if (!ctx->IsCPU()) {
     learner->SetParam("tree_method", "hist");
     learner->SetParam("device", ctx->Device().Name());
   }

@@ -11,12 +11,12 @@ namespace common {
 TEST(OptionalWeight, Basic) {
   HostDeviceVector<float> weight{{2.0f, 3.0f, 4.0f}};
   Context ctx;
-  auto opt_w = MakeOptionalWeights(&ctx, weight);
+  auto opt_w = MakeOptionalWeights(ctx.Device(), weight);
   ASSERT_EQ(opt_w[0], 2.0f);
   ASSERT_FALSE(opt_w.Empty());
 
   weight.HostVector().clear();
-  opt_w = MakeOptionalWeights(&ctx, weight);
+  opt_w = MakeOptionalWeights(ctx.Device(), weight);
   ASSERT_EQ(opt_w[0], 1.0f);
   ASSERT_TRUE(opt_w.Empty());
 }

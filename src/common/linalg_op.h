@@ -15,12 +15,12 @@
 #include "xgboost/json.h"        // for Json
 #include "xgboost/linalg.h"
 
-#if !defined(XGBOOST_USE_CUDA)
+#if !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
 
 #include "common.h"           // for AssertGPUSupport
 #include "xgboost/context.h"  // for Context
 
-#endif  // !defined(XGBOOST_USE_CUDA)
+#endif  // !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
 
 namespace xgboost::common {
 struct OptionalWeights;
@@ -118,6 +118,10 @@ namespace cuda_impl {
 void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul);
 }  // namespace cuda_impl
 
+namespace sycl_impl {
+void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul);
+}  // namespace sycl_impl
+
 // vector-scalar multiplication
 inline void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul) {
   CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
@@ -126,6 +130,12 @@ inline void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mu
     cuda_impl::VecScaMul(ctx, x, mul);
 #else
     common::AssertGPUSupport();
+#endif
+  } else if (x.Device().IsSycl()) {
+#if defined(XGBOOST_USE_SYCL)
+    sycl_impl::VecScaMul(ctx, x, mul);
+#else
+    common::AssertSYCLSupport();
 #endif
   } else {
     constexpr std::size_t kBlockSize = 2048;

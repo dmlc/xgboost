@@ -256,7 +256,7 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
   std::swap(base_score_, base_score);
   // Make sure read access everywhere for thread-safe prediction.
   std::as_const(base_score_).HostView();
-  if (ctx->IsCUDA()) {
+  if (!ctx->IsCPU()) {
     std::as_const(base_score_).View(ctx->Device());
   }
   CHECK(std::as_const(base_score_).Data()->HostCanRead());
@@ -265,7 +265,7 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
 linalg::VectorView<float const> LearnerModelParam::BaseScore(DeviceOrd device) const {
   // multi-class is not yet supported.
   CHECK_GE(base_score_.Size(), 1) << ModelNotFitted();
-  if (!device.IsCUDA()) {
+  if (device.IsCPU()) {
     // Make sure that we won't run into race condition.
     CHECK(base_score_.Data()->HostCanRead());
     return base_score_.HostView();

@@ -48,11 +48,16 @@ void InitOutPredictions(Context const* ctx, linalg::VectorView<float const> base
                         linalg::MatrixView<float> predt);
 }
 
+namespace sycl_impl {
+void InitOutPredictions(Context const* ctx, linalg::VectorView<float const> base_score,
+                        linalg::MatrixView<float> predt);
+}
+
 void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>* out_preds,
                                    gbm::GBTreeModel const& model) const {
   CHECK_NE(model.learner_model_param->num_output_group, 0);
 
-  if (ctx_->Device().IsCUDA()) {
+  if (!ctx_->Device().IsCPU()) {
     out_preds->SetDevice(ctx_->Device());
   }
 
@@ -85,6 +90,12 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>
     cuda_impl::InitOutPredictions(this->ctx_, base_score, predt);
 #else
     common::AssertGPUSupport();
+#endif
+  } else if (this->ctx_->IsSycl()) {
+#if defined(XGBOOST_USE_SYCL)
+    sycl_impl::InitOutPredictions(this->ctx_, base_score, predt);
+#else
+    common::AssertSYCLSupport();
 #endif
   } else {
     common::ParallelFor(info.num_row_, this->ctx_->Threads(), [&](auto i) {
