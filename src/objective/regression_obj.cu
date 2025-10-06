@@ -115,8 +115,7 @@ void ProbToMarginImpl(Context const* ctx, linalg::Vector<float>* base_score, Fn&
         common::AssertSYCLSupport();
         return false;
 #endif  // defined(XGBOOST_USE_SYCL)
-      }
-    );
+      });
   CHECK(is_valid) << error();
   linalg::ElementWiseKernel(ctx, intercept, [=] XGBOOST_DEVICE(std::size_t i) mutable {
     intercept(i) = fn(intercept(i));

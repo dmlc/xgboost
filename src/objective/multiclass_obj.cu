@@ -64,8 +64,7 @@ void ValidateLabel(Context const* ctx, MetaInfo const& info, std::int64_t n_clas
         common::AssertSYCLSupport();
         return false;
 #endif  // defined(XGBOOST_USE_SYCL)
-      }
-    );
+      });
   CHECK(valid)
       << "SoftmaxMultiClassObj: label must be discrete values in the range of [0, num_class).";
 }

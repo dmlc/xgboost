@@ -1,6 +1,9 @@
 /*!
  * Copyright by Contributors 2017-2025
+ * \file node.h
  */
+#ifndef PLUGIN_SYCL_PREDICTOR_NODE_H_
+#define PLUGIN_SYCL_PREDICTOR_NODE_H_
 
 #include "../../src/gbm/gbtree_model.h"
 
@@ -63,3 +66,4 @@ class Node {
 }  // namespace predictor
 }  // namespace sycl
 }  // namespace xgboost
+#endif  // PLUGIN_SYCL_PREDICTOR_NODE_H_

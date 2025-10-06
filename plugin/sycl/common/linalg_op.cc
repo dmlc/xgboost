@@ -43,10 +43,10 @@ void VecScaMul(Context const* ctx, xgboost::linalg::VectorView<float> x, double 
     });
   }).wait();
 }
-}  // xgboost::sycl::linalg
+}  // namespace xgboost::sycl::linalg
 
 namespace xgboost::linalg::sycl_impl {
 void VecScaMul(Context const* ctx, xgboost::linalg::VectorView<float> x, double mul) {
   xgboost::sycl::linalg::VecScaMul(ctx, x, mul);
 }
-} // xgboost::linalg::sycl_impl
+}  // namespace xgboost::linalg::sycl_impl

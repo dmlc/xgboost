@@ -28,4 +28,4 @@ double SumOptionalWeights(Context const* ctx, OptionalWeights const& weights) {
 
   return result;
 }
-}  // namespace xgboost::sycl_impl
+}  // namespace xgboost::common::sycl_impl

@@ -23,7 +23,7 @@ void SmallHistogram(Context const*, xgboost::linalg::MatrixView<float const>,
   common::AssertSYCLSupport();
 }
 #endif
-}  // xgboost::sycl::linalg
+}  // namespace xgboost::sycl::linalg
 
 namespace xgboost::linalg {
 namespace cuda_impl {
