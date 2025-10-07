@@ -8,8 +8,6 @@
 #include <vector>  // for vector
 
 #include "../common/categorical.h"  // for IsCat, Decision
-#include "../data/adapter.h"        // for COOTuple
-#include "../data/cat_container.h"  // for CatAccessor
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
@@ -37,7 +35,7 @@ XGBOOST_DEVICE bst_node_t GetNextNode(const RegTree::Node &node, const bst_node_
 }
 
 template <bool has_missing, bool has_categorical>
-XGBOOST_DEVICE bst_node_t GetNextNodeMulti(MultiTargetTree const &tree, bst_node_t const nidx,
+XGBOOST_DEVICE bst_node_t GetNextNodeMulti(MultiTargetTreeView const &tree, bst_node_t const nidx,
                                            float fvalue, bool is_missing,
                                            RegTree::CategoricalSplitMatrix const &cats) {
   if (has_missing && is_missing) {
