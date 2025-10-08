@@ -1045,7 +1045,7 @@ class LaunchConfig {
   void LaunchMultiPredict(Context const* ctx, Data data, gbm::GBTreeModel const& model,
                           float missing, bst_tree_t tree_begin, bst_tree_t tree_end,
                           bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
-    CHECK_EQ(batch_offset, 0);
+    CHECK_EQ(batch_offset, 0);  // External memory is not supported yet.
     CHECK_GT(tree_end, tree_begin);
     std::vector<MultiTargetTreeView> h_trees;
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {

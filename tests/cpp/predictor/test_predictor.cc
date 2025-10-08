@@ -777,6 +777,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
       std::string str;
       Json::Dump(arr, &str);
       auto proxy = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
+      dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArray(str.data());
       predictor->InplacePredict(proxy, model, std::numeric_limits<float>::quiet_NaN(), &predt_cache,
                                 0, 1);
       auto const &h_predt = predt_cache.predictions.HostVector();
