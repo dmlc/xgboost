@@ -151,14 +151,20 @@ class MultiTargetHistBuilder {
 
     p_last_fmat_ = p_fmat;
     bst_bin_t n_total_bins = 0;
-    partitioner_.clear();
+    size_t page_idx = 0;
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->Info().IsColumnSplit());
+      if (page_idx < partitioner_.size()) {
+        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
+                                     p_fmat->Info().IsColumnSplit());
+      } else {
+        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->Info().IsColumnSplit());
+      }
+      page_idx++;
     }
 
     bst_target_t n_targets = p_tree->NumTargets();
