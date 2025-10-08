@@ -32,6 +32,5 @@ Contents
   Julia Package <julia>
   C Package <c>
   C++ Interface <c++>
-  CLI Interface <cli>
   contrib/index
   changes/index
