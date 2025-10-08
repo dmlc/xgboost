@@ -168,10 +168,10 @@ def native_build(cli_args: argparse.Namespace) -> None:
 
     # for xgboost4j-spark
     maybe_makedirs("xgboost4j-spark/src/test/resources")
-    with cd("../demo/CLI/regression"):
+    with cd("../demo/data/regression"):
         run(f'"{sys.executable}" mapfeat.py')
         run(f'"{sys.executable}" mknfold.py machine.txt 1')
-    for file in glob.glob("../demo/CLI/regression/machine.txt.t*"):
+    for file in glob.glob("../demo/data/regression/machine.txt.t*"):
         cp(file, "xgboost4j-spark/src/test/resources")
     for file in glob.glob("../demo/data/agaricus.*"):
         cp(file, "xgboost4j-spark/src/test/resources")
