@@ -731,8 +731,8 @@ void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsit
 }
 
 void TestVectorLeafPrediction(Context const *ctx) {
-  std::unique_ptr<Predictor> predictor{ctx->IsCPU() ? Predictor::Create("cpu_predictor", ctx)
-                                                    : Predictor::Create("gpu_predictor", ctx)};
+  std::unique_ptr<Predictor> predictor{ctx->IsCUDA() ? Predictor::Create("gpu_predictor", ctx)
+                                                     : Predictor::Create("cpu_predictor", ctx)};
 
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;
@@ -816,7 +816,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   // go to right
   HostDeviceVector<float> data(kRows * kCols, model.trees.front()->SplitCond(RegTree::kRoot) + 1.0);
   test_batch(2.5, &data);
-  if (ctx->IsCPU()) {
+  if (!ctx->IsCUDA()) {
     test_inplace(2.5, &data);
     test_ghist(2.5, &data);
   }
@@ -824,7 +824,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   // go to left
   data.HostVector().assign(data.Size(), model.trees.front()->SplitCond(RegTree::kRoot) - 1.0);
   test_batch(1.5, &data);
-  if (ctx->IsCPU()) {
+  if (!ctx->IsCUDA()) {
     test_inplace(1.5, &data);
     test_ghist(1.5, &data);
   }
