@@ -27,6 +27,7 @@
 #include "utils.h"  // for CheckProxyDMatrix
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
+#include "xgboost/multi_target_tree_model.h"  // for MultiTargetTree, MultiTargetTreeView
 #include "xgboost/predictor.h"
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
@@ -243,6 +244,55 @@ struct DeviceAdapterLoader {
   }
 };
 
+namespace multi {
+template <bool has_missing, bool has_categorical>
+XGBOOST_DEVICE bst_node_t GetNextNode(MultiTargetTreeView const& tree, bst_node_t const nidx,
+                                      float fvalue, bool is_missing) {
+  if (has_missing && is_missing) {
+    return tree.DefaultChild(nidx);
+  } else {
+    return fvalue < tree.SplitCond(nidx) ? tree.LeftChild(nidx) : tree.RightChild(nidx);
+  }
+}
+
+template <bool has_missing, bool has_categorical, typename Loader>
+__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, MultiTargetTreeView const& tree,
+                                   Loader* loader) {
+  bst_node_t nidx = 0;
+  while (!tree.IsLeaf(nidx)) {
+    float fvalue = loader->GetElement(ridx, tree.SplitIndex(nidx));
+    bool is_missing = common::CheckNAN(fvalue);
+    auto next = GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing);
+    assert(nidx < next);
+    nidx = next;
+  }
+  return nidx;
+}
+
+template <bool has_missing, typename Loader>
+__device__ auto GetLeafWeight(bst_idx_t ridx, MultiTargetTreeView const& tree, Loader* loader) {
+  bst_node_t nidx = GetLeafIndex<has_missing, false>(ridx, tree, loader);
+  return tree.LeafValue(nidx);
+}
+
+template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
+__global__ void PredictKernel(Data data, common::Span<MultiTargetTreeView> trees, bool use_shared,
+                              float missing, linalg::MatrixView<float> d_out_predt,
+                              EncAccessor acc) {
+  for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), data.NumRows())) {
+    Loader loader{std::move(data), use_shared, static_cast<bst_feature_t>(data.NumCols()),
+                  data.NumRows(),  missing,    std::move(acc)};
+    for (auto const& tree : trees) {
+      auto leaf = GetLeafWeight<has_missing>(idx, tree, &loader);
+      for (std::size_t i = 0, n = leaf.Shape(0); i < n; ++i) {
+        d_out_predt(idx, i) += leaf(i);
+      }
+    }
+  }
+}
+}  // namespace multi
+
+namespace scalar {
 template <bool has_missing, bool has_categorical, typename Loader>
 __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = 0;
@@ -257,8 +307,7 @@ __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader*
 }
 
 template <bool has_missing, typename Loader>
-__device__ float GetLeafWeight(bst_idx_t ridx, TreeView const &tree,
-                               Loader *loader) {
+__device__ float GetLeafWeight(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = -1;
   if (tree.HasCategoricalSplit()) {
     nidx = GetLeafIndex<has_missing, true>(ridx, tree, loader);
@@ -267,6 +316,7 @@ __device__ float GetLeafWeight(bst_idx_t ridx, TreeView const &tree,
   }
   return tree.d_tree[nidx].LeafValue();
 }
+}  // namespace scalar
 
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
 __global__ void
@@ -295,9 +345,9 @@ PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
 
     bst_node_t leaf = -1;
     if (d_tree.HasCategoricalSplit()) {
-      leaf = GetLeafIndex<has_missing, true>(ridx, d_tree, &loader);
+      leaf = scalar::GetLeafIndex<has_missing, true>(ridx, d_tree, &loader);
     } else {
-      leaf = GetLeafIndex<has_missing, false>(ridx, d_tree, &loader);
+      leaf = scalar::GetLeafIndex<has_missing, false>(ridx, d_tree, &loader);
     }
     d_out_predictions[ridx * (tree_end - tree_begin) + tree_idx] = leaf;
   }
@@ -313,7 +363,7 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
               common::Span<uint32_t const> d_cat_tree_segments,
               common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
               common::Span<uint32_t const> d_categories, bst_tree_t tree_begin,
-              bst_tree_t tree_end, bst_feature_t num_features, size_t num_rows,
+              bst_tree_t tree_end, bst_feature_t num_features, bst_idx_t num_rows,
               bool use_shared, int num_group, float missing, EncAccessor acc) {
   bst_uint global_idx = blockDim.x * blockIdx.x + threadIdx.x;
   Loader loader{std::move(data), use_shared, num_features, num_rows, missing, std::move(acc)};
@@ -326,20 +376,19 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
           tree_begin,          tree_idx,           d_nodes,
           d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
           d_cat_node_segments, d_categories};
-      float leaf = GetLeafWeight<has_missing>(global_idx, d_tree, &loader);
+      float leaf = scalar::GetLeafWeight<has_missing>(global_idx, d_tree, &loader);
       sum += leaf;
     }
     d_out_predictions[global_idx] += sum;
   } else {
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       int tree_group = d_tree_group[tree_idx];
-      TreeView d_tree{
-          tree_begin,          tree_idx,           d_nodes,
-          d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-          d_cat_node_segments, d_categories};
+      TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
+                      d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
+                      d_cat_node_segments, d_categories};
       bst_uint out_prediction_idx = global_idx * num_group + tree_group;
       d_out_predictions[out_prediction_idx] +=
-          GetLeafWeight<has_missing>(global_idx, d_tree, &loader);
+          scalar::GetLeafWeight<has_missing>(global_idx, d_tree, &loader);
     }
   }
 }
@@ -400,12 +449,12 @@ class DeviceModel {
     for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       auto& src_nodes = model.trees.at(tree_idx)->GetNodes();
       auto& src_stats = model.trees.at(tree_idx)->GetStats();
-      dh::safe_cuda(cudaMemcpyAsync(
-          d_nodes + h_tree_segments[tree_idx - tree_begin], src_nodes.data(),
-          sizeof(RegTree::Node) * src_nodes.size(), cudaMemcpyDefault));
-      dh::safe_cuda(cudaMemcpyAsync(
-          d_stats + h_tree_segments[tree_idx - tree_begin], src_stats.data(),
-          sizeof(RTreeNodeStat) * src_stats.size(), cudaMemcpyDefault));
+      dh::safe_cuda(cudaMemcpyAsync(d_nodes + h_tree_segments[tree_idx - tree_begin],
+                                    src_nodes.data(), sizeof(RegTree::Node) * src_nodes.size(),
+                                    cudaMemcpyDefault));
+      dh::safe_cuda(cudaMemcpyAsync(d_stats + h_tree_segments[tree_idx - tree_begin],
+                                    src_stats.data(), sizeof(RTreeNodeStat) * src_stats.size(),
+                                    cudaMemcpyDefault));
     }
 
     tree_group = HostDeviceVector<int>(model.tree_info.size(), 0, device);
@@ -424,14 +473,13 @@ class DeviceModel {
 
     categories = HostDeviceVector<uint32_t>({}, device);
     categories_tree_segments = HostDeviceVector<uint32_t>(1, 0, device);
-    std::vector<uint32_t> &h_categories = categories.HostVector();
-    std::vector<uint32_t> &h_split_cat_segments = categories_tree_segments.HostVector();
+    std::vector<uint32_t>& h_categories = categories.HostVector();
+    std::vector<uint32_t>& h_split_cat_segments = categories_tree_segments.HostVector();
     for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
       auto const& src_cats = model.trees.at(tree_idx)->GetSplitCategories();
       size_t orig_size = h_categories.size();
       h_categories.resize(orig_size + src_cats.size());
-      std::copy(src_cats.cbegin(), src_cats.cend(),
-                h_categories.begin() + orig_size);
+      std::copy(src_cats.cbegin(), src_cats.cend(), h_categories.begin() + orig_size);
       h_split_cat_segments.push_back(h_categories.size());
     }
 
@@ -974,7 +1022,7 @@ class LaunchConfig {
   void LaunchPredict(Context const* ctx, Data data, float missing, bst_idx_t n_samples,
                      bst_feature_t n_features, DeviceModel const& model, bool is_dense,
                      enc::DeviceColumnsView const& new_enc, bst_idx_t batch_offset,
-                     HostDeviceVector<bst_float>* predictions) const {
+                     HostDeviceVector<float>* predictions) const {
     LaunchPredictKernel(ctx, is_dense, new_enc, model, [&](auto is_dense, auto&& acc) {
       constexpr bool kHasMissing = !std::is_same_v<decltype(is_dense), std::true_type>;
       using EncAccessor = std::remove_reference_t<decltype(acc)>;
@@ -994,9 +1042,29 @@ class LaunchConfig {
   }
 
   template <template <typename> typename Loader, typename Data>
+  void LaunchMultiPredict(Context const* ctx, Data data, gbm::GBTreeModel const& model,
+                          float missing, bst_tree_t tree_begin, bst_tree_t tree_end,
+                          bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
+    CHECK_EQ(batch_offset, 0);  // External memory is not supported yet.
+    CHECK_GT(tree_end, tree_begin);
+    std::vector<MultiTargetTreeView> h_trees;
+    for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
+      h_trees.emplace_back(model.trees[tree_idx]->GetMultiTargetTree()->View(ctx));
+    }
+    dh::device_vector<MultiTargetTreeView> trees = h_trees;
+    CHECK_GE(predictions->Size(), data.NumRows() * h_trees.front().NumTargets());
+    auto kernel = multi::PredictKernel<Loader<NoOpAccessor>, Data, true, NoOpAccessor>;
+    auto predt =
+        linalg::MakeTensorView(ctx, predictions, data.NumRows(), h_trees.front().NumTargets());
+    this->Grid(data.NumRows())
+        .LaunchImpl(std::move(kernel), std::move(data), dh::ToSpan(trees), this->UseShared(),
+                    missing, predt, NoOpAccessor{});
+  }
+
+  template <template <typename> typename Loader, typename Data>
   void LaunchLeaf(Context const* ctx, Data data, bst_idx_t n_samples, bst_feature_t n_features,
                   DeviceModel const& model, bool is_dense, enc::DeviceColumnsView const& new_enc,
-                  bst_idx_t batch_offset, HostDeviceVector<bst_float>* predictions) const {
+                  bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
     LaunchPredictKernel(ctx, is_dense, new_enc, model, [&](auto is_dense, auto&& acc) {
       constexpr bool kHasMissing = !std::is_same_v<decltype(is_dense), std::true_type>;
       using EncAccessor = std::remove_reference_t<decltype(acc)>;
@@ -1037,7 +1105,9 @@ class GPUPredictor : public xgboost::Predictor {
     out_preds->SetDevice(ctx_->Device());
     auto const& info = p_fmat->Info();
     DeviceModel d_model;
-    d_model.Init(model, tree_begin, tree_end, ctx_->Device());
+    if (!model.trees[tree_begin]->IsMultiTarget()) {
+      d_model.Init(model, tree_begin, tree_end, ctx_->Device());
+    }
 
     if (info.IsColumnSplit()) {
       column_split_helper_.PredictBatch(p_fmat, out_preds, model, d_model);
@@ -1056,9 +1126,15 @@ class GPUPredictor : public xgboost::Predictor {
         auto n_features = model.learner_model_param->num_feature;
         LaunchConfig cfg{ctx_, n_features};
         SparsePageView data(page.data.DeviceSpan(), page.offset.DeviceSpan(), n_features);
-        cfg.LaunchPredict<SparsePageLoader>(
-            this->ctx_, std::move(data), std::numeric_limits<float>::quiet_NaN(), page.Size(),
-            n_features, d_model, p_fmat->IsDense(), new_enc, batch_offset, out_preds);
+        if (model.trees[tree_begin]->IsMultiTarget()) {
+          cfg.LaunchMultiPredict<SparsePageLoader>(this->ctx_, std::move(data), model,
+                                                   std::numeric_limits<float>::quiet_NaN(),
+                                                   tree_begin, tree_end, batch_offset, out_preds);
+        } else {
+          cfg.LaunchPredict<SparsePageLoader>(
+              this->ctx_, std::move(data), std::numeric_limits<float>::quiet_NaN(), page.Size(),
+              n_features, d_model, p_fmat->IsDense(), new_enc, batch_offset, out_preds);
+        }
         batch_offset += page.Size() * model.learner_model_param->OutputLength();
       }
     } else {
@@ -1158,7 +1234,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                            const gbm::GBTreeModel& model, bst_tree_t tree_end,
-                           std::vector<bst_float> const* tree_weights, bool approximate, int,
+                           std::vector<float> const* tree_weights, bool approximate, int,
                            unsigned) const override {
     StringView not_implemented{
         "contribution is not implemented in the GPU predictor, use CPU instead."};
@@ -1177,8 +1253,7 @@ class GPUPredictor : public xgboost::Predictor {
     const int ngroup = model.learner_model_param->num_output_group;
     CHECK_NE(ngroup, 0);
     // allocate space for (number of features + bias) times the number of rows
-    size_t contributions_columns =
-        model.learner_model_param->num_feature + 1;  // +1 for bias
+    size_t contributions_columns = model.learner_model_param->num_feature + 1;  // +1 for bias
     auto dim_size = contributions_columns * model.learner_model_param->num_output_group;
     out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
     out_contribs->Fill(0.0f);
@@ -1245,8 +1320,8 @@ class GPUPredictor : public xgboost::Predictor {
                                        gbm::GBTreeModel const& model, bst_tree_t tree_end,
                                        std::vector<float> const* tree_weights,
                                        bool approximate) const override {
-    std::string not_implemented{"contribution is not implemented in GPU "
-                                "predictor, use `cpu_predictor` instead."};
+    std::string not_implemented{
+        "contribution is not implemented in GPU predictor, use cpu instead."};
     if (approximate) {
       LOG(FATAL) << "Approximated " << not_implemented;
     }
@@ -1332,7 +1407,6 @@ class GPUPredictor : public xgboost::Predictor {
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<float>* predictions,
                    gbm::GBTreeModel const& model, bst_tree_t tree_end) const override {
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
-
 
     const MetaInfo& info = p_fmat->Info();
     bst_idx_t n_samples = info.num_row_;

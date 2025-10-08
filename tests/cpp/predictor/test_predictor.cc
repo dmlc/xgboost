@@ -731,14 +731,14 @@ void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsit
 }
 
 void TestVectorLeafPrediction(Context const *ctx) {
-  std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", ctx));
+  std::unique_ptr<Predictor> predictor{ctx->IsCUDA() ? Predictor::Create("gpu_predictor", ctx)
+                                                     : Predictor::Create("cpu_predictor", ctx)};
 
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;
 
   LearnerModelParam mparam{static_cast<bst_feature_t>(kCols),
-                           linalg::Vector<float>{{0.5}, {1}, DeviceOrd::CPU()}, 1, 3,
+                           linalg::Vector<float>{{0.5}, {1}, ctx->Device()}, 1, 3,
                            MultiStrategy::kMultiOutputTree};
 
   std::vector<std::unique_ptr<RegTree>> trees;
@@ -758,73 +758,76 @@ void TestVectorLeafPrediction(Context const *ctx) {
   gbm::GBTreeModel model{&mparam, ctx};
   model.CommitModelGroup(std::move(trees), 0);
 
-  auto run_test = [&](float expected, HostDeviceVector<float> *p_data) {
-    {
+  auto test_batch = [&](float expected, HostDeviceVector<float> const*p_data) {
       auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
       PredictionCacheEntry predt_cache;
-      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+      predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
       ASSERT_EQ(predt_cache.predictions.Size(), kRows * mparam.LeafLength());
-      cpu_predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
+      predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
       auto const &h_predt = predt_cache.predictions.HostVector();
       for (auto v : h_predt) {
         ASSERT_EQ(v, expected);
       }
-    }
-
-    {
-      // inplace
+  };
+  auto test_inplace = [&](float expected, HostDeviceVector<float> const*p_data) {
       PredictionCacheEntry predt_cache;
       auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
-      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+      predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
       auto arr = GetArrayInterface(p_data, kRows, kCols);
       std::string str;
       Json::Dump(arr, &str);
       auto proxy = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
       dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArray(str.data());
-      cpu_predictor->InplacePredict(proxy, model, std::numeric_limits<float>::quiet_NaN(),
-                                    &predt_cache, 0, 1);
+      predictor->InplacePredict(proxy, model, std::numeric_limits<float>::quiet_NaN(), &predt_cache,
+                                0, 1);
       auto const &h_predt = predt_cache.predictions.HostVector();
       for (auto v : h_predt) {
         ASSERT_EQ(v, expected);
       }
+  };
+  auto test_ghist = [&](float expected, HostDeviceVector<float> *p_data) {
+    // ghist
+    PredictionCacheEntry predt_cache;
+    auto &h_data = p_data->HostVector();
+    // give it at least two bins, otherwise the histogram cuts only have min and max values.
+    for (std::size_t i = 0; i < kCols; ++i) {
+      h_data[i] = 1.0;
     }
+    auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
 
-    {
-      // ghist
-      PredictionCacheEntry predt_cache;
-      auto &h_data = p_data->HostVector();
-      // give it at least two bins, otherwise the histogram cuts only have min and max values.
-      for (std::size_t i = 0; i < 5; ++i) {
-        h_data[i] = 1.0;
-      }
-      auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
+    predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
 
-      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+    auto iter = NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
+                                      static_cast<std::size_t>(1)};
+    p_fmat = std::make_shared<data::IterativeDMatrix>(
+        &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, 256,
+        std::numeric_limits<std::int64_t>::max());
 
-      auto iter = NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
-                                        static_cast<std::size_t>(1)};
-      p_fmat = std::make_shared<data::IterativeDMatrix>(
-          &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
-          256, std::numeric_limits<std::int64_t>::max());
-
-      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
-      cpu_predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
-      auto const &h_predt = predt_cache.predictions.HostVector();
-      // the smallest v uses the min_value from histogram cuts, which leads to a left leaf
-      // during prediction.
-      for (std::size_t i = 5; i < h_predt.size(); ++i) {
-        ASSERT_EQ(h_predt[i], expected) << i;
-      }
+    predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+    predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
+    auto const &h_predt = predt_cache.predictions.HostVector();
+    // the smallest v uses the min_value from histogram cuts, which leads to a left leaf
+    // during prediction.
+    for (std::size_t i = 5; i < h_predt.size(); ++i) {
+      ASSERT_EQ(h_predt[i], expected) << i;
     }
   };
 
   // go to right
   HostDeviceVector<float> data(kRows * kCols, model.trees.front()->SplitCond(RegTree::kRoot) + 1.0);
-  run_test(2.5, &data);
+  test_batch(2.5, &data);
+  if (!ctx->IsCUDA()) {
+    test_inplace(2.5, &data);
+    test_ghist(2.5, &data);
+  }
 
   // go to left
   data.HostVector().assign(data.Size(), model.trees.front()->SplitCond(RegTree::kRoot) - 1.0);
-  run_test(1.5, &data);
+  test_batch(1.5, &data);
+  if (!ctx->IsCUDA()) {
+    test_inplace(1.5, &data);
+    test_ghist(1.5, &data);
+  }
 }
 
 void ShapExternalMemoryTest::Run(Context const *ctx, bool is_qdm, bool is_interaction) {
