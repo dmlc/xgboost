@@ -9,8 +9,9 @@
 
 #include <memory>  // for unique_ptr
 
-#include "../../../src/tree/io_utils.h"  // for DftBadValue
-#include "../../../src/tree/param.h"     // for TrainParam
+#include "../../../src/tree/io_utils.h"   // for DftBadValue
+#include "../../../src/tree/param.h"      // for TrainParam
+#include "../../../src/tree/tree_view.h"  // for ScalarTreeView
 #include "../helpers.h"
 
 namespace xgboost {
@@ -43,10 +44,11 @@ class UpdaterTreeStatTest : public ::testing::Test {
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     up->Update(&param, &gpairs_, p_dmat_.get(), position, {&tree});
 
-    tree.WalkTree([&tree](bst_node_t nidx) {
-      if (tree[nidx].IsLeaf()) {
+    auto sc_tree = tree::ScalarTreeView{&tree};
+    sc_tree.WalkTree([&sc_tree](bst_node_t nidx) {
+      if (sc_tree.IsLeaf(nidx)) {
         // 1.0 is the default `min_child_weight`.
-        CHECK_GE(tree.Stat(nidx).sum_hess, 1.0);
+        CHECK_GE(sc_tree.Stat(nidx).sum_hess, 1.0);
       }
       return true;
     });
@@ -117,9 +119,10 @@ class TestSplitWithEta : public ::testing::Test {
     CHECK_GE(p_tree0->NumExtraNodes(), 32);
 
     bst_node_t n_nodes{0};
-    p_tree0->WalkTree([&](bst_node_t nidx) {
-      if (p_tree0->IsLeaf(nidx)) {
-        CHECK(p_tree1->IsLeaf(nidx));
+    auto sc_tree = tree::ScalarTreeView{p_tree0.get()};
+    sc_tree.WalkTree([&](bst_node_t nidx) {
+      if (sc_tree.IsLeaf(nidx)) {
+        CHECK(sc_tree.IsLeaf(nidx));
         if (p_tree0->IsMultiTarget()) {
           CHECK(p_tree1->IsMultiTarget());
           auto leaf_0 = p_tree0->GetMultiTargetTree()->LeafValue(nidx);
@@ -128,17 +131,17 @@ class TestSplitWithEta : public ::testing::Test {
           for (std::size_t i = 0; i < leaf_0.Size(); ++i) {
             CHECK_EQ(leaf_0(i) * eta_ratio, leaf_1(i));
           }
-          CHECK_EQ(DftBadValue(), p_tree0->SplitCond(nidx));
+          CHECK_EQ(DftBadValue(), sc_tree.SplitCond(nidx));
           CHECK_EQ(DftBadValue(), p_tree1->SplitCond(nidx));
         } else {
-          // NON-mt tree reuses split cond for leaf value.
-          auto leaf_0 = p_tree0->SplitCond(nidx);
+          // Non-mt tree reuses split cond for leaf value.
+          auto leaf_0 = sc_tree.SplitCond(nidx);
           auto leaf_1 = p_tree1->SplitCond(nidx);
           CHECK_EQ(leaf_0 * eta_ratio, leaf_1);
         }
       } else {
         CHECK(!p_tree1->IsLeaf(nidx));
-        CHECK_EQ(p_tree0->SplitCond(nidx), p_tree1->SplitCond(nidx));
+        CHECK_EQ(sc_tree.SplitCond(nidx), p_tree1->SplitCond(nidx));
       }
       n_nodes++;
       return true;

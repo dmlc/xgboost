@@ -10,8 +10,10 @@
 #include <limits>
 #include <type_traits>  // for conditional_t
 
-#include "../common/categorical.h"  // for IsCat
-#include "xgboost/tree_model.h"     // for RegTree
+#include "../common/categorical.h"            // for IsCat
+#include "../tree/tree_view.h"                // for ScalarTreeView
+#include "xgboost/multi_target_tree_model.h"  // for MultiTargetTreeView
+#include "xgboost/tree_model.h"               // for RegTree
 
 namespace xgboost::predictor {
 
@@ -24,7 +26,7 @@ namespace xgboost::predictor {
  *
  * @tparam kNumDeepLevels number of tree leveles being unrolled into array-based structure
  */
-template <bool has_categorical, bool any_missing, int kNumDeepLevels>
+template <bool has_categorical, bool any_missing, int kNumDeepLevels, typename TreeView>
 class ArrayTreeLayout {
  private:
   /* Number of nodes in the array based representation of the top levels of the tree
@@ -66,8 +68,10 @@ class ArrayTreeLayout {
  * @param nidx node idx in the original tree
  */
   template <int depth = 0>
-  void Populate(const RegTree& tree, RegTree::CategoricalSplitMatrix const& cats,
+  void Populate(TreeView tree, RegTree::CategoricalSplitMatrix const& cats,
                 bst_node_t nidx_array = 0, bst_node_t nidx = 0) {
+    static_assert(std::is_same_v<TreeView, tree::ScalarTreeView> ||
+                  std::is_same_v<TreeView, MultiTargetTreeView>);
     if constexpr (depth == kNumDeepLevels + 1) {
       return;
     } else if constexpr (depth == kNumDeepLevels) {
@@ -139,7 +143,7 @@ class ArrayTreeLayout {
   constexpr static int kMaxNumDeepLevels = 6;
   static_assert(kNumDeepLevels <= kMaxNumDeepLevels);
 
-  ArrayTreeLayout(const RegTree& tree, RegTree::CategoricalSplitMatrix const &cats) {
+  ArrayTreeLayout(TreeView const& tree, RegTree::CategoricalSplitMatrix const &cats) {
     Populate(tree, cats);
   }
 
@@ -200,27 +204,26 @@ class ArrayTreeLayout {
   }
 };
 
-template <bool has_categorical, bool any_missing, int num_deep_levels = 1>
-void ProcessArrayTree(const RegTree& tree, RegTree::CategoricalSplitMatrix const& cats,
+template <bool has_categorical, bool any_missing, int num_deep_levels = 1, typename TreeView>
+void ProcessArrayTree(TreeView const& tree, RegTree::CategoricalSplitMatrix const& cats,
                       common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
-                      bst_node_t* p_nidx, int tree_depth) {
+                      bst_node_t* p_nidx, bst_node_t tree_depth) {
   constexpr int kMaxNumDeepLevels =
-      ArrayTreeLayout<has_categorical, any_missing, 0>::kMaxNumDeepLevels;
+      ArrayTreeLayout<has_categorical, any_missing, 0, TreeView>::kMaxNumDeepLevels;
 
   // Fill the array tree, then output predicted node idx.
   if constexpr (num_deep_levels == kMaxNumDeepLevels) {
-    ArrayTreeLayout<has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
+    ArrayTreeLayout<has_categorical, any_missing, num_deep_levels, TreeView> buffer{tree, cats};
     buffer.Process(fvec_tloc, block_size, p_nidx);
   } else {
     if (tree_depth <= num_deep_levels) {
-      ArrayTreeLayout<has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
+      ArrayTreeLayout<has_categorical, any_missing, num_deep_levels, TreeView> buffer{tree, cats};
       buffer.Process(fvec_tloc, block_size, p_nidx);
     } else {
-      ProcessArrayTree<has_categorical, any_missing, num_deep_levels + 1>
-        (tree, cats, fvec_tloc, block_size, p_nidx, tree_depth);
+      ProcessArrayTree<has_categorical, any_missing, num_deep_levels + 1>(
+          tree, cats, fvec_tloc, block_size, p_nidx, tree_depth);
     }
   }
 }
-
 }  // namespace xgboost::predictor
 #endif  // XGBOOST_PREDICTOR_ARRAY_TREE_LAYOUT_H_

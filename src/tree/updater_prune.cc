@@ -1,17 +1,18 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file updater_prune.cc
  * \brief prune a tree given the statistics
  * \author Tianqi Chen
  */
-#include <xgboost/tree_updater.h>
-
 #include <memory>
 
 #include "../common/timer.h"
+#include "../tree/tree_view.h"  // for ScalarTreeView
 #include "./param.h"
 #include "xgboost/base.h"
-#include "xgboost/json.h"
+#include "xgboost/json.h"          // for Json
+#include "xgboost/tree_updater.h"  // for TreeUpdater
+
 namespace xgboost::tree {
 DMLC_REGISTRY_FILE_TAG(updater_prune);
 
@@ -46,28 +47,28 @@ class TreePruner : public TreeUpdater {
   // try to prune off current leaf
   bst_node_t TryPruneLeaf(TrainParam const* param, RegTree* p_tree, int nid, int depth,
                           int npruned) {
-    auto& tree = *p_tree;
-    CHECK(tree[nid].IsLeaf());
-    if (tree[nid].IsRoot()) {
+    auto tree = ScalarTreeView{p_tree};
+    CHECK(tree.IsLeaf(nid));
+    if (tree.IsRoot(nid)) {
       return npruned;
     }
-    bst_node_t pid = tree[nid].Parent();
-    CHECK(!tree[pid].IsLeaf());
-    RTreeNodeStat const &s = tree.Stat(pid);
+    bst_node_t pid = tree.Parent(nid);
+    CHECK(!tree.IsLeaf(pid));
+    RTreeNodeStat const& s = tree.Stat(pid);
     // Only prune when both child are leaf.
-    auto left = tree[pid].LeftChild();
-    auto right = tree[pid].RightChild();
-    bool balanced = tree[left].IsLeaf() &&
-                    right != RegTree::kInvalidNodeId && tree[right].IsLeaf();
+    auto left = tree.LeftChild(pid);
+    auto right = tree.RightChild(pid);
+    bool balanced = tree.IsLeaf(left) && right != RegTree::kInvalidNodeId && tree.IsLeaf(right);
     if (balanced && param->NeedPrune(s.loss_chg, depth)) {
       // need to be pruned
-      tree.ChangeToLeaf(pid, param->learning_rate * s.base_weight);
+      p_tree->ChangeToLeaf(pid, param->learning_rate * s.base_weight);
       // tail recursion
       return this->TryPruneLeaf(param, p_tree, pid, depth - 1, npruned + 2);
     } else {
       return npruned;
     }
   }
+
   /*! \brief do pruning of a tree */
   void DoPrune(TrainParam const* param, RegTree* p_tree) {
     auto& tree = *p_tree;

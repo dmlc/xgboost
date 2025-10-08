@@ -37,8 +37,8 @@ TEST(Updater, Refresh) {
 
   tree.ExpandNode(0, 2, 0.2f, false, 0.0, 0.2f, 0.8f, 0.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
-  int cleft = tree[0].LeftChild();
-  int cright = tree[0].RightChild();
+  int cleft = tree.LeftChild(0);
+  int cright = tree.RightChild(0);
 
   tree.Stat(cleft).base_weight = 1.2;
   tree.Stat(cright).base_weight = 1.3;

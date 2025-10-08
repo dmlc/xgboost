@@ -19,6 +19,7 @@
 
 #include "../common/timer.h"
 #include "../tree/param.h"  // TrainParam
+#include "../tree/tree_view.h"             // for ScalarTreeView
 #include "gbtree_model.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -231,10 +232,11 @@ class GBTree : public GradientBooster {
       for (auto idx : trees) {
         CHECK_LE(idx, total_n_trees) << "Invalid tree index.";
         auto const& tree = *model_.trees[idx];
-        tree.WalkTree([&](bst_node_t nidx) {
-          if (!tree.IsLeaf(nidx)) {
-            split_counts[tree.SplitIndex(nidx)]++;
-            fn(tree, nidx, tree.SplitIndex(nidx));
+        auto sc_tree = tree::ScalarTreeView{&tree};
+        sc_tree.WalkTree([&](bst_node_t nidx) {
+          if (!sc_tree.IsLeaf(nidx)) {
+            split_counts[sc_tree.SplitIndex(nidx)]++;
+            fn(sc_tree, nidx, sc_tree.SplitIndex(nidx));
           }
           return true;
         });

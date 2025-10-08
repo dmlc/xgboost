@@ -28,11 +28,11 @@ class Json;
 
 namespace gbm {
 /**
- * \brief Container for all trees built (not update) for one group.
+ * @brief Container for all trees built (not update) for one group.
  */
 using TreesOneGroup = std::vector<std::unique_ptr<RegTree>>;
 /**
- * \brief Container for all trees built (not update) for one iteration.
+ * @brief Container for all trees built (not update) for one iteration.
  */
 using TreesOneIter = std::vector<TreesOneGroup>;
 

@@ -6,9 +6,11 @@
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
 
+#include <cuda/functional>  // for proclaim_return_type
 #include <memory>
 
 #include "../collective/allreduce.h"
+#include "../tree/tree_view.h"  // for ScalarTreeView
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
 #include "../common/common.h"
@@ -37,38 +39,148 @@ DMLC_REGISTRY_FILE_TAG(gpu_predictor);
 
 using cuda_impl::StaticBatch;
 
-struct TreeView {
-  RegTree::CategoricalSplitMatrix cats;
-  common::Span<RegTree::Node const> d_tree;
+class DeviceModel {
+ public:
+  // Need to lazily construct the vectors because GPU id is only known at runtime
+  HostDeviceVector<RTreeNodeStat> stats;
+  HostDeviceVector<size_t> tree_segments;
+  HostDeviceVector<RegTree::Node> nodes;
+  HostDeviceVector<int> tree_group;
+  HostDeviceVector<FeatureType> split_types;
 
-  XGBOOST_DEVICE
-  TreeView(bst_tree_t tree_begin, bst_tree_t tree_idx, common::Span<const RegTree::Node> d_nodes,
-           common::Span<size_t const> d_tree_segments,
-           common::Span<FeatureType const> d_tree_split_types,
-           common::Span<uint32_t const> d_cat_tree_segments,
-           common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
-           common::Span<uint32_t const> d_categories) {
-    auto begin = d_tree_segments[tree_idx - tree_begin];
-    auto n_nodes = d_tree_segments[tree_idx - tree_begin + 1] -
-                   d_tree_segments[tree_idx - tree_begin];
+  // Pointer to each tree, segmenting the node array.
+  HostDeviceVector<uint32_t> categories_tree_segments;
+  // Pointer to each node, segmenting categories array.
+  HostDeviceVector<RegTree::CategoricalSplitMatrix::Segment> categories_node_segments;
+  HostDeviceVector<uint32_t> categories;
 
-    d_tree = d_nodes.subspan(begin, n_nodes);
+  bst_tree_t tree_beg_;  // NOLINT
+  bst_tree_t tree_end_;  // NOLINT
+  int num_group;
+  CatContainer const* cat_enc{nullptr};
 
-    auto tree_cat_ptrs = d_cat_node_segments.subspan(begin, n_nodes);
-    auto tree_split_types = d_tree_split_types.subspan(begin, n_nodes);
-
-    auto tree_categories =
-        d_categories.subspan(d_cat_tree_segments[tree_idx - tree_begin],
-                             d_cat_tree_segments[tree_idx - tree_begin + 1] -
-                                 d_cat_tree_segments[tree_idx - tree_begin]);
-
-    cats.split_type = tree_split_types;
-    cats.categories = tree_categories;
-    cats.node_ptr = tree_cat_ptrs;
+  [[nodiscard]] std::size_t MemCostBytes() const {
+    std::size_t n_bytes = 0;
+    n_bytes += stats.ConstDeviceSpan().size_bytes();
+    n_bytes += tree_segments.ConstDeviceSpan().size_bytes();
+    n_bytes += nodes.ConstDeviceSpan().size_bytes();
+    n_bytes += tree_group.ConstDeviceSpan().size_bytes();
+    n_bytes += split_types.ConstDeviceSpan().size_bytes();
+    n_bytes += categories_tree_segments.ConstDeviceSpan().size_bytes();
+    n_bytes += categories_node_segments.ConstDeviceSpan().size_bytes();
+    n_bytes += categories.ConstDeviceSpan().size_bytes();
+    n_bytes += sizeof(tree_beg_) + sizeof(tree_end_) + sizeof(num_group) + sizeof(cat_enc);
+    return n_bytes;
   }
 
-  [[nodiscard]] __device__ bool HasCategoricalSplit() const { return !cats.categories.empty(); }
+  void Init(const gbm::GBTreeModel& model, bst_tree_t tree_begin, bst_tree_t tree_end,
+            DeviceOrd device) {
+    dh::safe_cuda(cudaSetDevice(device.ordinal));
+
+    // Copy decision trees to device
+    tree_segments = HostDeviceVector<size_t>({}, device);
+    auto& h_tree_segments = tree_segments.HostVector();
+    h_tree_segments.reserve((tree_end - tree_begin) + 1);
+    size_t sum = 0;
+    h_tree_segments.push_back(sum);
+    for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+      sum += model.trees.at(tree_idx)->GetNodes().size();
+      h_tree_segments.push_back(sum);
+    }
+
+    nodes = HostDeviceVector<RegTree::Node>(h_tree_segments.back(), RegTree::Node(), device);
+    stats = HostDeviceVector<RTreeNodeStat>(h_tree_segments.back(), RTreeNodeStat(), device);
+    auto d_nodes = nodes.DevicePointer();
+    auto d_stats = stats.DevicePointer();
+    for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+      auto& src_nodes = model.trees.at(tree_idx)->GetNodes();
+      auto& src_stats = model.trees.at(tree_idx)->GetStats();
+      dh::safe_cuda(cudaMemcpyAsync(
+          d_nodes + h_tree_segments[tree_idx - tree_begin], src_nodes.data(),
+          sizeof(RegTree::Node) * src_nodes.size(), cudaMemcpyDefault));
+      dh::safe_cuda(cudaMemcpyAsync(
+          d_stats + h_tree_segments[tree_idx - tree_begin], src_stats.data(),
+          sizeof(RTreeNodeStat) * src_stats.size(), cudaMemcpyDefault));
+    }
+
+    tree_group = HostDeviceVector<int>(model.tree_info.size(), 0, device);
+    auto& h_tree_group = tree_group.HostVector();
+    std::memcpy(h_tree_group.data(), model.tree_info.data(), sizeof(int) * model.tree_info.size());
+
+    // Initialize categorical splits.
+    split_types.SetDevice(device);
+    std::vector<FeatureType>& h_split_types = split_types.HostVector();
+    h_split_types.resize(h_tree_segments.back());
+    for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
+      auto const& src_st = model.trees.at(tree_idx)->GetSplitTypes();
+      std::copy(src_st.cbegin(), src_st.cend(),
+                h_split_types.begin() + h_tree_segments[tree_idx - tree_begin]);
+    }
+
+    categories = HostDeviceVector<uint32_t>({}, device);
+    categories_tree_segments = HostDeviceVector<uint32_t>(1, 0, device);
+    std::vector<uint32_t> &h_categories = categories.HostVector();
+    std::vector<uint32_t> &h_split_cat_segments = categories_tree_segments.HostVector();
+    for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
+      auto const& src_cats = model.trees.at(tree_idx)->GetSplitCategories();
+      size_t orig_size = h_categories.size();
+      h_categories.resize(orig_size + src_cats.size());
+      std::copy(src_cats.cbegin(), src_cats.cend(),
+                h_categories.begin() + orig_size);
+      h_split_cat_segments.push_back(h_categories.size());
+    }
+
+    categories_node_segments = HostDeviceVector<RegTree::CategoricalSplitMatrix::Segment>(
+        h_tree_segments.back(), {}, device);
+    std::vector<RegTree::CategoricalSplitMatrix::Segment>& h_categories_node_segments =
+        categories_node_segments.HostVector();
+    for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
+      auto const &src_cats_ptr = model.trees.at(tree_idx)->GetSplitCategoriesPtr();
+      std::copy(src_cats_ptr.cbegin(), src_cats_ptr.cend(),
+                h_categories_node_segments.begin() +
+                    h_tree_segments[tree_idx - tree_begin]);
+    }
+
+    this->tree_beg_ = tree_begin;
+    this->tree_end_ = tree_end;
+    this->num_group = model.learner_model_param->OutputLength();
+
+    this->cat_enc = model.Cats();
+    CHECK(this->cat_enc);
+
+    auto n_bytes = this->MemCostBytes();  // Pull data to device, and get the size of the model.
+    LOG(DEBUG) << "Model size:" << common::HumanMemUnit(n_bytes);
+  }
+
 };
+
+XGBOOST_DEVICE auto MakeScalarTreeView(
+    bst_tree_t tree_begin, bst_tree_t tree_idx, common::Span<const RegTree::Node> d_nodes,
+    common::Span<size_t const> d_tree_segments, common::Span<FeatureType const> d_tree_split_types,
+    common::Span<uint32_t const> d_cat_tree_segments,
+    common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
+    common::Span<uint32_t const> d_categories) {
+  auto begin = d_tree_segments[tree_idx - tree_begin];
+  auto n_nodes =
+      d_tree_segments[tree_idx - tree_begin + 1] - d_tree_segments[tree_idx - tree_begin];
+
+  common::Span<RegTree::Node const> d_tree = d_nodes.subspan(begin, n_nodes);
+
+  auto tree_cat_ptrs = d_cat_node_segments.subspan(begin, n_nodes);
+  auto tree_split_types = d_tree_split_types.subspan(begin, n_nodes);
+
+  auto tree_categories = d_categories.subspan(
+      d_cat_tree_segments[tree_idx - tree_begin],
+      d_cat_tree_segments[tree_idx - tree_begin + 1] - d_cat_tree_segments[tree_idx - tree_begin]);
+
+  RegTree::CategoricalSplitMatrix cats;
+  cats.split_type = tree_split_types;
+  cats.categories = tree_categories;
+  cats.node_ptr = tree_cat_ptrs;
+
+  auto tree = tree::ScalarTreeView{d_tree.data(), nullptr, cats, static_cast<bst_node_t>(n_nodes)};
+  return tree;
+}
 
 struct SparsePageView {
   common::Span<const Entry> d_data;
@@ -293,20 +405,19 @@ __global__ void PredictKernel(Data data, common::Span<MultiTargetTreeView> trees
 }  // namespace multi
 
 namespace scalar {
-template <bool has_missing, bool has_categorical, typename Loader>
+template <bool has_missing, bool has_categorical, typename Loader, typename TreeView>
 __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = 0;
-  RegTree::Node n = tree.d_tree[nidx];
-  while (!n.IsLeaf()) {
-    float fvalue = loader->GetElement(ridx, n.SplitIndex());
+  // RegTree::Node n = tree.d_tree[nidx];
+  while (!tree.IsLeaf(nidx)) {
+    float fvalue = loader->GetElement(ridx, tree.SplitIndex(nidx));
     bool is_missing = common::CheckNAN(fvalue);
-    nidx = GetNextNode<has_missing, has_categorical>(n, nidx, fvalue, is_missing, tree.cats);
-    n = tree.d_tree[nidx];
+    nidx = GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing, tree.cats);
   }
   return nidx;
 }
 
-template <bool has_missing, typename Loader>
+template <bool has_missing, typename Loader, typename TreeView>
 __device__ float GetLeafWeight(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = -1;
   if (tree.HasCategoricalSplit()) {
@@ -314,7 +425,7 @@ __device__ float GetLeafWeight(bst_idx_t ridx, TreeView const& tree, Loader* loa
   } else {
     nidx = GetLeafIndex<has_missing, false>(ridx, tree, loader);
   }
-  return tree.d_tree[nidx].LeafValue();
+  return tree.LeafValue(nidx);
 }
 }  // namespace scalar
 
@@ -338,10 +449,9 @@ PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
   }
   Loader loader{std::move(data), use_shared, num_features, num_rows, missing, std::move(acc)};
   for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-    TreeView d_tree{
-        tree_begin,          tree_idx,           d_nodes,
-        d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-        d_cat_node_segments, d_categories};
+    auto d_tree =
+        MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                           d_cat_tree_segments, d_cat_node_segments, d_categories);
 
     bst_node_t leaf = -1;
     if (d_tree.HasCategoricalSplit()) {
@@ -372,10 +482,9 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
   if (num_group == 1) {
     float sum = 0;
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      TreeView d_tree{
-          tree_begin,          tree_idx,           d_nodes,
-          d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-          d_cat_node_segments, d_categories};
+      auto d_tree =
+          MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                             d_cat_tree_segments, d_cat_node_segments, d_categories);
       float leaf = scalar::GetLeafWeight<has_missing>(global_idx, d_tree, &loader);
       sum += leaf;
     }
@@ -383,128 +492,15 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
   } else {
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       int tree_group = d_tree_group[tree_idx];
-      TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                      d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                      d_cat_node_segments, d_categories};
+      auto d_tree =
+          MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                             d_cat_tree_segments, d_cat_node_segments, d_categories);
       bst_uint out_prediction_idx = global_idx * num_group + tree_group;
       d_out_predictions[out_prediction_idx] +=
           scalar::GetLeafWeight<has_missing>(global_idx, d_tree, &loader);
     }
   }
 }
-
-class DeviceModel {
- public:
-  // Need to lazily construct the vectors because GPU id is only known at runtime
-  HostDeviceVector<RTreeNodeStat> stats;
-  HostDeviceVector<size_t> tree_segments;
-  HostDeviceVector<RegTree::Node> nodes;
-  HostDeviceVector<int> tree_group;
-  HostDeviceVector<FeatureType> split_types;
-
-  // Pointer to each tree, segmenting the node array.
-  HostDeviceVector<uint32_t> categories_tree_segments;
-  // Pointer to each node, segmenting categories array.
-  HostDeviceVector<RegTree::CategoricalSplitMatrix::Segment> categories_node_segments;
-  HostDeviceVector<uint32_t> categories;
-
-  bst_tree_t tree_beg_;  // NOLINT
-  bst_tree_t tree_end_;  // NOLINT
-  int num_group;
-  CatContainer const* cat_enc{nullptr};
-
-  [[nodiscard]] std::size_t MemCostBytes() const {
-    std::size_t n_bytes = 0;
-    n_bytes += stats.ConstDeviceSpan().size_bytes();
-    n_bytes += tree_segments.ConstDeviceSpan().size_bytes();
-    n_bytes += nodes.ConstDeviceSpan().size_bytes();
-    n_bytes += tree_group.ConstDeviceSpan().size_bytes();
-    n_bytes += split_types.ConstDeviceSpan().size_bytes();
-    n_bytes += categories_tree_segments.ConstDeviceSpan().size_bytes();
-    n_bytes += categories_node_segments.ConstDeviceSpan().size_bytes();
-    n_bytes += categories.ConstDeviceSpan().size_bytes();
-    n_bytes += sizeof(tree_beg_) + sizeof(tree_end_) + sizeof(num_group) + sizeof(cat_enc);
-    return n_bytes;
-  }
-
-  void Init(const gbm::GBTreeModel& model, bst_tree_t tree_begin, bst_tree_t tree_end,
-            DeviceOrd device) {
-    dh::safe_cuda(cudaSetDevice(device.ordinal));
-
-    // Copy decision trees to device
-    tree_segments = HostDeviceVector<size_t>({}, device);
-    auto& h_tree_segments = tree_segments.HostVector();
-    h_tree_segments.reserve((tree_end - tree_begin) + 1);
-    size_t sum = 0;
-    h_tree_segments.push_back(sum);
-    for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      sum += model.trees.at(tree_idx)->GetNodes().size();
-      h_tree_segments.push_back(sum);
-    }
-
-    nodes = HostDeviceVector<RegTree::Node>(h_tree_segments.back(), RegTree::Node(), device);
-    stats = HostDeviceVector<RTreeNodeStat>(h_tree_segments.back(), RTreeNodeStat(), device);
-    auto d_nodes = nodes.DevicePointer();
-    auto d_stats = stats.DevicePointer();
-    for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      auto& src_nodes = model.trees.at(tree_idx)->GetNodes();
-      auto& src_stats = model.trees.at(tree_idx)->GetStats();
-      dh::safe_cuda(cudaMemcpyAsync(d_nodes + h_tree_segments[tree_idx - tree_begin],
-                                    src_nodes.data(), sizeof(RegTree::Node) * src_nodes.size(),
-                                    cudaMemcpyDefault));
-      dh::safe_cuda(cudaMemcpyAsync(d_stats + h_tree_segments[tree_idx - tree_begin],
-                                    src_stats.data(), sizeof(RTreeNodeStat) * src_stats.size(),
-                                    cudaMemcpyDefault));
-    }
-
-    tree_group = HostDeviceVector<int>(model.tree_info.size(), 0, device);
-    auto& h_tree_group = tree_group.HostVector();
-    std::memcpy(h_tree_group.data(), model.tree_info.data(), sizeof(int) * model.tree_info.size());
-
-    // Initialize categorical splits.
-    split_types.SetDevice(device);
-    std::vector<FeatureType>& h_split_types = split_types.HostVector();
-    h_split_types.resize(h_tree_segments.back());
-    for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      auto const& src_st = model.trees.at(tree_idx)->GetSplitTypes();
-      std::copy(src_st.cbegin(), src_st.cend(),
-                h_split_types.begin() + h_tree_segments[tree_idx - tree_begin]);
-    }
-
-    categories = HostDeviceVector<uint32_t>({}, device);
-    categories_tree_segments = HostDeviceVector<uint32_t>(1, 0, device);
-    std::vector<uint32_t>& h_categories = categories.HostVector();
-    std::vector<uint32_t>& h_split_cat_segments = categories_tree_segments.HostVector();
-    for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      auto const& src_cats = model.trees.at(tree_idx)->GetSplitCategories();
-      size_t orig_size = h_categories.size();
-      h_categories.resize(orig_size + src_cats.size());
-      std::copy(src_cats.cbegin(), src_cats.cend(), h_categories.begin() + orig_size);
-      h_split_cat_segments.push_back(h_categories.size());
-    }
-
-    categories_node_segments = HostDeviceVector<RegTree::CategoricalSplitMatrix::Segment>(
-        h_tree_segments.back(), {}, device);
-    std::vector<RegTree::CategoricalSplitMatrix::Segment>& h_categories_node_segments =
-        categories_node_segments.HostVector();
-    for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      auto const &src_cats_ptr = model.trees.at(tree_idx)->GetSplitCategoriesPtr();
-      std::copy(src_cats_ptr.cbegin(), src_cats_ptr.cend(),
-                h_categories_node_segments.begin() +
-                    h_tree_segments[tree_idx - tree_begin]);
-    }
-
-    this->tree_beg_ = tree_begin;
-    this->tree_end_ = tree_end;
-    this->num_group = model.learner_model_param->OutputLength();
-
-    this->cat_enc = model.Cats();
-    CHECK(this->cat_enc);
-
-    auto n_bytes = this->MemCostBytes();  // Pull data to device, and get the size of the model.
-    LOG(DEBUG) << "Model size:" << common::HumanMemUnit(n_bytes);
-  }
-};
 
 struct ShapSplitCondition {
   ShapSplitCondition() = default;
@@ -586,8 +582,8 @@ void ExtractPaths(Context const* ctx,
   dh::caching_device_vector<PathInfo> info(device_model.nodes.Size());
   auto d_nodes = device_model.nodes.ConstDeviceSpan();
   auto d_tree_segments = device_model.tree_segments.ConstDeviceSpan();
-  auto nodes_transform = dh::MakeTransformIterator<PathInfo>(
-      thrust::make_counting_iterator(0ull), [=] __device__(size_t idx) {
+  auto nodes_transform = dh::MakeIndexTransformIter(
+      cuda::proclaim_return_type<PathInfo>([=] __device__(size_t idx) -> PathInfo {
         auto n = d_nodes[idx];
         if (!n.IsLeaf() || n.IsDeleted()) {
           return PathInfo{-1, 0, 0};
@@ -600,7 +596,7 @@ void ExtractPaths(Context const* ctx,
           path_length++;
         }
         return PathInfo{static_cast<int64_t>(idx), path_length, tree_idx};
-      });
+      }));
   auto end = thrust::copy_if(ctx->CUDACtx()->CTP(), nodes_transform,
                              nodes_transform + d_nodes.size(), info.begin(),
                              [=] __device__(const PathInfo& e) { return e.leaf_position != -1; });
@@ -624,7 +620,7 @@ void ExtractPaths(Context const* ctx,
   auto d_cat_segments = device_model.categories_tree_segments.ConstDeviceSpan();
   auto d_cat_node_segments = device_model.categories_node_segments.ConstDeviceSpan();
 
-  size_t max_cat = 0;
+  std::size_t max_cat = 0;
   if (thrust::any_of(ctx->CUDACtx()->CTP(), dh::tbegin(d_split_types), dh::tend(d_split_types),
                      common::IsCatOp{})) {
     dh::PinnedMemory pinned;
@@ -648,25 +644,23 @@ void ExtractPaths(Context const* ctx,
   dh::LaunchN(info.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
     auto path_info = d_info[idx];
     size_t tree_offset = d_tree_segments[path_info.tree_idx];
-    TreeView tree{0,                   path_info.tree_idx, d_nodes,
-                  d_tree_segments,     d_split_types,      d_cat_segments,
-                  d_cat_node_segments, d_model_categories};
+    auto tree = MakeScalarTreeView(0, path_info.tree_idx, d_nodes, d_tree_segments, d_split_types,
+                                   d_cat_segments, d_cat_node_segments, d_model_categories);
     int group = d_tree_group[path_info.tree_idx];
     size_t child_idx = path_info.leaf_position;
     auto child = d_nodes[child_idx];
-    float v = child.LeafValue();
+    float v = tree.LeafValue(child_idx);
     const float inf = std::numeric_limits<float>::infinity();
     size_t output_position = d_path_segments[idx + 1] - 1;
-    while (!child.IsRoot()) {
-      size_t parent_idx = tree_offset + child.Parent();
+    while (!tree.IsRoot(child_idx)) {
+      size_t parent_idx = tree_offset + tree.Parent(child_idx);
       double child_cover = d_stats[child_idx].sum_hess;
       double parent_cover = d_stats[parent_idx].sum_hess;
       double zero_fraction = child_cover / parent_cover;
-      auto parent = tree.d_tree[child.Parent()];
 
-      bool is_left_path = (tree_offset + parent.LeftChild()) == child_idx;
-      bool is_missing_path = (!parent.DefaultLeft() && !is_left_path) ||
-                             (parent.DefaultLeft() && is_left_path);
+      bool is_left_path = (tree_offset + tree.LeftChild(tree.Parent(child_idx))) == child_idx;
+      bool is_missing_path = (!tree.DefaultLeft(child_idx) && !is_left_path) ||
+                             (tree.DefaultLeft(child_idx) && is_left_path);
 
       float lower_bound = -inf;
       float upper_bound = inf;
@@ -681,16 +675,15 @@ void ExtractPaths(Context const* ctx,
         }
         bits = common::CatBitField{path_cats};
       } else {
-        lower_bound = is_left_path ? -inf : parent.SplitCond();
-        upper_bound = is_left_path ? parent.SplitCond() : inf;
+        lower_bound = is_left_path ? -inf : tree.SplitCond(parent_idx);
+        upper_bound = is_left_path ? tree.SplitCond(parent_idx) : inf;
       }
       d_paths[output_position--] =
           gpu_treeshap::PathElement<ShapSplitCondition>{
-              idx,           parent.SplitIndex(),
+              idx,           tree.SplitIndex(parent_idx),
               group,         ShapSplitCondition{lower_bound, upper_bound, is_missing_path, bits},
               zero_fraction, v};
       child_idx = parent_idx;
-      child = parent;
     }
     // Root node has feature -1
     d_paths[output_position] = {idx, -1, group, ShapSplitCondition{-inf, inf, false, {}}, 1.0, v};
@@ -728,58 +721,56 @@ __global__ void MaskBitVectorKernel(
 
   std::size_t tree_offset = 0;
   for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-    TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                    d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                    d_cat_node_segments, d_categories};
-    auto const tree_nodes = d_tree.d_tree.size();
+    auto d_tree =
+        MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                           d_cat_tree_segments, d_cat_node_segments, d_categories);
+    auto const tree_nodes = d_tree.Size();
     for (auto nid = 0; nid < tree_nodes; nid++) {
-      auto const& node = d_tree.d_tree[nid];
-      if (node.IsDeleted() || node.IsLeaf()) {
+      // auto const& node = d_tree.d_tree[nid];
+      if (d_tree.IsDeleted(nid) || d_tree.IsLeaf(nid)) {
           continue;
       }
-      auto const fvalue = loader.GetElement(row_idx, node.SplitIndex());
+      auto const fvalue = loader.GetElement(row_idx, d_tree.SplitIndex(nid));
       auto const is_missing = common::CheckNAN(fvalue);
       auto const bit_index = row_idx * num_nodes + tree_offset + nid;
       if (is_missing) {
           missing_bits.Set(bit_index);
       } else {
-          auto const decision = d_tree.HasCategoricalSplit()
-                                    ? GetDecision<true>(node, nid, fvalue, d_tree.cats)
-                                    : GetDecision<false>(node, nid, fvalue, d_tree.cats);
-          if (decision) {
-            decision_bits.Set(bit_index);
-          }
+        auto const decision = d_tree.HasCategoricalSplit()
+                                  ? GetDecision<true>(d_tree, nid, fvalue, d_tree.cats)
+                                  : GetDecision<false>(d_tree, nid, fvalue, d_tree.cats);
+        if (decision) {
+          decision_bits.Set(bit_index);
+        }
       }
     }
     tree_offset += tree_nodes;
   }
 }
 
-__device__ bst_node_t GetLeafIndexByBitVector(bst_idx_t ridx, TreeView const& tree,
+__device__ bst_node_t GetLeafIndexByBitVector(bst_idx_t ridx, tree::ScalarTreeView const& tree,
                                               BitVector const& decision_bits,
                                               BitVector const& missing_bits, std::size_t num_nodes,
                                               std::size_t tree_offset) {
   bst_node_t nidx = 0;
-  RegTree::Node n = tree.d_tree[nidx];
-  while (!n.IsLeaf()) {
+  while (!tree.IsLeaf(nidx)) {
     auto const bit_index = ridx * num_nodes + tree_offset + nidx;
     if (missing_bits.Check(bit_index)) {
-      nidx = n.DefaultChild();
+      nidx = tree.DefaultChild(nidx);
     } else {
-      nidx = n.LeftChild() + !decision_bits.Check(bit_index);
+      nidx = tree.LeftChild(nidx) + !decision_bits.Check(bit_index);
     }
-    n = tree.d_tree[nidx];
   }
   return nidx;
 }
 
-__device__ float GetLeafWeightByBitVector(bst_idx_t ridx, TreeView const& tree,
+__device__ float GetLeafWeightByBitVector(bst_idx_t ridx, tree::ScalarTreeView const& tree,
                                           BitVector const& decision_bits,
                                           BitVector const& missing_bits, std::size_t num_nodes,
                                           std::size_t tree_offset) {
   auto const nidx =
       GetLeafIndexByBitVector(ridx, tree, decision_bits, missing_bits, num_nodes, tree_offset);
-  return tree.d_tree[nidx].LeafValue();
+  return tree.LeafValue(nidx);
 }
 
 template <bool predict_leaf>
@@ -800,36 +791,36 @@ __global__ void PredictByBitVectorKernel(
   std::size_t tree_offset = 0;
   if constexpr (predict_leaf) {
     for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                      d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                      d_cat_node_segments, d_categories};
+      auto d_tree =
+          MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                             d_cat_tree_segments, d_cat_node_segments, d_categories);
       auto const leaf = GetLeafIndexByBitVector(row_idx, d_tree, decision_bits, missing_bits,
                                                 num_nodes, tree_offset);
       d_out_predictions[row_idx * (tree_end - tree_begin) + tree_idx] = static_cast<float>(leaf);
-      tree_offset += d_tree.d_tree.size();
+      tree_offset += d_tree.Size();
     }
   } else {
     if (num_group == 1) {
       float sum = 0;
       for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-          TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                          d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                          d_cat_node_segments, d_categories};
-          sum += GetLeafWeightByBitVector(row_idx, d_tree, decision_bits, missing_bits, num_nodes,
-                                          tree_offset);
-          tree_offset += d_tree.d_tree.size();
+        auto d_tree =
+            MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                               d_cat_tree_segments, d_cat_node_segments, d_categories);
+        sum += GetLeafWeightByBitVector(row_idx, d_tree, decision_bits, missing_bits, num_nodes,
+                                        tree_offset);
+        tree_offset += d_tree.Size();
       }
       d_out_predictions[row_idx] += sum;
     } else {
       for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
           auto const tree_group = d_tree_group[tree_idx];
-          TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                          d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                          d_cat_node_segments, d_categories};
+          auto d_tree =
+              MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                                 d_cat_tree_segments, d_cat_node_segments, d_categories);
           bst_uint out_prediction_idx = row_idx * num_group + tree_group;
           d_out_predictions[out_prediction_idx] += GetLeafWeightByBitVector(
               row_idx, d_tree, decision_bits, missing_bits, num_nodes, tree_offset);
-          tree_offset += d_tree.d_tree.size();
+          tree_offset += d_tree.Size();
       }
     }
   }

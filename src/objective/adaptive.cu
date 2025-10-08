@@ -12,6 +12,7 @@
 #include "../common/device_helpers.cuh"
 #include "../common/stats.cuh"
 #include "../tree/sample_position.h"  // for SamplePosition
+#include "../tree/tree_view.h"        // for ScalarTreeView
 #include "adaptive.h"
 #include "xgboost/context.h"
 
@@ -40,8 +41,9 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                    sorted_position.cbegin();
   if (beg_pos == sorted_position.size()) {
     auto& leaf = p_nidx->HostVector();
-    tree.WalkTree([&](bst_node_t nidx) {
-      if (tree[nidx].IsLeaf()) {
+    auto sc_tree = tree::ScalarTreeView{&tree};
+    sc_tree.WalkTree([&](bst_node_t nidx) {
+      if (sc_tree.IsLeaf(nidx)) {
         leaf.push_back(nidx);
       }
       return true;
@@ -122,8 +124,9 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
     nidx.Resize(*h_num_runs);
 
     std::vector<bst_node_t> leaves;
-    tree.WalkTree([&](bst_node_t nidx) {
-      if (tree[nidx].IsLeaf()) {
+    auto sc_tree = tree::ScalarTreeView{&tree};
+    sc_tree.WalkTree([&](bst_node_t nidx) {
+      if (sc_tree.IsLeaf(nidx)) {
         leaves.push_back(nidx);
       }
       return true;

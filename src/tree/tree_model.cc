@@ -13,6 +13,7 @@
 #include <limits>
 #include <sstream>
 #include <type_traits>  // for is_floating_point_v
+#include "tree_view.h"  // for ScalarTreeView
 
 #include "../common/categorical.h"  // for GetNodeCats
 #include "../common/common.h"       // for EscapeU8
@@ -826,7 +827,7 @@ bool RegTree::Equal(const RegTree& b) const {
   }
   auto const& self = *this;
   bool ret { true };
-  this->WalkTree([&self, &b, &ret](bst_node_t nidx) {
+  tree::ScalarTreeView{this}.WalkTree([&self, &b, &ret](bst_node_t nidx) {
     if (!(self.nodes_.at(nidx) == b.nodes_.at(nidx))) {
       ret = false;
       return false;
@@ -838,28 +839,32 @@ bool RegTree::Equal(const RegTree& b) const {
 
 bst_node_t RegTree::GetNumLeaves() const {
   CHECK(!IsMultiTarget());
-  bst_node_t leaves { 0 };
-  auto const& self = *this;
-  this->WalkTree([&leaves, &self](bst_node_t nidx) {
-                   if (self[nidx].IsLeaf()) {
-                     leaves++;
-                   }
-                   return true;
-                 });
+  bst_node_t leaves{0};
+  auto sc_tree = tree::ScalarTreeView{this};
+  sc_tree.WalkTree([&leaves, &sc_tree](bst_node_t nidx) {
+    if (sc_tree.IsLeaf(nidx)) {
+      leaves++;
+    }
+    return true;
+  });
   return leaves;
 }
 
 bst_node_t RegTree::GetNumSplitNodes() const {
   CHECK(!IsMultiTarget());
-  bst_node_t splits { 0 };
-  auto const& self = *this;
-  this->WalkTree([&splits, &self](bst_node_t nidx) {
-                   if (!self[nidx].IsLeaf()) {
-                     splits++;
-                   }
-                   return true;
-                 });
+  bst_node_t splits{0};
+  auto sc_tree = tree::ScalarTreeView{this};
+  sc_tree.WalkTree([&splits, &sc_tree](bst_node_t nidx) {
+    if (!sc_tree.IsLeaf(nidx)) {
+      splits++;
+    }
+    return true;
+  });
   return splits;
+}
+
+[[nodiscard]] bst_node_t RegTree::GetDepth(bst_node_t nid) const {
+  return tree::ScalarTreeView{this}.GetDepth(nid);
 }
 
 void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,

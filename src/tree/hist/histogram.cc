@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #include "histogram.h"
 
@@ -9,6 +9,7 @@
 #include <vector>   // for vector
 
 #include "../../common/transform_iterator.h"  // for MakeIndexTransformIter
+#include "../tree_view.h"                     // for ScalarTreeView
 #include "expand_entry.h"                     // for MultiExpandEntry, CPUExpandEntry
 #include "xgboost/logging.h"                  // for CHECK_NE
 #include "xgboost/span.h"                     // for Span
@@ -45,9 +46,10 @@ void AssignNodes(RegTree const *p_tree, std::vector<MultiExpandEntry> const &val
 void AssignNodes(RegTree const *p_tree, std::vector<CPUExpandEntry> const &candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
   std::size_t n_idx = 0;
+  auto tree = ScalarTreeView{p_tree};
   for (auto const &c : candidates) {
-    auto left_nidx = (*p_tree)[c.nid].LeftChild();
-    auto right_nidx = (*p_tree)[c.nid].RightChild();
+    auto left_nidx = tree.LeftChild(c.nid);
+    auto right_nidx = tree.RightChild(c.nid);
     auto fewer_right = c.split.right_sum.GetHess() < c.split.left_sum.GetHess();
 
     auto build_nidx = left_nidx;

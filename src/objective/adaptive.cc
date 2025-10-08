@@ -15,6 +15,7 @@
 #include "../common/threading_utils.h"     // ParallelFor
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
 #include "../tree/sample_position.h"       // for SamplePosition
+#include "../tree/tree_view.h"             // for ScalarTreeView
 #include "xgboost/base.h"                  // bst_node_t
 #include "xgboost/context.h"               // Context
 #include "xgboost/data.h"                  // MetaInfo
@@ -48,8 +49,9 @@ void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
   CHECK_LE(begin_pos, sorted_pos.size());
 
   std::vector<bst_node_t> leaf;
-  tree.WalkTree([&](bst_node_t nidx) {
-    if (tree[nidx].IsLeaf()) {
+  auto sc_tree = tree::ScalarTreeView{&tree};
+  sc_tree.WalkTree([&](bst_node_t nidx) {
+    if (sc_tree.IsLeaf(nidx)) {
       leaf.push_back(nidx);
     }
     return true;
@@ -128,7 +130,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
         // loop over each leaf
         common::ParallelFor(quantiles.size(), n_threads, [&](size_t k) {
           auto nidx = h_node_idx[k];
-          CHECK(tree[nidx].IsLeaf());
+          CHECK(tree.IsLeaf(nidx));
           CHECK_LT(k + 1, h_node_ptr.size());
           size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
           auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);

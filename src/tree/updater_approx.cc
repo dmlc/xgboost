@@ -221,8 +221,8 @@ class GlobalApproxBuilder {
       if (!valid_candidates.empty()) {
         this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair, hess);
         for (auto const &candidate : valid_candidates) {
-          int left_child_nidx = tree[candidate.nid].LeftChild();
-          int right_child_nidx = tree[candidate.nid].RightChild();
+          int left_child_nidx = tree.LeftChild(candidate.nid);
+          int right_child_nidx = tree.RightChild(candidate.nid);
           CPUExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx)};
           CPUExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx)};
           best_splits.push_back(l_best);

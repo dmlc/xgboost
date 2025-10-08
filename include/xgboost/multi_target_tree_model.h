@@ -140,6 +140,10 @@ class MultiTargetTree : public Model {
 
   [[nodiscard]] bst_target_t NumTargets() const;
 
+  [[nodiscard]] bool IsLeftChild(bst_node_t nidx) const {
+    auto p = this->Parent(nidx);
+    return nidx == this->LeftChild(p);
+  }
   [[nodiscard]] std::size_t Size() const;
 
   [[nodiscard]] bst_node_t Depth(bst_node_t nidx) const {

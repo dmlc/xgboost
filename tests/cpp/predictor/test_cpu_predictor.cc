@@ -8,6 +8,7 @@
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/predictor/array_tree_layout.h"
+#include "../../../src/tree/tree_view.h"
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
@@ -56,6 +57,11 @@ void CheckArrayLayout(const RegTree& tree, ArrayLayoutT buffer, int max_depth, i
   }
 }
 
+namespace {
+template <bst_node_t kDepth>
+using LayoutForTest = predictor::ArrayTreeLayout<false, true, kDepth, tree::ScalarTreeView>;
+}
+
 TEST(CpuPredictor, ArrayTreeLayout) {
   Context ctx;
 
@@ -70,29 +76,30 @@ TEST(CpuPredictor, ArrayTreeLayout) {
     tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0);
   }
 
+  auto sc_tree = tree::ScalarTreeView{&tree};
   {
     constexpr int kDepth = 1;
-    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    LayoutForTest<kDepth> buffer(sc_tree, tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 2;
-    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 3;
-    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 4;
-    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 5;
-    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
 }

@@ -20,9 +20,10 @@
 #include "../data/gradient_index.h"           // for GHistIndexMatrix
 #include "../data/proxy_dmatrix.h"            // for DMatrixProxy
 #include "../gbm/gbtree_model.h"              // for GBTreeModel, GBTreeModelParam
+#include "../tree/tree_view.h"                // for ScalarTreeView
+#include "array_tree_layout.h"                // for ProcessArrayTree
 #include "dmlc/registry.h"                    // for DMLC_REGISTRY_FILE_TAG
 #include "predict_fn.h"                       // for GetNextNode, GetNextNodeMulti
-#include "array_tree_layout.h"                // for ProcessArrayTree
 #include "treeshap.h"                         // for CalculateContributions
 #include "utils.h"                            // for CheckProxyDMatrix
 #include "xgboost/base.h"                     // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
@@ -43,37 +44,37 @@ DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 
 namespace scalar {
 template <bool has_missing, bool has_categorical>
-bst_node_t GetLeafIndex(RegTree const &tree, const RegTree::FVec &feat,
+bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, const RegTree::FVec &feat,
                         RegTree::CategoricalSplitMatrix const &cats, bst_node_t nidx) {
-  while (!tree[nidx].IsLeaf()) {
-    bst_feature_t split_index = tree[nidx].SplitIndex();
+  while (!tree.IsLeaf(nidx)) {
+    bst_feature_t split_index = tree.SplitIndex(nidx);
     auto fvalue = feat.GetFvalue(split_index);
     nidx = GetNextNode<has_missing, has_categorical>(
-        tree[nidx], nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
+        tree, nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
   }
   return nidx;
 }
 
 template <bool has_categorical>
-[[nodiscard]] float PredValueByOneTree(const RegTree::FVec &p_feats, RegTree const &tree,
+[[nodiscard]] float PredValueByOneTree(const RegTree::FVec &p_feats, tree::ScalarTreeView const& tree,
                                        RegTree::CategoricalSplitMatrix const &cats,
                                        bst_node_t nidx) noexcept(true) {
   const bst_node_t leaf = p_feats.HasMissing()
                               ? GetLeafIndex<true, has_categorical>(tree, p_feats, cats, nidx)
                               : GetLeafIndex<false, has_categorical>(tree, p_feats, cats, nidx);
-  return tree[leaf].LeafValue();
+  return tree.LeafValue(leaf);
 }
 
 template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
-void PredValueByOneTree(const RegTree& tree,
-                        std::size_t const predict_offset,
-                        common::Span<RegTree::FVec> fvec_tloc,
-                        std::size_t const block_size,
-                        linalg::MatrixView<float> out_predt,
-                        bst_node_t* p_nidx, int depth, int gid) {
+void PredValueByOneTree(RegTree const &tree, std::size_t const predict_offset,
+                        common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
+                        linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, int depth,
+                        int gid) {
   auto const &cats = tree.GetCategoriesMatrix();
+  auto sc_tree = tree::ScalarTreeView{&tree};
+
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(tree, cats, fvec_tloc, block_size, p_nidx,
+    ProcessArrayTree<has_categorical, any_missing>(sc_tree, cats, fvec_tloc, block_size, p_nidx,
                                                    depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
@@ -87,7 +88,7 @@ void PredValueByOneTree(const RegTree& tree,
       p_nidx[i] = 0;
     }
     out_predt(predict_offset + i, gid) +=
-        PredValueByOneTree<has_categorical>(fvec_tloc[i], tree, cats, nidx);
+        PredValueByOneTree<has_categorical>(fvec_tloc[i], sc_tree, cats, nidx);
   }
 }
 }  // namespace scalar
@@ -100,7 +101,7 @@ bst_node_t GetLeafIndex(MultiTargetTreeView const &tree, const RegTree::FVec &fe
   while (!tree.IsLeaf(nidx)) {
     bst_feature_t split_index = tree.SplitIndex(nidx);
     auto fvalue = feat.GetFvalue(split_index);
-    nidx = GetNextNodeMulti<has_missing, has_categorical>(
+    nidx = GetNextNode<has_missing, has_categorical>(
         tree, nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
   }
   return nidx;
@@ -121,13 +122,13 @@ void PredValueByOneTree(RegTree::FVec const &p_feats, MultiTargetTreeView const 
 }
 
 template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
-void PredValueByOneTree(Context const *ctx, const RegTree &tree, std::size_t const predict_offset,
+void PredValueByOneTree(Context const *ctx, RegTree const &tree, std::size_t const predict_offset,
                         common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                         linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, bst_node_t depth) {
   const auto mt_tree = tree.GetMultiTargetTree()->View(ctx);
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(tree, cats, fvec_tloc, block_size, p_nidx,
+    ProcessArrayTree<has_categorical, any_missing>(mt_tree, cats, fvec_tloc, block_size, p_nidx,
                                                    depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
@@ -571,15 +572,15 @@ void PredictBatchByBlockKernel(DataView const &batch, gbm::GBTreeModel const &mo
 
 float FillNodeMeanValues(RegTree const *tree, bst_node_t nidx, std::vector<float> *mean_values) {
   bst_float result;
-  auto &node = (*tree)[nidx];
+  auto sc_tree = tree::ScalarTreeView{tree};
   auto &node_mean_values = *mean_values;
-  if (node.IsLeaf()) {
-    result = node.LeafValue();
+  if (sc_tree.IsLeaf(nidx)) {
+    result = sc_tree.LeafValue(nidx);
   } else {
-    result = FillNodeMeanValues(tree, node.LeftChild(), mean_values) *
-             tree->Stat(node.LeftChild()).sum_hess;
-    result += FillNodeMeanValues(tree, node.RightChild(), mean_values) *
-              tree->Stat(node.RightChild()).sum_hess;
+    result = FillNodeMeanValues(tree, sc_tree.LeftChild(nidx), mean_values) *
+             tree->Stat(sc_tree.LeftChild(nidx)).sum_hess;
+    result += FillNodeMeanValues(tree, sc_tree.RightChild(nidx), mean_values) *
+              tree->Stat(sc_tree.RightChild(nidx)).sum_hess;
     result /= tree->Stat(nidx).sum_hess;
   }
   node_mean_values[nidx] = result;
@@ -719,15 +720,15 @@ class ColumnSplitHelper {
     auto const &tree = *model_.trees[tree_id];
     auto const &cats = tree.GetCategoriesMatrix();
     bst_node_t n_nodes = tree.GetNodes().size();
+    auto sc_tree = tree::ScalarTreeView(&tree);
 
     for (bst_node_t nid = 0; nid < n_nodes; nid++) {
-      auto const &node = tree[nid];
-      if (node.IsDeleted() || node.IsLeaf()) {
+      if (sc_tree.IsDeleted(nid) || sc_tree.IsLeaf(nid)) {
         continue;
       }
 
       auto const bit_index = BitIndex(tree_id, row_id, nid);
-      unsigned split_index = node.SplitIndex();
+      unsigned split_index = sc_tree.SplitIndex(nid);
       if (feat.IsMissing(split_index)) {
         missing_bits_.Set(bit_index);
         continue;
@@ -735,8 +736,8 @@ class ColumnSplitHelper {
 
       auto const fvalue = feat.GetFvalue(split_index);
       auto const decision = tree.HasCategoricalSplit()
-                                ? GetDecision<true>(node, nid, fvalue, cats)
-                                : GetDecision<false>(node, nid, fvalue, cats);
+                                ? GetDecision<true>(sc_tree, nid, fvalue, cats)
+                                : GetDecision<false>(sc_tree, nid, fvalue, cats);
       if (decision) {
         decision_bits_.Set(bit_index);
       }
@@ -752,19 +753,19 @@ class ColumnSplitHelper {
     }
   }
 
-  bst_node_t GetNextNode(RegTree::Node const &node, std::size_t bit_index) {
+  bst_node_t GetNextNode(tree::ScalarTreeView const &tree, bst_node_t nidx, std::size_t bit_index) {
     if (missing_bits_.Check(bit_index)) {
-      return node.DefaultChild();
+      return tree.DefaultChild(nidx);
     } else {
-      return node.LeftChild() + !decision_bits_.Check(bit_index);
+      return tree.LeftChild(nidx) + !decision_bits_.Check(bit_index);
     }
   }
 
-  bst_node_t GetLeafIndex(RegTree const &tree, std::size_t tree_id, std::size_t row_id) {
+  bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, std::size_t tree_id, std::size_t row_id) {
     bst_node_t nid = 0;
-    while (!tree[nid].IsLeaf()) {
+    while (!tree.IsLeaf(nid)) {
       auto const bit_index = BitIndex(tree_id, row_id, nid);
-      nid = GetNextNode(tree[nid], bit_index);
+      nid = GetNextNode(tree, nid, bit_index);
     }
     return nid;
   }
@@ -772,11 +773,12 @@ class ColumnSplitHelper {
   template <bool predict_leaf = false>
   bst_float PredictOneTree(std::size_t tree_id, std::size_t row_id) {
     auto const &tree = *model_.trees[tree_id];
-    auto const leaf = GetLeafIndex(tree, tree_id, row_id);
+    auto sc_tree = tree::ScalarTreeView{&tree};
+    auto const leaf = GetLeafIndex(sc_tree, tree_id, row_id);
     if constexpr (predict_leaf) {
-      return static_cast<bst_float>(leaf);
+      return static_cast<float>(leaf);
     } else {
-      return tree[leaf].LeafValue();
+      return sc_tree.LeafValue(leaf);
     }
   }
 
@@ -1067,7 +1069,8 @@ class CPUPredictor : public Predictor {
               nidx = multi::GetLeafIndex<true, true>(tree.GetMultiTargetTree()->View(this->ctx_),
                                                      fvec_tloc.front(), cats, nidx);
             } else {
-              nidx = scalar::GetLeafIndex<true, true>(tree, fvec_tloc.front(), cats, nidx);
+              auto sc_tree = tree::ScalarTreeView{&tree};
+              nidx = scalar::GetLeafIndex<true, true>(sc_tree, fvec_tloc.front(), cats, nidx);
             }
             preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
           }

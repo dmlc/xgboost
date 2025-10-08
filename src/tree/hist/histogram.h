@@ -4,17 +4,18 @@
 #ifndef XGBOOST_TREE_HIST_HISTOGRAM_H_
 #define XGBOOST_TREE_HIST_HISTOGRAM_H_
 
-#include <algorithm>   // for max
-#include <cstddef>     // for size_t
-#include <cstdint>     // for int32_t
-#include <utility>     // for move
-#include <vector>      // for vector
+#include <algorithm>  // for max
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../../collective/allreduce.h"    // for Allreduce
 #include "../../common/hist_util.h"        // for GHistRow, ParallelGHi...
 #include "../../common/row_set.h"          // for RowSetCollection
 #include "../../common/threading_utils.h"  // for ParallelFor2d, Range1d, BlockedSpace2d
 #include "../../data/gradient_index.h"     // for GHistIndexMatrix
+#include "../tree_view.h"                  // for ScalarTreeView
 #include "expand_entry.h"                  // for MultiExpandEntry, CPUExpandEntry
 #include "hist_cache.h"                    // for BoundedHistCollection
 #include "hist_param.h"                    // for HistMakerTrainParam
@@ -198,12 +199,13 @@ class HistogramBuilder {
             ? space
             : common::BlockedSpace2d{nodes_to_trick.size(),
                                      [&](std::size_t) { return n_total_bins; }, 1024};
+    auto sc_tree = ScalarTreeView{p_tree};
     common::ParallelFor2d(
         subspace, this->n_threads_, [&](std::size_t nidx_in_set, common::Range1d r) {
           auto subtraction_nidx = nodes_to_trick[nidx_in_set];
-          auto parent_id = p_tree->Parent(subtraction_nidx);
-          auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
-                                                                    : p_tree->LeftChild(parent_id);
+          auto parent_id = sc_tree.Parent(subtraction_nidx);
+          auto sibling_nidx = sc_tree.IsLeftChild(subtraction_nidx) ? sc_tree.RightChild(parent_id)
+                                                                    : sc_tree.LeftChild(parent_id);
           auto sibling_hist = this->hist_[sibling_nidx];
           auto parent_hist = this->hist_[parent_id];
           auto subtract_hist = this->hist_[subtraction_nidx];

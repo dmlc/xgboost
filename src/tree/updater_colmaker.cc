@@ -10,10 +10,11 @@
 
 #include "../common/error_msg.h"  // for NoCategorical
 #include "../common/random.h"
-#include "sample_position.h"  // for SamplePosition
 #include "constraints.h"
 #include "param.h"
+#include "sample_position.h"  // for SamplePosition
 #include "split_evaluator.h"
+#include "tree_view.h"  // for ScalarTreeView
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/parameter.h"
@@ -180,7 +181,7 @@ class ColMaker: public TreeUpdater {
         this->UpdateQueueExpand(*p_tree, qexpand_, &newnodes);
         this->InitNewNode(newnodes, gpair, *p_fmat, *p_tree);
         for (auto nid : qexpand_) {
-          if ((*p_tree)[nid].IsLeaf()) {
+          if (p_tree->IsLeaf(nid)) {
             continue;
           }
           int cleft = (*p_tree)[nid].LeftChild();
@@ -291,7 +292,7 @@ class ColMaker: public TreeUpdater {
       auto evaluator = tree_evaluator_.GetEvaluator();
       // calculating the weights
       for (int nid : qexpand) {
-        bst_node_t parentid = tree[nid].Parent();
+        bst_node_t parentid = tree.Parent(nid);
         snode_[nid].weight = static_cast<float>(
             evaluator.CalcWeight(parentid, param_, snode_[nid].stats));
         snode_[nid].root_gain = static_cast<float>(
@@ -299,14 +300,14 @@ class ColMaker: public TreeUpdater {
       }
     }
     /*! \brief update queue expand add in new leaves */
-    inline void UpdateQueueExpand(const RegTree& tree,
-                                  const std::vector<int> &qexpand,
-                                  std::vector<int>* p_newnodes) {
+    void UpdateQueueExpand(const RegTree &tree, const std::vector<int> &qexpand,
+                           std::vector<int> *p_newnodes) {
+      auto sc_tree = ScalarTreeView{&tree};
       p_newnodes->clear();
       for (int nid : qexpand) {
-        if (!tree[ nid ].IsLeaf()) {
-          p_newnodes->push_back(tree[nid].LeftChild());
-          p_newnodes->push_back(tree[nid].RightChild());
+        if (!sc_tree.IsLeaf(nid)) {
+          p_newnodes->push_back(sc_tree.LeftChild(nid));
+          p_newnodes->push_back(sc_tree.RightChild(nid));
         }
       }
     }
@@ -513,21 +514,22 @@ class ColMaker: public TreeUpdater {
       // set default direct nodes to default
       // for leaf nodes that are not fresh, mark then to ~nid,
       // so that they are ignored in future statistics collection
+      auto sc_tree = ScalarTreeView{&tree};
       common::ParallelFor(p_fmat->Info().num_row_, this->ctx_->Threads(), [&](auto ridx) {
         CHECK_LT(ridx, position_.size()) << "ridx exceed bound "
                                          << "ridx=" << ridx << " pos=" << position_.size();
         const int nid = SamplePosition::Decode(position_[ridx]);
-        if (tree[nid].IsLeaf()) {
+        if (sc_tree.IsLeaf(nid)) {
           // mark finish when it is not a fresh leaf
-          if (tree[nid].RightChild() == -1) {
+          if (sc_tree.RightChild(nid) == -1) {
             position_[ridx] = ~nid;
           }
         } else {
           // push to default branch
-          if (tree[nid].DefaultLeft()) {
-            this->SetEncodePosition(ridx, tree[nid].LeftChild());
+          if (sc_tree.DefaultLeft(nid)) {
+            this->SetEncodePosition(ridx, sc_tree.LeftChild(nid));
           } else {
-            this->SetEncodePosition(ridx, tree[nid].RightChild());
+            this->SetEncodePosition(ridx, sc_tree.RightChild(nid));
           }
         }
       });
@@ -546,11 +548,12 @@ class ColMaker: public TreeUpdater {
     virtual void SetNonDefaultPosition(const std::vector<int> &qexpand,
                                        DMatrix *p_fmat,
                                        const RegTree &tree) {
+      auto sc_tree = ScalarTreeView{&tree};
       // step 1, classify the non-default data into right places
       std::vector<unsigned> fsplits;
       for (int nid : qexpand) {
-        if (!tree[nid].IsLeaf()) {
-          fsplits.push_back(tree[nid].SplitIndex());
+        if (!sc_tree.IsLeaf(nid)) {
+          fsplits.push_back(sc_tree.SplitIndex(nid));
         }
       }
       std::sort(fsplits.begin(), fsplits.end());
@@ -564,11 +567,11 @@ class ColMaker: public TreeUpdater {
             bst_node_t nidx = SamplePosition::Decode(position_[ridx]);
             const bst_float fvalue = col[j].fvalue;
             // go back to parent, correct those who are not default
-            if (!tree[nidx].IsLeaf() && tree[nidx].SplitIndex() == fid) {
-              if (fvalue < tree[nidx].SplitCond()) {
-                this->SetEncodePosition(ridx, tree[nidx].LeftChild());
+            if (!sc_tree.IsLeaf(nidx) && sc_tree.SplitIndex(nidx) == fid) {
+              if (fvalue < sc_tree.SplitCond(nidx)) {
+                this->SetEncodePosition(ridx, sc_tree.LeftChild(nidx));
               } else {
-                this->SetEncodePosition(ridx, tree[nidx].RightChild());
+                this->SetEncodePosition(ridx, sc_tree.RightChild(nidx));
               }
             }
           });

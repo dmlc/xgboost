@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file updater_refresh.cc
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
@@ -12,6 +12,7 @@
 #include "../collective/allreduce.h"
 #include "../common/threading_utils.h"
 #include "../predictor/predict_fn.h"
+#include "../tree/tree_view.h"  // for ScalarTreeView
 #include "./param.h"
 #include "xgboost/json.h"
 
@@ -118,11 +119,11 @@ class TreeRefresher : public TreeUpdater {
     gstats[pid].Add(gpair[ridx]);
     auto const& cats = tree.GetCategoriesMatrix();
     // traverse tree
-    while (!tree[pid].IsLeaf()) {
-      unsigned split_index = tree[pid].SplitIndex();
-      pid = predictor::GetNextNode<true, true>(
-          tree[pid], pid, feat.GetFvalue(split_index), feat.IsMissing(split_index),
-          cats);
+    auto sc_tree = ScalarTreeView{&tree};
+    while (!sc_tree.IsLeaf(pid)) {
+      unsigned split_index = sc_tree.SplitIndex(pid);
+      pid = predictor::GetNextNode<true, true>(sc_tree, pid, feat.GetFvalue(split_index),
+                                               feat.IsMissing(split_index), cats);
       gstats[pid].Add(gpair[ridx]);
     }
   }

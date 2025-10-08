@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
@@ -20,6 +20,7 @@
 #include "../constraints.h"            // for FeatureInteractionConstraintHost
 #include "../param.h"                  // for TrainParam
 #include "../split_evaluator.h"        // for TreeEvaluator
+#include "../tree_view.h"              // for ScalarTreeView
 #include "expand_entry.h"              // for MultiExpandEntry
 #include "hist_cache.h"                // for BoundedHistCollection
 #include "xgboost/base.h"              // for bst_node_t, bst_target_t, bst_feature_t
@@ -440,8 +441,8 @@ class HistEvaluator {
     }
 
     // Set up child constraints
-    auto left_child = tree[candidate.nid].LeftChild();
-    auto right_child = tree[candidate.nid].RightChild();
+    auto left_child = tree.LeftChild(candidate.nid);
+    auto right_child = tree.RightChild(candidate.nid);
     tree_evaluator_.AddSplit(candidate.nid, left_child, right_child,
                              tree[candidate.nid].SplitIndex(), left_weight, right_weight);
     evaluator = tree_evaluator_.GetEvaluator();
@@ -728,17 +729,17 @@ template <typename Partitioner>
 void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
                                std::vector<Partitioner> const &partitioner,
                                linalg::VectorView<float> out_preds) {
-  auto const &tree = *p_last_tree;
   CHECK(out_preds.Device().IsCPU());
   size_t n_nodes = p_last_tree->GetNodes().size();
   for (auto &part : partitioner) {
     CHECK_EQ(part.Size(), n_nodes);
     common::BlockedSpace2d space(
         part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
+    auto sc_tree = ScalarTreeView{p_last_tree};
     common::ParallelFor2d(space, ctx->Threads(), [&](bst_node_t nidx, common::Range1d r) {
-      if (!tree[nidx].IsDeleted() && tree[nidx].IsLeaf()) {
+      if (!sc_tree.IsDeleted(nidx) && sc_tree.IsLeaf(nidx)) {
         auto const &rowset = part[nidx];
-        auto leaf_value = tree[nidx].LeafValue();
+        auto leaf_value = sc_tree.LeafValue(nidx);
         for (auto const *it = rowset.begin() + r.begin(); it < rowset.begin() + r.end(); ++it) {
           out_preds(*it) += leaf_value;
         }
