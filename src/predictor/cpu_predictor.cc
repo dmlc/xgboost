@@ -624,7 +624,7 @@ class ColumnSplitHelper {
     tree_offsets_.resize(n_trees);
     for (decltype(tree_begin) i = 0; i < n_trees; i++) {
       auto const &tree = *model_.trees[tree_begin_ + i];
-      tree_sizes_[i] = tree.GetNodes().size();
+      tree_sizes_[i] = tree.Size();
     }
     // std::exclusive_scan (only available in c++17) equivalent to get tree offsets.
     tree_offsets_[0] = 0;
@@ -701,7 +701,7 @@ class ColumnSplitHelper {
                    std::size_t row_id) {
     auto const &tree = *model_.trees[tree_id];
     auto const &cats = tree.GetCategoriesMatrix();
-    bst_node_t n_nodes = tree.GetNodes().size();
+    bst_node_t n_nodes = tree.Size();
     auto sc_tree = tree::ScalarTreeView(ctx, &tree);
 
     for (bst_node_t nid = 0; nid < n_nodes; nid++) {

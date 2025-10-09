@@ -100,13 +100,7 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
       : nodes{nodes}, stats{stats}, cats{std::move(cats)}, n{n_nodes} {}
 
   // Create device view
-  explicit ScalarTreeView(Context const* , RegTree const* tree)
-      : nodes{tree->GetNodes().data()},
-        stats{tree->GetStats().data()},
-        cats{tree->GetCategoriesMatrix()},
-        n{tree->NumNodes()} {
-    CHECK(!tree->IsMultiTarget());
-  }
+  explicit ScalarTreeView(Context const* ctx, RegTree const* tree);
   // Create host view
   explicit ScalarTreeView(RegTree const* tree)
       : nodes{tree->GetNodes().data()},

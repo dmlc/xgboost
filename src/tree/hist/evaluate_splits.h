@@ -447,7 +447,7 @@ class HistEvaluator {
                              tree[candidate.nid].SplitIndex(), left_weight, right_weight);
     evaluator = tree_evaluator_.GetEvaluator();
 
-    snode_.resize(tree.GetNodes().size());
+    snode_.resize(tree.Size());
     snode_.at(left_child).stats = candidate.split.left_sum;
     snode_.at(left_child).root_gain =
         evaluator.CalcGain(candidate.nid, *param_, GradStats{candidate.split.left_sum});
@@ -730,7 +730,7 @@ void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
                                std::vector<Partitioner> const &partitioner,
                                linalg::VectorView<float> out_preds) {
   CHECK(out_preds.Device().IsCPU());
-  size_t n_nodes = p_last_tree->GetNodes().size();
+  size_t n_nodes = p_last_tree->Size();
   for (auto &part : partitioner) {
     CHECK_EQ(part.Size(), n_nodes);
     common::BlockedSpace2d space(part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);

@@ -267,6 +267,13 @@ class RegTree : public Model {
 
   /** @brief get const reference to nodes */
   [[nodiscard]] const std::vector<Node>& GetNodes() const { return nodes_.ConstHostVector(); }
+  [[nodiscard]] common::Span<Node const> GetNodes(Context const* ctx) const {
+    if (ctx->IsCPU()) {
+      return nodes_.ConstHostSpan();
+    }
+    nodes_.SetDevice(ctx->Device());
+    return nodes_.ConstDeviceSpan();
+  }
 
   /** @brief get const reference to stats */
   [[nodiscard]] const std::vector<RTreeNodeStat>& GetStats() const { return stats_; }

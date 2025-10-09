@@ -19,6 +19,14 @@ auto DispatchPtr(Context const* ctx, HostDeviceVector<T> const& vec) {
 }
 }  // namespace
 
+ScalarTreeView::ScalarTreeView(Context const* ctx, RegTree const* tree)
+    : nodes{tree->GetNodes(ctx).data()},
+      stats{tree->GetStats().data()},
+      cats{tree->GetCategoriesMatrix()},
+      n{tree->NumNodes()} {
+  CHECK(!tree->IsMultiTarget());
+}
+
 MultiTargetTreeView::MultiTargetTreeView(Context const* ctx, RegTree const* tree)
     : left{DispatchPtr(ctx, tree->GetMultiTargetTree()->left_)},
       right{DispatchPtr(ctx, tree->GetMultiTargetTree()->right_)},

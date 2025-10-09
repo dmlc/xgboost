@@ -83,7 +83,7 @@ class DeviceModel {
     size_t sum = 0;
     h_tree_segments.push_back(sum);
     for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      sum += model.trees.at(tree_idx)->GetNodes().size();
+      sum += model.trees.at(tree_idx)->Size();
       h_tree_segments.push_back(sum);
     }
 
@@ -151,6 +151,19 @@ class DeviceModel {
     LOG(DEBUG) << "Model size:" << common::HumanMemUnit(n_bytes);
   }
 };
+
+auto MakeDeviceModel(Context const* ctx, gbm::GBTreeModel const& model) {
+  using TreeView = cuda::std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
+  dh::device_vector<TreeView> trees;
+  for (auto const& p_tree : model.trees) {
+    if (p_tree->IsMultiTarget()) {
+      trees.push_back(tree::MultiTargetTreeView{ctx, p_tree.get()});
+    } else {
+      trees.push_back(tree::ScalarTreeView{ctx, p_tree.get()});
+    }
+  }
+  return trees;
+}
 
 XGBOOST_DEVICE auto MakeScalarTreeView(
     bst_tree_t tree_begin, bst_tree_t tree_idx, common::Span<const RegTree::Node> d_nodes,
