@@ -408,11 +408,13 @@ namespace scalar {
 template <bool has_missing, bool has_categorical, typename Loader, typename TreeView>
 __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = 0;
-  // RegTree::Node n = tree.d_tree[nidx];
   while (!tree.IsLeaf(nidx)) {
     float fvalue = loader->GetElement(ridx, tree.SplitIndex(nidx));
     bool is_missing = common::CheckNAN(fvalue);
-    nidx = GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing, tree.cats);
+    auto next =
+        GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing, tree.cats);
+    assert(nidx < next);
+    nidx = next;
   }
   return nidx;
 }
