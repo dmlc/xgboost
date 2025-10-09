@@ -616,6 +616,8 @@ class RegTree : public Model {
     return this->nodes_.Size();
   }
 
+  [[nodiscard]] RegTree* Copy() const;
+
  private:
   template <bool typed>
   void LoadCategoricalSplit(Json const& in);
@@ -635,7 +637,7 @@ class RegTree : public Model {
   // Ptr to split categories of each node.
   std::vector<CategoricalSplitMatrix::Segment> split_categories_segments_;
   // ptr to multi-target tree with vector leaf.
-  CopyUniquePtr<MultiTargetTree> p_mt_tree_;
+  std::unique_ptr<MultiTargetTree> p_mt_tree_;
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   bst_node_t AllocNode() {

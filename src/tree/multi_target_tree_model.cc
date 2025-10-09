@@ -248,6 +248,22 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
 bst_target_t MultiTargetTree::NumTargets() const { return param_->size_leaf_vector; }
 std::size_t MultiTargetTree::Size() const { return parent_.Size(); }
 
+[[nodiscard]] MultiTargetTree* MultiTargetTree::Copy(TreeParam const* param) const {
+  auto ptr = new MultiTargetTree{param};
+  auto copy = [](auto* lhs, auto const& rhs) {
+    lhs->SetDevice(rhs.Device());
+    lhs->Copy(rhs);
+  };
+  copy(&ptr->left_, this->left_);
+  copy(&ptr->right_, this->right_);
+  copy(&ptr->parent_, this->parent_);
+  copy(&ptr->split_index_, this->split_index_);
+  copy(&ptr->default_left_, this->default_left_);
+  copy(&ptr->split_conds_, this->split_conds_);
+  copy(&ptr->weights_, this->weights_);
+  return ptr;
+}
+
 [[nodiscard]] std::size_t MultiTargetTree::MemCostBytes() const {
   std::size_t n_bytes = 0;
   n_bytes += left_.SizeBytes();

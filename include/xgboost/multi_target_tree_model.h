@@ -15,7 +15,6 @@
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for uint8_t
-#include <mutex>    // for mutex
 #include <vector>   // for vector
 
 namespace xgboost {
@@ -105,6 +104,7 @@ class MultiTargetTree : public Model {
     return nidx == this->LeftChild(p);
   }
   [[nodiscard]] std::size_t Size() const;
+  [[nodiscard]] MultiTargetTree* Copy(TreeParam const* param) const;
 
   [[nodiscard]] bst_node_t GetDepth(bst_node_t nidx) const {
     bst_node_t depth{0};

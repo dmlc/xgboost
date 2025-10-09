@@ -827,8 +827,10 @@ bool RegTree::Equal(const RegTree& b) const {
   }
   auto const& self = *this;
   bool ret { true };
-  tree::ScalarTreeView{this}.WalkTree([&self, &b, &ret](bst_node_t nidx) {
-    if (!(self.nodes_.at(nidx) == b.nodes_.at(nidx))) {
+  auto const& lhs = self.nodes_.ConstHostVector();
+  auto const& rhs = b.nodes_.ConstHostVector();
+  tree::ScalarTreeView{this}.WalkTree([&lhs, &rhs, &ret](bst_node_t nidx) {
+    if (!(lhs.at(nidx) == rhs.at(nidx))) {
       ret = false;
       return false;
     }
@@ -879,16 +881,17 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
   CHECK(!IsMultiTarget());
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
-  auto &node = nodes_[nid];
+  auto& h_nodes = this->nodes_.HostVector();
+  auto &node = h_nodes[nid];
   CHECK(node.IsLeaf());
   node.SetLeftChild(pleft);
   node.SetRightChild(pright);
-  nodes_[node.LeftChild()].SetParent(nid, true);
-  nodes_[node.RightChild()].SetParent(nid, false);
+  h_nodes[node.LeftChild()].SetParent(nid, true);
+  h_nodes[node.RightChild()].SetParent(nid, false);
   node.SetSplit(split_index, split_value, default_left);
 
-  nodes_[pleft].SetLeaf(left_leaf_weight, leaf_right_child);
-  nodes_[pright].SetLeaf(right_leaf_weight, leaf_right_child);
+  h_nodes[pleft].SetLeaf(left_leaf_weight, leaf_right_child);
+  h_nodes[pright].SetLeaf(right_leaf_weight, leaf_right_child);
 
   this->Stat(nid) = {loss_change, sum_hess, base_weight};
   this->Stat(pleft) = {0.0f, left_sum, left_leaf_weight};
@@ -933,6 +936,25 @@ void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
   this->split_types_.at(nidx) = FeatureType::kCategorical;
   this->split_categories_segments_.at(nidx).beg = orig_size;
   this->split_categories_segments_.at(nidx).size = split_cat.size();
+}
+
+RegTree* RegTree::Copy() const {
+  auto ptr = new RegTree{};
+  ptr->param_ = this->param_;
+
+  ptr->nodes_.SetDevice(this->nodes_.Device());
+  ptr->nodes_.Copy(this->nodes_);
+
+  ptr->deleted_nodes_ = this->deleted_nodes_;
+  ptr->stats_ = this->stats_;
+  ptr->split_types_ = this->split_types_;
+  ptr->split_categories_ = this->split_categories_;
+  ptr->split_categories_segments_ = this->split_categories_segments_;
+
+  if (this->p_mt_tree_) {
+    ptr->p_mt_tree_.reset(this->p_mt_tree_->Copy(&ptr->param_));
+  }
+  return ptr;
 }
 
 template <bool typed>
@@ -1011,7 +1033,7 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
   I32Array categories_nodes;  // bst_note_t = int32_t
   U8Array split_type(split_types_.size());
 
-  for (size_t i = 0; i < nodes_.size(); ++i) {
+  for (size_t i = 0; i < nodes_.Size(); ++i) {
     split_type.Set(i, static_cast<std::underlying_type_t<FeatureType>>(this->NodeSplitType(i)));
     if (this->split_types_[i] == FeatureType::kCategorical) {
       categories_nodes.GetArray().emplace_back(static_cast<std::int32_t>(i));
@@ -1117,13 +1139,13 @@ void RegTree::LoadModel(Json const& in) {
 
   bool feature_is_64 = IsA<I64Array>(in["split_indices"]);
   if (typed && feature_is_64) {
-    LoadModelImpl<true, true>(in, param_, &stats_, &nodes_);
+    LoadModelImpl<true, true>(in, param_, &stats_, &nodes_.HostVector());
   } else if (typed && !feature_is_64) {
-    LoadModelImpl<true, false>(in, param_, &stats_, &nodes_);
+    LoadModelImpl<true, false>(in, param_, &stats_, &nodes_.HostVector());
   } else if (!typed && feature_is_64) {
-    LoadModelImpl<false, true>(in, param_, &stats_, &nodes_);
+    LoadModelImpl<false, true>(in, param_, &stats_, &nodes_.HostVector());
   } else {
-    LoadModelImpl<false, false>(in, param_, &stats_, &nodes_);
+    LoadModelImpl<false, false>(in, param_, &stats_, &nodes_.HostVector());
   }
 
   if (!has_cat) {
@@ -1133,8 +1155,9 @@ void RegTree::LoadModel(Json const& in) {
   }
 
   deleted_nodes_.clear();
+  auto const& h_nodes = nodes_.ConstHostVector();
   for (bst_node_t i = 1; i < param_.num_nodes; ++i) {
-    if (nodes_[i].IsDeleted()) {
+    if (h_nodes[i].IsDeleted()) {
       deleted_nodes_.push_back(i);
     }
   }
@@ -1168,7 +1191,7 @@ void RegTree::SaveModel(Json* p_out) const {
    *  pruner, and this pruner can be used inside another updater so leaf are not necessary
    *  at the end of node array.
    */
-  CHECK_EQ(param_.num_nodes, static_cast<int>(nodes_.size()));
+  CHECK_EQ(param_.num_nodes, static_cast<int>(nodes_.Size()));
   CHECK_EQ(param_.num_nodes, static_cast<int>(stats_.size()));
 
   CHECK_EQ(get<String>(out["tree_param"]["num_nodes"]), std::to_string(param_.num_nodes));
@@ -1192,13 +1215,14 @@ void RegTree::SaveModel(Json* p_out) const {
 
   auto save_tree = [&](auto* p_indices_array) {
     auto& indices_array = *p_indices_array;
+    auto const& h_nodes = nodes_.ConstHostVector();
     for (bst_node_t i = 0; i < n_nodes; ++i) {
       auto const& s = stats_[i];
       loss_changes.Set(i, s.loss_chg);
       sum_hessian.Set(i, s.sum_hess);
       base_weights.Set(i, s.base_weight);
 
-      auto const& n = nodes_[i];
+      auto const& n = h_nodes[i];
       lefts.Set(i, n.LeftChild());
       rights.Set(i, n.RightChild());
       parents.Set(i, n.Parent());
