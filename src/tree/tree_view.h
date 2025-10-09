@@ -57,7 +57,7 @@ struct ScalarTreeView {
 
   [[nodiscard]] XGBOOST_DEVICE bst_node_t Size() const { return this->n; }
   [[nodiscard]] XGBOOST_DEVICE bool IsRoot(bst_node_t nidx) const {
-    return Parent(nidx) == InvalidNodeId();
+    return this->nodes[nidx].IsRoot();
   }
   [[nodiscard]] RTreeNodeStat const& Stat(bst_node_t nidx) const { return stats[nidx]; }
   [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
