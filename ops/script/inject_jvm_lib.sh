@@ -16,16 +16,15 @@ mkdir -p jvm-packages/xgboost4j/src/test/resources
 mkdir -p jvm-packages/xgboost4j-spark/src/test/resources
 mkdir -p jvm-packages/xgboost4j-spark-gpu/src/test/resources
 
-# Generate machine.txt.* files from the CLI regression demo
-# TODO(hcho3): Remove once CLI is removed
-pushd demo/CLI/regression
+# Generate machine.txt.* files from the regression demo
+pushd demo/data/regression
 python3 mapfeat.py
 python3 mknfold.py machine.txt 1
 popd
 
 cp -v demo/data/agaricus.* \
   jvm-packages/xgboost4j/src/test/resources
-cp -v demo/CLI/regression/machine.txt.t* demo/data/agaricus.* \
+cp -v demo/data/regression/machine.txt.t* demo/data/agaricus.* \
   jvm-packages/xgboost4j-spark/src/test/resources
 cp -v demo/data/veterans_lung_cancer.csv \
   jvm-packages/xgboost4j-spark/src/test/resources/rank.train.csv \
