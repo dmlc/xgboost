@@ -108,7 +108,7 @@ class MultiTargetTree : public Model {
   }
   [[nodiscard]] std::size_t Size() const;
 
-  [[nodiscard]] bst_node_t Depth(bst_node_t nidx) const {
+  [[nodiscard]] bst_node_t GetDepth(bst_node_t nidx) const {
     bst_node_t depth{0};
     while (Parent(nidx) != InvalidNodeId()) {
       ++depth;

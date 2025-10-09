@@ -199,18 +199,27 @@ class HistogramBuilder {
             ? space
             : common::BlockedSpace2d{nodes_to_trick.size(),
                                      [&](std::size_t) { return n_total_bins; }, 1024};
-    auto sc_tree = ScalarTreeView{p_tree};
-    common::ParallelFor2d(
-        subspace, this->n_threads_, [&](std::size_t nidx_in_set, common::Range1d r) {
-          auto subtraction_nidx = nodes_to_trick[nidx_in_set];
-          auto parent_id = sc_tree.Parent(subtraction_nidx);
-          auto sibling_nidx = sc_tree.IsLeftChild(subtraction_nidx) ? sc_tree.RightChild(parent_id)
-                                                                    : sc_tree.LeftChild(parent_id);
-          auto sibling_hist = this->hist_[sibling_nidx];
-          auto parent_hist = this->hist_[parent_id];
-          auto subtract_hist = this->hist_[subtraction_nidx];
-          common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
-        });
+
+    // Dispatch between scalar tree and vector leaf tree.
+    auto op = [&](auto tree) {
+      auto subtract_hist = [&, tree](std::size_t nidx_in_set, common::Range1d r) {
+        auto subtraction_nidx = nodes_to_trick[nidx_in_set];
+        auto parent_id = tree.Parent(subtraction_nidx);
+        auto sibling_nidx = tree.IsLeftChild(subtraction_nidx) ? tree.RightChild(parent_id)
+                                                               : tree.LeftChild(parent_id);
+        auto sibling_hist = this->hist_[sibling_nidx];
+        auto parent_hist = this->hist_[parent_id];
+        auto subtract_hist = this->hist_[subtraction_nidx];
+        common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
+      };
+      return subtract_hist;
+    };
+
+    if (p_tree->IsMultiTarget()) {
+      common::ParallelFor2d(subspace, this->n_threads_, op(tree::MultiTargetTreeView{ctx, p_tree}));
+    } else {
+      common::ParallelFor2d(subspace, this->n_threads_, op(tree::ScalarTreeView{p_tree}));
+    }
   }
 
  public:

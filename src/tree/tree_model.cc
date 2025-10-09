@@ -864,6 +864,9 @@ bst_node_t RegTree::GetNumSplitNodes() const {
 }
 
 [[nodiscard]] bst_node_t RegTree::GetDepth(bst_node_t nid) const {
+  if (this->IsMultiTarget()) {
+    return this->p_mt_tree_->GetDepth(nid);
+  }
   return tree::ScalarTreeView{this}.GetDepth(nid);
 }
 

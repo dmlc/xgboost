@@ -103,7 +103,9 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
       : nodes{tree->GetNodes().data()},
         stats{tree->GetStats().data()},
         cats{tree->GetCategoriesMatrix()},
-        n{tree->NumNodes()} {}
+        n{tree->NumNodes()} {
+    CHECK(!tree->IsMultiTarget());
+  }
 
   /**
    * @brief Get the depth of a node.
@@ -144,8 +146,14 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
     return left[nidx] == InvalidNodeId();
   }
 
+  [[nodiscard]] XGBOOST_DEVICE bst_node_t Parent(bst_node_t nidx) const { return parent[nidx]; }
   [[nodiscard]] XGBOOST_DEVICE bst_node_t LeftChild(bst_node_t nidx) const { return left[nidx]; }
   [[nodiscard]] XGBOOST_DEVICE bst_node_t RightChild(bst_node_t nidx) const { return right[nidx]; }
+
+  [[nodiscard]] bool IsLeftChild(bst_node_t nidx) const {
+    auto p = this->Parent(nidx);
+    return nidx == this->LeftChild(p);
+  }
   [[nodiscard]] XGBOOST_DEVICE bst_feature_t SplitIndex(bst_node_t nidx) const {
     return split_index[nidx];
   }
