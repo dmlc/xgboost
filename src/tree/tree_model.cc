@@ -929,22 +929,18 @@ RegTree* RegTree::Copy() const {
   auto ptr = new RegTree{};
   ptr->param_ = this->param_;
 
-  ptr->nodes_.SetDevice(this->nodes_.Device());
-  ptr->nodes_.Copy(this->nodes_);
+  auto copy = [](auto* lhs, auto const& rhs) {
+    lhs->SetDevice(rhs.Device());
+    lhs->Resize(rhs.Size());
+    lhs->Copy(rhs);
+  };
 
+  copy(&ptr->nodes_, this->nodes_);
   ptr->deleted_nodes_ = this->deleted_nodes_;
-
-  ptr->stats_.SetDevice(this->stats_.Device());
-  ptr->stats_.Copy(this->stats_);
-
-  ptr->split_types_.SetDevice(this->split_types_.Device());
-  ptr->split_types_.Copy(this->split_types_);
-
-  ptr->split_categories_.SetDevice(this->split_categories_.Device());
-  ptr->split_categories_.Copy(this->split_categories_);
-
-  ptr->split_categories_segments_.SetDevice(this->split_categories_segments_.Device());
-  ptr->split_categories_segments_.Copy(this->split_categories_segments_);
+  copy(&ptr->stats_, this->stats_);
+  copy(&ptr->split_types_, this->split_types_);
+  copy(&ptr->split_categories_, this->split_categories_);
+  copy(&ptr->split_categories_segments_, this->split_categories_segments_);
 
   if (this->p_mt_tree_) {
     ptr->p_mt_tree_.reset(this->p_mt_tree_->Copy(&ptr->param_));
