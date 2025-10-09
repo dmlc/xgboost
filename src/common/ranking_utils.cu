@@ -171,7 +171,7 @@ void RankingCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   sorted_idx_cache_.SetDevice(ctx->Device());
   sorted_idx_cache_.Resize(info.labels.Size(), 0);
 
-  auto weight = common::MakeOptionalWeights(ctx, info.weights_);
+  auto weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
   auto w_it =
       dh::MakeTransformIterator<double>(thrust::make_counting_iterator(0ul), WeightOp{weight});
   weight_norm_ = static_cast<double>(n_groups) / thrust::reduce(w_it, w_it + n_groups);

@@ -36,7 +36,8 @@ void RankingCache::InitOnCPU(Context const* ctx, MetaInfo const& info) {
 
   double sum_weights = 0;
   auto n_groups = Groups();
-  auto weight = common::MakeOptionalWeights(ctx, info.weights_);
+  auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
+  auto weight = common::MakeOptionalWeights(device, info.weights_);
   for (bst_omp_uint k = 0; k < n_groups; ++k) {
     sum_weights += weight[k];
   }

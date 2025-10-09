@@ -16,6 +16,7 @@
 
 #include "../device_manager.h"
 #include "../data.h"
+#include "../predictor/node.h"
 
 namespace xgboost {
 template <typename T>
@@ -405,6 +406,7 @@ template class HostDeviceVector<FeatureType>;
 template class HostDeviceVector<Entry>;
 template class HostDeviceVector<bst_idx_t>;
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
+template class HostDeviceVector<sycl::predictor::Node>;
 
 }  // namespace xgboost
 
