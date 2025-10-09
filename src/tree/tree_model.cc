@@ -64,8 +64,9 @@ std::string ToStr(linalg::VectorView<Float> value, bst_target_t limit) {
   return ss.str();
 }
 }  // namespace
-/*!
- * \brief Base class for dump model implementation, modeling closely after code generator.
+
+/**
+ * @brief Base class for dump model implementation, modeling closely after code generator.
  */
 class TreeGenerator {
  protected:
@@ -932,7 +933,9 @@ RegTree* RegTree::Copy() const {
   ptr->nodes_.Copy(this->nodes_);
 
   ptr->deleted_nodes_ = this->deleted_nodes_;
-  ptr->stats_ = this->stats_;
+
+  ptr->stats_.SetDevice(this->stats_.Device());
+  ptr->stats_.Copy(this->stats_);
 
   ptr->split_types_.SetDevice(this->split_types_.Device());
   ptr->split_types_.Copy(this->split_types_);
@@ -1139,13 +1142,13 @@ void RegTree::LoadModel(Json const& in) {
 
   bool feature_is_64 = IsA<I64Array>(in["split_indices"]);
   if (typed && feature_is_64) {
-    LoadModelImpl<true, true>(in, param_, &stats_, &nodes_.HostVector());
+    LoadModelImpl<true, true>(in, param_, &stats_.HostVector(), &nodes_.HostVector());
   } else if (typed && !feature_is_64) {
-    LoadModelImpl<true, false>(in, param_, &stats_, &nodes_.HostVector());
+    LoadModelImpl<true, false>(in, param_, &stats_.HostVector(), &nodes_.HostVector());
   } else if (!typed && feature_is_64) {
-    LoadModelImpl<false, true>(in, param_, &stats_, &nodes_.HostVector());
+    LoadModelImpl<false, true>(in, param_, &stats_.HostVector(), &nodes_.HostVector());
   } else {
-    LoadModelImpl<false, false>(in, param_, &stats_, &nodes_.HostVector());
+    LoadModelImpl<false, false>(in, param_, &stats_.HostVector(), &nodes_.HostVector());
   }
 
   if (!has_cat) {
@@ -1193,7 +1196,7 @@ void RegTree::SaveModel(Json* p_out) const {
    *  at the end of node array.
    */
   CHECK_EQ(param_.num_nodes, static_cast<int>(nodes_.Size()));
-  CHECK_EQ(param_.num_nodes, static_cast<int>(stats_.size()));
+  CHECK_EQ(param_.num_nodes, static_cast<int>(stats_.Size()));
 
   CHECK_EQ(get<String>(out["tree_param"]["num_nodes"]), std::to_string(param_.num_nodes));
   auto n_nodes = param_.num_nodes;
@@ -1216,9 +1219,10 @@ void RegTree::SaveModel(Json* p_out) const {
 
   auto save_tree = [&](auto* p_indices_array) {
     auto& indices_array = *p_indices_array;
+    auto const& h_stats = this->stats_.ConstHostVector();
     auto const& h_nodes = nodes_.ConstHostVector();
     for (bst_node_t i = 0; i < n_nodes; ++i) {
-      auto const& s = stats_[i];
+      auto const& s = h_stats[i];
       loss_changes.Set(i, s.loss_chg);
       sum_hessian.Set(i, s.sum_hess);
       base_weights.Set(i, s.base_weight);

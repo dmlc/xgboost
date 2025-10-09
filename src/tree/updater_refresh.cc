@@ -126,7 +126,7 @@ class TreeRefresher : public TreeUpdater {
       gstats[pid].Add(gpair[ridx]);
     }
   }
-  inline void Refresh(TrainParam const *param, const GradStats *gstats, int nid, RegTree *p_tree) {
+  void Refresh(TrainParam const *param, const GradStats *gstats, int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
     tree.Stat(nid).base_weight =
         static_cast<bst_float>(CalcWeight(*param, gstats[nid]));

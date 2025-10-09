@@ -29,8 +29,8 @@ auto DispatchWeight(DeviceOrd device, RegTree const* tree) {
 }  // namespace
 
 ScalarTreeView::ScalarTreeView(Context const* ctx, RegTree const* tree)
-    : nodes{tree->GetNodes(ctx).data()},
-      stats{tree->GetStats().data()},
+    : nodes{tree->GetNodes(ctx->Device()).data()},
+      stats{tree->GetStats(ctx->Device()).data()},
       cats{tree->GetCategoriesMatrix(ctx->Device())},
       n{tree->NumNodes()} {
   CHECK(!tree->IsMultiTarget());

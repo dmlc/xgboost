@@ -236,8 +236,8 @@ class RegTree : public Model {
   }
 
   RegTree() {
-    nodes_.Resize(param_.num_nodes);
-    stats_.resize(param_.num_nodes);
+    nodes_.HostVector().resize(param_.num_nodes);
+    stats_.HostVector().resize(param_.num_nodes);
     split_types_.HostVector().resize(param_.num_nodes, FeatureType::kNumerical);
     split_categories_segments_.HostVector().resize(param_.num_nodes);
     for (int i = 0; i < param_.num_nodes; i++) {
@@ -267,24 +267,33 @@ class RegTree : public Model {
 
   /** @brief get const reference to nodes */
   [[nodiscard]] const std::vector<Node>& GetNodes() const { return nodes_.ConstHostVector(); }
-  [[nodiscard]] common::Span<Node const> GetNodes(Context const* ctx) const {
-    if (ctx->IsCPU()) {
+  [[nodiscard]] common::Span<Node const> GetNodes(DeviceOrd device) const {
+    if (device.IsCPU()) {
       return nodes_.ConstHostSpan();
     }
-    nodes_.SetDevice(ctx->Device());
+    nodes_.SetDevice(device);
     return nodes_.ConstDeviceSpan();
   }
 
   /** @brief get const reference to stats */
-  [[nodiscard]] const std::vector<RTreeNodeStat>& GetStats() const { return stats_; }
+  [[nodiscard]] const std::vector<RTreeNodeStat>& GetStats() const {
+    return stats_.ConstHostVector();
+  }
+  [[nodiscard]] common::Span<RTreeNodeStat const> GetStats(DeviceOrd device) const {
+    if (device.IsCPU()) {
+      return stats_.ConstHostSpan();
+    }
+    stats_.SetDevice(device);
+    return stats_.ConstDeviceSpan();
+  }
 
   /** @brief get node statistics given nid */
   RTreeNodeStat& Stat(bst_node_t nid) {
-    return stats_[nid];
+    return stats_.HostVector()[nid];
   }
   /** @brief get node statistics given nid */
   [[nodiscard]] const RTreeNodeStat& Stat(bst_node_t nid) const {
-    return stats_[nid];
+    return stats_.ConstHostVector()[nid];
   }
 
   void LoadModel(Json const& in) override;
@@ -292,7 +301,8 @@ class RegTree : public Model {
 
   // Only used for debugging.
   bool operator==(const RegTree& b) const {
-    return nodes_.ConstHostVector() == b.nodes_.ConstHostVector() && stats_ == b.stats_ &&
+    return nodes_.ConstHostVector() == b.nodes_.ConstHostVector() &&
+           stats_.ConstHostVector() == b.stats_.ConstHostVector() &&
            deleted_nodes_ == b.deleted_nodes_ && param_ == b.param_;
   }
   /**
@@ -639,7 +649,7 @@ class RegTree : public Model {
   // free node space, used during training process
   std::vector<int>  deleted_nodes_;
   // stats of nodes
-  std::vector<RTreeNodeStat> stats_;
+  HostDeviceVector<RTreeNodeStat> stats_;
   HostDeviceVector<FeatureType> split_types_;
 
   // Categories for each internal node.
@@ -662,7 +672,7 @@ class RegTree : public Model {
     CHECK_LT(param_.num_nodes, std::numeric_limits<bst_node_t>::max())
         << "number of nodes in the tree exceed 2^31";
     nodes_.HostVector().resize(param_.num_nodes);
-    stats_.resize(param_.num_nodes);
+    stats_.HostVector().resize(param_.num_nodes);
     split_types_.HostVector().resize(param_.num_nodes, FeatureType::kNumerical);
     split_categories_segments_.HostVector().resize(param_.num_nodes);
     return nd;
