@@ -174,6 +174,8 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
   [[nodiscard]] bst_target_t NumTargets() const { return this->weights.Shape(1); }
   [[nodiscard]] bst_node_t Size() const { return this->n; }
 
+  [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
+
   explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
   explicit MultiTargetTreeView(RegTree const* tree);
 };

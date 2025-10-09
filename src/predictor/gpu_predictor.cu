@@ -423,36 +423,28 @@ __device__ float GetLeafWeight(bst_idx_t ridx, TreeView const& tree, Loader* loa
 }  // namespace scalar
 
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
-__global__ void
-PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
-                  common::Span<float> d_out_predictions,
-                  common::Span<size_t const> d_tree_segments,
-
-                  common::Span<FeatureType const> d_tree_split_types,
-                  common::Span<uint32_t const> d_cat_tree_segments,
-                  common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
-                  common::Span<uint32_t const> d_categories,
-
-                  bst_tree_t tree_begin, bst_tree_t tree_end, bst_feature_t num_features,
-                  size_t num_rows, bool use_shared,
-                  float missing, EncAccessor acc) {
+__global__ void PredictLeafKernel(Data data, common::Span<TreeView> d_trees,
+                                  common::Span<float> d_out_predictions,
+                                  bst_tree_t tree_begin, bst_tree_t tree_end,
+                                  bst_feature_t num_features, size_t num_rows, bool use_shared,
+                                  float missing, EncAccessor acc) {
   bst_idx_t ridx = blockDim.x * blockIdx.x + threadIdx.x;
   if (ridx >= num_rows) {
     return;
   }
   Loader loader{std::move(data), use_shared, num_features, num_rows, missing, std::move(acc)};
   for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-    auto d_tree =
-        MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
-                           d_cat_tree_segments, d_cat_node_segments, d_categories);
-
-    bst_node_t leaf = -1;
-    if (d_tree.HasCategoricalSplit()) {
-      leaf = GetLeafIndex<has_missing, true>(ridx, d_tree, &loader);
-    } else {
-      leaf = GetLeafIndex<has_missing, false>(ridx, d_tree, &loader);
-    }
-    d_out_predictions[ridx * (tree_end - tree_begin) + tree_idx] = leaf;
+    cuda::std::visit(
+        [&](auto&& d_tree) {
+          bst_node_t leaf = -1;
+          if (d_tree.HasCategoricalSplit()) {
+            leaf = GetLeafIndex<has_missing, true>(ridx, d_tree, &loader);
+          } else {
+            leaf = GetLeafIndex<has_missing, false>(ridx, d_tree, &loader);
+          }
+          d_out_predictions[ridx * (tree_end - tree_begin) + tree_idx] = leaf;
+        },
+        d_trees[tree_idx]);
   }
 }
 
@@ -1047,22 +1039,35 @@ class LaunchConfig {
 
   template <template <typename> typename Loader, typename Data>
   void LaunchLeaf(Context const* ctx, Data data, bst_idx_t n_samples, bst_feature_t n_features,
-                  DeviceModel const& model, bool is_dense, enc::DeviceColumnsView const& new_enc,
+                  common::Span<TreeView> d_trees, bool is_dense, gbm::GBTreeModel const& model,
+                  bst_tree_t tree_begin, bst_tree_t tree_end, enc::DeviceColumnsView const& new_enc,
                   bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
-    LaunchPredictKernel(ctx, is_dense, new_enc, model, [&](auto is_dense, auto&& acc) {
-      constexpr bool kHasMissing = !std::is_same_v<decltype(is_dense), std::true_type>;
+    auto launch = [&](auto is_dense, auto&& acc) {
+      constexpr bool kHasMissing = !decltype(is_dense)::value;
       using EncAccessor = std::remove_reference_t<decltype(acc)>;
       auto kernel = PredictLeafKernel<Loader<EncAccessor>, Data, kHasMissing, EncAccessor>;
       this->Grid(n_samples).LaunchImpl(
-          std::move(kernel), std::move(data), model.nodes.ConstDeviceSpan(),
-          predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
-
-          model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
-          model.categories_node_segments.ConstDeviceSpan(), model.categories.ConstDeviceSpan(),
-
-          model.tree_beg_, model.tree_end_, n_features, n_samples, this->UseShared(),
+          kernel, std::move(data), d_trees, predictions->DeviceSpan().subspan(batch_offset),
+          tree_begin, tree_end, n_features, n_samples, this->UseShared(),
           std::numeric_limits<float>::quiet_NaN(), std::forward<EncAccessor>(acc));
-    });
+    };
+    if (is_dense) {
+      auto is_dense = std::true_type{};
+      if (model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
+        auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
+        launch(is_dense, std::move(acc));
+      } else {
+        launch(is_dense, NoOpAccessor{});
+      }
+    } else {
+      auto is_dense = std::false_type{};
+      if (model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
+        auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
+        launch(is_dense, std::move(acc));
+      } else {
+        launch(is_dense, NoOpAccessor{});
+      }
+    }
   }
 };
 
@@ -1400,6 +1405,8 @@ class GPUPredictor : public xgboost::Predictor {
     DeviceModel d_model;
     d_model.Init(model, 0, tree_end, this->ctx_->Device());
 
+    auto d_trees = MakeDeviceModel(this->ctx_, model);
+
     if (info.IsColumnSplit()) {
       column_split_helper_.PredictLeaf(p_fmat, predictions, model, d_model);
       return;
@@ -1418,8 +1425,8 @@ class GPUPredictor : public xgboost::Predictor {
         SparsePageView data{batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
                             model.learner_model_param->num_feature};
         cfg.LaunchLeaf<SparsePageLoader>(this->ctx_, std::move(data), batch.Size(), n_features,
-                                         d_model, p_fmat->IsDense(), new_enc, batch_offset,
-                                         predictions);
+                                         dh::ToSpan(d_trees), p_fmat->IsDense(), model, 0, tree_end,
+                                         new_enc, batch_offset, predictions);
         batch_offset += batch.Size();
       }
     } else {
@@ -1431,8 +1438,8 @@ class GPUPredictor : public xgboost::Predictor {
         page.Impl()->Visit(this->ctx_, feature_types, [&](auto&& batch) {
           using Acc = std::remove_reference_t<decltype(batch)>;
           cfg.LaunchLeaf<EllpackPartial<Acc>::template Type>(
-              this->ctx_, std::forward<Acc>(batch), page.Size(), n_features, d_model,
-              p_fmat->IsDense(), new_enc, batch_offset, predictions);
+              this->ctx_, std::forward<Acc>(batch), page.Size(), n_features, dh::ToSpan(d_trees),
+              p_fmat->IsDense(), model, 0, tree_end, new_enc, batch_offset, predictions);
         });
         batch_offset += page.Size();
       }
