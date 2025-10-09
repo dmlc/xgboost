@@ -297,6 +297,9 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
     folds = folds
   )
   ret <- c(ret, cb_outputs)
+  if ("early_stop" %in% cb_names && !("best_iteration" %in% names(ret)) {
+    ret$best_iteration <- ret$early_stop$best_iteration
+  }
 
   class(ret) <- 'xgb.cv.synchronous'
   return(invisible(ret))
