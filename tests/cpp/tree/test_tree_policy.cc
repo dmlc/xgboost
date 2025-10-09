@@ -52,7 +52,7 @@ class TestGrowPolicy : public ::testing::Test {
       RegTree tree;
       tree.LoadModel(j_tree);
       bst_node_t depth = 0;
-      auto sc_tree = tree::ScalarTreeView{&tree};
+      auto sc_tree = tree.HostScView();
       sc_tree.WalkTree([&](bst_node_t nidx) {
         depth = std::max(sc_tree.GetDepth(nidx), depth);
         return true;
@@ -127,7 +127,7 @@ class TestGrowPolicy : public ::testing::Test {
       RegTree tree;
       tree.LoadModel(j_tree);
       bst_node_t depth = 0;
-      auto sc_tree = tree::ScalarTreeView{&tree};
+      auto sc_tree = tree.HostScView();
       sc_tree.WalkTree([&](bst_node_t nidx) {
         depth = std::max(sc_tree.GetDepth(nidx), depth);
         return true;

@@ -17,8 +17,8 @@ struct WalkTreeMixIn {
    * @param Function that accepts a node index, and returns false when iteration should
    *        stop, otherwise returns true.
    */
-  template <typename Func>
-  void WalkTree(Func func) const {
+  template <typename Fn>
+  void WalkTree(Fn&& func) const {
     std::stack<bst_node_t> nodes;
     nodes.push(RegTree::kRoot);
     auto self = static_cast<Base const*>(this);
@@ -99,7 +99,16 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
                                          RegTree::CategoricalSplitMatrix cats, bst_node_t n_nodes)
       : nodes{nodes}, stats{stats}, cats{std::move(cats)}, n{n_nodes} {}
 
+  // Create device view
   explicit ScalarTreeView(Context const* , RegTree const* tree)
+      : nodes{tree->GetNodes().data()},
+        stats{tree->GetStats().data()},
+        cats{tree->GetCategoriesMatrix()},
+        n{tree->NumNodes()} {
+    CHECK(!tree->IsMultiTarget());
+  }
+  // Create host view
+  explicit ScalarTreeView(RegTree const* tree)
       : nodes{tree->GetNodes().data()},
         stats{tree->GetStats().data()},
         cats{tree->GetCategoriesMatrix()},
@@ -172,5 +181,17 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
   [[nodiscard]] bst_node_t Size() const { return this->n; }
 
   explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
+  explicit MultiTargetTreeView(RegTree const* tree);
 };
+
+template <typename Fn>
+void WalkTree(RegTree const& tree, Fn&& fn) {
+  if (tree.IsMultiTarget()) {
+    auto mt_tree = tree.HostMtView();
+    mt_tree.WalkTree([&](bst_node_t nidx) { return fn(mt_tree, nidx); });
+  } else {
+    auto sc_tree = tree.HostScView();
+    sc_tree.WalkTree([&](bst_node_t nidx) { return fn(sc_tree, nidx); });
+  }
+}
 }  // namespace xgboost::tree

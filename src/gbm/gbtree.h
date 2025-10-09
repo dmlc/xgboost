@@ -232,7 +232,7 @@ class GBTree : public GradientBooster {
       for (auto idx : trees) {
         CHECK_LE(idx, total_n_trees) << "Invalid tree index.";
         auto const& tree = *model_.trees[idx];
-        auto sc_tree = tree::ScalarTreeView{&tree};
+        auto sc_tree = tree.HostScView();
         sc_tree.WalkTree([&](bst_node_t nidx) {
           if (!sc_tree.IsLeaf(nidx)) {
             split_counts[sc_tree.SplitIndex(nidx)]++;

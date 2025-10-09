@@ -76,7 +76,7 @@ TEST(CpuPredictor, ArrayTreeLayout) {
     tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0);
   }
 
-  auto sc_tree = tree::ScalarTreeView{&tree};
+  auto sc_tree = tree::ScalarTreeView{&ctx, &tree};
   {
     constexpr int kDepth = 1;
     LayoutForTest<kDepth> buffer(sc_tree, tree.GetCategoriesMatrix());

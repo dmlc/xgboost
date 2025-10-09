@@ -72,7 +72,7 @@ static_assert(std::is_trivially_copyable_v<NodeSplitData>);
 void AssignNodes(RegTree const* p_tree, GradientQuantiser const* quantizer,
                  std::vector<GPUExpandEntry> const& candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
-  auto tree = ScalarTreeView(p_tree);
+  auto tree = p_tree->HostScView();
   std::size_t nidx_in_set{0};
   auto p_build_nidx = nodes_to_build.data();
   auto p_sub_nidx = nodes_to_sub.data();
@@ -129,7 +129,7 @@ struct GPUHistMakerDevice {
   PartitionNodes CreatePartitionNodes(RegTree const* p_tree,
                                       std::vector<GPUExpandEntry> const& candidates) {
     PartitionNodes nodes(candidates.size());
-    auto sc_tree = ScalarTreeView{p_tree};
+    auto sc_tree = p_tree->HostScView();
     for (std::size_t i = 0, n = candidates.size(); i < n; i++) {
       auto const& e = candidates[i];
       auto split_type = sc_tree.SplitType(e.nid);
@@ -626,7 +626,7 @@ struct GPUHistMakerDevice {
     auto d_categories = dh::ToSpan(categories);
     auto ft = p_fmat->Info().feature_types.ConstDeviceSpan();
 
-    auto sc_tree = ScalarTreeView{p_tree};
+    auto sc_tree = p_tree->HostScView();
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
       std::vector<NodeSplitData> split_data(p_tree->NumNodes());
       for (std::size_t i = 0, n = split_data.size(); i < n; ++i) {

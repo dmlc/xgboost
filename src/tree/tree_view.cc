@@ -37,8 +37,28 @@ MultiTargetTreeView::MultiTargetTreeView(Context const* ctx, RegTree const* tree
         if (ctx->IsCPU()) {
           weights = tree->GetMultiTargetTree()->weights_.ConstHostSpan();
         } else {
+          tree->GetMultiTargetTree()->weights_.SetDevice(ctx->Device());
           weights = tree->GetMultiTargetTree()->weights_.ConstDeviceSpan();
         }
         return linalg::MakeTensorView(ctx, weights, n_leaves, n_targets);
+      }()} {}
+
+MultiTargetTreeView::MultiTargetTreeView(RegTree const* tree)
+    : left{tree->GetMultiTargetTree()->left_.ConstHostPointer()},
+      right{tree->GetMultiTargetTree()->right_.ConstHostPointer()},
+      parent{tree->GetMultiTargetTree()->parent_.ConstHostPointer()},
+      split_index{tree->GetMultiTargetTree()->split_index_.ConstHostPointer()},
+      default_left{tree->GetMultiTargetTree()->default_left_.ConstHostPointer()},
+      split_conds{tree->GetMultiTargetTree()->split_conds_.ConstHostPointer()},
+      cats{tree->GetCategoriesMatrix()},
+      n{tree->NumNodes()},
+      weights{[&]() {
+        auto const* mt_tree = tree->GetMultiTargetTree();
+        auto n_targets = mt_tree->NumTargets();
+        auto n_leaves = mt_tree->weights_.Size() / mt_tree->NumTargets();
+        CHECK_GE(n_leaves, 1);
+        common::Span<float const> weights;
+        weights = tree->GetMultiTargetTree()->weights_.ConstHostSpan();
+        return linalg::MakeTensorView(DeviceOrd::CPU(), weights, n_leaves, n_targets);
       }()} {}
 }  // namespace xgboost::tree

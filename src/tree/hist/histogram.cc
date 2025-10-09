@@ -46,7 +46,7 @@ void AssignNodes(RegTree const *p_tree, std::vector<MultiExpandEntry> const &val
 void AssignNodes(RegTree const *p_tree, std::vector<CPUExpandEntry> const &candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
   std::size_t n_idx = 0;
-  auto tree = ScalarTreeView{p_tree};
+  auto tree = p_tree->HostScView();
   for (auto const &c : candidates) {
     auto left_nidx = tree.LeftChild(c.nid);
     auto right_nidx = tree.RightChild(c.nid);

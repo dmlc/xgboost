@@ -25,6 +25,12 @@
 #include <vector>
 
 namespace xgboost {
+
+namespace tree {
+struct ScalarTreeView;
+struct MultiTargetTreeView;
+}
+
 class Json;
 
 /** @brief meta parameters of the tree */
@@ -382,7 +388,6 @@ class RegTree : public Model {
   }
   /** @brief Count the number of leaves in tree. */
   [[nodiscard]] bst_node_t GetNumLeaves() const;
-  [[nodiscard]] bst_node_t GetNumSplitNodes() const;
 
   /**
    * @brief get current depth
@@ -583,6 +588,8 @@ class RegTree : public Model {
   }
 
   [[nodiscard]] RegTree* Copy() const;
+  tree::ScalarTreeView HostScView() const;
+  tree::MultiTargetTreeView HostMtView() const;
 
  private:
   template <bool typed>

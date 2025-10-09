@@ -829,7 +829,7 @@ bool RegTree::Equal(const RegTree& b) const {
   bool ret { true };
   auto const& lhs = self.nodes_.ConstHostVector();
   auto const& rhs = b.nodes_.ConstHostVector();
-  tree::ScalarTreeView{this}.WalkTree([&lhs, &rhs, &ret](bst_node_t nidx) {
+  tree::WalkTree(*this, [&lhs, &rhs, &ret](auto const&, bst_node_t nidx) {
     if (!(lhs.at(nidx) == rhs.at(nidx))) {
       ret = false;
       return false;
@@ -842,9 +842,8 @@ bool RegTree::Equal(const RegTree& b) const {
 bst_node_t RegTree::GetNumLeaves() const {
   CHECK(!IsMultiTarget());
   bst_node_t leaves{0};
-  auto sc_tree = tree::ScalarTreeView{this};
-  sc_tree.WalkTree([&leaves, &sc_tree](bst_node_t nidx) {
-    if (sc_tree.IsLeaf(nidx)) {
+  tree::WalkTree(*this, [&leaves](auto const& self, bst_node_t nidx) {
+    if (self.IsLeaf(nidx)) {
       leaves++;
     }
     return true;
@@ -852,24 +851,11 @@ bst_node_t RegTree::GetNumLeaves() const {
   return leaves;
 }
 
-bst_node_t RegTree::GetNumSplitNodes() const {
-  CHECK(!IsMultiTarget());
-  bst_node_t splits{0};
-  auto sc_tree = tree::ScalarTreeView{this};
-  sc_tree.WalkTree([&splits, &sc_tree](bst_node_t nidx) {
-    if (!sc_tree.IsLeaf(nidx)) {
-      splits++;
-    }
-    return true;
-  });
-  return splits;
-}
-
 [[nodiscard]] bst_node_t RegTree::GetDepth(bst_node_t nid) const {
   if (this->IsMultiTarget()) {
     return this->p_mt_tree_->GetDepth(nid);
   }
-  return tree::ScalarTreeView{this}.GetDepth(nid);
+  return this->HostScView().GetDepth(nid);
 }
 
 void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
@@ -956,6 +942,10 @@ RegTree* RegTree::Copy() const {
   }
   return ptr;
 }
+
+tree::ScalarTreeView RegTree::HostScView() const { return tree::ScalarTreeView{this}; }
+
+tree::MultiTargetTreeView RegTree::HostMtView() const { return tree::MultiTargetTreeView{this}; }
 
 template <bool typed>
 void RegTree::LoadCategoricalSplit(Json const& in) {

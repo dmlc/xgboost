@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file updater_colmaker.cc
  * \brief use columnwise update to construct a tree
  * \author Tianqi Chen
@@ -302,7 +302,7 @@ class ColMaker: public TreeUpdater {
     /*! \brief update queue expand add in new leaves */
     void UpdateQueueExpand(const RegTree &tree, const std::vector<int> &qexpand,
                            std::vector<int> *p_newnodes) {
-      auto sc_tree = ScalarTreeView{&tree};
+      auto sc_tree = ScalarTreeView{this->ctx_, &tree};
       p_newnodes->clear();
       for (int nid : qexpand) {
         if (!sc_tree.IsLeaf(nid)) {
@@ -514,7 +514,7 @@ class ColMaker: public TreeUpdater {
       // set default direct nodes to default
       // for leaf nodes that are not fresh, mark then to ~nid,
       // so that they are ignored in future statistics collection
-      auto sc_tree = ScalarTreeView{&tree};
+      auto sc_tree = ScalarTreeView{this->ctx_, &tree};
       common::ParallelFor(p_fmat->Info().num_row_, this->ctx_->Threads(), [&](auto ridx) {
         CHECK_LT(ridx, position_.size()) << "ridx exceed bound "
                                          << "ridx=" << ridx << " pos=" << position_.size();
@@ -548,7 +548,7 @@ class ColMaker: public TreeUpdater {
     virtual void SetNonDefaultPosition(const std::vector<int> &qexpand,
                                        DMatrix *p_fmat,
                                        const RegTree &tree) {
-      auto sc_tree = ScalarTreeView{&tree};
+      auto sc_tree = ScalarTreeView{this->ctx_, &tree};
       // step 1, classify the non-default data into right places
       std::vector<unsigned> fsplits;
       for (int nid : qexpand) {

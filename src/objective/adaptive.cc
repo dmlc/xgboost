@@ -49,7 +49,7 @@ void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
   CHECK_LE(begin_pos, sorted_pos.size());
 
   std::vector<bst_node_t> leaf;
-  auto sc_tree = tree::ScalarTreeView{&tree};
+  auto sc_tree = tree.HostScView();
   sc_tree.WalkTree([&](bst_node_t nidx) {
     if (sc_tree.IsLeaf(nidx)) {
       leaf.push_back(nidx);

@@ -39,11 +39,11 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                                      return tree::SamplePosition::IsValid(nidx);
                                    }) -
                    sorted_position.cbegin();
+
   if (beg_pos == sorted_position.size()) {
     auto& leaf = p_nidx->HostVector();
-    auto sc_tree = tree::ScalarTreeView{&tree};
-    sc_tree.WalkTree([&](bst_node_t nidx) {
-      if (sc_tree.IsLeaf(nidx)) {
+    tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
+      if (tree.IsLeaf(nidx)) {
         leaf.push_back(nidx);
       }
       return true;
@@ -122,11 +122,9 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
     // shrink to omit the sampled nodes.
     nptr.Resize(*h_num_runs + 1);
     nidx.Resize(*h_num_runs);
-
     std::vector<bst_node_t> leaves;
-    auto sc_tree = tree::ScalarTreeView{&tree};
-    sc_tree.WalkTree([&](bst_node_t nidx) {
-      if (sc_tree.IsLeaf(nidx)) {
+    tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
+      if (tree.IsLeaf(nidx)) {
         leaves.push_back(nidx);
       }
       return true;

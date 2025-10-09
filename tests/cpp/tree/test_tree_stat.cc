@@ -44,7 +44,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     up->Update(&param, &gpairs_, p_dmat_.get(), position, {&tree});
 
-    auto sc_tree = tree::ScalarTreeView{&tree};
+    auto sc_tree = tree.HostScView();
     sc_tree.WalkTree([&sc_tree](bst_node_t nidx) {
       if (sc_tree.IsLeaf(nidx)) {
         // 1.0 is the default `min_child_weight`.
@@ -119,9 +119,9 @@ class TestSplitWithEta : public ::testing::Test {
     CHECK_GE(p_tree0->NumExtraNodes(), 32);
 
     bst_node_t n_nodes{0};
-    auto walk = [&](bst_node_t nidx) {
-      if (p_tree0->IsLeaf(nidx)) {
-        CHECK(p_tree0->IsLeaf(nidx));
+    tree::WalkTree(*p_tree0, [&](auto const& tree0, bst_node_t nidx) {
+      if (tree0.IsLeaf(nidx)) {
+        CHECK(tree0.IsLeaf(nidx));
         if (p_tree0->IsMultiTarget()) {
           CHECK(p_tree1->IsMultiTarget());
           auto leaf_0 = p_tree0->GetMultiTargetTree()->LeafValue(nidx);
@@ -130,27 +130,21 @@ class TestSplitWithEta : public ::testing::Test {
           for (std::size_t i = 0; i < leaf_0.Size(); ++i) {
             CHECK_EQ(leaf_0(i) * eta_ratio, leaf_1(i));
           }
-          CHECK_EQ(DftBadValue(), p_tree0->SplitCond(nidx));
+          CHECK_EQ(DftBadValue(), tree0.SplitCond(nidx));
           CHECK_EQ(DftBadValue(), p_tree1->SplitCond(nidx));
         } else {
           // Non-mt tree reuses split cond for leaf value.
-          auto leaf_0 = p_tree0->SplitCond(nidx);
+          auto leaf_0 = tree0.SplitCond(nidx);
           auto leaf_1 = p_tree1->SplitCond(nidx);
           CHECK_EQ(leaf_0 * eta_ratio, leaf_1);
         }
       } else {
         CHECK(!p_tree1->IsLeaf(nidx));
-        CHECK_EQ(p_tree0->SplitCond(nidx), p_tree1->SplitCond(nidx));
+        CHECK_EQ(tree0.SplitCond(nidx), p_tree1->SplitCond(nidx));
       }
       n_nodes++;
       return true;
-    };
-    if (n_targets == 1) {
-      tree::ScalarTreeView{p_tree0.get()}.WalkTree(walk);
-    } else {
-      tree::MultiTargetTreeView{ctx, p_tree0.get()}.WalkTree(walk);
-    }
-
+    });
     ASSERT_EQ(n_nodes, p_tree0->NumExtraNodes() + 1);
   }
 };

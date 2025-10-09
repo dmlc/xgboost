@@ -733,9 +733,8 @@ void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
   size_t n_nodes = p_last_tree->GetNodes().size();
   for (auto &part : partitioner) {
     CHECK_EQ(part.Size(), n_nodes);
-    common::BlockedSpace2d space(
-        part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
-    auto sc_tree = ScalarTreeView{p_last_tree};
+    common::BlockedSpace2d space(part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
+    auto sc_tree = ScalarTreeView{ctx, p_last_tree};
     common::ParallelFor2d(space, ctx->Threads(), [&](bst_node_t nidx, common::Range1d r) {
       if (!sc_tree.IsDeleted(nidx) && sc_tree.IsLeaf(nidx)) {
         auto const &rowset = part[nidx];
