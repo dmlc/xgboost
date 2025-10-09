@@ -215,7 +215,7 @@ cv <- xgb.cv(
 print(cv)
 print(cv, verbose = TRUE)
 
-Callbacks might add additional attributes, separated by the name of the callback
+# Callbacks might add additional attributes, separated by the name of the callback
 cv$early_stop$best_iteration
 head(cv$cv_predict$pred)
 }
