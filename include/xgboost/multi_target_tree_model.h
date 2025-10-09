@@ -99,6 +99,8 @@ class MultiTargetTree : public Model {
 
   [[nodiscard]] bst_target_t NumTargets() const;
 
+  [[nodiscard]] auto NumLeaves() const { return this->weights_.Size() / this->NumTargets(); }
+
   [[nodiscard]] bool IsLeftChild(bst_node_t nidx) const {
     auto p = this->Parent(nidx);
     return nidx == this->LeftChild(p);
@@ -113,6 +115,14 @@ class MultiTargetTree : public Model {
       nidx = Parent(nidx);
     }
     return depth;
+  }
+
+  common::Span<float const> Weights(DeviceOrd device) const {
+    if (device.IsCPU()) {
+      return this->weights_.ConstHostSpan();
+    }
+    this->weights_.SetDevice(device);
+    return this->weights_.ConstDeviceSpan();
   }
 
   [[nodiscard]] linalg::VectorView<float const> LeafValue(bst_node_t nidx) const {

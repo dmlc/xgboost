@@ -17,6 +17,15 @@ auto DispatchPtr(Context const* ctx, HostDeviceVector<T> const& vec) {
   }
   return vec.ConstDevicePointer();
 }
+
+auto DispatchWeight(DeviceOrd device, RegTree const* tree) {
+  auto const* mt_tree = tree->GetMultiTargetTree();
+  auto n_targets = mt_tree->NumTargets();
+  auto n_leaves = mt_tree->NumLeaves();
+  CHECK_GE(n_leaves, 1);
+  common::Span<float const> weights = tree->GetMultiTargetTree()->Weights(device);
+  return linalg::MakeTensorView(device, weights, n_leaves, n_targets);
+}
 }  // namespace
 
 ScalarTreeView::ScalarTreeView(Context const* ctx, RegTree const* tree)
@@ -36,20 +45,7 @@ MultiTargetTreeView::MultiTargetTreeView(Context const* ctx, RegTree const* tree
       split_conds{DispatchPtr(ctx, tree->GetMultiTargetTree()->split_conds_)},
       cats{tree->GetCategoriesMatrix()},
       n{tree->NumNodes()},
-      weights{[&]() {
-        auto const* mt_tree = tree->GetMultiTargetTree();
-        auto n_targets = mt_tree->NumTargets();
-        auto n_leaves = mt_tree->weights_.Size() / mt_tree->NumTargets();
-        CHECK_GE(n_leaves, 1);
-        common::Span<float const> weights;
-        if (ctx->IsCPU()) {
-          weights = tree->GetMultiTargetTree()->weights_.ConstHostSpan();
-        } else {
-          tree->GetMultiTargetTree()->weights_.SetDevice(ctx->Device());
-          weights = tree->GetMultiTargetTree()->weights_.ConstDeviceSpan();
-        }
-        return linalg::MakeTensorView(ctx, weights, n_leaves, n_targets);
-      }()} {}
+      weights{DispatchWeight(ctx->Device(), tree)} {}
 
 MultiTargetTreeView::MultiTargetTreeView(RegTree const* tree)
     : left{tree->GetMultiTargetTree()->left_.ConstHostPointer()},
@@ -60,13 +56,5 @@ MultiTargetTreeView::MultiTargetTreeView(RegTree const* tree)
       split_conds{tree->GetMultiTargetTree()->split_conds_.ConstHostPointer()},
       cats{tree->GetCategoriesMatrix()},
       n{tree->NumNodes()},
-      weights{[&]() {
-        auto const* mt_tree = tree->GetMultiTargetTree();
-        auto n_targets = mt_tree->NumTargets();
-        auto n_leaves = mt_tree->weights_.Size() / mt_tree->NumTargets();
-        CHECK_GE(n_leaves, 1);
-        common::Span<float const> weights;
-        weights = tree->GetMultiTargetTree()->weights_.ConstHostSpan();
-        return linalg::MakeTensorView(DeviceOrd::CPU(), weights, n_leaves, n_targets);
-      }()} {}
+      weights{DispatchWeight(DeviceOrd::CPU(), tree)} {}
 }  // namespace xgboost::tree

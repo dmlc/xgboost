@@ -38,6 +38,8 @@ DMLC_REGISTRY_FILE_TAG(gpu_predictor);
 
 using cuda_impl::StaticBatch;
 
+using TreeView = cuda::std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
+
 class DeviceModel {
  public:
   // Need to lazily construct the vectors because GPU id is only known at runtime
@@ -153,7 +155,6 @@ class DeviceModel {
 };
 
 auto MakeDeviceModel(Context const* ctx, gbm::GBTreeModel const& model) {
-  using TreeView = cuda::std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
   dh::device_vector<TreeView> trees;
   for (auto const& p_tree : model.trees) {
     if (p_tree->IsMultiTarget()) {
