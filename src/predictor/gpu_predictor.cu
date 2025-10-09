@@ -355,31 +355,23 @@ struct DeviceAdapterLoader {
   }
 };
 
-namespace multi {
-template <bool has_missing, bool has_categorical>
-XGBOOST_DEVICE bst_node_t GetNextNode(tree::MultiTargetTreeView const& tree, bst_node_t const nidx,
-                                      float fvalue, bool is_missing) {
-  if (has_missing && is_missing) {
-    return tree.DefaultChild(nidx);
-  } else {
-    return fvalue < tree.SplitCond(nidx) ? tree.LeftChild(nidx) : tree.RightChild(nidx);
-  }
-}
-
-template <bool has_missing, bool has_categorical, typename Loader>
-__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, tree::MultiTargetTreeView const& tree,
-                                   Loader* loader) {
+namespace {
+template <bool has_missing, bool has_categorical, typename Loader, typename TreeView>
+__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = 0;
   while (!tree.IsLeaf(nidx)) {
     float fvalue = loader->GetElement(ridx, tree.SplitIndex(nidx));
     bool is_missing = common::CheckNAN(fvalue);
-    auto next = GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing);
+    auto next =
+        GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing, tree.cats);
     assert(nidx < next);
     nidx = next;
   }
   return nidx;
 }
+}  // namespace
 
+namespace multi {
 template <bool has_missing, typename Loader>
 __device__ auto GetLeafWeight(bst_idx_t ridx, tree::MultiTargetTreeView const& tree, Loader* loader) {
   bst_node_t nidx = GetLeafIndex<has_missing, false>(ridx, tree, loader);
@@ -404,20 +396,6 @@ __global__ void PredictKernel(Data data, common::Span<tree::MultiTargetTreeView>
 }  // namespace multi
 
 namespace scalar {
-template <bool has_missing, bool has_categorical, typename Loader, typename TreeView>
-__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
-  bst_node_t nidx = 0;
-  while (!tree.IsLeaf(nidx)) {
-    float fvalue = loader->GetElement(ridx, tree.SplitIndex(nidx));
-    bool is_missing = common::CheckNAN(fvalue);
-    auto next =
-        GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing, tree.cats);
-    assert(nidx < next);
-    nidx = next;
-  }
-  return nidx;
-}
-
 template <bool has_missing, typename Loader, typename TreeView>
 __device__ float GetLeafWeight(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = -1;
@@ -456,9 +434,9 @@ PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
 
     bst_node_t leaf = -1;
     if (d_tree.HasCategoricalSplit()) {
-      leaf = scalar::GetLeafIndex<has_missing, true>(ridx, d_tree, &loader);
+      leaf = GetLeafIndex<has_missing, true>(ridx, d_tree, &loader);
     } else {
-      leaf = scalar::GetLeafIndex<has_missing, false>(ridx, d_tree, &loader);
+      leaf = GetLeafIndex<has_missing, false>(ridx, d_tree, &loader);
     }
     d_out_predictions[ridx * (tree_end - tree_begin) + tree_idx] = leaf;
   }
