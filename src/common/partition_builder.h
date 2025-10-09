@@ -119,7 +119,7 @@ class PartitionBuilder {
     std::size_t nid = nodes[node_in_set].nid;
     bst_feature_t fid = tree.SplitIndex(nid);
     bool default_left = tree.DefaultLeft(nid);
-    bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
+    bool is_cat = tree.GetSplitTypes(DeviceOrd::CPU())[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
     auto const& cut_values = gmat.cut.Values();
 
@@ -211,7 +211,7 @@ class PartitionBuilder {
     common::Span<bst_idx_t const> rid_span{rid + range.begin(), rid + range.end()};
     std::size_t nid = nodes[node_in_set].nid;
     bst_feature_t fid = tree.SplitIndex(nid);
-    bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
+    bool is_cat = tree.GetSplitTypes(DeviceOrd::CPU())[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
     auto const& cut_values = gmat.cut.Values();
 

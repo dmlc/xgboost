@@ -238,8 +238,8 @@ class RegTree : public Model {
   RegTree() {
     nodes_.Resize(param_.num_nodes);
     stats_.resize(param_.num_nodes);
-    split_types_.resize(param_.num_nodes, FeatureType::kNumerical);
-    split_categories_segments_.resize(param_.num_nodes);
+    split_types_.HostVector().resize(param_.num_nodes, FeatureType::kNumerical);
+    split_categories_segments_.HostVector().resize(param_.num_nodes);
     for (int i = 0; i < param_.num_nodes; i++) {
       nodes_.HostVector()[i].SetLeaf(0.0f);
       nodes_.HostVector()[i].SetParent(kInvalidNodeId);
@@ -357,7 +357,7 @@ class RegTree : public Model {
   /**
    * @brief Whether this tree has categorical split.
    */
-  [[nodiscard]] bool HasCategoricalSplit() const { return !split_categories_.empty(); }
+  [[nodiscard]] bool HasCategoricalSplit() const { return !split_categories_.Empty(); }
   /**
    * @brief Whether this is a multi-target tree.
    */
@@ -495,27 +495,36 @@ class RegTree : public Model {
    * @param nidx Index of node.
    * @return The type of this split.  For leaf node it's always kNumerical.
    */
-  [[nodiscard]] FeatureType NodeSplitType(bst_node_t nidx) const { return split_types_.at(nidx); }
+  [[nodiscard]] FeatureType NodeSplitType(bst_node_t nidx) const {
+    return split_types_.ConstHostVector().at(nidx);
+  }
   /**
    * @brief Get split types for all nodes.
    */
-  [[nodiscard]] std::vector<FeatureType> const& GetSplitTypes() const {
-    return split_types_;
+  [[nodiscard]] common::Span<FeatureType const> GetSplitTypes(DeviceOrd device) const {
+    if (device.IsCPU()) {
+      return split_types_.ConstHostSpan();
+    }
+    split_types_.SetDevice(device);
+    return split_types_.ConstDeviceSpan();
   }
-  [[nodiscard]] common::Span<std::uint32_t const> GetSplitCategories() const {
-    return split_categories_;
+  [[nodiscard]] common::Span<std::uint32_t const> GetSplitCategories(DeviceOrd device) const {
+    if (device.IsCPU()) {
+      return split_categories_.ConstHostSpan();
+    }
+    split_categories_.SetDevice(device);
+    return split_categories_.ConstDeviceSpan();
   }
   /**
    * @brief Get the bit storage for categories
    */
   [[nodiscard]] common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
-    auto node_ptr = GetCategoriesMatrix().node_ptr;
-    auto categories = GetCategoriesMatrix().categories;
+    auto node_ptr = GetCategoriesMatrix(DeviceOrd::CPU()).node_ptr;
+    auto categories = GetCategoriesMatrix(DeviceOrd::CPU()).categories;
     auto segment = node_ptr[nidx];
     auto node_cats = categories.subspan(segment.beg, segment.size);
     return node_cats;
   }
-  [[nodiscard]] auto const& GetSplitCategoriesPtr() const { return split_categories_segments_; }
 
   /**
    * @brief CSR-like matrix for categorical splits.
@@ -534,11 +543,25 @@ class RegTree : public Model {
     common::Span<Segment const> node_ptr;
   };
 
-  [[nodiscard]] CategoricalSplitMatrix GetCategoriesMatrix() const {
+  [[nodiscard]] common::Span<CategoricalSplitMatrix::Segment const> GetSplitCategoriesPtr(
+      DeviceOrd device) const {
+    if (device.IsCPU()) {
+      return split_categories_segments_.ConstHostSpan();
+    }
+    split_categories_segments_.SetDevice(device);
+    return split_categories_segments_.ConstDeviceSpan();
+  }
+
+  [[nodiscard]] CategoricalSplitMatrix GetCategoriesMatrix(DeviceOrd device) const {
     CategoricalSplitMatrix view;
-    view.split_type = common::Span<FeatureType const>(this->GetSplitTypes());
-    view.categories = this->GetSplitCategories();
-    view.node_ptr = common::Span<CategoricalSplitMatrix::Segment const>(split_categories_segments_);
+    view.split_type = common::Span<FeatureType const>(this->GetSplitTypes(device));
+    view.categories = this->GetSplitCategories(device);
+    if (device.IsCPU()) {
+      view.node_ptr = split_categories_segments_.ConstHostSpan();
+    } else {
+      split_categories_segments_.SetDevice(device);
+      view.node_ptr = split_categories_segments_.ConstDeviceSpan();
+    }
     return view;
   }
 
@@ -617,35 +640,35 @@ class RegTree : public Model {
   std::vector<int>  deleted_nodes_;
   // stats of nodes
   std::vector<RTreeNodeStat> stats_;
-  std::vector<FeatureType> split_types_;
+  HostDeviceVector<FeatureType> split_types_;
 
   // Categories for each internal node.
-  std::vector<uint32_t> split_categories_;
+  HostDeviceVector<uint32_t> split_categories_;
   // Ptr to split categories of each node.
-  std::vector<CategoricalSplitMatrix::Segment> split_categories_segments_;
+  HostDeviceVector<CategoricalSplitMatrix::Segment> split_categories_segments_;
   // ptr to multi-target tree with vector leaf.
   std::unique_ptr<MultiTargetTree> p_mt_tree_;
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   bst_node_t AllocNode() {
     if (param_.num_deleted != 0) {
-      int nid = deleted_nodes_.back();
+      bst_node_t nid = deleted_nodes_.back();
       deleted_nodes_.pop_back();
       nodes_.HostVector()[nid].Reuse();
       --param_.num_deleted;
       return nid;
     }
-    int nd = param_.num_nodes++;
-    CHECK_LT(param_.num_nodes, std::numeric_limits<int>::max())
+    bst_node_t nd = param_.num_nodes++;
+    CHECK_LT(param_.num_nodes, std::numeric_limits<bst_node_t>::max())
         << "number of nodes in the tree exceed 2^31";
-    nodes_.Resize(param_.num_nodes);
+    nodes_.HostVector().resize(param_.num_nodes);
     stats_.resize(param_.num_nodes);
-    split_types_.resize(param_.num_nodes, FeatureType::kNumerical);
-    split_categories_segments_.resize(param_.num_nodes);
+    split_types_.HostVector().resize(param_.num_nodes, FeatureType::kNumerical);
+    split_categories_segments_.HostVector().resize(param_.num_nodes);
     return nd;
   }
   // delete a tree node, keep the parent field to allow trace back
-  void DeleteNode(int nid) {
+  void DeleteNode(bst_node_t nid) {
     CHECK_GE(nid, 1);
     auto pid = (*this)[nid].Parent();
     if (nid == (*this)[pid].LeftChild()) {

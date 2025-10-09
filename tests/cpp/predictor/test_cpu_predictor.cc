@@ -66,7 +66,7 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   Context ctx;
 
   RegTree tree;
-  size_t n_nodes = 15; // 2^4 - 1
+  size_t n_nodes = 15;  // 2^4 - 1
   for (size_t nid = 0; nid < n_nodes; ++nid) {
     // Some place-holders
     size_t split_index = nid + 1;
@@ -79,27 +79,27 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   auto sc_tree = tree::ScalarTreeView{&ctx, &tree};
   {
     constexpr int kDepth = 1;
-    LayoutForTest<kDepth> buffer(sc_tree, tree.GetCategoriesMatrix());
+    LayoutForTest<kDepth> buffer(sc_tree, tree.GetCategoriesMatrix(ctx.Device()));
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 2;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix(ctx.Device())};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 3;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix(ctx.Device())};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 4;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix(ctx.Device())};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 5;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix(ctx.Device())};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
 }

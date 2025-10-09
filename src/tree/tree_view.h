@@ -105,7 +105,7 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
   explicit ScalarTreeView(RegTree const* tree)
       : nodes{tree->GetNodes().data()},
         stats{tree->GetStats().data()},
-        cats{tree->GetCategoriesMatrix()},
+        cats{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
         n{tree->NumNodes()} {
     CHECK(!tree->IsMultiTarget());
   }

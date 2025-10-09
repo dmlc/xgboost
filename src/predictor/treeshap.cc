@@ -27,7 +27,7 @@ void CalculateContributionsApprox(Context const* ctx, RegTree const& tree,
   }
 
   bst_node_t nid = 0;
-  auto const& cats = tree.GetCategoriesMatrix();
+  auto const& cats = tree.GetCategoriesMatrix(ctx->Device());
   auto sc_tree = tree::ScalarTreeView{ctx, &tree};
 
   while (!sc_tree.IsLeaf(nid)) {

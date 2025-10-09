@@ -700,7 +700,7 @@ class ColumnSplitHelper {
   void MaskOneTree(Context const *ctx, RegTree::FVec const &feat, std::size_t tree_id,
                    std::size_t row_id) {
     auto const &tree = *model_.trees[tree_id];
-    auto const &cats = tree.GetCategoriesMatrix();
+    auto const &cats = tree.GetCategoriesMatrix(ctx->Device());
     bst_node_t n_nodes = tree.Size();
     auto sc_tree = tree::ScalarTreeView(ctx, &tree);
 
@@ -1047,7 +1047,7 @@ class CPUPredictor : public Predictor {
 
           for (bst_tree_t j = 0; j < ntree_limit; ++j) {
             auto const &tree = *model.trees[j];
-            auto const &cats = tree.GetCategoriesMatrix();
+            auto const &cats = tree.GetCategoriesMatrix(this->ctx_->Device());
             bst_node_t nidx = 0;
             if (tree.IsMultiTarget()) {
               auto mt_tree = tree::MultiTargetTreeView{this->ctx_, &tree};

@@ -31,7 +31,7 @@ auto DispatchWeight(DeviceOrd device, RegTree const* tree) {
 ScalarTreeView::ScalarTreeView(Context const* ctx, RegTree const* tree)
     : nodes{tree->GetNodes(ctx).data()},
       stats{tree->GetStats().data()},
-      cats{tree->GetCategoriesMatrix()},
+      cats{tree->GetCategoriesMatrix(ctx->Device())},
       n{tree->NumNodes()} {
   CHECK(!tree->IsMultiTarget());
 }
@@ -43,7 +43,7 @@ MultiTargetTreeView::MultiTargetTreeView(Context const* ctx, RegTree const* tree
       split_index{DispatchPtr(ctx, tree->GetMultiTargetTree()->split_index_)},
       default_left{DispatchPtr(ctx, tree->GetMultiTargetTree()->default_left_)},
       split_conds{DispatchPtr(ctx, tree->GetMultiTargetTree()->split_conds_)},
-      cats{tree->GetCategoriesMatrix()},
+      cats{tree->GetCategoriesMatrix(ctx->Device())},
       n{tree->NumNodes()},
       weights{DispatchWeight(ctx->Device(), tree)} {}
 
@@ -54,7 +54,7 @@ MultiTargetTreeView::MultiTargetTreeView(RegTree const* tree)
       split_index{tree->GetMultiTargetTree()->split_index_.ConstHostPointer()},
       default_left{tree->GetMultiTargetTree()->default_left_.ConstHostPointer()},
       split_conds{tree->GetMultiTargetTree()->split_conds_.ConstHostPointer()},
-      cats{tree->GetCategoriesMatrix()},
+      cats{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
       n{tree->NumNodes()},
       weights{DispatchWeight(DeviceOrd::CPU(), tree)} {}
 }  // namespace xgboost::tree

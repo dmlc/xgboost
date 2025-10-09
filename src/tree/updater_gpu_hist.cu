@@ -621,8 +621,9 @@ struct GPUHistMakerDevice {
     }
 
     dh::CachingDeviceUVector<std::uint32_t> categories;
-    dh::CopyTo(p_tree->GetSplitCategories(), &categories, this->ctx_->CUDACtx()->Stream());
-    auto const& cat_segments = p_tree->GetSplitCategoriesPtr();
+    dh::CopyTo(p_tree->GetSplitCategories(DeviceOrd::CPU()), &categories,
+               this->ctx_->CUDACtx()->Stream());
+    auto const& cat_segments = p_tree->GetSplitCategoriesPtr(DeviceOrd::CPU());
     auto d_categories = dh::ToSpan(categories);
     auto ft = p_fmat->Info().feature_types.ConstDeviceSpan();
 
