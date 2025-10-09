@@ -13,8 +13,9 @@
 #include "../tree/tree_view.h"   // for ScalarTreeView
 
 namespace xgboost {
-void CalculateContributionsApprox(RegTree const& tree, const RegTree::FVec& feat,
-                                  std::vector<float>* mean_values, float* out_contribs) {
+void CalculateContributionsApprox(Context const* ctx, RegTree const& tree,
+                                  const RegTree::FVec& feat, std::vector<float>* mean_values,
+                                  float* out_contribs) {
   CHECK_GT(mean_values->size(), 0U);
   bst_feature_t split_index = 0;
   // update bias value
@@ -27,7 +28,7 @@ void CalculateContributionsApprox(RegTree const& tree, const RegTree::FVec& feat
 
   bst_node_t nid = 0;
   auto const& cats = tree.GetCategoriesMatrix();
-  auto sc_tree = tree::ScalarTreeView{&tree};
+  auto sc_tree = tree::ScalarTreeView{ctx, &tree};
 
   while (!sc_tree.IsLeaf(nid)) {
     split_index = sc_tree.SplitIndex(nid);
@@ -138,12 +139,11 @@ float UnwoundPathSum(const PathElement* unique_path, std::uint32_t unique_depth,
  * \param condition_feature the index of the feature to fix
  * \param condition_fraction what fraction of the current weight matches our conditioning feature
  */
-void TreeShap(RegTree const& tree, const RegTree::FVec& feat, float* phi, bst_node_t node_index,
-              std::uint32_t unique_depth, PathElement* parent_unique_path,
+void TreeShap(tree::ScalarTreeView sc_tree, const RegTree::FVec& feat, float* phi,
+              bst_node_t node_index, std::uint32_t unique_depth, PathElement* parent_unique_path,
               float parent_zero_fraction, float parent_one_fraction, int parent_feature_index,
               int condition, std::uint32_t condition_feature, float condition_fraction) {
-  auto sc_tree = tree::ScalarTreeView{&tree};
-  // const auto node = tree[node_index];
+  // auto sc_tree = tree::ScalarTreeView{&tree};
 
   // stop if we have no weight coming down to us
   if (condition_fraction == 0) return;
@@ -170,16 +170,16 @@ void TreeShap(RegTree const& tree, const RegTree::FVec& feat, float* phi, bst_no
     // internal node
   } else {
     // find which branch is "hot" (meaning x would follow it)
-    auto const& cats = tree.GetCategoriesMatrix();
+    auto const& cats = sc_tree.cats;
     bst_node_t hot_index = predictor::GetNextNode<true, true>(
         sc_tree, node_index, feat.GetFvalue(split_index), feat.IsMissing(split_index), cats);
 
     const auto cold_index =
         (hot_index == sc_tree.LeftChild(node_index) ? sc_tree.RightChild(node_index)
                                                     : sc_tree.LeftChild(node_index));
-    const float w = tree.Stat(node_index).sum_hess;
-    const float hot_zero_fraction = tree.Stat(hot_index).sum_hess / w;
-    const float cold_zero_fraction = tree.Stat(cold_index).sum_hess / w;
+    const float w = sc_tree.Stat(node_index).sum_hess;
+    const float hot_zero_fraction = sc_tree.Stat(hot_index).sum_hess / w;
+    const float cold_zero_fraction = sc_tree.Stat(cold_index).sum_hess / w;
     float incoming_zero_fraction = 1;
     float incoming_one_fraction = 1;
 
@@ -208,17 +208,17 @@ void TreeShap(RegTree const& tree, const RegTree::FVec& feat, float* phi, bst_no
       unique_depth -= 1;
     }
 
-    TreeShap(tree, feat, phi, hot_index, unique_depth + 1, unique_path,
+    TreeShap(sc_tree, feat, phi, hot_index, unique_depth + 1, unique_path,
              hot_zero_fraction * incoming_zero_fraction, incoming_one_fraction, split_index,
              condition, condition_feature, hot_condition_fraction);
 
-    TreeShap(tree, feat, phi, cold_index, unique_depth + 1, unique_path,
+    TreeShap(sc_tree, feat, phi, cold_index, unique_depth + 1, unique_path,
              cold_zero_fraction * incoming_zero_fraction, 0, split_index, condition,
              condition_feature, cold_condition_fraction);
   }
 }
 
-void CalculateContributions(RegTree const& tree, const RegTree::FVec& feat,
+void CalculateContributions(Context const* ctx, RegTree const& tree, const RegTree::FVec& feat,
                             std::vector<float>* mean_values, float* out_contribs, int condition,
                             std::uint32_t condition_feature) {
   // find the expected value of the tree's predictions
@@ -231,7 +231,8 @@ void CalculateContributions(RegTree const& tree, const RegTree::FVec& feat,
   const int maxd = tree.MaxDepth(0) + 2;
   std::vector<PathElement> unique_path_data((maxd * (maxd + 1)) / 2);
 
-  TreeShap(tree, feat, out_contribs, 0, 0, unique_path_data.data(), 1, 1, -1, condition,
+  auto sc_tree = tree::ScalarTreeView{ctx, &tree};
+  TreeShap(sc_tree, feat, out_contribs, 0, 0, unique_path_data.data(), 1, 1, -1, condition,
            condition_feature, 1);
 }
 }  // namespace xgboost

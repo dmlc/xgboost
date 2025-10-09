@@ -77,7 +77,7 @@ class TreeRefresher : public TreeUpdater {
           feats.Fill(inst);
           int offset = 0;
           for (auto tree : trees) {
-            AddStats(*tree, feats, gpair_h, info, ridx,
+            AddStats(this->ctx_, *tree, feats, gpair_h, info, ridx,
                      dmlc::BeginPtr(stemp[tid]) + offset);
             offset += tree->NumNodes();
           }
@@ -108,7 +108,7 @@ class TreeRefresher : public TreeUpdater {
   }
 
  private:
-  inline static void AddStats(const RegTree &tree,
+  inline static void AddStats(Context const* ctx, const RegTree &tree,
                               const RegTree::FVec &feat,
                               const std::vector<GradientPair> &gpair,
                               const MetaInfo&,
@@ -117,13 +117,12 @@ class TreeRefresher : public TreeUpdater {
     // start from groups that belongs to current data
     auto pid = 0;
     gstats[pid].Add(gpair[ridx]);
-    auto const& cats = tree.GetCategoriesMatrix();
     // traverse tree
-    auto sc_tree = ScalarTreeView{&tree};
+    auto sc_tree = ScalarTreeView{ctx, &tree};
     while (!sc_tree.IsLeaf(pid)) {
       unsigned split_index = sc_tree.SplitIndex(pid);
       pid = predictor::GetNextNode<true, true>(sc_tree, pid, feat.GetFvalue(split_index),
-                                               feat.IsMissing(split_index), cats);
+                                               feat.IsMissing(split_index), sc_tree.cats);
       gstats[pid].Add(gpair[ridx]);
     }
   }

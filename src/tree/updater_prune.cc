@@ -47,7 +47,7 @@ class TreePruner : public TreeUpdater {
   // try to prune off current leaf
   bst_node_t TryPruneLeaf(TrainParam const* param, RegTree* p_tree, int nid, int depth,
                           int npruned) {
-    auto tree = ScalarTreeView{p_tree};
+    auto tree = ScalarTreeView{this->ctx_, p_tree};
     CHECK(tree.IsLeaf(nid));
     if (tree.IsRoot(nid)) {
       return npruned;

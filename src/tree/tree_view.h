@@ -99,7 +99,7 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
                                          RegTree::CategoricalSplitMatrix cats, bst_node_t n_nodes)
       : nodes{nodes}, stats{stats}, cats{std::move(cats)}, n{n_nodes} {}
 
-  explicit ScalarTreeView(RegTree const* tree)
+  explicit ScalarTreeView(Context const* , RegTree const* tree)
       : nodes{tree->GetNodes().data()},
         stats{tree->GetStats().data()},
         cats{tree->GetCategoriesMatrix()},

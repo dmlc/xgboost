@@ -218,7 +218,7 @@ class HistogramBuilder {
     if (p_tree->IsMultiTarget()) {
       common::ParallelFor2d(subspace, this->n_threads_, op(tree::MultiTargetTreeView{ctx, p_tree}));
     } else {
-      common::ParallelFor2d(subspace, this->n_threads_, op(tree::ScalarTreeView{p_tree}));
+      common::ParallelFor2d(subspace, this->n_threads_, op(tree::ScalarTreeView{ctx, p_tree}));
     }
   }
 
