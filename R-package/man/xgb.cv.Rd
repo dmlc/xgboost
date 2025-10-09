@@ -170,8 +170,6 @@ It is created by the \code{\link[=xgb.cb.evaluation.log]{xgb.cb.evaluation.log()
 \item \code{nfeatures}: Number of features in training data.
 \item \code{folds}: The list of CV folds' indices - either those passed through the \code{folds}
 parameter or randomly generated.
-\item \code{best_iteration}: Iteration number with the best evaluation metric value
-(only available with early stopping).
 }
 
 Plus other potential elements that are the result of callbacks, such as a list \code{cv_predict} with
@@ -203,16 +201,21 @@ dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 
 cv <- xgb.cv(
   data = dtrain,
-  nrounds = 3,
+  nrounds = 20,
+  early_stopping_rounds = 1,
   params = xgb.params(
     nthread = 2,
     max_depth = 3,
     objective = "binary:logistic"
   ),
   nfold = 5,
-  metrics = list("rmse","auc")
+  metrics = list("rmse","auc"),
+  prediction = TRUE
 )
 print(cv)
 print(cv, verbose = TRUE)
 
+# Callbacks might add additional attributes, separated by the name of the callback
+cv$early_stop$best_iteration
+head(cv$cv_predict$pred)
 }
