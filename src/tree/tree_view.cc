@@ -2,6 +2,12 @@
  * Copyright 2025, XGBoost Contributors
  */
 #include "tree_view.h"
+
+#include "xgboost/context.h"             // for Context
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/linalg.h"              // for MakeTensorView
+#include "xgboost/span.h"                // for Span
+
 namespace xgboost::tree {
 namespace {
 template <typename T>

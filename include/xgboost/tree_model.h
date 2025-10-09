@@ -20,7 +20,6 @@
 #include <cstring>
 #include <limits>
 #include <memory>  // for make_unique
-#include <stack>
 #include <string>
 #include <vector>
 

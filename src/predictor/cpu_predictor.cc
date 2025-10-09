@@ -95,9 +95,9 @@ namespace multi {
 template <bool has_categorical>
 void PredValueByOneTree(RegTree::FVec const &p_feats, tree::MultiTargetTreeView const &tree,
                         linalg::VectorView<float> out_predt, bst_node_t nidx) {
-  bst_node_t const leaf = p_feats.HasMissing()
-                              ? GetLeafIndex<true, has_categorical>(tree, p_feats, tree.cats, nidx)
-                              : GetLeafIndex<false, has_categorical>(tree, p_feats, tree.cats, nidx);
+  bst_node_t const leaf =
+      p_feats.HasMissing() ? GetLeafIndex<true, has_categorical>(tree, p_feats, tree.cats, nidx)
+                           : GetLeafIndex<false, has_categorical>(tree, p_feats, tree.cats, nidx);
   auto leaf_value = tree.LeafValue(leaf);
   assert(out_predt.Shape(0) == leaf_value.Shape(0) && "shape mismatch.");
   for (size_t i = 0; i < leaf_value.Size(); ++i) {
@@ -153,11 +153,11 @@ void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree
     } else {
       auto const gid = model.tree_info[tree_id];
       if (has_categorical) {
-        scalar::PredValueByOneTree<true, any_missing, use_array_tree_layout>
-          (tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth, gid);
+        scalar::PredValueByOneTree<true, any_missing, use_array_tree_layout>(
+            tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth, gid);
       } else {
-        scalar::PredValueByOneTree<false, any_missing, use_array_tree_layout>
-          (tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth, gid);
+        scalar::PredValueByOneTree<false, any_missing, use_array_tree_layout>(
+            tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth, gid);
       }
     }
   }
@@ -743,7 +743,8 @@ class ColumnSplitHelper {
     }
   }
 
-  bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, std::size_t tree_id, std::size_t row_id) {
+  bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, std::size_t tree_id,
+                          std::size_t row_id) {
     bst_node_t nid = 0;
     while (!tree.IsLeaf(nid)) {
       auto const bit_index = BitIndex(tree_id, row_id, nid);

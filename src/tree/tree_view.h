@@ -2,6 +2,8 @@
  * Copyright 2025, XGBoost Contributors
  */
 #pragma once
+#include <stack>    // for stack
+#include <utility>  // for move
 
 #include "xgboost/base.h"        // for bst_node_t
 #include "xgboost/tree_model.h"  // for RegTree

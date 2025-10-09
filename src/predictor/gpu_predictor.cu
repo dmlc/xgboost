@@ -150,7 +150,6 @@ class DeviceModel {
     auto n_bytes = this->MemCostBytes();  // Pull data to device, and get the size of the model.
     LOG(DEBUG) << "Model size:" << common::HumanMemUnit(n_bytes);
   }
-
 };
 
 XGBOOST_DEVICE auto MakeScalarTreeView(
@@ -373,14 +372,15 @@ __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader*
 
 namespace multi {
 template <bool has_missing, typename Loader>
-__device__ auto GetLeafWeight(bst_idx_t ridx, tree::MultiTargetTreeView const& tree, Loader* loader) {
+__device__ auto GetLeafWeight(bst_idx_t ridx, tree::MultiTargetTreeView const& tree,
+                              Loader* loader) {
   bst_node_t nidx = GetLeafIndex<has_missing, false>(ridx, tree, loader);
   return tree.LeafValue(nidx);
 }
 
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
-__global__ void PredictKernel(Data data, common::Span<tree::MultiTargetTreeView> trees, bool use_shared,
-                              float missing, linalg::MatrixView<float> d_out_predt,
+__global__ void PredictKernel(Data data, common::Span<tree::MultiTargetTreeView> trees,
+                              bool use_shared, float missing, linalg::MatrixView<float> d_out_predt,
                               EncAccessor acc) {
   for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), data.NumRows())) {
     Loader loader{std::move(data), use_shared, static_cast<bst_feature_t>(data.NumCols()),
