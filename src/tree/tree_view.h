@@ -9,10 +9,41 @@
 #include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost::tree {
+template <typename Base>
+struct WalkTreeMixIn {
+  /**
+   * @brief Iterate through all nodes in this tree.
+   *
+   * @param Function that accepts a node index, and returns false when iteration should
+   *        stop, otherwise returns true.
+   */
+  template <typename Func>
+  void WalkTree(Func func) const {
+    std::stack<bst_node_t> nodes;
+    nodes.push(RegTree::kRoot);
+    auto self = static_cast<Base const*>(this);
+    while (!nodes.empty()) {
+      auto nidx = nodes.top();
+      nodes.pop();
+      if (!func(nidx)) {
+        return;
+      }
+      auto left = self->LeftChild(nidx);
+      auto right = self->RightChild(nidx);
+      if (left != RegTree::kInvalidNodeId) {
+        nodes.push(left);
+      }
+      if (right != RegTree::kInvalidNodeId) {
+        nodes.push(right);
+      }
+    }
+  }
+};
+
 /**
  * @brief Tree view for scalar leaf.
  */
-struct ScalarTreeView {
+struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
   static bst_node_t constexpr InvalidNodeId() { return RegTree::kInvalidNodeId; }
   static constexpr bst_node_t RootId() { return RegTree::kRoot; }
 
@@ -86,39 +117,12 @@ struct ScalarTreeView {
     }
     return depth;
   }
-  /**
-   * @brief Iterate through all nodes in this tree.
-   *
-   * @param Function that accepts a node index, and returns false when iteration should
-   *        stop, otherwise returns true.
-   */
-  template <typename Func>
-  void WalkTree(Func func) const {
-    std::stack<bst_node_t> nodes;
-    nodes.push(RootId());
-    auto& self = *this;
-    while (!nodes.empty()) {
-      auto nidx = nodes.top();
-      nodes.pop();
-      if (!func(nidx)) {
-        return;
-      }
-      auto left = self.LeftChild(nidx);
-      auto right = self.RightChild(nidx);
-      if (left != RegTree::kInvalidNodeId) {
-        nodes.push(left);
-      }
-      if (right != RegTree::kInvalidNodeId) {
-        nodes.push(right);
-      }
-    }
-  }
 };
 
 /**
  * @brief A view to the @MultiTargetTree suitable for both host and device.
  */
-struct MultiTargetTreeView {
+struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
   static bst_node_t constexpr InvalidNodeId() { return MultiTargetTree::InvalidNodeId(); }
 
   bst_node_t const* left;
