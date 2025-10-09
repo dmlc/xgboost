@@ -18,9 +18,10 @@
 
 #include <algorithm>
 #include <cstring>
-#include <limits>
-#include <memory>  // for make_unique
+#include <limits>  // for numeric_limits
+#include <memory>  // for unique_ptr
 #include <string>
+#include <type_traits>  // for is_signed_v
 #include <vector>
 
 namespace xgboost {
@@ -64,34 +65,6 @@ struct RTreeNodeStat {
     return loss_chg == b.loss_chg && sum_hess == b.sum_hess && base_weight == b.base_weight &&
            leaf_child_cnt == b.leaf_child_cnt;
   }
-};
-
-/**
- * @brief Helper for defining copyable data structure that contains unique pointers.
- */
-template <typename T>
-class CopyUniquePtr {
-  std::unique_ptr<T> ptr_{nullptr};
-
- public:
-  CopyUniquePtr() = default;
-  CopyUniquePtr(CopyUniquePtr const& that) {
-    ptr_.reset(nullptr);
-    if (that.ptr_) {
-      ptr_ = std::make_unique<T>(*that);
-    }
-  }
-  T* get() const noexcept { return ptr_.get(); }  // NOLINT
-
-  T& operator*() { return *ptr_; }
-  T* operator->() noexcept { return this->get(); }
-
-  T const& operator*() const { return *ptr_; }
-  T const* operator->() const noexcept { return this->get(); }
-
-  explicit operator bool() const { return static_cast<bool>(ptr_); }
-  bool operator!() const { return !ptr_; }
-  void reset(T* ptr) { ptr_.reset(ptr); }  // NOLINT
 };
 
 /**
@@ -601,13 +574,6 @@ class RegTree : public Model {
       return this->p_mt_tree_->RightChild(nidx);
     }
     return (*this)[nidx].RightChild();
-  }
-  [[nodiscard]] bool IsLeftChild(bst_node_t nidx) const {
-    if (IsMultiTarget()) {
-      CHECK_NE(nidx, kRoot);
-      return this->p_mt_tree_->IsLeftChild(nidx);
-    }
-    return (*this)[nidx].IsLeftChild();
   }
   [[nodiscard]] bst_node_t Size() const {
     if (IsMultiTarget()) {
