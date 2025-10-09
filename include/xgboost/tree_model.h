@@ -230,11 +230,12 @@ class RegTree : public Model {
    * @param value new leaf value
    */
   void ChangeToLeaf(int rid, float value) {
-    CHECK(nodes_[nodes_[rid].LeftChild() ].IsLeaf());
-    CHECK(nodes_[nodes_[rid].RightChild()].IsLeaf());
-    this->DeleteNode(nodes_[rid].LeftChild());
-    this->DeleteNode(nodes_[rid].RightChild());
-    nodes_[rid].SetLeaf(value);
+    auto& h_nodes = nodes_.HostVector();
+    CHECK(h_nodes[h_nodes[rid].LeftChild() ].IsLeaf());
+    CHECK(h_nodes[h_nodes[rid].RightChild()].IsLeaf());
+    this->DeleteNode(h_nodes[rid].LeftChild());
+    this->DeleteNode(h_nodes[rid].RightChild());
+    h_nodes[rid].SetLeaf(value);
   }
   /**
    * @brief collapse a non leaf node to a leaf node, delete its children
@@ -242,24 +243,27 @@ class RegTree : public Model {
    * @param value new leaf value
    */
   void CollapseToLeaf(int rid, float value) {
-    if (nodes_[rid].IsLeaf()) return;
-    if (!nodes_[nodes_[rid].LeftChild() ].IsLeaf()) {
-      CollapseToLeaf(nodes_[rid].LeftChild(), 0.0f);
+    auto& h_nodes = nodes_.HostVector();
+    if (h_nodes[rid].IsLeaf()) {
+      return;
     }
-    if (!nodes_[nodes_[rid].RightChild() ].IsLeaf()) {
-      CollapseToLeaf(nodes_[rid].RightChild(), 0.0f);
+    if (!h_nodes[h_nodes[rid].LeftChild()].IsLeaf()) {
+      CollapseToLeaf(h_nodes[rid].LeftChild(), 0.0f);
+    }
+    if (!h_nodes[h_nodes[rid].RightChild()].IsLeaf()) {
+      CollapseToLeaf(h_nodes[rid].RightChild(), 0.0f);
     }
     this->ChangeToLeaf(rid, value);
   }
 
   RegTree() {
-    nodes_.resize(param_.num_nodes);
+    nodes_.Resize(param_.num_nodes);
     stats_.resize(param_.num_nodes);
     split_types_.resize(param_.num_nodes, FeatureType::kNumerical);
     split_categories_segments_.resize(param_.num_nodes);
     for (int i = 0; i < param_.num_nodes; i++) {
-      nodes_[i].SetLeaf(0.0f);
-      nodes_[i].SetParent(kInvalidNodeId);
+      nodes_.HostVector()[i].SetLeaf(0.0f);
+      nodes_.HostVector()[i].SetParent(kInvalidNodeId);
     }
   }
   /**
@@ -275,15 +279,15 @@ class RegTree : public Model {
 
   /** @brief get node given nid */
   Node& operator[](int nid) {
-    return nodes_[nid];
+    return nodes_.HostVector()[nid];
   }
   /** @brief get node given nid */
   const Node& operator[](int nid) const {
-    return nodes_[nid];
+    return nodes_.ConstHostVector()[nid];
   }
 
   /** @brief get const reference to nodes */
-  [[nodiscard]] const std::vector<Node>& GetNodes() const { return nodes_; }
+  [[nodiscard]] const std::vector<Node>& GetNodes() const { return nodes_.ConstHostVector(); }
 
   /** @brief get const reference to stats */
   [[nodiscard]] const std::vector<RTreeNodeStat>& GetStats() const { return stats_; }
@@ -300,8 +304,9 @@ class RegTree : public Model {
   void LoadModel(Json const& in) override;
   void SaveModel(Json* out) const override;
 
+  // Only used for debugging.
   bool operator==(const RegTree& b) const {
-    return nodes_ == b.nodes_ && stats_ == b.stats_ &&
+    return nodes_.ConstHostVector() == b.nodes_.ConstHostVector() && stats_ == b.stats_ &&
            deleted_nodes_ == b.deleted_nodes_ && param_ == b.param_;
   }
   /**
@@ -425,10 +430,12 @@ class RegTree : public Model {
    * @param nid node id
    */
   [[nodiscard]] bst_node_t MaxDepth(bst_node_t nid) const {
-    if (nodes_[nid].IsLeaf()) {
+    auto const& h_nodes = this->nodes_.ConstHostVector();
+    if (h_nodes[nid].IsLeaf()) {
       return 0;
     }
-    return std::max(MaxDepth(nodes_[nid].LeftChild()) + 1, MaxDepth(nodes_[nid].RightChild()) + 1);
+    return std::max(MaxDepth(h_nodes[nid].LeftChild()) + 1,
+                    MaxDepth(h_nodes[nid].RightChild()) + 1);
   }
 
   /**
@@ -606,7 +613,7 @@ class RegTree : public Model {
     if (IsMultiTarget()) {
       return this->p_mt_tree_->Size();
     }
-    return this->nodes_.size();
+    return this->nodes_.Size();
   }
 
  private:
@@ -616,7 +623,7 @@ class RegTree : public Model {
   /** @brief model parameter */
   TreeParam param_;
   // vector of nodes
-  std::vector<Node> nodes_;
+  HostDeviceVector<Node> nodes_;
   // free node space, used during training process
   std::vector<int>  deleted_nodes_;
   // stats of nodes
@@ -635,14 +642,14 @@ class RegTree : public Model {
     if (param_.num_deleted != 0) {
       int nid = deleted_nodes_.back();
       deleted_nodes_.pop_back();
-      nodes_[nid].Reuse();
+      nodes_.HostVector()[nid].Reuse();
       --param_.num_deleted;
       return nid;
     }
     int nd = param_.num_nodes++;
     CHECK_LT(param_.num_nodes, std::numeric_limits<int>::max())
         << "number of nodes in the tree exceed 2^31";
-    nodes_.resize(param_.num_nodes);
+    nodes_.Resize(param_.num_nodes);
     stats_.resize(param_.num_nodes);
     split_types_.resize(param_.num_nodes, FeatureType::kNumerical);
     split_categories_segments_.resize(param_.num_nodes);
@@ -659,7 +666,7 @@ class RegTree : public Model {
     }
 
     deleted_nodes_.push_back(nid);
-    nodes_[nid].MarkDelete();
+    nodes_.HostVector()[nid].MarkDelete();
     ++param_.num_deleted;
   }
 };
