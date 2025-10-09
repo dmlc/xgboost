@@ -686,7 +686,7 @@ class HistMultiEvaluator {
     auto right_child = p_tree->RightChild(candidate.nid);
     CHECK_GT(right_child, candidate.nid);
 
-    std::size_t n_nodes = p_tree->Size();
+    std::size_t n_nodes = p_tree->NumNodes();
     gain_.resize(n_nodes);
     // Re-calculate weight without learning rate.
     CalcWeight(*param_, left_sum, left_weight);

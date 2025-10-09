@@ -42,8 +42,6 @@ class MultiTargetTree : public Model {
   HostDeviceVector<float> split_conds_;
   HostDeviceVector<float> weights_;
 
-  mutable std::mutex tree_view_lock_;
-
   [[nodiscard]] linalg::VectorView<float const> NodeWeight(bst_node_t nidx) const {
     auto beg = nidx * this->NumTargets();
     auto v = this->weights_.ConstHostSpan().subspan(beg, this->NumTargets());

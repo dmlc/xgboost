@@ -30,7 +30,7 @@ TEST(MultiTargetTree, JsonIO) {
   ASSERT_EQ(tree->NumNodes(), 3);
   ASSERT_EQ(tree->NumTargets(), 3);
   ASSERT_EQ(tree->GetMultiTargetTree()->Size(), 3);
-  ASSERT_EQ(tree->Size(), 3);
+  ASSERT_EQ(tree->NumNodes(), 3);
 
   Json jtree{Object{}};
   tree->SaveModel(&jtree);
