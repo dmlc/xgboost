@@ -424,10 +424,9 @@ __device__ float GetLeafWeight(bst_idx_t ridx, TreeView const& tree, Loader* loa
 
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
 __global__ void PredictLeafKernel(Data data, common::Span<TreeView> d_trees,
-                                  common::Span<float> d_out_predictions,
-                                  bst_tree_t tree_begin, bst_tree_t tree_end,
-                                  bst_feature_t num_features, size_t num_rows, bool use_shared,
-                                  float missing, EncAccessor acc) {
+                                  common::Span<float> d_out_predictions, bst_tree_t tree_begin,
+                                  bst_tree_t tree_end, bst_feature_t num_features, size_t num_rows,
+                                  bool use_shared, float missing, EncAccessor acc) {
   bst_idx_t ridx = blockDim.x * blockIdx.x + threadIdx.x;
   if (ridx >= num_rows) {
     return;

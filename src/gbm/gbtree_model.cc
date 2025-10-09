@@ -142,4 +142,12 @@ bst_tree_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
   Validate(*this);
   return n_new_trees;
 }
+
+void GBTreeModel::CommitModelGroup(TreesOneGroup&& new_trees, bst_target_t group_idx) {
+  for (auto& new_tree : new_trees) {
+    trees.push_back(std::move(new_tree));
+    tree_info.push_back(group_idx);
+  }
+  param.num_trees += static_cast<int>(new_trees.size());
+}
 }  // namespace xgboost::gbm
