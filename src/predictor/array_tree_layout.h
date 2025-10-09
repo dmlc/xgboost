@@ -71,7 +71,7 @@ class ArrayTreeLayout {
   void Populate(TreeView tree, RegTree::CategoricalSplitMatrix const& cats,
                 bst_node_t nidx_array = 0, bst_node_t nidx = 0) {
     static_assert(std::is_same_v<TreeView, tree::ScalarTreeView> ||
-                  std::is_same_v<TreeView, MultiTargetTreeView>);
+                  std::is_same_v<TreeView, tree::MultiTargetTreeView>);
     if constexpr (depth == kNumDeepLevels + 1) {
       return;
     } else if constexpr (depth == kNumDeepLevels) {
@@ -205,23 +205,24 @@ class ArrayTreeLayout {
 };
 
 template <bool has_categorical, bool any_missing, int num_deep_levels = 1, typename TreeView>
-void ProcessArrayTree(TreeView const& tree, RegTree::CategoricalSplitMatrix const& cats,
-                      common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
-                      bst_node_t* p_nidx, bst_node_t tree_depth) {
+void ProcessArrayTree(TreeView const& tree, common::Span<RegTree::FVec> fvec_tloc,
+                      std::size_t const block_size, bst_node_t* p_nidx, bst_node_t tree_depth) {
   constexpr int kMaxNumDeepLevels =
       ArrayTreeLayout<has_categorical, any_missing, 0, TreeView>::kMaxNumDeepLevels;
 
   // Fill the array tree, then output predicted node idx.
   if constexpr (num_deep_levels == kMaxNumDeepLevels) {
-    ArrayTreeLayout<has_categorical, any_missing, num_deep_levels, TreeView> buffer{tree, cats};
+    ArrayTreeLayout<has_categorical, any_missing, num_deep_levels, TreeView> buffer{tree,
+                                                                                    tree.cats};
     buffer.Process(fvec_tloc, block_size, p_nidx);
   } else {
     if (tree_depth <= num_deep_levels) {
-      ArrayTreeLayout<has_categorical, any_missing, num_deep_levels, TreeView> buffer{tree, cats};
+      ArrayTreeLayout<has_categorical, any_missing, num_deep_levels, TreeView> buffer{tree,
+                                                                                      tree.cats};
       buffer.Process(fvec_tloc, block_size, p_nidx);
     } else {
       ProcessArrayTree<has_categorical, any_missing, num_deep_levels + 1>(
-          tree, cats, fvec_tloc, block_size, p_nidx, tree_depth);
+          tree, fvec_tloc, block_size, p_nidx, tree_depth);
     }
   }
 }

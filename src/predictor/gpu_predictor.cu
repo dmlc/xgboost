@@ -10,7 +10,6 @@
 #include <memory>
 
 #include "../collective/allreduce.h"
-#include "../tree/tree_view.h"  // for ScalarTreeView
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
 #include "../common/common.h"
@@ -25,6 +24,7 @@
 #include "../data/proxy_dmatrix.cuh"  // for DispatchAny
 #include "../data/proxy_dmatrix.h"
 #include "../gbm/gbtree_model.h"
+#include "../tree/tree_view.h"  // for ScalarTreeView
 #include "predict_fn.h"
 #include "utils.h"  // for CheckProxyDMatrix
 #include "xgboost/data.h"
@@ -32,7 +32,6 @@
 #include "xgboost/multi_target_tree_model.h"  // for MultiTargetTree, MultiTargetTreeView
 #include "xgboost/predictor.h"
 #include "xgboost/tree_model.h"
-#include "xgboost/tree_updater.h"
 
 namespace xgboost::predictor {
 DMLC_REGISTRY_FILE_TAG(gpu_predictor);
@@ -358,7 +357,7 @@ struct DeviceAdapterLoader {
 
 namespace multi {
 template <bool has_missing, bool has_categorical>
-XGBOOST_DEVICE bst_node_t GetNextNode(MultiTargetTreeView const& tree, bst_node_t const nidx,
+XGBOOST_DEVICE bst_node_t GetNextNode(tree::MultiTargetTreeView const& tree, bst_node_t const nidx,
                                       float fvalue, bool is_missing) {
   if (has_missing && is_missing) {
     return tree.DefaultChild(nidx);
@@ -368,7 +367,7 @@ XGBOOST_DEVICE bst_node_t GetNextNode(MultiTargetTreeView const& tree, bst_node_
 }
 
 template <bool has_missing, bool has_categorical, typename Loader>
-__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, MultiTargetTreeView const& tree,
+__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, tree::MultiTargetTreeView const& tree,
                                    Loader* loader) {
   bst_node_t nidx = 0;
   while (!tree.IsLeaf(nidx)) {
@@ -382,13 +381,13 @@ __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, MultiTargetTreeView const& tr
 }
 
 template <bool has_missing, typename Loader>
-__device__ auto GetLeafWeight(bst_idx_t ridx, MultiTargetTreeView const& tree, Loader* loader) {
+__device__ auto GetLeafWeight(bst_idx_t ridx, tree::MultiTargetTreeView const& tree, Loader* loader) {
   bst_node_t nidx = GetLeafIndex<has_missing, false>(ridx, tree, loader);
   return tree.LeafValue(nidx);
 }
 
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
-__global__ void PredictKernel(Data data, common::Span<MultiTargetTreeView> trees, bool use_shared,
+__global__ void PredictKernel(Data data, common::Span<tree::MultiTargetTreeView> trees, bool use_shared,
                               float missing, linalg::MatrixView<float> d_out_predt,
                               EncAccessor acc) {
   for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), data.NumRows())) {
@@ -1040,11 +1039,11 @@ class LaunchConfig {
                           bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
     CHECK_EQ(batch_offset, 0);  // External memory is not supported yet.
     CHECK_GT(tree_end, tree_begin);
-    std::vector<MultiTargetTreeView> h_trees;
+    std::vector<tree::MultiTargetTreeView> h_trees;
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      h_trees.emplace_back(model.trees[tree_idx]->GetMultiTargetTree()->View(ctx));
+      h_trees.emplace_back(ctx, model.trees[tree_idx].get());
     }
-    dh::device_vector<MultiTargetTreeView> trees = h_trees;
+    dh::device_vector<tree::MultiTargetTreeView> trees = h_trees;
     CHECK_GE(predictions->Size(), data.NumRows() * h_trees.front().NumTargets());
     auto kernel = multi::PredictKernel<Loader<NoOpAccessor>, Data, true, NoOpAccessor>;
     auto predt =

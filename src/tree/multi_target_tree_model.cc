@@ -12,6 +12,7 @@
 #include <vector>       // for vector
 
 #include "io_utils.h"      // for I32ArrayT, FloatArrayT, GetElem, ...
+#include "tree_view.h"     // for MultiTargetTreeView
 #include "xgboost/base.h"  // for bst_node_t, bst_feature_t, bst_target_t
 #include "xgboost/json.h"  // for Json, get, Object, Number, Integer, ...
 #include "xgboost/logging.h"
@@ -47,7 +48,6 @@ MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
   this->split_conds_.Copy(that.split_conds_);
   this->weights_.Copy(that.weights_);
 }
-
 
 void MultiTargetTree::SetLeaf(bst_node_t nidx, linalg::VectorView<float const> weight) {
   CHECK(this->IsLeaf(nidx)) << "Collapsing a split node to leaf " << MTNotImplemented();
@@ -161,38 +161,6 @@ void LoadModelImpl(Json const& in, HostDeviceVector<float>* p_weights,
   }
 }
 
-MultiTargetTreeView MultiTargetTree::View(Context const* ctx) const {
-  CHECK_GE(this->NumTargets(), 2);
-  CHECK_EQ(this->left_.Size(), this->right_.Size());
-  CHECK_EQ(this->left_.Size(), this->parent_.Size());
-
-  auto device = ctx->Device();
-  auto n = this->left_.Size();
-
-  // Data copies between host and device can introduce race.
-  std::lock_guard guard{this->tree_view_lock_};
-
-  auto make_ten = [&](common::Span<float const> weights) {
-    auto n_targets = this->NumTargets();
-    auto n_leaves = this->weights_.Size() / this->NumTargets();
-    CHECK_GE(n_leaves, 1);
-    return linalg::MakeTensorView(ctx, weights, n_leaves, n_targets);
-  };
-
-  auto make_tr = [&](auto const&... args) -> MultiTargetTreeView {
-    if (device.IsCPU()) {
-      return {(args.ConstHostPointer())..., n, make_ten(this->weights_.ConstHostSpan())};
-    }
-
-    (args.SetDevice(device), ...);
-    this->weights_.SetDevice(device);
-    return {(args.ConstDevicePointer())..., n, make_ten(this->weights_.ConstDeviceSpan())};
-  };
-
-  return make_tr(this->left_, this->right_, this->parent_, this->split_index_, this->default_left_,
-                 this->split_conds_);
-}
-
 void MultiTargetTree::LoadModel(Json const& in) {
   namespace tf = tree_field;
   bool typed = IsA<F32Array>(in[tf::kBaseWeight]);
@@ -276,7 +244,6 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
   out[tf::kSplitCond] = std::move(conds);
   out[tf::kDftLeft] = std::move(default_left);
 }
-
 
 bst_target_t MultiTargetTree::NumTargets() const { return param_->size_leaf_vector; }
 std::size_t MultiTargetTree::Size() const { return parent_.Size(); }

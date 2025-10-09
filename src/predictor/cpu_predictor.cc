@@ -56,12 +56,12 @@ bst_node_t GetLeafIndex(TreeView const &tree, const RegTree::FVec &feat,
 
 namespace scalar {
 template <bool has_categorical>
-[[nodiscard]] float PredValueByOneTree(const RegTree::FVec &p_feats, tree::ScalarTreeView const& tree,
-                                       RegTree::CategoricalSplitMatrix const &cats,
+[[nodiscard]] float PredValueByOneTree(const RegTree::FVec &p_feats,
+                                       tree::ScalarTreeView const &tree,
                                        bst_node_t nidx) noexcept(true) {
-  const bst_node_t leaf = p_feats.HasMissing()
-                              ? GetLeafIndex<true, has_categorical>(tree, p_feats, cats, nidx)
-                              : GetLeafIndex<false, has_categorical>(tree, p_feats, cats, nidx);
+  const bst_node_t leaf =
+      p_feats.HasMissing() ? GetLeafIndex<true, has_categorical>(tree, p_feats, tree.cats, nidx)
+                           : GetLeafIndex<false, has_categorical>(tree, p_feats, tree.cats, nidx);
   return tree.LeafValue(leaf);
 }
 
@@ -70,12 +70,10 @@ void PredValueByOneTree(RegTree const &tree, std::size_t const predict_offset,
                         common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                         linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, int depth,
                         int gid) {
-  auto const &cats = tree.GetCategoriesMatrix();
   auto sc_tree = tree::ScalarTreeView{&tree};
 
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(sc_tree, cats, fvec_tloc, block_size, p_nidx,
-                                                   depth);
+    ProcessArrayTree<has_categorical, any_missing>(sc_tree, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
@@ -88,19 +86,18 @@ void PredValueByOneTree(RegTree const &tree, std::size_t const predict_offset,
       p_nidx[i] = 0;
     }
     out_predt(predict_offset + i, gid) +=
-        PredValueByOneTree<has_categorical>(fvec_tloc[i], sc_tree, cats, nidx);
+        PredValueByOneTree<has_categorical>(fvec_tloc[i], sc_tree, nidx);
   }
 }
 }  // namespace scalar
 
 namespace multi {
 template <bool has_categorical>
-void PredValueByOneTree(RegTree::FVec const &p_feats, MultiTargetTreeView const &tree,
-                        RegTree::CategoricalSplitMatrix const &cats,
+void PredValueByOneTree(RegTree::FVec const &p_feats, tree::MultiTargetTreeView const &tree,
                         linalg::VectorView<float> out_predt, bst_node_t nidx) {
   bst_node_t const leaf = p_feats.HasMissing()
-                              ? GetLeafIndex<true, has_categorical>(tree, p_feats, cats, nidx)
-                              : GetLeafIndex<false, has_categorical>(tree, p_feats, cats, nidx);
+                              ? GetLeafIndex<true, has_categorical>(tree, p_feats, tree.cats, nidx)
+                              : GetLeafIndex<false, has_categorical>(tree, p_feats, tree.cats, nidx);
   auto leaf_value = tree.LeafValue(leaf);
   assert(out_predt.Shape(0) == leaf_value.Shape(0) && "shape mismatch.");
   for (size_t i = 0; i < leaf_value.Size(); ++i) {
@@ -112,11 +109,9 @@ template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
 void PredValueByOneTree(Context const *ctx, RegTree const &tree, std::size_t const predict_offset,
                         common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                         linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, bst_node_t depth) {
-  const auto mt_tree = tree.GetMultiTargetTree()->View(ctx);
-  auto const &cats = tree.GetCategoriesMatrix();
+  auto mt_tree = tree::MultiTargetTreeView{ctx, &tree};
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(mt_tree, cats, fvec_tloc, block_size, p_nidx,
-                                                   depth);
+    ProcessArrayTree<has_categorical, any_missing>(mt_tree, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
@@ -125,7 +120,7 @@ void PredValueByOneTree(Context const *ctx, RegTree const &tree, std::size_t con
       p_nidx[i] = 0;
     }
     auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
-    PredValueByOneTree<has_categorical>(fvec_tloc[i], mt_tree, cats, t_predts, nidx);
+    PredValueByOneTree<has_categorical>(fvec_tloc[i], mt_tree, t_predts, nidx);
   }
 }
 }  // namespace multi
@@ -1053,8 +1048,8 @@ class CPUPredictor : public Predictor {
             auto const &cats = tree.GetCategoriesMatrix();
             bst_node_t nidx = 0;
             if (tree.IsMultiTarget()) {
-              nidx = GetLeafIndex<true, true>(tree.GetMultiTargetTree()->View(this->ctx_),
-                                                     fvec_tloc.front(), cats, nidx);
+              auto mt_tree = tree::MultiTargetTreeView{this->ctx_, &tree};
+              nidx = GetLeafIndex<true, true>(mt_tree, fvec_tloc.front(), cats, nidx);
             } else {
               auto sc_tree = tree::ScalarTreeView{&tree};
               nidx = GetLeafIndex<true, true>(sc_tree, fvec_tloc.front(), cats, nidx);

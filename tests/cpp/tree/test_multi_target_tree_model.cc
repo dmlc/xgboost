@@ -6,6 +6,7 @@
 #include <xgboost/multi_target_tree_model.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
+#include "../../../src/tree/tree_view.h"  // for MultiTargetTreeView
 #include "../helpers.h"
 
 namespace xgboost {
@@ -82,7 +83,7 @@ TEST(MultiTargetTree, View) {
   auto tree = MakeTreeForTest();
 
   auto test = [&tree](Context const* ctx) {
-    auto v = tree->GetMultiTargetTree()->View(ctx);
+    auto v = tree::MultiTargetTreeView{ctx, tree.get()};
     ASSERT_EQ(v.NumTargets(), 3);
     ASSERT_EQ(v.Size(), 3);
     if (ctx->IsCPU()) {

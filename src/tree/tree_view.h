@@ -112,4 +112,51 @@ struct ScalarTreeView {
     }
   }
 };
+
+/**
+ * @brief A view to the @MultiTargetTree suitable for both host and device.
+ */
+struct MultiTargetTreeView {
+  static bst_node_t constexpr InvalidNodeId() { return MultiTargetTree::InvalidNodeId(); }
+
+  bst_node_t const* left;
+  bst_node_t const* right;
+  bst_node_t const* parent;
+
+  bst_feature_t const* split_index;
+  std::uint8_t const* default_left;
+  float const* split_conds;
+
+  RegTree::CategoricalSplitMatrix cats;
+
+  // The number of nodes
+  bst_node_t n{0};
+
+  linalg::MatrixView<float const> weights;
+
+  [[nodiscard]] XGBOOST_DEVICE bool IsLeaf(bst_node_t nidx) const {
+    return left[nidx] == InvalidNodeId();
+  }
+
+  [[nodiscard]] XGBOOST_DEVICE bst_node_t LeftChild(bst_node_t nidx) const { return left[nidx]; }
+  [[nodiscard]] XGBOOST_DEVICE bst_node_t RightChild(bst_node_t nidx) const { return right[nidx]; }
+  [[nodiscard]] XGBOOST_DEVICE bst_feature_t SplitIndex(bst_node_t nidx) const {
+    return split_index[nidx];
+  }
+  [[nodiscard]] XGBOOST_DEVICE float SplitCond(bst_node_t nidx) const { return split_conds[nidx]; }
+  [[nodiscard]] XGBOOST_DEVICE bool DefaultLeft(bst_node_t nidx) const {
+    return default_left[nidx];
+  }
+  [[nodiscard]] XGBOOST_DEVICE bst_node_t DefaultChild(bst_node_t nidx) const {
+    return this->DefaultLeft(nidx) ? this->LeftChild(nidx) : this->RightChild(nidx);
+  }
+  [[nodiscard]] XGBOOST_DEVICE linalg::VectorView<float const> LeafValue(bst_node_t nidx) const {
+    return this->weights.Slice(nidx, linalg::All());
+  }
+
+  [[nodiscard]] bst_target_t NumTargets() const { return this->weights.Shape(1); }
+  [[nodiscard]] bst_node_t Size() const { return this->n; }
+
+  explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
+};
 }  // namespace xgboost::tree

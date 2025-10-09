@@ -13,12 +13,12 @@
 #include <limits>
 #include <sstream>
 #include <type_traits>  // for is_floating_point_v
-#include "tree_view.h"  // for ScalarTreeView
 
 #include "../common/categorical.h"  // for GetNodeCats
 #include "../common/common.h"       // for EscapeU8
 #include "io_utils.h"               // for GetElem
 #include "param.h"
+#include "tree_view.h"  // for ScalarTreeView
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
