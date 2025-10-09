@@ -175,7 +175,7 @@ template <typename T>
 void HostDeviceVector<T>::SetDevice(DeviceOrd) const {}
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only
-template class HostDeviceVector<bst_float>;
+template class HostDeviceVector<float>;
 template class HostDeviceVector<double>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<GradientPairPrecise>;
@@ -186,6 +186,9 @@ template class HostDeviceVector<FeatureType>;
 template class HostDeviceVector<Entry>;
 template class HostDeviceVector<bst_idx_t>;
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
+template class HostDeviceVector<RegTree::Node>;
+template class HostDeviceVector<RegTree::CategoricalSplitMatrix::Segment>;
+template class HostDeviceVector<RTreeNodeStat>;
 
 #if defined(__APPLE__) || defined(__EMSCRIPTEN__)
 /*

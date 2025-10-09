@@ -410,7 +410,7 @@ void HostDeviceVector<T>::Resize(std::size_t new_size, T v) {
 }
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only
-template class HostDeviceVector<bst_float>;
+template class HostDeviceVector<float>;
 template class HostDeviceVector<double>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<GradientPairPrecise>;
