@@ -587,6 +587,13 @@ class RegTree : public Model {
     }
     return (*this)[nidx].RightChild();
   }
+  [[nodiscard]] bool IsLeftChild(bst_node_t nidx) const {
+    if (IsMultiTarget()) {
+      CHECK_NE(nidx, kRoot);
+      return this->p_mt_tree_->IsLeftChild(nidx);
+    }
+    return (*this)[nidx].IsLeftChild();
+  }
   [[nodiscard]] bst_node_t Size() const {
     if (IsMultiTarget()) {
       return this->p_mt_tree_->Size();
