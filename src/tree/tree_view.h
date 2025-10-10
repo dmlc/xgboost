@@ -1,7 +1,11 @@
 /**
  * Copyright 2025, XGBoost Contributors
+ *
+ * The file provides views for two tree models. We hope to eventually unify them, but the
+ * original scalar tree `Node` struct is used extensively in the codebase.
  */
 #pragma once
+#include <cstdint>  // for uint8_t
 #include <stack>    // for stack
 #include <utility>  // for move
 
@@ -99,9 +103,9 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
                                          RegTree::CategoricalSplitMatrix cats, bst_node_t n_nodes)
       : nodes{nodes}, stats{stats}, cats{std::move(cats)}, n{n_nodes} {}
 
-  // Create device view
+  // Create a device view
   explicit ScalarTreeView(Context const* ctx, RegTree const* tree);
-  // Create host view
+  // Create a host view
   explicit ScalarTreeView(RegTree const* tree)
       : nodes{tree->GetNodes().data()},
         stats{tree->GetStats().data()},
@@ -125,7 +129,7 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
 };
 
 /**
- * @brief A view to the @MultiTargetTree suitable for both host and device.
+ * @brief A view to the @ref MultiTargetTree suitable for both host and device.
  */
 struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
   static bst_node_t constexpr InvalidNodeId() { return MultiTargetTree::InvalidNodeId(); }
@@ -176,7 +180,9 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
 
   [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
 
+  // Create a device view
   explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
+  // Create a host view
   explicit MultiTargetTreeView(RegTree const* tree);
 };
 

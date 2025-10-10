@@ -18,8 +18,9 @@
 #include <vector>
 
 #include "../common/timer.h"
-#include "../tree/param.h"  // TrainParam
-#include "../tree/tree_view.h"             // for ScalarTreeView
+#include "../common/type.h"     // for GetValueT
+#include "../tree/param.h"      // for TrainParam
+#include "../tree/tree_view.h"  // for ScalarTreeView
 #include "gbtree_model.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -232,11 +233,10 @@ class GBTree : public GradientBooster {
       for (auto idx : trees) {
         CHECK_LE(idx, total_n_trees) << "Invalid tree index.";
         auto const& tree = *model_.trees[idx];
-        auto sc_tree = tree.HostScView();
-        sc_tree.WalkTree([&](bst_node_t nidx) {
-          if (!sc_tree.IsLeaf(nidx)) {
-            split_counts[sc_tree.SplitIndex(nidx)]++;
-            fn(sc_tree, nidx, sc_tree.SplitIndex(nidx));
+        tree::WalkTree(tree, [&](auto&& tree, bst_node_t nidx) {
+          if (!tree.IsLeaf(nidx)) {
+            split_counts[tree.SplitIndex(nidx)]++;
+            fn(tree, nidx, tree.SplitIndex(nidx));
           }
           return true;
         });
@@ -248,18 +248,22 @@ class GBTree : public GradientBooster {
         gain_map[split] = split_counts[split];
       });
     } else if (importance_type == "gain" || importance_type == "total_gain") {
-      if (!model_.trees.empty() && model_.trees.front()->IsMultiTarget()) {
-        LOG(FATAL) << "gain/total_gain " << MTNotImplemented();
-      }
       add_score([&](auto const& tree, bst_node_t nidx, bst_feature_t split) {
-        gain_map[split] += tree.Stat(nidx).loss_chg;
+        if constexpr (!std::is_same_v<tree::MultiTargetTreeView,
+                                      common::GetValueT<decltype(tree)>>) {
+          gain_map[split] += tree.Stat(nidx).loss_chg;
+        } else {
+          LOG(FATAL) << "gain/total_gain " << MTNotImplemented();
+        }
       });
     } else if (importance_type == "cover" || importance_type == "total_cover") {
-      if (!model_.trees.empty() && model_.trees.front()->IsMultiTarget()) {
-        LOG(FATAL) << "cover/total_cover " << MTNotImplemented();
-      }
       add_score([&](auto const& tree, bst_node_t nidx, bst_feature_t split) {
-        gain_map[split] += tree.Stat(nidx).sum_hess;
+        if constexpr (!std::is_same_v<tree::MultiTargetTreeView,
+                                      common::GetValueT<decltype(tree)>>) {
+          gain_map[split] += tree.Stat(nidx).sum_hess;
+        } else {
+          LOG(FATAL) << "cover/total_cover " << MTNotImplemented();
+        }
       });
     } else {
       LOG(FATAL)
