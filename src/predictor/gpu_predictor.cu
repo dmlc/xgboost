@@ -1071,26 +1071,6 @@ class LaunchConfig {
         .LaunchImpl(std::move(kernel), std::move(data), dh::ToSpan(trees), this->UseShared(),
                     missing, predt, NoOpAccessor{});
   }
-
-  template <template <typename> typename Loader, typename Data>
-  void LaunchLeaf(Context const* ctx, Data data, bst_idx_t n_samples, bst_feature_t n_features,
-                  DeviceModel const& model, bool is_dense, enc::DeviceColumnsView const& new_enc,
-                  bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
-    LaunchPredictKernel(ctx, is_dense, new_enc, model, [&](auto is_dense, auto&& acc) {
-      constexpr bool kHasMissing = !std::is_same_v<decltype(is_dense), std::true_type>;
-      using EncAccessor = std::remove_reference_t<decltype(acc)>;
-      auto kernel = PredictLeafKernel<Loader<EncAccessor>, Data, kHasMissing, EncAccessor>;
-      this->Grid(n_samples).LaunchImpl(
-          std::move(kernel), std::move(data), model.nodes.ConstDeviceSpan(),
-          predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
-
-          model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
-          model.categories_node_segments.ConstDeviceSpan(), model.categories.ConstDeviceSpan(),
-
-          model.tree_beg_, model.tree_end_, n_features, n_samples, this->UseShared(),
-          std::numeric_limits<float>::quiet_NaN(), std::forward<EncAccessor>(acc));
-    });
-  }
 };
 
 template <typename Loader, typename IsDense, typename EncAccessor,
@@ -1116,7 +1096,7 @@ class LaunchConfig1 {
   }
 
   template <typename K, typename... Args>
-  void Launch(K&& kernel, Args&&... args) const&& {
+  void Launch(K&& kernel, Args&&... args) const {
     CHECK_NE(this->n_samples_, NotSet());
     auto grid = static_cast<uint32_t>(common::DivRoundUp(this->n_samples_, kBlockThreads));
     dh::LaunchKernel{grid, kBlockThreads, this->shared_memory_bytes_,  // NOLINT
@@ -1229,7 +1209,7 @@ class GPUPredictor : public xgboost::Predictor {
       using Config = common::GetValueT<decltype(cfg)>;
       auto kernel = PredictKernel<typename Config::LoaderT, common::GetValueT<decltype(data)>,
                                   Config::HasMissing(), typename Config::EncAccessorT>;
-      std::forward<Config>(cfg).Launch(kernel, std::move(data), d_model.nodes.ConstDeviceSpan(),
+      cfg.Launch(kernel, std::move(data), d_model.nodes.ConstDeviceSpan(),
           out_preds->DeviceSpan().subspan(batch_offset), d_model.tree_segments.ConstDeviceSpan(),
 
           d_model.tree_group.ConstDeviceSpan(),
@@ -1496,34 +1476,24 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     bst_feature_t n_features = info.num_col_;
-    auto new_enc =
-        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
-    LaunchConfig cfg{this->ctx_, n_features};
+    bst_idx_t batch_offset = 0;
+    ForEachBatch(this->ctx_, p_fmat, d_model, [&](auto&& cfg, auto&& data, auto&& acc) {
+      using Config = common::GetValueT<decltype(cfg)>;
+      using EncAccessor = typename Config::EncAccessorT;
+      auto kernel = PredictLeafKernel<typename Config::LoaderT, common::GetValueT<decltype(data)>,
+                                      Config::HasMissing(), EncAccessor>;
 
-    if (p_fmat->PageExists<SparsePage>()) {
-      bst_idx_t batch_offset = 0;
-      for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
-        SparsePageView data{this->ctx_, batch, model.learner_model_param->num_feature};
-        cfg.LaunchLeaf<SparsePageLoader>(this->ctx_, std::move(data), batch.Size(), n_features,
-                                         d_model, p_fmat->IsDense(), new_enc, batch_offset,
-                                         predictions);
-        batch_offset += batch.Size();
-      }
-    } else {
-      p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
+      cfg.Launch(kernel, std::move(data), d_model.nodes.ConstDeviceSpan(),
+          predictions->DeviceSpan().subspan(batch_offset), d_model.tree_segments.ConstDeviceSpan(),
 
-      bst_idx_t batch_offset = 0;
-      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        page.Impl()->Visit(this->ctx_, feature_types, [&](auto&& batch) {
-          using Acc = std::remove_reference_t<decltype(batch)>;
-          cfg.LaunchLeaf<EllpackPartial<Acc>::template Type>(
-              this->ctx_, std::forward<Acc>(batch), page.Size(), n_features, d_model,
-              p_fmat->IsDense(), new_enc, batch_offset, predictions);
-        });
-        batch_offset += page.Size();
-      }
-    }
+          d_model.split_types.ConstDeviceSpan(), d_model.categories_tree_segments.ConstDeviceSpan(),
+          d_model.categories_node_segments.ConstDeviceSpan(), d_model.categories.ConstDeviceSpan(),
+
+          d_model.tree_beg_, d_model.tree_end_, n_features, n_samples, cfg.UseShared(),
+          std::numeric_limits<float>::quiet_NaN(), std::forward<EncAccessor>(acc));
+
+      batch_offset += data.NumRows();
+    });
   }
 
  private:
