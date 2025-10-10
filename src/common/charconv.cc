@@ -316,9 +316,6 @@ struct RyuPowLogUtils {
   }
 };
 
-constexpr uint64_t RyuPowLogUtils::kFloatPow5InvSplit[55];
-constexpr uint64_t RyuPowLogUtils::kFloatPow5Split[47];
-
 class PowerBaseComputer {
  private:
   static uint8_t

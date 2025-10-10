@@ -30,8 +30,6 @@ namespace xgboost {
 
 DMLC_REGISTER_PARAMETER(Context);
 
-std::int64_t constexpr Context::kDefaultSeed;
-
 Context::Context() : cfs_cpu_count_{common::GetCfsCPUCount()} {}
 
 namespace {

@@ -786,8 +786,6 @@ XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
             return new GraphvizGenerator(fmap, attrs, with_stats);
           });
 
-constexpr bst_node_t RegTree::kRoot;
-
 void TreeParam::FromJson(Json const& in) {
   auto const& obj = get<Object const>(in);
   auto n_deleted_it = obj.find(StringView{"num_deleted"});

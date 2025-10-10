@@ -198,8 +198,6 @@ void LoadTensorField(dmlc::Stream* strm, std::string const& expected_name,
 
 namespace xgboost {
 
-uint64_t constexpr MetaInfo::kNumField;
-
 MetaInfo::MetaInfo() : cats_{std::make_shared<CatContainer>()} {}
 
 // implementation of inline functions

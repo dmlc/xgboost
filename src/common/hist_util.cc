@@ -148,8 +148,6 @@ struct Prefetch {
   }
 };
 
-constexpr size_t Prefetch::kNoPrefetchSize;
-
 struct RuntimeFlags {
   const bool first_page;
   const bool read_by_column;
