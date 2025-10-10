@@ -980,7 +980,7 @@ class LaunchConfig {
     using Type = T;
     constexpr static std::uint32_t kBlockThreads = block_threads;
 
-    static std::size_t AllocShared(Context const* ctx, bst_feature_t n_features) {
+    static std::size_t AllocShmem(Context const* ctx, bst_feature_t n_features) {
       if constexpr (typename Type::SupportShmemLoad{}) {
         return SharedMemoryBytes<kBlockThreads>(n_features, ConfigureDevice(ctx->Device()));
       }
@@ -1053,7 +1053,7 @@ class LaunchConfig {
 
   template <typename Loader>
   void AllocShmem() {
-    this->shared_memory_bytes_ = Loader::AllocShared(this->ctx_, this->n_features_);
+    this->shared_memory_bytes_ = Loader::AllocShmem(this->ctx_, this->n_features_);
   }
 
  public:
