@@ -956,8 +956,8 @@ struct ShapSparsePageView {
 };
 
 // Provide configuration for launching the predict kernel.
-template <typename IsDense, typename EncAccessor,
-          std::uint32_t kBlockThreads = 128, bool kUseShared = true>
+template <typename IsDense, typename EncAccessor, std::uint32_t kBlockThreads = 128,
+          bool kUseShared = true>
 class LaunchConfig {
  public:
   static constexpr bool HasMissing() { return !IsDense::value; }
