@@ -6,6 +6,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
 
+#include <cuda/functional>  // for proclaim_return_type
 #include <memory>
 
 #include "../collective/allreduce.h"
@@ -76,9 +77,17 @@ struct SparsePageView {
   bst_feature_t num_features;
 
   SparsePageView() = default;
-  XGBOOST_DEVICE SparsePageView(common::Span<const Entry> data,
-                                common::Span<const bst_idx_t> row_ptr, bst_feature_t n_features)
-      : d_data{data}, d_row_ptr{row_ptr}, num_features(n_features) {}
+  explicit SparsePageView(Context const* ctx, SparsePage const& page, bst_feature_t n_features)
+      : d_data{[&] {
+          page.data.SetDevice(ctx->Device());
+          return page.data.ConstDeviceSpan();
+        }()},
+        d_row_ptr{[&] {
+          page.offset.SetDevice(ctx->Device());
+          return page.offset.ConstDeviceSpan();
+        }()},
+        num_features{n_features} {}
+
   [[nodiscard]] __device__ float GetElement(size_t ridx, size_t fidx) const {
     // Binary search
     auto begin_ptr = d_data.begin() + d_row_ptr[ridx];
@@ -200,9 +209,6 @@ struct DeviceAdapterLoader {
   bool use_shared;
   data::IsValidFunctor is_valid;
 
-
-  using BatchT = Batch;
-
   XGBOOST_DEV_INLINE DeviceAdapterLoader(Batch&& batch, bool use_shared, bst_feature_t n_features,
                                          bst_idx_t n_samples, float missing, EncAccessor&& acc)
       : batch_{std::move(batch)},
@@ -242,6 +248,13 @@ struct DeviceAdapterLoader {
       return std::numeric_limits<float>::quiet_NaN();
     }
   }
+};
+
+// Fill the `BatchT` parameter, currying for template.
+template <typename BatchT>
+struct PartialAdapterLoader {
+  template <typename T>
+  using Type = DeviceAdapterLoader<BatchT, T>;
 };
 
 namespace multi {
@@ -548,7 +561,7 @@ struct ShapSplitCondition {
       return l;
     }
     if (l.Capacity() > r.Capacity()) {
-      thrust::swap(l, r);
+      cuda::std::swap(l, r);
     }
     for (size_t i = 0; i < r.Bits().size(); ++i) {
       l.Bits()[i] &= r.Bits()[i];
@@ -586,8 +599,8 @@ void ExtractPaths(Context const* ctx,
   dh::caching_device_vector<PathInfo> info(device_model.nodes.Size());
   auto d_nodes = device_model.nodes.ConstDeviceSpan();
   auto d_tree_segments = device_model.tree_segments.ConstDeviceSpan();
-  auto nodes_transform = dh::MakeTransformIterator<PathInfo>(
-      thrust::make_counting_iterator(0ull), [=] __device__(size_t idx) {
+  auto nodes_transform = dh::MakeIndexTransformIter(
+      cuda::proclaim_return_type<PathInfo>([=] __device__(size_t idx) -> PathInfo {
         auto n = d_nodes[idx];
         if (!n.IsLeaf() || n.IsDeleted()) {
           return PathInfo{-1, 0, 0};
@@ -600,14 +613,16 @@ void ExtractPaths(Context const* ctx,
           path_length++;
         }
         return PathInfo{static_cast<int64_t>(idx), path_length, tree_idx};
-      });
+      }));
   auto end = thrust::copy_if(ctx->CUDACtx()->CTP(), nodes_transform,
                              nodes_transform + d_nodes.size(), info.begin(),
-                             [=] __device__(const PathInfo& e) { return e.leaf_position != -1; });
+                             cuda::proclaim_return_type<bool>([=] __device__(const PathInfo& e) {
+                               return e.leaf_position != -1;
+                             }));
   info.resize(end - info.begin());
   auto length_iterator = dh::MakeTransformIterator<size_t>(
-      info.begin(),
-      [=] __device__(const PathInfo& info) { return info.length; });
+      info.begin(), cuda::proclaim_return_type<decltype(std::declval<PathInfo>().length)>(
+                        [=] __device__(const PathInfo& info) { return info.length; }));
   dh::caching_device_vector<size_t> path_segments(info.size() + 1);
   thrust::exclusive_scan(ctx->CUDACtx()->CTP(), length_iterator, length_iterator + info.size() + 1,
                          path_segments.begin());
@@ -624,7 +639,7 @@ void ExtractPaths(Context const* ctx,
   auto d_cat_segments = device_model.categories_tree_segments.ConstDeviceSpan();
   auto d_cat_node_segments = device_model.categories_node_segments.ConstDeviceSpan();
 
-  size_t max_cat = 0;
+  std::size_t max_cat = 0;
   if (thrust::any_of(ctx->CUDACtx()->CTP(), dh::tbegin(d_split_types), dh::tend(d_split_types),
                      common::IsCatOp{})) {
     dh::PinnedMemory pinned;
@@ -877,10 +892,7 @@ class ColumnSplitHelper {
       BitVector decision_bits{dh::ToSpan(decision_storage)};
       BitVector missing_bits{dh::ToSpan(missing_storage)};
 
-      batch.offset.SetDevice(ctx_->Device());
-      batch.data.SetDevice(ctx_->Device());
-      SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(), num_features);
-
+      SparsePageView data{ctx_, batch, num_features};
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
       dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
           MaskBitVectorKernel, data, model.nodes.ConstDeviceSpan(),
@@ -1019,15 +1031,14 @@ class LaunchConfig {
                                         : 0} {}
 
   template <template <typename> typename Loader, typename Data>
-  void LaunchPredict(Context const* ctx, Data data, float missing, bst_idx_t n_samples,
-                     bst_feature_t n_features, DeviceModel const& model, bool is_dense,
-                     enc::DeviceColumnsView const& new_enc, bst_idx_t batch_offset,
-                     HostDeviceVector<float>* predictions) const {
+  void LaunchPredict(Context const* ctx, Data data, float missing, bst_feature_t n_features,
+                     DeviceModel const& model, bool is_dense, enc::DeviceColumnsView const& new_enc,
+                     bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
     LaunchPredictKernel(ctx, is_dense, new_enc, model, [&](auto is_dense, auto&& acc) {
       constexpr bool kHasMissing = !std::is_same_v<decltype(is_dense), std::true_type>;
       using EncAccessor = std::remove_reference_t<decltype(acc)>;
       auto kernel = PredictKernel<Loader<EncAccessor>, Data, kHasMissing, EncAccessor>;
-      this->Grid(n_samples).LaunchImpl(
+      this->Grid(data.NumRows()).LaunchImpl(
           std::move(kernel), std::move(data), model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
 
@@ -1036,7 +1047,7 @@ class LaunchConfig {
           model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
           model.categories_node_segments.ConstDeviceSpan(), model.categories.ConstDeviceSpan(),
 
-          model.tree_beg_, model.tree_end_, n_features, n_samples, this->UseShared(),
+          model.tree_beg_, model.tree_end_, n_features, data.NumRows(), this->UseShared(),
           model.num_group, missing, std::forward<EncAccessor>(acc));
     });
   }
@@ -1121,18 +1132,16 @@ class GPUPredictor : public xgboost::Predictor {
     if (p_fmat->PageExists<SparsePage>()) {
       bst_idx_t batch_offset = 0;
       for (auto& page : p_fmat->GetBatches<SparsePage>()) {
-        page.offset.SetDevice(ctx_->Device());
-        page.data.SetDevice(ctx_->Device());
         auto n_features = model.learner_model_param->num_feature;
         LaunchConfig cfg{ctx_, n_features};
-        SparsePageView data(page.data.DeviceSpan(), page.offset.DeviceSpan(), n_features);
+        SparsePageView data{this->ctx_, page, n_features};
         if (model.trees[tree_begin]->IsMultiTarget()) {
           cfg.LaunchMultiPredict<SparsePageLoader>(this->ctx_, std::move(data), model,
                                                    std::numeric_limits<float>::quiet_NaN(),
                                                    tree_begin, tree_end, batch_offset, out_preds);
         } else {
           cfg.LaunchPredict<SparsePageLoader>(
-              this->ctx_, std::move(data), std::numeric_limits<float>::quiet_NaN(), page.Size(),
+              this->ctx_, std::move(data), std::numeric_limits<float>::quiet_NaN(),
               n_features, d_model, p_fmat->IsDense(), new_enc, batch_offset, out_preds);
         }
         batch_offset += page.Size() * model.learner_model_param->OutputLength();
@@ -1149,8 +1158,8 @@ class GPUPredictor : public xgboost::Predictor {
           bst_feature_t n_features = batch.NumFeatures();
           LaunchConfig<256, false> cfg{this->ctx_, n_features};
           cfg.LaunchPredict<EllpackPartial<Acc>::template Type>(
-              this->ctx_, std::move(batch), std::numeric_limits<float>::quiet_NaN(), page.Size(),
-              n_features, d_model, p_fmat->IsDense(), new_enc, batch_offset, out_preds);
+              this->ctx_, std::move(batch), std::numeric_limits<float>::quiet_NaN(), n_features,
+              d_model, p_fmat->IsDense(), new_enc, batch_offset, out_preds);
         });
         batch_offset += page.Size() * model.learner_model_param->OutputLength();
       }
@@ -1176,13 +1185,6 @@ class GPUPredictor : public xgboost::Predictor {
     this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end);
   }
 
-  // Fill the `BatchT` parameter, currying for template.
-  template <typename BatchT>
-  struct PartialLoader {
-    template <typename T>
-    using Type = DeviceAdapterLoader<BatchT, T>;
-  };
-
   template <typename Adapter>
   void DispatchedInplacePredict(std::shared_ptr<Adapter> m, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel& model, float missing,
@@ -1205,15 +1207,15 @@ class GPUPredictor : public xgboost::Predictor {
     if constexpr (std::is_same_v<Adapter, data::CudfAdapter>) {
       if (m->HasCategorical()) {
         auto new_enc = m->DCats();
-        cfg.LaunchPredict<PartialLoader<BatchT>::template Type>(
-            this->ctx_, m->Value(), missing, n_samples, n_features, d_model, false, new_enc, 0,
+        cfg.LaunchPredict<PartialAdapterLoader<BatchT>::template Type>(
+            this->ctx_, m->Value(), missing, n_features, d_model, false, new_enc, 0,
             &out_preds->predictions);
         return;
       }
     }
-    cfg.LaunchPredict<PartialLoader<BatchT>::template Type>(
-        this->ctx_, m->Value(), missing, n_samples, n_features, d_model, false,
-        enc::DeviceColumnsView{}, 0, &out_preds->predictions);
+    cfg.LaunchPredict<PartialAdapterLoader<BatchT>::template Type>(
+        this->ctx_, m->Value(), missing, n_features, d_model, false, enc::DeviceColumnsView{}, 0,
+        &out_preds->predictions);
   }
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,
@@ -1272,10 +1274,7 @@ class GPUPredictor : public xgboost::Predictor {
       for (auto& batch : p_fmat->GetBatches<SparsePage>()) {
         auto begin = dh::tbegin(phis) + batch.base_rowid * dim_size;
         LaunchShapKernel(this->ctx_, new_enc, d_model, [&](auto&& acc) {
-          batch.data.SetDevice(ctx_->Device());
-          batch.offset.SetDevice(ctx_->Device());
-          SparsePageView X(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
-                           model.learner_model_param->num_feature);
+          SparsePageView X{this->ctx_, batch, model.learner_model_param->num_feature};
           using EncAccessor = std::remove_reference_t<decltype(acc)>;
           auto loader = ShapSparsePageView<EncAccessor>{X, std::forward<EncAccessor>(acc)};
           gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
@@ -1354,10 +1353,7 @@ class GPUPredictor : public xgboost::Predictor {
       for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
         auto begin = dh::tbegin(phis) + batch.base_rowid * dim_size;
         auto launch = [&](auto&& acc) {
-          batch.data.SetDevice(ctx_->Device());
-          batch.offset.SetDevice(ctx_->Device());
-          SparsePageView X(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
-                           model.learner_model_param->num_feature);
+          SparsePageView X{this->ctx_, batch, model.learner_model_param->num_feature};
           using EncAccessor = std::remove_reference_t<decltype(acc)>;
           auto loader = ShapSparsePageView<EncAccessor>{X, std::forward<EncAccessor>(acc)};
           gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
@@ -1429,10 +1425,7 @@ class GPUPredictor : public xgboost::Predictor {
     if (p_fmat->PageExists<SparsePage>()) {
       bst_idx_t batch_offset = 0;
       for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
-        batch.data.SetDevice(ctx_->Device());
-        batch.offset.SetDevice(ctx_->Device());
-        SparsePageView data{batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
-                            model.learner_model_param->num_feature};
+        SparsePageView data{this->ctx_, batch, model.learner_model_param->num_feature};
         cfg.LaunchLeaf<SparsePageLoader>(this->ctx_, std::move(data), batch.Size(), n_features,
                                          d_model, p_fmat->IsDense(), new_enc, batch_offset,
                                          predictions);
