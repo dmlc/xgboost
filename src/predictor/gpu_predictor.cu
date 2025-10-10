@@ -122,6 +122,9 @@ struct SparsePageView {
 
 template <typename EncAccessor>
 struct SparsePageLoader {
+ public:
+  using SupportShmemLoad = std::true_type;
+
  private:
   EncAccessor acc_;
 
@@ -163,6 +166,9 @@ struct SparsePageLoader {
 
 template <typename Accessor, typename EncAccessor>
 struct EllpackLoader {
+ public:
+  using SupportShmemLoad = std::false_type;
+
   Accessor matrix;
   EncAccessor acc;
 
@@ -193,6 +199,9 @@ struct EllpackLoader {
  */
 template <typename Batch, typename EncAccessor>
 struct DeviceAdapterLoader {
+ public:
+  using SupportShmemLoad = std::true_type;
+
  private:
   Batch batch_;
   EncAccessor acc_;
@@ -942,7 +951,10 @@ class ColumnSplitHelper {
 using cuda_impl::MakeCatAccessor;
 
 template <typename EncAccessor>
-struct ShapSparsePageView {
+struct ShapSparsePageLoader {
+ public:
+  using SupportShmemLoad = std::false_type;
+
   SparsePageView data;
   EncAccessor acc;
 
@@ -956,8 +968,7 @@ struct ShapSparsePageView {
 };
 
 // Provide configuration for launching the predict kernel.
-template <typename IsDense, typename EncAccessor, bool kUseShared = true,
-          std::uint32_t kBlockThreads = 128>
+template <typename IsDense, typename EncAccessor, std::uint32_t kBlockThreads = 128>
 class LaunchConfig {
  public:
   static constexpr bool HasMissing() { return !IsDense::value; }
@@ -968,7 +979,12 @@ class LaunchConfig {
 
   Context const* ctx_;
   bst_feature_t n_features_;
-  std::size_t const shared_memory_bytes_;
+  std::size_t shared_memory_bytes_{0};
+
+  void AllocShared() {
+    this->shared_memory_bytes_ =
+        SharedMemoryBytes<kBlockThreads>(n_features_, ConfigureDevice(ctx_->Device()));
+  }
 
  public:
   template <typename K, typename BatchT, typename... Args>
@@ -981,7 +997,10 @@ class LaunchConfig {
   template <typename Loader, typename Data>
   void LaunchPredictKernel(Data batch, float missing, bst_feature_t n_features,
                            DeviceModel const& d_model, EncAccessorT acc, bst_idx_t batch_offset,
-                           HostDeviceVector<float>* predictions) const {
+                           HostDeviceVector<float>* predictions) {
+    if constexpr (typename Loader::SupportShmemLoad{}) {
+      this->AllocShared();
+    }
     auto kernel =
         PredictKernel<Loader, common::GetValueT<decltype(batch)>, HasMissing(), EncAccessorT>;
     this->Launch(
@@ -1001,6 +1020,9 @@ class LaunchConfig {
   void LaunchMultiPredictKernel(Data batch, gbm::GBTreeModel const& model, bst_tree_t tree_begin,
                                 bst_tree_t tree_end, EncAccessorT acc, bst_idx_t batch_offset,
                                 HostDeviceVector<float>* predictions) {
+    if constexpr (typename Loader::SupportShmemLoad{}) {
+      this->AllocShared();
+    }
     CHECK_EQ(batch_offset, 0);  // external memory is not supported yet.
     std::vector<MultiTargetTreeView> h_trees;
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
@@ -1028,11 +1050,8 @@ class LaunchConfig {
 
  public:
   LaunchConfig(Context const* ctx, bst_feature_t n_features)
-      : ctx_{ctx},
-        n_features_{n_features},
-        shared_memory_bytes_{kUseShared ? SharedMemoryBytes<kBlockThreads>(
-                                              n_features, ConfigureDevice(ctx->Device()))
-                                        : 0} {}
+      : ctx_{ctx}, n_features_{n_features} {}
+
   template <typename T>
   struct LoaderType {
     using Type = T;
@@ -1041,6 +1060,7 @@ class LaunchConfig {
   template <typename Fn>
   void ForEachBatch(DMatrix* p_fmat, Fn&& fn) {
     if (p_fmat->PageExists<SparsePage>()) {
+      this->AllocShared();
       for (auto& page : p_fmat->GetBatches<SparsePage>()) {
         SparsePageView batch{ctx_, page, n_features_};
         using Loader = SparsePageLoader<EncAccessor>;
@@ -1066,8 +1086,9 @@ class LaunchConfig {
   void ForEachBatch(DMatrix* p_fmat, EncAccessor&& acc, Fn&& fn) {
     if (p_fmat->PageExists<SparsePage>()) {
       for (auto& page : p_fmat->GetBatches<SparsePage>()) {
+        // Shap kernel doesn't use shared memory to stage data.
         SparsePageView batch{ctx_, page, n_features_};
-        auto loader = ShapSparsePageView<EncAccessor>{batch, acc};
+        auto loader = ShapSparsePageLoader<EncAccessor>{batch, acc};
         fn(std::move(loader), page.base_rowid);
       }
     } else {
