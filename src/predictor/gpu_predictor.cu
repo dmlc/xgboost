@@ -956,71 +956,9 @@ struct ShapSparsePageView {
 };
 
 // Provide configuration for launching the predict kernel.
-template <std::uint32_t kBlockThreads = 128, bool kUseShared = true>
-class LaunchConfig {
- private:
-  static auto constexpr NotSet() { return std::numeric_limits<bst_idx_t>::max(); }
-
-  Context const* ctx_;
-  std::size_t const shared_memory_bytes_;
-  bst_idx_t n_samples_{NotSet()};
-
-  template <typename K, typename... Args>
-  void LaunchImpl(K&& kernel, Args&&... args) const&& {
-    CHECK_NE(this->n_samples_, NotSet());
-    auto grid = static_cast<uint32_t>(common::DivRoundUp(this->n_samples_, kBlockThreads));
-    dh::LaunchKernel{grid, kBlockThreads, this->shared_memory_bytes_,  // NOLINT
-                     this->ctx_->CUDACtx()->Stream()}(kernel, std::forward<Args>(args)...);
-  }
-
-  [[nodiscard]] LaunchConfig Grid(bst_idx_t n_samples) const {
-    LaunchConfig cfg = *this;
-    cfg.n_samples_ = n_samples;
-    return cfg;
-  }
-  [[nodiscard]] bool UseShared() const { return shared_memory_bytes_ != 0; }
-
-  [[nodiscard]] static std::size_t ConfigureDevice(DeviceOrd const& device) {
-    thread_local std::unordered_map<std::int32_t, std::size_t> max_shared;
-    auto it = max_shared.find(device.ordinal);
-    if (it == max_shared.cend()) {
-      max_shared[device.ordinal] = dh::MaxSharedMemory(device.ordinal);
-      it = max_shared.find(device.ordinal);
-    }
-    return it->second;
-  }
-
- public:
-  LaunchConfig(Context const* ctx, bst_feature_t n_features)
-      : ctx_{ctx},
-        shared_memory_bytes_{kUseShared ? SharedMemoryBytes<kBlockThreads>(
-                                              n_features, ConfigureDevice(ctx->Device()))
-                                        : 0} {}
-
-  template <template <typename> typename Loader, typename Data>
-  void LaunchMultiPredict(Context const* ctx, Data data, gbm::GBTreeModel const& model,
-                          float missing, bst_tree_t tree_begin, bst_tree_t tree_end,
-                          bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
-    CHECK_EQ(batch_offset, 0);  // External memory is not supported yet.
-    CHECK_GT(tree_end, tree_begin);
-    std::vector<MultiTargetTreeView> h_trees;
-    for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      h_trees.emplace_back(model.trees[tree_idx]->GetMultiTargetTree()->View(ctx));
-    }
-    dh::device_vector<MultiTargetTreeView> trees = h_trees;
-    CHECK_GE(predictions->Size(), data.NumRows() * h_trees.front().NumTargets());
-    auto kernel = multi::PredictKernel<Loader<NoOpAccessor>, Data, true, NoOpAccessor>;
-    auto predt =
-        linalg::MakeTensorView(ctx, predictions, data.NumRows(), h_trees.front().NumTargets());
-    this->Grid(data.NumRows())
-        .LaunchImpl(std::move(kernel), std::move(data), model.learner_model_param->num_feature,
-                    dh::ToSpan(trees), this->UseShared(), missing, predt, NoOpAccessor{});
-  }
-};
-
 template <typename IsDense, typename EncAccessor,
           std::uint32_t kBlockThreads = 128, bool kUseShared = true>
-class LaunchConfig1 {
+class LaunchConfig {
  public:
   static constexpr bool HasMissing() { return !IsDense::value; }
   using EncAccessorT = EncAccessor;
@@ -1089,7 +1027,7 @@ class LaunchConfig1 {
   }
 
  public:
-  LaunchConfig1(Context const* ctx, bst_feature_t n_features)
+  LaunchConfig(Context const* ctx, bst_feature_t n_features)
       : ctx_{ctx},
         n_features_{n_features},
         shared_memory_bytes_{kUseShared ? SharedMemoryBytes<kBlockThreads>(
@@ -1160,19 +1098,19 @@ void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView con
   if (is_dense) {
     if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
-      auto cfg = LaunchConfig1<std::true_type, decltype(acc)>{ctx, model.n_features};
+      auto cfg = LaunchConfig<std::true_type, decltype(acc)>{ctx, model.n_features};
       launch(std::move(cfg), std::move(acc));
     } else {
-      auto cfg = LaunchConfig1<std::true_type, NoOpAccessor>{ctx, model.n_features};
+      auto cfg = LaunchConfig<std::true_type, NoOpAccessor>{ctx, model.n_features};
       launch(std::move(cfg), NoOpAccessor{});
     }
   } else {
     if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
-      auto cfg = LaunchConfig1<std::false_type, decltype(acc)>{ctx, model.n_features};
+      auto cfg = LaunchConfig<std::false_type, decltype(acc)>{ctx, model.n_features};
       launch(std::move(cfg), std::move(acc));
     } else {
-      auto cfg = LaunchConfig1<std::false_type, NoOpAccessor>{ctx, model.n_features};
+      auto cfg = LaunchConfig<std::false_type, NoOpAccessor>{ctx, model.n_features};
       launch(std::move(cfg), NoOpAccessor{});
     }
   }
@@ -1183,10 +1121,10 @@ void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc, Devic
                 Kernel launch) {
   if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
     auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
-    auto cfg = LaunchConfig1<std::true_type, decltype(acc)>{ctx, model.n_features};
+    auto cfg = LaunchConfig<std::true_type, decltype(acc)>{ctx, model.n_features};
     launch(std::move(cfg), std::move(acc));
   } else {
-    auto cfg = LaunchConfig1<std::true_type, NoOpAccessor>{ctx, model.n_features};
+    auto cfg = LaunchConfig<std::true_type, NoOpAccessor>{ctx, model.n_features};
     launch(std::move(cfg), NoOpAccessor{});
   }
 }
@@ -1225,8 +1163,8 @@ class GPUPredictor : public xgboost::Predictor {
       cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
         using Loader = typename common::GetValueT<decltype(loader_t)>::Type;
         if (model.trees[tree_begin]->IsMultiTarget()) {
-          cfg.template MultiPredictKernel<Loader>(std::move(batch), model, tree_begin, tree_end,
-                                                  acc, batch_offset, out_preds);
+          cfg.template LaunchMultiPredictKernel<Loader>(std::move(batch), model, tree_begin,
+                                                        tree_end, acc, batch_offset, out_preds);
         } else {
           cfg.template LaunchPredictKernel<Loader>(
               std::move(batch), std::numeric_limits<float>::quiet_NaN(), n_features, d_model, acc,
