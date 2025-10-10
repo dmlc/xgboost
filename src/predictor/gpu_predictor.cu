@@ -1096,7 +1096,7 @@ template <typename Kernel>
 void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView const& new_enc,
                    DeviceModel const& model, Kernel&& launch) {
   if (is_dense) {
-    if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
+    if (model.cat_enc && model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
       auto cfg = LaunchConfig<std::true_type, decltype(acc)>{ctx, model.n_features};
       launch(std::move(cfg), std::move(acc));
@@ -1105,7 +1105,7 @@ void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView con
       launch(std::move(cfg), NoOpAccessor{});
     }
   } else {
-    if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
+    if (model.cat_enc && model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
       auto cfg = LaunchConfig<std::false_type, decltype(acc)>{ctx, model.n_features};
       launch(std::move(cfg), std::move(acc));
