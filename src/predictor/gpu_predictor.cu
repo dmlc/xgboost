@@ -425,6 +425,7 @@ class DeviceModel {
   bst_tree_t tree_end_;  // NOLINT
   int num_group;
   CatContainer const* cat_enc{nullptr};
+  bst_feature_t n_features{0};
 
   [[nodiscard]] std::size_t MemCostBytes() const {
     std::size_t n_bytes = 0;
@@ -513,6 +514,7 @@ class DeviceModel {
 
     this->cat_enc = model.Cats();
     CHECK(this->cat_enc);
+    this->n_features = model.learner_model_param->num_feature;
 
     auto n_bytes = this->MemCostBytes();  // Pull data to device, and get the size of the model.
     LOG(DEBUG) << "Model size:" << common::HumanMemUnit(n_bytes);
@@ -1073,11 +1075,10 @@ class LaunchConfig {
   }
 };
 
-template <typename Loader, typename IsDense, typename EncAccessor,
+template <typename IsDense, typename EncAccessor,
           std::uint32_t kBlockThreads = 128, bool kUseShared = true>
 class LaunchConfig1 {
  public:
-  using LoaderT = Loader;
   static constexpr bool HasMissing() { return !IsDense::value; }
   using EncAccessorT = EncAccessor;
 
@@ -1085,22 +1086,34 @@ class LaunchConfig1 {
   static auto constexpr NotSet() { return std::numeric_limits<bst_idx_t>::max(); }
 
   Context const* ctx_;
+  bst_feature_t n_features_;
   std::size_t const shared_memory_bytes_;
-  bst_idx_t n_samples_{NotSet()};
 
  public:
-  [[nodiscard]] LaunchConfig1 Grid(bst_idx_t n_samples) const {
-    LaunchConfig1 cfg = *this;
-    cfg.n_samples_ = n_samples;
-    return cfg;
-  }
-
-  template <typename K, typename... Args>
-  void Launch(K&& kernel, Args&&... args) const {
-    CHECK_NE(this->n_samples_, NotSet());
-    auto grid = static_cast<uint32_t>(common::DivRoundUp(this->n_samples_, kBlockThreads));
+  template <typename K, typename BatchT, typename... Args>
+  void Launch(K&& kernel, BatchT&& batch, Args&&... args) const {
+    auto grid = static_cast<uint32_t>(common::DivRoundUp(batch.NumRows(), kBlockThreads));
     dh::LaunchKernel{grid, kBlockThreads, this->shared_memory_bytes_,  // NOLINT
-                     this->ctx_->CUDACtx()->Stream()}(kernel, std::forward<Args>(args)...);
+                     this->ctx_->CUDACtx()->Stream()}(kernel, std::forward<BatchT>(batch),
+                                                      std::forward<Args>(args)...);
+  }
+  template <typename Loader, typename Data>
+  void LaunchPredictKernel(Data batch, float missing, bst_feature_t n_features,
+                           DeviceModel const& d_model, EncAccessorT acc, bst_idx_t batch_offset,
+                           HostDeviceVector<float>* predictions) const {
+    auto kernel =
+        PredictKernel<Loader, common::GetValueT<decltype(batch)>, HasMissing(), EncAccessorT>;
+    this->Launch(
+        kernel, std::move(batch), d_model.nodes.ConstDeviceSpan(),
+        predictions->DeviceSpan().subspan(batch_offset), d_model.tree_segments.ConstDeviceSpan(),
+
+        d_model.tree_group.ConstDeviceSpan(),
+
+        d_model.split_types.ConstDeviceSpan(), d_model.categories_tree_segments.ConstDeviceSpan(),
+        d_model.categories_node_segments.ConstDeviceSpan(), d_model.categories.ConstDeviceSpan(),
+
+        d_model.tree_beg_, d_model.tree_end_, n_features, batch.NumRows(), this->UseShared(),
+        d_model.num_group, missing, acc);
   }
 
   [[nodiscard]] bool UseShared() const { return shared_memory_bytes_ != 0; }
@@ -1118,65 +1131,103 @@ class LaunchConfig1 {
  public:
   LaunchConfig1(Context const* ctx, bst_feature_t n_features)
       : ctx_{ctx},
+        n_features_{n_features},
         shared_memory_bytes_{kUseShared ? SharedMemoryBytes<kBlockThreads>(
                                               n_features, ConfigureDevice(ctx->Device()))
                                         : 0} {}
+  template <typename T>
+  struct LoaderType {
+    using Type = T;
+  };
+
+  template <typename Fn>
+  void ForEachBatch(DMatrix* p_fmat, Fn&& fn) {
+    if (p_fmat->PageExists<SparsePage>()) {
+      for (auto& page : p_fmat->GetBatches<SparsePage>()) {
+        SparsePageView batch{ctx_, page, n_features_};
+        using Loader = SparsePageLoader<EncAccessor>;
+        fn(LoaderType<Loader>{}, std::forward<SparsePageView>(batch));
+      }
+    } else {
+      p_fmat->Info().feature_types.SetDevice(ctx_->Device());
+      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
+
+      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
+        page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
+          using Acc = std::remove_reference_t<decltype(batch)>;
+          // No shared memory use for ellpack
+          bst_feature_t n_features = batch.NumFeatures();
+          using Loader = EllpackLoader<Acc, EncAccessor>;
+          fn(LoaderType<Loader>{}, std::forward<common::GetValueT<decltype(batch)>>(batch));
+        });
+      }
+    }
+  }
+  // Used by the SHAP methods.
+  template <typename Fn>
+  void ForEachBatch(DMatrix* p_fmat, EncAccessor&& acc, Fn&& fn) {
+    if (p_fmat->PageExists<SparsePage>()) {
+      for (auto& page : p_fmat->GetBatches<SparsePage>()) {
+        SparsePageView batch{ctx_, page, n_features_};
+        auto loader = ShapSparsePageView<EncAccessor>{batch, acc};
+        fn(std::move(loader), page.base_rowid);
+      }
+    } else {
+      p_fmat->Info().feature_types.SetDevice(ctx_->Device());
+      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
+
+      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
+        page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
+          using Acc = std::remove_reference_t<decltype(batch)>;
+          // No shared memory use for ellpack
+          bst_feature_t n_features = batch.NumFeatures();
+          auto loader = EllpackLoader{batch,
+                                      /*use_shared=*/false,
+                                      n_features,
+                                      batch.NumRows(),
+                                      std::numeric_limits<float>::quiet_NaN(),
+                                      std::forward<EncAccessor>(acc)};
+          fn(std::move(loader), batch.base_rowid);
+        });
+      }
+    }
+  }
 };
 
-template <typename Fn>
-void ForEachBatch(Context const* ctx, DMatrix* p_fmat, DeviceModel const& d_model, Fn&& fn) {
-  auto new_enc =
-      p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
-
-  if (p_fmat->PageExists<SparsePage>()) {
-    bst_feature_t n_features = p_fmat->Info().num_col_;
-    for (auto& page : p_fmat->GetBatches<SparsePage>()) {
-      SparsePageView batch{ctx, page, n_features};
-      LaunchPredictKernel(ctx, p_fmat->IsDense(), new_enc, d_model, [&](auto is_dense, auto&& acc) {
-        using EncAccessor = std::remove_reference_t<decltype(acc)>;
-
-        using Loader = SparsePageLoader<EncAccessor>;
-        using Config = LaunchConfig1<Loader, decltype(is_dense), EncAccessor>;
-
-        auto config = Config{ctx, n_features}.Grid(batch.NumRows());
-
-        fn(std::move(config), std::forward<SparsePageView>(batch), std::forward<EncAccessor>(acc));
-      });
+template <typename Kernel>
+void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView const& new_enc,
+                   DeviceModel const& model, Kernel&& launch) {
+  if (is_dense) {
+    if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
+      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
+      auto cfg = LaunchConfig1<std::true_type, decltype(acc)>{ctx, model.n_features};
+      launch(std::move(cfg), std::move(acc));
+    } else {
+      auto cfg = LaunchConfig1<std::true_type, NoOpAccessor>{ctx, model.n_features};
+      launch(std::move(cfg), NoOpAccessor{});
     }
   } else {
-    p_fmat->Info().feature_types.SetDevice(ctx->Device());
-    auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
-
-    for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx, StaticBatch(true))) {
-      page.Impl()->Visit(ctx, feature_types, [&](auto&& batch) {
-        using Acc = std::remove_reference_t<decltype(batch)>;
-        // No shared memory use for ellpack
-        bst_feature_t n_features = batch.NumFeatures();
-        LaunchPredictKernel(
-            ctx, p_fmat->IsDense(), new_enc, d_model, [&](auto is_dense, auto&& acc) {
-              using EncAccessor = std::remove_reference_t<decltype(acc)>;
-
-              using Loader = EllpackLoader<Acc, EncAccessor>;
-              using Config = LaunchConfig1<Loader, decltype(is_dense), EncAccessor>;
-
-              auto config = Config{ctx, n_features}.Grid(batch.NumRows());
-
-              fn(std::move(config), std::forward<common::GetValueT<decltype(batch)>>(batch),
-                 std::forward<EncAccessor>(acc));
-            });
-      });
+    if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
+      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
+      auto cfg = LaunchConfig1<std::false_type, decltype(acc)>{ctx, model.n_features};
+      launch(std::move(cfg), std::move(acc));
+    } else {
+      auto cfg = LaunchConfig1<std::false_type, NoOpAccessor>{ctx, model.n_features};
+      launch(std::move(cfg), NoOpAccessor{});
     }
   }
 }
 
 template <typename Kernel>
-void LaunchShapKernel(Context const* ctx, enc::DeviceColumnsView const& new_enc,
-                      DeviceModel const& model, Kernel launch) {
+void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc, DeviceModel const& model,
+                Kernel launch) {
   if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
     auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
-    launch(std::move(acc));
+    auto cfg = LaunchConfig1<std::true_type, decltype(acc)>{ctx, model.n_features};
+    launch(std::move(cfg), std::move(acc));
   } else {
-    launch(NoOpAccessor{});
+    auto cfg = LaunchConfig1<std::true_type, NoOpAccessor>{ctx, model.n_features};
+    launch(std::move(cfg), NoOpAccessor{});
   }
 }
 }  // anonymous namespace
@@ -1203,24 +1254,21 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     CHECK_LE(p_fmat->Info().num_col_, model.learner_model_param->num_feature);
-    bst_idx_t batch_offset = 0;
     auto n_features = model.learner_model_param->num_feature;
-    ForEachBatch(this->ctx_, p_fmat, d_model, [&](auto&& cfg, auto&& data, auto&& acc) {
+
+    auto new_enc =
+        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
+    LaunchPredict(ctx_, p_fmat->IsDense(), new_enc, d_model, [&](auto&& cfg, auto&& acc) {
       using Config = common::GetValueT<decltype(cfg)>;
-      auto kernel = PredictKernel<typename Config::LoaderT, common::GetValueT<decltype(data)>,
-                                  Config::HasMissing(), typename Config::EncAccessorT>;
-      cfg.Launch(kernel, std::move(data), d_model.nodes.ConstDeviceSpan(),
-          out_preds->DeviceSpan().subspan(batch_offset), d_model.tree_segments.ConstDeviceSpan(),
 
-          d_model.tree_group.ConstDeviceSpan(),
-
-          d_model.split_types.ConstDeviceSpan(), d_model.categories_tree_segments.ConstDeviceSpan(),
-          d_model.categories_node_segments.ConstDeviceSpan(), d_model.categories.ConstDeviceSpan(),
-
-          d_model.tree_beg_, d_model.tree_end_, n_features, data.NumRows(), cfg.UseShared(),
-          d_model.num_group, std::numeric_limits<float>::quiet_NaN(), std::forward<typename Config::EncAccessorT>(acc));
-
-      batch_offset += data.NumRows() * model.learner_model_param->OutputLength();
+      bst_idx_t batch_offset = 0;
+      cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
+        using Loader = typename common::GetValueT<decltype(loader_t)>::Type;
+        cfg.template LaunchPredictKernel<Loader>(std::move(batch),
+                                                 std::numeric_limits<float>::quiet_NaN(),
+                                                 n_features, d_model, acc, batch_offset, out_preds);
+        batch_offset += batch.NumRows() * model.learner_model_param->OutputLength();
+      });
     });
   }
 
@@ -1328,38 +1376,17 @@ class GPUPredictor : public xgboost::Predictor {
     dh::device_vector<uint32_t> categories;
     ExtractPaths(ctx_, &device_paths, &d_model, &categories, ctx_->Device());
 
-    if (p_fmat->PageExists<SparsePage>()) {
-      for (auto& batch : p_fmat->GetBatches<SparsePage>()) {
-        auto begin = dh::tbegin(phis) + batch.base_rowid * dim_size;
-        LaunchShapKernel(this->ctx_, new_enc, d_model, [&](auto&& acc) {
-          SparsePageView X{this->ctx_, batch, model.learner_model_param->num_feature};
-          using EncAccessor = std::remove_reference_t<decltype(acc)>;
-          auto loader = ShapSparsePageView<EncAccessor>{X, std::forward<EncAccessor>(acc)};
-          gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
-              loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
-        });
-      }
-    } else {
-      p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
+    LaunchShap(this->ctx_, new_enc, d_model, [&](auto&& cfg, auto&& acc) {
+      using Config = common::GetValueT<decltype(cfg)>;
+      using EncAccessor = typename Config::EncAccessorT;
 
-      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        page.Impl()->Visit(this->ctx_, feature_types, [&](auto&& ellpack) {
-          auto begin = dh::tbegin(phis) + page.BaseRowId() * dim_size;
-          LaunchShapKernel(this->ctx_, new_enc, d_model, [&](auto&& acc) {
-            using EncAccessor = std::remove_reference_t<decltype(acc)>;
-            auto X = EllpackLoader{ellpack,
-                                   true,
-                                   model.learner_model_param->num_feature,
-                                   page.Size(),
-                                   std::numeric_limits<float>::quiet_NaN(),
-                                   std::forward<EncAccessor>(acc)};
+      cfg.ForEachBatch(
+          p_fmat, std::forward<EncAccessor>(acc), [&](auto&& loader, bst_idx_t base_rowid) {
+            auto begin = dh::tbegin(phis) + base_rowid * dim_size;
             gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
-                X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
+                loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
           });
-        });
-      }
-    }
+    });
 
     // Add the base margin term to last column
     p_fmat->Info().base_margin_.SetDevice(ctx_->Device());
@@ -1407,40 +1434,17 @@ class GPUPredictor : public xgboost::Predictor {
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
-    if (p_fmat->PageExists<SparsePage>()) {
-      for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
-        auto begin = dh::tbegin(phis) + batch.base_rowid * dim_size;
-        auto launch = [&](auto&& acc) {
-          SparsePageView X{this->ctx_, batch, model.learner_model_param->num_feature};
-          using EncAccessor = std::remove_reference_t<decltype(acc)>;
-          auto loader = ShapSparsePageView<EncAccessor>{X, std::forward<EncAccessor>(acc)};
-          gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
-              loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
-        };
-        LaunchShapKernel(this->ctx_, new_enc, d_model, launch);
-      }
-    } else {
-      p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
+    LaunchShap(this->ctx_, new_enc, d_model, [&](auto&& cfg, auto&& acc) {
+      using Config = common::GetValueT<decltype(cfg)>;
+      using EncAccessor = typename Config::EncAccessorT;
 
-      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        page.Impl()->Visit(this->ctx_, feature_types, [&](auto&& ellpack) {
-          auto begin = dh::tbegin(phis) + page.BaseRowId() * dim_size;
-          auto launch = [&](auto&& acc) {
-            using EncAccessor = std::remove_reference_t<decltype(acc)>;
-            auto X = EllpackLoader{ellpack,
-                                   /*use_shared=*/false,
-                                   model.learner_model_param->num_feature,
-                                   page.Size(),
-                                   std::numeric_limits<float>::quiet_NaN(),
-                                   std::forward<EncAccessor>(acc)};
+      cfg.ForEachBatch(
+          p_fmat, std::forward<EncAccessor>(acc), [&](auto&& loader, bst_idx_t base_rowid) {
+            auto begin = dh::tbegin(phis) + base_rowid * dim_size;
             gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
-                X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
-          };
-          LaunchShapKernel(this->ctx_, new_enc, d_model, launch);
-        });
-      }
-    }
+                loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
+          });
+    });
 
     // Add the base margin term to last column
     p_fmat->Info().base_margin_.SetDevice(ctx_->Device());
@@ -1476,23 +1480,32 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     bst_feature_t n_features = info.num_col_;
-    bst_idx_t batch_offset = 0;
-    ForEachBatch(this->ctx_, p_fmat, d_model, [&](auto&& cfg, auto&& data, auto&& acc) {
-      using Config = common::GetValueT<decltype(cfg)>;
-      using EncAccessor = typename Config::EncAccessorT;
-      auto kernel = PredictLeafKernel<typename Config::LoaderT, common::GetValueT<decltype(data)>,
-                                      Config::HasMissing(), EncAccessor>;
+    auto new_enc =
+        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
-      cfg.Launch(kernel, std::move(data), d_model.nodes.ConstDeviceSpan(),
-          predictions->DeviceSpan().subspan(batch_offset), d_model.tree_segments.ConstDeviceSpan(),
+    LaunchPredict(ctx_, p_fmat->IsDense(), new_enc, d_model, [&](auto&& cfg, auto&& acc) {
+      bst_idx_t batch_offset = 0;
+      cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
+        using Loader = typename common::GetValueT<decltype(loader_t)>::Type;
+        using Config = common::GetValueT<decltype(cfg)>;
+        auto kernel = PredictLeafKernel<Loader, common::GetValueT<decltype(batch)>,
+                                        Config::HasMissing(), typename Config::EncAccessorT>;
 
-          d_model.split_types.ConstDeviceSpan(), d_model.categories_tree_segments.ConstDeviceSpan(),
-          d_model.categories_node_segments.ConstDeviceSpan(), d_model.categories.ConstDeviceSpan(),
+        cfg.Launch(kernel, std::move(batch), d_model.nodes.ConstDeviceSpan(),
+                   predictions->DeviceSpan().subspan(batch_offset),
+                   d_model.tree_segments.ConstDeviceSpan(),
 
-          d_model.tree_beg_, d_model.tree_end_, n_features, n_samples, cfg.UseShared(),
-          std::numeric_limits<float>::quiet_NaN(), std::forward<EncAccessor>(acc));
+                   d_model.split_types.ConstDeviceSpan(),
+                   d_model.categories_tree_segments.ConstDeviceSpan(),
+                   d_model.categories_node_segments.ConstDeviceSpan(),
+                   d_model.categories.ConstDeviceSpan(),
 
-      batch_offset += data.NumRows();
+                   d_model.tree_beg_, d_model.tree_end_, n_features, n_samples, cfg.UseShared(),
+                   std::numeric_limits<float>::quiet_NaN(),
+                   std::forward<typename Config::EncAccessorT>(acc));
+
+        batch_offset += batch.NumRows();
+      });
     });
   }
 
