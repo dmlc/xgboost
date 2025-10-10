@@ -6,7 +6,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
 
-#include <cuda/functional>  // for proclaim_return_type
+#include <cuda/functional>   // for proclaim_return_type
+#include <cuda/std/utility>  // for swap
 #include <memory>
 
 #include "../collective/allreduce.h"
@@ -1074,7 +1075,6 @@ class LaunchConfig {
         page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
           using Acc = std::remove_reference_t<decltype(batch)>;
           // No shared memory use for ellpack
-          bst_feature_t n_features = batch.NumFeatures();
           using Loader = EllpackLoader<Acc, EncAccessor>;
           fn(LoaderType<Loader>{}, std::forward<common::GetValueT<decltype(batch)>>(batch));
         });
@@ -1099,10 +1099,9 @@ class LaunchConfig {
         page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
           using Acc = std::remove_reference_t<decltype(batch)>;
           // No shared memory use for ellpack
-          bst_feature_t n_features = batch.NumFeatures();
           auto loader = EllpackLoader{batch,
                                       /*use_shared=*/false,
-                                      n_features,
+                                      this->n_features_,
                                       batch.NumRows(),
                                       std::numeric_limits<float>::quiet_NaN(),
                                       std::forward<EncAccessor>(acc)};
