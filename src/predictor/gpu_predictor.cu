@@ -276,12 +276,12 @@ __device__ auto GetLeafWeight(bst_idx_t ridx, MultiTargetTreeView const& tree, L
 }
 
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
-__global__ void PredictKernel(Data data, common::Span<MultiTargetTreeView> trees, bool use_shared,
+__global__ void PredictKernel(Data data, bst_feature_t n_features,
+                              common::Span<MultiTargetTreeView> trees, bool use_shared,
                               float missing, linalg::MatrixView<float> d_out_predt,
                               EncAccessor acc) {
   for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), data.NumRows())) {
-    Loader loader{std::move(data), use_shared, static_cast<bst_feature_t>(data.NumCols()),
-                  data.NumRows(),  missing,    std::move(acc)};
+    Loader loader{std::move(data), use_shared, n_features, data.NumRows(), missing, std::move(acc)};
     for (auto const& tree : trees) {
       auto leaf = GetLeafWeight<has_missing>(idx, tree, &loader);
       for (std::size_t i = 0, n = leaf.Shape(0); i < n; ++i) {
@@ -1013,8 +1013,8 @@ class LaunchConfig {
     auto predt =
         linalg::MakeTensorView(ctx, predictions, data.NumRows(), h_trees.front().NumTargets());
     this->Grid(data.NumRows())
-        .LaunchImpl(std::move(kernel), std::move(data), dh::ToSpan(trees), this->UseShared(),
-                    missing, predt, NoOpAccessor{});
+        .LaunchImpl(std::move(kernel), std::move(data), model.learner_model_param->num_feature,
+                    dh::ToSpan(trees), this->UseShared(), missing, predt, NoOpAccessor{});
   }
 };
 
@@ -1057,6 +1057,23 @@ class LaunchConfig1 {
 
         d_model.tree_beg_, d_model.tree_end_, n_features, batch.NumRows(), this->UseShared(),
         d_model.num_group, missing, acc);
+  }
+
+  template <typename Loader, typename Data>
+  void LaunchMultiPredictKernel(Data batch, gbm::GBTreeModel const& model, bst_tree_t tree_begin,
+                                bst_tree_t tree_end, EncAccessorT acc, bst_idx_t batch_offset,
+                                HostDeviceVector<float>* predictions) {
+    CHECK_EQ(batch_offset, 0);  // external memory is not supported yet.
+    std::vector<MultiTargetTreeView> h_trees;
+    for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
+      h_trees.emplace_back(model.trees[tree_idx]->GetMultiTargetTree()->View(ctx_));
+    }
+    dh::device_vector<MultiTargetTreeView> trees = h_trees;
+    auto kernel = multi::PredictKernel<Loader, Data, true, EncAccessorT>;
+    auto predt =
+        linalg::MakeTensorView(ctx_, predictions, batch.NumRows(), h_trees.front().NumTargets());
+    this->Launch(kernel, std::move(batch), this->n_features_, dh::ToSpan(trees), this->UseShared(),
+                 std::numeric_limits<float>::quiet_NaN(), predt, acc);
   }
 
   [[nodiscard]] bool UseShared() const { return shared_memory_bytes_ != 0; }
@@ -1207,9 +1224,14 @@ class GPUPredictor : public xgboost::Predictor {
       bst_idx_t batch_offset = 0;
       cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
         using Loader = typename common::GetValueT<decltype(loader_t)>::Type;
-        cfg.template LaunchPredictKernel<Loader>(std::move(batch),
-                                                 std::numeric_limits<float>::quiet_NaN(),
-                                                 n_features, d_model, acc, batch_offset, out_preds);
+        if (model.trees[tree_begin]->IsMultiTarget()) {
+          cfg.template MultiPredictKernel<Loader>(std::move(batch), model, tree_begin, tree_end,
+                                                  acc, batch_offset, out_preds);
+        } else {
+          cfg.template LaunchPredictKernel<Loader>(
+              std::move(batch), std::numeric_limits<float>::quiet_NaN(), n_features, d_model, acc,
+              batch_offset, out_preds);
+        }
         batch_offset += batch.NumRows() * model.learner_model_param->OutputLength();
       });
     });
