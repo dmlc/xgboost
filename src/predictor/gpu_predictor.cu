@@ -188,12 +188,6 @@ struct EllpackLoader {
   [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return this->matrix.n_rows; }
 };
 
-template <typename Accessor>
-struct EllpackPartial {
-  template <typename EncAccessor>
-  using Type = EllpackLoader<Accessor, EncAccessor>;
-};
-
 /**
  * @brief Use for in-place predict.
  */
@@ -248,13 +242,6 @@ struct DeviceAdapterLoader {
       return std::numeric_limits<float>::quiet_NaN();
     }
   }
-};
-
-// Fill the `BatchT` parameter, currying for template.
-template <typename BatchT>
-struct PartialAdapterLoader {
-  template <typename T>
-  using Type = DeviceAdapterLoader<BatchT, T>;
 };
 
 namespace multi {
@@ -968,28 +955,6 @@ struct ShapSparsePageView {
   [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return data.NumCols(); }
 };
 
-template <typename Kernel>
-void LaunchPredictKernel(Context const* ctx, bool is_dense, enc::DeviceColumnsView const& new_enc,
-                         DeviceModel const& model, Kernel&& launch) {
-  if (is_dense) {
-    auto is_dense = std::true_type{};
-    if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
-      launch(is_dense, std::move(acc));
-    } else {
-      launch(is_dense, NoOpAccessor{});
-    }
-  } else {
-    auto is_dense = std::false_type{};
-    if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
-      launch(is_dense, std::move(acc));
-    } else {
-      launch(is_dense, NoOpAccessor{});
-    }
-  }
-}
-
 // Provide configuration for launching the predict kernel.
 template <std::uint32_t kBlockThreads = 128, bool kUseShared = true>
 class LaunchConfig {
@@ -1031,28 +996,6 @@ class LaunchConfig {
         shared_memory_bytes_{kUseShared ? SharedMemoryBytes<kBlockThreads>(
                                               n_features, ConfigureDevice(ctx->Device()))
                                         : 0} {}
-
-  template <template <typename> typename Loader, typename Data>
-  void LaunchPredict(Context const* ctx, Data data, float missing, bst_feature_t n_features,
-                     DeviceModel const& model, bool is_dense, enc::DeviceColumnsView const& new_enc,
-                     bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
-    LaunchPredictKernel(ctx, is_dense, new_enc, model, [&](auto is_dense, auto&& acc) {
-      constexpr bool kHasMissing = !std::is_same_v<decltype(is_dense), std::true_type>;
-      using EncAccessor = std::remove_reference_t<decltype(acc)>;
-      auto kernel = PredictKernel<Loader<EncAccessor>, Data, kHasMissing, EncAccessor>;
-      this->Grid(data.NumRows()).LaunchImpl(
-          std::move(kernel), std::move(data), model.nodes.ConstDeviceSpan(),
-          predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
-
-          model.tree_group.ConstDeviceSpan(),
-
-          model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
-          model.categories_node_segments.ConstDeviceSpan(), model.categories.ConstDeviceSpan(),
-
-          model.tree_beg_, model.tree_end_, n_features, data.NumRows(), this->UseShared(),
-          model.num_group, missing, std::forward<EncAccessor>(acc));
-    });
-  }
 
   template <template <typename> typename Loader, typename Data>
   void LaunchMultiPredict(Context const* ctx, Data data, gbm::GBTreeModel const& model,
@@ -1305,7 +1248,6 @@ class GPUPredictor : public xgboost::Predictor {
 
     auto n_samples = m->NumRows();
     auto n_features = model.learner_model_param->num_feature;
-    LaunchConfig cfg{ctx_, n_features};
 
     DeviceModel d_model;
     d_model.Init(model, tree_begin, tree_end, m->Device());
@@ -1313,15 +1255,24 @@ class GPUPredictor : public xgboost::Predictor {
     if constexpr (std::is_same_v<Adapter, data::CudfAdapter>) {
       if (m->HasCategorical()) {
         auto new_enc = m->DCats();
-        cfg.LaunchPredict<PartialAdapterLoader<BatchT>::template Type>(
-            this->ctx_, m->Value(), missing, n_features, d_model, false, new_enc, 0,
-            &out_preds->predictions);
+        LaunchPredict(this->ctx_, false, new_enc, d_model, [&](auto&& cfg, auto&& acc) {
+          using EncAccessor = std::remove_reference_t<decltype(acc)>;
+          using Loader = DeviceAdapterLoader<BatchT, EncAccessor>;
+          cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
+                                                   &out_preds->predictions);
+        });
         return;
       }
     }
-    cfg.LaunchPredict<PartialAdapterLoader<BatchT>::template Type>(
-        this->ctx_, m->Value(), missing, n_features, d_model, false, enc::DeviceColumnsView{}, 0,
-        &out_preds->predictions);
+
+    LaunchPredict(this->ctx_, false, enc::DeviceColumnsView{}, d_model,
+                  [&](auto&& cfg, auto&& acc) {
+                    using EncAccessor = std::remove_reference_t<decltype(acc)>;
+                    CHECK((std::is_same_v<EncAccessor, NoOpAccessor>));
+                    using Loader = DeviceAdapterLoader<BatchT, EncAccessor>;
+                    cfg.template LaunchPredictKernel<Loader>(
+                        m->Value(), missing, n_features, d_model, acc, 0, &out_preds->predictions);
+                  });
   }
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,
