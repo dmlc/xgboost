@@ -54,24 +54,14 @@ ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() {
 }
 
 ConsoleLogger::LogVerbosity ConsoleLogger::GlobalVerbosity() {
-  LogVerbosity global_verbosity { LogVerbosity::kWarning };
+  LogVerbosity global_verbosity{LogVerbosity::kWarning};
   switch (GlobalConfigThreadLocalStore::Get()->verbosity) {
-  case 0:
-    global_verbosity = LogVerbosity::kSilent;
-    break;
-  case 1:
-    global_verbosity = LogVerbosity::kWarning;
-    break;
-  case 2:
-    global_verbosity = LogVerbosity::kInfo;
-    break;
-  case 3:
-    global_verbosity = LogVerbosity::kDebug;
-  default:
-    // global verbosity doesn't require kIgnore
-    break;
+    case 0: global_verbosity = LogVerbosity::kSilent; break;
+    case 1: global_verbosity = LogVerbosity::kWarning; break;
+    case 2: global_verbosity = LogVerbosity::kInfo; break;
+    case 3: global_verbosity = LogVerbosity::kDebug; break;
+    default: break;
   }
-
   return global_verbosity;
 }
 
@@ -83,16 +73,13 @@ ConsoleLogger::ConsoleLogger(
   cur_verbosity_ = cur_verb;
   switch (cur_verbosity_) {
     case LogVerbosity::kWarning:
-      BaseLogger::log_stream_ << "WARNING: "
-                              << file << ":" << line << ": ";
+      BaseLogger::log_stream_ << "WARNING: " << file << ":" << line << ": ";
       break;
     case LogVerbosity::kDebug:
-      BaseLogger::log_stream_ << "DEBUG: "
-                              << file << ":" << line << ": ";
+      BaseLogger::log_stream_ << "DEBUG: " << file << ":" << line << ": ";
       break;
     case LogVerbosity::kInfo:
-      BaseLogger::log_stream_ << "INFO: "
-                              << file << ":" << line << ": ";
+      BaseLogger::log_stream_ << "INFO: " << file << ":" << line << ": ";
       break;
     case LogVerbosity::kIgnore:
       BaseLogger::log_stream_ << file << ":" << line << ": ";
