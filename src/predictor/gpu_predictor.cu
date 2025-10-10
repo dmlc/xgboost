@@ -956,8 +956,8 @@ struct ShapSparsePageView {
 };
 
 // Provide configuration for launching the predict kernel.
-template <typename IsDense, typename EncAccessor, std::uint32_t kBlockThreads = 128,
-          bool kUseShared = true>
+template <typename IsDense, typename EncAccessor, bool kUseShared = true,
+          std::uint32_t kBlockThreads = 128>
 class LaunchConfig {
  public:
   static constexpr bool HasMissing() { return !IsDense::value; }
@@ -1411,8 +1411,8 @@ class GPUPredictor : public xgboost::Predictor {
                    d_model.categories_node_segments.ConstDeviceSpan(),
                    d_model.categories.ConstDeviceSpan(),
 
-                   d_model.tree_beg_, d_model.tree_end_, n_features, n_samples, cfg.UseShared(),
-                   std::numeric_limits<float>::quiet_NaN(),
+                   d_model.tree_beg_, d_model.tree_end_, n_features, batch.NumRows(),
+                   cfg.UseShared(), std::numeric_limits<float>::quiet_NaN(),
                    std::forward<typename Config::EncAccessorT>(acc));
 
         batch_offset += batch.NumRows();
