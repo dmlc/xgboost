@@ -1076,13 +1076,13 @@ class LaunchConfig {
     } else {
       p_fmat->Info().feature_types.SetDevice(ctx_->Device());
       auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
-      constexpr std::uint32_t kBlockThreads = 256;
 
       for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
         page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
           using Acc = std::remove_reference_t<decltype(batch)>;
           // No shared memory use for ellpack
           using LoaderImpl = EllpackLoader<Acc, EncAccessor>;
+          constexpr std::uint32_t kBlockThreads = 256;
           using Loader = LoaderType<LoaderImpl, kBlockThreads>;
           fn(Loader{}, std::forward<common::GetValueT<decltype(batch)>>(batch));
         });
