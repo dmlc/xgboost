@@ -1009,7 +1009,7 @@ class LaunchConfig {
   template <typename Loader, typename K, typename BatchT, typename... Args>
   void Launch(K&& kernel, BatchT&& batch, Args&&... args) {
     auto grid = static_cast<uint32_t>(common::DivRoundUp(batch.NumRows(), Loader::kBlockThreads));
-    this->AllocShmem<Loader>();
+    CHECK_NE(this->shared_memory_bytes_, NotSet());
     dh::LaunchKernel{grid, Loader::kBlockThreads, this->shared_memory_bytes_,  // NOLINT
                      this->ctx_->CUDACtx()->Stream()}(kernel, std::forward<BatchT>(batch),
                                                       std::forward<Args>(args)...);
@@ -1020,6 +1020,8 @@ class LaunchConfig {
                            HostDeviceVector<float>* predictions) {
     auto kernel = PredictKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                 HasMissing(), EncAccessorT>;
+    this->AllocShmem<Loader>();
+
     this->Launch<Loader>(
         kernel, std::move(batch), d_model.nodes.ConstDeviceSpan(),
         predictions->DeviceSpan().subspan(batch_offset), d_model.tree_segments.ConstDeviceSpan(),
@@ -1044,6 +1046,8 @@ class LaunchConfig {
     }
     dh::device_vector<MultiTargetTreeView> trees = h_trees;
     auto kernel = multi::PredictKernel<typename Loader::Type, Data, true, EncAccessorT>;
+    this->AllocShmem<Loader>();
+
     auto predt =
         linalg::MakeTensorView(ctx_, predictions, batch.NumRows(), h_trees.front().NumTargets());
     this->Launch<Loader>(kernel, std::move(batch), this->n_features_, dh::ToSpan(trees),
@@ -1067,7 +1071,7 @@ class LaunchConfig {
 
   template <typename Loader>
   void AllocShmem() {
-    if (this->shared_memory_bytes_ != NotSet()) {
+    if (this->shared_memory_bytes_ == NotSet()) {
       this->shared_memory_bytes_ = Loader::AllocShmem(this->ctx_, this->n_features_);
     }
   }
@@ -1082,6 +1086,7 @@ class LaunchConfig {
       constexpr std::uint32_t kBlockThreads = 128;
       using LoaderImpl = SparsePageLoader<EncAccessor>;
       using Loader = LoaderType<LoaderImpl, kBlockThreads>;
+      this->AllocShmem<Loader>();
       for (auto& page : p_fmat->GetBatches<SparsePage>()) {
         SparsePageView batch{ctx_, page, n_features_};
         fn(Loader{}, std::move(batch));
@@ -1097,6 +1102,7 @@ class LaunchConfig {
           using LoaderImpl = EllpackLoader<Acc, EncAccessor>;
           constexpr std::uint32_t kBlockThreads = 256;
           using Loader = LoaderType<LoaderImpl, kBlockThreads>;
+          this->AllocShmem<Loader>();
           fn(Loader{}, std::forward<common::GetValueT<decltype(batch)>>(batch));
         });
       }
@@ -1447,7 +1453,7 @@ class GPUPredictor : public xgboost::Predictor {
         using Config = common::GetValueT<decltype(cfg)>;
         auto kernel = PredictLeafKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                         Config::HasMissing(), typename Config::EncAccessorT>;
-
+        cfg.template AllocShmem<Loader>();
         cfg.template Launch<Loader>(kernel, std::move(batch), d_model.nodes.ConstDeviceSpan(),
                                     predictions->DeviceSpan().subspan(batch_offset),
                                     d_model.tree_segments.ConstDeviceSpan(),
