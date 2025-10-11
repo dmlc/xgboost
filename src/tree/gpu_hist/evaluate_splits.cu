@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #include <algorithm>  // for :max
 #include <limits>     // for numeric_limits
@@ -8,6 +8,7 @@
 #include "../../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "../../common/categorical.h"
 #include "../../common/cuda_context.cuh"  // for CUDAContext
+#include "../../common/cuda_stream.h"     // for Event
 #include "evaluate_splits.cuh"
 #include "expand_entry.cuh"
 
@@ -391,8 +392,8 @@ void GPUHistEvaluator::CopyToHost(const std::vector<bst_node_t> &nidx) {
   if (!has_categoricals_) return;
   auto d_cats = this->DeviceCatStorage(nidx);
   auto h_cats = this->HostCatStorage(nidx);
-  dh::CUDAEvent event;
-  event.Record(dh::DefaultStream());
+  curt::Event event;
+  event.Record(curt::DefaultStream());
   for (auto idx : nidx) {
     copy_stream_.View().Wait(event);
     dh::safe_cuda(cudaMemcpyAsync(

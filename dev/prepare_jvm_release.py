@@ -144,16 +144,16 @@ def main():
 
     with cd("jvm-packages/"):
         print("====Copying resources for testing====")
-        with cd("../demo/CLI/regression"):
+        with cd("../demo/data/regression"):
             run(f"{sys.executable} mapfeat.py")
             run(f"{sys.executable} mknfold.py machine.txt 1")
         xgboost4j_spark = "xgboost4j-spark-gpu" if use_cuda else "xgboost4j-spark"
-        maybe_makedirs(f"xgboost4j/src/test/resources")
+        maybe_makedirs("xgboost4j/src/test/resources")
         maybe_makedirs(f"{xgboost4j_spark}/src/test/resources")
         for file in glob.glob("../demo/data/agaricus.*"):
-            cp(file, f"xgboost4j/src/test/resources")
+            cp(file, "xgboost4j/src/test/resources")
             cp(file, f"{xgboost4j_spark}/src/test/resources")
-        for file in glob.glob("../demo/CLI/regression/machine.txt.t*"):
+        for file in glob.glob("../demo/data/regression/machine.txt.t*"):
             cp(file, f"{xgboost4j_spark}/src/test/resources")
 
         print("====Creating directories to hold native binaries====")

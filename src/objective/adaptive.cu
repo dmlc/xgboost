@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #include <thrust/sort.h>
 
@@ -8,6 +8,7 @@
 
 #include "../collective/aggregator.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
+#include "../common/cuda_stream.h"     // for Event, Stream
 #include "../common/device_helpers.cuh"
 #include "../common/stats.cuh"
 #include "../tree/sample_position.h"  // for SamplePosition
@@ -69,10 +70,10 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   dh::PinnedMemory pinned_pool;
   auto pinned = pinned_pool.GetSpan<char>(sizeof(size_t) + sizeof(bst_node_t));
-  dh::CUDAStream copy_stream;
+  curt::Stream copy_stream;
   size_t* h_num_runs = reinterpret_cast<size_t*>(pinned.subspan(0, sizeof(size_t)).data());
 
-  dh::CUDAEvent e;
+  curt::Event e;
   e.Record(cuctx->Stream());
   copy_stream.View().Wait(e);
   // flag for whether there's ignored position

@@ -56,6 +56,14 @@ void ValidateLabel(Context const* ctx, MetaInfo const& info, std::int64_t n_clas
         common::AssertGPUSupport();
         return false;
 #endif  // defined(XGBOOST_USE_CUDA)
+      },
+      [&] {
+#if defined(XGBOOST_USE_SYCL)
+        return sycl::linalg::Validate(ctx->Device(), label, check);
+#else
+        common::AssertSYCLSupport();
+        return false;
+#endif  // defined(XGBOOST_USE_SYCL)
       });
   CHECK(valid)
       << "SoftmaxMultiClassObj: label must be discrete values in the range of [0, num_class).";
@@ -89,23 +97,23 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const auto n_samples = preds.Size() / n_classes;
     CHECK_EQ(n_samples, info.num_row_);
 
-    auto device = ctx_->Device();
-    auto labels = info.labels.View(ctx_->Device());
+    // fallback to cpu if current device doesn't supports fp64
+    auto device = ctx_->DeviceFP64();
+    auto labels = info.labels.View(device);
 
-    out_gpair->SetDevice(ctx_->Device());
+    out_gpair->SetDevice(device);
     out_gpair->Reshape(info.num_row_, n_classes);
-    auto gpair = out_gpair->View(ctx_->Device());
+    auto gpair = out_gpair->View(device);
 
     if (!info.weights_.Empty()) {
       CHECK_EQ(info.weights_.Size(), n_samples)
           << "Number of weights should be equal to number of data points.";
     }
     info.weights_.SetDevice(device);
-    auto weights = common::MakeOptionalWeights(this->ctx_, info.weights_);
+    auto weights = common::MakeOptionalWeights(this->ctx_->Device(), info.weights_);
 
     preds.SetDevice(device);
     auto predt = linalg::MakeTensorView(this->ctx_, &preds, n_samples, n_classes);
-
     CHECK_EQ(labels.Shape(1), 1);
     auto y1d = labels.Slice(linalg::All(), 0);
     CHECK_EQ(y1d.Shape(0), info.num_row_);
@@ -196,7 +204,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     std::size_t n = info.labels.Size();
 
     auto labels = info.labels.View(ctx_->Device());
-    auto weights = common::MakeOptionalWeights(this->ctx_, info.weights_);
+    auto weights = common::MakeOptionalWeights(this->ctx_->Device(), info.weights_);
     auto intercept = base_score->View(ctx_->Device());
     CHECK_EQ(intercept.Size(), n_classes);
     CHECK_EQ(n, info.num_row_);

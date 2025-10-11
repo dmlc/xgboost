@@ -27,12 +27,12 @@ struct OptionalWeights {
   [[nodiscard]] auto Data() const { return weights.data(); }
 };
 
-inline OptionalWeights MakeOptionalWeights(Context const* ctx,
+inline OptionalWeights MakeOptionalWeights(DeviceOrd device,
                                            HostDeviceVector<float> const& weights) {
-  if (ctx->IsCUDA()) {
-    weights.SetDevice(ctx->Device());
+  if (!device.IsCPU()) {
+    weights.SetDevice(device);
   }
-  return OptionalWeights{ctx->IsCUDA() ? weights.ConstDeviceSpan() : weights.ConstHostSpan()};
+  return OptionalWeights{device.IsCPU() ? weights.ConstHostSpan() : weights.ConstDeviceSpan()};
 }
 
 [[nodiscard]] double SumOptionalWeights(Context const* ctx, OptionalWeights const& weights,

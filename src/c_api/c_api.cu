@@ -5,7 +5,7 @@
 
 #include "../common/api_entry.h"       // for XGBAPIThreadLocalEntry
 #include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../data/array_interface.h"  // for DispatchDType, ArrayInterface
+#include "../data/array_interface.h"   // for DispatchDType, ArrayInterface
 #include "../data/device_adapter.cuh"
 #include "../data/proxy_dmatrix.h"
 #include "c_api_error.h"
@@ -16,10 +16,13 @@
 #include "xgboost/learner.h"
 #if defined(XGBOOST_USE_NCCL)
 #include <nccl.h>
-#endif
+#endif  // defined(XGBOOST_USE_NCCL)
 #if defined(XGBOOST_USE_NVCOMP)
 #include <nvcomp/version.h>
 #endif  // defined(XGBOOST_USE_NVCOMP)
+#if defined(XGBOOST_USE_RMM)
+#include <rmm/version_config.hpp>
+#endif  // defined(XGBOOST_USE_RMM)
 
 namespace xgboost {
 void XGBBuildInfoDevice(Json *p_info) {

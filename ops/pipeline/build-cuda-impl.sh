@@ -45,7 +45,6 @@ cmake .. \
   -DUSE_DMLC_GTEST=ON \
   -DENABLE_ALL_WARNINGS=ON \
   -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-  -DBUILD_DEPRECATED_CLI=ON \
   ${cmake_args}
 time ninja -v
 popd

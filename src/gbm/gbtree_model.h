@@ -142,6 +142,8 @@ struct GBTreeModel : public Model {
   [[nodiscard]] std::shared_ptr<CatContainer> CatsShared() const { return this->cats_; }
   void Cats(std::shared_ptr<CatContainer> cats) { this->cats_ = cats; }
 
+  auto const* Ctx() const { return this->ctx_; }
+
  private:
   /**
    * @brief Categories in the training data.
