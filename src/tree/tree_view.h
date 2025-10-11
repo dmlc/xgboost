@@ -9,6 +9,7 @@
 #include <stack>    // for stack
 #include <utility>  // for move
 
+#include "../common/type.h"      // for GetValueT
 #include "xgboost/base.h"        // for bst_node_t
 #include "xgboost/tree_model.h"  // for RegTree
 
@@ -120,9 +121,9 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
                                          RegTree::CategoricalSplitMatrix cats, bst_node_t n_nodes)
       : nodes{nodes}, stats{stats}, cats{std::move(cats)}, n{n_nodes} {}
 
-  // Create a device view, Not implemented yet.
+  /** @brief Create a device view, not implemented yet. */
   explicit ScalarTreeView(Context const* ctx, RegTree const* tree);
-  // Create a host view
+  /** @brief Create a host view */
   explicit ScalarTreeView(RegTree const* tree)
       : nodes{tree->GetNodes().data()},
         stats{tree->GetStats().data()},
@@ -186,9 +187,9 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
   [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
   [[nodiscard]] RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const { return cats; }
 
-  // Create a device view
+  /** @brief Create a device view */
   explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
-  // Create a host view
+  /** @brief Create a host view */
   explicit MultiTargetTreeView(RegTree const* tree);
 };
 
@@ -205,6 +206,6 @@ void WalkTree(RegTree const& tree, Fn&& fn) {
 
 template <typename TreeView>
 [[nodiscard]] bool constexpr IsScalarTree() {
-  return std::is_same_v<std::remove_cv_t<TreeView>, ScalarTreeView>;
+  return std::is_same_v<common::GetValueT<TreeView>, ScalarTreeView>;
 }
 }  // namespace xgboost::tree

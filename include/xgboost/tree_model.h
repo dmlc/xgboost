@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <cstring>
 #include <limits>  // for numeric_limits
-#include <stack>
+#include <memory>  // for unique_ptr
 #include <string>
 #include <type_traits>  // for is_signed_v
 #include <vector>
@@ -283,31 +283,6 @@ class RegTree : public Model {
   bool operator==(const RegTree& b) const {
     return nodes_ == b.nodes_ && stats_ == b.stats_ &&
            deleted_nodes_ == b.deleted_nodes_ && param_ == b.param_;
-  }
-  /* \brief Iterate through all nodes in this tree.
-   *
-   * \param Function that accepts a node index, and returns false when iteration should
-   *        stop, otherwise returns true.
-   */
-  template <typename Func> void WalkTree(Func func) const {
-    std::stack<bst_node_t> nodes;
-    nodes.push(kRoot);
-    auto &self = *this;
-    while (!nodes.empty()) {
-      auto nidx = nodes.top();
-      nodes.pop();
-      if (!func(nidx)) {
-        return;
-      }
-      auto left = self.LeftChild(nidx);
-      auto right = self.RightChild(nidx);
-      if (left != RegTree::kInvalidNodeId) {
-        nodes.push(left);
-      }
-      if (right != RegTree::kInvalidNodeId) {
-        nodes.push(right);
-      }
-    }
   }
   /*!
    * \brief Compares whether 2 trees are equal from a user's perspective.  The equality
