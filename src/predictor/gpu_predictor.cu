@@ -969,6 +969,16 @@ struct ShapSparsePageLoader {
 };
 
 // Provide configuration for launching the predict kernel.
+//
+// The GPU case is significantly more difficult to handle than the CPU case due to
+// intertwined configurations. This indicates a bad design and requires more thoughts
+// about how to organize various components.
+//
+// - The block size depends on the data type, SparsePage uses smaller block size while
+//   Ellpack uses a larger one.
+// - The shared memory usage depends on the number of features and the block size.
+// - The input data is split into a data view, and a loader for this view. The CPU
+//   implementation, on the other hand, doesn't have a loader.
 template <typename IsDense, typename EncAccessor>
 class LaunchConfig {
  public:
