@@ -989,8 +989,6 @@ class LaunchConfig {
   };
 
  private:
-  static auto constexpr NotSet() { return std::numeric_limits<bst_idx_t>::max(); }
-
   Context const* ctx_;
   bst_feature_t n_features_;
   std::size_t shared_memory_bytes_{0};
