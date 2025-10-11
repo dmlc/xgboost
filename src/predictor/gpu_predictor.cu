@@ -989,14 +989,17 @@ class LaunchConfig {
   };
 
  private:
+  static auto constexpr NotSet() { return std::numeric_limits<bst_idx_t>::max(); }
+
   Context const* ctx_;
   bst_feature_t n_features_;
-  std::size_t shared_memory_bytes_{0};
+  std::size_t shared_memory_bytes_{NotSet()};
 
  public:
   template <typename Loader, typename K, typename BatchT, typename... Args>
-  void Launch(K&& kernel, BatchT&& batch, Args&&... args) const {
+  void Launch(K&& kernel, BatchT&& batch, Args&&... args) {
     auto grid = static_cast<uint32_t>(common::DivRoundUp(batch.NumRows(), Loader::kBlockThreads));
+    this->AllocShmem<Loader>();
     dh::LaunchKernel{grid, Loader::kBlockThreads, this->shared_memory_bytes_,  // NOLINT
                      this->ctx_->CUDACtx()->Stream()}(kernel, std::forward<BatchT>(batch),
                                                       std::forward<Args>(args)...);
@@ -1051,7 +1054,9 @@ class LaunchConfig {
 
   template <typename Loader>
   void AllocShmem() {
-    this->shared_memory_bytes_ = Loader::AllocShmem(this->ctx_, this->n_features_);
+    if (this->shared_memory_bytes_ != NotSet()) {
+      this->shared_memory_bytes_ = Loader::AllocShmem(this->ctx_, this->n_features_);
+    }
   }
 
  public:
@@ -1064,7 +1069,6 @@ class LaunchConfig {
       constexpr std::uint32_t kBlockThreads = 128;
       using LoaderImpl = SparsePageLoader<EncAccessor>;
       using Loader = LoaderType<LoaderImpl, kBlockThreads>;
-      this->AllocShmem<Loader>();
       for (auto& page : p_fmat->GetBatches<SparsePage>()) {
         SparsePageView batch{ctx_, page, n_features_};
         fn(Loader{}, std::forward<SparsePageView>(batch));
@@ -1244,7 +1248,6 @@ class GPUPredictor : public xgboost::Predictor {
           using LoaderImpl = DeviceAdapterLoader<BatchT, EncAccessor>;
           using Loader =
               typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
-          cfg.template AllocShmem<Loader>();
           cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
                                                    &out_preds->predictions);
         });
@@ -1260,7 +1263,6 @@ class GPUPredictor : public xgboost::Predictor {
                     using Loader =
                         typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl,
                                                                                        128>;
-                    cfg.template AllocShmem<Loader>();
                     cfg.template LaunchPredictKernel<Loader>(
                         m->Value(), missing, n_features, d_model, acc, 0, &out_preds->predictions);
                   });
