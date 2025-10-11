@@ -7,6 +7,9 @@ import java.util.Properties;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+/**
+ * Class to load properties from the file xgboost-tracker.properties.
+ */
 public class TrackerProperties {
   private static String PROPERTIES_FILENAME = "xgboost-tracker.properties";
   private static String HOST_IP = "host-ip";
@@ -46,10 +49,28 @@ public class TrackerProperties {
     }
   }
 
+  /**
+   * Static method to return a non null initialized instance of TrackerProperties
+   * since the constructor is a private constructor not supposed to be accessed
+   * outside this class.
+   * @return The non null initialized instance.
+   */
   public static TrackerProperties getInstance() {
     return instance;
   }
 
+  /**
+   * Get the host IP address used by the tracker. To correctly use this function,
+   * the property must be defined in the following way in the xgboost-tracker.properties file:
+   *
+   * {@code host-ip=<example-ip-address>}
+   *
+   * Example:
+   *
+   * {code host-ip=127.0.0.1}
+   *
+   * @return The host IP address as a String, null if not defined.
+   */
   public String getHostIp(){
     return this.properties.getProperty(HOST_IP);
   }
