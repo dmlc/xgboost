@@ -76,8 +76,6 @@
 #'   - `nfeatures`: Number of features in training data.
 #'   - `folds`: The list of CV folds' indices - either those passed through the `folds`
 #'      parameter or randomly generated.
-#'   - `best_iteration`: Iteration number with the best evaluation metric value
-#'      (only available with early stopping).
 #'
 #'   Plus other potential elements that are the result of callbacks, such as a list `cv_predict` with
 #'   a sub-element `pred` when passing `prediction = TRUE`, which is added by the [xgb.cb.cv.predict()]
@@ -92,18 +90,23 @@
 #'
 #' cv <- xgb.cv(
 #'   data = dtrain,
-#'   nrounds = 3,
+#'   nrounds = 20,
+#'   early_stopping_rounds = 1,
 #'   params = xgb.params(
 #'     nthread = 2,
 #'     max_depth = 3,
 #'     objective = "binary:logistic"
 #'   ),
 #'   nfold = 5,
-#'   metrics = list("rmse","auc")
+#'   metrics = list("rmse","auc"),
+#'   prediction = TRUE
 #' )
 #' print(cv)
 #' print(cv, verbose = TRUE)
 #'
+#' # Callbacks might add additional attributes, separated by the name of the callback
+#' cv$early_stop$best_iteration
+#' head(cv$cv_predict$pred)
 #' @export
 xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
                    prediction = FALSE, showsd = TRUE, metrics = list(),
