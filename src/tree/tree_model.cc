@@ -18,6 +18,7 @@
 #include "../common/common.h"       // for EscapeU8
 #include "io_utils.h"               // for GetElem
 #include "param.h"
+#include "tree_view.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
@@ -826,7 +827,8 @@ bool RegTree::Equal(const RegTree& b) const {
   }
   auto const& self = *this;
   bool ret { true };
-  this->WalkTree([&self, &b, &ret](bst_node_t nidx) {
+  auto sc_tree = this->HostScView();
+  sc_tree.WalkTree([&self, &b, &ret](bst_node_t nidx) {
     if (!(self.nodes_.at(nidx) == b.nodes_.at(nidx))) {
       ret = false;
       return false;
@@ -836,30 +838,33 @@ bool RegTree::Equal(const RegTree& b) const {
   return ret;
 }
 
-bst_node_t RegTree::GetNumLeaves() const {
-  CHECK(!IsMultiTarget());
-  bst_node_t leaves { 0 };
-  auto const& self = *this;
-  this->WalkTree([&leaves, &self](bst_node_t nidx) {
-                   if (self[nidx].IsLeaf()) {
-                     leaves++;
-                   }
-                   return true;
-                 });
+[[nodiscard]] bst_node_t RegTree::GetNumLeaves() const {
+  bst_node_t leaves{0};
+  tree::WalkTree(*this, [&leaves](auto const& tree, bst_node_t nidx) {
+    if (tree.IsLeaf(nidx)) {
+      leaves++;
+    }
+    return true;
+  });
   return leaves;
 }
 
-bst_node_t RegTree::GetNumSplitNodes() const {
-  CHECK(!IsMultiTarget());
-  bst_node_t splits { 0 };
-  auto const& self = *this;
-  this->WalkTree([&splits, &self](bst_node_t nidx) {
-                   if (!self[nidx].IsLeaf()) {
-                     splits++;
-                   }
-                   return true;
-                 });
+[[nodiscard]] bst_node_t RegTree::GetNumSplitNodes() const {
+  bst_node_t splits{0};
+  tree::WalkTree(*this, [&splits](auto const& tree, bst_node_t nidx) {
+    if (!tree.IsLeaf(nidx)) {
+      splits++;
+    }
+    return true;
+  });
   return splits;
+}
+
+[[nodiscard]] bst_node_t RegTree::GetDepth(bst_node_t nidx) const {
+  if (this->IsMultiTarget()) {
+    return this->HostMtView().GetDepth(nidx);
+  }
+  return this->HostScView().GetDepth(nidx);
 }
 
 void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
@@ -926,6 +931,31 @@ void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
   this->split_categories_segments_.at(nidx).beg = orig_size;
   this->split_categories_segments_.at(nidx).size = split_cat.size();
 }
+
+RegTree* RegTree::Copy() const {
+  auto ptr = new RegTree{};
+  ptr->param_ = this->param_;
+
+  auto copy = [](auto* lhs, auto const& rhs) {
+    *lhs = rhs;
+  };
+
+  copy(&ptr->nodes_, this->nodes_);
+  ptr->deleted_nodes_ = this->deleted_nodes_;
+  copy(&ptr->stats_, this->stats_);
+  copy(&ptr->split_types_, this->split_types_);
+  copy(&ptr->split_categories_, this->split_categories_);
+  copy(&ptr->split_categories_segments_, this->split_categories_segments_);
+
+  if (this->p_mt_tree_) {
+    ptr->p_mt_tree_.reset(this->p_mt_tree_->Copy(&ptr->param_));
+  }
+  return ptr;
+}
+
+tree::ScalarTreeView RegTree::HostScView() const { return tree::ScalarTreeView{this}; }
+
+tree::MultiTargetTreeView RegTree::HostMtView() const { return tree::MultiTargetTreeView{this}; }
 
 template <bool typed>
 void RegTree::LoadCategoricalSplit(Json const& in) {

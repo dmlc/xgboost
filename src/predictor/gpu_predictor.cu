@@ -10,6 +10,7 @@
 
 #include "../collective/allreduce.h"
 #include "../common/bitfield.h"
+#include "../tree/tree_view.h"
 #include "../common/categorical.h"
 #include "../common/common.h"
 #include "../common/cuda_context.cuh"  // for CUDAContext
@@ -37,38 +38,33 @@ DMLC_REGISTRY_FILE_TAG(gpu_predictor);
 
 using cuda_impl::StaticBatch;
 
-struct TreeView {
+XGBOOST_DEVICE auto MakeScalarTreeView(
+    bst_tree_t tree_begin, bst_tree_t tree_idx, common::Span<const RegTree::Node> d_nodes,
+    common::Span<size_t const> d_tree_segments, common::Span<FeatureType const> d_tree_split_types,
+    common::Span<uint32_t const> d_cat_tree_segments,
+    common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
+    common::Span<uint32_t const> d_categories) {
+  auto begin = d_tree_segments[tree_idx - tree_begin];
+  auto n_nodes =
+      d_tree_segments[tree_idx - tree_begin + 1] - d_tree_segments[tree_idx - tree_begin];
+
+  common::Span<RegTree::Node const> d_tree = d_nodes.subspan(begin, n_nodes);
+
+  auto tree_cat_ptrs = d_cat_node_segments.subspan(begin, n_nodes);
+  auto tree_split_types = d_tree_split_types.subspan(begin, n_nodes);
+
+  auto tree_categories = d_categories.subspan(
+      d_cat_tree_segments[tree_idx - tree_begin],
+      d_cat_tree_segments[tree_idx - tree_begin + 1] - d_cat_tree_segments[tree_idx - tree_begin]);
+
   RegTree::CategoricalSplitMatrix cats;
-  common::Span<RegTree::Node const> d_tree;
+  cats.split_type = tree_split_types;
+  cats.categories = tree_categories;
+  cats.node_ptr = tree_cat_ptrs;
 
-  XGBOOST_DEVICE
-  TreeView(bst_tree_t tree_begin, bst_tree_t tree_idx, common::Span<const RegTree::Node> d_nodes,
-           common::Span<size_t const> d_tree_segments,
-           common::Span<FeatureType const> d_tree_split_types,
-           common::Span<uint32_t const> d_cat_tree_segments,
-           common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
-           common::Span<uint32_t const> d_categories) {
-    auto begin = d_tree_segments[tree_idx - tree_begin];
-    auto n_nodes = d_tree_segments[tree_idx - tree_begin + 1] -
-                   d_tree_segments[tree_idx - tree_begin];
-
-    d_tree = d_nodes.subspan(begin, n_nodes);
-
-    auto tree_cat_ptrs = d_cat_node_segments.subspan(begin, n_nodes);
-    auto tree_split_types = d_tree_split_types.subspan(begin, n_nodes);
-
-    auto tree_categories =
-        d_categories.subspan(d_cat_tree_segments[tree_idx - tree_begin],
-                             d_cat_tree_segments[tree_idx - tree_begin + 1] -
-                                 d_cat_tree_segments[tree_idx - tree_begin]);
-
-    cats.split_type = tree_split_types;
-    cats.categories = tree_categories;
-    cats.node_ptr = tree_cat_ptrs;
-  }
-
-  [[nodiscard]] __device__ bool HasCategoricalSplit() const { return !cats.categories.empty(); }
-};
+  auto tree = tree::ScalarTreeView{d_tree.data(), nullptr, cats, static_cast<bst_node_t>(n_nodes)};
+  return tree;
+}
 
 struct SparsePageView {
   common::Span<const Entry> d_data;
@@ -246,7 +242,7 @@ struct DeviceAdapterLoader {
 
 namespace multi {
 template <bool has_missing, bool has_categorical>
-XGBOOST_DEVICE bst_node_t GetNextNode(MultiTargetTreeView const& tree, bst_node_t const nidx,
+XGBOOST_DEVICE bst_node_t GetNextNode(tree::MultiTargetTreeView const& tree, bst_node_t const nidx,
                                       float fvalue, bool is_missing) {
   if (has_missing && is_missing) {
     return tree.DefaultChild(nidx);
@@ -256,7 +252,7 @@ XGBOOST_DEVICE bst_node_t GetNextNode(MultiTargetTreeView const& tree, bst_node_
 }
 
 template <bool has_missing, bool has_categorical, typename Loader>
-__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, MultiTargetTreeView const& tree,
+__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, tree::MultiTargetTreeView const& tree,
                                    Loader* loader) {
   bst_node_t nidx = 0;
   while (!tree.IsLeaf(nidx)) {
@@ -270,13 +266,13 @@ __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, MultiTargetTreeView const& tr
 }
 
 template <bool has_missing, typename Loader>
-__device__ auto GetLeafWeight(bst_idx_t ridx, MultiTargetTreeView const& tree, Loader* loader) {
+__device__ auto GetLeafWeight(bst_idx_t ridx, tree::MultiTargetTreeView const& tree, Loader* loader) {
   bst_node_t nidx = GetLeafIndex<has_missing, false>(ridx, tree, loader);
   return tree.LeafValue(nidx);
 }
 
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
-__global__ void PredictKernel(Data data, common::Span<MultiTargetTreeView> trees, bool use_shared,
+__global__ void PredictKernel(Data data, common::Span<tree::MultiTargetTreeView> trees, bool use_shared,
                               float missing, linalg::MatrixView<float> d_out_predt,
                               EncAccessor acc) {
   for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), data.NumRows())) {
@@ -293,20 +289,18 @@ __global__ void PredictKernel(Data data, common::Span<MultiTargetTreeView> trees
 }  // namespace multi
 
 namespace scalar {
-template <bool has_missing, bool has_categorical, typename Loader>
+template <bool has_missing, bool has_categorical, typename Loader, typename TreeView>
 __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = 0;
-  RegTree::Node n = tree.d_tree[nidx];
-  while (!n.IsLeaf()) {
-    float fvalue = loader->GetElement(ridx, n.SplitIndex());
+  while (!tree.IsLeaf(nidx)) {
+    float fvalue = loader->GetElement(ridx, tree.SplitIndex(nidx));
     bool is_missing = common::CheckNAN(fvalue);
-    nidx = GetNextNode<has_missing, has_categorical>(n, nidx, fvalue, is_missing, tree.cats);
-    n = tree.d_tree[nidx];
+    nidx = GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing, tree.cats);
   }
   return nidx;
 }
 
-template <bool has_missing, typename Loader>
+template <bool has_missing, typename Loader, typename TreeView>
 __device__ float GetLeafWeight(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = -1;
   if (tree.HasCategoricalSplit()) {
@@ -314,7 +308,7 @@ __device__ float GetLeafWeight(bst_idx_t ridx, TreeView const& tree, Loader* loa
   } else {
     nidx = GetLeafIndex<has_missing, false>(ridx, tree, loader);
   }
-  return tree.d_tree[nidx].LeafValue();
+  return tree.LeafValue(nidx);
 }
 }  // namespace scalar
 
@@ -338,10 +332,10 @@ PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
   }
   Loader loader{std::move(data), use_shared, num_features, num_rows, missing, std::move(acc)};
   for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-    TreeView d_tree{
+    auto d_tree = MakeScalarTreeView(
         tree_begin,          tree_idx,           d_nodes,
         d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-        d_cat_node_segments, d_categories};
+        d_cat_node_segments, d_categories);
 
     bst_node_t leaf = -1;
     if (d_tree.HasCategoricalSplit()) {
@@ -372,10 +366,10 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
   if (num_group == 1) {
     float sum = 0;
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      TreeView d_tree{
+      auto d_tree = MakeScalarTreeView(
           tree_begin,          tree_idx,           d_nodes,
           d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-          d_cat_node_segments, d_categories};
+          d_cat_node_segments, d_categories);
       float leaf = scalar::GetLeafWeight<has_missing>(global_idx, d_tree, &loader);
       sum += leaf;
     }
@@ -383,9 +377,9 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
   } else {
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       int tree_group = d_tree_group[tree_idx];
-      TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                      d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                      d_cat_node_segments, d_categories};
+      auto d_tree =
+          MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                             d_cat_tree_segments, d_cat_node_segments, d_categories);
       bst_uint out_prediction_idx = global_idx * num_group + tree_group;
       d_out_predictions[out_prediction_idx] +=
           scalar::GetLeafWeight<has_missing>(global_idx, d_tree, &loader);
@@ -648,9 +642,8 @@ void ExtractPaths(Context const* ctx,
   dh::LaunchN(info.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
     auto path_info = d_info[idx];
     size_t tree_offset = d_tree_segments[path_info.tree_idx];
-    TreeView tree{0,                   path_info.tree_idx, d_nodes,
-                  d_tree_segments,     d_split_types,      d_cat_segments,
-                  d_cat_node_segments, d_model_categories};
+    auto tree = MakeScalarTreeView(0, path_info.tree_idx, d_nodes, d_tree_segments, d_split_types,
+                                   d_cat_segments, d_cat_node_segments, d_model_categories);
     int group = d_tree_group[path_info.tree_idx];
     size_t child_idx = path_info.leaf_position;
     auto child = d_nodes[child_idx];
@@ -662,11 +655,11 @@ void ExtractPaths(Context const* ctx,
       double child_cover = d_stats[child_idx].sum_hess;
       double parent_cover = d_stats[parent_idx].sum_hess;
       double zero_fraction = child_cover / parent_cover;
-      auto parent = tree.d_tree[child.Parent()];
+      auto pnidx = child.Parent();
 
-      bool is_left_path = (tree_offset + parent.LeftChild()) == child_idx;
-      bool is_missing_path = (!parent.DefaultLeft() && !is_left_path) ||
-                             (parent.DefaultLeft() && is_left_path);
+      bool is_left_path = (tree_offset + tree.LeftChild(pnidx)) == child_idx;
+      bool is_missing_path =
+          (!tree.DefaultLeft(pnidx) && !is_left_path) || (tree.DefaultLeft(pnidx) && is_left_path);
 
       float lower_bound = -inf;
       float upper_bound = inf;
@@ -681,16 +674,16 @@ void ExtractPaths(Context const* ctx,
         }
         bits = common::CatBitField{path_cats};
       } else {
-        lower_bound = is_left_path ? -inf : parent.SplitCond();
-        upper_bound = is_left_path ? parent.SplitCond() : inf;
+        lower_bound = is_left_path ? -inf : tree.SplitCond(pnidx);
+        upper_bound = is_left_path ? tree.SplitCond(pnidx) : inf;
       }
       d_paths[output_position--] =
           gpu_treeshap::PathElement<ShapSplitCondition>{
-              idx,           parent.SplitIndex(),
+              idx,           tree.SplitIndex(pnidx),
               group,         ShapSplitCondition{lower_bound, upper_bound, is_missing_path, bits},
               zero_fraction, v};
       child_idx = parent_idx;
-      child = parent;
+      child = d_nodes[child_idx];
     }
     // Root node has feature -1
     d_paths[output_position] = {idx, -1, group, ShapSplitCondition{-inf, inf, false, {}}, 1.0, v};
@@ -728,58 +721,58 @@ __global__ void MaskBitVectorKernel(
 
   std::size_t tree_offset = 0;
   for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-    TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                    d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                    d_cat_node_segments, d_categories};
-    auto const tree_nodes = d_tree.d_tree.size();
+    auto d_tree = MakeScalarTreeView(tree_begin,          tree_idx,           d_nodes,
+                                     d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
+                                     d_cat_node_segments, d_categories);
+    auto const tree_nodes = d_tree.Size();
     for (auto nid = 0; nid < tree_nodes; nid++) {
-      auto const& node = d_tree.d_tree[nid];
-      if (node.IsDeleted() || node.IsLeaf()) {
+      if (d_tree.IsDeleted(nid) || d_tree.IsLeaf(nid)) {
           continue;
       }
-      auto const fvalue = loader.GetElement(row_idx, node.SplitIndex());
+      auto const fvalue = loader.GetElement(row_idx, d_tree.SplitIndex(nid));
       auto const is_missing = common::CheckNAN(fvalue);
       auto const bit_index = row_idx * num_nodes + tree_offset + nid;
       if (is_missing) {
           missing_bits.Set(bit_index);
       } else {
-          auto const decision = d_tree.HasCategoricalSplit()
-                                    ? GetDecision<true>(node, nid, fvalue, d_tree.cats)
-                                    : GetDecision<false>(node, nid, fvalue, d_tree.cats);
-          if (decision) {
-            decision_bits.Set(bit_index);
-          }
+        auto const decision =
+            d_tree.HasCategoricalSplit()
+                ? GetDecision<true>(d_tree, nid, fvalue, d_tree.GetCategoriesMatrix())
+                : GetDecision<false>(d_tree, nid, fvalue, d_tree.GetCategoriesMatrix());
+        if (decision) {
+          decision_bits.Set(bit_index);
+        }
       }
     }
     tree_offset += tree_nodes;
   }
 }
 
+template <typename TreeView>
 __device__ bst_node_t GetLeafIndexByBitVector(bst_idx_t ridx, TreeView const& tree,
                                               BitVector const& decision_bits,
                                               BitVector const& missing_bits, std::size_t num_nodes,
                                               std::size_t tree_offset) {
   bst_node_t nidx = 0;
-  RegTree::Node n = tree.d_tree[nidx];
-  while (!n.IsLeaf()) {
+  while (!tree.IsLeaf(nidx)) {
     auto const bit_index = ridx * num_nodes + tree_offset + nidx;
     if (missing_bits.Check(bit_index)) {
-      nidx = n.DefaultChild();
+      nidx = tree.DefaultChild(nidx);
     } else {
-      nidx = n.LeftChild() + !decision_bits.Check(bit_index);
+      nidx = tree.LeftChild(nidx) + !decision_bits.Check(bit_index);
     }
-    n = tree.d_tree[nidx];
   }
   return nidx;
 }
 
+template <typename TreeView>
 __device__ float GetLeafWeightByBitVector(bst_idx_t ridx, TreeView const& tree,
                                           BitVector const& decision_bits,
                                           BitVector const& missing_bits, std::size_t num_nodes,
                                           std::size_t tree_offset) {
   auto const nidx =
       GetLeafIndexByBitVector(ridx, tree, decision_bits, missing_bits, num_nodes, tree_offset);
-  return tree.d_tree[nidx].LeafValue();
+  return tree.LeafValue(nidx);
 }
 
 template <bool predict_leaf>
@@ -800,36 +793,36 @@ __global__ void PredictByBitVectorKernel(
   std::size_t tree_offset = 0;
   if constexpr (predict_leaf) {
     for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                      d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                      d_cat_node_segments, d_categories};
+      auto d_tree =
+          MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                             d_cat_tree_segments, d_cat_node_segments, d_categories);
       auto const leaf = GetLeafIndexByBitVector(row_idx, d_tree, decision_bits, missing_bits,
                                                 num_nodes, tree_offset);
       d_out_predictions[row_idx * (tree_end - tree_begin) + tree_idx] = static_cast<float>(leaf);
-      tree_offset += d_tree.d_tree.size();
+      tree_offset += d_tree.Size();
     }
   } else {
     if (num_group == 1) {
       float sum = 0;
       for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-          TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                          d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                          d_cat_node_segments, d_categories};
-          sum += GetLeafWeightByBitVector(row_idx, d_tree, decision_bits, missing_bits, num_nodes,
-                                          tree_offset);
-          tree_offset += d_tree.d_tree.size();
+        auto d_tree =
+            MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                               d_cat_tree_segments, d_cat_node_segments, d_categories);
+        sum += GetLeafWeightByBitVector(row_idx, d_tree, decision_bits, missing_bits, num_nodes,
+                                        tree_offset);
+        tree_offset += d_tree.Size();
       }
       d_out_predictions[row_idx] += sum;
     } else {
       for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-          auto const tree_group = d_tree_group[tree_idx];
-          TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
-                          d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
-                          d_cat_node_segments, d_categories};
-          bst_uint out_prediction_idx = row_idx * num_group + tree_group;
-          d_out_predictions[out_prediction_idx] += GetLeafWeightByBitVector(
-              row_idx, d_tree, decision_bits, missing_bits, num_nodes, tree_offset);
-          tree_offset += d_tree.d_tree.size();
+        auto const tree_group = d_tree_group[tree_idx];
+        auto d_tree =
+            MakeScalarTreeView(tree_begin, tree_idx, d_nodes, d_tree_segments, d_tree_split_types,
+                               d_cat_tree_segments, d_cat_node_segments, d_categories);
+        bst_uint out_prediction_idx = row_idx * num_group + tree_group;
+        d_out_predictions[out_prediction_idx] += GetLeafWeightByBitVector(
+            row_idx, d_tree, decision_bits, missing_bits, num_nodes, tree_offset);
+        tree_offset += d_tree.Size();
       }
     }
   }
@@ -1047,11 +1040,11 @@ class LaunchConfig {
                           bst_idx_t batch_offset, HostDeviceVector<float>* predictions) const {
     CHECK_EQ(batch_offset, 0);  // External memory is not supported yet.
     CHECK_GT(tree_end, tree_begin);
-    std::vector<MultiTargetTreeView> h_trees;
+    std::vector<tree::MultiTargetTreeView> h_trees;
     for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      h_trees.emplace_back(model.trees[tree_idx]->GetMultiTargetTree()->View(ctx));
+      h_trees.emplace_back(ctx, model.trees[tree_idx].get());
     }
-    dh::device_vector<MultiTargetTreeView> trees = h_trees;
+    dh::device_vector<tree::MultiTargetTreeView> trees = h_trees;
     CHECK_GE(predictions->Size(), data.NumRows() * h_trees.front().NumTargets());
     auto kernel = multi::PredictKernel<Loader<NoOpAccessor>, Data, true, NoOpAccessor>;
     auto predt =

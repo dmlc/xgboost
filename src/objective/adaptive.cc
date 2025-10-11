@@ -15,6 +15,7 @@
 #include "../common/threading_utils.h"     // ParallelFor
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
 #include "../tree/sample_position.h"       // for SamplePosition
+#include "../tree/tree_view.h"             // for WalkTree
 #include "xgboost/base.h"                  // bst_node_t
 #include "xgboost/context.h"               // Context
 #include "xgboost/data.h"                  // MetaInfo
@@ -48,8 +49,8 @@ void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
   CHECK_LE(begin_pos, sorted_pos.size());
 
   std::vector<bst_node_t> leaf;
-  tree.WalkTree([&](bst_node_t nidx) {
-    if (tree[nidx].IsLeaf()) {
+  tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
+    if (tree.IsLeaf(nidx)) {
       leaf.push_back(nidx);
     }
     return true;

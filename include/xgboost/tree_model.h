@@ -1,7 +1,7 @@
 /**
  * Copyright 2014-2025, XGBoost Contributors
  *
- * \brief model structure for tree
+ * @brief model structure for tree
  * \author Tianqi Chen
  */
 #ifndef XGBOOST_TREE_MODEL_H_
@@ -10,20 +10,27 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/feature_map.h>
-#include <xgboost/linalg.h>  // for VectorView
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/linalg.h>              // for VectorView
 #include <xgboost/logging.h>
 #include <xgboost/model.h>
 #include <xgboost/multi_target_tree_model.h>  // for MultiTargetTree
 
 #include <algorithm>
 #include <cstring>
-#include <limits>
-#include <memory>  // for make_unique
+#include <limits>  // for numeric_limits
 #include <stack>
 #include <string>
+#include <type_traits>  // for is_signed_v
 #include <vector>
 
 namespace xgboost {
+
+namespace tree {
+struct ScalarTreeView;
+struct MultiTargetTreeView;
+}
+
 class Json;
 
 /** @brief meta parameters of the tree */
@@ -46,67 +53,39 @@ struct TreeParam {
   void ToJson(Json* p_out) const;
 };
 
-/*! \brief node statistics used in regression tree */
+/** @brief node statistics used in regression tree */
 struct RTreeNodeStat {
-  /*! \brief loss change caused by current split */
-  bst_float loss_chg;
-  /*! \brief sum of hessian values, used to measure coverage of data */
-  bst_float sum_hess;
-  /*! \brief weight of current node */
-  bst_float base_weight;
-  /*! \brief number of child that is leaf node known up to now */
-  int leaf_child_cnt {0};
+  /** @brief loss change caused by current split */
+  float loss_chg;
+  /** @brief sum of hessian values, used to measure coverage of data */
+  float sum_hess;
+  /** @brief weight of current node */
+  float base_weight;
+  /** @brief number of child that is leaf node known up to now */
+  int leaf_child_cnt{0};
 
   RTreeNodeStat() = default;
-  RTreeNodeStat(float loss_chg, float sum_hess, float weight) :
-      loss_chg{loss_chg}, sum_hess{sum_hess}, base_weight{weight} {}
+  RTreeNodeStat(float loss_chg, float sum_hess, float weight)
+      : loss_chg{loss_chg}, sum_hess{sum_hess}, base_weight{weight} {}
   bool operator==(const RTreeNodeStat& b) const {
-    return loss_chg == b.loss_chg && sum_hess == b.sum_hess &&
-           base_weight == b.base_weight && leaf_child_cnt == b.leaf_child_cnt;
+    return loss_chg == b.loss_chg && sum_hess == b.sum_hess && base_weight == b.base_weight &&
+           leaf_child_cnt == b.leaf_child_cnt;
   }
 };
 
 /**
- * \brief Helper for defining copyable data structure that contains unique pointers.
- */
-template <typename T>
-class CopyUniquePtr {
-  std::unique_ptr<T> ptr_{nullptr};
-
- public:
-  CopyUniquePtr() = default;
-  CopyUniquePtr(CopyUniquePtr const& that) {
-    ptr_.reset(nullptr);
-    if (that.ptr_) {
-      ptr_ = std::make_unique<T>(*that);
-    }
-  }
-  T* get() const noexcept { return ptr_.get(); }  // NOLINT
-
-  T& operator*() { return *ptr_; }
-  T* operator->() noexcept { return this->get(); }
-
-  T const& operator*() const { return *ptr_; }
-  T const* operator->() const noexcept { return this->get(); }
-
-  explicit operator bool() const { return static_cast<bool>(ptr_); }
-  bool operator!() const { return !ptr_; }
-  void reset(T* ptr) { ptr_.reset(ptr); }  // NOLINT
-};
-
-/**
- * \brief define regression tree to be the most common tree model.
+ * @brief define regression tree to be the most common tree model.
  *
  *  This is the data structure used in xgboost's major tree models.
  */
 class RegTree : public Model {
  public:
-  using SplitCondT = bst_float;
+  using SplitCondT = float;
   static constexpr bst_node_t kInvalidNodeId{MultiTargetTree::InvalidNodeId()};
   static constexpr uint32_t kDeletedNodeMarker = std::numeric_limits<uint32_t>::max();
   static constexpr bst_node_t kRoot{0};
 
-  /*! \brief tree node */
+  /** @brief tree node */
   class Node {
    public:
     XGBOOST_DEVICE Node()  {
@@ -432,21 +411,10 @@ class RegTree : public Model {
   [[nodiscard]] bst_node_t GetNumLeaves() const;
   [[nodiscard]] bst_node_t GetNumSplitNodes() const;
 
-  /*!
-   * \brief get current depth
-   * \param nid node id
+  /**
+   * @brief Get the depth of a node.
    */
-  [[nodiscard]] std::int32_t GetDepth(bst_node_t nid) const {
-    if (IsMultiTarget()) {
-      return this->p_mt_tree_->Depth(nid);
-    }
-    int depth = 0;
-    while (!nodes_[nid].IsRoot()) {
-      ++depth;
-      nid = nodes_[nid].Parent();
-    }
-    return depth;
-  }
+  [[nodiscard]] bst_node_t GetDepth(bst_node_t nidx) const;
   /**
    * \brief Set the leaf weight for a multi-target tree.
    */
@@ -649,6 +617,10 @@ class RegTree : public Model {
     return this->nodes_.size();
   }
 
+  [[nodiscard]] RegTree* Copy() const;
+  tree::ScalarTreeView HostScView() const;
+  tree::MultiTargetTreeView HostMtView() const;
+
  private:
   template <bool typed>
   void LoadCategoricalSplit(Json const& in);
@@ -668,7 +640,7 @@ class RegTree : public Model {
   // Ptr to split categories of each node.
   std::vector<CategoricalSplitMatrix::Segment> split_categories_segments_;
   // ptr to multi-target tree with vector leaf.
-  CopyUniquePtr<MultiTargetTree> p_mt_tree_;
+  std::unique_ptr<MultiTargetTree> p_mt_tree_;
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   bst_node_t AllocNode() {
