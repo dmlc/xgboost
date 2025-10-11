@@ -1082,9 +1082,9 @@ class LaunchConfig {
         page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
           using Acc = std::remove_reference_t<decltype(batch)>;
           // No shared memory use for ellpack
-          using Loader = EllpackLoader<Acc, EncAccessor>;
-          fn(LoaderType<Loader, kBlockThreads>{},
-             std::forward<common::GetValueT<decltype(batch)>>(batch));
+          using LoaderImpl = EllpackLoader<Acc, EncAccessor>;
+          using Loader = LoaderType<LoaderImpl, kBlockThreads>;
+          fn(Loader{}, std::forward<common::GetValueT<decltype(batch)>>(batch));
         });
       }
     }
