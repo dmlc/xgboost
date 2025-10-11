@@ -991,7 +991,7 @@ class LaunchConfig {
     constexpr static std::uint32_t kBlockThreads = block_threads;
 
     static std::size_t AllocShmem(Context const* ctx, bst_feature_t n_features) {
-      if constexpr (typename Type::SupportShmemLoad{}) {
+      if constexpr (Type::SupportShmemLoad::value) {
         return SharedMemoryBytes<kBlockThreads>(n_features, ConfigureDevice(ctx->Device()));
       }
       return 0;
@@ -1050,7 +1050,10 @@ class LaunchConfig {
                          this->UseShared(), std::numeric_limits<float>::quiet_NaN(), predt, acc);
   }
 
-  [[nodiscard]] bool UseShared() const { return shared_memory_bytes_ != 0; }
+  [[nodiscard]] bool UseShared() const {
+    CHECK_NE(shared_memory_bytes_, NotSet());
+    return shared_memory_bytes_ != 0;
+  }
 
   [[nodiscard]] static std::size_t ConfigureDevice(DeviceOrd const& device) {
     thread_local std::unordered_map<std::int32_t, std::size_t> max_shared;
@@ -1081,7 +1084,7 @@ class LaunchConfig {
       using Loader = LoaderType<LoaderImpl, kBlockThreads>;
       for (auto& page : p_fmat->GetBatches<SparsePage>()) {
         SparsePageView batch{ctx_, page, n_features_};
-        fn(Loader{}, std::forward<SparsePageView>(batch));
+        fn(Loader{}, std::move(batch));
       }
     } else {
       p_fmat->Info().feature_types.SetDevice(ctx_->Device());
