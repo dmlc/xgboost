@@ -15,6 +15,7 @@ auto DispatchPtr(Context const* ctx, HostDeviceVector<T> const& vec) {
   if (ctx->IsCPU()) {
     return vec.ConstHostPointer();
   }
+  vec.SetDevice(ctx->Device());
   return vec.ConstDevicePointer();
 }
 
