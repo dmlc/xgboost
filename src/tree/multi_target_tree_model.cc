@@ -48,7 +48,6 @@ MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
   this->weights_.Copy(that.weights_);
 }
 
-
 void MultiTargetTree::SetLeaf(bst_node_t nidx, linalg::VectorView<float const> weight) {
   CHECK(this->IsLeaf(nidx)) << "Collapsing a split node to leaf " << MTNotImplemented();
   auto const next_nidx = nidx + 1;
@@ -161,38 +160,6 @@ void LoadModelImpl(Json const& in, HostDeviceVector<float>* p_weights,
   }
 }
 
-MultiTargetTreeView MultiTargetTree::View(Context const* ctx) const {
-  CHECK_GE(this->NumTargets(), 2);
-  CHECK_EQ(this->left_.Size(), this->right_.Size());
-  CHECK_EQ(this->left_.Size(), this->parent_.Size());
-
-  auto device = ctx->Device();
-  auto n = this->left_.Size();
-
-  // Data copies between host and device can introduce race.
-  std::lock_guard guard{this->tree_view_lock_};
-
-  auto make_ten = [&](common::Span<float const> weights) {
-    auto n_targets = this->NumTargets();
-    auto n_leaves = this->weights_.Size() / this->NumTargets();
-    CHECK_GE(n_leaves, 1);
-    return linalg::MakeTensorView(ctx, weights, n_leaves, n_targets);
-  };
-
-  auto make_tr = [&](auto const&... args) -> MultiTargetTreeView {
-    if (device.IsCPU()) {
-      return {(args.ConstHostPointer())..., n, make_ten(this->weights_.ConstHostSpan())};
-    }
-
-    (args.SetDevice(device), ...);
-    this->weights_.SetDevice(device);
-    return {(args.ConstDevicePointer())..., n, make_ten(this->weights_.ConstDeviceSpan())};
-  };
-
-  return make_tr(this->left_, this->right_, this->parent_, this->split_index_, this->default_left_,
-                 this->split_conds_);
-}
-
 void MultiTargetTree::LoadModel(Json const& in) {
   namespace tf = tree_field;
   bool typed = IsA<F32Array>(in[tf::kBaseWeight]);
@@ -277,9 +244,14 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
   out[tf::kDftLeft] = std::move(default_left);
 }
 
-
 bst_target_t MultiTargetTree::NumTargets() const { return param_->size_leaf_vector; }
 std::size_t MultiTargetTree::Size() const { return parent_.Size(); }
+
+[[nodiscard]] MultiTargetTree* MultiTargetTree::Copy(TreeParam const* param) const {
+  auto ptr = new MultiTargetTree{*this};
+  ptr->param_ = param;
+  return ptr;
+}
 
 [[nodiscard]] std::size_t MultiTargetTree::MemCostBytes() const {
   std::size_t n_bytes = 0;

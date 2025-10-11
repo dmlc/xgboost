@@ -3,6 +3,8 @@
  */
 #include <gtest/gtest.h>
 
+#include <stack>  // for stack
+
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/categorical.h"
 #include "../../../src/tree/io_utils.h"  // for DftBadValue

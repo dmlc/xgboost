@@ -1,9 +1,11 @@
-/*!
- * Copyright 2021 XGBoost contributors
+/**
+ * Copyright 2021-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
 #include <xgboost/tree_model.h>
+
+#include "../../../src/tree/tree_view.h"  // for WalkTree
 #include "../helpers.h"
 
 namespace xgboost {
@@ -50,7 +52,7 @@ class TestGrowPolicy : public ::testing::Test {
       RegTree tree;
       tree.LoadModel(j_tree);
       bst_node_t depth = 0;
-      tree.WalkTree([&](bst_node_t nidx) {
+      tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
         depth = std::max(tree.GetDepth(nidx), depth);
         return true;
       });
@@ -124,7 +126,7 @@ class TestGrowPolicy : public ::testing::Test {
       RegTree tree;
       tree.LoadModel(j_tree);
       bst_node_t depth = 0;
-      tree.WalkTree([&](bst_node_t nidx) {
+      tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
         depth = std::max(tree.GetDepth(nidx), depth);
         return true;
       });
