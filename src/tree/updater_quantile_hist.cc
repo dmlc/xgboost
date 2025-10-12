@@ -26,8 +26,8 @@
 #include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
-#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
+#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for TrainParam, GradStats
 #include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
@@ -162,7 +162,8 @@ class MultiTargetHistBuilder {
         partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
                                      p_fmat->Info().IsColumnSplit());
       } else {
-        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->Info().IsColumnSplit());
+        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid,
+                                  p_fmat->Info().IsColumnSplit());
       }
       page_idx++;
     }
