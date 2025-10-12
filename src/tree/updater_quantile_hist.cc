@@ -166,6 +166,7 @@ class MultiTargetHistBuilder {
       }
       page_idx++;
     }
+    partitioner_.resize(page_idx);
 
     bst_target_t n_targets = p_tree->NumTargets();
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
@@ -368,6 +369,7 @@ class HistUpdater {
       }
       page_idx++;
     }
+    partitioner_.resize(page_idx);
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
                               fmat->Info().IsColumnSplit(), hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
