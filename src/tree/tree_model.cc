@@ -674,27 +674,15 @@ class GraphvizGenerator : public TreeGenerator<TreeView> {
     static std::string const kCoverTemplate = "\ncover={cover}";
     static std::string const kLeafTemplate =
         "    {nid} [ label=\"leaf={leaf-value}{cover}\" {params}]\n";
-    auto plot = [&](std::string cover) {
-      if constexpr (!tree::IsScalarTree(tree)) {
-        auto value = tree.LeafValue(nidx);
-        return SuperT::Match(kLeafTemplate, {{"{nid}", std::to_string(nidx)},
-                                             {"{leaf-value}", ToStr(value)},
-                                             {"{cover}", std::move(cover)},
-                                             {"{params}", param_.leaf_node_params}});
-      } else {
-        auto value = tree.LeafValue(nidx);
-        return SuperT::Match(kLeafTemplate, {{"{nid}", std::to_string(nidx)},
-                                             {"{leaf-value}", ToStr(value)},
-                                             {"{cover}", std::move(cover)},
-                                             {"{params}", param_.leaf_node_params}});
-      }
-    };
-    if (this->with_stats_) {
-      CHECK(tree::IsScalarTree(tree));
-      return plot(SuperT::Match(kCoverTemplate, {{"{cover}", ToStr(tree.SumHess(nidx))}}));
-    } else {
-      return plot("");
-    }
+    auto value = tree.LeafValue(nidx);
+    return SuperT::Match(
+        kLeafTemplate,
+        {{"{nid}", std::to_string(nidx)},
+         {"{leaf-value}", ToStr(value)},
+         {"{cover}", this->with_stats_
+                         ? SuperT::Match(kCoverTemplate, {{"{cover}", ToStr(tree.SumHess(nidx))}})
+                         : ""},
+         {"{params}", param_.leaf_node_params}});
   }
 
   std::string BuildTree(TreeView tree, bst_node_t nidx, uint32_t depth) override {
