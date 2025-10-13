@@ -2508,7 +2508,6 @@ class Booster:
         feval: Optional[Metric] = None,
         output_margin: bool = True,
     ) -> str:
-        # pylint: disable=invalid-name
         """Evaluate a set of data.
 
         Parameters
