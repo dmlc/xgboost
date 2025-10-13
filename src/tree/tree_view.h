@@ -109,13 +109,16 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
   [[nodiscard]] XGBOOST_DEVICE bool IsRoot(bst_node_t nidx) const {
     return this->nodes[nidx].IsRoot();
   }
+
   [[nodiscard]] RTreeNodeStat const& Stat(bst_node_t nidx) const { return stats[nidx]; }
-  [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
+  [[nodiscard]] auto SumHess(bst_node_t nidx) const { return stats[nidx].sum_hess; }
+  [[nodiscard]] auto LossChg(bst_node_t nidx) const { return stats[nidx].loss_chg; }
 
   [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
   [[nodiscard]] XGBOOST_DEVICE RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const {
     return cats;
   }
+  [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
 
   XGBOOST_DEVICE explicit ScalarTreeView(RegTree::Node const* nodes, RTreeNodeStat const* stats,
                                          RegTree::CategoricalSplitMatrix cats, bst_node_t n_nodes)
@@ -184,8 +187,18 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
   [[nodiscard]] bst_node_t Size() const { return this->n; }
   [[nodiscard]] XGBOOST_DEVICE bool IsRoot(bst_node_t nidx) const { return nidx == RegTree::kRoot; }
 
+  [[nodiscard]] auto SumHess(bst_node_t) const {
+    LOG(FATAL) << "Tree statistic " << MTNotImplemented();
+    return linalg::MakeVec<float>(nullptr, 0);
+  }
+  [[nodiscard]] auto LossChg(bst_node_t) const {
+    LOG(FATAL) << "Tree statistic " << MTNotImplemented();
+    return 0.0f;
+  }
+
   [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
   [[nodiscard]] RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const { return cats; }
+  [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
 
   /** @brief Create a device view */
   explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
@@ -207,5 +220,10 @@ void WalkTree(RegTree const& tree, Fn&& fn) {
 template <typename TreeView>
 [[nodiscard]] bool constexpr IsScalarTree() {
   return std::is_same_v<common::GetValueT<TreeView>, ScalarTreeView>;
+}
+
+template <typename TreeView>
+[[nodiscard]] bool constexpr IsScalarTree(TreeView const&) {
+  return IsScalarTree<TreeView>();
 }
 }  // namespace xgboost::tree
