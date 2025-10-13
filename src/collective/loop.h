@@ -72,7 +72,7 @@ class Loop {
   /**
    * @brief Stop the worker thread.
    */
-  Result Stop();
+  Result Stop(bool from_destructor = false);
 
   void Submit(Op op);
 
@@ -84,9 +84,10 @@ class Loop {
 
   explicit Loop(std::chrono::seconds timeout);
 
-  ~Loop() noexcept(false) {
+  ~Loop() noexcept {
     // The worker will be joined in the stop function.
-    this->Stop();
+    this->Stop(true);
   }
+  
 };
 }  // namespace xgboost::collective
