@@ -1057,7 +1057,7 @@ class XGBModel(XGBModelBase):
         #                     XGBRegressor -> XGBModel -> BaseEstimator
         #                                     XGBModel -> BaseEstimator
         #
-        params = super().get_params(deep)
+        params = super().get_params(deep)  # pylint: disable=no-member
         cp = copy.copy(self)
         # If the immediate parent defines get_params(), use that.
         if callable(getattr(cp.__class__.__bases__[0], "get_params", None)):
