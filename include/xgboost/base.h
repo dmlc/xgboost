@@ -114,7 +114,7 @@ using bst_bin_t = std::int32_t;  // NOLINT
  */
 using bst_idx_t = std::uint64_t;  // NOLINT
 /**
- * \brief Type for tree node index.
+ * \brief Type for tree node index and tree depth.
  */
 using bst_node_t = std::int32_t;      // NOLINT
 /**

@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file updater_refresh.cc
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
@@ -12,6 +12,7 @@
 #include "../collective/allreduce.h"
 #include "../common/threading_utils.h"
 #include "../predictor/predict_fn.h"
+#include "../tree/tree_view.h"  // for ScalarTreeView
 #include "./param.h"
 #include "xgboost/json.h"
 
@@ -76,8 +77,7 @@ class TreeRefresher : public TreeUpdater {
           feats.Fill(inst);
           int offset = 0;
           for (auto tree : trees) {
-            AddStats(*tree, feats, gpair_h, info, ridx,
-                     dmlc::BeginPtr(stemp[tid]) + offset);
+            AddStats(*tree, feats, gpair_h, info, ridx, dmlc::BeginPtr(stemp[tid]) + offset);
             offset += tree->NumNodes();
           }
           feats.Drop();
@@ -107,26 +107,22 @@ class TreeRefresher : public TreeUpdater {
   }
 
  private:
-  inline static void AddStats(const RegTree &tree,
-                              const RegTree::FVec &feat,
-                              const std::vector<GradientPair> &gpair,
-                              const MetaInfo&,
-                              const bst_uint ridx,
-                              GradStats *gstats) {
+  inline static void AddStats(const RegTree &tree, const RegTree::FVec &feat,
+                              const std::vector<GradientPair> &gpair, const MetaInfo &,
+                              const bst_uint ridx, GradStats *gstats) {
     // start from groups that belongs to current data
     auto pid = 0;
     gstats[pid].Add(gpair[ridx]);
-    auto const& cats = tree.GetCategoriesMatrix();
     // traverse tree
-    while (!tree[pid].IsLeaf()) {
-      unsigned split_index = tree[pid].SplitIndex();
-      pid = predictor::GetNextNode<true, true>(
-          tree[pid], pid, feat.GetFvalue(split_index), feat.IsMissing(split_index),
-          cats);
+    auto sc_tree = tree.HostScView();
+    while (!sc_tree.IsLeaf(pid)) {
+      unsigned split_index = sc_tree.SplitIndex(pid);
+      pid = predictor::GetNextNode<true, true>(sc_tree, pid, feat.GetFvalue(split_index),
+                                               feat.IsMissing(split_index), sc_tree.cats);
       gstats[pid].Add(gpair[ridx]);
     }
   }
-  inline void Refresh(TrainParam const *param, const GradStats *gstats, int nid, RegTree *p_tree) {
+  void Refresh(TrainParam const *param, const GradStats *gstats, int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
     tree.Stat(nid).base_weight =
         static_cast<bst_float>(CalcWeight(*param, gstats[nid]));
