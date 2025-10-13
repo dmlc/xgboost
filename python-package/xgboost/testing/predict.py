@@ -12,7 +12,7 @@ from .updater import get_basescore
 from .utils import Device
 
 
-# pylint: disable=invalid-name,too-many-locals
+# pylint: disable=too-many-locals
 def run_predict_leaf(device: Device, DMatrixT: Type[DMatrix]) -> np.ndarray:
     """Run tests for leaf index prediction."""
     rows = 100

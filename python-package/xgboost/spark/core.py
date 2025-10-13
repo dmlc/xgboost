@@ -2,7 +2,7 @@
 
 import base64
 
-# pylint: disable=fixme, protected-access, no-member, invalid-name
+# pylint: disable=fixme, protected-access, no-member
 # pylint: disable=too-many-lines, too-many-branches
 import json
 import logging
@@ -626,7 +626,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         self.logger = get_logger(self.__class__.__name__)
 
-    def setParams(self, **kwargs: Any) -> None:  # pylint: disable=invalid-name
+    def setParams(self, **kwargs: Any) -> None:
         """
         Set params for the estimator.
         """
