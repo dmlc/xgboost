@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, too-many-lines
+# pylint: disable=too-many-lines
 """Utilities for data generation."""
 import gc
 import multiprocessing

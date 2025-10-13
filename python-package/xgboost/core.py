@@ -1,4 +1,4 @@
-# pylint: disable=too-many-arguments, too-many-branches, invalid-name
+# pylint: disable=too-many-arguments, too-many-branches
 # pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
 
@@ -1977,7 +1977,6 @@ class Booster:
         cache: Optional[Sequence[DMatrix]] = None,
         model_file: Optional[Union["Booster", bytearray, os.PathLike, str]] = None,
     ) -> None:
-        # pylint: disable=invalid-name
         """
         Parameters
         ----------

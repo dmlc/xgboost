@@ -1,4 +1,4 @@
-# pylint: disable=too-many-locals, too-many-arguments, invalid-name
+# pylint: disable=too-many-locals, too-many-arguments
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
 import copy
@@ -452,7 +452,6 @@ def cv(
     shuffle: bool = True,
     custom_metric: Optional[Metric] = None,
 ) -> Union[Dict[str, float], "PdDataFrame"]:
-    # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 
     Parameters

@@ -1,4 +1,4 @@
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
+# pylint: disable=too-many-arguments, too-many-locals, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
 
 import collections
@@ -1277,7 +1277,7 @@ class XGBModel(XGBModelBase):
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
         feature_weights: Optional[ArrayLike] = None,
     ) -> "XGBModel":
-        # pylint: disable=invalid-name,attribute-defined-outside-init
+        # pylint: disable=attribute-defined-outside-init
         """Fit gradient boosting model.
 
         Note that calling ``fit()`` multiple times will cause the model object to be
@@ -1692,7 +1692,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
 """,
 )
 class XGBClassifier(XGBClassifierBase, XGBModel):
-    # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
+    # pylint: disable=missing-docstring,too-many-instance-attributes
     @_deprecate_positional_args
     def __init__(
         self,
@@ -2140,7 +2140,7 @@ See :doc:`Learning to Rank </tutorials/learning_to_rank>` for an introducion.
         :py:meth:`fit` for more info.""",
 )
 class XGBRanker(XGBRankerMixIn, XGBModel):
-    # pylint: disable=missing-docstring,too-many-arguments,invalid-name
+    # pylint: disable=missing-docstring,too-many-arguments
     @_deprecate_positional_args
     def __init__(self, *, objective: str = "rank:ndcg", **kwargs: Any):
         super().__init__(objective=objective, **kwargs)
