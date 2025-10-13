@@ -459,7 +459,7 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 
   *out_of_bound =
       detail::SliceTrees(begin, end, step, this->model_, [&](auto in_tree_idx, auto out_l) {
-        auto new_tree = std::make_unique<RegTree>(*this->model_.trees.at(in_tree_idx));
+        std::unique_ptr<RegTree> new_tree{this->model_.trees.at(in_tree_idx)->Copy()};
         out_trees.emplace_back(std::move(new_tree));
 
         bst_group_t group = this->model_.tree_info[in_tree_idx];

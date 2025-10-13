@@ -29,7 +29,7 @@ void CalculateContributionsApprox(RegTree const& tree, const RegTree::FVec& feat
 
   while (!tree[nid].IsLeaf()) {
     split_index = tree[nid].SplitIndex();
-    nid = predictor::GetNextNode<true, true>(tree[nid], nid, feat.GetFvalue(split_index),
+    nid = predictor::GetNextNode<true, true>(tree, nid, feat.GetFvalue(split_index),
                                              feat.IsMissing(split_index), cats);
     bst_float new_value = (*mean_values)[nid];
     // update feature weight
@@ -169,7 +169,7 @@ void TreeShap(RegTree const& tree, const RegTree::FVec& feat, float* phi, bst_no
     // find which branch is "hot" (meaning x would follow it)
     auto const& cats = tree.GetCategoriesMatrix();
     bst_node_t hot_index = predictor::GetNextNode<true, true>(
-        node, node_index, feat.GetFvalue(split_index), feat.IsMissing(split_index), cats);
+        tree, node_index, feat.GetFvalue(split_index), feat.IsMissing(split_index), cats);
 
     const auto cold_index = (hot_index == node.LeftChild() ? node.RightChild() : node.LeftChild());
     const float w = tree.Stat(node_index).sum_hess;

@@ -67,7 +67,7 @@ struct GBTreeModel : public Model {
  public:
   explicit GBTreeModel(LearnerModelParam const* learner_model, Context const* ctx)
       : learner_model_param{learner_model}, ctx_{ctx} {}
-  void Configure(const Args& cfg) {
+  void Configure(Args const& cfg) {
     // initialize model parameters if not yet been initialized.
     if (trees.size() == 0) {
       param.UpdateAllowUnknown(cfg);
@@ -75,7 +75,7 @@ struct GBTreeModel : public Model {
   }
 
   void InitTreesToUpdate() {
-    if (trees_to_update.size() == 0u) {
+    if (trees_to_update.empty()) {
       for (auto& tree : trees) {
         trees_to_update.push_back(std::move(tree));
       }
@@ -99,19 +99,13 @@ struct GBTreeModel : public Model {
     return dump;
   }
   /**
-   * \brief Add trees to the model.
+   * @brief Add trees to the model.
    *
-   * \return The number of new trees.
+   * @return The number of new trees.
    */
   bst_tree_t CommitModel(TreesOneIter&& new_trees);
 
-  void CommitModelGroup(std::vector<std::unique_ptr<RegTree>>&& new_trees, bst_target_t group_idx) {
-    for (auto& new_tree : new_trees) {
-      trees.push_back(std::move(new_tree));
-      tree_info.push_back(group_idx);
-    }
-    param.num_trees += static_cast<int>(new_trees.size());
-  }
+  void CommitModelGroup(TreesOneGroup&& new_trees, bst_target_t group_idx);
 
   [[nodiscard]] std::int32_t BoostedRounds() const {
     if (trees.empty()) {
