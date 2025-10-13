@@ -78,6 +78,7 @@ packages = ["xgboost/"]
 
 [tool.pylint.basic]
 # Enforce naming convention
+typevar-naming-style = "PascalCase"
 const-naming-style = "UPPER_CASE"
 class-naming-style = "PascalCase"
 function-naming-style = "snake_case"
