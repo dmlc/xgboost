@@ -69,10 +69,30 @@ struct WalkTreeMixIn {
   [[nodiscard]] bst_node_t MaxDepth() const { return this->MaxDepth(RegTree::kRoot); }
 };
 
+struct CategoriesMixIn {
+  RegTree::CategoricalSplitMatrix cats;
+
+  [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
+  [[nodiscard]] XGBOOST_DEVICE RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const {
+    return cats;
+  }
+  /**
+   * @brief Get the bit storage for categories
+   */
+  [[nodiscard]] common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
+    auto node_ptr = this->GetCategoriesMatrix().node_ptr;
+    auto categories = this->GetCategoriesMatrix().categories;
+    auto segment = node_ptr[nidx];
+    auto node_cats = categories.subspan(segment.beg, segment.size);
+    return node_cats;
+  }
+  [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
+};
+
 /**
  * @brief Tree view for scalar leaf.
  */
-struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
+struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView>, public CategoriesMixIn {
   static bst_node_t constexpr InvalidNodeId() { return RegTree::kInvalidNodeId; }
   static constexpr bst_node_t RootId() { return RegTree::kRoot; }
 
@@ -125,22 +145,6 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
   [[nodiscard]] auto SumHess(bst_node_t nidx) const { return stats[nidx].sum_hess; }
   [[nodiscard]] auto LossChg(bst_node_t nidx) const { return stats[nidx].loss_chg; }
 
-  [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
-  [[nodiscard]] XGBOOST_DEVICE RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const {
-    return cats;
-  }
-  /**
-   * @brief Get the bit storage for categories
-   */
-  [[nodiscard]] common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
-    auto node_ptr = this->GetCategoriesMatrix().node_ptr;
-    auto categories = this->GetCategoriesMatrix().categories;
-    auto segment = node_ptr[nidx];
-    auto node_cats = categories.subspan(segment.beg, segment.size);
-    return node_cats;
-  }
-  [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
-
   XGBOOST_DEVICE explicit ScalarTreeView(RegTree::Node const* nodes, RTreeNodeStat const* stats,
                                          RegTree::CategoricalSplitMatrix cats, bst_node_t n_nodes)
       : nodes{nodes}, stats{stats}, cats{std::move(cats)}, n{n_nodes} {}
@@ -149,9 +153,9 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
   explicit ScalarTreeView(Context const* ctx, RegTree const* tree);
   /** @brief Create a host view */
   explicit ScalarTreeView(RegTree const* tree)
-      : nodes{tree->GetNodes().data()},
+      : CategoriesMixIn{tree->GetCategoriesMatrix()},
+        nodes{tree->GetNodes().data()},
         stats{tree->GetStats().data()},
-        cats{tree->GetCategoriesMatrix()},
         n{tree->NumNodes()} {
     CHECK(!tree->IsMultiTarget());
   }
@@ -160,7 +164,7 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
 /**
  * @brief A view to the @ref MultiTargetTree suitable for both host and device.
  */
-struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
+struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public CategoriesMixIn {
   static bst_node_t constexpr InvalidNodeId() { return MultiTargetTree::InvalidNodeId(); }
 
   bst_node_t const* left;
@@ -170,8 +174,6 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
   bst_feature_t const* split_index;
   std::uint8_t const* default_left;
   float const* split_conds;
-
-  RegTree::CategoricalSplitMatrix cats;
 
   // The number of nodes
   bst_node_t n{0};
@@ -216,21 +218,6 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
     LOG(FATAL) << "Tree statistic " << MTNotImplemented();
     return 0.0f;
   }
-
-  [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
-  [[nodiscard]] RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const { return cats; }
-  /**
-   * @brief Get the bit storage for categories
-   */
-  [[nodiscard]] common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
-    auto node_ptr = this->GetCategoriesMatrix().node_ptr;
-    auto categories = this->GetCategoriesMatrix().categories;
-    auto segment = node_ptr[nidx];
-    auto node_cats = categories.subspan(segment.beg, segment.size);
-    return node_cats;
-  }
-  [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
-
   /** @brief Create a device view */
   explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
   /** @brief Create a host view */
