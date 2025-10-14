@@ -5,9 +5,10 @@
  * original scalar tree `Node` struct is used extensively in the codebase.
  */
 #pragma once
-#include <cstdint>  // for uint8_t
-#include <stack>    // for stack
-#include <utility>  // for move
+#include <algorithm>  // for max
+#include <cstdint>    // for uint8_t
+#include <stack>      // for stack
+#include <utility>    // for move
 
 #include "../common/type.h"      // for GetValueT
 #include "xgboost/base.h"        // for bst_node_t

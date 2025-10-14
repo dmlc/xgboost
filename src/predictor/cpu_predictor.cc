@@ -757,7 +757,8 @@ class ColumnSplitHelper {
     }
   }
 
-  bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, std::size_t tree_id, std::size_t row_id) {
+  bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, std::size_t tree_id,
+                          std::size_t row_id) {
     bst_node_t nid = 0;
     while (!tree.IsLeaf(nid)) {
       auto const bit_index = BitIndex(tree_id, row_id, nid);

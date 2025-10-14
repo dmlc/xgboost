@@ -129,7 +129,7 @@ struct GPUHistMakerDevice {
   PartitionNodes CreatePartitionNodes(RegTree const* p_tree,
                                       std::vector<GPUExpandEntry> const& candidates) {
     PartitionNodes nodes(candidates.size());
-    auto tree =p_tree->HostScView();
+    auto tree = p_tree->HostScView();
     for (std::size_t i = 0, n = candidates.size(); i < n; i++) {
       auto const& e = candidates[i];
       RegTree::Node split_node = tree.nodes[e.nid];
