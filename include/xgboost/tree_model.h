@@ -463,21 +463,24 @@ class RegTree : public Model {
    */
   [[nodiscard]] std::string DumpModel(const FeatureMap& fmap, bool with_stats,
                                       std::string format) const;
-  /*!
-   * \brief Get split types for all nodes.
+  /**
+   * @brief Get split types for all nodes.
    */
-  [[nodiscard]] std::vector<FeatureType> const& GetSplitTypes() const {
-    return split_types_.ConstHostVector();
+  [[nodiscard]] common::Span<FeatureType const> GetSplitTypes(DeviceOrd device) const {
+    return device.IsCPU() ? split_types_.ConstHostSpan()
+                          : (split_types_.SetDevice(device), split_types_.ConstDeviceSpan());
   }
-  [[nodiscard]] common::Span<uint32_t const> GetSplitCategories() const {
-    return split_categories_.ConstHostVector();
+  [[nodiscard]] common::Span<uint32_t const> GetSplitCategories(DeviceOrd device) const {
+    return device.IsCPU()
+               ? split_categories_.ConstHostSpan()
+               : (split_categories_.SetDevice(device), split_categories_.ConstDeviceSpan());
   }
   [[nodiscard]] auto const& GetSplitCategoriesPtr() const {
     return split_categories_segments_.ConstHostVector();
   }
 
   /**
-   * \brief CSR-like matrix for categorical splits.
+   * @brief CSR-like matrix for categorical splits.
    *
    * The fields of split_categories_segments_[i] are set such that the range
    * node_ptr[beg:(beg+size)] stores the bitset for the matching categories for the
@@ -495,11 +498,12 @@ class RegTree : public Model {
 
   [[nodiscard]] CategoricalSplitMatrix GetCategoriesMatrix(DeviceOrd device) const {
     CategoricalSplitMatrix view;
-    view.split_type = common::Span<FeatureType const>(this->GetSplitTypes());
-    view.categories = this->GetSplitCategories();
+    view.split_type = this->GetSplitTypes(device);
+    view.categories = this->GetSplitCategories(device);
     if (device.IsCPU()) {
       view.node_ptr = split_categories_segments_.ConstHostSpan();
     } else {
+      split_categories_segments_.SetDevice(device);
       view.node_ptr = split_categories_segments_.ConstDeviceSpan();
     }
     return view;

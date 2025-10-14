@@ -1030,7 +1030,7 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
       auto begin = categories.Size();
       categories_segments.GetArray().emplace_back(begin);
       auto segment = h_split_categories_segments[i];
-      auto cat_bits = common::GetNodeCats(this->GetSplitCategories(), segment);
+      auto cat_bits = common::GetNodeCats(this->GetSplitCategories(DeviceOrd::CPU()), segment);
       for (size_t i = 0; i < cat_bits.Capacity(); ++i) {
         if (cat_bits.Check(i)) {
           categories.GetArray().emplace_back(static_cast<std::int32_t>(i));

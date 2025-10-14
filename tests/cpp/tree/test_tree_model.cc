@@ -61,17 +61,18 @@ TEST(Tree, AllocateNode) {
 }
 
 TEST(Tree, ExpandCategoricalFeature) {
+  Context ctx;
   {
     RegTree tree;
     tree.ExpandCategorical(0, 0, {}, true, 1.0, 2.0, 3.0, 11.0, 2.0,
                            /*left_sum=*/3.0, /*right_sum=*/4.0);
     ASSERT_EQ(tree.GetNodes().size(), 3ul);
     ASSERT_EQ(tree.GetNumLeaves(), 2);
-    ASSERT_EQ(tree.GetSplitTypes().size(), 3ul);
-    ASSERT_EQ(tree.GetSplitTypes()[0], FeatureType::kCategorical);
-    ASSERT_EQ(tree.GetSplitTypes()[1], FeatureType::kNumerical);
-    ASSERT_EQ(tree.GetSplitTypes()[2], FeatureType::kNumerical);
-    ASSERT_EQ(tree.GetSplitCategories().size(), 0ul);
+    ASSERT_EQ(tree.GetSplitTypes(ctx.Device()).size(), 3ul);
+    ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[0], FeatureType::kCategorical);
+    ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[1], FeatureType::kNumerical);
+    ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[2], FeatureType::kNumerical);
+    ASSERT_EQ(tree.GetSplitCategories(ctx.Device()).size(), 0ul);
     ASSERT_EQ(tree[0].SplitCond(), DftBadValue());
   }
   {
@@ -82,7 +83,7 @@ TEST(Tree, ExpandCategoricalFeature) {
     bitset.Set(cat);
     tree.ExpandCategorical(0, 0, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
                            /*left_sum=*/3.0, /*right_sum=*/4.0);
-    auto categories = tree.GetSplitCategories();
+    auto categories = tree.GetSplitCategories(ctx.Device());
     auto segments = tree.GetSplitCategoriesPtr();
     auto got = categories.subspan(segments[0].beg, segments[0].size);
     ASSERT_TRUE(std::equal(got.cbegin(), got.cend(), split_cats.cbegin()));
@@ -98,7 +99,7 @@ TEST(Tree, ExpandCategoricalFeature) {
     ASSERT_EQ(cat_ptr[0].beg, 0ul);
     ASSERT_EQ(cat_ptr[0].size, 2ul);
 
-    auto loaded_categories = loaded_tree.GetSplitCategories();
+    auto loaded_categories = loaded_tree.GetSplitCategories(ctx.Device());
     auto loaded_root = loaded_categories.subspan(cat_ptr[0].beg, cat_ptr[0].size);
     ASSERT_TRUE(std::equal(loaded_root.begin(), loaded_root.end(), split_cats.begin()));
   }

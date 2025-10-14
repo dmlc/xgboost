@@ -78,7 +78,7 @@ struct CategoriesMixIn {
     return cats;
   }
   /**
-   * @brief Get the bit storage for categories
+   * @brief Get the bit storage of categories used by a node.
    */
   [[nodiscard]] common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
     auto node_ptr = this->GetCategoriesMatrix().node_ptr;
