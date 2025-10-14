@@ -1,12 +1,12 @@
-/*!
- * Copyright 2017-2024 by Contributors
- * \file hist_synchronizer.h
+/**
+ * Copyright 2017-2025, XGBoost Contributors
  */
 #ifndef PLUGIN_SYCL_TREE_HIST_SYNCHRONIZER_H_
 #define PLUGIN_SYCL_TREE_HIST_SYNCHRONIZER_H_
 
 #include <vector>
 
+#include "../../src/tree/tree_view.h"
 #include "../common/hist_util.h"
 #include "expand_entry.h"
 
@@ -20,18 +20,17 @@ class HistUpdater;
 template <typename GradientSumT>
 class HistSynchronizer {
  public:
-  virtual void SyncHistograms(HistUpdater<GradientSumT>* builder,
-                              const std::vector<int>& sync_ids,
-                              RegTree *p_tree) = 0;
+  virtual void SyncHistograms(HistUpdater<GradientSumT>* builder, const std::vector<int>& sync_ids,
+                              RegTree const* p_tree) = 0;
   virtual ~HistSynchronizer() = default;
 };
 
 template <typename GradientSumT>
 class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
  public:
-  void SyncHistograms(HistUpdater<GradientSumT>* builder,
-                      const std::vector<int>& sync_ids,
-                      RegTree *p_tree) override {
+  void SyncHistograms(HistUpdater<GradientSumT>* builder, const std::vector<int>& sync_ids,
+                      RegTree const* p_tree) override {
+    auto tree = p_tree->HostScView();
     builder->builder_monitor_.Start("SyncHistograms");
     const size_t nbins = builder->hist_builder_.GetNumBins();
 
@@ -40,10 +39,10 @@ class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
       const auto entry = builder->nodes_for_explicit_hist_build_[i];
       auto& this_hist = builder->hist_[entry.nid];
 
-      if (!(*p_tree)[entry.nid].IsRoot()) {
-        const size_t parent_id = (*p_tree)[entry.nid].Parent();
+      if (!(tree).IsRoot(entry.nid)) {
+        const size_t parent_id = tree.Parent(entry.nid);
         auto& parent_hist = builder->hist_[parent_id];
-        auto& sibling_hist = builder->hist_[entry.GetSiblingId(p_tree, parent_id)];
+        auto& sibling_hist = builder->hist_[entry.GetSiblingId(tree, parent_id)];
         hist_sync_events_[i] = common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,
                                                        this_hist, nbins, ::sycl::event());
       }
@@ -64,9 +63,9 @@ class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
 template <typename GradientSumT>
 class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
  public:
-  void SyncHistograms(HistUpdater<GradientSumT>* builder,
-                      const std::vector<int>& sync_ids,
-                      RegTree *p_tree) override {
+  void SyncHistograms(HistUpdater<GradientSumT>* builder, const std::vector<int>& sync_ids,
+                      RegTree const* p_tree) override {
+    auto tree = p_tree->HostScView();
     builder->builder_monitor_.Start("SyncHistograms");
     const size_t nbins = builder->hist_builder_.GetNumBins();
     for (int node = 0; node < builder->nodes_for_explicit_hist_build_.size(); node++) {
@@ -76,9 +75,9 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
       auto& this_local = builder->hist_local_worker_[entry.nid];
       common::CopyHist(builder->qu_, &this_local, this_hist, nbins);
 
-      if (!(*p_tree)[entry.nid].IsRoot()) {
-        const size_t parent_id = (*p_tree)[entry.nid].Parent();
-        auto sibling_nid = entry.GetSiblingId(p_tree, parent_id);
+      if (!tree.IsRoot(entry.nid)) {
+        const size_t parent_id = tree.Parent(entry.nid);
+        auto sibling_nid = entry.GetSiblingId(tree, parent_id);
         auto& parent_hist = builder->hist_local_worker_[parent_id];
 
         auto& sibling_hist = builder->hist_[sibling_nid];
@@ -102,15 +101,16 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
                                const std::vector<ExpandEntry>& nodes,
                                const RegTree * p_tree) {
     const size_t nbins = builder->hist_builder_.GetNumBins();
+    auto tree = p_tree->HostScView();
     for (int node = 0; node < nodes.size(); node++) {
       const auto entry = nodes[node];
-      if (!((*p_tree)[entry.nid].IsLeftChild())) {
+      if (!(tree.IsLeftChild(entry.nid))) {
         auto& this_hist = builder->hist_[entry.nid];
 
-        if (!(*p_tree)[entry.nid].IsRoot()) {
-          const size_t parent_id = (*p_tree)[entry.nid].Parent();
+        if (!tree.IsRoot(entry.nid)) {
+          const size_t parent_id = tree.Parent(entry.nid);
           auto& parent_hist = builder->hist_[parent_id];
-          auto& sibling_hist = builder->hist_[entry.GetSiblingId(p_tree, parent_id)];
+          auto& sibling_hist = builder->hist_[entry.GetSiblingId(tree, parent_id)];
           common::SubtractionHist(builder->qu_, &this_hist, parent_hist,
                                   sibling_hist, nbins, ::sycl::event());
           builder->qu_->wait_and_throw();

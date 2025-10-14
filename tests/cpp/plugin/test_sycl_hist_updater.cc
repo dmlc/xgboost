@@ -431,7 +431,8 @@ void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float spa
 
     size_t n_nodes = nodes.size();
     std::vector<int32_t> split_conditions(n_nodes);
-    xgboost::tree::CommonRowPartitioner::FindSplitConditions(nodes, tree, gmat, &split_conditions);
+    xgboost::tree::CommonRowPartitioner::FindSplitConditions(nodes, tree.HostScView(), gmat,
+                                                             &split_conditions);
 
     common::PartitionBuilder partition_builder;
     partition_builder.Init(qu, n_nodes, [&](size_t node_in_set) {
