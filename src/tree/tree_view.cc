@@ -29,8 +29,8 @@ auto DispatchWeight(DeviceOrd device, RegTree const* tree) {
 }
 }  // namespace
 
-ScalarTreeView::ScalarTreeView(Context const* /*ctx*/, RegTree const* tree)
-    : CategoriesMixIn{tree->GetCategoriesMatrix()},
+ScalarTreeView::ScalarTreeView(Context const* ctx, RegTree const* tree)
+    : CategoriesMixIn{tree->GetCategoriesMatrix(ctx->Device())},
       nodes{tree->GetNodes().data()},
       stats{tree->GetStats().data()},
       n{tree->NumNodes()} {
@@ -38,7 +38,7 @@ ScalarTreeView::ScalarTreeView(Context const* /*ctx*/, RegTree const* tree)
 }
 
 MultiTargetTreeView::MultiTargetTreeView(Context const* ctx, RegTree const* tree)
-    : CategoriesMixIn{tree->GetCategoriesMatrix()},
+    : CategoriesMixIn{tree->GetCategoriesMatrix(ctx->Device())},
       left{DispatchPtr(ctx, tree->GetMultiTargetTree()->left_)},
       right{DispatchPtr(ctx, tree->GetMultiTargetTree()->right_)},
       parent{DispatchPtr(ctx, tree->GetMultiTargetTree()->parent_)},
@@ -51,7 +51,7 @@ MultiTargetTreeView::MultiTargetTreeView(Context const* ctx, RegTree const* tree
 }
 
 MultiTargetTreeView::MultiTargetTreeView(RegTree const* tree)
-    : CategoriesMixIn{tree->GetCategoriesMatrix()},
+    : CategoriesMixIn{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
       left{tree->GetMultiTargetTree()->left_.ConstHostPointer()},
       right{tree->GetMultiTargetTree()->right_.ConstHostPointer()},
       parent{tree->GetMultiTargetTree()->parent_.ConstHostPointer()},

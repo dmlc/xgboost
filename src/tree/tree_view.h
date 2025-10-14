@@ -154,7 +154,7 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView>, public CategoriesM
   explicit ScalarTreeView(Context const* ctx, RegTree const* tree);
   /** @brief Create a host view */
   explicit ScalarTreeView(RegTree const* tree)
-      : CategoriesMixIn{tree->GetCategoriesMatrix()},
+      : CategoriesMixIn{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
         nodes{tree->GetNodes().data()},
         stats{tree->GetStats().data()},
         n{tree->NumNodes()} {

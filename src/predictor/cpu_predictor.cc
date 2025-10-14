@@ -123,7 +123,7 @@ void PredValueByOneTree(const RegTree &tree, std::size_t const predict_offset,
                         common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                         linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, bst_node_t depth) {
   const auto mt_tree = tree.HostMtView();
-  auto const &cats = tree.GetCategoriesMatrix();
+  auto const &cats = mt_tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
     ProcessArrayTree<has_categorical, any_missing>(mt_tree, fvec_tloc, block_size, p_nidx, depth);
   }
@@ -1059,14 +1059,15 @@ class CPUPredictor : public Predictor {
 
           for (bst_tree_t j = 0; j < ntree_limit; ++j) {
             auto const &tree = *model.trees[j];
-            auto const &cats = tree.GetCategoriesMatrix();
             bst_node_t nidx = 0;
             if (tree.IsMultiTarget()) {
-              nidx =
-                  multi::GetLeafIndex<true, true>(tree.HostMtView(), fvec_tloc.front(), cats, nidx);
+              auto mt_tree = tree.HostMtView();
+              nidx = multi::GetLeafIndex<true, true>(mt_tree, fvec_tloc.front(),
+                                                     mt_tree.GetCategoriesMatrix(), nidx);
             } else {
-              nidx = scalar::GetLeafIndex<true, true>(tree.HostScView(), fvec_tloc.front(), cats,
-                                                      nidx);
+              auto sc_tree = tree.HostScView();
+              nidx = scalar::GetLeafIndex<true, true>(tree.HostScView(), fvec_tloc.front(),
+                                                      sc_tree.GetCategoriesMatrix(), nidx);
             }
             preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
           }
