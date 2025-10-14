@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name
 """Tests for the ordinal re-coder."""
 
 import itertools

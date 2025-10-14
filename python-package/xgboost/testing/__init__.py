@@ -3,7 +3,7 @@ change without notice.
 
 """
 
-# pylint: disable=invalid-name,missing-function-docstring
+# pylint: disable=missing-function-docstring
 import importlib.util
 import os
 import platform

@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name
 """Tests for dask shared by different test modules."""
 
 from typing import Any, List, Literal, Tuple, Type, cast

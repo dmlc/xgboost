@@ -62,6 +62,7 @@ ignore = ["tests"]
 extension-pkg-whitelist = ["numpy", "cuda"]
 disable = [
     "import-error",
+    "invalid-name",
     "attribute-defined-outside-init",
     "import-outside-toplevel",
     "too-few-public-methods",
