@@ -10,10 +10,11 @@
 
 #include "../common/error_msg.h"  // for NoCategorical
 #include "../common/random.h"
-#include "sample_position.h"  // for SamplePosition
 #include "constraints.h"
 #include "param.h"
+#include "sample_position.h"  // for SamplePosition
 #include "split_evaluator.h"
+#include "tree_view.h"  // for ScalarTreeView
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/parameter.h"
@@ -260,16 +261,16 @@ class ColMaker: public TreeUpdater {
      * \brief initialize the base_weight, root_gain,
      *  and NodeEntry for all the new nodes in qexpand
      */
-    inline void InitNewNode(const std::vector<int>& qexpand,
-                            const std::vector<GradientPair>& gpair,
-                            const DMatrix& fmat,
-                            const RegTree& tree) {
+    void InitNewNode(const std::vector<int> &qexpand, const std::vector<GradientPair> &gpair,
+                     const DMatrix &fmat, RegTree const& tree) {
+      auto n_nodes = tree.NumNodes();
+      auto sc_tree = tree.HostScView();
       {
         // setup statistics space for each tree node
-        for (auto& i : stemp_) {
-          i.resize(tree.NumNodes(), ThreadEntry());
+        for (auto &i : stemp_) {
+          i.resize(n_nodes, ThreadEntry());
         }
-        snode_.resize(tree.NumNodes(), NodeEntry());
+        snode_.resize(n_nodes, NodeEntry());
       }
       const MetaInfo& info = fmat.Info();
       // setup position
@@ -290,23 +291,23 @@ class ColMaker: public TreeUpdater {
 
       auto evaluator = tree_evaluator_.GetEvaluator();
       // calculating the weights
-      for (int nid : qexpand) {
-        bst_node_t parentid = tree[nid].Parent();
-        snode_[nid].weight = static_cast<float>(
-            evaluator.CalcWeight(parentid, param_, snode_[nid].stats));
-        snode_[nid].root_gain = static_cast<float>(
-            evaluator.CalcGain(parentid, param_, snode_[nid].stats));
+      for (bst_node_t nidx : qexpand) {
+        bst_node_t parentid = sc_tree.Parent(nidx);
+        snode_[nidx].weight =
+            static_cast<float>(evaluator.CalcWeight(parentid, param_, snode_[nidx].stats));
+        snode_[nidx].root_gain =
+            static_cast<float>(evaluator.CalcGain(parentid, param_, snode_[nidx].stats));
       }
     }
     /*! \brief update queue expand add in new leaves */
-    inline void UpdateQueueExpand(const RegTree& tree,
-                                  const std::vector<int> &qexpand,
-                                  std::vector<int>* p_newnodes) {
+    void UpdateQueueExpand(RegTree const &tree, const std::vector<bst_node_t> &qexpand,
+                           std::vector<int> *p_newnodes) {
       p_newnodes->clear();
-      for (int nid : qexpand) {
-        if (!tree[ nid ].IsLeaf()) {
-          p_newnodes->push_back(tree[nid].LeftChild());
-          p_newnodes->push_back(tree[nid].RightChild());
+      auto sc_tree = tree.HostScView();
+      for (bst_node_t nidx : qexpand) {
+        if (!sc_tree.IsLeaf(nidx)) {
+          p_newnodes->push_back(sc_tree.LeftChild(nidx));
+          p_newnodes->push_back(sc_tree.RightChild(nidx));
         }
       }
     }
@@ -504,9 +505,8 @@ class ColMaker: public TreeUpdater {
       }
     }
     // reset position of each data points after split is created in the tree
-    inline void ResetPosition(const std::vector<int> &qexpand,
-                              DMatrix* p_fmat,
-                              const RegTree& tree) {
+    void ResetPosition(const std::vector<int> &qexpand, DMatrix *p_fmat, const RegTree &tree) {
+      auto sc_tree = tree.HostScView();
       // set the positions in the nondefault
       this->SetNonDefaultPosition(qexpand, p_fmat, tree);
       // set rest of instances to default position
@@ -516,18 +516,18 @@ class ColMaker: public TreeUpdater {
       common::ParallelFor(p_fmat->Info().num_row_, this->ctx_->Threads(), [&](auto ridx) {
         CHECK_LT(ridx, position_.size()) << "ridx exceed bound "
                                          << "ridx=" << ridx << " pos=" << position_.size();
-        const int nid = SamplePosition::Decode(position_[ridx]);
-        if (tree[nid].IsLeaf()) {
+        const bst_node_t nidx = SamplePosition::Decode(position_[ridx]);
+        if (sc_tree.IsLeaf(nidx)) {
           // mark finish when it is not a fresh leaf
-          if (tree[nid].RightChild() == -1) {
-            position_[ridx] = ~nid;
+          if (sc_tree.RightChild(nidx) == -1) {
+            position_[ridx] = ~nidx;
           }
         } else {
           // push to default branch
-          if (tree[nid].DefaultLeft()) {
-            this->SetEncodePosition(ridx, tree[nid].LeftChild());
+          if (sc_tree.DefaultLeft(nidx)) {
+            this->SetEncodePosition(ridx, sc_tree.LeftChild(nidx));
           } else {
-            this->SetEncodePosition(ridx, tree[nid].RightChild());
+            this->SetEncodePosition(ridx, sc_tree.RightChild(nidx));
           }
         }
       });
@@ -543,14 +543,14 @@ class ColMaker: public TreeUpdater {
         }
       }
     }
-    virtual void SetNonDefaultPosition(const std::vector<int> &qexpand,
-                                       DMatrix *p_fmat,
+    virtual void SetNonDefaultPosition(const std::vector<int> &qexpand, DMatrix *p_fmat,
                                        const RegTree &tree) {
       // step 1, classify the non-default data into right places
+      auto sc_tree = tree.HostScView();
       std::vector<unsigned> fsplits;
       for (int nid : qexpand) {
-        if (!tree[nid].IsLeaf()) {
-          fsplits.push_back(tree[nid].SplitIndex());
+        if (!sc_tree.IsLeaf(nid)) {
+          fsplits.push_back(sc_tree.SplitIndex(nid));
         }
       }
       std::sort(fsplits.begin(), fsplits.end());
@@ -562,13 +562,13 @@ class ColMaker: public TreeUpdater {
           common::ParallelFor(col.size(), this->ctx_->Threads(), [&](auto j) {
             const bst_uint ridx = col[j].index;
             bst_node_t nidx = SamplePosition::Decode(position_[ridx]);
-            const bst_float fvalue = col[j].fvalue;
+            const float fvalue = col[j].fvalue;
             // go back to parent, correct those who are not default
-            if (!tree[nidx].IsLeaf() && tree[nidx].SplitIndex() == fid) {
-              if (fvalue < tree[nidx].SplitCond()) {
-                this->SetEncodePosition(ridx, tree[nidx].LeftChild());
+            if (!sc_tree.IsLeaf(nidx) && sc_tree.SplitIndex(nidx) == fid) {
+              if (fvalue < sc_tree.SplitCond(nidx)) {
+                this->SetEncodePosition(ridx, sc_tree.LeftChild(nidx));
               } else {
-                this->SetEncodePosition(ridx, tree[nidx].RightChild());
+                this->SetEncodePosition(ridx, sc_tree.RightChild(nidx));
               }
             }
           });

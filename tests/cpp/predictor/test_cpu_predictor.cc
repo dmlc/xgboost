@@ -81,27 +81,27 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   auto sc_tree = tree::ScalarTreeView{&ctx, &tree};
   {
     constexpr int kDepth = 1;
-    LayoutForTest<kDepth> buffer(sc_tree, tree.GetCategoriesMatrix());
+    LayoutForTest<kDepth> buffer(sc_tree, sc_tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 2;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 3;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 4;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 5;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
 }

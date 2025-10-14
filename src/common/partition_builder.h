@@ -108,18 +108,19 @@ class PartitionBuilder {
     return {nleft_elems, nright_elems};
   }
 
-  template <typename BinIdxType, bool any_missing, bool any_cat, typename ExpandEntry>
+  template <typename BinIdxType, bool any_missing, bool any_cat, typename ExpandEntry,
+            typename TreeView>
   void Partition(const size_t node_in_set, std::vector<ExpandEntry> const& nodes,
                  const common::Range1d range, const bst_bin_t split_cond,
                  GHistIndexMatrix const& gmat, const common::ColumnMatrix& column_matrix,
-                 const RegTree& tree, bst_idx_t const* rid) {
+                 TreeView const& tree, bst_idx_t const* rid) {
     common::Span<bst_idx_t const> rid_span{rid + range.begin(), rid + range.end()};
     common::Span<bst_idx_t> left = GetLeftBuffer(node_in_set, range.begin(), range.end());
     common::Span<bst_idx_t> right = GetRightBuffer(node_in_set, range.begin(), range.end());
     std::size_t nid = nodes[node_in_set].nid;
     bst_feature_t fid = tree.SplitIndex(nid);
     bool default_left = tree.DefaultLeft(nid);
-    bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
+    bool is_cat = tree.SplitType(nid) == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
     auto const& cut_values = gmat.cut.Values();
 
@@ -203,15 +204,16 @@ class PartitionBuilder {
    * worker, so we go through all the rows and mark the bit vectors on whether the decision is made
    * to go right, or if the feature value used for the split is missing.
    */
-  template <typename BinIdxType, bool any_missing, bool any_cat, typename ExpandEntry>
+  template <typename BinIdxType, bool any_missing, bool any_cat, typename ExpandEntry,
+            typename TreeView>
   void MaskRows(const size_t node_in_set, std::vector<ExpandEntry> const& nodes,
                 const common::Range1d range, bst_bin_t split_cond, GHistIndexMatrix const& gmat,
-                const common::ColumnMatrix& column_matrix, const RegTree& tree,
+                const common::ColumnMatrix& column_matrix, TreeView const& tree,
                 bst_idx_t const* rid, BitVector* decision_bits, BitVector* missing_bits) {
     common::Span<bst_idx_t const> rid_span{rid + range.begin(), rid + range.end()};
     std::size_t nid = nodes[node_in_set].nid;
     bst_feature_t fid = tree.SplitIndex(nid);
-    bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
+    bool is_cat = tree.SplitType(nid) == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
     auto const& cut_values = gmat.cut.Values();
 
@@ -261,10 +263,10 @@ class PartitionBuilder {
    * @brief Once we've aggregated the decision and missing bits from all the workers, we can then
    * use them to partition the rows accordingly.
    */
-  template <typename ExpandEntry>
+  template <typename ExpandEntry, typename TreeView>
   void PartitionByMask(const size_t node_in_set, std::vector<ExpandEntry> const& nodes,
                        const common::Range1d range, GHistIndexMatrix const& gmat,
-                       const RegTree& tree, bst_idx_t const* rid, BitVector const& decision_bits,
+                       TreeView const& tree, bst_idx_t const* rid, BitVector const& decision_bits,
                        BitVector const& missing_bits) {
     common::Span<bst_idx_t const> rid_span(rid + range.begin(), rid + range.end());
     common::Span<bst_idx_t> left = GetLeftBuffer(node_in_set, range.begin(), range.end());
@@ -365,8 +367,8 @@ class PartitionBuilder {
   }
 
   // Copy row partitions into global cache for reuse in objective
-  template <typename Invalidp>
-  void LeafPartition(Context const* ctx, RegTree const& tree, RowSetCollection const& row_set,
+  template <typename Invalidp, typename TreeView>
+  void LeafPartition(Context const* ctx, TreeView const& tree, RowSetCollection const& row_set,
                      Span<bst_node_t> position, Invalidp invalidp) const {
     auto p_begin = row_set.Data()->data();
     // For each node, walk through all the samples that fall in this node.

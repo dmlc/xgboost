@@ -74,9 +74,6 @@ class MultiTargetTree : public Model {
   [[nodiscard]] bool IsLeaf(bst_node_t nidx) const {
     return left_.ConstHostVector()[nidx] == InvalidNodeId();
   }
-  [[nodiscard]] bst_node_t Parent(bst_node_t nidx) const {
-    return parent_.ConstHostVector().at(nidx);
-  }
   [[nodiscard]] bst_node_t LeftChild(bst_node_t nidx) const {
     return left_.ConstHostVector().at(nidx);
   }
@@ -84,27 +81,9 @@ class MultiTargetTree : public Model {
     return right_.ConstHostVector().at(nidx);
   }
 
-  [[nodiscard]] bst_feature_t SplitIndex(bst_node_t nidx) const {
-    return split_index_.ConstHostVector()[nidx];
-  }
-  [[nodiscard]] float SplitCond(bst_node_t nidx) const {
-    return split_conds_.ConstHostVector()[nidx];
-  }
-  [[nodiscard]] bool DefaultLeft(bst_node_t nidx) const {
-    return default_left_.ConstHostVector()[nidx];
-  }
-  [[nodiscard]] bst_node_t DefaultChild(bst_node_t nidx) const {
-    return this->DefaultLeft(nidx) ? this->LeftChild(nidx) : this->RightChild(nidx);
-  }
-
   [[nodiscard]] bst_target_t NumTargets() const;
-
   [[nodiscard]] auto NumLeaves() const { return this->weights_.Size() / this->NumTargets(); }
 
-  [[nodiscard]] bool IsLeftChild(bst_node_t nidx) const {
-    auto p = this->Parent(nidx);
-    return nidx == this->LeftChild(p);
-  }
   [[nodiscard]] std::size_t Size() const;
   [[nodiscard]] MultiTargetTree* Copy(TreeParam const* param) const;
 

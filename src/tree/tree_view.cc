@@ -29,35 +29,35 @@ auto DispatchWeight(DeviceOrd device, RegTree const* tree) {
 }
 }  // namespace
 
-ScalarTreeView::ScalarTreeView(Context const* /*ctx*/, RegTree const* tree)
-    : nodes{tree->GetNodes().data()},
+ScalarTreeView::ScalarTreeView(Context const* ctx, RegTree const* tree)
+    : CategoriesMixIn{tree->GetCategoriesMatrix(ctx->Device())},
+      nodes{tree->GetNodes().data()},
       stats{tree->GetStats().data()},
-      cats{tree->GetCategoriesMatrix()},
       n{tree->NumNodes()} {
   CHECK(!tree->IsMultiTarget());
 }
 
 MultiTargetTreeView::MultiTargetTreeView(Context const* ctx, RegTree const* tree)
-    : left{DispatchPtr(ctx, tree->GetMultiTargetTree()->left_)},
+    : CategoriesMixIn{tree->GetCategoriesMatrix(ctx->Device())},
+      left{DispatchPtr(ctx, tree->GetMultiTargetTree()->left_)},
       right{DispatchPtr(ctx, tree->GetMultiTargetTree()->right_)},
       parent{DispatchPtr(ctx, tree->GetMultiTargetTree()->parent_)},
       split_index{DispatchPtr(ctx, tree->GetMultiTargetTree()->split_index_)},
       default_left{DispatchPtr(ctx, tree->GetMultiTargetTree()->default_left_)},
       split_conds{DispatchPtr(ctx, tree->GetMultiTargetTree()->split_conds_)},
-      cats{tree->GetCategoriesMatrix()},
       n{tree->NumNodes()},
       weights{DispatchWeight(ctx->Device(), tree)} {
   CHECK(tree->IsMultiTarget());
 }
 
 MultiTargetTreeView::MultiTargetTreeView(RegTree const* tree)
-    : left{tree->GetMultiTargetTree()->left_.ConstHostPointer()},
+    : CategoriesMixIn{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
+      left{tree->GetMultiTargetTree()->left_.ConstHostPointer()},
       right{tree->GetMultiTargetTree()->right_.ConstHostPointer()},
       parent{tree->GetMultiTargetTree()->parent_.ConstHostPointer()},
       split_index{tree->GetMultiTargetTree()->split_index_.ConstHostPointer()},
       default_left{tree->GetMultiTargetTree()->default_left_.ConstHostPointer()},
       split_conds{tree->GetMultiTargetTree()->split_conds_.ConstHostPointer()},
-      cats{tree->GetCategoriesMatrix()},
       n{tree->NumNodes()},
       weights{DispatchWeight(DeviceOrd::CPU(), tree)} {
   CHECK(tree->IsMultiTarget());

@@ -472,7 +472,7 @@ class DeviceModel {
     std::vector<FeatureType>& h_split_types = split_types.HostVector();
     h_split_types.resize(h_tree_segments.back());
     for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      auto const& src_st = model.trees.at(tree_idx)->GetSplitTypes();
+      auto const& src_st = model.trees.at(tree_idx)->GetSplitTypes(DeviceOrd::CPU());
       std::copy(src_st.cbegin(), src_st.cend(),
                 h_split_types.begin() + h_tree_segments[tree_idx - tree_begin]);
     }
@@ -482,7 +482,7 @@ class DeviceModel {
     std::vector<uint32_t>& h_categories = categories.HostVector();
     std::vector<uint32_t>& h_split_cat_segments = categories_tree_segments.HostVector();
     for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      auto const& src_cats = model.trees.at(tree_idx)->GetSplitCategories();
+      auto const& src_cats = model.trees.at(tree_idx)->GetSplitCategories(DeviceOrd::CPU());
       size_t orig_size = h_categories.size();
       h_categories.resize(orig_size + src_cats.size());
       std::copy(src_cats.cbegin(), src_cats.cend(), h_categories.begin() + orig_size);
