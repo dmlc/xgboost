@@ -225,6 +225,15 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
   explicit MultiTargetTreeView(RegTree const* tree);
 };
 
+/**
+ * @brief Iterate through all nodes in a tree.
+ *
+ * @param tree  The tree to traversal
+ * @param fn    See @ref WalkTreeMixIn , addition tree views are passed into the function if @ref
+ *              trees is not empty.
+ * @param trees Additional trees that have the same target type as @ref tree . We can
+ *              dispatch all trees together for easier access.
+ */
 template <typename Fn, typename... Tree>
 void WalkTree(RegTree const& tree, Fn&& fn, Tree const&... trees) {
   if (tree.IsMultiTarget()) {
