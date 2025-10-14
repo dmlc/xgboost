@@ -261,10 +261,12 @@ endmacro()
 
 # handles dependencies
 macro(xgboost_target_link_libraries target)
-  if(BUILD_STATIC_LIB)
-    target_link_libraries(${target} PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
-  else()
-    target_link_libraries(${target} PRIVATE Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
+  if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Emscripten"))
+    if(BUILD_STATIC_LIB)
+      target_link_libraries(${target} PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
+    else()
+      target_link_libraries(${target} PRIVATE Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
+    endif()
   endif()
 
   if(USE_OPENMP)

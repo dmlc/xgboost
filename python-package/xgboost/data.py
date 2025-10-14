@@ -1619,7 +1619,7 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
 
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
-        self.it = 0  # pylint: disable=invalid-name
+        self.it = 0
 
         # This does not necessarily increase memory usage as the data transformation
         # might use memory.

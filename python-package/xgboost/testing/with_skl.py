@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, too-many-arguments, too-many-positional-arguments
+# pylint: disable=too-many-arguments, too-many-positional-arguments
 """Tests for compatiblity with sklearn."""
 
 from typing import Callable, Optional, Type

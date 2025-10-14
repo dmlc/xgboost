@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  */
 #pragma once
 #include <thrust/device_malloc_allocator.h>  // for device_malloc_allocator
@@ -7,21 +7,12 @@
 #include <thrust/device_vector.h>            // for device_vector
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include <rmm/device_uvector.hpp>                      // for device_uvector
-#include <rmm/exec_policy.hpp>                         // for exec_policy_nosync
-#include <rmm/mr/device/device_memory_resource.hpp>    // for device_memory_resource
-#include <rmm/mr/device/per_device_resource.hpp>       // for get_current_device_resource
-#include <rmm/mr/device/thrust_allocator_adaptor.hpp>  // for thrust_allocator
-#include <rmm/version_config.hpp>                      // for RMM_VERSION_MAJOR
+#include <cuda/memory_resource>                      // for async_resource_ref
+#include <cuda/stream_ref>                           // for stream_ref
+#include <rmm/mr/device/device_memory_resource.hpp>  // for device_memory_resource
+#include <rmm/mr/device/per_device_resource.hpp>     // for get_current_device_resource
 
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
-
-#if !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
-
-#error "Please use RMM version 0.18 or later"
-#elif RMM_VERSION_MAJOR == 0 && RMM_VERSION_MINOR < 18
-#error "Please use RMM version 0.18 or later"
-#endif  // !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
 
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
@@ -37,6 +28,7 @@
 
 #include "common.h"         // for safe_cuda, HumanMemUnit
 #include "cuda_dr_utils.h"  // for CuDriverApi
+#include "cuda_stream.h"    // for DefaultStream
 #include "xgboost/logging.h"
 #include "xgboost/span.h"  // for Span
 
@@ -263,10 +255,45 @@ inline detail::MemoryLogger &GlobalMemoryLogger() {
   return memory_logger;
 }
 
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+using DeviceAsyncResourceRef = cuda::mr::async_resource_ref<cuda::mr::device_accessible>;
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
 namespace detail {
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+/**
+ * @brief Similar to `rmm::mr::thrust_allocator`.
+ */
 template <typename T>
-using XGBBaseDeviceAllocator = rmm::mr::thrust_allocator<T>;
+class ThrustAllocMrAdapter : public thrust::device_malloc_allocator<T> {
+  DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource()};
+
+ public:
+  using Super = thrust::device_malloc_allocator<T>;
+  using pointer = typename Super::pointer;      // NOLINT(readability-identifier-naming)
+  using size_type = typename Super::size_type;  // NOLINT(readability-identifier-naming)
+
+  template <typename U>
+  struct rebind {                           // NOLINT(readability-identifier-naming)
+    using other = ThrustAllocMrAdapter<U>;  // NOLINT(readability-identifier-naming)
+  };
+
+  ThrustAllocMrAdapter() = default;
+  pointer allocate(size_type n) {  // NOLINT(readability-identifier-naming)
+    auto n_bytes = xgboost::common::SizeBytes<T>(n);
+    auto s = cuda::stream_ref{::xgboost::curt::DefaultStream()};
+    auto p = static_cast<T *>(mr_.allocate_async(n_bytes, std::alignment_of_v<T>, s));
+    return thrust::device_pointer_cast(p);
+  }
+  void deallocate(pointer ptr, size_type n) {  // NOLINT(readability-identifier-naming)
+    auto n_bytes = xgboost::common::SizeBytes<T>(n);
+    auto s = ::xgboost::curt::DefaultStream();
+    return mr_.deallocate_async(thrust::raw_pointer_cast(ptr), n_bytes, cuda::stream_ref{s});
+  }
+};
+
+template <typename T>
+using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
 #else   // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 template <typename T>
 using XGBBaseDeviceAllocator = thrust::device_malloc_allocator<T>;
@@ -299,10 +326,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     GlobalMemoryLogger().RegisterDeallocation(n * sizeof(T));
     SuperT::deallocate(ptr, n);
   }
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  XGBDefaultDeviceAllocatorImpl()
-      : SuperT(rmm::cuda_stream_per_thread, rmm::mr::get_current_device_resource()) {}
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  XGBDefaultDeviceAllocatorImpl() : SuperT{} {}
 };
 
 /**
@@ -358,8 +382,7 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBCachingDeviceAllocatorImpl()
-      : SuperT(rmm::cuda_stream_per_thread, rmm::mr::get_current_device_resource()),
-        use_cub_allocator_(!xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm) {}
+      : SuperT{}, use_cub_allocator_(!xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm) {}
 #endif                                   // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBOOST_DEVICE void construct(T *) {}  // NOLINT
  private:
@@ -383,65 +406,9 @@ using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
  *         OOM errors.
  */
 template <typename T>
-using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;  // NOLINT
+using device_vector = thrust::device_vector<T, XGBDeviceAllocator<T>>;  // NOLINT
 template <typename T>
-using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocator<T>>;  // NOLINT
-
-#if defined(XGBOOST_USE_RMM)
-/**
- * @brief Similar to `rmm::logging_resource_adaptor`, but uses XGBoost memory logger instead.
- */
-class LoggingResource : public rmm::mr::device_memory_resource {
-  rmm::mr::device_memory_resource *mr_{rmm::mr::get_current_device_resource()};
-
- public:
-  LoggingResource() = default;
-  ~LoggingResource() override = default;
-  LoggingResource(LoggingResource const &) = delete;
-  LoggingResource &operator=(LoggingResource const &) = delete;
-  LoggingResource(LoggingResource &&) noexcept = delete;
-  LoggingResource &operator=(LoggingResource &&) noexcept = delete;
-
-  [[nodiscard]] rmm::device_async_resource_ref get_upstream_resource() const noexcept {  // NOLINT
-    return mr_;
-  }
-  [[nodiscard]] rmm::mr::device_memory_resource *get_upstream() const noexcept {  // NOLINT
-    return mr_;
-  }
-
-  void *do_allocate(std::size_t bytes, rmm::cuda_stream_view stream) override {  // NOLINT
-    try {
-      auto const ptr = mr_->allocate(bytes, stream);
-      GlobalMemoryLogger().RegisterAllocation(bytes);
-      return ptr;
-    } catch (rmm::bad_alloc const &e) {
-      detail::ThrowOOMError(e.what(), bytes);
-    }
-    return nullptr;
-  }
-
-  void do_deallocate(void *ptr, std::size_t bytes,  // NOLINT
-                     rmm::cuda_stream_view stream) override {
-    mr_->deallocate(ptr, bytes, stream);
-    GlobalMemoryLogger().RegisterDeallocation(bytes);
-  }
-
-  [[nodiscard]] bool do_is_equal(  // NOLINT
-      device_memory_resource const &other) const noexcept override {
-    if (this == &other) {
-      return true;
-    }
-    auto const *cast = dynamic_cast<LoggingResource const *>(&other);
-    if (cast == nullptr) {
-      return mr_->is_equal(other);
-    }
-    return get_upstream_resource() == cast->get_upstream_resource();
-  }
-};
-
-LoggingResource *GlobalLoggingResource();
-
-#endif  // defined(XGBOOST_USE_RMM)
+using caching_device_vector = thrust::device_vector<T, XGBCachingDeviceAllocator<T>>;  // NOLINT
 
 /**
  * @brief Container class that doesn't initialize the data when RMM is used.
@@ -449,11 +416,13 @@ LoggingResource *GlobalLoggingResource();
 template <typename T, bool is_caching>
 class DeviceUVectorImpl {
  private:
-#if defined(XGBOOST_USE_RMM)
-  rmm::device_uvector<T> data_{0, rmm::cuda_stream_per_thread, GlobalLoggingResource()};
-#else
-  std::conditional_t<is_caching, ::dh::caching_device_vector<T>, ::dh::device_vector<T>> data_;
-#endif  // defined(XGBOOST_USE_RMM)
+  using Alloc =
+      std::conditional_t<is_caching, dh::XGBCachingDeviceAllocator<T>, dh::XGBDeviceAllocator<T>>;
+  Alloc alloc_;
+
+  std::size_t size_{0};
+  std::size_t capacity_{0};
+  std::unique_ptr<T, std::function<void(T *)>> data_;
 
  public:
   using value_type = T;                        // NOLINT
@@ -470,47 +439,64 @@ class DeviceUVectorImpl {
   DeviceUVectorImpl(DeviceUVectorImpl &&that) = default;
   DeviceUVectorImpl &operator=(DeviceUVectorImpl &&that) = default;
 
+  [[nodiscard]] std::size_t Capacity() const { return this->capacity_; }
+
+  // Resize without init.
   void resize(std::size_t n) {  // NOLINT
-#if defined(XGBOOST_USE_RMM)
-    data_.resize(n, rmm::cuda_stream_per_thread);
-#else
-    data_.resize(n);
-#endif
-  }
-  void resize(std::size_t n, T const &v) {         // NOLINT
-#if defined(XGBOOST_USE_RMM)
-    auto orig = this->size();
-    data_.resize(n, rmm::cuda_stream_per_thread);
-    if (orig < n) {
-      thrust::fill(rmm::exec_policy_nosync{}, this->begin() + orig, this->end(), v);
+    using ::xgboost::common::SizeBytes;
+
+    if (n <= this->Capacity()) {
+      this->size_ = n;
+      // early exit as no allocation is needed.
+      return;
     }
-#else
-    data_.resize(n, v);
-#endif
+    CHECK_LE(this->size(), this->Capacity());
+
+    Alloc alloc = this->alloc_;
+    decltype(data_) new_ptr{thrust::raw_pointer_cast(this->alloc_.allocate(n)),
+                            [=](T *ptr) mutable {
+                              if (ptr) {
+                                alloc.deallocate(thrust::device_pointer_cast(ptr), n);
+                              }
+                            }};
+    CHECK(new_ptr.get());
+
+    auto s = ::xgboost::curt::DefaultStream();
+    safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), SizeBytes<T>(this->size()),
+                              cudaMemcpyDefault, s));
+    this->size_ = n;
+    this->capacity_ = n;
+
+    std::swap(this->data_, new_ptr);
+  }
+  // Resize with init
+  void resize(std::size_t n, T const &v) {  // NOLINT
+    auto orig = this->size();
+    this->resize(n);
+    if (orig < n) {
+      auto exec = thrust::cuda::par_nosync.on(::xgboost::curt::DefaultStream());
+      thrust::fill(exec, this->begin() + orig, this->end(), v);
+    }
   }
 
   void clear() {  // NOLINT
-#if defined(XGBOOST_USE_RMM)
-    this->data_.resize(0, rmm::cuda_stream_per_thread);
-#else
-    this->data_.clear();
-#endif  // defined(XGBOOST_USE_RMM)
+    this->resize(0);
   }
 
-  [[nodiscard]] std::size_t size() const { return data_.size(); }  // NOLINT
-  [[nodiscard]] bool empty() const { return this->size() == 0; }   // NOLINT
+  [[nodiscard]] std::size_t size() const { return this->size_; }  // NOLINT
+  [[nodiscard]] bool empty() const { return this->size() == 0; }  // NOLINT
 
-  [[nodiscard]] auto begin() { return data_.begin(); }  // NOLINT
-  [[nodiscard]] auto end() { return data_.end(); }      // NOLINT
+  [[nodiscard]] auto begin() { return this->data(); }               // NOLINT
+  [[nodiscard]] auto end() { return this->data() + this->size(); }  // NOLINT
 
   [[nodiscard]] auto begin() const { return this->cbegin(); }  // NOLINT
   [[nodiscard]] auto end() const { return this->cend(); }      // NOLINT
 
-  [[nodiscard]] auto cbegin() const { return data_.cbegin(); }  // NOLINT
-  [[nodiscard]] auto cend() const { return data_.cend(); }      // NOLINT
+  [[nodiscard]] auto cbegin() const { return this->data(); }               // NOLINT
+  [[nodiscard]] auto cend() const { return this->data() + this->size(); }  // NOLINT
 
-  [[nodiscard]] auto data() { return thrust::raw_pointer_cast(data_.data()); }        // NOLINT
-  [[nodiscard]] auto data() const { return thrust::raw_pointer_cast(data_.data()); }  // NOLINT
+  [[nodiscard]] auto data() { return this->data_.get(); }        // NOLINT
+  [[nodiscard]] auto data() const { return this->data_.get(); }  // NOLINT
 };
 
 template <typename T>

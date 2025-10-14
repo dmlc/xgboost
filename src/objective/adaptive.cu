@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #include <thrust/sort.h>
 
@@ -8,9 +8,11 @@
 
 #include "../collective/aggregator.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
+#include "../common/cuda_stream.h"     // for Event, Stream
 #include "../common/device_helpers.cuh"
 #include "../common/stats.cuh"
 #include "../tree/sample_position.h"  // for SamplePosition
+#include "../tree/tree_view.h"        // for WalkTree
 #include "adaptive.h"
 #include "xgboost/context.h"
 
@@ -39,8 +41,8 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                    sorted_position.cbegin();
   if (beg_pos == sorted_position.size()) {
     auto& leaf = p_nidx->HostVector();
-    tree.WalkTree([&](bst_node_t nidx) {
-      if (tree[nidx].IsLeaf()) {
+    tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
+      if (tree.IsLeaf(nidx)) {
         leaf.push_back(nidx);
       }
       return true;
@@ -69,10 +71,10 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   dh::PinnedMemory pinned_pool;
   auto pinned = pinned_pool.GetSpan<char>(sizeof(size_t) + sizeof(bst_node_t));
-  dh::CUDAStream copy_stream;
+  curt::Stream copy_stream;
   size_t* h_num_runs = reinterpret_cast<size_t*>(pinned.subspan(0, sizeof(size_t)).data());
 
-  dh::CUDAEvent e;
+  curt::Event e;
   e.Record(cuctx->Stream());
   copy_stream.View().Wait(e);
   // flag for whether there's ignored position
@@ -121,8 +123,8 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
     nidx.Resize(*h_num_runs);
 
     std::vector<bst_node_t> leaves;
-    tree.WalkTree([&](bst_node_t nidx) {
-      if (tree[nidx].IsLeaf()) {
+    tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
+      if (tree.IsLeaf(nidx)) {
         leaves.push_back(nidx);
       }
       return true;

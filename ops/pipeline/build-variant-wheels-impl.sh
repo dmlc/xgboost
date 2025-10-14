@@ -20,5 +20,5 @@ python -m pip install "variantlib[cli] @ git+https://github.com/wheelnext/varian
 python -m pip install "nvidia-variant-provider @ git+https://github.com/wheelnext/nvidia-variant-provider.git@master"
 variantlib make-variant --no-isolation -f python-package/dist/xgboost-*.whl \
   -p "nvidia :: cuda_version_lower_bound :: 12.0" \
-  -p "nvidia :: cuda_version_upper_bound :: 12.9" \
+  -p "nvidia :: cuda_version_upper_bound :: 13" \
   -o . --pyproject-toml python-package/pyproject.toml

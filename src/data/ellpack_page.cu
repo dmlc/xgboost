@@ -15,6 +15,7 @@
 #include "../common/categorical.h"          // for IsCat
 #include "../common/cuda_context.cuh"       // for CUDAContext
 #include "../common/cuda_rt_utils.h"        // for SetDevice
+#include "../common/cuda_stream.h"          // for DefaultStream
 #include "../common/hist_util.cuh"          // for HistogramCuts
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
 #include "../common/transform_iterator.h"   // for MakeIndexTransformIter
@@ -496,7 +497,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
 
 EllpackPageImpl::~EllpackPageImpl() noexcept(false) {
   // Sync the stream to make sure all running CUDA kernels finish before deallocation.
-  auto status = dh::DefaultStream().Sync(false);
+  auto status = curt::DefaultStream().Sync(false);
   if (status != cudaSuccess) {
     auto str = cudaGetErrorString(status);
     // For external-memory, throwing here can trigger a series of calls to

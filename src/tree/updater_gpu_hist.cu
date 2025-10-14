@@ -15,6 +15,7 @@
 #include "../common/categorical.h"     // for KCatBitField
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/cuda_rt_utils.h"   // for SetDevice
+#include "../common/cuda_stream.h"     // for DefaultStream
 #include "../common/device_helpers.cuh"
 #include "../common/device_vector.cuh"  // for device_vector
 #include "../common/hist_util.h"        // for HistogramCuts
@@ -791,7 +792,7 @@ struct GPUHistMakerDevice {
       this->PartitionAndBuildHist(p_fmat, expand_set, valid_candidates, p_tree);
 
       this->EvaluateSplits(p_fmat, valid_candidates, *p_tree, new_candidates);
-      dh::DefaultStream().Sync();
+      curt::DefaultStream().Sync();
 
       driver.Push(new_candidates.begin(), new_candidates.end());
       expand_set = driver.Pop();

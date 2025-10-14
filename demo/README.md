@@ -10,7 +10,6 @@ Contents
 --------
 - [Code Examples](#code-examples)
   - [Features Walkthrough](#features-walkthrough)
-  - [Basic Examples by Tasks](#basic-examples-by-tasks)
   - [Benchmarks](#benchmarks)
 - [Machine Learning Challenge Winning Solutions](#machine-learning-challenge-winning-solutions)
 - [Tutorials](#tutorials)
@@ -22,16 +21,18 @@ Contents
 
 Code Examples
 -------------
+
 ### Features Walkthrough
 
 _Note: for the R package, see the in-package examples and vignettes instead_
+
+_Note: For the Python package, see [Feature Walk through](https://xgboost.readthedocs.io/en/stable/python/examples/index.html)._
 
 This is a list of short codes introducing different functionalities of xgboost packages.
 
 * Basic walkthrough of packages
   [python](guide-python/basic_walkthrough.py)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/basic_walkthrough.jl)
-  [PHP](https://github.com/bpachev/xgboost-php/blob/master/demo/titanic_demo.php)
 * Customize loss function, and evaluation metric
   [python](guide-python/custom_objective.py)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/custom_objective.jl)
@@ -49,16 +50,6 @@ This is a list of short codes introducing different functionalities of xgboost p
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/cross_validation.jl)
 * Predicting leaf indices
   [python](guide-python/predict_leaf_indices.py)
-
-### Basic Examples by Tasks
-
-Most of examples in this section are based on CLI or python version.
-However, the parameter settings can be applied to all versions
-
-- [Binary classification](CLI/binary_classification)
-- [Multiclass classification](multiclass_classification)
-- [Regression](CLI/regression)
-- [Learning to Rank](rank)
 
 ### Benchmarks
 

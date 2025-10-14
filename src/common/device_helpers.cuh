@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
 #include <thrust/binary_search.h>                       // thrust::upper_bound
@@ -16,11 +16,13 @@
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
+#include <cuda/std/iterator>  // for iterator_traits
 #include <variant>            // for variant, visit
 #include <vector>             // for vector
 
 #include "common.h"
 #include "cuda_rt_utils.h"  // for GetNumaId, CurrentDevice
+#include "cuda_stream.h"    // for Stream
 #include "device_vector.cuh"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
@@ -615,7 +617,7 @@ size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy
                        KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
                        ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
                        CompValue comp, CompKey comp_key = thrust::equal_to<size_t>{}) {
-  using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
+  using Key = thrust::pair<size_t, typename cuda::std::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
       [=] __device__(size_t i) {
@@ -661,16 +663,13 @@ size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy
  * \tparam val_out            output iterator for values
  * \tparam comp               binary comparison operator
  */
-template <typename DerivedPolicy, typename SegInIt, typename SegOutIt,
-          typename KeyInIt, typename ValInIt, typename ValOutIt, typename Comp>
-size_t SegmentedUniqueByKey(
-    const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
-    SegInIt key_segments_first, SegInIt key_segments_last, KeyInIt key_first,
-    KeyInIt key_last, ValInIt val_first, SegOutIt key_segments_out,
-    ValOutIt val_out, Comp comp) {
-  using Key =
-      thrust::pair<size_t,
-                   typename thrust::iterator_traits<KeyInIt>::value_type>;
+template <typename DerivedPolicy, typename SegInIt, typename SegOutIt, typename KeyInIt,
+          typename ValInIt, typename ValOutIt, typename Comp>
+size_t SegmentedUniqueByKey(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                            SegInIt key_segments_first, SegInIt key_segments_last,
+                            KeyInIt key_first, KeyInIt key_last, ValInIt val_first,
+                            SegOutIt key_segments_out, ValOutIt val_out, Comp comp) {
+  using Key = thrust::pair<size_t, typename cuda::std::iterator_traits<KeyInIt>::value_type>;
 
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
@@ -720,93 +719,9 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
   return aggregate;
 }
 
-class CUDAStreamView;
-
-class CUDAEvent {
-  std::unique_ptr<cudaEvent_t, void (*)(cudaEvent_t *)> event_;
-
- public:
-  explicit CUDAEvent(bool disable_timing = true)
-      : event_{[disable_timing] {
-                 auto e = new cudaEvent_t;
-                 dh::safe_cuda(cudaEventCreateWithFlags(
-                     e, disable_timing ? cudaEventDisableTiming : cudaEventDefault));
-                 return e;
-               }(),
-               [](cudaEvent_t *e) {
-                 if (e) {
-                   dh::safe_cuda(cudaEventDestroy(*e));
-                   delete e;
-                 }
-               }} {}
-
-  inline void Record(CUDAStreamView stream);  // NOLINT
-  // Define swap-based ctor to make sure an event is always valid.
-  CUDAEvent(CUDAEvent &&e) : CUDAEvent() { std::swap(this->event_, e.event_); }
-  CUDAEvent &operator=(CUDAEvent &&e) {
-    std::swap(this->event_, e.event_);
-    return *this;
-  }
-
-  operator cudaEvent_t() const { return *event_; }                // NOLINT
-  cudaEvent_t const *data() const { return this->event_.get(); }  // NOLINT
-  void Sync() { dh::safe_cuda(cudaEventSynchronize(*this->data())); }
-};
-
-class CUDAStreamView {
-  cudaStream_t stream_{nullptr};
-
- public:
-  explicit CUDAStreamView(cudaStream_t s) : stream_{s} {}
-  void Wait(CUDAEvent const &e) {
-#if defined(__CUDACC_VER_MAJOR__)
-#if __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0
-    // CUDA == 11.0
-    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, 0));
-#else
-    // CUDA > 11.0
-    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
-#endif  // __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0:
-#else   // clang
-    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
-#endif  //  defined(__CUDACC_VER_MAJOR__)
-  }
-  operator cudaStream_t() const {  // NOLINT
-    return stream_;
-  }
-  cudaError_t Sync(bool error = true) {
-    if (error) {
-      dh::safe_cuda(cudaStreamSynchronize(stream_));
-      return cudaSuccess;
-    }
-    return cudaStreamSynchronize(stream_);
-  }
-};
-
-inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
-  dh::safe_cuda(cudaEventRecord(*event_, cudaStream_t{stream}));
-}
-
-// Changing this has effect on prediction return, where we need to pass the pointer to
-// third-party libraries like cuPy
-inline CUDAStreamView DefaultStream() { return CUDAStreamView{cudaStreamPerThread}; }
-
-class CUDAStream {
-  cudaStream_t stream_;
-
- public:
-  CUDAStream() { dh::safe_cuda(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking)); }
-  ~CUDAStream() { dh::safe_cuda(cudaStreamDestroy(stream_)); }
-
-  [[nodiscard]] CUDAStreamView View() const { return CUDAStreamView{stream_}; }
-  [[nodiscard]] cudaStream_t Handle() const { return stream_; }
-
-  void Sync() { this->View().Sync(); }
-  void Wait(CUDAEvent const &e) { this->View().Wait(e); }
-};
-
 template <class Src, class Dst>
-void CopyTo(Src const &src, Dst *dst, CUDAStreamView stream = DefaultStream()) {
+void CopyTo(Src const &src, Dst *dst,
+            ::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {
   if (src.empty()) {
     dst->clear();
     return;
@@ -818,7 +733,6 @@ void CopyTo(Src const &src, Dst *dst, CUDAStreamView stream = DefaultStream()) {
   dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
                                 src.size() * sizeof(SVT), cudaMemcpyDefault, stream));
 }
-
 
 /**
  * @brief Wrapper for the @ref cudaMemcpyBatchAsync .
@@ -868,9 +782,9 @@ template <cudaMemcpyKind kind, typename T, typename U>
 inline auto CachingThrustPolicy() {
   XGBCachingDeviceAllocator<char> alloc;
 #if THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
-  return thrust::cuda::par_nosync(alloc).on(DefaultStream());
+  return thrust::cuda::par_nosync(alloc).on(::xgboost::curt::DefaultStream());
 #else
-  return thrust::cuda::par(alloc).on(DefaultStream());
+  return thrust::cuda::par(alloc).on(::xgboost::curt::DefaultStream());
 #endif  // THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
 }
 

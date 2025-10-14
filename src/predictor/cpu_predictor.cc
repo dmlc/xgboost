@@ -6,7 +6,6 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t, uint64_t
 #include <memory>     // for unique_ptr, shared_ptr
-#include <ostream>    // for char_traits, operator<<, basic_ostream
 #include <vector>     // for vector
 
 #include "../collective/allreduce.h"          // for Allreduce
@@ -50,7 +49,7 @@ bst_node_t GetLeafIndex(RegTree const &tree, const RegTree::FVec &feat,
     bst_feature_t split_index = tree[nidx].SplitIndex();
     auto fvalue = feat.GetFvalue(split_index);
     nidx = GetNextNode<has_missing, has_categorical>(
-        tree[nidx], nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
+        tree, nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
   }
   return nidx;
 }
@@ -74,8 +73,7 @@ void PredValueByOneTree(const RegTree& tree,
                         bst_node_t* p_nidx, int depth, int gid) {
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(tree, cats, fvec_tloc, block_size, p_nidx,
-                                                   depth);
+    ProcessArrayTree<has_categorical, any_missing>(tree, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
@@ -95,20 +93,20 @@ void PredValueByOneTree(const RegTree& tree,
 
 namespace multi {
 template <bool has_missing, bool has_categorical>
-bst_node_t GetLeafIndex(MultiTargetTree const &tree, const RegTree::FVec &feat,
+bst_node_t GetLeafIndex(tree::MultiTargetTreeView const &tree, const RegTree::FVec &feat,
                         RegTree::CategoricalSplitMatrix const &cats,
                         bst_node_t nidx) {
   while (!tree.IsLeaf(nidx)) {
     bst_feature_t split_index = tree.SplitIndex(nidx);
     auto fvalue = feat.GetFvalue(split_index);
-    nidx = GetNextNodeMulti<has_missing, has_categorical>(
+    nidx = GetNextNode<has_missing, has_categorical>(
         tree, nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
   }
   return nidx;
 }
 
 template <bool has_categorical>
-void PredValueByOneTree(RegTree::FVec const &p_feats, MultiTargetTree const &tree,
+void PredValueByOneTree(RegTree::FVec const &p_feats, tree::MultiTargetTreeView const &tree,
                         RegTree::CategoricalSplitMatrix const &cats,
                         linalg::VectorView<float> out_predt, bst_node_t nidx) {
   bst_node_t const leaf = p_feats.HasMissing()
@@ -125,11 +123,10 @@ template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
 void PredValueByOneTree(const RegTree &tree, std::size_t const predict_offset,
                         common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                         linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, bst_node_t depth) {
-  const auto &mt_tree = *(tree.GetMultiTargetTree());
+  const auto mt_tree = tree.HostMtView();
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(tree, cats, fvec_tloc, block_size, p_nidx,
-                                                   depth);
+    ProcessArrayTree<has_categorical, any_missing>(tree, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
@@ -149,7 +146,7 @@ void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree
                             bst_tree_t const tree_end, std::size_t const predict_offset,
                             common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                             linalg::MatrixView<float> out_predt,
-                            const std::vector<int>& tree_depth) {
+                            const std::vector<int> &tree_depth) {
   std::vector<bst_node_t> nidx;
   if constexpr (use_array_tree_layout) {
     nidx.resize(block_size, 0);
@@ -161,11 +158,11 @@ void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree
     int depth = use_array_tree_layout ? tree_depth[tree_id - tree_begin] : 0;
     if (tree.IsMultiTarget()) {
       if (has_categorical) {
-        multi::PredValueByOneTree<true, any_missing, use_array_tree_layout>
-          (tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth);
+        multi::PredValueByOneTree<true, any_missing, use_array_tree_layout>(
+            tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth);
       } else {
-        multi::PredValueByOneTree<false, any_missing, use_array_tree_layout>
-          (tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth);
+        multi::PredValueByOneTree<false, any_missing, use_array_tree_layout>(
+            tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth);
       }
     } else {
       auto const gid = model.tree_info[tree_id];
@@ -460,7 +457,6 @@ struct LaunchConfig : public Args... {
       }
     } else {
       for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-        // bool any_missing = !page.IsDense();
         fn(SparsePageView{page.GetView(), page.base_rowid, acc});
       }
     }
@@ -736,8 +732,8 @@ class ColumnSplitHelper {
 
       auto const fvalue = feat.GetFvalue(split_index);
       auto const decision = tree.HasCategoricalSplit()
-                                ? GetDecision<true>(node, nid, fvalue, cats)
-                                : GetDecision<false>(node, nid, fvalue, cats);
+                                ? GetDecision<true>(tree, nid, fvalue, cats)
+                                : GetDecision<false>(tree, nid, fvalue, cats);
       if (decision) {
         decision_bits_.Set(bit_index);
       }
@@ -1065,8 +1061,8 @@ class CPUPredictor : public Predictor {
             auto const &cats = tree.GetCategoriesMatrix();
             bst_node_t nidx = 0;
             if (tree.IsMultiTarget()) {
-              nidx = multi::GetLeafIndex<true, true>(*tree.GetMultiTargetTree(), fvec_tloc.front(),
-                                                     cats, nidx);
+              nidx =
+                  multi::GetLeafIndex<true, true>(tree.HostMtView(), fvec_tloc.front(), cats, nidx);
             } else {
               nidx = scalar::GetLeafIndex<true, true>(tree, fvec_tloc.front(), cats, nidx);
             }
