@@ -900,8 +900,7 @@ void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
                    right_leaf_weight, loss_change, sum_hess, left_sum, right_sum);
 
   auto& h_split_categories = split_categories_.HostVector();
-
-  size_t orig_size = split_categories_.Size();
+  std::size_t orig_size = h_split_categories.size();
   h_split_categories.resize(orig_size + split_cat.size());
   std::copy(split_cat.data(), split_cat.data() + split_cat.size(),
             h_split_categories.begin() + orig_size);

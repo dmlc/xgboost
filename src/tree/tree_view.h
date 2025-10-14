@@ -100,7 +100,6 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView>, public CategoriesM
   RegTree::Node const* nodes;
 
   RTreeNodeStat const* stats;
-  RegTree::CategoricalSplitMatrix cats;
   // The number of nodes
   bst_node_t n{0};
 
@@ -148,7 +147,7 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView>, public CategoriesM
 
   XGBOOST_DEVICE explicit ScalarTreeView(RegTree::Node const* nodes, RTreeNodeStat const* stats,
                                          RegTree::CategoricalSplitMatrix cats, bst_node_t n_nodes)
-      : nodes{nodes}, stats{stats}, cats{std::move(cats)}, n{n_nodes} {}
+      : CategoriesMixIn{std::move(cats)}, nodes{nodes}, stats{stats}, n{n_nodes} {}
 
   /** @brief Create a device view, not implemented yet. */
   explicit ScalarTreeView(Context const* ctx, RegTree const* tree);
