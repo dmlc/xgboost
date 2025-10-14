@@ -43,10 +43,10 @@ DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 
 namespace scalar {
 template <bool has_missing, bool has_categorical>
-bst_node_t GetLeafIndex(RegTree const &tree, const RegTree::FVec &feat,
+bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, const RegTree::FVec &feat,
                         RegTree::CategoricalSplitMatrix const &cats, bst_node_t nidx) {
-  while (!tree[nidx].IsLeaf()) {
-    bst_feature_t split_index = tree[nidx].SplitIndex();
+  while (!tree.IsLeaf(nidx)) {
+    bst_feature_t split_index = tree.SplitIndex(nidx);
     auto fvalue = feat.GetFvalue(split_index);
     nidx = GetNextNode<has_missing, has_categorical>(
         tree, nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
@@ -55,22 +55,21 @@ bst_node_t GetLeafIndex(RegTree const &tree, const RegTree::FVec &feat,
 }
 
 template <bool has_categorical>
-[[nodiscard]] float PredValueByOneTree(const RegTree::FVec &p_feats, RegTree const &tree,
+[[nodiscard]] float PredValueByOneTree(const RegTree::FVec &p_feats,
+                                       tree::ScalarTreeView const &tree,
                                        RegTree::CategoricalSplitMatrix const &cats,
                                        bst_node_t nidx) noexcept(true) {
   const bst_node_t leaf = p_feats.HasMissing()
                               ? GetLeafIndex<true, has_categorical>(tree, p_feats, cats, nidx)
                               : GetLeafIndex<false, has_categorical>(tree, p_feats, cats, nidx);
-  return tree[leaf].LeafValue();
+  return tree.LeafValue(leaf);
 }
 
 template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
-void PredValueByOneTree(const RegTree& tree,
-                        std::size_t const predict_offset,
-                        common::Span<RegTree::FVec> fvec_tloc,
-                        std::size_t const block_size,
-                        linalg::MatrixView<float> out_predt,
-                        bst_node_t* p_nidx, int depth, int gid) {
+void PredValueByOneTree(tree::ScalarTreeView const &tree, std::size_t const predict_offset,
+                        common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
+                        linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, int depth,
+                        int gid) {
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
     ProcessArrayTree<has_categorical, any_missing>(tree, fvec_tloc, block_size, p_nidx, depth);
@@ -126,7 +125,7 @@ void PredValueByOneTree(const RegTree &tree, std::size_t const predict_offset,
   const auto mt_tree = tree.HostMtView();
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(tree, fvec_tloc, block_size, p_nidx, depth);
+    ProcessArrayTree<has_categorical, any_missing>(mt_tree, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
@@ -167,11 +166,13 @@ void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree
     } else {
       auto const gid = model.tree_info[tree_id];
       if (has_categorical) {
-        scalar::PredValueByOneTree<true, any_missing, use_array_tree_layout>
-          (tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth, gid);
+        scalar::PredValueByOneTree<true, any_missing, use_array_tree_layout>(
+            tree.HostScView(), predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth,
+            gid);
       } else {
-        scalar::PredValueByOneTree<false, any_missing, use_array_tree_layout>
-          (tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth, gid);
+        scalar::PredValueByOneTree<false, any_missing, use_array_tree_layout>(
+            tree.HostScView(), predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth,
+            gid);
       }
     }
   }
@@ -566,25 +567,25 @@ void PredictBatchByBlockKernel(DataView const &batch, gbm::GBTreeModel const &mo
   });
 }
 
-float FillNodeMeanValues(RegTree const *tree, bst_node_t nidx, std::vector<float> *mean_values) {
-  bst_float result;
-  auto &node = (*tree)[nidx];
+float FillNodeMeanValues(tree::ScalarTreeView const &tree, bst_node_t nidx,
+                         std::vector<float> *mean_values) {
+  float result;
   auto &node_mean_values = *mean_values;
-  if (node.IsLeaf()) {
-    result = node.LeafValue();
+  if (tree.IsLeaf(nidx)) {
+    result = tree.LeafValue(nidx);
   } else {
-    result = FillNodeMeanValues(tree, node.LeftChild(), mean_values) *
-             tree->Stat(node.LeftChild()).sum_hess;
-    result += FillNodeMeanValues(tree, node.RightChild(), mean_values) *
-              tree->Stat(node.RightChild()).sum_hess;
-    result /= tree->Stat(nidx).sum_hess;
+    result = FillNodeMeanValues(tree, tree.LeftChild(nidx), mean_values) *
+             tree.Stat(tree.LeftChild(nidx)).sum_hess;
+    result += FillNodeMeanValues(tree, tree.RightChild(nidx), mean_values) *
+              tree.Stat(tree.RightChild(nidx)).sum_hess;
+    result /= tree.Stat(nidx).sum_hess;
   }
   node_mean_values[nidx] = result;
   return result;
 }
 
-void FillNodeMeanValues(RegTree const *tree, std::vector<float> *mean_values) {
-  auto n_nodes = tree->NumNodes();
+void FillNodeMeanValues(tree::ScalarTreeView const &tree, std::vector<float> *mean_values) {
+  auto n_nodes = tree.Size();
   if (static_cast<decltype(n_nodes)>(mean_values->size()) == n_nodes) {
     return;
   }
@@ -713,18 +714,17 @@ class ColumnSplitHelper {
   }
 
   void MaskOneTree(RegTree::FVec const &feat, std::size_t tree_id, std::size_t row_id) {
-    auto const &tree = *model_.trees[tree_id];
+    auto const tree = model_.trees[tree_id]->HostScView();
     auto const &cats = tree.GetCategoriesMatrix();
-    bst_node_t n_nodes = tree.GetNodes().size();
+    bst_node_t n_nodes = tree.Size();
 
     for (bst_node_t nid = 0; nid < n_nodes; nid++) {
-      auto const &node = tree[nid];
-      if (node.IsDeleted() || node.IsLeaf()) {
+      if (tree.IsDeleted(nid) || tree.IsLeaf(nid)) {
         continue;
       }
 
       auto const bit_index = BitIndex(tree_id, row_id, nid);
-      unsigned split_index = node.SplitIndex();
+      unsigned split_index = tree.SplitIndex(nid);
       if (feat.IsMissing(split_index)) {
         missing_bits_.Set(bit_index);
         continue;
@@ -749,31 +749,31 @@ class ColumnSplitHelper {
     }
   }
 
-  bst_node_t GetNextNode(RegTree::Node const &node, std::size_t bit_index) {
+  bst_node_t GetNextNode(tree::ScalarTreeView const &tree, bst_node_t nidx, std::size_t bit_index) {
     if (missing_bits_.Check(bit_index)) {
-      return node.DefaultChild();
+      return tree.DefaultChild(nidx);
     } else {
-      return node.LeftChild() + !decision_bits_.Check(bit_index);
+      return tree.LeftChild(nidx) + !decision_bits_.Check(bit_index);
     }
   }
 
-  bst_node_t GetLeafIndex(RegTree const &tree, std::size_t tree_id, std::size_t row_id) {
+  bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, std::size_t tree_id, std::size_t row_id) {
     bst_node_t nid = 0;
-    while (!tree[nid].IsLeaf()) {
+    while (!tree.IsLeaf(nid)) {
       auto const bit_index = BitIndex(tree_id, row_id, nid);
-      nid = GetNextNode(tree[nid], bit_index);
+      nid = GetNextNode(tree, nid, bit_index);
     }
     return nid;
   }
 
   template <bool predict_leaf = false>
   bst_float PredictOneTree(std::size_t tree_id, std::size_t row_id) {
-    auto const &tree = *model_.trees[tree_id];
+    auto const tree = model_.trees[tree_id]->HostScView();
     auto const leaf = GetLeafIndex(tree, tree_id, row_id);
     if constexpr (predict_leaf) {
       return static_cast<bst_float>(leaf);
     } else {
-      return tree[leaf].LeafValue();
+      return tree.LeafValue(leaf);
     }
   }
 
@@ -944,10 +944,10 @@ class CPUPredictor : public Predictor {
             continue;
           }
           if (!approximate) {
-            CalculateContributions(*model.trees[j], feats, tree_mean_values, &this_tree_contribs[0],
-                                   condition, condition_feature);
+            CalculateContributions(model.trees[j]->HostScView(), feats, tree_mean_values,
+                                   &this_tree_contribs[0], condition, condition_feature);
           } else {
-            CalculateContributionsApprox(*model.trees[j], feats, tree_mean_values,
+            CalculateContributionsApprox(model.trees[j]->HostScView(), feats, tree_mean_values,
                                          &this_tree_contribs[0]);
           }
           for (size_t ci = 0; ci < ncolumns; ++ci) {
@@ -1064,7 +1064,8 @@ class CPUPredictor : public Predictor {
               nidx =
                   multi::GetLeafIndex<true, true>(tree.HostMtView(), fvec_tloc.front(), cats, nidx);
             } else {
-              nidx = scalar::GetLeafIndex<true, true>(tree, fvec_tloc.front(), cats, nidx);
+              nidx = scalar::GetLeafIndex<true, true>(tree.HostScView(), fvec_tloc.front(), cats,
+                                                      nidx);
             }
             preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
           }
@@ -1097,7 +1098,7 @@ class CPUPredictor : public Predictor {
     // initialize tree node mean values
     std::vector<std::vector<float>> mean_values(ntree_limit);
     common::ParallelFor(ntree_limit, n_threads, [&](bst_omp_uint i) {
-      FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]));
+      FillNodeMeanValues(model.trees[i]->HostScView(), &(mean_values[i]));
     });
 
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {

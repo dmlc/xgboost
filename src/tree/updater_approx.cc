@@ -112,7 +112,7 @@ class GlobalApproxBuilder {
     collective::SafeColl(rc);
 
     std::vector<CPUExpandEntry> nodes{best};
-    this->histogram_builder_.BuildRootHist(p_fmat, p_tree, partitioner_,
+    this->histogram_builder_.BuildRootHist(p_fmat, p_tree->HostScView(), partitioner_,
                                            linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1),
                                            best, BatchSpec(*param_, hess));
 
@@ -143,7 +143,7 @@ class GlobalApproxBuilder {
                       std::vector<GradientPair> const &gpair, common::Span<float> hess) {
     monitor_->Start(__func__);
     this->histogram_builder_.BuildHistLeftRight(
-        ctx_, p_fmat, p_tree, partitioner_, valid_candidates,
+        ctx_, p_fmat, p_tree->HostScView(), partitioner_, valid_candidates,
         linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1), BatchSpec(*param_, hess));
     monitor_->Stop(__func__);
   }
@@ -156,7 +156,7 @@ class GlobalApproxBuilder {
     }
     p_out_position->resize(hess.size());
     for (auto const &part : partitioner_) {
-      part.LeafPartition(ctx_, tree, hess,
+      part.LeafPartition(ctx_, tree.HostScView(), hess,
                          common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);
@@ -212,7 +212,7 @@ class GlobalApproxBuilder {
       size_t page_id = 0;
       for (auto const &page :
            p_fmat->GetBatches<GHistIndexMatrix>(ctx_, BatchSpec(*param_, hess))) {
-        partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree);
+        partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree->HostScView());
         page_id++;
       }
       monitor_->Stop("UpdatePosition");

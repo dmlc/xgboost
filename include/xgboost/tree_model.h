@@ -257,11 +257,8 @@ class RegTree : public Model {
   Node& operator[](int nid) {
     return nodes_[nid];
   }
-  /*! \brief get node given nid */
-  const Node& operator[](int nid) const {
-    return nodes_[nid];
-  }
 
+ public:
   /*! \brief get const reference to nodes */
   [[nodiscard]] const std::vector<Node>& GetNodes() const { return nodes_; }
 
@@ -391,26 +388,16 @@ class RegTree : public Model {
    */
   [[nodiscard]] bst_node_t GetDepth(bst_node_t nidx) const;
   /**
-   * \brief Set the leaf weight for a multi-target tree.
+   * @brief Set the leaf weight for a multi-target tree.
    */
   void SetLeaf(bst_node_t nidx, linalg::VectorView<float const> weight) {
     CHECK(IsMultiTarget());
     return this->p_mt_tree_->SetLeaf(nidx, weight);
   }
-
-  /*!
-   * \brief get maximum depth
-   * \param nid node id
+  /**
+   * @brief Get the maximum depth.
    */
-  [[nodiscard]] int MaxDepth(int nid) const {
-    if (nodes_[nid].IsLeaf()) return 0;
-    return std::max(MaxDepth(nodes_[nid].LeftChild()) + 1, MaxDepth(nodes_[nid].RightChild()) + 1);
-  }
-
-  /*!
-   * \brief get maximum depth
-   */
-  int MaxDepth() { return MaxDepth(0); }
+  [[nodiscard]] bst_node_t MaxDepth() const;
 
   /*!
    * \brief dense feature vector that can be taken by RegTree
@@ -475,12 +462,6 @@ class RegTree : public Model {
   [[nodiscard]] std::string DumpModel(const FeatureMap& fmap, bool with_stats,
                                       std::string format) const;
   /*!
-   * \brief Get split type for a node.
-   * \param nidx Index of node.
-   * \return The type of this split.  For leaf node it's always kNumerical.
-   */
-  [[nodiscard]] FeatureType NodeSplitType(bst_node_t nidx) const { return split_types_.at(nidx); }
-  /*!
    * \brief Get split types for all nodes.
    */
   [[nodiscard]] std::vector<FeatureType> const& GetSplitTypes() const {
@@ -488,16 +469,6 @@ class RegTree : public Model {
   }
   [[nodiscard]] common::Span<uint32_t const> GetSplitCategories() const {
     return split_categories_;
-  }
-  /*!
-   * \brief Get the bit storage for categories
-   */
-  [[nodiscard]] common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
-    auto node_ptr = GetCategoriesMatrix().node_ptr;
-    auto categories = GetCategoriesMatrix().categories;
-    auto segment = node_ptr[nidx];
-    auto node_cats = categories.subspan(segment.beg, segment.size);
-    return node_cats;
   }
   [[nodiscard]] auto const& GetSplitCategoriesPtr() const { return split_categories_segments_; }
 
@@ -526,45 +497,6 @@ class RegTree : public Model {
     return view;
   }
 
-  [[nodiscard]] bst_feature_t SplitIndex(bst_node_t nidx) const {
-    if (IsMultiTarget()) {
-      return this->p_mt_tree_->SplitIndex(nidx);
-    }
-    return (*this)[nidx].SplitIndex();
-  }
-  [[nodiscard]] float SplitCond(bst_node_t nidx) const {
-    if (IsMultiTarget()) {
-      return this->p_mt_tree_->SplitCond(nidx);
-    }
-    return (*this)[nidx].SplitCond();
-  }
-  [[nodiscard]] bool DefaultLeft(bst_node_t nidx) const {
-    if (IsMultiTarget()) {
-      return this->p_mt_tree_->DefaultLeft(nidx);
-    }
-    return (*this)[nidx].DefaultLeft();
-  }
-  [[nodiscard]] bst_node_t DefaultChild(bst_node_t nidx) const {
-    return this->DefaultLeft(nidx) ? this->LeftChild(nidx) : this->RightChild(nidx);
-  }
-  [[nodiscard]] bool IsRoot(bst_node_t nidx) const {
-    if (IsMultiTarget()) {
-      return nidx == kRoot;
-    }
-    return (*this)[nidx].IsRoot();
-  }
-  [[nodiscard]] bool IsLeaf(bst_node_t nidx) const {
-    if (IsMultiTarget()) {
-      return this->p_mt_tree_->IsLeaf(nidx);
-    }
-    return (*this)[nidx].IsLeaf();
-  }
-  [[nodiscard]] bst_node_t Parent(bst_node_t nidx) const {
-    if (IsMultiTarget()) {
-      return this->p_mt_tree_->Parent(nidx);
-    }
-    return (*this)[nidx].Parent();
-  }
   [[nodiscard]] bst_node_t LeftChild(bst_node_t nidx) const {
     if (IsMultiTarget()) {
       return this->p_mt_tree_->LeftChild(nidx);
@@ -576,14 +508,6 @@ class RegTree : public Model {
       return this->p_mt_tree_->RightChild(nidx);
     }
     return (*this)[nidx].RightChild();
-  }
-  [[nodiscard]] bool IsLeftChild(bst_node_t nidx) const {
-    if (IsMultiTarget()) {
-      CHECK_NE(nidx, kRoot);
-      auto p = this->p_mt_tree_->Parent(nidx);
-      return nidx == this->p_mt_tree_->LeftChild(p);
-    }
-    return (*this)[nidx].IsLeftChild();
   }
   [[nodiscard]] bst_node_t Size() const {
     if (IsMultiTarget()) {
@@ -649,6 +573,8 @@ class RegTree : public Model {
     nodes_[nid].MarkDelete();
     ++param_.num_deleted;
   }
+  /** @brief Get node given nid */
+  const Node& operator[](int nid) const { return nodes_[nid]; }
 };
 
 inline void RegTree::FVec::Init(size_t size) {

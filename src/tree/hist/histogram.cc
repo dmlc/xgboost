@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #include "histogram.h"
 
@@ -9,20 +9,22 @@
 #include <vector>   // for vector
 
 #include "../../common/transform_iterator.h"  // for MakeIndexTransformIter
+#include "../tree_view.h"                     // for ScalarTreeView, MultiTargetTreeView
 #include "expand_entry.h"                     // for MultiExpandEntry, CPUExpandEntry
-#include "xgboost/logging.h"                  // for CHECK_NE
+#include "xgboost/logging.h"                  // for CHECK_EQ
 #include "xgboost/span.h"                     // for Span
 #include "xgboost/tree_model.h"               // for RegTree
 
 namespace xgboost::tree {
-void AssignNodes(RegTree const *p_tree, std::vector<MultiExpandEntry> const &valid_candidates,
+void AssignNodes(MultiTargetTreeView const &tree,
+                 std::vector<MultiExpandEntry> const &valid_candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
   CHECK_EQ(nodes_to_build.size(), valid_candidates.size());
 
   std::size_t n_idx = 0;
   for (auto const &c : valid_candidates) {
-    auto left_nidx = p_tree->LeftChild(c.nid);
-    auto right_nidx = p_tree->RightChild(c.nid);
+    auto left_nidx = tree.LeftChild(c.nid);
+    auto right_nidx = tree.RightChild(c.nid);
 
     auto build_nidx = left_nidx;
     auto subtract_nidx = right_nidx;
@@ -42,12 +44,12 @@ void AssignNodes(RegTree const *p_tree, std::vector<MultiExpandEntry> const &val
   }
 }
 
-void AssignNodes(RegTree const *p_tree, std::vector<CPUExpandEntry> const &candidates,
+void AssignNodes(ScalarTreeView const &tree, std::vector<CPUExpandEntry> const &candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
   std::size_t n_idx = 0;
   for (auto const &c : candidates) {
-    auto left_nidx = (*p_tree)[c.nid].LeftChild();
-    auto right_nidx = (*p_tree)[c.nid].RightChild();
+    auto left_nidx = tree.LeftChild(c.nid);
+    auto right_nidx = tree.RightChild(c.nid);
     auto fewer_right = c.split.right_sum.GetHess() < c.split.left_sum.GetHess();
 
     auto build_nidx = left_nidx;

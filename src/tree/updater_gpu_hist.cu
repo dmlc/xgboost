@@ -35,6 +35,7 @@
 #include "hist/hist_param.h"             // for HistMakerTrainParam
 #include "param.h"                       // for TrainParam
 #include "sample_position.h"             // for SamplePosition
+#include "tree_view.h"                   // for ScalarTreeView
 #include "updater_gpu_common.cuh"        // for HistBatch
 #include "xgboost/base.h"                // for bst_idx_t
 #include "xgboost/context.h"             // for Context
@@ -71,7 +72,7 @@ static_assert(std::is_trivially_copyable_v<NodeSplitData>);
 void AssignNodes(RegTree const* p_tree, GradientQuantiser const* quantizer,
                  std::vector<GPUExpandEntry> const& candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
-  auto const& tree = *p_tree;
+  auto const& tree = p_tree->HostScView();
   std::size_t nidx_in_set{0};
   auto p_build_nidx = nodes_to_build.data();
   auto p_sub_nidx = nodes_to_sub.data();
@@ -84,11 +85,11 @@ void AssignNodes(RegTree const* p_tree, GradientQuantiser const* quantizer,
     auto right_sum = quantizer->ToFloatingPoint(e.split.right_sum);
     bool fewer_right = right_sum.GetHess() < left_sum.GetHess();
     if (fewer_right) {
-      p_build_nidx[nidx_in_set] = tree[e.nid].RightChild();
-      p_sub_nidx[nidx_in_set] = tree[e.nid].LeftChild();
+      p_build_nidx[nidx_in_set] = tree.RightChild(e.nid);
+      p_sub_nidx[nidx_in_set] = tree.LeftChild(e.nid);
     } else {
-      p_build_nidx[nidx_in_set] = tree[e.nid].LeftChild();
-      p_sub_nidx[nidx_in_set] = tree[e.nid].RightChild();
+      p_build_nidx[nidx_in_set] = tree.LeftChild(e.nid);
+      p_sub_nidx[nidx_in_set] = tree.RightChild(e.nid);
     }
     ++nidx_in_set;
   }
@@ -128,13 +129,14 @@ struct GPUHistMakerDevice {
   PartitionNodes CreatePartitionNodes(RegTree const* p_tree,
                                       std::vector<GPUExpandEntry> const& candidates) {
     PartitionNodes nodes(candidates.size());
+    auto tree =p_tree->HostScView();
     for (std::size_t i = 0, n = candidates.size(); i < n; i++) {
       auto const& e = candidates[i];
-      RegTree::Node split_node = (*p_tree)[e.nid];
-      auto split_type = p_tree->NodeSplitType(e.nid);
+      RegTree::Node split_node = tree.nodes[e.nid];
+      auto split_type = tree.SplitType(e.nid);
       nodes.nidx.at(i) = e.nid;
-      nodes.left_nidx[i] = split_node.LeftChild();
-      nodes.right_nidx[i] = split_node.RightChild();
+      nodes.left_nidx[i] = tree.LeftChild(e.nid);
+      nodes.right_nidx[i] = tree.RightChild(e.nid);
       nodes.split_data[i] =
           NodeSplitData{split_node, split_type, this->evaluator_.GetDeviceNodeCats(e.nid)};
 
@@ -294,10 +296,11 @@ struct GPUHistMakerDevice {
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
     // Store the feature set ptrs so they dont go out of scope before the kernel is called
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
+    auto sc_tree = tree.HostScView();
     for (std::size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
-      int left_nidx = tree[candidate.nid].LeftChild();
-      int right_nidx = tree[candidate.nid].RightChild();
+      bst_node_t left_nidx = sc_tree.LeftChild(candidate.nid);
+      bst_node_t right_nidx = sc_tree.RightChild(candidate.nid);
       nidx[i * 2] = left_nidx;
       nidx[i * 2 + 1] = right_nidx;
       auto left_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(left_nidx));
@@ -622,13 +625,13 @@ struct GPUHistMakerDevice {
     auto const& cat_segments = p_tree->GetSplitCategoriesPtr();
     auto d_categories = dh::ToSpan(categories);
     auto ft = p_fmat->Info().feature_types.ConstDeviceSpan();
+    auto const& tree = p_tree->HostScView();
 
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
       std::vector<NodeSplitData> split_data(p_tree->NumNodes());
-      auto const& tree = *p_tree;
       for (std::size_t i = 0, n = split_data.size(); i < n; ++i) {
-        RegTree::Node split_node = tree[i];
-        auto split_type = p_tree->NodeSplitType(i);
+        RegTree::Node split_node = tree.nodes[i];
+        auto split_type = tree.SplitType(i);
         auto node_cats = common::GetNodeCats(d_categories, cat_segments[i]);
         split_data[i] = NodeSplitData{std::move(split_node), split_type, node_cats};
       }

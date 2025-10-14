@@ -18,6 +18,7 @@
 #include "../../../src/common/bitfield.h"         // for LBitField32
 #include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
 #include "../../../src/data/proxy_dmatrix.h"      // for DMatrixProxy
+#include "../../../src/tree/tree_view.h"          // for MultiTargetTreeView
 #include "../collective/test_worker.h"            // for TestDistributedGlobal
 #include "../helpers.h"                           // for GetDMatrixFromData, RandomDataGenerator
 #include "xgboost/json.h"                         // for Json, Object, get, String
@@ -813,7 +814,8 @@ void TestVectorLeafPrediction(Context const *ctx) {
   };
 
   // go to right
-  HostDeviceVector<float> data(kRows * kCols, model.trees.front()->SplitCond(RegTree::kRoot) + 1.0);
+  auto mt_tree = model.trees.front()->HostMtView();
+  HostDeviceVector<float> data(kRows * kCols, mt_tree.SplitCond(RegTree::kRoot) + 1.0);
   test_batch(2.5, &data);
   if (!ctx->IsCUDA()) {
     test_inplace(2.5, &data);
@@ -821,7 +823,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   }
 
   // go to left
-  data.HostVector().assign(data.Size(), model.trees.front()->SplitCond(RegTree::kRoot) - 1.0);
+  data.HostVector().assign(data.Size(), mt_tree.SplitCond(RegTree::kRoot) - 1.0);
   test_batch(1.5, &data);
   if (!ctx->IsCUDA()) {
     test_inplace(1.5, &data);

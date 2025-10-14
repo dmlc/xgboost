@@ -832,6 +832,13 @@ bool RegTree::Equal(const RegTree& b) const {
   return this->HostScView().GetDepth(nidx);
 }
 
+[[nodiscard]] bst_node_t RegTree::MaxDepth() const {
+  if (this->IsMultiTarget()) {
+    return this->HostMtView().MaxDepth(RegTree::kRoot);
+  }
+  return this->HostScView().MaxDepth(RegTree::kRoot);
+}
+
 void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
                          bool default_left, bst_float base_weight,
                          bst_float left_leaf_weight,
@@ -999,7 +1006,7 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
   U8Array split_type(split_types_.size());
 
   for (size_t i = 0; i < nodes_.size(); ++i) {
-    split_type.Set(i, static_cast<std::underlying_type_t<FeatureType>>(this->NodeSplitType(i)));
+    split_type.Set(i, static_cast<std::underlying_type_t<FeatureType>>(this->split_types_[i]));
     if (this->split_types_[i] == FeatureType::kCategorical) {
       categories_nodes.GetArray().emplace_back(static_cast<std::int32_t>(i));
       auto begin = categories.Size();
