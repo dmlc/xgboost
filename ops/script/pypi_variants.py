@@ -11,7 +11,7 @@ IN_PATH = os.path.join(PY_PACKAGE, "pyproject.toml.in")
 STUB_IN_PATH = os.path.join(PY_PACKAGE, "pyproject.toml.stub.in")
 OUT_PATH = os.path.join(PY_PACKAGE, "pyproject.toml")
 
-NCCL_WHL = """    \"nvidia-nccl-{0} ; platform_system == 'Linux' and platform_machine != 'aarch64'\","""
+NCCL_WHL = """    \"nvidia-nccl-{0} ; platform_system == 'Linux'\","""
 
 NAME = "{{ name }}"
 NCCL = "{{ nccl }}"
