@@ -578,49 +578,72 @@ struct ShapSplitCondition {
 };
 
 struct PathInfo {
-  std::int64_t leaf_position;  // -1 if not a leaf (internal split node)
   std::size_t length;
+  // Node index in tree.
+  // -1 if not a leaf (internal split node)
+  bst_node_t nidx;
   bst_tree_t tree_idx;
 
-  [[nodiscard]] XGBOOST_DEVICE bool IsLeaf() const { return leaf_position != -1; }
+  [[nodiscard]] XGBOOST_DEVICE bool IsLeaf() const { return nidx != -1; }
 };
+
+auto MakeTreeSegments(Context const* ctx, bst_tree_t tree_begin, bst_tree_t tree_end,
+                      gbm::GBTreeModel const& model) {
+  // Copy decision trees to device
+  auto tree_segments = HostDeviceVector<size_t>({}, ctx->Device());
+  auto& h_tree_segments = tree_segments.HostVector();
+  h_tree_segments.reserve((tree_end - tree_begin) + 1);
+  size_t sum = 0;
+  h_tree_segments.push_back(sum);
+  for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+    sum += model.trees.at(tree_idx)->GetNodes().size();
+    h_tree_segments.push_back(sum);
+  }
+  return tree_segments;
+}
 
 // Transform model into path element form for GPUTreeShap
 void ExtractPaths(Context const* ctx,
                   dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>>* paths,
-                  DeviceModel* model, dh::device_vector<uint32_t>* path_categories) {
+                  gbm::GBTreeModel const& h_model, DeviceModel1 const& model_1,
+                  dh::device_vector<uint32_t>* path_categories) {
   curt::SetDevice(ctx->Ordinal());
-  auto& device_model = *model;
 
   // Path length and tree index for all leaf nodes
-  dh::caching_device_vector<PathInfo> info(device_model.nodes.Size());
-  auto d_nodes = device_model.nodes.ConstDeviceSpan();
-  auto d_tree_segments = device_model.tree_segments.ConstDeviceSpan();
-  auto nodes_transform = dh::MakeIndexTransformIter(
+  dh::caching_device_vector<PathInfo> info(model_1.n_nodes);
+  auto d_trees = dh::ToSpan(model_1.d_trees);
+  auto tree_segments = MakeTreeSegments(ctx, model_1.tree_begin, model_1.tree_end, h_model);
+  CHECK_EQ(tree_segments.ConstHostVector().back(), model_1.n_nodes);
+  auto d_tree_segments = tree_segments.ConstDeviceSpan();
+
+  auto path_it = dh::MakeIndexTransformIter(
       cuda::proclaim_return_type<PathInfo>([=] __device__(size_t idx) -> PathInfo {
-        auto n = d_nodes[idx];
-        if (!n.IsLeaf() || n.IsDeleted()) {
+        bst_tree_t const tree_idx = dh::SegmentId(d_tree_segments, idx);
+        bst_node_t const nidx = idx - d_tree_segments[tree_idx];
+        auto const& tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx]);
+        if (!tree.IsLeaf(nidx) || tree.IsDeleted(nidx)) {
           // -1 if it's an internal split node
-          return PathInfo{-1, 0, 0};
+          return PathInfo{0, -1, 0};
         }
         // Get the path length for leaf
-        bst_tree_t tree_idx = dh::SegmentId(d_tree_segments.begin(), d_tree_segments.end(), idx);
-        size_t tree_offset = d_tree_segments[tree_idx];
-        size_t path_length = 1;
-        while (!n.IsRoot()) {
-          n = d_nodes[n.Parent() + tree_offset];
+        std::size_t tree_offset = d_tree_segments[tree_idx];
+        std::size_t path_length = 1;
+        auto iter_nidx = nidx;
+        while (!tree.IsRoot(iter_nidx)) {
+          iter_nidx = tree.Parent(iter_nidx);
           path_length++;
         }
-        return PathInfo{static_cast<int64_t>(idx), path_length, tree_idx};
+        return PathInfo{path_length, nidx, tree_idx};
       }));
   auto end = thrust::copy_if(
-      ctx->CUDACtx()->CTP(), nodes_transform, nodes_transform + d_nodes.size(), info.begin(),
-      cuda::proclaim_return_type<bool>([=] __device__(const PathInfo& e) { return e.IsLeaf(); }));
+      ctx->CUDACtx()->CTP(), path_it, path_it + model_1.n_nodes, info.begin(),
+      cuda::proclaim_return_type<bool>([=] __device__(PathInfo const& e) { return e.IsLeaf(); }));
 
   info.resize(end - info.begin());
-  auto length_iterator = dh::MakeTransformIterator<size_t>(
-      info.begin(), cuda::proclaim_return_type<decltype(std::declval<PathInfo>().length)>(
-                        [=] __device__(const PathInfo& info) { return info.length; }));
+  using LenT = decltype(std::declval<PathInfo>().length);
+  auto length_iterator = dh::MakeTransformIterator<LenT>(
+      info.begin(), cuda::proclaim_return_type<LenT>(
+                        [=] __device__(PathInfo const& info) { return info.length; }));
   dh::caching_device_vector<size_t> path_segments(info.size() + 1);
   thrust::exclusive_scan(ctx->CUDACtx()->CTP(), length_iterator, length_iterator + info.size() + 1,
                          path_segments.begin());
@@ -629,80 +652,77 @@ void ExtractPaths(Context const* ctx,
 
   auto d_paths = dh::ToSpan(*paths);
   auto d_info = info.data().get();
-  auto d_stats = device_model.stats.ConstDeviceSpan();
-  auto d_tree_group = device_model.tree_group.ConstDeviceSpan();
+  auto d_tree_groups = dh::ToSpan(model_1.d_tree_groups);
   auto d_path_segments = path_segments.data().get();
 
-  auto d_split_types = device_model.split_types.ConstDeviceSpan();
-  auto d_cat_segments = device_model.categories_tree_segments.ConstDeviceSpan();
-  auto d_cat_node_segments = device_model.categories_node_segments.ConstDeviceSpan();
-
   std::size_t max_cat = 0;
-  if (thrust::any_of(ctx->CUDACtx()->CTP(), dh::tbegin(d_split_types), dh::tend(d_split_types),
-                     common::IsCatOp{})) {
-    dh::PinnedMemory pinned;
-    auto h_max_cat = pinned.GetSpan<RegTree::CategoricalSplitMatrix::Segment>(1);
-    auto max_elem_it = dh::MakeTransformIterator<size_t>(
-        dh::tbegin(d_cat_node_segments),
-        [] __device__(RegTree::CategoricalSplitMatrix::Segment seg) { return seg.size; });
-    size_t max_cat_it = thrust::max_element(ctx->CUDACtx()->CTP(), max_elem_it,
-                                            max_elem_it + d_cat_node_segments.size()) -
-                        max_elem_it;
-    dh::safe_cuda(cudaMemcpy(h_max_cat.data(), d_cat_node_segments.data() + max_cat_it,
-                             h_max_cat.size_bytes(), cudaMemcpyDeviceToHost));
-    max_cat = h_max_cat[0].size;
+  if (std::any_of(h_model.trees.cbegin(), h_model.trees.cend(),
+                  [](auto const& p_tree) { return p_tree->HasCategoricalSplit(); })) {
+    auto max_elem_it = dh::MakeIndexTransformIter([=] __device__(std::size_t i) {
+      auto tree_idx = dh::SegmentId(d_tree_segments, i);
+      auto nidx = i - d_tree_segments[tree_idx];
+      return cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx]).NodeCats(nidx).size();
+    });
+    auto max_cat_it =
+        thrust::max_element(ctx->CUDACtx()->CTP(), max_elem_it, max_elem_it + model_1.n_nodes);
+    dh::CachingDeviceUVector<std::size_t> d_max_cat(1);
+    auto s_max_cat = dh::ToSpan(d_max_cat);
+    dh::LaunchN(1, ctx->CUDACtx()->Stream(),
+                [=] __device__(std::size_t) { s_max_cat[0] = *max_cat_it; });
+    dh::safe_cuda(
+        cudaMemcpy(&max_cat, s_max_cat.data(), s_max_cat.size_bytes(), cudaMemcpyDeviceToHost));
     CHECK_GE(max_cat, 1);
     path_categories->resize(max_cat * paths->size());
   }
 
-  auto d_model_categories = device_model.categories.DeviceSpan();
   common::Span<uint32_t> d_path_categories = dh::ToSpan(*path_categories);
 
   dh::LaunchN(info.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
     auto path_info = d_info[idx];
     size_t tree_offset = d_tree_segments[path_info.tree_idx];
-    auto tree = MakeScalarTreeView(0, path_info.tree_idx, d_nodes, d_tree_segments, d_split_types,
-                                   d_cat_segments, d_cat_node_segments, d_model_categories);
-    int group = d_tree_group[path_info.tree_idx];
-    size_t child_idx = path_info.leaf_position;
-    auto child = d_nodes[child_idx];
-    float v = child.LeafValue();
+    auto tree = cuda::std::get<tree::ScalarTreeView>(d_trees[path_info.tree_idx]);
+    std::int32_t group = d_tree_groups[path_info.tree_idx];
+    auto child_nidx = path_info.nidx;
+
+    float v = tree.LeafValue(child_nidx);
     const float inf = std::numeric_limits<float>::infinity();
     size_t output_position = d_path_segments[idx + 1] - 1;
-    while (!child.IsRoot()) {
-      size_t parent_idx = tree_offset + child.Parent();
-      double child_cover = d_stats[child_idx].sum_hess;
-      double parent_cover = d_stats[parent_idx].sum_hess;
-      double zero_fraction = child_cover / parent_cover;
-      auto pnidx = child.Parent();
 
-      bool is_left_path = (tree_offset + tree.LeftChild(pnidx)) == child_idx;
-      bool is_missing_path =
-          (!tree.DefaultLeft(pnidx) && !is_left_path) || (tree.DefaultLeft(pnidx) && is_left_path);
+    while (!tree.IsRoot(child_nidx)) {
+      size_t parent_idx = tree_offset + tree.Parent(child_nidx);
+
+      auto parent_nidx = tree.Parent(child_nidx);
+      double child_cover = tree.SumHess(child_nidx);
+      double parent_cover = tree.SumHess(parent_nidx);
+      double zero_fraction = child_cover / parent_cover;
+
+      bool is_left_path = tree.LeftChild(parent_nidx) == child_nidx;
+      bool is_missing_path = (!tree.DefaultLeft(parent_nidx) && !is_left_path) ||
+                             (tree.DefaultLeft(parent_nidx) && is_left_path);
 
       float lower_bound = -inf;
       float upper_bound = inf;
       common::CatBitField bits;
-      if (common::IsCat(tree.cats.split_type, child.Parent())) {
+      if (common::IsCat(tree.cats.split_type, tree.Parent(child_nidx))) {
         auto path_cats = d_path_categories.subspan(max_cat * output_position, max_cat);
-        size_t size = tree.cats.node_ptr[child.Parent()].size;
-        auto node_cats = tree.cats.categories.subspan(tree.cats.node_ptr[child.Parent()].beg, size);
+        auto node_cats = tree.NodeCats(tree.Parent(child_nidx));
         SPAN_CHECK(path_cats.size() >= node_cats.size());
         for (size_t i = 0; i < node_cats.size(); ++i) {
           path_cats[i] = is_left_path ? ~node_cats[i] : node_cats[i];
         }
         bits = common::CatBitField{path_cats};
       } else {
-        lower_bound = is_left_path ? -inf : tree.SplitCond(pnidx);
-        upper_bound = is_left_path ? tree.SplitCond(pnidx) : inf;
+        lower_bound = is_left_path ? -inf : tree.SplitCond(parent_nidx);
+        upper_bound = is_left_path ? tree.SplitCond(parent_nidx) : inf;
       }
-      d_paths[output_position--] =
-          gpu_treeshap::PathElement<ShapSplitCondition>{
-              idx,           tree.SplitIndex(pnidx),
-              group,         ShapSplitCondition{lower_bound, upper_bound, is_missing_path, bits},
-              zero_fraction, v};
-      child_idx = parent_idx;
-      child = d_nodes[child_idx];
+      d_paths[output_position--] = gpu_treeshap::PathElement<ShapSplitCondition>{
+          idx,           tree.SplitIndex(parent_nidx),
+          group,         ShapSplitCondition{lower_bound, upper_bound, is_missing_path, bits},
+          zero_fraction, v};
+
+      // child_idx = parent_idx;
+      // child = d_nodes[child_idx];
+      child_nidx = parent_nidx;
     }
     // Root node has feature -1
     d_paths[output_position] = {idx, -1, group, ShapSplitCondition{-inf, inf, false, {}}, 1.0, v};
@@ -1265,13 +1285,13 @@ class GPUPredictor : public xgboost::Predictor {
     auto phis = out_contribs->DeviceSpan();
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model;
-    d_model.Init(model, 0, tree_end, ctx_->Device());
+    DeviceModel1 d_model_1{this->ctx_, model, 0, tree_end};
+
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
     dh::device_vector<uint32_t> categories;
-    ExtractPaths(ctx_, &device_paths, &d_model, &categories);
+    ExtractPaths(ctx_, &device_paths, model, d_model_1, &categories);
 
     LaunchShap(this->ctx_, new_enc, model, [&](auto&& cfg, auto&& acc) {
       using Config = common::GetValueT<decltype(cfg)>;
@@ -1324,10 +1344,10 @@ class GPUPredictor : public xgboost::Predictor {
     auto phis = out_contribs->DeviceSpan();
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model;
-    d_model.Init(model, 0, tree_end, ctx_->Device());
+    DeviceModel1 d_model_1{this->ctx_, model, 0, tree_end};
+
     dh::device_vector<uint32_t> categories;
-    ExtractPaths(ctx_, &device_paths, &d_model, &categories);
+    ExtractPaths(ctx_, &device_paths, model, d_model_1, &categories);
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
