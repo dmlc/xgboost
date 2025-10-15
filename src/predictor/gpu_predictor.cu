@@ -281,7 +281,7 @@ __global__ void PredictLeafKernel(Data data, common::Span<TreeViewVar const> d_t
 template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
 __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees,
                               common::Span<float> d_out_predictions,
-                              common::Span<bst_target_t const> d_tree_group,
+                              common::Span<bst_target_t const> d_tree_groups,
                               bst_feature_t num_features, bool use_shared, bst_target_t n_groups,
                               float missing, EncAccessor acc) {
   bst_idx_t global_idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -301,7 +301,7 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
   } else {
     for (bst_tree_t tree_idx = 0, k = d_trees.size(); tree_idx < k; tree_idx++) {
       // Both d_tree_group and d_tress are subset of trees.
-      auto tree_group = d_tree_group[tree_idx];
+      auto tree_group = d_tree_groups[tree_idx];
       auto const& d_tree = d_trees[tree_idx];
       cuda::std::visit(
           enc::Overloaded{[&](tree::ScalarTreeView const& tree) {
@@ -474,7 +474,6 @@ void ExtractPaths(Context const* ctx,
           return PathInfo{0, -1, 0};
         }
         // Get the path length for leaf
-        std::size_t tree_offset = d_tree_segments[tree_idx];
         std::size_t path_length = 1;
         auto iter_nidx = nidx;
         while (!tree.IsRoot(iter_nidx)) {
@@ -511,7 +510,7 @@ void ExtractPaths(Context const* ctx,
       auto nidx = i - d_tree_segments[tree_idx];
       return cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx])
           .GetCategoriesMatrix()
-          .node_ptr(nidx)
+          .node_ptr[nidx]
           .size;
     });
     auto max_cat_it =
@@ -589,7 +588,6 @@ template <std::size_t kBlockThreads>
 using BitVector = LBitField64;
 
 __global__ void MaskBitVectorKernel(SparsePageView data, common::Span<TreeViewVar const> d_trees,
-                                    common::Span<bst_target_t const> d_tree_groups,
                                     BitVector decision_bits, BitVector missing_bits,
                                     bst_tree_t tree_begin, bst_tree_t tree_end,
                                     bst_feature_t num_features, std::size_t num_nodes,
@@ -689,7 +687,7 @@ __global__ void PredictByBitVectorKernel(common::Span<TreeViewVar const> d_trees
       d_out_predictions[row_idx] += sum;
     } else {
       for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-        auto const tree_group = d_tree_groups[tree_idx];
+        auto const tree_group = d_tree_groups[tree_idx - tree_begin];
         auto const& d_tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx - tree_begin]);
         bst_uint out_prediction_idx = row_idx * num_group + tree_group;
         d_out_predictions[out_prediction_idx] += GetLeafWeightByBitVector(
@@ -747,9 +745,9 @@ class ColumnSplitHelper {
       auto d_tree_groups = dh::ToSpan(d_model.d_tree_groups)
                                .subspan(d_model.tree_begin, d_model.tree_end - d_model.tree_begin);
       dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
-          MaskBitVectorKernel, data, dh::ToSpan(d_model.d_trees), d_tree_groups,
-          decision_bits, missing_bits, d_model.tree_begin, d_model.tree_end, num_features,
-          num_nodes, use_shared, std::numeric_limits<float>::quiet_NaN());
+          MaskBitVectorKernel, data, dh::ToSpan(d_model.d_trees), decision_bits, missing_bits,
+          d_model.tree_begin, d_model.tree_end, num_features, num_nodes, use_shared,
+          std::numeric_limits<float>::quiet_NaN());
 
       AllReduceBitVectors(&decision_storage, &missing_storage);
 

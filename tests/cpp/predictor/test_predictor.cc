@@ -783,9 +783,9 @@ void TestVectorLeafPrediction(Context const *ctx) {
       Json::Dump(arr, &str);
       auto proxy = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
       if (ctx->IsCUDA()) {
-        dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetCudaArray(str.data());
+        dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetCudaArray(str.c_str());
       } else {
-        dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArray(str.data());
+        dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArray(str.c_str());
       }
       predictor->InplacePredict(proxy, model, std::numeric_limits<float>::quiet_NaN(), &predt_cache,
                                 0, 1);
