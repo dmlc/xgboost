@@ -578,8 +578,8 @@ struct ShapSplitCondition {
 };
 
 struct PathInfo {
-  int64_t leaf_position;  // -1 if not a leaf (internal split node)
-  size_t length;
+  std::int64_t leaf_position;  // -1 if not a leaf (internal split node)
+  std::size_t length;
   bst_tree_t tree_idx;
 
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf() const { return leaf_position != -1; }
@@ -588,9 +588,8 @@ struct PathInfo {
 // Transform model into path element form for GPUTreeShap
 void ExtractPaths(Context const* ctx,
                   dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>>* paths,
-                  DeviceModel* model, dh::device_vector<uint32_t>* path_categories,
-                  DeviceOrd device) {
-  curt::SetDevice(device.ordinal);
+                  DeviceModel* model, dh::device_vector<uint32_t>* path_categories) {
+  curt::SetDevice(ctx->Ordinal());
   auto& device_model = *model;
 
   // Path length and tree index for all leaf nodes
@@ -1103,14 +1102,16 @@ void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView con
 }
 
 template <typename Kernel>
-void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc, DeviceModel const& model,
-                Kernel launch) {
-  if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
-    auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
-    auto cfg = LaunchConfig<std::true_type, decltype(acc)>{ctx, model.n_features};
+void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc,
+                gbm::GBTreeModel const& model, Kernel&& launch) {
+  if (model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
+    auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
+    auto cfg =
+        LaunchConfig<std::true_type, decltype(acc)>{ctx, model.learner_model_param->num_feature};
     launch(std::move(cfg), std::move(acc));
   } else {
-    auto cfg = LaunchConfig<std::true_type, NoOpAccessor>{ctx, model.n_features};
+    auto cfg =
+        LaunchConfig<std::true_type, NoOpAccessor>{ctx, model.learner_model_param->num_feature};
     launch(std::move(cfg), NoOpAccessor{});
   }
 }
@@ -1270,9 +1271,9 @@ class GPUPredictor : public xgboost::Predictor {
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
     dh::device_vector<uint32_t> categories;
-    ExtractPaths(ctx_, &device_paths, &d_model, &categories, ctx_->Device());
+    ExtractPaths(ctx_, &device_paths, &d_model, &categories);
 
-    LaunchShap(this->ctx_, new_enc, d_model, [&](auto&& cfg, auto&& acc) {
+    LaunchShap(this->ctx_, new_enc, model, [&](auto&& cfg, auto&& acc) {
       using Config = common::GetValueT<decltype(cfg)>;
       using EncAccessor = typename Config::EncAccessorT;
 
@@ -1326,11 +1327,11 @@ class GPUPredictor : public xgboost::Predictor {
     DeviceModel d_model;
     d_model.Init(model, 0, tree_end, ctx_->Device());
     dh::device_vector<uint32_t> categories;
-    ExtractPaths(ctx_, &device_paths, &d_model, &categories, ctx_->Device());
+    ExtractPaths(ctx_, &device_paths, &d_model, &categories);
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
-    LaunchShap(this->ctx_, new_enc, d_model, [&](auto&& cfg, auto&& acc) {
+    LaunchShap(this->ctx_, new_enc, model, [&](auto&& cfg, auto&& acc) {
       using Config = common::GetValueT<decltype(cfg)>;
       using EncAccessor = typename Config::EncAccessorT;
 
