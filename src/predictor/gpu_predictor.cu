@@ -323,7 +323,6 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
 }
 
 struct DeviceModel {
-  std::mutex mu;
   bst_tree_t tree_begin;
   bst_tree_t tree_end;
   dh::device_vector<TreeViewVar> d_trees;
@@ -334,12 +333,12 @@ struct DeviceModel {
 
  public:
   explicit DeviceModel(Context const* ctx, gbm::GBTreeModel const& model, bst_tree_t tree_begin,
-                       bst_tree_t tree_end)
+                       bst_tree_t tree_end, std::mutex* p_mu)
       : tree_begin{tree_begin},
         tree_end{tree_end},
         n_groups{model.learner_model_param->OutputLength()},
         n_features{model.learner_model_param->num_feature} {
-    std::lock_guard guard{this->mu};
+    std::lock_guard guard{*p_mu};
     std::vector<TreeViewVar> trees;
     for (bst_tree_t tree_idx = this->tree_begin; tree_idx < this->tree_end; ++tree_idx) {
       auto const& p_tree = model.trees[tree_idx];
@@ -998,7 +997,7 @@ class GPUPredictor : public xgboost::Predictor {
     out_preds->SetDevice(ctx_->Device());
     auto const& info = p_fmat->Info();
 
-    DeviceModel d_model{this->ctx_, model, tree_begin, tree_end};
+    DeviceModel d_model{this->ctx_, model, tree_begin, tree_end, &this->model_mu_};
 
     if (info.IsColumnSplit()) {
       column_split_helper_.PredictBatch(p_fmat, out_preds, model, d_model);
@@ -1059,7 +1058,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto n_samples = m->NumRows();
     auto n_features = model.learner_model_param->num_feature;
 
-    DeviceModel d_model{ctx_, model, tree_begin, tree_end};
+    DeviceModel d_model{ctx_, model, tree_begin, tree_end, &this->model_mu_};
 
     if constexpr (std::is_same_v<Adapter, data::CudfAdapter>) {
       if (m->HasCategorical()) {
@@ -1137,7 +1136,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto phis = out_contribs->DeviceSpan();
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model{this->ctx_, model, 0, tree_end};
+    DeviceModel d_model{this->ctx_, model, 0, tree_end, &this->model_mu_};
 
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
@@ -1197,7 +1196,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto phis = out_contribs->DeviceSpan();
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model{this->ctx_, model, 0, tree_end};
+    DeviceModel d_model{this->ctx_, model, 0, tree_end, &this->model_mu_};
 
     dh::device_vector<uint32_t> categories;
     ExtractPaths(ctx_, &device_paths, model, d_model, &categories);
@@ -1243,7 +1242,7 @@ class GPUPredictor : public xgboost::Predictor {
     predictions->SetDevice(ctx_->Device());
     predictions->Resize(n_samples * tree_end);
 
-    DeviceModel d_model{ctx_, model, 0, tree_end};
+    DeviceModel d_model{ctx_, model, 0, tree_end, &this->model_mu_};
 
     if (info.IsColumnSplit()) {
       column_split_helper_.PredictLeaf(p_fmat, predictions, model, d_model);
@@ -1273,6 +1272,8 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
  private:
+  // Prevent multiple threads from pulling the model to device together.
+  mutable std::mutex model_mu_;
   ColumnSplitHelper column_split_helper_;
 };
 
