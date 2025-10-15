@@ -453,7 +453,9 @@ auto MakeTreeSegments(Context const* ctx, bst_tree_t tree_begin, bst_tree_t tree
   size_t sum = 0;
   h_tree_segments.push_back(sum);
   for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-    sum += model.trees.at(tree_idx)->Size();
+    auto const& p_tree = model.trees.at(tree_idx);
+    CHECK(!p_tree->IsMultiTarget()) << " SHAP " << MTNotImplemented();
+    sum += p_tree->Size();
     h_tree_segments.push_back(sum);
   }
   return tree_segments;
@@ -976,7 +978,7 @@ void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView con
 template <typename Kernel>
 void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc,
                 gbm::GBTreeModel const& model, Kernel&& launch) {
-  if (model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
+  if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
     auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
     auto cfg =
         LaunchConfig<std::true_type, decltype(acc)>{ctx, model.learner_model_param->num_feature};
