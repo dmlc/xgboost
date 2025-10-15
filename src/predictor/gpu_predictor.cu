@@ -229,7 +229,7 @@ __device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader*
   bst_node_t nidx = 0;
   while (!tree.IsLeaf(nidx)) {
     float fvalue = loader->GetElement(ridx, tree.SplitIndex(nidx));
-    bool is_missing = common::CheckNAN(fvalue);
+    bool is_missing = has_missing && common::CheckNAN(fvalue);
     auto next = GetNextNode<has_missing, has_categorical>(tree, nidx, fvalue, is_missing,
                                                           tree.GetCategoriesMatrix());
     assert(nidx < next);
@@ -291,9 +291,9 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
   }
 
   if (n_groups == 1u) {
-    double sum = 0;
+    float sum = 0;
     for (auto const& d_tree : d_trees) {
-      auto sc_tree = cuda::std::get<tree::ScalarTreeView>(d_tree);
+      auto const& sc_tree = cuda::std::get<tree::ScalarTreeView>(d_tree);
       float leaf = GetLeafWeight<has_missing>(global_idx, sc_tree, &loader);
       sum += leaf;
     }
@@ -439,7 +439,7 @@ auto MakeTreeSegments(Context const* ctx, bst_tree_t tree_begin, bst_tree_t tree
   auto tree_segments = HostDeviceVector<size_t>({}, ctx->Device());
   auto& h_tree_segments = tree_segments.HostVector();
   h_tree_segments.reserve((tree_end - tree_begin) + 1);
-  size_t sum = 0;
+  std::size_t sum = 0;
   h_tree_segments.push_back(sum);
   for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
     auto const& p_tree = model.trees.at(tree_idx);
@@ -679,7 +679,7 @@ __global__ void PredictByBitVectorKernel(common::Span<TreeViewVar const> d_trees
     }
   } else {
     if (num_group == 1) {
-      double sum = 0;
+      float sum = 0;
       for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
         auto const& d_tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx - tree_begin]);
         sum += GetLeafWeightByBitVector(row_idx, d_tree, decision_bits, missing_bits, num_nodes,

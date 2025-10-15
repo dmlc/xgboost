@@ -54,10 +54,10 @@ TEST(Tree, AllocateNode) {
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
-  auto& nodes = tree.GetNodes();
-  ASSERT_FALSE(nodes.at(1).IsDeleted());
-  ASSERT_TRUE(nodes.at(1).IsLeaf());
-  ASSERT_TRUE(nodes.at(2).IsLeaf());
+  auto nodes = tree.GetNodes(DeviceOrd::CPU());
+  ASSERT_FALSE(nodes[1].IsDeleted());
+  ASSERT_TRUE(nodes[1].IsLeaf());
+  ASSERT_TRUE(nodes[2].IsLeaf());
 }
 
 TEST(Tree, ExpandCategoricalFeature) {

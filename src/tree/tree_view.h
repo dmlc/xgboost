@@ -156,8 +156,8 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView>, public CategoriesM
   /** @brief Create a host view */
   explicit ScalarTreeView(RegTree const* tree)
       : CategoriesMixIn{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
-        nodes{tree->GetNodes().data()},
-        stats{tree->GetStats().data()},
+        nodes{tree->GetNodes(DeviceOrd::CPU()).data()},
+        stats{tree->GetStats(DeviceOrd::CPU()).data()},
         n{tree->NumNodes()} {
     CHECK(!tree->IsMultiTarget());
   }

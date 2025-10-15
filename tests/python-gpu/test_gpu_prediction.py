@@ -112,8 +112,8 @@ class TestGPUPredict:
         bst.set_param({"device": "cpu"})
         predict_cpu = bst.predict(xgb.DMatrix(X_test))
 
-        assert np.allclose(predict_gpu_0, predict_gpu_1)
-        assert np.allclose(predict_gpu_0, predict_cpu)
+        np.testing.assert_allclose(predict_gpu_0, predict_gpu_1)
+        np.testing.assert_allclose(predict_gpu_0, predict_cpu)
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_sklearn(self):

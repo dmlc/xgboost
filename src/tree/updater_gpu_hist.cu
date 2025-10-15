@@ -669,7 +669,8 @@ struct GPUHistMakerDevice {
     // Use the nodes from tree, the leaf value might be changed by the objective since the
     // last update tree call.
     dh::CachingDeviceUVector<RegTree::Node> nodes;
-    dh::CopyTo(p_tree->GetNodes(), &nodes, this->ctx_->CUDACtx()->Stream());
+    // We can remove the CPU copy once we refactor the GPU hist to use the device tree.
+    dh::CopyTo(p_tree->GetNodes(DeviceOrd::CPU()), &nodes, this->ctx_->CUDACtx()->Stream());
     common::Span<RegTree::Node> d_nodes = dh::ToSpan(nodes);
     CHECK_EQ(out_preds_d.Shape(1), 1);
     dh::LaunchN(d_position.size(), ctx_->CUDACtx()->Stream(),

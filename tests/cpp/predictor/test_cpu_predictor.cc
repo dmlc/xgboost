@@ -31,7 +31,7 @@ void CheckArrayLayout(const RegTree& tree, ArrayLayoutT buffer, int max_depth, i
   const auto& split_cond = buffer.SplitCond();
   const auto& default_left = buffer.DefaultLeft();
   const auto& nidx_in_tree = buffer.NidxInTree();
-  const auto& nodes = tree.GetNodes();
+  const auto& nodes = tree.GetNodes(DeviceOrd::CPU());
 
   if (depth == max_depth) {
     ASSERT_EQ(nidx_in_tree[nid_array - (1u << max_depth) + 1], nid);
