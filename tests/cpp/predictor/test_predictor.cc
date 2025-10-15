@@ -771,13 +771,22 @@ void TestVectorLeafPrediction(Context const *ctx) {
   };
   auto test_inplace = [&](float expected, HostDeviceVector<float> const*p_data) {
       PredictionCacheEntry predt_cache;
-      auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
+      std::shared_ptr<DMatrix> p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
       predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+      if (ctx->IsCUDA()) {
+        // pull data to device.
+        p_data->SetDevice(ctx->Device());
+        p_data->ConstDeviceSpan();
+      }
       auto arr = GetArrayInterface(p_data, kRows, kCols);
       std::string str;
       Json::Dump(arr, &str);
       auto proxy = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
-      dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArray(str.data());
+      if (ctx->IsCUDA()) {
+        dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetCudaArray(str.data());
+      } else {
+        dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArray(str.data());
+      }
       predictor->InplacePredict(proxy, model, std::numeric_limits<float>::quiet_NaN(), &predt_cache,
                                 0, 1);
       auto const &h_predt = predt_cache.predictions.HostVector();
@@ -797,11 +806,18 @@ void TestVectorLeafPrediction(Context const *ctx) {
 
     predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
 
-    auto iter = NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
-                                      static_cast<std::size_t>(1)};
+    std::unique_ptr<ArrayIterForTest> iter;
+    if (ctx->IsCUDA()) {
+      iter.reset(new CudaArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
+                                          static_cast<std::size_t>(1)});
+    } else {
+      iter.reset(new NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
+                                           static_cast<std::size_t>(1)});
+    }
+
     p_fmat = std::make_shared<data::IterativeDMatrix>(
-        &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, 256,
-        std::numeric_limits<std::int64_t>::max());
+        iter.get(), iter->Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
+        256, std::numeric_limits<std::int64_t>::max());
 
     predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
     predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
@@ -817,18 +833,14 @@ void TestVectorLeafPrediction(Context const *ctx) {
   auto mt_tree = model.trees.front()->HostMtView();
   HostDeviceVector<float> data(kRows * kCols, mt_tree.SplitCond(RegTree::kRoot) + 1.0);
   test_batch(2.5, &data);
-  if (!ctx->IsCUDA()) {
-    test_inplace(2.5, &data);
-    test_ghist(2.5, &data);
-  }
+  test_inplace(2.5, &data);
+  test_ghist(2.5, &data);
 
   // go to left
   data.HostVector().assign(data.Size(), mt_tree.SplitCond(RegTree::kRoot) - 1.0);
   test_batch(1.5, &data);
-  if (!ctx->IsCUDA()) {
-    test_inplace(1.5, &data);
-    test_ghist(1.5, &data);
-  }
+  test_inplace(1.5, &data);
+  test_ghist(1.5, &data);
 }
 
 void ShapExternalMemoryTest::Run(Context const *ctx, bool is_qdm, bool is_interaction) {
