@@ -273,22 +273,6 @@ __device__ auto GetLeafWeight(bst_idx_t ridx, tree::MultiTargetTreeView const& t
   bst_node_t nidx = GetLeafIndex<has_missing, false>(ridx, tree, loader);
   return tree.LeafValue(nidx);
 }
-
-template <typename Loader, typename Data, bool has_missing, typename EncAccessor>
-__global__ void PredictKernel(Data data, bst_feature_t n_features,
-                              common::Span<tree::MultiTargetTreeView> trees, bool use_shared,
-                              float missing, linalg::MatrixView<float> d_out_predt,
-                              EncAccessor acc) {
-  for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), data.NumRows())) {
-    Loader loader{std::move(data), use_shared, n_features, data.NumRows(), missing, std::move(acc)};
-    for (auto const& tree : trees) {
-      auto leaf = GetLeafWeight<has_missing>(idx, tree, &loader);
-      for (std::size_t i = 0, n = leaf.Shape(0); i < n; ++i) {
-        d_out_predt(idx, i) += leaf(i);
-      }
-    }
-  }
-}
 }  // namespace multi
 
 namespace scalar {
