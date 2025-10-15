@@ -12,13 +12,13 @@
 
 #include "../collective/allreduce.h"
 #include "../common/bitfield.h"
-#include "../tree/tree_view.h"
 #include "../common/categorical.h"
 #include "../common/common.h"
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs, SetDevice
 #include "../common/device_helpers.cuh"
 #include "../common/error_msg.h"      // for InplacePredictProxy
+#include "../common/nvtx_utils.h"     // for xgboost_NVTX_FN_RANGE
 #include "../data/batch_utils.h"      // for StaticBatch
 #include "../data/cat_container.cuh"  // for EncPolicy
 #include "../data/device_adapter.cuh"
@@ -26,6 +26,7 @@
 #include "../data/proxy_dmatrix.cuh"  // for DispatchAny
 #include "../data/proxy_dmatrix.h"
 #include "../gbm/gbtree_model.h"
+#include "../tree/tree_view.h"
 #include "predict_fn.h"
 #include "utils.h"  // for CheckProxyDMatrix
 #include "xgboost/data.h"
@@ -1034,6 +1035,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts, const gbm::GBTreeModel& model,
                     bst_tree_t tree_begin, bst_tree_t tree_end = 0) const override {
+    xgboost_NVTX_FN_RANGE();
     CHECK(ctx_->Device().IsCUDA()) << "Set `device' to `cuda` for processing GPU data.";
     auto* out_preds = &predts->predictions;
     if (tree_end == 0) {
@@ -1092,6 +1094,7 @@ class GPUPredictor : public xgboost::Predictor {
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,
                                     float missing, PredictionCacheEntry* out_preds,
                                     bst_tree_t tree_begin, bst_tree_t tree_end) const override {
+    xgboost_NVTX_FN_RANGE();
     auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
     bool type_error = false;
@@ -1109,6 +1112,7 @@ class GPUPredictor : public xgboost::Predictor {
                            const gbm::GBTreeModel& model, bst_tree_t tree_end,
                            std::vector<float> const* tree_weights, bool approximate, int,
                            unsigned) const override {
+    xgboost_NVTX_FN_RANGE();
     StringView not_implemented{
         "contribution is not implemented in the GPU predictor, use CPU instead."};
     if (approximate) {
@@ -1169,6 +1173,7 @@ class GPUPredictor : public xgboost::Predictor {
                                        gbm::GBTreeModel const& model, bst_tree_t tree_end,
                                        std::vector<float> const* tree_weights,
                                        bool approximate) const override {
+    xgboost_NVTX_FN_RANGE();
     std::string not_implemented{
         "contribution is not implemented in GPU predictor, use cpu instead."};
     if (approximate) {
@@ -1229,6 +1234,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<float>* predictions,
                    gbm::GBTreeModel const& model, bst_tree_t tree_end) const override {
+    xgboost_NVTX_FN_RANGE();
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
 
     const MetaInfo& info = p_fmat->Info();
