@@ -74,7 +74,7 @@ struct CategoriesMixIn {
   RegTree::CategoricalSplitMatrix cats;
 
   [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
-  [[nodiscard]] XGBOOST_DEVICE RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const {
+  [[nodiscard]] XGBOOST_DEVICE RegTree::CategoricalSplitMatrix const& GetCategoriesMatrix() const {
     return cats;
   }
   /**
