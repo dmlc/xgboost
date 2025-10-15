@@ -589,9 +589,11 @@ struct ShapSplitCondition {
 };
 
 struct PathInfo {
-  int64_t leaf_position;  // -1 not a leaf
+  int64_t leaf_position;  // -1 if not a leaf (internal split node)
   size_t length;
   bst_tree_t tree_idx;
+
+  [[nodiscard]] XGBOOST_DEVICE bool IsLeaf() const { return leaf_position != -1; }
 };
 
 // Transform model into path element form for GPUTreeShap
@@ -602,6 +604,7 @@ void ExtractPaths(Context const* ctx,
   curt::SetDevice(device.ordinal);
   auto& device_model = *model;
 
+  // Path length and tree index for all leaf nodes
   dh::caching_device_vector<PathInfo> info(device_model.nodes.Size());
   auto d_nodes = device_model.nodes.ConstDeviceSpan();
   auto d_tree_segments = device_model.tree_segments.ConstDeviceSpan();
@@ -609,8 +612,10 @@ void ExtractPaths(Context const* ctx,
       cuda::proclaim_return_type<PathInfo>([=] __device__(size_t idx) -> PathInfo {
         auto n = d_nodes[idx];
         if (!n.IsLeaf() || n.IsDeleted()) {
+          // -1 if it's an internal split node
           return PathInfo{-1, 0, 0};
         }
+        // Get the path length for leaf
         bst_tree_t tree_idx = dh::SegmentId(d_tree_segments.begin(), d_tree_segments.end(), idx);
         size_t tree_offset = d_tree_segments[tree_idx];
         size_t path_length = 1;
@@ -620,11 +625,10 @@ void ExtractPaths(Context const* ctx,
         }
         return PathInfo{static_cast<int64_t>(idx), path_length, tree_idx};
       }));
-  auto end = thrust::copy_if(ctx->CUDACtx()->CTP(), nodes_transform,
-                             nodes_transform + d_nodes.size(), info.begin(),
-                             cuda::proclaim_return_type<bool>([=] __device__(const PathInfo& e) {
-                               return e.leaf_position != -1;
-                             }));
+  auto end = thrust::copy_if(
+      ctx->CUDACtx()->CTP(), nodes_transform, nodes_transform + d_nodes.size(), info.begin(),
+      cuda::proclaim_return_type<bool>([=] __device__(const PathInfo& e) { return e.IsLeaf(); }));
+
   info.resize(end - info.begin());
   auto length_iterator = dh::MakeTransformIterator<size_t>(
       info.begin(), cuda::proclaim_return_type<decltype(std::declval<PathInfo>().length)>(
@@ -1021,23 +1025,6 @@ class LaunchConfig {
                          n_features, this->UseShared(), d_model.n_groups, missing, acc);
   }
 
-  template <typename Loader, typename Data>
-  void LaunchMultiPredictKernel(Data batch, gbm::GBTreeModel const& model, bst_tree_t tree_begin,
-                                bst_tree_t tree_end, EncAccessorT acc, bst_idx_t batch_offset,
-                                HostDeviceVector<float>* predictions) {
-    CHECK_EQ(batch_offset, 0);  // external memory is not supported yet.
-    std::vector<tree::MultiTargetTreeView> h_trees;
-    for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
-      h_trees.emplace_back(ctx_, model.trees[tree_idx].get());
-    }
-    dh::device_vector<tree::MultiTargetTreeView> trees = h_trees;
-    auto kernel = multi::PredictKernel<typename Loader::Type, Data, true, EncAccessorT>;
-    auto predt =
-        linalg::MakeTensorView(ctx_, predictions, batch.NumRows(), h_trees.front().NumTargets());
-    this->Launch<Loader>(kernel, std::move(batch), this->n_features_, dh::ToSpan(trees),
-                         this->UseShared(), std::numeric_limits<float>::quiet_NaN(), predt, acc);
-  }
-
   [[nodiscard]] bool UseShared() const { return shared_memory_bytes_ != 0; }
 
   [[nodiscard]] static std::size_t ConfigureDevice(DeviceOrd const& device) {
@@ -1193,14 +1180,9 @@ class GPUPredictor : public xgboost::Predictor {
       bst_idx_t batch_offset = 0;
       cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
         using Loader = typename common::GetValueT<decltype(loader_t)>;
-        if (model.trees[tree_begin]->IsMultiTarget()) {
-          cfg.template LaunchMultiPredictKernel<Loader>(std::move(batch), model, tree_begin,
-                                                        tree_end, acc, batch_offset, out_preds);
-        } else {
-          cfg.template LaunchPredictKernel<Loader>(
-              std::move(batch), std::numeric_limits<float>::quiet_NaN(), n_features, d_model, acc,
-              batch_offset, out_preds);
-        }
+        cfg.template LaunchPredictKernel<Loader>(std::move(batch),
+                                                 std::numeric_limits<float>::quiet_NaN(),
+                                                 n_features, d_model, acc, batch_offset, out_preds);
         batch_offset += batch.NumRows() * model.learner_model_param->OutputLength();
       });
     });
