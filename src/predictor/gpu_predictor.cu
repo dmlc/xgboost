@@ -515,7 +515,7 @@ void ExtractPaths(Context const* ctx,
   std::size_t max_cat = 0;
   if (std::any_of(h_model.trees.cbegin(), h_model.trees.cend(),
                   [](auto const& p_tree) { return p_tree->HasCategoricalSplit(); })) {
-    auto max_elem_it = dh::MakeIndexTransformIter([=] __device__(std::size_t i) {
+    auto max_elem_it = dh::MakeIndexTransformIter([=] __device__(std::size_t i) -> std::size_t {
       auto tree_idx = dh::SegmentId(d_tree_segments, i);
       auto nidx = i - d_tree_segments[tree_idx];
       return cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx]).NodeCats(nidx).size();
@@ -750,14 +750,14 @@ class ColumnSplitHelper {
 
       SparsePageView data{ctx_, batch, num_features};
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-      dh::LaunchKernel{grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
           MaskBitVectorKernel, data, dh::ToSpan(d_model.d_trees), dh::ToSpan(d_model.d_tree_groups),
           decision_bits, missing_bits, d_model.tree_begin, d_model.tree_end, num_features, num_rows,
           num_nodes, use_shared, std::numeric_limits<float>::quiet_NaN());
 
       AllReduceBitVectors(&decision_storage, &missing_storage);
 
-      dh::LaunchKernel{grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()}(
+      dh::LaunchKernel {grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()}(
           PredictByBitVectorKernel<predict_leaf>, dh::ToSpan(d_model.d_trees),
           out_preds->DeviceSpan().subspan(batch_offset), dh::ToSpan(d_model.d_tree_groups),
           decision_bits, missing_bits, d_model.tree_begin, d_model.tree_end, num_rows, num_nodes,
