@@ -596,7 +596,7 @@ auto MakeTreeSegments(Context const* ctx, bst_tree_t tree_begin, bst_tree_t tree
   size_t sum = 0;
   h_tree_segments.push_back(sum);
   for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-    sum += model.trees.at(tree_idx)->GetNodes().size();
+    sum += model.trees.at(tree_idx)->Size();
     h_tree_segments.push_back(sum);
   }
   return tree_segments;

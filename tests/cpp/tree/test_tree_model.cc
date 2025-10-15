@@ -66,7 +66,7 @@ TEST(Tree, ExpandCategoricalFeature) {
     RegTree tree;
     tree.ExpandCategorical(0, 0, {}, true, 1.0, 2.0, 3.0, 11.0, 2.0,
                            /*left_sum=*/3.0, /*right_sum=*/4.0);
-    ASSERT_EQ(tree.GetNodes().size(), 3ul);
+    ASSERT_EQ(tree.Size(), 3ul);
     ASSERT_EQ(tree.GetNumLeaves(), 2);
     ASSERT_EQ(tree.GetSplitTypes(ctx.Device()).size(), 3ul);
     ASSERT_EQ(tree.GetSplitTypes(ctx.Device())[0], FeatureType::kCategorical);
