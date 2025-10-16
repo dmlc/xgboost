@@ -640,7 +640,7 @@ class ColumnSplitHelper {
     tree_offsets_.resize(n_trees);
     for (decltype(tree_begin) i = 0; i < n_trees; i++) {
       auto const &tree = *model_.trees[tree_begin_ + i];
-      tree_sizes_[i] = tree.GetNodes().size();
+      tree_sizes_[i] = tree.Size();
     }
     // std::exclusive_scan (only available in c++17) equivalent to get tree offsets.
     tree_offsets_[0] = 0;

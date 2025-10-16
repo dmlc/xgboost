@@ -262,12 +262,18 @@ class RegTree : public Model {
   Node& operator[](bst_node_t nidx) { return nodes_.HostVector()[nidx]; }
 
  public:
-  /*! \brief get const reference to nodes */
-  [[nodiscard]] const std::vector<Node>& GetNodes() const { return nodes_.ConstHostVector(); }
+  /** @brief Get const reference to nodes */
+  [[nodiscard]] common::Span<Node const> GetNodes(DeviceOrd device) const {
+    CHECK(!this->IsMultiTarget());
+    return device.IsCPU() ? nodes_.ConstHostSpan()
+                          : (nodes_.SetDevice(device), nodes_.ConstDeviceSpan());
+  }
 
-  /*! \brief get const reference to stats */
-  [[nodiscard]] const std::vector<RTreeNodeStat>& GetStats() const {
-    return stats_.ConstHostVector();
+  /** @brief Get const reference to stats */
+  [[nodiscard]] common::Span<RTreeNodeStat const> GetStats(DeviceOrd device) const {
+    CHECK(!this->IsMultiTarget());
+    return device.IsCPU() ? stats_.ConstHostSpan()
+                          : (stats_.SetDevice(device), stats_.ConstDeviceSpan());
   }
 
   /*! \brief get node statistics given nid */

@@ -75,13 +75,13 @@ class DeviceModel {
       if (model.trees[tree_idx]->HasCategoricalSplit()) {
         LOG(FATAL) << "Categorical features are not yet supported by sycl";
       }
-      n_nodes += model.trees[tree_idx]->GetNodes().size();
+      n_nodes += model.trees[tree_idx]->Size();
       first_node_position_host[tree_idx - tree_begin + 1] = n_nodes;
     }
 
     nodes.Resize(n_nodes);
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      auto& src_nodes = model.trees[tree_idx]->GetNodes();
+      auto const& src_nodes = model.trees[tree_idx]->GetNodes(DeviceOrd::CPU());
       size_t n_nodes_shift = first_node_position_host[tree_idx - tree_begin];
       for (size_t node_idx = 0; node_idx < src_nodes.size(); node_idx++) {
         nodes.HostVector()[node_idx + n_nodes_shift] = static_cast<Node>(src_nodes[node_idx]);

@@ -445,6 +445,10 @@ class CudaArrayIterForTest : public ArrayIterForTest {
  public:
   explicit CudaArrayIterForTest(float sparsity, size_t rows = Rows(), size_t cols = Cols(),
                                 size_t batches = Batches());
+  explicit CudaArrayIterForTest(Context const* ctx, HostDeviceVector<float> const& data,
+                                std::size_t n_samples, bst_feature_t n_features,
+                                std::size_t n_batches)
+      : ArrayIterForTest{ctx, data, n_samples, n_features, n_batches} {};
   int Next() override;
   ~CudaArrayIterForTest() override = default;
 };
