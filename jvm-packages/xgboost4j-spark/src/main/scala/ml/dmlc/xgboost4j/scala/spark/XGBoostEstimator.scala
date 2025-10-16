@@ -630,8 +630,7 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
 
     // Broadcast the booster to each executor.
     val bBooster = input.sparkSession.sparkContext.broadcast(nativeBooster)
-    // TODO configurable
-    val inferBatchSize = 32 << 10
+    val inferBatchSize = getInferBatchSize
     val missing = getMissing
 
     // Here, we use RDD instead of DF to avoid different encoders for different
