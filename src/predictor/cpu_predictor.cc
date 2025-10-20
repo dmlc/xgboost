@@ -50,7 +50,11 @@ struct CopyViews {
     std::swap(src, *p_dst);
   }
 };
-using HostModel = GBTreeModelView<std::vector, TreeViewVar, CopyViews>;
+
+template <typename T>
+using Vec = std::vector<T, std::allocator<T>>;
+
+using HostModel = GBTreeModelView<Vec, TreeViewVar, CopyViews>;
 
 template <bool has_missing, bool has_categorical, typename TreeView>
 bst_node_t GetLeafIndex(TreeView const &tree, const RegTree::FVec &feat,
