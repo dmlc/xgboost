@@ -1526,12 +1526,12 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char *fname) {
   auto read_file = [&]() {
     auto str = common::LoadSequentialFile(fname);
     // "{}"
-    CHECK_GE(str.size(), 2) << "Invalid model format from: `" << fname << "`.";
+    CHECK_GE(str.size(), 2) << error::InvalidModel(fname);
     // The old binary format has the starting bytes "binf".
     if (str.size() >= 4 && StringView{str.data(), 4} == "binf") {  // NOLINT
-      LOG(FATAL) << "Failed to load model: `" << fname << "`. " << error::OldModel();
+      LOG(FATAL) << error::OldBinaryModel(fname);
     }
-    CHECK_EQ(str[0], '{') << "Invalid model format from: `" << fname << "`.";
+    CHECK_EQ(str[0], '{') << error::InvalidModel(fname);
     return str;
   };
   auto ext = common::FileExtension(fname);

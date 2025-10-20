@@ -84,15 +84,9 @@ inline void WarnOldSerialization() {
   logged = true;
 }
 
-constexpr StringView OldModel() {
-  return R"doc(
-The binary format has been deprecated in 1.6 and removed in 3.1, use UBJ or JSON instead. See:
+[[nodiscard]] std::string InvalidModel(StringView fname);
 
-    https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html
-
-for more info.
-)doc";
-}
+[[nodiscard]] std::string OldBinaryModel(StringView fname);
 
 void WarnManualUpdater();
 
