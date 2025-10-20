@@ -903,7 +903,6 @@ class CPUPredictor : public Predictor {
     CHECK_EQ(out_preds->size(), n_samples * n_groups);
     auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
     bool any_missing = !(p_fmat->IsDense());
-    CHECK(this->ctx_->IsCPU());
     auto const h_model =
         HostModel{DeviceOrd::CPU(), model, tree_begin, tree_end, &this->mu_, CopyViews{}};
 
