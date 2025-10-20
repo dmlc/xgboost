@@ -86,8 +86,7 @@ inline void WarnOldSerialization() {
 
 constexpr StringView OldModel() {
   return R"doc(
-The binary format has been deprecated in 1.6 and removed in 3.1, use UBJ or JSON
-instead. See:
+The binary format has been deprecated in 1.6 and removed in 3.1, use UBJ or JSON instead. See:
 
     https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html
 
