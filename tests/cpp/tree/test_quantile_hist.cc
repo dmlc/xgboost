@@ -316,9 +316,9 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
   std::memcpy(tail_after.data(), hv.data() + hv.size(), tail_elems * sizeof(bst_node_t));
 
   EXPECT_EQ(tail_before, tail_after)
-      << "Buffer overrun detected: writes past logical end when updating small "
+      << "Buffer overrun detected: writes past kNSmall when updating small "
          "single-batch DMatrix after large multi-batch one. "
-         "Likely missing partitioner_.resize(page_idx).";
+         "Likely stale partitioner writing to buffer.";
 }
 }  // anonymous namespace
 
