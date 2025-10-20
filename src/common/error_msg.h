@@ -84,6 +84,10 @@ inline void WarnOldSerialization() {
   logged = true;
 }
 
+[[nodiscard]] std::string InvalidModel(StringView fname);
+
+[[nodiscard]] std::string OldBinaryModel(StringView fname);
+
 void WarnManualUpdater();
 
 void WarnEmptyDataset();
