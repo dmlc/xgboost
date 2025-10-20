@@ -3,8 +3,9 @@
  */
 #pragma once
 
-#include <mutex>   // for mutex, lock_guard
-#include <vector>  // for vector
+#include <mutex>    // for mutex, lock_guard
+#include <utility>  // for move
+#include <vector>   // for vector
 
 #include "../gbm/gbtree_model.h"  // for GBTreeModel
 #include "../tree/tree_view.h"    // for MultiTargetTreeView, ScalarTreeView
@@ -54,11 +55,10 @@ struct GBTreeModelView {
 
     CopyViews::Copy(ctx, &this->trees_, std::move(trees));
 
+    CHECK_GT(this->tree_end, this->tree_begin);
     auto n_trees = this->tree_end - this->tree_begin;
     model.tree_info.SetDevice(ctx->Device());
     this->tree_groups = model.TreeGroups(ctx->Device()).subspan(this->tree_begin, n_trees);
-
-    CHECK_GT(this->tree_end, this->tree_begin);
     CHECK_EQ(n_trees, this->trees_.size());
   }
 

@@ -130,10 +130,10 @@ void PredValueByOneTree(tree::MultiTargetTreeView const &tree, std::size_t const
     ProcessArrayTree<has_categorical, any_missing>(tree, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
-    bst_node_t nidx = 0;
+    bst_node_t nidx = RegTree::kRoot;
     if constexpr (use_array_tree_layout) {
       nidx = p_nidx[i];
-      p_nidx[i] = 0;
+      p_nidx[i] = RegTree::kRoot;
     }
     auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
     PredValueByOneTree<has_categorical>(fvec_tloc[i], tree, cats, t_predts, nidx);
@@ -763,12 +763,12 @@ class ColumnSplitHelper {
 
   bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, std::size_t tree_id,
                           std::size_t row_id) {
-    bst_node_t nid = 0;
-    while (!tree.IsLeaf(nid)) {
-      auto const bit_index = BitIndex(tree_id, row_id, nid);
-      nid = GetNextNode(tree, nid, bit_index);
+    bst_node_t nidx = RegTree::kRoot;
+    while (!tree.IsLeaf(nidx)) {
+      auto const bit_index = BitIndex(tree_id, row_id, nidx);
+      nidx = GetNextNode(tree, nidx, bit_index);
     }
-    return nid;
+    return nidx;
   }
 
   template <bool predict_leaf = false>
@@ -1057,6 +1057,7 @@ class CPUPredictor : public Predictor {
     auto n_features = model.learner_model_param->num_feature;
     ThreadTmp<1> feat_vecs{n_threads};
 
+    auto const h_model = HostModel{this->ctx_, model, 0, ntree_limit, &this->mu_};
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       policy.ForEachBatch([&](auto &&batch) {
         common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {
@@ -1065,17 +1066,12 @@ class CPUPredictor : public Predictor {
           batch.FVecFill(block, n_features, fvec_tloc);
 
           for (bst_tree_t j = 0; j < ntree_limit; ++j) {
-            auto const &tree = *model.trees[j];
-            bst_node_t nidx = 0;
-            if (tree.IsMultiTarget()) {
-              auto mt_tree = tree.HostMtView();
-              nidx = GetLeafIndex<true, true>(mt_tree, fvec_tloc.front(),
-                                              mt_tree.GetCategoriesMatrix(), nidx);
-            } else {
-              auto sc_tree = tree.HostScView();
-              nidx = GetLeafIndex<true, true>(tree.HostScView(), fvec_tloc.front(),
-                                              sc_tree.GetCategoriesMatrix(), nidx);
-            }
+            bst_node_t nidx = std::visit(
+                [&](auto &&tree) {
+                  return GetLeafIndex<true, true>(tree, fvec_tloc.front(),
+                                                  tree.GetCategoriesMatrix(), RegTree::kRoot);
+                },
+                h_model.Trees()[j]);
             preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
           }
           batch.FVecDrop(fvec_tloc);
