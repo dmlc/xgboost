@@ -148,8 +148,8 @@ void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t co
   if constexpr (use_array_tree_layout) {
     nidx.resize(block_size, 0);
   }
+  auto trees = model.Trees();
   for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
-    auto const &tree = model.Trees()[tree_id];
     bst_node_t depth = use_array_tree_layout ? tree_depth[tree_id - tree_begin] : 0;
     std::visit(
         enc::Overloaded{
@@ -176,7 +176,7 @@ void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t co
                     tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth);
               }
             }},
-        tree);
+        trees[tree_id]);
   }
 }
 
