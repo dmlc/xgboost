@@ -917,22 +917,20 @@ class CPUPredictor : public Predictor {
   }
 
   template <typename DataView>
-  void PredictContributionKernel(DataView batch, const MetaInfo &info,
-                                 const gbm::GBTreeModel &model,
-                                 common::Span<bst_target_t const> h_tree_groups,
-                                 const std::vector<bst_float> *tree_weights,
+  void PredictContributionKernel(DataView batch, const MetaInfo &info, HostModel const &h_model,
+                                 linalg::VectorView<float const> base_score,
+                                 std::vector<bst_float> const *tree_weights,
                                  std::vector<std::vector<float>> *mean_values,
                                  ThreadTmp<1> *feat_vecs, std::vector<bst_float> *contribs,
-                                 bst_tree_t ntree_limit, bool approximate, int condition,
+                                 bool approximate, int condition,
                                  unsigned condition_feature) const {
-    const int num_feature = model.learner_model_param->num_feature;
-    const auto n_groups = model.learner_model_param->num_output_group;
+    const int num_feature = h_model.n_features;
+    const auto n_groups = h_model.n_groups;
     CHECK_NE(n_groups, 0);
     size_t const ncolumns = num_feature + 1;
     CHECK_NE(ncolumns, 0);
     auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
     auto base_margin = info.base_margin_.View(device);
-    auto base_score = model.learner_model_param->BaseScore(device)(0);
 
     // parallel over local batch
     common::ParallelFor(batch.Size(), this->ctx_->Threads(), [&](auto i) {
@@ -947,18 +945,18 @@ class CPUPredictor : public Predictor {
         float *p_contribs = &(*contribs)[(row_idx * n_groups + gid) * ncolumns];
         batch.Fill(i, &feats);
         // calculate contributions
-        for (bst_tree_t j = 0; j < ntree_limit; ++j) {
+        for (bst_tree_t j = 0; j < h_model.tree_end; ++j) {
           auto *tree_mean_values = &mean_values->at(j);
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
-          if (h_tree_groups[j] != gid) {
+          if (h_model.tree_groups[j] != gid) {
             continue;
           }
+          auto sc_tree = std::get<tree::ScalarTreeView>(h_model.Trees()[j]);
           if (!approximate) {
-            CalculateContributions(model.trees[j]->HostScView(), feats, tree_mean_values,
-                                   &this_tree_contribs[0], condition, condition_feature);
+            CalculateContributions(sc_tree, feats, tree_mean_values, &this_tree_contribs[0],
+                                   condition, condition_feature);
           } else {
-            CalculateContributionsApprox(model.trees[j]->HostScView(), feats, tree_mean_values,
-                                         &this_tree_contribs[0]);
+            CalculateContributionsApprox(sc_tree, feats, tree_mean_values, &this_tree_contribs[0]);
           }
           for (size_t ci = 0; ci < ncolumns; ++ci) {
             p_contribs[ci] +=
@@ -971,7 +969,7 @@ class CPUPredictor : public Predictor {
           CHECK_EQ(base_margin.Shape(1), n_groups);
           p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
         } else {
-          p_contribs[ncolumns - 1] += base_score;
+          p_contribs[ncolumns - 1] += base_score(gid);
         }
       }
     });
@@ -1112,12 +1110,12 @@ class CPUPredictor : public Predictor {
 
     auto const h_model =
         HostModel{DeviceOrd::CPU(), model, 0, ntree_limit, &this->mu_, CopyViews{}};
-    auto h_tree_groups = h_model.tree_groups;
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       policy.ForEachBatch([&](auto &&batch) {
-        PredictContributionKernel(batch, info, model, h_tree_groups, tree_weights, &mean_values,
-                                  &feat_vecs, &contribs, ntree_limit, approximate, condition,
-                                  condition_feature);
+        PredictContributionKernel(batch, info, h_model,
+                                  model.learner_model_param->BaseScore(DeviceOrd::CPU()),
+                                  tree_weights, &mean_values, &feat_vecs, &contribs, approximate,
+                                  condition, condition_feature);
       });
     });
   }
