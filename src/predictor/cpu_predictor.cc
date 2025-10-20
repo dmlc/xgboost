@@ -1110,7 +1110,9 @@ class CPUPredictor : public Predictor {
       FillNodeMeanValues(model.trees[i]->HostScView(), &(mean_values[i]));
     });
 
-    auto h_tree_groups = model.TreeGroups(this->ctx_->Device());
+    auto const h_model =
+        HostModel{DeviceOrd::CPU(), model, 0, ntree_limit, &this->mu_, CopyViews{}};
+    auto h_tree_groups = h_model.tree_groups;
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       policy.ForEachBatch([&](auto &&batch) {
         PredictContributionKernel(batch, info, model, h_tree_groups, tree_weights, &mean_values,
