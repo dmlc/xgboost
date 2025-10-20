@@ -336,9 +336,9 @@ struct CopyViews {
                                   ctx->CUDACtx()->Stream()));
   }
 };
-}  // namespace
 
 using DeviceModel = GBTreeModelView<dh::DeviceUVector, TreeViewVar, CopyViews>;
+}  // namespace
 
 struct ShapSplitCondition {
   ShapSplitCondition() = default;
