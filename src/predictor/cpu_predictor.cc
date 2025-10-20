@@ -149,8 +149,9 @@ void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t co
     nidx.resize(block_size, 0);
   }
   auto trees = model.Trees();
-  for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
-    bst_node_t depth = use_array_tree_layout ? tree_depth[tree_id - tree_begin] : 0;
+  CHECK_EQ(tree_end - tree_begin, model.Trees().size());
+  for (bst_tree_t tree_id = 0, n_trees = tree_end - tree_begin; tree_id < n_trees; ++tree_id) {
+    bst_node_t depth = use_array_tree_layout ? tree_depth[tree_id] : 0;
     std::visit(
         enc::Overloaded{
             [&](tree::ScalarTreeView const &tree) {
@@ -555,9 +556,9 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
   std::vector<int> tree_depth;
   if constexpr (kBlockOfRowsSize > 1) {
     tree_depth.resize(tree_end - tree_begin);
+    CHECK_EQ(tree_depth.size(), model.Trees().size());
     common::ParallelFor(tree_end - tree_begin, n_threads, [&](auto i) {
-      bst_tree_t tree_id = tree_begin + i;
-      std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.Trees()[tree_id]);
+      std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.Trees()[i]);
     });
   }
   auto h_tree_groups = model.tree_groups;
