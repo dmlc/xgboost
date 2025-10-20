@@ -46,8 +46,8 @@ namespace {
 using TreeViewVar = std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
 struct CopyViews {
   static void Copy(Context const *, std::vector<TreeViewVar> *p_dst,
-                   std::vector<TreeViewVar> const &src) {
-    *p_dst = src;
+                   std::vector<TreeViewVar> &&src) {
+    std::swap(src, *p_dst);
   }
 };
 using HostModel = GBTreeModelView<std::vector, TreeViewVar, CopyViews>;
@@ -149,7 +149,7 @@ void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t co
     nidx.resize(block_size, 0);
   }
   for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
-    auto const &tree = model.trees.at(tree_id);
+    auto const &tree = model.Trees()[tree_id];
     bst_node_t depth = use_array_tree_layout ? tree_depth[tree_id - tree_begin] : 0;
     std::visit(
         enc::Overloaded{
@@ -557,7 +557,7 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
     tree_depth.resize(tree_end - tree_begin);
     common::ParallelFor(tree_end - tree_begin, n_threads, [&](auto i) {
       bst_tree_t tree_id = tree_begin + i;
-      std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.trees.at(tree_id));
+      std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.Trees()[tree_id]);
     });
   }
   auto h_tree_groups = model.tree_groups;
