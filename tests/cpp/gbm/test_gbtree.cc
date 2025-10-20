@@ -120,6 +120,7 @@ TEST(GBTree, WrongUpdater) {
 #ifdef XGBOOST_USE_CUDA
 TEST(GBTree, ChoosePredictor) {
   // The test ensures data don't get pulled into device.
+  // XGBoost chooses predictor based on the data placement when input is a SparsePage.
   std::size_t constexpr kRows = 17, kCols = 15;
 
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();

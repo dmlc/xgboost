@@ -190,13 +190,13 @@ void DispatchArrayLayout(HostModel const &model, std::size_t const predict_offse
                          bool any_missing) {
   auto n_trees = model.tree_end - model.tree_begin;
   CHECK_EQ(n_trees, model.Trees().size());
-  CHECK_EQ(n_trees, tree_depth.size());
   /*
    * We transform trees to array layout for each block of data to avoid memory overheads.
    * It makes the array layout inefficient for block_size == 1
    */
   const bool use_array_tree_layout = block_size > 1;
   if (use_array_tree_layout) {
+    CHECK_EQ(n_trees, tree_depth.size());
     // Recheck if the current block has missing values.
     if (any_missing) {
       any_missing = false;
