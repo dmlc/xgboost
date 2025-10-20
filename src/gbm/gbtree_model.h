@@ -101,7 +101,7 @@ struct GBTreeModel : public Model {
 
   /** @brief Global model properties. */
   LearnerModelParam const* learner_model_param;
-  /** @brief GBTree model parameters. **/
+  /** @brief GBTree model parameters. */
   GBTreeModelParam param;
   /*! \brief vector of trees stored in the model */
   std::vector<std::unique_ptr<RegTree>> trees;
