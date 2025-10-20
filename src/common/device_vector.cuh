@@ -467,7 +467,7 @@ class DeviceUVectorImpl {
     this->size_ = n;
     this->capacity_ = n;
 
-    cuda::std::swap(this->data_, new_ptr);
+    std::swap(this->data_, new_ptr);
   }
   // Resize with init
   void resize(std::size_t n, T const &v) {  // NOLINT
