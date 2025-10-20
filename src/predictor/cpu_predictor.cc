@@ -193,8 +193,8 @@ void DispatchArrayLayout(gbm::GBTreeModel const &model,
       }
     }
     if (any_missing) {
-      PredictBlockByAllTrees<true, true>(model, h_tree_groups, tree_begin, tree_end, predict_offset, fvec_tloc,
-                                         block_size, out_predt, tree_depth);
+      PredictBlockByAllTrees<true, true>(model, h_tree_groups, tree_begin, tree_end, predict_offset,
+                                         fvec_tloc, block_size, out_predt, tree_depth);
     } else {
       PredictBlockByAllTrees<true, false>(model, h_tree_groups, tree_begin, tree_end,
                                           predict_offset, fvec_tloc, block_size, out_predt,
