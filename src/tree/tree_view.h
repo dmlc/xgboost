@@ -12,6 +12,7 @@
 
 #include "../common/type.h"      // for GetValueT
 #include "xgboost/base.h"        // for bst_node_t
+#include "xgboost/context.h"     // for DeviceOrd
 #include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost::tree {
@@ -152,7 +153,7 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView>, public CategoriesM
       : CategoriesMixIn{std::move(cats)}, nodes{nodes}, stats{stats}, n{n_nodes} {}
 
   /** @brief Create a device view */
-  explicit ScalarTreeView(Context const* ctx, RegTree const* tree);
+  explicit ScalarTreeView(DeviceOrd device, RegTree const* tree);
   /** @brief Create a host view */
   explicit ScalarTreeView(RegTree const* tree)
       : CategoriesMixIn{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
@@ -221,7 +222,7 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
     return 0.0f;
   }
   /** @brief Create a device view */
-  explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
+  explicit MultiTargetTreeView(DeviceOrd device, RegTree const* tree);
   /** @brief Create a host view */
   explicit MultiTargetTreeView(RegTree const* tree);
 };

@@ -45,15 +45,16 @@ DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 namespace {
 using TreeViewVar = std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
 struct CopyViews {
-  static void Copy(Context const *, std::vector<TreeViewVar> *p_dst,
-                   std::vector<TreeViewVar> &&src) {
+  void operator()(std::vector<TreeViewVar> *p_dst, std::vector<TreeViewVar> &&src) const {
     std::swap(src, *p_dst);
   }
 };
 
 template <typename T>
 using Vec = std::vector<T, std::allocator<T>>;
-
+// The input device should be DeviceOrd::CPU() instead of Context::Device(). The GBTree
+// has an optimization to use CPU predictor when the DMatrix SparsePage is on CPU, even if
+// the context is a CUDA context.
 using HostModel = GBTreeModelView<Vec, TreeViewVar, CopyViews>;
 
 template <bool has_missing, bool has_categorical, typename TreeView>
@@ -902,7 +903,9 @@ class CPUPredictor : public Predictor {
     CHECK_EQ(out_preds->size(), n_samples * n_groups);
     auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
     bool any_missing = !(p_fmat->IsDense());
-    auto const h_model = HostModel{this->ctx_, model, tree_begin, tree_end, &this->mu_};
+    CHECK(this->ctx_->IsCPU());
+    auto const h_model =
+        HostModel{DeviceOrd::CPU(), model, tree_begin, tree_end, &this->mu_, CopyViews{}};
 
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       using Policy = common::GetValueT<decltype(policy)>;
@@ -1003,7 +1006,8 @@ class CPUPredictor : public Predictor {
     // Always use block as we don't know the nnz.
     ThreadTmp<BlockPolicy::kBlockOfRowsSize> feat_vecs{n_threads};
     bst_idx_t n_groups = model.learner_model_param->OutputLength();
-    auto const h_model = HostModel{this->ctx_, model, tree_begin, tree_end, &this->mu_};
+    auto const h_model =
+        HostModel{DeviceOrd::CPU(), model, tree_begin, tree_end, &this->mu_, CopyViews{}};
 
     auto kernel = [&](auto &&view) {
       auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_groups);
@@ -1057,7 +1061,8 @@ class CPUPredictor : public Predictor {
     auto n_features = model.learner_model_param->num_feature;
     ThreadTmp<1> feat_vecs{n_threads};
 
-    auto const h_model = HostModel{this->ctx_, model, 0, ntree_limit, &this->mu_};
+    auto const h_model =
+        HostModel{DeviceOrd::CPU(), model, 0, ntree_limit, &this->mu_, CopyViews{}};
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       policy.ForEachBatch([&](auto &&batch) {
         common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {

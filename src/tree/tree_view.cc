@@ -11,11 +11,11 @@
 namespace xgboost::tree {
 namespace {
 template <typename T>
-auto DispatchPtr(Context const* ctx, HostDeviceVector<T> const& vec) {
-  if (ctx->IsCPU()) {
+auto DispatchPtr(DeviceOrd device, HostDeviceVector<T> const& vec) {
+  if (device.IsCPU()) {
     return vec.ConstHostPointer();
   }
-  vec.SetDevice(ctx->Device());
+  vec.SetDevice(device);
   return vec.ConstDevicePointer();
 }
 
@@ -29,24 +29,24 @@ auto DispatchWeight(DeviceOrd device, RegTree const* tree) {
 }
 }  // namespace
 
-ScalarTreeView::ScalarTreeView(Context const* ctx, RegTree const* tree)
-    : CategoriesMixIn{tree->GetCategoriesMatrix(ctx->Device())},
-      nodes{tree->GetNodes(ctx->Device()).data()},
-      stats{tree->GetStats(ctx->Device()).data()},
+ScalarTreeView::ScalarTreeView(DeviceOrd device, RegTree const* tree)
+    : CategoriesMixIn{tree->GetCategoriesMatrix(device)},
+      nodes{tree->GetNodes(device).data()},
+      stats{tree->GetStats(device).data()},
       n{tree->NumNodes()} {
   CHECK(!tree->IsMultiTarget());
 }
 
-MultiTargetTreeView::MultiTargetTreeView(Context const* ctx, RegTree const* tree)
-    : CategoriesMixIn{tree->GetCategoriesMatrix(ctx->Device())},
-      left{DispatchPtr(ctx, tree->GetMultiTargetTree()->left_)},
-      right{DispatchPtr(ctx, tree->GetMultiTargetTree()->right_)},
-      parent{DispatchPtr(ctx, tree->GetMultiTargetTree()->parent_)},
-      split_index{DispatchPtr(ctx, tree->GetMultiTargetTree()->split_index_)},
-      default_left{DispatchPtr(ctx, tree->GetMultiTargetTree()->default_left_)},
-      split_conds{DispatchPtr(ctx, tree->GetMultiTargetTree()->split_conds_)},
+MultiTargetTreeView::MultiTargetTreeView(DeviceOrd device, RegTree const* tree)
+    : CategoriesMixIn{tree->GetCategoriesMatrix(device)},
+      left{DispatchPtr(device, tree->GetMultiTargetTree()->left_)},
+      right{DispatchPtr(device, tree->GetMultiTargetTree()->right_)},
+      parent{DispatchPtr(device, tree->GetMultiTargetTree()->parent_)},
+      split_index{DispatchPtr(device, tree->GetMultiTargetTree()->split_index_)},
+      default_left{DispatchPtr(device, tree->GetMultiTargetTree()->default_left_)},
+      split_conds{DispatchPtr(device, tree->GetMultiTargetTree()->split_conds_)},
       n{tree->NumNodes()},
-      weights{DispatchWeight(ctx->Device(), tree)} {
+      weights{DispatchWeight(device, tree)} {
   CHECK(tree->IsMultiTarget());
 }
 

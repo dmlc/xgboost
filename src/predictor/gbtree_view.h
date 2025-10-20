@@ -10,7 +10,7 @@
 #include "../gbm/gbtree_model.h"  // for GBTreeModel
 #include "../tree/tree_view.h"    // for MultiTargetTreeView, ScalarTreeView
 #include "xgboost/base.h"         // for bst_tree_t, bst_target_t
-#include "xgboost/context.h"      // for Context
+#include "xgboost/context.h"      // for DeviceOrd
 #include "xgboost/logging.h"      // for CHECK_GT
 #include "xgboost/span.h"         // for Span
 
@@ -30,8 +30,8 @@ struct GBTreeModelView {
   bst_node_t n_nodes{0};
 
  public:
-  explicit GBTreeModelView(Context const* ctx, gbm::GBTreeModel const& model, bst_tree_t tree_begin,
-                           bst_tree_t tree_end, std::mutex* p_mu)
+  explicit GBTreeModelView(DeviceOrd device, gbm::GBTreeModel const& model, bst_tree_t tree_begin,
+                           bst_tree_t tree_end, std::mutex* p_mu, CopyViews copy)
       : tree_begin{tree_begin},
         tree_end{tree_end},
         n_groups{model.learner_model_param->OutputLength()},
@@ -43,22 +43,22 @@ struct GBTreeModelView {
     for (bst_tree_t tree_idx = this->tree_begin; tree_idx < this->tree_end; ++tree_idx) {
       auto const& p_tree = model.trees[tree_idx];
       if (p_tree->IsMultiTarget()) {
-        auto d_tree = tree::MultiTargetTreeView{ctx, p_tree.get()};
+        auto d_tree = tree::MultiTargetTreeView{device, p_tree.get()};
         this->n_nodes += d_tree.Size();
         trees.emplace_back(d_tree);
       } else {
-        auto d_tree = tree::ScalarTreeView{ctx, p_tree.get()};
+        auto d_tree = tree::ScalarTreeView{device, p_tree.get()};
         this->n_nodes += d_tree.Size();
         trees.emplace_back(d_tree);
       }
     }
 
-    CopyViews::Copy(ctx, &this->trees_, std::move(trees));
+    copy(&this->trees_, std::move(trees));
 
     CHECK_GT(this->tree_end, this->tree_begin);
     auto n_trees = this->tree_end - this->tree_begin;
-    model.tree_info.SetDevice(ctx->Device());
-    this->tree_groups = model.TreeGroups(ctx->Device()).subspan(this->tree_begin, n_trees);
+    model.tree_info.SetDevice(device);
+    this->tree_groups = model.TreeGroups(device).subspan(this->tree_begin, n_trees);
     CHECK_EQ(n_trees, this->trees_.size());
   }
 
