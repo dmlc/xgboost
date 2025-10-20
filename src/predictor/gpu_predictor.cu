@@ -438,7 +438,7 @@ void ExtractPaths(Context const* ctx,
 
   // Path length and tree index for all leaf nodes
   dh::caching_device_vector<PathInfo> info(d_model.n_nodes);
-  auto d_trees = dh::ToSpan(d_model.d_trees);  // subset of trees
+  auto d_trees = dh::ToSpan(d_model.trees);  // subset of trees
   auto tree_segments = MakeTreeSegments(ctx, d_model.tree_begin, d_model.tree_end, h_model);
   CHECK_EQ(tree_segments.ConstHostVector().back(), d_model.n_nodes);
   auto d_tree_segments = tree_segments.ConstDeviceSpan();
@@ -723,14 +723,14 @@ class ColumnSplitHelper {
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
       auto d_tree_groups = d_model.tree_groups;
       dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
-          MaskBitVectorKernel, data, dh::ToSpan(d_model.d_trees), decision_bits, missing_bits,
+          MaskBitVectorKernel, data, dh::ToSpan(d_model.trees), decision_bits, missing_bits,
           d_model.tree_begin, d_model.tree_end, num_features, num_nodes, use_shared,
           std::numeric_limits<float>::quiet_NaN());
 
       AllReduceBitVectors(&decision_storage, &missing_storage);
 
       dh::LaunchKernel {grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()}(
-          PredictByBitVectorKernel<predict_leaf>, dh::ToSpan(d_model.d_trees),
+          PredictByBitVectorKernel<predict_leaf>, dh::ToSpan(d_model.trees),
           out_preds->DeviceSpan().subspan(batch_offset), d_tree_groups,
           decision_bits, missing_bits, d_model.tree_begin, d_model.tree_end, num_rows, num_nodes,
           num_group);
@@ -833,7 +833,7 @@ class LaunchConfig {
     auto kernel = PredictKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                 HasMissing(), EncAccessorT>;
     auto d_tree_groups = d_model.tree_groups;
-    this->Launch<Loader>(kernel, std::move(batch), dh::ToSpan(d_model.d_trees),
+    this->Launch<Loader>(kernel, std::move(batch), dh::ToSpan(d_model.trees),
                          predictions->DeviceSpan().subspan(batch_offset), d_tree_groups, n_features,
                          this->UseShared(), d_model.n_groups, missing, acc);
   }
@@ -1235,7 +1235,7 @@ class GPUPredictor : public xgboost::Predictor {
         using Config = common::GetValueT<decltype(cfg)>;
         auto kernel = PredictLeafKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                         Config::HasMissing(), typename Config::EncAccessorT>;
-        cfg.template Launch<Loader>(kernel, std::move(batch), dh::ToSpan(d_model.d_trees),
+        cfg.template Launch<Loader>(kernel, std::move(batch), dh::ToSpan(d_model.trees),
                                     predictions->DeviceSpan().subspan(batch_offset),
                                     d_model.tree_begin, d_model.tree_end, n_features,
                                     cfg.UseShared(), std::numeric_limits<float>::quiet_NaN(),

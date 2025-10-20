@@ -18,7 +18,7 @@ template <template <typename> typename Container, typename TreeViewVar, typename
 struct GBTreeModelView {
   bst_tree_t tree_begin;
   bst_tree_t tree_end;
-  Container<TreeViewVar> d_trees;
+  Container<TreeViewVar> trees;
   common::Span<bst_target_t const> tree_groups;
   bst_target_t n_groups;
   bst_feature_t n_features;
@@ -46,14 +46,14 @@ struct GBTreeModelView {
       }
     }
 
-    CopyViews::Copy(ctx, &this->d_trees, trees);
+    CopyViews::Copy(ctx, &this->trees, trees);
     // this->d_trees = trees;
     auto n_trees = this->tree_end - this->tree_begin;
     model.tree_info.SetDevice(ctx->Device());
     this->tree_groups = model.TreeGroups(ctx->Device()).subspan(this->tree_begin, n_trees);
 
     CHECK_GT(this->tree_end, this->tree_begin);
-    CHECK_EQ(n_trees, d_trees.size());
+    CHECK_EQ(n_trees, this->trees.size());
   }
 };
 }  // namespace xgboost::predictor
