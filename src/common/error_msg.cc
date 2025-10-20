@@ -19,6 +19,27 @@ namespace xgboost::error {
   return ss.str();
 }
 
+[[nodiscard]] std::string InvalidModel(StringView fname) {
+  std::stringstream ss;
+  ss << "Invalid model format in: `" << fname << "`.";
+  return ss.str();
+}
+
+[[nodiscard]] std::string OldBinaryModel(StringView fname) {
+  std::stringstream ss;
+  ss << "Failed to load model: `" << fname << "`. ";
+  ss << R"doc(
+The binary format has been deprecated in 1.6 and removed in 3.1, use UBJ or JSON
+instead. You can port the binary model to UBJ and JSON by re-saving it with XGBoost
+3.0. See:
+
+    https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html
+
+for more info.
+)doc";
+  return ss.str();
+}
+
 void WarnManualUpdater() {
   static std::once_flag flag;
   std::call_once(flag, [] {
