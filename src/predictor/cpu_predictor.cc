@@ -140,7 +140,6 @@ void PredValueByOneTree(tree::MultiTargetTreeView const &tree, std::size_t const
 namespace {
 template <bool use_array_tree_layout, bool any_missing>
 void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t const> h_tree_groups,
-                            bst_tree_t const tree_begin, bst_tree_t const tree_end,
                             std::size_t const predict_offset, common::Span<RegTree::FVec> fvec_tloc,
                             std::size_t const block_size, linalg::MatrixView<float> out_predt,
                             const std::vector<int> &tree_depth) {
@@ -149,8 +148,7 @@ void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t co
     nidx.resize(block_size, 0);
   }
   auto trees = model.Trees();
-  CHECK_EQ(tree_end - tree_begin, model.Trees().size());
-  for (bst_tree_t tree_id = 0, n_trees = tree_end - tree_begin; tree_id < n_trees; ++tree_id) {
+  for (bst_tree_t tree_id = 0, n_trees = model.Trees().size(); tree_id < n_trees; ++tree_id) {
     bst_node_t depth = use_array_tree_layout ? tree_depth[tree_id] : 0;
     std::visit(
         enc::Overloaded{
@@ -182,12 +180,14 @@ void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t co
 }
 
 // Dispatch between template implementations
-void DispatchArrayLayout(HostModel const &model,
-                         common::Span<bst_target_t const> h_tree_groups,
-                         bst_tree_t const tree_begin, bst_tree_t const tree_end,
+void DispatchArrayLayout(HostModel const &model, common::Span<bst_target_t const> h_tree_groups,
                          std::size_t const predict_offset, common::Span<RegTree::FVec> fvec_tloc,
                          std::size_t const block_size, linalg::MatrixView<float> out_predt,
                          const std::vector<int> &tree_depth, bool any_missing) {
+  auto n_trees = model.tree_end - model.tree_begin;
+  CHECK_EQ(n_trees, model.Trees().size());
+  CHECK_EQ(n_trees, tree_depth.size());
+  CHECK_EQ(n_trees, h_tree_groups.size());
   /*
    * We transform trees to array layout for each block of data to avoid memory overheads.
    * It makes the array layout inefficient for block_size == 1
@@ -205,16 +205,15 @@ void DispatchArrayLayout(HostModel const &model,
       }
     }
     if (any_missing) {
-      PredictBlockByAllTrees<true, true>(model, h_tree_groups, tree_begin, tree_end, predict_offset,
-                                         fvec_tloc, block_size, out_predt, tree_depth);
+      PredictBlockByAllTrees<true, true>(model, h_tree_groups, predict_offset, fvec_tloc,
+                                         block_size, out_predt, tree_depth);
     } else {
-      PredictBlockByAllTrees<true, false>(model, h_tree_groups, tree_begin, tree_end,
-                                          predict_offset, fvec_tloc, block_size, out_predt,
-                                          tree_depth);
+      PredictBlockByAllTrees<true, false>(model, h_tree_groups, predict_offset, fvec_tloc,
+                                          block_size, out_predt, tree_depth);
     }
   } else {
-    PredictBlockByAllTrees<false, true>(model, h_tree_groups, tree_begin, tree_end, predict_offset,
-                                        fvec_tloc, block_size, out_predt, tree_depth);
+    PredictBlockByAllTrees<false, true>(model, h_tree_groups, predict_offset, fvec_tloc, block_size,
+                                        out_predt, tree_depth);
   }
 }
 
@@ -540,7 +539,6 @@ class ThreadTmp {
 
 template <std::size_t kBlockOfRowsSize, typename DataView>
 void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
-                               bst_tree_t tree_begin, bst_tree_t tree_end,
                                ThreadTmp<kBlockOfRowsSize> *p_fvec, std::int32_t n_threads,
                                bool any_missing,
                                linalg::TensorView<float, 2> out_predt) {
@@ -555,9 +553,9 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
    */
   std::vector<int> tree_depth;
   if constexpr (kBlockOfRowsSize > 1) {
-    tree_depth.resize(tree_end - tree_begin);
+    tree_depth.resize(model.tree_end - model.tree_begin);
     CHECK_EQ(tree_depth.size(), model.Trees().size());
-    common::ParallelFor(tree_end - tree_begin, n_threads, [&](auto i) {
+    common::ParallelFor(model.tree_end - model.tree_begin, n_threads, [&](auto i) {
       std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.Trees()[i]);
     });
   }
@@ -566,9 +564,8 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
     auto fvec_tloc = fvec.ThreadBuffer(block.Size());
 
     batch.FVecFill(block, n_features, fvec_tloc);
-    DispatchArrayLayout(model, h_tree_groups, tree_begin, tree_end,
-                        block.begin() + batch.base_rowid, fvec_tloc, block.Size(), out_predt,
-                        tree_depth, any_missing);
+    DispatchArrayLayout(model, h_tree_groups, block.begin() + batch.base_rowid, fvec_tloc,
+                        block.Size(), out_predt, tree_depth, any_missing);
     batch.FVecDrop(fvec_tloc);
   });
 }
@@ -910,8 +907,8 @@ class CPUPredictor : public Predictor {
       using Policy = common::GetValueT<decltype(policy)>;
       ThreadTmp<Policy::kBlockOfRowsSize> feat_vecs{n_threads};
       policy.ForEachBatch([&](auto &&batch) {
-        PredictBatchByBlockKernel<Policy::kBlockOfRowsSize>(
-            batch, h_model, tree_begin, tree_end, &feat_vecs, n_threads, any_missing, out_predt);
+        PredictBatchByBlockKernel<Policy::kBlockOfRowsSize>(batch, h_model, &feat_vecs, n_threads,
+                                                            any_missing, out_predt);
       });
     });
   }
@@ -1009,8 +1006,8 @@ class CPUPredictor : public Predictor {
 
     auto kernel = [&](auto &&view) {
       auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_groups);
-      PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(
-          view, h_model, tree_begin, tree_end, &feat_vecs, n_threads, any_missing, out_predt);
+      PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(view, h_model, &feat_vecs, n_threads,
+                                                               any_missing, out_predt);
     };
     auto dispatch = [&](auto x) {
       using AdapterT = typename decltype(x)::element_type;
