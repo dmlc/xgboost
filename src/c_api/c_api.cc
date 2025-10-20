@@ -1527,7 +1527,7 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char *fname) {
     auto str = common::LoadSequentialFile(fname);
     CHECK_GE(str.size(), 2);  // "{}"
     // The old binary format has the starting bytes "binf".
-    if (str[0] == 'b' && str.size() >= 4 && StringView{str.data(), 4} == "binf") {
+    if (str[0] == 'b' && str.size() >= 4 && StringView{str.data(), 4} == "binf") {  // NOLINT
       LOG(FATAL) << error::OldModel();
     }
     CHECK_EQ(str[0], '{');
