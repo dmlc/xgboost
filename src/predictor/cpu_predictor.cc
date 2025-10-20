@@ -923,7 +923,7 @@ class CPUPredictor : public Predictor {
     CHECK_NE(ncolumns, 0);
     auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
     auto base_margin = info.base_margin_.View(device);
-    auto base_score = model.learner_model_param->BaseScore(device)(0);
+    auto base_score = model.learner_model_param->BaseScore(device);
 
     // parallel over local batch
     common::ParallelFor(batch.Size(), this->ctx_->Threads(), [&](auto i) {
@@ -962,7 +962,7 @@ class CPUPredictor : public Predictor {
           CHECK_EQ(base_margin.Shape(1), ngroup);
           p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
         } else {
-          p_contribs[ncolumns - 1] += base_score;
+          p_contribs[ncolumns - 1] += base_score(gid);
         }
       }
     });
