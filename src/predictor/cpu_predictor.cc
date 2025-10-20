@@ -143,9 +143,9 @@ void PredValueByOneTree(tree::MultiTargetTreeView const &tree, std::size_t const
 
 namespace {
 template <bool use_array_tree_layout, bool any_missing>
-void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t const> h_tree_groups,
-                            std::size_t const predict_offset, common::Span<RegTree::FVec> fvec_tloc,
-                            std::size_t const block_size, linalg::MatrixView<float> out_predt,
+void PredictBlockByAllTrees(HostModel const &model, std::size_t const predict_offset,
+                            common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
+                            linalg::MatrixView<float> out_predt,
                             const std::vector<int> &tree_depth) {
   std::vector<bst_node_t> nidx;
   if constexpr (use_array_tree_layout) {
@@ -158,7 +158,7 @@ void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t co
         enc::Overloaded{
             [&](tree::ScalarTreeView const &tree) {
               bool has_categorical = tree.HasCategoricalSplit();
-              auto const gid = h_tree_groups[tree_id];
+              auto const gid = model.tree_groups[tree_id];
               if (has_categorical) {
                 scalar::PredValueByOneTree<true, any_missing, use_array_tree_layout>(
                     tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth,
@@ -184,14 +184,13 @@ void PredictBlockByAllTrees(HostModel const &model, common::Span<bst_target_t co
 }
 
 // Dispatch between template implementations
-void DispatchArrayLayout(HostModel const &model, common::Span<bst_target_t const> h_tree_groups,
-                         std::size_t const predict_offset, common::Span<RegTree::FVec> fvec_tloc,
-                         std::size_t const block_size, linalg::MatrixView<float> out_predt,
-                         const std::vector<int> &tree_depth, bool any_missing) {
+void DispatchArrayLayout(HostModel const &model, std::size_t const predict_offset,
+                         common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
+                         linalg::MatrixView<float> out_predt, const std::vector<int> &tree_depth,
+                         bool any_missing) {
   auto n_trees = model.tree_end - model.tree_begin;
   CHECK_EQ(n_trees, model.Trees().size());
   CHECK_EQ(n_trees, tree_depth.size());
-  CHECK_EQ(n_trees, h_tree_groups.size());
   /*
    * We transform trees to array layout for each block of data to avoid memory overheads.
    * It makes the array layout inefficient for block_size == 1
@@ -209,15 +208,15 @@ void DispatchArrayLayout(HostModel const &model, common::Span<bst_target_t const
       }
     }
     if (any_missing) {
-      PredictBlockByAllTrees<true, true>(model, h_tree_groups, predict_offset, fvec_tloc,
-                                         block_size, out_predt, tree_depth);
+      PredictBlockByAllTrees<true, true>(model, predict_offset, fvec_tloc, block_size, out_predt,
+                                         tree_depth);
     } else {
-      PredictBlockByAllTrees<true, false>(model, h_tree_groups, predict_offset, fvec_tloc,
-                                          block_size, out_predt, tree_depth);
+      PredictBlockByAllTrees<true, false>(model, predict_offset, fvec_tloc, block_size, out_predt,
+                                          tree_depth);
     }
   } else {
-    PredictBlockByAllTrees<false, true>(model, h_tree_groups, predict_offset, fvec_tloc, block_size,
-                                        out_predt, tree_depth);
+    PredictBlockByAllTrees<false, true>(model, predict_offset, fvec_tloc, block_size, out_predt,
+                                        tree_depth);
   }
 }
 
@@ -544,8 +543,7 @@ class ThreadTmp {
 template <std::size_t kBlockOfRowsSize, typename DataView>
 void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
                                ThreadTmp<kBlockOfRowsSize> *p_fvec, std::int32_t n_threads,
-                               bool any_missing,
-                               linalg::TensorView<float, 2> out_predt) {
+                               bool any_missing, linalg::TensorView<float, 2> out_predt) {
   auto &fvec = *p_fvec;
   // Parallel over local batches
   auto const n_samples = batch.Size();
@@ -563,13 +561,12 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
       std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.Trees()[i]);
     });
   }
-  auto h_tree_groups = model.tree_groups;
   common::ParallelFor1d<kBlockOfRowsSize>(n_samples, n_threads, [&](auto &&block) {
     auto fvec_tloc = fvec.ThreadBuffer(block.Size());
 
     batch.FVecFill(block, n_features, fvec_tloc);
-    DispatchArrayLayout(model, h_tree_groups, block.begin() + batch.base_rowid, fvec_tloc,
-                        block.Size(), out_predt, tree_depth, any_missing);
+    DispatchArrayLayout(model, block.begin() + batch.base_rowid, fvec_tloc, block.Size(), out_predt,
+                        tree_depth, any_missing);
     batch.FVecDrop(fvec_tloc);
   });
 }
