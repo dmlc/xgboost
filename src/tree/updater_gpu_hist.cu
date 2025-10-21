@@ -312,8 +312,7 @@ struct GPUHistMakerDevice {
       right_sampled_features->SetDevice(ctx_->Device());
       feature_sets.emplace_back(right_sampled_features);
       common::Span<bst_feature_t> right_feature_set =
-          interaction_constraints.Query(right_sampled_features->DeviceSpan(),
-                                        right_nidx);
+          interaction_constraints.Query(right_sampled_features->DeviceSpan(), right_nidx);
       h_node_inputs[i * 2] = {left_nidx, candidate.depth + 1, candidate.split.left_sum,
                               left_feature_set, histogram_.GetNodeHistogram(left_nidx)};
       h_node_inputs[i * 2 + 1] = {right_nidx, candidate.depth + 1, candidate.split.right_sum,
@@ -324,15 +323,14 @@ struct GPUHistMakerDevice {
       max_active_features =
           std::max(max_active_features, static_cast<bst_feature_t>(input.feature_set.size()));
     }
-    dh::safe_cuda(cudaMemcpyAsync(
-        d_node_inputs.data().get(), h_node_inputs.data(),
-        h_node_inputs.size() * sizeof(EvaluateSplitInputs), cudaMemcpyDefault));
+    dh::safe_cuda(cudaMemcpyAsync(d_node_inputs.data().get(), h_node_inputs.data(),
+                                  h_node_inputs.size() * sizeof(EvaluateSplitInputs),
+                                  cudaMemcpyDefault));
 
     this->evaluator_.EvaluateSplits(ctx_, nidx, max_active_features, dh::ToSpan(d_node_inputs),
                                     shared_inputs, dh::ToSpan(entries));
-    dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(),
-                                  entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
-                                  cudaMemcpyDeviceToHost));
+    dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), entries.data().get(),
+                                  sizeof(GPUExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
     this->monitor.Stop(__func__);
   }
 
@@ -488,15 +486,6 @@ struct GPUHistMakerDevice {
     return n_samples * kNeedCopyThreshold > n_total_samples;
   }
 
-  template <typename Accessor>
-  struct GoLeftWrapperOp {
-    GoLeftOp<Accessor> go_left;
-    __device__ bool operator()(cuda_impl::RowIndexT ridx, int /*nidx_in_batch*/,
-                               const NodeSplitData& data) const {
-      return go_left(ridx, data);
-    }
-  };
-
   // Update position and build histogram. We merge these two functions for external
   // memory, where we want to bundle as many computation as possible for each data read.
   void PartitionAndBuildHist(DMatrix* p_fmat, std::vector<GPUExpandEntry> const& expand_set,
@@ -529,7 +518,8 @@ struct GPUHistMakerDevice {
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(prefetch_copy))) {
       page.Impl()->Visit(ctx_, {}, [&](auto&& d_matrix) {
         using Acc = std::remove_reference_t<decltype(d_matrix)>;
-        auto go_left = GoLeftOp<Acc>{d_matrix};
+        using GoLeft = GoLeftOp<Acc>;
+        auto go_left = GoLeft{d_matrix};
 
         // Partition histogram.
         monitor.Start("UpdatePositionBatch");
@@ -539,7 +529,7 @@ struct GPUHistMakerDevice {
         } else {
           partitioners_.at(k)->UpdatePositionBatch(ctx_, nodes.nidx, nodes.left_nidx,
                                                    nodes.right_nidx, nodes.split_data,
-                                                   GoLeftWrapperOp<Acc>{go_left});
+                                                   cuda_impl::GoLeftWrapperOp<GoLeft>{go_left});
         }
         monitor.Stop("UpdatePositionBatch");
 
@@ -697,10 +687,8 @@ struct GPUHistMakerDevice {
     auto right_weight = candidate.right_weight * param.learning_rate;
     auto parent_hess =
         quantiser->ToFloatingPoint(candidate.split.left_sum + candidate.split.right_sum).GetHess();
-    auto left_hess =
-        quantiser->ToFloatingPoint(candidate.split.left_sum).GetHess();
-    auto right_hess =
-        quantiser->ToFloatingPoint(candidate.split.right_sum).GetHess();
+    auto left_hess = quantiser->ToFloatingPoint(candidate.split.left_sum).GetHess();
+    auto right_hess = quantiser->ToFloatingPoint(candidate.split.right_sum).GetHess();
 
     auto is_cat = candidate.split.is_cat;
     if (is_cat) {
@@ -714,16 +702,15 @@ struct GPUHistMakerDevice {
       CHECK_LE(split_cats.size(), h_cats.size());
       std::copy(h_cats.data(), h_cats.data() + split_cats.size(), split_cats.data());
 
-      tree.ExpandCategorical(
-          candidate.nidx, candidate.split.findex, split_cats, candidate.split.dir == kLeftDir,
-          base_weight, left_weight, right_weight, candidate.split.loss_chg, parent_hess,
-          left_hess, right_hess);
+      tree.ExpandCategorical(candidate.nidx, candidate.split.findex, split_cats,
+                             candidate.split.dir == kLeftDir, base_weight, left_weight,
+                             right_weight, candidate.split.loss_chg, parent_hess, left_hess,
+                             right_hess);
     } else {
       CHECK(!common::CheckNAN(candidate.split.fvalue));
       tree.ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                       candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
-                      candidate.split.loss_chg, parent_hess,
-          left_hess, right_hess);
+                      candidate.split.loss_chg, parent_hess, left_hess, right_hess);
     }
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 
@@ -791,8 +778,7 @@ struct GPUHistMakerDevice {
                    [&](auto const& e) { return driver.IsChildValid(e); });
 
       // Allocaate children nodes.
-      auto new_candidates =
-          pinned.GetSpan<GPUExpandEntry>(valid_candidates.size() * 2, GPUExpandEntry());
+      auto new_candidates = pinned.GetSpan(valid_candidates.size() * 2, GPUExpandEntry{});
 
       this->PartitionAndBuildHist(p_fmat, expand_set, valid_candidates, p_tree);
 
@@ -937,8 +923,6 @@ class GPUHistMaker : public TreeUpdater {
     return result;
   }
 
-
-
   [[nodiscard]] char const* Name() const override { return "grow_gpu_hist"; }
   [[nodiscard]] bool HasNodePosition() const override { return true; }
 
@@ -962,9 +946,7 @@ class GPUHistMaker : public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
     .describe("Grow tree with GPU.")
-    .set_body([](Context const* ctx, ObjInfo const* task) {
-      return new GPUHistMaker(ctx, task);
-    });
+    .set_body([](Context const* ctx, ObjInfo const* task) { return new GPUHistMaker(ctx, task); });
 
 class GPUGlobalApproxMaker : public TreeUpdater {
  public:

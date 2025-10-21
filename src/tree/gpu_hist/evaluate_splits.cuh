@@ -208,7 +208,7 @@ class GPUHistEvaluator {
 struct MultiEvaluateSplitInputs {
   bst_node_t nidx;
   bst_node_t depth;
-  common::Span<GradientPairInt64> parent_sum;
+  common::Span<GradientPairInt64 const> parent_sum;
   common::Span<const GradientPairInt64> histogram;
 };
 
