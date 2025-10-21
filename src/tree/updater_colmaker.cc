@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file updater_colmaker.cc
  * \brief use columnwise update to construct a tree
  * \author Tianqi Chen
@@ -14,7 +14,8 @@
 #include "param.h"
 #include "sample_position.h"  // for SamplePosition
 #include "split_evaluator.h"
-#include "tree_view.h"  // for ScalarTreeView
+#include "tree_view.h"         // for ScalarTreeView
+#include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/parameter.h"
@@ -94,7 +95,7 @@ class ColMaker: public TreeUpdater {
     }
   }
 
-  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *dmat,
+  void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *dmat,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree *> &trees) override {
     if (collective::IsDistributed()) {
@@ -115,6 +116,7 @@ class ColMaker: public TreeUpdater {
     // rescale learning rate according to size of trees
     interaction_constraints_.Configure(*param, dmat->Info().num_row_);
     // build tree
+    auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     for (auto tree : trees) {
       CHECK(ctx_);

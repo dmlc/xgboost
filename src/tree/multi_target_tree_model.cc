@@ -48,13 +48,12 @@ MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
   this->weights_.Copy(that.weights_);
 }
 
-void MultiTargetTree::SetLeaf(bst_node_t nidx, linalg::VectorView<float const> weight) {
-  CHECK(this->IsLeaf(nidx)) << "Collapsing a split node to leaf " << MTNotImplemented();
-  auto const next_nidx = nidx + 1;
-  CHECK_EQ(weight.Size(), this->NumTargets());
+void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight) {
+  auto const next_nidx = RegTree::kRoot + 1;
+  CHECK_LE(weight.Size(), this->NumTargets());
   CHECK_GE(weights_.Size(), next_nidx * weight.Size());
-  auto out_weight = weights_.HostSpan().subspan(nidx * weight.Size(), weight.Size());
-  for (std::size_t i = 0; i < weight.Size(); ++i) {
+  auto out_weight = weights_.HostSpan().subspan(RegTree::kRoot * weight.Size(), weight.Size());
+  for (std::size_t i = 0, n = weight.Size(); i < n; ++i) {
     out_weight[i] = weight(i);
   }
 }
@@ -100,16 +99,32 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
 
   weights_.Resize(n * this->NumTargets());
   auto p_weight = this->NodeWeight(nidx);
-  CHECK_EQ(p_weight.Size(), base_weight.Size());
+  CHECK_GE(p_weight.Size(), base_weight.Size());
   auto l_weight = this->NodeWeight(left_child);
-  CHECK_EQ(l_weight.Size(), left_weight.Size());
+  CHECK_GE(l_weight.Size(), left_weight.Size());
   auto r_weight = this->NodeWeight(right_child);
-  CHECK_EQ(r_weight.Size(), right_weight.Size());
+  CHECK_GE(r_weight.Size(), right_weight.Size());
 
-  for (std::size_t i = 0; i < base_weight.Size(); ++i) {
+  CHECK_EQ(base_weight.Size(), left_weight.Size());
+  CHECK_EQ(base_weight.Size(), right_weight.Size());
+
+  for (std::size_t i = 0, n = base_weight.Size(); i < n; ++i) {
     p_weight(i) = base_weight(i);
     l_weight(i) = left_weight(i);
     r_weight(i) = right_weight(i);
+  }
+}
+
+void MultiTargetTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {
+  auto n_targets = this->NumTargets();
+  auto h_weights = this->weights_.HostSpan();
+  std::int32_t nidx_in_set = 0;
+  for (auto nidx : leaves) {
+    CHECK(this->IsLeaf(nidx));
+    auto w_in = weights.subspan(nidx_in_set * n_targets, n_targets);
+    auto w_out = h_weights.subspan(nidx * n_targets, n_targets);
+    std::copy(w_in.cbegin(), w_in.cend(), w_out.begin());
+    nidx_in_set++;
   }
 }
 

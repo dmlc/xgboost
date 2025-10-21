@@ -60,9 +60,9 @@ class MultiTargetTree : public Model {
   MultiTargetTree& operator=(MultiTargetTree&& that) = delete;
 
   /**
-   * @brief Set the weight for a leaf.
+   * @brief Set the weight for the root.
    */
-  void SetLeaf(bst_node_t nidx, linalg::VectorView<float const> weight);
+  void SetRoot(linalg::VectorView<float const> weight);
   /**
    * @brief Expand a leaf into split node.
    */
@@ -70,6 +70,7 @@ class MultiTargetTree : public Model {
               linalg::VectorView<float const> base_weight,
               linalg::VectorView<float const> left_weight,
               linalg::VectorView<float const> right_weight);
+  void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
 
   [[nodiscard]] bool IsLeaf(bst_node_t nidx) const {
     return left_.ConstHostVector()[nidx] == InvalidNodeId();

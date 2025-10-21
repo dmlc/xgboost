@@ -188,7 +188,7 @@ class GBTree : public GradientBooster {
   /**
    * @brief Carry out one iteration of boosting.
    */
-  void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair, PredictionCacheEntry* predt,
+  void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,
                ObjFunction const* obj) override;
 
   [[nodiscard]] GBTreeTrainParam const& GetTrainParam() const { return tparam_; }
@@ -326,9 +326,11 @@ class GBTree : public GradientBooster {
   }
 
  protected:
-  void BoostNewTrees(linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
+  void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
                      std::vector<std::unique_ptr<RegTree>>* ret);
+
+  std::vector<RegTree*> InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret);
 
   [[nodiscard]] std::unique_ptr<Predictor> const& GetPredictor(
       bool is_training, HostDeviceVector<float> const* out_pred = nullptr,

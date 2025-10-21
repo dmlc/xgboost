@@ -5,6 +5,7 @@
 #include <cub/util_type.cuh>         // for KeyValuePair
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
 #include <vector>                    // for vector
+#include "../../common/device_debug.cuh"
 
 #include "../../common/cuda_context.cuh"
 #include "../updater_gpu_common.cuh"  // for SumCallbackOp
@@ -232,7 +233,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                                         MultiEvaluateSplitSharedInputs const &shared_inputs,
                                         common::Span<MultiExpandEntry> out_splits) {
   auto n_targets = shared_inputs.Targets();
-  CHECK_GE(n_targets, 2);
   auto n_bins_per_feat_tar = shared_inputs.n_bins_per_feat_tar;
   CHECK_GE(n_bins_per_feat_tar, 1);
   auto n_features = shared_inputs.Features();
@@ -260,6 +260,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     scans[nidx_in_set] = dh::ToSpan(this->scan_buffer_)
                              .subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
   }
+  // fixme: make sure root sum is copied.
 
   // Launch histogram scan kernel
   dim3 grid{n_nodes, n_features, n_targets};
@@ -274,6 +275,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       dh::ToSpan(d_splits));
 
   // Find best split for each node
+  // * 3 because of three nodes, parent, left, right
   this->weights_.resize(n_nodes * n_targets * 3);
   auto d_weights = dh::ToSpan(this->weights_);
 
@@ -362,21 +364,21 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
 void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
                                         MultiExpandEntry const &candidate) {
-  auto n_targets = p_tree->NumTargets();
-
   auto left_child = p_tree->LeftChild(candidate.nidx);
   auto right_child = p_tree->RightChild(candidate.nidx);
   bst_node_t max_node = std::max(left_child, right_child);
+  auto n_targets = candidate.base_weight.size();
+
   this->AllocNodeSum(max_node, n_targets);
 
   auto parent_sum = this->GetNodeSum(candidate.nidx, n_targets);
-
   auto left_sum = this->GetNodeSum(left_child, n_targets);
   auto right_sum = this->GetNodeSum(right_child, n_targets);
 
   // Calculate node sums
   // TODO(jiamingy): We need to batch the targets and nodes
   auto best_split = candidate.split;
+
   auto node_sum = best_split.node_sum;
   dh::LaunchN(1, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t) {
     for (bst_target_t t = 0; t < n_targets; ++t) {

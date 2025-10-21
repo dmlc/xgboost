@@ -56,6 +56,7 @@ def train(
     *,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
     obj: Optional[Objective] = None,
+    red: Optional[Objective] = None,  # fixme: type
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     evals_result: Optional[TrainingCallback.EvalsLog] = None,
@@ -196,7 +197,7 @@ def train(
     for i in range(start_iteration, num_boost_round):
         if cb_container.before_iteration(bst, i, dtrain, evals):
             break
-        bst.update(dtrain, iteration=i, fobj=obj)
+        bst.update(dtrain, iteration=i, fobj=obj, fred=red)
         if cb_container.after_iteration(bst, i, dtrain, evals):
             break
 

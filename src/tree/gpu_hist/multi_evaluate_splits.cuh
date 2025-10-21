@@ -10,6 +10,7 @@
 #include "xgboost/context.h"               // for Context
 
 namespace xgboost::tree::cuda_impl {
+/** @brief Evaluator for vector leaf. */
 class MultiHistEvaluator {
   dh::device_vector<float> weights_;
 
@@ -17,10 +18,15 @@ class MultiHistEvaluator {
   dh::device_vector<GradientPairInt64> node_sums_;
 
  public:
+  /**
+   * @brief Run evaluation for the root node.
+   */
   [[nodiscard]] MultiExpandEntry EvaluateSingleSplit(
       Context const *ctx, MultiEvaluateSplitInputs const &input,
       MultiEvaluateSplitSharedInputs const &shared_inputs);
-
+  /**
+   * @brief Run evaluation for multiple nodes.
+   */
   void EvaluateSplits(Context const *ctx, common::Span<MultiEvaluateSplitInputs const> d_inputs,
                       MultiEvaluateSplitSharedInputs const &shared_inputs,
                       common::Span<MultiExpandEntry> out_splits);

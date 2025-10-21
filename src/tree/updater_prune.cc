@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file updater_prune.cc
  * \brief prune a tree given the statistics
  * \author Tianqi Chen
@@ -11,7 +11,9 @@
 #include "../common/timer.h"
 #include "./param.h"
 #include "xgboost/base.h"
+#include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/json.h"
+
 namespace xgboost::tree {
 DMLC_REGISTRY_FILE_TAG(updater_prune);
 
@@ -31,14 +33,14 @@ class TreePruner : public TreeUpdater {
   [[nodiscard]] bool CanModifyTree() const override { return true; }
 
   // update the tree, do pruning
-  void Update(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
+  void Update(TrainParam const* param, GradientContainer* in_gpair, DMatrix* p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override {
     pruner_monitor_.Start("PrunerUpdate");
     for (auto tree : trees) {
       this->DoPrune(param, tree);
     }
-    syncher_->Update(param, gpair, p_fmat, out_position, trees);
+    syncher_->Update(param, in_gpair, p_fmat, out_position, trees);
     pruner_monitor_.Stop("PrunerUpdate");
   }
 

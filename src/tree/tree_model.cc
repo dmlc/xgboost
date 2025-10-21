@@ -889,6 +889,12 @@ void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split
   this->param_.num_nodes = this->p_mt_tree_->Size();
 }
 
+void RegTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {
+  // fixme: cleanup
+  CHECK(IsMultiTarget());
+  this->p_mt_tree_->SetLeaves(std::move(leaves), weights);
+}
+
 void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
                                 common::Span<common::KCatBitField::value_type> split_cat,
                                 bool default_left, bst_float base_weight,

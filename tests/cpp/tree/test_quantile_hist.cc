@@ -1,7 +1,8 @@
 /**
- * Copyright 2018-2024, XGBoost Contributors
+ * Copyright 2018-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/gradient.h>  // for GradientContainer
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
 #include <xgboost/tree_updater.h>
@@ -290,8 +291,9 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
           "part_resize_big_first", true);
 
   std::size_t shape_large[2]{dmat_large->Info().num_row_, n_targets_size};
-  linalg::Matrix<GradientPair> gpair_large(shape_large, ctx.Device());
-  FillGradients(&gpair_large);
+  GradientContainer gpair_large;
+  gpair_large.gpair = linalg::Matrix<GradientPair>{shape_large, ctx.Device()};
+  FillGradients(&gpair_large.gpair);
 
   RegTree tree_large{n_targets, static_cast<bst_feature_t>(kCols)};
   std::vector<RegTree*> trees_large{&tree_large};
@@ -318,8 +320,9 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
   std::memcpy(tail_before.data(), hv.data() + hv.size(), tail_elems * sizeof(bst_node_t));
 
   std::size_t shape_small[2]{dmat_small->Info().num_row_, n_targets_size};
-  linalg::Matrix<GradientPair> gpair_small(shape_small, ctx.Device());
-  FillGradients(&gpair_small);
+  GradientContainer gpair_small;
+  gpair_small.gpair = linalg::Matrix<GradientPair>{shape_small, ctx.Device()};
+  FillGradients(&gpair_small.gpair);
 
   RegTree tree_small{n_targets, static_cast<bst_feature_t>(kCols)};
   std::vector<RegTree*> trees_small{&tree_small};

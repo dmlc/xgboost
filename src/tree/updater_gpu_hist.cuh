@@ -14,9 +14,11 @@
 #include "gpu_hist/multi_evaluate_splits.cuh"  // for MultiHistEvaluator
 #include "gpu_hist/row_partitioner.cuh"        // for RowPartitioner
 #include "hist/hist_param.h"                   // for HistMakerTrainParam
+#include "leaf_sum.cuh"                        // for LeafGradSum
 #include "tree_view.h"                         // for MultiTargetTreeView
 #include "xgboost/base.h"                      // for bst_idx_t
 #include "xgboost/context.h"                   // for Context
+#include "xgboost/gradient.h"                  // for GradientContainer
 #include "xgboost/host_device_vector.h"        // for HostDeviceVector
 #include "xgboost/tree_model.h"                // for RegTree
 
@@ -49,21 +51,25 @@ class MultiTargetHistMaker {
   std::shared_ptr<common::HistogramCuts const> const cuts_;
   std::unique_ptr<FeatureGroups> feature_groups_;
   DeviceHistogramBuilder histogram_;
-  std::unique_ptr<MultiGradientQuantiser> quantiser_;
+  std::unique_ptr<MultiGradientQuantiser> split_quantizer_;
+  std::unique_ptr<MultiGradientQuantiser> value_quantizer_;
 
   MultiHistEvaluator evaluator_;
 
-  linalg::Matrix<GradientPair> dh_gpair_;
+  // Gradient used for building the tree structure
+  linalg::Matrix<GradientPair> split_gpair_;
+  // Gradient used for calculating the leaf values
+  linalg::Matrix<GradientPair> value_gpair_;
   std::vector<bst_idx_t> const batch_ptr_;
 
   dh::PinnedMemory pinned_;
 
   void BuildHist(EllpackPage const& page, std::int32_t k, bst_node_t nidx) {
-    auto d_gpair = this->dh_gpair_.View(this->ctx_->Device());
+    auto d_gpair = this->split_gpair_.View(this->ctx_->Device());
     CHECK(!this->partitioners_.empty());
     auto d_ridx = this->partitioners_.at(k)->GetRows(nidx);
     auto hist = histogram_.GetNodeHistogram(nidx);
-    auto roundings = this->quantiser_->Quantizers();
+    auto roundings = this->split_quantizer_->Quantizers();
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
     histogram_.BuildHistogram(this->ctx_->CUDACtx(), acc,
                               this->feature_groups_->DeviceAccessor(this->ctx_->Device()), d_gpair,
@@ -71,9 +77,9 @@ class MultiTargetHistMaker {
   }
 
  public:
-  void Reset(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, RegTree* p_tree) {
-    bst_idx_t n_targets = p_tree->NumTargets();
-    auto in_gpair = linalg::MakeTensorView(ctx_, gpair_all, p_fmat->Info().num_row_, n_targets);
+  void Reset(linalg::Matrix<GradientPair>* gpair_all, DMatrix* p_fmat) {
+    bst_idx_t n_targets = gpair_all->Shape(1);
+    auto in_gpair = gpair_all->View(ctx_->Device());
 
     /**
      * Initialize the partitioners
@@ -97,11 +103,16 @@ class MultiTargetHistMaker {
      * Initialize the histogram
      */
     std::size_t shape[2]{p_fmat->Info().num_row_, n_targets};
-    dh_gpair_ = linalg::Matrix<GradientPair>{shape, ctx_->Device(), linalg::kF};
-    TransposeGradient(this->ctx_, in_gpair, dh_gpair_.View(ctx_->Device()));
+    split_gpair_ = linalg::Matrix<GradientPair>{shape, ctx_->Device(), linalg::kF};
+    TransposeGradient(this->ctx_, in_gpair, split_gpair_.View(ctx_->Device()));
 
-    this->quantiser_ = std::make_unique<MultiGradientQuantiser>(
-        this->ctx_, dh_gpair_.View(ctx_->Device()), p_fmat->Info());
+    this->split_quantizer_ = std::make_unique<MultiGradientQuantiser>(
+        this->ctx_, split_gpair_.View(ctx_->Device()), p_fmat->Info());
+
+    if (!this->value_gpair_.Empty()) {
+      this->value_quantizer_ = std::make_unique<MultiGradientQuantiser>(
+          this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
+    }
 
     bool force_global = true;
     histogram_.Reset(this->ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
@@ -109,11 +120,12 @@ class MultiTargetHistMaker {
                      cuts_->TotalBins() * n_targets, force_global);
   }
 
-  [[nodiscard]] MultiExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
-    auto d_gpair = dh_gpair_.View(ctx_->Device());
+  dh::device_vector<GradientPairInt64> CalcRootSum(
+      linalg::MatrixView<GradientPair> d_gpair,
+      common::Span<GradientQuantiser const> roundings) const {
+    // fixme: merge with fit stump.
     auto n_samples = d_gpair.Shape(0);
     auto n_targets = d_gpair.Shape(1);
-
     // Calculate the root sum
     dh::device_vector<GradientPairInt64> root_sum(n_targets);
 
@@ -121,16 +133,29 @@ class MultiTargetHistMaker {
       auto cidx = i / n_samples;
       return cidx;
     });
-    auto d_roundings = quantiser_->Quantizers();
     auto val_it =
         dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) -> GradientPairInt64 {
           auto cidx = i / n_samples;
           auto ridx = i % n_samples;
           auto g = d_gpair(ridx, cidx);
-          return d_roundings[cidx].ToFixedPoint(g);
+          return roundings[cidx].ToFixedPoint(g);
         });
     thrust::reduce_by_key(ctx_->CUDACtx()->CTP(), key_it, key_it + d_gpair.Size(), val_it,
                           thrust::make_discard_iterator(), root_sum.begin());
+    return root_sum;
+  }
+
+  [[nodiscard]] MultiExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
+    auto d_gpair = split_gpair_.View(ctx_->Device());
+    auto n_samples = d_gpair.Shape(0);
+    auto n_targets = d_gpair.Shape(1);
+
+    // Calculate the root sum
+    auto root_sum = this->CalcRootSum(d_gpair, this->split_quantizer_->Quantizers());
+    this->evaluator_.AllocNodeSum(RegTree::kRoot, n_targets);
+    auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
+    dh::safe_cuda(cudaMemcpyAsync(d_root_sum.data(), root_sum.data().get(), d_root_sum.size_bytes(),
+                                  cudaMemcpyDefault, this->ctx_->CUDACtx()->Stream()));
 
     // Build the root histogram.
     histogram_.AllocateHistograms(ctx_, {RegTree::kRoot});
@@ -146,6 +171,7 @@ class MultiTargetHistMaker {
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
     MultiEvaluateSplitInputs input{RegTree::kRoot, p_tree->GetDepth(RegTree::kRoot),
                                    dh::ToSpan(root_sum), node_hist};
+    auto d_roundings = split_quantizer_->Quantizers();
     GPUTrainingParam param{this->param_};
     MultiEvaluateSplitSharedInputs shared_inputs{d_roundings,
                                                  this->cuts_->cut_ptrs_.ConstDeviceSpan(),
@@ -156,9 +182,12 @@ class MultiTargetHistMaker {
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
 
     // TODO(jiamingy): Support learning rate.
+    // TODO(jiamingy): We need to modify the tree structure to account for internal reduced weight
+    // size.
     std::vector<float> h_base_weight(entry.base_weight.size());
     dh::CopyDeviceSpanToVector(&h_base_weight, entry.base_weight);
-    p_tree->SetLeaf(RegTree::kRoot, linalg::MakeVec(h_base_weight));
+    p_tree->SetRoot(linalg::MakeVec(h_base_weight));
+
     return entry;
   }
 
@@ -171,11 +200,37 @@ class MultiTargetHistMaker {
     dh::CopyDeviceSpanToVector(&h_base_weight, candidate.base_weight);
     dh::CopyDeviceSpanToVector(&h_left_weight, candidate.left_weight);
     dh::CopyDeviceSpanToVector(&h_right_weight, candidate.right_weight);
+
     p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                        candidate.split.dir == kLeftDir, linalg::MakeVec(h_base_weight),
                        linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight));
 
     this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, candidate);
+  }
+
+  void UpdateTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
+    auto const& h_segments = this->partitioners_.front()->GetSegmentsHost();
+    std::vector<bst_node_t> leaves;
+    bst_node_t nidx = 0;
+    for (auto const& node : h_segments) {
+      if (node.IsLeaf()) {
+        leaves.push_back(nidx);
+      }
+      nidx += 1;
+    }
+    // Calculate the leaf weight based on the node sum for each leaf.
+    // Update the leaf weight, with learning rate.
+    linalg::Matrix<GradientPairInt64> out_sum(
+        {leaves.size(), static_cast<std::size_t>(p_tree->NumTargets())}, this->ctx_->Device());
+    LeafGradSum(this->ctx_, this->partitioners_.front()->GetSegmentsHost(),
+                this->value_quantizer_->Quantizers(), this->partitioners_.front()->GetRows(),
+                full_grad.View(this->ctx_->Device()), out_sum.View(this->ctx_->Device()));
+    auto param = GPUTrainingParam{this->param_};
+    linalg::Matrix<float> out_weight =
+        linalg::Empty<float>(this->ctx_, leaves.size(), p_tree->NumTargets());
+    LeafWeight(this->ctx_, param, this->value_quantizer_->Quantizers(),
+               out_sum.View(this->ctx_->Device()), out_weight.View(this->ctx_->Device()));
+    p_tree->SetLeaves(leaves, out_weight.Data()->ConstHostSpan());
   }
 
   struct NodeSplitData {
@@ -258,8 +313,6 @@ class MultiTargetHistMaker {
     }
 
     histogram_.AllocateHistograms(ctx_, build_nidx);
-    // Use a device view.
-    mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
 
     std::int32_t k{0};
     // TODO(jiamingy): Support external memory.
@@ -288,7 +341,7 @@ class MultiTargetHistMaker {
     }
     GPUTrainingParam param{this->param_};
     MultiEvaluateSplitSharedInputs shared_inputs{
-        this->quantiser_->Quantizers(),
+        this->split_quantizer_->Quantizers(),
         this->cuts_->cut_ptrs_.ConstDeviceSpan(),
         this->cuts_->cut_values_.ConstDeviceSpan(),
         this->cuts_->min_vals_.ConstDeviceSpan(),
@@ -307,17 +360,18 @@ class MultiTargetHistMaker {
       bst_node_t right_nidx = mt_tree.RightChild(candidate.nidx);
       max_nidx = std::max({max_nidx, left_nidx, right_nidx});
     }
-
+    auto n_targets = this->split_gpair_.Shape(1);
     for (std::size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
       bst_node_t left_nidx = mt_tree.LeftChild(candidate.nidx);
       bst_node_t right_nidx = mt_tree.RightChild(candidate.nidx);
       // Make sure no allocation is happening.
       // The parent sum is calculated in the last apply tree split.
-      auto parent_sum = this->evaluator_.GetNodeSum(candidate.nidx, mt_tree.NumTargets());
-      auto left = MultiEvaluateSplitInputs{left_nidx, candidate.depth + 1, parent_sum,
+      auto left = MultiEvaluateSplitInputs{left_nidx, candidate.depth + 1,
+                                           this->evaluator_.GetNodeSum(left_nidx, n_targets),
                                            histogram_.GetNodeHistogram(left_nidx)};
-      auto right = MultiEvaluateSplitInputs{right_nidx, candidate.depth + 1, parent_sum,
+      auto right = MultiEvaluateSplitInputs{right_nidx, candidate.depth + 1,
+                                            this->evaluator_.GetNodeSum(right_nidx, n_targets),
                                             histogram_.GetNodeHistogram(right_nidx)};
       h_node_inputs[i * 2] = left;
       h_node_inputs[i * 2 + 1] = right;
@@ -332,20 +386,37 @@ class MultiTargetHistMaker {
                                   ctx_->CUDACtx()->Stream()));
   }
 
-  void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo const*,
-                  RegTree* p_tree, HostDeviceVector<bst_node_t>*) {
+  void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree) {
+    auto* split_grad = gpair->Grad();
+    if (gpair->HasValueGrad()) {
+      this->value_gpair_ =
+          linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device(), linalg::kF};
+      TransposeGradient(this->ctx_, gpair->value_gpair.View(this->ctx_->Device()),
+                        value_gpair_.View(this->ctx_->Device()));
+    }
+
+    this->GrowTree(split_grad, p_fmat, task, p_tree);
+
+    if (gpair->HasValueGrad()) {
+      this->UpdateTreeLeaf(gpair->value_gpair, p_tree);
+    }
+  }
+
+  void GrowTree(linalg::Matrix<GradientPair>* splti_gpair, DMatrix* p_fmat, ObjInfo const*,
+                RegTree* p_tree) {
     if (this->param_.learning_rate - 1.0 != 0.0) {
       LOG(FATAL) << "GPU" << MTNotImplemented();
     }
     Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
 
-    this->Reset(gpair_all, p_fmat, p_tree);
+    this->Reset(splti_gpair, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
 
     // The set of leaves that can be expanded asynchronously
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
       for (auto& candidate : expand_set) {
+        // fixme: prevent node size == 0
         this->ApplySplit(candidate, p_tree);
       }
 

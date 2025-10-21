@@ -8,22 +8,23 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
-#include <dmlc/io.h>          // for Serializable
-#include <xgboost/base.h>     // for bst_feature_t, bst_target_t, bst_float, Args, GradientPair, ..
-#include <xgboost/context.h>  // for Context
-#include <xgboost/linalg.h>   // for Vector, VectorView
-#include <xgboost/metric.h>   // for Metric
-#include <xgboost/model.h>    // for Configurable, Model
-#include <xgboost/span.h>     // for Span
-#include <xgboost/task.h>     // for ObjInfo
+#include <dmlc/io.h>           // for Serializable
+#include <xgboost/base.h>      // for bst_feature_t, bst_target_t, bst_float, Args, GradientPair, ..
+#include <xgboost/context.h>   // for Context
+#include <xgboost/gradient.h>  // for GradientContainer
+#include <xgboost/linalg.h>    // for Vector, VectorView
+#include <xgboost/metric.h>    // for Metric
+#include <xgboost/model.h>     // for Configurable, Model
+#include <xgboost/span.h>      // for Span
+#include <xgboost/task.h>      // for ObjInfo
 
-#include <algorithm>          // for max
-#include <cstdint>            // for int32_t, uint32_t, uint8_t
-#include <map>                // for map
-#include <memory>             // for shared_ptr, unique_ptr
-#include <string>             // for string
-#include <utility>            // for move
-#include <vector>             // for vector
+#include <algorithm>  // for max
+#include <cstdint>    // for int32_t, uint32_t, uint8_t
+#include <map>        // for map
+#include <memory>     // for shared_ptr, unique_ptr
+#include <string>     // for string
+#include <utility>    // for move
+#include <vector>     // for vector
 
 namespace xgboost {
 class FeatureMap;
@@ -47,25 +48,24 @@ enum class PredictionType : std::uint8_t {  // NOLINT
   kLeaf = 6
 };
 
-/*!
- * \brief Learner class that does training and prediction.
+/**
+ * @brief Learner class that does training and prediction.
  *  This is the user facing module of xgboost training.
  *  The Load/Save function corresponds to the model used in python/R.
- *  \code
+ *  @code
  *
  *  std::unique_ptr<Learner> learner(new Learner::Create(cache_mats));
- *  learner.Configure(configs);
+ *  learner->Configure(configs);
  *
  *  for (int iter = 0; iter < max_iter; ++iter) {
  *    learner->UpdateOneIter(iter, train_mat);
  *    LOG(INFO) << learner->EvalOneIter(iter, data_sets, data_names);
  *  }
  *
- *  \endcode
+ *  @endcode
  */
 class Learner : public Model, public Configurable, public dmlc::Serializable {
  public:
-  /*! \brief virtual destructor */
   ~Learner() override;
   /*!
    * \brief Configure Learner based on set parameters.
@@ -88,7 +88,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * @param in_gpair The input gradient statistics.
    */
   virtual void BoostOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train,
-                            linalg::Matrix<GradientPair>* in_gpair) = 0;
+                            GradientContainer* in_gpair) = 0;
   /*!
    * \brief evaluate the model for specific iteration using the configured metrics.
    * \param iter iteration number

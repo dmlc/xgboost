@@ -666,8 +666,9 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
   }
   p_dmat->Info().labels =
       linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, DeviceOrd::CPU()};
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx->Device());
-  auto h_gpair = gpair.HostView();
+  GradientContainer gpair;
+  gpair.gpair = linalg::Matrix<GradientPair>{{kRows}, ctx->Device()};
+  auto h_gpair = gpair.gpair.HostView();
   for (size_t i = 0; i < kRows; ++i) {
     h_gpair(i) = GradientPair{static_cast<float>(i), 1};
   }

@@ -80,7 +80,7 @@ void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
 }
 
 void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
-                        std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                        bst_target_t group_idx, MetaInfo const& info, float learning_rate,
                         HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
   auto& tree = *p_tree;
 

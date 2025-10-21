@@ -1205,7 +1205,7 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, bs
 
 namespace xgboost {
 // copy user-supplied CUDA gradient arrays
-void CopyGradientFromCUDAArrays(Context const *, ArrayInterface<2, false> const &,
+void CopyGradientFromCudaArrays(Context const *, ArrayInterface<2, false> const &,
                                 ArrayInterface<2, false> const &, linalg::Matrix<GradientPair> *)
 #if !defined(XGBOOST_USE_CUDA)
 {
@@ -1228,7 +1228,7 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   StringView msg{"Mismatched shape between the gradient and hessian."};
   CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
   CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
-  linalg::Matrix<GradientPair> gpair;
+  GradientContainer gpair;
   auto grad_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_grad.data);
   auto hess_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_hess.data);
   CHECK_EQ(i_grad.Shape<0>(), p_fmat->Info().num_row_)
@@ -1237,8 +1237,8 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   auto *learner = static_cast<Learner *>(handle);
   auto ctx = learner->Ctx();
   if (!grad_is_cuda) {
-    gpair.Reshape(i_grad.Shape<0>(), i_grad.Shape<1>());
-    auto h_gpair = gpair.HostView();
+    gpair.gpair.Reshape(i_grad.Shape<0>(), i_grad.Shape<1>());
+    auto h_gpair = gpair.gpair.HostView();
     DispatchDType(i_grad, DeviceOrd::CPU(), [&](auto &&t_grad) {
       DispatchDType(i_hess, DeviceOrd::CPU(), [&](auto &&t_hess) {
         common::ParallelFor(h_gpair.Size(), ctx->Threads(),
@@ -1246,9 +1246,43 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
       });
     });
   } else {
-    CopyGradientFromCUDAArrays(ctx, i_grad, i_hess, &gpair);
+    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.gpair);
   }
   learner->BoostOneIter(iter, p_fmat, &gpair);
+  API_END();
+}
+
+// Hidden, experimental
+// fixme: find a better way to consume gradients, maybe expose the objective.
+//
+// We can not obtain the gradient from built-in objectives without making copy due to
+// array-of-structs.
+XGB_DLL int XGBoosterTrainOneIterWithObj(BoosterHandle handle, DMatrixHandle dtrain, int iter,
+                                         char const *split_grad, char const *split_hess,
+                                         char const *value_grad, char const *value_hess) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto *learner = static_cast<Learner *>(handle);
+  GradientContainer gpair;
+  auto ctx = learner->Ctx();
+
+  {
+    ArrayInterface<2, false> i_grad{StringView{split_grad}};
+    ArrayInterface<2, false> i_hess{StringView{split_hess}};
+    CHECK(ArrayInterfaceHandler::IsCudaPtr(i_grad.data))
+        << "Reduced gradient with CPU" << MTNotImplemented();
+    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.gpair);
+  }
+  {
+    ArrayInterface<2, false> i_grad{StringView{value_grad}};
+    ArrayInterface<2, false> i_hess{StringView{value_hess}};
+    CHECK(ArrayInterfaceHandler::IsCudaPtr(i_grad.data))
+        << "Reduced gradient with CPU" << MTNotImplemented();
+    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.value_gpair);
+  }
+  auto p_fmat = CastDMatrixHandle(dtrain);
+  learner->BoostOneIter(iter, p_fmat, &gpair);
+
   API_END();
 }
 

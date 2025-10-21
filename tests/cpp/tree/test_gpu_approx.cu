@@ -1,7 +1,8 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2024-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/gradient.h>      // for GradientContainer
 #include <xgboost/json.h>          // for Json
 #include <xgboost/task.h>          // for ObjInfo
 #include <xgboost/tree_model.h>    // for RegTree
@@ -21,8 +22,7 @@ RegTree GetApproxTree(Context const* ctx, DMatrix* dmat) {
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
 
-  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Device());
-  gpair.Data()->Copy(GenerateRandomGradients(dmat->Info().num_row_));
+  auto gpair = GenerateRandomGradients(ctx, dmat->Info().num_row_, 1);
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   RegTree tree;

@@ -394,13 +394,12 @@ inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_row
   return gpair;
 }
 
-inline linalg::Matrix<GradientPair> GenerateRandomGradients(Context const* ctx, bst_idx_t n_rows,
-                                                            bst_target_t n_targets,
-                                                            float lower = 0.0f,
-                                                            float upper = 1.0f) {
+inline auto GenerateRandomGradients(Context const* ctx, bst_idx_t n_rows, bst_target_t n_targets,
+                                    float lower = 0.0f, float upper = 1.0f) {
   auto g = GenerateRandomGradients(n_rows * n_targets, lower, upper);
-  linalg::Matrix<GradientPair> gpair({n_rows, static_cast<bst_idx_t>(n_targets)}, ctx->Device());
-  gpair.Data()->Copy(g);
+  GradientContainer gpair;
+  gpair.gpair = linalg::Matrix<GradientPair>{{n_rows, static_cast<bst_idx_t>(n_targets)}, ctx->Device()};
+  gpair.gpair.Data()->Copy(g);
   return gpair;
 }
 

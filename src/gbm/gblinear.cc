@@ -123,8 +123,13 @@ class GBLinear : public GradientBooster {
     this->updater_->SaveConfig(&j_updater);
   }
 
-  void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair, PredictionCacheEntry*,
+  void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry*,
                ObjFunction const*) override {
+    if (in_gpair->HasValueGrad()) {
+      LOG(FATAL)
+          << "Multi-target with reduced gradient is not implemented for the current booster.";
+    }
+
     monitor_.Start("DoBoost");
 
     CHECK(!p_fmat->Info().HasCategorical()) << error::NoCategorical("`gblinear`");
@@ -132,7 +137,7 @@ class GBLinear : public GradientBooster {
     this->LazySumWeights(p_fmat);
 
     if (!this->CheckConvergence()) {
-      updater_->Update(in_gpair, p_fmat, &model_, sum_instance_weight_);
+      updater_->Update(in_gpair->Grad(), p_fmat, &model_, sum_instance_weight_);
     }
     model_.num_boosted_rounds++;
     monitor_.Stop("DoBoost");
