@@ -18,6 +18,8 @@
 [Contributors](CONTRIBUTORS.md) |
 [Release Notes](https://xgboost.readthedocs.io/en/latest/changes/index.html)
 
+**🤖 Chat with our AI docs:** https://deepwiki.com/dmlc/xgboost?tab=readme-ov-file
+
 XGBoost is an optimized distributed gradient boosting library designed to be highly ***efficient***, ***flexible*** and ***portable***.
 It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework.
 XGBoost provides a parallel tree boosting (also known as GBDT, GBM) that solve many data science problems in a fast and accurate way.
