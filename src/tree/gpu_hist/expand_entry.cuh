@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #ifndef EXPAND_ENTRY_CUH_
 #define EXPAND_ENTRY_CUH_
@@ -125,6 +125,49 @@ struct GPUExpandEntry {
     this->split.right_sum = GradientPairInt64{right_sum[0], right_sum[1]};
   }
 };
+
+namespace cuda_impl {
+struct MultiExpandEntry {
+  bst_node_t nidx{0};
+  bst_node_t depth{0};
+  MultiSplitCandidate split;
+
+  common::Span<float const> base_weight;
+  common::Span<float const> left_weight;
+  common::Span<float const> right_weight;
+
+  MultiExpandEntry() = default;
+
+  [[nodiscard]] float GetLossChange() const { return split.loss_chg; }
+
+  [[nodiscard]] bst_node_t GetNodeId() const { return nidx; }
+
+  [[nodiscard]] bst_node_t GetDepth() const { return depth; }
+
+  [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t n_leaves) const {
+    // The split evaluator handles the zero Hessian case. It returns an empty expand entry
+    // if there the Hessian is invalid.
+    if (split.loss_chg <= kRtEps) {
+      return false;
+    }
+    if (base_weight.empty() || left_weight.empty() || right_weight.empty()) {
+      return false;
+    }
+    if (split.loss_chg < param.min_split_loss) {
+      return false;
+    }
+    if (param.max_depth > 0 && depth == param.max_depth) {
+      return false;
+    }
+    if (param.max_leaves > 0 && n_leaves == param.max_leaves) {
+      return false;
+    }
+    return true;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& entry);
+};
+}  // namespace cuda_impl
 }  // namespace xgboost::tree
 
 #endif  // EXPAND_ENTRY_CUH_

@@ -168,6 +168,69 @@ TEST(HistEvaluator, Evaluate) {
   TestEvaluateSplits(true);
 }
 
+void TestSharedExample() {
+  Context ctx;
+  ctx.nthread = 1;
+
+  TrainParam param;
+  param.Init(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}, {"learning_rate", "1.0"}});
+  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+
+  MetaInfo info;
+  info.num_col_ = 1;
+  bst_bin_t n_bins = 4;
+  bst_feature_t n_features = 1;
+
+  HistMultiEvaluator evaluator{&ctx, info, &param, sampler};
+  HistMakerTrainParam hist_param;
+  bst_target_t n_targets = 2;
+  std::vector<BoundedHistCollection> histogram(n_targets);
+
+  histogram[0].Reset(n_bins * n_features, hist_param.MaxCachedHistNodes(ctx.Device()));
+  histogram[0].AllocateHistograms({0});
+  auto hist_0 = histogram[0][0];
+
+  hist_0[0] = GradientPairPrecise{8, 4};    // 8/4, 48/36
+  hist_0[1] = GradientPairPrecise{12, 8};   // 20/12, 36/28
+  hist_0[2] = GradientPairPrecise{16, 12};  // 36/24, 20/16
+  hist_0[3] = GradientPairPrecise{20, 16};  // 56/40, 0/0
+
+  histogram[1].Reset(n_bins * n_features, hist_param.MaxCachedHistNodes(ctx.Device()));
+  histogram[1].AllocateHistograms({0});
+  auto hist_1 = histogram[1][0];
+  hist_1[0] = GradientPairPrecise{11, 13};  // 11/13, 85/115
+  hist_1[1] = GradientPairPrecise{19, 29};  // 30/42, 66/86
+  hist_1[2] = GradientPairPrecise{27, 45};  // 57/87, 39/41
+  hist_1[3] = GradientPairPrecise{39, 41};  // 96/128, 0/0
+
+  linalg::Vector<GradientPairPrecise> root_sum{{2}, DeviceOrd::CPU()};
+  root_sum(0) = GradientPairPrecise{56, 40};
+  root_sum(1) = GradientPairPrecise{96, 128};
+
+  RegTree tree{n_targets, n_features};
+  auto weight = evaluator.InitRoot(root_sum.HostView());
+  tree.SetLeaf(RegTree::kRoot, weight.HostView());
+
+  common::HistogramCuts cuts;
+  cuts.cut_ptrs_ = {0, 4};
+  cuts.cut_values_ = {.0f, .1f, .2f, .3f};
+  cuts.min_vals_ = {-1.0f};
+
+  std::vector<MultiExpandEntry> entries(1, {/*nidx=*/0, /*depth=*/0});
+
+  std::vector<BoundedHistCollection const *> ptrs;
+  std::transform(histogram.cbegin(), histogram.cend(), std::back_inserter(ptrs),
+                 [](auto const &h) { return std::addressof(h); });
+
+  evaluator.EvaluateSplits(tree, ptrs, cuts, &entries);
+  std::cout << entries[0] << std::endl;
+  evaluator.ApplyTreeSplit(entries[0], &tree);
+}
+
+TEST(HistMultiEvaluator, Scan) {
+  TestSharedExample();
+}
+
 TEST(HistMultiEvaluator, Evaluate) {
   Context ctx;
   ctx.nthread = 1;

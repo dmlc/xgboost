@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023, XGBoost contributors
+ * Copyright 2020-2025, XGBoost contributors
  */
 #pragma once
 
@@ -52,5 +52,16 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(Context const* ctx, int
 
   return page;
 }
+
+/**
+ * @brief Create an ellpack page with evenly distributed values across histogram bins.
+ *
+ * @note The last bin contains all the extra values if @ref n_samples and not be divided
+ *       by @ref n_bins_per_feat . Otherwise, all bins contain the same number of values.
+ */
+[[nodiscard]] std::unique_ptr<EllpackPageImpl> MakeEllpackForTest(Context const* ctx,
+                                                                  bst_idx_t n_samples,
+                                                                  bst_feature_t n_features,
+                                                                  bst_bin_t n_bins_per_feat);
 #endif
 }  // namespace xgboost
