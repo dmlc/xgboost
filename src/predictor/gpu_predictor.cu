@@ -1180,6 +1180,7 @@ class GPUPredictor : public xgboost::Predictor {
     size_t contributions_columns =
         model.learner_model_param->num_feature + 1;  // +1 for bias
     auto dim_size = contributions_columns * model.learner_model_param->num_output_group;
+    // Output shape: [n_samples, n_classes, n_features + 1]
     out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
     out_contribs->Fill(0.0f);
     auto phis = out_contribs->DeviceSpan();
@@ -1234,11 +1235,11 @@ class GPUPredictor : public xgboost::Predictor {
     const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
 
     auto base_score = model.learner_model_param->BaseScore(ctx_);
-    dh::LaunchN(p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
-                ctx_->CUDACtx()->Stream(), [=] __device__(size_t idx) {
-                  phis[(idx + 1) * contributions_columns - 1] +=
-                      margin.empty() ? base_score(0) : margin[idx];
-                });
+    bst_idx_t n_samples = p_fmat->Info().num_row_;
+    dh::LaunchN(n_samples * ngroup, ctx_->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
+      auto [_, gid] = linalg::UnravelIndex(idx, n_samples, ngroup);
+      phis[(idx + 1) * contributions_columns - 1] += margin.empty() ? base_score(gid) : margin[idx];
+    });
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -1319,14 +1320,13 @@ class GPUPredictor : public xgboost::Predictor {
 
     auto base_score = model.learner_model_param->BaseScore(ctx_);
     size_t n_features = model.learner_model_param->num_feature;
-    dh::LaunchN(p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
-                ctx_->CUDACtx()->Stream(), [=] __device__(size_t idx) {
-                  size_t group = idx % ngroup;
-                  size_t row_idx = idx / ngroup;
-                  phis[gpu_treeshap::IndexPhiInteractions(row_idx, ngroup, group, n_features,
-                                                          n_features, n_features)] +=
-                      margin.empty() ? base_score(0) : margin[idx];
-                });
+    bst_idx_t n_samples = p_fmat->Info().num_row_;
+    dh::LaunchN(n_samples * ngroup, ctx_->CUDACtx()->Stream(), [=] __device__(size_t idx) {
+      auto [ridx, gidx] = linalg::UnravelIndex(idx, n_samples, ngroup);
+      phis[gpu_treeshap::IndexPhiInteractions(ridx, ngroup, gidx, n_features, n_features,
+                                              n_features)] +=
+          margin.empty() ? base_score(gidx) : margin[idx];
+    });
   }
 
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<float>* predictions,

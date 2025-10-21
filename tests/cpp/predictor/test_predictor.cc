@@ -843,7 +843,7 @@ void ShapExternalMemoryTest::Run(Context const *ctx, bool is_qdm, bool is_intera
                                  .Classes(n_classes));
   std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
   learner->SetParam("device", ctx->DeviceName());
-  learner->SetParam("base_score", "0.5");
+  learner->SetParam("base_score", "[0.5, 0.5, 0.5]");
   learner->SetParam("num_parallel_tree", "3");
   learner->SetParam("max_bin", std::to_string(max_bin));
   for (std::int32_t i = 0; i < 4; ++i) {
@@ -852,8 +852,10 @@ void ShapExternalMemoryTest::Run(Context const *ctx, bool is_qdm, bool is_intera
   Json model{Object{}};
   learner->SaveModel(&model);
   auto j_booster = model["learner"]["gradient_booster"]["model"];
-  auto model_param = MakeMP(n_features, 0.0, n_classes, ctx->Device());
 
+  auto base_score = linalg::Tensor<float, 1>{{0.0, 0.0, 0.0}, {3}, ctx->Device()};
+  LearnerModelParam model_param(n_features, std::move(base_score), n_classes, 1,
+                                MultiStrategy::kOneOutputPerTree);
   gbm::GBTreeModel gbtree{&model_param, ctx};
   gbtree.LoadModel(j_booster);
 

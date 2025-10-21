@@ -259,14 +259,14 @@ struct DataToFeatVec {
 
 template <typename EncAccessor>
 class SparsePageView : public DataToFeatVec<SparsePageView<EncAccessor>> {
-  EncAccessor const &acc_;
+  EncAccessor acc_;
   HostSparsePageView const view_;
 
  public:
   bst_idx_t const base_rowid;
 
-  SparsePageView(HostSparsePageView const p, bst_idx_t base_rowid, EncAccessor const &acc)
-      : acc_{acc}, view_{p}, base_rowid{base_rowid} {}
+  SparsePageView(HostSparsePageView const p, bst_idx_t base_rowid, EncAccessor acc)
+      : acc_{std::move(acc)}, view_{p}, base_rowid{base_rowid} {}
   [[nodiscard]] std::size_t Size() const { return view_.Size(); }
 
   [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float *out) const {
@@ -285,7 +285,7 @@ template <typename EncAccessor>
 class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccessor>> {
  private:
   GHistIndexMatrix const &page_;
-  EncAccessor const &acc_;
+  EncAccessor acc_;
   common::Span<FeatureType const> ft_;
 
   std::vector<std::uint32_t> const &ptrs_;
@@ -297,10 +297,10 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
   bst_idx_t const base_rowid;
 
  public:
-  GHistIndexMatrixView(GHistIndexMatrix const &_page, EncAccessor const &acc,
+  GHistIndexMatrixView(GHistIndexMatrix const &_page, EncAccessor acc,
                        common::Span<FeatureType const> ft)
       : page_{_page},
-        acc_{acc},
+        acc_{std::move(acc)},
         ft_{ft},
         ptrs_{_page.cut.Ptrs()},
         mins_{_page.cut.MinValues()},
@@ -367,11 +367,11 @@ template <typename Adapter, typename EncAccessor>
 class AdapterView : public DataToFeatVec<AdapterView<Adapter, EncAccessor>> {
   Adapter const *adapter_;
   float missing_;
-  EncAccessor const &acc_;
+  EncAccessor acc_;
 
  public:
-  explicit AdapterView(Adapter const *adapter, float missing, EncAccessor const &acc)
-      : adapter_{adapter}, missing_{missing}, acc_{acc} {}
+  explicit AdapterView(Adapter const *adapter, float missing, EncAccessor acc)
+      : adapter_{adapter}, missing_{missing}, acc_{std::move(acc)} {}
 
   [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float *out) const {
     auto const &batch = adapter_->Value();
@@ -410,7 +410,7 @@ struct EncAccessorPolicy {
   [[nodiscard]] auto MakeAccessor(Context const *ctx, enc::HostColumnsView new_enc,
                                   gbm::GBTreeModel const &model) {
     auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
-    this->mapping_ = std::move(mapping);
+    std::swap(mapping, this->mapping_);
     return acc;
   }
 };
@@ -926,7 +926,7 @@ class CPUPredictor : public Predictor {
     CHECK_NE(ncolumns, 0);
     auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
     auto base_margin = info.base_margin_.View(device);
-    auto base_score = model.learner_model_param->BaseScore(device)(0);
+    auto base_score = model.learner_model_param->BaseScore(device);
 
     // parallel over local batch
     common::ParallelFor(batch.Size(), this->ctx_->Threads(), [&](auto i) {
@@ -965,7 +965,7 @@ class CPUPredictor : public Predictor {
           CHECK_EQ(base_margin.Shape(1), ngroup);
           p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
         } else {
-          p_contribs[ncolumns - 1] += base_score;
+          p_contribs[ncolumns - 1] += base_score(gid);
         }
       }
     });
