@@ -84,7 +84,9 @@ def get_branch() -> str:
     elif branch.startswith("release_"):
         pass  # release branch, like: release_2.1.0
     elif branch == "stable":
-        branch = f"release_{xgboost.__version__}"
+        # Avoid patch release branch.
+        v = xgboost.__version__.split(".")
+        branch = f"release_{v[0]}.{v[1]}.0"
     elif is_id():
         # Likely PR branch
         branch = f"PR-{branch}"
