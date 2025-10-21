@@ -14,7 +14,7 @@ authors = [
     { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
     { name = "Jiaming Yuan", email = "jm.yuan@outlook.com" }
 ]
-version = "3.1.0"
+version = "3.1.1"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 classifiers = [
