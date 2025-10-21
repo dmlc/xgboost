@@ -409,7 +409,6 @@ struct EncAccessorPolicy {
                                   gbm::GBTreeModel const &model) {
     auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
     std::swap(mapping, this->mapping_);
-    // this->mapping_ = std::move(mapping);
     return acc;
   }
 };
