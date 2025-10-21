@@ -467,7 +467,9 @@ class DeviceUVectorImpl {
     this->size_ = n;
     this->capacity_ = n;
 
-    std::swap(this->data_, new_ptr);
+    this->data_ = std::move(new_ptr);
+    // swap failed with CTK12.8
+    // std::swap(this->data_, new_ptr);
   }
   // Resize with init
   void resize(std::size_t n, T const &v) {  // NOLINT

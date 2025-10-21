@@ -27,6 +27,7 @@
 #include "../data/proxy_dmatrix.h"
 #include "../gbm/gbtree_model.h"
 #include "../tree/tree_view.h"
+#include "gbtree_view.h"  // for GBTreeModelView
 #include "predict_fn.h"
 #include "utils.h"  // for CheckProxyDMatrix
 #include "xgboost/data.h"
@@ -322,42 +323,22 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
   }
 }
 
-struct DeviceModel {
-  bst_tree_t tree_begin;
-  bst_tree_t tree_end;
-  dh::device_vector<TreeViewVar> d_trees;
-  dh::device_vector<bst_target_t> d_tree_groups;
-  bst_target_t n_groups;
-  bst_feature_t n_features;
-  bst_node_t n_nodes{0};
+namespace {
+struct CopyViews {
+  Context const* ctx;
+  explicit CopyViews(Context const* ctx) : ctx{ctx} {}
 
- public:
-  explicit DeviceModel(Context const* ctx, gbm::GBTreeModel const& model, bst_tree_t tree_begin,
-                       bst_tree_t tree_end, std::mutex* p_mu)
-      : tree_begin{tree_begin},
-        tree_end{tree_end},
-        n_groups{model.learner_model_param->OutputLength()},
-        n_features{model.learner_model_param->num_feature} {
-    std::lock_guard guard{*p_mu};
-    std::vector<TreeViewVar> trees;
-    for (bst_tree_t tree_idx = this->tree_begin; tree_idx < this->tree_end; ++tree_idx) {
-      auto const& p_tree = model.trees[tree_idx];
-      if (p_tree->IsMultiTarget()) {
-        auto d_tree = tree::MultiTargetTreeView{ctx, p_tree.get()};
-        this->n_nodes += d_tree.Size();
-        trees.emplace_back(d_tree);
-      } else {
-        auto d_tree = tree::ScalarTreeView{ctx, p_tree.get()};
-        this->n_nodes += d_tree.Size();
-        trees.emplace_back(d_tree);
-      }
-    }
-
-    this->d_trees = trees;
-    this->d_tree_groups = model.tree_info;
-    CHECK_GT(this->tree_end, this->tree_begin);
+  void operator()(dh::DeviceUVector<TreeViewVar>* p_dst, std::vector<TreeViewVar>&& src) {
+    xgboost_NVTX_FN_RANGE();
+    p_dst->resize(src.size());
+    auto d_dst = dh::ToSpan(*p_dst);
+    dh::safe_cuda(cudaMemcpyAsync(d_dst.data(), src.data(), d_dst.size_bytes(), cudaMemcpyDefault,
+                                  ctx->CUDACtx()->Stream()));
   }
 };
+
+using DeviceModel = GBTreeModelView<dh::DeviceUVector, TreeViewVar, CopyViews>;
+}  // namespace
 
 struct ShapSplitCondition {
   ShapSplitCondition() = default;
@@ -459,7 +440,7 @@ void ExtractPaths(Context const* ctx,
 
   // Path length and tree index for all leaf nodes
   dh::caching_device_vector<PathInfo> info(d_model.n_nodes);
-  auto d_trees = dh::ToSpan(d_model.d_trees);
+  auto d_trees = d_model.Trees();  // subset of trees
   auto tree_segments = MakeTreeSegments(ctx, d_model.tree_begin, d_model.tree_end, h_model);
   CHECK_EQ(tree_segments.ConstHostVector().back(), d_model.n_nodes);
   auto d_tree_segments = tree_segments.ConstDeviceSpan();
@@ -499,7 +480,7 @@ void ExtractPaths(Context const* ctx,
 
   auto d_paths = dh::ToSpan(*paths);
   auto d_info = info.data().get();
-  auto d_tree_groups = dh::ToSpan(d_model.d_tree_groups);
+  auto d_tree_groups = d_model.tree_groups;
   auto d_path_segments = path_segments.data().get();
 
   std::size_t max_cat = 0;
@@ -742,17 +723,16 @@ class ColumnSplitHelper {
 
       SparsePageView data{ctx_, batch, num_features};
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-      auto d_tree_groups = dh::ToSpan(d_model.d_tree_groups)
-                               .subspan(d_model.tree_begin, d_model.tree_end - d_model.tree_begin);
+      auto d_tree_groups = d_model.tree_groups;
       dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
-          MaskBitVectorKernel, data, dh::ToSpan(d_model.d_trees), decision_bits, missing_bits,
+          MaskBitVectorKernel, data, d_model.Trees(), decision_bits, missing_bits,
           d_model.tree_begin, d_model.tree_end, num_features, num_nodes, use_shared,
           std::numeric_limits<float>::quiet_NaN());
 
       AllReduceBitVectors(&decision_storage, &missing_storage);
 
       dh::LaunchKernel {grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()}(
-          PredictByBitVectorKernel<predict_leaf>, dh::ToSpan(d_model.d_trees),
+          PredictByBitVectorKernel<predict_leaf>, d_model.Trees(),
           out_preds->DeviceSpan().subspan(batch_offset), d_tree_groups,
           decision_bits, missing_bits, d_model.tree_begin, d_model.tree_end, num_rows, num_nodes,
           num_group);
@@ -854,9 +834,8 @@ class LaunchConfig {
                            HostDeviceVector<float>* predictions) {
     auto kernel = PredictKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                 HasMissing(), EncAccessorT>;
-    auto d_tree_groups = dh::ToSpan(d_model.d_tree_groups)
-                             .subspan(d_model.tree_begin, d_model.tree_end - d_model.tree_begin);
-    this->Launch<Loader>(kernel, std::move(batch), dh::ToSpan(d_model.d_trees),
+    auto d_tree_groups = d_model.tree_groups;
+    this->Launch<Loader>(kernel, std::move(batch), d_model.Trees(),
                          predictions->DeviceSpan().subspan(batch_offset), d_tree_groups, n_features,
                          this->UseShared(), d_model.n_groups, missing, acc);
   }
@@ -995,7 +974,8 @@ class GPUPredictor : public xgboost::Predictor {
     out_preds->SetDevice(ctx_->Device());
     auto const& info = p_fmat->Info();
 
-    DeviceModel d_model{this->ctx_, model, tree_begin, tree_end, &this->model_mu_};
+    DeviceModel d_model{this->ctx_->Device(), model, tree_begin, tree_end, &this->model_mu_,
+                        CopyViews{this->ctx_}};
 
     if (info.IsColumnSplit()) {
       column_split_helper_.PredictBatch(p_fmat, out_preds, model, d_model);
@@ -1056,7 +1036,8 @@ class GPUPredictor : public xgboost::Predictor {
     auto n_samples = m->NumRows();
     auto n_features = model.learner_model_param->num_feature;
 
-    DeviceModel d_model{ctx_, model, tree_begin, tree_end, &this->model_mu_};
+    DeviceModel d_model{ctx_->Device(),       model, tree_begin, tree_end, &this->model_mu_,
+                        CopyViews{this->ctx_}};
 
     if constexpr (std::is_same_v<Adapter, data::CudfAdapter>) {
       if (m->HasCategorical()) {
@@ -1135,7 +1116,8 @@ class GPUPredictor : public xgboost::Predictor {
     auto phis = out_contribs->DeviceSpan();
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model{this->ctx_, model, 0, tree_end, &this->model_mu_};
+    DeviceModel d_model{this->ctx_->Device(), model, 0, tree_end, &this->model_mu_,
+                        CopyViews{this->ctx_}};
 
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
@@ -1195,7 +1177,8 @@ class GPUPredictor : public xgboost::Predictor {
     auto phis = out_contribs->DeviceSpan();
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model{this->ctx_, model, 0, tree_end, &this->model_mu_};
+    DeviceModel d_model{this->ctx_->Device(), model, 0, tree_end, &this->model_mu_,
+                        CopyViews{this->ctx_}};
 
     dh::device_vector<uint32_t> categories;
     ExtractPaths(ctx_, &device_paths, model, d_model, &categories);
@@ -1240,7 +1223,8 @@ class GPUPredictor : public xgboost::Predictor {
     predictions->SetDevice(ctx_->Device());
     predictions->Resize(n_samples * tree_end);
 
-    DeviceModel d_model{ctx_, model, 0, tree_end, &this->model_mu_};
+    DeviceModel d_model{ctx_->Device(),       model, 0, tree_end, &this->model_mu_,
+                        CopyViews{this->ctx_}};
 
     if (info.IsColumnSplit()) {
       column_split_helper_.PredictLeaf(p_fmat, predictions, model, d_model);
@@ -1258,7 +1242,7 @@ class GPUPredictor : public xgboost::Predictor {
         using Config = common::GetValueT<decltype(cfg)>;
         auto kernel = PredictLeafKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                         Config::HasMissing(), typename Config::EncAccessorT>;
-        cfg.template Launch<Loader>(kernel, std::move(batch), dh::ToSpan(d_model.d_trees),
+        cfg.template Launch<Loader>(kernel, std::move(batch), d_model.Trees(),
                                     predictions->DeviceSpan().subspan(batch_offset),
                                     d_model.tree_begin, d_model.tree_end, n_features,
                                     cfg.UseShared(), std::numeric_limits<float>::quiet_NaN(),

@@ -36,7 +36,8 @@ void TestBasic(DMatrix* dmat, Context const *ctx) {
 
   LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
 
-  gbm::GBTreeModel model = CreateTestModel(&mparam, ctx);
+  std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx);
+  auto const &model = *p_model;
 
   // Test predict batch
   PredictionCacheEntry out_predictions;
@@ -731,8 +732,7 @@ void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsit
 }
 
 void TestVectorLeafPrediction(Context const *ctx) {
-  std::unique_ptr<Predictor> predictor{ctx->IsCUDA() ? Predictor::Create("gpu_predictor", ctx)
-                                                     : Predictor::Create("cpu_predictor", ctx)};
+  std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
 
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;

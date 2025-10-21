@@ -35,7 +35,8 @@ TEST(GPUPredictor, Basic) {
 
     auto ctx = MakeCUDACtx(0);
     LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.Device())};
-    gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
+    std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, &ctx);
+    auto const& model = *p_model;
 
     // Test predict batch
     PredictionCacheEntry gpu_out_predictions;
@@ -71,7 +72,8 @@ void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_r
     std::unique_ptr<DMatrix> sliced{dmat->SliceCol(world_size, rank)};
 
     LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.Device())};
-    gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
+    std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, &ctx);
+    auto const& model = *p_model;
 
     // Test predict batch
     PredictionCacheEntry out_predictions;
@@ -99,7 +101,8 @@ TEST_F(MGPUPredictorTest, BasicColumnSplit) {
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
 
     LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.Device())};
-    gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
+    std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, &ctx);
+    auto const& model = *p_model;
 
     // Test predict batch
     PredictionCacheEntry out_predictions;
@@ -152,7 +155,8 @@ void TestDecisionStumpExternalMemory(Context const* ctx, bst_feature_t n_feature
                                      Create create_fn) {
   std::int32_t n_classes = 3;
   LearnerModelParam mparam{MakeMP(n_features, .5, n_classes, ctx->Device())};
-  auto model = CreateTestModel(&mparam, ctx, n_classes);
+  std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx, n_classes);
+  auto const& model = *p_model;
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", ctx));
   gpu_predictor->Configure({});
@@ -341,7 +345,8 @@ TEST(GPUPredictor, PredictLeafBasic) {
 
   LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
   Context ctx;
-  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
+  std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, &ctx);
+  auto const& model = *p_model;
 
   HostDeviceVector<float> leaf_out_predictions;
   gpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);

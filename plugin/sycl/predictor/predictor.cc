@@ -90,10 +90,11 @@ class DeviceModel {
 
     int num_group = model.learner_model_param->num_output_group;
     if (num_group > 1) {
-      tree_group.Resize(model.tree_info.size());
+      tree_group.Resize(model.tree_info.Size());
       auto& tree_group_host = tree_group.HostVector();
-      for (size_t tree_idx = 0; tree_idx < model.tree_info.size(); tree_idx++)
-        tree_group_host[tree_idx] = model.tree_info[tree_idx];
+      auto const& tree_group_in = model.tree_info.ConstHostVector();
+      for (size_t tree_idx = 0; tree_idx < tree_group_in.size(); tree_idx++)
+        tree_group_host[tree_idx] = tree_group_in[tree_idx];
     }
   }
 };

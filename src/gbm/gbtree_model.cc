@@ -19,7 +19,7 @@ namespace xgboost::gbm {
 namespace {
 // For creating the tree indptr from old models.
 void MakeIndptr(GBTreeModel* out_model) {
-  auto const& tree_info = out_model->tree_info;
+  auto const& tree_info = out_model->tree_info.ConstHostVector();
   if (tree_info.empty()) {
     return;
   }
@@ -41,7 +41,7 @@ void MakeIndptr(GBTreeModel* out_model) {
 // Validate the consistency of the model.
 void Validate(GBTreeModel const& model) {
   CHECK_EQ(model.trees.size(), model.param.num_trees);
-  CHECK_EQ(model.tree_info.size(), model.param.num_trees);
+  CHECK_EQ(model.tree_info.Size(), model.param.num_trees);
   // True even if the model is empty since we should always have 0 as the first element.
   CHECK_EQ(model.iteration_indptr.back(), model.param.num_trees);
 }
@@ -61,9 +61,10 @@ void GBTreeModel::SaveModel(Json* p_out) const {
     trees_json[t] = std::move(jtree);
   });
 
-  std::vector<Json> tree_info_json(tree_info.size());
-  for (size_t i = 0; i < tree_info.size(); ++i) {
-    tree_info_json[i] = Integer(tree_info[i]);
+  auto const& h_tree_info = tree_info.ConstHostVector();
+  std::vector<Json> tree_info_json(tree_info.Size());
+  for (size_t i = 0; i < h_tree_info.size(); ++i) {
+    tree_info_json[i] = Integer(h_tree_info[i]);
   }
 
   out["trees"] = Array(std::move(trees_json));
@@ -91,7 +92,8 @@ void GBTreeModel::LoadModel(Json const& in) {
 
   auto const& tree_info_json = get<Array const>(jmodel.at("tree_info"));
   CHECK_EQ(tree_info_json.size(), param.num_trees);
-  tree_info.resize(param.num_trees);
+  auto& h_tree_info = this->tree_info.HostVector();
+  h_tree_info.resize(param.num_trees);
 
   common::ParallelFor(param.num_trees, ctx_->Threads(), [&](auto t) {
     auto tree_id = get<Integer const>(trees_json[t]["id"]);
@@ -100,7 +102,7 @@ void GBTreeModel::LoadModel(Json const& in) {
   });
 
   for (bst_tree_t i = 0; i < param.num_trees; ++i) {
-    tree_info[i] = get<Integer const>(tree_info_json[i]);
+    h_tree_info[i] = get<Integer const>(tree_info_json[i]);
   }
 
   auto indptr_it = jmodel.find("iteration_indptr");
@@ -144,10 +146,16 @@ bst_tree_t GBTreeModel::CommitModel(TreesOneIter&& new_trees) {
 }
 
 void GBTreeModel::CommitModelGroup(TreesOneGroup&& new_trees, bst_target_t group_idx) {
+  auto& h_tree_info = this->tree_info.HostVector();
   for (auto& new_tree : new_trees) {
     trees.push_back(std::move(new_tree));
-    tree_info.push_back(group_idx);
+    h_tree_info.push_back(group_idx);
   }
   param.num_trees += static_cast<int>(new_trees.size());
+}
+
+common::Span<bst_target_t const> GBTreeModel::TreeGroups(DeviceOrd device) const {
+  return device.IsCPU() ? this->tree_info.ConstHostSpan()
+                        : (this->tree_info.SetDevice(device), this->tree_info.ConstDeviceSpan());
 }
 }  // namespace xgboost::gbm
