@@ -793,8 +793,10 @@ bool RegTree::Equal(const RegTree& b) const {
   auto const& self = *this;
   bool ret { true };
   auto sc_tree = this->HostScView();
-  sc_tree.WalkTree([&self, &b, &ret](bst_node_t nidx) {
-    if (!(self.nodes_.at(nidx) == b.nodes_.at(nidx))) {
+  auto const& lhs = self.nodes_.ConstHostVector();
+  auto const& rhs = b.nodes_.ConstHostVector();
+  sc_tree.WalkTree([&](bst_node_t nidx) {
+    if (!(lhs.at(nidx) == rhs.at(nidx))) {
       ret = false;
       return false;
     }
@@ -832,6 +834,13 @@ bool RegTree::Equal(const RegTree& b) const {
   return this->HostScView().GetDepth(nidx);
 }
 
+[[nodiscard]] bst_node_t RegTree::MaxDepth() const {
+  if (this->IsMultiTarget()) {
+    return this->HostMtView().MaxDepth(RegTree::kRoot);
+  }
+  return this->HostScView().MaxDepth(RegTree::kRoot);
+}
+
 void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
                          bool default_left, bst_float base_weight,
                          bst_float left_leaf_weight,
@@ -841,22 +850,24 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
   CHECK(!IsMultiTarget());
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
-  auto &node = nodes_[nid];
+  auto& h_nodes = nodes_.HostVector();
+
+  auto &node = h_nodes[nid];
   CHECK(node.IsLeaf());
   node.SetLeftChild(pleft);
   node.SetRightChild(pright);
-  nodes_[node.LeftChild()].SetParent(nid, true);
-  nodes_[node.RightChild()].SetParent(nid, false);
+  h_nodes[node.LeftChild()].SetParent(nid, true);
+  h_nodes[node.RightChild()].SetParent(nid, false);
   node.SetSplit(split_index, split_value, default_left);
 
-  nodes_[pleft].SetLeaf(left_leaf_weight, leaf_right_child);
-  nodes_[pright].SetLeaf(right_leaf_weight, leaf_right_child);
+  h_nodes[pleft].SetLeaf(left_leaf_weight, leaf_right_child);
+  h_nodes[pright].SetLeaf(right_leaf_weight, leaf_right_child);
 
   this->Stat(nid) = {loss_change, sum_hess, base_weight};
   this->Stat(pleft) = {0.0f, left_sum, left_leaf_weight};
   this->Stat(pright) = {0.0f, right_sum, right_leaf_weight};
 
-  this->split_types_.at(nid) = FeatureType::kNumerical;
+  this->split_types_.HostVector().at(nid) = FeatureType::kNumerical;
 }
 
 void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond,
@@ -871,9 +882,9 @@ void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split
   this->p_mt_tree_->Expand(nidx, split_index, split_cond, default_left, base_weight, left_weight,
                            right_weight);
 
-  split_types_.resize(this->Size(), FeatureType::kNumerical);
-  split_categories_segments_.resize(this->Size());
-  this->split_types_.at(nidx) = FeatureType::kNumerical;
+  split_types_.HostVector().resize(this->Size(), FeatureType::kNumerical);
+  split_categories_segments_.HostVector().resize(this->Size());
+  this->split_types_.HostVector().at(nidx) = FeatureType::kNumerical;
 
   this->param_.num_nodes = this->p_mt_tree_->Size();
 }
@@ -888,13 +899,17 @@ void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
   this->ExpandNode(nidx, split_index, DftBadValue(), default_left, base_weight, left_leaf_weight,
                    right_leaf_weight, loss_change, sum_hess, left_sum, right_sum);
 
-  size_t orig_size = split_categories_.size();
-  this->split_categories_.resize(orig_size + split_cat.size());
+  auto& h_split_categories = split_categories_.HostVector();
+  std::size_t orig_size = h_split_categories.size();
+  h_split_categories.resize(orig_size + split_cat.size());
   std::copy(split_cat.data(), split_cat.data() + split_cat.size(),
-            split_categories_.begin() + orig_size);
-  this->split_types_.at(nidx) = FeatureType::kCategorical;
-  this->split_categories_segments_.at(nidx).beg = orig_size;
-  this->split_categories_segments_.at(nidx).size = split_cat.size();
+            h_split_categories.begin() + orig_size);
+
+  this->split_types_.HostVector().at(nidx) = FeatureType::kCategorical;
+
+  auto& h_split_categories_segments = this->split_categories_segments_.HostVector();
+  h_split_categories_segments.at(nidx).beg = orig_size;
+  h_split_categories_segments.at(nidx).size = split_cat.size();
 }
 
 RegTree* RegTree::Copy() const {
@@ -902,7 +917,9 @@ RegTree* RegTree::Copy() const {
   ptr->param_ = this->param_;
 
   auto copy = [](auto* lhs, auto const& rhs) {
-    *lhs = rhs;
+    lhs->SetDevice(rhs.Device());
+    lhs->Resize(rhs.Size());
+    lhs->Copy(rhs);
   };
 
   copy(&ptr->nodes_, this->nodes_);
@@ -939,10 +956,14 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
   // `categories_segments' is only available for categorical nodes to prevent overhead for
   // numerical node. As a result, we need to track the categorical nodes we have processed
   // so far.
-  split_types_.resize(n_nodes, FeatureType::kNumerical);
-  split_categories_segments_.resize(n_nodes);
+  auto& h_split_types = split_types_.HostVector();
+  h_split_types.resize(n_nodes, FeatureType::kNumerical);
+  auto& h_split_categories_segments = split_categories_segments_.HostVector();
+  h_split_categories_segments.resize(n_nodes);
+  auto& h_split_categories = this->split_categories_.HostVector();
+
   for (bst_node_t nidx = 0; nidx < n_nodes; ++nidx) {
-    split_types_[nidx] = static_cast<FeatureType>(GetElem<Integer>(split_type, nidx));
+    h_split_types[nidx] = static_cast<FeatureType>(GetElem<Integer>(split_type, nidx));
     if (nidx == last_cat_node) {
       auto j_begin = GetElem<Integer>(categories_segments, cnt);
       auto j_end = GetElem<Integer>(categories_sizes, cnt) + j_begin;
@@ -964,12 +985,12 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
         cat_bits.Set(common::AsCat(GetElem<Integer>(categories, j)));
       }
 
-      auto begin = split_categories_.size();
-      split_categories_.resize(begin + cat_bits_storage.size());
+      auto begin = h_split_categories.size();
+      h_split_categories.resize(begin + cat_bits_storage.size());
       std::copy(cat_bits_storage.begin(), cat_bits_storage.end(),
-                split_categories_.begin() + begin);
-      split_categories_segments_[nidx].beg = begin;
-      split_categories_segments_[nidx].size = cat_bits_storage.size();
+                h_split_categories.begin() + begin);
+      h_split_categories_segments[nidx].beg = begin;
+      h_split_categories_segments[nidx].size = cat_bits_storage.size();
 
       ++cnt;
       if (cnt == categories_nodes.size()) {
@@ -978,8 +999,8 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
         last_cat_node = GetElem<Integer>(categories_nodes, cnt);
       }
     } else {
-      split_categories_segments_[nidx].beg = categories.size();
-      split_categories_segments_[nidx].size = 0;
+      h_split_categories_segments[nidx].beg = categories.size();
+      h_split_categories_segments[nidx].size = 0;
     }
   }
 }
@@ -989,23 +1010,26 @@ template void RegTree::LoadCategoricalSplit<false>(Json const& in);
 
 void RegTree::SaveCategoricalSplit(Json* p_out) const {
   auto& out = *p_out;
-  CHECK_EQ(this->split_types_.size(), this->Size());
+  CHECK_EQ(this->split_types_.Size(), this->Size());
   CHECK_EQ(this->GetSplitCategoriesPtr().size(), this->Size());
 
   I64Array categories_segments;
   I64Array categories_sizes;
   I32Array categories;        // bst_cat_t = int32_t
   I32Array categories_nodes;  // bst_note_t = int32_t
-  U8Array split_type(split_types_.size());
+  U8Array split_type(split_types_.Size());
 
-  for (size_t i = 0; i < nodes_.size(); ++i) {
-    split_type.Set(i, static_cast<std::underlying_type_t<FeatureType>>(this->NodeSplitType(i)));
-    if (this->split_types_[i] == FeatureType::kCategorical) {
+  auto const& h_split_types = this->split_types_.ConstHostVector();
+  auto const& h_split_categories_segments = this->split_categories_segments_.ConstHostVector();
+
+  for (size_t i = 0; i < nodes_.Size(); ++i) {
+    split_type.Set(i, static_cast<std::underlying_type_t<FeatureType>>(h_split_types[i]));
+    if (h_split_types[i] == FeatureType::kCategorical) {
       categories_nodes.GetArray().emplace_back(static_cast<std::int32_t>(i));
       auto begin = categories.Size();
       categories_segments.GetArray().emplace_back(begin);
-      auto segment = this->split_categories_segments_[i];
-      auto cat_bits = common::GetNodeCats(this->GetSplitCategories(), segment);
+      auto segment = h_split_categories_segments[i];
+      auto cat_bits = common::GetNodeCats(this->GetSplitCategories(DeviceOrd::CPU()), segment);
       for (size_t i = 0; i < cat_bits.Capacity(); ++i) {
         if (cat_bits.Check(i)) {
           categories.GetArray().emplace_back(static_cast<std::int32_t>(i));
@@ -1103,25 +1127,28 @@ void RegTree::LoadModel(Json const& in) {
   }
 
   bool feature_is_64 = IsA<I64Array>(in["split_indices"]);
+  auto& h_stats = this->stats_.HostVector();
+  auto& h_nodes = this->nodes_.HostVector();
   if (typed && feature_is_64) {
-    LoadModelImpl<true, true>(in, param_, &stats_, &nodes_);
+    LoadModelImpl<true, true>(in, param_, &h_stats, &h_nodes);
   } else if (typed && !feature_is_64) {
-    LoadModelImpl<true, false>(in, param_, &stats_, &nodes_);
+    LoadModelImpl<true, false>(in, param_, &h_stats, &h_nodes);
   } else if (!typed && feature_is_64) {
-    LoadModelImpl<false, true>(in, param_, &stats_, &nodes_);
+    LoadModelImpl<false, true>(in, param_, &h_stats, &h_nodes);
   } else {
-    LoadModelImpl<false, false>(in, param_, &stats_, &nodes_);
+    LoadModelImpl<false, false>(in, param_, &h_stats, &h_nodes);
   }
 
   if (!has_cat) {
-    this->split_categories_segments_.resize(this->param_.num_nodes);
-    this->split_types_.resize(this->param_.num_nodes);
-    std::fill(split_types_.begin(), split_types_.end(), FeatureType::kNumerical);
+    this->split_categories_segments_.HostVector().resize(this->param_.num_nodes);
+    auto& h_split_types = this->split_types_.HostVector();
+    h_split_types.resize(this->param_.num_nodes);
+    std::fill(h_split_types.begin(), h_split_types.end(), FeatureType::kNumerical);
   }
 
   deleted_nodes_.clear();
   for (bst_node_t i = 1; i < param_.num_nodes; ++i) {
-    if (nodes_[i].IsDeleted()) {
+    if (h_nodes[i].IsDeleted()) {
       deleted_nodes_.push_back(i);
     }
   }
@@ -1133,7 +1160,7 @@ void RegTree::LoadModel(Json const& in) {
     self[nid].SetParent(self[nid].Parent(), self[parent].LeftChild() == nid);
   }
   CHECK_EQ(static_cast<bst_node_t>(deleted_nodes_.size()), param_.num_deleted);
-  CHECK_EQ(this->split_categories_segments_.size(), param_.num_nodes);
+  CHECK_EQ(this->split_categories_segments_.Size(), param_.num_nodes);
 }
 
 void RegTree::SaveModel(Json* p_out) const {
@@ -1155,8 +1182,8 @@ void RegTree::SaveModel(Json* p_out) const {
    *  pruner, and this pruner can be used inside another updater so leaf are not necessary
    *  at the end of node array.
    */
-  CHECK_EQ(param_.num_nodes, static_cast<int>(nodes_.size()));
-  CHECK_EQ(param_.num_nodes, static_cast<int>(stats_.size()));
+  CHECK_EQ(param_.num_nodes, static_cast<int>(nodes_.Size()));
+  CHECK_EQ(param_.num_nodes, static_cast<int>(stats_.Size()));
 
   CHECK_EQ(get<String>(out["tree_param"]["num_nodes"]), std::to_string(param_.num_nodes));
   auto n_nodes = param_.num_nodes;
@@ -1173,19 +1200,22 @@ void RegTree::SaveModel(Json* p_out) const {
 
   F32Array conds(n_nodes);
   U8Array default_left(n_nodes);
-  CHECK_EQ(this->split_types_.size(), param_.num_nodes);
+  CHECK_EQ(this->split_types_.Size(), param_.num_nodes);
 
   namespace tf = tree_field;
+
+  auto const& h_nodes = this->nodes_.ConstHostVector();
+  auto const& h_stats = this->stats_.ConstHostVector();
 
   auto save_tree = [&](auto* p_indices_array) {
     auto& indices_array = *p_indices_array;
     for (bst_node_t i = 0; i < n_nodes; ++i) {
-      auto const& s = stats_[i];
+      auto const& s = h_stats[i];
       loss_changes.Set(i, s.loss_chg);
       sum_hessian.Set(i, s.sum_hess);
       base_weights.Set(i, s.base_weight);
 
-      auto const& n = nodes_[i];
+      auto const& n = h_nodes[i];
       lefts.Set(i, n.LeftChild());
       rights.Set(i, n.RightChild());
       parents.Set(i, n.Parent());

@@ -49,9 +49,9 @@ void TestLeafPartition(size_t n_samples) {
     auto ptr = page.cut.Ptrs()[split_ind + 1];
     split_value = page.cut.Values().at(ptr / 2);
     GetSplit(&tree, split_value, &candidates);
-    partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+    partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
     std::vector<bst_node_t> position(page.Size());
-    partitioner.LeafPartition(&ctx, tree, hess, position);
+    partitioner.LeafPartition(&ctx, tree.HostScView(), hess, position);
     std::sort(position.begin(), position.end());
     size_t beg = std::distance(
         position.begin(),
@@ -110,8 +110,8 @@ void TestExternalMemory() {
     }
 
     partitioners.emplace_back(&ctx, page.Size(), page.base_rowid, false);
-    partitioners.back().UpdatePosition(&ctx, page, candidates, &tree);
-    partitioners.back().LeafPartition(&ctx, tree, t_gpair, position);
+    partitioners.back().UpdatePosition(&ctx, page, candidates, tree.HostScView());
+    partitioners.back().LeafPartition(&ctx, tree.HostScView(), t_gpair, position);
   }
 
   bst_idx_t n_left{0};

@@ -54,10 +54,13 @@ void TestPartitioner(bst_target_t n_targets) {
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
       if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
         GetSplit(&tree, min_value, &candidates);
+        partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                tree.HostScView());
       } else {
         GetMultiSplitForTest(&tree, min_value, &candidates);
+        partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                tree.HostMtView());
       }
-      partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
       ASSERT_EQ(partitioner.Size(), 3);
       ASSERT_EQ(partitioner[1].Size(), 0);
       ASSERT_EQ(partitioner[2].Size(), n_samples);
@@ -69,10 +72,14 @@ void TestPartitioner(bst_target_t n_targets) {
       RegTree tree{n_targets, n_features};
       if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
         GetSplit(&tree, split_value, &candidates);
+        partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                tree.HostScView());
       } else {
         GetMultiSplitForTest(&tree, split_value, &candidates);
+        partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                tree.HostMtView());
       }
-      partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
+
       {
         auto left_nidx = tree.LeftChild(RegTree::kRoot);
         auto const& elem = partitioner[left_nidx];
@@ -126,10 +133,13 @@ void VerifyColumnSplitPartitioner(bst_target_t n_targets, size_t n_samples,
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
       if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
         GetSplit(&tree, min_value, &candidates);
+        partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                tree.HostScView());
       } else {
         GetMultiSplitForTest(&tree, min_value, &candidates);
+        partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                tree.HostMtView());
       }
-      partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
       ASSERT_EQ(partitioner.Size(), 3);
       ASSERT_EQ(partitioner[1].Size(), 0);
       ASSERT_EQ(partitioner[2].Size(), n_samples);
@@ -139,11 +149,14 @@ void VerifyColumnSplitPartitioner(bst_target_t n_targets, size_t n_samples,
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
       if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
         GetSplit(&tree, mid_value, &candidates);
+        partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                tree.HostScView());
       } else {
         GetMultiSplitForTest(&tree, mid_value, &candidates);
+        partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                tree.HostMtView());
       }
       auto left_nidx = tree.LeftChild(RegTree::kRoot);
-      partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
 
       {
         auto const& elem = partitioner[left_nidx];
@@ -194,10 +207,13 @@ void TestColumnSplitPartitioner(bst_target_t n_targets) {
     RegTree tree{n_targets, n_features};
     if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
       GetSplit(&tree, mid_value, &candidates);
+      mid_partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                  tree.HostScView());
     } else {
       GetMultiSplitForTest(&tree, mid_value, &candidates);
+      mid_partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
+                                                  tree.HostMtView());
     }
-    mid_partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
   }
 
   auto constexpr kWorkers = 4;

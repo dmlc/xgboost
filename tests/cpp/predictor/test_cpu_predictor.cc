@@ -31,7 +31,7 @@ void CheckArrayLayout(const RegTree& tree, ArrayLayoutT buffer, int max_depth, i
   const auto& split_cond = buffer.SplitCond();
   const auto& default_left = buffer.DefaultLeft();
   const auto& nidx_in_tree = buffer.NidxInTree();
-  const auto& nodes = tree.GetNodes();
+  const auto& nodes = tree.GetNodes(DeviceOrd::CPU());
 
   if (depth == max_depth) {
     ASSERT_EQ(nidx_in_tree[nid_array - (1u << max_depth) + 1], nid);
@@ -81,27 +81,27 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   auto sc_tree = tree::ScalarTreeView{&ctx, &tree};
   {
     constexpr int kDepth = 1;
-    LayoutForTest<kDepth> buffer(sc_tree, tree.GetCategoriesMatrix());
+    LayoutForTest<kDepth> buffer(sc_tree, sc_tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 2;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 3;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 4;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 5;
-    LayoutForTest<kDepth> buffer{sc_tree, tree.GetCategoriesMatrix()};
+    LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
 }

@@ -11,8 +11,7 @@
 #include <type_traits>  // for conditional_t
 
 #include "../common/categorical.h"            // for IsCat
-#include "../tree/tree_view.h"                // for ScalarTreeView
-#include "xgboost/multi_target_tree_model.h"  // for MultiTargetTreeView
+#include "../tree/tree_view.h"                // for ScalarTreeView, MultiTargetTreeView
 #include "xgboost/tree_model.h"               // for RegTree
 
 namespace xgboost::predictor {

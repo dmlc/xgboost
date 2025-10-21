@@ -362,11 +362,11 @@ public class Booster implements Serializable, KryoSerializable {
    * @param predContribs prediction feature contributions
    * @return predict two dimensional array of results, where each row corresponds to a prediction.
    */
-  private synchronized float[][] predict(DMatrix data,
-                                         boolean outputMargin,
-                                         int treeLimit,
-                                         boolean predLeaf,
-                                         boolean predContribs) throws XGBoostError {
+  private float[][] predict(DMatrix data,
+                            boolean outputMargin,
+                            int treeLimit,
+                            boolean predLeaf,
+                            boolean predContribs) throws XGBoostError {
     int optionMask = 0;
     if (outputMargin) {
       optionMask = 1;

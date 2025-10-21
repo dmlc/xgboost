@@ -67,9 +67,10 @@ void HistUpdater<GradientSumT>::BuildHistogramsLossGuide(
   nodes_for_explicit_hist_build_.clear();
   nodes_for_subtraction_trick_.clear();
   nodes_for_explicit_hist_build_.push_back(entry);
+  auto tree = p_tree->HostScView();
 
-  if (!(*p_tree)[entry.nid].IsRoot()) {
-    auto sibling_id = entry.GetSiblingId(p_tree);
+  if (!tree.IsRoot(entry.nid)) {
+    auto sibling_id = entry.GetSiblingId(tree);
     nodes_for_subtraction_trick_.emplace_back(sibling_id, p_tree->GetDepth(sibling_id));
   }
 
@@ -375,19 +376,20 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
 
   size_t n_nodes = row_set_collection_.Size();
   std::vector<::sycl::event> events(n_nodes);
+  auto tree = p_last_tree_->HostScView();
   for (size_t node = 0; node < n_nodes; node++) {
     const common::RowSetCollection::Elem& rowset = row_set_collection_[node];
     if (rowset.begin != nullptr && rowset.end != nullptr && rowset.Size() != 0) {
       int nid = rowset.node_id;
       // if a node is marked as deleted by the pruner, traverse upward to locate
       // a non-deleted leaf.
-      if ((*p_last_tree_)[nid].IsDeleted()) {
-        while ((*p_last_tree_)[nid].IsDeleted()) {
-          nid = (*p_last_tree_)[nid].Parent();
+      if (tree.IsDeleted(nid)) {
+        while (tree.IsDeleted(nid)) {
+          nid = tree.Parent(nid);
         }
-        CHECK((*p_last_tree_)[nid].IsLeaf());
+        CHECK(tree.IsLeaf(nid));
       }
-      bst_float leaf_value = (*p_last_tree_)[nid].LeafValue();
+      bst_float leaf_value = tree.LeafValue(nid);
       const size_t* rid = rowset.begin;
       const size_t num_rows = rowset.Size();
 
@@ -649,7 +651,8 @@ void HistUpdater<GradientSumT>::ApplySplit(
 
   const size_t n_nodes = nodes.size();
   std::vector<int32_t> split_conditions(n_nodes);
-  CommonRowPartitioner::FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
+  auto tree = p_tree->HostScView();
+  CommonRowPartitioner::FindSplitConditions(nodes, tree, gmat, &split_conditions);
 
   partition_builder_.Init(qu_, n_nodes, [&](size_t node_in_set) {
     const int32_t nid = nodes[node_in_set].nid;
@@ -681,8 +684,9 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
   builder_monitor_.Start("InitNewNode");
 
   snode_host_.resize(tree.NumNodes(), NodeEntry<GradientSumT>(param_));
+  auto sc_tree = tree.HostScView();
   {
-    if (tree[nid].IsRoot()) {
+    if (sc_tree.IsRoot(nid)) {
       GradStats<GradientSumT> grad_stat;
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
         const std::vector<uint32_t>& row_ptr = gmat.cut.Ptrs();
@@ -724,8 +728,8 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
       SafeColl(rc);
       snode_host_[nid].stats = grad_stat;
     } else {
-      int parent_id = tree[nid].Parent();
-      if (tree[nid].IsLeftChild()) {
+      int parent_id = sc_tree.Parent(nid);
+      if (sc_tree.IsLeftChild(nid)) {
         snode_host_[nid].stats = snode_host_[parent_id].best.left_sum;
       } else {
         snode_host_[nid].stats = snode_host_[parent_id].best.right_sum;
@@ -736,7 +740,7 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
   // calculating the weights
   {
     auto evaluator = tree_evaluator_.GetEvaluator();
-    bst_uint parentid = tree[nid].Parent();
+    bst_uint parentid = sc_tree.Parent(nid);
     snode_host_[nid].weight = evaluator.CalcWeight(parentid, snode_host_[nid].stats);
     snode_host_[nid].root_gain = evaluator.CalcGain(parentid, snode_host_[nid].stats);
   }

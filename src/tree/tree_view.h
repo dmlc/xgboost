@@ -5,9 +5,10 @@
  * original scalar tree `Node` struct is used extensively in the codebase.
  */
 #pragma once
-#include <cstdint>  // for uint8_t
-#include <stack>    // for stack
-#include <utility>  // for move
+#include <algorithm>  // for max
+#include <cstdint>    // for uint8_t
+#include <stack>      // for stack
+#include <utility>    // for move
 
 #include "../common/type.h"      // for GetValueT
 #include "xgboost/base.h"        // for bst_node_t
@@ -57,19 +58,50 @@ struct WalkTreeMixIn {
     }
     return depth;
   }
+
+  [[nodiscard]] bst_node_t MaxDepth(bst_node_t nidx) const {
+    auto self = static_cast<Base const*>(this);
+    if (self->IsLeaf(nidx)) {
+      return 0;
+    }
+    return std::max(this->MaxDepth(self->LeftChild(nidx)) + 1,
+                    this->MaxDepth(self->RightChild(nidx)) + 1);
+  }
+  [[nodiscard]] bst_node_t MaxDepth() const { return this->MaxDepth(RegTree::kRoot); }
+};
+
+struct CategoriesMixIn {
+  RegTree::CategoricalSplitMatrix cats;
+
+  [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
+  [[nodiscard]] XGBOOST_DEVICE RegTree::CategoricalSplitMatrix const& GetCategoriesMatrix() const {
+    return cats;
+  }
+  /**
+   * @brief Get the bit storage of categories used by a node.
+   */
+  [[nodiscard]] XGBOOST_DEVICE common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
+    auto node_ptr = this->GetCategoriesMatrix().node_ptr;
+    auto categories = this->GetCategoriesMatrix().categories;
+    auto segment = node_ptr[nidx];
+    auto node_cats = categories.subspan(segment.beg, segment.size);
+    return node_cats;
+  }
+  [[nodiscard]] XGBOOST_DEVICE FeatureType SplitType(bst_node_t nidx) const {
+    return cats.split_type[nidx];
+  }
 };
 
 /**
  * @brief Tree view for scalar leaf.
  */
-struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
+struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView>, public CategoriesMixIn {
   static bst_node_t constexpr InvalidNodeId() { return RegTree::kInvalidNodeId; }
   static constexpr bst_node_t RootId() { return RegTree::kRoot; }
 
   RegTree::Node const* nodes;
 
   RTreeNodeStat const* stats;
-  RegTree::CategoricalSplitMatrix cats;
   // The number of nodes
   bst_node_t n{0};
 
@@ -105,32 +137,27 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
     return this->nodes[nidx].LeafValue();
   }
 
+  [[nodiscard]] bst_target_t NumTargets() const { return 1; }
   [[nodiscard]] XGBOOST_DEVICE bst_node_t Size() const { return this->n; }
   [[nodiscard]] XGBOOST_DEVICE bool IsRoot(bst_node_t nidx) const {
     return this->nodes[nidx].IsRoot();
   }
 
   [[nodiscard]] RTreeNodeStat const& Stat(bst_node_t nidx) const { return stats[nidx]; }
-  [[nodiscard]] auto SumHess(bst_node_t nidx) const { return stats[nidx].sum_hess; }
-  [[nodiscard]] auto LossChg(bst_node_t nidx) const { return stats[nidx].loss_chg; }
-
-  [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
-  [[nodiscard]] XGBOOST_DEVICE RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const {
-    return cats;
-  }
-  [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
+  [[nodiscard]] XGBOOST_DEVICE auto SumHess(bst_node_t nidx) const { return stats[nidx].sum_hess; }
+  [[nodiscard]] XGBOOST_DEVICE auto LossChg(bst_node_t nidx) const { return stats[nidx].loss_chg; }
 
   XGBOOST_DEVICE explicit ScalarTreeView(RegTree::Node const* nodes, RTreeNodeStat const* stats,
                                          RegTree::CategoricalSplitMatrix cats, bst_node_t n_nodes)
-      : nodes{nodes}, stats{stats}, cats{std::move(cats)}, n{n_nodes} {}
+      : CategoriesMixIn{std::move(cats)}, nodes{nodes}, stats{stats}, n{n_nodes} {}
 
-  /** @brief Create a device view, not implemented yet. */
+  /** @brief Create a device view */
   explicit ScalarTreeView(Context const* ctx, RegTree const* tree);
   /** @brief Create a host view */
   explicit ScalarTreeView(RegTree const* tree)
-      : nodes{tree->GetNodes().data()},
-        stats{tree->GetStats().data()},
-        cats{tree->GetCategoriesMatrix()},
+      : CategoriesMixIn{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
+        nodes{tree->GetNodes(DeviceOrd::CPU()).data()},
+        stats{tree->GetStats(DeviceOrd::CPU()).data()},
         n{tree->NumNodes()} {
     CHECK(!tree->IsMultiTarget());
   }
@@ -139,7 +166,7 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView> {
 /**
  * @brief A view to the @ref MultiTargetTree suitable for both host and device.
  */
-struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
+struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public CategoriesMixIn {
   static bst_node_t constexpr InvalidNodeId() { return MultiTargetTree::InvalidNodeId(); }
 
   bst_node_t const* left;
@@ -149,8 +176,6 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
   bst_feature_t const* split_index;
   std::uint8_t const* default_left;
   float const* split_conds;
-
-  RegTree::CategoricalSplitMatrix cats;
 
   // The number of nodes
   bst_node_t n{0};
@@ -195,25 +220,29 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView> {
     LOG(FATAL) << "Tree statistic " << MTNotImplemented();
     return 0.0f;
   }
-
-  [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
-  [[nodiscard]] RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const { return cats; }
-  [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
-
   /** @brief Create a device view */
   explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
   /** @brief Create a host view */
   explicit MultiTargetTreeView(RegTree const* tree);
 };
 
-template <typename Fn>
-void WalkTree(RegTree const& tree, Fn&& fn) {
+/**
+ * @brief Iterate through all nodes in a tree.
+ *
+ * @param tree  The tree to traversal
+ * @param fn    See @ref WalkTreeMixIn , addition tree views are passed into the function if @ref
+ *              trees is not empty.
+ * @param trees Additional trees that have the same target type as @ref tree . We can
+ *              dispatch all trees together for easier access.
+ */
+template <typename Fn, typename... Tree>
+void WalkTree(RegTree const& tree, Fn&& fn, Tree const&... trees) {
   if (tree.IsMultiTarget()) {
     auto mt_tree = tree.HostMtView();
-    mt_tree.WalkTree([&](bst_node_t nidx) { return fn(mt_tree, nidx); });
+    mt_tree.WalkTree([&](bst_node_t nidx) { return fn(mt_tree, trees.HostMtView()..., nidx); });
   } else {
     auto sc_tree = tree.HostScView();
-    sc_tree.WalkTree([&](bst_node_t nidx) { return fn(sc_tree, nidx); });
+    sc_tree.WalkTree([&](bst_node_t nidx) { return fn(sc_tree, trees.HostScView()..., nidx); });
   }
 }
 

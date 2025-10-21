@@ -1,6 +1,5 @@
-/*!
- * Copyright 2017-2024 by Contributors
- * \file expand_entry.h
+/**
+ * Copyright 2017-2025, XGBoost Contributors
  */
 #ifndef PLUGIN_SYCL_TREE_EXPAND_ENTRY_H_
 #define PLUGIN_SYCL_TREE_EXPAND_ENTRY_H_
@@ -10,6 +9,7 @@
 #include "../../src/tree/constraints.h"
 #pragma GCC diagnostic pop
 #include "../../src/tree/hist/expand_entry.h"
+#include "../../src/tree/tree_view.h"
 
 namespace xgboost {
 namespace sycl {
@@ -22,15 +22,14 @@ struct ExpandEntry : public xgboost::tree::ExpandEntryImpl<ExpandEntry> {
 
   ExpandEntry(int nid, int depth) : ExpandEntryImpl{nid, depth} {}
 
-  inline bst_node_t GetSiblingId(const xgboost::RegTree* p_tree) const {
-    CHECK_EQ((*p_tree)[nid].IsRoot(), false);
-    const size_t parent_id = (*p_tree)[nid].Parent();
-    return GetSiblingId(p_tree, parent_id);
+  bst_node_t GetSiblingId(::xgboost::tree::ScalarTreeView const& tree) const {
+    CHECK_EQ(tree.IsRoot(nid), false);
+    const size_t parent_id = tree.Parent(nid);
+    return GetSiblingId(tree, parent_id);
   }
 
-  inline bst_node_t GetSiblingId(const xgboost::RegTree* p_tree, size_t parent_id) const {
-    return p_tree->IsLeftChild(nid) ? p_tree->RightChild(parent_id)
-                                    : p_tree->LeftChild(parent_id);
+  bst_node_t GetSiblingId(::xgboost::tree::ScalarTreeView const& tree, size_t parent_id) const {
+    return tree.IsLeftChild(nid) ? tree.RightChild(parent_id) : tree.LeftChild(parent_id);
   }
 
   bool IsValidImpl(xgboost::tree::TrainParam const &param, int32_t num_leaves) const {
