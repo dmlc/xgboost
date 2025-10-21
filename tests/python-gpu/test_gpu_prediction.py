@@ -628,3 +628,44 @@ class TestGPUPredict:
 
 def test_base_margin_vs_base_score() -> None:
     run_base_margin_vs_base_score("cuda")
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_shap_multiclass() -> None:
+    from sklearn.datasets import make_classification
+
+    X, y = make_classification(n_classes=3, random_state=2025, n_informative=16)
+    param = {
+        "tree_method": "hist",
+        "device": "cuda",
+        "num_class": 3,
+        "base_score": [1.0, 2.0, 3.0],
+    }
+    Xy = xgb.DMatrix(X, y)
+    bst = xgb.train(param, Xy, 8)
+
+    d_shap = bst.predict(Xy, pred_contribs=True)
+    d_margin = bst.predict(Xy, output_margin=True)
+
+    bst.set_param({"device": "cpu"})
+
+    h_shap = bst.predict(Xy, pred_contribs=True)
+    h_margin = bst.predict(Xy, output_margin=True)
+
+    np.testing.assert_allclose(d_shap, h_shap, atol=1e-6)
+    np.testing.assert_allclose(d_margin, h_margin, atol=1e-6)
+
+    # Compare base margin and base score
+    margin = np.stack(
+        [
+            np.ones(X.shape[0]),
+            np.full(X.shape[0], fill_value=2.0),
+            np.full(X.shape[0], fill_value=3.0),
+        ],
+        axis=1,
+    )
+    Xy = xgb.DMatrix(X, y, base_margin=margin)
+
+    bst.set_param({"device": "cuda"})
+    d_shap = bst.predict(Xy, pred_contribs=True)
+    np.testing.assert_allclose(d_shap, h_shap, atol=1e-6)
