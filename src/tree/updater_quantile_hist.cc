@@ -26,8 +26,8 @@
 #include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
-#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
+#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for TrainParam, GradStats
 #include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
@@ -152,15 +152,23 @@ class MultiTargetHistBuilder {
 
     p_last_fmat_ = p_fmat;
     bst_bin_t n_total_bins = 0;
-    partitioner_.clear();
+    size_t page_idx = 0;
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->Info().IsColumnSplit());
+      if (page_idx < partitioner_.size()) {
+        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
+                                     p_fmat->Info().IsColumnSplit());
+      } else {
+        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid,
+                                  p_fmat->Info().IsColumnSplit());
+      }
+      page_idx++;
     }
+    partitioner_.resize(page_idx);
 
     bst_target_t n_targets = p_tree->NumTargets();
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
@@ -364,6 +372,7 @@ class HistUpdater {
       }
       page_idx++;
     }
+    partitioner_.resize(page_idx);
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
                               fmat->Info().IsColumnSplit(), hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);

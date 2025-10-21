@@ -3,19 +3,24 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/linalg.h>
 #include <xgboost/tree_updater.h>
 
+#include <cmath>
 #include <cstddef>  // for size_t
+#include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry, CPUExpandEntry
-#include "../collective/test_worker.h"  // for TestDistributedGlobal
+#include "../collective/test_worker.h"            // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_column_split.h"  // for TestColumnSplit
 #include "test_partitioner.h"
 #include "xgboost/data.h"
+#include "xgboost/task.h"
 
 namespace xgboost::tree {
 namespace {
@@ -246,4 +251,94 @@ INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestHistColumnSplit, ::testing::ValuesIn([
                            }
                            return params;
                          }()));
+
+namespace {
+void FillGradients(linalg::Matrix<GradientPair>* gpair) {
+  auto h = gpair->HostView();
+  for (std::size_t row = 0; row < h.Shape(0); ++row) {
+    for (std::size_t target = 0; target < h.Shape(1); ++target) {
+      h(row, target) = GradientPair{1.0f, 0.0f};
+    }
+  }
+}
+
+// Verify partitioner doesn't write past buffer end when doing
+// update on small dataset after large one.
+void TestPartitionerOverrun(bst_target_t n_targets) {
+  constexpr bst_idx_t kNBig = 1 << 16, kNSmall = 1024;
+  constexpr int kCols = 3;
+
+  Context ctx;
+  ctx.InitAllowUnknown(Args{{"nthread", "1"}});
+
+  ObjInfo task{ObjInfo::kRegression, true, true};
+  auto updater =
+      std::unique_ptr<TreeUpdater>{TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
+
+  TrainParam param;
+  param.InitAllowUnknown(Args{{"max_depth", "1"},
+                              {"max_bin", "32"},
+                              {"lambda", "0"},
+                              {"gamma", "0"},
+                              {"min_child_weight", "0"}});
+  updater->Configure(Args{});
+
+  auto const n_targets_size = static_cast<std::size_t>(n_targets);
+
+  auto dmat_large =
+      RandomDataGenerator{kNBig, kCols, 0.0f}.Seed(0).Batches(8).GenerateSparsePageDMatrix(
+          "part_resize_big_first", true);
+
+  std::size_t shape_large[2]{dmat_large->Info().num_row_, n_targets_size};
+  linalg::Matrix<GradientPair> gpair_large(shape_large, ctx.Device());
+  FillGradients(&gpair_large);
+
+  RegTree tree_large{n_targets, static_cast<bst_feature_t>(kCols)};
+  std::vector<RegTree*> trees_large{&tree_large};
+  std::vector<HostDeviceVector<bst_node_t>> position_large(1);
+  common::Span<HostDeviceVector<bst_node_t>> pos_large{position_large.data(), 1};
+  updater->Update(&param, &gpair_large, dmat_large.get(), pos_large, trees_large);
+
+  auto dmat_small =
+      RandomDataGenerator{kNSmall, kCols, 0.0f}.Seed(1).Batches(1).GenerateSparsePageDMatrix(
+          "part_resize_small_second", false);
+
+  std::vector<HostDeviceVector<bst_node_t>> position_small(1);
+  auto& pos = position_small.front();
+  pos.Resize(kNBig);    // Allocate large
+  pos.Resize(kNSmall);  // Shrink logical size, capacity remains large
+
+  auto& hv = pos.HostVector();
+  std::size_t cap = hv.capacity();
+  ASSERT_GE(cap, static_cast<std::size_t>(kNBig));
+
+  std::size_t tail_elems = cap - hv.size();
+  ASSERT_GT(tail_elems, 0u) << "Expected reserved tail storage";
+  std::vector<bst_node_t> tail_before(tail_elems);
+  std::memcpy(tail_before.data(), hv.data() + hv.size(), tail_elems * sizeof(bst_node_t));
+
+  std::size_t shape_small[2]{dmat_small->Info().num_row_, n_targets_size};
+  linalg::Matrix<GradientPair> gpair_small(shape_small, ctx.Device());
+  FillGradients(&gpair_small);
+
+  RegTree tree_small{n_targets, static_cast<bst_feature_t>(kCols)};
+  std::vector<RegTree*> trees_small{&tree_small};
+  common::Span<HostDeviceVector<bst_node_t>> pos_small{position_small.data(), 1};
+  updater->Update(&param, &gpair_small, dmat_small.get(), pos_small, trees_small);
+
+  // Verify no buffer overrun: tail bytes should be unchanged
+  ASSERT_EQ(hv.capacity(), cap) << "Test precondition violated: capacity changed";
+  std::vector<bst_node_t> tail_after(tail_elems);
+  std::memcpy(tail_after.data(), hv.data() + hv.size(), tail_elems * sizeof(bst_node_t));
+
+  EXPECT_EQ(tail_before, tail_after)
+      << "Buffer overrun detected: writes past kNSmall when updating small "
+         "single-batch DMatrix after large multi-batch one. "
+         "Likely stale partitioner writing to buffer.";
+}
+}  // anonymous namespace
+
+TEST(QuantileHist, HistUpdaterPartitionerOverrun) { TestPartitionerOverrun(1); }
+
+TEST(QuantileHist, MultiTargetHistBuilderPartitionerOverrun) { TestPartitionerOverrun(3); }
 }  // namespace xgboost::tree
