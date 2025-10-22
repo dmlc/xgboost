@@ -379,7 +379,7 @@ typedef void *DataHolderHandle;  // NOLINT(*)
 typedef struct {  // NOLINT(*)
   /** @brief number of rows in the minibatch */
   size_t size;
-  /* @brief number of columns in the minibatch. */
+  /** @brief number of columns in the minibatch. */
   size_t columns;
   /** @brief row pointer to the rows in the data */
 #ifdef __APPLE__
