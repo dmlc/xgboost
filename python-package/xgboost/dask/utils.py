@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name
 """Utilities for the XGBoost Dask interface."""
 
 import logging

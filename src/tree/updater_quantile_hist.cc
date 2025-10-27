@@ -26,8 +26,8 @@
 #include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
-#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
+#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for TrainParam, GradStats
 #include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
@@ -136,7 +136,8 @@ class MultiTargetHistBuilder {
     monitor_->Start(__func__);
     std::size_t page_id{0};
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(this->param_))) {
-      this->partitioner_.at(page_id).UpdatePosition(this->ctx_, page, applied, p_tree);
+      this->partitioner_.at(page_id).UpdatePosition(this->ctx_, page, applied,
+                                                    p_tree->HostMtView());
       page_id++;
     }
     monitor_->Stop(__func__);
@@ -151,15 +152,23 @@ class MultiTargetHistBuilder {
 
     p_last_fmat_ = p_fmat;
     bst_bin_t n_total_bins = 0;
-    partitioner_.clear();
+    size_t page_idx = 0;
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->Info().IsColumnSplit());
+      if (page_idx < partitioner_.size()) {
+        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
+                                     p_fmat->Info().IsColumnSplit());
+      } else {
+        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid,
+                                  p_fmat->Info().IsColumnSplit());
+      }
+      page_idx++;
     }
+    partitioner_.resize(page_idx);
 
     bst_target_t n_targets = p_tree->NumTargets();
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
@@ -202,7 +211,8 @@ class MultiTargetHistBuilder {
         linalg::MakeVec(reinterpret_cast<double *>(root_sum.Values().data()), root_sum.Size() * 2));
     collective::SafeColl(rc);
 
-    histogram_builder_->BuildRootHist(p_fmat, p_tree, partitioner_, gpair, best, HistBatch(param_));
+    histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
+                                      HistBatch(param_));
 
     auto weight = evaluator_->InitRoot(root_sum);
     auto weight_t = weight.HostView();
@@ -228,8 +238,8 @@ class MultiTargetHistBuilder {
                       std::vector<MultiExpandEntry> const &valid_candidates,
                       linalg::MatrixView<GradientPair const> gpair) {
     monitor_->Start(__func__);
-    histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree, partitioner_, valid_candidates,
-                                           gpair, HistBatch(param_));
+    histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree->HostMtView(), partitioner_,
+                                           valid_candidates, gpair, HistBatch(param_));
     monitor_->Stop(__func__);
   }
 
@@ -256,7 +266,7 @@ class MultiTargetHistBuilder {
     }
     p_out_position->resize(gpair.Shape(0));
     for (auto const &part : partitioner_) {
-      part.LeafPartition(ctx_, tree, gpair,
+      part.LeafPartition(ctx_, tree.HostMtView(), gpair,
                          common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);
@@ -362,6 +372,7 @@ class HistUpdater {
       }
       page_idx++;
     }
+    partitioner_.resize(page_idx);
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
                               fmat->Info().IsColumnSplit(), hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
@@ -390,7 +401,7 @@ class HistUpdater {
     monitor_->Start(__func__);
     CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0));
 
-    this->histogram_builder_->BuildRootHist(p_fmat, p_tree, partitioner_, gpair, node,
+    this->histogram_builder_->BuildRootHist(p_fmat, p_tree->HostScView(), partitioner_, gpair, node,
                                             HistBatch(param_));
 
     {
@@ -446,7 +457,7 @@ class HistUpdater {
                       std::vector<CPUExpandEntry> const &valid_candidates,
                       linalg::MatrixView<GradientPair const> gpair) {
     monitor_->Start(__func__);
-    this->histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree, partitioner_,
+    this->histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree->HostScView(), partitioner_,
                                                  valid_candidates, gpair, HistBatch(param_));
     monitor_->Stop(__func__);
   }
@@ -456,7 +467,8 @@ class HistUpdater {
     monitor_->Start(__func__);
     std::size_t page_id{0};
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      this->partitioner_.at(page_id).UpdatePosition(this->ctx_, page, applied, p_tree);
+      this->partitioner_.at(page_id).UpdatePosition(this->ctx_, page, applied,
+                                                    p_tree->HostScView());
       page_id++;
     }
     monitor_->Stop(__func__);
@@ -471,7 +483,7 @@ class HistUpdater {
     }
     p_out_position->resize(gpair.Shape(0));
     for (auto const &part : partitioner_) {
-      part.LeafPartition(ctx_, tree, gpair,
+      part.LeafPartition(ctx_, tree.HostScView(), gpair,
                          common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);

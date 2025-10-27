@@ -431,7 +431,8 @@ void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float spa
 
     size_t n_nodes = nodes.size();
     std::vector<int32_t> split_conditions(n_nodes);
-    xgboost::tree::CommonRowPartitioner::FindSplitConditions(nodes, tree, gmat, &split_conditions);
+    xgboost::tree::CommonRowPartitioner::FindSplitConditions(nodes, tree.HostScView(), gmat,
+                                                             &split_conditions);
 
     common::PartitionBuilder partition_builder;
     partition_builder.Init(qu, n_nodes, [&](size_t node_in_set) {
@@ -499,7 +500,7 @@ void TestHistUpdaterExpandWithLossGuide(const xgboost::tree::TrainParam& param) 
 
   updater.TestExpandWithLossGuide(gmat, p_fmat.get(), &tree, gpair);
 
-  const auto& nodes = tree.GetNodes();
+  const auto& nodes = tree.GetNodes(DeviceOrd::CPU());
   std::vector<float> ans(data.size());
   for (size_t data_idx = 0; data_idx < data.size(); ++data_idx) {
       size_t node_idx = 0;
@@ -543,7 +544,7 @@ void TestHistUpdaterExpandWithDepthWise(const xgboost::tree::TrainParam& param) 
 
   updater.TestExpandWithDepthWise(gmat, p_fmat.get(), &tree, gpair);
 
-  const auto& nodes = tree.GetNodes();
+  const auto& nodes = tree.GetNodes(DeviceOrd::CPU());
   std::vector<float> ans(data.size());
   for (size_t data_idx = 0; data_idx < data.size(); ++data_idx) {
       size_t node_idx = 0;

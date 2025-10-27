@@ -268,7 +268,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
   /**
    * Lastly, normalization and weight.
    */
-  auto d_weights = common::MakeOptionalWeights(ctx, info.weights_);
+  auto d_weights = common::MakeOptionalWeights(ctx->Device(), info.weights_);
   auto w_norm = p_cache->WeightNorm();
   auto need_norm = p_cache->Param().lambdarank_normalization;
   auto n_pairs = p_cache->Param().NumPair();

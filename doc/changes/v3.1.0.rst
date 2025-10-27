@@ -1,3 +1,12 @@
+#################################
+3.1.1 Patch Release (Oct 22 2025)
+#################################
+
+- Emit correct error when performing inplace-predict using a CPU-only version of XGBoost,
+  but with a GPU input. (:pr:`11761`)
+- Enhance the error message for loading the removed binary model format. (:pr:`11760`)
+- Use the correct group ID for SHAP when the intercept is a vector. (:pr:`11764`)
+
 ###################
 3.1.0 (2025 Sep 22)
 ###################

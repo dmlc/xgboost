@@ -256,7 +256,7 @@ class Op(IntEnum):
     BITWISE_XOR = 5
 
 
-def allreduce(data: np.ndarray, op: Op) -> np.ndarray:  # pylint:disable=invalid-name
+def allreduce(data: np.ndarray, op: Op) -> np.ndarray:
     """Perform allreduce, return the result.
 
     Parameters

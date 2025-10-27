@@ -77,7 +77,7 @@ jobs:
           - description: "MacOS (Intel)"
             script: ops/pipeline/build-jvm-macos-intel.sh
             libname: libxgboost4j_intel.dylib
-            runner: macos-13
+            runner: macos-15-intel
     steps:
       - uses: actions/checkout@v4
         with:
@@ -132,12 +132,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-13]
+        os: [windows-latest, macos-15-intel]
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '8'
@@ -152,7 +152,7 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
       - name: Test XGBoost4J (Core) on macos
-        if: matrix.os == 'macos-13'
+        if: matrix.os == 'macos-15-intel'
         run: |
           cd jvm-packages
           mvn test -B -pl :xgboost4j_2.12 -Duse.openmp=OFF
@@ -205,7 +205,7 @@ jobs:
           SCALA_VERSION: ${{ matrix.scala_version }}
 
   deploy-jvm-packages:
-    name: Deploy JVM packages to S3 (${{ matrix.variant.name }})
+    name: Deploy JVM packages to S3 (${{ matrix.variant.name }}, Scala ${{ matrix.scala_version }})
     needs: [build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
     runs-on:
       - runs-on

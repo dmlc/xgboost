@@ -1,4 +1,4 @@
-# pylint: disable=too-many-locals, too-many-arguments, invalid-name,
+# pylint: disable=too-many-locals, too-many-arguments
 # pylint: disable=too-many-branches
 """Plotting Library."""
 import json

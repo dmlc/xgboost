@@ -6,7 +6,7 @@
 #include <xgboost/multi_target_tree_model.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
-#include "../helpers.h"
+#include "../../../src/tree/tree_view.h"
 
 namespace xgboost {
 namespace {
@@ -54,7 +54,8 @@ TEST(MultiTargetTree, JsonIO) {
   check_jtree(jtree1, *tree);
 }
 
-TEST(MultiTargetTree, DumpDot) {
+namespace {
+void TestTreeDump(std::string format, std::string leaf_key) {
   auto tree = MakeTreeForTest();
   auto n_features = tree->NumFeatures();
   FeatureMap fmap;
@@ -62,44 +63,37 @@ TEST(MultiTargetTree, DumpDot) {
     auto name = "feat_" + std::to_string(f);
     fmap.PushBack(f, name.c_str(), "q");
   }
-  auto str = tree->DumpModel(fmap, false, "dot");
-  ASSERT_NE(str.find("leaf=[2, 3, 4]"), std::string::npos);
-  ASSERT_NE(str.find("leaf=[3, 4, 5]"), std::string::npos);
+  {
+    auto str = tree->DumpModel(fmap, false, format);
+    ASSERT_NE(str.find(leaf_key + "[2, 3, 4]"), std::string::npos);
+    ASSERT_NE(str.find(leaf_key + "[3, 4, 5]"), std::string::npos);
+  }
 
   {
+    // Test the "..."
     bst_target_t n_targets{4};
-    bst_feature_t n_features{4};
     RegTree tree{n_targets, n_features};
     linalg::Vector<float> weight{{1.0f, 2.0f, 3.0f, 4.0f}, {4ul}, DeviceOrd::CPU()};
     tree.ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, weight.HostView(),
                     weight.HostView(), weight.HostView());
-    auto str = tree.DumpModel(fmap, false, "dot");
-    ASSERT_NE(str.find("leaf=[1, 2, ..., 4]"), std::string::npos);
+    auto str = tree.DumpModel(fmap, false, format);
+    ASSERT_NE(str.find(leaf_key + "[1, 2, ..., 4]"), std::string::npos);
   }
 }
+}  // namespace
+
+TEST(MultiTargetTree, DotDump) { TestTreeDump("dot", "leaf="); }
+
+TEST(MultiTargetTree, TextDump) { TestTreeDump("text", "leaf="); }
+
+TEST(MultiTargetTree, JsonDump) { TestTreeDump("json", "\"leaf\": "); }
 
 TEST(MultiTargetTree, View) {
   auto tree = MakeTreeForTest();
-
-  auto test = [&tree](Context const* ctx) {
-    auto v = tree->GetMultiTargetTree()->View(ctx);
-    ASSERT_EQ(v.NumTargets(), 3);
-    ASSERT_EQ(v.Size(), 3);
-    if (ctx->IsCPU()) {
-      ASSERT_EQ(v.LeftChild(0), 1);
-      ASSERT_EQ(v.RightChild(0), 2);
-    }
-  };
-
-  {
-    Context ctx;
-    test(&ctx);
-  }
-#if defined(XGBOOST_USE_CUDA)
-  {
-    auto ctx = MakeCUDACtx(0);
-    test(&ctx);
-  }
-#endif  // defined(XGBOOST_USE_CUDA)
+  auto v = tree->HostMtView();
+  ASSERT_EQ(v.NumTargets(), 3);
+  ASSERT_EQ(v.Size(), 3);
+  ASSERT_EQ(v.LeftChild(0), 1);
+  ASSERT_EQ(v.RightChild(0), 2);
 }
 }  // namespace xgboost

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
@@ -20,6 +20,7 @@
 #include "../constraints.h"            // for FeatureInteractionConstraintHost
 #include "../param.h"                  // for TrainParam
 #include "../split_evaluator.h"        // for TreeEvaluator
+#include "../tree_view.h"              // for MultiTargetTreeView
 #include "expand_entry.h"              // for MultiExpandEntry
 #include "hist_cache.h"                // for BoundedHistCollection
 #include "xgboost/base.h"              // for bst_node_t, bst_target_t, bst_feature_t
@@ -446,7 +447,7 @@ class HistEvaluator {
                              tree[candidate.nid].SplitIndex(), left_weight, right_weight);
     evaluator = tree_evaluator_.GetEvaluator();
 
-    snode_.resize(tree.GetNodes().size());
+    snode_.resize(tree.Size());
     snode_.at(left_child).stats = candidate.split.left_sum;
     snode_.at(left_child).root_gain =
         evaluator.CalcGain(candidate.nid, *param_, GradStats{candidate.split.left_sum});
@@ -679,13 +680,15 @@ class HistMultiEvaluator {
 
     p_tree->ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
                        candidate.split.DefaultLeft(), base_weight, left_weight, right_weight);
+
     CHECK(p_tree->IsMultiTarget());
-    auto left_child = p_tree->LeftChild(candidate.nid);
+    auto mt_tree = p_tree->HostMtView();
+    auto left_child = mt_tree.LeftChild(candidate.nid);
     CHECK_GT(left_child, candidate.nid);
-    auto right_child = p_tree->RightChild(candidate.nid);
+    auto right_child = mt_tree.RightChild(candidate.nid);
     CHECK_GT(right_child, candidate.nid);
 
-    std::size_t n_nodes = p_tree->Size();
+    std::size_t n_nodes = mt_tree.Size();
     gain_.resize(n_nodes);
     // Re-calculate weight without learning rate.
     CalcWeight(*param_, left_sum, left_weight);
@@ -725,20 +728,18 @@ class HistMultiEvaluator {
  * \param p_last_tree The last tree being updated by tree updater
  */
 template <typename Partitioner>
-void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
+void UpdatePredictionCacheImpl(Context const *ctx, ScalarTreeView const &last_tree,
                                std::vector<Partitioner> const &partitioner,
                                linalg::VectorView<float> out_preds) {
-  auto const &tree = *p_last_tree;
   CHECK(out_preds.Device().IsCPU());
-  size_t n_nodes = p_last_tree->GetNodes().size();
+  size_t n_nodes = last_tree.Size();
   for (auto &part : partitioner) {
     CHECK_EQ(part.Size(), n_nodes);
-    common::BlockedSpace2d space(
-        part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
+    common::BlockedSpace2d space(part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
     common::ParallelFor2d(space, ctx->Threads(), [&](bst_node_t nidx, common::Range1d r) {
-      if (!tree[nidx].IsDeleted() && tree[nidx].IsLeaf()) {
+      if (!last_tree.IsDeleted(nidx) && last_tree.IsLeaf(nidx)) {
         auto const &rowset = part[nidx];
-        auto leaf_value = tree[nidx].LeafValue();
+        auto leaf_value = last_tree.LeafValue(nidx);
         for (auto const *it = rowset.begin() + r.begin(); it < rowset.begin() + r.end(); ++it) {
           out_preds(*it) += leaf_value;
         }
@@ -756,13 +757,13 @@ void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
 
   auto const &tree = *p_last_tree;
   if (!tree.IsMultiTarget()) {
-    UpdatePredictionCacheImpl(ctx, p_last_tree, partitioner, out_preds.Slice(linalg::All(), 0));
-    return;
+    return UpdatePredictionCacheImpl(ctx, p_last_tree->HostScView(), partitioner,
+                                     out_preds.Slice(linalg::All(), 0));
   }
 
-  auto const *mttree = tree.GetMultiTargetTree();
-  auto n_nodes = mttree->Size();
-  auto n_targets = tree.NumTargets();
+  auto const mt_tree = tree.HostMtView();
+  auto n_nodes = mt_tree.Size();
+  auto n_targets = mt_tree.NumTargets();
   CHECK_EQ(out_preds.Shape(1), n_targets);
   CHECK(out_preds.Device().IsCPU());
 
@@ -771,9 +772,9 @@ void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
     common::BlockedSpace2d space(
         part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
     common::ParallelFor2d(space, ctx->Threads(), [&](bst_node_t nidx, common::Range1d r) {
-      if (tree.IsLeaf(nidx)) {
+      if (mt_tree.IsLeaf(nidx)) {
         auto const &rowset = part[nidx];
-        auto leaf_value = mttree->LeafValue(nidx);
+        auto leaf_value = mt_tree.LeafValue(nidx);
         for (bst_idx_t const *it = rowset.begin() + r.begin(); it < rowset.begin() + r.end();
              ++it) {
           for (std::size_t i = 0; i < n_targets; ++i) {

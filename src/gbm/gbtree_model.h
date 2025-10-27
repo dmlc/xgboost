@@ -6,21 +6,18 @@
 #ifndef XGBOOST_GBM_GBTREE_MODEL_H_
 #define XGBOOST_GBM_GBTREE_MODEL_H_
 
-#include <dmlc/io.h>
 #include <dmlc/parameter.h>
-#include <xgboost/context.h>
-#include <xgboost/learner.h>
-#include <xgboost/model.h>
-#include <xgboost/parameter.h>
-#include <xgboost/tree_model.h>
 
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "../common/threading_utils.h"
 #include "../data/cat_container.h"  // for CatContainer
+#include "xgboost/context.h"
+#include "xgboost/learner.h"
+#include "xgboost/model.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
 
@@ -28,23 +25,23 @@ class Json;
 
 namespace gbm {
 /**
- * \brief Container for all trees built (not update) for one group.
+ * @brief Container for all trees built (not update) for one group.
  */
 using TreesOneGroup = std::vector<std::unique_ptr<RegTree>>;
 /**
- * \brief Container for all trees built (not update) for one iteration.
+ * @brief Container for all trees built (not update) for one iteration.
  */
 using TreesOneIter = std::vector<TreesOneGroup>;
 
-/*! \brief model parameters */
+/** @brief GBTree model parameters. */
 struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
  public:
   /**
-   * \brief number of trees
+   * @brief The number of trees.
    */
   std::int32_t num_trees{0};
   /**
-   * \brief Number of trees for a forest.
+   * @brief Number of trees for a single forest.
    */
   std::int32_t num_parallel_tree{1};
 
@@ -67,26 +64,14 @@ struct GBTreeModel : public Model {
  public:
   explicit GBTreeModel(LearnerModelParam const* learner_model, Context const* ctx)
       : learner_model_param{learner_model}, ctx_{ctx} {}
-  void Configure(const Args& cfg) {
+  void Configure(Args const& cfg) {
     // initialize model parameters if not yet been initialized.
     if (trees.size() == 0) {
       param.UpdateAllowUnknown(cfg);
     }
   }
-
-  void InitTreesToUpdate() {
-    if (trees_to_update.size() == 0u) {
-      for (auto& tree : trees) {
-        trees_to_update.push_back(std::move(tree));
-      }
-      trees.clear();
-      param.num_trees = 0;
-      tree_info.clear();
-
-      iteration_indptr.clear();
-      iteration_indptr.push_back(0);
-    }
-  }
+  /** @brief Move existing trees into the update queue. */
+  void InitTreesToUpdate();
 
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& p_out) override;
@@ -99,19 +84,13 @@ struct GBTreeModel : public Model {
     return dump;
   }
   /**
-   * \brief Add trees to the model.
+   * @brief Add trees to the model.
    *
-   * \return The number of new trees.
+   * @return The number of new trees.
    */
   bst_tree_t CommitModel(TreesOneIter&& new_trees);
 
-  void CommitModelGroup(std::vector<std::unique_ptr<RegTree>>&& new_trees, bst_target_t group_idx) {
-    for (auto& new_tree : new_trees) {
-      trees.push_back(std::move(new_tree));
-      tree_info.push_back(group_idx);
-    }
-    param.num_trees += static_cast<int>(new_trees.size());
-  }
+  void CommitModelGroup(TreesOneGroup&& new_trees, bst_target_t group_idx);
 
   [[nodiscard]] std::int32_t BoostedRounds() const {
     if (trees.empty()) {
@@ -120,9 +99,9 @@ struct GBTreeModel : public Model {
     return static_cast<std::int32_t>(iteration_indptr.size() - 1);
   }
 
-  // base margin
+  /** @brief Global model properties. */
   LearnerModelParam const* learner_model_param;
-  // model parameter
+  /** @brief GBTree model parameters. */
   GBTreeModelParam param;
   /*! \brief vector of trees stored in the model */
   std::vector<std::unique_ptr<RegTree>> trees;
@@ -131,7 +110,7 @@ struct GBTreeModel : public Model {
   /**
    * @brief Group index for trees.
    */
-  std::vector<int> tree_info;
+  HostDeviceVector<bst_target_t> tree_info;
   /**
    * @brief Number of trees accumulated for each iteration.
    */
@@ -141,6 +120,12 @@ struct GBTreeModel : public Model {
   [[nodiscard]] CatContainer* Cats() { return this->cats_.get(); }
   [[nodiscard]] std::shared_ptr<CatContainer> CatsShared() const { return this->cats_; }
   void Cats(std::shared_ptr<CatContainer> cats) { this->cats_ = cats; }
+
+  auto const* Ctx() const { return this->ctx_; }
+  /**
+   * @brief Getter for the tree group index.
+   */
+  common::Span<bst_target_t const> TreeGroups(DeviceOrd device) const;
 
  private:
   /**

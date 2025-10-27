@@ -14,9 +14,9 @@
 #include "../helpers.h"
 
 namespace xgboost {
-inline gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context const* ctx,
-                                        size_t n_classes = 1) {
-  gbm::GBTreeModel model(param, ctx);
+inline std::unique_ptr<gbm::GBTreeModel> CreateTestModel(LearnerModelParam const* param,
+                                                         Context const* ctx, size_t n_classes = 1) {
+  auto model = std::make_unique<gbm::GBTreeModel>(param, ctx);
 
   for (size_t i = 0; i < n_classes; ++i) {
     std::vector<std::unique_ptr<RegTree>> trees;
@@ -25,7 +25,7 @@ inline gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context 
       (*trees.back())[0].SetLeaf(1.5f);
       (*trees.back()).Stat(0).sum_hess = 1.0f;
     }
-    model.CommitModelGroup(std::move(trees), i);
+    model->CommitModelGroup(std::move(trees), i);
   }
 
   return model;
@@ -54,7 +54,8 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
       std::unique_ptr<Predictor>(CreatePredictorForTest(&cuda_ctx));
   predictor->Configure({});
 
-  gbm::GBTreeModel model = CreateTestModel(&mparam, ctx, kClasses);
+  std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx, kClasses);
+  auto const& model = *p_model;
 
   {
     auto p_precise = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();

@@ -40,7 +40,7 @@ ArrowCatList: TypeAlias = List[Tuple[str, Optional[ArrowCatCol]]]
 
 CupyT = ArrayLike  # maybe need a stub for cupy arrays
 NumpyOrCupy = Any
-NumpyDType = Union[str, Type[np.number]]  # pylint: disable=invalid-name
+NumpyDType = Union[str, Type[np.number]]
 PandasDType = Any  # real type is pandas.core.dtypes.base.ExtensionDtype
 
 FloatCompatible = Union[float, np.float32, np.float64]

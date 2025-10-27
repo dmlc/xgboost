@@ -30,13 +30,14 @@ namespace xgboost::tree {
 /**
  * @brief Decide which node as the build node for multi-target trees.
  */
-void AssignNodes(RegTree const *p_tree, std::vector<MultiExpandEntry> const &valid_candidates,
+void AssignNodes(MultiTargetTreeView const &tree,
+                 std::vector<MultiExpandEntry> const &valid_candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub);
 
 /**
  * @brief Decide which node as the build node.
  */
-void AssignNodes(RegTree const *p_tree, std::vector<CPUExpandEntry> const &candidates,
+void AssignNodes(ScalarTreeView const &tree, std::vector<CPUExpandEntry> const &candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub);
 
 class HistogramBuilder {
@@ -93,7 +94,8 @@ class HistogramBuilder {
    * @brief Allocate histogram, rearrange the nodes if `rearrange` is true and the tree
    *        has reached the cache size limit.
    */
-  void AddHistRows(RegTree const *p_tree, std::vector<bst_node_t> *p_nodes_to_build,
+  template <typename TreeView>
+  void AddHistRows(TreeView const &tree, std::vector<bst_node_t> *p_nodes_to_build,
                    std::vector<bst_node_t> *p_nodes_to_sub, bool rearrange) {
     CHECK(p_nodes_to_build);
     auto &nodes_to_build = *p_nodes_to_build;
@@ -130,7 +132,7 @@ class HistogramBuilder {
     // saved memory.
     std::vector<bst_node_t> can_subtract;
     for (auto const &v : nodes_to_sub) {
-      if (this->hist_.HistogramExists(p_tree->Parent(v))) {
+      if (this->hist_.HistogramExists(tree.Parent(v))) {
         // We can still use the subtraction trick for this node
         can_subtract.push_back(v);
       } else {
@@ -172,7 +174,8 @@ class HistogramBuilder {
     monitor_.Stop(__func__);
   }
 
-  void SyncHistogram(Context const *ctx, RegTree const *p_tree,
+  template <typename TreeView>
+  void SyncHistogram(Context const *ctx, TreeView const &tree,
                      std::vector<bst_node_t> const &nodes_to_build,
                      std::vector<bst_node_t> const &nodes_to_trick) {
     auto n_total_bins = buffer_.TotalBins();
@@ -201,9 +204,9 @@ class HistogramBuilder {
     common::ParallelFor2d(
         subspace, this->n_threads_, [&](std::size_t nidx_in_set, common::Range1d r) {
           auto subtraction_nidx = nodes_to_trick[nidx_in_set];
-          auto parent_id = p_tree->Parent(subtraction_nidx);
-          auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
-                                                                    : p_tree->LeftChild(parent_id);
+          auto parent_id = tree.Parent(subtraction_nidx);
+          auto sibling_nidx = tree.IsLeftChild(subtraction_nidx) ? tree.RightChild(parent_id)
+                                                                 : tree.LeftChild(parent_id);
           auto sibling_hist = this->hist_[sibling_nidx];
           auto parent_hist = this->hist_[parent_id];
           auto subtract_hist = this->hist_[subtraction_nidx];
@@ -251,12 +254,12 @@ class MultiHistogramBuilder {
   /**
    * @brief Build the histogram for root node.
    */
-  template <typename Partitioner, typename ExpandEntry>
-  void BuildRootHist(DMatrix *p_fmat, RegTree const *p_tree,
+  template <typename Partitioner, typename ExpandEntry, typename TreeView>
+  void BuildRootHist(DMatrix *p_fmat, TreeView const &tree,
                      std::vector<Partitioner> const &partitioners,
                      linalg::MatrixView<GradientPair const> gpair, ExpandEntry const &best,
                      BatchParam const &param, bool force_read_by_column = false) {
-    auto n_targets = p_tree->NumTargets();
+    auto n_targets = tree.NumTargets();
     CHECK_EQ(gpair.Shape(1), n_targets);
     CHECK_EQ(p_fmat->Info().num_row_, gpair.Shape(0));
     CHECK_EQ(target_builders_.size(), n_targets);
@@ -265,7 +268,7 @@ class MultiHistogramBuilder {
 
     auto space = ConstructHistSpace(partitioners, nodes);
     for (bst_target_t t{0}; t < n_targets; ++t) {
-      this->target_builders_[t].AddHistRows(p_tree, &nodes, &dummy_sub, false);
+      this->target_builders_[t].AddHistRows(tree, &nodes, &dummy_sub, false);
     }
     CHECK(dummy_sub.empty());
 
@@ -280,38 +283,38 @@ class MultiHistogramBuilder {
       ++page_idx;
     }
 
-    for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
-      this->target_builders_[t].SyncHistogram(ctx_, p_tree, nodes, dummy_sub);
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      this->target_builders_[t].SyncHistogram(ctx_, tree, nodes, dummy_sub);
     }
   }
   /**
    * @brief Build histogram for left and right child of valid candidates
    */
-  template <typename Partitioner, typename ExpandEntry>
-  void BuildHistLeftRight(Context const *ctx, DMatrix *p_fmat, RegTree const *p_tree,
+  template <typename Partitioner, typename ExpandEntry, typename TreeView>
+  void BuildHistLeftRight(Context const *ctx, DMatrix *p_fmat, TreeView const &tree,
                           std::vector<Partitioner> const &partitioners,
                           std::vector<ExpandEntry> const &valid_candidates,
                           linalg::MatrixView<GradientPair const> gpair, BatchParam const &param,
                           bool force_read_by_column = false) {
     std::vector<bst_node_t> nodes_to_build(valid_candidates.size());
     std::vector<bst_node_t> nodes_to_sub(valid_candidates.size());
-    AssignNodes(p_tree, valid_candidates, nodes_to_build, nodes_to_sub);
+    AssignNodes(tree, valid_candidates, nodes_to_build, nodes_to_sub);
 
     // use the first builder for getting number of valid nodes.
-    target_builders_.front().AddHistRows(p_tree, &nodes_to_build, &nodes_to_sub, true);
+    target_builders_.front().AddHistRows(tree, &nodes_to_build, &nodes_to_sub, true);
     CHECK_GE(nodes_to_build.size(), nodes_to_sub.size());
     CHECK_EQ(nodes_to_sub.size() + nodes_to_build.size(), valid_candidates.size() * 2);
 
     // allocate storage for the rest of the builders
     for (bst_target_t t = 1; t < target_builders_.size(); ++t) {
-      target_builders_[t].AddHistRows(p_tree, &nodes_to_build, &nodes_to_sub, false);
+      target_builders_[t].AddHistRows(tree, &nodes_to_build, &nodes_to_sub, false);
     }
 
     auto space = ConstructHistSpace(partitioners, nodes_to_build);
     std::size_t page_idx{0};
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, param)) {
-      CHECK_EQ(gpair.Shape(1), p_tree->NumTargets());
-      for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
+      CHECK_EQ(gpair.Shape(1), tree.NumTargets());
+      for (bst_target_t t = 0; t < tree.NumTargets(); ++t) {
         auto t_gpair = gpair.Slice(linalg::All(), t);
         CHECK_EQ(t_gpair.Shape(0), p_fmat->Info().num_row_);
         this->target_builders_[t].BuildHist(page_idx, space, page,
@@ -321,8 +324,8 @@ class MultiHistogramBuilder {
       page_idx++;
     }
 
-    for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
-      this->target_builders_[t].SyncHistogram(ctx, p_tree, nodes_to_build, nodes_to_sub);
+    for (bst_target_t t = 0; t < tree.NumTargets(); ++t) {
+      this->target_builders_[t].SyncHistogram(ctx, tree, nodes_to_build, nodes_to_sub);
     }
   }
 

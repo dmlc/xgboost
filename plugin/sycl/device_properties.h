@@ -47,6 +47,9 @@ class DeviceProperties {
   size_t l2_size = 0;
   float l2_size_per_eu = 0;
 
+  DeviceProperties():
+    is_gpu(false) {}
+
   explicit DeviceProperties(const ::sycl::device& device):
     is_gpu(device.is_gpu()),
     usm_host_allocations(device.has(::sycl::aspect::usm_host_allocations)),

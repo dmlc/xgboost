@@ -40,7 +40,7 @@ XGBoost's R language bindings had large breaking changes between versions 1.x an
     - The structure of these objects has been modified - now they are represented as a simple R "ALTLIST" (a special kind of 'list' object) with additional attributes.
     - These objects now cannot be modified by adding more fields to them, but metadata for them can be added as attributes.
     - The objects distinguish between two types of attributes:
-        
+
         - R-side attributes (which can be accessed and modified through R function ``attributes(model)`` and ``attributes(model)$field <- val``), which allow arbitrary objects. Many attributes are automatically added by the model building functions, such as evaluation logs (a ``data.table`` with metrics calculated per iteration), which previously were model fields.
         - C-level attributes, which allow only JSON-compliant data and which can be accessed and set through function ``xgb.attributes(model)``. These C-level attributes are shareable through serialized models in different XGBoost interfaces, while the R-level ones are specific to the R interface. Some attributes that are standard among language bindings of XGBoost, such as the best interation, are kept as C attributes.
     - Previously, models that were just de-serialized from an on-disk format required calling method 'xgb.Booster.complete' on them to finish the full de-serialization process before being usable, or would otherwise call this method on their own automatically automatically at the first call to 'predict'. Serialization is now handled more gracefully, and there are no additional functions/methods involved - i.e. if one saves a model to disk with ``saveRDS()`` and then reads it back with ``readRDS()``, the model will be fully loaded straight away, without needing to call additional methods on it.
@@ -53,11 +53,13 @@ By default, XGBoost might recognize that some parameter has been removed or rena
 These behaviors will be removed in future versions, and function calls which currently return deprecation warnings will stop working in the future, so in order to make sure that code calling XGBoost will still keep working, it should be ensured that it doesn't issue deprecation warnings.
 
 Optionally, these deprecation warnings can be turned into errors (while still keeping other types of warnings as warnings) through an option "xgboost.strict_mode" - example:
+
 .. code-block:: r
 
     options("xgboost.strict_mode" = TRUE)
 
 It can also be controlled through an environment variable `XGB_STRICT_MODE=1`, which takes precende over the R option - e.g.:
+
 .. code-block:: r
 
     Sys.setenv("XGB_STRICT_MODE" = "1")

@@ -55,7 +55,6 @@ class TrainingCallback(ABC):
 
     """
 
-    # pylint: disable=invalid-name
     EvalsLog: TypeAlias = EvalsLog
 
     def __init__(self) -> None:

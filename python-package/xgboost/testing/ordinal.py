@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name
 """Tests for the ordinal re-coder."""
 
 import itertools
@@ -435,9 +434,11 @@ def run_cat_thread_safety(device: Device) -> None:
         return True
 
     futures = []
+    n_cpus = os.cpu_count()
+    assert n_cpus is not None
     for dm in (DMatrix, QuantileDMatrix):
-        with ThreadPoolExecutor(max_workers=10) as e:
-            for _ in range(10):
+        with ThreadPoolExecutor(max_workers=max(n_cpus, 10)) as e:
+            for _ in range(32):
                 fut = e.submit(run_thread_safety, dm)
                 futures.append(fut)
 
