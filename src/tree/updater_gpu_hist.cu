@@ -85,11 +85,11 @@ void AssignNodes(RegTree const* p_tree, GradientQuantiser const* quantizer,
     auto right_sum = quantizer->ToFloatingPoint(e.split.right_sum);
     bool fewer_right = right_sum.GetHess() < left_sum.GetHess();
     if (fewer_right) {
-      p_build_nidx[nidx_in_set] = tree.RightChild(e.nid);
-      p_sub_nidx[nidx_in_set] = tree.LeftChild(e.nid);
+      p_build_nidx[nidx_in_set] = tree.RightChild(e.nidx);
+      p_sub_nidx[nidx_in_set] = tree.LeftChild(e.nidx);
     } else {
-      p_build_nidx[nidx_in_set] = tree.LeftChild(e.nid);
-      p_sub_nidx[nidx_in_set] = tree.RightChild(e.nid);
+      p_build_nidx[nidx_in_set] = tree.LeftChild(e.nidx);
+      p_sub_nidx[nidx_in_set] = tree.RightChild(e.nidx);
     }
     ++nidx_in_set;
   }
@@ -132,13 +132,13 @@ struct GPUHistMakerDevice {
     auto tree = p_tree->HostScView();
     for (std::size_t i = 0, n = candidates.size(); i < n; i++) {
       auto const& e = candidates[i];
-      RegTree::Node split_node = tree.nodes[e.nid];
-      auto split_type = tree.SplitType(e.nid);
-      nodes.nidx.at(i) = e.nid;
-      nodes.left_nidx[i] = tree.LeftChild(e.nid);
-      nodes.right_nidx[i] = tree.RightChild(e.nid);
+      RegTree::Node split_node = tree.nodes[e.nidx];
+      auto split_type = tree.SplitType(e.nidx);
+      nodes.nidx.at(i) = e.nidx;
+      nodes.left_nidx[i] = tree.LeftChild(e.nidx);
+      nodes.right_nidx[i] = tree.RightChild(e.nidx);
       nodes.split_data[i] =
-          NodeSplitData{split_node, split_type, this->evaluator_.GetDeviceNodeCats(e.nid)};
+          NodeSplitData{split_node, split_type, this->evaluator_.GetDeviceNodeCats(e.nidx)};
 
       CHECK_EQ(split_type == FeatureType::kCategorical, e.split.is_cat);
     }
@@ -299,8 +299,8 @@ struct GPUHistMakerDevice {
     auto sc_tree = tree.HostScView();
     for (std::size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
-      bst_node_t left_nidx = sc_tree.LeftChild(candidate.nid);
-      bst_node_t right_nidx = sc_tree.RightChild(candidate.nid);
+      bst_node_t left_nidx = sc_tree.LeftChild(candidate.nidx);
+      bst_node_t right_nidx = sc_tree.RightChild(candidate.nidx);
       nidx[i * 2] = left_nidx;
       nidx[i * 2 + 1] = right_nidx;
       auto left_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(left_nidx));
@@ -482,7 +482,7 @@ struct GPUHistMakerDevice {
     bst_idx_t n_samples = 0;
     for (auto const& c : candidates) {
       for (auto const& part : this->partitioners_) {
-        n_samples += part->GetRows(c.nid).size();
+        n_samples += part->GetRows(c.nidx).size();
       }
     }
     // avoid copy if the kernel is small.
@@ -688,7 +688,7 @@ struct GPUHistMakerDevice {
 
     // Sanity check - have we created a leaf with no training instances?
     if (!collective::IsDistributed() && partitioners_.size() == 1) {
-      CHECK(partitioners_.front()->GetRows(candidate.nid).size() > 0)
+      CHECK(partitioners_.front()->GetRows(candidate.nidx).size() > 0)
           << "No training instances in this leaf!";
     }
 
@@ -708,27 +708,27 @@ struct GPUHistMakerDevice {
       CHECK(common::CheckNAN(candidate.split.fvalue));
       std::vector<common::CatBitField::value_type> split_cats;
 
-      auto h_cats = this->evaluator_.GetHostNodeCats(candidate.nid);
+      auto h_cats = this->evaluator_.GetHostNodeCats(candidate.nidx);
       auto n_bins_feature = cuts_->FeatureBins(candidate.split.findex);
       split_cats.resize(common::CatBitField::ComputeStorageSize(n_bins_feature), 0);
       CHECK_LE(split_cats.size(), h_cats.size());
       std::copy(h_cats.data(), h_cats.data() + split_cats.size(), split_cats.data());
 
       tree.ExpandCategorical(
-          candidate.nid, candidate.split.findex, split_cats, candidate.split.dir == kLeftDir,
+          candidate.nidx, candidate.split.findex, split_cats, candidate.split.dir == kLeftDir,
           base_weight, left_weight, right_weight, candidate.split.loss_chg, parent_hess,
           left_hess, right_hess);
     } else {
       CHECK(!common::CheckNAN(candidate.split.fvalue));
-      tree.ExpandNode(candidate.nid, candidate.split.findex, candidate.split.fvalue,
+      tree.ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                       candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
                       candidate.split.loss_chg, parent_hess,
           left_hess, right_hess);
     }
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 
-    const auto& parent = tree[candidate.nid];
-    interaction_constraints.Split(candidate.nid, parent.SplitIndex(), parent.LeftChild(),
+    const auto& parent = tree[candidate.nidx];
+    interaction_constraints.Split(candidate.nidx, parent.SplitIndex(), parent.LeftChild(),
                                   parent.RightChild());
   }
 
@@ -742,7 +742,7 @@ struct GPUHistMakerDevice {
         [=] __device__(auto const& gpair) { return quantiser.ToFixedPoint(gpair); });
     GradientPairInt64 root_sum_quantised =
         dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + this->gpair.size(),
-                   GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
+                   GradientPairInt64{}, cuda::std::plus<GradientPairInt64>{});
     using ReduceT = typename decltype(root_sum_quantised)::ValueT;
     auto rc = collective::GlobalSum(
         ctx_, p_fmat->Info(), linalg::MakeVec(reinterpret_cast<ReduceT*>(&root_sum_quantised), 2));
@@ -838,8 +838,6 @@ std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
 }
 
 class GPUHistMaker : public TreeUpdater {
-  using GradientSumT = GradientPairPrecise;
-
  public:
   explicit GPUHistMaker(Context const* ctx, ObjInfo const* task) : TreeUpdater(ctx), task_{task} {};
   void Configure(const Args& args) override {

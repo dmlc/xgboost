@@ -196,7 +196,7 @@ class DeviceHistogramBuilder {
     for (std::size_t i = 0; i < subtraction_nidx.size(); i++) {
       auto build_hist_nidx = build_nidx.at(i);
       auto subtraction_trick_nidx = subtraction_nidx.at(i);
-      auto parent_nidx = candidates.at(i).nid;
+      auto parent_nidx = candidates.at(i).nidx;
 
       if (!this->SubtractionTrick(ctx, parent_nidx, build_hist_nidx, subtraction_trick_nidx)) {
         need_build.push_back(subtraction_trick_nidx);

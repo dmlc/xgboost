@@ -21,8 +21,8 @@ namespace tree {
 
 // Inputs specific to each node
 struct EvaluateSplitInputs {
-  int nidx;
-  int depth;
+  bst_node_t nidx;
+  bst_node_t depth;
   GradientPairInt64 parent_sum;
   common::Span<const bst_feature_t> feature_set;
   common::Span<const GradientPairInt64> gradient_histogram;
@@ -168,10 +168,10 @@ class GPUHistEvaluator {
   void ApplyTreeSplit(GPUExpandEntry const &candidate, RegTree *p_tree) {
     auto &tree = *p_tree;
     // Set up child constraints
-    auto left_child = tree[candidate.nid].LeftChild();
-    auto right_child = tree[candidate.nid].RightChild();
-    tree_evaluator_.AddSplit(candidate.nid, left_child, right_child,
-                             tree[candidate.nid].SplitIndex(), candidate.left_weight,
+    auto left_child = tree[candidate.nidx].LeftChild();
+    auto right_child = tree[candidate.nidx].RightChild();
+    tree_evaluator_.AddSplit(candidate.nidx, left_child, right_child,
+                             tree[candidate.nidx].SplitIndex(), candidate.left_weight,
                              candidate.right_weight);
   }
 
