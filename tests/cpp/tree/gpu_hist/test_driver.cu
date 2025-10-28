@@ -1,3 +1,6 @@
+/**
+ * Copyright 2020-2025, XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include "../../../../src/tree/driver.h"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"
@@ -17,7 +20,7 @@ TEST(GpuHist, DriverDepthWise) {
   split.right_sum = {0, 1};
   GPUExpandEntry root(0, 0, split, 2.0f, 1.0f, 1.0f);
   driver.Push({root});
-  EXPECT_EQ(driver.Pop().front().nid, 0);
+  EXPECT_EQ(driver.Pop().front().nidx, 0);
   driver.Push({GPUExpandEntry{1, 1, split, 2.0f, 1.0f, 1.0f}});
   driver.Push({GPUExpandEntry{2, 1, split, 2.0f, 1.0f, 1.0f}});
   driver.Push({GPUExpandEntry{3, 1, split, 2.0f, 1.0f, 1.0f}});
@@ -55,24 +58,24 @@ TEST(GpuHist, DriverLossGuided) {
   EXPECT_TRUE(driver.Pop().empty());
   GPUExpandEntry root(0, 0, high_gain, 2.0f, 1.0f, 1.0f );
   driver.Push({root});
-  EXPECT_EQ(driver.Pop().front().nid, 0);
+  EXPECT_EQ(driver.Pop().front().nidx, 0);
   // Select high gain first
   driver.Push({GPUExpandEntry{1, 1, low_gain, 2.0f, 1.0f, 1.0f}});
   driver.Push({GPUExpandEntry{2, 2, high_gain, 2.0f, 1.0f, 1.0f}});
   auto res = driver.Pop();
   EXPECT_EQ(res.size(), 1);
-  EXPECT_EQ(res[0].nid, 2);
+  EXPECT_EQ(res[0].nidx, 2);
   res = driver.Pop();
   EXPECT_EQ(res.size(), 1);
-  EXPECT_EQ(res[0].nid, 1);
+  EXPECT_EQ(res[0].nidx, 1);
 
   // If equal gain, use nid
   driver.Push({GPUExpandEntry{2, 1, low_gain, 2.0f, 1.0f, 1.0f}});
   driver.Push({GPUExpandEntry{1, 1, low_gain, 2.0f, 1.0f, 1.0f}});
   res = driver.Pop();
-  EXPECT_EQ(res[0].nid, 1);
+  EXPECT_EQ(res[0].nidx, 1);
   res = driver.Pop();
-  EXPECT_EQ(res[0].nid, 2);
+  EXPECT_EQ(res[0].nidx, 2);
 }
 }  // namespace tree
 }  // namespace xgboost

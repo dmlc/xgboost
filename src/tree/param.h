@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file param.h
  * \brief training parameters, statistics used to support tree construction.
  * \author Tianqi Chen
@@ -242,8 +242,8 @@ XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad,
 
 // calculate weight given the statistics
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
-                                   T sum_hess) {
+XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(TrainingParams const &p,
+                                                                           T sum_grad, T sum_hess) {
   if (sum_hess < p.min_child_weight || sum_hess <= 0.0) {
     return 0.0;
   }
@@ -291,17 +291,17 @@ XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad)
 }
 
 /**
- * \brief multi-target weight, calculated with learning rate.
+ * @brief multi-target weight, calculated with learning rate.
  */
 inline void CalcWeight(TrainParam const &p, linalg::VectorView<GradientPairPrecise const> grad_sum,
                        float eta, linalg::VectorView<float> out_w) {
-  for (bst_target_t i = 0; i < out_w.Size(); ++i) {
-    out_w(i) = CalcWeight(p, grad_sum(i).GetGrad(), grad_sum(i).GetHess()) * eta;
+  for (bst_target_t t = 0, n_targets = out_w.Size(); t < n_targets; ++t) {
+    out_w(t) = CalcWeight(p, grad_sum(t).GetGrad(), grad_sum(t).GetHess()) * eta;
   }
 }
 
 /**
- * \brief multi-target weight
+ * @brief multi-target weight
  */
 inline void CalcWeight(TrainParam const &p, linalg::VectorView<GradientPairPrecise const> grad_sum,
                        linalg::VectorView<float> out_w) {
@@ -312,8 +312,8 @@ inline double CalcGainGivenWeight(TrainParam const &p,
                                   linalg::VectorView<GradientPairPrecise const> sum_grad,
                                   linalg::VectorView<float const> weight) {
   double gain{0};
-  for (bst_target_t i = 0; i < weight.Size(); ++i) {
-    gain += -weight(i) * ThresholdL1(sum_grad(i).GetGrad(), p.reg_alpha);
+  for (bst_target_t t = 0, n_targets = weight.Size(); t < n_targets; ++t) {
+    gain += -weight(t) * ThresholdL1(sum_grad(t).GetGrad(), p.reg_alpha);
   }
   return gain;
 }

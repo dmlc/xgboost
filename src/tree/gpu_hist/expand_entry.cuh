@@ -13,7 +13,7 @@
 
 namespace xgboost::tree {
 struct GPUExpandEntry {
-  bst_node_t nid;
+  bst_node_t nidx;
   bst_node_t depth;
   DeviceSplitCandidate split;
 
@@ -24,7 +24,7 @@ struct GPUExpandEntry {
   GPUExpandEntry() = default;
   XGBOOST_DEVICE GPUExpandEntry(bst_node_t nid, bst_node_t depth, DeviceSplitCandidate split,
                                 float base, float left, float right)
-      : nid(nid),
+      : nidx(nid),
         depth(depth),
         split(std::move(split)),
         base_weight{base},
@@ -49,13 +49,13 @@ struct GPUExpandEntry {
 
   [[nodiscard]] float GetLossChange() const { return split.loss_chg; }
 
-  [[nodiscard]] bst_node_t GetNodeId() const { return nid; }
+  [[nodiscard]] bst_node_t GetNodeId() const { return nidx; }
 
   [[nodiscard]] bst_node_t GetDepth() const { return depth; }
 
   friend std::ostream& operator<<(std::ostream& os, const GPUExpandEntry& e) {
     os << "GPUExpandEntry: \n";
-    os << "nidx: " << e.nid << "\n";
+    os << "nidx: " << e.nidx << "\n";
     os << "depth: " << e.depth << "\n";
     os << "loss: " << e.split.loss_chg << "\n";
     os << "left_sum: " << e.split.left_sum << "\n";
@@ -66,7 +66,7 @@ struct GPUExpandEntry {
   void Save(Json* p_out) const {
     auto& out = *p_out;
 
-    out["nid"] = Integer{this->nid};
+    out["nid"] = Integer{this->nidx};
     out["depth"] = Integer{this->depth};
     // GPU specific
     out["base_weight"] = this->base_weight;
@@ -99,7 +99,7 @@ struct GPUExpandEntry {
   }
 
   void Load(Json const& in) {
-    this->nid = get<Integer const>(in["nid"]);
+    this->nidx = get<Integer const>(in["nid"]);
     this->depth = get<Integer const>(in["depth"]);
     // GPU specific
     this->base_weight = get<Number const>(in["base_weight"]);
