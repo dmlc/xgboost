@@ -216,6 +216,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
     CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
         << "Only the hist tree method is supported for building multi-target trees with vector "
            "leaf.";
+    CHECK(ctx_->IsCPU()) << "GPU is not yet supported for vector leaf.";
   }
 
   TreesOneIter new_trees;
