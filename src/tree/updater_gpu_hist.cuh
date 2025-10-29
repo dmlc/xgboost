@@ -160,7 +160,6 @@ class MultiTargetHistMaker {
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo const*,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>*) {
-    bst_idx_t n_targets = p_tree->NumTargets();
     Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
 
     this->Reset(gpair_all, p_fmat, p_tree);
