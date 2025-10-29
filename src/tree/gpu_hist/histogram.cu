@@ -350,14 +350,14 @@ using DeduceKernelT = std::decay_t<decltype(Ker)>;
 template <typename Accessor>
 struct HistogramKernel {
   enum KernelType : std::size_t {
-    // st
+    // single-target
     kGlobalCompr = 0,
     kGlobal = 1,
     kSharedCompr = 2,
     kShared = 3,
     kGlobalDense = 4,
     kSharedDense = 5,
-    // mt
+    // multi-target
     kMtGlobalCompr = 6,
     kMtGlobal = 7,
     kMtSharedCompr = 8,

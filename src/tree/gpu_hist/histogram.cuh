@@ -155,7 +155,7 @@ class DeviceHistogramBuilder {
  public:
   explicit DeviceHistogramBuilder();
   ~DeviceHistogramBuilder();
-  // TODO(jiamingy): use a type larger than bst_bin_t since we need to support multi-targets.
+  // TODO(jiamingy): use a type larger than bst_bin_t since we need to support multi-target.
   void Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
              FeatureGroupsAccessor const& feature_groups, bst_bin_t n_total_bins,
              bool force_global_memory);

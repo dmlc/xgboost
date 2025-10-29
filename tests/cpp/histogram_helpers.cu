@@ -60,8 +60,8 @@ namespace xgboost {
         h_values.emplace_back(dist(rng));
       }
       if (bin_idx == n_bins_per_feat - 1) {
-        auto remainer = n_samples % n_bins_per_feat;
-        for (std::size_t i = 0; i < remainer; ++i) {
+        auto remainder = n_samples % n_bins_per_feat;
+        for (std::size_t i = 0; i < remainder; ++i) {
           h_values.emplace_back(dist(rng));
         }
       }
