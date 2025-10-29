@@ -78,7 +78,7 @@ class MultiTargetHistMaker {
       auto n_samples = this->batch_ptr_.at(k + 1) - base_ridx;
       partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
     }
-    // fixme: shrink the partitioners if needed
+    this->partitioners_.resize(n_batches);
 
     /**
      * Initialize the histogram
@@ -137,7 +137,7 @@ class MultiTargetHistMaker {
                                                  param};
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
 
-    // fixme: learning rate
+    // TODO(jiamingy): Support learning rate.
     std::vector<float> h_base_weight(entry.base_weight.size());
     dh::CopyDeviceSpanToVector(&h_base_weight, entry.base_weight);
     p_tree->SetLeaf(RegTree::kRoot, linalg::MakeVec(h_base_weight));
@@ -145,7 +145,8 @@ class MultiTargetHistMaker {
   }
 
   void ApplySplit(MultiExpandEntry const& candidate, RegTree* p_tree) {
-    // fixme: learning rate
+    // TODO(jiamingy): Support learning rate.
+    // TODO(jiamingy): Avoid device to host copies.
     std::vector<float> h_base_weight(candidate.base_weight.size());
     std::vector<float> h_left_weight(candidate.left_weight.size());
     std::vector<float> h_right_weight(candidate.right_weight.size());

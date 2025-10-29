@@ -56,8 +56,8 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(Context const* ctx, int
 /**
  * @brief Create an ellpack page with evenly distributed values across histogram bins.
  *
- * @note The last bin contains all the extra values if @ref n_samples is not be divisible
- *       by @ref n_bins_per_feat. Otherwise, all bins contain the same number of values.
+ * @note The last bin contains all the extra values if @ref n_samples is not divisible by
+ *       @ref n_bins_per_feat. Otherwise, all bins contain the same number of values.
  */
 [[nodiscard]] std::unique_ptr<EllpackPageImpl> MakeEllpackForTest(Context const* ctx,
                                                                   bst_idx_t n_samples,

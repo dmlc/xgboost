@@ -234,7 +234,6 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   dh::LaunchKernel{grid, kBlockThreads}(  // NOLINT
       ScanHistogramKernel<kBlockThreads>, dh::ToSpan(inputs), shared_inputs, dh::ToSpan(scans));
 
-  // fixme: support more features
   dh::device_vector<MultiSplitCandidate> d_splits(n_features);
   dh::LaunchKernel{n_features, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
       EvaluateSplitsKernel<kBlockThreads>, dh::ToSpan(inputs), shared_inputs, dh::ToSpan(scans),
@@ -266,7 +265,7 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     auto d_roundings = shared_inputs.roundings;
     // the data inside the split candidates references the scan result.
     auto node_sum = best_split.node_sum;
-    // fixme: calculate parent gain
+
     float parent_gain = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto quantizer = d_roundings[t];

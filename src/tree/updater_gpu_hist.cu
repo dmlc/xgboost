@@ -228,8 +228,9 @@ struct GPUHistMakerDevice {
       auto n_samples = batch_ptr.at(k + 1) - base_ridx;
       partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
     }
-    // fixme: handle shrunk partitions
+    // TODO(jiamingy): Handle reduced number of batches
     CHECK_EQ(partitioners_.size(), n_batches);
+
     if (is_concat) {
       CHECK_EQ(partitioners_.size(), 1);
       CHECK_EQ(partitioners_.front()->Size(), p_fmat->Info().num_row_);

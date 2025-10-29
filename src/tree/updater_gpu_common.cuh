@@ -137,9 +137,7 @@ struct MultiSplitCandidate {
                              int findex_in, common::Span<GradientPairInt64 const> node_sum_in,
                              bool cat, GPUTrainingParam const& /*param*/,
                              common::Span<GradientQuantiser const> /*roundings*/) {
-    // fixme: use min_child_weight
-    // quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight
-    // quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight
+    // TODO(jiamingy): Support min_child_weight
     if (loss_chg_in > loss_chg) {
       loss_chg = loss_chg_in;
       dir = dir_in;
