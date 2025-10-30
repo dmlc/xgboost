@@ -76,7 +76,7 @@ from .compat import (
     is_pyarrow_available,
     py_str,
 )
-from .libpath import find_lib_path, is_sphinx_build
+from .libpath import find_lib_path
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -377,30 +377,6 @@ def build_info() -> dict:
     res = json.loads(j_info.value.decode())  # pylint: disable=no-member
     res["libxgboost"] = _LIB.path
     return res
-
-
-def _check_glibc() -> None:
-    if is_sphinx_build():
-        return
-
-    glibc_ver = build_info().get("GLIBC_VERSION", None)
-    if glibc_ver is not None and (
-        glibc_ver[0] < 2 or glibc_ver[0] == 2 and glibc_ver[1] < 28
-    ):
-        warnings.warn(
-            "Your system has an old version of glibc (< 2.28). We will stop supporting "
-            "Linux distros with glibc older than 2.28 after **May 31, 2025**. "
-            "Please upgrade to a recent Linux distro (with glibc >= 2.28) to use "
-            "future versions of XGBoost.\n"
-            "Note: You have installed the 'manylinux2014' variant of XGBoost. Certain "
-            "features such as GPU algorithms or federated learning are not available. "
-            "To use these features, please upgrade to a recent Linux distro with glibc "
-            "2.28+, and install the 'manylinux_2_28' variant.",
-            FutureWarning,
-        )
-
-
-_check_glibc()
 
 
 def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumeric]:
