@@ -76,7 +76,7 @@ from .compat import (
     is_pyarrow_available,
     py_str,
 )
-from .libpath import find_lib_path, is_sphinx_build
+from .libpath import find_lib_path
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
