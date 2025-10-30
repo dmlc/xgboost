@@ -1,15 +1,14 @@
 /**
  * Copyright 2017-2025, XGBoost contributors
  */
-#include <thrust/functional.h>  // for plus
-#include <thrust/transform.h>   // for transform
+#include <thrust/transform.h>  // for transform
 
-#include <algorithm>  // for max
-#include <cmath>      // for isnan
-#include <cstddef>    // for size_t
-#include <memory>     // for unique_ptr, make_unique
-#include <utility>    // for move
-#include <vector>     // for vector
+#include <algorithm>        // for max
+#include <cmath>            // for isnan
+#include <cuda/functional>  // for plus
+#include <memory>           // for unique_ptr, make_unique
+#include <utility>          // for move
+#include <vector>           // for vector
 
 #include "../collective/aggregator.h"
 #include "../common/categorical.h"     // for KCatBitField
@@ -28,8 +27,8 @@
 #include "driver.h"
 #include "gpu_hist/evaluate_splits.cuh"
 #include "gpu_hist/expand_entry.cuh"
-#include "gpu_hist/feature_groups.cuh"
-#include "gpu_hist/gradient_based_sampler.cuh"
+#include "gpu_hist/feature_groups.cuh"          // for FeatureGroups
+#include "gpu_hist/gradient_based_sampler.cuh"  // for GradientBasedSampler
 #include "gpu_hist/histogram.cuh"
 #include "gpu_hist/row_partitioner.cuh"  // for RowPartitioner
 #include "hist/hist_param.h"             // for HistMakerTrainParam
@@ -37,6 +36,7 @@
 #include "sample_position.h"             // for SamplePosition
 #include "tree_view.h"                   // for ScalarTreeView
 #include "updater_gpu_common.cuh"        // for HistBatch
+#include "updater_gpu_hist.cuh"          // for MultiTargetHistMaker
 #include "xgboost/base.h"                // for bst_idx_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for DMatrix
@@ -55,8 +55,6 @@ using cuda_impl::HistBatch;
 using xgboost::cuda_impl::StaticBatch;
 
 namespace {
-// Use a large number to handle external memory with deep trees.
-inline constexpr std::size_t kMaxNodeBatchSize = 1024;
 inline constexpr std::size_t kNeedCopyThreshold = 4;
 }  // anonymous namespace
 
@@ -230,7 +228,9 @@ struct GPUHistMakerDevice {
       auto n_samples = batch_ptr.at(k + 1) - base_ridx;
       partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
     }
+    // TODO(jiamingy): Handle reduced number of batches
     CHECK_EQ(partitioners_.size(), n_batches);
+
     if (is_concat) {
       CHECK_EQ(partitioners_.size(), 1);
       CHECK_EQ(partitioners_.front()->Size(), p_fmat->Info().num_row_);
@@ -340,11 +340,10 @@ struct GPUHistMakerDevice {
     monitor.Start(__func__);
     auto d_node_hist = histogram_.GetNodeHistogram(nidx);
     auto d_ridx = partitioners_.at(k)->GetRows(nidx);
-    page.Impl()->Visit(this->ctx_, {}, [&](auto&& acc) {
-      this->histogram_.BuildHistogram(ctx_->CUDACtx(), acc,
-                                      feature_groups_->DeviceAccessor(ctx_->Device()), this->gpair,
-                                      d_ridx, d_node_hist, *quantiser);
-    });
+    auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
+    this->histogram_.BuildHistogram(ctx_->CUDACtx(), acc,
+                                    feature_groups_->DeviceAccessor(ctx_->Device()), this->gpair,
+                                    d_ridx, d_node_hist, *quantiser);
     monitor.Stop(__func__);
   }
 
@@ -498,7 +497,8 @@ struct GPUHistMakerDevice {
     }
   };
 
-  // Update position and build histogram.
+  // Update position and build histogram. We merge these two functions for external
+  // memory, where we want to bundle as many computation as possible for each data read.
   void PartitionAndBuildHist(DMatrix* p_fmat, std::vector<GPUExpandEntry> const& expand_set,
                              std::vector<GPUExpandEntry> const& candidates, RegTree const* p_tree) {
     if (expand_set.empty()) {
@@ -773,7 +773,7 @@ struct GPUHistMakerDevice {
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo const* task,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
-    Driver<GPUExpandEntry> driver{param, kMaxNodeBatchSize};
+    Driver<GPUExpandEntry> driver{param, cuda_impl::kMaxNodeBatchSize};
 
     p_fmat = this->Reset(gpair_all, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
@@ -866,12 +866,10 @@ class GPUHistMaker : public TreeUpdater {
               const std::vector<RegTree*>& trees) override {
     monitor_.Start(__func__);
 
-    CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
-    auto gpair_hdv = gpair->Data();
     // build tree
     std::size_t t_idx{0};
     for (xgboost::RegTree* tree : trees) {
-      this->UpdateTree(param, gpair_hdv, dmat, tree, &out_position[t_idx]);
+      this->UpdateTree(param, gpair, dmat, tree, &out_position[t_idx]);
       this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
       ++t_idx;
     }
@@ -893,9 +891,11 @@ class GPUHistMaker : public TreeUpdater {
     auto batch = HistBatch(*param);
     auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
 
-    this->maker = std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_,
-                                                       column_sampler_, batch, p_fmat->Info(),
-                                                       batch_ptr, cuts, dense_compressed);
+    this->p_scimpl_ = std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_,
+                                                           column_sampler_, batch, p_fmat->Info(),
+                                                           batch_ptr, cuts, dense_compressed);
+    this->p_mtimpl_ = std::make_unique<cuda_impl::MultiTargetHistMaker>(
+        this->ctx_, *param, &hist_maker_param_, batch_ptr, cuts, dense_compressed);
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;
@@ -912,30 +912,43 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Stop(__func__);
   }
 
-  void UpdateTree(TrainParam const* param, HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
+  void UpdateTree(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
     this->InitData(param, p_fmat, p_tree);
     gpair->SetDevice(ctx_->Device());
-    maker->UpdateTree(gpair, p_fmat, task_, p_tree, p_out_position);
+    auto gpair_hdv = gpair->Data();
+    if (p_tree->IsMultiTarget()) {
+      p_mtimpl_->UpdateTree(gpair_hdv, p_fmat, task_, p_tree, p_out_position);
+    } else {
+      p_scimpl_->UpdateTree(gpair_hdv, p_fmat, task_, p_tree, p_out_position);
+    }
   }
 
   bool UpdatePredictionCache(const DMatrix* data, linalg::MatrixView<float> p_out_preds) override {
-    if (maker == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
+    if (p_scimpl_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
+      return false;
+    }
+    if (this->p_last_tree_->IsMultiTarget()) {
       return false;
     }
     monitor_.Start(__func__);
-    bool result = maker->UpdatePredictionCache(p_out_preds, p_last_tree_);
+    bool result = p_scimpl_->UpdatePredictionCache(p_out_preds, p_last_tree_);
     monitor_.Stop(__func__);
     return result;
   }
 
-  std::unique_ptr<GPUHistMakerDevice> maker;  // NOLINT
+
 
   [[nodiscard]] char const* Name() const override { return "grow_gpu_hist"; }
   [[nodiscard]] bool HasNodePosition() const override { return true; }
 
  private:
   bool initialised_{false};
+
+  // Scalar tree implementation
+  std::unique_ptr<GPUHistMakerDevice> p_scimpl_;
+  // Vector tree implementation
+  std::unique_ptr<cuda_impl::MultiTargetHistMaker> p_mtimpl_;
 
   HistMakerTrainParam hist_maker_param_;
 

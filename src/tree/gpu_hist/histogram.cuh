@@ -59,7 +59,8 @@ class DeviceHistogramStorage {
   // overwritten when a new histogram is requested
   dh::device_vector<typename GradientSumT::ValueT> overflow_;
   std::map<int, size_t> overflow_nidx_map_;
-  int n_bins_;
+  // The total number of bins across all features and targets
+  bst_bin_t n_total_bins_;
   static constexpr std::size_t kNumItemsInGradientSum =
       sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT);
   static_assert(kNumItemsInGradientSum == 2, "Number of items in gradient type should be 2.");
@@ -68,7 +69,7 @@ class DeviceHistogramStorage {
   explicit DeviceHistogramStorage() { data_.reserve(cuda_impl::DftReserveSize()); }
 
   void Reset(Context const* ctx, bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
-    this->n_bins_ = n_total_bins;
+    this->n_total_bins_ = n_total_bins;
     auto d_data = data_.data().get();
     dh::LaunchN(data_.size(), ctx->CUDACtx()->Stream(),
                 [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
@@ -84,8 +85,8 @@ class DeviceHistogramStorage {
     return nidx_map_.find(nidx) != nidx_map_.cend() ||
            overflow_nidx_map_.find(nidx) != overflow_nidx_map_.cend();
   }
-  [[nodiscard]] int Bins() const { return n_bins_; }
-  [[nodiscard]] size_t HistogramSize() const { return n_bins_ * kNumItemsInGradientSum; }
+  [[nodiscard]] int Bins() const { return n_total_bins_; }
+  [[nodiscard]] size_t HistogramSize() const { return n_total_bins_ * kNumItemsInGradientSum; }
   dh::device_vector<typename GradientSumT::ValueT>& Data() { return data_; }
 
   void AllocateHistograms(Context const* ctx, std::vector<bst_node_t> const& new_nidxs) {
@@ -135,11 +136,11 @@ class DeviceHistogramStorage {
     if (nidx_map_.find(nidx) != nidx_map_.cend()) {
       // Fetch from normal cache
       auto ptr = data_.data().get() + nidx_map_.at(nidx);
-      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_bins_)};
+      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_total_bins_)};
     } else {
       // Fetch from overflow
       auto ptr = overflow_.data().get() + overflow_nidx_map_.at(nidx);
-      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_bins_)};
+      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_total_bins_)};
     }
   }
 };
@@ -154,7 +155,7 @@ class DeviceHistogramBuilder {
  public:
   explicit DeviceHistogramBuilder();
   ~DeviceHistogramBuilder();
-
+  // TODO(jiamingy): use a type larger than bst_bin_t since we need to support multi-target.
   void Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
              FeatureGroupsAccessor const& feature_groups, bst_bin_t n_total_bins,
              bool force_global_memory);
@@ -164,6 +165,13 @@ class DeviceHistogramBuilder {
                       common::Span<GradientPair const> gpair,
                       common::Span<const std::uint32_t> ridx,
                       common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
+
+  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+                      FeatureGroupsAccessor const& feature_groups,
+                      linalg::MatrixView<GradientPair const> gpair,
+                      common::Span<const std::uint32_t> ridx,
+                      common::Span<GradientPairInt64> histogram,
+                      common::Span<GradientQuantiser const> roundings);
 
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }
 
@@ -188,7 +196,8 @@ class DeviceHistogramBuilder {
     return true;
   }
 
-  [[nodiscard]] auto SubtractHist(Context const* ctx, std::vector<GPUExpandEntry> const& candidates,
+  template <typename ExpandEntry>
+  [[nodiscard]] auto SubtractHist(Context const* ctx, std::vector<ExpandEntry> const& candidates,
                                   std::vector<bst_node_t> const& build_nidx,
                                   std::vector<bst_node_t> const& subtraction_nidx) {
     this->monitor_.Start(__func__);

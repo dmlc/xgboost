@@ -411,9 +411,29 @@ struct SplitEntryContainer {
        << "dft_left: " << s.DefaultLeft() << "\n"
        << "split_index: " << s.SplitIndex() << "\n"
        << "split_value: " << s.split_value << "\n"
-       << "is_cat: " << s.is_cat << "\n"
-       << "left_sum: " << s.left_sum << "\n"
-       << "right_sum: " << s.right_sum << std::endl;
+       << "is_cat: " << s.is_cat << "\n";
+    if constexpr (std::is_same_v<GradStats, GradientT>) {
+      os << "left_sum: " << s.left_sum << "\n"
+         << "right_sum: " << s.right_sum << std::endl;
+    } else {
+      auto print_vec = [&](auto const &vec) {
+        for (std::size_t i = 0; i < vec.size(); ++i) {
+          os << vec[i];
+          if (i != vec.size() - 1) {
+            os << ", ";
+          }
+        }
+      };
+
+      os << "left_sum: [";
+      print_vec(s.left_sum);
+      os << "]\n";
+
+      os << "right_sum: [";
+      print_vec(s.right_sum);
+      os << "]\n";
+    }
+
     return os;
   }
 

@@ -73,7 +73,7 @@ TEST(Histogram, SubtractionTrack) {
   histogram.AllocateHistograms(&ctx, {0, 1, 2});
   GPUExpandEntry root;
   root.nidx = 0;
-  auto need_build = histogram.SubtractHist(&ctx, {root}, {0}, {1});
+  auto need_build = histogram.SubtractHist<GPUExpandEntry>(&ctx, {root}, {0}, {1});
 
   std::vector<GPUExpandEntry> candidates(2);
   candidates[0].nidx = 1;

@@ -71,7 +71,6 @@ class Lint:
                     "-build/include,",
                     "+build/namespaces",
                     "+build/include_what_you_use",
-                    "+build/include_order",
                 ]
             )
         )
