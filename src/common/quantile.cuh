@@ -207,7 +207,7 @@ class SketchContainer {
 
   /* \brief Removes all the duplicated elements in quantile structure. */
   template <typename KeyComp = cuda::std::equal_to<size_t>>
-  size_t Unique(Context const* ctx, KeyComp key_comp = thrust::equal_to<size_t>{}) {
+  size_t Unique(Context const* ctx, KeyComp key_comp = cuda::std::equal_to<size_t>{}) {
     timer_.Start(__func__);
     curt::SetDevice(ctx->Ordinal());
     this->columns_ptr_.SetDevice(ctx->Device());
