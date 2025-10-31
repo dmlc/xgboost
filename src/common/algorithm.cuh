@@ -184,7 +184,7 @@ void SegmentedArgMergeSort(Context const *ctx, SegIt seg_begin, SegIt seg_end, V
   sorted_idx.resize(n);
   dh::Iota(dh::ToSpan(sorted_idx), cuctx->Stream());
   dh::device_vector<Tup> keys(sorted_idx.size());
-  auto key_it = dh::MakeIndexTransformIter<Tup>([=] XGBOOST_DEVICE(std::size_t i) -> Tup {
+  auto key_it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) -> Tup {
     std::int32_t seg_idx;
     if (i < *seg_begin) {
       seg_idx = -1;
