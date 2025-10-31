@@ -223,8 +223,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
    * Check consistency.
    */
   auto check_it = thrust::make_transform_iterator(
-      thrust::make_counting_iterator(0ul),
-      cuda::proclaim_return_type<bool>([=] __device__(std::size_t i) {
+      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> bool {
         auto const& l_f = orig_enc.columns[i];
         auto const& r_f = new_enc.columns[i];
         if (l_f.index() != r_f.index()) {
@@ -233,10 +232,9 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         auto l_is_empty = cuda::std::visit([](auto&& arg) { return arg.empty(); }, l_f);
         auto r_is_empty = cuda::std::visit([](auto&& arg) { return arg.empty(); }, r_f);
         return l_is_empty == r_is_empty;
-      }));
-  bool valid = thrust::reduce(
-      exec, check_it, check_it + new_enc.Size(), true,
-      cuda::proclaim_return_type<bool>([=] __device__(bool l, bool r) { return l && r; }));
+      });
+  bool valid = thrust::reduce(exec, check_it, check_it + new_enc.Size(), true,
+                              [=] XGBOOST_DEVICE(bool l, bool r) -> bool { return l && r; });
   if (!valid) {
     policy.Error(
         "Invalid new DataFrame. "
@@ -282,10 +280,9 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         f_mapping[i - f_beg] = idx;
       });
 
-  auto err_it = thrust::find_if(exec, dh::tcbegin(mapping), dh::tcend(mapping),
-                                cuda::proclaim_return_type<bool>([=] __device__(std::int32_t v) {
-                                  return v == detail::NotFound();
-                                }));
+  auto err_it = thrust::find_if(
+      exec, dh::tcbegin(mapping), dh::tcend(mapping),
+      [=] XGBOOST_DEVICE(std::int32_t v) -> bool { return v == detail::NotFound(); });
 
   if (err_it != dh::tcend(mapping)) {
     // Report missing cat.
