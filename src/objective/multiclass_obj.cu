@@ -209,6 +209,16 @@ class SoftmaxMultiClassObj : public ObjFunction {
     collective::SafeColl(status);
     CHECK_GE(sum_weight, kRtEps);
     linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
+
+    double sum_intercepts = 0.;
+    for (std::int64_t ix = 0; ix < n_classes; ix++) {
+      intercept(ix) = std::log(intercept(ix));
+      sum_intercepts += intercept(ix);
+    }
+    const double mean_intercepts = sum_intercepts / static_cast<double>(n_classes);
+    for (std::int64_t ix = 0; ix < n_classes; ix++) {
+      intercept(ix) -= mean_intercepts;
+    }
   }
 
  private:
