@@ -44,10 +44,17 @@ enum class TreeProcessType : int {
   kDefault = 0,
   kUpdate = 1
 };
+
+// Sampling type for dart weights.
+enum class DartSampleType : std::int32_t {
+  kUniform = 0,
+  kWeighted = 1,
+};
 }  // namespace xgboost
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::TreeMethod);
 DECLARE_FIELD_ENUM_CLASS(xgboost::TreeProcessType);
+DECLARE_FIELD_ENUM_CLASS(xgboost::DartSampleType);
 
 namespace xgboost::gbm {
 /*! \brief training parameters */
@@ -78,10 +85,9 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   }
 };
 
-/*! \brief training parameters */
+/** @brief Dart training parameters */
 struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
-  /*! \brief type of sampling algorithm */
-  int sample_type;
+  DartSampleType sample_type;
   /*! \brief type of normalization algorithm */
   int normalize_type;
   /*! \brief fraction of trees to drop during the dropout */
@@ -90,12 +96,12 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
   bool one_drop;
   /*! \brief probability of skipping the dropout during an iteration */
   float skip_drop;
-  // declare parameters
+
   DMLC_DECLARE_PARAMETER(DartTrainParam) {
     DMLC_DECLARE_FIELD(sample_type)
-        .set_default(0)
-        .add_enum("uniform", 0)
-        .add_enum("weighted", 1)
+        .set_default(DartSampleType::kUniform)
+        .add_enum("uniform", DartSampleType::kUniform)
+        .add_enum("weighted", DartSampleType::kWeighted)
         .describe("Different types of sampling algorithm.");
     DMLC_DECLARE_FIELD(normalize_type)
         .set_default(0)
@@ -106,9 +112,8 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(0.0f)
         .describe("Fraction of trees to drop during the dropout.");
-    DMLC_DECLARE_FIELD(one_drop)
-        .set_default(false)
-        .describe("Whether at least one tree should always be dropped during the dropout.");
+    DMLC_DECLARE_FIELD(one_drop).set_default(false).describe(
+        "Whether at least one tree should always be dropped during the dropout.");
     DMLC_DECLARE_FIELD(skip_drop)
         .set_range(0.0f, 1.0f)
         .set_default(0.0f)
