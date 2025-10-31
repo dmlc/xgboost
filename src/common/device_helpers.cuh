@@ -7,6 +7,7 @@
 #include <thrust/device_vector.h>                       // for device_vector
 #include <thrust/execution_policy.h>                    // thrust::seq
 #include <thrust/iterator/discard_iterator.h>           // for discard_iterator
+#include <thrust/iterator/reverse_iterator.h>           // for make_reverse_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // make_transform_output_iterator
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
@@ -15,10 +16,11 @@
 #include <algorithm>
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
-#include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
-#include <cuda/std/iterator>  // for iterator_traits
-#include <variant>            // for variant, visit
-#include <vector>             // for vector
+#include <cub/util_type.cuh>    // for UnitWord, DoubleBuffer
+#include <cuda/std/functional>  // for equal_to
+#include <cuda/std/iterator>    // for iterator_traits
+#include <variant>              // for variant, visit
+#include <vector>               // for vector
 
 #include "common.h"
 #include "cuda_rt_utils.h"  // for GetNumaId, CurrentDevice
@@ -612,11 +614,11 @@ struct SegmentedUniqueReduceOp {
  * \return Number of unique values in total.
  */
 template <typename DerivedPolicy, typename KeyInIt, typename KeyOutIt, typename ValInIt,
-          typename ValOutIt, typename CompValue, typename CompKey = thrust::equal_to<size_t>>
+          typename ValOutIt, typename CompValue, typename CompKey = cuda::std::equal_to<size_t>>
 size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
                        KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
                        ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
-                       CompValue comp, CompKey comp_key = thrust::equal_to<size_t>{}) {
+                       CompValue comp, CompKey comp_key = cuda::std::equal_to<size_t>{}) {
   using Key = thrust::pair<size_t, typename cuda::std::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
