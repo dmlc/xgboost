@@ -5,10 +5,9 @@
 #include <thrust/random.h>
 #include <thrust/sort.h>  // for sort
 #include <thrust/transform.h>
-#include <xgboost/host_device_vector.h>
-#include <xgboost/logging.h>
 
-#include <cstddef>  // for size_t
+#include <cstddef>            // for size_t
+#include <cuda/std/iterator>  // for distance
 #include <limits>
 #include <utility>
 
@@ -18,6 +17,8 @@
 #include "../../data/iterative_dmatrix.h"  // for IterativeDMatrix
 #include "../param.h"
 #include "gradient_based_sampler.cuh"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/logging.h"
 
 namespace xgboost::tree {
 /*! \brief A functor that returns random weights. */
@@ -374,6 +375,6 @@ size_t GradientBasedSampler::CalculateThresholdIndex(Context const* ctx,
                     SampleRateDelta(threshold, gpair.size(), sample_rows));
   thrust::device_ptr<float> min =
       thrust::min_element(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum));
-  return thrust::distance(dh::tbegin(grad_sum), min) + 1;
+  return cuda::std::distance(dh::tbegin(grad_sum), min) + 1;
 }
 };  // namespace xgboost::tree
