@@ -268,7 +268,7 @@ numerical and thus has no categories, and the last feature includes two categori
 
 This array stores the sorted indices (`argsort`) of categories across all features,
 segmented by the ``feature_segments``. Given a feature with categories: ``["b", "c",
-"a"]``, the sorted index is ``[1, 2, 0]``.
+"a"]``, the sorted index is ``[2, 0, 1]``.
 
 - enc
 
