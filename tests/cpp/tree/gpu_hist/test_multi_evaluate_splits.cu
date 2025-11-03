@@ -134,18 +134,4 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
 }
 
 TEST_F(GpuMultiHistEvaluatorBasicTest, EmptyHess) { this->TestEmptyHess(); }
-
-TEST_F(GpuMultiHistEvaluatorBasicTest, MultiNodeEvaluation) {
-  // Test the multi-node evaluation with minimal setup
-  MultiHistEvaluator evaluator;
-
-  // Test with just a single node first to isolate the issue
-  dh::device_vector<MultiEvaluateSplitInputs> inputs(1);
-  inputs[0] = input;  // Use the existing input
-  dh::device_vector<MultiExpandEntry> output_splits(1);
-  evaluator.EvaluateSplits(&ctx, dh::ToSpan(inputs), shared_inputs, dh::ToSpan(output_splits));
-
-  // If we get here, the single node case works
-  ASSERT_TRUE(true) << "Single node multi-evaluation succeeded";
-}
 }  // namespace xgboost::tree::cuda_impl
