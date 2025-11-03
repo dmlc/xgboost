@@ -353,7 +353,7 @@ class MultiTargetHistMaker {
       std::copy_if(expand_set.begin(), expand_set.end(), std::back_inserter(valid_candidates),
                    [&](auto const& e) { return driver.IsChildValid(e); });
 
-      // Allocaate children nodes.
+      // Allocate children nodes.
       auto new_candidates = pinned_.GetSpan(valid_candidates.size() * 2, MultiExpandEntry{});
 
       this->PartitionAndBuildHist(p_fmat, expand_set, valid_candidates, p_tree);
