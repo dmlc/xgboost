@@ -383,7 +383,6 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
       auto sibling_sum = parent_sum[t] - node_sum[t];
       if (best_split.dir == kRightDir) {
         // forward pass, node_sum is the left sum
-        // auto lg = quantizer.ToFloatingPoint(node_sum[t]);
         left_sum[t] = node_sum[t];
         right_sum[t] = sibling_sum;
       } else {
@@ -395,8 +394,9 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
   });
 }
 
-void DebugPrintHistogram(common::Span<GradientPairInt64 const> node_hist,
-                         common::Span<GradientQuantiser const> roundings, bst_target_t n_targets) {
+std::ostream &DebugPrintHistogram(std::ostream &os, common::Span<GradientPairInt64 const> node_hist,
+                                  common::Span<GradientQuantiser const> roundings,
+                                  bst_target_t n_targets) {
   std::vector<GradientQuantiser> h_roundings;
   thrust::copy(dh::tcbegin(roundings), dh::tcend(roundings), std::back_inserter(h_roundings));
   dh::CopyDeviceSpanToVector(&h_roundings, roundings);
@@ -404,11 +404,12 @@ void DebugPrintHistogram(common::Span<GradientPairInt64 const> node_hist,
   std::vector<GradientPairInt64> h_node_hist(node_hist.size());
   dh::CopyDeviceSpanToVector(&h_node_hist, node_hist);
   for (bst_target_t t = 0; t < n_targets; ++t) {
-    std::cout << "target:" << t << std::endl;
+    os << "Target:" << t << std::endl;
     for (std::size_t i = t; i < h_node_hist.size() / n_targets; i += n_targets) {
-      std::cout << h_roundings[t].ToFloatingPoint(h_node_hist[i]) << ", ";
+      os << h_roundings[t].ToFloatingPoint(h_node_hist[i]) << ", ";
     }
-    std::cout << std::endl;
+    os << std::endl;
   }
+  return os;
 }
 }  // namespace xgboost::tree::cuda_impl

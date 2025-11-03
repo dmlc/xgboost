@@ -46,6 +46,7 @@ class MultiHistEvaluator {
   void ApplyTreeSplit(Context const *ctx, RegTree const *p_tree, MultiExpandEntry const &candidate);
 };
 
-void DebugPrintHistogram(common::Span<GradientPairInt64 const> node_hist,
-                         common::Span<GradientQuantiser const> roundings, bst_target_t n_targets);
+std::ostream &DebugPrintHistogram(std::ostream &os, common::Span<GradientPairInt64 const> node_hist,
+                                  common::Span<GradientQuantiser const> roundings,
+                                  bst_target_t n_targets);
 }  // namespace xgboost::tree::cuda_impl
