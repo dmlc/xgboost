@@ -258,6 +258,8 @@ class MultiTargetHistMaker {
     }
 
     histogram_.AllocateHistograms(ctx_, build_nidx);
+    // Use a device view.
+    mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
 
     std::int32_t k{0};
     // TODO(jiamingy): Support external memory.
