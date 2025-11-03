@@ -332,9 +332,9 @@ class MultiTargetHistMaker {
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo const*,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>*) {
-    // if (this->param_.learning_rate - 1.0 != 0.0) {
-    //   LOG(FATAL) << "GPU" << MTNotImplemented();
-    // }
+    if (this->param_.learning_rate - 1.0 != 0.0) {
+      LOG(FATAL) << "GPU" << MTNotImplemented();
+    }
     Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
 
     this->Reset(gpair_all, p_fmat, p_tree);
