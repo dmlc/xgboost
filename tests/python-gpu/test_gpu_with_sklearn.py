@@ -216,7 +216,7 @@ def test_custom_objective(
             clf.fit(X, y)
         return
     if strategy == "multi_output_tree" and device == "cuda":
-        with pytest.raises(ValueError, match=r"GPU is not yet"):
+        with pytest.raises(ValueError, match=r"GPU support for multi-target tree"):
             clf.fit(X, y)
         return
 
