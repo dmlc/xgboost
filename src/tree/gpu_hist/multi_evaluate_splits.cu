@@ -264,12 +264,12 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   // Launch histogram scan kernel
   dim3 grid{n_nodes, n_features, n_targets};
   std::uint32_t constexpr kBlockThreads = 32;
-  dh::LaunchKernel{grid, kBlockThreads}(ScanHistogramKernel<kBlockThreads>, d_inputs, shared_inputs,
-                                        dh::ToSpan(scans));
+  dh::LaunchKernel{grid, kBlockThreads}(  // NOLINT
+      ScanHistogramKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans));
 
   // Launch split evaluation kernel
   dh::device_vector<MultiSplitCandidate> d_splits(n_nodes * n_features);
-  dh::LaunchKernel{n_nodes * n_features, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(
+  dh::LaunchKernel{n_nodes * n_features, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
       EvaluateSplitsKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans),
       dh::ToSpan(d_splits));
 
@@ -358,9 +358,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       out_splits[nidx_in_set] = {};
     }
   });
-
-  // fixme: remove
-  ctx->CUDACtx()->Stream().Sync();
 }
 
 void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
@@ -372,7 +369,6 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
   bst_node_t max_node = std::max(left_child, right_child);
   this->AllocNodeSum(max_node, n_targets);
 
-  // fixme: store root sum
   auto parent_sum = this->GetNodeSum(candidate.nidx, n_targets);
 
   auto left_sum = this->GetNodeSum(left_child, n_targets);

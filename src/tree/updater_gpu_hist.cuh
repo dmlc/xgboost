@@ -218,7 +218,6 @@ class MultiTargetHistMaker {
   struct GoLeftOp {
     Accessor d_matrix;
     MultiTargetTreeView tree;
-    // fixme: merge this with the scalar tree implementation, remove the node split data.
     __device__ bool operator()(cuda_impl::RowIndexT ridx, NodeSplitData const& data) const {
       // given a row index, returns the node id it belongs to
       float cut_value = d_matrix.GetFvalue(ridx, tree.SplitIndex(data.nidx));
@@ -244,7 +243,7 @@ class MultiTargetHistMaker {
       return;
     }
     CHECK_LE(candidates.size(), expand_set.size());
-    // fixme: maybe implement finalize partition.
+    // TODO(jiamingy): Implement finalize partition.
 
     // Prepare for update partition
     auto nodes = this->CreatePartitionNodes(p_tree, expand_set);
@@ -261,7 +260,8 @@ class MultiTargetHistMaker {
     histogram_.AllocateHistograms(ctx_, build_nidx);
 
     std::int32_t k{0};
-    bool prefetch_copy = true;  // fixme
+    // TODO(jiamingy): Support external memory.
+    bool prefetch_copy = true;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(prefetch_copy))) {
       page.Impl()->Visit(ctx_, {}, [&](auto&& d_acc) {
         using Acc = std::remove_reference_t<decltype(d_acc)>;
@@ -305,8 +305,7 @@ class MultiTargetHistMaker {
       bst_node_t right_nidx = mt_tree.RightChild(candidate.nidx);
       max_nidx = std::max({max_nidx, left_nidx, right_nidx});
     }
-    this->evaluator_.AllocNodeSum(max_nidx, mt_tree.NumTargets());
-    // fixme
+
     for (std::size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
       bst_node_t left_nidx = mt_tree.LeftChild(candidate.nidx);
@@ -360,7 +359,7 @@ class MultiTargetHistMaker {
       this->PartitionAndBuildHist(p_fmat, expand_set, valid_candidates, p_tree);
 
       this->EvaluateSplits(valid_candidates, *p_tree, new_candidates);
-      curt::DefaultStream().Sync();
+      this->ctx_->CUDACtx()->Stream().Sync();
 
       driver.Push(new_candidates.begin(), new_candidates.end());
 
