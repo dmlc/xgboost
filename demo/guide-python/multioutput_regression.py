@@ -16,23 +16,22 @@ See :doc:`/tutorials/multioutput` for more information.
 """
 
 import argparse
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
+import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 
 import xgboost as xgb
 
 
-def plot_predt(y: np.ndarray, y_predt: np.ndarray, name: str) -> None:
+def plot_predt(
+    y: np.ndarray, y_predt: np.ndarray, name: str, ax: matplotlib.axes.Axes
+) -> None:
     s = 25
-    plt.scatter(y[:, 0], y[:, 1], c="navy", s=s, edgecolor="black", label="data")
-    plt.scatter(
-        y_predt[:, 0], y_predt[:, 1], c="cornflowerblue", s=s, edgecolor="black"
-    )
-    plt.xlim([-1, 2])
-    plt.ylim([-1, 2])
-    plt.show()
+    ax.scatter(y[:, 0], y[:, 1], c="navy", s=s, edgecolor="black", label=name)
+    ax.scatter(y_predt[:, 0], y_predt[:, 1], c="cornflowerblue", s=s, edgecolor="black")
+    ax.legend()
 
 
 def gen_circle() -> Tuple[np.ndarray, np.ndarray]:
@@ -46,7 +45,9 @@ def gen_circle() -> Tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
-def rmse_model(plot_result: bool, strategy: str) -> None:
+def rmse_model(
+    plot_result: bool, strategy: str, ax: Optional[matplotlib.axes.Axes]
+) -> None:
     """Draw a circle with 2-dim coordinate as target variables."""
     X, y = gen_circle()
     # Train a regressor on it
@@ -61,11 +62,13 @@ def rmse_model(plot_result: bool, strategy: str) -> None:
     reg.fit(X, y, eval_set=[(X, y)])
 
     y_predt = reg.predict(X)
-    if plot_result:
-        plot_predt(y, y_predt, "multi")
+    if ax:
+        plot_predt(y, y_predt, f"RMSE-{strategy}", ax)
 
 
-def custom_rmse_model(plot_result: bool, strategy: str) -> None:
+def custom_rmse_model(
+    plot_result: bool, strategy: str, ax: Optional[matplotlib.axes.Axes]
+) -> None:
     """Train using Python implementation of Squared Error."""
 
     def gradient(predt: np.ndarray, dtrain: xgb.DMatrix) -> np.ndarray:
@@ -111,8 +114,8 @@ def custom_rmse_model(plot_result: bool, strategy: str) -> None:
     )
 
     y_predt = booster.inplace_predict(X)
-    if plot_result:
-        plot_predt(y, y_predt, "multi")
+    if ax:
+        plot_predt(y, y_predt, f"PyRMSE-{strategy}", ax)
 
     np.testing.assert_allclose(
         results["Train"]["rmse"], results["Train"]["PyRMSE"], rtol=1e-2
@@ -123,17 +126,24 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--plot", choices=[0, 1], type=int, default=1)
     args = parser.parse_args()
+    if args.plot == 1:
+        _, axs = plt.subplots(2, 2)
+    else:
+        axs = np.zeros(shape=(2, 2))
+    assert isinstance(axs, np.ndarray)
 
     # Train with builtin RMSE objective
     # - One model per output.
-    rmse_model(args.plot == 1, "one_output_per_tree")
+    rmse_model(args.plot == 1, "one_output_per_tree", axs[0, 0])
     # - One model for all outputs, this is still working in progress, many features are
     # missing.
-    rmse_model(args.plot == 1, "multi_output_tree")
+    rmse_model(args.plot == 1, "multi_output_tree", axs[0, 1])
 
     # Train with custom objective.
     # - One model per output.
-    custom_rmse_model(args.plot == 1, "one_output_per_tree")
+    custom_rmse_model(args.plot == 1, "one_output_per_tree", axs[1, 0])
     # - One model for all outputs, this is still working in progress, many features are
     # missing.
-    custom_rmse_model(args.plot == 1, "multi_output_tree")
+    custom_rmse_model(args.plot == 1, "multi_output_tree", axs[1, 1])
+    if args.plot == 1:
+        plt.show()
