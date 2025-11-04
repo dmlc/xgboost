@@ -460,15 +460,11 @@ class ColumnMatrix {
       std::vector<size_t> k_offsets(n_threads + 1, 0);        // offsets of non-zero elements for each thread
                                                               // k_offsets[0] = 0;
                                                               // k_offsets[tid] - starting offset of non-zero elements processed by thread tid
-      size_t block_size = DivRoundUp(batch_size, n_threads);
+      const auto word32size = MissingIndicator::BitFieldT::kValueSize;
 
-      /*
-       * We use bitfield as a missing indicator. To ensure thread safe access to the bitfield
-       * each underlying word of the bitfiled should be processed by a single thread.
-       * So we need to align the row-blocks.
-       */
-      block_size = DivRoundUp(block_size, MissingIndicator::BitFieldT::kValueSize) *
-                   MissingIndicator::BitFieldT::kValueSize;
+      size_t block_size = DivRoundUp(batch_size, n_threads);   // preliminary block size
+      // align block_size to be multiple of kValueSize, so that each thread processes full words in the bitfield
+      block_size = DivRoundUp(block_size, word32size) * word32size;
       /*
        * To prevent race conditions on the bitfield, we ensure each thread operates on
        * distinct 32-bit words. If a data batch (starting at `base_rowid`) doesn't align
