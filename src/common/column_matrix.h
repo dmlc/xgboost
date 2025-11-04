@@ -452,8 +452,14 @@ class ColumnMatrix {
       //    b) Aggregating counts to determine offsets.
       // 2) Placing elements into the sparse structure using calculated offsets of non-zero elements.
       dmlc::OMPException exc;
-      std::vector<size_t> n_elements((n_threads + 1) * n_features, 0);
-      std::vector<size_t> k_offsets(n_threads + 1, 0);
+            std::vector<size_t> n_elements((n_threads + 1) * n_features, 0);  // number of non-zero elements per feature per thread
+                                                                        // n_elements[tid * n_features + fid] =
+                                                                        //   number of non-zero elements of feature fid processed by thread tid
+                                                                        // n_elements[n_threads * n_features + fid] =
+                                                                        //   total number of non-zero elements of feature fid
+      std::vector<size_t> k_offsets(n_threads + 1, 0);        // offsets of non-zero elements for each thread
+                                                              // k_offsets[0] = 0;
+                                                              // k_offsets[tid] - starting offset of non-zero elements processed by thread tid
       size_t block_size = DivRoundUp(batch_size, n_threads);
 
       /*
