@@ -45,9 +45,7 @@ def gen_circle() -> Tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
-def rmse_model(
-    plot_result: bool, strategy: str, ax: Optional[matplotlib.axes.Axes]
-) -> None:
+def rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None:
     """Draw a circle with 2-dim coordinate as target variables."""
     X, y = gen_circle()
     # Train a regressor on it
@@ -66,9 +64,7 @@ def rmse_model(
         plot_predt(y, y_predt, f"RMSE-{strategy}", ax)
 
 
-def custom_rmse_model(
-    plot_result: bool, strategy: str, ax: Optional[matplotlib.axes.Axes]
-) -> None:
+def custom_rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None:
     """Train using Python implementation of Squared Error."""
 
     def gradient(predt: np.ndarray, dtrain: xgb.DMatrix) -> np.ndarray:
@@ -129,21 +125,21 @@ if __name__ == "__main__":
     if args.plot == 1:
         _, axs = plt.subplots(2, 2)
     else:
-        axs = np.zeros(shape=(2, 2))
+        axs = np.full(shape=(2, 2), fill_value=None)
     assert isinstance(axs, np.ndarray)
 
     # Train with builtin RMSE objective
     # - One model per output.
-    rmse_model(args.plot == 1, "one_output_per_tree", axs[0, 0])
+    rmse_model("one_output_per_tree", axs[0, 0])
     # - One model for all outputs, this is still working in progress, many features are
     # missing.
-    rmse_model(args.plot == 1, "multi_output_tree", axs[0, 1])
+    rmse_model("multi_output_tree", axs[0, 1])
 
     # Train with custom objective.
     # - One model per output.
-    custom_rmse_model(args.plot == 1, "one_output_per_tree", axs[1, 0])
+    custom_rmse_model("one_output_per_tree", axs[1, 0])
     # - One model for all outputs, this is still working in progress, many features are
     # missing.
-    custom_rmse_model(args.plot == 1, "multi_output_tree", axs[1, 1])
+    custom_rmse_model("multi_output_tree", axs[1, 1])
     if args.plot == 1:
         plt.show()
