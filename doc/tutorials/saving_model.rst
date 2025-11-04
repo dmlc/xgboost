@@ -235,9 +235,7 @@ Difference between saving model and dumping model
 XGBoost has a function called ``dump_model`` in the Booster class, which lets you to
 export the model in a readable format like ``text``, ``json`` or ``dot`` (graphviz).  The
 primary use case for it is for model interpretation and visualization, and is not supposed
-to be loaded back to XGBoost.  The JSON version has a `schema
-<https://github.com/dmlc/xgboost/blob/master/doc/dump.schema>`__.  See next section for
-more info.
+to be loaded back to XGBoost.
 
 **********
 Categories
@@ -290,19 +288,6 @@ integers and 32-bit floating points (note that they are all f32 inside a decisio
 tree). The exact mapping between the type to the integer ID is internal but stable. The
 ``values`` is an array storing all categories in a feature.
 
-***********
-JSON Schema
-***********
-
-Another important feature of JSON format is a documented `schema
-<https://json-schema.org/>`__, based on which one can easily reuse the output model from
-XGBoost.  Here is the JSON schema for the output model (not serialization, which will not
-be stable as noted above).  For an example of parsing XGBoost tree model, see
-``/demo/json-model``.  Please notice the "weight_drop" field used in "dart" booster.
-XGBoost does not scale tree leaf directly, instead it saves the weights as a separated
-array. See :doc:`/model_schema`.
-
-
 *************
 Brief History
 *************
@@ -313,3 +298,5 @@ Brief History
   an optimization for more efficient model IO.
 - UBJSON has been set to default in 2.1.
 - The old binary format was removed in 3.1.
+- The JSON schema file is no longer maintained and has been removed in 3.2. The underlying
+  schema of the model is not changed.
