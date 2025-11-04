@@ -15,8 +15,13 @@
 
 namespace xgboost::tree::cuda_impl {
 namespace {
-__device__ bst_bin_t RevBinIdx(bst_bin_t gidx_end, bst_bin_t bin_idx) {
-  return gidx_end - bin_idx - 1;
+/**
+ * @brief Calculate the gradient index for the reverse pass
+ *
+ * @note All inputs are global across features.
+ */
+__device__ bst_bin_t RevBinIdx(bst_bin_t gidx_begin, bst_bin_t gidx_end, bst_bin_t bin_idx) {
+  return gidx_begin + (gidx_end - bin_idx - 1);
 }
 
 // Scan the histogram in 2 dim for all nodes
@@ -60,7 +65,7 @@ struct ScanHistogramAgent {
   __device__ void Backward(common::Span<GradientPairInt64 const> node_histogram,
                            common::Span<GradientPairInt64> scan_result, bst_target_t t) {
     this->ScanFeature(node_histogram, scan_result, t,
-                      [&](bst_bin_t bin_idx) { return RevBinIdx(gidx_end, bin_idx); });
+                      [&](bst_bin_t bin_idx) { return RevBinIdx(gidx_begin, gidx_end, bin_idx); });
   }
 };
 }  // namespace
@@ -112,7 +117,7 @@ struct EvaluateSplitAgent {
   template <std::int32_t d_step>
   __device__ void Numerical(MultiEvaluateSplitInputs const &node,
                             MultiEvaluateSplitSharedInputs const &shared,
-                            common::Span<GradientPairInt64 const> f_scan,
+                            common::Span<GradientPairInt64 const> node_scan,
                             MultiSplitCandidate *best_split) {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
     // Calculate split gain for each bin
@@ -130,7 +135,7 @@ struct EvaluateSplitAgent {
       double gain = thread_active ? 0 : kNullGain;
 
       if (thread_active) {
-        auto scan_bin = f_scan.subspan(bin_idx * n_targets, n_targets);
+        auto scan_bin = node_scan.subspan(bin_idx * n_targets, n_targets);
         for (bst_target_t t = 0; t < n_targets; ++t) {
           auto pg = roundings[t].ToFloatingPoint(node.parent_sum[t]);
           // left
@@ -155,7 +160,7 @@ struct EvaluateSplitAgent {
         // Update
         bst_bin_t split_gidx = bin_idx;
         if (d_step == -1) {
-          split_gidx = RevBinIdx(gidx_end, bin_idx);
+          split_gidx = RevBinIdx(gidx_begin, gidx_end, bin_idx);
         }
         float min_fvalue = shared.min_values[fidx];
         float fvalue;
@@ -168,7 +173,7 @@ struct EvaluateSplitAgent {
             fvalue = shared.feature_values[split_gidx - 1];
           }
         }
-        auto scan_bin = f_scan.subspan(bin_idx * n_targets, n_targets);
+        auto scan_bin = node_scan.subspan(bin_idx * n_targets, n_targets);
         // Missing values go to right in the forward pass, go to left in the backward pass.
         best_split->Update(gain, d_step == 1 ? kRightDir : kLeftDir, fvalue, fidx, scan_bin, false,
                            shared.param, shared.roundings);
@@ -190,30 +195,42 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   using AgentT = EvaluateSplitAgent<kBlockThreads>;
   __shared__ typename AgentT::TempStorage temp_storage;
 
-  auto fidx = blockIdx.x;
-  EvaluateSplitAgent<kBlockThreads> agent{&temp_storage, blockIdx.x};
+  const auto nidx = blockIdx.x / shared.Features();
+  bst_feature_t fidx = blockIdx.x % shared.Features();
+  AgentT agent{&temp_storage, fidx};
 
   auto n_targets = shared.Targets();
   // The number of bins in a feature
   auto f_hist_size =
       (shared.feature_segments[fidx + 1] - shared.feature_segments[fidx]) * n_targets;
-  // TODO(jiamingy): Support more than a single node
+
+  auto candidate_idx = nidx * shared.Features() + fidx;
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
-    auto forward = bin_scans[0].subspan(0, nodes[0].histogram.size());
-    auto f_scan = forward.subspan(shared.feature_segments[fidx] * n_targets, f_hist_size);
-    agent.template Numerical<+1>(nodes[0], shared, f_scan, &out_candidates[fidx]);
+    auto forward = bin_scans[nidx].subspan(0, nodes[nidx].histogram.size());
+    agent.template Numerical<+1>(nodes[nidx], shared, forward, &out_candidates[candidate_idx]);
   }
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward) {
-    auto backward = bin_scans[0].subspan(nodes[0].histogram.size(), nodes[0].histogram.size());
-    auto f_scan = backward.subspan(shared.feature_segments[fidx] * n_targets, f_hist_size);
-    agent.template Numerical<-1>(nodes[0], shared, f_scan, &out_candidates[fidx]);
+    auto backward =
+        bin_scans[nidx].subspan(nodes[nidx].histogram.size(), nodes[nidx].histogram.size());
+    agent.template Numerical<-1>(nodes[nidx], shared, backward, &out_candidates[candidate_idx]);
   }
 }
 
 [[nodiscard]] MultiExpandEntry MultiHistEvaluator::EvaluateSingleSplit(
-    Context const *ctx, MultiEvaluateSplitInputs input,
-    MultiEvaluateSplitSharedInputs shared_inputs) {
+    Context const *ctx, MultiEvaluateSplitInputs const &input,
+    MultiEvaluateSplitSharedInputs const &shared_inputs) {
+  dh::device_vector<MultiEvaluateSplitInputs> inputs{input};
+  dh::device_vector<MultiExpandEntry> outputs(1);
+
+  this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, dh::ToSpan(outputs));
+  return outputs[0];
+}
+
+void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
+                                        common::Span<MultiEvaluateSplitInputs const> d_inputs,
+                                        MultiEvaluateSplitSharedInputs const &shared_inputs,
+                                        common::Span<MultiExpandEntry> out_splits) {
   auto n_targets = shared_inputs.Targets();
   CHECK_GE(n_targets, 2);
   auto n_bins_per_feat_tar = shared_inputs.n_bins_per_feat_tar;
@@ -221,49 +238,77 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   auto n_features = shared_inputs.Features();
   CHECK_GE(n_features, 1);
 
-  dh::device_vector<MultiEvaluateSplitInputs> inputs{input};
+  std::uint32_t n_nodes = d_inputs.size();
+  CHECK_EQ(n_nodes, out_splits.size());
+
+  if (n_nodes == 0) {
+    return;
+  }
+
+  // Calculate total scan buffer size needed for all nodes
+  auto node_hist_size = n_targets * n_features * n_bins_per_feat_tar;
+  std::size_t total_hist_size = node_hist_size * n_nodes;
 
   // Scan the histograms. One for forward and the other for backward.
-  this->scan_buffer_.resize(input.histogram.size() * 2);
+  this->scan_buffer_.resize(total_hist_size * 2);
   thrust::fill(ctx->CUDACtx()->CTP(), this->scan_buffer_.begin(), this->scan_buffer_.end(),
                GradientPairInt64{});
-  dh::device_vector<common::Span<GradientPairInt64>> scans{dh::ToSpan(this->scan_buffer_)};
-  std::uint32_t n_nodes = 1;
+
+  // Create spans for each node's scan results
+  dh::device_vector<common::Span<GradientPairInt64>> scans(n_nodes);
+  for (std::size_t nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
+    scans[nidx_in_set] = dh::ToSpan(this->scan_buffer_)
+                             .subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
+  }
+
+  // Launch histogram scan kernel
   dim3 grid{n_nodes, n_features, n_targets};
   std::uint32_t constexpr kBlockThreads = 32;
   dh::LaunchKernel{grid, kBlockThreads}(  // NOLINT
-      ScanHistogramKernel<kBlockThreads>, dh::ToSpan(inputs), shared_inputs, dh::ToSpan(scans));
+      ScanHistogramKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans));
 
-  dh::device_vector<MultiSplitCandidate> d_splits(n_features);
-  dh::LaunchKernel{n_features, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
-      EvaluateSplitsKernel<kBlockThreads>, dh::ToSpan(inputs), shared_inputs, dh::ToSpan(scans),
+  // Launch split evaluation kernel
+  dh::device_vector<MultiSplitCandidate> d_splits(n_nodes * n_features);
+  dh::LaunchKernel{n_nodes * n_features, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
+      EvaluateSplitsKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans),
       dh::ToSpan(d_splits));
 
-  auto best_split = thrust::reduce(
-      ctx->CUDACtx()->CTP(), d_splits.cbegin(), d_splits.cend(), MultiSplitCandidate{},
-      [] XGBOOST_DEVICE(MultiSplitCandidate const &lhs, MultiSplitCandidate const &rhs)
-          -> MultiSplitCandidate { return lhs.loss_chg > rhs.loss_chg ? lhs : rhs; });
-
-  if (best_split.node_sum.empty()) {
-    return {};
-  }
-
-  // Calculate leaf weights from gradient sum
-  this->weights_.resize(n_targets * 3);
+  // Find best split for each node
+  this->weights_.resize(n_nodes * n_targets * 3);
   auto d_weights = dh::ToSpan(this->weights_);
-  auto base_weight = d_weights.subspan(0, n_targets);
-  auto left_weight = d_weights.subspan(n_targets, n_targets);
-  auto right_weight = d_weights.subspan(n_targets * 2, n_targets);
 
-  dh::CachingDeviceUVector<float> d_parent_gain(1);
-  dh::CachingDeviceUVector<std::int32_t> sum_zero(2);
+  dh::CachingDeviceUVector<float> d_parent_gains(n_nodes);
+  dh::CachingDeviceUVector<std::int32_t> sum_zeros(n_nodes * 2);
 
-  auto s_pg = dh::ToSpan(d_parent_gain);
-  auto s_sum_zero = dh::ToSpan(sum_zero);
+  auto s_parent_gains = dh::ToSpan(d_parent_gains);
+  auto s_sum_zeros = dh::ToSpan(sum_zeros);
+  auto s_d_splits = dh::ToSpan(d_splits);
 
-  dh::LaunchN(inputs.size(), ctx->CUDACtx()->Stream(), [=] __device__(std::size_t i) {
+  // Process results for each node
+  dh::LaunchN(n_nodes, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t nidx_in_set) {
+    auto input = d_inputs[nidx_in_set];
+
+    // Find best split among all features for this node
+    MultiSplitCandidate best_split{};
+    for (bst_feature_t f = 0; f < n_features; ++f) {
+      auto candidate = s_d_splits[nidx_in_set * n_features + f];
+      if (candidate.loss_chg > best_split.loss_chg) {
+        best_split = candidate;
+      }
+    }
+
+    if (best_split.node_sum.empty()) {
+      // Invalid split
+      out_splits[nidx_in_set] = {};
+      return;
+    }
+
+    // Calculate weights for this node
+    auto base_weight = d_weights.subspan(nidx_in_set * n_targets * 3, n_targets);
+    auto left_weight = d_weights.subspan(nidx_in_set * n_targets * 3 + n_targets, n_targets);
+    auto right_weight = d_weights.subspan(nidx_in_set * n_targets * 3 + n_targets * 2, n_targets);
+
     auto d_roundings = shared_inputs.roundings;
-    // the data inside the split candidates references the scan result.
     auto node_sum = best_split.node_sum;
 
     float parent_gain = 0;
@@ -276,15 +321,15 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
       base_weight[t] = CalcWeight(shared_inputs.param, g.GetGrad(), g.GetHess());
       parent_gain += -base_weight[t] * ThresholdL1(g.GetGrad(), shared_inputs.param.reg_alpha);
     }
-    s_pg[0] = parent_gain;
+    s_parent_gains[nidx_in_set] = parent_gain;
 
     bool l = true, r = true;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto quantizer = d_roundings[t];
       auto sibling_sum = input.parent_sum[t] - node_sum[t];
 
-      l = l && (node_sum[t].GetQuantisedHess() - .0 == .0);
-      r = r && (sibling_sum.GetQuantisedHess() - .0 == .0);
+      l = l && (node_sum[t].GetQuantisedHess() == 0);
+      r = r && (sibling_sum.GetQuantisedHess() == 0);
 
       if (best_split.dir == kRightDir) {
         // forward pass, node_sum is the left sum
@@ -299,31 +344,59 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
         auto lg = quantizer.ToFloatingPoint(sibling_sum);
         left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess());
       }
+    }
 
-      s_sum_zero[0] = l;
-      s_sum_zero[1] = r;
+    s_sum_zeros[nidx_in_set * 2] = l;
+    s_sum_zeros[nidx_in_set * 2 + 1] = r;
+
+    // Set up the output entry
+    out_splits[nidx_in_set] = {input.nidx,  input.depth, best_split,
+                               base_weight, left_weight, right_weight};
+    out_splits[nidx_in_set].split.loss_chg -= parent_gain;
+
+    if (l || r) {
+      out_splits[nidx_in_set] = {};
     }
   });
-  // Copy the result back to the host.
-  float parent_gain = 0;
-  dh::safe_cuda(cudaMemcpyAsync(&parent_gain, d_parent_gain.data(), sizeof(parent_gain),
-                                cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
-  best_split.loss_chg -= parent_gain;
-
-  std::vector<std::int32_t> h_sum_zero(s_sum_zero.size());
-  dh::safe_cuda(cudaMemcpyAsync(h_sum_zero.data(), s_sum_zero.data(), s_sum_zero.size_bytes(),
-                                cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
-  if (h_sum_zero[0] || h_sum_zero[1]) {
-    return {};
-  }
-
-  MultiExpandEntry entry{input.nidx,  input.depth, best_split,
-                         base_weight, left_weight, right_weight};
-  return entry;
 }
 
-void DebugPrintHistogram(common::Span<GradientPairInt64 const> node_hist,
-                         common::Span<GradientQuantiser const> roundings, bst_target_t n_targets) {
+void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
+                                        MultiExpandEntry const &candidate) {
+  auto n_targets = p_tree->NumTargets();
+
+  auto left_child = p_tree->LeftChild(candidate.nidx);
+  auto right_child = p_tree->RightChild(candidate.nidx);
+  bst_node_t max_node = std::max(left_child, right_child);
+  this->AllocNodeSum(max_node, n_targets);
+
+  auto parent_sum = this->GetNodeSum(candidate.nidx, n_targets);
+
+  auto left_sum = this->GetNodeSum(left_child, n_targets);
+  auto right_sum = this->GetNodeSum(right_child, n_targets);
+
+  // Calculate node sums
+  // TODO(jiamingy): We need to batch the targets and nodes
+  auto best_split = candidate.split;
+  auto node_sum = best_split.node_sum;
+  dh::LaunchN(1, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t) {
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      auto sibling_sum = parent_sum[t] - node_sum[t];
+      if (best_split.dir == kRightDir) {
+        // forward pass, node_sum is the left sum
+        left_sum[t] = node_sum[t];
+        right_sum[t] = sibling_sum;
+      } else {
+        // backward pass, node_sum is the right sum
+        right_sum[t] = node_sum[t];
+        left_sum[t] = sibling_sum;
+      }
+    }
+  });
+}
+
+std::ostream &DebugPrintHistogram(std::ostream &os, common::Span<GradientPairInt64 const> node_hist,
+                                  common::Span<GradientQuantiser const> roundings,
+                                  bst_target_t n_targets) {
   std::vector<GradientQuantiser> h_roundings;
   thrust::copy(dh::tcbegin(roundings), dh::tcend(roundings), std::back_inserter(h_roundings));
   dh::CopyDeviceSpanToVector(&h_roundings, roundings);
@@ -331,11 +404,12 @@ void DebugPrintHistogram(common::Span<GradientPairInt64 const> node_hist,
   std::vector<GradientPairInt64> h_node_hist(node_hist.size());
   dh::CopyDeviceSpanToVector(&h_node_hist, node_hist);
   for (bst_target_t t = 0; t < n_targets; ++t) {
-    std::cout << "target:" << t << std::endl;
+    os << "Target:" << t << std::endl;
     for (std::size_t i = t; i < h_node_hist.size() / n_targets; i += n_targets) {
-      std::cout << h_roundings[t].ToFloatingPoint(h_node_hist[i]) << ", ";
+      os << h_roundings[t].ToFloatingPoint(h_node_hist[i]) << ", ";
     }
-    std::cout << std::endl;
+    os << std::endl;
   }
+  return os;
 }
 }  // namespace xgboost::tree::cuda_impl
