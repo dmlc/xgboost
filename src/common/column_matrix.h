@@ -529,7 +529,9 @@ class ColumnMatrix {
       // Parallel row processing to place data using offsets into sparse structure.
       #pragma omp parallel num_threads(n_threads)
       {
-        std::vector<size_t> nnz_offsets(n_features, 0);
+                std::vector<size_t> nnz_offsets(n_features, 0);   // offsets of non-zero elements per feature for the current thread
+                                                          // nnz_offsets[fid] =
+                                                          //   number of non-zero elements of feature fid already processed by this thread
         exc.Run([&, is_valid, base_rowid, row_index]() {
           int tid = omp_get_thread_num();
           size_t begin = block_size * tid;
