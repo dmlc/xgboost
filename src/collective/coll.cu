@@ -2,16 +2,17 @@
  * Copyright 2023-2025, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
-#include <chrono>       // for chrono, chrono_literals
-#include <cstddef>      // for size_t
-#include <cstdint>      // for int8_t, int64_t
-#include <future>       // for future, future_status
-#include <memory>       // for shared_ptr
-#include <mutex>        // for mutex, unique_lock
-#include <string>       // for string
-#include <thread>       // for this_thread
-#include <type_traits>  // for invoke_result_t, is_same_v, enable_if_t
-#include <utility>      // for move
+#include <chrono>               // for chrono, chrono_literals
+#include <cstddef>              // for size_t
+#include <cstdint>              // for int8_t, int64_t
+#include <cuda/std/functional>  // for bit_and, bit_or, bit_xor
+#include <future>               // for future, future_status
+#include <memory>               // for shared_ptr
+#include <mutex>                // for mutex, unique_lock
+#include <string>               // for string
+#include <thread>               // for this_thread
+#include <type_traits>          // for invoke_result_t, is_same_v, enable_if_t
+#include <utility>              // for move
 
 #include "../common/cuda_stream.h"       // for StreamRef, Event
 #include "../common/device_helpers.cuh"  // for device_vector
@@ -211,15 +212,15 @@ void RunBitwiseAllreduce(curt::StreamRef stream, common::Span<std::int8_t> out_b
   // Then reduce locally.
   switch (op) {
     case Op::kBitwiseAND:
-      RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, thrust::bit_and<std::int8_t>(),
+      RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, cuda::std::bit_and<std::int8_t>(),
                           pcomm->World(), data.size());
       break;
     case Op::kBitwiseOR:
-      RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, thrust::bit_or<std::int8_t>(),
+      RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, cuda::std::bit_or<std::int8_t>(),
                           pcomm->World(), data.size());
       break;
     case Op::kBitwiseXOR:
-      RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, thrust::bit_xor<std::int8_t>(),
+      RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, cuda::std::bit_xor<std::int8_t>(),
                           pcomm->World(), data.size());
       break;
     default:

@@ -674,10 +674,9 @@ size_t SegmentedUniqueByKey(const thrust::detail::execution_policy_base<DerivedP
   using Key = thrust::pair<size_t, typename cuda::std::iterator_traits<KeyInIt>::value_type>;
 
   auto unique_key_it = dh::MakeTransformIterator<Key>(
-      thrust::make_counting_iterator(static_cast<size_t>(0)),
-      [=] __device__(size_t i) {
+      thrust::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(size_t i) {
         size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
-        return thrust::make_pair(seg, *(key_first + i));
+        return cuda::std::make_pair(seg, *(key_first + i));
       });
   size_t segments_len = key_segments_last - key_segments_first;
   thrust::fill(exec, key_segments_out, key_segments_out + segments_len, 0);
@@ -688,19 +687,19 @@ size_t SegmentedUniqueByKey(const thrust::detail::execution_policy_base<DerivedP
   auto reduce_it = thrust::make_transform_output_iterator(
       thrust::make_discard_iterator(),
       detail::SegmentedUniqueReduceOp<Key, SegOutIt>{key_segments_out});
-  auto uniques_ret = thrust::unique_by_key_copy(
-      exec, unique_key_it, unique_key_it + n_inputs, val_first, reduce_it,
-      val_out, [=] __device__(Key const &l, Key const &r) {
-        if (l.first == r.first) {
-          // In the same segment.
-          return comp(thrust::get<1>(l), thrust::get<1>(r));
-        }
-        return false;
-      });
+  auto uniques_ret =
+      thrust::unique_by_key_copy(exec, unique_key_it, unique_key_it + n_inputs, val_first,
+                                 reduce_it, val_out, [=] __device__(Key const &l, Key const &r) {
+                                   if (l.first == r.first) {
+                                     // In the same segment.
+                                     return comp(l.second, r.second);
+                                   }
+                                   return false;
+                                 });
   auto n_uniques = uniques_ret.second - val_out;
   CHECK_LE(n_uniques, n_inputs);
-  thrust::exclusive_scan(exec, key_segments_out,
-                         key_segments_out + segments_len, key_segments_out, 0);
+  thrust::exclusive_scan(exec, key_segments_out, key_segments_out + segments_len, key_segments_out,
+                         0);
   return n_uniques;
 }
 
