@@ -425,6 +425,32 @@ class ColumnMatrix {
       size_t const batch_size = batch.Size();
 
       // Parallel sparse batch processing
+      //
+      // This section processes the input batch in parallel across multiple threads.
+      //
+      // rows [base_rowid, batch_size + base_rowid) are divided into `n_threads` blocks.
+      // Threads process the assigned blocks of rows in parallel.
+      //
+      // As the indicator of the missing elements is stored in a bitfield, to ensure thread-safe
+      // access to the bitfield, each underlying word of the bitfield
+      // of size MissingIndicator::BitFieldT::kValueSize should be processed by
+      // a single thread. Therefore, we align the row-blocks accordingly.
+      //
+      // block_size - size of the row block assigned to each thread, divisible by the kValueSize.
+      // shift - adjustment applied to the starting row (base_rowid) of each thread (except for the 0-th thread)
+      //         to ensure that each thread starts processing from a word boundary in the bitfield.
+      //
+      // 0-th thread processes rows [base_rowid, base_rowid + shift + block_size)
+      // 1-st thread processes rows [base_rowid + shift +     block_size, base_rowid + shift + 2 * block_size)
+      // 2-nd thread processes rows [base_rowid + shift + 2 * block_size, base_rowid + shift + 3 * block_size)
+      // ...
+      // (n_threads-1)-th thread processes rows [base_rowid + shift + (n_threads-1) * block_size, base_rowid + batch_size)
+      //
+      // Computations are done in two passes:
+      // 1) Counting non-zero elements per feature per thread to determine their offsets for the next step.
+      //    a) Counting non-zero elements per feature per thread.
+      //    b) Aggregating counts to determine offsets.
+      // 2) Placing elements into the sparse structure using calculated offsets of non-zero elements.
       dmlc::OMPException exc;
       std::vector<size_t> n_elements((n_threads + 1) * n_features, 0);
       std::vector<size_t> k_offsets(n_threads + 1, 0);
