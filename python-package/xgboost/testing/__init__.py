@@ -190,10 +190,6 @@ def no_dask_cudf() -> PytestSkip:
     return no_mod("dask_cudf")
 
 
-def no_json_schema() -> PytestSkip:
-    return no_mod("jsonschema")
-
-
 def no_graphviz() -> PytestSkip:
     return no_mod("graphviz")
 
