@@ -851,7 +851,7 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
       });
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + predts.size(), val_it,
                         thrust::make_discard_iterator(), totals.begin(),
-                        cuda::std::equal_to<size_t>{}, PairPlus<double, double>{});
+                        cuda::std::equal_to<size_t>{}, PairPlus<double, double>{});  // NOLINT
 
   /**
    * Calculate AUC
