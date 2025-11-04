@@ -548,8 +548,8 @@ class ColumnMatrix {
               auto coo = line.GetElement(i);
               if (is_valid(coo)) {
                 auto fid = coo.column_idx;
-                const uint32_t bin_id = row_index[k_offsets[tid] + k];
-                size_t nnz = n_elements[tid * n_features + fid] + nnz_offsets[fid];
+                const uint32_t bin_id = row_index[k_offsets[tid] + k];  // get the correct offset for this thread
+                size_t nnz = n_elements[tid * n_features + fid] + nnz_offsets[fid]; // calculate the correct nnz for this feature and this thread
                 SetBinSparse(bin_id, rid + base_rowid, fid, local_index, nnz);
                 ++k;
                 nnz_offsets[fid] += (type_[fid] != kDenseColumn);
