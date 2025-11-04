@@ -511,6 +511,11 @@ class ColumnMatrix {
       exc.Rethrow();
 
       // Parallel feature processing to aggregate counts & calculate offsets.
+      //
+      // Compute the number of non-zero elements per feature per thread (n_elements)
+      // and the offsets to non-zero elements per thread (k_offsets).
+      //
+      // The final values of n_elements and k_offsets will be calculated after counting the number of non-zero elements per thread.
       ParallelFor(n_features, n_threads, [&](auto fid) {
         n_elements[fid] += num_nonzeros_[fid];
         for (int tid = 0; tid < n_threads; ++tid) {
