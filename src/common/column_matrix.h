@@ -424,46 +424,59 @@ class ColumnMatrix {
       ColumnBinT* local_index = reinterpret_cast<ColumnBinT*>(index_.data());
       size_t const batch_size = batch.Size();
 
-      // Parallel sparse batch processing
-      //
-      // This section processes the input batch in parallel across multiple threads.
-      //
-      // rows [base_rowid, batch_size + base_rowid) are divided into `n_threads` blocks.
-      // Threads process the assigned blocks of rows in parallel.
-      //
-      // As the indicator of the missing elements is stored in a bitfield, to ensure thread-safe
-      // access to the bitfield, each underlying word of the bitfield
-      // of size MissingIndicator::BitFieldT::kValueSize should be processed by
-      // a single thread. Therefore, we align the row-blocks accordingly.
-      //
-      // block_size - size of the row block assigned to each thread, divisible by the kValueSize.
-      // shift - adjustment applied to the starting row (base_rowid) of each thread (except for the 0-th thread)
-      //         to ensure that each thread starts processing from a word boundary in the bitfield.
-      //
-      // 0-th thread processes rows [base_rowid, base_rowid + shift + block_size)
-      // 1-st thread processes rows [base_rowid + shift +     block_size, base_rowid + shift + 2 * block_size)
-      // 2-nd thread processes rows [base_rowid + shift + 2 * block_size, base_rowid + shift + 3 * block_size)
-      // ...
-      // (n_threads-1)-th thread processes rows [base_rowid + shift + (n_threads-1) * block_size, base_rowid + batch_size)
-      //
-      // Computations are done in two passes:
-      // 1) Counting non-zero elements per feature per thread to determine their offsets for the next step.
-      //    a) Counting non-zero elements per feature per thread.
-      //    b) Aggregating counts to determine offsets.
-      // 2) Placing elements into the sparse structure using calculated offsets of non-zero elements.
+      /* Parallel sparse batch processing
+       *
+       * This section processes the input batch in parallel across multiple threads.
+       *
+       * rows [base_rowid, batch_size + base_rowid) are divided into `n_threads` blocks.
+       * Threads process the assigned blocks of rows in parallel.
+       *
+       * As the indicator of the missing elements is stored in a bitfield, to ensure thread-safe
+       * access to the bitfield, each underlying word of the bitfield
+       * of size MissingIndicator::BitFieldT::kValueSize should be processed by
+       * a single thread. Therefore, we align the row-blocks accordingly.
+       *
+       * block_size - size of the row block assigned to each thread, divisible by the kValueSize.
+       * shift - adjustment applied to the starting row (base_rowid)
+       *         of each thread (except for the 0-th thread)
+       *         to ensure that each thread starts processing from a word boundary in the bitfield.
+       *
+       * 0-th thread processes rows
+       *      [base_rowid, base_rowid + shift + block_size)
+       * 1-st thread processes rows
+       *      [base_rowid + shift +     block_size, base_rowid + shift + 2 * block_size)
+       * 2-nd thread processes rows
+       *      [base_rowid + shift + 2 * block_size, base_rowid + shift + 3 * block_size)
+       * ...
+       * (n_threads-1)-th thread processes rows
+       *      [base_rowid + shift + (n_threads-1) * block_size, base_rowid + batch_size)
+       *
+       * Computations are done in two passes:
+       * 1) Counting non-zero elements per feature per thread
+       *    to determine their offsets for the next step.
+       *    a) Counting non-zero elements per feature per thread.
+       *    b) Aggregating counts to determine offsets.
+       * 2) Placing elements into the sparse structure using calculated offsets of non-zero elements.
+       */
+
+      // number of non-zero elements per feature per thread
       dmlc::OMPException exc;
-            std::vector<size_t> n_elements((n_threads + 1) * n_features, 0);  // number of non-zero elements per feature per thread
-                                                                        // n_elements[tid * n_features + fid] =
-                                                                        //   number of non-zero elements of feature fid processed by thread tid
-                                                                        // n_elements[n_threads * n_features + fid] =
-                                                                        //   total number of non-zero elements of feature fid
-      std::vector<size_t> k_offsets(n_threads + 1, 0);        // offsets of non-zero elements for each thread
-                                                              // k_offsets[0] = 0;
-                                                              // k_offsets[tid] - starting offset of non-zero elements processed by thread tid
+            std::vector<size_t> n_elements((n_threads + 1) * n_features, 0);
+      /* n_elements[tid * n_features + fid] =
+       *   number of non-zero elements of feature fid processed by thread tid
+       * n_elements[n_threads * n_features + fid] =
+       *   total number of non-zero elements of feature fid
+       */
+
+      // offsets of non-zero elements for each thread
+      std::vector<size_t> k_offsets(n_threads + 1, 0);
+      // k_offsets[0] = 0;
+      // k_offsets[tid] - starting offset of non-zero elements processed by thread tid
       const auto word32size = MissingIndicator::BitFieldT::kValueSize;
 
       size_t block_size = DivRoundUp(batch_size, n_threads);   // preliminary block size
-      // align block_size to be multiple of kValueSize, so that each thread processes full words in the bitfield
+      // align block_size to be multiple of kValueSize,
+      // so that each thread processes full words in the bitfield
       block_size = DivRoundUp(block_size, word32size) * word32size;
       /*
        * To prevent race conditions on the bitfield, we ensure each thread operates on
@@ -472,15 +485,12 @@ class ColumnMatrix {
        * the first thread must process to reach the next aligned word. This guarantees all
        * subsequent thread workloads start on a clean boundary, making parallel updates safe.
        */
-      size_t shift = MissingIndicator::BitFieldT::kValueSize -
-                     (base_rowid % MissingIndicator::BitFieldT::kValueSize);
+      size_t shift = word32size - (base_rowid % word32size);
       /*
        * If `base_rowid` is already on a word boundary, the calculation results in
        * `kValueSize`. In this case, no shift is needed.
        */
-      if (shift == MissingIndicator::BitFieldT::kValueSize) {
-        shift = 0;
-      }
+      if (shift == word32size) shift = 0;
 
       // Parallel row processing for thread-local counting.
       #pragma omp parallel num_threads(n_threads)
@@ -515,7 +525,8 @@ class ColumnMatrix {
       // Compute the number of non-zero elements per feature per thread (n_elements)
       // and the offsets to non-zero elements per thread (k_offsets).
       //
-      // The final values of n_elements and k_offsets will be calculated after counting the number of non-zero elements per thread.
+      // The final values of n_elements and k_offsets will be calculated
+      // after counting the number of non-zero elements per thread.
       ParallelFor(n_features, n_threads, [&](auto fid) {
         n_elements[fid] += num_nonzeros_[fid];
         for (int tid = 0; tid < n_threads; ++tid) {
@@ -529,9 +540,10 @@ class ColumnMatrix {
       // Parallel row processing to place data using offsets into sparse structure.
       #pragma omp parallel num_threads(n_threads)
       {
-                std::vector<size_t> nnz_offsets(n_features, 0);   // offsets of non-zero elements per feature for the current thread
-                                                          // nnz_offsets[fid] =
-                                                          //   number of non-zero elements of feature fid already processed by this thread
+        // offsets of non-zero elements per feature for the current thread
+        std::vector<size_t> nnz_offsets(n_features, 0);   
+        // nnz_offsets[fid] =
+        // number of non-zero elements of feature fid already processed by this thread
         exc.Run([&, is_valid, base_rowid, row_index]() {
           int tid = omp_get_thread_num();
           size_t begin = block_size * tid;
@@ -548,8 +560,10 @@ class ColumnMatrix {
               auto coo = line.GetElement(i);
               if (is_valid(coo)) {
                 auto fid = coo.column_idx;
-                const uint32_t bin_id = row_index[k_offsets[tid] + k];  // get the correct offset for this thread
-                size_t nnz = n_elements[tid * n_features + fid] + nnz_offsets[fid]; // calculate the correct nnz for this feature and this thread
+                // get the correct offset for this thread
+                const uint32_t bin_id = row_index[k_offsets[tid] + k];
+                // calculate the correct nnz for this feature and this thread
+                size_t nnz = n_elements[tid * n_features + fid] + nnz_offsets[fid];
                 SetBinSparse(bin_id, rid + base_rowid, fid, local_index, nnz);
                 ++k;
                 nnz_offsets[fid] += (type_[fid] != kDenseColumn);
