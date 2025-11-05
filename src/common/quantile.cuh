@@ -6,7 +6,8 @@
 
 #include <thrust/logical.h>  // for any_of
 
-#include <cuda/std/functional>  // for equal_to
+#include <cstddef>     // for size_t
+#include <functional>  // for equal_to
 
 #include "categorical.h"
 #include "common.h"          // for HumanMemUnit
@@ -206,8 +207,8 @@ class SketchContainer {
   SketchContainer& operator=(const SketchContainer&) = delete;
 
   /* \brief Removes all the duplicated elements in quantile structure. */
-  template <typename KeyComp = cuda::std::equal_to<size_t>>
-  size_t Unique(Context const* ctx, KeyComp key_comp = cuda::std::equal_to<size_t>{}) {
+  template <typename KeyComp = std::equal_to<size_t>>
+  std::size_t Unique(Context const* ctx, KeyComp key_comp = std::equal_to<size_t>{}) {
     timer_.Start(__func__);
     curt::SetDevice(ctx->Ordinal());
     this->columns_ptr_.SetDevice(ctx->Device());

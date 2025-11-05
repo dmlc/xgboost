@@ -13,8 +13,8 @@
 #include <cub/device/device_run_length_encode.cuh>      // for DeviceRunLengthEncode
 #include <cub/device/dispatch/dispatch_radix_sort.cuh>  // for DispatchSegmentedRadixSort
 #include <cub/util_type.cuh>                            // for NullType, DoubleBuffer
-#include <cuda/std/functional>                          // for plus, logical_and
 #include <cuda/std/tuple>                               // for tuple
+#include <functional>                                   // for plus, logical_and
 #include <iterator>                                     // for distance
 #include <limits>                                       // for numeric_limits
 #include <type_traits>                                  // for conditional_t,remove_const_t
@@ -334,7 +334,7 @@ template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
 void InclusiveSum(Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out,
                   OffsetT num_items) {
 #if CUB_VERSION >= 300000
-  InclusiveScan(ctx, d_in, d_out, cuda::std::plus{}, num_items);
+  InclusiveScan(ctx, d_in, d_out, std::plus{}, num_items);
 #else
   InclusiveScan(ctx, d_in, d_out, cub::Sum{}, num_items);
 #endif
@@ -373,7 +373,7 @@ AllOf(Policy policy, InputIt first, InputIt second, Chk &&check) {
   auto n = std::distance(first, second);
   auto it =
       dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) { return check(first[i]); });
-  return dh::Reduce(policy, it, it + n, true, cuda::std::logical_and<>{});
+  return dh::Reduce(policy, it, it + n, true, std::logical_and<>{});
 }
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_ALGORITHM_CUH_

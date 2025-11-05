@@ -6,8 +6,8 @@
 #include <thrust/scan.h>
 
 #include <cassert>
-#include <cub/cub.cuh>          // NOLINT
-#include <cuda/std/functional>  // for equal_to
+#include <cuda/std/utility>  // for pair
+#include <functional>        // for equal_to
 #include <limits>
 #include <memory>
 #include <tuple>
@@ -375,7 +375,7 @@ double GPUMultiClassAUCOVR(Context const *ctx, MetaInfo const &info,
   auto n_uniques = dh::SegmentedUniqueByKey(
       ctx->CUDACtx()->TP(), dh::tbegin(d_class_ptr), dh::tend(d_class_ptr), uni_key,
       uni_key + d_sorted_idx.size(), dh::tbegin(d_unique_idx), d_unique_class_ptr.data(),
-      dh::tbegin(d_unique_idx), cuda::std::equal_to<thrust::pair<uint32_t, float>>{});
+      dh::tbegin(d_unique_idx), std::equal_to<thrust::pair<uint32_t, float>>{});
   d_unique_idx = d_unique_idx.subspan(0, n_uniques);
 
   auto get_class_id = [=] XGBOOST_DEVICE(size_t idx) { return idx / n_samples; };
@@ -743,7 +743,7 @@ std::pair<double, uint32_t> GPURankingPRAUCImpl(Context const *ctx,
   auto n_uniques = dh::SegmentedUniqueByKey(
       ctx->CUDACtx()->TP(), dh::tbegin(d_group_ptr), dh::tend(d_group_ptr), uni_key,
       uni_key + d_sorted_idx.size(), dh::tbegin(d_unique_idx), d_unique_class_ptr.data(),
-      dh::tbegin(d_unique_idx), cuda::std::equal_to<thrust::pair<uint32_t, float>>{});
+      dh::tbegin(d_unique_idx), std::equal_to<cuda::std::pair<uint32_t, float>>{});
   d_unique_idx = d_unique_idx.subspan(0, n_uniques);
 
   auto get_group_id = [=] XGBOOST_DEVICE(size_t idx) {
@@ -850,8 +850,8 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
         return thrust::make_pair(y * w, (1.0 - y) * w);
       });
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + predts.size(), val_it,
-                        thrust::make_discard_iterator(), totals.begin(),
-                        cuda::std::equal_to<size_t>{}, PairPlus<double, double>{});  // NOLINT
+                        thrust::make_discard_iterator(), totals.begin(), std::equal_to<size_t>{},
+                        PairPlus<double, double>{});  // NOLINT
 
   /**
    * Calculate AUC
