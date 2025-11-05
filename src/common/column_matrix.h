@@ -541,7 +541,7 @@ class ColumnMatrix {
       #pragma omp parallel num_threads(n_threads)
       {
         // offsets of non-zero elements per feature for the current thread
-        std::vector<size_t> nnz_offsets(n_features, 0);   
+        std::vector<size_t> nnz_offsets(n_features, 0);
         // nnz_offsets[fid] =
         // number of non-zero elements of feature fid already processed by this thread
         exc.Run([&, is_valid, base_rowid, row_index]() {
