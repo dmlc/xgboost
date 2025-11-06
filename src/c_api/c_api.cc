@@ -1739,7 +1739,7 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
   API_END();
 }
 
-XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, char const * /*config*/,
+XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const * /*config*/,
                                    CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
