@@ -50,7 +50,7 @@ typedef void *DMatrixHandle;  // NOLINT(*)
 /** @brief Handle to the Booster */
 typedef void *BoosterHandle;  // NOLINT(*)
 /** @brief Handle to the categories container. */
-typedef  void * CategoriesHandle;  // NOLINT(*)
+typedef void * CategoriesHandle;  // NOLINT(*)
 
 /**
  * @brief Return the version of the XGBoost library.
@@ -1568,7 +1568,7 @@ XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const *config, Cat
  *
  * @note Experimental API, subject to change in the future.
  */
-XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, char const * config,
+XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, char const *config,
                                                 CategoriesHandle *out, char const **export_out);
 
 /**
