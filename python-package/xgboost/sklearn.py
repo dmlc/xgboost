@@ -103,7 +103,7 @@ class _SklObjWProto(Protocol):
         self,
         y_true: ArrayLike,
         y_pred: ArrayLike,
-        sample_weight: Optional[ArrayLike],
+        sample_weight: Optional[ArrayLike] = None,
     ) -> Tuple[ArrayLike, ArrayLike]: ...
 
 

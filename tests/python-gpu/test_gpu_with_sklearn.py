@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, List, Tuple
 
 import numpy as np
 import pytest
@@ -23,7 +24,7 @@ pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 rng = np.random.RandomState(1994)
 
 
-def test_gpu_binary_classification():
+def test_gpu_binary_classification() -> None:
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
@@ -83,7 +84,7 @@ def test_num_parallel_tree() -> None:
 @pytest.mark.skipif(**tm.no_pandas())
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_categorical():
+def test_categorical() -> None:
     import cudf
     import cupy as cp
     import pandas as pd
@@ -118,15 +119,17 @@ def test_categorical():
             assert categories_sizes.shape[0] != 0
             np.testing.assert_allclose(categories_sizes, 1)
 
-    def check_predt(X, y):
+    def check_predt(X: Any, y: List[float]) -> None:
         reg = xgb.XGBRegressor(
             tree_method="hist", enable_categorical=True, n_estimators=64, device="cuda"
         )
         reg.fit(X, y)
         predts = reg.predict(X)
         booster = reg.get_booster()
-        assert "c" in booster.feature_types
-        assert len(booster.feature_types) == 1
+        feature_types = booster.feature_types
+        assert feature_types is not None
+        assert "c" in feature_types
+        assert len(feature_types) == 1
         inp_predts = booster.inplace_predict(X)
         if isinstance(inp_predts, cp.ndarray):
             inp_predts = cp.asnumpy(inp_predts)
@@ -143,7 +146,7 @@ def test_categorical():
 
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_cudf())
-def test_classififer():
+def test_classififer() -> None:
     import cudf
     import cupy as cp
     from sklearn.datasets import load_digits
@@ -208,6 +211,7 @@ def test_custom_objective(
     }
 
     obj = tm.softprob_obj(y.max() + 1, use_cupy=use_cupy, order=order, gdtype=gdtype)
+    assert callable(obj)
 
     clf = xgb.XGBClassifier(objective=obj, **params)
 
@@ -229,7 +233,9 @@ def test_custom_objective(
 
     params["n_estimators"] = 2
 
-    def wrong_shape(labels, predt):
+    def wrong_shape(
+        labels: np.ndarray, predt: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         grad, hess = obj(labels, predt)
         return grad[:, :-1], hess[:, :-1]
 
@@ -237,7 +243,9 @@ def test_custom_objective(
         clf = xgb.XGBClassifier(objective=wrong_shape, **params)
         clf.fit(X, y)
 
-    def wrong_shape_1(labels, predt):
+    def wrong_shape_1(
+        labels: np.ndarray, predt: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         grad, hess = obj(labels, predt)
         return grad[:-1, :], hess[:-1, :]
 
@@ -245,7 +253,9 @@ def test_custom_objective(
         clf = xgb.XGBClassifier(objective=wrong_shape_1, **params)
         clf.fit(X, y)
 
-    def wrong_shape_2(labels, predt):
+    def wrong_shape_2(
+        labels: np.ndarray, predt: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         grad, hess = obj(labels, predt)
         return grad[:, :], hess[:-1, :]
 
@@ -253,7 +263,9 @@ def test_custom_objective(
         clf = xgb.XGBClassifier(objective=wrong_shape_2, **params)
         clf.fit(X, y)
 
-    def wrong_shape_3(labels, predt):
+    def wrong_shape_3(
+        labels: np.ndarray, predt: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         grad, hess = obj(labels, predt)
         grad = grad.reshape(grad.size)
         hess = hess.reshape(hess.size)
@@ -265,7 +277,7 @@ def test_custom_objective(
 
 
 @pytest.mark.skipif(**tm.no_cudf())
-def test_ranking_qid_df():
+def test_ranking_qid_df() -> None:
     import cudf
 
     run_ranking_qid_df(cudf, "hist", "cuda")
