@@ -607,7 +607,7 @@ def test_dask_regressor(model: str, client: "Client") -> None:
 
 
 def run_dask_classifier(
-    X: dxgb._DaskCollection,
+    X: dxgb._DataT,
     y: dxgb._DaskCollection,
     w: dxgb._DaskCollection,
     model: str,
