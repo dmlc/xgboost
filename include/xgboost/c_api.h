@@ -45,10 +45,12 @@ typedef uint64_t bst_ulong;  // NOLINT(*)
  * @{
  */
 
-/** @brief handle to DMatrix */
+/** @brief Handle to the DMatrix */
 typedef void *DMatrixHandle;  // NOLINT(*)
-/** @brief handle to Booster */
+/** @brief Handle to the Booster */
 typedef void *BoosterHandle;  // NOLINT(*)
+/** @brief Handle to the categories container. */
+typedef  void * CategoriesHandle;  // NOLINT(*)
 
 /**
  * @brief Return the version of the XGBoost library.
@@ -802,6 +804,53 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
                                        const char ***out_features);
 
 /**
+ * @brief Create an opaque handle to the internal category container.
+ *
+ * @since 3.2
+ *
+ * @note Experimental API, subject to change in the future.
+ *
+ * The container should be freed by @ref XGBCategoriesFree
+ *
+ * @param handle An instance of the data matrix.
+ * @param out    Created handle to the category container. Set to NULL if there's no category.
+ *
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const *config, CategoriesHandle *out);
+
+/**
+ * @brief Create an opaque handle to the internal container and export it to arrow.
+ *
+ * @since 3.2
+ *
+ * @note Experimental API, subject to change in the future.
+ *
+ * The container should be freed by @ref XGBCategoriesFree
+ *
+ * @param handle     An instance of the data matrix.
+ * @param out        Created handle to the category container
+ * @param export_out JSON encoded array of categories, with length equal to the number of features.
+ *
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, char const *config,
+                                                CategoriesHandle *out, char const **export_out);
+
+/**
+ * @brief Free the opaque handle.
+ *
+ * @since 3.2
+ *
+ * @note Experimental API, subject to change in the future.
+ *
+ * @param handle An instance of the category container.
+ *
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGBCategoriesFree(CategoriesHandle handle);
+
+/**
  * @deprecated since 2.1.0
  *
  * Use @ref XGDMatrixSetInfoFromInterface instead.
@@ -1502,6 +1551,25 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
                                              const char *format,
                                              bst_ulong *out_len,
                                              const char ***out_models);
+
+/**
+ * See @ref XGDMatrixGetCategories
+ *
+ * @since 3.2
+ *
+ * @note Experimental API, subject to change in the future.
+ */
+XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, char const *config, CategoriesHandle *out);
+
+/**
+ * See @ref XGDMatrixGetCategoriesExportToArrow
+ *
+ * @since 3.2
+ *
+ * @note Experimental API, subject to change in the future.
+ */
+XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, char const * config,
+                                                CategoriesHandle *out, char const **export_out);
 
 /**
  * @brief Get string attribute from Booster.
