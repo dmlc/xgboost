@@ -5,10 +5,11 @@ Collection of examples for using xgboost.spark estimator interface
 @author: Weichen Xu
 """
 
+import numpy as np
 import sklearn.datasets
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator, RegressionEvaluator
 from pyspark.ml.linalg import Vectors
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import rand
 from sklearn.model_selection import train_test_split
 
@@ -17,7 +18,7 @@ from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 spark = SparkSession.builder.master("local[*]").getOrCreate()
 
 
-def create_spark_df(X, y):
+def create_spark_df(X: np.ndarray, y: np.ndarray) -> DataFrame:
     return spark.createDataFrame(
         spark.sparkContext.parallelize(
             [(Vectors.dense(features), float(label)) for features, label in zip(X, y)]

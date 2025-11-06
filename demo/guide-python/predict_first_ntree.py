@@ -14,7 +14,7 @@ train = os.path.join(CURRENT_DIR, "../data/agaricus.txt.train")
 test = os.path.join(CURRENT_DIR, "../data/agaricus.txt.test")
 
 
-def native_interface():
+def native_interface() -> None:
     # load data in do training
     dtrain = xgb.DMatrix(train + "?format=libsvm")
     dtest = xgb.DMatrix(test + "?format=libsvm")
@@ -34,7 +34,7 @@ def native_interface():
     print("error of ypred2=%f" % (np.sum((ypred2 > 0.5) != label) / float(len(label))))
 
 
-def sklearn_interface():
+def sklearn_interface() -> None:
     X_train, y_train = load_svmlight_file(train)
     X_test, y_test = load_svmlight_file(test)
     clf = xgb.XGBClassifier(n_estimators=3, max_depth=2, eta=1)
