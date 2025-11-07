@@ -266,7 +266,8 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     }
   } else {
     // Multi-target, scalar leaf
-    CHECK_EQ(in_gpair->gpair.Size() % n_groups, 0U) << "Must have exactly n_groups * n_samples gpairs.";
+    CHECK_EQ(in_gpair->gpair.Size() % n_groups, 0U)
+        << "Must have exactly n_groups * n_samples gpairs.";
     GradientContainer tmp;
     tmp.gpair = linalg::Matrix<GradientPair>{
         {in_gpair->gpair.Shape(0), static_cast<std::size_t>(1ul)}, ctx_->Device()};
@@ -342,7 +343,7 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
       "Mismatching size between number of rows from input data and size of gradient vector."};
   if (!model_.learner_model_param->IsVectorLeaf() && p_fmat->Info().num_row_ != 0) {
     CHECK_EQ(n_out % gpair->gpair.Size(), 0) << msg;
-  } else if (model_.learner_model_param->IsVectorLeaf()){
+  } else if (model_.learner_model_param->IsVectorLeaf()) {
     // vector leaf
     if (!gpair->HasValueGrad()) {
       CHECK_EQ(gpair->gpair.Size(), n_out) << msg;

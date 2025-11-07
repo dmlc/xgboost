@@ -1150,25 +1150,6 @@ class LearnerImpl : public LearnerIO {
     monitor_.Stop("UpdateOneIter");
   }
 
-  // void BoostOneIter(int iter, std::shared_ptr<DMatrix> train,
-  //                   linalg::Matrix<GradientPair>* in_gpair) override {
-  //   monitor_.Start("BoostOneIter");
-  //   this->Configure();
-
-  //   if (ctx_.seed_per_iteration) {
-  //     common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
-  //   }
-
-  //   this->ValidateDMatrix(train.get(), true);
-
-  //   CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->Shape(1))
-  //       << "The number of columns in gradient should be equal to the number of targets/classes in "
-  //          "the model.";
-  //   auto predt = prediction_container_.Cache(train, ctx_.Device());
-  //   gbm_->DoBoost(train.get(), in_gpair, predt.get(), obj_.get());
-  //   monitor_.Stop("BoostOneIter");
-  // }
-
   void BoostOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train,
                     GradientContainer* in_gpair) override {
     this->monitor_.Start(__func__);
