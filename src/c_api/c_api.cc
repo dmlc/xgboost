@@ -1252,7 +1252,7 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   API_END();
 }
 
-typedef char const *JArrayStr;  // NOLINT(modernize-use-using)
+typedef char const *JArrayStr;  // NOLINT
 
 // Hidden, working-in-progress support for reduced gradient. CUDA-only at the moment.
 /**
@@ -1260,8 +1260,8 @@ typedef char const *JArrayStr;  // NOLINT(modernize-use-using)
  *
  * @param split_grad Gradient for finding tree splits.
  * @param split_hess Hessian for finding tree splits.
- * @param value_grad Gradient for calculating tree leaf weight.
- * @param value_hess Hessian for calculating tree leaf weight.
+ * @param value_grad Gradient for calculating tree leaf weights.
+ * @param value_hess Hessian for calculating tree leaf weights.
  */
 XGB_DLL int XGBoosterTrainOneIterWithWithSplitGrad(BoosterHandle handle, DMatrixHandle dtrain,
                                                    int iter, JArrayStr split_grad,
