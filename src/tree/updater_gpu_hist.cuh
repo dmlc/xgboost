@@ -11,10 +11,10 @@
 #include "driver.h"                            // for Driver
 #include "gpu_hist/feature_groups.cuh"         // for FeatureGroups
 #include "gpu_hist/histogram.cuh"              // for DeviceHistogramBuilder
+#include "gpu_hist/leaf_sum.cuh"               // for LeafGradSum
 #include "gpu_hist/multi_evaluate_splits.cuh"  // for MultiHistEvaluator
 #include "gpu_hist/row_partitioner.cuh"        // for RowPartitioner
 #include "hist/hist_param.h"                   // for HistMakerTrainParam
-#include "leaf_sum.cuh"                        // for LeafGradSum
 #include "tree_view.h"                         // for MultiTargetTreeView
 #include "xgboost/base.h"                      // for bst_idx_t
 #include "xgboost/context.h"                   // for Context

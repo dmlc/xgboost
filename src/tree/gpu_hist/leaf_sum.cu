@@ -3,15 +3,15 @@
  */
 #include <vector>  // for vector
 
-#include "../common/linalg_op.cuh"       // for tbegin
-#include "gpu_hist/quantiser.cuh"        // for GradientQuantiser
-#include "gpu_hist/row_partitioner.cuh"  // for RowIndexT, LeafInfo
+#include "../../common/linalg_op.cuh"  // for tbegin
+#include "../updater_gpu_common.cuh"   // for GPUTrainingParam
 #include "leaf_sum.cuh"
-#include "updater_gpu_common.cuh"  // for GPUTrainingParam
-#include "xgboost/base.h"          // for GradientPairInt64
-#include "xgboost/context.h"       // for Context
-#include "xgboost/linalg.h"        // for MatrixView
-#include "xgboost/span.h"          // for Span
+#include "quantiser.cuh"        // for GradientQuantiser
+#include "row_partitioner.cuh"  // for RowIndexT, LeafInfo
+#include "xgboost/base.h"       // for GradientPairInt64
+#include "xgboost/context.h"    // for Context
+#include "xgboost/linalg.h"     // for MatrixView
+#include "xgboost/span.h"       // for Span
 
 namespace xgboost::tree::cuda_impl {
 void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,

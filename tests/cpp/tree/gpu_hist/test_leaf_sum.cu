@@ -7,11 +7,11 @@
 
 #include <vector>  // for vector
 
-#include "../../../src/common/device_vector.cuh"
-#include "../../../src/tree/gpu_hist/row_partitioner.cuh"  // for LeafInfo
-#include "../../../src/tree/leaf_sum.cuh"
-#include "../helpers.h"
-#include "gpu_hist/dummy_quantizer.cuh"  // for MakeDummyQuantizers
+#include "../../../../src/common/device_vector.cuh"
+#include "../../../../src/tree/gpu_hist/leaf_sum.cuh"
+#include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for LeafInfo
+#include "../../helpers.h"
+#include "dummy_quantizer.cuh"  // for MakeDummyQuantizers
 
 namespace xgboost::tree::cuda_impl {
 TEST(LeafGradSum, Basic) {

@@ -5,12 +5,12 @@
 
 #include <vector>  // for vector
 
-#include "gpu_hist/quantiser.cuh"        // for GradientQuantiser
-#include "gpu_hist/row_partitioner.cuh"  // for RowIndexT, LeafInfo
-#include "updater_gpu_common.cuh"        // for GPUTrainingParam
-#include "xgboost/context.h"             // for Context
-#include "xgboost/linalg.h"              // for MatrixView
-#include "xgboost/span.h"                // for Span
+#include "../updater_gpu_common.cuh"  // for GPUTrainingParam
+#include "quantiser.cuh"              // for GradientQuantiser
+#include "row_partitioner.cuh"        // for RowIndexT, LeafInfo
+#include "xgboost/context.h"          // for Context
+#include "xgboost/linalg.h"           // for MatrixView
+#include "xgboost/span.h"             // for Span
 
 namespace xgboost::tree::cuda_impl {
 // shape(out_sum) == (n_leaves, n_targets)
