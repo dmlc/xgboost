@@ -1,6 +1,8 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
+#pragma once
+
 #include <cstddef>   // for size_t
 #include <iostream>  // for cout
 #include <vector>    // for vector

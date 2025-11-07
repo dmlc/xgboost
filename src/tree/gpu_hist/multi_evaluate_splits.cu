@@ -260,7 +260,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     scans[nidx_in_set] = dh::ToSpan(this->scan_buffer_)
                              .subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
   }
-  // fixme: make sure root sum is copied.
 
   // Launch histogram scan kernel
   dim3 grid{n_nodes, n_features, n_targets};

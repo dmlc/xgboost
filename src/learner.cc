@@ -1161,9 +1161,13 @@ class LearnerImpl : public LearnerIO {
 
     this->ValidateDMatrix(train.get(), true);
 
-    CHECK_GE(this->learner_model_param_.OutputLength(), in_gpair->value_gpair.Shape(1))
+    CHECK_GE(this->learner_model_param_.OutputLength(), in_gpair->NumSplitTargets())
         << "The number of columns in gradient should be equal to or lesser than the number of "
            "targets/classes in the model.";
+    if (in_gpair->HasValueGrad()) {
+      CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->NumTargets())
+          << "Value gradient should have the same number of targets as the overall model.";
+    }
     auto predt = prediction_container_.Cache(train, ctx_.Device());
     this->gbm_->DoBoost(train.get(), in_gpair, predt.get(), obj_.get());
     this->monitor_.Stop(__func__);

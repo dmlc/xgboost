@@ -411,7 +411,6 @@ class MultiTargetHistMaker {
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
       for (auto& candidate : expand_set) {
-        // fixme: prevent node size == 0
         this->ApplySplit(candidate, p_tree);
       }
 
