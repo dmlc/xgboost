@@ -813,6 +813,7 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  * The container should be freed by @ref XGBCategoriesFree
  *
  * @param handle An instance of the data matrix.
+ * @param config Unused, reserved for the future.
  * @param out    Created handle to the category container. Set to NULL if there's no category.
  *
  * @return 0 when success, -1 when failure happens.
@@ -829,6 +830,7 @@ XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const *config, Cat
  * The container should be freed by @ref XGBCategoriesFree
  *
  * @param handle     An instance of the data matrix.
+ * @param config     Unused, reserved for the future.
  * @param out        Created handle to the category container
  * @param export_out JSON encoded array of categories, with length equal to the number of features.
  *

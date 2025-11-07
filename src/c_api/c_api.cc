@@ -1757,9 +1757,6 @@ XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const * /*config*/
   API_END()
 }
 
-/**
- * See @ref XGDMatrixGetCategoriesExportToArrow
- */
 XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, char const * /*config*/,
                                                 CategoriesHandle *out, char const **export_out) {
   API_BEGIN()
