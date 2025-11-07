@@ -821,6 +821,21 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  * @param out    Created handle to the category container. Set to NULL if there's no category.
  *
  * @return 0 when success, -1 when failure happens.
+ *
+ * @code{c}
+ *    DMatrixHandle fmat;
+ *    // Create a DMatrix from categorical data
+ *    // ...
+ *    CategoriesHandle cats;
+ *    int err = XGBoosterGetCategories(fmat, NULL, &cats)
+ *    if (err != 0) {
+ *        exit(-1);
+ *    }
+ *    err = XGBCategoriesFree(cats);
+ *    if (err != 0) {
+ *        exit(-1);
+ *    }
+ * @endcode
  */
 XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const *config, CategoriesHandle *out);
 
