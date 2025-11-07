@@ -1,6 +1,6 @@
 """Tests for multi-target training."""
 
-from typing import Callable, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 from sklearn.datasets import (
@@ -11,7 +11,9 @@ from sklearn.datasets import (
 
 import xgboost.testing as tm
 
-from ..core import Booster, QuantileDMatrix
+from .._typing import ArrayLike
+from ..core import Booster, DMatrix, QuantileDMatrix
+from ..objective import TreeObjective
 from ..sklearn import XGBClassifier
 from ..training import train
 from .updater import ResetStrategy
@@ -64,25 +66,25 @@ def run_reduced_grad(device: Device) -> None:
     """Basic test for using reduced gradient for tree splits."""
     import cupy as cp
 
-    def reducer(
-        grad: np.ndarray, hess: np.ndarray, dtrain: QuantileDMatrix
-    ) -> tuple[cp.ndarray, cp.ndarray]:
-        return cp.array(grad), cp.array(hess)
+    class LsObj(TreeObjective):
+        def __call__(
+            self, y_pred: ArrayLike, dtrain: DMatrix
+        ) -> Tuple[cp.ndarray, cp.ndarray]:
+            y_true = dtrain.get_label().reshape(y_pred.shape)
+            grad, hess = tm.ls_obj(y_true, y_pred, None)
+            return cp.array(grad), cp.array(hess)
 
-    def ls_obj(
-        y_pred: np.ndarray, dtrain: QuantileDMatrix
-    ) -> Tuple[cp.ndarray, cp.ndarray]:
-        # no weight yet
-        y_true = dtrain.get_label().reshape(y_pred.shape)
-        grad, hess = tm.ls_obj(y_true, y_pred, None)
-        return cp.array(grad), cp.array(hess)
+        def split_grad(
+            self, grad: ArrayLike, hess: ArrayLike
+        ) -> Tuple[ArrayLike, ArrayLike]:
+            return cp.array(grad), cp.array(hess)
 
     X, y = make_regression(
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
     )
     Xy = QuantileDMatrix(X, y)
 
-    def run_test(reducer: Optional[Callable]) -> Booster:
+    def run_test(obj: Optional[TreeObjective]) -> Booster:
         evals_result: Dict[str, Dict] = {}
         booster = train(
             {
@@ -92,26 +94,29 @@ def run_reduced_grad(device: Device) -> None:
             },
             Xy,
             evals=[(Xy, "Train")],
-            red=reducer,
-            obj=ls_obj,
+            obj=obj,
             num_boost_round=8,
             evals_result=evals_result,
         )
         assert tm.non_increasing(evals_result["Train"]["rmse"])
         return booster
 
-    booster_0 = run_test(reducer)
+    booster_0 = run_test(LsObj())
     booster_1 = run_test(None)
     np.testing.assert_allclose(
         booster_0.inplace_predict(X), booster_1.inplace_predict(X)
     )
 
     # Use mean gradient, should still converge.
-    def reducer_1(
-        grad: np.ndarray, hess: np.ndarray, dtrain: QuantileDMatrix
-    ) -> tuple[cp.ndarray, cp.ndarray]:
-        sgrad = cp.mean(grad, axis=1)
-        shess = cp.mean(hess, axis=1)
-        return sgrad, shess
+    class LsObj1(LsObj):
+        def split_grad(
+            self, grad: ArrayLike, hess: ArrayLike
+        ) -> Tuple[cp.ndarray, cp.ndarray]:
+            sgrad = cp.mean(grad, axis=1)
+            shess = cp.mean(hess, axis=1)
+            print(shess.shape)
+            assert False
+            return sgrad, shess
 
-    run_test(reducer_1)
+    # booster_2 = run_test(LsObj1())
+    # print(booster_2.get_dump())

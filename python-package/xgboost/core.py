@@ -77,6 +77,7 @@ from .compat import (
     py_str,
 )
 from .libpath import find_lib_path
+from .objective import TreeObjective
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -2389,7 +2390,6 @@ class Booster:
         dtrain: DMatrix,
         iteration: int,
         fobj: Optional[Objective] = None,
-        fred: Optional[Objective] = None,  # fixme: type
     ) -> None:
         """Update for one iteration, with objective function calculated
         internally.  This function should not be called directly by users.
@@ -2408,37 +2408,29 @@ class Booster:
             raise TypeError(f"Invalid training matrix: {type(dtrain).__name__}")
         self._assign_dmatrix_features(dtrain)
 
-        if fobj is None and fred is None:
+        if fobj is None:
             _check_call(
                 _LIB.XGBoosterUpdateOneIter(
                     self.handle, ctypes.c_int(iteration), dtrain.handle
                 )
             )
-        elif fobj is not None and fred is not None:
+        else:
             pred = self.predict(dtrain, output_margin=True, training=True)
+            vgrad: Optional[ArrayLike]
+            vhess: Optional[ArrayLike]
             vgrad, vhess = fobj(pred, dtrain)
-            sgrad, shess = fred(vgrad, vhess, dtrain)
+            if isinstance(fobj, TreeObjective):
+                sgrad, shess = fobj.split_grad(vgrad, vhess)
+            else:
+                sgrad, shess = vgrad, vhess
+                vgrad, vhess = None, None
             self.boost(
                 dtrain,
                 iteration=iteration,
                 grad=sgrad,
                 hess=shess,
-                vgrad=vgrad,
-                vhess=vhess,
-            )
-        elif fobj is not None:
-            pred = self.predict(dtrain, output_margin=True, training=True)
-            grad, hess = fobj(pred, dtrain)
-            self.boost(
-                dtrain,
-                iteration=iteration,
-                grad=grad,
-                hess=hess,
-            )
-        else:
-            raise NotImplementedError(
-                "A custom gradient reducer with built-in objective is not yet"
-                " implemented."
+                _vgrad=vgrad,
+                _vhess=vhess,
             )
 
     def boost(
@@ -2447,8 +2439,8 @@ class Booster:
         iteration: int,
         grad: NumpyOrCupy,
         hess: NumpyOrCupy,
-        vgrad: Optional[NumpyOrCupy] = None,
-        vhess: Optional[NumpyOrCupy] = None,
+        _vgrad: Optional[NumpyOrCupy] = None,  # WIP vector-leaf support
+        _vhess: Optional[NumpyOrCupy] = None,  # WIP vector-leaf support
     ) -> None:
         """Boost the booster for one iteration with customized gradient statistics.
         Like :py:func:`xgboost.Booster.update`, this function should not be called
@@ -2499,8 +2491,9 @@ class Booster:
 
             return interface
 
-        if vgrad is not None or vhess is not None:
-            assert vhess is not None and vgrad is not None
+        if _vgrad is not None or _vhess is not None:
+            assert _vhess is not None and _vgrad is not None
+            print("use with obj")
             _check_call(
                 _LIB.XGBoosterTrainOneIterWithObj(
                     self.handle,
@@ -2508,8 +2501,8 @@ class Booster:
                     iteration,
                     grad_arrinf(grad),
                     grad_arrinf(hess),
-                    grad_arrinf(vgrad),
-                    grad_arrinf(vhess),
+                    grad_arrinf(_vgrad),
+                    grad_arrinf(_vhess),
                 )
             )
         else:
