@@ -2493,7 +2493,6 @@ class Booster:
 
         if _vgrad is not None or _vhess is not None:
             assert _vhess is not None and _vgrad is not None
-            print("use with obj")
             _check_call(
                 _LIB.XGBoosterTrainOneIterWithObj(
                     self.handle,
