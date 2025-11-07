@@ -27,7 +27,7 @@ class TestGPUEvalMetrics:
         run_roc_auc_multi("hist", n_samples, weighted, "cuda")
 
     @pytest.mark.parametrize("n_samples", [4, 100, 1000])
-    def test_roc_auc_ltr(self, n_samples):
+    def test_roc_auc_ltr(self, n_samples: int) -> None:
         import numpy as np
 
         rng = np.random.RandomState(1994)

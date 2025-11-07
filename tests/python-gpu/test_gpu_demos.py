@@ -1,6 +1,5 @@
 import os
 import subprocess
-import sys
 
 import pytest
 
@@ -11,19 +10,19 @@ PYTHON_DEMO_DIR = os.path.join(DEMO_DIR, "guide-python")
 
 
 @pytest.mark.skipif(**tm.no_cupy())
-def test_data_iterator():
+def test_data_iterator() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "quantile_data_iterator.py")
     cmd = ["python", script]
     subprocess.check_call(cmd)
 
 
-def test_update_process_demo():
+def test_update_process_demo() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "update_process.py")
     cmd = ["python", script]
     subprocess.check_call(cmd)
 
 
-def test_categorical_demo():
+def test_categorical_demo() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "categorical.py")
     cmd = ["python", script]
     subprocess.check_call(cmd)
@@ -31,7 +30,7 @@ def test_categorical_demo():
 
 @pytest.mark.skipif(**tm.no_rmm())
 @pytest.mark.skipif(**tm.no_cupy())
-def test_external_memory_demo():
+def test_external_memory_demo() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "external_memory.py")
     cmd = ["python", script, "--device=cuda"]
     subprocess.check_call(cmd)
@@ -40,7 +39,7 @@ def test_external_memory_demo():
 @pytest.mark.skipif(**tm.no_rmm())
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.mgpu
-def test_distributed_extmem_basic_demo():
+def test_distributed_extmem_basic_demo() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "distributed_extmem_basic.py")
     cmd = ["python", script, "--device=cuda"]
     subprocess.check_call(cmd)
