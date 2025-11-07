@@ -33,7 +33,9 @@ class TestGPUUpdatersMulti:
         hist_parameter_strategy, strategies.integers(1, 20), tm.multi_dataset_strategy
     )
     @settings(deadline=None, max_examples=50, print_blob=True)
-    def test_hist(self, param, num_rounds, dataset):
+    def test_hist(
+        self, param: Dict[str, Any], num_rounds: int, dataset: tm.TestDataset
+    ) -> None:
         param["tree_method"] = "hist"
         param["device"] = "cuda"
         param = dataset.set_params(param)
@@ -115,7 +117,7 @@ class TestGPUUpdaters:
 
     @given(tm.sparse_datasets_strategy)
     @settings(deadline=None, print_blob=True)
-    def test_sparse(self, dataset):
+    def test_sparse(self, dataset: tm.TestDataset) -> None:
         param = {"tree_method": "hist", "max_bin": 64}
         hist_result = train_result(param, dataset.get_dmat(), 16)
         note(str(hist_result))
@@ -138,7 +140,9 @@ class TestGPUUpdaters:
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_categorical_ohe(self, rows, cols, rounds, cats):
+    def test_categorical_ohe(
+        self, rows: int, cols: int, rounds: int, cats: int
+    ) -> None:
         check_categorical_ohe(
             rows=rows,
             cols=cols,
@@ -232,7 +236,7 @@ class TestGPUUpdaters:
     def test_max_cat(self, tree_method: str) -> None:
         run_max_cat(tree_method, "cuda")
 
-    def test_categorical_32_cat(self):
+    def test_categorical_32_cat(self) -> None:
         """32 hits the bound of integer bitset, so special test"""
         rows = 1000
         check_categorical_ohe(
@@ -294,7 +298,7 @@ class TestGPUUpdaters:
             del m
             assert tm.non_increasing(external_result["train"][dataset.metric])
 
-    def test_empty_dmatrix_prediction(self):
+    def test_empty_dmatrix_prediction(self) -> None:
         # FIXME(trivialfis): This should be done with all updaters
         kRows = 0
         kCols = 100
@@ -313,9 +317,9 @@ class TestGPUUpdaters:
         )
 
         kRows = 100
-        X = np.random.randn(kRows, kCols)
+        X_test = np.random.randn(kRows, kCols)
 
-        dtest = xgb.DMatrix(X)
+        dtest = xgb.DMatrix(X_test)
         predictions = bst.predict(dtest)
         # non-distributed, 0.0 is returned due to base_score estimation with 0 gradient.
         np.testing.assert_allclose(predictions, 0.0, 1e-6)
@@ -346,7 +350,7 @@ class TestGPUUpdaters:
         check_quantile_loss("hist", weighted, "cuda")
 
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_issue8824(self):
+    def test_issue8824(self) -> None:
         # column sampling by node crashes because shared pointers go out of scope
         import pandas as pd
 

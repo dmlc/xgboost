@@ -3,6 +3,7 @@ This script demonstrate how to access the eval metrics
 ======================================================
 """
 import os
+from typing import Any, Dict
 
 import xgboost as xgb
 
@@ -24,7 +25,7 @@ param = [
 num_round = 2
 watchlist = [(dtest, "eval"), (dtrain, "train")]
 
-evals_result = {}
+evals_result: Dict[str, Any] = {}
 bst = xgb.train(param, dtrain, num_round, watchlist, evals_result=evals_result)
 
 print("Access logloss metric directly from evals_result:")

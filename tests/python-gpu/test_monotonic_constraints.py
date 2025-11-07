@@ -37,18 +37,18 @@ def assert_constraint(constraint: int, tree_method: str) -> None:
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_gpu_hist_basic():
+def test_gpu_hist_basic() -> None:
     assert_constraint(1, "hist")
     assert_constraint(-1, "hist")
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_gpu_approx_basic():
+def test_gpu_approx_basic() -> None:
     assert_constraint(1, "approx")
     assert_constraint(-1, "approx")
 
 
-def test_gpu_hist_depthwise():
+def test_gpu_hist_depthwise() -> None:
     params = {
         "tree_method": "hist",
         "grow_policy": "depthwise",
@@ -59,7 +59,7 @@ def test_gpu_hist_depthwise():
     is_correctly_constrained(model)
 
 
-def test_gpu_hist_lossguide():
+def test_gpu_hist_lossguide() -> None:
     params = {
         "tree_method": "hist",
         "grow_policy": "lossguide",

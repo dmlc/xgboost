@@ -6,7 +6,7 @@ import xgboost as xgb
 
 
 # Test for integer overflow or out of memory exceptions
-def test_large_input():
+def test_large_input() -> None:
     available_bytes, _ = cp.cuda.runtime.memGetInfo()
     # 15 GB
     required_bytes = 1.5e10
