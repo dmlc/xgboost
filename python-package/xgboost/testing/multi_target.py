@@ -45,6 +45,7 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
 
 def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
     """Use vector leaf for multi-label classification models."""
+    # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_multilabel_classification(128, random_state=2025)
     clf = XGBClassifier(
         multi_strategy="multi_output_tree",
@@ -68,6 +69,8 @@ def run_reduced_grad(device: Device) -> None:
     import cupy as cp
 
     class LsObj0(TreeObjective):
+        """Split grad is the same as value grad."""
+
         def __call__(
             self, y_pred: ArrayLike, dtrain: DMatrix
         ) -> Tuple[cp.ndarray, cp.ndarray]:
@@ -81,6 +84,8 @@ def run_reduced_grad(device: Device) -> None:
             return cp.array(grad), cp.array(hess)
 
     class LsObj1(Objective):
+        """No split grad."""
+
         def __call__(
             self, y_pred: ArrayLike, dtrain: DMatrix
         ) -> Tuple[cp.ndarray, cp.ndarray]:
@@ -88,7 +93,7 @@ def run_reduced_grad(device: Device) -> None:
             grad, hess = tm.ls_obj(y_true, y_pred, None)
             return cp.array(grad), cp.array(hess)
 
-    X, y = make_regression(
+    X, y = make_regression(  # pylint: disable=unbalanced-tuple-unpacking
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
     )
     Xy = QuantileDMatrix(X, y)
@@ -127,6 +132,8 @@ def run_reduced_grad(device: Device) -> None:
 
     # Use mean gradient, should still converge.
     class LsObj2(LsObj0):
+        """Use mean as split grad."""
+
         def __init__(self, check_used: bool):
             self._chk = check_used
 
