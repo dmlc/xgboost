@@ -8,6 +8,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
+#include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/tree_updater.h"
 #pragma GCC diagnostic pop
 
@@ -72,11 +73,11 @@ void QuantileHistMaker::CallUpdate(
   }
 }
 
-void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param,
-                               linalg::Matrix<GradientPair>* gpair,
+void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param, GradientContainer *in_gpair,
                                DMatrix *dmat,
                                xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
                                const std::vector<RegTree *> &trees) {
+  auto gpair = in_gpair->FullGradOnly();
   gpair->Data()->SetDevice(ctx_->Device());
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
     updater_monitor_.Start("GmatInitialization");
