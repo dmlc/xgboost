@@ -2061,11 +2061,11 @@ def test_parallel_submit_multi_clients() -> None:
                 def _() -> dxgb.DaskXGBClassifier:
                     return futures[i][0].compute(futures[i][1]).result()
 
-                f = e.submit(_)
-                t_futures.append(f)
+                tf = e.submit(_)
+                t_futures.append(tf)
 
-        for i, f in enumerate(t_futures):
-            assert f.result().get_booster().num_boosted_rounds() == i + 1
+        for i, tf in enumerate(t_futures):
+            assert tf.result().get_booster().num_boosted_rounds() == i + 1
 
 
 def test_init_estimation(client: Client) -> None:
