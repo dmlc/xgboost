@@ -49,8 +49,12 @@ typedef uint64_t bst_ulong;  // NOLINT(*)
 typedef void *DMatrixHandle;  // NOLINT(*)
 /** @brief Handle to the Booster */
 typedef void *BoosterHandle;  // NOLINT(*)
-/** @brief Handle to the categories container. */
-typedef void * CategoriesHandle;  // NOLINT(*)
+/**
+ * @brief Handle to the categories container.
+ *
+ * @since 3.2.0
+ */
+typedef void *CategoriesHandle;  // NOLINT(*)
 
 /**
  * @brief Return the version of the XGBoost library.
@@ -806,7 +810,7 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
 /**
  * @brief Create an opaque handle to the internal category container.
  *
- * @since 3.2
+ * @since 3.2.0
  *
  * @note Experimental API, subject to change in the future.
  *
@@ -823,7 +827,7 @@ XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const *config, Cat
 /**
  * @brief Create an opaque handle to the internal container and export it to arrow.
  *
- * @since 3.2
+ * @since 3.2.0
  *
  * @note Experimental API, subject to change in the future.
  *
@@ -842,7 +846,7 @@ XGB_DLL int XGDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, char const
 /**
  * @brief Free the opaque handle.
  *
- * @since 3.2
+ * @since 3.2.0
  *
  * @note Experimental API, subject to change in the future.
  *
@@ -1557,7 +1561,7 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
 /**
  * See @ref XGDMatrixGetCategories
  *
- * @since 3.2
+ * @since 3.2.0
  *
  * @note Experimental API, subject to change in the future.
  */
@@ -1566,7 +1570,7 @@ XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const *config, Cat
 /**
  * See @ref XGDMatrixGetCategoriesExportToArrow
  *
- * @since 3.2
+ * @since 3.2.0
  *
  * @note Experimental API, subject to change in the future.
  */

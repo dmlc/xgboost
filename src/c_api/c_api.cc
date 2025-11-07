@@ -752,8 +752,6 @@ CatContainer *CopyCatContainer(Context const *ctx, CatContainer const *cats,
 }
 }  // anonymous namespace
 
-typedef  void * CategoriesHandle;  // NOLINT
-
 /**
  * No actual container method is exposed through the C API. It's just an opaque handle at
  * the moment. This way we get to reuse the methods and the context from the DMatrix and
