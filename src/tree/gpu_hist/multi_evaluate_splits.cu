@@ -286,7 +286,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   auto s_d_splits = dh::ToSpan(d_splits);
 
   // Process results for each node
-  // TODO(jiamingy): This is terribly slow as we are looping through all features in each thread.
+  // TODO(jiamingy): This is terribly slow as we are looping through all features in each thread. We
+  // need to split this into two kernels, one for reduction, another one for calculating weights.
   dh::LaunchN(n_nodes, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t nidx_in_set) {
     auto input = d_inputs[nidx_in_set];
 
@@ -376,22 +377,20 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
   auto right_sum = this->GetNodeSum(right_child, n_targets);
 
   // Calculate node sums
-  // TODO(jiamingy): We need to batch the targets and nodes
+  // TODO(jiamingy): We need to batch the nodes
   auto best_split = candidate.split;
 
   auto node_sum = best_split.node_sum;
-  dh::LaunchN(1, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t) {
-    for (bst_target_t t = 0; t < n_targets; ++t) {
-      auto sibling_sum = parent_sum[t] - node_sum[t];
-      if (best_split.dir == kRightDir) {
-        // forward pass, node_sum is the left sum
-        left_sum[t] = node_sum[t];
-        right_sum[t] = sibling_sum;
-      } else {
-        // backward pass, node_sum is the right sum
-        right_sum[t] = node_sum[t];
-        left_sum[t] = sibling_sum;
-      }
+  dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
+    auto sibling_sum = parent_sum[t] - node_sum[t];
+    if (best_split.dir == kRightDir) {
+      // forward pass, node_sum is the left sum
+      left_sum[t] = node_sum[t];
+      right_sum[t] = sibling_sum;
+    } else {
+      // backward pass, node_sum is the right sum
+      right_sum[t] = node_sum[t];
+      left_sum[t] = sibling_sum;
     }
   });
 }
