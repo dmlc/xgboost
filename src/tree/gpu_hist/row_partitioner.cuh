@@ -208,6 +208,11 @@ struct NodePositionInfo {
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf() const { return left_child == -1; }
 };
 
+struct LeafInfo {
+  bst_node_t nidx;
+  NodePositionInfo node;
+};
+
 XGBOOST_DEV_INLINE int GetPositionFromSegments(std::size_t idx,
                                                const NodePositionInfo* d_node_info) {
   int position = 0;
@@ -308,7 +313,17 @@ class RowPartitioner {
    */
   std::vector<RowIndexT> GetRowsHost(bst_node_t nidx);
 
-  std::vector<NodePositionInfo> const& GetSegmentsHost() const { return this->ridx_segments_; }
+  [[nodiscard]] std::vector<LeafInfo> GetLeaves() const {
+    std::vector<LeafInfo> leaves;
+    bst_node_t nidx = 0;
+    for (auto const& node : this->ridx_segments_) {
+      if (node.IsLeaf()) {
+        leaves.emplace_back(LeafInfo{nidx, node});
+      }
+      nidx += 1;
+    }
+    return leaves;
+  }
 
   /**
    * \brief Updates the tree position for set of training instances being split

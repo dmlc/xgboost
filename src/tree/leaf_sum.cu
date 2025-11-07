@@ -5,7 +5,7 @@
 
 #include "../common/linalg_op.cuh"       // for tbegin
 #include "gpu_hist/quantiser.cuh"        // for GradientQuantiser
-#include "gpu_hist/row_partitioner.cuh"  // for RowIndexT, NodePositionInfo
+#include "gpu_hist/row_partitioner.cuh"  // for RowIndexT, LeafInfo
 #include "leaf_sum.cuh"
 #include "updater_gpu_common.cuh"  // for GPUTrainingParam
 #include "xgboost/base.h"          // for GradientPairInt64
@@ -14,25 +14,19 @@
 #include "xgboost/span.h"          // for Span
 
 namespace xgboost::tree::cuda_impl {
-void LeafGradSum(Context const* ctx, std::vector<NodePositionInfo> const& h_segments,
+void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
                  common::Span<GradientQuantiser const> roundings,
                  common::Span<RowIndexT const> sorted_ridx,
                  linalg::MatrixView<GradientPair const> grad,
                  linalg::MatrixView<GradientPairInt64> out_sum) {
-  std::vector<NodePositionInfo> h_leaves;
-  for (auto const& node : h_segments) {
-    if (node.IsLeaf()) {
-      h_leaves.push_back(node);
-    }
-  }
   CHECK_EQ(h_leaves.size(), out_sum.Shape(0));
 
-  dh::device_vector<NodePositionInfo> leaves(h_leaves);
+  dh::device_vector<LeafInfo> leaves(h_leaves);
   auto d_leaves = dh::ToSpan(leaves);
 
   std::vector<RowIndexT> h_indptr{0};
   for (auto const& node : h_leaves) {
-    h_indptr.push_back(node.segment.Size());
+    h_indptr.push_back(node.node.segment.Size());
   }
   // leaves form a complete partition
   dh::device_vector<RowIndexT> indptr{h_indptr};
@@ -50,7 +44,7 @@ void LeafGradSum(Context const* ctx, std::vector<NodePositionInfo> const& h_segm
     auto it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
       auto nidx_in_set = dh::SegmentId(d_indptr, i);
       auto k = i - d_indptr[nidx_in_set];
-      auto j = d_leaves[nidx_in_set].segment.begin + k;
+      auto j = d_leaves[nidx_in_set].node.segment.begin + k;
       auto g = grad(sorted_ridx[j], t);
       return roundings[t].ToFixedPoint(g);
     });

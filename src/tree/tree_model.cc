@@ -890,7 +890,6 @@ void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split
 }
 
 void RegTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {
-  // fixme: cleanup
   CHECK(IsMultiTarget());
   this->p_mt_tree_->SetLeaves(std::move(leaves), weights);
 }

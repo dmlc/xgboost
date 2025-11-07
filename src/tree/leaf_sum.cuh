@@ -6,7 +6,7 @@
 #include <vector>  // for vector
 
 #include "gpu_hist/quantiser.cuh"        // for GradientQuantiser
-#include "gpu_hist/row_partitioner.cuh"  // for RowIndexT, NodePositionInfo
+#include "gpu_hist/row_partitioner.cuh"  // for RowIndexT, LeafInfo
 #include "updater_gpu_common.cuh"        // for GPUTrainingParam
 #include "xgboost/context.h"             // for Context
 #include "xgboost/linalg.h"              // for MatrixView
@@ -14,7 +14,7 @@
 
 namespace xgboost::tree::cuda_impl {
 // shape(out_sum) == (n_leaves, n_targets)
-void LeafGradSum(Context const* ctx, std::vector<NodePositionInfo> const& h_segments,
+void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
                  common::Span<GradientQuantiser const> roundings,
                  common::Span<RowIndexT const> sorted_ridx,
                  linalg::MatrixView<GradientPair const> grad,

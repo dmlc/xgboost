@@ -1,8 +1,9 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
-#include <cstddef>  // for size_t
-#include <vector>   // for vector
+#include <cstddef>   // for size_t
+#include <iostream>  // for cout
+#include <vector>    // for vector
 
 #include "common.h"
 #include "device_helpers.cuh"     // for CopyDeviceSpanToVector

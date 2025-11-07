@@ -275,7 +275,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       dh::ToSpan(d_splits));
 
   // Find best split for each node
-  // * 3 because of three nodes, parent, left, right
+  // * 3 because of base, left, right weights.
   this->weights_.resize(n_nodes * n_targets * 3);
   auto d_weights = dh::ToSpan(this->weights_);
 
