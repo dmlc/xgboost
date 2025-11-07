@@ -146,7 +146,6 @@ class MultiTargetHistMaker {
 
   [[nodiscard]] MultiExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
     auto d_gpair = split_gpair_.View(ctx_->Device());
-    auto n_samples = d_gpair.Shape(0);
     auto n_targets = d_gpair.Shape(1);
 
     // Calculate the root sum
