@@ -1160,7 +1160,7 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->ValidateDMatrix(train.get(), true);
-    // fixme: avoid duplicated code, including the error message
+
     CHECK_GE(this->learner_model_param_.OutputLength(), in_gpair->value_gpair.Shape(1))
         << "The number of columns in gradient should be equal to or lesser than the number of "
            "targets/classes in the model.";

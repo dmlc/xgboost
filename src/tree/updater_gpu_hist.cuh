@@ -123,7 +123,6 @@ class MultiTargetHistMaker {
   dh::device_vector<GradientPairInt64> CalcRootSum(
       linalg::MatrixView<GradientPair> d_gpair,
       common::Span<GradientQuantiser const> roundings) const {
-    // fixme: merge with fit stump.
     auto n_samples = d_gpair.Shape(0);
     auto n_targets = d_gpair.Shape(1);
     // Calculate the root sum
@@ -402,14 +401,14 @@ class MultiTargetHistMaker {
     }
   }
 
-  void GrowTree(linalg::Matrix<GradientPair>* splti_gpair, DMatrix* p_fmat, ObjInfo const*,
+  void GrowTree(linalg::Matrix<GradientPair>* split_gpair, DMatrix* p_fmat, ObjInfo const*,
                 RegTree* p_tree) {
     if (this->param_.learning_rate - 1.0 != 0.0) {
       LOG(FATAL) << "GPU" << MTNotImplemented();
     }
     Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
 
-    this->Reset(splti_gpair, p_fmat);
+    this->Reset(split_gpair, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
 
     // The set of leaves that can be expanded asynchronously

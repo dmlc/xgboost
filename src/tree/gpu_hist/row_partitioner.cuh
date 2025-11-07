@@ -304,7 +304,7 @@ class RowPartitioner {
   [[nodiscard]] bst_node_t GetNumNodes() const { return n_nodes_; }
 
   /**
-   * @brief Convenient method for testing.
+   * @brief Convenience method for testing.
    */
   std::vector<RowIndexT> GetRowsHost(bst_node_t nidx);
 
