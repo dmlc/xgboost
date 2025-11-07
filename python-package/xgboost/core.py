@@ -2494,7 +2494,7 @@ class Booster:
         if _vgrad is not None or _vhess is not None:
             assert _vhess is not None and _vgrad is not None
             _check_call(
-                _LIB.XGBoosterTrainOneIterWithObj(
+                _LIB.XGBoosterTrainOneIterWithWithSplitGrad(
                     self.handle,
                     dtrain.handle,
                     iteration,

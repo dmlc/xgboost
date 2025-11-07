@@ -1252,20 +1252,27 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   API_END();
 }
 
-// Hidden, experimental
-// fixme: find a better way to consume gradients, maybe expose the objective.
-//
-// We can not obtain the gradient from built-in objectives without making copy due to
-// array-of-structs.
-XGB_DLL int XGBoosterTrainOneIterWithObj(BoosterHandle handle, DMatrixHandle dtrain, int iter,
-                                         char const *split_grad, char const *split_hess,
-                                         char const *value_grad, char const *value_hess) {
+typedef char const *JArrayStr;  // NOLINT(modernize-use-using)
+
+// Hidden, working-in-progress support for reduced gradient. CUDA-only at the moment.
+/**
+ * @brief Use a different type of gradient for tree split.
+ *
+ * @param split_grad Gradient for finding tree splits.
+ * @param split_hess Hessian for finding tree splits.
+ * @param value_grad Gradient for calculating tree leaf weight.
+ * @param value_hess Hessian for calculating tree leaf weight.
+ */
+XGB_DLL int XGBoosterTrainOneIterWithWithSplitGrad(BoosterHandle handle, DMatrixHandle dtrain,
+                                                   int iter, JArrayStr split_grad,
+                                                   JArrayStr split_hess, JArrayStr value_grad,
+                                                   JArrayStr value_hess) {
   API_BEGIN();
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
   GradientContainer gpair;
   auto ctx = learner->Ctx();
-
+  CHECK(ctx->IsCUDA()) << "Reduced gradient with CPU" << MTNotImplemented();
   {
     ArrayInterface<2, false> i_grad{StringView{split_grad}};
     ArrayInterface<2, false> i_hess{StringView{split_hess}};
@@ -1280,6 +1287,7 @@ XGB_DLL int XGBoosterTrainOneIterWithObj(BoosterHandle handle, DMatrixHandle dtr
         << "Reduced gradient with CPU" << MTNotImplemented();
     CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.value_gpair);
   }
+
   auto p_fmat = CastDMatrixHandle(dtrain);
   learner->BoostOneIter(iter, p_fmat, &gpair);
 
