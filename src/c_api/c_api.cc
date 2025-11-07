@@ -1263,10 +1263,9 @@ typedef char const *JArrayStr;  // NOLINT
  * @param value_grad Gradient for calculating tree leaf weights.
  * @param value_hess Hessian for calculating tree leaf weights.
  */
-XGB_DLL int XGBoosterTrainOneIterWithWithSplitGrad(BoosterHandle handle, DMatrixHandle dtrain,
-                                                   int iter, JArrayStr split_grad,
-                                                   JArrayStr split_hess, JArrayStr value_grad,
-                                                   JArrayStr value_hess) {
+XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHandle dtrain, int iter,
+                                               JArrayStr split_grad, JArrayStr split_hess,
+                                               JArrayStr value_grad, JArrayStr value_hess) {
   API_BEGIN();
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
