@@ -3,7 +3,7 @@
  */
 #include <thrust/transform.h>  // for transform
 
-#include <algorithm>        // for max, none_of
+#include <algorithm>        // for max
 #include <cmath>            // for isnan
 #include <cstdint>          // for int32_t, uint32_t
 #include <cuda/functional>  // for plus
