@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #include <thrust/device_vector.h>
 #include <thrust/sort.h>  // for is_sorted
@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>  // for equal_to
 #include <vector>
 
 #include "../../../src/common/cuda_context.cuh"
@@ -67,7 +68,7 @@ TEST(SegmentedUnique, Basic) {
   size_t n_uniques = dh::SegmentedUnique(
       ctx.CUDACtx()->CTP(), d_segments.data().get(), d_segments.data().get() + d_segments.size(),
       d_values.data().get(), d_values.data().get() + d_values.size(), d_segs_out.data().get(),
-      d_vals_out.data().get(), thrust::equal_to<float>{});
+      d_vals_out.data().get(), std::equal_to{});
   CHECK_EQ(n_uniques, 5);
 
   std::vector<float> values_sol{0.1f, 0.2f, 0.3f, 0.62448811531066895f, 0.4f};
@@ -85,7 +86,7 @@ TEST(SegmentedUnique, Basic) {
   n_uniques = dh::SegmentedUnique(
       ctx.CUDACtx()->CTP(), d_segments.data().get(), d_segments.data().get() + d_segments.size(),
       d_values.data().get(), d_values.data().get() + d_values.size(), d_segs_out.data().get(),
-      d_vals_out.data().get(), thrust::equal_to<float>{});
+      d_vals_out.data().get(), std::equal_to{});
   ASSERT_EQ(n_uniques, values.size());
   for (size_t i = 0 ; i < values.size(); i ++) {
     ASSERT_EQ(d_vals_out[i], values[i]);
