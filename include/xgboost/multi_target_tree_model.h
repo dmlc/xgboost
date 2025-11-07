@@ -70,6 +70,7 @@ class MultiTargetTree : public Model {
               linalg::VectorView<float const> base_weight,
               linalg::VectorView<float const> left_weight,
               linalg::VectorView<float const> right_weight);
+  /** @see RegTree::SetLeaves */
   void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
 
   [[nodiscard]] bool IsLeaf(bst_node_t nidx) const {

@@ -1,7 +1,8 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
-#include <vector>  // for vector
+#include <cstddef>  // for size_t
+#include <vector>   // for vector
 
 #include "../../common/linalg_op.cuh"  // for tbegin
 #include "../updater_gpu_common.cuh"   // for GPUTrainingParam
@@ -38,16 +39,18 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
   auto d_indptr = dh::ToSpan(indptr);
 
   for (bst_target_t t = 0, n_targets = grad.Shape(1); t < n_targets; ++t) {
-    // TODO(jiamingy): Avoid additional allocation for d_sum
     auto out_t = out_sum.Slice(linalg::All(), t);  // len == n_leaves
-    std::size_t n_bytes = 0;
     auto it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
       auto nidx_in_set = dh::SegmentId(d_indptr, i);
+      // Index within segment
       auto k = i - d_indptr[nidx_in_set];
+      // Global index (within a batch).
       auto j = d_leaves[nidx_in_set].node.segment.begin + k;
+      // gradient
       auto g = grad(sorted_ridx[j], t);
       return roundings[t].ToFixedPoint(g);
     });
+    std::size_t n_bytes = 0;
     dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, it, linalg::tbegin(out_t),
                                                   h_leaves.size(), indptr.data(), indptr.data() + 1,
                                                   ctx->CUDACtx()->Stream()));

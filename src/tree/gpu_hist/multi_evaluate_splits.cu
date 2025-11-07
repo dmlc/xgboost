@@ -286,6 +286,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   auto s_d_splits = dh::ToSpan(d_splits);
 
   // Process results for each node
+  // TODO(jiamingy): This is terribly slow as we are looping through all features in each thread.
   dh::LaunchN(n_nodes, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t nidx_in_set) {
     auto input = d_inputs[nidx_in_set];
 
