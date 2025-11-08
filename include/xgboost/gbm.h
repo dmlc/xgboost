@@ -79,8 +79,8 @@ class GradientBooster : public Model, public Configurable {
    *                   the booster may change content of gpair
    * @param obj The objective function used for boosting.
    */
-  virtual void DoBoost(DMatrix* /*p_fmat*/, GradientContainer* /*in_gpair*/,
-                       PredictionCacheEntry* /*prediction*/, ObjFunction const* /*obj*/) = 0;
+  virtual void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair,
+                       PredictionCacheEntry* prediction, ObjFunction const* obj) = 0;
 
   /**
    * \brief Generate predictions for given feature matrix

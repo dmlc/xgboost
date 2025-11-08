@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class Objective(ABC):
-    """Base class for custom objective function.
+    """Base class for custom objective functions.
 
     .. warning::
 
@@ -34,7 +34,7 @@ class Objective(ABC):
 
 
 class TreeObjective(Objective):
-    """Base class for tree-specific custom objective function.
+    """Base class for tree-specific custom objective functions.
 
     .. warning::
 
@@ -45,5 +45,5 @@ class TreeObjective(Objective):
     def split_grad(
         self, grad: ArrayLike, hess: ArrayLike
     ) -> Tuple[ArrayLike, ArrayLike]:
-        """Provide different gradient type for finding tree structure."""
+        """Provide a different gradient type for finding tree structures."""
         return grad, hess

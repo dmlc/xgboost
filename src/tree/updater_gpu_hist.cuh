@@ -208,6 +208,7 @@ class MultiTargetHistMaker {
 
   void UpdateTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
     // TODO(jiamingy): Need to iterate through partitioners for external memory support.
+    CHECK_EQ(this->partitioners_.size(), 1);
     auto leaves = this->partitioners_.front()->GetLeaves();
     // Calculate the leaf weight based on the node sum for each leaf.
     // Update the leaf weight, with learning rate.
@@ -217,8 +218,8 @@ class MultiTargetHistMaker {
                 this->partitioners_.front()->GetRows(), full_grad.View(this->ctx_->Device()),
                 out_sum.View(this->ctx_->Device()));
     auto param = GPUTrainingParam{this->param_};
-    linalg::Matrix<float> out_weight =
-        linalg::Empty<float>(this->ctx_, leaves.size(), p_tree->NumTargets());
+    auto out_weight = linalg::Empty<float>(this->ctx_, leaves.size(), p_tree->NumTargets());
+    // Use full value gradient for leaf values.
     LeafWeight(this->ctx_, param, this->value_quantizer_->Quantizers(),
                out_sum.View(this->ctx_->Device()), out_weight.View(this->ctx_->Device()));
     std::vector<bst_node_t> leaves_idx(leaves.size());

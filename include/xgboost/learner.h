@@ -54,7 +54,7 @@ enum class PredictionType : std::uint8_t {  // NOLINT
  *  The Load/Save function corresponds to the model used in python/R.
  *  @code
  *
- *  std::unique_ptr<Learner> learner(new Learner::Create(cache_mats));
+ *  std::unique_ptr<Learner> learner{Learner::Create(cache_mats)};
  *  learner->Configure(configs);
  *
  *  for (int iter = 0; iter < max_iter; ++iter) {
