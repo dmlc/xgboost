@@ -1,6 +1,8 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
+#include <thrust/reduce.h>  // for reduce_by_key
+
 #include <cub/block/block_scan.cuh>  // for BlockScan
 #include <cub/util_type.cuh>         // for KeyValuePair
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
@@ -232,7 +234,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                                         MultiEvaluateSplitSharedInputs const &shared_inputs,
                                         common::Span<MultiExpandEntry> out_splits) {
   auto n_targets = shared_inputs.Targets();
-  CHECK_GE(n_targets, 2);
   auto n_bins_per_feat_tar = shared_inputs.n_bins_per_feat_tar;
   CHECK_GE(n_bins_per_feat_tar, 1);
   auto n_features = shared_inputs.Features();
@@ -274,6 +275,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       dh::ToSpan(d_splits));
 
   // Find best split for each node
+  // * 3 because of base, left, right weights.
   this->weights_.resize(n_nodes * n_targets * 3);
   auto d_weights = dh::ToSpan(this->weights_);
 
@@ -285,18 +287,23 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   auto s_d_splits = dh::ToSpan(d_splits);
 
   // Process results for each node
+  // Find best splits among all features for all nodes
+  auto key_it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
+    // Returns nidx_in_set
+    return i / n_features;
+  });
+  dh::device_vector<MultiSplitCandidate> best_splits(out_splits.size());
+  thrust::reduce_by_key(
+      ctx->CUDACtx()->CTP(), key_it, key_it + s_d_splits.size(), dh::tcbegin(s_d_splits),
+      thrust::make_discard_iterator(), best_splits.begin(), std::equal_to{},
+      [=] XGBOOST_DEVICE(MultiSplitCandidate const &lhs, MultiSplitCandidate const &rhs) {
+        return lhs.loss_chg > rhs.loss_chg ? lhs : rhs;
+      });
+  auto d_best_splits = dh::ToSpan(best_splits);
+
   dh::LaunchN(n_nodes, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t nidx_in_set) {
     auto input = d_inputs[nidx_in_set];
-
-    // Find best split among all features for this node
-    MultiSplitCandidate best_split{};
-    for (bst_feature_t f = 0; f < n_features; ++f) {
-      auto candidate = s_d_splits[nidx_in_set * n_features + f];
-      if (candidate.loss_chg > best_split.loss_chg) {
-        best_split = candidate;
-      }
-    }
-
+    MultiSplitCandidate best_split = d_best_splits[nidx_in_set];
     if (best_split.node_sum.empty()) {
       // Invalid split
       out_splits[nidx_in_set] = {};
@@ -362,34 +369,32 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
 void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
                                         MultiExpandEntry const &candidate) {
-  auto n_targets = p_tree->NumTargets();
-
   auto left_child = p_tree->LeftChild(candidate.nidx);
   auto right_child = p_tree->RightChild(candidate.nidx);
   bst_node_t max_node = std::max(left_child, right_child);
+  auto n_targets = candidate.base_weight.size();
+
   this->AllocNodeSum(max_node, n_targets);
 
   auto parent_sum = this->GetNodeSum(candidate.nidx, n_targets);
-
   auto left_sum = this->GetNodeSum(left_child, n_targets);
   auto right_sum = this->GetNodeSum(right_child, n_targets);
 
   // Calculate node sums
-  // TODO(jiamingy): We need to batch the targets and nodes
+  // TODO(jiamingy): We need to batch the nodes
   auto best_split = candidate.split;
+
   auto node_sum = best_split.node_sum;
-  dh::LaunchN(1, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t) {
-    for (bst_target_t t = 0; t < n_targets; ++t) {
-      auto sibling_sum = parent_sum[t] - node_sum[t];
-      if (best_split.dir == kRightDir) {
-        // forward pass, node_sum is the left sum
-        left_sum[t] = node_sum[t];
-        right_sum[t] = sibling_sum;
-      } else {
-        // backward pass, node_sum is the right sum
-        right_sum[t] = node_sum[t];
-        left_sum[t] = sibling_sum;
-      }
+  dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
+    auto sibling_sum = parent_sum[t] - node_sum[t];
+    if (best_split.dir == kRightDir) {
+      // forward pass, node_sum is the left sum
+      left_sum[t] = node_sum[t];
+      right_sum[t] = sibling_sum;
+    } else {
+      // backward pass, node_sum is the right sum
+      right_sum[t] = node_sum[t];
+      left_sum[t] = sibling_sum;
     }
   });
 }

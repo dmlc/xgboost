@@ -1,9 +1,10 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>                // for Args
 #include <xgboost/context.h>             // for Context
+#include <xgboost/gradient.h>            // for GradientContainer
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 #include <xgboost/json.h>                // for Json
 #include <xgboost/task.h>                // for ObjInfo
@@ -21,7 +22,7 @@
 
 namespace xgboost::tree {
 namespace {
-void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
+void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat,
                 RegTree* tree, HostDeviceVector<bst_float>* preds, float subsample,
                 const std::string& sampling_method, bst_bin_t max_bin, bool concat_pages) {
   Args args{
@@ -67,8 +68,7 @@ TEST(GpuHist, UniformSampling) {
   auto p_fmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
   ASSERT_TRUE(p_fmat->SingleColBlock());
 
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+  auto gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
@@ -97,9 +97,7 @@ TEST(GpuHist, GradientBasedSampling) {
 
   // Create an in-memory DMatrix.
   auto p_fmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
-
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+  auto gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
@@ -135,8 +133,7 @@ TEST(GpuHist, ExternalMemory) {
   ASSERT_TRUE(p_fmat->SingleColBlock());
 
   auto ctx = MakeCUDACtx(0);
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+  auto gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
@@ -177,8 +174,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
                         .GenerateSparsePageDMatrix("temp", true);
   ASSERT_FALSE(p_fmat_ext->SingleColBlock());
 
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+  auto gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   // Build a tree using the in-memory DMatrix.
   auto rng = common::GlobalRandom();
@@ -276,9 +272,7 @@ RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
 
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
-
-  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Device());
-  gpair.Data()->Copy(GenerateRandomGradients(dmat->Info().num_row_));
+  auto gpair = GenerateRandomGradients(ctx, dmat->Info().num_row_, 1);
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   RegTree tree;

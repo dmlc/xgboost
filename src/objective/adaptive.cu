@@ -144,7 +144,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 }
 
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                          bst_target_t group_idx, MetaInfo const& info, float learning_rate,
                           HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   dh::device_vector<size_t> ridx;

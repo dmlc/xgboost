@@ -957,13 +957,24 @@ template <typename T>
 using Vector = Tensor<T, 1>;
 
 /**
- * \brief Create an array without initialization.
+ * @brief Create an array without initialization.
  */
 template <typename T, typename... Index>
 auto Empty(Context const *ctx, Index &&...index) {
   Tensor<T, sizeof...(Index)> t;
   t.SetDevice(ctx->Device());
   t.Reshape(index...);
+  return t;
+}
+
+/**
+ * @brief Create an array with the same shape and dtype as the input.
+ */
+template <typename T, std::int32_t kDim>
+auto EmptyLike(Context const *ctx, Tensor<T, kDim> const &in) {
+  Tensor<T, kDim> t;
+  t.SetDevice(ctx->Device());
+  t.Reshape(in.Shape());
   return t;
 }
 

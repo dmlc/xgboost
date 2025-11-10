@@ -80,7 +80,7 @@ void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
 }
 
 void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
-                        std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                        bst_target_t group_idx, MetaInfo const& info, float learning_rate,
                         HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
   auto& tree = *p_tree;
 
@@ -163,7 +163,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void UpdateTreeLeafDevice(Context const*, common::Span<bst_node_t const>, std::int32_t,
+void UpdateTreeLeafDevice(Context const*, common::Span<bst_node_t const>, bst_target_t,
                           MetaInfo const&, float, HostDeviceVector<float> const&, float, RegTree*) {
   common::AssertGPUSupport();
 }

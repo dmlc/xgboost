@@ -3,6 +3,7 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>       // for Context
+#include <xgboost/gradient.h>      // for GradientContainer
 #include <xgboost/task.h>          // for ObjInfo
 #include <xgboost/tree_model.h>    // for RegTree
 #include <xgboost/tree_updater.h>  // for TreeUpdater
@@ -21,16 +22,15 @@ namespace xgboost {
 class UpdaterTreeStatTest : public ::testing::Test {
  protected:
   std::shared_ptr<DMatrix> p_dmat_;
-  linalg::Matrix<GradientPair> gpairs_;
+  GradientContainer gpairs_;
   size_t constexpr static kRows = 10;
   size_t constexpr static kCols = 10;
 
  protected:
   void SetUp() override {
     p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix(true);
-    auto g = GenerateRandomGradients(kRows);
-    gpairs_.Reshape(kRows, 1);
-    gpairs_.Data()->Copy(g);
+    Context ctx;
+    gpairs_ = GenerateRandomGradients(&ctx, kRows, 1);
   }
 
   void RunTest(Context const* ctx, std::string updater) {
@@ -99,7 +99,7 @@ class TestSplitWithEta : public ::testing::Test {
       updater->Configure({});
 
       auto grad = GenerateRandomGradients(ctx, Xy->Info().num_row_, n_targets);
-      CHECK_EQ(grad.Shape(1), n_targets);
+      CHECK_EQ(grad.gpair.Shape(1), n_targets);
       tree::TrainParam param;
       param.Init(Args{{"learning_rate", std::to_string(eta)}});
       HostDeviceVector<bst_node_t> position;
@@ -192,15 +192,15 @@ TEST_F(TestSplitWithEta, GpuApprox) {
 
 class TestMinSplitLoss : public ::testing::Test {
   std::shared_ptr<DMatrix> dmat_;
-  linalg::Matrix<GradientPair> gpair_;
+  GradientContainer gpair_;
 
   void SetUp() override {
     constexpr size_t kRows = 32;
     constexpr size_t kCols = 16;
     constexpr float kSparsity = 0.6;
     dmat_ = RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).GenerateDMatrix();
-    gpair_.Reshape(kRows, 1);
-    gpair_.Data()->Copy(GenerateRandomGradients(kRows));
+    Context ctx;
+    gpair_ = GenerateRandomGradients(&ctx, kRows, 1);
   }
 
   std::int32_t Update(Context const* ctx, std::string updater, float gamma) {

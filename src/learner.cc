@@ -1142,17 +1142,17 @@ class LearnerImpl : public LearnerIO {
     monitor_.Stop("PredictRaw");
 
     monitor_.Start("GetGradient");
-    GetGradient(predt->predictions, train->Info(), iter, &gpair_);
+    GetGradient(predt->predictions, train->Info(), iter, &gpair_.gpair);
     monitor_.Stop("GetGradient");
-    TrainingObserver::Instance().Observe(*gpair_.Data(), "Gradients");
+    TrainingObserver::Instance().Observe(gpair_.Grad()->Data(), "Gradients");
 
     gbm_->DoBoost(train.get(), &gpair_, predt.get(), obj_.get());
     monitor_.Stop("UpdateOneIter");
   }
 
-  void BoostOneIter(int iter, std::shared_ptr<DMatrix> train,
-                    linalg::Matrix<GradientPair>* in_gpair) override {
-    monitor_.Start("BoostOneIter");
+  void BoostOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train,
+                    GradientContainer* in_gpair) override {
+    this->monitor_.Start(__func__);
     this->Configure();
 
     if (ctx_.seed_per_iteration) {
@@ -1160,13 +1160,17 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->ValidateDMatrix(train.get(), true);
-
-    CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->Shape(1))
-        << "The number of columns in gradient should be equal to the number of targets/classes in "
-           "the model.";
+    if (in_gpair->HasValueGrad()) {
+      CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->NumTargets())
+          << "Value gradient should have the same number of targets as the overall model.";
+    } else {
+      CHECK_EQ(this->learner_model_param_.OutputLength(), in_gpair->NumSplitTargets())
+          << "The number of columns in gradient should be equal to the number of "
+             "targets/classes in the model.";
+    }
     auto predt = prediction_container_.Cache(train, ctx_.Device());
-    gbm_->DoBoost(train.get(), in_gpair, predt.get(), obj_.get());
-    monitor_.Stop("BoostOneIter");
+    this->gbm_->DoBoost(train.get(), in_gpair, predt.get(), obj_.get());
+    this->monitor_.Stop(__func__);
   }
 
   std::string EvalOneIter(int iter,
@@ -1338,7 +1342,7 @@ class LearnerImpl : public LearnerIO {
   /*! \brief random number transformation seed. */
   static int32_t constexpr kRandSeedMagic = 127;
   // gradient pairs
-  linalg::Matrix<GradientPair> gpair_;
+  GradientContainer gpair_;
   /*! \brief Temporary storage to prediction.  Useful for storing data transformed by
    *  objective function */
   PredictionContainer output_predictions_;

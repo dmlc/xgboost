@@ -1,5 +1,5 @@
-/*!
- * Copyright 2017-2024 by Contributors
+/**
+ * Copyright 2017-2025, XGBoost Contributors
  * \file updater_quantile_hist.h
  */
 #ifndef PLUGIN_SYCL_TREE_UPDATER_QUANTILE_HIST_H_
@@ -8,21 +8,21 @@
 #include <dmlc/timer.h>
 #include <xgboost/tree_updater.h>
 
-#include <vector>
 #include <memory>
+#include <vector>
 
-#include "../data/gradient_index.h"
+#include "../../src/common/random.h"
+#include "../../src/tree/constraints.h"
 #include "../common/hist_util.h"
-#include "../common/row_set.h"
 #include "../common/partition_builder.h"
-#include "split_evaluator.h"
+#include "../common/row_set.h"
+#include "../data/gradient_index.h"
 #include "../device_manager.h"
 #include "hist_updater.h"
+#include "split_evaluator.h"
 #include "xgboost/data.h"
-
+#include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/json.h"
-#include "../../src/tree/constraints.h"
-#include "../../src/common/random.h"
 
 namespace xgboost {
 namespace sycl {
@@ -48,9 +48,7 @@ class QuantileHistMaker: public TreeUpdater {
   }
   void Configure(const Args& args) override;
 
-  void Update(xgboost::tree::TrainParam const *param,
-              linalg::Matrix<GradientPair>* gpair,
-              DMatrix* dmat,
+  void Update(xgboost::tree::TrainParam const* param, GradientContainer* in_gpair, DMatrix* dmat,
               xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override;
 

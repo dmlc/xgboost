@@ -6,6 +6,7 @@
 #include "../../../../src/tree/gpu_hist/evaluate_splits.cuh"
 #include "../../../../src/tree/gpu_hist/multi_evaluate_splits.cuh"
 #include "../../helpers.h"
+#include "dummy_quantizer.cuh"  // for MakeDummyQuantizers
 
 namespace xgboost::tree::cuda_impl {
 class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
@@ -45,8 +46,7 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     input.parent_sum = dh::ToSpan(parent_sum);
     input.histogram = dh::ToSpan(histogram);
 
-    GradientQuantiser quantizer{{1.0, 1.0}, {1.0, 1.0}};
-    quantizers.resize(2, quantizer);
+    quantizers = MakeDummyQuantizers(2);
 
     shared_inputs.roundings = dh::ToSpan(quantizers);
 

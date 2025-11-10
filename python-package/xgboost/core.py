@@ -77,6 +77,7 @@ from .compat import (
     py_str,
 )
 from .libpath import find_lib_path
+from .objective import TreeObjective
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -1966,7 +1967,7 @@ class Booster:
         cache = cache if cache is not None else []
         for d in cache:
             if not isinstance(d, DMatrix):
-                raise TypeError(f"invalid cache item: {type(d).__name__}", cache)
+                raise TypeError(f"Invalid cache item: {type(d).__name__}", cache)
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
         self.handle: Optional[ctypes.c_void_p] = ctypes.c_void_p()
@@ -2068,7 +2069,7 @@ class Booster:
             self.handle = None
 
     def __getstate__(self) -> Dict:
-        # can't pickle ctypes pointers, put model content in bytearray
+        # can't pickle ctypes pointers, put model content in a bytearray
         this = self.__dict__.copy()
         handle = this["handle"]
         if handle is not None:
@@ -2084,7 +2085,7 @@ class Booster:
         return this
 
     def __setstate__(self, state: Dict) -> None:
-        # reconstruct handle from raw data
+        # reconstruct the handle from raw data
         handle = state["handle"]
         if handle is not None:
             buf = handle
@@ -2385,7 +2386,10 @@ class Booster:
                 )
 
     def update(
-        self, dtrain: DMatrix, iteration: int, fobj: Optional[Objective] = None
+        self,
+        dtrain: DMatrix,
+        iteration: int,
+        fobj: Optional[Objective] = None,
     ) -> None:
         """Update for one iteration, with objective function calculated
         internally.  This function should not be called directly by users.
@@ -2401,7 +2405,7 @@ class Booster:
 
         """
         if not isinstance(dtrain, DMatrix):
-            raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
+            raise TypeError(f"Invalid training matrix: {type(dtrain).__name__}")
         self._assign_dmatrix_features(dtrain)
 
         if fobj is None:
@@ -2412,11 +2416,31 @@ class Booster:
             )
         else:
             pred = self.predict(dtrain, output_margin=True, training=True)
-            grad, hess = fobj(pred, dtrain)
-            self.boost(dtrain, iteration=iteration, grad=grad, hess=hess)
+            vgrad: Optional[ArrayLike]
+            vhess: Optional[ArrayLike]
+            vgrad, vhess = fobj(pred, dtrain)
+            if isinstance(fobj, TreeObjective):
+                sgrad, shess = fobj.split_grad(vgrad, vhess)
+            else:
+                sgrad, shess = vgrad, vhess
+                vgrad, vhess = None, None
+            self.boost(
+                dtrain,
+                iteration=iteration,
+                grad=sgrad,
+                hess=shess,
+                _vgrad=vgrad,
+                _vhess=vhess,
+            )
 
     def boost(
-        self, dtrain: DMatrix, iteration: int, grad: NumpyOrCupy, hess: NumpyOrCupy
+        self,
+        dtrain: DMatrix,
+        iteration: int,
+        grad: NumpyOrCupy,
+        hess: NumpyOrCupy,
+        _vgrad: Optional[NumpyOrCupy] = None,  # WIP vector-leaf support
+        _vhess: Optional[NumpyOrCupy] = None,  # WIP vector-leaf support
     ) -> None:
         """Boost the booster for one iteration with customized gradient statistics.
         Like :py:func:`xgboost.Booster.update`, this function should not be called
@@ -2467,15 +2491,29 @@ class Booster:
 
             return interface
 
-        _check_call(
-            _LIB.XGBoosterTrainOneIter(
-                self.handle,
-                dtrain.handle,
-                iteration,
-                grad_arrinf(grad),
-                grad_arrinf(hess),
+        if _vgrad is not None or _vhess is not None:
+            assert _vhess is not None and _vgrad is not None
+            _check_call(
+                _LIB.XGBoosterTrainOneIterWithSplitGrad(
+                    self.handle,
+                    dtrain.handle,
+                    iteration,
+                    grad_arrinf(grad),
+                    grad_arrinf(hess),
+                    grad_arrinf(_vgrad),
+                    grad_arrinf(_vhess),
+                )
             )
-        )
+        else:
+            _check_call(
+                _LIB.XGBoosterTrainOneIter(
+                    self.handle,
+                    dtrain.handle,
+                    iteration,
+                    grad_arrinf(grad),
+                    grad_arrinf(hess),
+                )
+            )
 
     def eval_set(
         self,

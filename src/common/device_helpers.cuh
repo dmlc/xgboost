@@ -257,18 +257,6 @@ void Iota(Container array, cudaStream_t stream) {
   LaunchN(array.size(), stream, [=] __device__(size_t i) { array[i] = i; });
 }
 
-// dh::DebugSyncDevice(__FILE__, __LINE__);
-inline void DebugSyncDevice(char const *file = __builtin_FILE(), int32_t line = __builtin_LINE()) {
-  {
-    auto err = cudaDeviceSynchronize();
-    ThrowOnCudaError(err, file, line);
-  }
-  {
-    auto err = cudaGetLastError();
-    ThrowOnCudaError(err, file, line);
-  }
-}
-
 // Faster to instantiate than caching_device_vector and invokes no synchronisation
 // Use this where vector functionality (e.g. resize) is not required
 template <typename T>

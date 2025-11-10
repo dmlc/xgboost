@@ -7,6 +7,7 @@
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
 #include "../../helpers.h"
 #include "../../histogram_helpers.h"
+#include "dummy_quantizer.cuh"  // for MakeDummyQuantizers
 
 namespace xgboost::tree::cuda_impl {
 TEST(GpuMultiHistogram, Basic) {
@@ -27,17 +28,17 @@ TEST(GpuMultiHistogram, Basic) {
   bst_bin_t n_total_bins = n_targets * n_features * n_bins;
   histogram.Reset(&ctx, /*max_cached_hist_nodes=*/2, fg_acc, n_total_bins, true);
 
-  auto gpairs = linalg::Constant(&ctx, GradientPair{1, 1}, n_samples, n_targets);
+  auto gpairs = linalg::Constant(&ctx, GradientPair{1.0f, 1.0f}, n_samples, n_targets);
   dh::device_vector<std::uint32_t> ridx(n_samples);
   thrust::sequence(ctx.CUDACtx()->CTP(), ridx.begin(), ridx.end(), 0);
 
   histogram.AllocateHistograms(&ctx, {0});
   auto node_hist = histogram.GetNodeHistogram(0);
-  std::vector<GradientQuantiser> h_quantizers(n_targets, GradientQuantiser{{1.0, 1.0}, {1.0, 1.0}});
-  dh::device_vector<GradientQuantiser> d_quantizers{h_quantizers};
+  auto quantizers = MakeDummyQuantizers(n_targets);
+
   histogram.BuildHistogram(ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}), fg_acc,
                            gpairs.View(ctx.Device()), dh::ToSpan(ridx), node_hist,
-                           dh::ToSpan(d_quantizers));
+                           dh::ToSpan(quantizers));
 
   std::vector<GradientPairInt64> h_node_hist(node_hist.size());
   dh::CopyDeviceSpanToVector(&h_node_hist, node_hist);

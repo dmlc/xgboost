@@ -5,11 +5,16 @@
 
 #include <algorithm>        // for max
 #include <cmath>            // for isnan
+#include <cstdint>          // for int32_t, uint32_t
 #include <cuda/functional>  // for plus
 #include <memory>           // for unique_ptr, make_unique
+#include <numeric>          // for partial_sum
+#include <string>           // for string
+#include <type_traits>      // for is_trivially_copyable_v
 #include <utility>          // for move
 #include <vector>           // for vector
 
+#include "../../src/collective/comm.h"  // for Op
 #include "../collective/aggregator.h"
 #include "../common/categorical.h"     // for KCatBitField
 #include "../common/cuda_context.cuh"  // for CUDAContext
@@ -30,6 +35,7 @@
 #include "gpu_hist/feature_groups.cuh"          // for FeatureGroups
 #include "gpu_hist/gradient_based_sampler.cuh"  // for GradientBasedSampler
 #include "gpu_hist/histogram.cuh"
+#include "gpu_hist/quantiser.cuh"        // for GradientQuantiser
 #include "gpu_hist/row_partitioner.cuh"  // for RowPartitioner
 #include "hist/hist_param.h"             // for HistMakerTrainParam
 #include "param.h"                       // for TrainParam
@@ -38,10 +44,14 @@
 #include "updater_gpu_common.cuh"        // for HistBatch
 #include "updater_gpu_hist.cuh"          // for MultiTargetHistMaker
 #include "xgboost/base.h"                // for bst_idx_t
+#include "xgboost/collective/result.h"   // for Success, SafeColl
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for DMatrix
+#include "xgboost/gradient.h"            // for GradientContainer
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/json.h"                // for Json
+#include "xgboost/linalg.h"              // for MakeVec
+#include "xgboost/logging.h"             // for CHECK_EQ, CHECK_LE, CHECK_GE
 #include "xgboost/span.h"                // for Span
 #include "xgboost/task.h"                // for ObjInfo
 #include "xgboost/tree_model.h"          // for RegTree
@@ -847,19 +857,26 @@ class GPUHistMaker : public TreeUpdater {
 
   ~GPUHistMaker() override { dh::GlobalMemoryLogger().Log(); }
 
-  void Update(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
+  void Update(TrainParam const* param, GradientContainer* in_gpair, DMatrix* p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
-              const std::vector<RegTree*>& trees) override {
-    monitor_.Start(__func__);
+              std::vector<RegTree*> const& trees) override {
+    if (in_gpair->HasValueGrad() || in_gpair->gpair.Shape(1) > 1) {
+      CHECK(!this->task_->UpdateTreeLeaf()) << "Adaptive tree" << MTNotImplemented();
+    }
+    in_gpair->gpair.SetDevice(this->ctx_->Device());
 
     // build tree
     std::size_t t_idx{0};
-    for (xgboost::RegTree* tree : trees) {
-      this->UpdateTree(param, gpair, dmat, tree, &out_position[t_idx]);
-      this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
+    for (xgboost::RegTree* p_tree : trees) {
+      this->InitData(param, p_fmat, p_tree);
+      if (p_tree->IsMultiTarget()) {
+        p_mtimpl_->UpdateTree(in_gpair, p_fmat, task_, p_tree);
+      } else {
+        p_scimpl_->UpdateTree(in_gpair->gpair.Data(), p_fmat, task_, p_tree, &out_position[t_idx]);
+      }
+      this->hist_maker_param_.CheckTreesSynchronized(ctx_, p_tree);
       ++t_idx;
     }
-    dh::safe_cuda(cudaGetLastError());
     monitor_.Stop(__func__);
   }
 
@@ -903,11 +920,8 @@ class GPUHistMaker : public TreeUpdater {
     this->InitData(param, p_fmat, p_tree);
     gpair->SetDevice(ctx_->Device());
     auto gpair_hdv = gpair->Data();
-    if (p_tree->IsMultiTarget()) {
-      p_mtimpl_->UpdateTree(gpair_hdv, p_fmat, task_, p_tree, p_out_position);
-    } else {
-      p_scimpl_->UpdateTree(gpair_hdv, p_fmat, task_, p_tree, p_out_position);
-    }
+    CHECK(!p_tree->IsMultiTarget());
+    p_scimpl_->UpdateTree(gpair_hdv, p_fmat, task_, p_tree, p_out_position);
   }
 
   bool UpdatePredictionCache(const DMatrix* data, linalg::MatrixView<float> p_out_preds) override {
@@ -972,12 +986,13 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   }
   ~GPUGlobalApproxMaker() override { dh::GlobalMemoryLogger().Log(); }
 
-  void Update(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
+  void Update(TrainParam const* param, GradientContainer* in_gpair, DMatrix* p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override {
     monitor_.Start(__func__);
 
     this->InitDataOnce(p_fmat);
+    auto gpair = in_gpair->FullGradOnly();
     // build tree
     hess_.resize(gpair->Size());
     auto hess = dh::ToSpan(hess_);
