@@ -355,7 +355,7 @@ def run_cat_predict(device: Device, use_arrow: bool) -> None:
             )
             c_ser = pd.Series(c_typ, dtype=pd.ArrowDtype(c_typ.type))
             b_typ = pa.DictionaryArray.from_arrays(
-                pa.array([0, 1, 2], pa.array(b_list))
+                pa.array([0, 1, 2]), pa.array(b_list)
             )
             b_ser = pd.Series(b_typ, dtype=pd.ArrowDtype(b_typ.type))
             df = Df({"b": b_ser, "c": c_ser})

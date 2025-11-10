@@ -35,7 +35,6 @@ from ._data_utils import (
     array_hasobject,
     array_interface,
     array_interface_dict,
-    arrow_cat_inf,
     check_cudf_meta,
     cuda_array_interface,
     cuda_array_interface_dict,
