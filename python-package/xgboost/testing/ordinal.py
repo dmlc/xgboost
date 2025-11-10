@@ -335,7 +335,7 @@ def run_basic_predict(DMatrixT: Type, device: Device, tdevice: Device) -> None:
     assert_allclose(device, predt0, predt2)
 
 
-def run_cat_predict(device: Device) -> None:
+def run_cat_predict(device: Device, use_arrow: bool) -> None:
     """Basic tests for re-coding during prediction."""
     Df, _ = get_df_impl(device)
 
@@ -343,7 +343,24 @@ def run_cat_predict(device: Device) -> None:
         run_basic_predict(dm, device, device)
 
     def run_mixed(DMatrixT: Type) -> None:
-        df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")
+        b_list = [2, 1, 3]
+        c_list = ["cdef", "abc", "def"]
+        if use_arrow:
+            import pandas as pd
+            import pyarrow as pa
+
+            c_typ = pa.DictionaryArray.from_arrays(
+                pa.array([0, 1, 2]),
+                pa.array(["cdef", "abc", "def"], type=pa.large_utf8()),
+            )
+            c_ser = pd.Series(c_typ, dtype=pd.ArrowDtype(c_typ.type))
+            b_typ = pa.DictionaryArray.from_arrays(
+                pa.array([0, 1, 2], pa.array(b_list))
+            )
+            b_ser = pd.Series(b_typ, dtype=pd.ArrowDtype(b_typ.type))
+            df = Df({"b": b_ser, "c": c_ser})
+        else:
+            df = Df({"b": b_list, "c": c_list}, dtype="category")
         y = np.array([0, 1, 2])
 
         # used with the next df

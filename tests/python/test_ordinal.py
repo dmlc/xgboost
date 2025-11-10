@@ -34,7 +34,12 @@ def test_cat_container_iter() -> None:
 
 
 def test_cat_predict() -> None:
-    run_cat_predict("cpu")
+    run_cat_predict("cpu", False)
+
+
+@pytest.mark.skipif(**tm.no_arrow())
+def test_cat_predict_arrow() -> None:
+    run_cat_predict("cpu", True)
 
 
 def test_cat_invalid() -> None:
