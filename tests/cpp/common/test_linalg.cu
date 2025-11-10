@@ -7,7 +7,7 @@
 #include <thrust/sequence.h>                    // for sequence
 
 #include "../../../src/common/cuda_context.cuh"
-#include "../../../src/common/linalg_op.cuh"
+#include "../../../src/common/linalg_op.h"
 #include "../../../src/common/optional_weight.h"  // for MakeOptionalWeights
 #include "../helpers.h"
 #include "thrust/random.h"   // for default_random_engine
@@ -18,7 +18,8 @@
 namespace xgboost::linalg {
 namespace {
 void TestElementWiseKernel() {
-  auto device = DeviceOrd::CUDA(0);
+  auto ctx = MakeCUDACtx(0);
+  auto device = ctx.Device();
   Tensor<float, 3> l{{2, 3, 4}, device};
   {
     /**
@@ -27,7 +28,8 @@ void TestElementWiseKernel() {
     // GPU view
     auto t = l.View(device).Slice(linalg::All(), 1, linalg::All());
     ASSERT_FALSE(t.CContiguous());
-    ElementWiseTransformDevice(t, [] __device__(size_t i, float) { return i; });
+    cuda_impl::TransformIdxKernel(&ctx, t,
+                                          [] XGBOOST_DEVICE(std::size_t i, float) { return i; });
     // CPU view
     t = l.View(DeviceOrd::CPU()).Slice(linalg::All(), 1, linalg::All());
     std::size_t k = 0;
@@ -54,7 +56,8 @@ void TestElementWiseKernel() {
      * Contiguous
      */
     auto t = l.View(device);
-    ElementWiseTransformDevice(t, [] XGBOOST_DEVICE(size_t i, float) { return i; });
+    cuda_impl::TransformIdxKernel(&ctx, t,
+                                          [] XGBOOST_DEVICE(size_t i, float) { return i; });
     ASSERT_TRUE(t.CContiguous());
     // CPU view
     t = l.View(DeviceOrd::CPU());

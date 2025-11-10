@@ -53,7 +53,7 @@ class QuantileHistMaker: public TreeUpdater {
               const std::vector<RegTree*>& trees) override;
 
   bool UpdatePredictionCache(const DMatrix* data,
-                             linalg::MatrixView<float> out_preds) override;
+                             ::xgboost::linalg::MatrixView<float> out_preds) override;
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
@@ -90,7 +90,7 @@ class QuantileHistMaker: public TreeUpdater {
   template<typename GradientSumT>
   void CallUpdate(const std::unique_ptr<HistUpdater<GradientSumT>>& builder,
                   xgboost::tree::TrainParam const *param,
-                  linalg::Matrix<GradientPair> *gpair,
+                  ::xgboost::linalg::Matrix<GradientPair> *gpair,
                   DMatrix *dmat,
                   xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
                   const std::vector<RegTree *> &trees);

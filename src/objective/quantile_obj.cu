@@ -20,14 +20,9 @@
 
 #if defined(XGBOOST_USE_CUDA)
 
-#include "../common/linalg_op.cuh"  // ElementWiseKernel
 #include "../common/stats.cuh"      // SegmentedQuantile
 
 #endif                              // defined(XGBOOST_USE_CUDA)
-
-#if defined(XGBOOST_USE_SYCL)
-#include "../../plugin/sycl/common/linalg_op.h"  // ElementWiseKernel
-#endif
 
 namespace xgboost::obj {
 class QuantileRegression : public ObjFunction {

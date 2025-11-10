@@ -4,15 +4,21 @@
 #ifndef XGBOOST_COMMON_LINALG_OP_CUH_
 #define XGBOOST_COMMON_LINALG_OP_CUH_
 
-#include <cstdint>  // for int32_t
-#include <cstdlib>  // for size_t
-#include <tuple>    // for apply
+#include <thrust/iterator/counting_iterator.h>  // for counting_iterator
+#include <thrust/iterator/zip_iterator.h>       // for make_zip_iterator
+#include <thrust/transform.h>                   // for transform
+
+#include <cstdint>            // for int32_t
+#include <cstdlib>            // for size_t
+#include <cuda/std/iterator>  // for iterator_traits
+#include <cuda/std/tuple>     // for get
+#include <tuple>              // for apply
 
 #include "cuda_context.cuh"
 #include "device_helpers.cuh"  // for LaunchN
-#include "linalg_op.h"
-#include "xgboost/context.h"  // for Context
-#include "xgboost/linalg.h"   // for TensorView
+#include "type.h"              // for GetValueT
+#include "xgboost/context.h"   // for Context
+#include "xgboost/linalg.h"    // for TensorView
 
 namespace xgboost::linalg {
 namespace cuda_impl {
@@ -40,17 +46,21 @@ struct ElementWiseImpl<T, 1> {
 template <typename T, std::int32_t D, typename Fn>
 void ElementWiseKernel(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
   dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
-  cuda_impl::ElementWiseImpl<T, D>{}(t, fn, s);
+  ElementWiseImpl<T, D>{}(t, fn, s);
 }
 
-void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul);
-}  // namespace cuda_impl
-
-template <typename T, int32_t D, typename Fn>
-void ElementWiseTransformDevice(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
+template <typename T, std::int32_t D, typename Fn>
+void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  auto s = ctx->CUDACtx()->Stream();
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
-    dh::LaunchN(t.Size(), s, [=] __device__(size_t i) { ptr[i] = fn(i, ptr[i]); });
+    auto it =
+        thrust::make_zip_iterator(thrust::make_counting_iterator(static_cast<std::size_t>(0)), ptr);
+    using Tuple = typename cuda::std::iterator_traits<common::GetValueT<decltype(it)>>::value_type;
+    thrust::transform(ctx->CUDACtx()->CTP(), it, it + t.Size(), ptr,
+                      [=] XGBOOST_DEVICE(Tuple const& tup) {
+                        return fn(cuda::std::get<0>(tup), cuda::std::get<1>(tup));
+                      });
   } else {
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable {
       T& v = std::apply(t, UnravelIndex(i, t.Shape()));
@@ -59,44 +69,52 @@ void ElementWiseTransformDevice(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nu
   }
 }
 
-template <typename T, int32_t D, typename Fn>
-void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  ctx->IsCUDA() ? cuda_impl::ElementWiseKernel(t, fn)
-                : ElementWiseKernelHost(t, ctx->Threads(), fn);
+template <typename T, std::int32_t D, typename Fn>
+void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  auto s = ctx->CUDACtx()->Stream();
+  if (t.Contiguous()) {
+    auto ptr = t.Values().data();
+    thrust::transform(ctx->CUDACtx()->CTP(), ptr, ptr + t.Size(), ptr,
+                      [=] XGBOOST_DEVICE(T const& v) { return fn(v); });
+  } else {
+    dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable {
+      T& v = std::apply(t, UnravelIndex(i, t.Shape()));
+      v = fn(v);
+    });
+  }
 }
+}  // namespace cuda_impl
 
 namespace detail {
-template <typename T, std::int32_t kDim>
+template <typename T, std::int32_t D>
 struct IterOp {
-  TensorView<T, kDim> v;
-  XGBOOST_DEVICE T& operator()(std::size_t i) {
-    return std::apply(v, UnravelIndex(i, v.Shape()));
-  }
+  TensorView<T, D> v;
+  XGBOOST_DEVICE T& operator()(std::size_t i) { return std::apply(v, UnravelIndex(i, v.Shape())); }
 };
 }  // namespace detail
 
 // naming: thrust begin
 // returns a thrust iterator for a tensor view.
-template <typename T, std::int32_t kDim>
-auto tcbegin(TensorView<T, kDim> v) {  // NOLINT
+template <typename T, std::int32_t D>
+auto tcbegin(TensorView<T, D> v) {  // NOLINT
   return thrust::make_transform_iterator(
       thrust::make_counting_iterator(0ul),
-      detail::IterOp<std::add_const_t<std::remove_const_t<T>>, kDim>{v});
+      detail::IterOp<std::add_const_t<std::remove_const_t<T>>, D>{v});
 }
 
-template <typename T, std::int32_t kDim>
-auto tcend(TensorView<T, kDim> v) {  // NOLINT
+template <typename T, std::int32_t D>
+auto tcend(TensorView<T, D> v) {  // NOLINT
   return tcbegin(v) + v.Size();
 }
 
-template <typename T, std::int32_t kDim>
-auto tbegin(TensorView<T, kDim> v) {  // NOLINT
+template <typename T, std::int32_t D>
+auto tbegin(TensorView<T, D> v) {  // NOLINT
   return thrust::make_transform_iterator(thrust::make_counting_iterator(0ul),
-                                         detail::IterOp<std::remove_const_t<T>, kDim>{v});
+                                         detail::IterOp<std::remove_const_t<T>, D>{v});
 }
 
-template <typename T, std::int32_t kDim>
-auto tend(TensorView<T, kDim> v) {  // NOLINT
+template <typename T, std::int32_t D>
+auto tend(TensorView<T, D> v) {  // NOLINT
   return tbegin(v) + v.Size();
 }
 }  // namespace xgboost::linalg

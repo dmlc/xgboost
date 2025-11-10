@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -7,7 +7,7 @@
 #include <utility>  // std::pair
 #include <vector>   // std::vector
 
-#include "../../../src/common/linalg_op.cuh"  // ElementWiseTransformDevice
+#include "../../../src/common/linalg_op.cuh"  // ElementWiseTransformKernel
 #include "../../../src/common/stats.cuh"
 #include "../helpers.h"
 #include "xgboost/base.h"                // XGBOOST_DEVICE
@@ -81,8 +81,9 @@ class StatsGPU : public ::testing::Test {
         dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                          [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
     linalg::Tensor<float, 1> weights{{10}, FstCU()};
-    linalg::ElementWiseTransformDevice(weights.View(DeviceOrd::CUDA(0)),
-                                       [=] XGBOOST_DEVICE(std::size_t, float) { return 1.0; });
+    linalg::cuda_impl::TransformIdxKernel(
+        &ctx_, weights.View(DeviceOrd::CUDA(0)),
+        [=] XGBOOST_DEVICE(std::size_t, float) { return 1.0; });
     auto w_it = weights.Data()->ConstDevicePointer();
     for (auto const& pair : TestSet{{0.0f, 1.0f}, {0.5f, 3.0f}, {1.0f, 5.0f}}) {
       SegmentedWeightedQuantile(&ctx_, pair.first, key_it, key_it + indptr_.Size(), val_it,

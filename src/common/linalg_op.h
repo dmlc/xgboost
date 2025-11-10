@@ -1,5 +1,10 @@
 /**
  * Copyright 2021-2025, XGBoost Contributors
+ *
+ * @brief This module defines the dispatching functions for various linalg kernels.
+ *
+ * Client code can use utilities like @ref ElementWiseKernel by including this file in the
+ * right translation unit. For CUDA-compatible kernels, include this header in a .cu TU.
  */
 #ifndef XGBOOST_COMMON_LINALG_OP_H_
 #define XGBOOST_COMMON_LINALG_OP_H_
@@ -15,6 +20,16 @@
 #include "xgboost/json.h"        // for Json
 #include "xgboost/linalg.h"
 
+#if defined(__CUDACC__)
+#include <utility>  // for forward
+
+#include "linalg_op.cuh"
+#endif
+
+#if defined(XGBOOST_USE_SYCL)
+#include "../../plugin/sycl/common/linalg_op.h"
+#endif
+
 #if !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
 
 #include "common.h"           // for AssertGPUSupport
@@ -27,8 +42,9 @@ struct OptionalWeights;
 }
 
 namespace xgboost::linalg {
-template <typename T, int32_t D, typename Fn>
-void ElementWiseTransformHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&& fn) {
+namespace cpu_impl {
+template <typename T, std::int32_t D, typename Fn>
+void TransformIdxKernel(linalg::TensorView<T, D> t, std::int32_t n_threads, Fn&& fn) {
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
     common::ParallelFor(t.Size(), n_threads, [&](std::size_t i) { ptr[i] = fn(i, ptr[i]); });
@@ -41,7 +57,20 @@ void ElementWiseTransformHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&
 }
 
 template <typename T, std::int32_t D, typename Fn>
-void ElementWiseKernelHost(linalg::TensorView<T, D> t, std::int32_t n_threads, Fn&& fn) {
+void TransformKernel(linalg::TensorView<T, D> t, std::int32_t n_threads, Fn&& fn) {
+  if (t.Contiguous()) {
+    auto ptr = t.Values().data();
+    common::ParallelFor(t.Size(), n_threads, [&](std::size_t i) { ptr[i] = fn(ptr[i]); });
+  } else {
+    common::ParallelFor(t.Size(), n_threads, [&](std::size_t i) {
+      auto& v = std::apply(t, linalg::UnravelIndex(i, t.Shape()));
+      v = fn(v);
+    });
+  }
+}
+
+template <typename T, std::int32_t D, typename Fn>
+void ElementWiseKernel(linalg::TensorView<T, D> t, std::int32_t n_threads, Fn&& fn) {
   constexpr std::size_t kBlockSize = 2048;
   if constexpr (D == 1) {
     common::ParallelFor1d<kBlockSize>(t.Size(), n_threads, [&](auto&& block) {
@@ -68,88 +97,133 @@ void ElementWiseKernelHost(linalg::TensorView<T, D> t, std::int32_t n_threads, F
     });
   }
 }
+}  // namespace cpu_impl
 
-#if !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
-template <typename T, int32_t D, typename Fn>
-void ElementWiseKernelDevice(linalg::TensorView<T, D>, Fn&&, void* = nullptr) {
-  common::AssertGPUSupport();
-}
-
-template <typename T, int32_t D, typename Fn>
-void ElementWiseTransformDevice(linalg::TensorView<T, D>, Fn&&, void* = nullptr) {
-  common::AssertGPUSupport();
-}
-
-template <typename T, int32_t D, typename Fn>
-void ElementWiseKernel(Context const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
-  if (ctx->IsCUDA()) {
-    common::AssertGPUSupport();
-  }
-  ElementWiseKernelHost(t, ctx->Threads(), fn);
-}
-#endif  // !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
-
-template <typename T, std::int32_t kDim>
-auto cbegin(TensorView<T, kDim> const& v) {  // NOLINT
+template <typename T, std::int32_t D>
+auto cbegin(TensorView<T, D> const& v) {  // NOLINT
   auto it = common::MakeIndexTransformIter([&](std::size_t i) -> std::remove_cv_t<T> const& {
     return std::apply(v, linalg::UnravelIndex(i, v.Shape()));
   });
   return it;
 }
 
-template <typename T, std::int32_t kDim>
-auto cend(TensorView<T, kDim> const& v) {  // NOLINT
+template <typename T, std::int32_t D>
+auto cend(TensorView<T, D> const& v) {  // NOLINT
   return cbegin(v) + v.Size();
 }
 
-template <typename T, std::int32_t kDim>
-auto begin(TensorView<T, kDim>& v) {  // NOLINT
+template <typename T, std::int32_t D>
+auto begin(TensorView<T, D>& v) {  // NOLINT
   auto it = common::MakeIndexTransformIter(
       [&](std::size_t i) -> T& { return std::apply(v, linalg::UnravelIndex(i, v.Shape())); });
   return it;
 }
 
-template <typename T, std::int32_t kDim>
-auto end(TensorView<T, kDim>& v) {  // NOLINT
+template <typename T, std::int32_t D>
+auto end(TensorView<T, D>& v) {  // NOLINT
   return begin(v) + v.Size();
 }
 
-namespace cuda_impl {
-void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul);
-}  // namespace cuda_impl
+/**
+ * @brief Elementwise kernel without a return type.
+ *
+ * @tparam T  Element type of the input array.
+ * @tparam D  Number of dimension of the input array.
+ * @tparam Fn Transformation function.
+ *
+ * @param t  Input array.
+ * @param fn Transformation function.
+ */
+template <typename T, std::int32_t D, typename Fn>
+void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
+                      [&] {
+#if defined(__CUDACC__)
+                        cuda_impl::ElementWiseKernel(t, std::forward<Fn>(fn),
+                                                     ctx->CUDACtx()->Stream());
+#else
+                        LOG(FATAL) << "Invalid TU.";
+#endif  // defined(__CUDACC__)
+                      },
+                      [&] {
+#if defined(XGBOOST_USE_SYCL)
+                        ::xgboost::sycl::linalg::ElementWiseKernel(t, std::forward<Fn>(fn));
+#else
+                        common::AssertSYCLSupport();
+#endif  // defined(XGBOOST_USE_SYCL)
+                      });
+}
 
-namespace sycl_impl {
-void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul);
-}  // namespace sycl_impl
+/**
+ * @brief Elementwise transform, with element index and the element itself as input.
+ *
+ * @tparam T  Element type of the input array.
+ * @tparam D  Number of dimension of the input array.
+ * @tparam Fn Transformation function, must return type T.
+ *
+ * @param t  Input array.
+ * @param fn Transformation function, must return type T.
+ */
+template <typename T, std::int32_t D, typename Fn>
+void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  ctx->DispatchDevice([&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), fn); },
+                      [&] {
+#if defined(__CUDACC__)
+                        cuda_impl::TransformIdxKernel(ctx, t, std::forward<Fn>(fn));
+#else
+                        LOG(FATAL) << "Invalid TU.";
+#endif  // defined(__CUDACC__)
+                      },
+                      [&] {
+#if defined(XGBOOST_USE_SYCL)
+                        static_assert(D == 1, "Not implemented.");
+                        sycl::linalg::ElementWiseKernel(
+                            t, [=](std::size_t i) mutable { t(i) = fn(i, t(i)); });
+#else
+                        common::AssertSYCLSupport();
+#endif  // defined(XGBOOST_USE_SYCL)
+                      });
+}
+
+/**
+ * @brief Elementwise transform, with the element itself as input. Rest is the same as @ref
+ * TransformIdxKernel
+ */
+template <typename T, std::int32_t D, typename Fn>
+void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), fn); },
+                      [&] {
+#if defined(__CUDACC__)
+                        cuda_impl::TransformKernel(ctx, t, std::forward<Fn>(fn));
+#else
+                        LOG(FATAL) << "Invalid TU.";
+#endif  // defined(__CUDACC__)
+                      },
+                      [&] {
+#if defined(XGBOOST_USE_SYCL)
+                        static_assert(D == 1, "Not implemented.");
+                        sycl::linalg::ElementWiseKernel(
+                            t, [=](std::size_t i) mutable { t(i) = fn(t(i)); });
+#else
+                        common::AssertSYCLSupport();
+#endif  // defined(XGBOOST_USE_SYCL)
+                      });
+}
 
 // vector-scalar multiplication
 inline void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul) {
   CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
-  if (x.Device().IsCUDA()) {
-#if defined(XGBOOST_USE_CUDA)
-    cuda_impl::VecScaMul(ctx, x, mul);
-#else
-    common::AssertGPUSupport();
-#endif
-  } else if (x.Device().IsSycl()) {
-#if defined(XGBOOST_USE_SYCL)
-    sycl_impl::VecScaMul(ctx, x, mul);
-#else
-    common::AssertSYCLSupport();
-#endif
-  } else {
-    constexpr std::size_t kBlockSize = 2048;
-    common::ParallelFor1d<kBlockSize>(x.Size(), ctx->Threads(), [&](auto&& block) {
-      for (auto i = block.begin(); i < block.end(); ++i) {
-        x(i) *= mul;
-      }
-    });
-  }
+  TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return v * mul; });
 }
 
 // vector-scalar division
 inline void VecScaDiv(Context const* ctx, linalg::VectorView<float> x, double div) {
   return VecScaMul(ctx, x, 1.0 / div);
+}
+
+inline void LogE(Context const* ctx, linalg::VectorView<float> x) {
+  CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
+  TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return log(v); });
 }
 
 template <typename T, std::enable_if_t<std::is_floating_point_v<T>>* = nullptr>
