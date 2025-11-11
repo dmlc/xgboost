@@ -126,7 +126,7 @@ auto end(TensorView<T, D>& v) {  // NOLINT
 
 namespace detail {
 using SysTagImpl = std::int32_t;
-
+// Magic for complying with the ODR.
 #if defined(__CUDACC__)
 constexpr SysTagImpl SysTag() { return 0; }
 #elif defined(XGBOOST_USE_SYCL)
@@ -163,6 +163,7 @@ void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
 #else
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  CHECK(ctx->IsCPU());
   ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
                       [&] { LOG(FATAL) << "Invalid TU"; });
 }
@@ -199,6 +200,7 @@ void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
 #else
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  CHECK(ctx->IsCPU());
   ctx->DispatchDevice(
       [&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
       [&] { LOG(FATAL) << "Invalid TU."; });
@@ -229,6 +231,7 @@ void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
 #else
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  CHECK(ctx->IsCPU());
   ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
                       [&] { LOG(FATAL) << "Invalid TU."; });
 }

@@ -45,7 +45,6 @@ struct ElementWiseImpl<T, 1> {
 
 template <typename T, std::int32_t D, typename Fn>
 void ElementWiseKernel(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
-  dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
   ElementWiseImpl<T, D>{}(t, fn, s);
 }
 
