@@ -134,25 +134,27 @@ auto end(TensorView<T, D>& v) {  // NOLINT
  * @param t  Input array.
  * @param fn Transformation function.
  */
+#if defined(__CUDACC__)
+template <typename T, std::int32_t D, typename Fn>
+void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  ctx->DispatchDevice(
+      [&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
+      [&] { cuda_impl::ElementWiseKernel(t, std::forward<Fn>(fn), ctx->CUDACtx()->Stream()); });
+}
+#elif defined(XGBOOST_USE_SYCL)
 template <typename T, std::int32_t D, typename Fn>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
-                      [&] {
-#if defined(__CUDACC__)
-                        cuda_impl::ElementWiseKernel(t, std::forward<Fn>(fn),
-                                                     ctx->CUDACtx()->Stream());
-#else
-                        LOG(FATAL) << "Invalid TU.";
-#endif  // defined(__CUDACC__)
-                      },
-                      [&] {
-#if defined(XGBOOST_USE_SYCL)
-                        ::xgboost::sycl::linalg::ElementWiseKernel(t, std::forward<Fn>(fn));
-#else
-                        common::AssertSYCLSupport();
-#endif  // defined(XGBOOST_USE_SYCL)
-                      });
+                      [&] { LOG(FATAL) << "Invalid TU"; },
+                      [&] { ::xgboost::sycl::linalg::ElementWiseKernel(t, std::forward<Fn>(fn)); });
 }
+#else
+template <typename T, std::int32_t D, typename Fn>
+void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
+                      [&] { LOG(FATAL) << "Invalid TU"; });
+}
+#endif
 
 /**
  * @brief Elementwise transform, with element index and the element itself as input.
@@ -164,51 +166,59 @@ void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
  * @param t  Input array.
  * @param fn Transformation function, must return type T.
  */
+#if defined(__CUDACC__)
 template <typename T, std::int32_t D, typename Fn>
 void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice([&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), fn); },
+                      [&] { cuda_impl::TransformIdxKernel(ctx, t, std::forward<Fn>(fn)); });
+}
+#elif defined(XGBOOST_USE_SYCL)
+template <typename T, std::int32_t D, typename Fn>
+void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  ctx->DispatchDevice([&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), fn); },
+                      [&] { LOG(FATAL) << "Invalid TU."; },
                       [&] {
-#if defined(__CUDACC__)
-                        cuda_impl::TransformIdxKernel(ctx, t, std::forward<Fn>(fn));
-#else
-                        LOG(FATAL) << "Invalid TU.";
-#endif  // defined(__CUDACC__)
-                      },
-                      [&] {
-#if defined(XGBOOST_USE_SYCL)
                         static_assert(D == 1, "Not implemented.");
                         sycl::linalg::ElementWiseKernel(
                             t, [=](std::size_t i) mutable { t(i) = fn(i, t(i)); });
-#else
-                        common::AssertSYCLSupport();
-#endif  // defined(XGBOOST_USE_SYCL)
                       });
 }
+#else
+template <typename T, std::int32_t D, typename Fn>
+void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  ctx->DispatchDevice([&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), fn); },
+                      [&] { LOG(FATAL) << "Invalid TU."; });
+}
+#endif
 
 /**
  * @brief Elementwise transform, with the element itself as input. Rest is the same as @ref
  * TransformIdxKernel
  */
+#if defined(__CUDACC__)
 template <typename T, std::int32_t D, typename Fn>
 void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), fn); },
+                      [&] { cuda_impl::TransformKernel(ctx, t, std::forward<Fn>(fn)); });
+}
+#elif defined(XGBOOST_USE_SYCL)
+template <typename T, std::int32_t D, typename Fn>
+void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), fn); },
+                      [&] { LOG(FATAL) << "Invalid TU."; },
                       [&] {
-#if defined(__CUDACC__)
-                        cuda_impl::TransformKernel(ctx, t, std::forward<Fn>(fn));
-#else
-                        LOG(FATAL) << "Invalid TU.";
-#endif  // defined(__CUDACC__)
-                      },
-                      [&] {
-#if defined(XGBOOST_USE_SYCL)
                         static_assert(D == 1, "Not implemented.");
                         sycl::linalg::ElementWiseKernel(
                             t, [=](std::size_t i) mutable { t(i) = fn(t(i)); });
-#else
-                        common::AssertSYCLSupport();
-#endif  // defined(XGBOOST_USE_SYCL)
                       });
 }
+#else
+template <typename T, std::int32_t D, typename Fn>
+void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), fn); },
+                      [&] { LOG(FATAL) << "Invalid TU."; });
+}
+#endif
 
 // vector-scalar multiplication
 inline void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul) {
