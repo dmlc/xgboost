@@ -45,11 +45,13 @@ struct ElementWiseImpl<T, 1> {
 
 template <typename T, std::int32_t D, typename Fn>
 void ElementWiseKernel(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
+  dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
   ElementWiseImpl<T, D>{}(t, fn, s);
 }
 
 template <typename T, std::int32_t D, typename Fn>
 void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
   auto s = ctx->CUDACtx()->Stream();
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
@@ -70,6 +72,7 @@ void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
 
 template <typename T, std::int32_t D, typename Fn>
 void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
+  dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
   auto s = ctx->CUDACtx()->Stream();
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
