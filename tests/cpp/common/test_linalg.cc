@@ -11,6 +11,7 @@
 #include <vector>   // for vector
 
 #include "../../../src/common/linalg_op.h"
+#include "test_linalg.h"  // for TestLinalgDispatch
 
 namespace xgboost::linalg {
 namespace {
@@ -409,5 +410,10 @@ TEST(Linalg, IO) {
     LoadVector(jloaded, &loaded);
     check(loaded);
   }
+}
+
+TEST(Linalg, CpuDispatch) {
+  Context ctx;
+  TestLinalgDispatch(&ctx, [](auto v) { return v + 1; });
 }
 }  // namespace xgboost::linalg

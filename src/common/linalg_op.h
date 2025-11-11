@@ -5,6 +5,9 @@
  *
  * Client code can use utilities like @ref ElementWiseKernel by including this file in the
  * right translation unit. For CUDA-compatible kernels, include this header in a .cu TU.
+ *
+ * Be aware of potential violation of the one definition rule (ODR). The dispatching
+ * functions should never be used in an inline function without a system tag.
  */
 #ifndef XGBOOST_COMMON_LINALG_OP_H_
 #define XGBOOST_COMMON_LINALG_OP_H_

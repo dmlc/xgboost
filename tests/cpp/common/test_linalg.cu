@@ -10,6 +10,7 @@
 #include "../../../src/common/linalg_op.h"
 #include "../../../src/common/optional_weight.h"  // for MakeOptionalWeights
 #include "../helpers.h"
+#include "test_linalg.h"     // for TestLinalgDispatch
 #include "thrust/random.h"   // for default_random_engine
 #include "thrust/shuffle.h"  // for shuffle
 #include "xgboost/context.h"
@@ -28,8 +29,7 @@ void TestElementWiseKernel() {
     // GPU view
     auto t = l.View(device).Slice(linalg::All(), 1, linalg::All());
     ASSERT_FALSE(t.CContiguous());
-    cuda_impl::TransformIdxKernel(&ctx, t,
-                                          [] XGBOOST_DEVICE(std::size_t i, float) { return i; });
+    cuda_impl::TransformIdxKernel(&ctx, t, [] XGBOOST_DEVICE(std::size_t i, float) { return i; });
     // CPU view
     t = l.View(DeviceOrd::CPU()).Slice(linalg::All(), 1, linalg::All());
     std::size_t k = 0;
@@ -56,8 +56,7 @@ void TestElementWiseKernel() {
      * Contiguous
      */
     auto t = l.View(device);
-    cuda_impl::TransformIdxKernel(&ctx, t,
-                                          [] XGBOOST_DEVICE(size_t i, float) { return i; });
+    cuda_impl::TransformIdxKernel(&ctx, t, [] XGBOOST_DEVICE(size_t i, float) { return i; });
     ASSERT_TRUE(t.CContiguous());
     // CPU view
     t = l.View(DeviceOrd::CPU());
@@ -151,4 +150,11 @@ TEST(Linalg, SmallHistogram) {
     ASSERT_EQ(h_bins[i], cnt);
   }
 }
+namespace {
+void TestGpuDispatch() {
+  auto ctx = MakeCUDACtx(0);
+  TestLinalgDispatch(&ctx, [] XGBOOST_DEVICE(double v) { return v + 1; });
+}
+}  // namespace
+TEST(Linalg, GpuDispatch) { TestGpuDispatch(); }
 }  // namespace xgboost::linalg
