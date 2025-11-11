@@ -60,14 +60,12 @@ void QuantileHistMaker::SetPimpl(std::unique_ptr<HistUpdater<GradientSumT>>* pim
   }
 }
 
-template<typename GradientSumT>
-void QuantileHistMaker::CallUpdate(
-        const std::unique_ptr<HistUpdater<GradientSumT>>& pimpl,
-        xgboost::tree::TrainParam const *param,
-        linalg::Matrix<GradientPair> *gpair,
-        DMatrix *dmat,
-        xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
-        const std::vector<RegTree *> &trees) {
+template <typename GradientSumT>
+void QuantileHistMaker::CallUpdate(const std::unique_ptr<HistUpdater<GradientSumT>> &pimpl,
+                                   xgboost::tree::TrainParam const *param,
+                                   ::xgboost::linalg::Matrix<GradientPair> *gpair, DMatrix *dmat,
+                                   xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
+                                   const std::vector<RegTree *> &trees) {
   for (auto tree : trees) {
     pimpl->Update(param, gmat_, *(gpair->Data()), dmat, out_position, tree);
   }
@@ -107,8 +105,8 @@ void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param, GradientC
   p_last_dmat_ = dmat;
 }
 
-bool QuantileHistMaker::UpdatePredictionCache(const DMatrix* data,
-                                              linalg::MatrixView<float> out_preds) {
+bool QuantileHistMaker::UpdatePredictionCache(const DMatrix *data,
+                                              ::xgboost::linalg::MatrixView<float> out_preds) {
   if (param_.subsample < 1.0f) return false;
 
   if (hist_precision_ == HistPrecision::fp32) {

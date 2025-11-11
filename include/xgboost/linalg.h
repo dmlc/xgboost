@@ -273,7 +273,7 @@ enum Order : std::uint8_t {
  * some functions expect data types that can be used in everywhere (update prediction
  * cache for example).
  */
-template <typename T, int32_t kDim>
+template <typename T, std::int32_t kDim>
 class TensorView {
  public:
   using ShapeT = std::size_t[kDim];
@@ -300,7 +300,7 @@ class TensorView {
     }
   }
 
-  template <size_t old_dim, size_t new_dim, int32_t D, typename I>
+  template <size_t old_dim, size_t new_dim, std::int32_t D, typename I>
   LINALG_HD size_t MakeSliceDim(std::size_t new_shape[D], std::size_t new_stride[D],
                                 detail::RangeTag<I> &&range) const {
     static_assert(new_dim < D);
