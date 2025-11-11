@@ -60,7 +60,7 @@ template <typename T, std::int32_t D, typename Fn>
 void TransformKernel(linalg::TensorView<T, D> t, std::int32_t n_threads, Fn&& fn) {
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
-    common::ParallelFor(t.Size(), n_threads, [&] __host__(std::size_t i) { ptr[i] = fn(ptr[i]); });
+    common::ParallelFor(t.Size(), n_threads, [&](std::size_t i) { ptr[i] = fn(ptr[i]); });
   } else {
     common::ParallelFor(t.Size(), n_threads, [&](std::size_t i) {
       auto& v = std::apply(t, linalg::UnravelIndex(i, t.Shape()));
