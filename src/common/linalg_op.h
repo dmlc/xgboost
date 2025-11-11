@@ -60,7 +60,7 @@ template <typename T, std::int32_t D, typename Fn>
 void TransformKernel(linalg::TensorView<T, D> t, std::int32_t n_threads, Fn&& fn) {
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
-    common::ParallelFor(t.Size(), n_threads, [&](std::size_t i) { ptr[i] = fn(ptr[i]); });
+    common::ParallelFor(t.Size(), n_threads, [&] __host__(std::size_t i) { ptr[i] = fn(ptr[i]); });
   } else {
     common::ParallelFor(t.Size(), n_threads, [&](std::size_t i) {
       auto& v = std::apply(t, linalg::UnravelIndex(i, t.Shape()));
@@ -124,6 +124,18 @@ auto end(TensorView<T, D>& v) {  // NOLINT
   return begin(v) + v.Size();
 }
 
+namespace detail {
+using SysTagImpl = std::int32_t;
+
+#if defined(__CUDACC__)
+constexpr SysTagImpl SysTag() { return 0; }
+#elif defined(XGBOOST_USE_SYCL)
+constexpr SysTagImpl SysTag() { return 1; }
+#else
+constexpr SysTagImpl SysTag() { return 2; }
+#endif
+}  // namespace detail
+
 /**
  * @brief Elementwise kernel without a return type.
  *
@@ -135,21 +147,21 @@ auto end(TensorView<T, D>& v) {  // NOLINT
  * @param fn Transformation function.
  */
 #if defined(__CUDACC__)
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice(
       [&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
       [&] { cuda_impl::ElementWiseKernel(t, std::forward<Fn>(fn), ctx->CUDACtx()->Stream()); });
 }
 #elif defined(XGBOOST_USE_SYCL)
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
                       [&] { LOG(FATAL) << "Invalid TU"; },
                       [&] { ::xgboost::sycl::linalg::ElementWiseKernel(t, std::forward<Fn>(fn)); });
 }
 #else
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
                       [&] { LOG(FATAL) << "Invalid TU"; });
@@ -167,27 +179,29 @@ void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
  * @param fn Transformation function, must return type T.
  */
 #if defined(__CUDACC__)
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  ctx->DispatchDevice([&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), fn); },
-                      [&] { cuda_impl::TransformIdxKernel(ctx, t, std::forward<Fn>(fn)); });
+  ctx->DispatchDevice(
+      [&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
+      [&] { cuda_impl::TransformIdxKernel(ctx, t, std::forward<Fn>(fn)); });
 }
 #elif defined(XGBOOST_USE_SYCL)
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  ctx->DispatchDevice([&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), fn); },
-                      [&] { LOG(FATAL) << "Invalid TU."; },
-                      [&] {
-                        static_assert(D == 1, "Not implemented.");
-                        sycl::linalg::ElementWiseKernel(
-                            t, [=](std::size_t i) mutable { t(i) = fn(i, t(i)); });
-                      });
+  ctx->DispatchDevice(
+      [&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
+      [&] { LOG(FATAL) << "Invalid TU."; },
+      [&] {
+        static_assert(D == 1, "Not implemented.");
+        sycl::linalg::ElementWiseKernel(t, [=](std::size_t i) mutable { t(i) = fn(i, t(i)); });
+      });
 }
 #else
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  ctx->DispatchDevice([&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), fn); },
-                      [&] { LOG(FATAL) << "Invalid TU."; });
+  ctx->DispatchDevice(
+      [&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
+      [&] { LOG(FATAL) << "Invalid TU."; });
 }
 #endif
 
@@ -196,15 +210,15 @@ void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
  * TransformIdxKernel
  */
 #if defined(__CUDACC__)
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), fn); },
+  ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
                       [&] { cuda_impl::TransformKernel(ctx, t, std::forward<Fn>(fn)); });
 }
 #elif defined(XGBOOST_USE_SYCL)
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), fn); },
+  ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
                       [&] { LOG(FATAL) << "Invalid TU."; },
                       [&] {
                         static_assert(D == 1, "Not implemented.");
@@ -213,25 +227,28 @@ void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
                       });
 }
 #else
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), fn); },
+  ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
                       [&] { LOG(FATAL) << "Invalid TU."; });
 }
 #endif
 
 // vector-scalar multiplication
-inline void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul) {
+template <auto _tag = detail::SysTag()>
+void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul) {
   CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
   TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return v * mul; });
 }
 
 // vector-scalar division
-inline void VecScaDiv(Context const* ctx, linalg::VectorView<float> x, double div) {
+template <auto _tag = detail::SysTag()>
+void VecScaDiv(Context const* ctx, linalg::VectorView<float> x, double div) {
   return VecScaMul(ctx, x, 1.0 / div);
 }
 
-inline void LogE(Context const* ctx, linalg::VectorView<float> x) {
+template <auto _tag = detail::SysTag()>
+void LogE(Context const* ctx, linalg::VectorView<float> x) {
   CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
   TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return log(v); });
 }
