@@ -315,7 +315,6 @@ def _find_nccl() -> Optional[str]:
     files = os.listdir(dirname)
     if not files:
         return None
-    assert len(files) >= 1
 
     libname: Optional[str] = None
     for name in files:
