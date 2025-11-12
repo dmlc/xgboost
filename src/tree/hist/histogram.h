@@ -277,7 +277,7 @@ class MultiHistogramBuilder {
   Context const *ctx_;
   common::CacheManager cache_manager_;
 
-  bool ReadByColumn(const GHistIndexMatrix &gidx, bool force_read_by_column) {
+  bool ReadByColumn(const GHistIndexMatrix &gidx, bool force_read_by_column) const {
     if (force_read_by_column) return true;
 
     auto nbins = gidx.cut.Ptrs().back();
@@ -357,8 +357,6 @@ class MultiHistogramBuilder {
 
       auto space = ConstructHistSpace(partitioners, nodes_to_build, page,
                                       cache_manager_.L1Size(), read_by_column);
-
-      // auto space = ConstructHistSpace(partitioners, nodes_to_build, read_by_column);
 
       CHECK_EQ(gpair.Shape(1), tree.NumTargets());
       for (bst_target_t t = 0; t < tree.NumTargets(); ++t) {

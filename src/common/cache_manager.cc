@@ -2,6 +2,7 @@
  * Copyright 2021-2025, XGBoost Contributors
  */
 #include "cache_manager.h"
+#include "xgboost/logging.h"
 
 #include <cstdint>     // for uint64_t
 
@@ -85,6 +86,12 @@ namespace xgboost::common {
 
 CacheManager::CacheManager() {
   DetectDataCaches(kMaxCacheSize, cache_size_.data());
+  LOG(INFO) << "Detected: " << "\t"
+            << "L1: " << cache_size_[0] << "\t"
+            << "L2: " << cache_size_[1] << "\t"
+            << "L3: " << cache_size_[2] << "\t"
+            << "L4: " << cache_size_[3] << "\t"
+            ;
 }
 
 }  // namespace xgboost::common
