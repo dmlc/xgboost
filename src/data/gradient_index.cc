@@ -27,7 +27,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_
   cut = common::SketchOnDMatrix(ctx, p_fmat, max_bins_per_feat, sorted_sketch, hess);
 
   const uint32_t nbins = cut.Ptrs().back();
-  hit_count = common::MakeFixedVecWithMalloc(nbins, std::size_t{0});
+  hit_count = common::MakeFixedVecWithMalloc(nbins, std::size_t{0}, ctx->Threads());
   hit_count_tloc_.resize(ctx->Threads() * nbins, 0);
 
   size_t new_size = 1;
@@ -35,7 +35,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_
     new_size += batch.Size();
   }
 
-  row_ptr = common::MakeFixedVecWithMalloc(new_size, std::size_t{0});
+  row_ptr = common::MakeFixedVecWithMalloc(new_size, std::size_t{0}, ctx->Threads());
 
   const bool isDense = p_fmat->IsDense();
   this->isDense_ = isDense;
@@ -135,13 +135,13 @@ INSTANTIATION_PUSH(data::EncColumnarAdapterBatch)
 
 #undef INSTANTIATION_PUSH
 
-void GHistIndexMatrix::ResizeColumns(double sparse_thresh) {
+void GHistIndexMatrix::ResizeColumns(double sparse_thresh, int n_threads) {
   CHECK(!std::isnan(sparse_thresh));
-  this->columns_ = std::make_unique<common::ColumnMatrix>(*this, sparse_thresh);
+  this->columns_ = std::make_unique<common::ColumnMatrix>(*this, sparse_thresh, n_threads);
 }
 
-void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
-  auto make_index = [this, n_index](auto t, common::BinTypeSize t_size) {
+void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense, int n_threads) {
+  auto make_index = [this, n_index, n_threads](auto t, common::BinTypeSize t_size) {
     // Must resize instead of allocating a new one. This function is called everytime a
     // new batch is pushed, and we grow the size accordingly without loosing the data in
     // the previous batches.
@@ -153,7 +153,7 @@ void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
     decltype(this->data) new_vec;
     if (!resource) {
       CHECK(this->data.empty());
-      new_vec = common::MakeFixedVecWithMalloc(n_bytes, std::uint8_t{0});
+      new_vec = common::MakeFixedVecWithMalloc(n_bytes, std::uint8_t{0}, n_threads);
     } else {
       CHECK(resource->Type() == common::ResourceHandler::kMalloc);
       auto malloc_resource = std::dynamic_pointer_cast<common::MallocResource>(resource);
