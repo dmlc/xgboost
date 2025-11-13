@@ -2,9 +2,10 @@
  * Copyright 2021-2025, XGBoost Contributors
  */
 #include "cache_manager.h"
-#include "xgboost/logging.h"
 
 #include <cstdint>     // for uint64_t
+
+#include "xgboost/logging.h"
 
 #if defined(__x86_64__)
 void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
@@ -36,8 +37,8 @@ void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
 
 #define _CPUID_CACHE_INFO 0x4U
 
-bool GetCacheInfo(int cache_num, int & type, int & level, int64_t & sets,
-                  int & line_size, int & partitions, int & ways) {
+bool GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
+                  int* line_size, int* partitions, int* ways) {
   static uint32_t abcd[4];
   RunCpuid(_CPUID_CACHE_INFO, cache_num, abcd);
 
@@ -63,9 +64,10 @@ constexpr int kCpuidTypeData = 1;
 constexpr int kCpuidTypeInst = 2;
 constexpr int kCpuidTypeUnif = 3;
 
-bool DetectDataCaches(std::array<int64_t, CacheManager::kMaxCacheSize> & cache_sizes) {
+template <size_t kMaxCacheSize>
+bool DetectDataCaches(int64_t* cache_sizes) {
   int cache_num = 0, cache_sizes_idx = 0;
-  while (cache_sizes_idx < cache_sizes_len) {
+  while (cache_sizes_idx < kMaxCacheSize) {
     int type, level, line_size, partitions, ways;
     int64_t sets, size;
     bool trust_cpuid =
@@ -86,7 +88,7 @@ namespace xgboost::common {
 
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
-  bool trust_cpuid = DetectDataCaches(kMaxCacheSize, cache_size_.data());
+  bool trust_cpuid = DetectDataCaches<kMaxCacheSize>(cache_size_.data());
   if (!trust_cpuid) SetDefaultCaches();
 #else
   SetDefaultCaches();
