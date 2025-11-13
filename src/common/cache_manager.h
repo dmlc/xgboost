@@ -14,6 +14,13 @@ class CacheManager {
   constexpr static int kMaxCacheSize = 4;
   std::array<int64_t, kMaxCacheSize> cache_size_;
 
+  void SetDefaultCaches() {
+    cache_size_[0] = 32 * 1024;    // L1
+    cache_size_[1] = 1024 * 1024;  // L2
+    cache_size_[2] = 0;            // L3 place holder
+    cache_size_[3] = 0;            // L4 place holder
+  }
+
  public:
   CacheManager();
 

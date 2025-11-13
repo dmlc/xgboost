@@ -82,21 +82,14 @@ bool DetectDataCaches(int cache_sizes_len, int64_t* cache_sizes) {
 }
 #endif  // defined(__x86_64__)
 
-void SetDefaultCaches(int64_t* cache_sizes) {
-  cache_sizes[0] = 32 * 1024;    // L1
-  cache_sizes[1] = 1024 * 1024;  // L2
-  cache_sizes[2] = 0;            // L3 place holder
-  cache_sizes[3] = 0;            // L4 place holder
-}
-
 namespace xgboost::common {
 
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
   bool trust_cpuid = DetectDataCaches(kMaxCacheSize, cache_size_.data());
-  if (!trust_cpuid) SetDefaultCaches(cache_size_.data());
+  if (!trust_cpuid) SetDefaultCaches();
 #else
-  SetDefaultCaches(cache_size_.data());
+  SetDefaultCaches();
 #endif  // defined(__x86_64__)
 }
 
