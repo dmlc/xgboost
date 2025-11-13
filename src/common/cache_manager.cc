@@ -7,7 +7,7 @@
 #include <cstdint>     // for uint64_t
 
 #if defined(__x86_64__)
-void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t* abcd) {
+void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
 #if defined(_MSC_VER)
     __cpuidex(static_cast<int*>(abcd), eax, ecx);
 #else
