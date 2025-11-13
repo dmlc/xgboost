@@ -36,8 +36,8 @@ void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
 
 #define _CPUID_CACHE_INFO 0x4U
 
-bool GetCacheInfo(int cache_num, int * type, int * level, int64_t * sets,
-                  int * line_size, int * partitions, int * ways) {
+bool GetCacheInfo(int cache_num, int & type, int & level, int64_t & sets,
+                  int & line_size, int & partitions, int & ways) {
   static uint32_t abcd[4];
   RunCpuid(_CPUID_CACHE_INFO, cache_num, abcd);
 
