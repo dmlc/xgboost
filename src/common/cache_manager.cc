@@ -63,7 +63,7 @@ constexpr int kCpuidTypeData = 1;
 constexpr int kCpuidTypeInst = 2;
 constexpr int kCpuidTypeUnif = 3;
 
-bool DetectDataCaches(int cache_sizes_len, int64_t* cache_sizes) {
+bool DetectDataCaches(std::array<int64_t, CacheManager::kMaxCacheSize> & cache_sizes) {
   int cache_num = 0, cache_sizes_idx = 0;
   while (cache_sizes_idx < cache_sizes_len) {
     int type, level, line_size, partitions, ways;
