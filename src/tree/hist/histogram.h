@@ -242,28 +242,35 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     }
   }
 
-  std::size_t block_size;
+  // a pair of gradients (p_gpair): 2 * sizeof(float)
+  // an index of row (rid[i]): sizeof(size_t)
+  // icol_start and icol_end: 2 * sizeof(size_t)
+  std::size_t l1_row_foot_print = (2 * sizeof(float) + 3 * sizeof(size_t));
   double usable_l1_size = 0.8 * l1_size;
+  std::size_t space_in_l1_for_rows;
   if (read_by_column) {
     std::size_t max_elem_in_hist_col = 1u << (8 * gidx.index.GetBinTypeSize());
     std::size_t hist_col_size = 2 * sizeof(double) * max_elem_in_hist_col;
     bool hist_col_fit_to_l1 = hist_col_size < usable_l1_size;
-    std::size_t vars_size = usable_l1_size - (hist_col_fit_to_l1 ? hist_col_size : 0);
-    block_size = vars_size / (2 * sizeof(float) + 3 * sizeof(size_t));
 
-    LOG(INFO) << "Build by column; block_size = " << block_size;
+    space_in_l1_for_rows = usable_l1_size - (hist_col_fit_to_l1 ? hist_col_size : 0);
   } else {
-    size_t n_bins = gidx.cut.Ptrs().back();
-    size_t n_columns = gidx.cut.Ptrs().size() - 1;
+    std::size_t n_bins = gidx.cut.Ptrs().back();
+    std::size_t n_columns = gidx.cut.Ptrs().size() - 1;
     bool any_missing = !gidx.IsDense();
-    size_t hist_size = 2 * sizeof(double) * n_bins;
-    size_t offsets_size = any_missing ? 0 : n_columns * sizeof(uint32_t);
-    bool hist_fit_to_l1 = (hist_size + offsets_size) < usable_l1_size;
+    std::size_t hist_size = 2 * sizeof(double) * n_bins;
+    std::size_t offsets_size = any_missing ? 0 : n_columns * sizeof(uint32_t);
 
-    std::size_t vars_size = usable_l1_size - (hist_fit_to_l1 ? hist_size : 0) - offsets_size;
-    block_size = vars_size / (2 * sizeof(float) + 4 * sizeof(size_t));
+    //Prefetch
+    l1_row_foot_print += 2 * sizeof(float);
+    std::size_t idx_bin_size = n_columns * sizeof(uint32_t);
+
+    bool hist_fit_to_l1 = (hist_size + offsets_size + idx_bin_size) < usable_l1_size;
+
+    std::size_t occupied_space = (hist_fit_to_l1 ? hist_size : 0) + offsets_size + idx_bin_size;
+    space_in_l1_for_rows = usable_l1_size > occupied_space ? usable_l1_size - occupied_space : 0;
   }
-  block_size = std::max<std::size_t>(1, block_size);
+  std::size_t block_size = std::max<std::size_t>(1, space_in_l1_for_rows / l1_row_foot_print);
 
   common::BlockedSpace2d space{
       nodes_to_build.size(), [&](size_t nidx_in_set) {

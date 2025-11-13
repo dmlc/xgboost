@@ -36,7 +36,8 @@ void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t* abcd) {
 
 #define _CPUID_CACHE_INFO 0x4U
 
-bool GetCacheInfo(int cache_num, int * type, int * level, int64_t * sets, int * line_size, int * partitions, int * ways) {
+bool GetCacheInfo(int cache_num, int * type, int * level, int64_t * sets,
+                  int * line_size, int * partitions, int * ways) {
   static uint32_t abcd[4];
   RunCpuid(_CPUID_CACHE_INFO, cache_num, abcd);
 
@@ -45,7 +46,7 @@ bool GetCacheInfo(int cache_num, int * type, int * level, int64_t * sets, int * 
   const uint32_t eax = abcd[0];
   const uint32_t ebx = abcd[1];
   const uint32_t ecx = abcd[2];
-  const uint32_t edx = abcd[3];
+  // const uint32_t edx = abcd[3];  // Not used
   *type              = _CPUID_GET_TYPE(eax);
   *level             = _CPUID_GET_LEVEL(eax);
   *sets              = _CPUID_GET_SETS(ecx);
@@ -57,10 +58,10 @@ bool GetCacheInfo(int cache_num, int * type, int * level, int64_t * sets, int * 
   return trust_cpuid;
 }
 
-constexpr int kCPUID_TYPE_NULL = 0;
-constexpr int kCPUID_TYPE_DATA = 1;
-constexpr int kCPUID_TYPE_INST = 2;
-constexpr int kCPUID_TYPE_UNIF = 3;
+constexpr int kCpuidTypeNull = 0;
+constexpr int kCpuidTypeData = 1;
+constexpr int kCpuidTypeInst = 2;
+constexpr int kCpuidTypeUnif = 3;
 
 bool DetectDataCaches(int cache_sizes_len, int64_t* cache_sizes) {
   int cache_num = 0, cache_sizes_idx = 0;
@@ -71,8 +72,8 @@ bool DetectDataCaches(int cache_sizes_len, int64_t* cache_sizes) {
       GetCacheInfo(cache_num++, &type, &level, &sets, &line_size, &partitions, &ways);
     if (!trust_cpuid) return trust_cpuid;
 
-    if (type == kCPUID_TYPE_NULL) break;
-    if (type == kCPUID_TYPE_INST) continue;
+    if (type == kCpuidTypeNull) break;
+    if (type == kCpuidTypeInst) continue;
 
     size                           = ways * partitions * line_size * sets;
     cache_sizes[cache_sizes_idx++] = size;
@@ -93,17 +94,10 @@ namespace xgboost::common {
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
   bool trust_cpuid = DetectDataCaches(kMaxCacheSize, cache_size_.data());
-  if (trust_cpuid) SetDefaultCaches(cache_size_.data());
+  if (!trust_cpuid) SetDefaultCaches(cache_size_.data());
 #else
   SetDefaultCaches(cache_size_.data());
 #endif  // defined(__x86_64__)
-
-  LOG(INFO) << "Detected: " << "\t"
-            << "L1: " << cache_size_[0] << "\t"
-            << "L2: " << cache_size_[1] << "\t"
-            << "L3: " << cache_size_[2] << "\t"
-            << "L4: " << cache_size_[3] << "\t"
-            ;
 }
 
 }  // namespace xgboost::common
