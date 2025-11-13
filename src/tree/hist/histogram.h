@@ -259,14 +259,16 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     size_t hist_size = 2 * sizeof(double) * n_bins;
     size_t offsets_size = any_missing ? 0 : n_columns * sizeof(uint32_t);
     bool hist_fit_to_l1 = (hist_size + offsets_size) < usable_l1_size;
-    
+
     std::size_t vars_size = usable_l1_size - (hist_fit_to_l1 ? hist_size : 0) - offsets_size;
     block_size = vars_size / (2 * sizeof(float) + 4 * sizeof(size_t));
   }
   block_size = std::max<std::size_t>(1, block_size);
 
   common::BlockedSpace2d space{
-      nodes_to_build.size(), [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; }, block_size};
+      nodes_to_build.size(), [&](size_t nidx_in_set) {
+                                return partition_size[nidx_in_set];
+                              }, block_size};
   return space;
 }
 

@@ -15,7 +15,6 @@ class CacheManager {
   std::array<int64_t, kMaxCacheSize> cache_size_;
 
  public:
-
   CacheManager();
 
   int64_t L1Size() const {

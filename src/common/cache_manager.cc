@@ -9,7 +9,7 @@
 #if defined(__x86_64__)
 void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t* abcd) {
 #if defined(_MSC_VER)
-    __cpuidex((int *)abcd, eax, ecx);
+    __cpuidex(static_cast<int*>(abcd), eax, ecx);
 #else
     uint32_t ebx = 0, edx = 0;
     __asm__("cpuid" : "+b"(ebx), "+a"(eax), "+c"(ecx), "=d"(edx));
@@ -22,17 +22,17 @@ void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t* abcd) {
 
 #define __extract_bitmask_value(val, mask, shift) (((val) & (mask)) >> shift)
 
-#define _CPUID_CACHE_INFO_GET_TYPE(__eax) __extract_bitmask_value(__eax /*4:0*/, 0x1fU, 0)
+#define _CPUID_GET_TYPE(__eax) __extract_bitmask_value(__eax /*4:0*/, 0x1fU, 0)
 
-#define _CPUID_CACHE_INFO_GET_LEVEL(__eax) __extract_bitmask_value(__eax /*7:5*/, 0xe0U, 5)
+#define _CPUID_GET_LEVEL(__eax) __extract_bitmask_value(__eax /*7:5*/, 0xe0U, 5)
 
-#define _CPUID_CACHE_INFO_GET_SETS(__ecx) ((__ecx) + 1)
+#define _CPUID_GET_SETS(__ecx) ((__ecx) + 1)
 
-#define _CPUID_CACHE_INFO_GET_LINE_SIZE(__ebx) (__extract_bitmask_value(__ebx /*11:0*/, 0x7ffU, 0) + 1)
+#define _CPUID_GET_LINE_SIZE(__ebx) (__extract_bitmask_value(__ebx /*11:0*/, 0x7ffU, 0) + 1)
 
-#define _CPUID_CACHE_INFO_GET_PARTITIONS(__ebx) (__extract_bitmask_value(__ebx /*21:11*/, 0x3ff800U, 11) + 1)
+#define _CPUID_GET_PARTITIONS(__ebx) (__extract_bitmask_value(__ebx /*21:11*/, 0x3ff800U, 11) + 1)
 
-#define _CPUID_CACHE_INFO_GET_WAYS(__ebx) (__extract_bitmask_value(__ebx /*31:22*/, 0xffc00000U, 22) + 1)
+#define _CPUID_GET_WAYS(__ebx) (__extract_bitmask_value(__ebx /*31:22*/, 0xffc00000U, 22) + 1)
 
 #define _CPUID_CACHE_INFO 0x4U
 
@@ -79,7 +79,7 @@ bool DetectDataCaches(int cache_sizes_len, int64_t* cache_sizes) {
   }
   return true;
 }
-#endif // defined(__x86_64__)
+#endif  // defined(__x86_64__)
 
 void SetDefaultCaches(int64_t* cache_sizes) {
   cache_sizes[0] = 32 * 1024;    // L1
@@ -87,7 +87,6 @@ void SetDefaultCaches(int64_t* cache_sizes) {
   cache_sizes[2] = 0;            // L3 place holder
   cache_sizes[3] = 0;            // L4 place holder
 }
-
 
 namespace xgboost::common {
 
@@ -97,7 +96,7 @@ CacheManager::CacheManager() {
   if (trust_cpuid) SetDefaultCaches(cache_size_.data());
 #else
   SetDefaultCaches(cache_size_.data());
-#endif // defined(__x86_64__)
+#endif  // defined(__x86_64__)
 
   LOG(INFO) << "Detected: " << "\t"
             << "L1: " << cache_size_[0] << "\t"
