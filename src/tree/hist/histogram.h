@@ -222,9 +222,27 @@ class HistogramBuilder {
   auto &Buffer() { return buffer_; }
 };
 
-// Estimate the size of each data block based on model parameters and L1 capacity
-std::size_t EstimateBlockSize(const GHistIndexMatrix &gidx,
-                              std::size_t l1_size, bool read_by_column) {
+// Construct a work space for building histogram.  Eventually we should move this
+// function into histogram builder once hist tree method supports external memory.
+template <typename Partitioner>
+common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
+                                          std::vector<bst_node_t> const &nodes_to_build,
+                                          const GHistIndexMatrix &gidx,
+                                          std::size_t l1_size, bool read_by_column) {
+  // FIXME(jiamingy): Handle different size of space.  Right now we use the maximum
+  // partition size for the buffer, which might not be efficient if partition sizes
+  // has significant variance.
+  std::vector<std::size_t> partition_size(nodes_to_build.size(), 0);
+  for (auto const &partition : partitioners) {
+    size_t k = 0;
+    for (auto nidx : nodes_to_build) {
+      auto n_rows_in_node = partition.Partitions()[nidx].Size();
+      partition_size[k] = std::max(partition_size[k], n_rows_in_node);
+      k++;
+    }
+  }
+
+  // Estimate the size of each data block based on model parameters and L1 capacity
   // Each row being processed occupied ~ 32 Bytes in L1:
   // a pair of gradients (p_gpair): 2 * sizeof(float)
   // an index of row (rid[i]): sizeof(size_t)
@@ -261,30 +279,6 @@ std::size_t EstimateBlockSize(const GHistIndexMatrix &gidx,
   constexpr std::size_t kMinBlockSize = kCacheLineSize / (2 * sizeof(float));
   block_size = std::max<std::size_t>(kMinBlockSize, block_size);
 
-  return block_size;
-}
-
-// Construct a work space for building histogram.  Eventually we should move this
-// function into histogram builder once hist tree method supports external memory.
-template <typename Partitioner>
-common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
-                                          std::vector<bst_node_t> const &nodes_to_build,
-                                          const GHistIndexMatrix &gidx,
-                                          std::size_t l1_size, bool read_by_column) {
-  // FIXME(jiamingy): Handle different size of space.  Right now we use the maximum
-  // partition size for the buffer, which might not be efficient if partition sizes
-  // has significant variance.
-  std::vector<std::size_t> partition_size(nodes_to_build.size(), 0);
-  for (auto const &partition : partitioners) {
-    size_t k = 0;
-    for (auto nidx : nodes_to_build) {
-      auto n_rows_in_node = partition.Partitions()[nidx].Size();
-      partition_size[k] = std::max(partition_size[k], n_rows_in_node);
-      k++;
-    }
-  }
-
-  std::size_t block_size = EstimateBlockSize(gidx, l1_size, read_by_column);
   common::BlockedSpace2d space{
       nodes_to_build.size(), [&](size_t nidx_in_set) {
                                 return partition_size[nidx_in_set];
