@@ -242,6 +242,8 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     }
   }
 
+  // Estimate the size of each data block based on model parameters and L1 capacity
+  // Each row being processed occupied ~ 32 Bytes in L1:
   // a pair of gradients (p_gpair): 2 * sizeof(float)
   // an index of row (rid[i]): sizeof(size_t)
   // icol_start and icol_end: 2 * sizeof(size_t)
@@ -249,6 +251,8 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
   double usable_l1_size = 0.8 * l1_size;
   std::size_t space_in_l1_for_rows;
   if (read_by_column) {
+    // Estimate, if histogram column can fit L1:
+    // Maximal number of elements in column is 2^8, 2^16 or 2^32
     std::size_t max_elem_in_hist_col = 1u << (8 * gidx.index.GetBinTypeSize());
     std::size_t hist_col_size = 2 * sizeof(double) * max_elem_in_hist_col;
     bool hist_col_fit_to_l1 = hist_col_size < usable_l1_size;
@@ -261,7 +265,7 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     std::size_t hist_size = 2 * sizeof(double) * n_bins;
     std::size_t offsets_size = any_missing ? 0 : n_columns * sizeof(uint32_t);
 
-    // Prefetch
+    // Prefetch, conservative estimation
     l1_row_foot_print += 2 * sizeof(float);
     std::size_t idx_bin_size = n_columns * sizeof(uint32_t);
 
