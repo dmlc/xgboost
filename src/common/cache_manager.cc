@@ -46,21 +46,21 @@ bool GetCacheInfo(int cache_num, int * type, int * level, int64_t * sets, int * 
   const uint32_t ebx = abcd[1];
   const uint32_t ecx = abcd[2];
   const uint32_t edx = abcd[3];
-  *type              = _CPUID_CACHE_INFO_GET_TYPE(eax);
-  *level             = _CPUID_CACHE_INFO_GET_LEVEL(eax);
-  *sets              = _CPUID_CACHE_INFO_GET_SETS(ecx);
-  *line_size         = _CPUID_CACHE_INFO_GET_LINE_SIZE(ebx);
-  *partitions        = _CPUID_CACHE_INFO_GET_PARTITIONS(ebx);
-  *ways              = _CPUID_CACHE_INFO_GET_WAYS(ebx);
+  *type              = _CPUID_GET_TYPE(eax);
+  *level             = _CPUID_GET_LEVEL(eax);
+  *sets              = _CPUID_GET_SETS(ecx);
+  *line_size         = _CPUID_GET_LINE_SIZE(ebx);
+  *partitions        = _CPUID_GET_PARTITIONS(ebx);
+  *ways              = _CPUID_GET_WAYS(ebx);
 
   bool trust_cpuid = !under_hypervisor;
   return trust_cpuid;
 }
 
-constexpr int kCPUID_CACHE_INFO_TYPE_NULL = 0;
-constexpr int kCPUID_CACHE_INFO_TYPE_DATA = 1;
-constexpr int kCPUID_CACHE_INFO_TYPE_INST = 2;
-constexpr int kCPUID_CACHE_INFO_TYPE_UNIF = 3;
+constexpr int kCPUID_TYPE_NULL = 0;
+constexpr int kCPUID_TYPE_DATA = 1;
+constexpr int kCPUID_TYPE_INST = 2;
+constexpr int kCPUID_TYPE_UNIF = 3;
 
 bool DetectDataCaches(int cache_sizes_len, int64_t* cache_sizes) {
   int cache_num = 0, cache_sizes_idx = 0;
@@ -71,8 +71,8 @@ bool DetectDataCaches(int cache_sizes_len, int64_t* cache_sizes) {
       GetCacheInfo(cache_num++, &type, &level, &sets, &line_size, &partitions, &ways);
     if (!trust_cpuid) return trust_cpuid;
 
-    if (type == kCPUID_CACHE_INFO_TYPE_NULL) break;
-    if (type == kCPUID_CACHE_INFO_TYPE_INST) continue;
+    if (type == kCPUID_TYPE_NULL) break;
+    if (type == kCPUID_TYPE_INST) continue;
 
     size                           = ways * partitions * line_size * sets;
     cache_sizes[cache_sizes_idx++] = size;
