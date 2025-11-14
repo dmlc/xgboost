@@ -245,11 +245,11 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
   // Estimate the size of each data block based on model parameters and L1 capacity
   // The general idea is to keep as much working-set data in L1 as possible.
   /* Each processed row occupies ~32 bytes in L1:
-   * - gradient pair (p_gpair): 2 * sizeof(float)
+   * - gradient pair (p_gpair): sizeof(GradientPair)
    * - row index (rid[i]): sizeof(size_t)
    * - icol_start and icol_end: 2 * sizeof(size_t)
    */
-  std::size_t l1_row_foot_print = (2 * sizeof(float) + 3 * sizeof(size_t));
+  std::size_t l1_row_foot_print = (sizeof(GradientPair) + 3 * sizeof(size_t));
   double usable_l1_size = 0.8 * l1_size;
 
   std::size_t space_in_l1_for_rows;
@@ -262,9 +262,10 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     */
 
     /* First step: determine whether one histogram column fits into L1.
-    * The maximum number of elements in a column is 2^8, 2^16, or 2^32,
-    * depending on the bin index size.
-    */
+     * The maximum number of bins in a column is 2^8, 2^16, or 2^32,
+     * depending on the bin index size.
+     * Note: column-wise kernel is used for dense data only.
+     */
     std::size_t max_elem_in_hist_col = 1u << (8 * gidx.index.GetBinTypeSize());
     std::size_t hist_col_size = 2 * sizeof(double) * max_elem_in_hist_col;
     bool hist_col_fit_to_l1 = hist_col_size < usable_l1_size;
@@ -289,7 +290,7 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     /* Second step: estimate the extra L1 footprint caused by prefetching.
      * Prefetching is not always active, so the estimate is intentionally conservative.
      */
-    l1_row_foot_print += 2 * sizeof(float);
+    l1_row_foot_print += sizeof(GradientPair);
     std::size_t idx_bin_size = n_columns * sizeof(uint32_t);
 
     bool hist_fit_to_l1 = (hist_size + offsets_size + idx_bin_size) < usable_l1_size;
@@ -304,7 +305,7 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
    * This ensures that a full cache line is utilized when loading gradient pairs.
    */
   constexpr std::size_t kCacheLineSize = 64;
-  constexpr std::size_t kMinBlockSize = kCacheLineSize / (2 * sizeof(float));
+  constexpr std::size_t kMinBlockSize = kCacheLineSize / sizeof(GradientPair);
   block_size = std::max<std::size_t>(kMinBlockSize, block_size);
 
   common::BlockedSpace2d space{
@@ -329,6 +330,15 @@ class MultiHistogramBuilder {
     size_t hist_size = 2 * sizeof(double) * nbins;
     const bool hist_fit_to_l2 = 0.8 * cache_manager_.L2Size() > hist_size;
 
+    /* In row-wise histogram construction, each iteration of the outer (row-wise) loop
+     * accesses bins across the entire histogram; the bins are not localized.
+     * If the histogram is too large to fit in L2 cache, random access becomes a major performance bottleneck.
+     *
+     * or dense data, using column-wise histogram construction,
+     * each iteration of the outer (column-wise) loop accesses only a localized portion of the histogram:
+     * idx_bin = gradient_index(row_id, col_id) + offset[col_id].
+     * This improves cache locality, so the column-wise kernel outperforms the row-wise kernel in this case.
+     */
     bool read_by_column = !hist_fit_to_l2 && gidx.IsDense();
     return read_by_column;
   }
