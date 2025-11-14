@@ -37,6 +37,8 @@ void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
 
 #define _CPUID_CACHE_INFO 0x4U
 
+// Run CPUID and collect raw output.
+// Return false if XGBoost is running in a virtualized environment; otherwise return true.
 bool GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
                   int* line_size, int* partitions, int* ways) {
   static uint32_t abcd[4];
@@ -64,6 +66,7 @@ constexpr int kCpuidTypeData = 1;
 constexpr int kCpuidTypeInst = 2;
 constexpr int kCpuidTypeUnif = 3;
 
+// Interpret the raw CPUID results and extract actual (or unified) cache parameters.
 template <size_t kMaxCacheSize>
 bool DetectDataCaches(int64_t* cache_sizes) {
   int cache_num = 0, cache_sizes_idx = 0;
@@ -86,6 +89,13 @@ bool DetectDataCaches(int64_t* cache_sizes) {
 
 namespace xgboost::common {
 
+/* Detect CPU cache sizes at runtime using CPUID.
+ * CPUID cannot be used reliably on:
+ * 1. non-x86_64 architectures
+ * 2. virtualized environments (CPUID may report incorrect cache sizes)
+ *
+ * In these cases, fallback L1/L2 defaults are used.
+ */
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
   bool trust_cpuid = DetectDataCaches<kMaxCacheSize>(cache_size_.data());

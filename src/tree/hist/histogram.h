@@ -243,38 +243,66 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
   }
 
   // Estimate the size of each data block based on model parameters and L1 capacity
-  // Each row being processed occupied ~ 32 Bytes in L1:
-  // a pair of gradients (p_gpair): 2 * sizeof(float)
-  // an index of row (rid[i]): sizeof(size_t)
-  // icol_start and icol_end: 2 * sizeof(size_t)
+  // The general idea is to keep as much working-set data in L1 as possible.
+  /* Each processed row occupies ~32 bytes in L1:
+   * - gradient pair (p_gpair): 2 * sizeof(float)
+   * - row index (rid[i]): sizeof(size_t)
+   * - icol_start and icol_end: 2 * sizeof(size_t)
+   */
   std::size_t l1_row_foot_print = (2 * sizeof(float) + 3 * sizeof(size_t));
   double usable_l1_size = 0.8 * l1_size;
+
   std::size_t space_in_l1_for_rows;
   if (read_by_column) {
-    // Estimate, if histogram column can fit L1:
-    // Maximal number of elements in column is 2^8, 2^16 or 2^32
+   /* In this case, an accurate block_size estimate is performance-critical.
+    * For column-wise histogram construction, each column is processed over the
+    * same block of rows. If the block fits in L1, the row data are loaded once
+    * and reused across all columns; otherwise, the cache must be refilled for
+    * each column.
+    */
+
+    /* First step: determine whether one histogram column fits into L1.
+    * The maximum number of elements in a column is 2^8, 2^16, or 2^32,
+    * depending on the bin index size.
+    */
     std::size_t max_elem_in_hist_col = 1u << (8 * gidx.index.GetBinTypeSize());
     std::size_t hist_col_size = 2 * sizeof(double) * max_elem_in_hist_col;
     bool hist_col_fit_to_l1 = hist_col_size < usable_l1_size;
 
+    /* Second step: compute available L1 space for row data. */
     space_in_l1_for_rows = usable_l1_size - (hist_col_fit_to_l1 ? hist_col_size : 0);
   } else {
+    /* In this case, block_size is less critical.
+    * For row-wise histogram construction, columns are processed for each row.
+    * Rows do not need to remain in L1 across iterations, but choosing a
+    * reasonable block_size allows the histogram buffer and offsets to stay in L1,
+    * which gives a small performance benefit.
+    */
+
+    /* First step: estimate the size of the histogram and the offsets vector. */
     std::size_t n_bins = gidx.cut.Ptrs().back();
     std::size_t n_columns = gidx.cut.Ptrs().size() - 1;
     bool any_missing = !gidx.IsDense();
     std::size_t hist_size = 2 * sizeof(double) * n_bins;
     std::size_t offsets_size = any_missing ? 0 : n_columns * sizeof(uint32_t);
 
-    // Prefetch, conservative estimation
+    /* Second step: estimate the extra L1 footprint caused by prefetching.
+     * Prefetching is not always active, so the estimate is intentionally conservative.
+     */
     l1_row_foot_print += 2 * sizeof(float);
     std::size_t idx_bin_size = n_columns * sizeof(uint32_t);
 
     bool hist_fit_to_l1 = (hist_size + offsets_size + idx_bin_size) < usable_l1_size;
 
+    /* Third step: compute available L1 space for row data. */
     std::size_t occupied_space = (hist_fit_to_l1 ? hist_size : 0) + offsets_size + idx_bin_size;
     space_in_l1_for_rows = usable_l1_size > occupied_space ? usable_l1_size - occupied_space : 0;
   }
   std::size_t block_size = space_in_l1_for_rows / l1_row_foot_print;
+
+  /* Minimum block size = 8 rows.
+   * This ensures that a full cache line is utilized when loading gradient pairs.
+   */
   constexpr std::size_t kCacheLineSize = 64;
   constexpr std::size_t kMinBlockSize = kCacheLineSize / (2 * sizeof(float));
   block_size = std::max<std::size_t>(kMinBlockSize, block_size);
