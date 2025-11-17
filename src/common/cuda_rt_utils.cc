@@ -3,6 +3,8 @@
  */
 #include "cuda_rt_utils.h"
 
+#include "cuda_stream.h"  // for StreamRef
+
 #if defined(XGBOOST_USE_CUDA)
 #include <cuda_runtime_api.h>
 

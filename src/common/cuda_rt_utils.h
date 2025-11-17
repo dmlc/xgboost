@@ -5,9 +5,7 @@
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 
-#if defined(XGBOOST_USE_CUDA)
-#include "cuda_stream.h"
-#endif
+#include "cuda_stream.h"  // for StreamRef
 
 namespace xgboost::curt {
 std::int32_t AllVisibleGPUs();
