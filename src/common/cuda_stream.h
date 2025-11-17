@@ -100,5 +100,10 @@ class Stream {
 };
 #else
 class StreamRef {};
+
+inline StreamRef DefaultStream() {
+  common::AssertGPUSupport();
+  return StreamRef{};
+}
 #endif
 }  // namespace xgboost::curt
