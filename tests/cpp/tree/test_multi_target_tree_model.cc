@@ -56,6 +56,12 @@ TEST(MultiTargetTree, JsonIO) {
   Json jtree1{Object{}};
   loaded.SaveModel(&jtree1);
   check_jtree(jtree1, *tree);
+
+  RegTree loaded1;
+  loaded1.LoadModel(jtree1);
+  Json jtree2{Object{}};
+  loaded1.SaveModel(&jtree2);
+  ASSERT_EQ(Json::Dump(jtree1), Json::Dump(jtree2));
 }
 
 namespace {
