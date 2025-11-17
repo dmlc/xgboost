@@ -8,9 +8,13 @@
 #include "xgboost/logging.h"
 
 #if defined(__x86_64__)
+#if defined(__GNUC__) || defined(__clang__)
+  #include <cpuid.h> // __cpuidex
+#endif
+
 void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
-#if defined(_MSC_VER)
-    __cpuidex(static_cast<int*>(abcd), eax, ecx);
+#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+    __cpuidex(reinterpret_cast<int*>(abcd), eax, ecx);
 #else
     uint32_t ebx = 0, edx = 0;
     __asm__("cpuid" : "+b"(ebx), "+a"(eax), "+c"(ecx), "=d"(edx));
