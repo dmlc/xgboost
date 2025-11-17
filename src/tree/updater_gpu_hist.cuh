@@ -202,7 +202,7 @@ class MultiTargetHistMaker {
     this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, candidate);
   }
 
-  void UpdateTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
+  void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
     // TODO(jiamingy): Need to iterate through partitioners for external memory support.
     CHECK_EQ(this->partitioners_.size(), 1);
     auto leaves = this->partitioners_.front()->GetLeaves();
@@ -391,7 +391,7 @@ class MultiTargetHistMaker {
     this->GrowTree(split_grad, p_fmat, task, p_tree);
 
     if (gpair->HasValueGrad()) {
-      this->UpdateTreeLeaf(gpair->value_gpair, p_tree);
+      this->ExpandTreeLeaf(gpair->value_gpair, p_tree);
     } else {
       p_tree->GetMultiTargetTree()->SetLeaves();
     }
