@@ -47,11 +47,14 @@ TEST(MultiTargetTree, JsonIO) {
     ASSERT_EQ(get<I32Array const>(jtree["right_children"]).size(), tree.NumNodes());
   };
   check_jtree(jtree, *tree);
+  Context ctx;
 
   RegTree loaded;
   loaded.LoadModel(jtree);
   ASSERT_TRUE(loaded.IsMultiTarget());
   ASSERT_EQ(loaded.NumNodes(), 3);
+  ASSERT_EQ(loaded.GetMultiTargetTree()->LeafWeights(ctx.Device()),
+            tree->GetMultiTargetTree()->LeafWeights(ctx.Device()));
 
   Json jtree1{Object{}};
   loaded.SaveModel(&jtree1);
@@ -59,6 +62,9 @@ TEST(MultiTargetTree, JsonIO) {
 
   RegTree loaded1;
   loaded1.LoadModel(jtree1);
+  ASSERT_EQ(loaded1.GetMultiTargetTree()->LeafWeights(ctx.Device()),
+            tree->GetMultiTargetTree()->LeafWeights(ctx.Device()));
+
   Json jtree2{Object{}};
   loaded1.SaveModel(&jtree2);
   ASSERT_EQ(Json::Dump(jtree1), Json::Dump(jtree2));
