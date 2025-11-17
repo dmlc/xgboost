@@ -119,11 +119,12 @@ class MultiTargetTree : public Model {
 
   [[nodiscard]] linalg::VectorView<float const> LeafValue(bst_node_t nidx) const {
     CHECK(IsLeaf(nidx));
+    auto n_targets = this->NumTargets();
     auto h_leaf_mapping = this->right_.ConstHostSpan();
     auto h_leaf_weights = this->leaf_weights_.ConstHostSpan();
     auto lidx = h_leaf_mapping[nidx];
     CHECK_NE(lidx, InvalidNodeId());
-    auto weight = h_leaf_weights.subspan(lidx, this->NumTargets());
+    auto weight = h_leaf_weights.subspan(lidx * n_targets, n_targets);
     return linalg::MakeVec(DeviceOrd::CPU(), weight);
   }
 

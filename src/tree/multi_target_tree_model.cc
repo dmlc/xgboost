@@ -165,6 +165,7 @@ void MultiTargetTree::SetLeaves() {
 
   bst_node_t nidx_in_set = 0;
   auto& h_weights = this->leaf_weights_.HostVector();
+  CHECK(h_weights.empty());
   for (bst_node_t nidx = 0; nidx < n_nodes; ++nidx) {
     if (!IsLeaf(nidx)) {
       continue;
