@@ -828,6 +828,9 @@ bool RegTree::Equal(const RegTree& b) const {
 }
 
 [[nodiscard]] bst_node_t RegTree::GetDepth(bst_node_t nidx) const {
+  if (nidx == 0) {
+    return 0;
+  }
   if (this->IsMultiTarget()) {
     return this->HostMtView().GetDepth(nidx);
   }

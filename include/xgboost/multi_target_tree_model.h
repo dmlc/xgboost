@@ -33,24 +33,36 @@ class MultiTargetTree : public Model {
 
  private:
   TreeParam const* param_;
+  // Mapping from node index to its left child. -1 for a leaf node.
   HostDeviceVector<bst_node_t> left_;
+  // Mapping from node index to its right child. Maps to leaf weight for a leaf node.
   HostDeviceVector<bst_node_t> right_;
+  // Mapping from node index to its parent.
   HostDeviceVector<bst_node_t> parent_;
+  // Feature index for node split.
   HostDeviceVector<bst_feature_t> split_index_;
+  // Whether the left child is the default node when split feature is missing.
   HostDeviceVector<std::uint8_t> default_left_;
+  // Threshold for splitting a node.
   HostDeviceVector<float> split_conds_;
+  // Internal base weights.
   HostDeviceVector<float> weights_;
+  // Output weights.
+  HostDeviceVector<float> leaf_weights_;
 
   [[nodiscard]] linalg::VectorView<float const> NodeWeight(bst_node_t nidx) const {
-    auto beg = nidx * this->NumTargets();
-    auto v = this->weights_.ConstHostSpan().subspan(beg, this->NumTargets());
+    auto beg = nidx * this->NumSplitTargets();
+    auto v = this->weights_.ConstHostSpan().subspan(beg, this->NumSplitTargets());
     return linalg::MakeTensorView(DeviceOrd::CPU(), v, v.size());
   }
-  [[nodiscard]] linalg::VectorView<float> NodeWeight(bst_node_t nidx) {
-    auto beg = nidx * this->NumTargets();
-    auto v = this->weights_.HostSpan().subspan(beg, this->NumTargets());
+  // Unlike the const version, `NumSplitTargets` is not reliable if the tree can change.
+  [[nodiscard]] linalg::VectorView<float> NodeWeight(bst_node_t nidx,
+                                                     bst_target_t n_split_targets) {
+    auto beg = nidx * n_split_targets;
+    auto v = this->weights_.HostSpan().subspan(beg, n_split_targets);
     return linalg::MakeTensorView(DeviceOrd::CPU(), v, v.size());
   }
+  [[nodiscard]] bst_node_t LeafIdx(bst_node_t nidx) const { return this->RightChild(nidx); }
 
  public:
   explicit MultiTargetTree(TreeParam const* param);
@@ -72,6 +84,8 @@ class MultiTargetTree : public Model {
               linalg::VectorView<float const> right_weight);
   /** @see RegTree::SetLeaves */
   void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
+  /** @brief Copy base weight into leaf weight for non-reduced a mt tree. */
+  void SetLeaves();
 
   [[nodiscard]] bool IsLeaf(bst_node_t nidx) const {
     return left_.ConstHostVector()[nidx] == InvalidNodeId();
@@ -82,24 +96,35 @@ class MultiTargetTree : public Model {
   [[nodiscard]] bst_node_t RightChild(bst_node_t nidx) const {
     return right_.ConstHostVector().at(nidx);
   }
-
+  /**
+   * @brief Number of targets (size of a leaf).
+   */
   [[nodiscard]] bst_target_t NumTargets() const;
-  [[nodiscard]] auto NumLeaves() const { return this->weights_.Size() / this->NumTargets(); }
+  /**
+   * @brief Number of reduced targets.
+   */
+  [[nodiscard]] bst_target_t NumSplitTargets() const;
+  [[nodiscard]] auto NumLeaves() const { return this->leaf_weights_.Size() / this->NumTargets(); }
 
   [[nodiscard]] std::size_t Size() const;
   [[nodiscard]] MultiTargetTree* Copy(TreeParam const* param) const;
 
-  common::Span<float const> Weights(DeviceOrd device) const {
+  common::Span<float const> LeafWeights(DeviceOrd device) const {
     if (device.IsCPU()) {
-      return this->weights_.ConstHostSpan();
+      return this->leaf_weights_.ConstHostSpan();
     }
-    this->weights_.SetDevice(device);
-    return this->weights_.ConstDeviceSpan();
+    this->leaf_weights_.SetDevice(device);
+    return this->leaf_weights_.ConstDeviceSpan();
   }
 
   [[nodiscard]] linalg::VectorView<float const> LeafValue(bst_node_t nidx) const {
     CHECK(IsLeaf(nidx));
-    return this->NodeWeight(nidx);
+    auto h_leaf_mapping = this->right_.ConstHostSpan();
+    auto h_leaf_weights = this->leaf_weights_.ConstHostSpan();
+    auto lidx = h_leaf_mapping[nidx];
+    CHECK_NE(lidx, InvalidNodeId());
+    auto weight = h_leaf_weights.subspan(lidx, this->NumTargets());
+    return linalg::MakeVec(DeviceOrd::CPU(), weight);
   }
 
   void LoadModel(Json const& in) override;

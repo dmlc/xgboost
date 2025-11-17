@@ -180,11 +180,7 @@ class MultiTargetHistMaker {
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
 
     // TODO(jiamingy): Support learning rate.
-    // TODO(jiamingy): We need to modify the tree structure to account for internal reduced weight
-    // size.
-    std::vector<float> h_base_weight(entry.base_weight.size());
-    dh::CopyDeviceSpanToVector(&h_base_weight, entry.base_weight);
-    p_tree->SetRoot(linalg::MakeVec(h_base_weight));
+    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), entry.base_weight));
 
     return entry;
   }
@@ -396,6 +392,8 @@ class MultiTargetHistMaker {
 
     if (gpair->HasValueGrad()) {
       this->UpdateTreeLeaf(gpair->value_gpair, p_tree);
+    } else {
+      p_tree->GetMultiTargetTree()->SetLeaves();
     }
   }
 
