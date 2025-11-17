@@ -505,7 +505,7 @@ void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T
   CHECK(t_out.CContiguous());
   auto const shape = t_out.Shape();
   DispatchDType(array, DeviceOrd::CPU(), [&](auto&& in) {
-    linalg::ElementWiseTransformHost(t_out, ctx->Threads(), [&](auto i, auto) {
+    linalg::cpu_impl::TransformIdxKernel(t_out, ctx->Threads(), [&](auto i, auto) {
       return std::apply(in, linalg::UnravelIndex<D>(i, shape));
     });
   });

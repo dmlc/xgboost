@@ -8,8 +8,6 @@
 #include <vector>
 #include <utility>
 
-#include "../../../src/common/linalg_op.h"
-
 #include "../data.h"
 #include "../device_manager.h"
 
@@ -99,17 +97,5 @@ bool Validate(DeviceOrd device, TensorView<T, D> t, Fn&& fn) {
 
 }  // namespace linalg
 }  // namespace sycl
-
-namespace linalg {
-template <typename T, int32_t D, typename Fn>
-void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  if (ctx->IsSycl()) {
-    sycl::linalg::ElementWiseKernel(t, fn);
-  } else {
-    ElementWiseKernelHost(t, ctx->Threads(), fn);
-  }
-}
-
-}  // namespace linalg
 }  // namespace xgboost
 #endif  // PLUGIN_SYCL_COMMON_LINALG_OP_H_

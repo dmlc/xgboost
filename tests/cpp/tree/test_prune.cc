@@ -1,9 +1,10 @@
 /**
- * Copyright 2018-2023 by XGBoost Contributors
+ * Copyright 2018-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
-#include <xgboost/host_device_vector.h>
+#include <xgboost/gradient.h>            // for GradientContainer
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
 #include <xgboost/learner.h>
 #include <xgboost/tree_updater.h>
 
@@ -24,7 +25,8 @@ TEST(Updater, Prune) {
   Context ctx;
 
   // These data are just place holders.
-  linalg::Matrix<GradientPair> gpair
+  GradientContainer gpair;
+  gpair.gpair = linalg::Matrix<GradientPair>
       {{ {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f},
          {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} }, {8, 1}, ctx.Device()};
   std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{32, 10, 0}.GenerateDMatrix()};

@@ -9,6 +9,7 @@
 #include "../collective/broadcast.h"         // for Broadcast
 #include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize
 #include "xgboost/context.h"                 // for Context
+#include "xgboost/gradient.h"                // for GradientContainer
 #include "xgboost/json.h"                    // for Json, Object
 #include "xgboost/linalg.h"                  // for Matrix
 #include "xgboost/tree_updater.h"            // for TreeUpdater
@@ -31,9 +32,9 @@ class TreeSyncher : public TreeUpdater {
 
   [[nodiscard]] char const* Name() const override { return "sync"; }
 
-  void Update(TrainParam const*, linalg::Matrix<GradientPair>*, DMatrix*,
+  void Update(TrainParam const*, GradientContainer*, DMatrix*,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
-              const std::vector<RegTree*>& trees) override {
+              std::vector<RegTree*> const& trees) override {
     if (collective::GetWorldSize() == 1) {
       return;
     }

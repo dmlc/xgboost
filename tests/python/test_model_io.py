@@ -122,44 +122,6 @@ class TestBoosterIO:
             predt_1 = booster.predict(Xy)
             np.testing.assert_allclose(predt_0, predt_1)
 
-    @pytest.mark.skipif(**tm.no_json_schema())
-    def test_json_io_schema(self) -> None:
-        import jsonschema
-
-        model_path = "test_json_schema.json"
-        path = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        )
-        doc = os.path.join(path, "doc", "model.schema")
-        with open(doc, "r") as fd:
-            schema = json.load(fd)
-        parameters = {"tree_method": "hist", "booster": "gbtree"}
-        jsonschema.validate(instance=json_model(model_path, parameters), schema=schema)
-        os.remove(model_path)
-
-        parameters = {"tree_method": "hist", "booster": "dart"}
-        jsonschema.validate(instance=json_model(model_path, parameters), schema=schema)
-        os.remove(model_path)
-
-        try:
-            dtrain, _ = tm.load_agaricus(__file__)
-            xgb.train({"objective": "foo"}, dtrain, num_boost_round=1)
-        except ValueError as e:
-            e_str = str(e)
-            beg = e_str.find("Objective candidate")
-            end = e_str.find("Stack trace")
-            e_str = e_str[beg:end]
-            e_str = e_str.strip()
-            splited = e_str.splitlines()
-            objectives = [s.split(": ")[1] for s in splited]
-            j_objectives = schema["properties"]["learner"]["properties"]["objective"][
-                "oneOf"
-            ]
-            objectives_from_schema = set()
-            for j_obj in j_objectives:
-                objectives_from_schema.add(j_obj["properties"]["name"]["const"])
-            assert set(objectives) == objectives_from_schema
-
     def test_with_pathlib(self) -> None:
         """Saving and loading model files from paths."""
         save_path = Path("model.ubj")

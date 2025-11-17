@@ -87,16 +87,16 @@ inline std::size_t IdxY(MetaInfo const& info, bst_group_t group_idx) {
 }
 
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                          bst_target_t group_idx, MetaInfo const& info, float learning_rate,
                           HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree);
 
 void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
-                        std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                        bst_target_t group_idx, MetaInfo const& info, float learning_rate,
                         HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree);
 }  // namespace detail
 
 inline void UpdateTreeLeaf(Context const* ctx, HostDeviceVector<bst_node_t> const& position,
-                           std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                           bst_target_t group_idx, MetaInfo const& info, float learning_rate,
                            HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
   if (ctx->IsCUDA()) {
     position.SetDevice(ctx->Device());

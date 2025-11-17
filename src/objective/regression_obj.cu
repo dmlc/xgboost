@@ -12,9 +12,9 @@
 #include <vector>   // for vector
 
 #include "../common/common.h"
-#include "../common/linalg_op.h"
-#include "../common/numeric.h"          // Reduce
-#include "../common/optional_weight.h"  // OptionalWeights
+#include "../common/linalg_op.h"        // for ElementWiseKernel
+#include "../common/numeric.h"          // for Reduce
+#include "../common/optional_weight.h"  // for OptionalWeights
 #include "../common/pseudo_huber.h"
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
@@ -40,12 +40,7 @@
 #include "../common/algorithm.cuh"       // for AllOf
 #include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for MakeIndexTransformIter
-#include "../common/linalg_op.cuh"
 #endif  // defined(XGBOOST_USE_CUDA)
-
-#if defined(XGBOOST_USE_SYCL)
-#include "../../plugin/sycl/common/linalg_op.h"
-#endif
 
 namespace xgboost::obj {
 namespace {
@@ -784,7 +779,7 @@ class MeanAbsoluteError : public ObjFunction {
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
                       float learning_rate, HostDeviceVector<float> const& prediction,
-                      std::int32_t group_idx, RegTree* p_tree) const override {
+                      bst_target_t group_idx, RegTree* p_tree) const override {
     ::xgboost::obj::UpdateTreeLeaf(ctx_, position, group_idx, info, learning_rate, prediction, 0.5,
                                    p_tree);
   }

@@ -12,6 +12,7 @@
 #include "../../src/tree/common_row_partitioner.h"
 
 #include "../common/hist_util.h"
+#include "xgboost/linalg.h"
 #include "../../src/collective/allreduce.h"
 
 namespace xgboost {
@@ -34,8 +35,8 @@ void HistUpdater<GradientSumT>::ReduceHists(const std::vector<int>& sync_ids,
     qu_->memcpy(reduce_buffer_.data() + i * nbins, psrc, nbins*sizeof(GradientPairT)).wait();
   }
 
-  auto buffer_vec = linalg::MakeVec(reinterpret_cast<GradientSumT*>(reduce_buffer_.data()),
-                                    2 * nbins * sync_ids.size());
+  auto buffer_vec = ::xgboost::linalg::MakeVec(
+      reinterpret_cast<GradientSumT*>(reduce_buffer_.data()), 2 * nbins * sync_ids.size());
   auto rc = collective::Allreduce(ctx_, buffer_vec, collective::Op::kSum);
   SafeColl(rc);
 
@@ -361,10 +362,9 @@ void HistUpdater<GradientSumT>::Update(
   builder_monitor_.Stop("Update");
 }
 
-template<typename GradientSumT>
+template <typename GradientSumT>
 bool HistUpdater<GradientSumT>::UpdatePredictionCache(
-    const DMatrix* data,
-    linalg::MatrixView<float> out_preds) {
+    const DMatrix* data, ::xgboost::linalg::MatrixView<float> out_preds) {
   CHECK(out_preds.Device().IsSycl());
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
   // conjunction with Update().
@@ -723,8 +723,8 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
         }).wait_and_throw();
       }
       auto rc = collective::Allreduce(
-                      ctx_, linalg::MakeVec(reinterpret_cast<GradientSumT*>(&grad_stat), 2),
-                      collective::Op::kSum);
+          ctx_, ::xgboost::linalg::MakeVec(reinterpret_cast<GradientSumT*>(&grad_stat), 2),
+          collective::Op::kSum);
       SafeColl(rc);
       snode_host_[nid].stats = grad_stat;
     } else {

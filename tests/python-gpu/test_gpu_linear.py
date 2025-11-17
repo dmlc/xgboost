@@ -1,3 +1,5 @@
+from typing import Any, Dict
+
 import pytest
 from hypothesis import assume, given, note, settings, strategies
 
@@ -20,8 +22,10 @@ parameter_strategy = strategies.fixed_dictionaries(
 )
 
 
-def train_result(param, dmat, num_rounds):
-    result = {}
+def train_result(
+    param: Dict[str, Any], dmat: xgb.DMatrix, num_rounds: int
+) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
     booster = xgb.train(
         param,
         dmat,
@@ -37,7 +41,9 @@ def train_result(param, dmat, num_rounds):
 class TestGPULinear:
     @given(parameter_strategy, strategies.integers(10, 50), tm.make_dataset_strategy())
     @settings(deadline=None, max_examples=20, print_blob=True)
-    def test_gpu_coordinate(self, param, num_rounds, dataset):
+    def test_gpu_coordinate(
+        self, param: Dict[str, Any], num_rounds: int, dataset: tm.TestDataset
+    ) -> None:
         assume(len(dataset.y) > 0)
         param["updater"] = "coord_descent"
         param["device"] = "cuda"
@@ -59,7 +65,14 @@ class TestGPULinear:
         strategies.floats(1e-5, 0.8),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
-    def test_gpu_coordinate_regularised(self, param, num_rounds, dataset, alpha, lambd):
+    def test_gpu_coordinate_regularised(
+        self,
+        param: Dict[str, Any],
+        num_rounds: int,
+        dataset: tm.TestDataset,
+        alpha: float,
+        lambd: float,
+    ) -> None:
         assume(len(dataset.y) > 0)
         param["updater"] = "coord_descent"
         param["device"] = "cuda"
@@ -73,7 +86,7 @@ class TestGPULinear:
         assert tm.non_increasing([result[0], result[-1]])
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_gpu_coordinate_from_cupy(self):
+    def test_gpu_coordinate_from_cupy(self) -> None:
         # Training linear model is quite expensive, so we don't include it in
         # test_from_cupy.py
         import cupy

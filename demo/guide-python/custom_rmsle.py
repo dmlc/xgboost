@@ -18,7 +18,6 @@ import argparse
 from time import time
 from typing import Dict, List, Tuple
 
-import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -136,7 +135,7 @@ def py_rmsle(dtrain: xgb.DMatrix, dtest: xgb.DMatrix) -> Dict:
     def rmsle(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
         ''' Root mean squared log error metric.
 
-        :math:`\sqrt{\frac{1}{N}[log(pred + 1) - log(label + 1)]^2}`
+        :math:`\\sqrt{\frac{1}{N}[log(pred + 1) - log(label + 1)]^2}`
         '''
         y = dtrain.get_label()
         predt[predt < -1] = -1 + 1e-6
@@ -156,11 +155,16 @@ def py_rmsle(dtrain: xgb.DMatrix, dtest: xgb.DMatrix) -> Dict:
     return results
 
 
-def plot_history(rmse_evals, rmsle_evals, py_rmsle_evals):
+def plot_history(
+    rmse_evals: Dict[str, Dict],
+    rmsle_evals: Dict[str, Dict],
+    py_rmsle_evals: Dict[str, Dict]
+) -> None:
     fig, axs = plt.subplots(3, 1)
-    ax0: matplotlib.axes.Axes = axs[0]
-    ax1: matplotlib.axes.Axes = axs[1]
-    ax2: matplotlib.axes.Axes = axs[2]
+    assert isinstance(axs, np.ndarray)
+    ax0 = axs[0]
+    ax1 = axs[1]
+    ax2 = axs[2]
 
     x = np.arange(0, kBoostRound, 1)
 
@@ -177,7 +181,7 @@ def plot_history(rmse_evals, rmsle_evals, py_rmsle_evals):
     ax2.legend()
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     dtrain, dtest = generate_data()
     rmse_evals = native_rmse(dtrain, dtest)
     rmsle_evals = native_rmsle(dtrain, dtest)

@@ -11,6 +11,7 @@
 #include <vector>   // for vector
 
 #include "../../../src/common/linalg_op.h"
+#include "test_linalg.h"  // for TestLinalgDispatch
 
 namespace xgboost::linalg {
 namespace {
@@ -329,11 +330,11 @@ TEST(Linalg, Popc) {
 
 TEST(Linalg, Stack) {
   Tensor<float, 3> l{{2, 3, 4}, CPU(), Order::kC};
-  ElementWiseTransformHost(l.View(CPU()), omp_get_max_threads(),
-                           [=](size_t i, float) { return i; });
+  cpu_impl::TransformIdxKernel(l.View(CPU()), omp_get_max_threads(),
+                               [=](size_t i, float) { return i; });
   Tensor<float, 3> r_0{{2, 3, 4}, CPU(), Order::kC};
-  ElementWiseTransformHost(r_0.View(CPU()), omp_get_max_threads(),
-                           [=](size_t i, float) { return i; });
+  cpu_impl::TransformIdxKernel(r_0.View(CPU()), omp_get_max_threads(),
+                               [=](size_t i, float) { return i; });
 
   Stack(&l, r_0);
 
@@ -409,5 +410,10 @@ TEST(Linalg, IO) {
     LoadVector(jloaded, &loaded);
     check(loaded);
   }
+}
+
+TEST(Linalg, CpuDispatch) {
+  Context ctx;
+  TestLinalgDispatch(&ctx, [](auto v) { return v + 1; });
 }
 }  // namespace xgboost::linalg

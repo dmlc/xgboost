@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2024 by Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file hist_updater.h
  */
 #ifndef PLUGIN_SYCL_TREE_HIST_UPDATER_H_
@@ -8,6 +8,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
+#include <xgboost/linalg.h>  // for MatrixView
 #include <xgboost/tree_updater.h>
 #pragma GCC diagnostic pop
 
@@ -80,8 +81,7 @@ class HistUpdater {
               xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
               RegTree *p_tree);
 
-  bool UpdatePredictionCache(const DMatrix* data,
-                             linalg::MatrixView<float> p_out_preds);
+  bool UpdatePredictionCache(const DMatrix* data, ::xgboost::linalg::MatrixView<float> p_out_preds);
 
   void SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync);
   void SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder);

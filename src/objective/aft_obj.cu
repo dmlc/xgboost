@@ -8,7 +8,7 @@
 #include <cmath>    // for log
 #include <cstddef>  // for size_t
 
-
+#include "../common/linalg_op.h"  // for ElementWiseKernel
 #include "../common/survival_util.h"
 #include "../common/transform.h"
 #include "xgboost/host_device_vector.h"
@@ -16,14 +16,6 @@
 #include "xgboost/logging.h"
 #include "xgboost/objective.h"
 #include "xgboost/span.h"
-
-#if defined(XGBOOST_USE_CUDA)
-#include "../common/linalg_op.cuh"  // for ElementWiseKernel
-#elif defined(XGBOOST_USE_SYCL)
-#include "../../plugin/sycl/common/linalg_op.h"
-#else
-#include "../common/linalg_op.h"  // for ElementWiseKernel
-#endif
 
 using AFTParam = xgboost::common::AFTParam;
 using ProbabilityDistributionType = xgboost::common::ProbabilityDistributionType;

@@ -30,12 +30,13 @@ inline void TestMetaInfoStridedData(DeviceOrd device) {
     auto const& h_result = info.labels.View(DeviceOrd::CPU());
     ASSERT_EQ(h_result.Shape().size(), 2);
     auto in_labels = labels.View(DeviceOrd::CPU());
-    linalg::ElementWiseKernelHost(h_result, omp_get_max_threads(), [&](size_t i, std::size_t j) {
-      // Sliced at second dimension.
-      auto v_0 = h_result(i, j);
-      auto v_1 = in_labels(i, 0, j);
-      CHECK_EQ(v_0, v_1);
-    });
+    linalg::cpu_impl::ElementWiseKernel(h_result, omp_get_max_threads(),
+                                        [&](size_t i, std::size_t j) {
+                                          // Sliced at second dimension.
+                                          auto v_0 = h_result(i, j);
+                                          auto v_1 = in_labels(i, 0, j);
+                                          CHECK_EQ(v_0, v_1);
+                                        });
   }
   {
     // qid
@@ -62,13 +63,13 @@ inline void TestMetaInfoStridedData(DeviceOrd device) {
     auto const& h_result = info.base_margin_.View(DeviceOrd::CPU());
     ASSERT_EQ(h_result.Shape().size(), 2);
     auto in_margin = base_margin.View(DeviceOrd::CPU());
-    linalg::ElementWiseKernelHost(h_result, omp_get_max_threads(),
-                                  [&](std::size_t i, std::size_t j) {
-                                    // Sliced at second dimension.
-                                    auto v_0 = h_result(i, j);
-                                    auto v_1 = in_margin(i, 0, j);
-                                    CHECK_EQ(v_0, v_1);
-                                  });
+    linalg::cpu_impl::ElementWiseKernel(h_result, omp_get_max_threads(),
+                                        [&](std::size_t i, std::size_t j) {
+                                          // Sliced at second dimension.
+                                          auto v_0 = h_result(i, j);
+                                          auto v_1 = in_margin(i, 0, j);
+                                          CHECK_EQ(v_0, v_1);
+                                        });
   }
 }
 }  // namespace xgboost

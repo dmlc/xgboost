@@ -30,7 +30,11 @@ class Value {
   }
 
  public:
-  /*!\brief Simplified implementation of LLVM RTTI. */
+  /**
+   * @brief Simplified implementation of LLVM RTTI.
+   *
+   * @note The integer ID must be kept stable.
+   */
   enum class ValueKind : std::int64_t {
     kString = 0,
     kNumber = 1,

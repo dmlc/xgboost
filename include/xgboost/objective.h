@@ -129,7 +129,7 @@ class ObjFunction : public Configurable {
   virtual void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& /*position*/,
                               MetaInfo const& /*info*/, float /*learning_rate*/,
                               HostDeviceVector<float> const& /*prediction*/,
-                              std::int32_t /*group_idx*/, RegTree* /*p_tree*/) const {}
+                              bst_target_t /*group_idx*/, RegTree* /*p_tree*/) const {}
   /**
    * @brief Create an objective function according to the name.
    *

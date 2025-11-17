@@ -11,13 +11,14 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+#include <xgboost/gradient.h>  // for GradientContainer
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
 
-#include <vector>
-#include <string>
 #include <functional>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace xgboost {
 
@@ -78,8 +79,8 @@ class GradientBooster : public Model, public Configurable {
    *                   the booster may change content of gpair
    * @param obj The objective function used for boosting.
    */
-  virtual void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
-                       PredictionCacheEntry*, ObjFunction const* obj) = 0;
+  virtual void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair,
+                       PredictionCacheEntry* prediction, ObjFunction const* obj) = 0;
 
   /**
    * \brief Generate predictions for given feature matrix

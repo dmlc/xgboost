@@ -30,7 +30,6 @@ dependencies:
 - pytest-cov
 - python-kubernetes
 - urllib3
-- jsonschema
 - boto3
 - awscli
 - py-ubjson

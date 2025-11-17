@@ -20,14 +20,9 @@
 
 #if defined(XGBOOST_USE_CUDA)
 
-#include "../common/linalg_op.cuh"  // ElementWiseKernel
 #include "../common/stats.cuh"      // SegmentedQuantile
 
 #endif                              // defined(XGBOOST_USE_CUDA)
-
-#if defined(XGBOOST_USE_SYCL)
-#include "../../plugin/sycl/common/linalg_op.h"  // ElementWiseKernel
-#endif
 
 namespace xgboost::obj {
 class QuantileRegression : public ObjFunction {
@@ -167,7 +162,7 @@ class QuantileRegression : public ObjFunction {
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
                       float learning_rate, HostDeviceVector<float> const& prediction,
-                      std::int32_t group_idx, RegTree* p_tree) const override {
+                      bst_target_t group_idx, RegTree* p_tree) const override {
     auto alpha = param_.quantile_alpha[group_idx];
     ::xgboost::obj::UpdateTreeLeaf(ctx_, position, group_idx, info, learning_rate, prediction,
                                    alpha, p_tree);
