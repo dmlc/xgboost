@@ -228,7 +228,8 @@ template <typename Partitioner>
 common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
                                           std::vector<bst_node_t> const &nodes_to_build,
                                           const GHistIndexMatrix &gidx,
-                                          std::size_t l1_size, bool read_by_column) {
+                                          std::size_t l1_size, bst_bin_t max_bin,
+                                          bool read_by_column) {
   // FIXME(jiamingy): Handle different size of space.  Right now we use the maximum
   // partition size for the buffer, which might not be efficient if partition sizes
   // has significant variance.
@@ -262,12 +263,9 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     */
 
     /* First step: determine whether one histogram column fits into L1.
-     * The maximum number of bins in a column is 2^8, 2^16, or 2^32,
-     * depending on the bin index size.
      * Note: column-wise kernel is used for dense data only.
      */
-    std::size_t max_elem_in_hist_col = 1u << (8 * gidx.index.GetBinTypeSize());
-    std::size_t hist_col_size = 2 * sizeof(double) * max_elem_in_hist_col;
+    std::size_t hist_col_size = 2 * sizeof(double) * max_bin;
     bool hist_col_fit_to_l1 = hist_col_size < usable_l1_size;
 
     /* Second step: compute available L1 space for row data. */
@@ -369,7 +367,7 @@ class MultiHistogramBuilder {
       bool read_by_column = ReadByColumn(gidx, force_read_by_column);
 
       auto space = ConstructHistSpace(partitioners, nodes, gidx,
-                                      cache_manager_.L1Size(), read_by_column);
+                                      cache_manager_.L1Size(), param.max_bin, read_by_column);
       for (bst_target_t t{0}; t < n_targets; ++t) {
         auto t_gpair = gpair.Slice(linalg::All(), t);
         this->target_builders_[t].BuildHist(page_idx, space, gidx,
@@ -411,7 +409,7 @@ class MultiHistogramBuilder {
       bool read_by_column = ReadByColumn(page, force_read_by_column);
 
       auto space = ConstructHistSpace(partitioners, nodes_to_build, page,
-                                      cache_manager_.L1Size(), read_by_column);
+                                      cache_manager_.L1Size(), param.max_bin, read_by_column);
 
       CHECK_EQ(gpair.Shape(1), tree.NumTargets());
       for (bst_target_t t = 0; t < tree.NumTargets(); ++t) {
