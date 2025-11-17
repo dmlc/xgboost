@@ -84,7 +84,7 @@ class MultiTargetTree : public Model {
               linalg::VectorView<float const> right_weight);
   /** @see RegTree::SetLeaves */
   void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
-  /** @brief Copy base weight into leaf weight for non-reduced a mt tree. */
+  /** @brief Copy base weight into leaf weight for a non-reduced multi-target tree. */
   void SetLeaves();
 
   [[nodiscard]] bool IsLeaf(bst_node_t nidx) const {

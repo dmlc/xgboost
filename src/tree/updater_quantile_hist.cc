@@ -497,7 +497,7 @@ class HistUpdater {
     monitor_->Stop(__func__);
   }
 
-  void ExpandTreeLeaf(RegTree *) {}
+  void ExpandTreeLeaf(RegTree *) { /*no op for scalar trees.*/ }
 };
 
 /*! \brief construct a tree using quantized feature values */
