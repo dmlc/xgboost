@@ -2,6 +2,7 @@ from xgboost.testing.multi_target import (
     run_multiclass,
     run_multilabel,
     run_reduced_grad,
+    run_with_iter,
 )
 
 
@@ -17,3 +18,7 @@ def test_multilabel() -> None:
 
 def test_reduced_grad() -> None:
     run_reduced_grad("cuda")
+
+
+def test_with_iter() -> None:
+    run_with_iter("cuda")

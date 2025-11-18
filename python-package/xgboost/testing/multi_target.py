@@ -13,12 +13,13 @@ from sklearn.datasets import (
 import xgboost.testing as tm
 
 from .._typing import ArrayLike
-from ..core import Booster, DMatrix, QuantileDMatrix
+from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from ..objective import Objective, TreeObjective
 from ..sklearn import XGBClassifier
 from ..training import train
+from .data import IteratorForTest
 from .updater import ResetStrategy
-from .utils import Device
+from .utils import Device, assert_allclose
 
 
 def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
@@ -149,3 +150,52 @@ def run_reduced_grad(device: Device) -> None:
     run_test(LsObj2(False))
     with pytest.raises(AssertionError):
         run_test(LsObj2(True))
+
+
+def run_with_iter(device: Device) -> None:
+    from sklearn.datasets import make_regression
+
+    if device == "cuda":
+        from cupy import asarray
+    else:
+        from numpy import asarray
+
+    n_batches = 4
+    Xs = []
+    ys = []
+    for i in range(n_batches):
+        X_i, y_i = make_regression(
+            n_samples=4096, n_features=8, random_state=(i + 1), n_targets=3
+        )
+        Xs.append(asarray(X_i))
+        ys.append(asarray(y_i))
+    it = IteratorForTest(Xs, ys, None, cache="cache", on_host=True)
+    Xy: DMatrix = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0)
+
+    evals_result_0: Dict[str, Dict] = {}
+    booster_0 = train(
+        {"device": device, "multi_strategy": "multi_output_tree", "learning_rate": 1.0},
+        Xy,
+        num_boost_round=8,
+        evals=[(Xy, "Train")],
+        evals_result=evals_result_0,
+    )
+
+    it = IteratorForTest(Xs, ys, None, cache=None)
+    Xy = QuantileDMatrix(it)
+    evals_result_1: Dict[str, Dict] = {}
+    booster_1 = train(
+        {"device": device, "multi_strategy": "multi_output_tree", "learning_rate": 1.0},
+        Xy,
+        num_boost_round=8,
+        evals=[(Xy, "Train")],
+        evals_result=evals_result_1,
+    )
+    np.testing.assert_allclose(
+        evals_result_0["Train"]["rmse"], evals_result_1["Train"]["rmse"]
+    )
+    assert tm.non_increasing(evals_result_0["Train"]["rmse"])
+    X, _, _ = it.as_arrays()
+    predt_0 = booster_0.inplace_predict(X)
+    predt_1 = booster_1.inplace_predict(X)
+    assert_allclose(device, predt_0, predt_1)
