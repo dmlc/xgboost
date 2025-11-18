@@ -38,8 +38,9 @@ MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
       parent_(that.parent_.Size(), 0, that.parent_.Device()),
       split_index_(that.split_index_.Size(), 0, that.split_index_.Device()),
       default_left_(that.default_left_.Size(), 0, that.default_left_.Device()),
-      split_conds_(that.split_conds_.Size(), 0, that.split_conds_.Device()),
-      weights_(that.weights_.Size(), 0, that.weights_.Device()) {
+      split_conds_(that.split_conds_.Size(), 0.0f, that.split_conds_.Device()),
+      weights_(that.weights_.Size(), 0.0f, that.weights_.Device()),
+      leaf_weights_(that.leaf_weights_.Size(), 0.0f, that.leaf_weights_.Device()) {
   this->left_.Copy(that.left_);
   this->right_.Copy(that.right_);
   this->parent_.Copy(that.parent_);
@@ -47,6 +48,7 @@ MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
   this->default_left_.Copy(that.default_left_);
   this->split_conds_.Copy(that.split_conds_);
   this->weights_.Copy(that.weights_);
+  this->leaf_weights_.Copy(that.leaf_weights_);
 }
 
 void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight) {
@@ -328,13 +330,13 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
   out[tf::kDftLeft] = std::move(default_left);
 }
 
-bst_target_t MultiTargetTree::NumTargets() const { return param_->size_leaf_vector; }
-bst_target_t MultiTargetTree::NumSplitTargets() const {
+[[nodiscard]] bst_target_t MultiTargetTree::NumTargets() const { return param_->size_leaf_vector; }
+[[nodiscard]] bst_target_t MultiTargetTree::NumSplitTargets() const {
   auto n_targets = this->weights_.Size() / this->left_.Size();
   CHECK_NE(n_targets, 0);
   return n_targets;
 }
-std::size_t MultiTargetTree::Size() const { return parent_.Size(); }
+[[nodiscard]] std::size_t MultiTargetTree::Size() const { return parent_.Size(); }
 
 [[nodiscard]] MultiTargetTree* MultiTargetTree::Copy(TreeParam const* param) const {
   auto ptr = new MultiTargetTree{*this};
@@ -351,6 +353,7 @@ std::size_t MultiTargetTree::Size() const { return parent_.Size(); }
   n_bytes += default_left_.SizeBytes();
   n_bytes += split_conds_.SizeBytes();
   n_bytes += weights_.SizeBytes();
+  n_bytes += leaf_weights_.SizeBytes();
   return n_bytes;
 }
 }  // namespace xgboost

@@ -25,6 +25,15 @@ struct TreeParam;
 
 /**
  * @brief Tree structure for multi-target model.
+ *
+ * In order to support reduced gradient, the internal storage distinguishes weights
+ * between base weights and leaf weights. The former is the weight calculated from split
+ * gradient, and the later is the weight calculated from value gradient and used as
+ * outputs. Every node has a base weight, but only leaves have leaf weights.
+ *
+ * To access the leaf weights, we re-use the right child to store leaf indices. For split
+ * nodes, the `right_` member stores their right child node indices, for leaf nodes, the
+ * `right_` member stores the corresponding leaf weight indices.
  */
 class MultiTargetTree : public Model {
  public:
