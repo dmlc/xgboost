@@ -265,7 +265,7 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     /* First step: determine whether one histogram column fits into L1.
      * Note: column-wise kernel is used for dense data only.
      */
-    std::size_t hist_col_size = 2 * sizeof(double) * max_bin;
+    std::size_t hist_col_size = 2 * sizeof(GradientPairPrecise) * max_bin;
     bool hist_col_fit_to_l1 = hist_col_size < usable_l1_size;
 
     /* Second step: compute available L1 space for row data. */
@@ -282,7 +282,7 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
     std::size_t n_bins = gidx.cut.Ptrs().back();
     std::size_t n_columns = gidx.cut.Ptrs().size() - 1;
     bool any_missing = !gidx.IsDense();
-    std::size_t hist_size = 2 * sizeof(double) * n_bins;
+    std::size_t hist_size = 2 * sizeof(GradientPairPrecise) * n_bins;
     std::size_t offsets_size = any_missing ? 0 : n_columns * sizeof(uint32_t);
 
     /* Second step: estimate the extra L1 footprint caused by prefetching.

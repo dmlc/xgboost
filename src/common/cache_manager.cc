@@ -8,12 +8,9 @@
 #include "xgboost/logging.h"
 
 #if defined(__x86_64__)
-#if defined(__GNUC__) || defined(__clang__)
-  #include <cpuid.h> // __cpuidex
-#endif
 
 void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
-#if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+#if defined(_MSC_VER)
     __cpuidex(reinterpret_cast<int*>(abcd), eax, ecx);
 #else
     uint32_t ebx = 0, edx = 0;
@@ -81,7 +78,7 @@ bool DetectDataCaches(int64_t* cache_sizes) {
       GetCacheInfo(cache_num++, &type, &level, &sets, &line_size, &partitions, &ways);
     if (!trust_cpuid) return trust_cpuid;
 
-    if (type == kCpuidTypeNull) break;
+    if (type == kCpuidTypeNull) return true; // no more caches to read.
     if (type == kCpuidTypeInst) continue;
 
     size                           = ways * partitions * line_size * sets;
