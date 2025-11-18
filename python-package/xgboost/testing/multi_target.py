@@ -161,7 +161,7 @@ def run_reduced_grad(device: Device) -> None:
         run_test(LsObj2(True))
 
 
-def run_with_iter(device: Device) -> None:
+def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     """Test vector leaf with external memory."""
     if device == "cuda":
         from cupy import asarray
@@ -216,7 +216,7 @@ def run_with_iter(device: Device) -> None:
         evals_result_0["Train"]["rmse"], evals_result_1["Train"]["rmse"]
     )
     assert tm.non_increasing(evals_result_0["Train"]["rmse"])
-    X, y, _ = it.as_arrays()
+    X, _, _ = it.as_arrays()
     assert_allclose(device, booster_0.inplace_predict(X), booster_1.inplace_predict(X))
 
     it = IteratorForTest(Xs, ys, None, cache="cache", on_host=True)
