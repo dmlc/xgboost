@@ -37,10 +37,8 @@ struct WalkTreeMixIn {
       }
       auto left = self->LeftChild(nidx);
       auto right = self->RightChild(nidx);
-      if (left != RegTree::kInvalidNodeId) {
+      if (!self->IsLeaf(nidx)) {
         nodes.push(left);
-      }
-      if (right != RegTree::kInvalidNodeId) {
         nodes.push(right);
       }
     }
@@ -181,7 +179,7 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
   // The number of nodes
   bst_node_t n{0};
 
-  linalg::MatrixView<float const> weights;
+  linalg::MatrixView<float const> leaf_weights;
 
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf(bst_node_t nidx) const {
     return left[nidx] == InvalidNodeId();
@@ -206,10 +204,11 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
     return this->DefaultLeft(nidx) ? this->LeftChild(nidx) : this->RightChild(nidx);
   }
   [[nodiscard]] XGBOOST_DEVICE linalg::VectorView<float const> LeafValue(bst_node_t nidx) const {
-    return this->weights.Slice(nidx, linalg::All());
+    auto leaf_idx = this->right[nidx];
+    return this->leaf_weights.Slice(leaf_idx, linalg::All());
   }
 
-  [[nodiscard]] bst_target_t NumTargets() const { return this->weights.Shape(1); }
+  [[nodiscard]] bst_target_t NumTargets() const { return this->leaf_weights.Shape(1); }
   [[nodiscard]] bst_node_t Size() const { return this->n; }
   [[nodiscard]] XGBOOST_DEVICE bool IsRoot(bst_node_t nidx) const { return nidx == RegTree::kRoot; }
 

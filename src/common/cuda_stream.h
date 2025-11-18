@@ -2,7 +2,10 @@
  * Copyright 2022-2025, XGBoost contributors
  */
 #pragma once
+
+#if defined(XGBOOST_USE_CUDA)
 #include <cuda_runtime.h>
+#endif  // defined(XGBOOST_USE_CUDA)
 
 #include <memory>   // for unique_ptr
 #include <utility>  // for swap
@@ -10,6 +13,7 @@
 #include "common.h"
 
 namespace xgboost::curt {
+#if defined(XGBOOST_USE_CUDA)
 class StreamRef;
 
 class Event {
@@ -94,4 +98,12 @@ class Stream {
   void Sync() { this->View().Sync(); }
   void Wait(Event const &e) { this->View().Wait(e); }
 };
+#else
+class StreamRef {};
+
+inline StreamRef DefaultStream() {
+  common::AssertGPUSupport();
+  return StreamRef{};
+}
+#endif
 }  // namespace xgboost::curt
