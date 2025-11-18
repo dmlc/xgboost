@@ -19,8 +19,8 @@ class CacheManager {
   std::array<int64_t, kMaxCacheSize> cache_size_ = {kUninitCache, kUninitCache,
                                                     kUninitCache, kUninitCache};
 
-  constexpr static int64_t kDefaultL1Size = 32 * 1024; // 32KB
-  constexpr static int64_t kDefaultL2Size = 1024 * 1024; // 1MB
+  constexpr static int64_t kDefaultL1Size = 32 * 1024;    // 32KB
+  constexpr static int64_t kDefaultL2Size = 1024 * 1024;  // 1MB
 
   // If CPUID cannot be used, fall back to default L1/L2 cache sizes.
   void SetDefaultCaches() {

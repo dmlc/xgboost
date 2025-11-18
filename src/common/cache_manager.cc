@@ -78,7 +78,7 @@ bool DetectDataCaches(int64_t* cache_sizes) {
       GetCacheInfo(cache_num++, &type, &level, &sets, &line_size, &partitions, &ways);
     if (!trust_cpuid) return trust_cpuid;
 
-    if (type == kCpuidTypeNull) return true; // no more caches to read.
+    if (type == kCpuidTypeNull) return true;  // no more caches to read.
     if (type == kCpuidTypeInst) continue;
 
     size                           = ways * partitions * line_size * sets;
