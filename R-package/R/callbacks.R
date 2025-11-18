@@ -799,7 +799,7 @@ xgb.cb.save.model <- function(save_period = 0, save_name = "xgboost.ubj") {
     stop("'save_period' cannot be negative")
   }
   if (!is.character(save_name) || length(save_name) != 1L) {
-    stop("'save_name' must be a single character refering to file name.")
+    stop("'save_name' must be a single character referring to file name.")
   }
 
   xgb.Callback(
