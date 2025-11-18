@@ -153,8 +153,7 @@ def run_reduced_grad(device: Device) -> None:
 
 
 def run_with_iter(device: Device) -> None:
-    from sklearn.datasets import make_regression
-
+    """Test vector leaf with external memory."""
     if device == "cuda":
         from cupy import asarray
     else:
@@ -164,7 +163,7 @@ def run_with_iter(device: Device) -> None:
     Xs = []
     ys = []
     for i in range(n_batches):
-        X_i, y_i = make_regression(
+        X_i, y_i = make_regression(  # pylint: disable=unbalanced-tuple-unpacking
             n_samples=4096, n_features=8, random_state=(i + 1), n_targets=3
         )
         Xs.append(asarray(X_i))
@@ -196,6 +195,4 @@ def run_with_iter(device: Device) -> None:
     )
     assert tm.non_increasing(evals_result_0["Train"]["rmse"])
     X, _, _ = it.as_arrays()
-    predt_0 = booster_0.inplace_predict(X)
-    predt_1 = booster_1.inplace_predict(X)
-    assert_allclose(device, predt_0, predt_1)
+    assert_allclose(device, booster_0.inplace_predict(X), booster_1.inplace_predict(X))
