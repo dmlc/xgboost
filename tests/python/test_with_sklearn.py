@@ -1321,6 +1321,7 @@ def test_categorical():
         reg = xgb.XGBRegressor()
         reg.load_model(path)
         assert reg.feature_types == ft
+        assert reg.enable_categorical is True
 
     onehot, y = tm.make_categorical(
         n_samples=32, n_features=2, n_categories=3, onehot=True
