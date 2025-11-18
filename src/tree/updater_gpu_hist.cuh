@@ -203,24 +203,39 @@ class MultiTargetHistMaker {
   }
 
   void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
-    // TODO(jiamingy): Need to iterate through partitioners for external memory support.
     CHECK_EQ(this->partitioners_.size(), 1);
-    auto leaves = this->partitioners_.front()->GetLeaves();
     // Calculate the leaf weight based on the node sum for each leaf.
     // Update the leaf weight, with learning rate.
+    auto n_leaves = p_tree->GetNumLeaves();
     linalg::Matrix<GradientPairInt64> out_sum(
-        {leaves.size(), static_cast<std::size_t>(p_tree->NumTargets())}, this->ctx_->Device());
-    LeafGradSum(this->ctx_, leaves, this->value_quantizer_->Quantizers(),
-                this->partitioners_.front()->GetRows(), full_grad.View(this->ctx_->Device()),
-                out_sum.View(this->ctx_->Device()));
+        {static_cast<std::size_t>(n_leaves), static_cast<std::size_t>(p_tree->NumTargets())},
+        this->ctx_->Device());
+    std::vector<bst_node_t> leaves_idx(n_leaves);
+
+    std::int32_t batch_idx = 0;
+    for (auto const& p_part : this->partitioners_) {
+      auto leaves = this->partitioners_.front()->GetLeaves();
+      CHECK_EQ(leaves.size(), n_leaves);
+      LeafGradSum(this->ctx_, leaves, this->value_quantizer_->Quantizers(),
+                  this->partitioners_.front()->GetRows(), full_grad.View(this->ctx_->Device()),
+                  out_sum.View(this->ctx_->Device()));
+      if (batch_idx == 0) {
+        std::transform(leaves.begin(), leaves.end(), leaves_idx.begin(),
+                       [](LeafInfo const& leaf) { return leaf.nidx; });
+      }
+      if (this->hist_param_->debug_synchronize) {
+        auto it = common::MakeIndexTransformIter([&](std::size_t i) { return leaves.at(i).nidx; });
+        CHECK(std::equal(it, it + n_leaves, leaves_idx.cbegin()));
+      }
+      ++batch_idx;
+    }
+
     auto param = GPUTrainingParam{this->param_};
-    auto out_weight = linalg::Empty<float>(this->ctx_, leaves.size(), p_tree->NumTargets());
+    auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
     // Use full value gradient for leaf values.
     LeafWeight(this->ctx_, param, this->value_quantizer_->Quantizers(),
                out_sum.View(this->ctx_->Device()), out_weight.View(this->ctx_->Device()));
-    std::vector<bst_node_t> leaves_idx(leaves.size());
-    std::transform(leaves.begin(), leaves.end(), leaves_idx.begin(),
-                   [](LeafInfo const& leaf) { return leaf.nidx; });
+
     p_tree->SetLeaves(leaves_idx, out_weight.Data()->ConstHostSpan());
   }
 

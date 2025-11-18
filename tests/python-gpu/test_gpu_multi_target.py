@@ -1,3 +1,4 @@
+from xgboost import config_context
 from xgboost.testing.multi_target import (
     run_multiclass,
     run_multilabel,
@@ -21,4 +22,5 @@ def test_reduced_grad() -> None:
 
 
 def test_with_iter() -> None:
-    run_with_iter("cuda")
+    with config_context(use_rmm=True):
+        run_with_iter("cuda")
