@@ -111,7 +111,7 @@ struct GPUHistMakerDevice {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   // Set of row partitioners, one for each batch (external memory). When the training is
   // in-core, there's only one partitioner.
-  std::vector<std::unique_ptr<RowPartitioner>> partitioners_;
+  RowPartitionerBatches partitioners_;
 
   DeviceHistogramBuilder histogram_;
   std::vector<bst_idx_t> const batch_ptr_;
@@ -226,23 +226,10 @@ struct GPUHistMakerDevice {
       // Concatenate the batch ptrs as well.
       batch_ptr = {static_cast<bst_idx_t>(0), p_fmat->Info().num_row_};
     }
-    if (!partitioners_.empty()) {
-      CHECK_EQ(partitioners_.size(), n_batches);
-    }
-    for (std::size_t k = 0; k < n_batches; ++k) {
-      if (partitioners_.size() != n_batches) {
-        // First run.
-        partitioners_.emplace_back(std::make_unique<RowPartitioner>());
-      }
-      auto base_ridx = batch_ptr[k];
-      auto n_samples = batch_ptr.at(k + 1) - base_ridx;
-      partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
-    }
-    // TODO(jiamingy): Handle reduced number of batches
-    CHECK_EQ(partitioners_.size(), n_batches);
+    this->partitioners_.Init(this->ctx_, batch_ptr);
 
     if (is_concat) {
-      CHECK_EQ(partitioners_.size(), 1);
+      CHECK_EQ(partitioners_.Size(), 1);
       CHECK_EQ(partitioners_.front()->Size(), p_fmat->Info().num_row_);
     }
 
@@ -347,7 +334,7 @@ struct GPUHistMakerDevice {
   void BuildHist(EllpackPage const& page, std::int32_t k, bst_bin_t nidx) {
     monitor.Start(__func__);
     auto d_node_hist = histogram_.GetNodeHistogram(nidx);
-    auto d_ridx = partitioners_.at(k)->GetRows(nidx);
+    auto d_ridx = partitioners_.At(k)->GetRows(nidx);
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
     this->histogram_.BuildHistogram(ctx_->CUDACtx(), acc,
                                     feature_groups_->DeviceAccessor(ctx_->Device()), this->gpair,
@@ -441,7 +428,7 @@ struct GPUHistMakerDevice {
     };
     collective::SafeColl(rc);
 
-    CHECK_EQ(partitioners_.size(), 1) << "External memory with column split is not yet supported.";
+    CHECK_EQ(partitioners_.Size(), 1) << "External memory with column split is not yet supported.";
     partitioners_.front()->UpdatePositionBatch(
         ctx_, nidx, left_nidx, right_nidx, split_data,
         [=] __device__(bst_uint ridx, int nidx_in_batch, NodeSplitData const& data) {
@@ -537,7 +524,7 @@ struct GPUHistMakerDevice {
           UpdatePositionColumnSplit(d_matrix, nodes.split_data, nodes.nidx, nodes.left_nidx,
                                     nodes.right_nidx);
         } else {
-          partitioners_.at(k)->UpdatePositionBatch(ctx_, nodes.nidx, nodes.left_nidx,
+          partitioners_.At(k)->UpdatePositionBatch(ctx_, nodes.nidx, nodes.left_nidx,
                                                    nodes.right_nidx, nodes.split_data,
                                                    cuda_impl::GoLeftWrapperOp<GoLeft>{go_left});
         }
@@ -607,8 +594,8 @@ struct GPUHistMakerDevice {
     auto d_gpair = this->gpair;
 
     if (!p_fmat->SingleColBlock()) {
-      for (std::size_t k = 0; k < partitioners_.size(); ++k) {
-        auto& part = partitioners_.at(k);
+      for (std::size_t k = 0; k < partitioners_.Size(); ++k) {
+        auto& part = partitioners_.At(k);
         CHECK_EQ(part->GetNumNodes(), p_tree->NumNodes());
         auto base_ridx = batch_ptr_[k];
         auto n_samples = batch_ptr_.at(k + 1) - base_ridx;
@@ -687,7 +674,7 @@ struct GPUHistMakerDevice {
     RegTree& tree = *p_tree;
 
     // Sanity check - have we created a leaf with no training instances?
-    if (!collective::IsDistributed() && partitioners_.size() == 1) {
+    if (!collective::IsDistributed() && partitioners_.Size() == 1) {
       CHECK(partitioners_.front()->GetRows(candidate.nidx).size() > 0)
           << "No training instances in this leaf!";
     }
@@ -747,7 +734,7 @@ struct GPUHistMakerDevice {
 
     histogram_.AllocateHistograms(ctx_, {kRootNIdx});
     std::int32_t k = 0;
-    CHECK_EQ(p_fmat->NumBatches(), this->partitioners_.size());
+    CHECK_EQ(p_fmat->NumBatches(), this->partitioners_.Size());
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
       this->BuildHist(page, k, kRootNIdx);
       ++k;

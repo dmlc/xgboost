@@ -15,6 +15,7 @@
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "xgboost/base.h"                   // for bst_idx_t
 #include "xgboost/context.h"                // for Context
+#include "xgboost/data.h"                   // for DMatrix
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
@@ -441,4 +442,41 @@ class RowPartitioner {
         base_ridx, d_ridx, d_out_position, op);
   }
 };
+
+// Partitioner for all batches, used for external memory training.
+struct RowPartitionerBatches {
+  // TODO(jiamingy): Share the sort buffer inside partitioners
+  std::vector<std::unique_ptr<RowPartitioner>> partitioners;
+
+  void Init(Context const* ctx, std::vector<bst_idx_t> const& batch_ptr) {
+    CHECK_GE(batch_ptr.size(), 2);
+    std::size_t n_batches = batch_ptr.size() - 1;
+    if (!partitioners.empty()) {
+      CHECK_EQ(partitioners.size(), n_batches);
+    }
+    for (std::size_t k = 0; k < n_batches; ++k) {
+      if (partitioners.size() != n_batches) {
+        // First run.
+        partitioners.emplace_back(std::make_unique<RowPartitioner>());
+      }
+      auto base_ridx = batch_ptr[k];
+      auto n_samples = batch_ptr.at(k + 1) - base_ridx;
+      partitioners[k]->Reset(ctx, n_samples, base_ridx);
+    }
+    this->partitioners.resize(n_batches);
+  }
+
+  // Accessors
+  [[nodiscard]] decltype(auto) operator[](std::size_t i) { return partitioners[i]; }
+  decltype(auto) At(std::size_t i) { return partitioners.at(i); }
+  [[nodiscard]] std::size_t Size() const { return this->partitioners.size(); }
+  decltype(auto) cbegin() const { return this->partitioners.cbegin(); }  // NOLINT
+  decltype(auto) cend() const { return this->partitioners.cend(); }      // NOLINT
+  decltype(auto) begin() const { return this->partitioners.cbegin(); }   // NOLINT
+  decltype(auto) end() const { return this->partitioners.cend(); }       // NOLINT
+
+  [[nodiscard]] decltype(auto) front() { return this->partitioners.front(); }  // NOLINT
+  [[nodiscard]] bool Empty() const { return this->partitioners.empty(); }
+};
+
 };  // namespace xgboost::tree

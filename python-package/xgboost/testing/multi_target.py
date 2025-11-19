@@ -219,7 +219,9 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     X, _, _ = it.as_arrays()
     assert_allclose(device, booster_0.inplace_predict(X), booster_1.inplace_predict(X))
 
-    it = IteratorForTest(Xs, ys, None, cache="cache", on_host=True)
+    it = IteratorForTest(
+        Xs, ys, None, cache="cache", on_host=True, min_cache_page_bytes=4096 * 8
+    )
     Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0)
 
     evals_result_2: Dict[str, Dict] = {}

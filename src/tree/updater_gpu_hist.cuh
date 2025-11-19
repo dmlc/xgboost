@@ -45,7 +45,7 @@ class MultiTargetHistMaker {
   Context const* ctx_;
 
   TrainParam const param_;
-  std::vector<std::unique_ptr<RowPartitioner>> partitioners_;
+  RowPartitionerBatches partitioners_;
 
   HistMakerTrainParam const* hist_param_;
   std::shared_ptr<common::HistogramCuts const> const cuts_;
@@ -66,8 +66,8 @@ class MultiTargetHistMaker {
 
   void BuildHist(EllpackPage const& page, std::int32_t k, bst_node_t nidx) {
     auto d_gpair = this->split_gpair_.View(this->ctx_->Device());
-    CHECK(!this->partitioners_.empty());
-    auto d_ridx = this->partitioners_.at(k)->GetRows(nidx);
+    CHECK(!this->partitioners_.Empty());
+    auto d_ridx = this->partitioners_.At(k)->GetRows(nidx);
     auto hist = histogram_.GetNodeHistogram(nidx);
     auto roundings = this->split_quantizer_->Quantizers();
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
@@ -85,19 +85,7 @@ class MultiTargetHistMaker {
      * Initialize the partitioners
      */
     std::size_t n_batches = p_fmat->NumBatches();
-    if (!partitioners_.empty()) {
-      CHECK_EQ(partitioners_.size(), n_batches);
-    }
-    for (std::size_t k = 0; k < n_batches; ++k) {
-      if (partitioners_.size() != n_batches) {
-        // First run.
-        partitioners_.emplace_back(std::make_unique<RowPartitioner>());
-      }
-      auto base_ridx = this->batch_ptr_[k];
-      auto n_samples = this->batch_ptr_.at(k + 1) - base_ridx;
-      partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
-    }
-    this->partitioners_.resize(n_batches);
+    partitioners_.Init(this->ctx_, batch_ptr_);
 
     /**
      * Initialize the histogram
@@ -158,7 +146,7 @@ class MultiTargetHistMaker {
     // Build the root histogram.
     histogram_.AllocateHistograms(ctx_, {RegTree::kRoot});
 
-    CHECK_EQ(p_fmat->NumBatches(), this->partitioners_.size());
+    CHECK_EQ(p_fmat->NumBatches(), this->partitioners_.Size());
     std::int32_t k = 0;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
       this->BuildHist(page, k, RegTree::kRoot);
@@ -203,7 +191,6 @@ class MultiTargetHistMaker {
   }
 
   void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
-    CHECK_EQ(this->partitioners_.size(), 1);
     // Calculate the leaf weight based on the node sum for each leaf.
     // Update the leaf weight, with learning rate.
     auto n_leaves = p_tree->GetNumLeaves();
@@ -214,11 +201,10 @@ class MultiTargetHistMaker {
 
     std::int32_t batch_idx = 0;
     for (auto const& p_part : this->partitioners_) {
-      auto leaves = this->partitioners_.front()->GetLeaves();
+      auto leaves = p_part->GetLeaves();
       CHECK_EQ(leaves.size(), n_leaves);
-      LeafGradSum(this->ctx_, leaves, this->value_quantizer_->Quantizers(),
-                  this->partitioners_.front()->GetRows(), full_grad.View(this->ctx_->Device()),
-                  out_sum.View(this->ctx_->Device()));
+      LeafGradSum(this->ctx_, leaves, this->value_quantizer_->Quantizers(), p_part->GetRows(),
+                  full_grad.View(this->ctx_->Device()), out_sum.View(this->ctx_->Device()));
       if (batch_idx == 0) {
         std::transform(leaves.begin(), leaves.end(), leaves_idx.begin(),
                        [](LeafInfo const& leaf) { return leaf.nidx; });
@@ -304,21 +290,22 @@ class MultiTargetHistMaker {
       return;
     }
     CHECK_LE(candidates.size(), expand_set.size());
+    auto n_targets = this->split_gpair_.Shape(1);
     // TODO(jiamingy): Implement finalize partition.
 
     // Prepare for update partition
     auto nodes = this->CreatePartitionNodes(p_tree, expand_set);
     auto mt_tree = p_tree->HostMtView();
     // TODO(jiamingy): subtraction trick
-    std::vector<bst_node_t> build_nidx;
+    std::vector<bst_node_t> lefts, rights;
     for (auto const& nidx_in_set : expand_set) {
       auto left_child = mt_tree.LeftChild(nidx_in_set.nidx);
       auto right_child = mt_tree.RightChild(nidx_in_set.nidx);
-      build_nidx.emplace_back(left_child);
-      build_nidx.emplace_back(right_child);
+      lefts.emplace_back(left_child);
+      rights.emplace_back(right_child);
     }
 
-    histogram_.AllocateHistograms(ctx_, build_nidx);
+    histogram_.AllocateHistograms(ctx_, lefts);
 
     // Pull to device
     mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
@@ -330,12 +317,16 @@ class MultiTargetHistMaker {
         using Acc = std::remove_reference_t<decltype(d_acc)>;
         using GoLeft = GoLeftOp<Acc>;
         auto go_left = GoLeft{d_acc, mt_tree};
-        partitioners_.at(k)->UpdatePositionBatch(ctx_, nodes.nidx, nodes.left_nidx,
+        partitioners_.At(k)->UpdatePositionBatch(ctx_, nodes.nidx, nodes.left_nidx,
                                                  nodes.right_nidx, nodes.split_data,
                                                  GoLeftWrapperOp<GoLeft>{go_left});
 
-        for (auto nidx : build_nidx) {
+        std::size_t nidx_in_set = 0;
+        for (auto nidx : lefts) {
+          auto node_sum = this->evaluator_.GetNodeSum(nidx, n_targets);
+          auto sibling_sum = this->evaluator_.GetNodeSum(rights[nidx_in_set], n_targets);
           this->BuildHist(page, k, nidx);
+          ++nidx_in_set;
         }
       });
       ++k;
