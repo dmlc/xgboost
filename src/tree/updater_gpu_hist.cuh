@@ -297,15 +297,15 @@ class MultiTargetHistMaker {
     auto nodes = this->CreatePartitionNodes(p_tree, expand_set);
     auto mt_tree = p_tree->HostMtView();
     // TODO(jiamingy): subtraction trick
-    std::vector<bst_node_t> lefts, rights;
+    std::vector<bst_node_t> build_nidx;
     for (auto const& nidx_in_set : expand_set) {
       auto left_child = mt_tree.LeftChild(nidx_in_set.nidx);
       auto right_child = mt_tree.RightChild(nidx_in_set.nidx);
-      lefts.emplace_back(left_child);
-      rights.emplace_back(right_child);
+      build_nidx.emplace_back(left_child);
+      build_nidx.emplace_back(right_child);
     }
 
-    histogram_.AllocateHistograms(ctx_, lefts);
+    histogram_.AllocateHistograms(ctx_, build_nidx);
 
     // Pull to device
     mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
@@ -322,9 +322,7 @@ class MultiTargetHistMaker {
                                                  GoLeftWrapperOp<GoLeft>{go_left});
 
         std::size_t nidx_in_set = 0;
-        for (auto nidx : lefts) {
-          auto node_sum = this->evaluator_.GetNodeSum(nidx, n_targets);
-          auto sibling_sum = this->evaluator_.GetNodeSum(rights[nidx_in_set], n_targets);
+        for (auto nidx : build_nidx) {
           this->BuildHist(page, k, nidx);
           ++nidx_in_set;
         }
