@@ -220,7 +220,6 @@ struct GPUHistMakerDevice {
      * Initialize the partitioners
      */
     bool is_concat = sampler->ConcatPages();
-    std::size_t n_batches = is_concat ? 1 : p_fmat->NumBatches();
     std::vector<bst_idx_t> batch_ptr{this->batch_ptr_};
     if (is_concat) {
       // Concatenate the batch ptrs as well.

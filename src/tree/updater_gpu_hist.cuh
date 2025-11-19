@@ -84,7 +84,6 @@ class MultiTargetHistMaker {
     /**
      * Initialize the partitioners
      */
-    std::size_t n_batches = p_fmat->NumBatches();
     partitioners_.Init(this->ctx_, batch_ptr_);
 
     /**
@@ -302,7 +301,6 @@ class MultiTargetHistMaker {
       return;
     }
     CHECK_LE(candidates.size(), expand_set.size());
-    auto n_targets = this->split_gpair_.Shape(1);
     // TODO(jiamingy): Implement finalize partition.
 
     // Prepare for update partition
@@ -332,10 +330,8 @@ class MultiTargetHistMaker {
         partitioners_.UpdatePositionBatch(ctx_, k, nodes.nidx, nodes.left_nidx, nodes.right_nidx,
                                           nodes.split_data, GoLeftWrapperOp<GoLeft>{go_left});
 
-        std::size_t nidx_in_set = 0;
         for (auto nidx : build_nidx) {
           this->BuildHist(page, k, nidx);
-          ++nidx_in_set;
         }
       });
       ++k;
