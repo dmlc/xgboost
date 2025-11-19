@@ -15,7 +15,6 @@
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "xgboost/base.h"                   // for bst_idx_t
 #include "xgboost/context.h"                // for Context
-#include "xgboost/data.h"                   // for DMatrix
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
@@ -444,39 +443,47 @@ class RowPartitioner {
 };
 
 // Partitioner for all batches, used for external memory training.
-struct RowPartitionerBatches {
+class RowPartitionerBatches {
+ private:
+  // Temporary buffer for sorting the samples.
+  dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp_;
   // TODO(jiamingy): Share the sort buffer inside partitioners
-  std::vector<std::unique_ptr<RowPartitioner>> partitioners;
+  // Partitioners for each batch.
+  std::vector<std::unique_ptr<RowPartitioner>> partitioners_;
 
+ public:
   void Init(Context const* ctx, std::vector<bst_idx_t> const& batch_ptr) {
     CHECK_GE(batch_ptr.size(), 2);
     std::size_t n_batches = batch_ptr.size() - 1;
-    if (!partitioners.empty()) {
-      CHECK_EQ(partitioners.size(), n_batches);
+    if (partitioners_.size() != n_batches) {
+      partitioners_.clear();
     }
+
+    bst_idx_t n_max_samples = 0;
     for (std::size_t k = 0; k < n_batches; ++k) {
-      if (partitioners.size() != n_batches) {
+      if (partitioners_.size() != n_batches) {
         // First run.
-        partitioners.emplace_back(std::make_unique<RowPartitioner>());
+        partitioners_.emplace_back(std::make_unique<RowPartitioner>());
       }
       auto base_ridx = batch_ptr[k];
       auto n_samples = batch_ptr.at(k + 1) - base_ridx;
-      partitioners[k]->Reset(ctx, n_samples, base_ridx);
+      partitioners_[k]->Reset(ctx, n_samples, base_ridx);
+      CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());
+      n_max_samples = std::max(n_samples, n_max_samples);
     }
-    this->partitioners.resize(n_batches);
+    this->ridx_tmp_.resize(n_max_samples);
   }
 
   // Accessors
-  [[nodiscard]] decltype(auto) operator[](std::size_t i) { return partitioners[i]; }
-  decltype(auto) At(std::size_t i) { return partitioners.at(i); }
-  [[nodiscard]] std::size_t Size() const { return this->partitioners.size(); }
-  decltype(auto) cbegin() const { return this->partitioners.cbegin(); }  // NOLINT
-  decltype(auto) cend() const { return this->partitioners.cend(); }      // NOLINT
-  decltype(auto) begin() const { return this->partitioners.cbegin(); }   // NOLINT
-  decltype(auto) end() const { return this->partitioners.cend(); }       // NOLINT
+  [[nodiscard]] decltype(auto) operator[](std::size_t i) { return partitioners_[i]; }
+  decltype(auto) At(std::size_t i) { return partitioners_.at(i); }
+  [[nodiscard]] std::size_t Size() const { return this->partitioners_.size(); }
+  decltype(auto) cbegin() const { return this->partitioners_.cbegin(); }  // NOLINT
+  decltype(auto) cend() const { return this->partitioners_.cend(); }      // NOLINT
+  decltype(auto) begin() const { return this->partitioners_.cbegin(); }   // NOLINT
+  decltype(auto) end() const { return this->partitioners_.cend(); }       // NOLINT
 
-  [[nodiscard]] decltype(auto) front() { return this->partitioners.front(); }  // NOLINT
-  [[nodiscard]] bool Empty() const { return this->partitioners.empty(); }
+  [[nodiscard]] decltype(auto) front() { return this->partitioners_.front(); }  // NOLINT
+  [[nodiscard]] bool Empty() const { return this->partitioners_.empty(); }
 };
-
 };  // namespace xgboost::tree
