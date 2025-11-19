@@ -5,11 +5,11 @@
 #include <thrust/scan.h>                               // for inclusive_scan
 
 #include <cstddef>                                 // for size_t
+#include <cstdint>                                 // for int32_t
 #include <cub/device/device_segmented_reduce.cuh>  // for DeviceSegmentedReduce
 #include <vector>                                  // for vector
 
-#include "../../common/linalg_op.cuh"  // for tbegin
-#include "../updater_gpu_common.cuh"   // for GPUTrainingParam
+#include "../updater_gpu_common.cuh"  // for GPUTrainingParam
 #include "leaf_sum.cuh"
 #include "quantiser.cuh"        // for GradientQuantiser
 #include "row_partitioner.cuh"  // for RowIndexT, LeafInfo
