@@ -225,7 +225,7 @@ struct GPUHistMakerDevice {
       // Concatenate the batch ptrs as well.
       batch_ptr = {static_cast<bst_idx_t>(0), p_fmat->Info().num_row_};
     }
-    this->partitioners_.Init(this->ctx_, batch_ptr);
+    this->partitioners_.Reset(this->ctx_, batch_ptr);
 
     if (is_concat) {
       CHECK_EQ(partitioners_.Size(), 1);

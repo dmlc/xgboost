@@ -85,7 +85,7 @@ class MultiTargetHistMaker {
     /**
      * Initialize the partitioners
      */
-    partitioners_.Init(this->ctx_, batch_ptr_);
+    partitioners_.Reset(this->ctx_, batch_ptr_);
 
     /**
      * Initialize the histogram

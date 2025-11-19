@@ -454,7 +454,7 @@ class RowPartitionerBatches {
   std::vector<std::unique_ptr<RowPartitioner>> partitioners_;
 
  public:
-  void Init(Context const* ctx, std::vector<bst_idx_t> const& batch_ptr) {
+  void Reset(Context const* ctx, std::vector<bst_idx_t> const& batch_ptr) {
     CHECK_GE(batch_ptr.size(), 2);
     std::size_t n_batches = batch_ptr.size() - 1;
     if (partitioners_.size() != n_batches) {
