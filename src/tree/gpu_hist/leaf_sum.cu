@@ -1,8 +1,12 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
-#include <cstddef>  // for size_t
-#include <vector>   // for vector
+#include <thrust/iterator/tabulate_output_iterator.h>  // for make_tabulate_output_iterator
+#include <thrust/scan.h>                               // for inclusive_scan
+
+#include <cstddef>                                 // for size_t
+#include <cub/device/device_segmented_reduce.cuh>  // for DeviceSegmentedReduce
+#include <vector>                                  // for vector
 
 #include "../../common/linalg_op.cuh"  // for tbegin
 #include "../updater_gpu_common.cuh"   // for GPUTrainingParam
@@ -50,14 +54,18 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
       auto g = grad(sorted_ridx[j], t);
       return roundings[t].ToFixedPoint(g);
     });
+    // Use an output iterator to implement running sum.
+    auto out_it = thrust::make_tabulate_output_iterator(
+        [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) mutable { out_t(idx) += v; });
+
     std::size_t n_bytes = 0;
-    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, it, linalg::tbegin(out_t),
-                                                  h_leaves.size(), indptr.data(), indptr.data() + 1,
+    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, it, out_it, h_leaves.size(),
+                                                  indptr.data(), indptr.data() + 1,
                                                   ctx->CUDACtx()->Stream()));
     dh::TemporaryArray<char> alloc(n_bytes);
-    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(
-        alloc.data().get(), n_bytes, it, linalg::tbegin(out_t), h_leaves.size(), indptr.data(),
-        indptr.data() + 1, ctx->CUDACtx()->Stream()));
+    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(alloc.data().get(), n_bytes, it, out_it,
+                                                  h_leaves.size(), indptr.data(), indptr.data() + 1,
+                                                  ctx->CUDACtx()->Stream()));
   }
 }
 
