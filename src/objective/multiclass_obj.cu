@@ -210,14 +210,15 @@ class SoftmaxMultiClassObj : public ObjFunction {
     collective::SafeColl(status);
     CHECK_GE(sum_weight, kRtEps);
     linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
+    CHECK_EQ(base_score->Size(), n_classes);
 
     // Transform it back to margin
-    linalg::Vector<float> mean_intercepts;
-    CHECK_EQ(base_score->Size(), n_classes);
-    common::Mean(this->ctx_, *base_score, &mean_intercepts);
-    auto d_mean = mean_intercepts.View(this->ctx_->Device());
-    TransformKernel(this->ctx_, intercept,
-                    [=] XGBOOST_DEVICE(float v) { return log(v) - d_mean(0); });
+    // ln(v) - E[ln(v)]
+    linalg::Vector<float> mean;
+    linalg::LogE(this->ctx_, intercept);
+    common::Mean(this->ctx_, intercept, &mean);
+    auto d_mean = mean.View(this->ctx_->Device());
+    TransformKernel(this->ctx_, intercept, [=] XGBOOST_DEVICE(float v) { return v - d_mean(0); });
   }
 
  private:
