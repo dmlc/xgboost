@@ -447,7 +447,6 @@ class RowPartitionerBatches {
  private:
   // Temporary buffer for sorting the samples.
   dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp_;
-  // TODO(jiamingy): Share the sort buffer inside partitioners
   // Partitioners for each batch.
   std::vector<std::unique_ptr<RowPartitioner>> partitioners_;
 
