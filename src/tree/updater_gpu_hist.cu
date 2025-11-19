@@ -429,8 +429,8 @@ struct GPUHistMakerDevice {
     collective::SafeColl(rc);
 
     CHECK_EQ(partitioners_.Size(), 1) << "External memory with column split is not yet supported.";
-    partitioners_.front()->UpdatePositionBatch(
-        ctx_, nidx, left_nidx, right_nidx, split_data,
+    partitioners_.UpdatePositionBatch(
+        ctx_, 0, nidx, left_nidx, right_nidx, split_data,
         [=] __device__(bst_uint ridx, int nidx_in_batch, NodeSplitData const& data) {
           auto const index = ridx * num_candidates + nidx_in_batch;
           bool go_left;
@@ -524,9 +524,9 @@ struct GPUHistMakerDevice {
           UpdatePositionColumnSplit(d_matrix, nodes.split_data, nodes.nidx, nodes.left_nidx,
                                     nodes.right_nidx);
         } else {
-          partitioners_.At(k)->UpdatePositionBatch(ctx_, nodes.nidx, nodes.left_nidx,
-                                                   nodes.right_nidx, nodes.split_data,
-                                                   cuda_impl::GoLeftWrapperOp<GoLeft>{go_left});
+          partitioners_.UpdatePositionBatch(ctx_, k, nodes.nidx, nodes.left_nidx, nodes.right_nidx,
+                                            nodes.split_data,
+                                            cuda_impl::GoLeftWrapperOp<GoLeft>{go_left});
         }
         monitor.Stop("UpdatePositionBatch");
 

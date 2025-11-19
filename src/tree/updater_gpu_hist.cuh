@@ -317,9 +317,8 @@ class MultiTargetHistMaker {
         using Acc = std::remove_reference_t<decltype(d_acc)>;
         using GoLeft = GoLeftOp<Acc>;
         auto go_left = GoLeft{d_acc, mt_tree};
-        partitioners_.At(k)->UpdatePositionBatch(ctx_, nodes.nidx, nodes.left_nidx,
-                                                 nodes.right_nidx, nodes.split_data,
-                                                 GoLeftWrapperOp<GoLeft>{go_left});
+        partitioners_.UpdatePositionBatch(ctx_, k, nodes.nidx, nodes.left_nidx, nodes.right_nidx,
+                                          nodes.split_data, GoLeftWrapperOp<GoLeft>{go_left});
 
         std::size_t nidx_in_set = 0;
         for (auto nidx : build_nidx) {

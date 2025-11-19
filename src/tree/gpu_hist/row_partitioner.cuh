@@ -272,8 +272,6 @@ class RowPartitioner {
    * rows idx | 3, 5, 1 | 13, 31 |
    */
   dh::DeviceUVector<RowIndexT> ridx_;
-  // Staging area for sorting ridx
-  dh::DeviceUVector<RowIndexT> ridx_tmp_;
   dh::DeviceUVector<int8_t> tmp_;
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
@@ -343,7 +341,8 @@ class RowPartitioner {
   void UpdatePositionBatch(Context const* ctx, std::vector<bst_node_t> const& nidx,
                            std::vector<bst_node_t> const& left_nidx,
                            std::vector<bst_node_t> const& right_nidx,
-                           std::vector<OpDataT> const& op_data, UpdatePositionOpT op) {
+                           std::vector<OpDataT> const& op_data, common::Span<RowIndexT> ridx_tmp,
+                           UpdatePositionOpT op) {
     if (nidx.empty()) {
       return;
     }
@@ -366,11 +365,12 @@ class RowPartitioner {
     auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
     // Must initialize with 0 as 0 count is not written in the kernel.
     dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
+    CHECK_EQ(ridx_tmp.size(), this->Size());
 
     // Process a sub-batch
-    auto sub_batch_impl = [ctx, op, this](common::Span<bst_node_t const> nidx,
-                                          common::Span<PerNodeData<OpDataT>> d_batch_info,
-                                          common::Span<RowIndexT> d_counts) {
+    auto sub_batch_impl = [&](common::Span<bst_node_t const> nidx,
+                              common::Span<PerNodeData<OpDataT>> d_batch_info,
+                              common::Span<RowIndexT> d_counts) {
       std::size_t total_rows = 0;
       for (bst_node_t i : nidx) {
         total_rows += this->ridx_segments_[i].segment.Size();
@@ -378,8 +378,8 @@ class RowPartitioner {
 
       // Partition the rows according to the operator
       SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, d_batch_info, dh::ToSpan(this->ridx_),
-                                                    dh::ToSpan(this->ridx_tmp_), d_counts,
-                                                    total_rows, op, &this->tmp_);
+                                                    ridx_tmp, d_counts, total_rows, op,
+                                                    &this->tmp_);
     };
 
     // Divide inputs into sub-batches.
@@ -485,5 +485,16 @@ class RowPartitionerBatches {
 
   [[nodiscard]] decltype(auto) front() { return this->partitioners_.front(); }  // NOLINT
   [[nodiscard]] bool Empty() const { return this->partitioners_.empty(); }
+
+  template <typename UpdatePositionOpT, typename OpDataT>
+  void UpdatePositionBatch(Context const* ctx, std::int32_t batch_idx,
+                           std::vector<bst_node_t> const& nidx,
+                           std::vector<bst_node_t> const& left_nidx,
+                           std::vector<bst_node_t> const& right_nidx,
+                           std::vector<OpDataT> const& op_data, UpdatePositionOpT op) {
+    auto& part = this->At(batch_idx);
+    auto ridx_tmp = dh::ToSpan(this->ridx_tmp_).subspan(0, part->Size());
+    part->UpdatePositionBatch(ctx, nidx, left_nidx, right_nidx, op_data, ridx_tmp, op);
+  }
 };
 };  // namespace xgboost::tree
