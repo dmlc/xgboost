@@ -172,6 +172,15 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     n_rounds = 8
     n_targets = 3
     intercept = [0.5] * n_targets
+
+    params = {
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "learning_rate": 1.0,
+        "base_score": intercept,
+        "debug_synchronize": True,
+    }
+
     Xs = []
     ys = []
     for i in range(n_batches):
@@ -185,12 +194,7 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
 
     evals_result_0: Dict[str, Dict] = {}
     booster_0 = train(
-        {
-            "device": device,
-            "multi_strategy": "multi_output_tree",
-            "learning_rate": 1.0,
-            "base_score": intercept,
-        },
+        params,
         Xy,
         num_boost_round=n_rounds,
         evals=[(Xy, "Train")],
@@ -201,12 +205,7 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     Xy = QuantileDMatrix(it)
     evals_result_1: Dict[str, Dict] = {}
     booster_1 = train(
-        {
-            "device": device,
-            "multi_strategy": "multi_output_tree",
-            "learning_rate": 1.0,
-            "base_score": intercept,
-        },
+        params,
         Xy,
         num_boost_round=n_rounds,
         evals=[(Xy, "Train")],
@@ -220,19 +219,18 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     assert_allclose(device, booster_0.inplace_predict(X), booster_1.inplace_predict(X))
 
     it = IteratorForTest(
-        Xs, ys, None, cache="cache", on_host=True, min_cache_page_bytes=4096 * 8
+        Xs,
+        ys,
+        None,
+        cache="cache",
+        on_host=True,
+        min_cache_page_bytes=X.shape[0] // n_batches * X.shape[1],
     )
     Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0)
 
     evals_result_2: Dict[str, Dict] = {}
     booster_2 = train(
-        {
-            "device": device,
-            "multi_strategy": "multi_output_tree",
-            "learning_rate": 1.0,
-            "base_score": intercept,
-            "debug_synchronize": True,
-        },
+        params,
         Xy,
         evals=[(Xy, "Train")],
         obj=LsObj0(),

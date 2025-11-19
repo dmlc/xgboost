@@ -193,22 +193,34 @@ class MultiTargetHistMaker {
   void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
     // Calculate the leaf weight based on the node sum for each leaf.
     // Update the leaf weight, with learning rate.
-    auto n_leaves = p_tree->GetNumLeaves();
-    linalg::Matrix<GradientPairInt64> out_sum(
-        {static_cast<std::size_t>(n_leaves), static_cast<std::size_t>(p_tree->NumTargets())},
-        this->ctx_->Device());
+    auto n_leaves = static_cast<bst_target_t>(p_tree->GetNumLeaves());
+    auto out_sum = linalg::Constant(ctx_, GradientPairInt64{}, n_leaves, p_tree->NumTargets());
+    auto d_out_sum = out_sum.View(this->ctx_->Device());
+    // Temporary array for batched sum, cub segmented reduce wipes the output with an
+    // initial value.
+    auto tmp_out_sum = linalg::ConstantLike(GradientPairInt64{}, d_out_sum);
+    auto d_tmp_out_sum = tmp_out_sum.View(ctx_->Device());
+
+    auto d_full_grad = full_grad.View(this->ctx_->Device());
+    auto d_roundings = this->value_quantizer_->Quantizers();
+    // Node indices for all leaves
     std::vector<bst_node_t> leaves_idx(n_leaves);
 
     std::int32_t batch_idx = 0;
     for (auto const& p_part : this->partitioners_) {
       auto leaves = p_part->GetLeaves();
       CHECK_EQ(leaves.size(), n_leaves);
-      LeafGradSum(this->ctx_, leaves, this->value_quantizer_->Quantizers(), p_part->GetRows(),
-                  full_grad.View(this->ctx_->Device()), out_sum.View(this->ctx_->Device()));
+      LeafGradSum(this->ctx_, leaves, d_roundings, p_part->GetRows(), d_full_grad, d_tmp_out_sum);
       if (batch_idx == 0) {
+        // Populate the node indices
         std::transform(leaves.begin(), leaves.end(), leaves_idx.begin(),
                        [](LeafInfo const& leaf) { return leaf.nidx; });
       }
+      // Add to the running sum.
+      dh::LaunchN(tmp_out_sum.Size(), ctx_->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) {
+        d_out_sum.Values()[i] += d_tmp_out_sum.Values()[i];
+      });
+      // sanity check
       if (this->hist_param_->debug_synchronize) {
         auto it = common::MakeIndexTransformIter([&](std::size_t i) { return leaves.at(i).nidx; });
         CHECK(std::equal(it, it + n_leaves, leaves_idx.cbegin()));

@@ -979,13 +979,25 @@ auto EmptyLike(Context const *ctx, Tensor<T, kDim> const &in) {
 }
 
 /**
- * \brief Create an array with value v.
+ * @brief Create an array with value v.
  */
 template <typename T, typename... Index>
 auto Constant(Context const *ctx, T v, Index &&...index) {
   Tensor<T, sizeof...(Index)> t;
   t.SetDevice(ctx->Device());
   t.Reshape(index...);
+  t.Data()->Fill(std::move(v));
+  return t;
+}
+
+/**
+ * @brief Create an array with the same shape and dtype as the input, filled with value v.
+ */
+template <typename T, std::int32_t kDim>
+auto ConstantLike(T v, TensorView<T, kDim> const &in) {
+  Tensor<T, kDim> t;
+  t.SetDevice(in.Device());
+  t.Reshape(in.Shape());
   t.Data()->Fill(std::move(v));
   return t;
 }
