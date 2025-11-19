@@ -1,9 +1,8 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
-#include <thrust/iterator/tabulate_output_iterator.h>  // for make_tabulate_output_iterator
-#include <thrust/scan.h>                               // for inclusive_scan
-#include <thrust/version.h>                            // for THRUST_MAJOR_VERSION
+#include <thrust/scan.h>     // for inclusive_scan
+#include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
 #include <cstddef>                                 // for size_t
 #include <cstdint>                                 // for int32_t
@@ -20,7 +19,7 @@
 #include "xgboost/span.h"       // for Span
 
 #if THRUST_MAJOR_VERSION >= 3
-// do nothing
+#include <thrust/iterator/tabulate_output_iterator.h>  // for make_tabulate_output_iterator
 #else
 #include "../../common/linalg_op.cuh"  // for tbegin
 #endif

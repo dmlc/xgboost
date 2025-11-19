@@ -2,7 +2,8 @@
  * Copyright 2025, XGBoost contributors
  */
 #pragma once
-#include <thrust/reduce.h>  // for reduce_by_key
+#include <thrust/reduce.h>   // for reduce_by_key
+#include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector
