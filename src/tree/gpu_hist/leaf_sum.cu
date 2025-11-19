@@ -3,6 +3,7 @@
  */
 #include <thrust/iterator/tabulate_output_iterator.h>  // for make_tabulate_output_iterator
 #include <thrust/scan.h>                               // for inclusive_scan
+#include <thrust/version.h>                            // for THRUST_MAJOR_VERSION
 
 #include <cstddef>                                 // for size_t
 #include <cstdint>                                 // for int32_t
@@ -17,6 +18,12 @@
 #include "xgboost/context.h"    // for Context
 #include "xgboost/linalg.h"     // for MatrixView
 #include "xgboost/span.h"       // for Span
+
+#if THRUST_MAJOR_VERSION >= 3
+// do nothing
+#else
+#include "../../common/linalg_op.cuh"  // for tbegin
+#endif
 
 namespace xgboost::tree::cuda_impl {
 void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
@@ -55,8 +62,12 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
       return roundings[t].ToFixedPoint(g);
     });
     // Use an output iterator to implement running sum.
+#if THRUST_MAJOR_VERSION >= 3
     auto out_it = thrust::make_tabulate_output_iterator(
         [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) mutable { out_t(idx) += v; });
+#else
+    auto out_it = linalg::tbegin(out_t);
+#endif
 
     std::size_t n_bytes = 0;
     dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, it, out_it, h_leaves.size(),

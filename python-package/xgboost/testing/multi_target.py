@@ -14,7 +14,7 @@ import xgboost.testing as tm
 
 from .._typing import ArrayLike
 from ..compat import import_cupy
-from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
+from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix, build_info
 from ..objective import Objective, TreeObjective
 from ..sklearn import XGBClassifier
 from ..training import train
@@ -217,6 +217,10 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     assert tm.non_increasing(evals_result_0["Train"]["rmse"])
     X, _, _ = it.as_arrays()
     assert_allclose(device, booster_0.inplace_predict(X), booster_1.inplace_predict(X))
+
+    v = build_info()["THRUST_VERSION"]
+    if v[0] < 3:
+        pytest.xfail("CCCL version too old.")
 
     it = IteratorForTest(
         Xs,

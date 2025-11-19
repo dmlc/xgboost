@@ -200,7 +200,12 @@ class MultiTargetHistMaker {
     auto d_roundings = this->value_quantizer_->Quantizers();
     // Node indices for all leaves
     std::vector<bst_node_t> leaves_idx(n_leaves);
-
+#if THRUST_MAJOR_VERSION >= 3
+    // do nothing
+#else
+    CHECK_EQ(this->partitioners_.Size(), 1)
+        << "External memory not implemented for old CCCL versions. (thrust < 3.0)";
+#endif
     std::int32_t batch_idx = 0;
     for (auto const& p_part : this->partitioners_) {
       auto leaves = p_part->GetLeaves();
