@@ -294,6 +294,40 @@ def signal_error() -> None:
     _check_call(_LIB.XGCommunicatorSignalError())
 
 
+def _find_nccl() -> Optional[str]:
+    from nvidia.nccl import lib
+
+    # There are two versions of nvidia-nccl, one is from PyPI, another one from
+    # nvidia-pyindex. We support only the first one as the second one is too old (2.9.8
+    # as of writing).
+    #
+    # nccl 2.28 doesn't have the __file__ attribute, we use the namespace path instead.
+    if lib.__file__ is not None:
+        dirname: Optional[str] = os.path.dirname(lib.__file__)
+    elif hasattr(lib, "__path__") and len(lib.__path__) > 0:
+        dirname = lib.__path__[0]
+    else:
+        dirname = None
+    if not dirname:
+        return None
+
+    # Find the first shared object in the lib directory.
+    files = os.listdir(dirname)
+    if not files:
+        return None
+
+    libname: Optional[str] = None
+    for name in files:
+        if name.startswith("libnccl.so"):
+            libname = name
+            break
+
+    if libname is not None:
+        path = os.path.join(dirname, libname)
+        return path
+    return None
+
+
 class CommunicatorContext:
     """A context controlling collective communicator initialization and finalization."""
 
@@ -309,18 +343,8 @@ class CommunicatorContext:
 
         try:
             # PyPI package of NCCL.
-            from nvidia.nccl import lib
-
-            # There are two versions of nvidia-nccl, one is from PyPI, another one from
-            # nvidia-pyindex. We support only the first one as the second one is too old
-            # (2.9.8 as of writing).
-            if lib.__file__ is not None:
-                dirname: Optional[str] = os.path.dirname(lib.__file__)
-            else:
-                dirname = None
-
-            if dirname:
-                path = os.path.join(dirname, "libnccl.so.2")
+            path = _find_nccl()
+            if path:
                 self.args[key] = path
         except ImportError:
             pass
