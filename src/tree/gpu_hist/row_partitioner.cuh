@@ -174,21 +174,24 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
     auto ret =
         cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
                           cub::NullType, std::uint64_t>::Dispatch(nullptr, n_bytes, input_iterator,
-                                                                 discard_write_iterator,
-                                                                 IndexFlagOp{}, cub::NullType{},
-                                                                 static_cast<std::uint64_t>(total_rows),
-                                                                 ctx->CUDACtx()->Stream());
+                                                                  discard_write_iterator,
+                                                                  IndexFlagOp{}, cub::NullType{},
+                                                                  static_cast<std::uint64_t>(
+                                                                      total_rows),
+                                                                  ctx->CUDACtx()->Stream());
     dh::safe_cuda(ret);
     tmp->resize(n_bytes);
   }
   n_bytes = tmp->size();
   auto ret =
       cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
-                        cub::NullType, std::uint64_t>::Dispatch(tmp->data(), n_bytes, input_iterator,
-                                                               discard_write_iterator,
-                                                               IndexFlagOp{}, cub::NullType{},
-                                                               static_cast<std::uint64_t>(total_rows),
-                                                               ctx->CUDACtx()->Stream());
+                        cub::NullType, std::uint64_t>::Dispatch(tmp->data(), n_bytes,
+                                                                input_iterator,
+                                                                discard_write_iterator,
+                                                                IndexFlagOp{}, cub::NullType{},
+                                                                static_cast<std::uint64_t>(
+                                                                    total_rows),
+                                                                ctx->CUDACtx()->Stream());
   dh::safe_cuda(ret);
 
   constexpr int kBlockSize = 256;
@@ -482,7 +485,7 @@ class RowPartitionerBatches {
   decltype(auto) begin() const { return this->partitioners_.cbegin(); }   // NOLINT
   decltype(auto) end() const { return this->partitioners_.cend(); }       // NOLINT
 
-  [[nodiscard]] decltype(auto) front() { return this->partitioners_.front(); }  // NOLINT
+  [[nodiscard]] decltype(auto) Front() { return this->partitioners_.front(); }
   [[nodiscard]] bool Empty() const { return this->partitioners_.empty(); }
 
   template <typename UpdatePositionOpT, typename OpDataT>

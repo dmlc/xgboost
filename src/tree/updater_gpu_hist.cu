@@ -230,7 +230,7 @@ struct GPUHistMakerDevice {
 
     if (is_concat) {
       CHECK_EQ(partitioners_.Size(), 1);
-      CHECK_EQ(partitioners_.front()->Size(), p_fmat->Info().num_row_);
+      CHECK_EQ(partitioners_.Front()->Size(), p_fmat->Info().num_row_);
     }
 
     /**
@@ -630,7 +630,7 @@ struct GPUHistMakerDevice {
 
       page.Impl()->Visit(ctx_, ft, [&](auto&& d_matrix) {
         auto go_left_op = GoLeftOp<std::remove_reference_t<decltype(d_matrix)>>{d_matrix};
-        partitioners_.front()->FinalisePosition(
+        partitioners_.Front()->FinalisePosition(
             ctx_, d_out_position, page.BaseRowId(),
             FinalizeOp<std::remove_reference_t<decltype(d_matrix)>>{s_split_data, go_left_op,
                                                                     EncodeOp{d_gpair}});
@@ -675,7 +675,7 @@ struct GPUHistMakerDevice {
 
     // Sanity check - have we created a leaf with no training instances?
     if (!collective::IsDistributed() && partitioners_.Size() == 1) {
-      CHECK(partitioners_.front()->GetRows(candidate.nidx).size() > 0)
+      CHECK(partitioners_.Front()->GetRows(candidate.nidx).size() > 0)
           << "No training instances in this leaf!";
     }
 
@@ -791,7 +791,7 @@ struct GPUHistMakerDevice {
     // restrictions like min loss change after evalaution. Therefore, the check condition
     // is greater than or equal to.
     if (p_fmat->SingleColBlock()) {
-      CHECK_GE(p_tree->NumNodes(), this->partitioners_.front()->GetNumNodes());
+      CHECK_GE(p_tree->NumNodes(), this->partitioners_.Front()->GetNumNodes());
     }
     this->FinalisePosition(p_fmat, p_tree, *task, p_out_position);
   }
