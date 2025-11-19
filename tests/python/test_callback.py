@@ -1,7 +1,7 @@
 import os
 import tempfile
 from collections import namedtuple
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import pytest
@@ -384,3 +384,25 @@ class TestCallbacks:
 
         with pytest.raises(AttributeError, match="early stopping is used"):
             booster.best_score
+
+    def test_preserve_order(self) -> None:
+        """Test the ordering of the callbacks is preserved."""
+        X, y, w = tm.make_regression(256, 16, False)
+        fst_call: Optional[int] = None
+
+        # If we use Python `set`, Cb1 is ordered before Cb2. This test makes sure Cb2 is
+        # called before Cb1.
+        class Cb2(xgb.callback.TrainingCallback):
+            def before_iteration(self, model, epoch: int, evals_log) -> bool:
+                nonlocal fst_call
+                assert fst_call is None or fst_call == 2
+                fst_call = 2
+                return False
+
+        class Cb1(xgb.callback.TrainingCallback):
+            def before_iteration(self, model, epoch: int, evals_log) -> bool:
+                assert fst_call == 2
+                return False
+
+        callbacks = [Cb2(), Cb1()]
+        xgb.train({}, dtrain=xgb.QuantileDMatrix(X, y, weight=w), callbacks=callbacks)
