@@ -34,7 +34,7 @@ TEST(LeafGradSum, Basic) {
   thrust::sequence(ctx.CUDACtx()->CTP(), sorted_ridx.begin(), sorted_ridx.end(), 0);
 
   auto quantizers = MakeDummyQuantizers(n_targets);
-  auto out_sum = linalg::Empty<GradientPairInt64>(&ctx, n_leaves, n_targets);
+  auto out_sum = linalg::Constant(&ctx, GradientPairInt64{}, n_leaves, n_targets);
 
   LeafGradSum(&ctx, h_leaves, dh::ToSpan(quantizers), dh::ToSpan(sorted_ridx),
               gpairs.View(ctx.Device()), out_sum.View(ctx.Device()));

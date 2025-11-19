@@ -1,11 +1,15 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
-#include <cstddef>  // for size_t
-#include <vector>   // for vector
+#include <thrust/scan.h>     // for inclusive_scan
+#include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
-#include "../../common/linalg_op.cuh"  // for tbegin
-#include "../updater_gpu_common.cuh"   // for GPUTrainingParam
+#include <cstddef>                                 // for size_t
+#include <cstdint>                                 // for int32_t
+#include <cub/device/device_segmented_reduce.cuh>  // for DeviceSegmentedReduce
+#include <vector>                                  // for vector
+
+#include "../updater_gpu_common.cuh"  // for GPUTrainingParam
 #include "leaf_sum.cuh"
 #include "quantiser.cuh"        // for GradientQuantiser
 #include "row_partitioner.cuh"  // for RowIndexT, LeafInfo
@@ -13,6 +17,12 @@
 #include "xgboost/context.h"    // for Context
 #include "xgboost/linalg.h"     // for MatrixView
 #include "xgboost/span.h"       // for Span
+
+#if THRUST_MAJOR_VERSION >= 3
+#include <thrust/iterator/tabulate_output_iterator.h>  // for make_tabulate_output_iterator
+#else
+#include "../../common/linalg_op.cuh"  // for tbegin
+#endif
 
 namespace xgboost::tree::cuda_impl {
 void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
@@ -50,14 +60,22 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
       auto g = grad(sorted_ridx[j], t);
       return roundings[t].ToFixedPoint(g);
     });
+    // Use an output iterator to implement running sum.
+#if THRUST_MAJOR_VERSION >= 3
+    auto out_it = thrust::make_tabulate_output_iterator(
+        [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) mutable { out_t(idx) += v; });
+#else
+    auto out_it = linalg::tbegin(out_t);
+#endif
+
     std::size_t n_bytes = 0;
-    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, it, linalg::tbegin(out_t),
-                                                  h_leaves.size(), indptr.data(), indptr.data() + 1,
+    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, it, out_it, h_leaves.size(),
+                                                  indptr.data(), indptr.data() + 1,
                                                   ctx->CUDACtx()->Stream()));
     dh::TemporaryArray<char> alloc(n_bytes);
-    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(
-        alloc.data().get(), n_bytes, it, linalg::tbegin(out_t), h_leaves.size(), indptr.data(),
-        indptr.data() + 1, ctx->CUDACtx()->Stream()));
+    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(alloc.data().get(), n_bytes, it, out_it,
+                                                  h_leaves.size(), indptr.data(), indptr.data() + 1,
+                                                  ctx->CUDACtx()->Stream()));
   }
 }
 
@@ -66,7 +84,6 @@ void LeafWeight(Context const* ctx, GPUTrainingParam const& param,
                 linalg::MatrixView<GradientPairInt64 const> grad_sum,
                 linalg::MatrixView<float> out_weights) {
   CHECK(grad_sum.Contiguous());
-  auto s_grad_sum = grad_sum.Values();
   dh::LaunchN(grad_sum.Size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
     auto [nidx_in_set, t] = linalg::UnravelIndex(i, grad_sum.Shape());
     auto g = roundings[t].ToFloatingPoint(grad_sum(nidx_in_set, t));

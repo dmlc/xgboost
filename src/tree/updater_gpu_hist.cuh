@@ -2,7 +2,8 @@
  * Copyright 2025, XGBoost contributors
  */
 #pragma once
-#include <thrust/reduce.h>  // for reduce_by_key
+#include <thrust/reduce.h>   // for reduce_by_key
+#include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector
@@ -45,7 +46,7 @@ class MultiTargetHistMaker {
   Context const* ctx_;
 
   TrainParam const param_;
-  std::vector<std::unique_ptr<RowPartitioner>> partitioners_;
+  RowPartitionerBatches partitioners_;
 
   HistMakerTrainParam const* hist_param_;
   std::shared_ptr<common::HistogramCuts const> const cuts_;
@@ -66,8 +67,8 @@ class MultiTargetHistMaker {
 
   void BuildHist(EllpackPage const& page, std::int32_t k, bst_node_t nidx) {
     auto d_gpair = this->split_gpair_.View(this->ctx_->Device());
-    CHECK(!this->partitioners_.empty());
-    auto d_ridx = this->partitioners_.at(k)->GetRows(nidx);
+    CHECK(!this->partitioners_.Empty());
+    auto d_ridx = this->partitioners_.At(k)->GetRows(nidx);
     auto hist = histogram_.GetNodeHistogram(nidx);
     auto roundings = this->split_quantizer_->Quantizers();
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
@@ -84,20 +85,7 @@ class MultiTargetHistMaker {
     /**
      * Initialize the partitioners
      */
-    std::size_t n_batches = p_fmat->NumBatches();
-    if (!partitioners_.empty()) {
-      CHECK_EQ(partitioners_.size(), n_batches);
-    }
-    for (std::size_t k = 0; k < n_batches; ++k) {
-      if (partitioners_.size() != n_batches) {
-        // First run.
-        partitioners_.emplace_back(std::make_unique<RowPartitioner>());
-      }
-      auto base_ridx = this->batch_ptr_[k];
-      auto n_samples = this->batch_ptr_.at(k + 1) - base_ridx;
-      partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
-    }
-    this->partitioners_.resize(n_batches);
+    partitioners_.Reset(this->ctx_, batch_ptr_);
 
     /**
      * Initialize the histogram
@@ -158,7 +146,7 @@ class MultiTargetHistMaker {
     // Build the root histogram.
     histogram_.AllocateHistograms(ctx_, {RegTree::kRoot});
 
-    CHECK_EQ(p_fmat->NumBatches(), this->partitioners_.size());
+    CHECK_EQ(p_fmat->NumBatches(), this->partitioners_.Size());
     std::int32_t k = 0;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
       this->BuildHist(page, k, RegTree::kRoot);
@@ -203,26 +191,33 @@ class MultiTargetHistMaker {
   }
 
   void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
-    CHECK_EQ(this->partitioners_.size(), 1);
     // Calculate the leaf weight based on the node sum for each leaf.
     // Update the leaf weight, with learning rate.
-    auto n_leaves = p_tree->GetNumLeaves();
-    linalg::Matrix<GradientPairInt64> out_sum(
-        {static_cast<std::size_t>(n_leaves), static_cast<std::size_t>(p_tree->NumTargets())},
-        this->ctx_->Device());
-    std::vector<bst_node_t> leaves_idx(n_leaves);
+    auto n_leaves = static_cast<bst_target_t>(p_tree->GetNumLeaves());
+    auto out_sum = linalg::Constant(ctx_, GradientPairInt64{}, n_leaves, p_tree->NumTargets());
+    auto d_out_sum = out_sum.View(this->ctx_->Device());
 
+    auto d_full_grad = full_grad.View(this->ctx_->Device());
+    auto d_roundings = this->value_quantizer_->Quantizers();
+    // Node indices for all leaves
+    std::vector<bst_node_t> leaves_idx(n_leaves);
+#if THRUST_MAJOR_VERSION >= 3
+    // do nothing
+#else
+    CHECK_EQ(this->partitioners_.Size(), 1)
+        << "External memory not implemented for old CCCL versions. (thrust < 3.0)";
+#endif
     std::int32_t batch_idx = 0;
     for (auto const& p_part : this->partitioners_) {
-      auto leaves = this->partitioners_.front()->GetLeaves();
+      auto leaves = p_part->GetLeaves();
       CHECK_EQ(leaves.size(), n_leaves);
-      LeafGradSum(this->ctx_, leaves, this->value_quantizer_->Quantizers(),
-                  this->partitioners_.front()->GetRows(), full_grad.View(this->ctx_->Device()),
-                  out_sum.View(this->ctx_->Device()));
+      LeafGradSum(this->ctx_, leaves, d_roundings, p_part->GetRows(), d_full_grad, d_out_sum);
       if (batch_idx == 0) {
+        // Populate the node indices
         std::transform(leaves.begin(), leaves.end(), leaves_idx.begin(),
                        [](LeafInfo const& leaf) { return leaf.nidx; });
       }
+      // sanity check
       if (this->hist_param_->debug_synchronize) {
         auto it = common::MakeIndexTransformIter([&](std::size_t i) { return leaves.at(i).nidx; });
         CHECK(std::equal(it, it + n_leaves, leaves_idx.cbegin()));
@@ -330,9 +325,8 @@ class MultiTargetHistMaker {
         using Acc = std::remove_reference_t<decltype(d_acc)>;
         using GoLeft = GoLeftOp<Acc>;
         auto go_left = GoLeft{d_acc, mt_tree};
-        partitioners_.at(k)->UpdatePositionBatch(ctx_, nodes.nidx, nodes.left_nidx,
-                                                 nodes.right_nidx, nodes.split_data,
-                                                 GoLeftWrapperOp<GoLeft>{go_left});
+        partitioners_.UpdatePositionBatch(ctx_, k, nodes.nidx, nodes.left_nidx, nodes.right_nidx,
+                                          nodes.split_data, GoLeftWrapperOp<GoLeft>{go_left});
 
         for (auto nidx : build_nidx) {
           this->BuildHist(page, k, nidx);
