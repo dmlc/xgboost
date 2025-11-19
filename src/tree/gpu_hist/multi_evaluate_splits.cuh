@@ -12,9 +12,11 @@
 namespace xgboost::tree::cuda_impl {
 /** @brief Evaluator for vector leaf. */
 class MultiHistEvaluator {
+  // Buffer for node weights
   dh::device_vector<float> weights_;
-
+  // Buffer for histogram scans.
   dh::device_vector<GradientPairInt64> scan_buffer_;
+  // Buffer for node gradient sums.
   dh::device_vector<GradientPairInt64> node_sums_;
 
  public:

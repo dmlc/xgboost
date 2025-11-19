@@ -202,10 +202,6 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   AgentT agent{&temp_storage, fidx};
 
   auto n_targets = shared.Targets();
-  // The number of bins in a feature
-  auto f_hist_size =
-      (shared.feature_segments[fidx + 1] - shared.feature_segments[fidx]) * n_targets;
-
   auto candidate_idx = nidx * shared.Features() + fidx;
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
@@ -256,11 +252,12 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                GradientPairInt64{});
 
   // Create spans for each node's scan results
-  dh::device_vector<common::Span<GradientPairInt64>> scans(n_nodes);
+  std::vector<common::Span<GradientPairInt64>> h_scans(n_nodes);
   for (std::size_t nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
-    scans[nidx_in_set] = dh::ToSpan(this->scan_buffer_)
-                             .subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
+    h_scans[nidx_in_set] = dh::ToSpan(this->scan_buffer_)
+                               .subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
   }
+  dh::device_vector<common::Span<GradientPairInt64>> scans(h_scans);
 
   // Launch histogram scan kernel
   dim3 grid{n_nodes, n_features, n_targets};
@@ -328,6 +325,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     s_parent_gains[nidx_in_set] = parent_gain;
 
     bool l = true, r = true;
+    GradientPairPrecise lg_fst, rg_fst;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto quantizer = d_roundings[t];
       auto sibling_sum = input.parent_sum[t] - node_sum[t];
@@ -335,18 +333,24 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       l = l && (node_sum[t].GetQuantisedHess() == 0);
       r = r && (sibling_sum.GetQuantisedHess() == 0);
 
+      GradientPairPrecise lg, rg;
       if (best_split.dir == kRightDir) {
         // forward pass, node_sum is the left sum
-        auto lg = quantizer.ToFloatingPoint(node_sum[t]);
+        lg = quantizer.ToFloatingPoint(node_sum[t]);
         left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess());
-        auto rg = quantizer.ToFloatingPoint(sibling_sum);
+        rg = quantizer.ToFloatingPoint(sibling_sum);
         right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess());
       } else {
         // backward pass, node_sum is the right sum
-        auto rg = quantizer.ToFloatingPoint(node_sum[t]);
+        rg = quantizer.ToFloatingPoint(node_sum[t]);
         right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess());
-        auto lg = quantizer.ToFloatingPoint(sibling_sum);
+        lg = quantizer.ToFloatingPoint(sibling_sum);
         left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess());
+      }
+
+      if (t == 0) {
+        lg_fst = lg;
+        rg_fst = rg;
       }
     }
 
@@ -354,6 +358,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     out_splits[nidx_in_set] = {input.nidx,  input.depth, best_split,
                                base_weight, left_weight, right_weight};
     out_splits[nidx_in_set].split.loss_chg -= parent_gain;
+    out_splits[nidx_in_set].UpdateFirstHessian(lg_fst, rg_fst);
 
     if (l || r) {
       out_splits[nidx_in_set] = {};
