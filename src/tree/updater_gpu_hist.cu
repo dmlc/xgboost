@@ -76,33 +76,6 @@ struct NodeSplitData {
 };
 static_assert(std::is_trivially_copyable_v<NodeSplitData>);
 
-// Some nodes we will manually compute histograms, others we will do by subtraction
-void AssignNodes(RegTree const* p_tree, GradientQuantiser const* quantizer,
-                 std::vector<GPUExpandEntry> const& candidates,
-                 common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
-  auto const& tree = p_tree->HostScView();
-  std::size_t nidx_in_set{0};
-  auto p_build_nidx = nodes_to_build.data();
-  auto p_sub_nidx = nodes_to_sub.data();
-  for (auto& e : candidates) {
-    // Decide whether to build the left histogram or right histogram Use sum of Hessian as
-    // a heuristic to select node with fewest training instances This optimization is for
-    // distributed training to avoid an allreduce call for synchronizing the number of
-    // instances for each node.
-    auto left_sum = quantizer->ToFloatingPoint(e.split.left_sum);
-    auto right_sum = quantizer->ToFloatingPoint(e.split.right_sum);
-    bool fewer_right = right_sum.GetHess() < left_sum.GetHess();
-    if (fewer_right) {
-      p_build_nidx[nidx_in_set] = tree.RightChild(e.nidx);
-      p_sub_nidx[nidx_in_set] = tree.LeftChild(e.nidx);
-    } else {
-      p_build_nidx[nidx_in_set] = tree.LeftChild(e.nidx);
-      p_sub_nidx[nidx_in_set] = tree.RightChild(e.nidx);
-    }
-    ++nidx_in_set;
-  }
-}
-
 // GPU tree updater implementation.
 struct GPUHistMakerDevice {
  private:
@@ -501,9 +474,16 @@ struct GPUHistMakerDevice {
     auto nodes = this->CreatePartitionNodes(p_tree, is_single_block ? candidates : expand_set);
 
     // Prepare for build hist
+    auto const& tree = p_tree->HostScView();
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
-    AssignNodes(p_tree, this->quantiser.get(), candidates, build_nidx, subtraction_nidx);
+    cuda_impl::AssignNodes(tree, candidates, build_nidx, subtraction_nidx,
+                           [&](GPUExpandEntry const& e) {
+                             auto left_sum = this->quantiser->ToFloatingPoint(e.split.left_sum);
+                             auto right_sum = this->quantiser->ToFloatingPoint(e.split.right_sum);
+                             bool fewer_right = right_sum.GetHess() < left_sum.GetHess();
+                             return fewer_right;
+                           });
     auto prefetch_copy = !build_nidx.empty() && this->NeedCopy(p_fmat, candidates);
 
     this->histogram_.AllocateHistograms(ctx_, build_nidx, subtraction_nidx);

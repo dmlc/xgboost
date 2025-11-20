@@ -38,6 +38,53 @@ struct GoLeftWrapperOp {
   }
 };
 
+// Some nodes we will manually compute histograms, others we will do by subtraction
+template <typename TreeView, typename ExpandEntry, typename HessComp>
+void AssignNodes(TreeView const& tree, std::vector<ExpandEntry> const& candidates,
+                 common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub,
+                 HessComp&& compare_hess) {
+  std::size_t nidx_in_set{0};
+  auto p_build_nidx = nodes_to_build.data();
+  auto p_sub_nidx = nodes_to_sub.data();
+  for (auto& e : candidates) {
+    // Decide whether to build the left histogram or right histogram Use sum of Hessian as
+    // a heuristic to select node with fewest training instances This optimization is for
+    // distributed training to avoid an allreduce call for synchronizing the number of
+    // instances for each node.
+    bool fewer_right = compare_hess(e);
+    if (fewer_right) {
+      p_build_nidx[nidx_in_set] = tree.RightChild(e.nidx);
+      p_sub_nidx[nidx_in_set] = tree.LeftChild(e.nidx);
+    } else {
+      p_build_nidx[nidx_in_set] = tree.LeftChild(e.nidx);
+      p_sub_nidx[nidx_in_set] = tree.RightChild(e.nidx);
+    }
+    ++nidx_in_set;
+  }
+}
+
+void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPair> d_gpair,
+                 common::Span<GradientQuantiser const> roundings,
+                 common::Span<GradientPairInt64> root_sum) {
+  auto n_samples = d_gpair.Shape(0);
+  auto n_targets = d_gpair.Shape(1);
+  // Calculate the root sum
+  CHECK_EQ(n_targets, root_sum.size());
+
+  auto key_it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
+    auto cidx = i / n_samples;
+    return cidx;
+  });
+  auto val_it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) -> GradientPairInt64 {
+    auto cidx = i / n_samples;
+    auto ridx = i % n_samples;
+    auto g = d_gpair(ridx, cidx);
+    return roundings[cidx].ToFixedPoint(g);
+  });
+  thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + d_gpair.Size(), val_it,
+                        thrust::make_discard_iterator(), dh::tbegin(root_sum));
+}
+
 /**
  * @brief Implementation for vector leaf.
  */
@@ -108,40 +155,14 @@ class MultiTargetHistMaker {
                      cuts_->TotalBins() * n_targets, force_global);
   }
 
-  dh::device_vector<GradientPairInt64> CalcRootSum(
-      linalg::MatrixView<GradientPair> d_gpair,
-      common::Span<GradientQuantiser const> roundings) const {
-    auto n_samples = d_gpair.Shape(0);
-    auto n_targets = d_gpair.Shape(1);
-    // Calculate the root sum
-    dh::device_vector<GradientPairInt64> root_sum(n_targets);
-
-    auto key_it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
-      auto cidx = i / n_samples;
-      return cidx;
-    });
-    auto val_it =
-        dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) -> GradientPairInt64 {
-          auto cidx = i / n_samples;
-          auto ridx = i % n_samples;
-          auto g = d_gpair(ridx, cidx);
-          return roundings[cidx].ToFixedPoint(g);
-        });
-    thrust::reduce_by_key(ctx_->CUDACtx()->CTP(), key_it, key_it + d_gpair.Size(), val_it,
-                          thrust::make_discard_iterator(), root_sum.begin());
-    return root_sum;
-  }
-
   [[nodiscard]] MultiExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
     auto d_gpair = split_gpair_.View(ctx_->Device());
     auto n_targets = d_gpair.Shape(1);
 
     // Calculate the root sum
-    auto root_sum = this->CalcRootSum(d_gpair, this->split_quantizer_->Quantizers());
     this->evaluator_.AllocNodeSum(RegTree::kRoot, n_targets);
     auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
-    dh::safe_cuda(cudaMemcpyAsync(d_root_sum.data(), root_sum.data().get(), d_root_sum.size_bytes(),
-                                  cudaMemcpyDefault, this->ctx_->CUDACtx()->Stream()));
+    CalcRootSum(this->ctx_, d_gpair, this->split_quantizer_->Quantizers(), d_root_sum);
 
     // Build the root histogram.
     histogram_.AllocateHistograms(ctx_, {RegTree::kRoot});
@@ -155,8 +176,8 @@ class MultiTargetHistMaker {
 
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
-    MultiEvaluateSplitInputs input{RegTree::kRoot, p_tree->GetDepth(RegTree::kRoot),
-                                   dh::ToSpan(root_sum), node_hist};
+    MultiEvaluateSplitInputs input{RegTree::kRoot, p_tree->GetDepth(RegTree::kRoot), d_root_sum,
+                                   node_hist};
     auto d_roundings = split_quantizer_->Quantizers();
     GPUTrainingParam param{this->param_};
     MultiEvaluateSplitSharedInputs shared_inputs{d_roundings,
@@ -189,10 +210,14 @@ class MultiTargetHistMaker {
 
     this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, candidate);
   }
-
+  /**
+   * @brief Calculate the leaf weight based on the node sum for each leaf.
+   *
+   * This method helps support reduced gradient. Weights in p_tree are calculated using
+   * split gradient. This function replaces those weights with new weights calculated from
+   * value gradient.
+   */
   void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
-    // Calculate the leaf weight based on the node sum for each leaf.
-    // Update the leaf weight, with learning rate.
     auto n_leaves = static_cast<bst_target_t>(p_tree->GetNumLeaves());
     auto out_sum = linalg::Constant(ctx_, GradientPairInt64{}, n_leaves, p_tree->NumTargets());
     auto d_out_sum = out_sum.View(this->ctx_->Device());
@@ -201,6 +226,7 @@ class MultiTargetHistMaker {
     auto d_roundings = this->value_quantizer_->Quantizers();
     // Node indices for all leaves
     std::vector<bst_node_t> leaves_idx(n_leaves);
+
 #if THRUST_MAJOR_VERSION >= 3
     // do nothing
 #else
@@ -270,6 +296,10 @@ class MultiTargetHistMaker {
 
   // TODO(jiamingy): Merge this with the single target version. Make sure copying tree
   // data doesn't block external memory execution.
+  //
+  // Pulling in the device view has negative performance impact as we need to resize the
+  // tree internal buffers repeatedly, which invokes many small data copies and memory
+  // allocations.
   template <typename Accessor>
   struct GoLeftOp {
     Accessor d_matrix;
@@ -292,6 +322,29 @@ class MultiTargetHistMaker {
     }
   };
 
+  void ReduceHist(DMatrix* p_fmat, std::vector<MultiExpandEntry> const& candidates,
+                  std::vector<bst_node_t> const& build_nidx,
+                  std::vector<bst_node_t> const& subtraction_nidx) {
+    if (candidates.empty()) {
+      return;
+    }
+
+    // Perform subtraction for sibling nodes
+    auto need_build = this->histogram_.SubtractHist(ctx_, candidates, build_nidx, subtraction_nidx);
+    if (need_build.empty()) {
+      return;
+    }
+
+    // Build the nodes that can not obtain the histogram using subtraction. This is the slow path.
+    std::int32_t k = 0;
+    for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
+      for (auto nidx : need_build) {
+        this->BuildHist(page, k, nidx);
+      }
+      ++k;
+    }
+  }
+
   void PartitionAndBuildHist(DMatrix* p_fmat, std::vector<MultiExpandEntry> const& expand_set,
                              std::vector<MultiExpandEntry> const& candidates,
                              RegTree const* p_tree) {
@@ -299,34 +352,35 @@ class MultiTargetHistMaker {
       return;
     }
     CHECK_LE(candidates.size(), expand_set.size());
-    // TODO(jiamingy): Implement finalize partition.
+    // TODO(jiamingy): Implement finalize partition. Avoid using the expand_set.
 
     // Prepare for update partition
     auto nodes = this->CreatePartitionNodes(p_tree, expand_set);
-    auto mt_tree = p_tree->HostMtView();
-    // TODO(jiamingy): subtraction trick
-    std::vector<bst_node_t> build_nidx;
-    for (auto const& nidx_in_set : expand_set) {
-      auto left_child = mt_tree.LeftChild(nidx_in_set.nidx);
-      auto right_child = mt_tree.RightChild(nidx_in_set.nidx);
-      build_nidx.emplace_back(left_child);
-      build_nidx.emplace_back(right_child);
-    }
 
-    histogram_.AllocateHistograms(ctx_, build_nidx);
+    std::vector<bst_node_t> build_nidx(expand_set.size());
+    std::vector<bst_node_t> subtraction_nidx(expand_set.size());
+    auto mt_tree = p_tree->HostMtView();
+    AssignNodes(mt_tree, expand_set, build_nidx, subtraction_nidx, [](MultiExpandEntry const& e) {
+      bool fewer_right = e.right_fst_hess < e.left_fst_hess;
+      return fewer_right;
+    });
+
+    histogram_.AllocateHistograms(this->ctx_, build_nidx, subtraction_nidx);
 
     // Pull to device
     mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
     std::int32_t k{0};
     // TODO(jiamingy): Support external memory.
     bool prefetch_copy = true;
-    for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(prefetch_copy))) {
-      page.Impl()->Visit(ctx_, {}, [&](auto&& d_acc) {
+    for (auto const& page :
+         p_fmat->GetBatches<EllpackPage>(this->ctx_, StaticBatch(prefetch_copy))) {
+      page.Impl()->Visit(this->ctx_, {}, [&](auto&& d_acc) {
         using Acc = std::remove_reference_t<decltype(d_acc)>;
         using GoLeft = GoLeftOp<Acc>;
         auto go_left = GoLeft{d_acc, mt_tree};
-        partitioners_.UpdatePositionBatch(ctx_, k, nodes.nidx, nodes.left_nidx, nodes.right_nidx,
-                                          nodes.split_data, GoLeftWrapperOp<GoLeft>{go_left});
+        partitioners_.UpdatePositionBatch(this->ctx_, k, nodes.nidx, nodes.left_nidx,
+                                          nodes.right_nidx, nodes.split_data,
+                                          GoLeftWrapperOp<GoLeft>{go_left});
 
         for (auto nidx : build_nidx) {
           this->BuildHist(page, k, nidx);
@@ -334,6 +388,8 @@ class MultiTargetHistMaker {
       });
       ++k;
     }
+
+    this->ReduceHist(p_fmat, expand_set, build_nidx, subtraction_nidx);
   }
 
   void EvaluateSplits(std::vector<MultiExpandEntry> const& candidates, RegTree const& tree,
