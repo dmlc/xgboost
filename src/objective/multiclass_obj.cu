@@ -215,7 +215,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     // Transform it back to margin
     // ln(v) - E[ln(v)]
     linalg::Vector<float> mean;
-    linalg::LogE(this->ctx_, intercept);
+    linalg::LogE(this->ctx_, intercept, kRtEps);
     common::Mean(this->ctx_, intercept, &mean);
     auto d_mean = mean.View(this->ctx_->Device());
     TransformKernel(this->ctx_, intercept, [=] XGBOOST_DEVICE(float v) { return v - d_mean(0); });
