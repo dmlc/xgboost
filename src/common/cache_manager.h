@@ -21,6 +21,7 @@ class CacheManager {
 
   constexpr static int64_t kDefaultL1Size = 32 * 1024;    // 32KB
   constexpr static int64_t kDefaultL2Size = 1024 * 1024;  // 1MB
+  constexpr static int64_t kDefaultL3Size = 0;            // 0MB
 
   // If CPUID cannot be used, fall back to default L1/L2 cache sizes.
   void SetDefaultCaches() {
@@ -39,6 +40,10 @@ class CacheManager {
 
   int64_t L2Size() const {
     return cache_size_[1] != kUninitCache ? cache_size_[1] : kDefaultL2Size;
+  }
+
+  int64_t L3Size() const {
+    return cache_size_[2] != kUninitCache ? cache_size_[2] : kDefaultL3Size;
   }
 };
 

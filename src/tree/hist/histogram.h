@@ -326,7 +326,10 @@ class MultiHistogramBuilder {
 
     auto nbins = gidx.cut.Ptrs().back();
     size_t hist_size = 2 * sizeof(double) * nbins;
-    const bool hist_fit_to_l2 = 0.8 * cache_manager_.L2Size() > hist_size;
+
+    double l3_per_thread = static_cast<double>(cache_manager_.L3Size()) / ctx_->Threads();
+    double usable_cache_size =  0.8 * (cache_manager_.L2Size() + l3_per_thread);
+    const bool hist_fit_to_l2 = usable_cache_size > hist_size;
 
     /* In row-wise histogram construction, each iteration of the outer (row-wise) loop
      * accesses bins across the entire histogram; the bins are not localized.
