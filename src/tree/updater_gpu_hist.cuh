@@ -82,7 +82,7 @@ void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPair> d_gpair,
     return roundings[cidx].ToFixedPoint(g);
   });
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + d_gpair.Size(), val_it,
-                        thrust::make_discard_iterator(), root_sum.begin());
+                        thrust::make_discard_iterator(), dh::tbegin(root_sum));
 }
 
 /**
