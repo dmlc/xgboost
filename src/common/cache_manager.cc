@@ -36,16 +36,23 @@ void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
 
 #define _CPUID_GET_WAYS(__ebx) (__extract_bitmask_value(__ebx /*31:22*/, 0xffc00000U, 22) + 1)
 
-#define _CPUID_CACHE_INFO 0x4U
+#define _CPUID_CACHE_INFO_INTEL 0x4U
+
+#define _CPUID_CACHE_INFO_AMD 0x8000001DU
+
+#define _CPUID_VENDOR_ID_AMD 0x68747541
 
 // Run CPUID and collect raw output.
-// Return false if XGBoost is running in a virtualized environment; otherwise return true.
-bool GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
+void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
                   int* line_size, int* partitions, int* ways) {
-  static uint32_t abcd[4];
-  RunCpuid(_CPUID_CACHE_INFO, cache_num, abcd);
+// Leaf 0x0 returns Vendor ID in EBX, EDX, ECX
+  uint32_t vendor_reg[4];
+  RunCpuid(0, 0, vendor_reg);
+  bool is_amd = (vendor_reg[1] == _CPUID_VENDOR_ID_AMD);
 
-  bool under_hypervisor = (abcd[2] >> 31) & 1;
+  uint32_t cache_info_leaf = is_amd ? _CPUID_CACHE_INFO_AMD : _CPUID_CACHE_INFO_INTEL;
+  static uint32_t abcd[4];
+  RunCpuid(cache_info_leaf, cache_num, abcd);
 
   const uint32_t eax = abcd[0];
   const uint32_t ebx = abcd[1];
@@ -57,9 +64,6 @@ bool GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
   *line_size         = _CPUID_GET_LINE_SIZE(ebx);
   *partitions        = _CPUID_GET_PARTITIONS(ebx);
   *ways              = _CPUID_GET_WAYS(ebx);
-
-  bool trust_cpuid = !under_hypervisor;
-  return trust_cpuid;
 }
 
 constexpr int kCpuidTypeNull = 0;
@@ -69,22 +73,19 @@ constexpr int kCpuidTypeUnif = 3;
 
 // Interpret the raw CPUID results and extract actual (or unified) cache parameters.
 template <size_t kMaxCacheSize>
-bool DetectDataCaches(int64_t* cache_sizes) {
+void DetectDataCaches(int64_t* cache_sizes) {
   int cache_num = 0, cache_sizes_idx = 0;
   while (cache_sizes_idx < kMaxCacheSize) {
     int type, level, line_size, partitions, ways;
     int64_t sets, size;
-    bool trust_cpuid =
-      GetCacheInfo(cache_num++, &type, &level, &sets, &line_size, &partitions, &ways);
-    if (!trust_cpuid) return trust_cpuid;
+    GetCacheInfo(cache_num++, &type, &level, &sets, &line_size, &partitions, &ways);
 
-    if (type == kCpuidTypeNull) return true;  // no more caches to read.
+    if (type == kCpuidTypeNull) break;  // no more caches to read.
     if (type == kCpuidTypeInst) continue;
 
     size                           = ways * partitions * line_size * sets;
     cache_sizes[cache_sizes_idx++] = size;
   }
-  return true;
 }
 #endif  // defined(__x86_64__)
 
@@ -99,11 +100,17 @@ namespace xgboost::common {
  */
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
-  bool trust_cpuid = DetectDataCaches<kMaxCacheSize>(cache_size_.data());
-  if (!trust_cpuid) SetDefaultCaches();
+  DetectDataCaches<kMaxCacheSize>(cache_size_.data());
 #else
   SetDefaultCaches();
 #endif  // defined(__x86_64__)
+  LOG(INFO) << "Detected: " << "\t"
+            << "L1: " << cache_size_[0] << "\t"
+            << "L2: " << cache_size_[1] << "\t"
+            << "L3: " << cache_size_[2] << "\t"
+            << "L4: " << cache_size_[3] << "\t"
+            ;
+
 }
 
 }  // namespace xgboost::common

@@ -29,6 +29,7 @@ class CacheManager {
     // so conservative defaults are used.
     cache_size_[0] = kDefaultL1Size;
     cache_size_[1] = kDefaultL2Size;
+    cache_size_[2] = kDefaultL3Size;
   }
 
  public:
