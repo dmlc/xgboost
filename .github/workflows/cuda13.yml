@@ -36,6 +36,29 @@ jobs:
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/build-cuda13 \
             build/testxgboost python-package/dist/*.whl
+
+  build-cuda13-arm64:
+    name: Build CUDA 13 (ARM64)
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-arm64-cpu
+      - tag=cuda13-build-cuda13-arm64
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: |
+          bash ops/pipeline/build-cuda13.sh
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda13-arm64 \
+            python-package/dist/*.whl
   test-cpp-cuda13:
     name: Google Test (C++) with CUDA 13
     needs: [build-cuda13]
@@ -62,12 +85,22 @@ jobs:
       - run: |
           bash ops/pipeline/test-cpp-cuda13.sh
   test-python-cuda13:
-    name: Run Python tests with CUDA 13
-    needs: [build-cuda13]
+    name: Run Python tests with CUDA 13 (${{ matrix.description }})
+    needs: [build-cuda13, build-cuda13-arm64]
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-gpu
-      - tag=cuda13-test-python-cuda13
+      - runner=${{ matrix.runner }}
+      - tag=cuda13-test-python-cuda13-${{ matrix.description }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - description: amd64
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda13
+          - description: arm64
+            runner: linux-arm64-gpu
+            artifact_from: build-cuda13-arm64
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -80,7 +113,7 @@ jobs:
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix cache/${{ github.run_id }}/build-cuda13 \
+            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
             --dest-dir wheelhouse \
             *.whl
       - name: Run Python tests

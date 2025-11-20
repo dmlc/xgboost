@@ -1,5 +1,5 @@
 #!/bin/bash
-## Build XGBoost with CUDA 13
+## Build XGBoost with CUDA for Linux ARM64
 
 set -euo pipefail
 
@@ -9,33 +9,19 @@ then
   exit 1
 fi
 
+IMAGE_REPO="xgb-ci.gpu_build_rockylinux8_aarch64"
+export USE_FEDERATED=1
 export USE_RMM=0
-export USE_FEDERATED=0
-
-ARCH=$(uname -m)
-case "${ARCH}" in
-  x86_64)
-    IMAGE_REPO="xgb-ci.gpu_build_cuda13_rockylinux8"
-    WHEEL_TAG=manylinux_2_28_x86_64
-    ;;
-  aarch64)
-    IMAGE_REPO="xgb-ci.gpu_build_cuda13_rockylinux8_aarch64"
-    WHEEL_TAG=manylinux_2_28_aarch64
-    ;;
-  *)
-    echo "Unsupported architecture: ${ARCH}"
-    exit 1
-    ;;
-esac
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 source ops/pipeline/get-image-tag.sh
 
+WHEEL_TAG=manylinux_2_28_aarch64
 BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${IMAGE_REPO}:${IMAGE_TAG}"
 MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:${IMAGE_TAG}"
 
-echo "--- Build with CUDA"
+echo "--- Build with CUDA (ARM64)"
 
 if [[ ($is_pull_request == 1) || ($is_release_branch == 0) ]]
 then
@@ -45,8 +31,6 @@ else
 fi
 
 set -x
-
-python3 ops/script/pypi_variants.py --use-suffix=cu13 --require-nccl-dep=cu13
 
 python3 ops/docker_run.py \
   --image-uri ${BUILD_IMAGE_URI} \
@@ -69,6 +53,13 @@ fi
 # Check size of wheel
 pydistcheck --config python-package/pyproject.toml python-package/dist/*.whl
 
+echo "--- Generate meta info"
+python3 ops/script/format_wheel_meta.py \
+  --wheel-path python-package/dist/*.whl  \
+  --commit-hash ${GITHUB_SHA}  \
+  --platform-tag ${WHEEL_TAG}  \
+  --meta-path python-package/dist/
+
 echo "--- Upload Python wheel"
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 then
@@ -76,4 +67,9 @@ then
     --s3-bucket xgboost-nightly-builds \
     --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
     python-package/dist/*.whl
+  python3 ops/pipeline/manage-artifacts.py upload \
+    --s3-bucket xgboost-nightly-builds \
+    --prefix ${BRANCH_NAME} --make-public \
+    python-package/dist/meta.json
 fi
+
