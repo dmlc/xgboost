@@ -94,9 +94,9 @@ namespace xgboost::common {
 /* Detect CPU cache sizes at runtime using CPUID.
  * CPUID cannot be used reliably on:
  * 1. non-x86_64 architectures
- * 2. virtualized environments (CPUID may report incorrect cache sizes)
+ * 2. some virtualized environments
  *
- * In these cases, fallback L1/L2 defaults are used.
+ * In these cases, fallback L1/L2/L3 defaults are used.
  */
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
@@ -104,13 +104,6 @@ CacheManager::CacheManager() {
 #else
   SetDefaultCaches();
 #endif  // defined(__x86_64__)
-  LOG(INFO) << "Detected: " << "\t"
-            << "L1: " << cache_size_[0] << "\t"
-            << "L2: " << cache_size_[1] << "\t"
-            << "L3: " << cache_size_[2] << "\t"
-            << "L4: " << cache_size_[3] << "\t"
-            ;
-
 }
 
 }  // namespace xgboost::common
