@@ -23,7 +23,7 @@ jobs:
           submodules: 'true'
       - name: Install system packages
         run: |
-          sudo apt-get install -y --no-install-recommends ninja-build
+          sudo apt-get install -y --no-install-recommends ninja-build libgmock-dev libgtest-dev
       - name: Build and test XGBoost
         run: bash ops/pipeline/build-test-cpu-nonomp.sh
 
