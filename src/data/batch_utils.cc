@@ -30,7 +30,7 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
  *
  * Defined by @ref AutoCachePageBytes .
  */
-[[nodiscard]] inline bool CachePageBytesIsAuto(std::int64_t min_cache_page_bytes) {
+[[nodiscard]] bool CachePageBytesIsAuto(std::int64_t min_cache_page_bytes) {
   return min_cache_page_bytes == cuda_impl::AutoCachePageBytes();
 }
 
