@@ -411,7 +411,7 @@ template <typename T>
 using caching_device_vector = thrust::device_vector<T, XGBCachingDeviceAllocator<T>>;  // NOLINT
 
 /**
- * @brief Container class that doesn't initialize the data when RMM is used.
+ * @brief Container class that doesn't initialize the data.
  */
 template <typename T, bool is_caching>
 class DeviceUVectorImpl {

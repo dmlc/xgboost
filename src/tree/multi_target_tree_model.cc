@@ -11,9 +11,11 @@
 #include <utility>      // for move
 #include <vector>       // for vector
 
-#include "io_utils.h"      // for I32ArrayT, FloatArrayT, GetElem, ...
-#include "xgboost/base.h"  // for bst_node_t, bst_feature_t, bst_target_t
-#include "xgboost/json.h"  // for Json, get, Object, Number, Integer, ...
+#include "../common/cuda_rt_utils.h"  // for MemcpyAsync
+#include "../common/linalg_op.h"      // for cbegin
+#include "io_utils.h"                 // for I32ArrayT, FloatArrayT, GetElem, ...
+#include "xgboost/base.h"             // for bst_node_t, bst_feature_t, bst_target_t
+#include "xgboost/json.h"             // for Json, get, Object, Number, Integer, ...
 #include "xgboost/logging.h"
 #include "xgboost/tree_model.h"  // for TreeParam
 
@@ -25,8 +27,7 @@ MultiTargetTree::MultiTargetTree(TreeParam const* param)
       parent_(1ul, InvalidNodeId()),
       split_index_(1ul, 0),
       default_left_(1ul, 0),
-      split_conds_(1ul, DftBadValue()),
-      weights_(param->size_leaf_vector, DftBadValue()) {
+      split_conds_(1ul, DftBadValue()) {
   CHECK_GT(param_->size_leaf_vector, 1);
 }
 
@@ -37,8 +38,9 @@ MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
       parent_(that.parent_.Size(), 0, that.parent_.Device()),
       split_index_(that.split_index_.Size(), 0, that.split_index_.Device()),
       default_left_(that.default_left_.Size(), 0, that.default_left_.Device()),
-      split_conds_(that.split_conds_.Size(), 0, that.split_conds_.Device()),
-      weights_(that.weights_.Size(), 0, that.weights_.Device()) {
+      split_conds_(that.split_conds_.Size(), 0.0f, that.split_conds_.Device()),
+      weights_(that.weights_.Size(), 0.0f, that.weights_.Device()),
+      leaf_weights_(that.leaf_weights_.Size(), 0.0f, that.leaf_weights_.Device()) {
   this->left_.Copy(that.left_);
   this->right_.Copy(that.right_);
   this->parent_.Copy(that.parent_);
@@ -46,16 +48,32 @@ MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
   this->default_left_.Copy(that.default_left_);
   this->split_conds_.Copy(that.split_conds_);
   this->weights_.Copy(that.weights_);
+  this->leaf_weights_.Copy(that.leaf_weights_);
 }
 
 void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight) {
   auto const next_nidx = RegTree::kRoot + 1;
+
+  this->weights_.SetDevice(weight.Device());
+  this->weights_.Resize(weight.Size(), DftBadValue());
+
   CHECK_LE(weight.Size(), this->NumTargets());
   CHECK_GE(weights_.Size(), next_nidx * weight.Size());
-  auto out_weight = weights_.HostSpan().subspan(RegTree::kRoot * weight.Size(), weight.Size());
-  for (std::size_t i = 0, n = weight.Size(); i < n; ++i) {
-    out_weight[i] = weight(i);
+
+  if (weight.Device().IsCUDA()) {
+    auto out_weight = weights_.DeviceSpan().subspan(RegTree::kRoot * weight.Size(), weight.Size());
+    CHECK(weight.Contiguous());
+    curt::MemcpyAsync(out_weight.data(), weight.Values().data(), out_weight.size_bytes(),
+                      curt::DefaultStream());
+  } else {
+    auto out_weight = weights_.HostSpan().subspan(RegTree::kRoot * weight.Size(), weight.Size());
+    for (std::size_t i = 0, n = weight.Size(); i < n; ++i) {
+      out_weight[i] = weight(i);
+    }
   }
+
+  CHECK_EQ(this->param_->num_nodes, 1);
+  CHECK_EQ(this->NumSplitTargets(), weight.Size());
 }
 
 void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float split_cond,
@@ -66,6 +84,8 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
   CHECK_GE(parent_.Size(), 1);
   CHECK_EQ(parent_.Size(), left_.Size());
   CHECK_EQ(left_.Size(), right_.Size());
+  auto n_split_targets = this->NumSplitTargets();
+  CHECK_EQ(base_weight.Size(), n_split_targets);
 
   std::size_t n = param_->num_nodes + 2;
   CHECK_LT(split_idx, this->param_->num_feature);
@@ -97,12 +117,13 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
   default_left_.Resize(n);
   default_left_.HostVector()[nidx] = static_cast<std::uint8_t>(default_left);
 
-  weights_.Resize(n * this->NumTargets());
-  auto p_weight = this->NodeWeight(nidx);
+  // Set weights
+  weights_.Resize(n * base_weight.Size());
+  auto p_weight = this->NodeWeight(nidx, n_split_targets);
   CHECK_GE(p_weight.Size(), base_weight.Size());
-  auto l_weight = this->NodeWeight(left_child);
+  auto l_weight = this->NodeWeight(left_child, n_split_targets);
   CHECK_GE(l_weight.Size(), left_weight.Size());
-  auto r_weight = this->NodeWeight(right_child);
+  auto r_weight = this->NodeWeight(right_child, n_split_targets);
   CHECK_GE(r_weight.Size(), right_weight.Size());
 
   CHECK_EQ(base_weight.Size(), left_weight.Size());
@@ -116,23 +137,56 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
 }
 
 void MultiTargetTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {
+  CHECK_EQ(this->NumLeaves(), 0);
   auto n_targets = this->NumTargets();
-  auto h_weights = this->weights_.HostSpan();
   std::int32_t nidx_in_set = 0;
+  auto n_leaves = leaves.size();
+  this->leaf_weights_.Resize(n_leaves * n_targets);
+  auto h_weights = this->leaf_weights_.HostSpan();
+  // Reuse the right child as the leaf weight mapping.
+  auto h_leaf_mapping = this->right_.HostSpan();
+
   for (auto nidx : leaves) {
     CHECK(this->IsLeaf(nidx));
     auto w_in = weights.subspan(nidx_in_set * n_targets, n_targets);
-    auto w_out = h_weights.subspan(nidx * n_targets, n_targets);
+    auto w_out = h_weights.subspan(nidx_in_set * n_targets, n_targets);
     std::copy(w_in.cbegin(), w_in.cend(), w_out.begin());
+    CHECK_EQ(h_leaf_mapping[nidx], InvalidNodeId());
+    h_leaf_mapping[nidx] = nidx_in_set;
+    nidx_in_set++;
+  }
+}
+
+void MultiTargetTree::SetLeaves() {
+  CHECK_EQ(this->NumLeaves(), 0);
+  auto n_targets = this->NumTargets();
+  CHECK_EQ(n_targets, this->NumSplitTargets());
+  auto n_nodes = this->param_->num_nodes;
+  // Reuse the right child as the leaf weight mapping.
+  auto h_leaf_mapping = this->right_.HostSpan();
+
+  bst_node_t nidx_in_set = 0;
+  auto& h_weights = this->leaf_weights_.HostVector();
+  CHECK(h_weights.empty());
+  for (bst_node_t nidx = 0; nidx < n_nodes; ++nidx) {
+    if (!IsLeaf(nidx)) {
+      continue;
+    }
+    auto w_in = this->NodeWeight(nidx);
+    h_weights.resize((nidx_in_set + 1) * n_targets);
+    auto w_out = common::Span{h_weights}.subspan(nidx_in_set * n_targets, n_targets);
+    std::copy(linalg::cbegin(w_in), linalg::cend(w_in), w_out.begin());
+    CHECK_EQ(h_leaf_mapping[nidx], InvalidNodeId());
+    h_leaf_mapping[nidx] = nidx_in_set;
     nidx_in_set++;
   }
 }
 
 template <bool typed, bool feature_is_64>
 void LoadModelImpl(Json const& in, HostDeviceVector<float>* p_weights,
-                   HostDeviceVector<bst_node_t>* p_lefts, HostDeviceVector<bst_node_t>* p_rights,
-                   HostDeviceVector<bst_node_t>* p_parents, HostDeviceVector<float>* p_conds,
-                   HostDeviceVector<bst_feature_t>* p_fidx,
+                   HostDeviceVector<float>* p_leaf_weights, HostDeviceVector<bst_node_t>* p_lefts,
+                   HostDeviceVector<bst_node_t>* p_rights, HostDeviceVector<bst_node_t>* p_parents,
+                   HostDeviceVector<float>* p_conds, HostDeviceVector<bst_feature_t>* p_fidx,
                    HostDeviceVector<std::uint8_t>* p_dft_left) {
   namespace tf = tree_field;
 
@@ -146,6 +200,7 @@ void LoadModelImpl(Json const& in, HostDeviceVector<float>* p_weights,
     }
   };
   get_float(tf::kBaseWeight, p_weights);
+  get_float(tf::kLeafWeight, p_leaf_weights);
   get_float(tf::kSplitCond, p_conds);
 
   auto get_nidx = [&](std::string_view name, HostDeviceVector<bst_node_t>* p_nidx) {
@@ -181,17 +236,17 @@ void MultiTargetTree::LoadModel(Json const& in) {
   bool feature_is_64 = IsA<I64Array>(in[tf::kSplitIdx]);
 
   if (typed && feature_is_64) {
-    LoadModelImpl<true, true>(in, &weights_, &left_, &right_, &parent_, &split_conds_,
-                              &split_index_, &default_left_);
+    LoadModelImpl<true, true>(in, &weights_, &leaf_weights_, &left_, &right_, &parent_,
+                              &split_conds_, &split_index_, &default_left_);
   } else if (typed && !feature_is_64) {
-    LoadModelImpl<true, false>(in, &weights_, &left_, &right_, &parent_, &split_conds_,
-                               &split_index_, &default_left_);
+    LoadModelImpl<true, false>(in, &weights_, &leaf_weights_, &left_, &right_, &parent_,
+                               &split_conds_, &split_index_, &default_left_);
   } else if (!typed && feature_is_64) {
-    LoadModelImpl<false, true>(in, &weights_, &left_, &right_, &parent_, &split_conds_,
-                               &split_index_, &default_left_);
+    LoadModelImpl<false, true>(in, &weights_, &leaf_weights_, &left_, &right_, &parent_,
+                               &split_conds_, &split_index_, &default_left_);
   } else {
-    LoadModelImpl<false, false>(in, &weights_, &left_, &right_, &parent_, &split_conds_,
-                                &split_index_, &default_left_);
+    LoadModelImpl<false, false>(in, &weights_, &leaf_weights_, &left_, &right_, &parent_,
+                                &split_conds_, &split_index_, &default_left_);
   }
 }
 
@@ -207,7 +262,11 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
   I32Array parents(n_nodes);
   F32Array conds(n_nodes);
   U8Array default_left(n_nodes);
-  F32Array weights(n_nodes * this->NumTargets());
+  F32Array weights(this->weights_.Size());
+
+  auto n_leaves = this->NumLeaves();
+  CHECK_GE(n_leaves, 1);
+  F32Array leaf_weights(n_leaves * this->NumTargets());
 
   auto const& h_left = this->left_.ConstHostVector();
   auto const& h_right = this->right_.ConstHostVector();
@@ -229,11 +288,22 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
       conds.Set(nidx, h_split_conds[nidx]);
       default_left.Set(nidx, h_default_left[nidx]);
 
+      // Save internal weights
       auto in_weight = this->NodeWeight(nidx);
       auto weight_out = common::Span<float>(weights.GetArray())
-                            .subspan(nidx * this->NumTargets(), this->NumTargets());
+                            .subspan(nidx * this->NumSplitTargets(), this->NumSplitTargets());
       CHECK_EQ(in_weight.Size(), weight_out.size());
       std::copy_n(in_weight.Values().data(), in_weight.Size(), weight_out.data());
+
+      // Save leaf weights
+      if (IsLeaf(nidx)) {
+        auto in_weight = this->LeafValue(nidx);
+        auto leaf_idx = this->LeafIdx(nidx);
+        auto weight_out = common::Span<float>(leaf_weights.GetArray())
+                              .subspan(leaf_idx * this->NumTargets(), this->NumTargets());
+        CHECK_EQ(in_weight.Size(), weight_out.size());
+        std::copy_n(in_weight.Values().data(), in_weight.Size(), weight_out.data());
+      }
     }
   };
 
@@ -251,6 +321,7 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
   }
 
   out[tf::kBaseWeight] = std::move(weights);
+  out[tf::kLeafWeight] = std::move(leaf_weights);
   out[tf::kLeft] = std::move(lefts);
   out[tf::kRight] = std::move(rights);
   out[tf::kParent] = std::move(parents);
@@ -259,8 +330,13 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
   out[tf::kDftLeft] = std::move(default_left);
 }
 
-bst_target_t MultiTargetTree::NumTargets() const { return param_->size_leaf_vector; }
-std::size_t MultiTargetTree::Size() const { return parent_.Size(); }
+[[nodiscard]] bst_target_t MultiTargetTree::NumTargets() const { return param_->size_leaf_vector; }
+[[nodiscard]] bst_target_t MultiTargetTree::NumSplitTargets() const {
+  auto n_targets = this->weights_.Size() / this->left_.Size();
+  CHECK_NE(n_targets, 0);
+  return n_targets;
+}
+[[nodiscard]] std::size_t MultiTargetTree::Size() const { return parent_.Size(); }
 
 [[nodiscard]] MultiTargetTree* MultiTargetTree::Copy(TreeParam const* param) const {
   auto ptr = new MultiTargetTree{*this};
@@ -277,6 +353,7 @@ std::size_t MultiTargetTree::Size() const { return parent_.Size(); }
   n_bytes += default_left_.SizeBytes();
   n_bytes += split_conds_.SizeBytes();
   n_bytes += weights_.SizeBytes();
+  n_bytes += leaf_weights_.SizeBytes();
   return n_bytes;
 }
 }  // namespace xgboost

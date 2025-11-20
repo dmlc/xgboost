@@ -129,7 +129,7 @@ struct MultiSplitCandidate {
 
   bool is_cat{false};
 
-  common::Span<GradientPairInt64 const> node_sum;
+  common::Span<GradientPairInt64 const> child_sum;
 
   MultiSplitCandidate() = default;
 
@@ -143,13 +143,13 @@ struct MultiSplitCandidate {
       dir = dir_in;
       fvalue = fvalue_in;
       is_cat = cat;
-      node_sum = node_sum_in;
+      child_sum = node_sum_in;
       findex = findex_in;
     }
   }
   XGBOOST_DEVICE void Update(MultiSplitCandidate const& that, GPUTrainingParam const& param,
                              common::Span<GradientQuantiser const> roundings) {
-    this->Update(that.loss_chg, that.dir, that.fvalue, that.findex, that.node_sum, that.is_cat,
+    this->Update(that.loss_chg, that.dir, that.fvalue, that.findex, that.child_sum, that.is_cat,
                  param, roundings);
   }
 

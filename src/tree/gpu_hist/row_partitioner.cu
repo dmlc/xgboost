@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #include <thrust/sequence.h>  // for sequence
 
@@ -13,7 +13,6 @@ namespace xgboost::tree {
 void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid) {
   ridx_segments_.clear();
   ridx_.resize(n_samples);
-  ridx_tmp_.resize(n_samples);
   tmp_.clear();
   n_nodes_ = 1;  // Root
 

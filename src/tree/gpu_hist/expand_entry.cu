@@ -16,8 +16,8 @@ std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& e) {
      << "depth: " << e.depth << "\n"
      << "loss: " << e.split.loss_chg << "\n";
 
-  std::vector<GradientPairInt64> h_node_sum(e.split.node_sum.size());
-  dh::CopyDeviceSpanToVector(&h_node_sum, e.split.node_sum);
+  std::vector<GradientPairInt64> h_node_sum(e.split.child_sum.size());
+  dh::CopyDeviceSpanToVector(&h_node_sum, e.split.child_sum);
 
   auto print_span = [&](auto const& span) {
     using T = typename common::GetValueT<decltype(span)>::value_type;
@@ -38,7 +38,7 @@ std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& e) {
   } else {
     os << "right_sum: ";
   }
-  print_span(e.split.node_sum);
+  print_span(e.split.child_sum);
 
   os << "base_weight: ";
   print_span(e.base_weight);

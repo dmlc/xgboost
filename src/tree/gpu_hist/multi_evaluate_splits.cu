@@ -280,10 +280,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   auto d_weights = dh::ToSpan(this->weights_);
 
   dh::CachingDeviceUVector<float> d_parent_gains(n_nodes);
-  dh::CachingDeviceUVector<std::int32_t> sum_zeros(n_nodes * 2);
-
   auto s_parent_gains = dh::ToSpan(d_parent_gains);
-  auto s_sum_zeros = dh::ToSpan(sum_zeros);
   auto s_d_splits = dh::ToSpan(d_splits);
 
   // Process results for each node
@@ -304,7 +301,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   dh::LaunchN(n_nodes, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t nidx_in_set) {
     auto input = d_inputs[nidx_in_set];
     MultiSplitCandidate best_split = d_best_splits[nidx_in_set];
-    if (best_split.node_sum.empty()) {
+    if (best_split.child_sum.empty()) {
       // Invalid split
       out_splits[nidx_in_set] = {};
       return;
@@ -316,7 +313,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     auto right_weight = d_weights.subspan(nidx_in_set * n_targets * 3 + n_targets * 2, n_targets);
 
     auto d_roundings = shared_inputs.roundings;
-    auto node_sum = best_split.node_sum;
+    auto node_sum = best_split.child_sum;
 
     float parent_gain = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
@@ -353,9 +350,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       }
     }
 
-    s_sum_zeros[nidx_in_set * 2] = l;
-    s_sum_zeros[nidx_in_set * 2 + 1] = r;
-
     // Set up the output entry
     out_splits[nidx_in_set] = {input.nidx,  input.depth, best_split,
                                base_weight, left_weight, right_weight};
@@ -384,7 +378,7 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
   // TODO(jiamingy): We need to batch the nodes
   auto best_split = candidate.split;
 
-  auto node_sum = best_split.node_sum;
+  auto node_sum = best_split.child_sum;
   dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
     auto sibling_sum = parent_sum[t] - node_sum[t];
     if (best_split.dir == kRightDir) {
