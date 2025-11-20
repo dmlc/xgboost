@@ -329,7 +329,7 @@ class MultiTargetHistMaker {
       return;
     }
 
-    // Perform subtraction for sibiling nodes
+    // Perform subtraction for sibling nodes
     auto need_build = this->histogram_.SubtractHist(ctx_, candidates, build_nidx, subtraction_nidx);
     if (need_build.empty()) {
       return;
