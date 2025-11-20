@@ -79,7 +79,7 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     ASSERT_TRUE(candidate.base_weight.empty());
     ASSERT_TRUE(candidate.left_weight.empty());
     ASSERT_TRUE(candidate.right_weight.empty());
-    ASSERT_TRUE(candidate.split.node_sum.empty());
+    ASSERT_TRUE(candidate.split.child_sum.empty());
   }
 };
 
@@ -124,11 +124,11 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
     if (one_pass != OnePass::kBackward) {
       ASSERT_NE(str.find("left_sum"), std::string::npos);
       ASSERT_EQ(str.find("right_sum"), std::string::npos);
-      CheckSpan(candidate.split.node_sum, exp_left_sum);
+      CheckSpan(candidate.split.child_sum, exp_left_sum);
     } else {
       ASSERT_EQ(str.find("left_sum"), std::string::npos);
       ASSERT_NE(str.find("right_sum"), std::string::npos);
-      CheckSpan(candidate.split.node_sum, exp_right_sum);
+      CheckSpan(candidate.split.child_sum, exp_right_sum);
     }
   }
 }

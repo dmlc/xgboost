@@ -2155,7 +2155,7 @@ class TestDaskCallbacks:
 
         def eval_error_metric(
             predt: np.ndarray, dtrain: xgb.DMatrix
-        ) -> Tuple[str, float]:
+        ) -> Tuple[str, np.float64]:
             return tm.eval_error_metric(predt, dtrain, rev_link=False)
 
         valid = dxgb.DaskDMatrix(client, X, y)

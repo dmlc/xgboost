@@ -64,6 +64,7 @@ from .core import (
     _py_version,
 )
 from .data import (
+    CAT_T,
     _is_cudf_df,
     _is_cudf_ser,
     _is_cupy_alike,
@@ -1133,7 +1134,6 @@ class XGBModel(XGBModelBase):
                     f"{self._get_type()}, got: {t}"
                 )
 
-        self.feature_types = self.get_booster().feature_types
         self.get_booster().set_attr(scikit_learn=None)
         config = json.loads(self.get_booster().save_config())
         self._load_model_attributes(config)
@@ -1152,6 +1152,9 @@ class XGBModel(XGBModelBase):
             config["learner"]["learner_model_param"]["base_score"]
         )
         self.feature_types = booster.feature_types
+        self.enable_categorical = self.feature_types is not None and any(
+            ft == CAT_T for ft in self.feature_types
+        )
 
         if is_classifier(self):
             self.n_classes_ = int(config["learner"]["learner_model_param"]["num_class"])
