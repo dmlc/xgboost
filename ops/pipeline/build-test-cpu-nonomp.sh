@@ -3,6 +3,8 @@
 
 set -euox pipefail
 
+source activate cpp_test
+
 mkdir -p build
 pushd build
 cmake .. \
