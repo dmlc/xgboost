@@ -1,0 +1,48 @@
+name: XGBoost CI (oneAPI)
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  gtest-cpu-sycl:
+    name: Test Google C++ unittest (CPU SYCL)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: 'true'
+    - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+      with:
+        environment-name: linux_sycl_test
+        environment-file: ops/conda_env/linux_sycl_test.yml
+    - name: Run gtest
+      run: bash ops/pipeline/build-test-sycl.sh gtest
+
+  python-sycl-tests-on-ubuntu:
+    name: Test XGBoost Python package with SYCL
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: linux_sycl_test
+          environment-file: ops/conda_env/linux_sycl_test.yml
+      - name: Test Python package
+        run: bash ops/pipeline/build-test-sycl.sh pytest
