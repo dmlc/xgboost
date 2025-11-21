@@ -196,8 +196,6 @@ class MultiTargetHistMaker {
 
   void ApplySplit(std::vector<MultiExpandEntry> const& h_candidates, RegTree* p_tree) {
     CHECK(!h_candidates.empty());
-    // TODO(jiamingy): Support learning rate.
-    // TODO(jiamingy): Avoid device to host copies.
     dh::device_vector<MultiExpandEntry> candidates{h_candidates};
     auto d_candidates = dh::ToSpan(candidates);
     auto n_targets = h_candidates.front().base_weight.size();
@@ -212,6 +210,7 @@ class MultiTargetHistMaker {
                   candidate.right_weight[t] *= param.learning_rate;
                 });
 
+    // TODO(jiamingy): Avoid device to host copies.
     for (auto const& candidate : h_candidates) {
       std::vector<float> h_base_weight(candidate.base_weight.size());
       std::vector<float> h_left_weight(candidate.left_weight.size());
@@ -225,8 +224,7 @@ class MultiTargetHistMaker {
                          linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight));
     }
 
-    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, dh::ToSpan(candidates),
-                                    n_targets);
+    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, dh::ToSpan(candidates), n_targets);
   }
   /**
    * @brief Calculate the leaf weight based on the node sum for each leaf.
