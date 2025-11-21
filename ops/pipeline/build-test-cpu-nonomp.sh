@@ -3,14 +3,6 @@
 
 set -euox pipefail
 
-conda env list
-
-echo $CONDA_PREFIX
-echo $PATH
-echo $(which cmake)
-
-conda activate cpp_test
-
 mkdir -p build
 pushd build
 cmake .. \
