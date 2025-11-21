@@ -1,5 +1,6 @@
 """Tests for multi-target training."""
 
+import json
 from typing import Dict, Optional, Tuple
 
 import numpy as np
@@ -248,3 +249,29 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         evals_result_0["Train"]["rmse"], evals_result_2["Train"]["rmse"]
     )
     assert_allclose(device, booster_0.inplace_predict(X), booster_2.inplace_predict(X))
+
+
+def run_eta(device: Device) -> None:
+    from sklearn.datasets import make_regression
+
+    X, y = make_regression(512, 16, random_state=2025, n_targets=3)
+    params = {
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "learning_rate": 1.0,
+        "debug_synchronize": True,
+        "base_score": 0.0,
+    }
+    Xy = QuantileDMatrix(X, y)
+    booster_0 = train(params, Xy, num_boost_round=1)
+    params["learning_rate"] = 0.1
+    booster_1 = train(params, Xy, num_boost_round=1)
+    params["learning_rate"] = 2.0
+    booster_2 = train(params, Xy, num_boost_round=1)
+
+    predt_0 = booster_0.predict(Xy)
+    predt_1 = booster_1.predict(Xy)
+    predt_2 = booster_2.predict(Xy)
+
+    np.testing.assert_allclose(predt_0, predt_1 * 10, rtol=1e-6)
+    np.testing.assert_allclose(predt_0 * 2, predt_2, rtol=1e-6)
