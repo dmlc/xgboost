@@ -9,6 +9,7 @@
 #include <vector>                    // for vector
 
 #include "../../common/cuda_context.cuh"
+#include "../tree_view.h"             // for MultiTargetTreeView
 #include "../updater_gpu_common.cuh"  // for SumCallbackOp
 #include "multi_evaluate_splits.cuh"  // for MultiEvalauteSplitInputs, MultiEvaluateSplitSharedInputs
 #include "quantiser.cuh"              // for GradientQuantiser
@@ -396,6 +397,53 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
       left_sum[t] = sibling_sum;
     }
   });
+}
+
+void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
+                                        std::vector<MultiExpandEntry> const &h_candidates) {
+  // Assign the node sums here, for the next evaluate split call.
+  auto n_targets = h_candidates.front().base_weight.size();
+  auto max_in_it = common::MakeIndexTransformIter([&](std::size_t i) {
+    return std::max(p_tree->LeftChild(h_candidates[i].nidx),
+                    p_tree->RightChild(h_candidates[i].nidx));
+  });
+  auto res_it = std::max_element(max_in_it, max_in_it + h_candidates.size());
+  this->AllocNodeSum(*res_it, n_targets);
+
+  auto node_sums = dh::ToSpan(this->node_sums_);
+  dh::device_vector<MultiExpandEntry> candidates{h_candidates};
+  auto d_candidates = dh::ToSpan(candidates);
+  auto mt_tree = MultiTargetTreeView{ctx->Device(), p_tree};
+
+  dh::LaunchN(n_targets * h_candidates.size(), ctx->CUDACtx()->Stream(),
+              [=] XGBOOST_DEVICE(std::size_t i) {
+                auto get_node_sum = [&](bst_node_t nidx) {
+                  return GetNodeSumImpl(node_sums, nidx, n_targets);
+                };
+                auto nidx_in_set = i / n_targets;
+                auto t = i % n_targets;
+
+                auto const &candidate = d_candidates[nidx_in_set];
+                auto const &best_split = candidate.split;
+
+                auto parent_sum = get_node_sum(candidate.nidx);
+                // The child sum is a pointer to the scan buffer in this evaluator. Copy
+                // the data into the node sum buffer before the next evaluation call.
+                auto node_sum = best_split.child_sum;
+                auto left_sum = get_node_sum(mt_tree.LeftChild(candidate.nidx));
+                auto right_sum = get_node_sum(mt_tree.RightChild(candidate.nidx));
+
+                auto sibling_sum = parent_sum[t] - node_sum[t];
+                if (best_split.dir == kRightDir) {
+                  // forward pass, node_sum is the left sum
+                  left_sum[t] = node_sum[t];
+                  right_sum[t] = sibling_sum;
+                } else {
+                  // backward pass, node_sum is the right sum
+                  right_sum[t] = node_sum[t];
+                  left_sum[t] = sibling_sum;
+                }
+              });
 }
 
 std::ostream &DebugPrintHistogram(std::ostream &os, common::Span<GradientPairInt64 const> node_hist,
