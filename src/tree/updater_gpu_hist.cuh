@@ -467,7 +467,7 @@ class MultiTargetHistMaker {
 
   void GrowTree(linalg::Matrix<GradientPair>* split_gpair, DMatrix* p_fmat, ObjInfo const*,
                 RegTree* p_tree) {
-    if (this->param_.learning_rate - 1.0 != 0.0) {
+    if (!this->hist_param_->debug_synchronize) {
       LOG(FATAL) << "GPU" << MTNotImplemented();
     }
     Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};

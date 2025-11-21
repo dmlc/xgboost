@@ -29,6 +29,7 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
         128, n_features=12, n_informative=10, n_classes=4, random_state=2025
     )
     clf = XGBClassifier(
+        debug_synchronize=True,
         multi_strategy="multi_output_tree",
         callbacks=[ResetStrategy()],
         n_estimators=10,
@@ -50,6 +51,7 @@ def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
     # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_multilabel_classification(128, random_state=2025)
     clf = XGBClassifier(
+        debug_synchronize=True,
         multi_strategy="multi_output_tree",
         callbacks=[ResetStrategy()],
         n_estimators=10,
@@ -114,6 +116,7 @@ def run_reduced_grad(device: Device) -> None:
         evals_result: Dict[str, Dict] = {}
         booster = train(
             {
+                "debug_synchronize": True,
                 "device": device,
                 "multi_strategy": "multi_output_tree",
                 "learning_rate": 1,
