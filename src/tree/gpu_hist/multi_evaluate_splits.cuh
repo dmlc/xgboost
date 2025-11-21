@@ -52,8 +52,7 @@ class MultiHistEvaluator {
   }
   [[nodiscard]] common::Span<GradientPairInt64 const> GetNodeSum(bst_node_t nidx,
                                                                  bst_target_t n_targets) const {
-    auto offset = nidx * n_targets;
-    return dh::ToSpan(this->node_sums_).subspan(offset, n_targets);
+    return GetNodeSumImpl(dh::ToSpan(this->node_sums_), nidx, n_targets);
   }
 
   // Track the child gradient sum.
