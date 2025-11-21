@@ -253,23 +253,28 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
 def run_eta(device: Device) -> None:
     """Test for learning rate."""
     X, y = make_regression(512, 16, random_state=2025, n_targets=3)
-    params = {
-        "device": device,
-        "multi_strategy": "multi_output_tree",
-        "learning_rate": 1.0,
-        "debug_synchronize": True,
-        "base_score": 0.0,
-    }
-    Xy = QuantileDMatrix(X, y)
-    booster_0 = train(params, Xy, num_boost_round=1)
-    params["learning_rate"] = 0.1
-    booster_1 = train(params, Xy, num_boost_round=1)
-    params["learning_rate"] = 2.0
-    booster_2 = train(params, Xy, num_boost_round=1)
 
-    predt_0 = booster_0.predict(Xy)
-    predt_1 = booster_1.predict(Xy)
-    predt_2 = booster_2.predict(Xy)
+    def run(obj: Optional[Objective]) -> None:
+        params = {
+            "device": device,
+            "multi_strategy": "multi_output_tree",
+            "learning_rate": 1.0,
+            "debug_synchronize": True,
+            "base_score": 0.0,
+        }
+        Xy = QuantileDMatrix(X, y)
+        booster_0 = train(params, Xy, num_boost_round=1, obj=obj)
+        params["learning_rate"] = 0.1
+        booster_1 = train(params, Xy, num_boost_round=1, obj=obj)
+        params["learning_rate"] = 2.0
+        booster_2 = train(params, Xy, num_boost_round=1, obj=obj)
 
-    np.testing.assert_allclose(predt_0, predt_1 * 10, rtol=1e-6)
-    np.testing.assert_allclose(predt_0 * 2, predt_2, rtol=1e-6)
+        predt_0 = booster_0.predict(Xy)
+        predt_1 = booster_1.predict(Xy)
+        predt_2 = booster_2.predict(Xy)
+
+        np.testing.assert_allclose(predt_0, predt_1 * 10, rtol=1e-6)
+        np.testing.assert_allclose(predt_0 * 2, predt_2, rtol=1e-6)
+
+    run(None)
+    run(LsObj0())
