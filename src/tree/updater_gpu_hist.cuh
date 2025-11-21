@@ -187,8 +187,8 @@ class MultiTargetHistMaker {
                                                  this->param_.max_bin,
                                                  param};
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
-
-    // TODO(jiamingy): Support learning rate.
+    dh::LaunchN(n_targets, this->ctx_->CUDACtx()->Stream(),
+                [=](std::size_t t) { entry.base_weight[t] *= param.learning_rate; });
     p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), entry.base_weight));
 
     return entry;
