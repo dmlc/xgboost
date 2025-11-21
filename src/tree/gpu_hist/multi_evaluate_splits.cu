@@ -227,7 +227,11 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
 
   auto n_targets = shared_inputs.Targets();
   dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
-    d_outputs[0].base_weight[t] *= shared_inputs.param.learning_rate;
+    auto weight = d_outputs[0].base_weight;
+    if (weight.empty()) {
+      return;
+    }
+    weight[t] *= shared_inputs.param.learning_rate;
   });
 
   return outputs[0];
