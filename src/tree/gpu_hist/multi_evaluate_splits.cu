@@ -222,7 +222,14 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   dh::device_vector<MultiEvaluateSplitInputs> inputs{input};
   dh::device_vector<MultiExpandEntry> outputs(1);
 
-  this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, dh::ToSpan(outputs));
+  auto d_outputs = dh::ToSpan(outputs);
+  this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, d_outputs);
+
+  auto n_targets = shared_inputs.Targets();
+  dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
+    d_outputs[0].base_weight[t] *= shared_inputs.param.learning_rate;
+  });
+
   return outputs[0];
 }
 
@@ -327,6 +334,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
     bool l = true, r = true;
     GradientPairPrecise lg_fst, rg_fst;
+    auto eta = shared_inputs.param.learning_rate;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto quantizer = d_roundings[t];
       auto sibling_sum = input.parent_sum[t] - node_sum[t];
@@ -338,15 +346,15 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       if (best_split.dir == kRightDir) {
         // forward pass, node_sum is the left sum
         lg = quantizer.ToFloatingPoint(node_sum[t]);
-        left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess());
+        left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess()) * eta;
         rg = quantizer.ToFloatingPoint(sibling_sum);
-        right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess());
+        right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess()) * eta;
       } else {
         // backward pass, node_sum is the right sum
         rg = quantizer.ToFloatingPoint(node_sum[t]);
-        right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess());
+        right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess()) * eta;
         lg = quantizer.ToFloatingPoint(sibling_sum);
-        left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess());
+        left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess()) * eta;
       }
 
       if (t == 0) {

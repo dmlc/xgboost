@@ -187,8 +187,6 @@ class MultiTargetHistMaker {
                                                  this->param_.max_bin,
                                                  param};
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
-    dh::LaunchN(n_targets, this->ctx_->CUDACtx()->Stream(),
-                [=](std::size_t t) { entry.base_weight[t] *= param.learning_rate; });
     p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), entry.base_weight));
 
     return entry;
@@ -196,19 +194,7 @@ class MultiTargetHistMaker {
 
   void ApplySplit(std::vector<MultiExpandEntry> const& h_candidates, RegTree* p_tree) {
     CHECK(!h_candidates.empty());
-    dh::device_vector<MultiExpandEntry> candidates{h_candidates};
-    auto d_candidates = dh::ToSpan(candidates);
     auto n_targets = h_candidates.front().base_weight.size();
-    auto param = GPUTrainingParam{this->param_};
-    dh::LaunchN(d_candidates.size() * n_targets, ctx_->CUDACtx()->Stream(),
-                [=] XGBOOST_DEVICE(std::size_t i) mutable {
-                  auto nidx_in_set = i / n_targets;
-                  auto t = i % n_targets;
-
-                  auto& candidate = d_candidates[nidx_in_set];
-                  candidate.left_weight[t] *= param.learning_rate;
-                  candidate.right_weight[t] *= param.learning_rate;
-                });
 
     // TODO(jiamingy): Avoid device to host copies.
     for (auto const& candidate : h_candidates) {
@@ -224,6 +210,7 @@ class MultiTargetHistMaker {
                          linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight));
     }
 
+    dh::device_vector<MultiExpandEntry> candidates{h_candidates};
     this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, dh::ToSpan(candidates), n_targets);
   }
   /**
