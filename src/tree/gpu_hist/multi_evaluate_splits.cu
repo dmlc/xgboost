@@ -1,7 +1,7 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
-#include <thrust/reduce.h>  // for reduce_by_key
+#include <thrust/reduce.h>  // for reduce_by_key, reduce
 
 #include <cub/block/block_scan.cuh>  // for BlockScan
 #include <cub/util_type.cuh>         // for KeyValuePair
@@ -368,54 +368,22 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 }
 
 void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
-                                        MultiExpandEntry const &candidate) {
-  auto left_child = p_tree->LeftChild(candidate.nidx);
-  auto right_child = p_tree->RightChild(candidate.nidx);
-  bst_node_t max_node = std::max(left_child, right_child);
-  auto n_targets = candidate.base_weight.size();
-
+                                        common::Span<MultiExpandEntry const> d_candidates,
+                                        bst_target_t n_targets) {
+  // Assign the node sums here, for the next evaluate split call.
+  auto mt_tree = MultiTargetTreeView{ctx->Device(), p_tree};
+  auto max_in_it = dh::MakeIndexTransformIter([=] __device__(std::size_t i) -> bst_node_t {
+    return std::max(mt_tree.LeftChild(d_candidates[i].nidx),
+                    mt_tree.RightChild(d_candidates[i].nidx));
+  });
+  auto max_node = thrust::reduce(
+      ctx->CUDACtx()->CTP(), max_in_it, max_in_it + d_candidates.size(), 0,
+      [=] XGBOOST_DEVICE(bst_node_t l, bst_node_t r) { return cuda::std::max(l, r); });
   this->AllocNodeSum(max_node, n_targets);
 
-  auto parent_sum = this->GetNodeSum(candidate.nidx, n_targets);
-  auto left_sum = this->GetNodeSum(left_child, n_targets);
-  auto right_sum = this->GetNodeSum(right_child, n_targets);
-
-  // Calculate node sums
-  // TODO(jiamingy): We need to batch the nodes
-  auto best_split = candidate.split;
-
-  auto node_sum = best_split.child_sum;
-  dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
-    auto sibling_sum = parent_sum[t] - node_sum[t];
-    if (best_split.dir == kRightDir) {
-      // forward pass, node_sum is the left sum
-      left_sum[t] = node_sum[t];
-      right_sum[t] = sibling_sum;
-    } else {
-      // backward pass, node_sum is the right sum
-      right_sum[t] = node_sum[t];
-      left_sum[t] = sibling_sum;
-    }
-  });
-}
-
-void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
-                                        std::vector<MultiExpandEntry> const &h_candidates) {
-  // Assign the node sums here, for the next evaluate split call.
-  auto n_targets = h_candidates.front().base_weight.size();
-  auto max_in_it = common::MakeIndexTransformIter([&](std::size_t i) {
-    return std::max(p_tree->LeftChild(h_candidates[i].nidx),
-                    p_tree->RightChild(h_candidates[i].nidx));
-  });
-  auto res_it = std::max_element(max_in_it, max_in_it + h_candidates.size());
-  this->AllocNodeSum(*res_it, n_targets);
-
   auto node_sums = dh::ToSpan(this->node_sums_);
-  dh::device_vector<MultiExpandEntry> candidates{h_candidates};
-  auto d_candidates = dh::ToSpan(candidates);
-  auto mt_tree = MultiTargetTreeView{ctx->Device(), p_tree};
 
-  dh::LaunchN(n_targets * h_candidates.size(), ctx->CUDACtx()->Stream(),
+  dh::LaunchN(n_targets * d_candidates.size(), ctx->CUDACtx()->Stream(),
               [=] XGBOOST_DEVICE(std::size_t i) {
                 auto get_node_sum = [&](bst_node_t nidx) {
                   return GetNodeSumImpl(node_sums, nidx, n_targets);

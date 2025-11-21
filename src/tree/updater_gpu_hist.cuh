@@ -194,10 +194,25 @@ class MultiTargetHistMaker {
     return entry;
   }
 
-  void ApplySplit(std::vector<MultiExpandEntry> const& candidates, RegTree* p_tree) {
+  void ApplySplit(std::vector<MultiExpandEntry> const& h_candidates, RegTree* p_tree) {
+    CHECK(!h_candidates.empty());
     // TODO(jiamingy): Support learning rate.
     // TODO(jiamingy): Avoid device to host copies.
-    for (auto const& candidate : candidates) {
+    dh::device_vector<MultiExpandEntry> candidates{h_candidates};
+    auto d_candidates = dh::ToSpan(candidates);
+    auto n_targets = h_candidates.front().base_weight.size();
+    auto param = GPUTrainingParam{this->param_};
+    dh::LaunchN(d_candidates.size() * n_targets, ctx_->CUDACtx()->Stream(),
+                [=] XGBOOST_DEVICE(std::size_t i) mutable {
+                  auto nidx_in_set = i / n_targets;
+                  auto t = i % n_targets;
+
+                  auto& candidate = d_candidates[nidx_in_set];
+                  candidate.left_weight[t] *= param.learning_rate;
+                  candidate.right_weight[t] *= param.learning_rate;
+                });
+
+    for (auto const& candidate : h_candidates) {
       std::vector<float> h_base_weight(candidate.base_weight.size());
       std::vector<float> h_left_weight(candidate.left_weight.size());
       std::vector<float> h_right_weight(candidate.right_weight.size());
@@ -209,7 +224,9 @@ class MultiTargetHistMaker {
                          candidate.split.dir == kLeftDir, linalg::MakeVec(h_base_weight),
                          linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight));
     }
-    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, candidates);
+
+    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, dh::ToSpan(candidates),
+                                    n_targets);
   }
   /**
    * @brief Calculate the leaf weight based on the node sum for each leaf.

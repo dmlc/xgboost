@@ -57,9 +57,8 @@ class MultiHistEvaluator {
   }
 
   // Track the child gradient sum.
-  void ApplyTreeSplit(Context const *ctx, RegTree const *p_tree, MultiExpandEntry const &candidate);
   void ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
-                      std::vector<MultiExpandEntry> const &candidates);
+                      common::Span<MultiExpandEntry const> d_candidates, bst_target_t n_targets);
 };
 
 std::ostream &DebugPrintHistogram(std::ostream &os, common::Span<GradientPairInt64 const> node_hist,
