@@ -133,8 +133,8 @@ struct MultiExpandEntry {
   MultiSplitCandidate split;
 
   common::Span<float> base_weight;
-  common::Span<float> left_weight;
-  common::Span<float> right_weight;
+  common::Span<float const> left_weight;
+  common::Span<float const> right_weight;
 
   // Sum Hessian of the first target. Used as a surrogate for node size.
   double left_fst_hess{0};
