@@ -1,10 +1,10 @@
 from xgboost import config_context
 from xgboost.testing.multi_target import (
+    run_eta,
     run_multiclass,
     run_multilabel,
     run_reduced_grad,
     run_with_iter,
-    run_eta,
 )
 
 

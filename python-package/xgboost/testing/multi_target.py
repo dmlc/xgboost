@@ -1,6 +1,6 @@
 """Tests for multi-target training."""
 
-import json
+# pylint: disable=unbalanced-tuple-unpacking
 from typing import Dict, Optional, Tuple
 
 import numpy as np
@@ -49,7 +49,6 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
 
 def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
     """Use vector leaf for multi-label classification models."""
-    # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_multilabel_classification(128, random_state=2025)
     clf = XGBClassifier(
         debug_synchronize=True,
@@ -106,7 +105,7 @@ def run_reduced_grad(device: Device) -> None:
     """Basic test for using reduced gradient for tree splits."""
     import cupy as cp
 
-    X, y = make_regression(  # pylint: disable=unbalanced-tuple-unpacking
+    X, y = make_regression(
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
     )
     Xy = QuantileDMatrix(X, y)
@@ -188,7 +187,7 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     Xs = []
     ys = []
     for i in range(n_batches):
-        X_i, y_i = make_regression(  # pylint: disable=unbalanced-tuple-unpacking
+        X_i, y_i = make_regression(
             n_samples=4096, n_features=8, random_state=(i + 1), n_targets=n_targets
         )
         Xs.append(asarray(X_i))
@@ -252,8 +251,7 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
 
 
 def run_eta(device: Device) -> None:
-    from sklearn.datasets import make_regression
-
+    """Test for learning rate."""
     X, y = make_regression(512, 16, random_state=2025, n_targets=3)
     params = {
         "device": device,
