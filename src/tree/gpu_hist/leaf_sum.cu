@@ -88,7 +88,7 @@ void LeafWeight(Context const* ctx, GPUTrainingParam const& param,
   dh::LaunchN(grad_sum.Size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
     auto [nidx_in_set, t] = linalg::UnravelIndex(i, grad_sum.Shape());
     auto g = roundings[t].ToFloatingPoint(grad_sum(nidx_in_set, t));
-    out_weights(nidx_in_set, t) = CalcWeight(param, g.GetGrad(), g.GetHess());
+    out_weights(nidx_in_set, t) = CalcWeight(param, g.GetGrad(), g.GetHess()) * param.learning_rate;
   });
 }
 }  // namespace xgboost::tree::cuda_impl
