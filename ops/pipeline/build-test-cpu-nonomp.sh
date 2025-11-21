@@ -3,6 +3,12 @@
 
 set -euox pipefail
 
+conda env list
+
+echo $CONDA_PREFIX
+echo $PATH
+echo $(which cmake)
+
 mkdir -p build
 pushd build
 cmake .. \
