@@ -31,7 +31,13 @@ void TryDeleteCacheFile(const std::string& file) {
 }
 
 std::string MakeCachePrefix(std::string cache_prefix) {
-  cache_prefix = cache_prefix.empty() ? "DMatrix" : cache_prefix;
+  std::string_view constexpr kDftname{"DMatrix"};
+  cache_prefix = cache_prefix.empty() ? kDftname : cache_prefix;
+  // Use the directory if one exists
+  if (std::filesystem::is_directory(cache_prefix)) {
+    cache_prefix = std::filesystem::path{cache_prefix} / kDftname;
+  }
+  // Avoid conflicts in distributed environments.
   if (collective::IsDistributed()) {
     cache_prefix += ("-r" + std::to_string(collective::GetRank()));
   }
