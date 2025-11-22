@@ -9,6 +9,7 @@
 #include <vector>  // for vector
 
 #include "../common/device_helpers.cuh"        // for MakeTransformIterator
+#include "../common/nvtx_utils.h"              // for xgboost_NVTX_FN_RANGE
 #include "driver.h"                            // for Driver
 #include "gpu_hist/feature_groups.cuh"         // for FeatureGroups
 #include "gpu_hist/histogram.cuh"              // for DeviceHistogramBuilder
@@ -113,15 +114,34 @@ class MultiTargetHistMaker {
   dh::PinnedMemory pinned_;
 
   void BuildHist(EllpackPage const& page, std::int32_t k, bst_node_t nidx) {
+    this->BuildHist(page, k, std::vector{nidx});
+  }
+
+  void BuildHist(EllpackPage const& page, std::int32_t k, std::vector<bst_node_t> build_nodes) {
+    xgboost_NVTX_FN_RANGE();
+
     auto d_gpair = this->split_gpair_.View(this->ctx_->Device());
     CHECK(!this->partitioners_.Empty());
-    auto d_ridx = this->partitioners_.At(k)->GetRows(nidx);
-    auto hist = histogram_.GetNodeHistogram(nidx);
+
     auto roundings = this->split_quantizer_->Quantizers();
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
-    histogram_.BuildHistogram(this->ctx_->CUDACtx(), acc,
-                              this->feature_groups_->DeviceAccessor(this->ctx_->Device()), d_gpair,
-                              d_ridx, hist, roundings);
+
+    std::vector<common::Span<GradientPairInt64>> h_hists;
+    std::vector<common::Span<RowIndexT const>> h_ridxs;
+    std::size_t n_max_samples = 0;
+    for (auto nidx : build_nodes) {
+      auto d_ridx = this->partitioners_.At(k)->GetRows(nidx);
+      h_ridxs.push_back(d_ridx);
+      auto d_hist = histogram_.GetNodeHistogram(nidx);
+      h_hists.push_back(d_hist);
+
+      n_max_samples = std::max(d_ridx.size(), n_max_samples);
+    }
+    dh::device_vector<common::Span<GradientPairInt64>> hists{h_hists};
+    dh::device_vector<common::Span<RowIndexT const>> ridxs{h_ridxs};
+    this->histogram_.BuildHistogram(
+        this->ctx_->CUDACtx(), acc, this->feature_groups_->DeviceAccessor(this->ctx_->Device()),
+        d_gpair, dh::ToSpan(ridxs), dh::ToSpan(hists), n_max_samples, roundings);
   }
 
  public:
@@ -156,6 +176,8 @@ class MultiTargetHistMaker {
   }
 
   [[nodiscard]] MultiExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
+    xgboost_NVTX_FN_RANGE();
+
     auto d_gpair = split_gpair_.View(ctx_->Device());
     auto n_targets = d_gpair.Shape(1);
 
@@ -332,6 +354,8 @@ class MultiTargetHistMaker {
       return;
     }
 
+    xgboost_NVTX_FN_RANGE();
+
     // Perform subtraction for sibling nodes
     auto need_build = this->histogram_.SubtractHist(ctx_, candidates, build_nidx, subtraction_nidx);
     if (need_build.empty()) {
@@ -354,6 +378,9 @@ class MultiTargetHistMaker {
     if (expand_set.empty()) {
       return;
     }
+
+    xgboost_NVTX_FN_RANGE();
+
     CHECK_LE(candidates.size(), expand_set.size());
     // TODO(jiamingy): Implement finalize partition. Avoid using the expand_set.
 
@@ -503,13 +530,13 @@ class MultiTargetHistMaker {
                                 HistMakerTrainParam const* hist_param,
                                 std::vector<bst_idx_t> batch_ptr,
                                 std::shared_ptr<common::HistogramCuts const> cuts,
-                                bool dense_compressed)
+                                bool dense_compressed, bst_target_t n_targets)
       : ctx_{ctx},
         param_{std::move(param)},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
-        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
-                                                        dh::MaxSharedMemoryOptin(ctx_->Ordinal()))},
+        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, n_targets, dense_compressed,
+                                                        dh::MaxSharedMemory(ctx_->Ordinal()))},
         batch_ptr_{std::move(batch_ptr)} {}
 };
 }  // namespace xgboost::tree::cuda_impl

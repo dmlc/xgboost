@@ -278,3 +278,26 @@ def run_eta(device: Device) -> None:
 
     run(None)
     run(LsObj0())
+
+
+def run_deterministic(device: Device) -> None:
+    from sklearn.datasets import make_regression
+
+    X, y = make_regression(
+        n_samples=int(2**16), n_features=64, random_state=1994, n_targets=5
+    )
+
+    def run() -> Booster:
+        Xy = QuantileDMatrix(X, y)
+        params = {
+            "device": device,
+            "multi_strategy": "multi_output_tree",
+            "debug_synchronize": True,
+        }
+        return train(params, Xy, num_boost_round=16)
+
+    booster_0 = run()
+    booster_1 = run()
+    raw_0 = booster_0.save_raw()
+    raw_1 = booster_1.save_raw()
+    assert raw_0 == raw_1

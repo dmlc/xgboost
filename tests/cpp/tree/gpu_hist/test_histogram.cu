@@ -8,6 +8,7 @@
 #include <tuple>   // for tuple
 #include <vector>  // for vector
 
+#include "../../../../src/tree/gpu_hist/expand_entry.cuh"  // for GPUExpandEntry
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for RowPartitioner
 #include "../../../../src/tree/hist/hist_param.h"             // for HistMakerTrainParam
@@ -62,7 +63,7 @@ TEST(Histogram, SubtractionTrack) {
 
   auto page = BuildEllpackPage(&ctx, 64, 4);
   auto cuts = page->CutsShared();
-  FeatureGroups fg{*cuts, true, std::numeric_limits<std::size_t>::max()};
+  FeatureGroups fg{*cuts, 1, true, std::numeric_limits<std::size_t>::max()};
   auto fg_acc = fg.DeviceAccessor(ctx.Device());
   auto n_total_bins = cuts->TotalBins();
 
@@ -121,7 +122,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   auto quantiser = std::make_unique<GradientQuantiser>(&ctx, gpair.ConstDeviceSpan(), MetaInfo());
   auto shm_size = use_shared_memory_histograms ? dh::MaxSharedMemoryOptin(ctx.Ordinal()) : 0;
-  FeatureGroups feature_groups(page->Cuts(), page->IsDenseCompressed(), shm_size);
+  FeatureGroups feature_groups(page->Cuts(), 1, page->IsDenseCompressed(), shm_size);
 
   DeviceHistogramBuilder builder;
   builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
@@ -178,7 +179,7 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
     gpair.SetDevice(ctx.Device());
 
-    FeatureGroups feature_groups{page->Cuts(), page->IsDenseCompressed(), shm_size};
+    FeatureGroups feature_groups{page->Cuts(), 1, page->IsDenseCompressed(), shm_size};
 
     auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
     DeviceHistogramBuilder builder;

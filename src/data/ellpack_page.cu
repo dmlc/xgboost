@@ -118,7 +118,7 @@ __global__ void CompressBinEllpackKernel(
     }
     if (!kDenseCompressed) {
       // Sparse data, use the compressed fidx.  Add the number of bins in previous
-      // features since we can't compresse it based on feature-local index.
+      // features since we can't compress it based on feature-local index.
       bin += cut_ptrs[fidx];
     } else {
       // Write to the actual fidx for dense data.

@@ -4,6 +4,7 @@ import pytest
 
 from xgboost import config_context
 from xgboost.testing.multi_target import (
+    run_deterministic,
     run_eta,
     run_multiclass,
     run_multilabel,
@@ -33,3 +34,7 @@ def test_with_iter() -> None:
 
 def test_eta() -> None:
     run_eta("cuda")
+
+
+def test_deterministic() -> None:
+    run_deterministic("cuda")
