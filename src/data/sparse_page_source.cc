@@ -1,12 +1,13 @@
 /**
- *  Copyright 2021-2024, XGBoost Contributors
+ *  Copyright 2021-2025, XGBoost Contributors
  */
 #include "sparse_page_source.h"
 
-#include <cstdio>      // for remove
-#include <filesystem>  // for exists
-#include <numeric>     // for partial_sum
-#include <string>      // for string
+#include <cstdio>       // for remove
+#include <filesystem>   // for exists, path, is_directory
+#include <numeric>      // for partial_sum
+#include <string>       // for string
+#include <string_view>  // for string_view
 
 #include "../collective/communicator-inl.h"  // for IsDistributed, GetRank
 
