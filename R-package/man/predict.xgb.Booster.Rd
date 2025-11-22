@@ -211,6 +211,7 @@ If you want to change their number, assign a new number to \code{nthread} using 
 Note that converting a matrix to \code{\link[=xgb.DMatrix]{xgb.DMatrix()}} uses multiple threads too.
 }
 \examples{
+\dontshow{RhpcBLASctl::omp_set_num_threads(1)}
 ## binary classification:
 
 data(agaricus.train, package = "xgboost")

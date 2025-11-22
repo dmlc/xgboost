@@ -48,6 +48,7 @@ def pack_rpackage() -> Path:
         )
 
     shutil.copytree("R-package", dest)
+    os.remove(dest / "bootstrap.R")
     # core
     shutil.copytree("src", dest / "src" / "src")
     shutil.copytree("include", dest / "src" / "include")
