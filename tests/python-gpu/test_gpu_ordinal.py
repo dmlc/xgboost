@@ -42,7 +42,7 @@ def test_cat_container_iter() -> None:
 
 
 def test_cat_predict() -> None:
-    run_cat_predict("cuda")
+    run_cat_predict("cuda", False)
 
 
 def test_cat_invalid() -> None:
