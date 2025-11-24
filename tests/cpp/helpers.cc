@@ -492,9 +492,10 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
 
-  auto row_page_path =
-      data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(p_fmat.get())) + ".row.page";
-  EXPECT_TRUE(FileExists(row_page_path)) << row_page_path;
+  auto row_page_path = data::MakeId(data::MakeCachePrefix(prefix),
+                                    dynamic_cast<data::SparsePageDMatrix*>(p_fmat.get())) +
+                       ".row.page";
+  EXPECT_TRUE(FileExists(row_page_path)) << row_page_path << " prefix:" << prefix;
 
   // Loop over the batches and count the number of pages
   std::size_t batch_count = 0;
