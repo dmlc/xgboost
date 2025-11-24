@@ -149,8 +149,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.m2
-          key: ${{ runner.os }}-m2-${{ hashFiles('jvm-packages/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2-${{ hashFiles('jvm-packages/pom.xml') }}
+          key: ${{ runner.os }}-m2-${{ hashFiles('/jvm-packages/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2-${{ hashFiles('/jvm-packages/pom.xml') }}
       - name: Test XGBoost4J (Core) on macos
         if: matrix.os == 'macos-15-intel'
         run: |
