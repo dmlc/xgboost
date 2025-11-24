@@ -187,28 +187,31 @@ class MultiTargetHistMaker {
                                                  this->param_.max_bin,
                                                  param};
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
-
-    // TODO(jiamingy): Support learning rate.
     p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), entry.base_weight));
 
     return entry;
   }
 
-  void ApplySplit(MultiExpandEntry const& candidate, RegTree* p_tree) {
-    // TODO(jiamingy): Support learning rate.
+  void ApplySplit(std::vector<MultiExpandEntry> const& h_candidates, RegTree* p_tree) {
+    CHECK(!h_candidates.empty());
+    auto n_targets = h_candidates.front().base_weight.size();
+
     // TODO(jiamingy): Avoid device to host copies.
-    std::vector<float> h_base_weight(candidate.base_weight.size());
-    std::vector<float> h_left_weight(candidate.left_weight.size());
-    std::vector<float> h_right_weight(candidate.right_weight.size());
-    dh::CopyDeviceSpanToVector(&h_base_weight, candidate.base_weight);
-    dh::CopyDeviceSpanToVector(&h_left_weight, candidate.left_weight);
-    dh::CopyDeviceSpanToVector(&h_right_weight, candidate.right_weight);
+    for (auto const& candidate : h_candidates) {
+      std::vector<float> h_base_weight(candidate.base_weight.size());
+      std::vector<float> h_left_weight(candidate.left_weight.size());
+      std::vector<float> h_right_weight(candidate.right_weight.size());
+      dh::CopyDeviceSpanToVector(&h_base_weight, candidate.base_weight);
+      dh::CopyDeviceSpanToVector(&h_left_weight, candidate.left_weight);
+      dh::CopyDeviceSpanToVector(&h_right_weight, candidate.right_weight);
 
-    p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
-                       candidate.split.dir == kLeftDir, linalg::MakeVec(h_base_weight),
-                       linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight));
+      p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
+                         candidate.split.dir == kLeftDir, linalg::MakeVec(h_base_weight),
+                         linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight));
+    }
 
-    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, candidate);
+    dh::device_vector<MultiExpandEntry> candidates{h_candidates};
+    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, dh::ToSpan(candidates), n_targets);
   }
   /**
    * @brief Calculate the leaf weight based on the node sum for each leaf.
@@ -464,7 +467,7 @@ class MultiTargetHistMaker {
 
   void GrowTree(linalg::Matrix<GradientPair>* split_gpair, DMatrix* p_fmat, ObjInfo const*,
                 RegTree* p_tree) {
-    if (this->param_.learning_rate - 1.0 != 0.0) {
+    if (!this->hist_param_->debug_synchronize) {
       LOG(FATAL) << "GPU" << MTNotImplemented();
     }
     Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
@@ -475,10 +478,7 @@ class MultiTargetHistMaker {
     // The set of leaves that can be expanded asynchronously
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
-      for (auto& candidate : expand_set) {
-        this->ApplySplit(candidate, p_tree);
-      }
-
+      this->ApplySplit(expand_set, p_tree);
       // Get the candidates we are allowed to expand further
       // e.g. We do not bother further processing nodes whose children are beyond max depth
       std::vector<MultiExpandEntry> valid_candidates;

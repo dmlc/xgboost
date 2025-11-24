@@ -132,7 +132,7 @@ struct MultiExpandEntry {
   bst_node_t depth{0};
   MultiSplitCandidate split;
 
-  common::Span<float const> base_weight;
+  common::Span<float> base_weight;
   common::Span<float const> left_weight;
   common::Span<float const> right_weight;
 

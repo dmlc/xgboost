@@ -1,5 +1,6 @@
 """Tests for multi-target training."""
 
+# pylint: disable=unbalanced-tuple-unpacking
 from typing import Dict, Optional, Tuple
 
 import numpy as np
@@ -29,6 +30,7 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
         128, n_features=12, n_informative=10, n_classes=4, random_state=2025
     )
     clf = XGBClassifier(
+        debug_synchronize=True,
         multi_strategy="multi_output_tree",
         callbacks=[ResetStrategy()],
         n_estimators=10,
@@ -47,9 +49,9 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
 
 def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
     """Use vector leaf for multi-label classification models."""
-    # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_multilabel_classification(128, random_state=2025)
     clf = XGBClassifier(
+        debug_synchronize=True,
         multi_strategy="multi_output_tree",
         callbacks=[ResetStrategy()],
         n_estimators=10,
@@ -103,7 +105,7 @@ def run_reduced_grad(device: Device) -> None:
     """Basic test for using reduced gradient for tree splits."""
     import cupy as cp
 
-    X, y = make_regression(  # pylint: disable=unbalanced-tuple-unpacking
+    X, y = make_regression(
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
     )
     Xy = QuantileDMatrix(X, y)
@@ -114,6 +116,7 @@ def run_reduced_grad(device: Device) -> None:
         evals_result: Dict[str, Dict] = {}
         booster = train(
             {
+                "debug_synchronize": True,
                 "device": device,
                 "multi_strategy": "multi_output_tree",
                 "learning_rate": 1,
@@ -184,7 +187,7 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     Xs = []
     ys = []
     for i in range(n_batches):
-        X_i, y_i = make_regression(  # pylint: disable=unbalanced-tuple-unpacking
+        X_i, y_i = make_regression(
             n_samples=4096, n_features=8, random_state=(i + 1), n_targets=n_targets
         )
         Xs.append(asarray(X_i))
@@ -245,3 +248,33 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         evals_result_0["Train"]["rmse"], evals_result_2["Train"]["rmse"]
     )
     assert_allclose(device, booster_0.inplace_predict(X), booster_2.inplace_predict(X))
+
+
+def run_eta(device: Device) -> None:
+    """Test for learning rate."""
+    X, y = make_regression(512, 16, random_state=2025, n_targets=3)
+
+    def run(obj: Optional[Objective]) -> None:
+        params = {
+            "device": device,
+            "multi_strategy": "multi_output_tree",
+            "learning_rate": 1.0,
+            "debug_synchronize": True,
+            "base_score": 0.0,
+        }
+        Xy = QuantileDMatrix(X, y)
+        booster_0 = train(params, Xy, num_boost_round=1, obj=obj)
+        params["learning_rate"] = 0.1
+        booster_1 = train(params, Xy, num_boost_round=1, obj=obj)
+        params["learning_rate"] = 2.0
+        booster_2 = train(params, Xy, num_boost_round=1, obj=obj)
+
+        predt_0 = booster_0.predict(Xy)
+        predt_1 = booster_1.predict(Xy)
+        predt_2 = booster_2.predict(Xy)
+
+        np.testing.assert_allclose(predt_0, predt_1 * 10, rtol=1e-6)
+        np.testing.assert_allclose(predt_0 * 2, predt_2, rtol=1e-6)
+
+    run(None)
+    run(LsObj0())
