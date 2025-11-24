@@ -7,10 +7,9 @@
 #include <thrust/device_vector.h>            // for device_vector
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include <cuda/memory_resource>                      // for async_resource_ref
-#include <cuda/stream_ref>                           // for stream_ref
-#include <rmm/mr/device/device_memory_resource.hpp>  // for device_memory_resource
-#include <rmm/mr/device/per_device_resource.hpp>     // for get_current_device_resource
+#include <cuda/memory_resource>               // for async_resource_ref
+#include <cuda/stream_ref>                    // for stream_ref
+#include <rmm/mr/per_device_resource.hpp>     // for get_current_device_resource
 
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
 
@@ -266,7 +265,7 @@ namespace detail {
  */
 template <typename T>
 class ThrustAllocMrAdapter : public thrust::device_malloc_allocator<T> {
-  DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource()};
+  DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource_ref()};
 
  public:
   using Super = thrust::device_malloc_allocator<T>;

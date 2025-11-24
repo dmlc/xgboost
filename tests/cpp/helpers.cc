@@ -29,9 +29,9 @@
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <memory>
 #include <vector>
-#include "rmm/mr/device/per_device_resource.hpp"
-#include "rmm/mr/device/cuda_memory_resource.hpp"
-#include "rmm/mr/device/pool_memory_resource.hpp"
+#include "rmm/mr/per_device_resource.hpp"
+#include "rmm/mr/cuda_memory_resource.hpp"
+#include "rmm/mr/pool_memory_resource.hpp"
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 bool FileExists(const std::string& filename) {
