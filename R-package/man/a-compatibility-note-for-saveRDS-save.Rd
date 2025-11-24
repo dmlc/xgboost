@@ -77,6 +77,7 @@ For more details and explanation about model persistence and archival, consult t
 \url{https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html}.
 }
 \examples{
+\dontshow{RhpcBLASctl::omp_set_num_threads(1)}
 data(agaricus.train, package = "xgboost")
 
 bst <- xgb.train(
