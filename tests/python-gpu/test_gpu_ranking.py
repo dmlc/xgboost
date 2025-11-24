@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 
 import numpy as np
@@ -104,7 +103,7 @@ def comp_training_with_rank_objective(
         ("rank:map", "map"),
     ],
 )
-def test_with_mq2008(objective, metric) -> None:
+def test_with_mq2008(objective: str, metric: str) -> None:
     (
         x_train,
         y_train,

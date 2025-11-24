@@ -33,13 +33,14 @@ inline void GetMultiSplitForTest(RegTree *tree, float split_value,
   linalg::Vector<float> base_weight{linalg::Constant(&ctx, 0.0f, n_targets)};
   linalg::Vector<float> left_weight{linalg::Constant(&ctx, 0.0f, n_targets)};
   linalg::Vector<float> right_weight{linalg::Constant(&ctx, 0.0f, n_targets)};
-
+  tree->SetRoot(base_weight.HostView());
   tree->ExpandNode(/*nidx=*/RegTree::kRoot, /*split_index=*/0, /*split_value=*/split_value,
                    /*default_left=*/true, base_weight.HostView(), left_weight.HostView(),
                    right_weight.HostView());
   candidates->front().split.split_value = split_value;
   candidates->front().split.sindex = 0;
   candidates->front().split.sindex |= (1U << 31);
+  tree->GetMultiTargetTree()->SetLeaves();
 }
 }  // namespace xgboost::tree
 #endif  // XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_

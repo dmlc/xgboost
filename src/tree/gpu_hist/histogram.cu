@@ -330,6 +330,7 @@ __global__ __launch_bounds__(kBlockThreads) void MultiHistKernel(
       }
       bst_target_t n_targets = roundings.size();
       compressed_bin *= n_targets;
+      // TODO(jiamingy): Assign a thread for each target.
       for (bst_target_t t = 0; t < n_targets; ++t) {
         auto adjusted = roundings[t].ToFixedPoint(d_gpair(ridx, t));
         AtomicAddGpairGlobal(d_node_hist + compressed_bin + t, adjusted);

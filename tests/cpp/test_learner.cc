@@ -431,8 +431,8 @@ TEST(Learner, MultiTarget) {
   size_t constexpr kRows{128}, kCols{10}, kTargets{3};
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
   m->Info().labels.Reshape(kRows, kTargets);
-  linalg::ElementWiseTransformHost(m->Info().labels.HostView(), omp_get_max_threads(),
-                                   [](auto i, auto) { return i; });
+  linalg::cpu_impl::TransformIdxKernel(m->Info().labels.HostView(), omp_get_max_threads(),
+                                       [](auto i, auto) { return i; });
 
   {
     std::unique_ptr<Learner> learner{Learner::Create({m})};

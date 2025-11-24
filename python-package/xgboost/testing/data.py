@@ -30,6 +30,7 @@ from numpy import typing as npt
 from numpy.random import Generator as RNG
 from scipy import sparse
 
+from ..compat import concat
 from ..core import DataIter, DMatrix, QuantileDMatrix
 from ..data import is_pd_cat_dtype, pandas_pyarrow_mapper
 from ..sklearn import ArrayLike, XGBRanker
@@ -1150,11 +1151,8 @@ class IteratorForTest(DataIter):
         self,
     ) -> Tuple[Union[np.ndarray, sparse.csr_matrix], ArrayLike, Optional[ArrayLike]]:
         """Return concatenated arrays."""
-        if isinstance(self.X[0], sparse.csr_matrix):
-            X = sparse.vstack(self.X, format="csr")
-        else:
-            X = np.concatenate(self.X, axis=0)
-        y = np.concatenate(self.y, axis=0)
+        X = concat(self.X)
+        y = concat(self.y)
         if self.w:
             w = np.concatenate(self.w, axis=0)
         else:

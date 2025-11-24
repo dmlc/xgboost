@@ -37,7 +37,7 @@ pytestmark = tm.timeout(60)
 
 
 class TestGPUPredict:
-    def test_predict(self):
+    def test_predict(self) -> None:
         iterations = 10
         np.random.seed(1)
         test_num_rows = [10, 1000, 5000]
@@ -61,7 +61,7 @@ class TestGPUPredict:
                     label=[0, 1] * int(num_rows / 2),
                 )
                 watchlist = [(dtrain, "train"), (dval, "validation")]
-                res = {}
+                res: Dict[str, Any] = {}
                 param = {
                     "objective": "binary:logistic",
                     "eval_metric": "logloss",
@@ -91,7 +91,7 @@ class TestGPUPredict:
     # Test case for a bug where multiple batch predictions made on a
     # test set produce incorrect results
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_multi_predict(self):
+    def test_multi_predict(self) -> None:
         from sklearn.datasets import make_regression
         from sklearn.model_selection import train_test_split
 
@@ -116,7 +116,7 @@ class TestGPUPredict:
         assert np.allclose(predict_gpu_0, predict_cpu)
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_sklearn(self):
+    def test_sklearn(self) -> None:
         m, n = 15000, 14
         tr_size = 2500
         X = np.random.rand(m, n)
@@ -186,7 +186,12 @@ class TestGPUPredict:
         np.testing.assert_allclose(predt_0, predt_4)
 
     def run_inplace_base_margin(
-        self, device: int, booster: xgb.Booster, dtrain: xgb.DMatrix, X, base_margin
+        self,
+        device: int,
+        booster: xgb.Booster,
+        dtrain: xgb.DMatrix,
+        X: Any,
+        base_margin: Any,
     ) -> None:
         import cupy as cp
 
@@ -240,7 +245,7 @@ class TestGPUPredict:
         predt_from_dmatrix = booster.predict(test)
         cp.testing.assert_allclose(predt_from_array, predt_from_dmatrix)
 
-        def predict_dense(x):
+        def predict_dense(x: cp.ndarray) -> bool:
             cp.cuda.runtime.setDevice(device)
             inplace_predt = booster.inplace_predict(x)
             d = xgb.DMatrix(x)
@@ -277,12 +282,12 @@ class TestGPUPredict:
         cp.cuda.runtime.setDevice(0)
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_inplace_predict_cupy(self):
+    def test_inplace_predict_cupy(self) -> None:
         self.run_inplace_predict_cupy(0)
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.mgpu
-    def test_inplace_predict_cupy_specified_device(self):
+    def test_inplace_predict_cupy_specified_device(self) -> None:
         import cupy as cp
 
         n_devices = cp.cuda.runtime.getDeviceCount()
@@ -291,7 +296,7 @@ class TestGPUPredict:
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_inplace_predict_cudf(self):
+    def test_inplace_predict_cudf(self) -> None:
         import cudf
         import cupy as cp
         import pandas as pd
@@ -316,7 +321,7 @@ class TestGPUPredict:
 
         cp.testing.assert_allclose(predt_from_array, predt_from_dmatrix)
 
-        def predict_df(x):
+        def predict_df(x: cudf.DataFrame) -> bool:
             # column major array
             inplace_predt = booster.inplace_predict(x.values)
             d = xgb.DMatrix(x)
@@ -398,7 +403,7 @@ class TestGPUPredict:
             1e-3,
         )
 
-    def test_shap_categorical(self):
+    def test_shap_categorical(self) -> None:
         X, y = tm.make_categorical(100, 20, 7, onehot=False)
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         booster = xgb.train(
@@ -487,7 +492,7 @@ class TestGPUPredict:
         )
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
-    def test_predict_categorical_split(self, df):
+    def test_predict_categorical_split(self, df: Any) -> None:
         from sklearn.metrics import root_mean_squared_error
 
         df = df.astype("category")
@@ -504,7 +509,7 @@ class TestGPUPredict:
             "device": "cuda:0",
         }
 
-        eval_history = {}
+        eval_history: Dict[str, Any] = {}
         bst = xgb.train(
             params,
             dtrain,
@@ -522,7 +527,7 @@ class TestGPUPredict:
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize("n_classes", [2, 3])
-    def test_predict_dart(self, n_classes):
+    def test_predict_dart(self, n_classes: int) -> None:
         import cupy as cp
         from sklearn.datasets import make_classification
 
@@ -576,7 +581,7 @@ class TestGPUPredict:
         cp.testing.assert_allclose(inplace, copied, atol=1e-6)
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_dtypes(self):
+    def test_dtypes(self) -> None:
         import cupy as cp
 
         rows = 1000

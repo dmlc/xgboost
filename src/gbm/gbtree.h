@@ -188,7 +188,7 @@ class GBTree : public GradientBooster {
   /**
    * @brief Carry out one iteration of boosting.
    */
-  void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair, PredictionCacheEntry* predt,
+  void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,
                ObjFunction const* obj) override;
 
   [[nodiscard]] GBTreeTrainParam const& GetTrainParam() const { return tparam_; }
@@ -295,7 +295,7 @@ class GBTree : public GradientBooster {
                    HostDeviceVector<bst_float>* out_preds,
                    uint32_t layer_begin, uint32_t layer_end) override {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
-    CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: (0, "
+    CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: [0, "
                                "n_iteration), use model slicing instead.";
     this->GetPredictor(false)->PredictLeaf(p_fmat, out_preds, model_, tree_end);
   }
@@ -304,7 +304,7 @@ class GBTree : public GradientBooster {
                            bst_layer_t layer_begin, bst_layer_t layer_end,
                            bool approximate) override {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
-    CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: (0, "
+    CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
     this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end, nullptr,
                                                    approximate);
@@ -314,7 +314,7 @@ class GBTree : public GradientBooster {
                                        bst_layer_t layer_begin, bst_layer_t layer_end,
                                        bool approximate) override {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
-    CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: (0, "
+    CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
     this->GetPredictor(false)->PredictInteractionContributions(p_fmat, out_contribs, model_,
                                                                tree_end, nullptr, approximate);
@@ -326,9 +326,11 @@ class GBTree : public GradientBooster {
   }
 
  protected:
-  void BoostNewTrees(linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
+  void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
                      std::vector<std::unique_ptr<RegTree>>* ret);
+
+  std::vector<RegTree*> InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret);
 
   [[nodiscard]] std::unique_ptr<Predictor> const& GetPredictor(
       bool is_training, HostDeviceVector<float> const* out_pred = nullptr,

@@ -65,8 +65,8 @@ TEST(GBTree, PredictionCache) {
 
   gbtree.Configure({{"tree_method", "hist"}});
   auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+
+  GradientContainer gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   PredictionCacheEntry out_predictions;
   gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
@@ -207,9 +207,9 @@ TEST(GBTree, ChooseTreeMethod) {
       learner->SetParam("device", d);
     }
     learner->Configure();
+    Context ctx;
     for (std::int32_t i = 0; i < 3; ++i) {
-      linalg::Matrix<GradientPair> gpair{{Xy->Info().num_row_}, DeviceOrd::CPU()};
-      gpair.Data()->Copy(GenerateRandomGradients(Xy->Info().num_row_));
+      GradientContainer gpair = GenerateRandomGradients(&ctx, Xy->Info().num_row_, 1);
       learner->BoostOneIter(0, Xy, &gpair);
     }
 

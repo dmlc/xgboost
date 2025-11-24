@@ -4,6 +4,7 @@ Demo for using cross validation
 """
 
 import os
+from typing import Any, Dict, Tuple
 
 import numpy as np
 
@@ -54,7 +55,9 @@ print("running cross validation, with preprocessing function")
 # used to return the preprocessed training, test data, and parameter
 # we can use this to do weight rescale, etc.
 # as a example, we try to set scale_pos_weight
-def fpreproc(dtrain, dtest, param):
+def fpreproc(
+    dtrain: xgb.DMatrix, dtest: xgb.DMatrix, param: Any
+) -> Tuple[xgb.DMatrix, xgb.DMatrix, Dict[str, Any]]:
     label = dtrain.get_label()
     ratio = float(np.sum(label == 0)) / np.sum(label == 1)
     param["scale_pos_weight"] = ratio
@@ -74,7 +77,7 @@ xgb.cv(param, dtrain, num_round, nfold=5, metrics={"auc"}, seed=0, fpreproc=fpre
 print("running cross validation, with customized loss function")
 
 
-def logregobj(preds, dtrain):
+def logregobj(preds: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[np.ndarray, np.ndarray]:
     labels = dtrain.get_label()
     preds = 1.0 / (1.0 + np.exp(-preds))
     grad = preds - labels
@@ -82,7 +85,7 @@ def logregobj(preds, dtrain):
     return grad, hess
 
 
-def evalerror(preds, dtrain):
+def evalerror(preds: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
     labels = dtrain.get_label()
     preds = 1.0 / (1.0 + np.exp(-preds))
     return "error", float(sum(labels != (preds > 0.0))) / len(labels)

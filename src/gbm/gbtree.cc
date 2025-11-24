@@ -210,8 +210,8 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
   }
 }
 
-void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
-                     PredictionCacheEntry* predt, ObjFunction const* obj) {
+void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,
+                     ObjFunction const* obj) {
   if (model_.learner_model_param->IsVectorLeaf()) {
     CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
         << "Only the hist tree method is supported for building multi-target trees with vector "
@@ -243,6 +243,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   std::vector<HostDeviceVector<bst_node_t>> node_position;
 
   if (model_.learner_model_param->IsVectorLeaf()) {
+    // Multi-target, vector leaf
     TreesOneGroup ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
@@ -253,6 +254,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
       predt->Update(1);
     }
   } else if (model_.learner_model_param->OutputLength() == 1u) {
+    // Single target
     TreesOneGroup ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
@@ -263,13 +265,16 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
       predt->Update(1);
     }
   } else {
-    CHECK_EQ(in_gpair->Size() % n_groups, 0U) << "must have exactly ngroup * nrow gpairs";
-    linalg::Matrix<GradientPair> tmp{{in_gpair->Shape(0), static_cast<std::size_t>(1ul)},
-                                     ctx_->Device()};
+    // Multi-target, scalar leaf
+    CHECK_EQ(in_gpair->gpair.Size() % n_groups, 0U)
+        << "Must have exactly n_groups * n_samples gpairs.";
+    GradientContainer tmp;
+    tmp.gpair = linalg::Matrix<GradientPair>{
+        {in_gpair->gpair.Shape(0), static_cast<std::size_t>(1ul)}, ctx_->Device()};
     bool update_predict = true;
     for (bst_target_t gid = 0; gid < n_groups; ++gid) {
       node_position.clear();
-      CopyGradient(ctx_, in_gpair, gid, &tmp);
+      CopyGradient(ctx_, &in_gpair->gpair, gid, &tmp.gpair);
       TreesOneGroup ret;
       BoostNewTrees(&tmp, p_fmat, gid, &node_position, &ret);
       UpdateTreeLeaf(p_fmat, predt->predictions, obj, gid, node_position, &ret);
@@ -290,9 +295,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   this->CommitModel(std::move(new_trees));
 }
 
-void GBTree::BoostNewTrees(linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
-                           std::vector<HostDeviceVector<bst_node_t>>* out_position,
-                           TreesOneGroup* ret) {
+std::vector<RegTree*> GBTree::InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret) {
   std::vector<RegTree*> new_trees;
   ret->clear();
   // create the trees
@@ -326,20 +329,30 @@ void GBTree::BoostNewTrees(linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
       ret->push_back(std::move(t));
     }
   }
+  return new_trees;
+}
+
+void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
+                           std::vector<HostDeviceVector<bst_node_t>>* out_position,
+                           TreesOneGroup* ret) {
+  std::vector<RegTree*> new_trees = this->InitNewTrees(bst_group, ret);
 
   // update the trees
   auto n_out = model_.learner_model_param->OutputLength() * p_fmat->Info().num_row_;
   StringView msg{
       "Mismatching size between number of rows from input data and size of gradient vector."};
   if (!model_.learner_model_param->IsVectorLeaf() && p_fmat->Info().num_row_ != 0) {
-    CHECK_EQ(n_out % gpair->Size(), 0) << msg;
-  } else {
-    CHECK_EQ(gpair->Size(), n_out) << msg;
+    CHECK_EQ(n_out % gpair->gpair.Size(), 0) << msg;
+  } else if (model_.learner_model_param->IsVectorLeaf()) {
+    // vector leaf
+    if (!gpair->HasValueGrad()) {
+      CHECK_EQ(gpair->gpair.Size(), n_out) << msg;
+    }
   }
 
   out_position->resize(new_trees.size());
 
-  // Rescale learning rate according to the size of trees
+  // Rescale learning rate according to the number of trees
   auto lr = tree_param_.learning_rate;
   tree_param_.learning_rate /= static_cast<float>(new_trees.size());
   for (auto& up : updaters_) {
@@ -1005,7 +1018,7 @@ DMLC_REGISTER_PARAMETER(DartTrainParam);
 XGBOOST_REGISTER_GBM(GBTree, "gbtree")
     .describe("Tree booster, gradient boosted trees.")
     .set_body([](LearnerModelParam const* booster_config, Context const* ctx) {
-      auto* p = new GBTree(booster_config, ctx);
+      auto* p = new GBTree{booster_config, ctx};
       return p;
     });
 XGBOOST_REGISTER_GBM(Dart, "dart")

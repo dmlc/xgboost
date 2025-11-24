@@ -20,7 +20,7 @@ class TestGPUInteractionConstraints:
         training_accuracy(tree_method=tree_method, dpath=dpath, device="cuda")
 
     # case where different number of features can occur in the evaluator
-    def test_issue_8730(self):
+    def test_issue_8730(self) -> None:
         X = pd.DataFrame(
             zip(range(0, 100), range(200, 300), range(300, 400), range(400, 500)),
             columns=["A", "B", "C", "D"],

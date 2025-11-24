@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost contributors
+ * Copyright 2021-2025, XGBoost contributors
  *
  * \brief Implementation for the approx tree method.
  */
@@ -21,13 +21,14 @@
 #include "driver.h"                          // for Driver
 #include "hist/evaluate_splits.h"            // for HistEvaluator, UpdatePredictionCacheImpl
 #include "hist/expand_entry.h"               // for CPUExpandEntry
-#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
+#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for GradStats, TrainParam
 #include "xgboost/base.h"                    // for Args, GradientPair, bst_node_t, bst_bin_t
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/data.h"                    // for DMatrix, BatchSet, BatchIterator, MetaInfo
+#include "xgboost/gradient.h"                // for GradientContainer
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
 #include "xgboost/json.h"                    // for Object, Json, FromJson, ToJson, get
 #include "xgboost/linalg.h"                  // for Matrix, MakeTensorView, Empty, MatrixView
@@ -284,7 +285,7 @@ class GlobalApproxUpdater : public TreeUpdater {
 
   [[nodiscard]] char const *Name() const override { return "grow_histmaker"; }
 
-  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *m,
+  void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *m,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     CHECK(hist_param_.GetInitialised());
@@ -293,6 +294,7 @@ class GlobalApproxUpdater : public TreeUpdater {
     }
     pimpl_ = std::make_unique<GlobalApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
                                                    column_sampler_, task_, &monitor_);
+    auto gpair = in_gpair->FullGradOnly();
 
     linalg::Matrix<GradientPair> h_gpair;
     // Obtain the hessian values for weighted sketching

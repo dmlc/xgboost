@@ -1,4 +1,12 @@
 #################################
+3.1.2 Patch Release (Nov 20 2025)
+#################################
+
+- Fix loading nccl 2.28. (:pr:`11806`)
+- Fix ordering of Python callbacks. (:pr:`11812`)
+- Infer the ``enable_categorical`` during model load. (:pr:`11816`)
+
+#################################
 3.1.1 Patch Release (Oct 22 2025)
 #################################
 
