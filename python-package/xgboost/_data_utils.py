@@ -643,10 +643,10 @@ class Categories:
         arrow_arrays: Optional[ArrowCatList],
     ) -> None:
         # The handle type is a bundle of the handle and the free call. Otherwise, we
-        # will have to import the lib and checkcall inside the __del__ method from the
-        # core module to avoid cyclic model dependency. Importing modules in __del__ can
-        # result in Python abort if __del__ is called during exception handling
-        # (interpreter is shutting down).
+        # will have to import the `_lib` and the `_check_call` from the core module
+        # inside the __del__ method to avoid cyclic model dependency.
+        # Importing modules in __del__ can result in Python abort if __del__ is called
+        # during exception handling (interpreter is shutting down).
         self._handle, self._free = handle
         self._arrow_arrays = arrow_arrays
 
