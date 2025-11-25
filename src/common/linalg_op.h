@@ -254,9 +254,9 @@ void VecScaDiv(Context const* ctx, linalg::VectorView<float> x, double div) {
 }
 
 template <auto _tag = detail::SysTag()>
-void LogE(Context const* ctx, linalg::VectorView<float> x) {
+void LogE(Context const* ctx, linalg::VectorView<float> x, float rt_eps = 0.0f) {
   CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
-  TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return log(v); });
+  TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return log(v + rt_eps); });
 }
 
 template <typename T, std::enable_if_t<std::is_floating_point_v<T>>* = nullptr>
