@@ -29,9 +29,18 @@
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <memory>
 #include <vector>
+
+// TODO(hcho3): Remove this guard once we require Rapids 25.12+
+#if (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+#include "rmm/mr/per_device_resource.hpp"
+#include "rmm/mr/cuda_memory_resource.hpp"
+#include "rmm/mr/pool_memory_resource.hpp"
+#else  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
 #include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/cuda_memory_resource.hpp"
 #include "rmm/mr/device/pool_memory_resource.hpp"
+#endif  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 bool FileExists(const std::string& filename) {
