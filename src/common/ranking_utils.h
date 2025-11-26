@@ -83,6 +83,10 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
   double lambdarank_bias_norm{1.0};
   // ndcg
   bool ndcg_exp_gain{true};
+  // label diff normalization
+  double lambdarank_label_diff_normalization{0.0};
+  // label diff normalization
+  double lambdarank_label_diff_normalization{0.0};
 
   bool operator==(LambdaRankParam const& that) const {
     return lambdarank_pair_method == that.lambdarank_pair_method &&
@@ -90,7 +94,8 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
            lambdarank_unbiased == that.lambdarank_unbiased &&
            lambdarank_normalization == that.lambdarank_normalization &&
            lambdarank_score_normalization == that.lambdarank_score_normalization &&
-           lambdarank_bias_norm == that.lambdarank_bias_norm && ndcg_exp_gain == that.ndcg_exp_gain;
+           lambdarank_bias_norm == that.lambdarank_bias_norm && ndcg_exp_gain == that.ndcg_exp_gain &&
+           lambdarank_label_diff_normalization == that.lambdarank_label_diff_normalization;
   }
   bool operator!=(LambdaRankParam const& that) const { return !(*this == that); }
 
@@ -152,6 +157,10 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
     DMLC_DECLARE_FIELD(ndcg_exp_gain)
         .set_default(true)
         .describe("When set to true, the label gain is 2^rel - 1, otherwise it's rel.");
+    DMLC_DECLARE_FIELD(lambdarank_label_diff_normalization)
+        .set_default(0.0)
+        .set_lower_bound(0.0)
+        .describe("Exponent for label difference normalization. When >0, delta_metric is multiplied by |y_high - y_low|^label_diff_normalization.");
   }
 };
 
@@ -172,6 +181,8 @@ class RankingCache {
   std::size_t max_group_size_{0};
   // Normalization for weight
   double weight_norm_{1.0};
+  // Expanded weights for per-instance
+  HostDeviceVector<float> expanded_weights_;
   /**
    * CUDA cache
    */
@@ -205,8 +216,8 @@ class RankingCache {
  public:
   RankingCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p) : param_{p} {
     CHECK(param_.GetInitialised());
-    if (!info.group_ptr_.empty()) {
-      CHECK_EQ(info.group_ptr_.back(), info.labels.Size())
+    if (!info.weights_.empty()) {
+      CHECK_EQ(info.weights_.back(), info.labels.Size())
           << error::GroupSize() << "the size of label.";
     }
     if (ctx->IsCUDA()) {
@@ -215,7 +226,7 @@ class RankingCache {
       this->InitOnCPU(ctx, info);
     }
     if (!info.weights_.Empty()) {
-      CHECK_EQ(Groups(), info.weights_.Size()) << error::GroupWeight();
+      CHECK(info.weights_.Size() == Groups() || info.weights_.Size() == static_cast<std::size_t>(info.num_row_)) << error::GroupWeight();
     }
     if (param_.HasTruncation()) {
       CHECK_GE(param_.NumPair(), 1);
@@ -239,6 +250,7 @@ class RankingCache {
   [[nodiscard]] auto const& Param() const { return param_; }
   [[nodiscard]] std::size_t Groups() const { return group_ptr_.Size() - 1; }
   [[nodiscard]] double WeightNorm() const { return weight_norm_; }
+  [[nodiscard]] HostDeviceVector<float> const& ExpandedWeights() const { return expanded_weights_; }
 
   // Create a rank list by model prediction
   common::Span<std::size_t const> SortedIdx(Context const* ctx, common::Span<float const> predt) {

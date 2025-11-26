@@ -96,7 +96,7 @@ LambdaGrad(linalg::VectorView<float const> labels, common::Span<float const> pre
            Delta delta,                               // function to calculate delta score
            linalg::VectorView<double const> t_plus,   // input bias ratio
            linalg::VectorView<double const> t_minus,  // input bias ratio
-           double* p_cost) {
+           double* p_cost, double label_diff_normalization) {
   assert(sorted_idx.size() > 0 && "Empty sorted idx for a group.");
   std::size_t idx_high = sorted_idx[rank_high];
   std::size_t idx_low = sorted_idx[rank_low];
@@ -121,7 +121,11 @@ LambdaGrad(linalg::VectorView<float const> labels, common::Span<float const> pre
   double delta_metric = std::abs(delta(y_high, y_low, rank_high, rank_low));
 
   if (norm_by_diff && best_score != worst_score) {
-    delta_metric /= (delta_score + 0.01);
+    if (label_diff_normalization > 0.0) {
+      delta_metric *= std::pow(std::abs(y_high - y_low), label_diff_normalization);
+    } else {
+      delta_metric /= (delta_score + 0.01);
+    }
   }
 
   if (unbiased) {

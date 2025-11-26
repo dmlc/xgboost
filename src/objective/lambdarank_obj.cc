@@ -163,10 +163,13 @@ class LambdaRankObj : public FitIntercept {
   // Calculate lambda gradient for each group on CPU.
   template <bool unbiased, bool norm_by_diff, typename Delta>
   void CalcLambdaForGroup(std::int32_t iter, common::Span<float const> g_predt,
-                          linalg::VectorView<float const> g_label, float w,
+                          linalg::VectorView<float const> g_label,
                           common::Span<std::size_t const> g_rank, bst_group_t g, Delta delta,
                           linalg::VectorView<GradientPair> g_gpair) {
     std::fill_n(g_gpair.Values().data(), g_gpair.Size(), GradientPair{});
+
+    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
+    auto h_weight = common::MakeOptionalWeights(device, p_cache_->ExpandedWeights());
 
     auto ti_plus = ti_plus_.HostView();
     auto tj_minus = tj_minus_.HostView();
@@ -194,7 +197,7 @@ class LambdaRankObj : public FitIntercept {
 
       double cost;
       auto pg = LambdaGrad<unbiased, norm_by_diff>(g_label, g_predt, g_rank, rank_high, rank_low,
-                                                   delta_op, ti_plus, tj_minus, &cost);
+                                                   delta_op, ti_plus, tj_minus, &cost, this->param_.lambdarank_label_diff_normalization);
       auto ng = Repulse(pg);
 
       std::size_t idx_high = g_rank[rank_high];
@@ -244,9 +247,11 @@ class LambdaRankObj : public FitIntercept {
     }
 
     auto w_norm = p_cache_->WeightNorm();
-    std::transform(g_gpair.Values().data(), g_gpair.Values().data() + g_gpair.Size(),
-                   g_gpair.Values().data(),
-                   [&](GradientPair const& gpair) { return gpair * w * w_norm; });
+    auto gptr = p_cache_->DataGroupPtr(ctx_);
+    for (std::size_t i = 0; i < g_gpair.Size(); ++i) {
+      std::size_t orig_idx = gptr[g] + i;
+      g_gpair(i) *= h_weight[orig_idx] * w_norm;
+    }
   }
 
  public:
@@ -329,7 +334,7 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
  public:
   template <bool unbiased, bool exp_gain>
   void CalcLambdaForGroupNDCG(std::int32_t iter, common::Span<float const> g_predt,
-                              linalg::VectorView<float const> g_label, float w,
+                              linalg::VectorView<float const> g_label,
                               common::Span<std::size_t const> g_rank,
                               linalg::VectorView<GradientPair> g_gpair,
                               linalg::VectorView<double const> inv_IDCG,
@@ -369,7 +374,7 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
     auto h_gpair = out_gpair->HostView();
     auto h_predt = predt.ConstHostSpan();
     auto h_label = info.labels.HostView();
-    auto h_weight = common::MakeOptionalWeights(device, info.weights_);
+    auto h_weight = common::MakeOptionalWeights(device, p_cache_->ExpandedWeights());
     auto make_range = [&](bst_group_t g) {
       return linalg::Range(gptr[g], gptr[g + 1]);
     };
@@ -380,7 +385,6 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
 
     common::ParallelFor(n_groups, ctx_->Threads(), common::Sched::Guided(), [&](auto g) {
       std::size_t cnt = gptr[g + 1] - gptr[g];
-      auto w = h_weight[g];
       auto g_predt = h_predt.subspan(gptr[g], cnt);
       auto g_gpair =
           h_gpair.Slice(linalg::Range(static_cast<std::size_t>(gptr[g]), gptr[g] + cnt), 0);
@@ -388,7 +392,7 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
       auto g_rank = rank_idx.subspan(gptr[g], cnt);
 
       auto args =
-          std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g_gpair, inv_IDCG, dct, g);
+          std::make_tuple(this, iter, g_predt, g_label, g_rank, g_gpair, inv_IDCG, dct, g);
 
       if (param_.lambdarank_unbiased) {
         if (param_.ndcg_exp_gain) {
@@ -495,7 +499,7 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
     auto h_predt = predt.ConstHostSpan();
     auto rank_idx = p_cache_->SortedIdx(ctx_, h_predt);
-    auto h_weight = common::MakeOptionalWeights(device, info.weights_);
+    auto h_weight = common::MakeOptionalWeights(device, p_cache_->ExpandedWeights());
 
     auto make_range = [&](bst_group_t g) {
       return linalg::Range(gptr[g], gptr[g + 1]);
@@ -522,13 +526,12 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
 
     common::ParallelFor(n_groups, ctx_->Threads(), [&](auto g) {
       auto cnt = gptr[g + 1] - gptr[g];
-      auto w = h_weight[g];
       auto g_predt = h_predt.subspan(gptr[g], cnt);
       auto g_gpair = h_gpair.Slice(linalg::Range(gptr[g], gptr[g] + cnt), 0);
       auto g_label = h_label.Slice(make_range(g));
       auto g_rank = rank_idx.subspan(gptr[g], cnt);
 
-      auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta_map, g_gpair);
+      auto args = std::make_tuple(this, iter, g_predt, g_label, g_rank, g, delta_map, g_gpair);
 
       if (param_.lambdarank_unbiased) {
         if (this->param_.lambdarank_score_normalization) {
@@ -592,7 +595,7 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
     auto h_gpair = out_gpair->HostView();
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
     auto h_predt = predt.ConstHostSpan();
-    auto h_weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
+    auto h_weight = common::MakeOptionalWeights(ctx_->Device(), p_cache_->ExpandedWeights());
 
     auto make_range = [&](bst_group_t g) {
       return linalg::Range(gptr[g], gptr[g + 1]);
@@ -606,13 +609,12 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
 
     common::ParallelFor(n_groups, ctx_->Threads(), [&](auto g) {
       auto cnt = gptr[g + 1] - gptr[g];
-      auto w = h_weight[g];
       auto g_predt = h_predt.subspan(gptr[g], cnt);
       auto g_gpair = h_gpair.Slice(linalg::Range(gptr[g], gptr[g] + cnt), 0);
       auto g_label = h_label.Slice(make_range(g));
       auto g_rank = rank_idx.subspan(gptr[g], cnt);
 
-      auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta, g_gpair);
+      auto args = std::make_tuple(this, iter, g_predt, g_label, g_rank, g, delta, g_gpair);
       if (param_.lambdarank_unbiased) {
         if (this->param_.lambdarank_score_normalization) {
           std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, true, D>, args);

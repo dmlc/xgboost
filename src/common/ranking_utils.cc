@@ -37,11 +37,35 @@ void RankingCache::InitOnCPU(Context const* ctx, MetaInfo const& info) {
   double sum_weights = 0;
   auto n_groups = Groups();
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
-  auto weight = common::MakeOptionalWeights(device, info.weights_);
-  for (bst_omp_uint k = 0; k < n_groups; ++k) {
-    sum_weights += weight[k];
+  if (!info.weights_.Empty()) {
+    if (info.weights_.Size() == n_groups) {
+      // expand per-group to per-instance
+      expanded_weights_.SetDevice(device);
+      expanded_weights_.Resize(info.num_row_);
+      auto h_expanded = expanded_weights_.HostVector();
+      auto h_weights = info.weights_.HostVector();
+      auto const& gptr = group_ptr_.ConstHostVector();
+      for (bst_group_t g = 0; g < n_groups; ++g) {
+        float w = h_weights[g];
+        for (std::size_t i = gptr[g]; i < gptr[g + 1]; ++i) {
+          h_expanded[i] = w;
+        }
+      }
+      for (auto w : h_expanded) {
+        sum_weights += w;
+      }
+    } else {
+      // per-instance
+      expanded_weights_ = info.weights_;
+      auto h_weights = expanded_weights_.HostVector();
+      for (auto w : h_weights) {
+        sum_weights += w;
+      }
+    }
+  } else {
+    sum_weights = info.num_row_;  // default 1 per instance
   }
-  weight_norm_ = static_cast<double>(n_groups) / sum_weights;
+  weight_norm_ = static_cast<double>(info.num_row_) / sum_weights;
 }
 
 common::Span<std::size_t const> RankingCache::MakeRankOnCPU(Context const* ctx,
