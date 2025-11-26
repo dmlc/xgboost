@@ -14,6 +14,7 @@ from .core import (
     _py_version,
     build_info,
 )
+from .data import read_csv
 from .tracker import RabitTracker  # noqa
 from .training import cv, train
 
@@ -44,6 +45,7 @@ __all__ = [
     "DataIter",
     "train",
     "cv",
+    "read_csv",
     # utilities
     "RabitTracker",
     "build_info",

@@ -1740,3 +1740,72 @@ def dispatch_proxy_set_data(
 
     err = TypeError("Value type is not supported for data iterator:" + str(type(data)))
     raise err
+
+
+def read_csv(
+    path: PathLike,
+    *,
+    auto_disambiguate_columns: bool = False,
+    **kwargs: Any,
+) -> DMatrix:
+    """Read a CSV file and return a DMatrix.
+
+    This function reads a CSV file using pandas (if available) or falls back to
+    the internal parser. When `auto_disambiguate_columns` is True, duplicate
+    column names are automatically made unique by appending a suffix.
+
+    Parameters
+    ----------
+    path : str or os.PathLike
+        Path to the CSV file.
+    auto_disambiguate_columns : bool, default False
+        If True, automatically rename duplicate column names to make them unique.
+        For example, ['name', 'name', 'score'] becomes ['name', 'name_1', 'score'].
+    **kwargs
+        Additional keyword arguments passed to pandas.read_csv() if pandas is available,
+        or ignored otherwise.
+
+    Returns
+    -------
+    DMatrix
+        A DMatrix object containing the data from the CSV file.
+
+    Raises
+    ------
+    ImportError
+        If pandas is not available and auto_disambiguate_columns is True.
+
+    Examples
+    --------
+    >>> import xgboost as xgb
+    >>> dmat = xgb.read_csv('data.csv', auto_disambiguate_columns=True)
+    """
+    pd = import_pandas()
+    if pd is None:
+        if auto_disambiguate_columns:
+            raise ImportError(
+                "pandas is required for auto_disambiguate_columns=True. "
+                "Install pandas or set auto_disambiguate_columns=False."
+            )
+        # Fall back to using file path directly
+        return DMatrix(path)
+
+    df = pd.read_csv(path, **kwargs)
+
+    if auto_disambiguate_columns:
+        seen = set()
+        new_names = []
+        for name in df.columns:
+            original_name = str(name)
+            if original_name in seen:
+                i = 1
+                while f"{original_name}_{i}" in seen:
+                    i += 1
+                new_name = f"{original_name}_{i}"
+            else:
+                new_name = original_name
+            seen.add(new_name)
+            new_names.append(new_name)
+        df.columns = new_names
+
+    return DMatrix(df)
