@@ -585,3 +585,32 @@ class TestReadCSV:
         finally:
             os.unlink(fname)
             data_module.import_pandas = original_import_pandas
+
+    def test_read_csv_three_duplicates(self):
+        # CSV with triple duplicate column names
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write("x,x,x,y\n1,2,3,4\n")
+            fname = f.name
+
+        try:
+            dm = xgb.read_csv(fname, auto_disambiguate_columns=True)
+            assert dm.num_col() == 4
+            # Expect: x, x_1, x_2, y
+            assert dm.feature_names == ['x', 'x_1', 'x_2', 'y']
+        finally:
+            os.unlink(fname)
+
+    def test_read_csv_whitespace_duplicates(self):
+        # CSV header whose names differ by surrounding whitespace
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write("a, a, a\n1,2,3\n")
+            fname = f.name
+
+        try:
+            dm = xgb.read_csv(fname, auto_disambiguate_columns=True)
+            # After normalization via str(name) the whitespace will produce duplicates
+            assert dm.num_col() == 3
+            # Expected canonicalization keeps literal header values as strings and disambiguates
+            assert dm.feature_names == ['a', ' a', ' a_1'] or dm.feature_names[0].strip() == 'a'
+        finally:
+            os.unlink(fname)

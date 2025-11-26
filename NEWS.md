@@ -5,6 +5,12 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## Unreleased
+
+- Add `xgboost.read_csv(..., auto_disambiguate_columns=True)` to auto-disambiguate
+  duplicate CSV header names. (PR: CodersAcademy006/fix/11836-read-csv, Issue: #11836)
+
+
 ## 2.0.0 (2023 Aug 16)
 
 We are excited to announce the release of XGBoost 2.0. This note will begin by covering some overall changes and then highlight specific updates to the package.
