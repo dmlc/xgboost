@@ -52,6 +52,7 @@ Optional dask configuration
       dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"})
 
 """
+
 import logging
 from collections import defaultdict
 from contextlib import contextmanager

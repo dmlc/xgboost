@@ -1,10 +1,9 @@
-import sys
 import unittest
 import pytest
 
 import numpy as np
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note
+from hypothesis import given, strategies, assume, settings
 
 from xgboost import testing as tm
 

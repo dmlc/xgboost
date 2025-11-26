@@ -1,5 +1,6 @@
 # pylint: disable=too-many-locals
 """Tests for learning to rank."""
+
 from types import ModuleType
 from typing import Any
 

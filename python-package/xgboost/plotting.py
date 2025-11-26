@@ -1,6 +1,7 @@
 # pylint: disable=too-many-locals, too-many-arguments
 # pylint: disable=too-many-branches
 """Plotting Library."""
+
 import json
 import warnings
 from io import BytesIO

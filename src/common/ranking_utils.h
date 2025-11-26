@@ -85,8 +85,7 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
   bool ndcg_exp_gain{true};
   // label diff normalization
   double lambdarank_label_diff_normalization{0.0};
-  // label diff normalization
-  double lambdarank_label_diff_normalization{0.0};
+  // (single declaration)
 
   bool operator==(LambdaRankParam const& that) const {
     return lambdarank_pair_method == that.lambdarank_pair_method &&
@@ -216,8 +215,8 @@ class RankingCache {
  public:
   RankingCache(Context const* ctx, MetaInfo const& info, LambdaRankParam const& p) : param_{p} {
     CHECK(param_.GetInitialised());
-    if (!info.weights_.empty()) {
-      CHECK_EQ(info.weights_.back(), info.labels.Size())
+    if (!info.weights_.Empty()) {
+      CHECK_EQ(info.weights_.HostVector().back(), info.labels.Size())
           << error::GroupSize() << "the size of label.";
     }
     if (ctx->IsCUDA()) {

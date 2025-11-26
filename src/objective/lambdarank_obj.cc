@@ -346,10 +346,10 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
     };
 
     if (this->param_.lambdarank_score_normalization) {
-      this->CalcLambdaForGroup<unbiased, true>(iter, g_predt, g_label, w, g_rank, g, delta,
+      this->CalcLambdaForGroup<unbiased, true>(iter, g_predt, g_label, g_rank, g, delta,
                                                g_gpair);
     } else {
-      this->CalcLambdaForGroup<unbiased, false>(iter, g_predt, g_label, w, g_rank, g, delta,
+      this->CalcLambdaForGroup<unbiased, false>(iter, g_predt, g_label, g_rank, g, delta,
                                                 g_gpair);
     }
   }

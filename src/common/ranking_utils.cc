@@ -55,8 +55,10 @@ void RankingCache::InitOnCPU(Context const* ctx, MetaInfo const& info) {
         sum_weights += w;
       }
     } else {
-      // per-instance
-      expanded_weights_ = info.weights_;
+      // per-instance: copy weights into expanded_weights_
+      expanded_weights_.SetDevice(device);
+      expanded_weights_.Resize(info.weights_.Size());
+      expanded_weights_.Copy(info.weights_);
       auto h_weights = expanded_weights_.HostVector();
       for (auto w : h_weights) {
         sum_weights += w;

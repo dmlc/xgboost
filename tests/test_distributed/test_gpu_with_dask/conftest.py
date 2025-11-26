@@ -18,7 +18,6 @@ def local_cuda_client(request: Any, pytestconfig: pytest.Config) -> Generator:
     if pytestconfig.getoption("--use-rmm-pool"):
         if tm.no_rmm()["condition"]:
             raise ImportError("The --use-rmm-pool option requires the RMM package")
-        import rmm
 
         kwargs["rmm_pool_size"] = "2GB"
     if tm.no_dask_cuda()["condition"]:

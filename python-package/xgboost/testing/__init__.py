@@ -69,9 +69,10 @@ def has_ipv6() -> bool:
 
     if socket.has_ipv6:
         try:
-            with socket.socket(
-                socket.AF_INET6, socket.SOCK_STREAM
-            ) as server, socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as client:
+            with (
+                socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as server,
+                socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as client,
+            ):
                 server.bind(("::1", 0))
                 port = server.getsockname()[1]
                 server.listen()

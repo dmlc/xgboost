@@ -526,7 +526,7 @@ class TestDMatrixColumnSplit:
 class TestReadCSV:
     def test_read_csv_basic(self):
         # Create a temporary CSV file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             f.write("a,b,c\n1,2,3\n4,5,6\n")
             fname = f.name
 
@@ -534,13 +534,13 @@ class TestReadCSV:
             dm = xgb.read_csv(fname)
             assert dm.num_row() == 2
             assert dm.num_col() == 3
-            assert dm.feature_names == ['a', 'b', 'c']
+            assert dm.feature_names == ["a", "b", "c"]
         finally:
             os.unlink(fname)
 
     def test_read_csv_auto_disambiguate(self):
         # Create a CSV with duplicate column names
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             f.write("name,name,score\n1,2,3\n4,5,6\n")
             fname = f.name
 
@@ -548,17 +548,18 @@ class TestReadCSV:
             dm = xgb.read_csv(fname, auto_disambiguate_columns=True)
             assert dm.num_row() == 2
             assert dm.num_col() == 3
-            assert dm.feature_names == ['name', 'name_1', 'score']
+            assert dm.feature_names == ["name", "name_1", "score"]
         finally:
             os.unlink(fname)
 
     def test_read_csv_no_pandas_fallback(self):
         # Test fallback when pandas is not available (simulate by monkey patching)
         import xgboost.data as data_module
+
         original_import_pandas = data_module.import_pandas
         data_module.import_pandas = lambda: None
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             f.write("a,b,c\n1,2,3\n")
             fname = f.name
 
@@ -572,10 +573,11 @@ class TestReadCSV:
 
     def test_read_csv_auto_disambiguate_no_pandas_error(self):
         import xgboost.data as data_module
+
         original_import_pandas = data_module.import_pandas
         data_module.import_pandas = lambda: None
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             f.write("a,a,b\n1,2,3\n")
             fname = f.name
 
@@ -588,7 +590,7 @@ class TestReadCSV:
 
     def test_read_csv_three_duplicates(self):
         # CSV with triple duplicate column names
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             f.write("x,x,x,y\n1,2,3,4\n")
             fname = f.name
 
@@ -596,13 +598,13 @@ class TestReadCSV:
             dm = xgb.read_csv(fname, auto_disambiguate_columns=True)
             assert dm.num_col() == 4
             # Expect: x, x_1, x_2, y
-            assert dm.feature_names == ['x', 'x_1', 'x_2', 'y']
+            assert dm.feature_names == ["x", "x_1", "x_2", "y"]
         finally:
             os.unlink(fname)
 
     def test_read_csv_whitespace_duplicates(self):
         # CSV header whose names differ by surrounding whitespace
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             f.write("a, a, a\n1,2,3\n")
             fname = f.name
 
@@ -611,6 +613,6 @@ class TestReadCSV:
             # After normalization via str(name) the whitespace will produce duplicates
             assert dm.num_col() == 3
             # Expected canonicalization keeps literal header values as strings and disambiguates
-            assert dm.feature_names == ['a', ' a', ' a_1'] or dm.feature_names[0].strip() == 'a'
+            assert dm.feature_names == ["a", " a", " a_1"]
         finally:
             os.unlink(fname)

@@ -1787,25 +1787,67 @@ def read_csv(
                 "pandas is required for auto_disambiguate_columns=True. "
                 "Install pandas or set auto_disambiguate_columns=False."
             )
-        # Fall back to using file path directly
-        return DMatrix(path)
+        # Fall back to a lightweight CSV reader that skips the header so the
+        # returned DMatrix has the expected number of data rows.
+        import csv
 
+        rows = []
+        with open(path, newline="") as csvfile:
+            reader = csv.reader(csvfile)
+            # Skip header
+            try:
+                next(reader)
+            except StopIteration:
+                # empty file
+                return DMatrix(np.empty((0, 0)))
+            for line in reader:
+                if not line:
+                    continue
+                # Convert values to float when possible
+                vals = []
+                for v in line:
+                    try:
+                        vals.append(float(v))
+                    except ValueError:
+                        # Non-numeric values are treated as NaN
+                        vals.append(float("nan"))
+                rows.append(vals)
+        if not rows:
+            return DMatrix(np.empty((0, 0)))
+        arr = np.array(rows, dtype=np.float32)
+        return DMatrix(arr)
+
+    # Read with pandas normally, then post-process column names if requested.
     df = pd.read_csv(path, **kwargs)
 
     if auto_disambiguate_columns:
-        seen = set()
-        new_names = []
+        import re
+
+        seen: set[str] = set()
+        new_names: list[str] = []
+
         for name in df.columns:
             original_name = str(name)
-            if original_name in seen:
-                i = 1
-                while f"{original_name}_{i}" in seen:
-                    i += 1
-                new_name = f"{original_name}_{i}"
+
+            # If pandas applied its own mangling like 'name.1', map it back to
+            # the base name 'name' so we can apply consistent `_1` suffixes.
+            m = re.match(r"^(.*)\.(\d+)$", original_name)
+            if m:
+                candidate = m.group(1)
             else:
-                new_name = original_name
+                candidate = original_name
+
+            if candidate in seen:
+                i = 1
+                while f"{candidate}_{i}" in seen:
+                    i += 1
+                new_name = f"{candidate}_{i}"
+            else:
+                new_name = candidate
+
             seen.add(new_name)
             new_names.append(new_name)
+
         df.columns = new_names
 
     return DMatrix(df)

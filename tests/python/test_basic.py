@@ -131,9 +131,10 @@ class TestBasic:
         # number of feature importances should == number of features
         dump1 = bst.get_dump()
         assert len(dump1) == 1, "Expected only 1 tree to be dumped."
-        len(
-            dump1[0].splitlines()
-        ) == 3, "Expected 1 root and 2 leaves - 3 lines in dump."
+        (
+            len(dump1[0].splitlines()) == 3,
+            "Expected 1 root and 2 leaves - 3 lines in dump.",
+        )
 
         dump2 = bst.get_dump(with_stats=True)
         assert (
