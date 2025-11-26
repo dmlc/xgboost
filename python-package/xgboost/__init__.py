@@ -15,6 +15,7 @@ from .core import (
     build_info,
 )
 from .data import read_csv
+# exported public helper to read CSV files into a DMatrix
 from .tracker import RabitTracker  # noqa
 from .training import cv, train
 
