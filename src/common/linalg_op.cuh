@@ -10,6 +10,7 @@
 
 #include <cstdint>            // for int32_t
 #include <cstdlib>            // for size_t
+#include <cuda/functional>    // for proclaim_copyable_arguments
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/tuple>     // for get
 #include <tuple>              // for apply
