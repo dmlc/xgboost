@@ -10,9 +10,9 @@
 #include "../../common/deterministic.cuh"
 #include "../../common/device_helpers.cuh"
 #include "../../common/linalg_op.cuh"  // for tbegin
+#include "../../common/nvtx_utils.h"   // for xgboost_NVTX_FN_RANGE
 #include "../../data/ellpack_page.cuh"
 #include "histogram.cuh"
-#include "../../common/nvtx_utils.h"
 #include "row_partitioner.cuh"
 #include "xgboost/base.h"
 
