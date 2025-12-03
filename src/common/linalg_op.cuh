@@ -76,8 +76,9 @@ void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   auto s = ctx->CUDACtx()->Stream();
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
-    thrust::transform(ctx->CUDACtx()->CTP(), ptr, ptr + t.Size(), ptr,
-                      [=] XGBOOST_DEVICE(T const& v) { return fn(v); });
+    thrust::transform(
+        ctx->CUDACtx()->CTP(), ptr, ptr + t.Size(), ptr,
+        cuda::proclaim_copyable_arguments([=] XGBOOST_DEVICE(T const& v) { return fn(v); }));
   } else {
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable {
       T& v = std::apply(t, UnravelIndex(i, t.Shape()));
