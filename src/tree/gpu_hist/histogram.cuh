@@ -170,6 +170,7 @@ class DeviceHistogramBuilder {
                       linalg::MatrixView<GradientPair const> gpair,
                       common::Span<common::Span<const std::uint32_t>> ridxs,
                       common::Span<common::Span<GradientPairInt64>> hists,
+                      std::size_t max_node_size,
                       common::Span<GradientQuantiser const> roundings);
 
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }

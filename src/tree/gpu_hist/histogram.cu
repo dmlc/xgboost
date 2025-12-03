@@ -574,6 +574,7 @@ class DeviceHistogramDispatchAccessor {
                       linalg::MatrixView<GradientPair const> gpair,
                       common::Span<common::Span<const cuda_impl::RowIndexT>> d_ridx,
                       common::Span<common::Span<GradientPairInt64>> hists,
+                      std::size_t max_node_size,
                       common::Span<GradientQuantiser const> roundings) const {
     CHECK(kernel_);
     // Otherwise launch blocks such that each block has a minimum amount of work to do
@@ -581,7 +582,7 @@ class DeviceHistogramDispatchAccessor {
     // The below amount of minimum work was found by experimentation
     int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
     // Average number of matrix elements processed by each group
-    std::size_t items_per_group = d_ridx.size() * columns_per_group;
+    std::size_t items_per_group = max_node_size * columns_per_group;
 
     // Allocate number of blocks such that each block has about kMinItemsPerBlock work
     // Up to a maximum where the device is saturated
@@ -690,6 +691,7 @@ void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAcces
                                             linalg::MatrixView<GradientPair const> gpair,
                                             common::Span<common::Span<const std::uint32_t>> ridxs,
                                             common::Span<common::Span<GradientPairInt64>> hists,
+                                            std::size_t max_node_size,
                                             common::Span<GradientQuantiser const> roundings) {
   xgboost_NVTX_FN_RANGE();
   CHECK_EQ(ridxs.size(), hists.size())
@@ -698,7 +700,8 @@ void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAcces
   // Build histogram for each node
   std::visit(
       [&](auto&& matrix) {
-        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridxs, hists, roundings);
+        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridxs, hists,
+                                      max_node_size, roundings);
       },
       matrix);
 }
