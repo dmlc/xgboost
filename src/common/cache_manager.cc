@@ -3,9 +3,7 @@
  */
 #include "cache_manager.h"
 
-#include <cstdint>     // for uint64_t
-
-#include "xgboost/logging.h"
+#include <cstdint>  // for uint64_t
 
 #if defined(__x86_64__)
 
@@ -67,12 +65,12 @@ void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
 }
 
 constexpr int kCpuidTypeNull = 0;
-constexpr int kCpuidTypeData = 1;
+constexpr int kCpuidTypeData = 1;  // NOLINT
 constexpr int kCpuidTypeInst = 2;
-constexpr int kCpuidTypeUnif = 3;
+constexpr int kCpuidTypeUnif = 3;  // NOLINT
 
 // Interpret the raw CPUID results and extract actual (or unified) cache parameters.
-template <size_t kMaxCacheSize>
+template <std::int32_t kMaxCacheSize>
 void DetectDataCaches(int64_t* cache_sizes) {
   int cache_num = 0, cache_sizes_idx = 0;
   while (cache_sizes_idx < kMaxCacheSize) {
@@ -83,7 +81,7 @@ void DetectDataCaches(int64_t* cache_sizes) {
     if (type == kCpuidTypeNull) break;  // no more caches to read.
     if (type == kCpuidTypeInst) continue;
 
-    size                           = ways * partitions * line_size * sets;
+    size = ways * partitions * line_size * sets;
     cache_sizes[cache_sizes_idx++] = size;
   }
 }
@@ -105,6 +103,4 @@ CacheManager::CacheManager() {
   SetDefaultCaches();
 #endif  // defined(__x86_64__)
 }
-
 }  // namespace xgboost::common
-

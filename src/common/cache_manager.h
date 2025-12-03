@@ -47,7 +47,5 @@ class CacheManager {
     return cache_size_[2] != kUninitCache ? cache_size_[2] : kDefaultL3Size;
   }
 };
-
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_CACHE_MANAGER_H_
-
