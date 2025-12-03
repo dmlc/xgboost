@@ -313,12 +313,16 @@ template <typename Accessor, bool kCompressed, bool kDense, bool use_shared_memo
           std::int32_t kBlockThreads, std::int32_t kItemsPerThread>
 __global__ __launch_bounds__(kBlockThreads) void MultiHistKernel(
     Accessor const matrix, const FeatureGroupsAccessor feature_groups,
-    common::Span<const RowPartitioner::RowIndexT> d_ridx, GradientPairInt64* d_node_hist,
-    linalg::MatrixView<const GradientPair> d_gpair,
+    common::Span<common::Span<const RowPartitioner::RowIndexT>> d_ridxs,
+    common::Span<GradientPairInt64>* node_hists, linalg::MatrixView<const GradientPair> d_gpair,
     common::Span<GradientQuantiser const> roundings) {
   const FeatureGroup group = feature_groups[blockIdx.y];
   std::int32_t feature_stride = kCompressed ? group.num_features : matrix.row_stride;
-  bst_idx_t n_elements = feature_stride * d_ridx.size();
+  auto nidx_in_set = blockIdx.z;
+  bst_idx_t n_elements = feature_stride * d_ridxs[nidx_in_set].size();
+  auto d_ridx = d_ridxs[nidx_in_set];
+  auto d_node_hist = node_hists[nidx_in_set].data();
+
   using Idx = RowPartitioner::RowIndexT;
   for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), n_elements)) {
     Idx ridx = d_ridx[idx / feature_stride];
@@ -568,8 +572,8 @@ class DeviceHistogramDispatchAccessor {
   void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       linalg::MatrixView<GradientPair const> gpair,
-                      common::Span<const cuda_impl::RowIndexT> d_ridx,
-                      common::Span<GradientPairInt64> histogram,
+                      common::Span<common::Span<const cuda_impl::RowIndexT>> d_ridx,
+                      common::Span<common::Span<GradientPairInt64>> hists,
                       common::Span<GradientQuantiser const> roundings) const {
     CHECK(kernel_);
     // Otherwise launch blocks such that each block has a minimum amount of work to do
@@ -587,9 +591,9 @@ class DeviceHistogramDispatchAccessor {
       CHECK_NE(grid_size, 0);
       grid_size = std::min(grid_size, static_cast<std::uint32_t>(
                                           common::DivRoundUp(items_per_group, kMinItemsPerBlock)));
-      dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups()),  // NOLINT
+      dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups(), d_ridx.size()),  // NOLINT
                        static_cast<uint32_t>(kBlockThreads), kernel_->smem_size, ctx->Stream()}(
-          kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair, roundings);
+          kernel, matrix, feature_groups, d_ridx, hists.data(), gpair, roundings);
     };
 
     using K = HistogramKernel<EllpackDeviceAccessor>::KernelType;
@@ -684,14 +688,17 @@ void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAcces
 void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
                                             FeatureGroupsAccessor const& feature_groups,
                                             linalg::MatrixView<GradientPair const> gpair,
-                                            common::Span<const std::uint32_t> ridx,
-                                            common::Span<GradientPairInt64> histogram,
+                                            common::Span<common::Span<const std::uint32_t>> ridxs,
+                                            common::Span<common::Span<GradientPairInt64>> hists,
                                             common::Span<GradientQuantiser const> roundings) {
   xgboost_NVTX_FN_RANGE();
+  CHECK_EQ(ridxs.size(), hists.size())
+      << "Number of row index spans must match number of histograms";
+
+  // Build histogram for each node
   std::visit(
       [&](auto&& matrix) {
-        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram,
-                                      roundings);
+        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridxs, hists, roundings);
       },
       matrix);
 }

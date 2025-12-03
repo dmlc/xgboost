@@ -8,6 +8,7 @@
 #include <tuple>   // for tuple
 #include <vector>  // for vector
 
+#include "../../../../src/tree/gpu_hist/expand_entry.cuh"  // for GPUExpandEntry
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for RowPartitioner
 #include "../../../../src/tree/hist/hist_param.h"             // for HistMakerTrainParam
