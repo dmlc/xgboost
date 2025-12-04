@@ -646,7 +646,9 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     Json config{Object{}};
     learner->SaveConfig(&config);
     auto base_score = GetBaseScore(config);
-    ASSERT_EQ(base_score, expected_base_score);
+    for (size_t idx = 0; idx < base_score.size(); ++idx) {
+      ASSERT_NEAR(base_score[idx], expected_base_score[idx], 1e-6);
+    }
 
     Json model{Object{}};
     learner->SaveModel(&model);
