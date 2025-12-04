@@ -14,6 +14,7 @@
 #include "../common/linalg_op.h"
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // for MakeOptionalWeights
+#include "../common/stats.h"            // for Mean
 #include "../common/transform.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
@@ -197,7 +198,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     *base_score = linalg::Zeros<float>(this->ctx_, n_classes);
 
     std::size_t n = info.labels.Size();
-
+    // Calculate probability
     auto labels = info.labels.View(ctx_->Device());
     auto weights = common::MakeOptionalWeights(this->ctx_->Device(), info.weights_);
     auto intercept = base_score->View(ctx_->Device());
@@ -209,6 +210,15 @@ class SoftmaxMultiClassObj : public ObjFunction {
     collective::SafeColl(status);
     CHECK_GE(sum_weight, kRtEps);
     linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
+    CHECK_EQ(base_score->Size(), n_classes);
+
+    // Transform it back to margin
+    // ln(v) - E[ln(v)]
+    linalg::Vector<float> mean;
+    linalg::LogE(this->ctx_, intercept, kRtEps);
+    common::Mean(this->ctx_, intercept, &mean);
+    auto d_mean = mean.View(this->ctx_->Device());
+    TransformKernel(this->ctx_, intercept, [=] XGBOOST_DEVICE(float v) { return v - d_mean(0); });
   }
 
  private:
