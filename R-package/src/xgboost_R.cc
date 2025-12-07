@@ -685,8 +685,8 @@ XGB_DLL SEXP XGProxyDMatrixCreate_R() {
   CHECK_CALL(XGProxyDMatrixCreate(&proxy_dmat_handle));
   R_SetExternalPtrAddr(out, proxy_dmat_handle);
   R_RegisterCFinalizerEx(out, _DMatrixFinalizer, TRUE);
-  Rf_unprotect(1);
   R_API_END();
+  Rf_unprotect(1);
   return out;
 }
 
@@ -829,8 +829,8 @@ SEXP XGDMatrixCreateFromCallbackGeneric_R(
 
   R_SetExternalPtrAddr(out, out_dmat);
   R_RegisterCFinalizerEx(out, _DMatrixFinalizer, TRUE);
-  Rf_unprotect(2);
   R_API_END();
+  Rf_unprotect(2);
   return out;
 }
 
