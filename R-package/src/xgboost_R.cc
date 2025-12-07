@@ -283,23 +283,11 @@ void AddMissingToJson(xgboost::Json *jconfig, SEXP missing, SEXPTYPE arr_type) {
 }
 }  // namespace
 
-struct RRNGStateController {
-  RRNGStateController() {
-    GetRNGstate();
-  }
-
-  ~RRNGStateController() {
-    PutRNGstate();
-  }
-};
-
 /*!
  * \brief macro to annotate begin of api
  */
 #define R_API_BEGIN()                           \
   try {                                         \
-    RRNGStateController rng_controller{};
-
 /* Note: an R error triggers a long jump, hence all C++ objects that
 allocated memory through non-R allocators, including the exception
 object, need to be destructed before triggering the R error.
