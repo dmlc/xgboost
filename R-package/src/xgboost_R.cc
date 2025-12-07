@@ -288,7 +288,6 @@ void AddMissingToJson(xgboost::Json *jconfig, SEXP missing, SEXPTYPE arr_type) {
  */
 #define R_API_BEGIN()                           \
   try {                                         \
-
 /* Note: an R error triggers a long jump, hence all C++ objects that
 allocated memory through non-R allocators, including the exception
 object, need to be destructed before triggering the R error.
