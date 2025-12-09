@@ -629,12 +629,13 @@ void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAcces
   this->monitor_.Stop(__func__);
 }
 
-template <std::int32_t kBlockThreadsIn, std::int32_t kItemsPerThreadIn, bool kCompressedIn,
-          bool kSharedMemIn>
+template <std::int32_t kBlockThreadsIn, std::int32_t kItemsPerThreadIn, bool kDenseIn,
+          bool kCompressedIn, bool kSharedMemIn>
 struct HistPolicy {
   static constexpr std::int32_t kBlockThreads = kBlockThreadsIn;
   static constexpr std::int32_t kItemsPerThread = kItemsPerThreadIn;
   static constexpr std::int32_t kTileSize = kBlockThreadsIn * kItemsPerThreadIn;
+  static constexpr bool kDense = kDenseIn;
   static constexpr bool kCompressed = kCompressedIn;
   static constexpr bool kSharedMem = kSharedMemIn;
 };
@@ -686,7 +687,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
     Idx ridx = p_ridx[ridx_in_node];
     auto fidx = FeatIdx(group, idx, ridx_in_node, feature_stride);
     bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
-    if (compressed_bin != matrix.NullValue()) {
+    if (Policy::kDense || compressed_bin != matrix.NullValue()) {
       if (Policy::kCompressed) {
         compressed_bin += matrix.feature_segments[fidx];
       }
@@ -798,7 +799,8 @@ void DeviceHistogramBuilder::BuildHistogram(
   std::visit(
       [&](auto&& acc) {
         using AccessorT = common::GetValueT<decltype(acc)>;
-        using Policy = HistPolicy<kBlockThreads, kItemsPerThread, true, true>;  // fixme, shmem
+        // fixme, shmem, dense, compress
+        using Policy = HistPolicy<kBlockThreads, kItemsPerThread, true, true, true>;
 
         if (false && ridxs.size() == 1 && n_max_samples == acc.n_rows) {
           using RidxIter = thrust::counting_iterator<cuda_impl::RowIndexT>;
