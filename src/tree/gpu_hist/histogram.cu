@@ -693,7 +693,9 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
       }
       // start_bin is 0 if this is a gmem kernel
       compressed_bin = (compressed_bin - group.start_bin) * n_targets;
-      // TODO(jiamingy): Assign a thread for each target.
+      // TODO(jiamingy): Assign a thread for each target. When there are multiple targets,
+      // this can cause significant stall. Get rid of the F-order and enable vector load
+      // if possible.
       for (bst_target_t t = 0; t < n_targets; ++t) {
         auto adjusted = d_roundings[t].ToFixedPoint(d_gpair(ridx, t));
         atomic_add(compressed_bin + t, adjusted);
