@@ -206,7 +206,7 @@ class HistogramAgent {
                      n = std::min(offset + kBlockThreads * kItemsPerTile, n_elements_);
          idx < n; idx += kBlockThreads) {
       Idx ridx = d_ridx_[idx / feature_stride_];
-      auto fidx = FeatIdx(group_, idx, ridx, feature_stride_);
+      auto fidx = FeatIdx(group_, idx, feature_stride_);
       bst_bin_t compressed_bin = matrix_.gidx_iter[IterIdx(matrix_, ridx, fidx)];
       if (kDense || compressed_bin != matrix_.NullValue()) {
         // The matrix is compressed with feature-local bins.
