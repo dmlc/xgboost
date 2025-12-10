@@ -44,7 +44,7 @@ XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
   // entry_idx = ridx_local * row_stride
   // # Inside a row, first column inside this feature group
   // entry_idx += start_feature
-  // # The feaature index local to the current feature group
+  // # The feature index local to the current feature group
   // idx - ridx * feature_stride == idx % feature_stride
   // # Final index
   // entry_idx += idx % feature_stride
@@ -544,6 +544,7 @@ struct MtHistKernel {
   static auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum,
                              std::int32_t columns_per_group, std::size_t max_blocks_per_node,
                              std::uint32_t* p_out_blocks) {
+    CHECK_GT(max_blocks_per_node, 0);
     std::vector<std::uint32_t> blk_ptr{0};
     std::uint32_t n_total_blocks = 0;
     for (std::size_t j = 1; j < sizes_csum.size(); ++j) {
@@ -557,6 +558,7 @@ struct MtHistKernel {
       n_total_blocks += n_blocks;
     }
     *p_out_blocks = blk_ptr.back();
+    std::cout << "n_total_blocks:" << n_total_blocks << std::endl;
     return dh::device_vector<std::uint32_t>{blk_ptr};
   }
 
@@ -594,6 +596,7 @@ struct MtHistKernel {
       using Policy = common::GetValueT<decltype(policy)>;
       int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
       auto v = this->cfg.at(reinterpret_cast<void*>(kernel));
+      CHECK_GT(v.n_blocks_per_mp, 0);
       std::uint32_t n_blocks = 0;
       auto blk_ptr = AllocateBlocks<Policy>(h_sizes_csum, columns_per_group,
                                             v.n_blocks_per_mp * n_mps, &n_blocks);
@@ -612,15 +615,18 @@ struct MtHistKernel {
       auto it = cfg.find(reinterpret_cast<void*>(kernel));
       if (it == cfg.cend()) {
         MtHistKernelConfig v;
-        dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-            &v.n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
         // This function is the reason for all these trouble to cache the
         // configuration. It blocks the device.
+        //
+        // Also, it must precede the `cudaOccupancyMaxActiveBlocksPerMultiprocessor`,
+        // otherwise the shmem bytes might be invalid.
         if (shmem_bytes > v.shmem_bytes) {
           dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
                                              shmem_bytes));
           v.shmem_bytes = shmem_bytes;
         }
+        dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+            &v.n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
         this->cfg[reinterpret_cast<void*>(kernel)] = v;
       }
       launch(Policy{}, kernel);
