@@ -78,7 +78,7 @@ jobs:
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: |
-          bash ops/pipeline/build-cuda.sh xgb-ci.gpu_build_rockylinux8 enable-rmm
+          bash ops/pipeline/build-cuda.sh xgb-ci.gpu_build_rockylinux8 x86_64 enable-rmm
       - name: Stash files
         run: |
           python3 ops/pipeline/manage-artifacts.py upload \
