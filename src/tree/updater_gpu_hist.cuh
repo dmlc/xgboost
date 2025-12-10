@@ -129,7 +129,7 @@ class MultiTargetHistMaker {
     std::vector<common::Span<GradientPairInt64>> h_hists;
     // fixme: don't use span now that we have a scan operator.
     std::vector<common::Span<RowIndexT const>> h_ridxs;
-    std::vector<std::size_t> h_sizes{0};
+    std::vector<std::size_t> h_sizes_csum{0};
     std::size_t nidx_in_set = 0;
     for (auto nidx : build_nodes) {
       auto d_ridx = this->partitioners_.At(k)->GetRows(nidx);
@@ -137,19 +137,16 @@ class MultiTargetHistMaker {
       auto d_hist = histogram_.GetNodeHistogram(nidx);
       h_hists.push_back(d_hist);
 
-      h_sizes.push_back(d_ridx.size() + h_sizes[nidx_in_set]);
+      h_sizes_csum.push_back(d_ridx.size() + h_sizes_csum[nidx_in_set]);
 
       ++nidx_in_set;
     }
     dh::device_vector<common::Span<GradientPairInt64>> hists{h_hists};
     dh::device_vector<common::Span<RowIndexT const>> ridxs{h_ridxs};
-    dh::device_vector<std::size_t> sizes{h_sizes};
-    CHECK_EQ(sizes.size(), build_nodes.size() + 1);
 
-    this->histogram_.BuildHistogram(this->ctx_->CUDACtx(), acc,
-                                    this->feature_groups_->DeviceAccessor(this->ctx_->Device()),
-                                    d_gpair, dh::ToSpan(ridxs), dh::ToSpan(hists),
-                                    dh::ToSpan(sizes), h_sizes.back(), roundings);
+    this->histogram_.BuildHistogram(
+        this->ctx_->CUDACtx(), acc, this->feature_groups_->DeviceAccessor(this->ctx_->Device()),
+        d_gpair, dh::ToSpan(ridxs), dh::ToSpan(hists), h_sizes_csum, roundings);
   }
 
  public:

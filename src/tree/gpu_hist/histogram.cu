@@ -644,7 +644,7 @@ struct HistPolicy {
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups, RidxIterSpan* d_ridx_iters,
-    common::Span<std::size_t const> size_csum, common::Span<GradientPairInt64>* node_hists,
+    common::Span<bst_node_t const> nidx_blk_mapping, common::Span<GradientPairInt64>* node_hists,
     bst_node_t n_nodes, linalg::MatrixView<GradientPair const> d_gpair,
     common::Span<GradientQuantiser const> roundings) {
   auto d_roundings = roundings.data();
@@ -657,11 +657,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
   // Offset of the first grid
   std::size_t offset = blockIdx.x * Policy::kTileSize;
 
-  // Find the nidx_in_set with binary search, the iterator returns the number of elements
-  // for each node.
-  auto n_elem_it =
-      dh::MakeIndexTransformIter([&](std::size_t i) { return size_csum[i] * feature_stride; });
-  auto nidx_in_set = dh::SegmentId(n_elem_it, n_elem_it + size_csum.size(), offset);
+  auto nidx_in_set = nidx_blk_mapping[blockIdx.x];
 
   auto d_ridx = d_ridx_iters[nidx_in_set];
   auto p_ridx = d_ridx_iters[nidx_in_set].data();
@@ -754,16 +750,42 @@ struct Sm70Policy {
 struct Sm90Policy {
   static constexpr int kBlockThreads = 1024;
 };
+
+template <typename Policy>
+auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum, std::int32_t columns_per_group,
+                    std::size_t max_blocks_per_node, std::uint32_t* p_out_blocks) {
+  std::vector<bst_node_t> map_block_nidx_in_set;  // blockIdx.x -> nidx_in_set
+  std::uint32_t n_total_blocks = 0;
+  for (std::size_t j = 1; j < sizes_csum.size(); ++j) {
+    auto nidx_in_set = j - 1;
+    auto n_samples = sizes_csum[j] - sizes_csum[j - 1];
+    std::size_t items_per_group = n_samples * columns_per_group;
+    auto n_blocks = common::DivRoundUp(items_per_group, Policy::kTileSize);
+    CHECK_GT(n_blocks, 0);
+    n_blocks = std::min(n_blocks, max_blocks_per_node);
+    for (std::int32_t i = 0; i < n_blocks; ++i) {
+      map_block_nidx_in_set.push_back(nidx_in_set);
+    }
+    n_total_blocks += n_blocks;
+  }
+  *p_out_blocks = n_total_blocks;
+  return dh::device_vector<bst_node_t>{map_block_nidx_in_set};
+}
 }  // namespace
 
 void DeviceHistogramBuilder::BuildHistogram(
     CUDAContext const* ctx, EllpackAccessor const& matrix,
     FeatureGroupsAccessor const& feature_groups, linalg::MatrixView<GradientPair const> gpair,
     common::Span<common::Span<cuda_impl::RowIndexT const>> ridxs,
-    common::Span<common::Span<GradientPairInt64>> hists, common::Span<std::size_t const> sizes,
-    std::size_t n_total_samples, common::Span<GradientQuantiser const> roundings) {
+    common::Span<common::Span<GradientPairInt64>> hists,
+    std::vector<std::size_t> const& h_sizes_csum, common::Span<GradientQuantiser const> roundings) {
   CHECK_EQ(ridxs.size(), hists.size());
+  CHECK_GE(roundings.size(), 1);
+  CHECK_GE(feature_groups.NumGroups(), 1);
+
+  std::size_t n_total_samples = h_sizes_csum.back();
   auto n_nodes = hists.size();
+  auto n_targets = gpair.Shape(1);
 
   constexpr int kBlockThreads = 768;
   constexpr int kItemsPerThread = 4;
@@ -777,16 +799,12 @@ void DeviceHistogramBuilder::BuildHistogram(
     // Average number of matrix elements processed by each group
     std::size_t items_per_group = n_total_samples * columns_per_group;
 
-    auto n_blocks = common::DivRoundUp(items_per_group, Policy::kTileSize);
-    CHECK_GT(n_blocks, 0);
-
     std::int32_t n_groups = feature_groups.NumGroups();
     std::int32_t n_mps = 0;
     dh::safe_cuda(
         cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, 0));  // fixme, ordinal
 
     std::int32_t n_blocks_per_mp = 0;
-    auto n_targets = gpair.Shape(1);
     auto shmem_bytes = feature_groups.ShmemSize(n_targets);
 
     // fixme: blocking call.
@@ -804,14 +822,15 @@ void DeviceHistogramBuilder::BuildHistogram(
         cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, kernel, shmem_bytes));
     std::cout << "minGridSize:" << minGridSize << "blockSize:" << blockSize << std::endl;
 
-    n_blocks = std::min(n_blocks_per_mp * n_mps, static_cast<std::int32_t>(n_blocks));
+    std::uint32_t n_blocks = 0;
+    auto blk_nidx_mapping =
+        AllocateBlocks<Policy>(h_sizes_csum, columns_per_group, n_blocks_per_mp * n_mps, &n_blocks);
 
-    CHECK_GE(roundings.size(), 1);
-    CHECK_GE(feature_groups.NumGroups(), 1);
-    CHECK_GE(n_blocks, hists.size());  // at least one block for each node.
+    CHECK_GE(n_blocks, hists.size());
     dim3 conf(n_blocks, feature_groups.NumGroups());
     kernel<<<conf, Policy::kBlockThreads, shmem_bytes, ctx->Stream()>>>(
-        acc, feature_groups, ridx_iters, sizes, hists.data(), hists.size(), gpair, roundings);
+        acc, feature_groups, ridx_iters, dh::ToSpan(blk_nidx_mapping), hists.data(), hists.size(),
+        gpair, roundings);
     dh::safe_cuda(cudaPeekAtLastError());
   };
   // fixme: limit the size of n_nodes
