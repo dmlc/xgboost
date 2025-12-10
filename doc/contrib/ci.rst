@@ -198,6 +198,15 @@ Examples: useful tasks for local development
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu_build_rockylinux8:main \
       -- ops/pipeline/build-cuda-impl.sh
 
+* Build XGBoost with GPU support on Linux ARM64
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    python3 ops/docker_run.py \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu_build_rockylinux8_aarch64:main \
+      -- ops/pipeline/build-cuda-impl.sh
+
 * Run Python tests
 
   .. code-block:: bash
@@ -216,6 +225,16 @@ Examples: useful tasks for local development
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
       --use-gpus \
       -- ops/pipeline/test-python-wheel-impl.sh gpu
+
+* Run Python tests with GPU algorithm on Linux ARM64
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    python3 ops/docker_run.py \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu_aarch64:main \
+      --use-gpus \
+      -- ops/pipeline/test-python-wheel-impl.sh gpu-arm64
 
 * Run Python tests with GPU algorithm, with multiple GPUs
 
@@ -287,6 +306,8 @@ To opt into self-hosted runners (enabled by RunsOn), we use the following specia
     - tag=[unique tag that uniquely identifies the job in the GH Action workflow]
 
 where the runner is defined in ``.github/runs-on.yml``.
+For CUDA-enabled ARM64 builds and tests we rely on the ``linux-arm64-gpu`` runner,
+which provisions a Graviton + NVIDIA GPU instance.
 
 ===================================================================
 The Lay of the Land: how CI pipelines are organized in the codebase
