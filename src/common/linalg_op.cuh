@@ -12,6 +12,7 @@
 #include <cstdlib>            // for size_t
 #include <cuda/std/iterator>  // for iterator_traits
 #include <cuda/std/tuple>     // for get
+#include <cuda/std/version>   // for CCCL_MINOR_VERSION
 #include <tuple>              // for apply
 
 #include "cuda_context.cuh"
@@ -19,6 +20,12 @@
 #include "type.h"              // for GetValueT
 #include "xgboost/context.h"   // for Context
 #include "xgboost/linalg.h"    // for TensorView
+
+#if (CCCL_MAJOR_VERSION >= 3) || (CCCL_MAJOR_VERSION >= 2 && CCCL_MINOR_VERSION >= 8)
+#define xgboost_CCCL_HAS_PROCLAIM_COPYABLE 1
+// CCCL 2.8.0 | CUDA 12.9
+#include <cuda/functional>  // for proclaim_copyable_arguments
+#endif
 
 namespace xgboost::linalg {
 namespace cuda_impl {
@@ -76,8 +83,14 @@ void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   auto s = ctx->CUDACtx()->Stream();
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
-    thrust::transform(ctx->CUDACtx()->CTP(), ptr, ptr + t.Size(), ptr,
-                      [=] XGBOOST_DEVICE(T const& v) { return fn(v); });
+#if defined(xgboost_CCCL_HAS_PROCLAIM_COPYABLE)
+    auto op = cuda::proclaim_copyable_arguments([=] XGBOOST_DEVICE(T const& v) { return fn(v); });
+#else
+    auto op = [=] XGBOOST_DEVICE(T const& v) {
+      return fn(v);
+    };
+#endif
+    thrust::transform(ctx->CUDACtx()->CTP(), ptr, ptr + t.Size(), ptr, op);
   } else {
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable {
       T& v = std::apply(t, UnravelIndex(i, t.Shape()));
@@ -120,4 +133,9 @@ auto tend(TensorView<T, D> v) {  // NOLINT
   return tbegin(v) + v.Size();
 }
 }  // namespace xgboost::linalg
+
+#if defined(xgboost_CCCL_HAS_PROCLAIM_COPYABLE)
+#undef xgboost_CCCL_HAS_PROCLAIM_COPYABLE
+#endif  // defined(xgboost_CCCL_HAS_PROCLAIM_COPYABLE)
+
 #endif  // XGBOOST_COMMON_LINALG_OP_CUH_

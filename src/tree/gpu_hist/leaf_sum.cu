@@ -60,7 +60,8 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
       auto g = grad(sorted_ridx[j], t);
       return roundings[t].ToFixedPoint(g);
     });
-    // Use an output iterator to implement running sum.
+    // Use an output iterator to implement running sum. Old thrust versions either don't
+    // have this iterator, or unusable with segmented sum.
 #if THRUST_MAJOR_VERSION >= 3
     auto out_it = thrust::make_tabulate_output_iterator(
         [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) mutable { out_t(idx) += v; });
@@ -87,7 +88,7 @@ void LeafWeight(Context const* ctx, GPUTrainingParam const& param,
   dh::LaunchN(grad_sum.Size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
     auto [nidx_in_set, t] = linalg::UnravelIndex(i, grad_sum.Shape());
     auto g = roundings[t].ToFloatingPoint(grad_sum(nidx_in_set, t));
-    out_weights(nidx_in_set, t) = CalcWeight(param, g.GetGrad(), g.GetHess());
+    out_weights(nidx_in_set, t) = CalcWeight(param, g.GetGrad(), g.GetHess()) * param.learning_rate;
   });
 }
 }  // namespace xgboost::tree::cuda_impl

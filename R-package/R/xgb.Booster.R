@@ -252,6 +252,7 @@ xgb.get.handle <- function(object) {
 #'   \url{https://arxiv.org/abs/1706.06060}
 #'
 #' @examples
+#' \dontshow{RhpcBLASctl::omp_set_num_threads(1)}
 #' ## binary classification:
 #'
 #' data(agaricus.train, package = "xgboost")

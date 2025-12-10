@@ -14,7 +14,6 @@
 #include <R.h>
 #include <Rinternals.h>
 #include <R_ext/Altrep.h>
-#include <R_ext/Random.h>
 #include <Rmath.h>
 
 #include <xgboost/c_api.h>

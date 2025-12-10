@@ -36,7 +36,7 @@ library(xgboost)
 data(ToothGrowth)
 
 y <- ToothGrowth$supp # the response which we want to model/predict
-x <- ToothGrowth[, c("len", "dose")] # the features from which we want to predct it
+x <- ToothGrowth[, c("len", "dose")] # the features from which we want to predict it
 model <- xgboost(x, y, nthreads = 1, nrounds = 2)
 model
 ```
