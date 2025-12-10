@@ -540,26 +540,27 @@ struct HistogramKernel {
   }
 };
 
-template <typename Policy>
-auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum, std::int32_t columns_per_group,
-                    std::size_t max_blocks_per_node, std::uint32_t* p_out_blocks) {
-  std::vector<std::uint32_t> blk_ptr{0};
-  std::uint32_t n_total_blocks = 0;
-  for (std::size_t j = 1; j < sizes_csum.size(); ++j) {
-    auto nidx_in_set = j - 1;
-    auto n_samples = sizes_csum[j] - sizes_csum[j - 1];
-    std::size_t items_per_group = n_samples * columns_per_group;
-    auto n_blocks = common::DivRoundUp(items_per_group, Policy::kTileSize);
-    CHECK_GT(n_blocks, 0);  // at least one block for each node.
-    n_blocks = std::min(n_blocks, max_blocks_per_node);
-    blk_ptr.push_back(blk_ptr[nidx_in_set] + n_blocks);
-    n_total_blocks += n_blocks;
-  }
-  *p_out_blocks = blk_ptr.back();
-  return dh::device_vector<std::uint32_t>{blk_ptr};
-}
-
 struct MtHistKernel {
+  template <typename Policy>
+  static auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum,
+                             std::int32_t columns_per_group, std::size_t max_blocks_per_node,
+                             std::uint32_t* p_out_blocks) {
+    std::vector<std::uint32_t> blk_ptr{0};
+    std::uint32_t n_total_blocks = 0;
+    for (std::size_t j = 1; j < sizes_csum.size(); ++j) {
+      auto nidx_in_set = j - 1;
+      auto n_samples = sizes_csum[j] - sizes_csum[j - 1];
+      std::size_t items_per_group = n_samples * columns_per_group;
+      auto n_blocks = common::DivRoundUp(items_per_group, Policy::kTileSize);
+      CHECK_GT(n_blocks, 0);  // at least one block for each node.
+      n_blocks = std::min(n_blocks, max_blocks_per_node);
+      blk_ptr.push_back(blk_ptr[nidx_in_set] + n_blocks);
+      n_total_blocks += n_blocks;
+    }
+    *p_out_blocks = blk_ptr.back();
+    return dh::device_vector<std::uint32_t>{blk_ptr};
+  }
+
   struct MtHistKernelConfig {
     std::int32_t n_blocks_per_mp = 0;
     std::size_t shmem_bytes = 0;
