@@ -639,8 +639,14 @@ struct HistPolicy {
   static constexpr bool kCompressed = kCompressedIn;
   static constexpr bool kSharedMem = kSharedMemIn;
 };
-
-// fixme: doesn't need the n_nodes if one of them is a span.
+/**
+ * @brief Kernel for multi-target histogram.
+ *
+ * @param matrix         An ellpack accessor.
+ * @param feature_groups Grouping for privatized histogram.
+ * @param d_ridx_iters   Pointer to row index spans. One span per node.
+ * @param blk_ptr        Indptr for mapping blockIdx.x to nidx_in_set.
+ */
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups, RidxIterSpan* d_ridx_iters,
