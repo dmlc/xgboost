@@ -163,9 +163,9 @@ class MultiTargetHistMaker {
      */
     std::size_t shape[2]{p_fmat->Info().num_row_, n_targets};
     split_gpair_ = linalg::Matrix<GradientPair>{shape, ctx_->Device()};
-    CHECK(in_gpair.CContiguous());
+    gpair_all->SetDevice(this->ctx_->Device());
     split_gpair_.Data()->Copy(*gpair_all->Data());
-    // TransposeGradient(this->ctx_, in_gpair, split_gpair_.View(ctx_->Device()));
+    CHECK(in_gpair.CContiguous());
 
     this->split_quantizer_ = std::make_unique<MultiGradientQuantiser>(
         this->ctx_, split_gpair_.View(ctx_->Device()), p_fmat->Info());
@@ -485,8 +485,8 @@ class MultiTargetHistMaker {
     if (gpair->HasValueGrad()) {
       this->value_gpair_ =
           linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device(), linalg::kF};
-      TransposeGradient(this->ctx_, gpair->value_gpair.View(this->ctx_->Device()),
-                        value_gpair_.View(this->ctx_->Device()));
+      gpair->value_gpair.SetDevice(this->ctx_->Device());
+      this->value_gpair_.Data()->Copy(*gpair->value_gpair.Data());
     }
 
     this->GrowTree(split_grad, p_fmat, task, p_tree);

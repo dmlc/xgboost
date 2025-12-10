@@ -137,15 +137,6 @@ MultiGradientQuantiser::MultiGradientQuantiser(Context const* ctx,
   this->quantizers_ = h_quantizers;
 }
 
-namespace cuda_impl {
-void TransposeGradient(Context const* ctx, linalg::MatrixView<GradientPair const> in,
-                       linalg::MatrixView<GradientPair> out) {
-  CHECK(in.CContiguous());
-  CHECK(out.FContiguous());
-  thrust::copy_n(ctx->CUDACtx()->CTP(), in.Values().data(), in.Size(), linalg::tbegin(out));
-}
-}  // namespace cuda_impl
-
 XGBOOST_DEV_INLINE void AtomicAddGpairShared(xgboost::GradientPairInt64* dest,
                                              xgboost::GradientPairInt64 const& gpair) {
   auto dst_ptr = reinterpret_cast<int64_t*>(dest);

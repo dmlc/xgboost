@@ -53,9 +53,4 @@ class MultiGradientQuantiser {
 
   [[nodiscard]] auto Quantizers() const { return dh::ToSpan(this->quantizers_); }
 };
-
-namespace cuda_impl {
-void TransposeGradient(Context const* ctx, linalg::MatrixView<GradientPair const> in,
-                       linalg::MatrixView<GradientPair> out);
-}  // namespace cuda_impl
 }  // namespace xgboost::tree
