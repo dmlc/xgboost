@@ -135,7 +135,7 @@ INSTANTIATE_TEST_SUITE_P(Histogram, MultiHistTest,
 // 16 targets overflows the normal histogram shared memory size.
 INSTANTIATE_TEST_SUITE_P(DISABLED_BenchMark, MultiHistTest,
                          ::testing::Combine(::testing::Values<bst_idx_t>((1ul << 21)),
-                                            ::testing::Values(512), ::testing::Values(1, 16),
+                                            ::testing::Values(512), ::testing::Values(1, 8),
                                             ::testing::Bool()),
                          TestName);
 }  // namespace xgboost::tree::cuda_impl

@@ -120,7 +120,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   auto row_partitioner = std::make_unique<RowPartitioner>();
   row_partitioner->Reset(&ctx, kNRows, 0);
 
-  auto quantiser = std::make_unique<GradientQuantiser>(&ctx, gpair.ConstDeviceSpan(), MetaInfo());
+  auto quantiser = std::make_unique<GradientQuantiser>(
+      &ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo());
   auto shm_size = use_shared_memory_histograms ? dh::MaxSharedMemoryOptin(ctx.Ordinal()) : 0;
   FeatureGroups feature_groups(page->Cuts(), 1, page->IsDenseCompressed(), shm_size);
 
@@ -181,7 +182,8 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
 
     FeatureGroups feature_groups{page->Cuts(), 1, page->IsDenseCompressed(), shm_size};
 
-    auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
+    auto quantiser =
+        GradientQuantiser(&ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo());
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
                   feature_groups.DeviceAccessor(ctx.Device()), num_bins, force_global);
@@ -198,7 +200,8 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
       dh::device_vector<GradientPairInt64> new_histogram(num_bins);
       auto d_new_histogram = dh::ToSpan(new_histogram);
 
-      auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
+      auto quantiser = GradientQuantiser(
+          &ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo());
       DeviceHistogramBuilder builder;
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
                     feature_groups.DeviceAccessor(ctx.Device()), num_bins, force_global);
@@ -293,7 +296,8 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   dh::device_vector<GradientPairInt64> cat_hist(num_categories);
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
   gpair.SetDevice(DeviceOrd::CUDA(0));
-  auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
+  auto quantiser =
+      GradientQuantiser(&ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo());
   /**
    * Generate hist with cat data.
    */
@@ -423,7 +427,8 @@ TEST(Histogram, Quantiser) {
   HostDeviceVector<GradientPair> gpair(n_samples, GradientPair{1.0, 1.0});
   gpair.SetDevice(ctx.Device());
 
-  auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
+  auto quantiser =
+      GradientQuantiser(&ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo());
   for (auto v : gpair.ConstHostVector()) {
     auto gh = quantiser.ToFloatingPoint(quantiser.ToFixedPoint(v));
     ASSERT_EQ(gh.GetGrad(), 1.0);
@@ -477,7 +482,8 @@ class HistogramExternalMemoryTest
 
     auto gpair = GenerateRandomGradients(n_samples);
     gpair.SetDevice(ctx.Device());
-    auto quantiser = GradientQuantiser{&ctx, gpair.ConstDeviceSpan(), p_fmat->Info()};
+    auto quantiser = GradientQuantiser{&ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()),
+                                       p_fmat->Info()};
     std::shared_ptr<common::HistogramCuts> cuts;
 
     std::size_t row_stride = 0;

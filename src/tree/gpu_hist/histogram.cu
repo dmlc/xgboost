@@ -77,14 +77,15 @@ struct Clip {
  *
  * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
  */
-GradientQuantiser::GradientQuantiser(Context const* ctx, common::Span<GradientPair const> gpair,
+GradientQuantiser::GradientQuantiser(Context const* ctx,
+                                     linalg::VectorView<GradientPair const> gpair,
                                      MetaInfo const& info) {
   using GradientSumT = GradientPairPrecise;
   using T = typename GradientSumT::ValueT;
 
-  thrust::device_ptr<GradientPair const> gpair_beg{gpair.data()};
-  auto beg = thrust::make_transform_iterator(gpair_beg, Clip());
-  Pair p = dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + gpair.size(), Pair{}, thrust::plus<Pair>{});
+
+  auto beg = thrust::make_transform_iterator(linalg::tcbegin(gpair), Clip());
+  Pair p = dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + gpair.Size(), Pair{}, thrust::plus<Pair>{});
   // Treat pair as array of 4 primitive types to allreduce
   using ReduceT = typename decltype(p.first)::ValueT;
   static_assert(sizeof(Pair) == sizeof(ReduceT) * 4, "Expected to reduce four elements.");
@@ -93,7 +94,7 @@ GradientQuantiser::GradientQuantiser(Context const* ctx, common::Span<GradientPa
 
   GradientPair positive_sum{p.first}, negative_sum{p.second};
 
-  std::size_t total_rows = gpair.size();
+  std::size_t total_rows = gpair.Size();
   rc = collective::GlobalSum(ctx, info, linalg::MakeVec(&total_rows, 1));
   collective::SafeColl(rc);
 
@@ -128,11 +129,10 @@ GradientQuantiser::GradientQuantiser(Context const* ctx, common::Span<GradientPa
 MultiGradientQuantiser::MultiGradientQuantiser(Context const* ctx,
                                                linalg::MatrixView<GradientPair const> gpair,
                                                MetaInfo const& info) {
-  CHECK(gpair.FContiguous());
   std::vector<GradientQuantiser> h_quantizers;
   // TODO(jiamingy): We need to merge this into a single call for improved distributed training.
   for (bst_target_t t = 0, n_targets = gpair.Shape(1); t < n_targets; ++t) {
-    h_quantizers.emplace_back(ctx, gpair.Slice(linalg::All(), t).Values(), info);
+    h_quantizers.emplace_back(ctx, gpair.Slice(linalg::All(), t), info);
   }
   this->quantizers_ = h_quantizers;
 }
