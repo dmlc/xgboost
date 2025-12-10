@@ -759,10 +759,10 @@ class DeviceHistogramDispatchAccessor {
       // Special optimization for the root node.
       using RidxIter = thrust::counting_iterator<cuda_impl::RowIndexT>;
       CHECK_LT(matrix.base_rowid, std::numeric_limits<cuda_impl::RowIndexT>::max());
-      dh::caching_device_vector<common::IterSpan<RidxIter>> ridx_iters(
-          hists.size(), common::IterSpan{thrust::make_counting_iterator(
-                                             static_cast<cuda_impl::RowIndexT>(matrix.base_rowid)),
-                                         gpair.Shape(0)});
+      auto iter = common::IterSpan{
+          thrust::make_counting_iterator(static_cast<cuda_impl::RowIndexT>(matrix.base_rowid)),
+          matrix.n_rows};
+      dh::caching_device_vector<common::IterSpan<RidxIter>> ridx_iters(hists.size(), iter);
       this->mt_kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx_iters.data().get(), hists,
                                  h_sizes_csum, roundings);
     } else {

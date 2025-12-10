@@ -132,6 +132,11 @@ class MultiTargetHistMaker {
     std::size_t nidx_in_set = 0;
     for (auto nidx : build_nodes) {
       auto d_ridx = this->partitioners_.At(k)->GetRows(nidx);
+      if (d_ridx.empty()) {
+        // external memory.
+        CHECK_GT(this->batch_ptr_.size(), 2);
+        continue;
+      }
       h_ridxs.push_back(d_ridx);
       auto d_hist = histogram_.GetNodeHistogram(nidx);
       h_hists.push_back(d_hist);
