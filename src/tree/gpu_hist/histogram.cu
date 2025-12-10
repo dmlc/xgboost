@@ -334,7 +334,7 @@ template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups, RidxIterSpan* d_ridx_iters,
     common::Span<std::uint32_t const> blk_ptr, common::Span<GradientPairInt64>* node_hists,
-    bst_node_t n_nodes, linalg::MatrixView<GradientPair const> d_gpair,
+    linalg::MatrixView<GradientPair const> d_gpair,
     common::Span<GradientQuantiser const> roundings) {
   auto d_roundings = roundings.data();
 
@@ -605,8 +605,7 @@ struct MtHistKernel {
       dim3 conf(n_blocks, feature_groups.NumGroups());
 
       kernel<<<conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream()>>>(
-          matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(), hists.size(),
-          gpair, roundings);
+          matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(), gpair, roundings);
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
