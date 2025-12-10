@@ -12,51 +12,6 @@
 #include "dummy_quantizer.cuh"  // for MakeDummyQuantizers
 
 namespace xgboost::tree::cuda_impl {
-// fixme: remove the old test.
-TEST(GpuMultiHistogram, Basic) {
-  auto ctx = MakeCUDACtx(0);
-  bst_bin_t n_bins = 16;
-  bst_target_t n_targets = 2;
-  bst_feature_t n_features = 4;
-
-  bst_idx_t n_samples = 64;
-  auto page = MakeEllpackForTest(&ctx, n_samples, n_features, n_bins);
-
-  auto cuts = page->CutsShared();
-
-  FeatureGroups fg{*cuts, n_targets, true, dh::MaxSharedMemory(ctx.Ordinal())};
-  auto fg_acc = fg.DeviceAccessor(ctx.Device());
-
-  DeviceHistogramBuilder histogram;
-  bst_bin_t n_total_bins = n_targets * n_features * n_bins;
-  histogram.Reset(&ctx, /*max_cached_hist_nodes=*/2, fg_acc, n_total_bins, false);
-
-  auto gpairs = linalg::Constant(&ctx, GradientPair{1.0f, 1.0f}, n_samples, n_targets);
-  dh::device_vector<std::uint32_t> ridx(n_samples);
-  thrust::sequence(ctx.CUDACtx()->CTP(), ridx.begin(), ridx.end(), 0);
-
-  histogram.AllocateHistograms(&ctx, {0});
-  auto node_hist = histogram.GetNodeHistogram(0);
-  auto quantizers = MakeDummyQuantizers(n_targets);
-
-  dh::device_vector<common::Span<std::uint32_t const>> ridxs{dh::ToSpan(ridx)};
-  dh::device_vector<common::Span<GradientPairInt64>> hists{node_hist};
-  dh::device_vector<std::size_t> sizes{ridx.size()};
-
-  histogram.BuildHistogram(ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}), fg_acc,
-                           gpairs.View(ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists),
-                           dh::ToSpan(sizes), ridx.size(), dh::ToSpan(quantizers));
-
-  std::vector<GradientPairInt64> h_node_hist(node_hist.size());
-  dh::CopyDeviceSpanToVector(&h_node_hist, node_hist);
-  // The values are evenly distributed across all bins
-  auto expected = n_samples / n_bins;
-  for (auto v : h_node_hist) {
-    EXPECT_EQ(v.GetQuantisedGrad(), expected);
-    EXPECT_EQ(v.GetQuantisedHess(), expected);
-  }
-}
-
 class MultiHistTest
     : public ::testing::TestWithParam<std::tuple<bst_idx_t, bst_feature_t, bst_target_t>> {
  public:
@@ -109,11 +64,10 @@ class MultiHistTest
   void TestMtBuild() {
     auto ridxs = dh::device_vector<common::Span<std::uint32_t const>>{dh::ToSpan(ridx)};
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{node_hist};
-    auto sizes = dh::device_vector<std::size_t>{ridx.size()};
-    this->histogram.BuildHistogram(
-        this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
-        this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists),
-        dh::ToSpan(sizes), ridx.size(), dh::ToSpan(this->quantizers));
+    this->histogram.BuildHistogram(this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}),
+                                   p_fg->DeviceAccessor(ctx.Device()),
+                                   this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
+                                   dh::ToSpan(hists), ridx.size(), dh::ToSpan(this->quantizers));
 
     auto d_hist = this->node_hist;
     std::vector<GradientPairInt64> h_hist(d_hist.size());
@@ -130,16 +84,15 @@ class MultiHistTest
 
   void TestMtChildrenBuild() {
     auto d_ridx = dh::ToSpan(ridx);
-    dh::device_vector<std::size_t> sizes{0, n_samples / 4, n_samples - (n_samples / 4)};
     auto ridxs = dh::device_vector<common::Span<std::uint32_t const>>{
         d_ridx.subspan(0, n_samples / 4), d_ridx.subspan(n_samples / 4)};
     this->histogram.AllocateHistograms(&ctx, {1, 2});
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{
         this->histogram.GetNodeHistogram(1), this->histogram.GetNodeHistogram(2)};
-    this->histogram.BuildHistogram(
-        this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
-        this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists),
-        dh::ToSpan(sizes), ridx.size(), dh::ToSpan(this->quantizers));
+    this->histogram.BuildHistogram(this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}),
+                                   p_fg->DeviceAccessor(ctx.Device()),
+                                   this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
+                                   dh::ToSpan(hists), ridx.size(), dh::ToSpan(this->quantizers));
 
     auto d_hist_1 = this->histogram.GetNodeHistogram(1);
     auto d_hist_2 = this->histogram.GetNodeHistogram(2);
