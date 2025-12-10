@@ -640,23 +640,31 @@ struct HistPolicy {
   static constexpr bool kSharedMem = kSharedMemIn;
 };
 
+// fixme: doesn't need the n_nodes if one of them is a span.
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups, RidxIterSpan* d_ridx_iters,
-    common::Span<GradientPairInt64>* node_hists, bst_node_t n_nodes,
-    linalg::MatrixView<GradientPair const> d_gpair,
+    common::Span<std::size_t const> size_csum, common::Span<GradientPairInt64>* node_hists,
+    bst_node_t n_nodes, linalg::MatrixView<GradientPair const> d_gpair,
     common::Span<GradientQuantiser const> roundings) {
   auto d_roundings = roundings.data();
-  auto nidx_in_set = blockIdx.z;
+
   FeatureGroup group = feature_groups[blockIdx.y];
-  auto d_ridx = d_ridx_iters[nidx_in_set];
-  auto p_ridx = d_ridx_iters[nidx_in_set].data();
   std::int32_t feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
 
-  // grid stride loop
+  // Grid-strided loop
   auto const kStride = Policy::kTileSize * gridDim.x;
-  // first grid
+  // Offset of the first grid
   std::size_t offset = blockIdx.x * Policy::kTileSize;
+
+  // Find the nidx_in_set with binary search, the iterator returns the number of elements
+  // for each node.
+  auto n_elem_it =
+      dh::MakeIndexTransformIter([&](std::size_t i) { return size_csum[i] * feature_stride; });
+  auto nidx_in_set = dh::SegmentId(n_elem_it, n_elem_it + size_csum.size(), offset);
+
+  auto d_ridx = d_ridx_iters[nidx_in_set];
+  auto p_ridx = d_ridx_iters[nidx_in_set].data();
 
   bst_idx_t n_elements = feature_stride * d_ridx.size();
 
@@ -714,6 +722,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
   };
 
   while (offset < n_elements) {
+    // fixme: account for strides
     std::int32_t const valid_items =
         cuda::std::min(n_elements - offset, static_cast<std::size_t>(Policy::kTileSize));
     if (Policy::kTileSize == valid_items) {
@@ -751,8 +760,8 @@ void DeviceHistogramBuilder::BuildHistogram(
     CUDAContext const* ctx, EllpackAccessor const& matrix,
     FeatureGroupsAccessor const& feature_groups, linalg::MatrixView<GradientPair const> gpair,
     common::Span<common::Span<cuda_impl::RowIndexT const>> ridxs,
-    common::Span<common::Span<GradientPairInt64>> hists, std::size_t n_max_samples,
-    common::Span<GradientQuantiser const> roundings) {
+    common::Span<common::Span<GradientPairInt64>> hists, common::Span<std::size_t const> sizes,
+    std::size_t n_total_samples, common::Span<GradientQuantiser const> roundings) {
   CHECK_EQ(ridxs.size(), hists.size());
   auto n_nodes = hists.size();
 
@@ -766,12 +775,12 @@ void DeviceHistogramBuilder::BuildHistogram(
 
     int columns_per_group = common::DivRoundUp(acc.row_stride, feature_groups.NumGroups());
     // Average number of matrix elements processed by each group
-    std::size_t items_per_group = n_max_samples * columns_per_group;
+    std::size_t items_per_group = n_total_samples * columns_per_group;
 
     auto n_blocks = common::DivRoundUp(items_per_group, Policy::kTileSize);
     CHECK_GT(n_blocks, 0);
 
-    std::int32_t num_groups = feature_groups.NumGroups();
+    std::int32_t n_groups = feature_groups.NumGroups();
     std::int32_t n_mps = 0;
     dh::safe_cuda(
         cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, 0));  // fixme, ordinal
@@ -792,9 +801,10 @@ void DeviceHistogramBuilder::BuildHistogram(
 
     CHECK_GE(roundings.size(), 1);
     CHECK_GE(feature_groups.NumGroups(), 1);
-    dim3 conf(n_blocks, feature_groups.NumGroups(), n_nodes);
+    CHECK_GE(n_blocks, hists.size());  // at least one block for each node.
+    dim3 conf(n_blocks, feature_groups.NumGroups());
     kernel<<<conf, Policy::kBlockThreads, shmem_bytes, ctx->Stream()>>>(
-        acc, feature_groups, ridx_iters, hists.data(), hists.size(), gpair, roundings);
+        acc, feature_groups, ridx_iters, sizes, hists.data(), hists.size(), gpair, roundings);
     dh::safe_cuda(cudaPeekAtLastError());
   };
   // fixme: limit the size of n_nodes
@@ -804,7 +814,7 @@ void DeviceHistogramBuilder::BuildHistogram(
         // fixme, shmem, dense, compress
         using Policy = HistPolicy<kBlockThreads, kItemsPerThread, true, true, true>;
 
-        if (false && ridxs.size() == 1 && n_max_samples == acc.n_rows) {
+        if (false && ridxs.size() == 1 && n_total_samples == acc.n_rows) {
           using RidxIter = thrust::counting_iterator<cuda_impl::RowIndexT>;
           dh::caching_device_vector<common::IterSpan<RidxIter>> ridx_iters(
               hists.size(), common::IterSpan{thrust::make_counting_iterator(0u), gpair.Shape(0)});
