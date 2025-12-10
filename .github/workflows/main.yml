@@ -163,7 +163,7 @@ jobs:
             artifact_from: build-cuda-with-rmm
           - suite: mgpu
             runner: linux-amd64-mgpu
-            artifact_from: build-cuda
+            artifact_from: build-cuda-x86_64
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
