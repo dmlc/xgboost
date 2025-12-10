@@ -562,7 +562,7 @@ auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum, std::int32_t col
 struct MtHistKernel {
   struct MtHistKernelConfig {
     std::int32_t n_blocks_per_mp = 0;
-    std::int32_t shmem_bytes = 0;
+    std::size_t shmem_bytes = 0;
   };
 
   std::map<void*, MtHistKernelConfig> cfg;
@@ -618,6 +618,7 @@ struct MtHistKernel {
         if (shmem_bytes > v.shmem_bytes) {
           dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
                                              shmem_bytes));
+          v.shmem_bytes = shmem_bytes;
         }
         this->cfg[reinterpret_cast<void*>(kernel)] = v;
       }
