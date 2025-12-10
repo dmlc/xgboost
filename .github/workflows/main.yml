@@ -99,7 +99,7 @@ jobs:
             python-package/dist/*.whl
 
   build-python-wheels-cpu:
-    name: Build CPU wheel for ${{ matrix.manylinux_target }}_${{ matrix.arch }}
+    name: Build CPU wheel (xgboost-cpu) for ${{ matrix.manylinux_target }}_${{ matrix.arch }}
     runs-on:
       - runs-on
       - runner=${{ matrix.runner }}
@@ -109,12 +109,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - manylinux_target: manylinux2014
-          arch: aarch64
-          runner: linux-arm64-cpu
-        - manylinux_target: manylinux2014
-          arch: x86_64
-          runner: linux-amd64-cpu
         - manylinux_target: manylinux_2_28
           arch: aarch64
           runner: linux-arm64-cpu
