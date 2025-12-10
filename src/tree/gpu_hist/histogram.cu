@@ -792,10 +792,17 @@ void DeviceHistogramBuilder::BuildHistogram(
     // fixme: blocking call.
     dh::safe_cuda(
         cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, shmem_bytes));
-
+    // https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__OCCUPANCY.html
+    // - cudaOccupancyMaxPotentialBlockSize
+    // - cudaOccupancyMaxActiveBlocksPerMultiprocessor
     dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
         &n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
     CHECK_GE(n_blocks_per_mp, 1);
+
+    std::int32_t minGridSize = 0, blockSize = 0;
+    dh::safe_cuda(
+        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, kernel, shmem_bytes));
+    std::cout << "minGridSize:" << minGridSize << "blockSize:" << blockSize << std::endl;
 
     n_blocks = std::min(n_blocks_per_mp * n_mps, static_cast<std::int32_t>(n_blocks));
 
