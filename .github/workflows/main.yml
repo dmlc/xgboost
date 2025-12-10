@@ -184,7 +184,7 @@ jobs:
 
   test-python-wheel:
     name: Run Python tests (${{ matrix.description }})
-    needs: [build-cuda, build-cuda-arm64, build-python-wheels-arm64]
+    needs: [build-cuda]
     runs-on:
       - runs-on
       - runner=${{ matrix.runner }}
