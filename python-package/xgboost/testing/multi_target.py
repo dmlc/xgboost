@@ -281,8 +281,7 @@ def run_eta(device: Device) -> None:
 
 
 def run_deterministic(device: Device) -> None:
-    from sklearn.datasets import make_regression
-
+    """Check the vector leaf implementation is deterministic."""
     X, y = make_regression(
         n_samples=int(2**16), n_features=64, random_state=1994, n_targets=5
     )
