@@ -392,11 +392,10 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
         compressed_bin *= n_targets;
       }
       // TODO(jiamingy): Assign a thread for each target. When there are multiple targets,
-      // this can cause significant stall. Get rid of the F-order and enable vector load
-      // if possible.
+      // this can cause significant stall. Enable vector load if possible.
       //
-      // TODO(jiamingy): When the number of targets is non-trivial, we need to split up the targets
-      // due to shared memory size.
+      // TODO(jiamingy): When the number of targets is non-trivial, we need to split up
+      // the histograms due to shared memory size.
       for (bst_target_t t = 0; t < n_targets; ++t) {
         auto adjusted = d_roundings[t].ToFixedPoint(d_gpair(ridx, t));
         atomic_add(compressed_bin + t, adjusted);
