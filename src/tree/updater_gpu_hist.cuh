@@ -127,7 +127,6 @@ class MultiTargetHistMaker {
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
 
     std::vector<common::Span<GradientPairInt64>> h_hists;
-    // fixme: don't use span now that we have a scan operator.
     std::vector<common::Span<RowIndexT const>> h_ridxs;
     std::vector<std::size_t> h_sizes_csum{0};
     std::size_t nidx_in_set = 0;
