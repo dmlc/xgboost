@@ -2,17 +2,18 @@
 
 set -euox pipefail
 
-if [[ "$#" -lt 1 ]]
+if [[ "$#" -lt 2 ]]
 then
-  echo "Usage: $0 {gpu,gpu-rmm,mgpu}"
+  echo "Usage: $0 [image_repo] {gpu,gpu-rmm,mgpu}"
   exit 1
 fi
-suite=$1
+image_repo=$1
+suite=$2
 
 source ops/pipeline/get-docker-registry-details.sh
 source ops/pipeline/get-image-tag.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu:${IMAGE_TAG}
+IMAGE_URI=${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}
 
 case "${suite}" in
   gpu)
