@@ -340,7 +340,6 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
   # the main loop for boosting iterations
   # FIX: Handle nrounds=0 to prevent 1:0 sequence and ensure 'iteration' is defined
   if (nrounds == 0) iteration <- end_iteration
-  
   for (iteration in seq(from = begin_iteration, length.out = nrounds)) {
 
     .execute.cb.before.iter(
