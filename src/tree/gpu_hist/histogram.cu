@@ -651,9 +651,9 @@ struct MtHistKernel {
 
   template <typename... Args>
   void DispatchHistPolicyBlockSize(Args&&... args) {
-    // h200: Shared memory: 48.0kB shared memory optin: 227.0kB Multi processor count: 132
-    // tis: Shared memory: 48.0kB Shared memory optin: 99.0kB Multi processor count: 66
-    if (this->n_mps >= 128) {
+    // An heuristic to choose the block size based on the number of multi processors.
+    constexpr std::int32_t kMpThreshold = 128;
+    if (this->n_mps >= kMpThreshold) {
       constexpr std::int32_t kBlockThreads = 1024;
       DispatchHistCompress<kBlockThreads>(std::forward<Args>(args)...);
     } else {
