@@ -37,7 +37,7 @@ source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 source ops/pipeline/get-image-tag.sh
 
-WHEEL_TAG=manylinux_2_28_${ARCH}
+WHEEL_TAG=manylinux_2_28_${arch}
 BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
 MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:${IMAGE_TAG}"
 
@@ -75,7 +75,7 @@ pydistcheck --config python-package/pyproject.toml python-package/dist/*.whl
 
 if [[ $USE_RMM == 0 ]]
 then
-  if [[ $ARCH == "x86_64" ]]
+  if [[ $arch == "x86_64" ]]
   then
     # Generate the meta info which includes xgboost version and the commit info
     # TODO(hcho3): Generate meta.json that contains both x86_64 and aarch64 wheels
@@ -95,7 +95,7 @@ then
       --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
       python-package/dist/*.whl
 
-    if [[ $ARCH == "x86_64" ]]
+    if [[ $arch == "x86_64" ]]
     then
       python3 ops/pipeline/manage-artifacts.py upload \
         --s3-bucket xgboost-nightly-builds \
