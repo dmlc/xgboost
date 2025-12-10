@@ -316,319 +316,6 @@ __global__ void __launch_bounds__(kBlockThreads)
   }
 }
 
-// Kernel for vector-leaf, bare minimum for now.
-template <typename Accessor, bool kCompressed, bool kDense, bool use_shared_memory_histograms,
-          std::int32_t kBlockThreads, std::int32_t kItemsPerThread>
-__global__ __launch_bounds__(kBlockThreads) void MultiHistKernel(
-    Accessor const matrix, const FeatureGroupsAccessor feature_groups,
-    common::Span<const RowPartitioner::RowIndexT> d_ridx, GradientPairInt64* d_node_hist,
-    linalg::MatrixView<const GradientPair> d_gpair,
-    common::Span<GradientQuantiser const> roundings) {
-  const FeatureGroup group = feature_groups[blockIdx.y];
-  std::int32_t feature_stride = kCompressed ? group.num_features : matrix.row_stride;
-  bst_idx_t n_elements = feature_stride * d_ridx.size();
-  using Idx = RowPartitioner::RowIndexT;
-  for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), n_elements)) {
-    auto ridx_in_node = idx / feature_stride;
-    Idx ridx = d_ridx[ridx_in_node];
-    auto fidx = FeatIdx(group, idx, ridx_in_node, feature_stride);
-    bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
-    if (compressed_bin != matrix.NullValue()) {
-      if (kCompressed) {
-        compressed_bin += matrix.feature_segments[fidx];
-      }
-      bst_target_t n_targets = roundings.size();
-      compressed_bin *= n_targets;
-      // TODO(jiamingy): Assign a thread for each target.
-      for (bst_target_t t = 0; t < n_targets; ++t) {
-        auto adjusted = roundings[t].ToFixedPoint(d_gpair(ridx, t));
-        AtomicAddGpairGlobal(d_node_hist + compressed_bin + t, adjusted);
-      }
-    }
-  }
-}
-
-namespace {
-constexpr std::int32_t kBlockThreads = 1024;
-constexpr std::int32_t kItemsPerThread = 8;
-constexpr std::int32_t ItemsPerTile() { return kBlockThreads * kItemsPerThread; }
-template <auto Ker>
-using DeduceKernelT = std::decay_t<decltype(Ker)>;
-}  // namespace
-
-// Use auto deduction guide to workaround compiler error.
-template <typename Accessor>
-struct HistogramKernel {
-  enum KernelType : std::size_t {
-    // single-target
-    kGlobalCompr = 0,
-    kGlobal = 1,
-    kSharedCompr = 2,
-    kShared = 3,
-    kGlobalDense = 4,
-    kSharedDense = 5,
-    // multi-target
-    kMtGlobalCompr = 6,
-    kMtGlobal = 7,
-    kMtSharedCompr = 8,
-    kMtShared = 9,
-    kMtGlobalDense = 10,
-    kMtSharedDense = 11,
-  };
-  /**
-   * Single-target
-   */
-  // Kernel for working with compressed sparse Ellpack using the global memory.
-  using GlobalCompr = DeduceKernelT<
-      SharedMemHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>>;
-  GlobalCompr global_compr_kernel{
-      SharedMemHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with sparse Ellpack using the global memory.
-  using Global = DeduceKernelT<
-      SharedMemHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>>;
-  Global global_kernel{
-      SharedMemHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with compressed sparse Ellpack using the shared memory.
-  using SharedCompr = DeduceKernelT<
-      SharedMemHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>>;
-  SharedCompr shared_compr_kernel{
-      SharedMemHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with sparse Ellpack using the shared memory.
-  using Shared = DeduceKernelT<
-      SharedMemHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>>;
-  Shared shared_kernel{
-      SharedMemHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with compressed dense ellpack using the global memory
-  using GlobalDense = DeduceKernelT<
-      SharedMemHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>>;
-  GlobalDense global_dense_kernel{
-      SharedMemHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with compressed dense ellpack using the shared memory
-  using SharedDense = DeduceKernelT<
-      SharedMemHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>>;
-  SharedDense shared_dense_kernel{
-      SharedMemHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>};
-
-  /**
-   * Multi-target
-   */
-  // Kernel for working with compressed sparse Ellpack using the global memory.
-  using MtGlobalCompr =
-      DeduceKernelT<MultiHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>>;
-  MtGlobalCompr mt_global_compr_kernel{
-      MultiHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with sparse Ellpack using the global memory.
-  using MtGlobal =
-      DeduceKernelT<MultiHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>>;
-  MtGlobal mt_global_kernel{
-      MultiHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with compressed sparse Ellpack using the shared memory.
-  using MtSharedCompr =
-      DeduceKernelT<MultiHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>>;
-  MtSharedCompr mt_shared_compr_kernel{
-      MultiHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with sparse Ellpack using the shared memory.
-  using MtShared =
-      DeduceKernelT<MultiHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>>;
-  MtShared mt_shared_kernel{
-      MultiHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with compressed dense ellpack using the global memory
-  using MtGlobalDense =
-      DeduceKernelT<MultiHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>>;
-  MtGlobalDense mt_global_dense_kernel{
-      MultiHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with compressed dense ellpack using the shared memory
-  using MtSharedDense =
-      DeduceKernelT<MultiHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>>;
-  MtSharedDense mt_shared_dense_kernel{
-      MultiHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>};
-
-  bool shared{false};
-  std::array<std::uint32_t, 12> grid_sizes;
-  std::size_t smem_size{0};
-  std::size_t const max_shared_memory;
-  bool const force_global;
-
-  HistogramKernel(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
-                  bool force_global_memory)
-      : max_shared_memory{dh::MaxSharedMemoryOptin(ctx->Ordinal())},
-        force_global{force_global_memory} {
-    std::fill_n(grid_sizes.data(), grid_sizes.size(), 0);
-    // Decide whether to use shared memory
-    // Opt into maximum shared memory for the kernel if necessary
-    this->smem_size = feature_groups.ShmemSize(/*n_targets=*/1);
-    this->shared = !force_global_memory && this->smem_size <= this->max_shared_memory;
-    this->smem_size = this->shared ? this->smem_size : 0;
-
-    auto init = [&](auto& kernel, KernelType k) {
-      if (this->shared) {
-        dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-                                           this->max_shared_memory));
-      }
-
-      // determine the launch configuration
-      std::int32_t num_groups = feature_groups.NumGroups();
-      std::int32_t n_mps = 0;
-      dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, ctx->Ordinal()));
-
-      std::int32_t n_blocks_per_mp = 0;
-      dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&n_blocks_per_mp, kernel,
-                                                                  kBlockThreads, this->smem_size));
-
-      // This gives the number of blocks to keep the device occupied Use this as the
-      // maximum number of blocks
-      this->grid_sizes[static_cast<std::size_t>(k)] = n_blocks_per_mp * n_mps;
-    };
-    // Initialize all kernel instantiations
-    {
-      // Single target
-      std::array kernel_types{kGlobalCompr, kGlobal,      kSharedCompr,
-                              kShared,      kGlobalDense, kSharedDense};
-      std::int32_t k = 0;
-      for (auto& kernel : {global_compr_kernel, global_kernel, shared_compr_kernel, shared_kernel,
-                           global_dense_kernel, shared_dense_kernel}) {
-        init(kernel, kernel_types[k]);
-        ++k;
-      }
-    }
-    {
-      // Multi target
-      std::array kernel_types{kMtGlobalCompr, kMtGlobal,      kMtSharedCompr,
-                              kMtShared,      kMtGlobalDense, kMtSharedDense};
-      std::int32_t k = 0;
-      for (auto& kernel : {mt_global_compr_kernel, mt_global_kernel, mt_shared_compr_kernel,
-                           mt_shared_kernel, mt_global_dense_kernel, mt_shared_dense_kernel}) {
-        init(kernel, kernel_types[k]);
-        ++k;
-      }
-    }
-  }
-};
-
-template <typename Accessor>
-class DeviceHistogramDispatchAccessor {
-  std::unique_ptr<HistogramKernel<Accessor>> kernel_{nullptr};
-
- public:
-  void Reset(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
-             bool force_global_memory) {
-    this->kernel_ =
-        std::make_unique<HistogramKernel<Accessor>>(ctx, feature_groups, force_global_memory);
-    if (force_global_memory) {
-      CHECK(!this->kernel_->shared);
-    }
-  }
-
-  void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix,
-                      FeatureGroupsAccessor const& feature_groups,
-                      common::Span<GradientPair const> gpair,
-                      common::Span<const cuda_impl::RowIndexT> d_ridx,
-                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding) const {
-    CHECK(kernel_);
-    // Otherwise launch blocks such that each block has a minimum amount of work to do
-    // There are fixed costs to launching each block, e.g. zeroing shared memory
-    // The below amount of minimum work was found by experimentation
-    int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
-    // Average number of matrix elements processed by each group
-    std::size_t items_per_group = d_ridx.size() * columns_per_group;
-
-    // Allocate number of blocks such that each block has about kMinItemsPerBlock work
-    // Up to a maximum where the device is saturated
-    auto constexpr kMinItemsPerBlock = ItemsPerTile();
-
-    auto launcher = [&](auto const& kernel, std::uint32_t grid_size) {
-      CHECK_NE(grid_size, 0);
-      grid_size = std::min(grid_size, static_cast<std::uint32_t>(
-                                          common::DivRoundUp(items_per_group, kMinItemsPerBlock)));
-      dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups()),  // NOLINT
-                       static_cast<uint32_t>(kBlockThreads), kernel_->smem_size, ctx->Stream()}(
-          kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding);
-    };
-
-    using K = HistogramKernel<EllpackDeviceAccessor>::KernelType;
-    if (!this->kernel_->shared) {  // Use global memory
-      CHECK_EQ(this->kernel_->smem_size, 0);
-      if (matrix.IsDense()) {
-        CHECK(this->kernel_->force_global ||
-              (feature_groups.ShmemSize(1) >= this->kernel_->max_shared_memory));
-        launcher(this->kernel_->global_dense_kernel, this->kernel_->grid_sizes[K::kGlobalDense]);
-      } else if (matrix.IsDenseCompressed()) {
-        CHECK(this->kernel_->force_global ||
-              (feature_groups.ShmemSize(1) >= this->kernel_->max_shared_memory));
-        launcher(this->kernel_->global_compr_kernel, this->kernel_->grid_sizes[K::kGlobalCompr]);
-      } else {
-        // Sparse
-        launcher(this->kernel_->global_kernel, this->kernel_->grid_sizes[K::kGlobal]);
-      }
-    } else {  // Use shared memory
-      CHECK_NE(this->kernel_->smem_size, 0);
-      if (matrix.IsDense()) {
-        launcher(this->kernel_->shared_dense_kernel, this->kernel_->grid_sizes[K::kSharedDense]);
-      } else if (matrix.IsDenseCompressed()) {
-        // Dense
-        launcher(this->kernel_->shared_compr_kernel, this->kernel_->grid_sizes[K::kSharedCompr]);
-      } else {
-        // Sparse
-        launcher(this->kernel_->shared_kernel, this->kernel_->grid_sizes[K::kShared]);
-      }
-    }
-  }
-};
-
-// Dispatch between single buffer accessor and double buffer accessor.
-struct DeviceHistogramBuilderImpl {
-  DeviceHistogramDispatchAccessor<EllpackDeviceAccessor> simpl;
-  DeviceHistogramDispatchAccessor<DoubleEllpackAccessor> dimpl;
-
-  template <typename... Args>
-  void Reset(Args&&... args) {
-    this->simpl.Reset(std::forward<Args>(args)...);
-    this->dimpl.Reset(std::forward<Args>(args)...);
-  }
-
-  template <typename Accessor, typename... Args>
-  void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix, Args&&... args) {
-    if constexpr (std::is_same_v<Accessor, EllpackDeviceAccessor>) {
-      this->simpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
-    } else {
-      static_assert(std::is_same_v<Accessor, DoubleEllpackAccessor>);
-      this->dimpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
-    }
-  }
-};
-
-DeviceHistogramBuilder::DeviceHistogramBuilder()
-    : p_impl_{std::make_unique<DeviceHistogramBuilderImpl>()} {
-  monitor_.Init(__func__);
-}
-
-DeviceHistogramBuilder::~DeviceHistogramBuilder() = default;
-
-void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
-                                   FeatureGroupsAccessor const& feature_groups,
-                                   bst_bin_t n_total_bins, bool force_global_memory) {
-  this->monitor_.Start(__func__);
-  this->p_impl_->Reset(ctx, feature_groups, force_global_memory);
-  this->hist_.Reset(ctx, n_total_bins, max_cached_hist_nodes);
-  this->monitor_.Stop(__func__);
-}
-
-void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
-                                            FeatureGroupsAccessor const& feature_groups,
-                                            common::Span<GradientPair const> gpair,
-                                            common::Span<const cuda_impl::RowIndexT> ridx,
-                                            common::Span<GradientPairInt64> histogram,
-                                            GradientQuantiser rounding) {
-  this->monitor_.Start(__func__);
-  std::visit(
-      [&](auto&& matrix) {
-        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram,
-                                      rounding);
-      },
-      matrix);
-  this->monitor_.Stop(__func__);
-}
-
 template <std::int32_t kBlockThreadsIn, std::int32_t kItemsPerThreadIn, bool kDenseIn,
           bool kCompressedIn, bool kSharedMemIn>
 struct HistPolicy {
@@ -639,6 +326,7 @@ struct HistPolicy {
   static constexpr bool kCompressed = kCompressedIn;
   static constexpr bool kSharedMem = kSharedMemIn;
 };
+
 /**
  * @brief Kernel for multi-target histogram.
  *
@@ -750,6 +438,261 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
 }
 
 namespace {
+constexpr std::int32_t kBlockThreads = 1024;
+constexpr std::int32_t kItemsPerThread = 8;
+constexpr std::int32_t ItemsPerTile() { return kBlockThreads * kItemsPerThread; }
+template <auto Ker>
+using DeduceKernelT = std::decay_t<decltype(Ker)>;
+}  // namespace
+
+// Use auto deduction guide to workaround compiler error.
+template <typename Accessor>
+struct HistogramKernel {
+  enum KernelType : std::size_t {
+    // single-target
+    kGlobalCompr = 0,
+    kGlobal = 1,
+    kSharedCompr = 2,
+    kShared = 3,
+    kGlobalDense = 4,
+    kSharedDense = 5,
+    // multi-target
+    kMtGlobalCompr = 6,
+    kMtGlobal = 7,
+    kMtSharedCompr = 8,
+    kMtShared = 9,
+    kMtGlobalDense = 10,
+    kMtSharedDense = 11,
+  };
+  /**
+   * Single-target
+   */
+  // Kernel for working with compressed sparse Ellpack using the global memory.
+  using GlobalCompr = DeduceKernelT<
+      SharedMemHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>>;
+  GlobalCompr global_compr_kernel{
+      SharedMemHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>};
+  // Kernel for working with sparse Ellpack using the global memory.
+  using Global = DeduceKernelT<
+      SharedMemHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>>;
+  Global global_kernel{
+      SharedMemHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>};
+  // Kernel for working with compressed sparse Ellpack using the shared memory.
+  using SharedCompr = DeduceKernelT<
+      SharedMemHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>>;
+  SharedCompr shared_compr_kernel{
+      SharedMemHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>};
+  // Kernel for working with sparse Ellpack using the shared memory.
+  using Shared = DeduceKernelT<
+      SharedMemHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>>;
+  Shared shared_kernel{
+      SharedMemHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>};
+  // Kernel for working with compressed dense ellpack using the global memory
+  using GlobalDense = DeduceKernelT<
+      SharedMemHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>>;
+  GlobalDense global_dense_kernel{
+      SharedMemHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>};
+  // Kernel for working with compressed dense ellpack using the shared memory
+  using SharedDense = DeduceKernelT<
+      SharedMemHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>>;
+  SharedDense shared_dense_kernel{
+      SharedMemHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>};
+
+  bool shared{false};
+  std::array<std::uint32_t, 12> grid_sizes;
+  std::size_t smem_size{0};
+  std::size_t const max_shared_memory;
+  bool const force_global;
+
+  HistogramKernel(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
+                  bool force_global_memory)
+      : max_shared_memory{dh::MaxSharedMemoryOptin(ctx->Ordinal())},
+        force_global{force_global_memory} {
+    std::fill_n(grid_sizes.data(), grid_sizes.size(), 0);
+    // Decide whether to use shared memory
+    // Opt into maximum shared memory for the kernel if necessary
+    this->smem_size = feature_groups.ShmemSize(/*n_targets=*/1);
+    this->shared = !force_global_memory && this->smem_size <= this->max_shared_memory;
+    this->smem_size = this->shared ? this->smem_size : 0;
+
+    auto init = [&](auto& kernel, KernelType k) {
+      if (this->shared) {
+        dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                           this->max_shared_memory));
+      }
+
+      // determine the launch configuration
+      std::int32_t num_groups = feature_groups.NumGroups();
+      std::int32_t n_mps = 0;
+      dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, ctx->Ordinal()));
+
+      std::int32_t n_blocks_per_mp = 0;
+      dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&n_blocks_per_mp, kernel,
+                                                                  kBlockThreads, this->smem_size));
+
+      // This gives the number of blocks to keep the device occupied Use this as the
+      // maximum number of blocks
+      this->grid_sizes[static_cast<std::size_t>(k)] = n_blocks_per_mp * n_mps;
+    };
+    // Initialize all kernel instantiations
+    // Single target
+    std::array kernel_types{kGlobalCompr, kGlobal,      kSharedCompr,
+                            kShared,      kGlobalDense, kSharedDense};
+    std::int32_t k = 0;
+    for (auto& kernel : {global_compr_kernel, global_kernel, shared_compr_kernel, shared_kernel,
+                         global_dense_kernel, shared_dense_kernel}) {
+      init(kernel, kernel_types[k]);
+      ++k;
+    }
+  }
+};
+
+template <typename Accessor>
+struct MtHistKernelConfig {
+  std::int32_t n_blocks_per_mp{0};
+  std::size_t shmem_bytes{0};
+};
+
+template <typename Accessor>
+class DeviceHistogramDispatchAccessor {
+  std::unique_ptr<HistogramKernel<Accessor>> kernel_{nullptr};
+  std::int32_t sm_{0};
+  std::map<void*, MtHistKernelConfig<Accessor>> mt_kernels_;
+
+ public:
+  void Reset(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
+             bool force_global_memory) {
+    this->kernel_ =
+        std::make_unique<HistogramKernel<Accessor>>(ctx, feature_groups, force_global_memory);
+
+    // cudaGetDeviceProperties();
+
+    if (force_global_memory) {
+      CHECK(!this->kernel_->shared);
+    }
+  }
+
+  void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix,
+                      FeatureGroupsAccessor const& feature_groups,
+                      common::Span<GradientPair const> gpair,
+                      common::Span<const cuda_impl::RowIndexT> d_ridx,
+                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding) const {
+    CHECK(kernel_);
+    // Otherwise launch blocks such that each block has a minimum amount of work to do
+    // There are fixed costs to launching each block, e.g. zeroing shared memory
+    // The below amount of minimum work was found by experimentation
+    int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
+    // Average number of matrix elements processed by each group
+    std::size_t items_per_group = d_ridx.size() * columns_per_group;
+
+    // Allocate number of blocks such that each block has about kMinItemsPerBlock work
+    // Up to a maximum where the device is saturated
+    auto constexpr kMinItemsPerBlock = ItemsPerTile();
+
+    auto launcher = [&](auto const& kernel, std::uint32_t grid_size) {
+      CHECK_NE(grid_size, 0);
+      grid_size = std::min(grid_size, static_cast<std::uint32_t>(
+                                          common::DivRoundUp(items_per_group, kMinItemsPerBlock)));
+      dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups()),  // NOLINT
+                       static_cast<uint32_t>(kBlockThreads), kernel_->smem_size, ctx->Stream()}(
+          kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding);
+    };
+
+    using K = HistogramKernel<EllpackDeviceAccessor>::KernelType;
+    if (!this->kernel_->shared) {  // Use global memory
+      CHECK_EQ(this->kernel_->smem_size, 0);
+      if (matrix.IsDense()) {
+        CHECK(this->kernel_->force_global ||
+              (feature_groups.ShmemSize(1) >= this->kernel_->max_shared_memory));
+        launcher(this->kernel_->global_dense_kernel, this->kernel_->grid_sizes[K::kGlobalDense]);
+      } else if (matrix.IsDenseCompressed()) {
+        CHECK(this->kernel_->force_global ||
+              (feature_groups.ShmemSize(1) >= this->kernel_->max_shared_memory));
+        launcher(this->kernel_->global_compr_kernel, this->kernel_->grid_sizes[K::kGlobalCompr]);
+      } else {
+        // Sparse
+        launcher(this->kernel_->global_kernel, this->kernel_->grid_sizes[K::kGlobal]);
+      }
+    } else {  // Use shared memory
+      CHECK_NE(this->kernel_->smem_size, 0);
+      if (matrix.IsDense()) {
+        launcher(this->kernel_->shared_dense_kernel, this->kernel_->grid_sizes[K::kSharedDense]);
+      } else if (matrix.IsDenseCompressed()) {
+        // Dense
+        launcher(this->kernel_->shared_compr_kernel, this->kernel_->grid_sizes[K::kSharedCompr]);
+      } else {
+        // Sparse
+        launcher(this->kernel_->shared_kernel, this->kernel_->grid_sizes[K::kShared]);
+      }
+    }
+  }
+
+  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+                      FeatureGroupsAccessor const& feature_groups,
+                      linalg::MatrixView<GradientPair const> gpair,
+                      common::Span<common::Span<cuda_impl::RowIndexT const>> ridxs,
+                      common::Span<common::Span<GradientPairInt64>> hists,
+                      std::vector<std::size_t> const& h_sizes_csum,
+                      common::Span<GradientQuantiser const> roundings) {
+
+  }
+};
+
+// Dispatch between single buffer accessor and double buffer accessor.
+struct DeviceHistogramBuilderImpl {
+  DeviceHistogramDispatchAccessor<EllpackDeviceAccessor> simpl;
+  DeviceHistogramDispatchAccessor<DoubleEllpackAccessor> dimpl;
+
+  template <typename... Args>
+  void Reset(Args&&... args) {
+    this->simpl.Reset(std::forward<Args>(args)...);
+    this->dimpl.Reset(std::forward<Args>(args)...);
+  }
+
+  template <typename Accessor, typename... Args>
+  void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix, Args&&... args) {
+    if constexpr (std::is_same_v<Accessor, EllpackDeviceAccessor>) {
+      this->simpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
+    } else {
+      static_assert(std::is_same_v<Accessor, DoubleEllpackAccessor>);
+      this->dimpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
+    }
+  }
+};
+
+DeviceHistogramBuilder::DeviceHistogramBuilder()
+    : p_impl_{std::make_unique<DeviceHistogramBuilderImpl>()} {
+  monitor_.Init(__func__);
+}
+
+DeviceHistogramBuilder::~DeviceHistogramBuilder() = default;
+
+void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
+                                   FeatureGroupsAccessor const& feature_groups,
+                                   bst_bin_t n_total_bins, bool force_global_memory) {
+  this->monitor_.Start(__func__);
+  this->p_impl_->Reset(ctx, feature_groups, force_global_memory);
+  this->hist_.Reset(ctx, n_total_bins, max_cached_hist_nodes);
+  this->monitor_.Stop(__func__);
+}
+
+void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+                                            FeatureGroupsAccessor const& feature_groups,
+                                            common::Span<GradientPair const> gpair,
+                                            common::Span<const cuda_impl::RowIndexT> ridx,
+                                            common::Span<GradientPairInt64> histogram,
+                                            GradientQuantiser rounding) {
+  this->monitor_.Start(__func__);
+  std::visit(
+      [&](auto&& matrix) {
+        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram,
+                                      rounding);
+      },
+      matrix);
+  this->monitor_.Stop(__func__);
+}
+
+namespace {
 struct Sm70Policy {
   static constexpr int kBlockThreads = 768;
 };
@@ -821,11 +764,6 @@ void DeviceHistogramBuilder::BuildHistogram(
     dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
         &n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
     CHECK_GE(n_blocks_per_mp, 1);
-
-    std::int32_t minGridSize = 0, blockSize = 0;
-    dh::safe_cuda(
-        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, kernel, shmem_bytes));
-    std::cout << "minGridSize:" << minGridSize << "blockSize:" << blockSize << std::endl;
 
     std::uint32_t n_blocks = 0;
     auto blk_ptr =
