@@ -13,7 +13,7 @@
 
 namespace xgboost::tree::cuda_impl {
 class MultiHistTest
-    : public ::testing::TestWithParam<std::tuple<bst_idx_t, bst_feature_t, bst_target_t>> {
+    : public ::testing::TestWithParam<std::tuple<bst_idx_t, bst_feature_t, bst_target_t, bool>> {
  public:
   Context ctx{MakeCUDACtx(0)};
 
@@ -36,7 +36,8 @@ class MultiHistTest
   dh::device_vector<GradientQuantiser> quantizers;
 
   void SetUp() override {
-    std::tie(this->n_samples, this->n_features, this->n_targets) = this->GetParam();
+    bool force_global = false;
+    std::tie(this->n_samples, this->n_features, this->n_targets, force_global) = this->GetParam();
 
     this->page = MakeEllpackForTest(&ctx, n_samples, n_features, n_bins);
     this->cuts = page->CutsShared();
@@ -46,7 +47,7 @@ class MultiHistTest
 
     bst_bin_t n_total_bins = n_targets * n_features * n_bins;
     auto fg_acc = p_fg->DeviceAccessor(ctx.Device());
-    this->histogram.Reset(&ctx, /*max_cached_hist_nodes=*/3, fg_acc, n_total_bins, false);
+    this->histogram.Reset(&ctx, /*max_cached_hist_nodes=*/3, fg_acc, n_total_bins, force_global);
 
     this->gpairs = linalg::Constant(&ctx, GradientPair{1.0f, 1.0f}, n_samples, n_targets);
 
@@ -118,8 +119,9 @@ TEST_P(MultiHistTest, Children) { this->TestMtChildrenBuild(); }
 namespace {
 std::string TestName(::testing::TestParamInfo<MultiHistTest::ParamType> const& info) {
   std::stringstream ss;
-  auto [n_samples, n_features, n_targets] = info.param;
-  ss << "n_samples_" << n_samples << "_n_features_" << n_features << "_n_targets_" << n_targets;
+  auto [n_samples, n_features, n_targets, global] = info.param;
+  ss << "n_samples_" << n_samples << "_n_features_" << n_features << "_n_targets_" << n_targets
+     << "_global_" << global;
   return ss.str();
 }
 }  // namespace
@@ -127,6 +129,6 @@ std::string TestName(::testing::TestParamInfo<MultiHistTest::ParamType> const& i
 INSTANTIATE_TEST_SUITE_P(Histogram, MultiHistTest,
                          ::testing::Combine(::testing::Values(256, 1024, 8192),
                                             ::testing::Values(1, 128, 257),
-                                            ::testing::Values(1, 16)),
+                                            ::testing::Values(1, 16), ::testing::Bool()),
                          TestName);
 }  // namespace xgboost::tree::cuda_impl
