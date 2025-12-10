@@ -6,13 +6,13 @@
 
 #include <cuda/functional>
 
-#include "../../../../src/common/device_debug.cuh"
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
 #include "../../helpers.h"
 #include "../../histogram_helpers.h"
 #include "dummy_quantizer.cuh"  // for MakeDummyQuantizers
 
 namespace xgboost::tree::cuda_impl {
+// fixme: remove the old test.
 TEST(GpuMultiHistogram, Basic) {
   auto ctx = MakeCUDACtx(0);
   bst_bin_t n_bins = 16;
@@ -41,9 +41,11 @@ TEST(GpuMultiHistogram, Basic) {
 
   dh::device_vector<common::Span<std::uint32_t const>> ridxs{dh::ToSpan(ridx)};
   dh::device_vector<common::Span<GradientPairInt64>> hists{node_hist};
+  dh::device_vector<std::size_t> sizes{ridx.size()};
+
   histogram.BuildHistogram(ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}), fg_acc,
                            gpairs.View(ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists),
-                           ridx.size(), dh::ToSpan(quantizers));
+                           dh::ToSpan(sizes), ridx.size(), dh::ToSpan(quantizers));
 
   std::vector<GradientPairInt64> h_node_hist(node_hist.size());
   dh::CopyDeviceSpanToVector(&h_node_hist, node_hist);
@@ -107,17 +109,19 @@ class MultiHistTest
   void TestMtBuild() {
     auto ridxs = dh::device_vector<common::Span<std::uint32_t const>>{dh::ToSpan(ridx)};
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{node_hist};
-    this->histogram.BuildHistogram(this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}),
-                                   p_fg->DeviceAccessor(ctx.Device()),
-                                   this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
-                                   dh::ToSpan(hists), ridx.size(), dh::ToSpan(this->quantizers));
+    auto sizes = dh::device_vector<std::size_t>{ridx.size()};
+    this->histogram.BuildHistogram(
+        this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
+        this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists),
+        dh::ToSpan(sizes), ridx.size(), dh::ToSpan(this->quantizers));
 
-    std::vector<GradientPairInt64> h_node_hist(node_hist.size());
-    dh::CopyDeviceSpanToVector(&h_node_hist, node_hist);
+    auto d_hist = this->node_hist;
+    std::vector<GradientPairInt64> h_hist(d_hist.size());
+    dh::CopyDeviceSpanToVector(&h_hist, d_hist);
     // The values are evenly distributed across all bins
     auto expected = n_samples / n_bins;
     std::int32_t k = 0;
-    for (auto v : h_node_hist) {
+    for (auto v : h_hist) {
       ASSERT_EQ(v.GetQuantisedGrad(), expected) << " k:" << k;
       ASSERT_EQ(v.GetQuantisedHess(), expected) << " k:" << k;
       ++k;
@@ -126,15 +130,31 @@ class MultiHistTest
 
   void TestMtChildrenBuild() {
     auto d_ridx = dh::ToSpan(ridx);
+    dh::device_vector<std::size_t> sizes{0, n_samples / 4, n_samples - (n_samples / 4)};
     auto ridxs = dh::device_vector<common::Span<std::uint32_t const>>{
         d_ridx.subspan(0, n_samples / 4), d_ridx.subspan(n_samples / 4)};
     this->histogram.AllocateHistograms(&ctx, {1, 2});
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{
         this->histogram.GetNodeHistogram(1), this->histogram.GetNodeHistogram(2)};
-    this->histogram.BuildHistogram(this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}),
-                                   p_fg->DeviceAccessor(ctx.Device()),
-                                   this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
-                                   dh::ToSpan(hists), ridx.size(), dh::ToSpan(this->quantizers));
+    this->histogram.BuildHistogram(
+        this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
+        this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists),
+        dh::ToSpan(sizes), ridx.size(), dh::ToSpan(this->quantizers));
+
+    auto d_hist_1 = this->histogram.GetNodeHistogram(1);
+    auto d_hist_2 = this->histogram.GetNodeHistogram(2);
+    std::vector<GradientPairInt64> h_hist_1(d_hist_1.size());
+    std::vector<GradientPairInt64> h_hist_2(d_hist_2.size());
+    dh::CopyDeviceSpanToVector(&h_hist_1, d_hist_1);
+    dh::CopyDeviceSpanToVector(&h_hist_2, d_hist_2);
+    ASSERT_EQ(h_hist_1.size(), h_hist_2.size());
+
+    // The values are evenly distributed across all bins
+    auto expected = n_samples / n_bins;
+
+    for (std::size_t i = 0; i < h_hist_1.size(); ++i) {
+      ASSERT_EQ(h_hist_1[i].GetQuantisedHess() + h_hist_2[i].GetQuantisedHess(), expected);
+    }
   }
 
   void TestStBuild() {
