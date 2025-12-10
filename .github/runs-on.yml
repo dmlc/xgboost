@@ -36,6 +36,10 @@ runners:
     family: ["c6g", "c7g"]
     image: linux-arm64
     spot: "false"
+  linux-arm64-gpu:
+    family: ["g5g.xlarge"]
+    image: linux-arm64
+    spot: "false"
   windows-gpu:
     family: ["g4dn.2xlarge"]
     image: windows-amd64
