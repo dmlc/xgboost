@@ -22,8 +22,6 @@ class MultiHistTest
   bst_target_t n_targets{0};
   bst_feature_t n_features{0};
 
-  bool use_single_target = false;
-
   bst_idx_t n_samples{0};
 
   std::unique_ptr<EllpackPageImpl> page;
@@ -110,13 +108,6 @@ class MultiHistTest
     for (std::size_t i = 0; i < h_hist_1.size(); ++i) {
       ASSERT_EQ(h_hist_1[i].GetQuantisedHess() + h_hist_2[i].GetQuantisedHess(), expected);
     }
-  }
-
-  void TestStBuild() {
-    GradientQuantiser q{GradientPairPrecise{1.0f, 1.0f}, GradientPairPrecise{1.0f, 1.0f}};
-    this->histogram.BuildHistogram(
-        &this->ctx, page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
-        this->gpairs.Data()->ConstDeviceSpan(), dh::ToSpan(ridx), this->node_hist, q);
   }
 };
 

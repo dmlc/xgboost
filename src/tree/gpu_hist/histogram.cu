@@ -330,6 +330,10 @@ struct HistPolicy {
 /**
  * @brief Kernel for multi-target histogram.
  *
+ * Eventually, we should merge the kernel with the existing single-target version. For
+ * now, we define a different version as a playground, without risking regressing the
+ * established one.
+ *
  * @param matrix         An ellpack accessor.
  * @param feature_groups Grouping for privatized histogram.
  * @param d_ridx_iters   Pointer to row index spans. One span per node.
@@ -558,7 +562,6 @@ struct MtHistKernel {
       n_total_blocks += n_blocks;
     }
     *p_out_blocks = blk_ptr.back();
-    std::cout << "n_total_blocks:" << n_total_blocks << std::endl;
     return dh::device_vector<std::uint32_t>{blk_ptr};
   }
 
