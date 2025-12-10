@@ -65,7 +65,7 @@ class MultiHistTest
     auto ridxs = dh::device_vector<common::Span<std::uint32_t const>>{dh::ToSpan(ridx)};
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{node_hist};
     auto sizes_cum = std::vector<std::size_t>{0, ridx.size()};
-    this->histogram.BuildHistogram(this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}),
+    this->histogram.BuildHistogram(&this->ctx, page->GetDeviceEllpack(&ctx, {}),
                                    p_fg->DeviceAccessor(ctx.Device()),
                                    this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
                                    dh::ToSpan(hists), sizes_cum, dh::ToSpan(this->quantizers));
@@ -91,7 +91,7 @@ class MultiHistTest
     this->histogram.AllocateHistograms(&ctx, {1, 2});
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{
         this->histogram.GetNodeHistogram(1), this->histogram.GetNodeHistogram(2)};
-    this->histogram.BuildHistogram(this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}),
+    this->histogram.BuildHistogram(&this->ctx, page->GetDeviceEllpack(&ctx, {}),
                                    p_fg->DeviceAccessor(ctx.Device()),
                                    this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
                                    dh::ToSpan(hists), sizes_cum, dh::ToSpan(this->quantizers));
@@ -115,7 +115,7 @@ class MultiHistTest
   void TestStBuild() {
     GradientQuantiser q{GradientPairPrecise{1.0f, 1.0f}, GradientPairPrecise{1.0f, 1.0f}};
     this->histogram.BuildHistogram(
-        this->ctx.CUDACtx(), page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
+        &this->ctx, page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
         this->gpairs.Data()->ConstDeviceSpan(), dh::ToSpan(ridx), this->node_hist, q);
   }
 };

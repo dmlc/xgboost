@@ -308,9 +308,8 @@ struct GPUHistMakerDevice {
     auto d_node_hist = histogram_.GetNodeHistogram(nidx);
     auto d_ridx = partitioners_.At(k)->GetRows(nidx);
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
-    this->histogram_.BuildHistogram(ctx_->CUDACtx(), acc,
-                                    feature_groups_->DeviceAccessor(ctx_->Device()), this->gpair,
-                                    d_ridx, d_node_hist, *quantiser);
+    this->histogram_.BuildHistogram(ctx_, acc, feature_groups_->DeviceAccessor(ctx_->Device()),
+                                    this->gpair, d_ridx, d_node_hist, *quantiser);
     monitor.Stop(__func__);
   }
 

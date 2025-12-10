@@ -159,14 +159,14 @@ class DeviceHistogramBuilder {
              FeatureGroupsAccessor const& feature_groups, bst_bin_t n_total_bins,
              bool force_global_memory);
 
-  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+  void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
                       common::Span<const std::uint32_t> ridx,
                       common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
 
   // Build histograms for multiple nodes and multiple targets
-  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+  void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       linalg::MatrixView<GradientPair const> gpair,
                       common::Span<common::Span<const std::uint32_t>> ridxs,

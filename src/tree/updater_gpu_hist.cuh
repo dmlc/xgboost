@@ -145,8 +145,8 @@ class MultiTargetHistMaker {
     dh::device_vector<common::Span<RowIndexT const>> ridxs{h_ridxs};
 
     this->histogram_.BuildHistogram(
-        this->ctx_->CUDACtx(), acc, this->feature_groups_->DeviceAccessor(this->ctx_->Device()),
-        d_gpair, dh::ToSpan(ridxs), dh::ToSpan(hists), h_sizes_csum, roundings);
+        this->ctx_, acc, this->feature_groups_->DeviceAccessor(this->ctx_->Device()), d_gpair,
+        dh::ToSpan(ridxs), dh::ToSpan(hists), h_sizes_csum, roundings);
   }
 
  public:
