@@ -569,10 +569,8 @@ struct MtHistKernel {
   bool const force_global;
 
   explicit MtHistKernel(Context const* ctx, bool force_global) : force_global{force_global} {
-    cfg.clear();
-
-    std::int32_t n_mps = 0;
-    dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, ctx->Ordinal()));
+    dh::safe_cuda(
+        cudaDeviceGetAttribute(&this->n_mps, cudaDevAttrMultiProcessorCount, ctx->Ordinal()));
   }
 
   template <std::int32_t kBlockThreads, bool kDense, bool kCompressed, typename Accessor,
@@ -594,10 +592,10 @@ struct MtHistKernel {
     auto launch = [&](auto policy, auto kernel) {
       using Policy = common::GetValueT<decltype(policy)>;
       int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
+      auto v = this->cfg.at(reinterpret_cast<void*>(kernel));
       std::uint32_t n_blocks = 0;
-      auto blk_ptr = AllocateBlocks<Policy>(
-          h_sizes_csum, columns_per_group,
-          this->cfg.at(reinterpret_cast<void*>(kernel)).n_blocks_per_mp * n_mps, &n_blocks);
+      auto blk_ptr = AllocateBlocks<Policy>(h_sizes_csum, columns_per_group,
+                                            v.n_blocks_per_mp * n_mps, &n_blocks);
       CHECK_GE(n_blocks, hists.size());
       dim3 conf(n_blocks, feature_groups.NumGroups());
 
@@ -617,7 +615,7 @@ struct MtHistKernel {
             &v.n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
         dh::safe_cuda(
             cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, shmem_bytes));
-        cfg[reinterpret_cast<void*>(kernel)] = v;
+        this->cfg[reinterpret_cast<void*>(kernel)] = v;
       }
       launch(Policy{}, kernel);
     } else {
@@ -628,7 +626,7 @@ struct MtHistKernel {
         MtHistKernelConfig v;
         dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
             &v.n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
-        cfg[reinterpret_cast<void*>(kernel)] = v;
+        this->cfg[reinterpret_cast<void*>(kernel)] = v;
       }
       launch(Policy{}, kernel);
     }
