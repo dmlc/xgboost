@@ -9,6 +9,7 @@
 #include <cmath>      // for ceil, log2
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t
+
 #include "common.h"
 
 #ifdef __CUDACC__
