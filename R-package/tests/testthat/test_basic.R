@@ -1134,3 +1134,18 @@ test_that("Row names are preserved in outputs", {
   pred <- predict(model, x, predleaf = TRUE, avoid_transpose = TRUE)
   expect_equal(colnames(pred), row.names(x))
 })
+
+test_that("xgb.train works correctly with nrounds = 0", {
+  data(agaricus.train, package = "xgboost")
+  dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
+
+  # Test nrounds = 0 (Should result in 0 iterations)
+  # Before the fix, this would default to 2 iterations
+  bst <- xgb.train(
+    params = list(objective = "binary:logistic"),
+    data = dtrain,
+    nrounds = 0,
+    verbose = 0
+  )
+  expect_equal(bst$niter, 0)
+})
