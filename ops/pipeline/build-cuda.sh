@@ -9,13 +9,14 @@ then
   exit 1
 fi
 
-if [[ "$#" -lt 2 ]]
+if [[ "$#" -lt 3 ]]
 then
-  echo "Usage: $0 [image_repo] {enable-rmm,disable-rmm}"
+  echo "Usage: $0 [image_repo] {x86_64,aarch64} {enable-rmm,disable-rmm}"
   exit 2
 fi
 image_repo="$1"
-rmm_flag="$2"
+arch="$2"
+rmm_flag="$3"
 export USE_FEDERATED=1
 
 # Validate RMM flag
@@ -36,7 +37,7 @@ source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 source ops/pipeline/get-image-tag.sh
 
-WHEEL_TAG=manylinux_2_28_x86_64
+WHEEL_TAG=manylinux_2_28_${ARCH}
 BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
 MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:${IMAGE_TAG}"
 
@@ -74,13 +75,17 @@ pydistcheck --config python-package/pyproject.toml python-package/dist/*.whl
 
 if [[ $USE_RMM == 0 ]]
 then
-  # Generate the meta info which includes xgboost version and the commit info
-  echo "--- Generate meta info"
-  python3 ops/script/format_wheel_meta.py \
-    --wheel-path python-package/dist/*.whl  \
-    --commit-hash ${GITHUB_SHA}  \
-    --platform-tag ${WHEEL_TAG}  \
-    --meta-path python-package/dist/
+  if [[ $ARCH == "x86_64" ]]
+  then
+    # Generate the meta info which includes xgboost version and the commit info
+    # TODO(hcho3): Generate meta.json that contains both x86_64 and aarch64 wheels
+    echo "--- Generate meta info"
+    python3 ops/script/format_wheel_meta.py \
+      --wheel-path python-package/dist/*.whl  \
+      --commit-hash ${GITHUB_SHA}  \
+      --platform-tag ${WHEEL_TAG}  \
+      --meta-path python-package/dist/
+  fi
 
   echo "--- Upload Python wheel"
   if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
@@ -89,9 +94,13 @@ then
       --s3-bucket xgboost-nightly-builds \
       --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
       python-package/dist/*.whl
-    python3 ops/pipeline/manage-artifacts.py upload \
-      --s3-bucket xgboost-nightly-builds \
-      --prefix ${BRANCH_NAME} --make-public \
-      python-package/dist/meta.json
+
+    if [[ $ARCH == "x86_64" ]]
+    then
+      python3 ops/pipeline/manage-artifacts.py upload \
+        --s3-bucket xgboost-nightly-builds \
+        --prefix ${BRANCH_NAME} --make-public \
+        python-package/dist/meta.json
+    fi
   fi
 fi
