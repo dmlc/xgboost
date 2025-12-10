@@ -127,8 +127,14 @@ std::string TestName(::testing::TestParamInfo<MultiHistTest::ParamType> const& i
 }  // namespace
 
 INSTANTIATE_TEST_SUITE_P(Histogram, MultiHistTest,
-                         ::testing::Combine(::testing::Values(256, 1024, 8192),
+                         ::testing::Combine(::testing::Values<bst_idx_t>(256, 1024, 8192),
                                             ::testing::Values(1, 128, 257),
                                             ::testing::Values(1, 16), ::testing::Bool()),
+                         TestName);
+
+INSTANTIATE_TEST_SUITE_P(DISABLED_BenchMark, MultiHistTest,
+                         ::testing::Combine(::testing::Values<bst_idx_t>((1ul << 21)),
+                                            ::testing::Values(512), ::testing::Values(1, 16),
+                                            ::testing::Bool()),
                          TestName);
 }  // namespace xgboost::tree::cuda_impl

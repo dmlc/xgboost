@@ -394,8 +394,12 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
       if (Policy::kCompressed) {
         compressed_bin += matrix.feature_segments[fidx];
       }
-      // start_bin is 0 if this is a gmem kernel
-      compressed_bin = (compressed_bin - group.start_bin) * n_targets;
+      if (Policy::kSharedMem) {
+        // Handle privatized histogram indexing.
+        compressed_bin = (compressed_bin - group.start_bin) * n_targets;
+      } else {
+        compressed_bin *= n_targets;
+      }
       // TODO(jiamingy): Assign a thread for each target. When there are multiple targets,
       // this can cause significant stall. Get rid of the F-order and enable vector load
       // if possible.
