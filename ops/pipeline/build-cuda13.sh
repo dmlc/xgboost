@@ -9,7 +9,13 @@ then
   exit 1
 fi
 
-IMAGE_REPO="xgb-ci.gpu_build_cuda13_rockylinux8"
+if [[ "$#" -lt 2 ]]
+then
+  echo "Usage: $0 [image_repo] {x86_64,aarch64}"
+  exit 2
+fi
+image_repo="$1"
+arch="$2"
 export USE_RMM=0
 export USE_FEDERATED=0
 
@@ -17,8 +23,8 @@ source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 source ops/pipeline/get-image-tag.sh
 
-WHEEL_TAG=manylinux_2_28_x86_64
-BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${IMAGE_REPO}:${IMAGE_TAG}"
+WHEEL_TAG=manylinux_2_28_${arch}
+BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
 MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:${IMAGE_TAG}"
 
 echo "--- Build with CUDA"
