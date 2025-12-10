@@ -371,9 +371,7 @@ class MultiTargetHistMaker {
     // Build the nodes that can not obtain the histogram using subtraction. This is the slow path.
     std::int32_t k = 0;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-      for (auto nidx : need_build) {
-        this->BuildHist(page, k, nidx);
-      }
+      this->BuildHist(page, k, need_build);
       ++k;
     }
   }
@@ -417,10 +415,7 @@ class MultiTargetHistMaker {
         partitioners_.UpdatePositionBatch(this->ctx_, k, nodes.nidx, nodes.left_nidx,
                                           nodes.right_nidx, nodes.split_data,
                                           GoLeftWrapperOp<GoLeft>{go_left});
-
-        for (auto nidx : build_nidx) {
-          this->BuildHist(page, k, nidx);
-        }
+        this->BuildHist(page, k, build_nidx);
       });
       ++k;
     }
