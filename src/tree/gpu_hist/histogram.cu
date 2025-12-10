@@ -413,7 +413,6 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
   };
 
   while (offset < n_elements) {
-    // fixme: account for strides
     std::int32_t const valid_items =
         cuda::std::min(n_elements - offset, static_cast<std::size_t>(Policy::kTileSize));
     if (Policy::kTileSize == valid_items) {
@@ -568,9 +567,11 @@ struct MtHistKernel {
 
   std::map<void*, MtHistKernelConfig> cfg;
   std::int32_t n_mps = 0;
+  std::size_t max_shared_bytes = 0;
   bool const force_global;
 
-  explicit MtHistKernel(Context const* ctx, bool force_global) : force_global{force_global} {
+  explicit MtHistKernel(Context const* ctx, bool force_global)
+      : max_shared_bytes{dh::MaxSharedMemoryOptin(ctx->Ordinal())}, force_global{force_global} {
     dh::safe_cuda(
         cudaDeviceGetAttribute(&this->n_mps, cudaDevAttrMultiProcessorCount, ctx->Ordinal()));
   }
@@ -585,9 +586,8 @@ struct MtHistKernel {
                          common::Span<GradientQuantiser const> roundings) {
     auto n_targets = gpair.Shape(1);
 
-    auto max_shared_bytes = dh::MaxSharedMemoryOptin(0);  // fixme: inject
     std::size_t shmem_bytes = feature_groups.ShmemSize(n_targets);
-    bool use_shared = !force_global && shmem_bytes <= max_shared_bytes;
+    bool use_shared = !force_global && shmem_bytes <= this->max_shared_bytes;
     shmem_bytes = use_shared ? shmem_bytes : 0;
 
     auto launch = [&](auto policy, auto kernel) {
