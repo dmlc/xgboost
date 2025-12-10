@@ -87,7 +87,7 @@ class MultiHistTest
     auto d_ridx = dh::ToSpan(ridx);
     auto ridxs = dh::device_vector<common::Span<std::uint32_t const>>{
         d_ridx.subspan(0, n_samples / 4), d_ridx.subspan(n_samples / 4)};
-    auto sizes_cum = std::vector<std::size_t>{0, n_samples / 4, n_samples - n_samples / 4};
+    auto sizes_cum = std::vector<std::size_t>{0, n_samples / 4, n_samples};
     this->histogram.AllocateHistograms(&ctx, {1, 2});
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{
         this->histogram.GetNodeHistogram(1), this->histogram.GetNodeHistogram(2)};
