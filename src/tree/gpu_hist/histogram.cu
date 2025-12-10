@@ -562,6 +562,7 @@ auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum, std::int32_t col
 struct MtHistKernel {
   struct MtHistKernelConfig {
     std::int32_t n_blocks_per_mp = 0;
+    std::int32_t shmem_bytes = 0;
   };
 
   std::map<void*, MtHistKernelConfig> cfg;
@@ -585,8 +586,7 @@ struct MtHistKernel {
 
     auto max_shared_bytes = dh::MaxSharedMemoryOptin(0);  // fixme: inject
     std::size_t shmem_bytes = feature_groups.ShmemSize(n_targets);
-    bool use_shared = shmem_bytes < max_shared_bytes;
-    use_shared = !force_global && shmem_bytes <= max_shared_bytes;
+    bool use_shared = !force_global && shmem_bytes <= max_shared_bytes;
     shmem_bytes = use_shared ? shmem_bytes : 0;
 
     auto launch = [&](auto policy, auto kernel) {
@@ -613,8 +613,12 @@ struct MtHistKernel {
         MtHistKernelConfig v;
         dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
             &v.n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
-        dh::safe_cuda(
-            cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, shmem_bytes));
+        // This function is the reason for all these trouble to cache the
+        // configuration. It blocks the device.
+        if (shmem_bytes > v.shmem_bytes) {
+          dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                             shmem_bytes));
+        }
         this->cfg[reinterpret_cast<void*>(kernel)] = v;
       }
       launch(Policy{}, kernel);
