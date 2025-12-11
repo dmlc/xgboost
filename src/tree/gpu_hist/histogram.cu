@@ -574,10 +574,14 @@ struct MtHistKernel {
     std::int32_t n_blocks_per_mp = 0;
     std::size_t shmem_bytes = 0;
   };
-
+  // Maps kernel instantiations to their configurations. This is a mutable state, as a
+  // result the histogram kernel is not thread safe.
   std::map<void*, MtHistKernelConfig> cfg;
+  // The number of multi-processor for the selected GPU
   std::int32_t n_mps = 0;
+  // Maximum size of the shared memory (optin)
   std::size_t max_shared_bytes = 0;
+  // Use global memory for testing
   bool const force_global;
 
   explicit MtHistKernel(Context const* ctx, bool force_global)
@@ -665,6 +669,9 @@ struct MtHistKernel {
   template <typename... Args>
   void DispatchHistPolicyBlockSize(Args&&... args) {
     // An heuristic to choose the block size based on the number of multi processors.
+    //
+    // The usual practice is to use the SM version for tuning. But we don't have the
+    // resource to followup with benchmarks for every architecture.
     constexpr std::int32_t kMpThreshold = 128;
     if (this->n_mps >= kMpThreshold) {
       constexpr std::int32_t kBlockThreads = 1024;
