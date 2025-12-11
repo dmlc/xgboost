@@ -18,6 +18,7 @@
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
 #include <cuda/std/iterator>  // for iterator_traits
+#include <cuda/std/utility>   // for pair
 #include <functional>         // for equal_to
 #include <variant>            // for variant, visit
 #include <vector>             // for vector
@@ -607,12 +608,11 @@ size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy
                        KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
                        ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
                        CompValue comp, CompKey comp_key = std::equal_to<size_t>{}) {
-  using Key = thrust::pair<size_t, typename cuda::std::iterator_traits<ValInIt>::value_type>;
+  using Key = cuda::std::pair<size_t, typename cuda::std::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
-      thrust::make_counting_iterator(static_cast<size_t>(0)),
-      [=] __device__(size_t i) {
+      thrust::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(std::size_t i) {
         size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
-        return thrust::make_pair(seg, *(val_first + i));
+        return cuda::std::make_pair(seg, *(val_first + i));
       });
   size_t segments_len = key_segments_last - key_segments_first;
   thrust::fill(exec, key_segments_out, key_segments_out + segments_len, 0);
@@ -659,7 +659,8 @@ size_t SegmentedUniqueByKey(const thrust::detail::execution_policy_base<DerivedP
                             SegInIt key_segments_first, SegInIt key_segments_last,
                             KeyInIt key_first, KeyInIt key_last, ValInIt val_first,
                             SegOutIt key_segments_out, ValOutIt val_out, Comp comp) {
-  using Key = thrust::pair<size_t, typename cuda::std::iterator_traits<KeyInIt>::value_type>;
+  using Key =
+      cuda::std::pair<std::size_t, typename cuda::std::iterator_traits<KeyInIt>::value_type>;
 
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(size_t i) {
