@@ -9,7 +9,6 @@
 #include "../../common/device_helpers.cuh"  // for LaunchN
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
-#include "expand_entry.cuh"                 // for GPUExpandEntry
 #include "feature_groups.cuh"               // for FeatureGroupsAccessor
 #include "quantiser.cuh"                    // for GradientQuantiser
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
@@ -160,17 +159,19 @@ class DeviceHistogramBuilder {
              FeatureGroupsAccessor const& feature_groups, bst_bin_t n_total_bins,
              bool force_global_memory);
 
-  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+  void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
                       common::Span<const std::uint32_t> ridx,
                       common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
 
-  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+  // Build histograms for multiple nodes and multiple targets
+  void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       linalg::MatrixView<GradientPair const> gpair,
-                      common::Span<const std::uint32_t> ridx,
-                      common::Span<GradientPairInt64> histogram,
+                      common::Span<common::Span<const std::uint32_t>> ridxs,
+                      common::Span<common::Span<GradientPairInt64>> hists,
+                      std::vector<std::size_t> const& h_sizes_csum,
                       common::Span<GradientQuantiser const> roundings);
 
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }
