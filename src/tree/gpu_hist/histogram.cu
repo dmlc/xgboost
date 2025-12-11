@@ -7,6 +7,7 @@
 #include <cstdint>  // uint32_t, int32_t
 
 #include "../../collective/aggregator.h"
+#include "../../common/cuda_rt_utils.h"  // for GetMpCnt
 #include "../../common/deterministic.cuh"
 #include "../../common/device_helpers.cuh"
 #include "../../common/linalg_op.cuh"  // for tbegin
@@ -515,8 +516,7 @@ struct HistogramKernel {
 
       // determine the launch configuration
       std::int32_t num_groups = feature_groups.NumGroups();
-      std::int32_t n_mps = 0;
-      dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, ctx->Ordinal()));
+      std::int32_t n_mps = curt::GetMpCnt(ctx->Ordinal());
 
       std::int32_t n_blocks_per_mp = 0;
       dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&n_blocks_per_mp, kernel,
@@ -578,17 +578,16 @@ struct MtHistKernel {
   // result the histogram kernel is not thread safe.
   std::map<void*, MtHistKernelConfig> cfg;
   // The number of multi-processor for the selected GPU
-  std::int32_t n_mps = 0;
+  std::int32_t const n_mps;
   // Maximum size of the shared memory (optin)
-  std::size_t max_shared_bytes = 0;
+  std::size_t const max_shared_bytes;
   // Use global memory for testing
   bool const force_global;
 
   explicit MtHistKernel(Context const* ctx, bool force_global)
-      : max_shared_bytes{dh::MaxSharedMemoryOptin(ctx->Ordinal())}, force_global{force_global} {
-    dh::safe_cuda(
-        cudaDeviceGetAttribute(&this->n_mps, cudaDevAttrMultiProcessorCount, ctx->Ordinal()));
-  }
+      : n_mps{curt::GetMpCnt(ctx->Ordinal())},
+        max_shared_bytes{dh::MaxSharedMemoryOptin(ctx->Ordinal())},
+        force_global{force_global} {}
 
   template <std::int32_t kBlockThreads, bool kDense, bool kCompressed, typename Accessor,
             typename RidxIterSpan>
@@ -636,6 +635,7 @@ struct MtHistKernel {
                                              shmem_bytes));
           v.shmem_bytes = shmem_bytes;
         }
+        // Use this as a limiter, works for root node. Not too bad an option for child nodes.
         dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
             &v.n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
         this->cfg[reinterpret_cast<void*>(kernel)] = v;
