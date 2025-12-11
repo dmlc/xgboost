@@ -1157,7 +1157,7 @@ test_that("xgb.train works correctly with nrounds = 0 (serialization, continuati
 
   # Check that 0-round model provides a valid "base score" prediction
   preds_0 <- predict(bst_0, dtrain)
-  expect_true(all(preds_0 >= 0 && preds_0 <= 1))
+  expect_true(all(preds_0 >= 0 & preds_0 <= 1))
 
   # Save and Load to ensure binary format is valid and symmetrical
   fname <- tempfile()
