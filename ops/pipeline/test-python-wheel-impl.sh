@@ -13,7 +13,7 @@ suite="$1"
 
 # Cannot set -u before Conda env activation
 case "$suite" in
-  gpu|mgpu)
+  gpu|mgpu|gpu-arm64)
     source activate gpu_test
     ;;
   cpu)
@@ -39,6 +39,11 @@ pip install -v ./wheelhouse/*.whl
 case "$suite" in
   gpu)
     echo "-- Run Python tests, using a single GPU"
+    python -c 'from cupy.cuda import jitify; jitify._init_module()'
+    pytest -v -s -rxXs --durations=0 -m 'not mgpu' tests/python-gpu
+    ;;
+  gpu-arm64)
+    echo "-- Run Python tests, using a single GPU (ARM64)"
     python -c 'from cupy.cuda import jitify; jitify._init_module()'
     pytest -v -s -rxXs --durations=0 -m 'not mgpu' tests/python-gpu
     ;;

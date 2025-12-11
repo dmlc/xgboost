@@ -5,14 +5,14 @@ set -euo pipefail
 
 if [[ "$#" -lt 2 ]]
 then
-  echo "Usage: $0 {gpu|mgpu|cpu|cpu-arm64} [image_repo]"
+  echo "Usage: $0 {gpu|mgpu|gpu-arm64|cpu|cpu-arm64} [image_repo]"
   exit 1
 fi
   
 suite="$1"
 image_repo="$2"
 
-if [[ "$suite" == "gpu" || "$suite" == "mgpu" ]]
+if [[ "$suite" == "gpu" || "$suite" == "mgpu" || "$suite" == "gpu-arm64" ]]
 then
   gpu_option="--use-gpus"
 else
