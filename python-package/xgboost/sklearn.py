@@ -1100,9 +1100,9 @@ class XGBModel(XGBModelBase):
         return DEFAULT_N_ESTIMATORS if self.n_estimators is None else self.n_estimators
 
     def _get_type(self) -> str:
-        if hasattr(self, "_estimator_type"):
+        if hasattr(self, "_estimator_type"):  # scikit-learn <1.8
             return self._estimator_type  # pylint: disable=no-member
-        if hasattr(XGBModelBase, "__sklearn_tags__"):
+        if hasattr(XGBModelBase, "__sklearn_tags__"):  # scikit-learn 1.8+
             return self.__sklearn_tags__().estimator_type
         raise TypeError(
             "`_estimator_type` undefined.  "
