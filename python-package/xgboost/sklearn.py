@@ -1100,12 +1100,15 @@ class XGBModel(XGBModelBase):
         return DEFAULT_N_ESTIMATORS if self.n_estimators is None else self.n_estimators
 
     def _get_type(self) -> str:
-        if not hasattr(self, "_estimator_type"):
+        if hasattr(self, "_estimator_type"):
+            return self._estimator_type  # pylint: disable=no-member
+        elif hasattr(XGBModelBase, "__sklearn_tags__"):
+            return self.__sklearn_tags__().estimator_type
+        else:
             raise TypeError(
                 "`_estimator_type` undefined.  "
                 "Please use appropriate mixin to define estimator type."
             )
-        return self._estimator_type  # pylint: disable=no-member
 
     def save_model(self, fname: Union[str, os.PathLike]) -> None:
         meta: Dict[str, Any] = {}
