@@ -541,6 +541,14 @@ struct HistogramKernel {
 };
 
 struct MtHistKernel {
+  /**
+   * @brief Partition the grid into sub-grid for nodes.
+   *
+   * @brief sizes_csum          cumulative sum of node sizes (csum of n_samples for each node).
+   * @brief columns_per_group   Estimated number of columns for each feature group.
+   * @brief max_blocks_per_node The maximum sub-grid size for a node.
+   * @brief p_out_blocks        The total number of block (grid size).
+   */
   template <typename Policy>
   static auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum,
                              std::int32_t columns_per_group, std::size_t max_blocks_per_node,

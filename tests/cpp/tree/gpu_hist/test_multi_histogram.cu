@@ -107,7 +107,9 @@ class MultiHistTest
     auto expected = n_samples / n_bins;
 
     for (std::size_t i = 0; i < h_hist_1.size(); ++i) {
-      ASSERT_EQ(h_hist_1[i].GetQuantisedHess() + h_hist_2[i].GetQuantisedHess(), expected);
+      ASSERT_EQ(h_hist_1[i].GetQuantisedHess() + h_hist_2[i].GetQuantisedHess(), expected)
+          << "i:" << i << " l:" << h_hist_1[i].GetQuantisedHess()
+          << " r:" << h_hist_2[i].GetQuantisedHess();
     }
   }
 };
@@ -126,16 +128,15 @@ std::string TestName(::testing::TestParamInfo<MultiHistTest::ParamType> const& i
 }
 }  // namespace
 
-INSTANTIATE_TEST_SUITE_P(Histogram, MultiHistTest,
+INSTANTIATE_TEST_SUITE_P(Basic, MultiHistTest,
                          ::testing::Combine(::testing::Values<bst_idx_t>(256, 1024, 8192),
                                             ::testing::Values(1, 128, 257),
                                             ::testing::Values(1, 16), ::testing::Bool()),
                          TestName);
 
-// 16 targets overflows the normal histogram shared memory size.
-INSTANTIATE_TEST_SUITE_P(DISABLED_BenchMark, MultiHistTest,
+INSTANTIATE_TEST_SUITE_P(Large, MultiHistTest,
                          ::testing::Combine(::testing::Values<bst_idx_t>((1ul << 21)),
-                                            ::testing::Values(512), ::testing::Values(1, 8),
+                                            ::testing::Values(2), ::testing::Values(2),
                                             ::testing::Bool()),
                          TestName);
 }  // namespace xgboost::tree::cuda_impl
