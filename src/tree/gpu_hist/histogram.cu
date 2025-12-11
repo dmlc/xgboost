@@ -83,7 +83,6 @@ GradientQuantiser::GradientQuantiser(Context const* ctx,
   using GradientSumT = GradientPairPrecise;
   using T = typename GradientSumT::ValueT;
 
-
   auto beg = thrust::make_transform_iterator(linalg::tcbegin(gpair), Clip());
   Pair p = dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + gpair.Size(), Pair{}, thrust::plus<Pair>{});
   // Treat pair as array of 4 primitive types to allreduce
@@ -361,7 +360,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
   // Privatized histogram
   auto smem_hist = reinterpret_cast<GradientPairInt64*>(shmem);
 
-  if (Policy::kSharedMem) {
+  if constexpr (Policy::kSharedMem) {
     dh::BlockFill(smem_hist, group.num_bins * n_targets, GradientPairInt64{});
     __syncthreads();
   }
@@ -369,7 +368,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
   auto gmem_hist = node_hists[nidx_in_set].data();
 
   auto atomic_add = [&](auto bin_idx, auto const& adjusted) {
-    if (Policy::kSharedMem) {
+    if constexpr (Policy::kSharedMem) {
       AtomicAddGpairShared(smem_hist + bin_idx, adjusted);
     } else {
       AtomicAddGpairGlobal(gmem_hist + bin_idx, adjusted);
@@ -382,10 +381,10 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
     auto fidx = FeatIdx(group, idx, ridx_in_node, feature_stride);
     bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
     if (Policy::kDense || compressed_bin != matrix.NullValue()) {
-      if (Policy::kCompressed) {
+      if constexpr (Policy::kCompressed) {
         compressed_bin += matrix.feature_segments[fidx];
       }
-      if (Policy::kSharedMem) {
+      if constexpr (Policy::kSharedMem) {
         // Handle privatized histogram indexing.
         compressed_bin = (compressed_bin - group.start_bin) * n_targets;
       } else {
@@ -424,7 +423,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
     offset += kStride;
   }
 
-  if (!Policy::kSharedMem) {
+  if constexpr (!Policy::kSharedMem) {
     return;
   }
 
