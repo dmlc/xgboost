@@ -543,10 +543,10 @@ struct MtHistKernel {
   /**
    * @brief Partition the grid into sub-grid for nodes.
    *
-   * @brief sizes_csum          cumulative sum of node sizes (csum of n_samples for each node).
-   * @brief columns_per_group   Estimated number of columns for each feature group.
-   * @brief max_blocks_per_node The maximum sub-grid size for a node.
-   * @brief p_out_blocks        The total number of block (grid size).
+   * @param sizes_csum          cumulative sum of node sizes (csum of n_samples for each node).
+   * @param columns_per_group   Estimated number of columns for each feature group.
+   * @param max_blocks_per_node The maximum sub-grid size for a node.
+   * @param p_out_blocks        The total number of block (grid size).
    */
   template <typename Policy>
   static auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum,
@@ -565,6 +565,7 @@ struct MtHistKernel {
       blk_ptr.push_back(blk_ptr[nidx_in_set] + n_blocks);
       n_total_blocks += n_blocks;
     }
+    CHECK_EQ(n_total_blocks, blk_ptr.back());
     *p_out_blocks = blk_ptr.back();
     return dh::device_vector<std::uint32_t>{blk_ptr};
   }
