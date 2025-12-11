@@ -1102,7 +1102,7 @@ class XGBModel(XGBModelBase):
     def _get_type(self) -> str:
         if hasattr(self, "_estimator_type"):
             return self._estimator_type  # pylint: disable=no-member
-        elif hasattr(XGBModelBase, "__sklearn_tags__"):
+        if hasattr(XGBModelBase, "__sklearn_tags__"):
             return self.__sklearn_tags__().estimator_type
         raise TypeError(
             "`_estimator_type` undefined.  "
