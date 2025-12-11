@@ -894,13 +894,15 @@ class GPUHistMaker : public TreeUpdater {
     if (p_scimpl_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
+
+    xgboost_NVTX_FN_RANGE();
+
     if (this->p_last_tree_->IsMultiTarget()) {
-      return false;
+      CHECK(p_mtimpl_);
+      return p_mtimpl_->UpdatePredictionCache(p_out_preds, p_last_tree_);
+    } else {
+      return p_scimpl_->UpdatePredictionCache(p_out_preds, p_last_tree_);
     }
-    monitor_.Start(__func__);
-    bool result = p_scimpl_->UpdatePredictionCache(p_out_preds, p_last_tree_);
-    monitor_.Stop(__func__);
-    return result;
   }
 
   [[nodiscard]] char const* Name() const override { return "grow_gpu_hist"; }
