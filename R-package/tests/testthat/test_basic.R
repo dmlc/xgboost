@@ -1148,7 +1148,6 @@ test_that("xgb.train works correctly with nrounds = 0", {
     nrounds = 0,
     verbose = 0
   )
-  
   # Handle potential NULL return for empty model
   iterations <- bst_0$niter
   if (is.null(iterations)) {
