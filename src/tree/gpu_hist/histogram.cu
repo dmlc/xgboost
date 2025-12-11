@@ -546,7 +546,7 @@ struct MtHistKernel {
    * @param sizes_csum          cumulative sum of node sizes (csum of n_samples for each node).
    * @param columns_per_group   Estimated number of columns for each feature group.
    * @param max_blocks_per_node The maximum sub-grid size for a node.
-   * @param p_out_blocks        The total number of block (grid size).
+   * @param p_out_blocks        The total number of blocks (grid size).
    */
   template <typename Policy>
   static auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum,
@@ -625,7 +625,7 @@ struct MtHistKernel {
       auto it = cfg.find(reinterpret_cast<void*>(kernel));
       if (it == cfg.cend()) {
         MtHistKernelConfig v;
-        // This function is the reason for all these trouble to cache the
+        // This function is the reason for all this trouble to cache the
         // configuration. It blocks the device.
         //
         // Also, it must precede the `cudaOccupancyMaxActiveBlocksPerMultiprocessor`,
