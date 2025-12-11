@@ -1135,23 +1135,91 @@ test_that("Row names are preserved in outputs", {
   expect_equal(colnames(pred), row.names(x))
 })
 
-test_that("xgb.train works correctly with nrounds = 0", {
+test_that("xgb.train works correctly with nrounds = 0 (serialization, continuation, callbacks)", {
   data(agaricus.train, package = "xgboost")
   dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
+  watchlist <- list(train = dtrain)
 
-  # Test nrounds = 0
-  # Goal: Ensure it is NOT 2 (the bug).
-  # Implementation detail: Empty models might return NULL or 0 for niter.
+  # --- Case 1: Basic check & Serialization symmetry ---
   bst_0 <- xgb.train(
     params = list(objective = "binary:logistic"),
     data = dtrain,
     nrounds = 0,
     verbose = 0
   )
-  # Handle potential NULL return for empty model
-  iterations <- bst_0$niter
-  if (is.null(iterations)) {
-    iterations <- 0
+
+  # Check niter is 0 (handling NULL case common for empty boosters)
+  iter_0 <- bst_0$niter
+  if (is.null(iter_0)) {
+    iter_0 <- 0
   }
-  expect_equal(iterations, 0)
+  expect_equal(iter_0, 0)
+
+  # Check that 0-round model provides a valid "base score" prediction
+  preds_0 <- predict(bst_0, dtrain)
+  expect_true(all(preds_0 >= 0 && preds_0 <= 1))
+
+  # Save and Load to ensure binary format is valid and symmetrical
+  fname <- tempfile()
+  on.exit(unlink(fname)) # Standard cleanup for test environments
+  xgb.save(bst_0, fname)
+  bst_loaded <- xgb.load(fname)
+
+  # Verify predictions match before/after serialization
+  preds_loaded <- predict(bst_loaded, dtrain)
+  expect_equal(preds_0, preds_loaded, tolerance = 1e-6)
+
+  # --- Case 2: Training Continuation Numeric Consistency ---
+  # Initialize empty model with fixed seed
+  bst_init <- xgb.train(
+    params = list(objective = "binary:logistic", seed = 123),
+    data = dtrain,
+    nrounds = 0,
+    verbose = 0
+  )
+
+  # Continue training for 10 rounds from empty booster
+  bst_cont <- xgb.train(
+    params = list(objective = "binary:logistic", seed = 123),
+    data = dtrain,
+    nrounds = 10,
+    xgb_model = bst_init,
+    verbose = 0
+  )
+
+  # Reference training from scratch
+  bst_ref <- xgb.train(
+    params = list(objective = "binary:logistic", seed = 123),
+    data = dtrain,
+    nrounds = 10,
+    verbose = 0
+  )
+
+  # Predictions must be numerically identical within 1e-6
+  p_cont <- predict(bst_cont, dtrain)
+  p_ref <- predict(bst_ref, dtrain)
+  expect_equal(p_cont, p_ref, tolerance = 1e-6)
+
+  # --- Case 3: Callback Robustness ---
+  # Verify early stopping and evals work with nrounds=0
+  bst_cb <- xgb.train(
+    params = list(objective = "binary:logistic", seed = 456),
+    data = dtrain,
+    nrounds = 0,
+    evals = watchlist,
+    early_stopping_rounds = 3,
+    verbose = 0
+  )
+
+  # Verify that callbacks (stopping round tracking) are valid for continuation
+  bst_cb_cont <- xgb.train(
+    params = list(objective = "binary:logistic", seed = 456),
+    data = dtrain,
+    nrounds = 5,
+    evals = watchlist,
+    early_stopping_rounds = 3,
+    xgb_model = bst_cb,
+    verbose = 0
+  )
+  expect_equal(bst_cb_cont$niter, 5)
 })
