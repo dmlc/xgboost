@@ -101,6 +101,13 @@ void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   return numa_id;
 }
 
+[[nodiscard]] std::int32_t GetMpCnt(std::int32_t device) {
+  std::int32_t n_mps = 0;
+  dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
+  CHECK_GT(n_mps, 0);
+  return n_mps;
+}
+
 void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream) {
   dh::safe_cuda(cudaMemcpyAsync(dst, src, count, cudaMemcpyDefault, stream));
 }
@@ -130,6 +137,11 @@ void SetDevice(std::int32_t device) {
 }
 
 [[nodiscard]] std::int32_t GetNumaId() {
+  common::AssertGPUSupport();
+  return 0;
+}
+
+[[nodiscard]] std::int32_t GetMpCnt(std::int32_t) {
   common::AssertGPUSupport();
   return 0;
 }

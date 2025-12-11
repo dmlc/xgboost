@@ -155,7 +155,7 @@ struct GPUHistMakerDevice {
         batch_ptr_{std::move(batch_ptr)},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
-        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
+        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, /*n_targets=*/1u, dense_compressed,
                                                         dh::MaxSharedMemoryOptin(ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
@@ -218,7 +218,8 @@ struct GPUHistMakerDevice {
     /**
      * Other initializations
      */
-    this->quantiser = std::make_unique<GradientQuantiser>(ctx_, this->gpair, p_fmat->Info());
+    this->quantiser = std::make_unique<GradientQuantiser>(
+        ctx_, linalg::MakeVec(this->ctx_->Device(), this->gpair), p_fmat->Info());
 
     this->histogram_.Reset(ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
                            feature_groups_->DeviceAccessor(ctx_->Device()), cuts_->TotalBins(),
@@ -308,9 +309,8 @@ struct GPUHistMakerDevice {
     auto d_node_hist = histogram_.GetNodeHistogram(nidx);
     auto d_ridx = partitioners_.At(k)->GetRows(nidx);
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
-    this->histogram_.BuildHistogram(ctx_->CUDACtx(), acc,
-                                    feature_groups_->DeviceAccessor(ctx_->Device()), this->gpair,
-                                    d_ridx, d_node_hist, *quantiser);
+    this->histogram_.BuildHistogram(ctx_, acc, feature_groups_->DeviceAccessor(ctx_->Device()),
+                                    this->gpair, d_ridx, d_node_hist, *quantiser);
     monitor.Stop(__func__);
   }
 
@@ -846,7 +846,7 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Stop(__func__);
   }
 
-  void InitDataOnce(TrainParam const* param, DMatrix* p_fmat) {
+  void InitDataOnce(TrainParam const* param, DMatrix* p_fmat, bst_target_t n_targets) {
     monitor_.Start(__func__);
     CHECK_GE(ctx_->Ordinal(), 0) << "Must have at least one device";
 
@@ -864,7 +864,7 @@ class GPUHistMaker : public TreeUpdater {
                                                            column_sampler_, batch, p_fmat->Info(),
                                                            batch_ptr, cuts, dense_compressed);
     this->p_mtimpl_ = std::make_unique<cuda_impl::MultiTargetHistMaker>(
-        this->ctx_, *param, &hist_maker_param_, batch_ptr, cuts, dense_compressed);
+        this->ctx_, *param, &hist_maker_param_, batch_ptr, cuts, dense_compressed, n_targets);
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;
@@ -874,7 +874,7 @@ class GPUHistMaker : public TreeUpdater {
   void InitData(TrainParam const* param, DMatrix* dmat, RegTree const* p_tree) {
     monitor_.Start(__func__);
     if (!initialised_) {
-      this->InitDataOnce(param, dmat);
+      this->InitDataOnce(param, dmat, p_tree->NumTargets());
     }
     p_last_tree_ = p_tree;
     CHECK(hist_maker_param_.GetInitialised());
