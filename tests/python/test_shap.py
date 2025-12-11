@@ -282,3 +282,25 @@ class TestSHAP:
 
         X, y = make_classification()
         assert_same(X, y)
+    
+    def test_woodelf(self):
+        # grow a single tree with one branch
+        from xgboost import DMatrix, train
+        X = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0], [1.0, 1.0]])
+        y = np.array([0.0, 1.0, 2.0, 3.0, 3.0])
+        dtrain = DMatrix(X, label=y)
+        params = {"max_depth": 3,"eta":1.0, "lambda": 0, "objective": "reg:squarederror", "min_child_weight": 0, "base_score": 0  }
+        bst = train(params, dtrain, num_boost_round=1)
+        shap_values = bst.predict(DMatrix(X[0:5, :]), pred_contribs=True)
+        pred = bst.predict(dtrain)
+        # print tree
+        print(bst.get_dump(with_stats=True)[0])
+        print(pred)
+        print(shap_values)
+        print(shap_values.sum(axis=1))
+        import shap
+        reference_values = shap.TreeExplainer(bst, None, feature_perturbation="tree_path_dependent").shap_values(X)
+        print(reference_values)
+
+
+

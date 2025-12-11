@@ -4,7 +4,12 @@
 #include "treeshap.h"
 
 #include <algorithm>  // copy
+#include <cmath>      // std::tgamma
 #include <cstdint>    // std::uint32_t
+#include <iostream>   // std::cout
+#include <map>        // std::map
+#include <set>        // std::set
+#include <vector>     // std::vector
 
 #include "../tree/tree_view.h"  // for ScalarTreeView
 #include "predict_fn.h"         // GetNextNode
@@ -42,191 +47,231 @@ void CalculateContributionsApprox(tree::ScalarTreeView const& tree, const RegTre
   out_contribs[split_index] += leaf_value - node_value;
 }
 
-// Used by TreeShap
-// data we keep about our decision path
-// note that pweight is included for convenience and is not tied with the other attributes
-// the pweight of the i'th path element is the permutation weight of paths with i-1 ones in them
-struct PathElement {
-  int feature_index;
-  float zero_fraction;
-  float one_fraction;
-  float pweight;
-  PathElement() = default;
-  PathElement(int i, float z, float o, float w)
-      : feature_index(i), zero_fraction(z), one_fraction(o), pweight(w) {}
+std::uint64_t ExtractBinaryPath(tree::ScalarTreeView const& tree, const RegTree::FVec& feat, 
+                                                       std::uint64_t leaf_path) {
+  std::uint64_t consumer_path = 0;
+  bst_node_t nidx = 0;
+  int depth =0;
+  while (!tree.IsLeaf(nidx)) {
+    auto split_index = tree.SplitIndex(nidx);
+    auto child_index = predictor::GetNextNode<true, true>(
+        tree, nidx, feat.GetFvalue(split_index), feat.IsMissing(split_index), tree.GetCategoriesMatrix());
+    auto path_index = leaf_path & 1 ? tree.RightChild(nidx) : tree.LeftChild(nidx);
+    leaf_path >>= 1;
+    consumer_path |= (child_index == path_index) << depth;
+    nidx = path_index;
+    depth++;
+  }
+
+
+  return consumer_path;
+}
+
+// Sparse storage for leaf information
+struct LeafData {
+  bst_node_t node_id;
+  double leaf_weight;
+  std::vector<int> features;
+  std::uint64_t path;
 };
 
-// extend our decision path with a fraction of one and zero extensions
-void ExtendPath(PathElement* unique_path, std::uint32_t unique_depth, float zero_fraction,
-                float one_fraction, int feature_index) {
-  unique_path[unique_depth].feature_index = feature_index;
-  unique_path[unique_depth].zero_fraction = zero_fraction;
-  unique_path[unique_depth].one_fraction = one_fraction;
-  unique_path[unique_depth].pweight = (unique_depth == 0 ? 1.0f : 0.0f);
-  for (int i = unique_depth - 1; i >= 0; i--) {
-    unique_path[i + 1].pweight +=
-        one_fraction * unique_path[i].pweight * (i + 1) / static_cast<float>(unique_depth + 1);
-    unique_path[i].pweight = zero_fraction * unique_path[i].pweight * (unique_depth - i) /
-                             static_cast<float>(unique_depth + 1);
-  }
-}
+void GetLeafDataRecursive(tree::ScalarTreeView const& tree, const RegTree::FVec& feat, 
+                   std::vector<LeafData>* leaf_data, bst_node_t nidx,  
+                   std::vector<int> const& features, std::uint64_t path, int depth) {
 
-// undo a previous extension of the decision path
-void UnwindPath(PathElement* unique_path, std::uint32_t unique_depth, std::uint32_t path_index) {
-  const float one_fraction = unique_path[path_index].one_fraction;
-  const float zero_fraction = unique_path[path_index].zero_fraction;
-  float next_one_portion = unique_path[unique_depth].pweight;
-
-  for (int i = unique_depth - 1; i >= 0; --i) {
-    if (one_fraction != 0) {
-      const float tmp = unique_path[i].pweight;
-      unique_path[i].pweight =
-          next_one_portion * (unique_depth + 1) / static_cast<float>((i + 1) * one_fraction);
-      next_one_portion = tmp - unique_path[i].pweight * zero_fraction * (unique_depth - i) /
-                                   static_cast<float>(unique_depth + 1);
-    } else {
-      unique_path[i].pweight = (unique_path[i].pweight * (unique_depth + 1)) /
-                               static_cast<float>(zero_fraction * (unique_depth - i));
-    }
-  }
-
-  for (auto i = path_index; i < unique_depth; ++i) {
-    unique_path[i].feature_index = unique_path[i + 1].feature_index;
-    unique_path[i].zero_fraction = unique_path[i + 1].zero_fraction;
-    unique_path[i].one_fraction = unique_path[i + 1].one_fraction;
-  }
-}
-
-// determine what the total permutation weight would be if
-// we unwound a previous extension in the decision path
-float UnwoundPathSum(const PathElement* unique_path, std::uint32_t unique_depth,
-                     std::uint32_t path_index) {
-  const float one_fraction = unique_path[path_index].one_fraction;
-  const float zero_fraction = unique_path[path_index].zero_fraction;
-  float next_one_portion = unique_path[unique_depth].pweight;
-  float total = 0;
-  for (int i = unique_depth - 1; i >= 0; --i) {
-    if (one_fraction != 0) {
-      const float tmp =
-          next_one_portion * (unique_depth + 1) / static_cast<float>((i + 1) * one_fraction);
-      total += tmp;
-      next_one_portion =
-          unique_path[i].pweight -
-          tmp * zero_fraction * ((unique_depth - i) / static_cast<float>(unique_depth + 1));
-    } else if (zero_fraction != 0) {
-      total += (unique_path[i].pweight / zero_fraction) /
-               ((unique_depth - i) / static_cast<float>(unique_depth + 1));
-    } else {
-      CHECK_EQ(unique_path[i].pweight, 0) << "Unique path " << i << " must have zero weight";
-    }
-  }
-  return total;
-}
-
-/**
- * \brief Recursive function that computes the feature attributions for a single tree.
- * \param feat dense feature vector, if the feature is missing the field is set to NaN
- * \param phi dense output vector of feature attributions
- * \param node_index the index of the current node in the tree
- * \param unique_depth how many unique features are above the current node in the tree
- * \param parent_unique_path a vector of statistics about our current path through the tree
- * \param parent_zero_fraction what fraction of the parent path weight is coming as 0 (integrated)
- * \param parent_one_fraction what fraction of the parent path weight is coming as 1 (fixed)
- * \param parent_feature_index what feature the parent node used to split
- * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
- * \param condition_feature the index of the feature to fix
- * \param condition_fraction what fraction of the current weight matches our conditioning feature
- */
-void TreeShap(tree::ScalarTreeView const& tree, const RegTree::FVec& feat, float* phi,
-              bst_node_t nidx, std::uint32_t unique_depth, PathElement* parent_unique_path,
-              float parent_zero_fraction, float parent_one_fraction, int parent_feature_index,
-              int condition, std::uint32_t condition_feature, float condition_fraction) {
-  // stop if we have no weight coming down to us
-  if (condition_fraction == 0) return;
-
-  // extend the unique path
-  PathElement* unique_path = parent_unique_path + unique_depth + 1;
-  std::copy(parent_unique_path, parent_unique_path + unique_depth + 1, unique_path);
-
-  if (condition == 0 || condition_feature != static_cast<std::uint32_t>(parent_feature_index)) {
-    ExtendPath(unique_path, unique_depth, parent_zero_fraction, parent_one_fraction,
-               parent_feature_index);
-  }
-  const std::uint32_t split_index = tree.SplitIndex(nidx);
-
-  // leaf node
   if (tree.IsLeaf(nidx)) {
-    for (std::uint32_t i = 1; i <= unique_depth; ++i) {
-      const float w = UnwoundPathSum(unique_path, unique_depth, i);
-      const PathElement& el = unique_path[i];
-      phi[el.feature_index] +=
-          w * (el.one_fraction - el.zero_fraction) * tree.LeafValue(nidx) * condition_fraction;
-    }
-
-    // internal node
+    // Store sparse leaf data
+    leaf_data->push_back({nidx, tree.LeafValue(nidx), features, path});
   } else {
-    // find which branch is "hot" (meaning x would follow it)
-    auto const& cats = tree.GetCategoriesMatrix();
-    bst_node_t hot_index = predictor::GetNextNode<true, true>(
-        tree, nidx, feat.GetFvalue(split_index), feat.IsMissing(split_index), cats);
-
-    const auto cold_index =
-        (hot_index == tree.LeftChild(nidx) ? tree.RightChild(nidx) : tree.LeftChild(nidx));
-    const float w = tree.Stat(nidx).sum_hess;
-    const float hot_zero_fraction = tree.Stat(hot_index).sum_hess / w;
-    const float cold_zero_fraction = tree.Stat(cold_index).sum_hess / w;
-    float incoming_zero_fraction = 1;
-    float incoming_one_fraction = 1;
-
-    // see if we have already split on this feature,
-    // if so we undo that split so we can redo it for this node
-    std::uint32_t path_index = 0;
-    for (; path_index <= unique_depth; ++path_index) {
-      if (static_cast<std::uint32_t>(unique_path[path_index].feature_index) == split_index) break;
-    }
-    if (path_index != unique_depth + 1) {
-      incoming_zero_fraction = unique_path[path_index].zero_fraction;
-      incoming_one_fraction = unique_path[path_index].one_fraction;
-      UnwindPath(unique_path, unique_depth, path_index);
-      unique_depth -= 1;
-    }
-
-    // divide up the condition_fraction among the recursive calls
-    float hot_condition_fraction = condition_fraction;
-    float cold_condition_fraction = condition_fraction;
-    if (condition > 0 && split_index == condition_feature) {
-      cold_condition_fraction = 0;
-      unique_depth -= 1;
-    } else if (condition < 0 && split_index == condition_feature) {
-      hot_condition_fraction *= hot_zero_fraction;
-      cold_condition_fraction *= cold_zero_fraction;
-      unique_depth -= 1;
-    }
-
-    TreeShap(tree, feat, phi, hot_index, unique_depth + 1, unique_path,
-             hot_zero_fraction * incoming_zero_fraction, incoming_one_fraction, split_index,
-             condition, condition_feature, hot_condition_fraction);
-
-    TreeShap(tree, feat, phi, cold_index, unique_depth + 1, unique_path,
-             cold_zero_fraction * incoming_zero_fraction, 0, split_index, condition,
-             condition_feature, cold_condition_fraction);
+    const std::uint32_t split_index = tree.SplitIndex(nidx);
+    // Create updated feature list and path for children
+    std::vector<int> child_features = features;
+    child_features.push_back(split_index);
+    
+    GetLeafDataRecursive(tree, feat, leaf_data, tree.LeftChild(nidx), child_features, path, depth + 1);
+    GetLeafDataRecursive(tree, feat, leaf_data, tree.RightChild(nidx), child_features, path | (1ULL << depth), depth + 1);
   }
+}
+
+// Type alias for the pattern-to-cube mapping structure
+// Maps (consumer_pattern, background_pattern) -> (S+, S-)
+using PatternCubeMap = std::map<std::uint64_t, std::map<std::uint64_t, std::pair<std::set<int>, std::set<int>>>>;
+
+PatternCubeMap MapPatternsToCube(const std::vector<int>& features_in_path) {
+  PatternCubeMap updated_wdnf_table;
+  
+  // Initialize with the root: empty consumer and background patterns
+  updated_wdnf_table[0][0] = {std::set<int>(), std::set<int>()};
+  
+  for (auto feature : features_in_path) {
+    PatternCubeMap current_wdnf_table = updated_wdnf_table;
+    updated_wdnf_table.clear();
+    
+    for (const auto& [consumer_pattern, background_map] : current_wdnf_table) {
+      for (const auto& [background_pattern, cube] : background_map) {
+        const auto& [s_plus, s_minus] = cube;
+        
+        // Rule 1: Consumer takes feature=1, Background takes feature=0
+        std::uint64_t new_consumer_1 = (consumer_pattern << 1) | 1;
+        std::uint64_t new_background_0 = (background_pattern << 1) | 0;
+        auto& cube_1_0 = updated_wdnf_table[new_consumer_1][new_background_0];
+        cube_1_0.first = s_plus;
+        cube_1_0.first.insert(feature);
+        cube_1_0.second = s_minus;
+        
+        // Rule 2: Consumer takes feature=0, Background takes feature=1
+        std::uint64_t new_consumer_0 = (consumer_pattern << 1) | 0;
+        std::uint64_t new_background_1 = (background_pattern << 1) | 1;
+        auto& cube_2_1 = updated_wdnf_table[new_consumer_0][new_background_1];
+        cube_2_1.first = s_plus;
+        cube_2_1.second = s_minus;
+        cube_2_1.second.insert(feature);
+        
+        // Rule 3: Both take feature=1 (feature is not in coalition)
+        std::uint64_t new_both_1 = (consumer_pattern << 1) | 1;
+        std::uint64_t new_background_both_1 = (background_pattern << 1) | 1;
+        auto& cube_1_1 = updated_wdnf_table[new_both_1][new_background_both_1];
+        cube_1_1.first = s_plus;
+        cube_1_1.second = s_minus;
+      }
+    }
+  }
+  return updated_wdnf_table;
+}
+
+std::vector<std::pair<int, double>> v(const std::pair<std::set<int>, std::set<int>>& cube) {
+  auto &[s_plus, s_minus] = cube;
+  std::vector<std::pair<int, double>> res;
+  
+  auto n_choose_k = [](int n, int k) {
+    return tgamma(n + 1) / (tgamma(k + 1) * tgamma(n - k + 1));
+  };
+  if (!s_plus.empty() && !s_minus.empty()) {
+    std::set<int> intersection;
+    std::set_intersection(s_plus.begin(), s_plus.end(),
+                          s_minus.begin(), s_minus.end(),
+                          std::inserter(intersection, intersection.begin()));
+    if (!intersection.empty()) {
+      return res; // s_plus and s_minus must be disjoint
+    }
+  }
+  std::set<int> s;
+  std::set_union(s_plus.begin(), s_plus.end(),
+                 s_minus.begin(), s_minus.end(),
+                 std::inserter(s, s.begin()));
+  if (!s_plus.empty()) {
+    double contribution = 1.0 / (static_cast<double>(s_plus.size()) *
+                                static_cast<double>(n_choose_k(s.size(), s_plus.size())));
+    for (auto must_exist_feature : s_plus) {
+      res.emplace_back(must_exist_feature, contribution);
+    }
+  }
+  if (!s_minus.empty()) {
+    double contribution = -1.0 / (static_cast<double>(s_minus.size()) *
+                                 static_cast<double>(n_choose_k(s.size(), s_minus.size())));
+    for (auto must_be_missing_feature : s_minus) {
+      res.emplace_back(must_be_missing_feature, contribution);
+    }
+  }
+  return res;
+}
+
+std::map<int, std::vector<double>> path_dependant_frequencies(tree::ScalarTreeView const& tree){
+  std::map<int, std::vector<double>> leaves_freq;
+  std::map<int, std::vector<double>> inner_freq;
+  inner_freq[0] = {1.0};
+  // Walk tree breadth first
+  tree.WalkTree([&](auto const& node) {
+    auto& current_freq = inner_freq[node];
+    if(tree.IsLeaf(node)) {
+      leaves_freq[node] = inner_freq[node];
+    } else {
+      auto left_prob = tree.SumHess(tree.LeftChild(node)) / tree.SumHess(node);
+      auto right_prob = tree.SumHess(tree.RightChild(node)) / tree.SumHess(node);
+      std::vector<double> left;
+      left.reserve(current_freq.size()*2);
+      for(auto freq: current_freq){
+        left.emplace_back(freq * right_prob);
+        left.emplace_back(freq * left_prob);
+      }
+      inner_freq[tree.LeftChild(node)] = left;
+
+      std::vector<double> right;
+      right.reserve(current_freq.size()*2);
+      for(auto freq: current_freq){
+        right.emplace_back(freq * left_prob);
+        right.emplace_back(freq * right_prob);
+      }
+      inner_freq[tree.RightChild(node)] = right;
+    }
+    return true;
+  });
+  return leaves_freq;
 }
 
 void CalculateContributions(tree::ScalarTreeView const& tree, const RegTree::FVec& feat,
                             std::vector<float>* mean_values, float* out_contribs, int condition,
                             std::uint32_t condition_feature) {
-  // find the expected value of the tree's predictions
-  if (condition == 0) {
-    float node_value = (*mean_values)[0];
-    out_contribs[feat.Size()] += node_value;
+
+  std::vector<LeafData> leaf_data;
+  leaf_data.reserve(tree.Size());
+  GetLeafDataRecursive(tree, feat, &leaf_data, 0, {}, 0, 0);
+  auto f = path_dependant_frequencies(tree);
+  
+  for (const auto& leaf : leaf_data) {
+    // Get the pattern-to-cube mapping for this leaf's path
+    auto pc_pb_to_cube = MapPatternsToCube(leaf.features);
+    const std::size_t n_paths = 1 << leaf.features.size();
+
+    // Create dense matrices for each feature: row=consumer_pattern, col=background_pattern
+    std::map<int, std::vector<double>> M;
+    for (auto feature : leaf.features) {
+      M[feature] = std::vector<double>(n_paths * n_paths, 0.0);
+    }
+
+    // Fill M matrices with contributions from v(cube)
+    for (const auto& [consumer_pattern, background_map] : pc_pb_to_cube) {
+      for (const auto& [background_pattern, cube] : background_map) {
+        const auto values = v(cube);
+        for (const auto& [feature, contribution] : values) {
+          auto& mat = M[feature];
+          const std::size_t idx = static_cast<std::size_t>(consumer_pattern) * n_paths +
+                                  static_cast<std::size_t>(background_pattern);
+          if (idx < mat.size()) {
+            mat[idx] = contribution;
+          }
+        }
+      }
+    }
+
+    // Compute S: full matrix-vector multiplication S = w * M * f_l
+    auto &f_l = f[leaf.node_id];
+    std::map<int, std::vector<double>> S;
+    for (auto feature : leaf.features) {
+      const auto& mat = M[feature];
+      S[feature] = std::vector<double>(n_paths, 0.0);
+      auto& S_vec = S[feature];
+      for (std::size_t row = 0; row < n_paths; ++row) {
+        double dot = 0.0;
+        for (std::size_t col = 0; col < n_paths && col < f_l.size(); ++col) {
+          dot += mat[row * n_paths + col] * f_l[col];
+        }
+        S_vec[row] = dot * leaf.leaf_weight;
+      }
+    }
+
+    // Get the consumer path
+    auto consumer_path = ExtractBinaryPath(tree, feat, leaf.path);
+    for(auto feature : leaf.features) {
+      const auto& S_vec = S[feature];
+      out_contribs[feature] += static_cast<float>(S_vec[consumer_path]);
+    }
   }
-
-  // Preallocate space for the unique path data
-  bst_node_t const maxd = tree.MaxDepth() + 2;
-  std::vector<PathElement> unique_path_data((maxd * (maxd + 1)) / 2);
-
-  TreeShap(tree, feat, out_contribs, 0, 0, unique_path_data.data(), 1, 1, -1, condition,
-           condition_feature, 1);
+  
+  // Add bias term (expected value)
+  if (condition == 0) {
+    float expected_value = (*mean_values)[0];
+    out_contribs[feat.Size()] += expected_value;
+  }
 }
 }  // namespace xgboost
