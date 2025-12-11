@@ -345,7 +345,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
   auto nidx_in_set = dh::SegmentId(blk_ptr.data(), blk_ptr.data() + blk_ptr.size(), blockIdx.x);
   auto starting_blk = blk_ptr[nidx_in_set];
   // Grid-strided loop
-  auto const kStride = Policy::kTileSize * gridDim.x;
+  auto const kStride = Policy::kTileSize * (blk_ptr[nidx_in_set + 1] - starting_blk);
   // Offset of the first grid
   std::size_t offset = (blockIdx.x - starting_blk) * Policy::kTileSize;
 
