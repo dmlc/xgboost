@@ -828,6 +828,9 @@ bool RegTree::Equal(const RegTree& b) const {
 }
 
 [[nodiscard]] bst_node_t RegTree::GetDepth(bst_node_t nidx) const {
+  if (nidx == 0) {
+    return 0;
+  }
   if (this->IsMultiTarget()) {
     return this->HostMtView().GetDepth(nidx);
   }
@@ -887,6 +890,11 @@ void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split
   this->split_types_.HostVector().at(nidx) = FeatureType::kNumerical;
 
   this->param_.num_nodes = this->p_mt_tree_->Size();
+}
+
+void RegTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {
+  CHECK(IsMultiTarget());
+  this->p_mt_tree_->SetLeaves(std::move(leaves), weights);
 }
 
 void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,

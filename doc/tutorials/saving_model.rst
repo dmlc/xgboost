@@ -2,6 +2,12 @@
 Introduction to Model IO
 ########################
 
+**Contents**
+
+.. contents::
+  :backlinks: none
+  :local:
+
 Since 2.1.0, the default model format for XGBoost is the UBJSON format, the option is
 enabled for serializing models to file, serializing models to buffer, and for memory
 snapshot (pickle and alike).
@@ -229,25 +235,58 @@ Difference between saving model and dumping model
 XGBoost has a function called ``dump_model`` in the Booster class, which lets you to
 export the model in a readable format like ``text``, ``json`` or ``dot`` (graphviz).  The
 primary use case for it is for model interpretation and visualization, and is not supposed
-to be loaded back to XGBoost.  The JSON version has a `schema
-<https://github.com/dmlc/xgboost/blob/master/doc/dump.schema>`__.  See next section for
-more info.
+to be loaded back to XGBoost.
 
-***********
-JSON Schema
-***********
+**********
+Categories
+**********
 
-Another important feature of JSON format is a documented `schema
-<https://json-schema.org/>`__, based on which one can easily reuse the output model from
-XGBoost.  Here is the JSON schema for the output model (not serialization, which will not
-be stable as noted above).  For an example of parsing XGBoost tree model, see
-``/demo/json-model``.  Please notice the "weight_drop" field used in "dart" booster.
-XGBoost does not scale tree leaf directly, instead it saves the weights as a separated
-array.
+Since 3.1, the categories encoding from a training dataframe is stored in the booster to
+provide test-time re-coding support, see :ref:`cat-recode` for more info about how the
+re-coder works. We will briefly explain the JSON format for the serialized category index.
 
-.. include:: ../model.schema
-   :code: json
+The categories are saved in a JSON object named "cats" under the gbtree model. It contains
+three keys:
 
+- feature_segments
+
+This is a CSR-like pointer that stores the number of categories for each feature. It
+starts with zero and ends with the total number of categories from all features. For
+example:
+
+.. code-block:: python
+
+    feature_segments = [0, 3, 3, 5]
+
+The ``feature_segments`` list represents a dataset with two categorical features and one
+numerical feature. The first feature contains three categories, the second feature is
+numerical and thus has no categories, and the last feature includes two categories.
+
+- sorted_idx
+
+This array stores the sorted indices (`argsort`) of categories across all features,
+segmented by the ``feature_segments``. Given a feature with categories: ``["b", "c",
+"a"]``, the sorted index is ``[2, 0, 1]``.
+
+- enc
+
+This is an array with a length equal to the number of features, storing all the categories
+in the same order as the input dataframe. The storage schema depends on whether the
+categories are strings (XGBoost also supports numerical categories, such as integers). For
+string categories, we use a schema similar to the arrow format for a string array. The
+categories of each feature are represented by two arrays, namely ``offsets`` and
+``values``. The format is also similar to a CSR-matrix. The ``values`` field is a
+``uint8`` array storing characters from all category names. Given a feature with three
+categories: ``["bb", "c", "a"]``, the ``values`` field is ``[98, 98, 99, 97]``. Then the
+``offsets`` segments the ``values`` array similar to a CSR pointer: ``[0, 2, 3, 4]``. We
+chose to not store the ``values`` as a JSON string to avoid handling special characters
+and string encoding. The string names are stored exactly as given by the dataframe.
+
+As for numerical categories, the ``enc`` contains two keys: ``type`` and ``values``. The
+``type`` field is an integer ID that identifies the type of the categories, such as 64-bit
+integers and 32-bit floating points (note that they are all f32 inside a decision
+tree). The exact mapping between the type to the integer ID is internal but stable. The
+``values`` is an array storing all categories in a feature.
 
 *************
 Brief History
@@ -259,3 +298,5 @@ Brief History
   an optimization for more efficient model IO.
 - UBJSON has been set to default in 2.1.
 - The old binary format was removed in 3.1.
+- The JSON schema file is no longer maintained and has been removed in 3.2. The underlying
+  schema of the model is not changed.

@@ -84,7 +84,7 @@ void XGBoostAPIGuard::RestoreGPUAttribute() {
   cudaSetDevice(device_id_);
 }
 
-void CopyGradientFromCUDAArrays(Context const *ctx, ArrayInterface<2, false> const &grad,
+void CopyGradientFromCudaArrays(Context const *ctx, ArrayInterface<2, false> const &grad,
                                 ArrayInterface<2, false> const &hess,
                                 linalg::Matrix<GradientPair> *out_gpair) {
   auto grad_dev = dh::CudaGetPointerDevice(grad.data);

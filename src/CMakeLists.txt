@@ -18,7 +18,7 @@ set_source_files_properties(
   PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 
 if(USE_CUDA)
-  file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)
+  file(GLOB_RECURSE CUDA_SOURCES *.cu)
   target_sources(objxgboost PRIVATE ${CUDA_SOURCES})
 endif()
 

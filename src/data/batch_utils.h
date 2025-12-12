@@ -56,14 +56,6 @@ void CheckParam(BatchParam const& init, BatchParam const& param);
 [[nodiscard]] inline bool HostRatioIsAuto(float cache_host_ratio) {
   return std::isnan(cache_host_ratio);
 }
-/**
- * @brief Check whether we should configure `min_cache_page_bytes`.
- *
- * Defined by @ref AutoCachePageBytes .
- */
-[[nodiscard]] inline bool CachePageBytesIsAuto(std::int64_t min_cache_page_bytes) {
-  return min_cache_page_bytes == -1;
-}
 }  // namespace xgboost::data::detail
 
 namespace xgboost::cuda_impl {

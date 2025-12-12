@@ -24,7 +24,6 @@ dependencies:
 - pytest-timeout
 - python-kubernetes
 - urllib3
-- jsonschema
 - boto3
 - awscli
 - loky>=3.5.1

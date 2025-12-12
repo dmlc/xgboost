@@ -6,10 +6,11 @@
 #include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for transform_output_iterator
 
-#include <algorithm>  // for copy
-#include <limits>     // for numeric_limits
-#include <utility>    // for move
-#include <vector>     // for vector
+#include <algorithm>          // for copy
+#include <cuda/std/iterator>  // for distance
+#include <limits>             // for numeric_limits
+#include <utility>            // for move
+#include <vector>             // for vector
 
 #include "../common/algorithm.cuh"          // for InclusiveScan
 #include "../common/categorical.h"          // for IsCat
@@ -75,13 +76,13 @@ __global__ void CompressBinEllpackKernel(
     auto row_end = entries + row_ptrs[irow + 1] - row_ptrs[0];
     auto it = thrust::make_transform_iterator(thrust::make_counting_iterator(0ul),
                                               [=](std::size_t i) { return row_beg[i].index; });
-    auto it_end = it + thrust::distance(row_beg, row_end);
+    auto it_end = it + cuda::std::distance(row_beg, row_end);
     auto res_it = thrust::lower_bound(thrust::seq, it, it_end, cpr_fidx);
     if (res_it == it_end || cpr_fidx != *res_it) {
       wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + cpr_fidx);
       return;
     }
-    cpr_fidx = thrust::distance(it, res_it);
+    cpr_fidx = cuda::std::distance(it, res_it);
     SPAN_CHECK(cpr_fidx < row_length);
   }
 
@@ -117,7 +118,7 @@ __global__ void CompressBinEllpackKernel(
     }
     if (!kDenseCompressed) {
       // Sparse data, use the compressed fidx.  Add the number of bins in previous
-      // features since we can't compresse it based on feature-local index.
+      // features since we can't compress it based on feature-local index.
       bin += cut_ptrs[fidx];
     } else {
       // Write to the actual fidx for dense data.

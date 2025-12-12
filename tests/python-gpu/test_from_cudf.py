@@ -1,4 +1,5 @@
 import json
+from typing import TYPE_CHECKING, Any, Callable, Dict, Type
 
 import numpy as np
 import pytest
@@ -8,7 +9,10 @@ from xgboost import testing as tm
 from xgboost.compat import is_dataframe
 from xgboost.testing.data import run_base_margin_info
 
-cudf = pytest.importorskip("cudf")
+if TYPE_CHECKING:
+    import cudf
+else:
+    cudf = pytest.importorskip("cudf")
 
 
 def test_type_check() -> None:
@@ -17,7 +21,9 @@ def test_type_check() -> None:
     assert is_dataframe(df.a)
 
 
-def dmatrix_from_cudf(input_type, DMatrixT, missing=np.nan):
+def dmatrix_from_cudf(
+    input_type: Any, DMatrixT: Type[xgb.DMatrix], missing: float = np.nan
+) -> None:
     """Test constructing DMatrix from cudf"""
     import pandas as pd
 
@@ -43,7 +49,7 @@ def dmatrix_from_cudf(input_type, DMatrixT, missing=np.nan):
     assert dtrain.num_row() == kRows
 
 
-def _test_from_cudf(DMatrixT):
+def _test_from_cudf(DMatrixT: Type[xgb.DMatrix]) -> None:
     """Test constructing DMatrix from cudf"""
     dmatrix_from_cudf(np.float32, DMatrixT, np.nan)
     dmatrix_from_cudf(np.float64, DMatrixT, np.nan)
@@ -79,7 +85,7 @@ def _test_from_cudf(DMatrixT):
     assert dtrain.num_row() == 5
 
 
-def _test_cudf_training(DMatrixT):
+def _test_cudf_training(DMatrixT: Type[xgb.DMatrix]) -> None:
     import pandas as pd
     from cudf import DataFrame as df
 
@@ -91,7 +97,7 @@ def _test_cudf_training(DMatrixT):
     base_margin = np.random.random(50)
     cudf_base_margin = df.from_pandas(pd.DataFrame(base_margin))
 
-    evals_result_cudf = {}
+    evals_result_cudf: Dict[str, Any] = {}
     dtrain_cudf = DMatrixT(
         df.from_pandas(X),
         df.from_pandas(y),
@@ -105,7 +111,7 @@ def _test_cudf_training(DMatrixT):
         evals=[(dtrain_cudf, "train")],
         evals_result=evals_result_cudf,
     )
-    evals_result_np = {}
+    evals_result_np: Dict[str, Any] = {}
     dtrain_np = xgb.DMatrix(X, y, weight=weights, base_margin=base_margin)
     xgb.train(
         params, dtrain_np, evals=[(dtrain_np, "train")], evals_result=evals_result_np
@@ -115,7 +121,7 @@ def _test_cudf_training(DMatrixT):
     )
 
 
-def _test_cudf_metainfo(DMatrixT):
+def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     import pandas as pd
     from cudf import DataFrame as df
 
@@ -176,27 +182,27 @@ class TestFromColumnar:
     Arrow specification."""
 
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_simple_dmatrix_from_cudf(self):
+    def test_simple_dmatrix_from_cudf(self) -> None:
         _test_from_cudf(xgb.DMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_device_dmatrix_from_cudf(self):
+    def test_device_dmatrix_from_cudf(self) -> None:
         _test_from_cudf(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_cudf_training_simple_dmatrix(self):
+    def test_cudf_training_simple_dmatrix(self) -> None:
         _test_cudf_training(xgb.DMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_cudf_training_device_dmatrix(self):
+    def test_cudf_training_device_dmatrix(self) -> None:
         _test_cudf_training(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_cudf_metainfo_simple_dmatrix(self):
+    def test_cudf_metainfo_simple_dmatrix(self) -> None:
         _test_cudf_metainfo(xgb.DMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_cudf_metainfo_device_dmatrix(self):
+    def test_cudf_metainfo_device_dmatrix(self) -> None:
         _test_cudf_metainfo(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
@@ -264,7 +270,7 @@ class TestFromColumnar:
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_sklearn())
 @pytest.mark.skipif(**tm.no_pandas())
-def test_cudf_training_with_sklearn():
+def test_cudf_training_with_sklearn() -> None:
     import pandas as pd
     from cudf import DataFrame as df
     from cudf import Series as ss
@@ -305,7 +311,7 @@ class IterForDMatrixTest(xgb.core.DataIter):
     ROWS_PER_BATCH = 100  # data is splited by rows
     BATCHES = 16
 
-    def __init__(self, categorical):
+    def __init__(self, categorical: bool) -> None:
         """Generate some random data for demostration.
 
         Actual data can be anything that is currently supported by XGBoost.
@@ -334,37 +340,37 @@ class IterForDMatrixTest(xgb.core.DataIter):
         self.it = 0  # set iterator to 0
         super().__init__(cache_prefix=None)
 
-    def as_array(self):
+    def as_array(self) -> "cudf.DataFrame":
         return cudf.concat(self._data)
 
-    def as_array_labels(self):
+    def as_array_labels(self) -> np.ndarray:
         return np.concatenate(self._labels)
 
-    def data(self):
+    def data(self) -> "cudf.DataFrame":
         """Utility function for obtaining current batch of data."""
         return self._data[self.it]
 
-    def labels(self):
+    def labels(self) -> Any:
         """Utility function for obtaining current batch of label."""
         return self._labels[self.it]
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the iterator"""
         self.it = 0
 
-    def next(self, input_data):
+    def next(self, input_data: Callable) -> bool:
         """Yield next batch of data"""
         if self.it == len(self._data):
-            # Return 0 when there's no more batch.
-            return 0
+            # Return False when there's no more batch.
+            return False
         input_data(data=self.data(), label=self.labels())
         self.it += 1
-        return 1
+        return True
 
 
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.parametrize("enable_categorical", [True, False])
-def test_from_cudf_iter(enable_categorical):
+def test_from_cudf_iter(enable_categorical: bool) -> None:
     rounds = 100
     it = IterForDMatrixTest(enable_categorical)
     params = {"tree_method": "hist", "device": "cuda"}
@@ -399,7 +405,7 @@ def test_invalid_meta() -> None:
     y = X.copy()
     y.iloc[0, 0] = None
     # check by the cuDF->cupy converter.
-    with pytest.raises(ValueError, match="no nulls"):
+    with pytest.raises(ValueError, match="Label contains NaN"):
         xgb.DMatrix(X, y)
-    with pytest.raises(ValueError, match="no nulls"):
+    with pytest.raises(ValueError, match="Label contains NaN"):
         xgb.QuantileDMatrix(X, y)

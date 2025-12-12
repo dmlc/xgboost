@@ -262,12 +262,18 @@ class RegTree : public Model {
   Node& operator[](bst_node_t nidx) { return nodes_.HostVector()[nidx]; }
 
  public:
-  /*! \brief get const reference to nodes */
-  [[nodiscard]] const std::vector<Node>& GetNodes() const { return nodes_.ConstHostVector(); }
+  /** @brief Get const reference to nodes */
+  [[nodiscard]] common::Span<Node const> GetNodes(DeviceOrd device) const {
+    CHECK(!this->IsMultiTarget());
+    return device.IsCPU() ? nodes_.ConstHostSpan()
+                          : (nodes_.SetDevice(device), nodes_.ConstDeviceSpan());
+  }
 
-  /*! \brief get const reference to stats */
-  [[nodiscard]] const std::vector<RTreeNodeStat>& GetStats() const {
-    return stats_.ConstHostVector();
+  /** @brief Get const reference to stats */
+  [[nodiscard]] common::Span<RTreeNodeStat const> GetStats(DeviceOrd device) const {
+    CHECK(!this->IsMultiTarget());
+    return device.IsCPU() ? stats_.ConstHostSpan()
+                          : (stats_.SetDevice(device), stats_.ConstDeviceSpan());
   }
 
   /*! \brief get node statistics given nid */
@@ -315,12 +321,23 @@ class RegTree : public Model {
                   float right_sum,
                   bst_node_t leaf_right_child = kInvalidNodeId);
   /**
-   * \brief Expands a leaf node into two additional leaf nodes for a multi-target tree.
+   * @brief Expands a leaf node into two additional leaf nodes for a multi-target tree.
    */
   void ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond, bool default_left,
                   linalg::VectorView<float const> base_weight,
                   linalg::VectorView<float const> left_weight,
                   linalg::VectorView<float const> right_weight);
+  /**
+   * @brief Set all leaf weights for a multi-target tree.
+   *
+   * The leaf weight can be different from the internal weight stored by @ref ExpandNode
+   * This function is used to set the leaf at the end of tree construction.
+   *
+   * @param leaves  The node indices for all leaves. This must contain all the leaves in this tree.
+   * @param weights Row-major matrix for leaf weights, each row contains a leaf specified by the
+   *                leaves parameter.
+   */
+  void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
 
   /**
    * \brief Expands a leaf node with categories
@@ -390,11 +407,13 @@ class RegTree : public Model {
    */
   [[nodiscard]] bst_node_t GetDepth(bst_node_t nidx) const;
   /**
-   * @brief Set the leaf weight for a multi-target tree.
+   * @brief Set the root weight for a multi-target tree.
+   *
+   * @param weight Internal split weight, with size equals to reduced targets.
    */
-  void SetLeaf(bst_node_t nidx, linalg::VectorView<float const> weight) {
+  void SetRoot(linalg::VectorView<float const> weight) {
     CHECK(IsMultiTarget());
-    return this->p_mt_tree_->SetLeaf(nidx, weight);
+    return this->p_mt_tree_->SetRoot(weight);
   }
   /**
    * @brief Get the maximum depth.

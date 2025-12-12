@@ -11,11 +11,11 @@
 namespace xgboost::tree {
 namespace {
 template <typename T>
-auto DispatchPtr(Context const* ctx, HostDeviceVector<T> const& vec) {
-  if (ctx->IsCPU()) {
+auto DispatchPtr(DeviceOrd device, HostDeviceVector<T> const& vec) {
+  if (device.IsCPU()) {
     return vec.ConstHostPointer();
   }
-  vec.SetDevice(ctx->Device());
+  vec.SetDevice(device);
   return vec.ConstDevicePointer();
 }
 
@@ -23,43 +23,33 @@ auto DispatchWeight(DeviceOrd device, RegTree const* tree) {
   auto const* mt_tree = tree->GetMultiTargetTree();
   auto n_targets = mt_tree->NumTargets();
   auto n_leaves = mt_tree->NumLeaves();
-  CHECK_GE(n_leaves, 1);
-  common::Span<float const> weights = tree->GetMultiTargetTree()->Weights(device);
+  common::Span<float const> weights = tree->GetMultiTargetTree()->LeafWeights(device);
+  if (n_leaves > 0) {
+    CHECK(!weights.empty());
+  }
   return linalg::MakeTensorView(device, weights, n_leaves, n_targets);
 }
 }  // namespace
 
-ScalarTreeView::ScalarTreeView(Context const* ctx, RegTree const* tree)
-    : CategoriesMixIn{tree->GetCategoriesMatrix(ctx->Device())},
-      nodes{tree->GetNodes().data()},
-      stats{tree->GetStats().data()},
+ScalarTreeView::ScalarTreeView(DeviceOrd device, RegTree const* tree)
+    : CategoriesMixIn{tree->GetCategoriesMatrix(device)},
+      nodes{tree->GetNodes(device).data()},
+      stats{tree->GetStats(device).data()},
       n{tree->NumNodes()} {
   CHECK(!tree->IsMultiTarget());
 }
 
-MultiTargetTreeView::MultiTargetTreeView(Context const* ctx, RegTree const* tree)
-    : CategoriesMixIn{tree->GetCategoriesMatrix(ctx->Device())},
-      left{DispatchPtr(ctx, tree->GetMultiTargetTree()->left_)},
-      right{DispatchPtr(ctx, tree->GetMultiTargetTree()->right_)},
-      parent{DispatchPtr(ctx, tree->GetMultiTargetTree()->parent_)},
-      split_index{DispatchPtr(ctx, tree->GetMultiTargetTree()->split_index_)},
-      default_left{DispatchPtr(ctx, tree->GetMultiTargetTree()->default_left_)},
-      split_conds{DispatchPtr(ctx, tree->GetMultiTargetTree()->split_conds_)},
+MultiTargetTreeView::MultiTargetTreeView(DeviceOrd device, RegTree const* tree)
+    : CategoriesMixIn{tree->GetCategoriesMatrix(device)},
+      left{DispatchPtr(device, tree->GetMultiTargetTree()->left_)},
+      right{DispatchPtr(device, tree->GetMultiTargetTree()->right_)},
+      parent{DispatchPtr(device, tree->GetMultiTargetTree()->parent_)},
+      split_index{DispatchPtr(device, tree->GetMultiTargetTree()->split_index_)},
+      default_left{DispatchPtr(device, tree->GetMultiTargetTree()->default_left_)},
+      split_conds{DispatchPtr(device, tree->GetMultiTargetTree()->split_conds_)},
       n{tree->NumNodes()},
-      weights{DispatchWeight(ctx->Device(), tree)} {
-  CHECK(tree->IsMultiTarget());
-}
+      leaf_weights{DispatchWeight(device, tree)} {}
 
 MultiTargetTreeView::MultiTargetTreeView(RegTree const* tree)
-    : CategoriesMixIn{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
-      left{tree->GetMultiTargetTree()->left_.ConstHostPointer()},
-      right{tree->GetMultiTargetTree()->right_.ConstHostPointer()},
-      parent{tree->GetMultiTargetTree()->parent_.ConstHostPointer()},
-      split_index{tree->GetMultiTargetTree()->split_index_.ConstHostPointer()},
-      default_left{tree->GetMultiTargetTree()->default_left_.ConstHostPointer()},
-      split_conds{tree->GetMultiTargetTree()->split_conds_.ConstHostPointer()},
-      n{tree->NumNodes()},
-      weights{DispatchWeight(DeviceOrd::CPU(), tree)} {
-  CHECK(tree->IsMultiTarget());
-}
+    : MultiTargetTreeView{DeviceOrd::CPU(), tree} {}
 }  // namespace xgboost::tree

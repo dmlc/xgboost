@@ -18,9 +18,10 @@
 #include "xgboost/base.h"                // for bst_cat_t
 #include "xgboost/data.h"                // for Entry
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
-#include "xgboost/json.h"                // for Json
 
 namespace xgboost {
+class Json;
+
 /**
  * @brief Error policy class used to interface with the encoder implementaion.
  */

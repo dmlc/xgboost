@@ -7,10 +7,16 @@
 #include <thrust/device_vector.h>            // for device_vector
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include <cuda/memory_resource>                      // for async_resource_ref
-#include <cuda/stream_ref>                           // for stream_ref
+#include <cuda/memory_resource>               // for async_resource_ref
+#include <cuda/stream_ref>                    // for stream_ref
+
+// TODO(hcho3): Remove this guard once we require Rapids 25.12+
+#if (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+#include <rmm/mr/per_device_resource.hpp>     // for get_current_device_resource
+#else  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
 #include <rmm/mr/device/device_memory_resource.hpp>  // for device_memory_resource
 #include <rmm/mr/device/per_device_resource.hpp>     // for get_current_device_resource
+#endif  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
 
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
 
@@ -266,7 +272,13 @@ namespace detail {
  */
 template <typename T>
 class ThrustAllocMrAdapter : public thrust::device_malloc_allocator<T> {
+
+// TODO(hcho3): Remove this guard once we require Rapids 25.12+
+#if (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+  DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource_ref()};
+#else  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
   DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource()};
+#endif  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
@@ -411,7 +423,7 @@ template <typename T>
 using caching_device_vector = thrust::device_vector<T, XGBCachingDeviceAllocator<T>>;  // NOLINT
 
 /**
- * @brief Container class that doesn't initialize the data when RMM is used.
+ * @brief Container class that doesn't initialize the data.
  */
 template <typename T, bool is_caching>
 class DeviceUVectorImpl {
@@ -467,7 +479,9 @@ class DeviceUVectorImpl {
     this->size_ = n;
     this->capacity_ = n;
 
-    std::swap(this->data_, new_ptr);
+    this->data_ = std::move(new_ptr);
+    // swap failed with CTK12.8
+    // std::swap(this->data_, new_ptr);
   }
   // Resize with init
   void resize(std::size_t n, T const &v) {  // NOLINT

@@ -41,20 +41,16 @@ pytestmark = [
     tm.timeout(180),
 ]
 
-try:
-    import cudf
-    import dask
-    import dask.dataframe as dd
-    from dask import __version__ as dask_version
-    from dask import array as da
-    from dask.distributed import Client
-    from dask_cuda import LocalCUDACluster
+import cudf
+import dask
+import dask.dataframe as dd
+from dask import __version__ as dask_version
+from dask import array as da
+from dask.distributed import Client
+from dask_cuda import LocalCUDACluster
 
-    from xgboost import dask as dxgb
-    from xgboost.testing.dask import check_init_estimation, check_uneven_nan
-except ImportError:
-    dask_version = None
-
+from xgboost import dask as dxgb
+from xgboost.testing.dask import check_init_estimation, check_uneven_nan
 
 dask_version_ge110 = dask_version and parse_version(dask_version) >= parse_version(
     "2024.11.0"

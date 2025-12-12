@@ -273,7 +273,7 @@ enum Order : std::uint8_t {
  * some functions expect data types that can be used in everywhere (update prediction
  * cache for example).
  */
-template <typename T, int32_t kDim>
+template <typename T, std::int32_t kDim>
 class TensorView {
  public:
   using ShapeT = std::size_t[kDim];
@@ -300,7 +300,7 @@ class TensorView {
     }
   }
 
-  template <size_t old_dim, size_t new_dim, int32_t D, typename I>
+  template <size_t old_dim, size_t new_dim, std::int32_t D, typename I>
   LINALG_HD size_t MakeSliceDim(std::size_t new_shape[D], std::size_t new_stride[D],
                                 detail::RangeTag<I> &&range) const {
     static_assert(new_dim < D);
@@ -646,6 +646,17 @@ auto MakeVec(T *ptr, size_t s, DeviceOrd device = DeviceOrd::CPU()) {
 }
 
 template <typename T>
+auto MakeVec(DeviceOrd device, common::Span<T> s) {
+  return linalg::TensorView<T, 1>{s, {s.size()}, device};
+}
+
+template <typename T>
+auto MakeVec(std::vector<T> const &v) {
+  return linalg::TensorView<std::add_const_t<T>, 1>{
+      {v.data(), v.size()}, {v.size()}, DeviceOrd::CPU()};
+}
+
+template <typename T>
 auto MakeVec(HostDeviceVector<T> *data) {
   return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(),
                  data->Size(), data->Device());
@@ -946,13 +957,24 @@ template <typename T>
 using Vector = Tensor<T, 1>;
 
 /**
- * \brief Create an array without initialization.
+ * @brief Create an array without initialization.
  */
 template <typename T, typename... Index>
 auto Empty(Context const *ctx, Index &&...index) {
   Tensor<T, sizeof...(Index)> t;
   t.SetDevice(ctx->Device());
   t.Reshape(index...);
+  return t;
+}
+
+/**
+ * @brief Create an array with the same shape and dtype as the input.
+ */
+template <typename T, std::int32_t kDim>
+auto EmptyLike(Context const *ctx, Tensor<T, kDim> const &in) {
+  Tensor<T, kDim> t;
+  t.SetDevice(ctx->Device());
+  t.Reshape(in.Shape());
   return t;
 }
 

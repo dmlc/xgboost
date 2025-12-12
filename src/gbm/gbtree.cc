@@ -145,6 +145,21 @@ void GBTree::Configure(Args const& cfg) {
   }
 }
 
+void GBTreeModel::InitTreesToUpdate() {
+  if (trees_to_update.empty()) {
+    for (auto& tree : trees) {
+      trees_to_update.push_back(std::move(tree));
+    }
+
+    trees.clear();
+    param.num_trees = 0;
+    tree_info.HostVector().clear();
+
+    iteration_indptr.clear();
+    iteration_indptr.push_back(0);
+  }
+}
+
 void GPUCopyGradient(Context const*, linalg::Matrix<GradientPair> const*, bst_group_t,
                      linalg::Matrix<GradientPair>*)
 #if defined(XGBOOST_USE_CUDA)
@@ -195,13 +210,12 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
   }
 }
 
-void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
-                     PredictionCacheEntry* predt, ObjFunction const* obj) {
+void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry* predt,
+                     ObjFunction const* obj) {
   if (model_.learner_model_param->IsVectorLeaf()) {
     CHECK(tparam_.tree_method == TreeMethod::kHist || tparam_.tree_method == TreeMethod::kAuto)
         << "Only the hist tree method is supported for building multi-target trees with vector "
            "leaf.";
-    CHECK(ctx_->IsCPU()) << "GPU is not yet supported for vector leaf.";
   }
 
   TreesOneIter new_trees;
@@ -229,6 +243,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   std::vector<HostDeviceVector<bst_node_t>> node_position;
 
   if (model_.learner_model_param->IsVectorLeaf()) {
+    // Multi-target, vector leaf
     TreesOneGroup ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
@@ -239,6 +254,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
       predt->Update(1);
     }
   } else if (model_.learner_model_param->OutputLength() == 1u) {
+    // Single target
     TreesOneGroup ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
@@ -249,13 +265,16 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
       predt->Update(1);
     }
   } else {
-    CHECK_EQ(in_gpair->Size() % n_groups, 0U) << "must have exactly ngroup * nrow gpairs";
-    linalg::Matrix<GradientPair> tmp{{in_gpair->Shape(0), static_cast<std::size_t>(1ul)},
-                                     ctx_->Device()};
+    // Multi-target, scalar leaf
+    CHECK_EQ(in_gpair->gpair.Size() % n_groups, 0U)
+        << "Must have exactly n_groups * n_samples gpairs.";
+    GradientContainer tmp;
+    tmp.gpair = linalg::Matrix<GradientPair>{
+        {in_gpair->gpair.Shape(0), static_cast<std::size_t>(1ul)}, ctx_->Device()};
     bool update_predict = true;
     for (bst_target_t gid = 0; gid < n_groups; ++gid) {
       node_position.clear();
-      CopyGradient(ctx_, in_gpair, gid, &tmp);
+      CopyGradient(ctx_, &in_gpair->gpair, gid, &tmp.gpair);
       TreesOneGroup ret;
       BoostNewTrees(&tmp, p_fmat, gid, &node_position, &ret);
       UpdateTreeLeaf(p_fmat, predt->predictions, obj, gid, node_position, &ret);
@@ -276,9 +295,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   this->CommitModel(std::move(new_trees));
 }
 
-void GBTree::BoostNewTrees(linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
-                           std::vector<HostDeviceVector<bst_node_t>>* out_position,
-                           TreesOneGroup* ret) {
+std::vector<RegTree*> GBTree::InitNewTrees(bst_target_t bst_group, TreesOneGroup* ret) {
   std::vector<RegTree*> new_trees;
   ret->clear();
   // create the trees
@@ -312,20 +329,30 @@ void GBTree::BoostNewTrees(linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
       ret->push_back(std::move(t));
     }
   }
+  return new_trees;
+}
+
+void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
+                           std::vector<HostDeviceVector<bst_node_t>>* out_position,
+                           TreesOneGroup* ret) {
+  std::vector<RegTree*> new_trees = this->InitNewTrees(bst_group, ret);
 
   // update the trees
   auto n_out = model_.learner_model_param->OutputLength() * p_fmat->Info().num_row_;
   StringView msg{
       "Mismatching size between number of rows from input data and size of gradient vector."};
   if (!model_.learner_model_param->IsVectorLeaf() && p_fmat->Info().num_row_ != 0) {
-    CHECK_EQ(n_out % gpair->Size(), 0) << msg;
-  } else {
-    CHECK_EQ(gpair->Size(), n_out) << msg;
+    CHECK_EQ(n_out % gpair->gpair.Size(), 0) << msg;
+  } else if (model_.learner_model_param->IsVectorLeaf()) {
+    // vector leaf
+    if (!gpair->HasValueGrad()) {
+      CHECK_EQ(gpair->gpair.Size(), n_out) << msg;
+    }
   }
 
   out_position->resize(new_trees.size());
 
-  // Rescale learning rate according to the size of trees
+  // Rescale learning rate according to the number of trees
   auto lr = tree_param_.learning_rate;
   tree_param_.learning_rate /= static_cast<float>(new_trees.size());
   for (auto& up : updaters_) {
@@ -444,7 +471,9 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 
   auto& out_indptr = out_model.iteration_indptr;
   TreesOneGroup& out_trees = out_model.trees;
-  std::vector<int32_t>& out_trees_info = out_model.tree_info;
+  auto& out_tree_info = out_model.tree_info.HostVector();
+
+  auto const& in_tree_info = this->model_.tree_info.ConstHostVector();
 
   bst_layer_t n_layers = (end - begin) / step;
   out_indptr.resize(n_layers + 1, 0);
@@ -462,8 +491,8 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
         std::unique_ptr<RegTree> new_tree{this->model_.trees.at(in_tree_idx)->Copy()};
         out_trees.emplace_back(std::move(new_tree));
 
-        bst_group_t group = this->model_.tree_info[in_tree_idx];
-        out_trees_info.push_back(group);
+        bst_group_t group = in_tree_info[in_tree_idx];
+        out_tree_info.push_back(group);
 
         out_model.iteration_indptr[out_l + 1]++;
       });
@@ -714,9 +743,8 @@ class Dart : public GBTree {
   }
 
   // An independent const function to make sure it's thread safe.
-  void PredictBatchImpl(DMatrix *p_fmat, PredictionCacheEntry *p_out_preds,
-                        bool training, unsigned layer_begin,
-                        unsigned layer_end) const {
+  void PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
+                        bst_layer_t layer_begin, bst_layer_t layer_end) const {
     CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
     auto& predictor = this->GetPredictor(training, &p_out_preds->predictions, p_fmat);
     CHECK(predictor);
@@ -735,7 +763,7 @@ class Dart : public GBTree {
     auto layer_trees = [&]() {
       return model_.param.num_parallel_tree * model_.learner_model_param->OutputLength();
     };
-
+    auto const& h_tree_info = this->model_.tree_info.ConstHostVector();
     for (bst_tree_t i = tree_begin; i < tree_end; i += 1) {
       if (training && std::binary_search(idx_drop_.cbegin(), idx_drop_.cend(), i)) {
         continue;
@@ -749,20 +777,19 @@ class Dart : public GBTree {
 
       // Multiple the weight to output prediction.
       auto w = this->weight_drop_.at(i);
-      auto group = model_.tree_info.at(i);
+      auto grp_idx = h_tree_info.at(i);
       CHECK_EQ(p_out_preds->predictions.Size(), predts.predictions.Size());
 
       size_t n_rows = p_fmat->Info().num_row_;
       if (predts.predictions.Device().IsCUDA()) {
         p_out_preds->predictions.SetDevice(predts.predictions.Device());
-        GPUDartPredictInc(p_out_preds->predictions.DeviceSpan(),
-                          predts.predictions.DeviceSpan(), w, n_rows, n_groups,
-                          group);
+        GPUDartPredictInc(p_out_preds->predictions.DeviceSpan(), predts.predictions.DeviceSpan(), w,
+                          n_rows, n_groups, grp_idx);
       } else {
         auto &h_out_predts = p_out_preds->predictions.HostVector();
-        auto &h_predts = predts.predictions.HostVector();
+        auto &h_predts = predts.predictions.ConstHostVector();
         common::ParallelFor(p_fmat->Info().num_row_, ctx_->Threads(), [&](auto ridx) {
-          const size_t offset = ridx * n_groups + group;
+          const size_t offset = ridx * n_groups + grp_idx;
           h_out_predts[offset] += (h_predts[offset] * w);
         });
       }
@@ -815,6 +842,7 @@ class Dart : public GBTree {
       CHECK(success) << msg;
     };
 
+    auto const& h_tree_info = this->model_.tree_info.ConstHostVector();
     // Inplace predict is not used for training, so no need to drop tree.
     for (bst_tree_t i = tree_begin; i < tree_end; ++i) {
       predict_impl(i);
@@ -837,7 +865,7 @@ class Dart : public GBTree {
       }
       // Multiple the tree weight
       auto w = this->weight_drop_.at(i);
-      auto group = model_.tree_info.at(i);
+      auto group = h_tree_info.at(i);
       CHECK_EQ(predts.predictions.Size(), p_out_preds->predictions.Size());
 
       size_t n_rows = p_fmat->Info().num_row_;
@@ -886,7 +914,7 @@ class Dart : public GBTree {
   }
 
   // Select which trees to drop.
-  inline void DropTrees(bool is_training) {
+  void DropTrees(bool is_training) {
     if (!is_training) {
       // This function should be thread safe when it's not training.
       return;
@@ -896,10 +924,12 @@ class Dart : public GBTree {
     std::uniform_real_distribution<> runif(0.0, 1.0);
     auto& rnd = common::GlobalRandom();
     bool skip = false;
-    if (dparam_.skip_drop > 0.0) skip = (runif(rnd) < dparam_.skip_drop);
+    if (dparam_.skip_drop > 0.0) {
+      skip = (runif(rnd) < dparam_.skip_drop);
+    }
     // sample some trees to drop
     if (!skip) {
-      if (dparam_.sample_type == 1) {
+      if (dparam_.sample_type == DartSampleType::kWeighted) {
         bst_float sum_weight = 0.0;
         for (auto elem : weight_drop_) {
           sum_weight += elem;
@@ -969,17 +999,6 @@ class Dart : public GBTree {
     return num_drop;
   }
 
-  // init thread buffers
-  inline void InitThreadTemp(int nthread) {
-    int prev_thread_temp_size = thread_temp_.size();
-    if (prev_thread_temp_size < nthread) {
-      thread_temp_.resize(nthread, RegTree::FVec());
-      for (int i = prev_thread_temp_size; i < nthread; ++i) {
-        thread_temp_[i].Init(model_.learner_model_param->num_feature);
-      }
-    }
-  }
-
   // --- data structure ---
   // training parameter
   DartTrainParam dparam_;
@@ -999,7 +1018,7 @@ DMLC_REGISTER_PARAMETER(DartTrainParam);
 XGBOOST_REGISTER_GBM(GBTree, "gbtree")
     .describe("Tree booster, gradient boosted trees.")
     .set_body([](LearnerModelParam const* booster_config, Context const* ctx) {
-      auto* p = new GBTree(booster_config, ctx);
+      auto* p = new GBTree{booster_config, ctx};
       return p;
     });
 XGBOOST_REGISTER_GBM(Dart, "dart")

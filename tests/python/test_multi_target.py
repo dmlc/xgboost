@@ -2,15 +2,15 @@ from typing import Any, Dict
 
 from hypothesis import given, note, settings, strategies
 
-import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.multi_target import run_multiclass, run_multilabel
 from xgboost.testing.params import (
     exact_parameter_strategy,
     hist_cache_strategy,
     hist_multi_parameter_strategy,
     hist_parameter_strategy,
 )
-from xgboost.testing.updater import ResetStrategy, train_result
+from xgboost.testing.updater import train_result
 
 
 class TestTreeMethodMulti:
@@ -78,28 +78,8 @@ class TestTreeMethodMulti:
 
 
 def test_multiclass() -> None:
-    X, y = tm.datasets.make_classification(
-        128, n_features=12, n_informative=10, n_classes=4
-    )
-    clf = xgb.XGBClassifier(
-        multi_strategy="multi_output_tree", callbacks=[ResetStrategy()], n_estimators=10
-    )
-    clf.fit(X, y, eval_set=[(X, y)])
-    assert clf.objective == "multi:softprob"
-    assert tm.non_increasing(clf.evals_result()["validation_0"]["mlogloss"])
-
-    proba = clf.predict_proba(X)
-    assert proba.shape == (y.shape[0], 4)
+    run_multiclass("cpu", None)
 
 
 def test_multilabel() -> None:
-    X, y = tm.datasets.make_multilabel_classification(128)
-    clf = xgb.XGBClassifier(
-        multi_strategy="multi_output_tree", callbacks=[ResetStrategy()], n_estimators=10
-    )
-    clf.fit(X, y, eval_set=[(X, y)])
-    assert clf.objective == "binary:logistic"
-    assert tm.non_increasing(clf.evals_result()["validation_0"]["logloss"])
-
-    proba = clf.predict_proba(X)
-    assert proba.shape == y.shape
+    run_multilabel("cpu", None)

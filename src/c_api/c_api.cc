@@ -1205,7 +1205,7 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, bs
 
 namespace xgboost {
 // copy user-supplied CUDA gradient arrays
-void CopyGradientFromCUDAArrays(Context const *, ArrayInterface<2, false> const &,
+void CopyGradientFromCudaArrays(Context const *, ArrayInterface<2, false> const &,
                                 ArrayInterface<2, false> const &, linalg::Matrix<GradientPair> *)
 #if !defined(XGBOOST_USE_CUDA)
 {
@@ -1228,7 +1228,7 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   StringView msg{"Mismatched shape between the gradient and hessian."};
   CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
   CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
-  linalg::Matrix<GradientPair> gpair;
+  GradientContainer gpair;
   auto grad_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_grad.data);
   auto hess_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_hess.data);
   CHECK_EQ(i_grad.Shape<0>(), p_fmat->Info().num_row_)
@@ -1237,8 +1237,8 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   auto *learner = static_cast<Learner *>(handle);
   auto ctx = learner->Ctx();
   if (!grad_is_cuda) {
-    gpair.Reshape(i_grad.Shape<0>(), i_grad.Shape<1>());
-    auto h_gpair = gpair.HostView();
+    gpair.gpair.Reshape(i_grad.Shape<0>(), i_grad.Shape<1>());
+    auto h_gpair = gpair.gpair.HostView();
     DispatchDType(i_grad, DeviceOrd::CPU(), [&](auto &&t_grad) {
       DispatchDType(i_hess, DeviceOrd::CPU(), [&](auto &&t_hess) {
         common::ParallelFor(h_gpair.Size(), ctx->Threads(),
@@ -1246,9 +1246,50 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
       });
     });
   } else {
-    CopyGradientFromCUDAArrays(ctx, i_grad, i_hess, &gpair);
+    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.gpair);
   }
   learner->BoostOneIter(iter, p_fmat, &gpair);
+  API_END();
+}
+
+typedef char const *JArrayStr;  // NOLINT
+
+// Hidden, working-in-progress support for reduced gradient. CUDA-only at the moment.
+/**
+ * @brief Use a different type of gradient for tree split.
+ *
+ * @param split_grad Gradient for finding tree splits.
+ * @param split_hess Hessian for finding tree splits.
+ * @param value_grad Gradient for calculating tree leaf weights.
+ * @param value_hess Hessian for calculating tree leaf weights.
+ */
+XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHandle dtrain, int iter,
+                                               JArrayStr split_grad, JArrayStr split_hess,
+                                               JArrayStr value_grad, JArrayStr value_hess) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto *learner = static_cast<Learner *>(handle);
+  GradientContainer gpair;
+  auto ctx = learner->Ctx();
+  CHECK(ctx->IsCUDA()) << "Reduced gradient with CPU" << MTNotImplemented();
+  {
+    ArrayInterface<2, false> i_grad{StringView{split_grad}};
+    ArrayInterface<2, false> i_hess{StringView{split_hess}};
+    CHECK(ArrayInterfaceHandler::IsCudaPtr(i_grad.data))
+        << "Reduced gradient with CPU" << MTNotImplemented();
+    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.gpair);
+  }
+  {
+    ArrayInterface<2, false> i_grad{StringView{value_grad}};
+    ArrayInterface<2, false> i_hess{StringView{value_hess}};
+    CHECK(ArrayInterfaceHandler::IsCudaPtr(i_grad.data))
+        << "Reduced gradient with CPU" << MTNotImplemented();
+    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.value_gpair);
+  }
+
+  auto p_fmat = CastDMatrixHandle(dtrain);
+  learner->BoostOneIter(iter, p_fmat, &gpair);
+
   API_END();
 }
 
@@ -1468,7 +1509,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, ch
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-XGB_DLL int XGBoosterPredictFromCUDAArray(BoosterHandle handle, char const *, char const *,
+XGB_DLL int XGBoosterPredictFromCudaArray(BoosterHandle handle, char const *, char const *,
                                           DMatrixHandle, xgboost::bst_ulong const **,
                                           xgboost::bst_ulong *, const float **) {
   API_BEGIN();
@@ -1477,7 +1518,7 @@ XGB_DLL int XGBoosterPredictFromCUDAArray(BoosterHandle handle, char const *, ch
   API_END();
 }
 
-XGB_DLL int XGBoosterPredictFromCUDAColumnar(BoosterHandle handle, char const *, char const *,
+XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *, char const *,
                                              DMatrixHandle, xgboost::bst_ulong const **,
                                              xgboost::bst_ulong *, const float **) {
   API_BEGIN();
@@ -1525,8 +1566,13 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char *fname) {
   xgboost_CHECK_C_ARG_PTR(fname);
   auto read_file = [&]() {
     auto str = common::LoadSequentialFile(fname);
-    CHECK_GE(str.size(), 2);  // "{}"
-    CHECK_EQ(str[0], '{');
+    // "{}"
+    CHECK_GE(str.size(), 2) << error::InvalidModel(fname);
+    // The old binary format has the starting bytes "binf".
+    if (str.size() >= 4 && StringView{str.data(), 4} == "binf") {  // NOLINT
+      LOG(FATAL) << error::OldBinaryModel(fname);
+    }
+    CHECK_EQ(str[0], '{') << error::InvalidModel(fname);
     return str;
   };
   auto ext = common::FileExtension(fname);

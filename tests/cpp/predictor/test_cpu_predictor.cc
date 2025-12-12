@@ -31,7 +31,7 @@ void CheckArrayLayout(const RegTree& tree, ArrayLayoutT buffer, int max_depth, i
   const auto& split_cond = buffer.SplitCond();
   const auto& default_left = buffer.DefaultLeft();
   const auto& nidx_in_tree = buffer.NidxInTree();
-  const auto& nodes = tree.GetNodes();
+  const auto& nodes = tree.GetNodes(DeviceOrd::CPU());
 
   if (depth == max_depth) {
     ASSERT_EQ(nidx_in_tree[nid_array - (1u << max_depth) + 1], nid);
@@ -78,7 +78,7 @@ TEST(CpuPredictor, ArrayTreeLayout) {
     tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0);
   }
 
-  auto sc_tree = tree::ScalarTreeView{&ctx, &tree};
+  auto sc_tree = tree::ScalarTreeView{ctx.Device(), &tree};
   {
     constexpr int kDepth = 1;
     LayoutForTest<kDepth> buffer(sc_tree, sc_tree.GetCategoriesMatrix());
@@ -202,8 +202,9 @@ void TestUpdatePredictionCache(bool use_subsampling) {
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Classes(kClasses).GenerateDMatrix(true);
 
-  linalg::Matrix<GradientPair> gpair({kRows, kClasses}, ctx.Device());
-  auto h_gpair = gpair.HostView();
+  GradientContainer gpair;
+  gpair.gpair = linalg::Matrix<GradientPair>({kRows, kClasses}, ctx.Device());
+  auto h_gpair = gpair.gpair.HostView();
   for (size_t i = 0; i < kRows * kClasses; ++i) {
     std::apply(h_gpair, linalg::UnravelIndex(i, kRows, kClasses)) = {static_cast<float>(i), 1};
   }

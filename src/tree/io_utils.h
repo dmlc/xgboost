@@ -51,6 +51,7 @@ namespace tree_field {
 inline std::string const kLossChg{"loss_changes"};
 inline std::string const kSumHess{"sum_hessian"};
 inline std::string const kBaseWeight{"base_weights"};
+inline std::string const kLeafWeight{"leaf_weights"};
 
 inline std::string const kSplitIdx{"split_indices"};
 inline std::string const kSplitCond{"split_conditions"};

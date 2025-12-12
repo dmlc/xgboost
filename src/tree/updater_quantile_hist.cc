@@ -26,13 +26,14 @@
 #include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
-#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
+#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for TrainParam, GradStats
 #include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/data.h"                    // for BatchSet, DMatrix, BatchIterator, MetaInfo
+#include "xgboost/gradient.h"                // for GradientContainer
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
 #include "xgboost/json.h"                    // for Object, Json, FromJson, ToJson, get
 #include "xgboost/linalg.h"                  // for MatrixView, TensorView, All, Matrix, Empty
@@ -105,6 +106,8 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
 
   auto &h_out_position = p_out_position->HostVector();
   updater->LeafPartition(tree, gpair, &h_out_position);
+
+  updater->ExpandTreeLeaf(p_tree);
   monitor->Stop(__func__);
 }
 
@@ -152,15 +155,23 @@ class MultiTargetHistBuilder {
 
     p_last_fmat_ = p_fmat;
     bst_bin_t n_total_bins = 0;
-    partitioner_.clear();
+    size_t page_idx = 0;
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->Info().IsColumnSplit());
+      if (page_idx < partitioner_.size()) {
+        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
+                                     p_fmat->Info().IsColumnSplit());
+      } else {
+        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid,
+                                  p_fmat->Info().IsColumnSplit());
+      }
+      page_idx++;
     }
+    partitioner_.resize(page_idx);
 
     bst_target_t n_targets = p_tree->NumTargets();
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
@@ -211,7 +222,7 @@ class MultiTargetHistBuilder {
     std::transform(linalg::cbegin(weight_t), linalg::cend(weight_t), linalg::begin(weight_t),
                    [&](float w) { return w * param_->learning_rate; });
 
-    p_tree->SetLeaf(RegTree::kRoot, weight_t);
+    p_tree->SetRoot(weight_t);
     std::vector<BoundedHistCollection const *> hists;
     std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
     for (bst_target_t t{0}; t < p_tree->NumTargets(); ++t) {
@@ -262,6 +273,11 @@ class MultiTargetHistBuilder {
                          common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);
+  }
+
+  void ExpandTreeLeaf(RegTree *p_tree) {
+    // TODO(jiamingy): Support reduced gradient.
+    p_tree->GetMultiTargetTree()->SetLeaves();
   }
 
  public:
@@ -364,6 +380,7 @@ class HistUpdater {
       }
       page_idx++;
     }
+    partitioner_.resize(page_idx);
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
                               fmat->Info().IsColumnSplit(), hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
@@ -479,6 +496,8 @@ class HistUpdater {
     }
     monitor_->Stop(__func__);
   }
+
+  void ExpandTreeLeaf(RegTree *) { /*no op for scalar trees.*/ }
 };
 
 /*! \brief construct a tree using quantized feature values */
@@ -507,7 +526,7 @@ class QuantileHistMaker : public TreeUpdater {
 
   [[nodiscard]] char const *Name() const override { return "grow_quantile_histmaker"; }
 
-  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *p_fmat,
+  void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     if (!column_sampler_) {
@@ -530,7 +549,7 @@ class QuantileHistMaker : public TreeUpdater {
     }
 
     bst_target_t n_targets = trees.front()->NumTargets();
-    auto h_gpair = gpair->HostView();
+    auto h_gpair = in_gpair->FullGradOnly()->HostView();
 
     linalg::Matrix<GradientPair> sample_out;
     auto h_sample_out = h_gpair;

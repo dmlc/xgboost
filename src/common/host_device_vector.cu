@@ -414,6 +414,7 @@ template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<double>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<GradientPairPrecise>;
+template class HostDeviceVector<GradientPairInt64>;
 template class HostDeviceVector<std::int32_t>;   // bst_node_t
 template class HostDeviceVector<std::uint8_t>;
 template class HostDeviceVector<std::int8_t>;

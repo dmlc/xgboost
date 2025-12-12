@@ -4,8 +4,6 @@
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
  */
-#include <xgboost/tree_updater.h>
-
 #include <limits>
 #include <vector>
 
@@ -14,7 +12,9 @@
 #include "../predictor/predict_fn.h"
 #include "../tree/tree_view.h"  // for ScalarTreeView
 #include "./param.h"
+#include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/json.h"
+#include "xgboost/tree_updater.h"
 
 namespace xgboost::tree {
 
@@ -30,13 +30,14 @@ class TreeRefresher : public TreeUpdater {
 
   [[nodiscard]] char const *Name() const override { return "refresh"; }
   [[nodiscard]] bool CanModifyTree() const override { return true; }
-  // update the tree, do pruning
-  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *p_fmat,
+  // Update the tree, do pruning
+  void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree *> &trees) override {
     if (trees.size() == 0) {
       return;
     }
+    auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     const std::vector<GradientPair> &gpair_h = gpair->Data()->ConstHostVector();
     // Thread local variables.

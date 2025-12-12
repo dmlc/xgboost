@@ -12,6 +12,7 @@
 
 #include "../common/type.h"      // for GetValueT
 #include "xgboost/base.h"        // for bst_node_t
+#include "xgboost/context.h"     // for DeviceOrd
 #include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost::tree {
@@ -36,10 +37,8 @@ struct WalkTreeMixIn {
       }
       auto left = self->LeftChild(nidx);
       auto right = self->RightChild(nidx);
-      if (left != RegTree::kInvalidNodeId) {
+      if (!self->IsLeaf(nidx)) {
         nodes.push(left);
-      }
-      if (right != RegTree::kInvalidNodeId) {
         nodes.push(right);
       }
     }
@@ -74,20 +73,22 @@ struct CategoriesMixIn {
   RegTree::CategoricalSplitMatrix cats;
 
   [[nodiscard]] XGBOOST_DEVICE bool HasCategoricalSplit() const { return !cats.categories.empty(); }
-  [[nodiscard]] XGBOOST_DEVICE RegTree::CategoricalSplitMatrix GetCategoriesMatrix() const {
+  [[nodiscard]] XGBOOST_DEVICE RegTree::CategoricalSplitMatrix const& GetCategoriesMatrix() const {
     return cats;
   }
   /**
    * @brief Get the bit storage of categories used by a node.
    */
-  [[nodiscard]] common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
+  [[nodiscard]] XGBOOST_DEVICE common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
     auto node_ptr = this->GetCategoriesMatrix().node_ptr;
     auto categories = this->GetCategoriesMatrix().categories;
     auto segment = node_ptr[nidx];
     auto node_cats = categories.subspan(segment.beg, segment.size);
     return node_cats;
   }
-  [[nodiscard]] FeatureType SplitType(bst_node_t nidx) const { return cats.split_type[nidx]; }
+  [[nodiscard]] XGBOOST_DEVICE FeatureType SplitType(bst_node_t nidx) const {
+    return cats.split_type[nidx];
+  }
 };
 
 /**
@@ -142,20 +143,20 @@ struct ScalarTreeView : public WalkTreeMixIn<ScalarTreeView>, public CategoriesM
   }
 
   [[nodiscard]] RTreeNodeStat const& Stat(bst_node_t nidx) const { return stats[nidx]; }
-  [[nodiscard]] auto SumHess(bst_node_t nidx) const { return stats[nidx].sum_hess; }
-  [[nodiscard]] auto LossChg(bst_node_t nidx) const { return stats[nidx].loss_chg; }
+  [[nodiscard]] XGBOOST_DEVICE auto SumHess(bst_node_t nidx) const { return stats[nidx].sum_hess; }
+  [[nodiscard]] XGBOOST_DEVICE auto LossChg(bst_node_t nidx) const { return stats[nidx].loss_chg; }
 
   XGBOOST_DEVICE explicit ScalarTreeView(RegTree::Node const* nodes, RTreeNodeStat const* stats,
                                          RegTree::CategoricalSplitMatrix cats, bst_node_t n_nodes)
       : CategoriesMixIn{std::move(cats)}, nodes{nodes}, stats{stats}, n{n_nodes} {}
 
-  /** @brief Create a device view, not implemented yet. */
-  explicit ScalarTreeView(Context const* ctx, RegTree const* tree);
+  /** @brief Create a device view */
+  explicit ScalarTreeView(DeviceOrd device, RegTree const* tree);
   /** @brief Create a host view */
   explicit ScalarTreeView(RegTree const* tree)
       : CategoriesMixIn{tree->GetCategoriesMatrix(DeviceOrd::CPU())},
-        nodes{tree->GetNodes().data()},
-        stats{tree->GetStats().data()},
+        nodes{tree->GetNodes(DeviceOrd::CPU()).data()},
+        stats{tree->GetStats(DeviceOrd::CPU()).data()},
         n{tree->NumNodes()} {
     CHECK(!tree->IsMultiTarget());
   }
@@ -178,7 +179,7 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
   // The number of nodes
   bst_node_t n{0};
 
-  linalg::MatrixView<float const> weights;
+  linalg::MatrixView<float const> leaf_weights;
 
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf(bst_node_t nidx) const {
     return left[nidx] == InvalidNodeId();
@@ -203,10 +204,11 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
     return this->DefaultLeft(nidx) ? this->LeftChild(nidx) : this->RightChild(nidx);
   }
   [[nodiscard]] XGBOOST_DEVICE linalg::VectorView<float const> LeafValue(bst_node_t nidx) const {
-    return this->weights.Slice(nidx, linalg::All());
+    auto leaf_idx = this->right[nidx];
+    return this->leaf_weights.Slice(leaf_idx, linalg::All());
   }
 
-  [[nodiscard]] bst_target_t NumTargets() const { return this->weights.Shape(1); }
+  [[nodiscard]] bst_target_t NumTargets() const { return this->leaf_weights.Shape(1); }
   [[nodiscard]] bst_node_t Size() const { return this->n; }
   [[nodiscard]] XGBOOST_DEVICE bool IsRoot(bst_node_t nidx) const { return nidx == RegTree::kRoot; }
 
@@ -219,7 +221,7 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
     return 0.0f;
   }
   /** @brief Create a device view */
-  explicit MultiTargetTreeView(Context const* ctx, RegTree const* tree);
+  explicit MultiTargetTreeView(DeviceOrd device, RegTree const* tree);
   /** @brief Create a host view */
   explicit MultiTargetTreeView(RegTree const* tree);
 };

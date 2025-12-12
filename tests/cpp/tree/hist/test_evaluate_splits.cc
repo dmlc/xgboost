@@ -204,7 +204,7 @@ TEST(HistMultiEvaluator, Evaluate) {
 
   RegTree tree{n_targets, n_features};
   auto weight = evaluator.InitRoot(root_sum.HostView());
-  tree.SetLeaf(RegTree::kRoot, weight.HostView());
+  tree.SetRoot(weight.HostView());
   auto w = weight.HostView();
   ASSERT_EQ(w.Size(), n_targets);
   ASSERT_EQ(w(0), -1.5);

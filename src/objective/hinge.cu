@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023, XGBoost Contributors
+ * Copyright 2018-2025, XGBoost Contributors
  * \file hinge.cc
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
@@ -8,14 +8,8 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
 
-#include "../common/common.h"  // for Range
-#if defined(XGBOOST_USE_CUDA)
-#include "../common/linalg_op.cuh"
-#endif
-#if defined(XGBOOST_USE_SYCL)
-#include "../../plugin/sycl/common/linalg_op.h"
-#endif
-#include "../common/linalg_op.h"
+#include "../common/common.h"            // for Range
+#include "../common/linalg_op.h"         // for ElementWiseKernel
 #include "../common/optional_weight.h"   // for OptionalWeights
 #include "../common/transform.h"         // for Transform
 #include "init_estimation.h"             // for FitIntercept

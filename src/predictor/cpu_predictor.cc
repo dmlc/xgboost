@@ -20,9 +20,10 @@
 #include "../data/gradient_index.h"           // for GHistIndexMatrix
 #include "../data/proxy_dmatrix.h"            // for DMatrixProxy
 #include "../gbm/gbtree_model.h"              // for GBTreeModel, GBTreeModelParam
-#include "dmlc/registry.h"                    // for DMLC_REGISTRY_FILE_TAG
-#include "predict_fn.h"                       // for GetNextNode, GetNextNodeMulti
 #include "array_tree_layout.h"                // for ProcessArrayTree
+#include "dmlc/registry.h"                    // for DMLC_REGISTRY_FILE_TAG
+#include "gbtree_view.h"                      // for GBTreeModelView
+#include "predict_fn.h"                       // for GetNextNode, GetNextNodeMulti
 #include "treeshap.h"                         // for CalculateContributions
 #include "utils.h"                            // for CheckProxyDMatrix
 #include "xgboost/base.h"                     // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
@@ -41,9 +42,23 @@ namespace xgboost::predictor {
 
 DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 
-namespace scalar {
-template <bool has_missing, bool has_categorical>
-bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, const RegTree::FVec &feat,
+namespace {
+using TreeViewVar = std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
+struct CopyViews {
+  void operator()(std::vector<TreeViewVar> *p_dst, std::vector<TreeViewVar> &&src) const {
+    std::swap(src, *p_dst);
+  }
+};
+
+template <typename T>
+using Vec = std::vector<T, std::allocator<T>>;
+// The input device should be DeviceOrd::CPU() instead of Context::Device(). The GBTree
+// has an optimization to use CPU predictor when the DMatrix SparsePage is on CPU, even if
+// the context is a CUDA context.
+using HostModel = GBTreeModelView<Vec, TreeViewVar, CopyViews>;
+
+template <bool has_missing, bool has_categorical, typename TreeView>
+bst_node_t GetLeafIndex(TreeView const &tree, const RegTree::FVec &feat,
                         RegTree::CategoricalSplitMatrix const &cats, bst_node_t nidx) {
   while (!tree.IsLeaf(nidx)) {
     bst_feature_t split_index = tree.SplitIndex(nidx);
@@ -53,7 +68,9 @@ bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, const RegTree::FVec &f
   }
   return nidx;
 }
+}  // namespace
 
+namespace scalar {
 template <bool has_categorical>
 [[nodiscard]] float PredValueByOneTree(const RegTree::FVec &p_feats,
                                        tree::ScalarTreeView const &tree,
@@ -91,19 +108,6 @@ void PredValueByOneTree(tree::ScalarTreeView const &tree, std::size_t const pred
 }  // namespace scalar
 
 namespace multi {
-template <bool has_missing, bool has_categorical>
-bst_node_t GetLeafIndex(tree::MultiTargetTreeView const &tree, const RegTree::FVec &feat,
-                        RegTree::CategoricalSplitMatrix const &cats,
-                        bst_node_t nidx) {
-  while (!tree.IsLeaf(nidx)) {
-    bst_feature_t split_index = tree.SplitIndex(nidx);
-    auto fvalue = feat.GetFvalue(split_index);
-    nidx = GetNextNode<has_missing, has_categorical>(
-        tree, nidx, fvalue, has_missing && feat.IsMissing(split_index), cats);
-  }
-  return nidx;
-}
-
 template <bool has_categorical>
 void PredValueByOneTree(RegTree::FVec const &p_feats, tree::MultiTargetTreeView const &tree,
                         RegTree::CategoricalSplitMatrix const &cats,
@@ -119,30 +123,28 @@ void PredValueByOneTree(RegTree::FVec const &p_feats, tree::MultiTargetTreeView 
 }
 
 template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
-void PredValueByOneTree(const RegTree &tree, std::size_t const predict_offset,
+void PredValueByOneTree(tree::MultiTargetTreeView const &tree, std::size_t const predict_offset,
                         common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                         linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, bst_node_t depth) {
-  const auto mt_tree = tree.HostMtView();
-  auto const &cats = mt_tree.GetCategoriesMatrix();
+  auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>(mt_tree, fvec_tloc, block_size, p_nidx, depth);
+    ProcessArrayTree<has_categorical, any_missing>(tree, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
-    bst_node_t nidx = 0;
+    bst_node_t nidx = RegTree::kRoot;
     if constexpr (use_array_tree_layout) {
       nidx = p_nidx[i];
-      p_nidx[i] = 0;
+      p_nidx[i] = RegTree::kRoot;
     }
     auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
-    PredValueByOneTree<has_categorical>(fvec_tloc[i], mt_tree, cats, t_predts, nidx);
+    PredValueByOneTree<has_categorical>(fvec_tloc[i], tree, cats, t_predts, nidx);
   }
 }
 }  // namespace multi
 
 namespace {
 template <bool use_array_tree_layout, bool any_missing>
-void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
-                            bst_tree_t const tree_end, std::size_t const predict_offset,
+void PredictBlockByAllTrees(HostModel const &model, std::size_t const predict_offset,
                             common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                             linalg::MatrixView<float> out_predt,
                             const std::vector<int> &tree_depth) {
@@ -150,46 +152,52 @@ void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree
   if constexpr (use_array_tree_layout) {
     nidx.resize(block_size, 0);
   }
-  for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
-    auto const &tree = *model.trees.at(tree_id);
-    bool has_categorical = tree.HasCategoricalSplit();
-
-    int depth = use_array_tree_layout ? tree_depth[tree_id - tree_begin] : 0;
-    if (tree.IsMultiTarget()) {
-      if (has_categorical) {
-        multi::PredValueByOneTree<true, any_missing, use_array_tree_layout>(
-            tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth);
-      } else {
-        multi::PredValueByOneTree<false, any_missing, use_array_tree_layout>(
-            tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth);
-      }
-    } else {
-      auto const gid = model.tree_info[tree_id];
-      if (has_categorical) {
-        scalar::PredValueByOneTree<true, any_missing, use_array_tree_layout>(
-            tree.HostScView(), predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth,
-            gid);
-      } else {
-        scalar::PredValueByOneTree<false, any_missing, use_array_tree_layout>(
-            tree.HostScView(), predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth,
-            gid);
-      }
-    }
+  auto trees = model.Trees();
+  for (bst_tree_t tree_id = 0, n_trees = model.Trees().size(); tree_id < n_trees; ++tree_id) {
+    bst_node_t depth = use_array_tree_layout ? tree_depth[tree_id] : 0;
+    std::visit(
+        enc::Overloaded{
+            [&](tree::ScalarTreeView const &tree) {
+              bool has_categorical = tree.HasCategoricalSplit();
+              auto const gid = model.tree_groups[tree_id];
+              if (has_categorical) {
+                scalar::PredValueByOneTree<true, any_missing, use_array_tree_layout>(
+                    tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth,
+                    gid);
+              } else {
+                scalar::PredValueByOneTree<false, any_missing, use_array_tree_layout>(
+                    tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth,
+                    gid);
+              }
+            },
+            [&](tree::MultiTargetTreeView const &tree) {
+              bool has_categorical = tree.HasCategoricalSplit();
+              if (has_categorical) {
+                multi::PredValueByOneTree<true, any_missing, use_array_tree_layout>(
+                    tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth);
+              } else {
+                multi::PredValueByOneTree<false, any_missing, use_array_tree_layout>(
+                    tree, predict_offset, fvec_tloc, block_size, out_predt, nidx.data(), depth);
+              }
+            }},
+        trees[tree_id]);
   }
 }
 
 // Dispatch between template implementations
-void DispatchArrayLayout(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
-                         bst_tree_t const tree_end, std::size_t const predict_offset,
+void DispatchArrayLayout(HostModel const &model, std::size_t const predict_offset,
                          common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                          linalg::MatrixView<float> out_predt, const std::vector<int> &tree_depth,
                          bool any_missing) {
+  auto n_trees = model.tree_end - model.tree_begin;
+  CHECK_EQ(n_trees, model.Trees().size());
   /*
    * We transform trees to array layout for each block of data to avoid memory overheads.
    * It makes the array layout inefficient for block_size == 1
    */
   const bool use_array_tree_layout = block_size > 1;
   if (use_array_tree_layout) {
+    CHECK_EQ(n_trees, tree_depth.size());
     // Recheck if the current block has missing values.
     if (any_missing) {
       any_missing = false;
@@ -201,15 +209,15 @@ void DispatchArrayLayout(gbm::GBTreeModel const &model, bst_tree_t const tree_be
       }
     }
     if (any_missing) {
-      PredictBlockByAllTrees<true, true>(model, tree_begin, tree_end, predict_offset, fvec_tloc,
-                                         block_size, out_predt, tree_depth);
+      PredictBlockByAllTrees<true, true>(model, predict_offset, fvec_tloc, block_size, out_predt,
+                                         tree_depth);
     } else {
-      PredictBlockByAllTrees<true, false>(model, tree_begin, tree_end, predict_offset, fvec_tloc,
-                                          block_size, out_predt, tree_depth);
+      PredictBlockByAllTrees<true, false>(model, predict_offset, fvec_tloc, block_size, out_predt,
+                                          tree_depth);
     }
   } else {
-    PredictBlockByAllTrees<false, true>(model, tree_begin, tree_end, predict_offset, fvec_tloc,
-                                        block_size, out_predt, tree_depth);
+    PredictBlockByAllTrees<false, true>(model, predict_offset, fvec_tloc, block_size, out_predt,
+                                        tree_depth);
   }
 }
 
@@ -257,14 +265,14 @@ struct DataToFeatVec {
 
 template <typename EncAccessor>
 class SparsePageView : public DataToFeatVec<SparsePageView<EncAccessor>> {
-  EncAccessor const &acc_;
+  EncAccessor acc_;
   HostSparsePageView const view_;
 
  public:
   bst_idx_t const base_rowid;
 
-  SparsePageView(HostSparsePageView const p, bst_idx_t base_rowid, EncAccessor const &acc)
-      : acc_{acc}, view_{p}, base_rowid{base_rowid} {}
+  SparsePageView(HostSparsePageView const p, bst_idx_t base_rowid, EncAccessor acc)
+      : acc_{std::move(acc)}, view_{p}, base_rowid{base_rowid} {}
   [[nodiscard]] std::size_t Size() const { return view_.Size(); }
 
   [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float *out) const {
@@ -283,7 +291,7 @@ template <typename EncAccessor>
 class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccessor>> {
  private:
   GHistIndexMatrix const &page_;
-  EncAccessor const &acc_;
+  EncAccessor acc_;
   common::Span<FeatureType const> ft_;
 
   std::vector<std::uint32_t> const &ptrs_;
@@ -295,10 +303,10 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
   bst_idx_t const base_rowid;
 
  public:
-  GHistIndexMatrixView(GHistIndexMatrix const &_page, EncAccessor const &acc,
+  GHistIndexMatrixView(GHistIndexMatrix const &_page, EncAccessor acc,
                        common::Span<FeatureType const> ft)
       : page_{_page},
-        acc_{acc},
+        acc_{std::move(acc)},
         ft_{ft},
         ptrs_{_page.cut.Ptrs()},
         mins_{_page.cut.MinValues()},
@@ -365,11 +373,11 @@ template <typename Adapter, typename EncAccessor>
 class AdapterView : public DataToFeatVec<AdapterView<Adapter, EncAccessor>> {
   Adapter const *adapter_;
   float missing_;
-  EncAccessor const &acc_;
+  EncAccessor acc_;
 
  public:
-  explicit AdapterView(Adapter const *adapter, float missing, EncAccessor const &acc)
-      : adapter_{adapter}, missing_{missing}, acc_{acc} {}
+  explicit AdapterView(Adapter const *adapter, float missing, EncAccessor acc)
+      : adapter_{adapter}, missing_{missing}, acc_{std::move(acc)} {}
 
   [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float *out) const {
     auto const &batch = adapter_->Value();
@@ -408,7 +416,7 @@ struct EncAccessorPolicy {
   [[nodiscard]] auto MakeAccessor(Context const *ctx, enc::HostColumnsView new_enc,
                                   gbm::GBTreeModel const &model) {
     auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
-    this->mapping_ = std::move(mapping);
+    std::swap(mapping, this->mapping_);
     return acc;
   }
 };
@@ -534,15 +542,13 @@ class ThreadTmp {
 };
 
 template <std::size_t kBlockOfRowsSize, typename DataView>
-void PredictBatchByBlockKernel(DataView const &batch, gbm::GBTreeModel const &model,
-                               bst_tree_t tree_begin, bst_tree_t tree_end,
+void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
                                ThreadTmp<kBlockOfRowsSize> *p_fvec, std::int32_t n_threads,
-                               bool any_missing,
-                               linalg::TensorView<float, 2> out_predt) {
+                               bool any_missing, linalg::TensorView<float, 2> out_predt) {
   auto &fvec = *p_fvec;
   // Parallel over local batches
   auto const n_samples = batch.Size();
-  auto const n_features = model.learner_model_param->num_feature;
+  auto const n_features = model.n_features;
 
   /* Precalculate depth for each tree.
    * These values are required only for the ArrayLayout optimization,
@@ -550,19 +556,18 @@ void PredictBatchByBlockKernel(DataView const &batch, gbm::GBTreeModel const &mo
    */
   std::vector<int> tree_depth;
   if constexpr (kBlockOfRowsSize > 1) {
-    tree_depth.resize(tree_end - tree_begin);
-    common::ParallelFor(tree_end - tree_begin, n_threads, [&](auto i) {
-      bst_tree_t tree_id = tree_begin + i;
-      tree_depth[i] = model.trees.at(tree_id)->MaxDepth();
+    tree_depth.resize(model.tree_end - model.tree_begin);
+    CHECK_EQ(tree_depth.size(), model.Trees().size());
+    common::ParallelFor(model.tree_end - model.tree_begin, n_threads, [&](auto i) {
+      std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.Trees()[i]);
     });
   }
-
   common::ParallelFor1d<kBlockOfRowsSize>(n_samples, n_threads, [&](auto &&block) {
     auto fvec_tloc = fvec.ThreadBuffer(block.Size());
 
     batch.FVecFill(block, n_features, fvec_tloc);
-    DispatchArrayLayout(model, tree_begin, tree_end, block.begin() + batch.base_rowid, fvec_tloc,
-                        block.Size(), out_predt, tree_depth, any_missing);
+    DispatchArrayLayout(model, block.begin() + batch.base_rowid, fvec_tloc, block.Size(), out_predt,
+                        tree_depth, any_missing);
     batch.FVecDrop(fvec_tloc);
   });
 }
@@ -640,7 +645,7 @@ class ColumnSplitHelper {
     tree_offsets_.resize(n_trees);
     for (decltype(tree_begin) i = 0; i < n_trees; i++) {
       auto const &tree = *model_.trees[tree_begin_ + i];
-      tree_sizes_[i] = tree.GetNodes().size();
+      tree_sizes_[i] = tree.Size();
     }
     // std::exclusive_scan (only available in c++17) equivalent to get tree offsets.
     tree_offsets_[0] = 0;
@@ -759,12 +764,12 @@ class ColumnSplitHelper {
 
   bst_node_t GetLeafIndex(tree::ScalarTreeView const &tree, std::size_t tree_id,
                           std::size_t row_id) {
-    bst_node_t nid = 0;
-    while (!tree.IsLeaf(nid)) {
-      auto const bit_index = BitIndex(tree_id, row_id, nid);
-      nid = GetNextNode(tree, nid, bit_index);
+    bst_node_t nidx = RegTree::kRoot;
+    while (!tree.IsLeaf(nidx)) {
+      auto const bit_index = BitIndex(tree_id, row_id, nidx);
+      nidx = GetNextNode(tree, nidx, bit_index);
     }
-    return nid;
+    return nidx;
   }
 
   template <bool predict_leaf = false>
@@ -779,11 +784,12 @@ class ColumnSplitHelper {
   }
 
   template <bool predict_leaf = false>
-  void PredictAllTrees(std::vector<bst_float> *out_preds, std::size_t batch_offset,
+  void PredictAllTrees(common::Span<bst_target_t const> h_tree_groups,
+                       std::vector<bst_float> *out_preds, std::size_t batch_offset,
                        std::size_t predict_offset, std::size_t num_group, std::size_t block_size) {
     auto &preds = *out_preds;
     for (auto tree_id = tree_begin_; tree_id < tree_end_; ++tree_id) {
-      auto const gid = model_.tree_info[tree_id];
+      auto const gid = h_tree_groups[tree_id];
       for (size_t i = 0; i < block_size; ++i) {
         auto const result = PredictOneTree<predict_leaf>(tree_id, batch_offset + i);
         if constexpr (predict_leaf) {
@@ -814,10 +820,11 @@ class ColumnSplitHelper {
     });
 
     AllreduceBitVectors(ctx);
+    auto h_tree_groups = this->model_.TreeGroups(ctx->Device());
 
     common::ParallelFor1d<kBlockOfRowsSize>(n_samples, n_threads_, [&](auto &&block) {
-      PredictAllTrees<predict_leaf>(out_preds, block.begin(), block.begin() + batch.base_rowid,
-                                    num_group, block.Size());
+      PredictAllTrees<predict_leaf>(h_tree_groups, out_preds, block.begin(),
+                                    block.begin() + batch.base_rowid, num_group, block.Size());
     });
 
     ClearBitVectors();
@@ -896,34 +903,34 @@ class CPUPredictor : public Predictor {
     CHECK_EQ(out_preds->size(), n_samples * n_groups);
     auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
     bool any_missing = !(p_fmat->IsDense());
+    auto const h_model =
+        HostModel{DeviceOrd::CPU(), model, tree_begin, tree_end, &this->mu_, CopyViews{}};
 
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       using Policy = common::GetValueT<decltype(policy)>;
       ThreadTmp<Policy::kBlockOfRowsSize> feat_vecs{n_threads};
       policy.ForEachBatch([&](auto &&batch) {
-        PredictBatchByBlockKernel<Policy::kBlockOfRowsSize>(batch, model, tree_begin, tree_end,
-                                                            &feat_vecs, n_threads, any_missing,
-                                                            out_predt);
+        PredictBatchByBlockKernel<Policy::kBlockOfRowsSize>(batch, h_model, &feat_vecs, n_threads,
+                                                            any_missing, out_predt);
       });
     });
   }
 
   template <typename DataView>
-  void PredictContributionKernel(DataView batch, const MetaInfo &info,
-                                 const gbm::GBTreeModel &model,
-                                 const std::vector<bst_float> *tree_weights,
+  void PredictContributionKernel(DataView batch, const MetaInfo &info, HostModel const &h_model,
+                                 linalg::VectorView<float const> base_score,
+                                 std::vector<bst_float> const *tree_weights,
                                  std::vector<std::vector<float>> *mean_values,
                                  ThreadTmp<1> *feat_vecs, std::vector<bst_float> *contribs,
-                                 bst_tree_t ntree_limit, bool approximate, int condition,
+                                 bool approximate, int condition,
                                  unsigned condition_feature) const {
-    const int num_feature = model.learner_model_param->num_feature;
-    const int ngroup = model.learner_model_param->num_output_group;
-    CHECK_NE(ngroup, 0);
+    const int num_feature = h_model.n_features;
+    const auto n_groups = h_model.n_groups;
+    CHECK_NE(n_groups, 0);
     size_t const ncolumns = num_feature + 1;
     CHECK_NE(ncolumns, 0);
     auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
     auto base_margin = info.base_margin_.View(device);
-    auto base_score = model.learner_model_param->BaseScore(device)(0);
 
     // parallel over local batch
     common::ParallelFor(batch.Size(), this->ctx_->Threads(), [&](auto i) {
@@ -934,22 +941,22 @@ class CPUPredictor : public Predictor {
       }
       std::vector<bst_float> this_tree_contribs(ncolumns);
       // loop over all classes
-      for (int gid = 0; gid < ngroup; ++gid) {
-        bst_float *p_contribs = &(*contribs)[(row_idx * ngroup + gid) * ncolumns];
+      for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+        float *p_contribs = &(*contribs)[(row_idx * n_groups + gid) * ncolumns];
         batch.Fill(i, &feats);
         // calculate contributions
-        for (bst_tree_t j = 0; j < ntree_limit; ++j) {
+        for (bst_tree_t j = 0; j < h_model.tree_end; ++j) {
           auto *tree_mean_values = &mean_values->at(j);
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
-          if (model.tree_info[j] != gid) {
+          if (h_model.tree_groups[j] != gid) {
             continue;
           }
+          auto sc_tree = std::get<tree::ScalarTreeView>(h_model.Trees()[j]);
           if (!approximate) {
-            CalculateContributions(model.trees[j]->HostScView(), feats, tree_mean_values,
-                                   &this_tree_contribs[0], condition, condition_feature);
+            CalculateContributions(sc_tree, feats, tree_mean_values, &this_tree_contribs[0],
+                                   condition, condition_feature);
           } else {
-            CalculateContributionsApprox(model.trees[j]->HostScView(), feats, tree_mean_values,
-                                         &this_tree_contribs[0]);
+            CalculateContributionsApprox(sc_tree, feats, tree_mean_values, &this_tree_contribs[0]);
           }
           for (size_t ci = 0; ci < ncolumns; ++ci) {
             p_contribs[ci] +=
@@ -959,10 +966,10 @@ class CPUPredictor : public Predictor {
         feats.Drop();
         // add base margin to BIAS
         if (base_margin.Size() != 0) {
-          CHECK_EQ(base_margin.Shape(1), ngroup);
+          CHECK_EQ(base_margin.Shape(1), n_groups);
           p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
         } else {
-          p_contribs[ncolumns - 1] += base_score;
+          p_contribs[ncolumns - 1] += base_score(gid);
         }
       }
     });
@@ -996,12 +1003,13 @@ class CPUPredictor : public Predictor {
     // Always use block as we don't know the nnz.
     ThreadTmp<BlockPolicy::kBlockOfRowsSize> feat_vecs{n_threads};
     bst_idx_t n_groups = model.learner_model_param->OutputLength();
+    auto const h_model =
+        HostModel{DeviceOrd::CPU(), model, tree_begin, tree_end, &this->mu_, CopyViews{}};
 
     auto kernel = [&](auto &&view) {
       auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_groups);
-      PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(view, model, tree_begin, tree_end,
-                                                               &feat_vecs, n_threads, any_missing,
-                                                               out_predt);
+      PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(view, h_model, &feat_vecs, n_threads,
+                                                               any_missing, out_predt);
     };
     auto dispatch = [&](auto x) {
       using AdapterT = typename decltype(x)::element_type;
@@ -1050,6 +1058,8 @@ class CPUPredictor : public Predictor {
     auto n_features = model.learner_model_param->num_feature;
     ThreadTmp<1> feat_vecs{n_threads};
 
+    auto const h_model =
+        HostModel{DeviceOrd::CPU(), model, 0, ntree_limit, &this->mu_, CopyViews{}};
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       policy.ForEachBatch([&](auto &&batch) {
         common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {
@@ -1058,17 +1068,12 @@ class CPUPredictor : public Predictor {
           batch.FVecFill(block, n_features, fvec_tloc);
 
           for (bst_tree_t j = 0; j < ntree_limit; ++j) {
-            auto const &tree = *model.trees[j];
-            bst_node_t nidx = 0;
-            if (tree.IsMultiTarget()) {
-              auto mt_tree = tree.HostMtView();
-              nidx = multi::GetLeafIndex<true, true>(mt_tree, fvec_tloc.front(),
-                                                     mt_tree.GetCategoriesMatrix(), nidx);
-            } else {
-              auto sc_tree = tree.HostScView();
-              nidx = scalar::GetLeafIndex<true, true>(tree.HostScView(), fvec_tloc.front(),
-                                                      sc_tree.GetCategoriesMatrix(), nidx);
-            }
+            bst_node_t nidx = std::visit(
+                [&](auto &&tree) {
+                  return GetLeafIndex<true, true>(tree, fvec_tloc.front(),
+                                                  tree.GetCategoriesMatrix(), RegTree::kRoot);
+                },
+                h_model.Trees()[j]);
             preds[ridx * ntree_limit + j] = static_cast<float>(nidx);
           }
           batch.FVecDrop(fvec_tloc);
@@ -1103,11 +1108,14 @@ class CPUPredictor : public Predictor {
       FillNodeMeanValues(model.trees[i]->HostScView(), &(mean_values[i]));
     });
 
+    auto const h_model =
+        HostModel{DeviceOrd::CPU(), model, 0, ntree_limit, &this->mu_, CopyViews{}};
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       policy.ForEachBatch([&](auto &&batch) {
-        PredictContributionKernel(batch, info, model, tree_weights, &mean_values, &feat_vecs,
-                                  &contribs, ntree_limit, approximate, condition,
-                                  condition_feature);
+        PredictContributionKernel(batch, info, h_model,
+                                  model.learner_model_param->BaseScore(DeviceOrd::CPU()),
+                                  tree_weights, &mean_values, &feat_vecs, &contribs, approximate,
+                                  condition, condition_feature);
       });
     });
   }
@@ -1167,6 +1175,9 @@ class CPUPredictor : public Predictor {
       }
     }
   }
+
+ private:
+  mutable std::mutex mu_;
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")

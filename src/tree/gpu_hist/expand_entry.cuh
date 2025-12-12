@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #ifndef EXPAND_ENTRY_CUH_
 #define EXPAND_ENTRY_CUH_
@@ -13,7 +13,7 @@
 
 namespace xgboost::tree {
 struct GPUExpandEntry {
-  bst_node_t nid;
+  bst_node_t nidx;
   bst_node_t depth;
   DeviceSplitCandidate split;
 
@@ -24,7 +24,7 @@ struct GPUExpandEntry {
   GPUExpandEntry() = default;
   XGBOOST_DEVICE GPUExpandEntry(bst_node_t nid, bst_node_t depth, DeviceSplitCandidate split,
                                 float base, float left, float right)
-      : nid(nid),
+      : nidx(nid),
         depth(depth),
         split(std::move(split)),
         base_weight{base},
@@ -49,13 +49,13 @@ struct GPUExpandEntry {
 
   [[nodiscard]] float GetLossChange() const { return split.loss_chg; }
 
-  [[nodiscard]] bst_node_t GetNodeId() const { return nid; }
+  [[nodiscard]] bst_node_t GetNodeId() const { return nidx; }
 
   [[nodiscard]] bst_node_t GetDepth() const { return depth; }
 
   friend std::ostream& operator<<(std::ostream& os, const GPUExpandEntry& e) {
     os << "GPUExpandEntry: \n";
-    os << "nidx: " << e.nid << "\n";
+    os << "nidx: " << e.nidx << "\n";
     os << "depth: " << e.depth << "\n";
     os << "loss: " << e.split.loss_chg << "\n";
     os << "left_sum: " << e.split.left_sum << "\n";
@@ -66,7 +66,7 @@ struct GPUExpandEntry {
   void Save(Json* p_out) const {
     auto& out = *p_out;
 
-    out["nid"] = Integer{this->nid};
+    out["nid"] = Integer{this->nidx};
     out["depth"] = Integer{this->depth};
     // GPU specific
     out["base_weight"] = this->base_weight;
@@ -99,7 +99,7 @@ struct GPUExpandEntry {
   }
 
   void Load(Json const& in) {
-    this->nid = get<Integer const>(in["nid"]);
+    this->nidx = get<Integer const>(in["nid"]);
     this->depth = get<Integer const>(in["depth"]);
     // GPU specific
     this->base_weight = get<Number const>(in["base_weight"]);
@@ -125,6 +125,58 @@ struct GPUExpandEntry {
     this->split.right_sum = GradientPairInt64{right_sum[0], right_sum[1]};
   }
 };
+
+namespace cuda_impl {
+struct MultiExpandEntry {
+  bst_node_t nidx{0};
+  bst_node_t depth{0};
+  MultiSplitCandidate split;
+
+  common::Span<float> base_weight;
+  common::Span<float const> left_weight;
+  common::Span<float const> right_weight;
+
+  // Sum Hessian of the first target. Used as a surrogate for node size.
+  double left_fst_hess{0};
+  double right_fst_hess{0};
+
+  MultiExpandEntry() = default;
+
+  [[nodiscard]] float GetLossChange() const { return split.loss_chg; }
+
+  [[nodiscard]] bst_node_t GetNodeId() const { return nidx; }
+
+  [[nodiscard]] bst_node_t GetDepth() const { return depth; }
+
+  [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t n_leaves) const {
+    // The split evaluator handles the zero Hessian case. It returns an empty expand entry
+    // if there the Hessian is invalid.
+    if (split.loss_chg <= kRtEps) {
+      return false;
+    }
+    if (base_weight.empty() || left_weight.empty() || right_weight.empty()) {
+      return false;
+    }
+    if (split.loss_chg < param.min_split_loss) {
+      return false;
+    }
+    if (param.max_depth > 0 && depth == param.max_depth) {
+      return false;
+    }
+    if (param.max_leaves > 0 && n_leaves == param.max_leaves) {
+      return false;
+    }
+    return true;
+  }
+
+  __device__ void UpdateFirstHessian(GradientPairPrecise const& lg, GradientPairPrecise const& rg) {
+    this->left_fst_hess = lg.GetHess();
+    this->right_fst_hess = rg.GetHess();
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& entry);
+};
+}  // namespace cuda_impl
 }  // namespace xgboost::tree
 
 #endif  // EXPAND_ENTRY_CUH_

@@ -1,11 +1,13 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #pragma once
-#include "xgboost/base.h"     // for GradientPairPrecise, GradientPairInt64
-#include "xgboost/context.h"  // for Context
-#include "xgboost/data.h"     // for MetaInfo
-#include "xgboost/span.h"     // for Span
+#include "../../common/device_helpers.cuh"  // for ToSpan
+#include "../../common/device_vector.cuh"   // for device_vector
+#include "xgboost/base.h"                   // for GradientPairPrecise, GradientPairInt64
+#include "xgboost/context.h"                // for Context
+#include "xgboost/data.h"                   // for MetaInfo
+#include "xgboost/linalg.h"                 // for VectorView
 
 namespace xgboost::tree {
 class GradientQuantiser {
@@ -16,7 +18,10 @@ class GradientQuantiser {
   GradientPairPrecise to_floating_point_;
 
  public:
-  GradientQuantiser(Context const* ctx, common::Span<GradientPair const> gpair,
+  // Used for test
+  GradientQuantiser(GradientPairPrecise to_fixed, GradientPairPrecise to_float)
+      : to_fixed_point_{to_fixed}, to_floating_point_{to_float} {}
+  GradientQuantiser(Context const* ctx, linalg::VectorView<GradientPair const> gpair,
                     MetaInfo const& info);
   [[nodiscard]] XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
     auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
@@ -35,5 +40,17 @@ class GradientQuantiser {
     auto h = gpair.GetQuantisedHess() * to_floating_point_.GetHess();
     return {g, h};
   }
+};
+
+// For vector leaf
+class MultiGradientQuantiser {
+ private:
+  dh::device_vector<GradientQuantiser> quantizers_;
+
+ public:
+  MultiGradientQuantiser(Context const* ctx, linalg::MatrixView<GradientPair const> gpair,
+                         MetaInfo const& info);
+
+  [[nodiscard]] auto Quantizers() const { return dh::ToSpan(this->quantizers_); }
 };
 }  // namespace xgboost::tree

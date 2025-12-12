@@ -500,7 +500,7 @@ void TestHistUpdaterExpandWithLossGuide(const xgboost::tree::TrainParam& param) 
 
   updater.TestExpandWithLossGuide(gmat, p_fmat.get(), &tree, gpair);
 
-  const auto& nodes = tree.GetNodes();
+  const auto& nodes = tree.GetNodes(DeviceOrd::CPU());
   std::vector<float> ans(data.size());
   for (size_t data_idx = 0; data_idx < data.size(); ++data_idx) {
       size_t node_idx = 0;
@@ -544,7 +544,7 @@ void TestHistUpdaterExpandWithDepthWise(const xgboost::tree::TrainParam& param) 
 
   updater.TestExpandWithDepthWise(gmat, p_fmat.get(), &tree, gpair);
 
-  const auto& nodes = tree.GetNodes();
+  const auto& nodes = tree.GetNodes(DeviceOrd::CPU());
   std::vector<float> ans(data.size());
   for (size_t data_idx = 0; data_idx < data.size(); ++data_idx) {
       size_t node_idx = 0;

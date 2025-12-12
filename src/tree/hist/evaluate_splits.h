@@ -447,7 +447,7 @@ class HistEvaluator {
                              tree[candidate.nid].SplitIndex(), left_weight, right_weight);
     evaluator = tree_evaluator_.GetEvaluator();
 
-    snode_.resize(tree.GetNodes().size());
+    snode_.resize(tree.Size());
     snode_.at(left_child).stats = candidate.split.left_sum;
     snode_.at(left_child).root_gain =
         evaluator.CalcGain(candidate.nid, *param_, GradStats{candidate.split.left_sum});

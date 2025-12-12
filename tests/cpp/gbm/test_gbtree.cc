@@ -65,8 +65,8 @@ TEST(GBTree, PredictionCache) {
 
   gbtree.Configure({{"tree_method", "hist"}});
   auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+
+  GradientContainer gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   PredictionCacheEntry out_predictions;
   gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
@@ -120,6 +120,7 @@ TEST(GBTree, WrongUpdater) {
 #ifdef XGBOOST_USE_CUDA
 TEST(GBTree, ChoosePredictor) {
   // The test ensures data don't get pulled into device.
+  // XGBoost chooses predictor based on the data placement when input is a SparsePage.
   std::size_t constexpr kRows = 17, kCols = 15;
 
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
@@ -206,9 +207,9 @@ TEST(GBTree, ChooseTreeMethod) {
       learner->SetParam("device", d);
     }
     learner->Configure();
+    Context ctx;
     for (std::int32_t i = 0; i < 3; ++i) {
-      linalg::Matrix<GradientPair> gpair{{Xy->Info().num_row_}, DeviceOrd::CPU()};
-      gpair.Data()->Copy(GenerateRandomGradients(Xy->Info().num_row_));
+      GradientContainer gpair = GenerateRandomGradients(&ctx, Xy->Info().num_row_, 1);
       learner->BoostOneIter(0, Xy, &gpair);
     }
 
