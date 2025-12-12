@@ -327,12 +327,7 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
 
   explicit XGBAsyncPoolAllocator(
       bool use_async_pool = xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)
-      : Super{}, use_async_pool_{use_async_pool} {
-#if defined(_MSC_VER)
-    CHECK(!this->use_async_pool_)
-        << " cfg:" << xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
-#endif
-  }
+      : Super{}, use_async_pool_{use_async_pool} {}
 
   pointer allocate(std::size_t n) {  // NOLINT
     if (!this->use_async_pool_) {
