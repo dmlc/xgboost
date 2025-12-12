@@ -330,6 +330,10 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
       return Super::allocate(n);
     }
 
+#if defined(_MSC_VER)
+    CHECK(!this->use_async_pool_) << xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
+#endif
+
     T *raw_ptr = nullptr;
     auto n_bytes = xgboost::common::SizeBytes<T>(n);
     safe_cuda(cudaMallocAsync(&raw_ptr, n_bytes, xgboost::curt::DefaultStream()));
