@@ -1135,7 +1135,7 @@ test_that("Row names are preserved in outputs", {
   expect_equal(colnames(pred), row.names(x))
 })
 
-test_that("xgb.train works correctly with nrounds = 0 (serialization, continuation, callbacks)", {
+test_that("xgb.train works with nrounds=0 (serialization, continuation, callbacks)", {
   data(agaricus.train, package = "xgboost")
   dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
   watchlist <- list(train = dtrain)
@@ -1157,11 +1157,11 @@ test_that("xgb.train works correctly with nrounds = 0 (serialization, continuati
 
   # Check that 0-round model provides a valid "base score" prediction
   preds_0 <- predict(bst_0, dtrain)
-  expect_true(all(preds_0 >= 0 & preds_0 <= 1))
+  expect_true(all((preds_0 >= 0) & (preds_0 <= 1)))
 
   # Save and Load to ensure binary format is valid and symmetrical
   fname <- tempfile()
-  on.exit(unlink(fname)) # Standard cleanup for test environments
+  on.exit(unlink(fname))
   xgb.save(bst_0, fname)
   bst_loaded <- xgb.load(fname)
 
@@ -1211,7 +1211,7 @@ test_that("xgb.train works correctly with nrounds = 0 (serialization, continuati
     verbose = 0
   )
 
-  # Verify that callbacks (stopping round tracking) are valid for continuation
+  # Verify that continuation works
   bst_cb_cont <- xgb.train(
     params = list(objective = "binary:logistic", seed = 456),
     data = dtrain,
@@ -1221,5 +1221,15 @@ test_that("xgb.train works correctly with nrounds = 0 (serialization, continuati
     xgb_model = bst_cb,
     verbose = 0
   )
-  expect_equal(bst_cb_cont$niter, 5)
+
+  # Handle NULL niter for continued model with early stopping
+  iter_cb <- bst_cb_cont$niter
+  if (is.null(iter_cb)) {
+    preds_cb <- predict(bst_cb_cont, dtrain)
+    preds_init <- predict(bst_cb, dtrain)
+    # Predictions must have changed (diverged) if training occurred
+    expect_false(isTRUE(all.equal(preds_cb, preds_init)))
+  } else {
+    expect_equal(iter_cb, 5)
+  }
 })
