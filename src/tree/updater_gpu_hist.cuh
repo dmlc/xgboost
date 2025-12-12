@@ -393,7 +393,7 @@ class MultiTargetHistMaker {
     xgboost_NVTX_FN_RANGE();
 
     CHECK_LE(candidates.size(), expand_set.size());
-    // TODO(jiamingy): Implement finalize partition with using candidates instead of expand_set when
+    // TODO(jiamingy): Implement finalize partition using candidates instead of expand_set when
     // performing in-core training.
 
     // Prepare for update partition
