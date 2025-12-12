@@ -17,6 +17,7 @@
 
 #include "../common/api_entry.h"         // for XGBAPIThreadLocalEntry
 #include "../common/charconv.h"          // for from_chars, to_chars, NumericLimits, from_ch...
+#include "../common/cuda_rt_utils.h"     // for MemoryPoolsSupported
 #include "../common/error_msg.h"         // for NoFederated
 #include "../common/hist_util.h"         // for HistogramCuts
 #include "../common/io.h"                // for FileExtension, LoadSequentialFile, MemoryBuf...
@@ -207,9 +208,13 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
     LOG(FATAL) << ss.str() << " }";
   }
 
-  if (GlobalConfigThreadLocalStore::Get()->use_rmm &&
-      GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool) {
+  // Check configuration is valid.
+  bool use_async_pool = GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
+  if (use_async_pool && GlobalConfigThreadLocalStore::Get()->use_rmm) {
     LOG(FATAL) << "Cannot have both `use_rmm` and `use_cuda_async_pool` set to true.";
+  }
+  if (use_async_pool && !curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
+    LOG(FATAL) << "CUDA async memory pool is not available for the current device.";
   }
 
   API_END();

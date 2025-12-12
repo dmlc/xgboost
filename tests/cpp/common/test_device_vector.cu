@@ -17,11 +17,8 @@
 namespace dh {
 #if !defined(XGBOOST_USE_RMM)
 TEST(AsyncPoolAllocator, Basic) {
-  std::int32_t res = 0;
-  safe_cuda(cudaDeviceGetAttribute(&res, cudaDevAttrMemoryPoolsSupported,
-                                   xgboost::curt::CurrentDevice()));
-  if (!res) {
-    GTEST_SKIP_("async pool not supported.");
+  if (!xgboost::curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
+    GTEST_SKIP_("The async memory pool not supported.");
   }
 
   for (bool use_async_pool : {true, false}) {
