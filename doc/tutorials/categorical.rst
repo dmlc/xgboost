@@ -250,9 +250,9 @@ heuristics for handling unseen categories during inference. The best and simples
 is to re-train the model since a new category represents a new type of data. The type of a
 categorical feature is defined by the set of discrete values. If the set is changed, then
 the type is considered to be different. In addition, one might add an "unknown" category
-during training and inject some samples with this category as missing values. Lastly, you
-might consider the new category similar to an existing one based on your domain knowledge,
-and map to that category during ETL.
+during training and synthesize some samples with this category as missing values. Lastly,
+you might consider the new category similar to an existing one based on your domain
+knowledge, and map to that category during ETL.
 
 For **R**, the auto-recoding is not yet supported as of 3.1. To provide an example:
 
