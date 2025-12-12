@@ -148,14 +148,14 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_END();
 }
 
-XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
+XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
   API_BEGIN_UNGUARD()
 
   xgboost_CHECK_C_ARG_PTR(json_str);
   Json config{Json::Load(StringView{json_str})};
 
   // handle nthread, it's not a dmlc parameter.
-  auto& obj = get<Object>(config);
+  auto &obj = get<Object>(config);
   auto it = obj.find("nthread");
   if (it != obj.cend()) {
     auto nthread = OptionalArg<Integer>(config, "nthread", Integer::Int{0});
@@ -168,28 +168,28 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
 
   for (auto &items : obj) {
     switch (items.second.GetValue().Type()) {
-    case xgboost::Value::ValueKind::kInteger: {
-      items.second = String{std::to_string(get<Integer const>(items.second))};
-      break;
-    }
-    case xgboost::Value::ValueKind::kBoolean: {
-      if (get<Boolean const>(items.second)) {
-        items.second = String{"true"};
-      } else {
-        items.second = String{"false"};
+      case xgboost::Value::ValueKind::kInteger: {
+        items.second = String{std::to_string(get<Integer const>(items.second))};
+        break;
       }
-      break;
-    }
-    case xgboost::Value::ValueKind::kNumber: {
-      auto n = get<Number const>(items.second);
-      char chars[NumericLimits<float>::kToCharsSize];
-      auto ec = to_chars(chars, chars + sizeof(chars), n).ec;
-      CHECK(ec == std::errc());
-      items.second = String{chars};
-      break;
-    }
-    default:
-      break;
+      case xgboost::Value::ValueKind::kBoolean: {
+        if (get<Boolean const>(items.second)) {
+          items.second = String{"true"};
+        } else {
+          items.second = String{"false"};
+        }
+        break;
+      }
+      case xgboost::Value::ValueKind::kNumber: {
+        auto n = get<Number const>(items.second);
+        char chars[NumericLimits<float>::kToCharsSize];
+        auto ec = to_chars(chars, chars + sizeof(chars), n).ec;
+        CHECK(ec == std::errc());
+        items.second = String{chars};
+        break;
+      }
+      default:
+        break;
     }
   }
   auto unknown = FromJson(config, GlobalConfigThreadLocalStore::Get());
@@ -197,14 +197,19 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
     std::stringstream ss;
     ss << "Unknown global parameters: { ";
     size_t i = 0;
-    for (auto const& item : unknown) {
+    for (auto const &item : unknown) {
       ss << item.first;
       i++;
       if (i != unknown.size()) {
         ss << ", ";
       }
     }
-    LOG(FATAL) << ss.str()  << " }";
+    LOG(FATAL) << ss.str() << " }";
+  }
+
+  if (GlobalConfigThreadLocalStore::Get()->use_rmm &&
+      GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool) {
+    LOG(FATAL) << "Can not have both `use_rmm` and `use_cuda_async_pool` set to true.";
   }
 
   API_END();

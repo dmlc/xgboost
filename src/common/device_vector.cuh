@@ -306,24 +306,66 @@ class ThrustAllocMrAdapter : public thrust::device_malloc_allocator<T> {
 
 template <typename T>
 using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
+
 #else   // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
+/**
+ * @brief Use CUDA async memory pool as the backing allocator.
+ */
+template <class T>
+class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
+  bool use_async_pool_{xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool};
+
+ public:
+  using Super = thrust::device_malloc_allocator<T>;
+  using pointer = typename Super::pointer;      // NOLINT(readability-identifier-naming)
+  using size_type = typename Super::size_type;  // NOLINT(readability-identifier-naming)
+
+  template <typename U>
+  struct rebind {                            // NOLINT(readability-identifier-naming)
+    using other = XGBAsyncPoolAllocator<U>;  // NOLINT(readability-identifier-naming)
+  };
+
+  pointer allocate(std::size_t n) {  // NOLINT
+    if (!use_async_pool_) {
+      return Super::allocate(n);
+    }
+
+    T *raw_ptr = nullptr;
+    auto n_bytes = xgboost::common::SizeBytes<T>(n);
+    cudaError_t status = cudaMallocAsync(&raw_ptr, n_bytes, xgboost::curt::DefaultStream());
+    safe_cuda(status);
+    return thrust::device_pointer_cast(raw_ptr);
+  }
+
+  void deallocate(pointer ptr, std::size_t n) {  // NOLINT
+    if (!use_async_pool_) {
+      return Super::deallocate(ptr, n);
+    }
+
+    safe_cuda(cudaFreeAsync(thrust::raw_pointer_cast(ptr), xgboost::curt::DefaultStream()));
+  }
+};
+
 template <typename T>
-using XGBBaseDeviceAllocator = thrust::device_malloc_allocator<T>;
+using XGBBaseDeviceAllocator = XGBAsyncPoolAllocator<T>;
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 /**
- * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
+ * @brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
  */
 template <class T>
 struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   using SuperT = XGBBaseDeviceAllocator<T>;
   using pointer = thrust::device_ptr<T>;  // NOLINT
+
   template <typename U>
   struct rebind  // NOLINT
   {
     using other = XGBDefaultDeviceAllocatorImpl<U>;  // NOLINT
   };
-  pointer allocate(size_t n) {  // NOLINT
+
+  pointer allocate(std::size_t n) {  // NOLINT
     pointer ptr;
     try {
       ptr = SuperT::allocate(n);
@@ -334,15 +376,17 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     GlobalMemoryLogger().RegisterAllocation(n * sizeof(T));
     return ptr;
   }
+
   void deallocate(pointer ptr, size_t n) {  // NOLINT
     GlobalMemoryLogger().RegisterDeallocation(n * sizeof(T));
     SuperT::deallocate(ptr, n);
   }
+
   XGBDefaultDeviceAllocatorImpl() : SuperT{} {}
 };
 
 /**
- * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end, unless
+ * @brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end, unless
  *        RMM pool allocator is enabled. Does not initialise memory on construction.
  */
 template <class T>
@@ -354,14 +398,16 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   {
     using other = XGBCachingDeviceAllocatorImpl<U>;  // NOLINT
   };
-  cub::CachingDeviceAllocator &GetGlobalCachingAllocator() {
+
+  static cub::CachingDeviceAllocator &GetGlobalCachingAllocator() {
     // Configure allocator with maximum cached bin size of ~1GB and no limit on
     // maximum cached bytes
     thread_local std::unique_ptr<cub::CachingDeviceAllocator> allocator{
         std::make_unique<cub::CachingDeviceAllocator>(2, 9, 29)};
     return *allocator;
   }
-  pointer allocate(size_t n) {  // NOLINT
+
+  pointer allocate(std::size_t n) {  // NOLINT
     pointer thrust_ptr;
     if (use_cub_allocator_) {
       T *raw_ptr{nullptr};
@@ -372,7 +418,7 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
       if (errc != cudaSuccess) {
         detail::ThrowOOMError("Caching allocator", n * sizeof(T));
       }
-      thrust_ptr = pointer(raw_ptr);
+      thrust_ptr = thrust::device_pointer_cast(raw_ptr);
     } else {
       try {
         thrust_ptr = SuperT::allocate(n);
@@ -384,21 +430,25 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     GlobalMemoryLogger().RegisterAllocation(n * sizeof(T));
     return thrust_ptr;
   }
+
   void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(n * sizeof(T));
     if (use_cub_allocator_) {
       GetGlobalCachingAllocator().DeviceFree(thrust::raw_pointer_cast(ptr));
     } else {
       SuperT::deallocate(ptr, n);
     }
+    GlobalMemoryLogger().RegisterDeallocation(n * sizeof(T));
   }
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
   XGBCachingDeviceAllocatorImpl()
-      : SuperT{}, use_cub_allocator_(!xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm) {}
-#endif                                   // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+      : SuperT{},
+        use_cub_allocator_{!xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm &&
+                           !xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool} {}
+
   XGBOOST_DEVICE void construct(T *) {}  // NOLINT
+
  private:
-  bool use_cub_allocator_{true};
+  bool use_cub_allocator_;
 };
 }  // namespace detail
 
