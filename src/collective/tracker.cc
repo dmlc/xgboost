@@ -438,7 +438,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   // Create an UDP socket to prob the public IP address, it's fine even if it's
   // unreachable.
   auto sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (sock == -1) {
+  if (sock == INVALID_SOCKET) {
     return Fail("Failed to create socket.");
   }
 
