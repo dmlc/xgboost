@@ -210,9 +210,9 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
 
   // Check configuration is valid.
   bool use_async_pool = GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
-  if (use_async_pool && GlobalConfigThreadLocalStore::Get()->use_rmm) {
-    LOG(FATAL) << "Cannot have both `use_rmm` and `use_cuda_async_pool` set to true.";
-  }
+#if defined(XGBOOST_USE_RMM)
+  CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` when compiled with RMM.";
+#endif  // defined(XGBOOST_USE_RMM)
   if (use_async_pool && !curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
     LOG(FATAL) << "CUDA async memory pool is not available for the current device.";
   }
