@@ -238,6 +238,22 @@ categories by exporting it to arrow arrays. This interface is still experimental
   categories = booster.get_categories(export_to_arrow=True)
   print(categories.to_arrow())
 
+
+In addition to the notes above, there's a `blog post
+<https://developer.nvidia.com/blog/training-xgboost-models-with-gpu-accelerated-polars-dataframes/>`__
+about using XGBoost with Polars for categorical features with various examples.
+
+The re-coder handles missing categories at inference time. However, if there's a new
+category during inference that's unseen during training (missing during training), a
+re-coder doesn't help as it doesn't know what would be a valid code. There are various
+heuristics for handling unseen categories during inference. The best and simplest approach
+is to re-train the model since a new category represents a new type of data. The type of a
+categorical feature is defined by the set of discrete values. If the set is changed, then
+the type is considered to be different. In addition, one might add an "unknown" category
+during training and inject some samples with this category as missing values. Lastly, you
+might consider the new category similar to an existing one based on your domain knowledge,
+and map to that category during ETL.
+
 For **R**, the auto-recoding is not yet supported as of 3.1. To provide an example:
 
 .. code-block:: R
