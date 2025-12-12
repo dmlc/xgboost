@@ -313,7 +313,7 @@ using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
  */
 template <class T>
 class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
-  bool const use_async_pool_;
+  bool use_async_pool_;
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
@@ -450,7 +450,7 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   XGBOOST_DEVICE void construct(T *) {}  // NOLINT
 
  private:
-  bool const use_cub_allocator_;
+  bool use_cub_allocator_;
 };
 }  // namespace detail
 
