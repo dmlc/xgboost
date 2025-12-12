@@ -310,7 +310,7 @@ using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
 #else   // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 /**
- * @brief Use CUDA async memory pool as the backing allocator.
+ * @brief Use CUDA async memory pool as an optional backing allocator.
  */
 template <class T>
 class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
