@@ -192,11 +192,14 @@ class EllpackFormatPolicy {
     } else if (!curt::SupportsAts()) {
       LOG(WARNING) << "CUDA address translation service is not available." << msg;
     }
+    if (!(GlobalConfigThreadLocalStore::Get()->use_rmm ||
+          GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)) {
+      LOG(WARNING) << "`use_rmm` and `use_cuda_async_pool` are set to false." << msg;
+    }
+    if (GlobalConfigThreadLocalStore::Get()->use_rmm) {
 #if !defined(XGBOOST_USE_RMM)
-    LOG(WARNING) << "XGBoost is not built with RMM support." << msg;
+      LOG(WARNING) << "XGBoost is not built with RMM support." << msg;
 #endif
-    if (!GlobalConfigThreadLocalStore::Get()->use_rmm) {
-      LOG(WARNING) << "`use_rmm` is set to false." << msg;
     }
     std::int32_t major{0}, minor{0};
     curt::GetDrVersionGlobal(&major, &minor);
