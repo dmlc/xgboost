@@ -474,9 +474,9 @@ struct GPUHistMakerDevice {
     auto nodes = this->CreatePartitionNodes(p_tree, is_single_block ? candidates : expand_set);
 
     // Prepare for build hist
-    auto const& tree = p_tree->HostScView();
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
+    auto const& tree = p_tree->HostScView();
     cuda_impl::AssignNodes(tree, candidates, build_nidx, subtraction_nidx,
                            [&](GPUExpandEntry const& e) {
                              auto left_sum = this->quantiser->ToFloatingPoint(e.split.left_sum);
@@ -492,15 +492,15 @@ struct GPUHistMakerDevice {
 
     std::int32_t k{0};
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(prefetch_copy))) {
-      page.Impl()->Visit(ctx_, {}, [&](auto&& d_matrix) {
-        using Acc = std::remove_reference_t<decltype(d_matrix)>;
+      page.Impl()->Visit(ctx_, {}, [&](auto&& d_acc) {
+        using Acc = std::remove_reference_t<decltype(d_acc)>;
         using GoLeft = GoLeftOp<Acc>;
-        auto go_left = GoLeft{d_matrix};
+        auto go_left = GoLeft{d_acc};
 
-        // Partition histogram.
+        // Partition rows.
         monitor.Start("UpdatePositionBatch");
         if (p_fmat->Info().IsColumnSplit()) {
-          UpdatePositionColumnSplit(d_matrix, nodes.split_data, nodes.nidx, nodes.left_nidx,
+          UpdatePositionColumnSplit(d_acc, nodes.split_data, nodes.nidx, nodes.left_nidx,
                                     nodes.right_nidx);
         } else {
           partitioners_.UpdatePositionBatch(ctx_, k, nodes.nidx, nodes.left_nidx, nodes.right_nidx,
@@ -509,6 +509,7 @@ struct GPUHistMakerDevice {
         }
         monitor.Stop("UpdatePositionBatch");
 
+        // Build histograms.
         for (auto nidx : build_nidx) {
           this->BuildHist(page, k, nidx);
         }
