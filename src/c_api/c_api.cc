@@ -209,7 +209,7 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
 
   if (GlobalConfigThreadLocalStore::Get()->use_rmm &&
       GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool) {
-    LOG(FATAL) << "Can not have both `use_rmm` and `use_cuda_async_pool` set to true.";
+    LOG(FATAL) << "Cannot have both `use_rmm` and `use_cuda_async_pool` set to true.";
   }
 
   API_END();

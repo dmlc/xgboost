@@ -28,7 +28,7 @@ struct GlobalConfiguration : public XGBoostParameter<GlobalConfiguration> {
         "Whether to use RAPIDS Memory Manager to allocate GPU memory in XGBoost");
     DMLC_DECLARE_FIELD(use_cuda_async_pool)
         .set_default(false)
-        .describe("Whether to use the asycn memory pool in CUDA.");
+        .describe("Whether to use the async memory pool in CUDA.");
   }
 };
 
