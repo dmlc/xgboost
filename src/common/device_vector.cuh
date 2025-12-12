@@ -314,7 +314,7 @@ using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
  */
 template <class T>
 class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
-  bool use_async_pool_{xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool};
+  bool use_async_pool_;
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
@@ -325,6 +325,10 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
   struct rebind {                            // NOLINT(readability-identifier-naming)
     using other = XGBAsyncPoolAllocator<U>;  // NOLINT(readability-identifier-naming)
   };
+
+  XGBAsyncPoolAllocator(
+      bool use_async_pool = xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)
+      : Super{}, use_async_pool_{use_async_pool} {}
 
   pointer allocate(std::size_t n) {  // NOLINT
     if (!use_async_pool_) {
