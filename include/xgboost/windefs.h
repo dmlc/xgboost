@@ -23,8 +23,10 @@
 #if !defined(WIN32_LEAN_AND_MEAN)
 #define WIN32_LEAN_AND_MEAN
 #endif  // !defined(WIN32_LEAN_AND_MEAN)
+
 // Stop windows.h from including winsock.h
-#if !defined(_WINSOCKAPI_)
+// mingw uses _WINSOCKAPI_ to check whether windows.h is included, don't mess with it.
+#if !defined(_WINSOCKAPI_) && !defined(__MINGW32__)
 #define _WINSOCKAPI_
 #endif  // !defined(_WINSOCKAPI_)
 
