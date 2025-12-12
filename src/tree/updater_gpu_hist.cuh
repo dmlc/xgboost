@@ -514,7 +514,7 @@ class MultiTargetHistMaker {
                              linalg::UnravelIndex(i, out_preds_d.Shape());
                          bst_node_t nidx = d_position[sample_idx];
                          auto weight = mt_tree.LeafValue(nidx);
-                         out_preds_d(sample_idx, target_idx) = weight(target_idx);
+                         out_preds_d(sample_idx, target_idx) += weight(target_idx);
                        });
     return true;
   }
