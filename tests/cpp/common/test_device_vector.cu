@@ -15,17 +15,25 @@
 #include "xgboost/windefs.h"        // for xgboost_IS_WIN
 
 namespace dh {
-#if !defined(XGBOOST_USE_RMM) && !defined(xgboost_IS_WIN)
+#if !defined(XGBOOST_USE_RMM)
 TEST(AsyncPoolAllocator, Basic) {
+  std::int32_t res = 0;
+  safe_cuda(cudaDeviceGetAttribute(&res, cudaDevAttrMemoryPoolsSupported,
+                                   xgboost::curt::CurrentDevice()));
+  if (!res) {
+    GTEST_SKIP_("async pool not supported.");
+  }
+
   for (bool use_async_pool : {true, false}) {
-    detail::XGBAsyncPoolAllocator<float> alloc{use_async_pool};
+    detail::XGBAsyncPoolAllocator<float> alloc;
+    alloc.SetAsync(use_async_pool);
     std::size_t n = 16;
     auto ptr = alloc.allocate(n);
     ASSERT_TRUE(ptr);
     alloc.deallocate(ptr, n);
   }
 }
-#endif  // !defined(XGBOOST_USE_RMM) && !defined(xgboost_IS_WIN)
+#endif  // !defined(XGBOOST_USE_RMM)
 
 TEST(DeviceUVector, Basic) {
   GlobalMemoryLogger().Clear();

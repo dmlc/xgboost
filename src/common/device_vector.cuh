@@ -311,9 +311,9 @@ using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
 /**
  * @brief Use CUDA async memory pool as an optional backing allocator.
  */
-template <class T>
+template <typename T>
 class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
-  bool use_async_pool_;
+  bool use_async_pool_{xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool};
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
@@ -324,10 +324,6 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
   struct rebind {                            // NOLINT(readability-identifier-naming)
     using other = XGBAsyncPoolAllocator<U>;  // NOLINT(readability-identifier-naming)
   };
-
-  explicit XGBAsyncPoolAllocator(
-      bool use_async_pool = xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)
-      : Super{}, use_async_pool_{use_async_pool} {}
 
   pointer allocate(std::size_t n) {  // NOLINT
     if (!this->use_async_pool_) {
@@ -347,6 +343,9 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
 
     safe_cuda(cudaFreeAsync(thrust::raw_pointer_cast(ptr), xgboost::curt::DefaultStream()));
   }
+
+  // Used for tests.
+  void SetAsync(bool use_async_pool) { this->use_async_pool_ = use_async_pool; }
 };
 
 template <typename T>
