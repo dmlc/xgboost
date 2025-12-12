@@ -5,7 +5,7 @@ Write-Host "--- Test XGBoost on Windows with CUDA"
 nvcc --version
 
 Write-Host "--- Run Google Tests"
-build/testxgboost.exe --gtest_filter="DeviceUVector.Basic"
+build/testxgboost.exe
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 Write-Host "--- Set up Python env"
