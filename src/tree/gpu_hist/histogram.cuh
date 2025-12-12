@@ -180,11 +180,14 @@ class DeviceHistogramBuilder {
   void AllReduceHist(Context const* ctx, MetaInfo const& info, bst_node_t nidx,
                      std::size_t num_histograms);
 
+  [[nodiscard]] bool CanSubtract(bst_node_t nidx_parent, bst_node_t nidx_histogram) const {
+    return hist_.HistogramExists(nidx_parent) && hist_.HistogramExists(nidx_histogram);
+  }
   // Attempt to do subtraction trick
   // return true if succeeded
   [[nodiscard]] bool SubtractionTrick(Context const* ctx, bst_node_t nidx_parent,
                                       bst_node_t nidx_histogram, bst_node_t nidx_subtraction) {
-    if (!hist_.HistogramExists(nidx_histogram) || !hist_.HistogramExists(nidx_parent)) {
+    if (!this->CanSubtract(nidx_parent, nidx_histogram)) {
       return false;
     }
     auto d_node_hist_parent = hist_.GetNodeHistogram(nidx_parent);

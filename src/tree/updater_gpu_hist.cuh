@@ -110,6 +110,8 @@ class MultiTargetHistMaker {
   // Gradient used for calculating the leaf values
   linalg::Matrix<GradientPair> value_gpair_;
   std::vector<bst_idx_t> const batch_ptr_;
+  // Node index of each sample
+  dh::device_vector<bst_node_t> positions_;
 
   dh::PinnedMemory pinned_;
 
@@ -180,7 +182,7 @@ class MultiTargetHistMaker {
           this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
     }
 
-    bool force_global = true;
+    bool force_global = false;
     histogram_.Reset(this->ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
                      feature_groups_->DeviceAccessor(ctx_->Device()),
                      cuts_->TotalBins() * n_targets, force_global);
@@ -391,36 +393,45 @@ class MultiTargetHistMaker {
     xgboost_NVTX_FN_RANGE();
 
     CHECK_LE(candidates.size(), expand_set.size());
-    // TODO(jiamingy): Implement finalize partition. Avoid using the expand_set.
+    // TODO(jiamingy): Implement finalize partition using candidates instead of expand_set when
+    // performing in-core training.
 
     // Prepare for update partition
     auto nodes = this->CreatePartitionNodes(p_tree, expand_set);
 
-    std::vector<bst_node_t> build_nidx(expand_set.size());
-    std::vector<bst_node_t> subtraction_nidx(expand_set.size());
+    std::vector<bst_node_t> build_nidx(candidates.size());
+    std::vector<bst_node_t> subtraction_nidx(candidates.size());
     auto mt_tree = p_tree->HostMtView();
-    AssignNodes(mt_tree, expand_set, build_nidx, subtraction_nidx, [](MultiExpandEntry const& e) {
+    AssignNodes(mt_tree, candidates, build_nidx, subtraction_nidx, [](MultiExpandEntry const& e) {
       bool fewer_right = e.right_fst_hess < e.left_fst_hess;
       return fewer_right;
     });
+
+    // TODO(jiamingy): Define threshold for deep trees.
+    bool prefetch_copy = !build_nidx.empty();
 
     histogram_.AllocateHistograms(this->ctx_, build_nidx, subtraction_nidx);
 
     // Pull to device
     mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
+
     std::int32_t k{0};
-    // TODO(jiamingy): Support external memory.
-    bool prefetch_copy = true;
     for (auto const& page :
          p_fmat->GetBatches<EllpackPage>(this->ctx_, StaticBatch(prefetch_copy))) {
       page.Impl()->Visit(this->ctx_, {}, [&](auto&& d_acc) {
         using Acc = std::remove_reference_t<decltype(d_acc)>;
         using GoLeft = GoLeftOp<Acc>;
         auto go_left = GoLeft{d_acc, mt_tree};
+
+        // Partition rows.
         partitioners_.UpdatePositionBatch(this->ctx_, k, nodes.nidx, nodes.left_nidx,
                                           nodes.right_nidx, nodes.split_data,
                                           GoLeftWrapperOp<GoLeft>{go_left});
-        this->BuildHist(page, k, build_nidx);
+
+        // Build histograms.
+        if (!build_nidx.empty()) {
+          this->BuildHist(page, k, build_nidx);
+        }
       });
       ++k;
     }
@@ -478,6 +489,48 @@ class MultiTargetHistMaker {
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), outputs.data().get(),
                                   pinned_candidates_out.size_bytes(), cudaMemcpyDefault,
                                   ctx_->CUDACtx()->Stream()));
+
+  }
+
+  // TODO(jiamingy): Implement sampling.
+  struct EncodeOp {
+    [[nodiscard]] __device__ bst_node_t operator()(cuda_impl::RowIndexT, bst_node_t nidx) const {
+      return nidx;
+    }
+  };
+
+  void FinalizePosition(DMatrix* p_fmat, RegTree const* p_tree) {
+    xgboost_NVTX_FN_RANGE();
+
+    positions_.resize(p_fmat->Info().num_row_, 0);
+    auto d_out_position = dh::ToSpan(positions_);
+
+    for (std::size_t k = 0; k < partitioners_.Size(); ++k) {
+      auto& part = partitioners_.At(k);
+      CHECK_EQ(part->GetNumNodes(), p_tree->NumNodes());
+      auto base_rowid = batch_ptr_[k];
+      auto n_samples = batch_ptr_.at(k + 1) - base_rowid;
+      part->FinalisePosition(ctx_, d_out_position.subspan(base_rowid, n_samples), base_rowid,
+                             EncodeOp{});
+    }
+  }
+
+  bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d, RegTree const* p_tree) {
+    if (positions_.empty()) {
+      return false;
+    }
+    auto d_position = dh::ToSpan(positions_);
+    CHECK_EQ(out_preds_d.Shape(0), d_position.size());
+    auto mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
+    thrust::for_each_n(this->ctx_->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul),
+                       out_preds_d.Size(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
+                         auto [sample_idx, target_idx] =
+                             linalg::UnravelIndex(i, out_preds_d.Shape());
+                         bst_node_t nidx = d_position[sample_idx];
+                         auto weight = mt_tree.LeafValue(nidx);
+                         out_preds_d(sample_idx, target_idx) += weight(target_idx);
+                       });
+    return true;
   }
 
   void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree) {
@@ -529,6 +582,11 @@ class MultiTargetHistMaker {
 
       expand_set = driver.Pop();
     }
+
+    if (p_fmat->SingleColBlock()) {
+      CHECK_GE(p_tree->NumNodes(), this->partitioners_.Front()->GetNumNodes());
+    }
+    this->FinalizePosition(p_fmat, p_tree);
   }
 
   explicit MultiTargetHistMaker(Context const* ctx, TrainParam param,
