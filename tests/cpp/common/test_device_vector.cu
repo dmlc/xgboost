@@ -18,7 +18,7 @@ namespace dh {
 #if !defined(XGBOOST_USE_RMM)
 TEST(AsyncPoolAllocator, Basic) {
   if (!xgboost::curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
-    GTEST_SKIP_("The async memory pool not supported.");
+    GTEST_SKIP_("The async memory pool not available on the current device.");
   }
 
   for (bool use_async_pool : {true, false}) {
