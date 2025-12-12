@@ -71,25 +71,29 @@ std::uint64_t ExtractBinaryPath(tree::ScalarTreeView const& tree, const RegTree:
 struct LeafData {
   bst_node_t node_id;
   double leaf_weight;
+  double probability;  // Probability of reaching this leaf
   std::vector<int> features;
   std::uint64_t path;
 };
 
-void GetLeafDataRecursive(tree::ScalarTreeView const& tree, const RegTree::FVec& feat, 
+void GetLeafDataRecursive(tree::ScalarTreeView const& tree,
                    std::vector<LeafData>* leaf_data, bst_node_t nidx,  
-                   std::vector<int> const& features, std::uint64_t path, int depth) {
+                   std::vector<int> const& features, std::uint64_t path, int depth, double probability) {
 
   if (tree.IsLeaf(nidx)) {
     // Store sparse leaf data
-    leaf_data->push_back({nidx, tree.LeafValue(nidx), features, path});
+    leaf_data->push_back({nidx, tree.LeafValue(nidx), probability, features, path});
   } else {
     const std::uint32_t split_index = tree.SplitIndex(nidx);
     // Create updated feature list and path for children
     std::vector<int> child_features = features;
     child_features.push_back(split_index);
+
+    auto left_probability = tree.SumHess(tree.LeftChild(nidx)) / tree.SumHess(nidx);
+    auto right_probability = 1.0 - left_probability;
     
-    GetLeafDataRecursive(tree, feat, leaf_data, tree.LeftChild(nidx), child_features, path, depth + 1);
-    GetLeafDataRecursive(tree, feat, leaf_data, tree.RightChild(nidx), child_features, path | (1ULL << depth), depth + 1);
+    GetLeafDataRecursive(tree, leaf_data, tree.LeftChild(nidx), child_features, path, depth + 1, probability * left_probability);
+    GetLeafDataRecursive(tree, leaf_data, tree.RightChild(nidx), child_features, path | (1ULL << depth), depth + 1, probability * right_probability);
   }
 }
 
@@ -136,6 +140,7 @@ PatternCubeMap MapPatternsToCube(const std::vector<int>& features_in_path) {
       }
     }
   }
+  
   return updated_wdnf_table;
 }
 
@@ -209,69 +214,59 @@ std::map<int, std::vector<double>> path_dependant_frequencies(tree::ScalarTreeVi
   return leaves_freq;
 }
 
-void CalculateContributions(tree::ScalarTreeView const& tree, const RegTree::FVec& feat,
-                            std::vector<float>* mean_values, float* out_contribs, int condition,
-                            std::uint32_t condition_feature) {
+std::vector<PreprocessedLeaf> PreprocessTree(int tree_idx, tree::ScalarTreeView const& tree) {
 
-  std::vector<LeafData> leaf_data;
-  leaf_data.reserve(tree.Size());
-  GetLeafDataRecursive(tree, feat, &leaf_data, 0, {}, 0, 0);
-  auto f = path_dependant_frequencies(tree);
-  
-  for (const auto& leaf : leaf_data) {
-    // Get the pattern-to-cube mapping for this leaf's path
-    auto pc_pb_to_cube = MapPatternsToCube(leaf.features);
-    const std::size_t n_paths = 1 << leaf.features.size();
+  std::vector<PreprocessedLeaf> preprocessed_leaves;
+    std::vector<LeafData> leaf_data;
+    leaf_data.reserve(tree.Size());
+    GetLeafDataRecursive(tree, &leaf_data, 0, {}, 0, 0, 1.0);
+    auto f = path_dependant_frequencies(tree);
+    
+    
+    for (const auto& leaf : leaf_data) {
+      // Get the pattern-to-cube mapping for this leaf's path
+      auto pc_pb_to_cube = MapPatternsToCube(leaf.features);
+      const std::size_t n_paths = 1 << leaf.features.size();
 
-    // Create dense matrices for each feature: row=consumer_pattern, col=background_pattern
-    std::map<int, std::vector<double>> M;
-    for (auto feature : leaf.features) {
-      M[feature] = std::vector<double>(n_paths * n_paths, 0.0);
-    }
+      // Create dense matrices for each feature: row=consumer_pattern, col=background_pattern
+      std::map<int, std::vector<double>> M;
+      for (auto feature : leaf.features) {
+        M[feature] = std::vector<double>(n_paths * n_paths, 0.0);
+      }
 
-    // Fill M matrices with contributions from v(cube)
-    for (const auto& [consumer_pattern, background_map] : pc_pb_to_cube) {
-      for (const auto& [background_pattern, cube] : background_map) {
-        const auto values = v(cube);
-        for (const auto& [feature, contribution] : values) {
-          auto& mat = M[feature];
-          const std::size_t idx = static_cast<std::size_t>(consumer_pattern) * n_paths +
-                                  static_cast<std::size_t>(background_pattern);
-          if (idx < mat.size()) {
-            mat[idx] = contribution;
+      // Fill M matrices with contributions from v(cube)
+      for (const auto& [consumer_pattern, background_map] : pc_pb_to_cube) {
+        for (const auto& [background_pattern, cube] : background_map) {
+          const auto values = v(cube);
+          for (const auto& [feature, contribution] : values) {
+            auto& mat = M[feature];
+            const std::size_t idx = static_cast<std::size_t>(consumer_pattern) * n_paths +
+                                    static_cast<std::size_t>(background_pattern);
+            if (idx < mat.size()) {
+              mat[idx] = contribution;
+            }
           }
         }
       }
-    }
-
-    // Compute S: full matrix-vector multiplication S = w * M * f_l
-    auto &f_l = f[leaf.node_id];
-    std::map<int, std::vector<double>> S;
-    for (auto feature : leaf.features) {
-      const auto& mat = M[feature];
-      S[feature] = std::vector<double>(n_paths, 0.0);
-      auto& S_vec = S[feature];
-      for (std::size_t row = 0; row < n_paths; ++row) {
-        double dot = 0.0;
-        for (std::size_t col = 0; col < n_paths && col < f_l.size(); ++col) {
-          dot += mat[row * n_paths + col] * f_l[col];
+      
+      // Compute S: full matrix-vector multiplication S = w * M * f_l
+      auto &f_l = f[leaf.node_id];
+      std::map<int, std::vector<double>> S;
+      for (auto feature : leaf.features) {
+        const auto& mat = M[feature];
+        S[feature] = std::vector<double>(n_paths, 0.0);
+        auto& S_vec = S[feature];
+        for (std::size_t row = 0; row < n_paths; ++row) {
+          double dot = 0.0;
+          for (std::size_t col = 0; col < n_paths && col < f_l.size(); ++col) {
+            dot += mat[row * n_paths + col] * f_l[col];
+          }
+          S_vec[row] = dot * leaf.leaf_weight;
         }
-        S_vec[row] = dot * leaf.leaf_weight;
       }
+      preprocessed_leaves.push_back({tree_idx, leaf.path, S});
     }
-
-    // Get the consumer path
-    auto consumer_path = ExtractBinaryPath(tree, feat, leaf.path);
-    for(auto feature : leaf.features) {
-      const auto& S_vec = S[feature];
-      out_contribs[feature] += static_cast<float>(S_vec[consumer_path]);
-    }
-  }
-  
-  // Add bias term (expected value)
-  if (condition == 0) {
-    float expected_value = (*mean_values)[0];
-    out_contribs[feat.Size()] += expected_value;
-  }
+  return preprocessed_leaves;
 }
+
 }  // namespace xgboost
