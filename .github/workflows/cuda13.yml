@@ -15,11 +15,21 @@ env:
 
 jobs:
   build-cuda13:
-    name: Build CUDA 13
+    name: Build CUDA 13 wheel for ${{ matrix.arch }}
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
-      - tag=cuda13-build-cuda13
+      - runner=${{ matrix.runner }}
+      - tag=cuda13-build-cuda13-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: aarch64
+          runner: linux-arm64-cpu
+          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
+        - arch: x86_64
+          runner: linux-amd64-cpu
+          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -29,20 +39,31 @@ jobs:
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: |
-          bash ops/pipeline/build-cuda13.sh
+          bash ops/pipeline/build-cuda13.sh ${{ matrix.image_repo }} ${{ matrix.arch }}
       - name: Stash files
         run: |
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix cache/${{ github.run_id }}/build-cuda13 \
+            --prefix cache/${{ github.run_id }}/build-cuda13-${{ matrix.arch }} \
             build/testxgboost ./xgboost python-package/dist/*.whl
+
   test-cpp-cuda13:
-    name: Google Test (C++) with CUDA 13
+    name: Google Test (C++) with CUDA 13, arch ${{ matrix.arch }}
     needs: [build-cuda13]
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-gpu
-      - tag=cuda13-test-cpp-cuda13
+      - runner=${{ matrix.runner }}
+      - tag=cuda13-test-cpp-cuda13-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: aarch64
+          runner: linux-arm64-gpu
+          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
+        - arch: x86_64
+          runner: linux-amd64-gpu
+          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -55,19 +76,30 @@ jobs:
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix cache/${{ github.run_id }}/build-cuda13 \
+            --prefix cache/${{ github.run_id }}/build-cuda13-${{ matrix.arch }} \
             --dest-dir build \
             testxgboost
           chmod +x build/testxgboost
       - run: |
-          bash ops/pipeline/test-cpp-cuda13.sh
+          bash ops/pipeline/test-cpp-cuda13.sh ${{ matrix.image_repo }}
+
   test-python-cuda13:
-    name: Run Python tests with CUDA 13
+    name: Run Python tests with CUDA 13, arch ${{ matrix.arch }}
     needs: [build-cuda13]
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-gpu
-      - tag=cuda13-test-python-cuda13
+      - runner=${{ matrix.runner }}
+      - tag=cuda13-test-python-cuda13-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: linux-amd64-gpu
+            image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
+          - arch: aarch64
+            runner: linux-arm64-gpu
+            image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -80,10 +112,10 @@ jobs:
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix cache/${{ github.run_id }}/build-cuda13 \
+            --prefix cache/${{ github.run_id }}/build-cuda13-${{ matrix.arch }} \
             --dest-dir wheelhouse \
             *.whl xgboost
           mv -v wheelhouse/xgboost .
           chmod +x ./xgboost
       - name: Run Python tests
-        run: bash ops/pipeline/test-python-wheel-cuda13.sh
+        run: bash ops/pipeline/test-python-wheel-cuda13.sh ${{ matrix.image_repo }}
