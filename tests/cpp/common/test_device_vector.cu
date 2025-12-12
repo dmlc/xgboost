@@ -15,7 +15,7 @@
 #include "xgboost/windefs.h"        // for xgboost_IS_WIN
 
 namespace dh {
-#if !defined(XGBOOST_USE_RMM)
+#if !defined(XGBOOST_USE_RMM) && !defined(xgboost_IS_WIN)
 TEST(AsyncPoolAllocator, Basic) {
   for (bool use_async_pool : {true, false}) {
     detail::XGBAsyncPoolAllocator<float> alloc{use_async_pool};
@@ -25,7 +25,7 @@ TEST(AsyncPoolAllocator, Basic) {
     alloc.deallocate(ptr, n);
   }
 }
-#endif
+#endif  // !defined(XGBOOST_USE_RMM) && !defined(xgboost_IS_WIN)
 
 TEST(DeviceUVector, Basic) {
   GlobalMemoryLogger().Clear();
