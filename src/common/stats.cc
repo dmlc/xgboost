@@ -45,15 +45,14 @@ void Median(Context const* ctx, linalg::Matrix<float> const& t,
   }
 }
 
-void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<float>* out) {
-  v.SetDevice(ctx->Device());
+void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::Vector<float>* out) {
   out->SetDevice(ctx->Device());
   out->Reshape(1);
 
   if (ctx->IsCUDA()) {
-    cuda_impl::Mean(ctx, v.View(ctx->Device()), out->View(ctx->Device()));
+    cuda_impl::Mean(ctx, v, out->View(ctx->Device()));
   } else {
-    auto h_v = v.HostView();
+    auto h_v = v;
     float n = v.Size();
     MemStackAllocator<float, DefaultMaxThreads()> tloc(ctx->Threads(), 0.0f);
     ParallelFor(v.Size(), ctx->Threads(),

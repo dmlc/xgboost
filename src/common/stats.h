@@ -149,7 +149,7 @@ void Median(Context const* ctx, linalg::Matrix<float> const& t,
 /**
  * @brief Calculate the mean value of a vector.
  */
-void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<float>* out);
+void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::Vector<float>* out);
 
 /**
  * @brief Calculate the mean value for the first axis.
