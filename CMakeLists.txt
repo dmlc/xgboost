@@ -336,6 +336,10 @@ if(PLUGIN_RMM)
   list(APPEND rmm_link_libs CUDA::cudart_static)
   set_target_properties(rmm::rmm PROPERTIES INTERFACE_LINK_LIBRARIES "${rmm_link_libs}")
 
+  target_compile_definitions(objxgboost PUBLIC
+    RMM_MAJOR_VERSION=${rmm_VERSION_MAJOR}
+    RMM_MINOR_VERSION=${rmm_VERSION_MINOR})
+
   # Pick up patched CCCL from RMM
 elseif(USE_CUDA)
   # If using CUDA and not RMM, search for CCCL.
