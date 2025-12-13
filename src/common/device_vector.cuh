@@ -312,6 +312,9 @@ using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
  */
 template <typename T>
 class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
+  // Use int instead of bool to workaround an issue with MSVC 14 (VS 2022). It optimizes
+  // the constructor away and reads the wrong value from the thread local memory if a byte (bool) is
+  // used.
   std::int32_t use_async_pool_;
 
  public:
