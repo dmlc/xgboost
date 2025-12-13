@@ -10,13 +10,15 @@
 #include <cuda/memory_resource>               // for async_resource_ref
 #include <cuda/stream_ref>                    // for stream_ref
 
+#include <rmm/version_config.hpp>
+
 // TODO(hcho3): Remove this guard once we require Rapids 25.12+
-#if (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+#if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
 #include <rmm/mr/per_device_resource.hpp>     // for get_current_device_resource
-#else  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+#else  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
 #include <rmm/mr/device/device_memory_resource.hpp>  // for device_memory_resource
 #include <rmm/mr/device/per_device_resource.hpp>     // for get_current_device_resource
-#endif  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+#endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
 
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
 
@@ -274,11 +276,11 @@ template <typename T>
 class ThrustAllocMrAdapter : public thrust::device_malloc_allocator<T> {
 
 // TODO(hcho3): Remove this guard once we require Rapids 25.12+
-#if (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+#if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
   DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource_ref()};
-#else  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+#else  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
   DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource()};
-#endif  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
+#endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
