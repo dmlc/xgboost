@@ -16,6 +16,7 @@ namespace xgboost {
 struct GlobalConfiguration : public XGBoostParameter<GlobalConfiguration> {
   std::int32_t verbosity{1};
   bool use_rmm{false};
+  bool use_cuda_async_pool{false};
   // This is not a dmlc parameter to avoid conflict with the context class.
   std::int32_t nthread{0};
   DMLC_DECLARE_PARAMETER(GlobalConfiguration) {
@@ -25,6 +26,9 @@ struct GlobalConfiguration : public XGBoostParameter<GlobalConfiguration> {
         .describe("Flag to print out detailed breakdown of runtime.");
     DMLC_DECLARE_FIELD(use_rmm).set_default(false).describe(
         "Whether to use RAPIDS Memory Manager to allocate GPU memory in XGBoost");
+    DMLC_DECLARE_FIELD(use_cuda_async_pool)
+        .set_default(false)
+        .describe("Whether to use the async memory pool in CUDA.");
   }
 };
 

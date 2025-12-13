@@ -37,12 +37,22 @@ discussed in the tutorial.
 import argparse
 import os
 import tempfile
-from typing import Callable, List, Literal, Tuple
+from typing import TYPE_CHECKING, Callable, List, Literal, Tuple
 
 import numpy as np
 from sklearn.datasets import make_regression
 
 import xgboost
+
+if TYPE_CHECKING:
+    from cuda.bindings.runtime import cudaError_t
+
+
+def _checkcu(status: "cudaError_t") -> None:
+    import cuda.bindings.runtime as cudart
+
+    if status != cudart.cudaError_t.cudaSuccess:
+        raise RuntimeError(cudart.cudaGetErrorString(status))
 
 
 def device_mem_total() -> int:
@@ -50,8 +60,7 @@ def device_mem_total() -> int:
     import cuda.bindings.runtime as cudart
 
     status, free, total = cudart.cudaMemGetInfo()
-    if status != cudart.cudaError_t.cudaSuccess:
-        raise RuntimeError(cudart.cudaGetErrorString(status))
+    _checkcu(status)
     return total
 
 
@@ -172,6 +181,34 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
     approx_train(it)
 
 
+def setup_async_pool() -> None:
+    """Setup CUDA async pool. As an alternative, the RMM plugin can be used as well. See
+    the `setup_rmm`. This is the same as using the `CudaAsyncMemoryResource` from RMM,
+    but without the RMM dependency.
+
+    .. versionadded:: 3.2.0
+
+    """
+    import cuda.bindings.driver as driver
+    import cuda.bindings.runtime as cudart
+    from cupy.cuda import MemoryAsyncPool
+
+    status, dft_pool = cudart.cudaDeviceGetDefaultMemPool(0)
+    _checkcu(status)
+
+    total = device_mem_total()
+
+    v = driver.cuuint64_t(int(total * 0.9))
+    (status,) = cudart.cudaMemPoolSetAttribute(
+        dft_pool,
+        cudart.cudaMemPoolAttr.cudaMemPoolAttrReleaseThreshold,
+        v,
+    )
+    _checkcu(status)
+    # Set the allocator for cupy as well.
+    cp.cuda.set_allocator(MemoryAsyncPool().malloc)
+
+
 def setup_rmm() -> None:
     """Setup RMM for GPU-based external memory training.
 
@@ -201,13 +238,25 @@ def setup_rmm() -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument(
+        "--memory_pool",
+        choices=["rmm", "cuda"],
+        default="rmm",
+        help="Use a memory pool for asynchronous memory allocation in XGBoost.",
+    )
     args = parser.parse_args()
     if args.device == "cuda":
         import cupy as cp
 
-        setup_rmm()
+        if args.memory_pool == "rmm":
+            setup_rmm()
+        elif args.memory_pool == "cuda":
+            setup_async_pool()
         # Make sure XGBoost is using RMM for all allocations.
-        with xgboost.config_context(use_rmm=True):
+        with xgboost.config_context(
+            use_rmm=args.memory_pool == "rmm",
+            use_cuda_async_pool=args.memory_pool == "cuda",
+        ):
             with tempfile.TemporaryDirectory() as tmpdir:
                 main(tmpdir, args)
     else:

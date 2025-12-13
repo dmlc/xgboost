@@ -108,6 +108,12 @@ void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   return n_mps;
 }
 
+[[nodiscard]] bool MemoryPoolsSupported(std::int32_t device) {
+  std::int32_t res = 0;
+  dh::safe_cuda(cudaDeviceGetAttribute(&res, cudaDevAttrMemoryPoolsSupported, device));
+  return !!res;
+}
+
 void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream) {
   dh::safe_cuda(cudaMemcpyAsync(dst, src, count, cudaMemcpyDefault, stream));
 }
@@ -145,6 +151,8 @@ void SetDevice(std::int32_t device) {
   common::AssertGPUSupport();
   return 0;
 }
+
+[[nodiscard]] bool MemoryPoolsSupported(std::int32_t) { return false; }
 
 void MemcpyAsync(void*, const void*, std::size_t, StreamRef) { common::AssertGPUSupport(); }
 

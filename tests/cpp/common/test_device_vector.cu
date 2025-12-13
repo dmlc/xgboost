@@ -15,6 +15,23 @@
 #include "xgboost/windefs.h"        // for xgboost_IS_WIN
 
 namespace dh {
+#if !defined(XGBOOST_USE_RMM)
+TEST(AsyncPoolAllocator, Basic) {
+  if (!xgboost::curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
+    GTEST_SKIP_("The async memory pool is not available on the current device.");
+  }
+
+  for (bool use_async_pool : {true, false}) {
+    detail::XGBAsyncPoolAllocator<float> alloc;
+    alloc.SetAsync(use_async_pool);
+    std::size_t n = 16;
+    auto ptr = alloc.allocate(n);
+    ASSERT_TRUE(ptr);
+    alloc.deallocate(ptr, n);
+  }
+}
+#endif  // !defined(XGBOOST_USE_RMM)
+
 TEST(DeviceUVector, Basic) {
   GlobalMemoryLogger().Clear();
   std::int32_t verbosity{3};
