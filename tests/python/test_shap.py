@@ -261,7 +261,7 @@ class TestSHAP:
 
         def assert_same(X: np.ndarray, y: np.ndarray) -> None:
             Xy = xgb.DMatrix(X, y)
-            booster = xgb.train({}, Xy, num_boost_round=4)
+            booster = xgb.train({"max_depth":4}, Xy, num_boost_round=4)
             shap_dm = booster.predict(Xy, pred_contribs=True)
             Xy = xgb.QuantileDMatrix(X, y)
             shap_qdm = booster.predict(Xy, pred_contribs=True)
@@ -282,3 +282,7 @@ class TestSHAP:
 
         X, y = make_classification()
         assert_same(X, y)
+    
+
+
+
