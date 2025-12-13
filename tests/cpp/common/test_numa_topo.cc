@@ -13,7 +13,7 @@
 namespace xgboost::common {
 namespace {
 namespace fs = std::filesystem;
-}  // namespace
+}
 
 TEST(Numa, CpuListParser) {
   common::TemporaryDirectory tmpdir;
@@ -105,10 +105,9 @@ TEST(Numa, CpuListParser) {
   }
   {
     auto path = tmpdir.Path() / "foo";
-
-    ::testing::internal::CaptureStderr();
+    testing::internal::CaptureStderr();
     ReadCpuList(path, &cpus);
-    auto output = ::testing::internal::GetCapturedStderr();
+    std::string output = testing::internal::GetCapturedStderr();
     ASSERT_TRUE(cpus.empty());
     ASSERT_NE(output.find("foo"), std::string::npos);
   }
