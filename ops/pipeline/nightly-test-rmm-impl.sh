@@ -27,8 +27,6 @@ else
   cmake_args=''
 fi
 
-cmake_args="${cmake_args} -DPLUGIN_RMM=ON"
-
 mkdir -p build
 cd build
 cmake .. \
@@ -41,6 +39,7 @@ cmake .. \
   -DUSE_DLOPEN_NCCL=ON \
   -DGOOGLE_TEST=ON \
   -DENABLE_ALL_WARNINGS=ON \
+  -DPLUGIN_RMM=ON \
   -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
   ${cmake_args}
 ninja -v
