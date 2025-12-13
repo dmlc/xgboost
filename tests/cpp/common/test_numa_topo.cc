@@ -8,7 +8,8 @@
 #include <vector>      // for vector
 
 #include "../../../src/common/numa_topo.h"
-#include "../filesystem.h"  // for TemporaryDirectory
+#include "../capture_std.h"  // for CaptureStderr
+#include "../filesystem.h"   // for TemporaryDirectory
 
 namespace xgboost::common {
 namespace {
@@ -105,9 +106,9 @@ TEST(Numa, CpuListParser) {
   }
   {
     auto path = tmpdir.Path() / "foo";
-    testing::internal::CaptureStderr();
+    CaptureStderr capture;
     ReadCpuList(path, &cpus);
-    std::string output = testing::internal::GetCapturedStderr();
+    std::string output = capture.GetString();
     ASSERT_TRUE(cpus.empty());
     ASSERT_NE(output.find("foo"), std::string::npos);
   }
