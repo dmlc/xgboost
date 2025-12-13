@@ -1136,13 +1136,13 @@ test_that("Row names are preserved in outputs", {
 })
 
 test_that("xgb.train works with nrounds=0 (serialization, continuation, callbacks)", {
-  data(agaricus.train, package = "xgboost")
-  dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
+  # Reuse global data variable 'train' defined at the top of test_basic.R
+  dtrain <- xgb.DMatrix(train$data, label = train$label)
   watchlist <- list(train = dtrain)
 
   # --- Case 1: Basic check & Serialization symmetry ---
   bst_0 <- xgb.train(
-    params = list(objective = "binary:logistic"),
+    params = list(objective = "binary:logistic", nthread = 1),
     data = dtrain,
     nrounds = 0,
     verbose = 0
@@ -1159,20 +1159,18 @@ test_that("xgb.train works with nrounds=0 (serialization, continuation, callback
   preds_0 <- predict(bst_0, dtrain)
   expect_true(all((preds_0 >= 0) & (preds_0 <= 1)))
 
-  # Save and Load to ensure binary format is valid and symmetrical
-  fname <- tempfile()
-  on.exit(unlink(fname))
-  xgb.save(bst_0, fname)
-  bst_loaded <- xgb.load(fname)
+  # Serialize via RAM (Raw) instead of disk (tempfile) for cleaner tests
+  raw <- xgb.save.raw(bst_0)
+  bst_loaded <- xgb.load.raw(raw)
 
   # Verify predictions match before/after serialization
   preds_loaded <- predict(bst_loaded, dtrain)
   expect_equal(preds_0, preds_loaded, tolerance = 1e-6)
 
   # --- Case 2: Training Continuation Numeric Consistency ---
-  # Initialize empty model with fixed seed
+  # Initialize empty model with fixed seed & single thread
   bst_init <- xgb.train(
-    params = list(objective = "binary:logistic", seed = 123),
+    params = list(objective = "binary:logistic", seed = 123, nthread = 1),
     data = dtrain,
     nrounds = 0,
     verbose = 0
@@ -1180,7 +1178,7 @@ test_that("xgb.train works with nrounds=0 (serialization, continuation, callback
 
   # Continue training for 10 rounds from empty booster
   bst_cont <- xgb.train(
-    params = list(objective = "binary:logistic", seed = 123),
+    params = list(objective = "binary:logistic", seed = 123, nthread = 1),
     data = dtrain,
     nrounds = 10,
     xgb_model = bst_init,
@@ -1189,7 +1187,7 @@ test_that("xgb.train works with nrounds=0 (serialization, continuation, callback
 
   # Reference training from scratch
   bst_ref <- xgb.train(
-    params = list(objective = "binary:logistic", seed = 123),
+    params = list(objective = "binary:logistic", seed = 123, nthread = 1),
     data = dtrain,
     nrounds = 10,
     verbose = 0
@@ -1203,7 +1201,7 @@ test_that("xgb.train works with nrounds=0 (serialization, continuation, callback
   # --- Case 3: Callback Robustness ---
   # Verify early stopping and evals work with nrounds=0
   bst_cb <- xgb.train(
-    params = list(objective = "binary:logistic", seed = 456),
+    params = list(objective = "binary:logistic", seed = 456, nthread = 1),
     data = dtrain,
     nrounds = 0,
     evals = watchlist,
@@ -1211,9 +1209,9 @@ test_that("xgb.train works with nrounds=0 (serialization, continuation, callback
     verbose = 0
   )
 
-  # Verify that continuation works.
+  # Verify that continuation works
   bst_cb_cont <- xgb.train(
-    params = list(objective = "binary:logistic", seed = 456),
+    params = list(objective = "binary:logistic", seed = 456, nthread = 1),
     data = dtrain,
     nrounds = 5,
     evals = watchlist,
@@ -1222,17 +1220,13 @@ test_that("xgb.train works with nrounds=0 (serialization, continuation, callback
     verbose = 0
   )
 
-  # Handle NULL niter for continued model with early stopping.
-  # If niter is missing (due to callback metadata issue), verify predictions.
+  # Handle NULL niter for continued model with early stopping
   iter_cb <- bst_cb_cont$niter
   if (is.null(iter_cb)) {
-    # We avoid calling predict(bst_cb) here to bypass a separate R-package bug.
-    # Instead, we verify the continued model works and learned signal.
+    # Verify the continued model works and learned signal
     preds_cb <- predict(bst_cb_cont, dtrain)
-
-    # If training succeeded, predictions should not be uniform (sd > 0)
     expect_true(stats::sd(preds_cb) > 0)
-    expect_equal(length(preds_cb), nrow(agaricus.train$data))
+    expect_equal(length(preds_cb), nrow(train$data))
   } else {
     expect_equal(iter_cb, 5)
   }
