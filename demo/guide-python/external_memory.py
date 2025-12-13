@@ -182,9 +182,9 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
 
 
 def setup_async_pool() -> None:
-    """Setup CUDA async pool. As an alternative, RMM plugin can be used as well. See the
-    `setup_rmm`. This is the same as using the `CudaAsyncMemoryResource` from RMM, but
-    without the RMM dependency.
+    """Setup CUDA async pool. As an alternative, the RMM plugin can be used as well. See
+    the `setup_rmm`. This is the same as using the `CudaAsyncMemoryResource` from RMM,
+    but without the RMM dependency.
 
     .. versionadded:: 3.2.0
 
