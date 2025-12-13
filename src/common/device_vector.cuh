@@ -18,8 +18,6 @@
 #include <rmm/mr/device/per_device_resource.hpp>     // for get_current_device_resource
 #endif  // (RMM_MAJOR_VERSION == 25 && RMM_MINOR_VERSION == 12) || RMM_MAJOR_VERSION >= 26
 
-#include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
-
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 #include <cuda.h>  // for CUmemGenericAllocationHandle
@@ -32,9 +30,10 @@
 #include <functional>              // for function
 #include <memory>                  // for unique_ptr
 
-#include "common.h"         // for safe_cuda, HumanMemUnit
-#include "cuda_dr_utils.h"  // for CuDriverApi
-#include "cuda_stream.h"    // for DefaultStream
+#include "common.h"                 // for safe_cuda, HumanMemUnit
+#include "cuda_dr_utils.h"          // for CuDriverApi
+#include "cuda_stream.h"            // for DefaultStream
+#include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
 #include "xgboost/logging.h"
 #include "xgboost/span.h"  // for Span
 
@@ -313,7 +312,7 @@ using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
  */
 template <typename T>
 class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
-  bool use_async_pool_;
+  std::int32_t use_async_pool_;
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
@@ -321,7 +320,7 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
   using size_type = typename Super::size_type;  // NOLINT(readability-identifier-naming)
 
   XGBAsyncPoolAllocator()
-      : use_async_pool_{xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool} {}
+      : use_async_pool_{::xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool} {}
 
   template <typename U>
   struct rebind {                            // NOLINT(readability-identifier-naming)
@@ -332,10 +331,6 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
     if (!this->use_async_pool_) {
       return Super::allocate(n);
     }
-
-#if defined(_MSC_VER)
-    CHECK(!this->use_async_pool_) << xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
-#endif
 
     T *raw_ptr = nullptr;
     auto n_bytes = xgboost::common::SizeBytes<T>(n);
