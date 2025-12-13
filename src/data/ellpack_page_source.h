@@ -194,7 +194,7 @@ class EllpackFormatPolicy {
     }
     if (!(GlobalConfigThreadLocalStore::Get()->use_rmm ||
           GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)) {
-      LOG(WARNING) << "`use_rmm` and `use_cuda_async_pool` are set to false." << msg;
+      LOG(WARNING) << "Neither `use_rmm` nor `use_cuda_async_pool` is enabled." << msg;
     }
     if (GlobalConfigThreadLocalStore::Get()->use_rmm) {
 #if !defined(XGBOOST_USE_RMM)

@@ -248,7 +248,10 @@ if __name__ == "__main__":
     if args.device == "cuda":
         import cupy as cp
 
-        setup_rmm()
+        if args.memory_pool == "rmm":
+            setup_rmm()
+        elif args.memory_pool == "cuda":
+            setup_async_pool()
         # Make sure XGBoost is using RMM for all allocations.
         with xgboost.config_context(
             use_rmm=args.memory_pool == "rmm",
