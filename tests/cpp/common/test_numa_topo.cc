@@ -13,7 +13,43 @@
 namespace xgboost::common {
 namespace {
 namespace fs = std::filesystem;
-}
+
+#if defined(_MSC_VER)
+class CaptureStderrRdBuf {
+  std::stringstream ss_;
+  std::streambuf* old_;
+
+  void Release() {
+    if (old_) {
+      std::cerr.rdbuf(old_);
+      old_ = nullptr;
+    }
+  }
+
+ public:
+  explicit CaptureStderrRdBuf() : old_{std::cerr.rdbuf(ss_.rdbuf())} {}
+  ~CaptureStderrRdBuf() { this->Release(); }
+  [[nodiscard]] auto GetString() {
+    this->Release();
+    return ss_.str();
+  }
+};
+
+using CaptureStderr = CaptureStderrRdBuf;
+
+#else
+
+class CaptureStderrGtest {
+ public:
+  explicit CaptureStderrGtest() { ::testing::internal::CaptureStderr(); }
+
+  ~CaptureStderrGtest() { this->GetString(); }
+  std::string GetString() const { return ::testing::internal::GetCapturedStderr(); }
+};
+
+using CaptureStderr = CaptureStderrGtest;
+#endif
+}  // namespace
 
 TEST(Numa, CpuListParser) {
   common::TemporaryDirectory tmpdir;
@@ -105,9 +141,10 @@ TEST(Numa, CpuListParser) {
   }
   {
     auto path = tmpdir.Path() / "foo";
-    testing::internal::CaptureStderr();
+
+    CaptureStderr capture;
     ReadCpuList(path, &cpus);
-    std::string output = testing::internal::GetCapturedStderr();
+    auto output = capture.GetString();
     ASSERT_TRUE(cpus.empty());
     ASSERT_NE(output.find("foo"), std::string::npos);
   }
