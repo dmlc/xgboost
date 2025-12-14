@@ -400,7 +400,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     return ptr;
   }
 
-  void deallocate(pointer ptr, size_t n) {  // NOLINT
+  void deallocate(pointer ptr, std::size_t n) {  // NOLINT
     GlobalMemoryLogger().RegisterDeallocation(n * sizeof(T));
     SuperT::deallocate(ptr, n);
   }
