@@ -19,9 +19,8 @@ namespace xgboost {
 #if defined(xgboost_IS_WIN)
 // Custom implementation for Windows. This assumes all writes are using the C++ streams
 // and doesn't work with system file descriptors.
-
 template <bool is_stderr>
-class CaptureStderrRdBufImpl {
+class CaptureStdRdBuf {
   std::stringstream ss_;
   std::streambuf* old_;
 
@@ -33,38 +32,42 @@ class CaptureStderrRdBufImpl {
   }
 
  public:
-  explicit CaptureStderrRdBufImpl()
-      : old_{(is_stderr ? std::cerr : std::cout).rdbuf(ss_.rdbuf())} {}
-  ~CaptureStderrRdBufImpl() { this->Release(); }
-  [[nodiscard]] std::string GetString() {
+  explicit CaptureStdRdBuf() : old_{(is_stderr ? std::cerr : std::cout).rdbuf(ss_.rdbuf())} {}
+  ~CaptureStdRdBuf() { this->Release(); }
+  [[nodiscard]] std::string StopAndGetStr() {
     this->Release();
     return ss_.str();
   }
 };
 
-using CaptureStderr = CaptureStderrRdBufImpl<true>;
-using CaptureStdout = CaptureStderrRdBufImpl<false>;
+using CaptureStderr = CaptureStdRdBuf<true>;
+using CaptureStdout = CaptureStdRdBuf<false>;
 
 #else
 
-// Use the internal capture from googletest.
-class CaptureStderrGtest {
+// Use the internal capture functions from googletest.
+template <bool is_stderr>
+class CaptureStdGtest {
+  bool released_{false};
+  std::string captured_;
+
  public:
-  explicit CaptureStderrGtest() { ::testing::internal::CaptureStderr(); }
+  explicit CaptureStdGtest() {
+    is_stderr ? ::testing::internal::CaptureStderr() : ::testing::internal::CaptureStdout();
+  }
   // Use the get string method to release the capture
-  ~CaptureStderrGtest() { this->GetString(); }
-  std::string GetString() const { return ::testing::internal::GetCapturedStderr(); }
+  ~CaptureStdGtest() { this->StopAndGetStr(); }
+  std::string StopAndGetStr() {
+    if (!this->released_) {
+      this->captured_ = (is_stderr ? ::testing::internal::GetCapturedStderr()
+                                   : ::testing::internal::GetCapturedStdout());
+      this->released_ = true;
+    }
+    return this->captured_;
+  }
 };
 
-class CaptureStdoutGtest {
- public:
-  explicit CaptureStdoutGtest() { ::testing::internal::CaptureStdout(); }
-  // Use the get string method to release the capture
-  ~CaptureStdoutGtest() { this->GetString(); }
-  std::string GetString() const { return ::testing::internal::GetCapturedStdout(); }
-};
-
-using CaptureStderr = CaptureStderrGtest;
-using CaptureStdout = CaptureStdoutGtest;
+using CaptureStderr = CaptureStdGtest<true>;
+using CaptureStdout = CaptureStdGtest<false>;
 #endif
 }  // namespace xgboost
