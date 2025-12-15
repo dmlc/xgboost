@@ -82,7 +82,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   cpu_impl::GetDataShape(ctx, proxy, iter.get(), missing, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
 
-  this->n_batches_ = ext_info.n_batches;
+  this->base_rowids_ = ext_info.base_rowids;
 
   /**
    * Generate quantiles

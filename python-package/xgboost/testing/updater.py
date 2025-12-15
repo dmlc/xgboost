@@ -286,7 +286,7 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
     *,
     n_batches: int,
     n_bins: int,
-    device: str,
+    device: Device,
     on_host: bool,
     is_cat: bool,
 ) -> None:
@@ -463,7 +463,7 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
     n_features: int,
     *,
     n_cats: int,
-    device: str,
+    device: Device,
     sparsity: float,
     tree_method: str,
     onehot: bool,
@@ -503,7 +503,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     cols: int,
     rounds: int,
     cats: int,
-    device: str,
+    device: Device,
     tree_method: str,
     extmem: bool,
 ) -> None:
@@ -603,7 +603,7 @@ def check_categorical_missing(  # pylint: disable=too-many-arguments
     cols: int,
     cats: int,
     *,
-    device: str,
+    device: Device,
     tree_method: str,
     extmem: bool,
 ) -> None:

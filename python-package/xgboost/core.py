@@ -23,6 +23,7 @@ from typing import (
     Dict,
     Generator,
     Iterable,
+    Iterator,
     List,
     Optional,
     Sequence,
@@ -77,7 +78,13 @@ from .compat import (
     py_str,
 )
 from .libpath import find_lib_path
-from .objective import TreeObjective
+from .objective import (
+    Objective,
+    PlainObj,
+    TreeObjective,
+    _grad_arrinf,
+    _GradientContainer,
+)
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -1393,6 +1400,47 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         _check_call(_LIB.XGDMatrixNumNonMissing(self.handle, ctypes.byref(ret)))
         return ret.value
 
+    def num_batches(self) -> int:
+        """Get the number of internal data batches.
+
+        .. versionadded:: 3.2.0
+
+        """
+        ret = c_bst_ulong()
+        _check_call(_LIB.XGDMatrixNumBatches(self.handle, ctypes.byref(ret)))
+        return ret.value
+
+    def iter_info_batches(self) -> Iterator["DMatrix"]:
+        """Iterate through non-feature data like labels in batches.
+
+        .. versionadded:: 3.2.0
+
+        .. warning::
+
+            Working-in-progress. Do not use this method unless you want to participate
+            in development.
+
+        """
+        it = ctypes.c_void_p()
+        is_valid = ctypes.c_int(0)
+
+        _check_call(_LIB.XGDMatrixGetInfoBatches(self.handle, ctypes.byref(it)))  # init
+        _check_call(_LIB.XGDMatrixInfoBatchIsValid(it, ctypes.byref(is_valid)))
+
+        assert is_valid.value == 1, is_valid
+
+        k = 0
+        while is_valid.value == 1:
+            proxy = _ProxyDMatrix()
+            _check_call(_LIB.XGDMatrixInfoBatchNext(it, proxy.handle))
+            _check_call(_LIB.XGDMatrixInfoBatchIsValid(it, ctypes.byref(is_valid)))
+            k += 1
+            yield proxy
+
+        _check_call(_LIB.XGDMatrixInfoBatchEnd(it))
+        # k == 1 for learnig to rank, where slicing is not supported.
+        assert k == self.num_batches() or k == 1
+
     def data_split_mode(self) -> DataSplitMode:
         """Get the data split mode of the DMatrix.
 
@@ -1921,7 +1969,6 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             self.ref = weakref.ref(ref)
 
 
-Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
 Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
 
 
@@ -2389,19 +2436,23 @@ class Booster:
         self,
         dtrain: DMatrix,
         iteration: int,
-        fobj: Optional[Objective] = None,
+        fobj: Optional[PlainObj] = None,
     ) -> None:
         """Update for one iteration, with objective function calculated
-        internally.  This function should not be called directly by users.
+        internally.
+
+        .. warning::
+
+            This function should not be called directly by users.
 
         Parameters
         ----------
         dtrain :
             Training data.
-        iteration :
-            Current iteration number.
+        iteration:
+            The current Training iteration.
         fobj :
-            Customized objective function.
+            Custom objective function.
 
         """
         if not isinstance(dtrain, DMatrix):
@@ -2414,105 +2465,125 @@ class Booster:
                     self.handle, ctypes.c_int(iteration), dtrain.handle
                 )
             )
-        else:
-            pred = self.predict(dtrain, output_margin=True, training=True)
+            return
+
+        self.boost(dtrain, iteration, grad=None, hess=None, fobj=fobj)
+
+    def gradient(
+        self, dtrain: DMatrix, iteration: int, y_pred: ArrayLike, fobj: PlainObj
+    ) -> _GradientContainer:
+        """Calculate the gradient using a custom objective.
+
+        .. warning::
+
+            Like :py:func:`xgboost.Booster.update`, this function should not be called
+            directly by users.
+
+        Parameters
+        ----------
+        y_pred:
+            Prediction from the booster.
+        iteration:
+            The current training iteration.
+        dtrain :
+            The training DMatrix.
+        fobj :
+            Custom objective function.
+
+        """
+        handle = ctypes.c_void_p()
+        _check_call(_LIB.XGGradientContainerCreate(self.handle, ctypes.byref(handle)))
+        gradc = _GradientContainer(handle)
+
+        def calc_grad(y_pred: ArrayLike, dtrain: DMatrix) -> None:
+            """Get gradient for one batch of data."""
             vgrad: Optional[ArrayLike]
             vhess: Optional[ArrayLike]
-            vgrad, vhess = fobj(pred, dtrain)
-            if isinstance(fobj, TreeObjective):
-                sgrad, shess = fobj.split_grad(vgrad, vhess)
-            else:
-                sgrad, shess = vgrad, vhess
-                vgrad, vhess = None, None
-            self.boost(
-                dtrain,
-                iteration=iteration,
-                grad=sgrad,
-                hess=shess,
-                _vgrad=vgrad,
-                _vhess=vhess,
-            )
 
-    def boost(
+            if isinstance(fobj, TreeObjective):
+                # full gradient for leaf values
+                vgrad, vhess = fobj(iteration, y_pred, dtrain)
+                # Reduced gradient for split nodes
+                sgrad, shess = fobj.split_grad(iteration, vgrad, vhess)
+            elif isinstance(fobj, Objective):
+                sgrad, shess = fobj(iteration, y_pred, dtrain)
+                vgrad, vhess = None, None
+            else:
+                # Plain callable
+                sgrad, shess = fobj(y_pred, dtrain)
+                vgrad, vhess = None, None
+
+            gradc.push_grad(sgrad, shess)
+            if vgrad is not None:
+                gradc.push_value_grad(vgrad, vhess)
+
+        if dtrain.num_batches() == 1:
+            # Calculate the gradient without the overhead of a proxy DMatrix.
+            calc_grad(y_pred, dtrain)
+            return gradc
+
+        base_rowid = 0
+
+        # Calculate gradient for each batch
+        for proxy in dtrain.iter_info_batches():
+            n_samples = proxy.num_row()
+            y_pred_batch = y_pred[base_rowid : base_rowid + n_samples]
+            calc_grad(y_pred_batch, proxy)
+            base_rowid += n_samples
+
+        return gradc
+
+    def boost(  # pylint: disable=too-many-positional-arguments
         self,
         dtrain: DMatrix,
         iteration: int,
-        grad: NumpyOrCupy,
-        hess: NumpyOrCupy,
-        _vgrad: Optional[NumpyOrCupy] = None,  # WIP vector-leaf support
-        _vhess: Optional[NumpyOrCupy] = None,  # WIP vector-leaf support
+        grad: Optional[NumpyOrCupy],
+        hess: Optional[NumpyOrCupy],
+        fobj: Optional[PlainObj],
     ) -> None:
         """Boost the booster for one iteration with customized gradient statistics.
-        Like :py:func:`xgboost.Booster.update`, this function should not be called
-        directly by users.
+
+        .. warning::
+
+            Like :py:func:`xgboost.Booster.update`, this function should not be called
+            directly by users.
 
         Parameters
         ----------
         dtrain :
             The training DMatrix.
+        iteration:
+            The current training iteration.
         grad :
             The first order of gradient.
         hess :
             The second order of gradient.
 
         """
-        from .data import _ensure_np_dtype, _is_cupy_alike
-
         self._assign_dmatrix_features(dtrain)
-
-        def is_flatten(array: NumpyOrCupy) -> bool:
-            return len(array.shape) == 1 or array.shape[1] == 1
-
-        def grad_arrinf(array: NumpyOrCupy) -> bytes:
-            # Can we check for __array_interface__ instead of a specific type instead?
-            msg = (
-                "Expecting `np.ndarray` or `cupy.ndarray` for gradient and hessian."
-                f" Got: {type(array)}"
-            )
-            if not isinstance(array, np.ndarray) and not _is_cupy_alike(array):
-                raise TypeError(msg)
-
-            n_samples = dtrain.num_row()
-            if array.shape[0] != n_samples and is_flatten(array):
-                warnings.warn(
-                    "Since 2.1.0, the shape of the gradient and hessian is required to"
-                    " be (n_samples, n_targets) or (n_samples, n_classes).",
-                    FutureWarning,
-                )
-                array = array.reshape(n_samples, array.size // n_samples)
-
-            if isinstance(array, np.ndarray):
-                array, _ = _ensure_np_dtype(array, array.dtype)
-                interface = array_interface(array)
-            elif _is_cupy_alike(array):
-                interface = cuda_array_interface(array)
-            else:
-                raise TypeError(msg)
-
-            return interface
-
-        if _vgrad is not None or _vhess is not None:
-            assert _vhess is not None and _vgrad is not None
+        n_samples = dtrain.num_row()
+        y_pred = self.predict(dtrain, output_margin=True, training=True)
+        if fobj is not None:
+            gradc = self.gradient(dtrain, iteration, y_pred, fobj)
             _check_call(
                 _LIB.XGBoosterTrainOneIterWithSplitGrad(
-                    self.handle,
-                    dtrain.handle,
-                    iteration,
-                    grad_arrinf(grad),
-                    grad_arrinf(hess),
-                    grad_arrinf(_vgrad),
-                    grad_arrinf(_vhess),
+                    self.handle, dtrain.handle, iteration, gradc.handle
                 )
             )
-        else:
+        elif grad is not None and hess is not None:
             _check_call(
                 _LIB.XGBoosterTrainOneIter(
                     self.handle,
                     dtrain.handle,
                     iteration,
-                    grad_arrinf(grad),
-                    grad_arrinf(hess),
+                    _grad_arrinf(grad, n_samples),
+                    _grad_arrinf(hess, n_samples),
                 )
+            )
+        else:
+            raise ValueError(
+                "Invalid arguments to the boost function. ",
+                "`fobj` is expected to be an objective.",
             )
 
     def eval_set(

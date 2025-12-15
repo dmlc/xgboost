@@ -122,6 +122,17 @@ class MetaInfo {
    * @param nnz   The number of non-missing values.
    */
   MetaInfo Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs, bst_idx_t nnz) const;
+  /**
+   * @brief Slice the meta info by range.
+   *
+   * Only sample-based data like labels and weights are sliced, others like feature names are
+   * ignored. We can add support for those if needed. For now, this is used to expose batch
+   * information for custom objective.
+   *
+   * If the data contains group, the range must be full range of the dataset as we don't want to
+   * split the data.
+   */
+  void Slice(Context const* ctx, linalg::Extent range, MetaInfo* p_out) const;
 
   MetaInfo Copy() const;
   /**
@@ -582,8 +593,20 @@ class DMatrix {
   }
   /** @brief meta information of the dataset */
   [[nodiscard]] virtual const MetaInfo& Info() const = 0;
-
-  /*! \brief Get thread local memory for returning data from DMatrix. */
+  [[nodiscard]] virtual bst_idx_t BaseRowId(std::int32_t batch_idx) const {
+    CHECK_LT(batch_idx, this->NumBatches());
+    return 0;
+  }
+  /** @brief Get the number of rows for a batch. */
+  [[nodiscard]] bst_idx_t BatchSize(std::int32_t batch_idx) const {
+    // The last batch
+    if (batch_idx == this->NumBatches() - 1) {
+      return this->Info().num_row_ - this->BaseRowId(batch_idx);
+    }
+    // Get the diff
+    return this->BaseRowId(batch_idx + 1) - this->BaseRowId(batch_idx);
+  }
+  /**! @brief Get thread local memory for returning data from DMatrix. */
   [[nodiscard]] XGBAPIThreadLocalEntry& GetThreadLocal() const;
   /**
    * @brief Get the context object of this DMatrix.  The context is created during construction of

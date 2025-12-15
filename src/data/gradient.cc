@@ -1,0 +1,62 @@
+/**
+ * Copyright 2025, XGBoost Contributors
+ */
+#include "xgboost/gradient.h"
+
+#include "../common/threading_utils.h"
+#include "array_interface.h"
+
+namespace xgboost {
+namespace cuda_impl {
+void CopyGrad(Context const*, ArrayInterface<2, false> const&, ArrayInterface<2, false> const&,
+              linalg::Matrix<GradientPair>*);
+}
+namespace cpu_impl {
+void CopyGrad(Context const* ctx, ArrayInterface<2, false> const& i_grad,
+              ArrayInterface<2, false> const& i_hess, linalg::Matrix<GradientPair>* out_gpair) {
+  out_gpair->Reshape(i_grad.Shape<0>(), i_grad.Shape<1>());
+  auto h_gpair = out_gpair->HostView();
+  DispatchDType(i_grad, DeviceOrd::CPU(), [&](auto&& t_grad) {
+    DispatchDType(i_hess, DeviceOrd::CPU(), [&](auto&& t_hess) {
+      common::ParallelFor(h_gpair.Size(), ctx->Threads(),
+                          CustomGradHessOp{t_grad, t_hess, h_gpair});
+    });
+  });
+}
+}  // namespace cpu_impl
+
+namespace {
+void DispatchCopyGrad(Context const* ctx, ArrayInterface<2, false> const& i_grad,
+                      ArrayInterface<2, false> const& i_hess,
+                      linalg::Matrix<GradientPair>* out_gpair) {
+  auto grad_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_grad.data);
+  auto hess_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_hess.data);
+  CHECK_EQ(grad_is_cuda, hess_is_cuda) << "gradient and hessian should be on the same device.";
+
+  StringView msg{"Mismatched shape between the gradient and hessian."};
+  CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
+  CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
+
+  linalg::Matrix<GradientPair> gpair;
+  if (!grad_is_cuda) {
+    cpu_impl::CopyGrad(ctx, i_grad, i_hess, &gpair);
+  } else {
+    cuda_impl::CopyGrad(ctx, i_grad, i_hess, &gpair);
+  }
+
+  linalg::Stack(out_gpair, gpair);
+}
+}  // namespace
+
+void GradientContainer::PushGrad(Context const* ctx, StringView grad, StringView hess) {
+  ArrayInterface<2, false> i_grad{StringView{grad}};
+  ArrayInterface<2, false> i_hess{StringView{hess}};
+  DispatchCopyGrad(ctx, i_grad, i_hess, &this->gpair);
+}
+
+void GradientContainer::PushValueGrad(Context const* ctx, StringView grad, StringView hess) {
+  ArrayInterface<2, false> i_grad{StringView{grad}};
+  ArrayInterface<2, false> i_hess{StringView{hess}};
+  DispatchCopyGrad(ctx, i_grad, i_hess, &this->value_gpair);
+}
+}  // namespace xgboost

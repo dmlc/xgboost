@@ -93,6 +93,10 @@ class SparsePageDMatrix : public DMatrix {
   [[nodiscard]] const MetaInfo &Info() const override;
   [[nodiscard]] Context const *Ctx() const override { return &fmat_ctx_; }
   [[nodiscard]] std::int32_t NumBatches() const override { return ext_info_.n_batches; }
+  [[nodiscard]] bst_idx_t BaseRowId(std::int32_t batch_idx) const final {
+    // sparse page dmatrix doesn't support page concatenation, use info from the external source.
+    return this->ext_info_.base_rowids.at(batch_idx);
+  }
   DMatrix *Slice(common::Span<std::int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;

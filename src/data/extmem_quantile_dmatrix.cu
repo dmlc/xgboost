@@ -105,7 +105,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   } else {
     CHECK_EQ(this->cache_info_.at(id)->Size(), ext_info.n_batches);
   }
-  this->n_batches_ = this->cache_info_.at(id)->Size();
+  // Set the base_rowid.
+  cinfo.BaseRowIds(&this->base_rowids_);
   if (cuts->HasCategorical()) {
     CHECK(!this->info_.feature_types.Empty());
   }

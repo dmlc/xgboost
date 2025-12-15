@@ -255,6 +255,8 @@ constexpr detail::RangeTag<I> Range(I beg, I end) {
   return {beg, end};
 }
 
+using Extent = detail::RangeTag<std::size_t>;
+
 enum Order : std::uint8_t {
   kC,  // Row major
   kF,  // Col major
@@ -875,7 +877,7 @@ class Tensor {
   [[nodiscard]] std::size_t Size() const { return data_.Size(); }
   [[nodiscard]] bool Empty() const { return Size() == 0; }
 
-  auto Shape() const { return common::Span<size_t const, kDim>{shape_}; }
+  auto Shape() const { return common::Span<std::size_t const, kDim>{shape_}; }
   auto Shape(size_t i) const { return shape_[i]; }
 
   HostDeviceVector<T> *Data() { return &data_; }

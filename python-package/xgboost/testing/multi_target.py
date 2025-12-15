@@ -72,16 +72,16 @@ class LsObj0(TreeObjective):
     """Split grad is the same as value grad."""
 
     def __call__(
-        self, y_pred: ArrayLike, dtrain: DMatrix
+        self, iteration: int, y_pred: ArrayLike, dtrain: DMatrix
     ) -> Tuple[ArrayLike, ArrayLike]:
         cp = import_cupy()
 
         y_true = dtrain.get_label().reshape(y_pred.shape)
-        grad, hess = tm.ls_obj(y_true, y_pred, None)
+        grad, hess = tm.ls_obj(cp.array(y_true), cp.array(y_pred), None)
         return cp.array(grad), cp.array(hess)
 
     def split_grad(
-        self, grad: ArrayLike, hess: ArrayLike
+        self, iteration: int, grad: ArrayLike, hess: ArrayLike
     ) -> Tuple[ArrayLike, ArrayLike]:
         cp = import_cupy()
 
@@ -92,7 +92,7 @@ class LsObj1(Objective):
     """No split grad."""
 
     def __call__(
-        self, y_pred: ArrayLike, dtrain: DMatrix
+        self, iteration: int, y_pred: ArrayLike, dtrain: DMatrix
     ) -> Tuple[ArrayLike, ArrayLike]:
         cp = import_cupy()
 
@@ -151,7 +151,7 @@ def run_reduced_grad(device: Device) -> None:
             self._chk = check_used
 
         def split_grad(
-            self, grad: ArrayLike, hess: ArrayLike
+            self, iteration: int, grad: ArrayLike, hess: ArrayLike
         ) -> Tuple[cp.ndarray, cp.ndarray]:
             if self._chk:
                 assert False

@@ -59,6 +59,8 @@ struct EllpackCacheInfo {
   // Only effective for host-based cache.
   // The number of batches for the concatenated cache.
   [[nodiscard]] std::size_t NumBatchesCc() const { return this->buffer_rows.size(); }
+  // Calculate the base row index for each batch
+  void BaseRowIds(std::vector<bst_idx_t>* base_rowids) const;
 };
 
 // We need to decouple the storage and the view of the storage so that we can implement

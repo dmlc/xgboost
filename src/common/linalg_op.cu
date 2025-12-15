@@ -39,4 +39,23 @@ void SmallHistogram(Context const* ctx, linalg::MatrixView<float const> indices,
   common::SegmentedSum(cuctx->Stream(), val_it, linalg::tbegin(bins), n_bins, counts_out.cbegin(),
                        counts_out.cbegin() + 1);
 }
+
+template <typename T, std::int32_t D>
+void Copy(Context const* ctx, TensorView<T const, D> in, linalg::Tensor<T, D>* p_out) {
+  auto out = p_out->View(ctx->Device());
+  if (in.CContiguous() && out.CContiguous()) {
+    auto src = in.Values();
+    auto dst = out.Values();
+    // Use the size of the destination pointer as the input might be larger due to array slicing.
+    dh::safe_cuda(cudaMemcpyAsync(dst.data(), src.data(), dst.size_bytes(), cudaMemcpyDefault,
+                                  ctx->CUDACtx()->Stream()));
+    return;
+  }
+  thrust::copy(ctx->CUDACtx()->CTP(), tcbegin(in), tcend(in), tbegin(out));
+}
+// explicit instantiations
+template void Copy<float, 1>(Context const* ctx, TensorView<float const, 1> in,
+                             linalg::Tensor<float, 1>* p_out);
+template void Copy<float, 2>(Context const* ctx, TensorView<float const, 2> in,
+                             linalg::Tensor<float, 2>* p_out);
 }  // namespace xgboost::linalg::cuda_impl

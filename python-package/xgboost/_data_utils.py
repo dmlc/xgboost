@@ -387,6 +387,11 @@ def _ensure_np_dtype(
     return data, dtype
 
 
+def is_flatten(array: NumpyOrCupy) -> bool:
+    """Whether an array is flat."""
+    return len(array.shape) == 1 or array.shape[1] == 1
+
+
 def array_interface_dict(data: np.ndarray) -> ArrayInf:
     """Returns an array interface from the input."""
     if array_hasobject(data):

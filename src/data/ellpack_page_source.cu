@@ -4,8 +4,9 @@
 #include <algorithm>  // for max
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int8_t, uint64_t, uint32_t
+#include <iterator>   // for back_inserter
 #include <memory>     // for shared_ptr, make_unique, make_shared
-#include <numeric>    // for accumulate
+#include <numeric>    // for accumulate, partial_sum
 #include <utility>    // for move
 
 #include "../common/common.h"                // for HumanMemUnit, safe_cuda
@@ -40,6 +41,13 @@ namespace {
 #endif
 }
 }  // namespace
+
+void EllpackCacheInfo::BaseRowIds(std::vector<bst_idx_t>* base_rowids) const {
+  base_rowids->clear();
+  base_rowids->push_back(0);
+  std::copy(this->buffer_rows.cbegin(), this->buffer_rows.cend(), std::back_inserter(*base_rowids));
+  std::partial_sum(base_rowids->begin(), base_rowids->end(), base_rowids->begin());
+}
 
 /**
  * Cache

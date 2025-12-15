@@ -271,5 +271,33 @@ void LoadVector(Json const& in, linalg::Vector<T>* out) {
 
 void SmallHistogram(Context const* ctx, linalg::MatrixView<float const> indices,
                     common::OptionalWeights const& weights, linalg::VectorView<float> bins);
+
+namespace cuda_impl {
+template <typename T, std::int32_t D>
+void Copy(Context const* ctx, TensorView<T const, D> in, linalg::Tensor<T, D>* p_out);
+}  // namespace cuda_impl
+
+template <typename T, std::int32_t D>
+void Copy(Context const* ctx, TensorView<T const, D> in, linalg::Tensor<T, D>* p_out) {
+  CHECK_EQ(ctx->Device(), in.Device());
+  p_out->SetDevice(in.Device());
+  if (in.Size() == 0) {
+    return;
+  }
+  p_out->Reshape(in.Shape());
+  CHECK_EQ(p_out->Size(), in.Size());
+
+  ctx->DispatchDevice(
+      [&] {
+        auto out = p_out->HostView();
+        if (in.CContiguous() && out.CContiguous()) {
+          std::copy_n(in.Values().data(), in.Size(), out.Values().data());
+          return;
+        }
+        std::copy(xgboost::linalg::cbegin(in), xgboost::linalg::cend(in),
+                  xgboost::linalg::begin(out));
+      },
+      [&] { cuda_impl::Copy(ctx, in, p_out); });
+}
 }  // namespace xgboost::linalg
 #endif  // XGBOOST_COMMON_LINALG_OP_H_

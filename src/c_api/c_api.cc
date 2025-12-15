@@ -35,6 +35,7 @@
 #include "dmlc/io.h"                     // for Stream
 #include "dmlc/parameter.h"              // for FieldAccessEntry, FieldEntry, ParamManager
 #include "dmlc/thread_local.h"           // for ThreadLocalStore
+#include "grad_c_api.h"                  // for GradientContainerHandle
 #include "xgboost/base.h"                // for bst_ulong, bst_float, GradientPair, bst_feat...
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for DMatrix, MetaInfo, DataType, ExtSparsePage
@@ -431,16 +432,6 @@ XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle *out) {
   *out = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);
   API_END();
 }
-
-namespace {
-[[nodiscard]] xgboost::data::DMatrixProxy *GetDMatrixProxy(DMatrixHandle handle) {
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
-  CHECK(m) << "Current DMatrix type does not support set data.";
-  return m;
-}
-}  // namespace
 
 XGB_DLL int XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle, char const *data) {
   API_BEGIN();
@@ -902,41 +893,49 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle, xgboost::bst_ulong *out) {
+namespace {
+template <typename Fn>
+std::enable_if_t<std::is_integral_v<std::invoke_result_t<Fn, DMatrix const *>>, int>
+GetDMatrixShape(DMatrixHandle handle, xgboost::bst_ulong *out, Fn &&fn) {
   API_BEGIN();
   CHECK_HANDLE();
   auto p_m = CastDMatrixHandle(handle);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = static_cast<xgboost::bst_ulong>(p_m->Info().num_row_);
+  *out = fn(p_m.get());
   API_END();
 }
+}  // namespace
 
-XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, xgboost::bst_ulong *out) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto p_m = CastDMatrixHandle(handle);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = static_cast<xgboost::bst_ulong>(p_m->Info().num_col_);
-  API_END();
+XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle, bst_ulong *out) {
+  return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
+    return static_cast<xgboost::bst_ulong>(p_fmat->Info().num_row_);
+  });
+}
+
+XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, bst_ulong *out) {
+  return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
+    return static_cast<xgboost::bst_ulong>(p_fmat->Info().num_col_);
+  });
 }
 
 // We name the function non-missing instead of non-zero since zero is perfectly valid for XGBoost.
-XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle const handle, xgboost::bst_ulong *out) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto p_m = CastDMatrixHandle(handle);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = static_cast<xgboost::bst_ulong>(p_m->Info().num_nonzero_);
-  API_END();
+XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out) {
+  return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
+    return static_cast<xgboost::bst_ulong>(p_fmat->Info().num_nonzero_);
+  });
+}
+
+// fixme: hidden
+XGB_DLL int XGDMatrixNumBatches(DMatrixHandle handle, bst_ulong *out) {
+  return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
+    return static_cast<xgboost::bst_ulong>(p_fmat->NumBatches());
+  });
 }
 
 XGB_DLL int XGDMatrixDataSplitMode(DMatrixHandle handle, bst_ulong *out) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto p_m = CastDMatrixHandle(handle);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = static_cast<xgboost::bst_ulong>(p_m->Info().data_split_mode);
-  API_END();
+  return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
+    return static_cast<xgboost::bst_ulong>(p_fmat->Info().data_split_mode);
+  });
 }
 
 XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
@@ -1187,19 +1186,6 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle, DMatrixHandle dtrain, bs
   API_END();
 }
 
-namespace xgboost {
-// copy user-supplied CUDA gradient arrays
-void CopyGradientFromCudaArrays(Context const *, ArrayInterface<2, false> const &,
-                                ArrayInterface<2, false> const &, linalg::Matrix<GradientPair> *)
-#if !defined(XGBOOST_USE_CUDA)
-{
-  common::AssertGPUSupport();
-}
-#else
-;  // NOLINT
-#endif
-}  // namespace xgboost
-
 XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, int iter,
                                   char const *grad, char const *hess) {
   API_BEGIN();
@@ -1207,73 +1193,31 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   xgboost_CHECK_C_ARG_PTR(grad);
   xgboost_CHECK_C_ARG_PTR(hess);
   auto p_fmat = CastDMatrixHandle(dtrain);
-  ArrayInterface<2, false> i_grad{StringView{grad}};
-  ArrayInterface<2, false> i_hess{StringView{hess}};
-  StringView msg{"Mismatched shape between the gradient and hessian."};
-  CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
-  CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
-  GradientContainer gpair;
-  auto grad_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_grad.data);
-  auto hess_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_hess.data);
-  CHECK_EQ(i_grad.Shape<0>(), p_fmat->Info().num_row_)
-      << "Mismatched size between the gradient and training data.";
-  CHECK_EQ(grad_is_cuda, hess_is_cuda) << "gradient and hessian should be on the same device.";
   auto *learner = static_cast<Learner *>(handle);
-  auto ctx = learner->Ctx();
-  if (!grad_is_cuda) {
-    gpair.gpair.Reshape(i_grad.Shape<0>(), i_grad.Shape<1>());
-    auto h_gpair = gpair.gpair.HostView();
-    DispatchDType(i_grad, DeviceOrd::CPU(), [&](auto &&t_grad) {
-      DispatchDType(i_hess, DeviceOrd::CPU(), [&](auto &&t_hess) {
-        common::ParallelFor(h_gpair.Size(), ctx->Threads(),
-                            detail::CustomGradHessOp{t_grad, t_hess, h_gpair});
-      });
-    });
-  } else {
-    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.gpair);
-  }
+  GradientContainer gpair;
+  gpair.PushGrad(learner->Ctx(), StringView{grad}, StringView{hess});
+  CHECK_EQ(gpair.gpair.Shape(0), p_fmat->Info().num_row_)
+      << "Mismatched size between the gradient and training data.";
   learner->BoostOneIter(iter, p_fmat, &gpair);
   API_END();
 }
 
-typedef char const *JArrayStr;  // NOLINT
-
 // Hidden, working-in-progress support for reduced gradient. CUDA-only at the moment.
 /**
  * @brief Use a different type of gradient for tree split.
- *
- * @param split_grad Gradient for finding tree splits.
- * @param split_hess Hessian for finding tree splits.
- * @param value_grad Gradient for calculating tree leaf weights.
- * @param value_hess Hessian for calculating tree leaf weights.
  */
 XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHandle dtrain, int iter,
-                                               JArrayStr split_grad, JArrayStr split_hess,
-                                               JArrayStr value_grad, JArrayStr value_hess) {
+                                               GradientContainerHandle grad) {
   API_BEGIN();
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
-  GradientContainer gpair;
   auto ctx = learner->Ctx();
   CHECK(ctx->IsCUDA()) << "Reduced gradient with CPU" << MTNotImplemented();
-  {
-    ArrayInterface<2, false> i_grad{StringView{split_grad}};
-    ArrayInterface<2, false> i_hess{StringView{split_hess}};
-    CHECK(ArrayInterfaceHandler::IsCudaPtr(i_grad.data))
-        << "Reduced gradient with CPU" << MTNotImplemented();
-    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.gpair);
-  }
-  {
-    ArrayInterface<2, false> i_grad{StringView{value_grad}};
-    ArrayInterface<2, false> i_hess{StringView{value_hess}};
-    CHECK(ArrayInterfaceHandler::IsCudaPtr(i_grad.data))
-        << "Reduced gradient with CPU" << MTNotImplemented();
-    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.value_gpair);
-  }
-
+  auto gpairs = CastGradientContainerHandle(grad);
   auto p_fmat = CastDMatrixHandle(dtrain);
-  learner->BoostOneIter(iter, p_fmat, &gpair);
-
+  CHECK_EQ(gpairs->gpairs.gpair.Shape(0), p_fmat->Info().num_row_)
+      << "Mismatched size between the gradient and training data.";
+  learner->BoostOneIter(iter, p_fmat, &gpairs->gpairs);
   API_END();
 }
 

@@ -101,9 +101,12 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
                                                         impl_s->info.row_stride, impl_s->n_rows);
       new_impl->CopyInfo(impl_s);
       bst_idx_t offset = 0;
+      std::int32_t batch_idx = 0;
       for (auto const& page_m : p_ext_fmat->GetBatches<EllpackPage>(&ctx, param)) {
+        ASSERT_EQ(page_m.BaseRowId(), p_ext_fmat->BaseRowId(batch_idx));
         auto impl_m = page_m.Impl();
         offset += new_impl->Copy(&ctx, impl_m, offset);
+        batch_idx += 1;
       }
       AssertEllpackEq(&ctx, impl_s, new_impl.get());
     }
@@ -135,6 +138,7 @@ TEST(EllpackHostCacheTest, Accessor) {
                           .CacheHostRatio(0.0)
                           .GenerateExtMemQuantileDMatrix("temp", true);
     ASSERT_EQ(p_ext_fmat->NumBatches(), 1);
+    ASSERT_EQ(p_ext_fmat->BaseRowId(0), 0);
 
     for (auto const& page : p_ext_fmat->GetBatches<EllpackPage>(&ctx, param)) {
       auto acc = page.Impl()->GetDeviceEllpack(&ctx, {});
@@ -158,11 +162,14 @@ TEST(EllpackHostCacheTest, Accessor) {
                           .CacheHostRatio(0.5)
                           .GenerateExtMemQuantileDMatrix("temp", true);
     ASSERT_EQ(p_ext_fmat->NumBatches(), n_pages);
+    std::int32_t batch_idx = 0;
     for (auto const& page : p_ext_fmat->GetBatches<EllpackPage>(&ctx, param)) {
+      ASSERT_EQ(p_ext_fmat->BaseRowId(batch_idx), page.BaseRowId());
       auto acc = page.Impl()->GetDeviceEllpack(&ctx, {});
       // Host + device
       auto dacc = std::get_if<DoubleEllpackAccessor>(&acc);
       ASSERT_TRUE(dacc);
+      batch_idx += 1;
     }
   }
 }

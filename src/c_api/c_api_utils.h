@@ -14,7 +14,8 @@
 #include <utility>     // for move
 #include <vector>      // for vector
 
-#include "../common/json_utils.h"  // for TypeCheck
+#include "../common/json_utils.h"   // for TypeCheck
+#include "../data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"         // DMatrix
 #include "xgboost/feature_map.h"  // for FeatureMap
@@ -344,25 +345,17 @@ auto MakeGradientInterface(Context const *ctx, G const *grad, H const *hess, lin
   auto s_hess = linalg::ArrayInterfaceStr(t_hess);
   return std::make_tuple(s_grad, s_hess);
 }
-
-template <typename G, typename H>
-struct CustomGradHessOp {
-  linalg::MatrixView<G> t_grad;
-  linalg::MatrixView<H> t_hess;
-  linalg::MatrixView<GradientPair> d_gpair;
-
-  CustomGradHessOp(linalg::MatrixView<G> t_grad, linalg::MatrixView<H> t_hess,
-                   linalg::MatrixView<GradientPair> d_gpair)
-      : t_grad{std::move(t_grad)}, t_hess{std::move(t_hess)}, d_gpair{std::move(d_gpair)} {}
-
-  XGBOOST_DEVICE void operator()(std::size_t i) {
-    auto [m, n] = linalg::UnravelIndex(i, t_grad.Shape(0), t_grad.Shape(1));
-    auto g = t_grad(m, n);
-    auto h = t_hess(m, n);
-    // from struct of arrays to array of structs.
-    d_gpair(m, n) = GradientPair{static_cast<float>(g), static_cast<float>(h)};
-  }
-};
 }  // namespace detail
+
+// fixme: namespace
+[[nodiscard]] inline xgboost::data::DMatrixProxy *GetDMatrixProxy(DMatrixHandle handle) {
+  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  CHECK(p_m);
+  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
+  CHECK(m) << "Current DMatrix type does not support set data.";
+  return m;
+}
+
+typedef char const *JArrayStr;  // NOLINT
 }  // namespace xgboost
 #endif  // XGBOOST_C_API_C_API_UTILS_H_

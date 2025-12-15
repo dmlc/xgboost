@@ -34,6 +34,16 @@ void SmallHistogram(Context const*, linalg::MatrixView<float const>, common::Opt
                     linalg::VectorView<float>) {
   common::AssertGPUSupport();
 }
+
+template <typename T, std::int32_t D>
+void Copy(Context const*, TensorView<T const, D>, linalg::Tensor<T, D>*) {
+  common::AssertGPUSupport();
+}
+// explicit instantiations
+template void Copy<float, 1>(Context const* ctx, TensorView<float const, 1> in,
+                             linalg::Tensor<float, 1>* p_out);
+template void Copy<float, 2>(Context const* ctx, TensorView<float const, 2> in,
+                             linalg::Tensor<float, 2>* p_out);
 #endif
 }  // namespace cuda_impl
 

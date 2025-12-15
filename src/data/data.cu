@@ -41,7 +41,7 @@ void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T
       << "Meta info like label or weight can not have missing value.";
   auto ptr_device = DeviceOrd::CUDA(SetDeviceToPtr(array.data));
   p_out->SetDevice(ptr_device);
-
+  // We can use the fast path as there's no masked value for meta info.
   if (array.is_contiguous && array.type == ToDType<T>::kType) {
     p_out->ModifyInplace([&](HostDeviceVector<T>* data, common::Span<size_t, D> shape) {
       // set shape

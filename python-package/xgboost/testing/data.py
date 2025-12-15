@@ -1115,11 +1115,13 @@ class IteratorForTest(DataIter):
         cache: Optional[str],
         on_host: bool = False,
         min_cache_page_bytes: Optional[int] = None,
+        qid: Optional[Sequence] = None,
     ) -> None:
         assert len(X) == len(y)
         self.X = X
         self.y = y
         self.w = w
+        self.qid = qid
         self.it = 0
         super().__init__(
             cache_prefix=cache,
@@ -1139,6 +1141,7 @@ class IteratorForTest(DataIter):
             data=self.X[self.it].copy(),
             label=self.y[self.it].copy(),
             weight=self.w[self.it].copy() if self.w else None,
+            qid=self.qid[self.it].copy() if self.qid else None,
         )
         gc.collect()  # clear up the copy, see if XGBoost access freed memory.
         self.it += 1

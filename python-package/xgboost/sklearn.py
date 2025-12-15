@@ -55,7 +55,6 @@ from .core import (
     Booster,
     DMatrix,
     Metric,
-    Objective,
     QuantileDMatrix,
     XGBoostError,
     _deprecate_positional_args,
@@ -71,6 +70,7 @@ from .data import (
     _is_pandas_df,
     _is_polars_lazyframe,
 )
+from .objective import PlainObj
 from .training import train
 
 
@@ -112,7 +112,7 @@ _SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
 SklObjective = Optional[Union[str, _SklObjWProto, _SklObjProto]]
 
 
-def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> Objective:
+def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> PlainObj:
     """Decorate an objective function
 
     Converts an objective function using the typical sklearn metrics
@@ -1362,7 +1362,7 @@ class XGBModel(XGBModelBase):
             )
 
             if callable(self.objective):
-                obj: Optional[Objective] = _objective_decorator(self.objective)
+                obj: Optional[PlainObj] = _objective_decorator(self.objective)
                 params["objective"] = "reg:squarederror"
             else:
                 obj = None
@@ -1768,7 +1768,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             params = self.get_xgb_params()
 
             if callable(self.objective):
-                obj: Optional[Objective] = _objective_decorator(self.objective)
+                obj: Optional[PlainObj] = _objective_decorator(self.objective)
                 # Use default value. Is it really not used ?
                 params["objective"] = "binary:logistic"
             else:

@@ -31,11 +31,11 @@ from .core import (
     Booster,
     DMatrix,
     Metric,
-    Objective,
     XGBoostError,
     _deprecate_positional_args,
     _RefMixIn,
 )
+from .objective import PlainObj
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -55,7 +55,7 @@ def train(
     num_boost_round: int = 10,
     *,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
-    obj: Optional[Objective] = None,
+    obj: Optional[PlainObj] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     evals_result: Optional[TrainingCallback.EvalsLog] = None,
@@ -226,7 +226,7 @@ class CVPack:
 
         return _inner
 
-    def update(self, iteration: int, fobj: Optional[Objective]) -> None:
+    def update(self, iteration: int, fobj: Optional[PlainObj]) -> None:
         """ "Update the boosters for one iteration"""
         self.bst.update(self.dtrain, iteration, fobj)
 
@@ -239,7 +239,7 @@ class _PackedBooster:
     def __init__(self, cvfolds: _CVFolds) -> None:
         self.cvfolds = cvfolds
 
-    def update(self, iteration: int, obj: Optional[Objective]) -> None:
+    def update(self, iteration: int, obj: Optional[PlainObj]) -> None:
         """Iterate through folds for update"""
         for fold in self.cvfolds:
             fold.update(iteration, obj)
@@ -440,7 +440,7 @@ def cv(
     stratified: bool = False,
     folds: XGBStratifiedKFold = None,
     metrics: Sequence[str] = (),
-    obj: Optional[Objective] = None,
+    obj: Optional[PlainObj] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     fpreproc: Optional[FPreProcCallable] = None,

@@ -9,13 +9,30 @@ reduction.
 
 """
 
+import ctypes
+import warnings
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Callable, Tuple
 
-from ._typing import ArrayLike
+import numpy as np
+
+from ._data_utils import (
+    _ensure_np_dtype,
+    array_interface,
+    cuda_array_interface,
+    is_flatten,
+)
+from ._typing import ArrayLike, NumpyOrCupy
+from .compat import _is_cupy_alike
 
 if TYPE_CHECKING:
     from .core import DMatrix
+
+
+__all__ = ["Objective", "TreeObjective"]
+
+# Objective was simply a callable before 3.2
+PlainObj = Callable[[np.ndarray, "DMatrix"], Tuple[np.ndarray, np.ndarray]]
 
 
 class Objective(ABC):
@@ -29,7 +46,7 @@ class Objective(ABC):
 
     @abstractmethod
     def __call__(
-        self, y_pred: ArrayLike, dtrain: "DMatrix"
+        self, iteration: int, y_pred: ArrayLike, dtrain: "DMatrix"
     ) -> Tuple[ArrayLike, ArrayLike]: ...
 
 
@@ -42,8 +59,69 @@ class TreeObjective(Objective):
 
     """
 
+    # pylint: disable=unused-argument
     def split_grad(
-        self, grad: ArrayLike, hess: ArrayLike
+        self, iteration: int, grad: ArrayLike, hess: ArrayLike
     ) -> Tuple[ArrayLike, ArrayLike]:
         """Provide a different gradient type for finding tree structures."""
         return grad, hess
+
+
+def _grad_arrinf(array: NumpyOrCupy, n_samples: int) -> bytes:
+    """Get array interface for gradient matrices."""
+    # Can we check for __array_interface__ instead of a specific type instead?
+    msg = (
+        "Expecting `np.ndarray` or `cupy.ndarray` for gradient and hessian."
+        f" Got: {type(array)}. For CUDA inputs, arrays with "
+        "`__cuda_array_interface__` are supported (like torch tensor)."
+    )
+    if not isinstance(array, np.ndarray) and not _is_cupy_alike(array):
+        raise TypeError(msg)
+
+    if array.shape[0] != n_samples and is_flatten(array):
+        warnings.warn(
+            "Since 2.1.0, the shape of the gradient and hessian is required to"
+            " be (n_samples, n_targets) or (n_samples, n_classes).",
+            FutureWarning,
+        )
+        array = array.reshape(n_samples, array.size // n_samples)
+
+    if isinstance(array, np.ndarray):
+        array, _ = _ensure_np_dtype(array, array.dtype)
+        interface = array_interface(array)
+    elif _is_cupy_alike(array):
+        interface = cuda_array_interface(array)
+    else:
+        raise TypeError(msg)
+
+    return interface
+
+
+class _GradientContainer:
+    """Internal class for storing gradient values produced by custom objectives."""
+
+    def __init__(self, hdl: ctypes.c_void_p) -> None:
+        self.handle = hdl
+
+    def push_value_grad(self, grad: ArrayLike, hess: ArrayLike) -> None:
+        """Push a batch of tree leaf value gradient into the container."""
+        from .core import _LIB, _check_call
+
+        igrad = cuda_array_interface(grad)
+        ihess = cuda_array_interface(hess)
+        _check_call(_LIB.XGGradientContainerPushValueGrad(self.handle, igrad, ihess))
+
+    def push_grad(self, sgrad: NumpyOrCupy, shess: NumpyOrCupy) -> None:
+        """Push a batch of (tree split) gradient into the container."""
+        from .core import _LIB, _check_call
+
+        igrad = cuda_array_interface(sgrad)
+        ihess = cuda_array_interface(shess)
+        _check_call(_LIB.XGGradientContainerPushGrad(self.handle, igrad, ihess))
+
+    def __del__(self) -> None:
+        from .core import _LIB, _check_call
+
+        if hasattr(self, "handle"):
+            _check_call(_LIB.XGGradientContainerFree(self.handle))
+            del self.handle

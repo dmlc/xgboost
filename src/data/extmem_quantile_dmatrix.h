@@ -33,7 +33,15 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
                         std::int64_t max_quantile_blocks, ExtMemConfig const &config);
   ~ExtMemQuantileDMatrix() override;
 
-  [[nodiscard]] std::int32_t NumBatches() const override { return n_batches_; }
+  [[nodiscard]] std::int32_t NumBatches() const final {
+    if (base_rowids_.empty()) {
+      return 0;
+    }
+    return base_rowids_.size() - 1;
+  }
+  [[nodiscard]] bst_idx_t BaseRowId(std::int32_t batch_idx) const final {
+    return this->base_rowids_.at(batch_idx);
+  }
 
  private:
   void InitFromCPU(
@@ -44,8 +52,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
       Context const *ctx,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
       DMatrixHandle proxy_handle, BatchParam const &p, std::shared_ptr<DMatrix> ref,
-      std::int64_t max_quantile_blocks,
-      ExtMemConfig const &config);
+      std::int64_t max_quantile_blocks, ExtMemConfig const &config);
 
   [[nodiscard]] BatchSet<GHistIndexMatrix> GetGradientIndexImpl();
   BatchSet<GHistIndexMatrix> GetGradientIndex(Context const *ctx, BatchParam const &param) override;
@@ -67,7 +74,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
   std::string cache_prefix_;
   bool const on_host_;
   BatchParam batch_;
-  bst_idx_t n_batches_{0};
+  std::vector<bst_idx_t> base_rowids_;
 
   using EllpackDiskPtr = std::shared_ptr<ExtEllpackPageSource>;
   using EllpackHostPtr = std::shared_ptr<ExtEllpackPageHostSource>;

@@ -22,6 +22,7 @@
 #include "../collective/communicator-inl.h"   // for GetRank, IsFederated
 #include "../common/algorithm.h"              // for StableSort
 #include "../common/api_entry.h"              // for XGBAPIThreadLocalEntry
+#include "../common/cuda_context.cuh"         // for CUDAContext
 #include "../common/error_msg.h"              // for GroupSize, GroupWeight, InfInData
 #include "../common/group_data.h"             // for ParallelGroupBuilder
 #include "../common/io.h"                     // for PeekableInStream
@@ -471,6 +472,55 @@ MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs
   }
 
   return out;
+}
+
+void MetaInfo::Slice(Context const* ctx, linalg::Extent range, MetaInfo* p_out) const {
+  CHECK(!this->IsColumnSplit()) << "Column split is not yet supported.";
+  if (!group_ptr_.empty()) {
+    // Just a copy.
+    CHECK_EQ(range.Size(), this->num_row_);
+  }
+
+  auto slice = [&](auto const& in, auto* p_out) {
+    if (in.Empty() || range.Size() == 0) {
+      return;
+    }
+    in.SetDevice(ctx->Device());
+    auto v =
+        in.View(ctx->Device()).Slice(linalg::Range(range.beg, range.end), xgboost::linalg::All());
+    linalg::Copy(ctx, v, p_out);
+  };
+
+  auto slice_hdv = [&](HostDeviceVector<float> const& in, HostDeviceVector<float>* p_out) {
+    if (in.Empty() || range.Size() == 0) {
+      return;
+    }
+    in.SetDevice(ctx->Device());
+    p_out->SetDevice(ctx->Device());
+    p_out->Resize(range.Size());
+
+    ctx->DispatchDevice(
+        [&] {
+          auto h_in = in.ConstHostSpan().subspan(range.beg, range.Size());
+          auto h_out = p_out->HostPointer();
+          std::copy_n(h_in.data(), h_in.size(), h_out);
+        },
+        [&] {
+          auto d_in = in.ConstDeviceSpan().subspan(range.beg, range.Size());
+          auto d_out = p_out->DevicePointer();
+          curt::MemcpyAsync(d_out, d_in.data(), d_in.size_bytes(), ctx->CUDACtx()->Stream());
+        });
+  };
+
+  slice(this->labels, &p_out->labels);
+  slice_hdv(weights_, &p_out->weights_);
+  slice(this->base_margin_, &p_out->base_margin_);
+  slice_hdv(labels_lower_bound_, &p_out->labels_lower_bound_);
+  slice_hdv(labels_upper_bound_, &p_out->labels_upper_bound_);
+
+  // regardless whether there was actual copy, the size is always set. Slicing a metainfo
+  // without any actual data is valid.
+  p_out->num_row_ = range.Size();
 }
 
 MetaInfo MetaInfo::Copy() const {

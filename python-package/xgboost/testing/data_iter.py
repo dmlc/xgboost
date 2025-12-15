@@ -6,12 +6,12 @@ import numpy as np
 
 from xgboost import testing as tm
 
-from ..compat import import_cupy
+from ..compat import concat, import_cupy
 from ..core import DataIter, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
-from .utils import predictor_equal
+from .utils import Device, assert_allclose, predictor_equal
 
 
-def run_mixed_sparsity(device: str) -> None:
+def run_mixed_sparsity(device: Device) -> None:
     """Check QDM with mixed batches."""
     X_0, y_0, _ = tm.make_regression(128, 16, False)
     if device.startswith("cuda"):
@@ -40,7 +40,7 @@ def run_mixed_sparsity(device: str) -> None:
     assert predictor_equal(Xy_0, Xy_1)
 
 
-def check_invalid_cat_batches(device: str) -> None:
+def check_invalid_cat_batches(device: Device) -> None:
     """Check error message for inconsistent feature types."""
 
     class _InvalidCatIter(DataIter):
@@ -86,7 +86,7 @@ def check_invalid_cat_batches(device: str) -> None:
         DMatrix(it, enable_categorical=True)
 
 
-def check_uneven_sizes(device: str) -> None:
+def check_uneven_sizes(device: Device) -> None:
     """Tests for having irregular data shapes."""
     batches = [
         tm.make_regression(n_samples, 16, use_cupy=device == "cuda")
@@ -117,7 +117,7 @@ class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
         sparsity: float,
         cat_ratio: float,
         onehot: bool,
-        device: str,
+        device: Device,
         cache: Optional[str],
     ) -> None:
         super().__init__(cache_prefix=cache)
@@ -172,3 +172,53 @@ class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
 
     def reset(self) -> None:
         self._it = 0
+
+
+def run_get_info_batches(
+    device: Device, use_qdm: bool, min_cache_page_bytes: Optional[int]
+) -> None:
+    """Simple test for getting meta info in batches."""
+    n_batches = 3
+    n_samples = 16
+
+    X, y, w = tm.make_batches(n_samples, 4, n_batches, use_cupy=device == "cuda")
+
+    def run(qid: Optional[list]) -> None:
+        it = tm.IteratorForTest(
+            X,
+            y,
+            w if qid is None else None,
+            cache="cache",
+            on_host=True,
+            min_cache_page_bytes=min_cache_page_bytes,
+            qid=qid,
+        )
+        if not use_qdm:
+            Xy = DMatrix(it)
+        else:
+            Xy = ExtMemQuantileDMatrix(it)
+        k = 0
+        ys = []
+        for proxy in Xy.iter_info_batches():
+            y_batch = proxy.get_label()
+            ys.append(y_batch)
+            k += 1
+        y_orig = concat(y)
+        y_get = concat(ys)
+        if min_cache_page_bytes == 0 and qid is None:
+            assert k == n_batches, (k, n_batches)
+        if qid is not None:
+            assert k == 1
+
+        assert y_orig.shape == y_get.shape
+        assert_allclose(device, y_orig, y_get)
+
+    run(None)
+
+    # Test with groups
+    qid = [
+        np.full((n_samples // 4, 1), 0, dtype=np.int32),
+        np.full((n_samples // 4, 1), 1, dtype=np.int32),
+        np.full((n_samples // 2, 1), 2, dtype=np.int32),
+    ]
+    run(qid)

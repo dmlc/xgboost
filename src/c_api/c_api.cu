@@ -4,8 +4,6 @@
 #include <thrust/transform.h>  // for transform
 
 #include "../common/api_entry.h"       // for XGBAPIThreadLocalEntry
-#include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../data/array_interface.h"   // for DispatchDType, ArrayInterface
 #include "../data/device_adapter.cuh"
 #include "../data/proxy_dmatrix.h"
 #include "c_api_error.h"
@@ -82,27 +80,6 @@ void XGBoostAPIGuard::RestoreGPUAttribute() {
   // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
   // If errors, do nothing, assuming running on CPU only machine.
   cudaSetDevice(device_id_);
-}
-
-void CopyGradientFromCudaArrays(Context const *ctx, ArrayInterface<2, false> const &grad,
-                                ArrayInterface<2, false> const &hess,
-                                linalg::Matrix<GradientPair> *out_gpair) {
-  auto grad_dev = dh::CudaGetPointerDevice(grad.data);
-  auto hess_dev = dh::CudaGetPointerDevice(hess.data);
-  CHECK_EQ(grad_dev, hess_dev) << "gradient and hessian should be on the same device.";
-  auto &gpair = *out_gpair;
-  gpair.SetDevice(DeviceOrd::CUDA(grad_dev));
-  gpair.Reshape(grad.Shape<0>(), grad.Shape<1>());
-  auto d_gpair = gpair.View(DeviceOrd::CUDA(grad_dev));
-  auto cuctx = ctx->CUDACtx();
-
-  DispatchDType(grad, DeviceOrd::CUDA(grad_dev), [&](auto &&t_grad) {
-    DispatchDType(hess, DeviceOrd::CUDA(hess_dev), [&](auto &&t_hess) {
-      CHECK_EQ(t_grad.Size(), t_hess.Size());
-      thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), t_grad.Size(),
-                         detail::CustomGradHessOp{t_grad, t_hess, d_gpair});
-    });
-  });
 }
 }                        // namespace xgboost
 

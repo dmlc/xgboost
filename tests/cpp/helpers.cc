@@ -512,6 +512,7 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   std::size_t batch_count = 0;
   bst_idx_t row_count = 0;
   for (const auto& batch : p_fmat->GetBatches<xgboost::SparsePage>()) {
+    CHECK_EQ(batch.base_rowid, p_fmat->BaseRowId(batch_count));
     batch_count++;
     row_count += batch.Size();
     CHECK_NE(batch.data.Size(), 0);
