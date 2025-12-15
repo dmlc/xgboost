@@ -40,8 +40,8 @@ class CaptureStdRdBuf {
   }
 };
 
-using CaptureStderr = CaptureStdRdBuf<true>;
-using CaptureStdout = CaptureStdRdBuf<false>;
+using CaptureStderrImpl = CaptureStdRdBuf<true>;
+using CaptureStdoutImpl = CaptureStdRdBuf<false>;
 
 #else
 
@@ -67,7 +67,21 @@ class CaptureStdGtest {
   }
 };
 
-using CaptureStderr = CaptureStdGtest<true>;
-using CaptureStdout = CaptureStdGtest<false>;
+using CaptureStderrImpl = CaptureStdGtest<true>;
+using CaptureStdoutImpl = CaptureStdGtest<false>;
 #endif
+
+template <typename Fn>
+std::string CaptureStderr(Fn&& fn) {
+  CaptureStderrImpl capture;
+  fn();
+  return capture.StopAndGetStr();
+}
+
+template <typename Fn>
+std::string CaptureStdout(Fn&& fn) {
+  CaptureStdoutImpl capture;
+  fn();
+  return capture.StopAndGetStr();
+}
 }  // namespace xgboost

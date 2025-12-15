@@ -106,9 +106,7 @@ TEST(Numa, CpuListParser) {
   }
   {
     auto path = tmpdir.Path() / "foo";
-    CaptureStderr capture;
-    ReadCpuList(path, &cpus);
-    std::string output = capture.StopAndGetStr();
+    std::string output = CaptureStderr([&] { ReadCpuList(path, &cpus); });
     ASSERT_TRUE(cpus.empty());
     ASSERT_NE(output.find("foo"), std::string::npos);
   }
