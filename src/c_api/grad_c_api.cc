@@ -64,7 +64,6 @@ struct InfoIter {
 
 typedef void *InfoIterHandle;  // NOLINT
 
-// fixme: prevent ltr data from being sliced
 XGB_DLL int XGDMatrixGetInfoBatches(DMatrixHandle handle, InfoIterHandle *out) {
   API_BEGIN();
   CHECK_HANDLE();
