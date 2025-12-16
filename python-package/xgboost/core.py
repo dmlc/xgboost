@@ -1425,21 +1425,23 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         is_valid = ctypes.c_int(0)
 
         _check_call(_LIB.XGDMatrixGetInfoBatches(self.handle, ctypes.byref(it)))  # init
-        _check_call(_LIB.XGDMatrixInfoBatchIsValid(it, ctypes.byref(is_valid)))
-
-        assert is_valid.value == 1, is_valid
-
-        k = 0
-        while is_valid.value == 1:
-            proxy = _ProxyDMatrix()
-            _check_call(_LIB.XGDMatrixInfoBatchNext(it, proxy.handle))
+        try:
             _check_call(_LIB.XGDMatrixInfoBatchIsValid(it, ctypes.byref(is_valid)))
-            k += 1
-            yield proxy
 
-        _check_call(_LIB.XGDMatrixInfoBatchEnd(it))
-        # k == 1 for learnig to rank, where slicing is not supported.
-        assert k == self.num_batches() or k == 1
+            assert is_valid.value == 1, is_valid
+
+            k = 0
+            while is_valid.value == 1:
+                proxy = _ProxyDMatrix()
+                _check_call(_LIB.XGDMatrixInfoBatchNext(it, proxy.handle))
+                _check_call(_LIB.XGDMatrixInfoBatchIsValid(it, ctypes.byref(is_valid)))
+                k += 1
+                yield proxy
+
+            # k == 1 for learning to rank, where slicing is not supported.
+            assert k == self.num_batches() or k == 1
+        finally:
+            _check_call(_LIB.XGDMatrixInfoBatchEnd(it))
 
     def data_split_mode(self) -> DataSplitMode:
         """Get the data split mode of the DMatrix.
@@ -2582,7 +2584,7 @@ class Booster:
             )
         else:
             raise ValueError(
-                "Invalid arguments to the boost function. ",
+                "Invalid arguments to the boost function. "
                 "`fobj` is expected to be an objective.",
             )
 

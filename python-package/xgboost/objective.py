@@ -107,17 +107,17 @@ class _GradientContainer:
         """Push a batch of tree leaf value gradient into the container."""
         from .core import _LIB, _check_call
 
-        igrad = cuda_array_interface(grad)
-        ihess = cuda_array_interface(hess)
-        _check_call(_LIB.XGGradientContainerPushValueGrad(self.handle, igrad, ihess))
+        i_grad = _grad_arrinf(grad, grad.shape[0])
+        i_hess = _grad_arrinf(hess, hess.shape[0])
+        _check_call(_LIB.XGGradientContainerPushValueGrad(self.handle, i_grad, i_hess))
 
     def push_grad(self, sgrad: NumpyOrCupy, shess: NumpyOrCupy) -> None:
         """Push a batch of (tree split) gradient into the container."""
         from .core import _LIB, _check_call
 
-        igrad = cuda_array_interface(sgrad)
-        ihess = cuda_array_interface(shess)
-        _check_call(_LIB.XGGradientContainerPushGrad(self.handle, igrad, ihess))
+        i_grad = _grad_arrinf(sgrad, sgrad.shape[0])
+        i_hess = _grad_arrinf(shess, shess.shape[0])
+        _check_call(_LIB.XGGradientContainerPushGrad(self.handle, i_grad, i_hess))
 
     def __del__(self) -> None:
         from .core import _LIB, _check_call
