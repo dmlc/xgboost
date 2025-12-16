@@ -572,31 +572,6 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
   });
 }
 
-float FillNodeMeanValues(tree::ScalarTreeView const &tree, bst_node_t nidx,
-                         std::vector<float> *mean_values) {
-  float result;
-  auto &node_mean_values = *mean_values;
-  if (tree.IsLeaf(nidx)) {
-    result = tree.LeafValue(nidx);
-  } else {
-    result = FillNodeMeanValues(tree, tree.LeftChild(nidx), mean_values) *
-             tree.Stat(tree.LeftChild(nidx)).sum_hess;
-    result += FillNodeMeanValues(tree, tree.RightChild(nidx), mean_values) *
-              tree.Stat(tree.RightChild(nidx)).sum_hess;
-    result /= tree.Stat(nidx).sum_hess;
-  }
-  node_mean_values[nidx] = result;
-  return result;
-}
-
-void FillNodeMeanValues(tree::ScalarTreeView const &tree, std::vector<float> *mean_values) {
-  auto n_nodes = tree.Size();
-  if (static_cast<decltype(n_nodes)>(mean_values->size()) == n_nodes) {
-    return;
-  }
-  mean_values->resize(n_nodes);
-  FillNodeMeanValues(tree, 0, mean_values);
-}
 }  // anonymous namespace
 
 /**
@@ -964,7 +939,7 @@ class CPUPredictor : public Predictor {
             p_contribs[ci] += leaf.S[ci][path] * tree_weight;
             }
           }
-          p_contribs[ncolumns - 1] += leaf.probability * tree_weight * leaf.leaf_value;
+          p_contribs[ncolumns - 1] += leaf.null_coalition_weight * tree_weight;
         }
         feats.Drop();
         

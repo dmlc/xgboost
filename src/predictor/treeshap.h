@@ -36,8 +36,10 @@ class PreprocessedLeaf{
  public:
  int tree_idx;
  std::uint64_t leaf_path;
+ float null_coalition_weight;
  std::map<int, std::vector<double>> S;
- PreprocessedLeaf(int tree_idx, std::uint64_t leaf_path, std::map<int, std::vector<double>> S) : tree_idx(tree_idx), leaf_path(leaf_path), S(S) {
+ PreprocessedLeaf() = default;
+ PreprocessedLeaf(int tree_idx, std::uint64_t leaf_path, float null_coalition_weight, std::map<int, std::vector<double>> S) : tree_idx(tree_idx), leaf_path(leaf_path), null_coalition_weight(null_coalition_weight), S(S) {
  }
 
 };

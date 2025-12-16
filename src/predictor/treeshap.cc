@@ -216,14 +216,15 @@ std::map<int, std::vector<double>> path_dependant_frequencies(tree::ScalarTreeVi
 
 std::vector<PreprocessedLeaf> PreprocessTree(int tree_idx, tree::ScalarTreeView const& tree) {
 
-  std::vector<PreprocessedLeaf> preprocessed_leaves;
     std::vector<LeafData> leaf_data;
     leaf_data.reserve(tree.Size());
     GetLeafDataRecursive(tree, &leaf_data, 0, {}, 0, 0, 1.0);
     auto f = path_dependant_frequencies(tree);
     
-    
-    for (const auto& leaf : leaf_data) {
+    std::vector<PreprocessedLeaf> preprocessed_leaves(leaf_data.size());
+    for(std::size_t i = 0; i < leaf_data.size(); ++i) {
+      const auto& leaf = leaf_data[i];
+
       // Get the pattern-to-cube mapping for this leaf's path
       auto pc_pb_to_cube = MapPatternsToCube(leaf.features);
       const std::size_t n_paths = 1 << leaf.features.size();
@@ -250,8 +251,12 @@ std::vector<PreprocessedLeaf> PreprocessTree(int tree_idx, tree::ScalarTreeView 
       }
       
       // Compute S: full matrix-vector multiplication S = w * M * f_l
+      auto&preprocessed_leaf = preprocessed_leaves[i];
+      preprocessed_leaf.tree_idx = tree_idx;
+      preprocessed_leaf.leaf_path = leaf.path;
+      preprocessed_leaf.null_coalition_weight = leaf.probability * leaf.leaf_weight;
+      auto &S = preprocessed_leaf.S;
       auto &f_l = f[leaf.node_id];
-      std::map<int, std::vector<double>> S;
       for (auto feature : leaf.features) {
         const auto& mat = M[feature];
         S[feature] = std::vector<double>(n_paths, 0.0);
@@ -264,7 +269,6 @@ std::vector<PreprocessedLeaf> PreprocessTree(int tree_idx, tree::ScalarTreeView 
           S_vec[row] = dot * leaf.leaf_weight;
         }
       }
-      preprocessed_leaves.push_back({tree_idx, leaf.path, S});
     }
   return preprocessed_leaves;
 }
