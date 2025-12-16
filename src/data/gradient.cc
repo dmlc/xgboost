@@ -6,11 +6,23 @@
 #include "../common/threading_utils.h"
 #include "array_interface.h"
 
+#if !defined(XGBOOST_USE_CUDA)
+#include "../common/common.h"  // for AssertGPUSupport
+#endif
+
 namespace xgboost {
 namespace cuda_impl {
 void CopyGrad(Context const*, ArrayInterface<2, false> const&, ArrayInterface<2, false> const&,
               linalg::Matrix<GradientPair>*);
+
+#if !defined(XGBOOST_USE_CUDA)
+void CopyGrad(Context const*, ArrayInterface<2, false> const&, ArrayInterface<2, false> const&,
+              linalg::Matrix<GradientPair>*) {
+  common::AssertGPUSupport();
 }
+#endif
+}  // namespace cuda_impl
+
 namespace cpu_impl {
 void CopyGrad(Context const* ctx, ArrayInterface<2, false> const& i_grad,
               ArrayInterface<2, false> const& i_hess, linalg::Matrix<GradientPair>* out_gpair) {
