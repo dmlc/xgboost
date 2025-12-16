@@ -1,3 +1,8 @@
+/**
+ * Copyright 2025, XGBoost Contributors
+ */
+#pragma once
+
 #include "xgboost/context.h"
 #include "xgboost/gradient.h"
 

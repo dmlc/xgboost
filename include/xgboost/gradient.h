@@ -5,10 +5,12 @@
 
 #include <xgboost/base.h>    // for GradientPair
 #include <xgboost/linalg.h>  // for Matrix
+#include <xgboost/linalg.h>  // for UnravelIndex, MatrixView
 #include <xgboost/logging.h>
 #include <xgboost/string_view.h>  // for StringView
 
 #include <cstddef>  // for size_t
+#include <utility>  // for move
 
 namespace xgboost {
 /**

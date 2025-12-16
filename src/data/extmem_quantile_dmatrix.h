@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #pragma once
 
@@ -7,6 +7,7 @@
 #include <memory>   // for shared_ptr
 #include <string>   // for string
 #include <variant>  // for variant
+#include <vector>   // for vector
 
 #include "ellpack_page_source.h"         // for EllpackPageSource, EllpackPageHostSource
 #include "gradient_index_page_source.h"  // for GradientIndexPageSource

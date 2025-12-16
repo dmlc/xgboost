@@ -12,6 +12,7 @@
 #ifndef XGBOOST_COMMON_LINALG_OP_H_
 #define XGBOOST_COMMON_LINALG_OP_H_
 
+#include <algorithm>    // for copy
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
 #include <tuple>        // for apply

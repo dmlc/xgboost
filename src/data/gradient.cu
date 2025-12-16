@@ -1,9 +1,14 @@
 /**
  * Copyright 2025, XGBoost Contributors
  */
+#include <thrust/for_each.h>  // for for_each_n
+
 #include "../common/cuda_context.cuh"
-#include "array_interface.h"
+#include "../common/device_helpers.cuh"  // for CudaGetPointerDevice
+#include "array_interface.h"             // for ArrayInterface
+#include "xgboost/context.h"             // for Context
 #include "xgboost/gradient.h"
+#include "xgboost/linalg.h"  // for Matrix
 
 namespace xgboost::cuda_impl {
 void CopyGrad(Context const *ctx, ArrayInterface<2, false> const &i_grad,

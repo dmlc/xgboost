@@ -3,10 +3,15 @@
  */
 #include "grad_c_api.h"
 
+#include <cstddef>  // for size_t
+#include <cstdint>  // for int32_t
+#include <memory>   // for shared_ptr
+
 #include "../data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "c_api_error.h"
 #include "c_api_utils.h"
 #include "xgboost/c_api.h"
+#include "xgboost/string_view.h"  // for StringView
 
 using namespace xgboost;  // NOLINT
 

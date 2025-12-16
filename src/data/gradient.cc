@@ -3,8 +3,10 @@
  */
 #include "xgboost/gradient.h"
 
-#include "../common/threading_utils.h"
-#include "array_interface.h"
+#include "../common/threading_utils.h"  // for ParallelFor
+#include "array_interface.h"            // for ArrayInterface
+#include "xgboost/context.h"            // for Context
+#include "xgboost/linalg.h"             // for Matrix
 
 #if !defined(XGBOOST_USE_CUDA)
 #include "../common/common.h"  // for AssertGPUSupport
