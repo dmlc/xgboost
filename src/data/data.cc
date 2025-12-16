@@ -22,7 +22,6 @@
 #include "../collective/communicator-inl.h"   // for GetRank, IsFederated
 #include "../common/algorithm.h"              // for StableSort
 #include "../common/api_entry.h"              // for XGBAPIThreadLocalEntry
-#include "../common/cuda_context.cuh"         // for CUDAContext
 #include "../common/error_msg.h"              // for GroupSize, GroupWeight, InfInData
 #include "../common/group_data.h"             // for ParallelGroupBuilder
 #include "../common/io.h"                     // for PeekableInStream
@@ -508,7 +507,7 @@ void MetaInfo::Slice(Context const* ctx, linalg::Extent range, MetaInfo* p_out) 
         [&] {
           auto d_in = in.ConstDeviceSpan().subspan(range.beg, range.Size());
           auto d_out = p_out->DevicePointer();
-          curt::MemcpyAsync(d_out, d_in.data(), d_in.size_bytes(), ctx->CUDACtx()->Stream());
+          curt::MemcpyAsync(d_out, d_in.data(), d_in.size_bytes(), curt::DefaultStream());
         });
   };
 
