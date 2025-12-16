@@ -3,13 +3,12 @@
  */
 #include "grad_c_api.h"
 
-#include "../common/linalg_op.h"
 #include "../data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "c_api_error.h"
 #include "c_api_utils.h"
 #include "xgboost/c_api.h"
 
-using namespace xgboost;
+using namespace xgboost;  // NOLINT
 
 XGB_DLL int XGGradientContainerCreate(BoosterHandle handle, GradientContainerHandle *out) {
   API_BEGIN();
@@ -91,7 +90,8 @@ XGB_DLL int XGDMatrixInfoBatchNext(InfoIterHandle iter_handle, DMatrixHandle out
 
   linalg::Extent range;
   // We cannot safely split the data if there are groups. It doesn't hurt accuracy too
-  // much since we do it for distributed training.
+  // much since we do it for distributed training, but it's better to be a bit less
+  // efficient than be less accurate.
   bool has_groups = !iter->p_fmat->Info().group_ptr_.empty();
   if (has_groups) {
     range = linalg::Range<std::size_t>(0, iter->p_fmat->Info().num_row_);
@@ -101,12 +101,13 @@ XGB_DLL int XGDMatrixInfoBatchNext(InfoIterHandle iter_handle, DMatrixHandle out
     range = linalg::Range<std::size_t>(begin, begin + size);
   }
 
-  // fixme: implement an actual cached iterator.
+  // TODO(jiamingy): Implement an actual cached iterator.
   iter->p_fmat->Info().Slice(ctx, range, &proxy->Info());
 
   iter->batch_idx++;
   if (iter->batch_idx == iter->p_fmat->NumBatches() || has_groups) {
-    iter->p_fmat = nullptr;  // mark invalid
+    // Mark the iterator as invalid. For LTR, this is a single iteration.
+    iter->p_fmat = nullptr;
   }
 
   API_END();
