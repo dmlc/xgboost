@@ -5,8 +5,9 @@
 
 #include "../common/threading_utils.h"  // for ParallelFor
 #include "array_interface.h"            // for ArrayInterface
-#include "xgboost/context.h"            // for Context
-#include "xgboost/linalg.h"             // for Matrix
+#include "array_page_source.h"
+#include "xgboost/context.h"  // for Context
+#include "xgboost/linalg.h"   // for Matrix
 
 #if !defined(XGBOOST_USE_CUDA)
 #include "../common/common.h"  // for AssertGPUSupport
@@ -72,5 +73,9 @@ void GradientContainer::PushValueGrad(Context const* ctx, StringView grad, Strin
   ArrayInterface<2, false> i_grad{StringView{grad}};
   ArrayInterface<2, false> i_hess{StringView{hess}};
   DispatchCopyGrad(ctx, i_grad, i_hess, &this->value_gpair);
+}
+
+BatchSet<data::ArrayPage> GradientContainer::GetGrad() {
+  return BatchSet{BatchIterator<data::ArrayPage>{this->gpair_iter.get()}};
 }
 }  // namespace xgboost

@@ -917,8 +917,8 @@ class Tensor {
    *
    *    If the total size is changed, then data in this tensor is no longer valid.
    */
-  template <size_t D>
-  void Reshape(common::Span<size_t const, D> shape) {
+  template <typename I, std::size_t D, detail::EnableIfIntegral<I> * = nullptr>
+  void Reshape(common::Span<I, D> shape) {
     static_assert(D <= kDim, "Invalid shape.");
     std::copy(shape.data(), shape.data() + D, this->shape_);
     std::fill(shape_ + D, shape_ + kDim, 1);

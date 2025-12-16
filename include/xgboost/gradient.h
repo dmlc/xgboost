@@ -8,19 +8,33 @@
 #include <xgboost/linalg.h>  // for UnravelIndex, MatrixView
 #include <xgboost/logging.h>
 #include <xgboost/string_view.h>  // for StringView
+#include <xgboost/data.h>
 
 #include <cstddef>  // for size_t
 #include <utility>  // for move
 
 namespace xgboost {
+namespace data {
+class ArrayPageSource;
+struct ArrayPage;
+
+class HostGpairsCache;
+}
+
 /**
  * @brief Container for gradient produced by objective.
  */
 struct GradientContainer {
+ private:
+  std::shared_ptr<data::HostGpairsCache> gpair_cache_;
+
+ public:
   /** @brief Gradient used for multi-target tree split and linear model, required. */
   linalg::Matrix<GradientPair> gpair;
   /** @brief Gradient used for tree leaf value, optional. */
   linalg::Matrix<GradientPair> value_gpair;
+
+  std::shared_ptr<data::ArrayPageSource> gpair_iter;
 
   [[nodiscard]] bool HasValueGrad() const noexcept { return !value_gpair.Empty(); }
 
@@ -56,6 +70,8 @@ struct GradientContainer {
   void PushGrad(Context const* ctx, StringView grad, StringView hess);
   // Push a batch of value gradient
   void PushValueGrad(Context const* ctx, StringView grad, StringView hess);
+
+  BatchSet<data::ArrayPage> GetGrad();
 };
 
 template <typename G, typename H>
