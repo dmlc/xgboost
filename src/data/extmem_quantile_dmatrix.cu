@@ -102,11 +102,14 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
 
   if (this->on_host_) {
     CHECK_EQ(this->cache_info_.at(id)->Size(), n_batches);
+    // Set the concatenated base_rowid.
+    cinfo.BaseRowIds(&this->base_rowids_);
   } else {
+    // Set the base_rowid.
+    this->base_rowids_ = ext_info.base_rowids;
     CHECK_EQ(this->cache_info_.at(id)->Size(), ext_info.n_batches);
   }
-  // Set the base_rowid.
-  cinfo.BaseRowIds(&this->base_rowids_);
+
   if (cuts->HasCategorical()) {
     CHECK(!this->info_.feature_types.Empty());
   }

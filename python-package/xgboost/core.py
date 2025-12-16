@@ -2568,14 +2568,22 @@ class Booster:
         self._assign_dmatrix_features(dtrain)
         n_samples = dtrain.num_row()
         y_pred = self.predict(dtrain, output_margin=True, training=True)
-        if fobj is not None:
+        if isinstance(fobj, Objective):
+            if grad is not None or hess is not None:
+                raise ValueError(
+                    "Both objective and gradients are provided for the internal "
+                    "boost function. Use one or the other"
+                )
             gradc = self.gradient(dtrain, iteration, y_pred, fobj)
             _check_call(
                 _LIB.XGBoosterTrainOneIterWithSplitGrad(
                     self.handle, dtrain.handle, iteration, gradc.handle
                 )
             )
-        elif grad is not None and hess is not None:
+        elif callable(fobj):  # Plain callable objective
+            grad, hess = fobj(y_pred, dtrain)
+
+        if grad is not None and hess is not None:
             _check_call(
                 _LIB.XGBoosterTrainOneIter(
                     self.handle,
