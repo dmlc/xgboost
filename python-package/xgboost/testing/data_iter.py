@@ -199,7 +199,7 @@ def run_get_info_batches(
             Xy = ExtMemQuantileDMatrix(it)
         k = 0
         ys = []
-        for proxy in Xy.iter_info_batches():
+        for proxy in Xy.info_batches():
             y_batch = proxy.get_label()
             ys.append(y_batch)
             k += 1

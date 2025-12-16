@@ -1410,8 +1410,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         _check_call(_LIB.XGDMatrixNumBatches(self.handle, ctypes.byref(ret)))
         return ret.value
 
-    def iter_info_batches(self) -> Iterator["DMatrix"]:
-        """Iterate through non-feature data like labels in batches.
+    def info_batches(self) -> Iterator["DMatrix"]:
+        """Iterate through batches of non-feature data like labels. The number of
+        returned batches is internal and might not correlate to user input batches.
 
         .. versionadded:: 3.2.0
 
@@ -2529,7 +2530,7 @@ class Booster:
         base_rowid = 0
 
         # Calculate gradient for each batch
-        for proxy in dtrain.iter_info_batches():
+        for proxy in dtrain.info_batches():
             n_samples = proxy.num_row()
             y_pred_batch = y_pred[base_rowid : base_rowid + n_samples]
             calc_grad(y_pred_batch, proxy)
