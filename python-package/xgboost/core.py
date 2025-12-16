@@ -1422,19 +1422,21 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         """
         it = ctypes.c_void_p()
-        is_valid = ctypes.c_int(0)
 
         _check_call(_LIB.XGDMatrixGetInfoBatches(self.handle, ctypes.byref(it)))  # init
-        try:
-            _check_call(_LIB.XGDMatrixInfoBatchIsValid(it, ctypes.byref(is_valid)))
 
-            assert is_valid.value == 1, is_valid
+        def is_valid() -> bool:
+            res = ctypes.c_int(0)
+            _check_call(_LIB.XGDMatrixInfoBatchIsValid(it, ctypes.byref(res)))
+            return res.value == 1
+
+        try:
+            assert is_valid()
 
             k = 0
-            while is_valid.value == 1:
+            while is_valid():
                 proxy = _ProxyDMatrix()
                 _check_call(_LIB.XGDMatrixInfoBatchNext(it, proxy.handle))
-                _check_call(_LIB.XGDMatrixInfoBatchIsValid(it, ctypes.byref(is_valid)))
                 k += 1
                 yield proxy
 
