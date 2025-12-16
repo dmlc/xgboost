@@ -94,11 +94,11 @@ XGB_DLL int XGDMatrixInfoBatchNext(InfoIterHandle iter_handle, DMatrixHandle out
   // much since we do it for distributed training.
   bool has_groups = !iter->p_fmat->Info().group_ptr_.empty();
   if (has_groups) {
-    range = linalg::Range(bst_idx_t{0}, iter->p_fmat->Info().num_row_);
+    range = linalg::Range<std::size_t>(0, iter->p_fmat->Info().num_row_);
   } else {
     auto begin = iter->p_fmat->BaseRowId(iter->batch_idx);
     auto size = iter->p_fmat->BatchSize(iter->batch_idx);
-    range = linalg::Range(begin, begin + size);
+    range = linalg::Range<std::size_t>(begin, begin + size);
   }
 
   // fixme: implement an actual cached iterator.
