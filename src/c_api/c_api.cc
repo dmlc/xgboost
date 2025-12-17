@@ -1212,11 +1212,13 @@ XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHand
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
   auto ctx = learner->Ctx();
-  CHECK(ctx->IsCUDA()) << "Reduced gradient with CPU" << MTNotImplemented();
   auto gpairs = CastGradientContainerHandle(grad);
   auto p_fmat = CastDMatrixHandle(dtrain);
   CHECK_EQ(gpairs->gpairs.gpair.Shape(0), p_fmat->Info().num_row_)
       << "Mismatched size between the gradient and training data.";
+  if (gpairs->gpairs.HasValueGrad()) {
+    CHECK(ctx->IsCUDA()) << "Reduced gradient with CPU" << MTNotImplemented();
+  }
   learner->BoostOneIter(iter, p_fmat, &gpairs->gpairs);
   API_END();
 }
