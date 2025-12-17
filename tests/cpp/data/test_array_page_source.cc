@@ -10,8 +10,8 @@
 #include "../helpers.h"
 
 namespace xgboost::data {
-TEST(ArrayCache, Push) {
-  std::size_t n_batches = 4, batch_size = 1024;
+namespace {
+auto CreateCache(std::size_t n_batches, std::size_t batch_size) {
   std::size_t shape[2]{n_batches * batch_size, 128};
   auto ctx = MakeCUDACtx(0);
   auto p_cache = std::make_unique<ArrayCache>(&ctx, common::Span<std::size_t>{shape});
@@ -21,7 +21,13 @@ TEST(ArrayCache, Push) {
     page->gpairs = linalg::Constant<GradientPair>(&ctx, GradientPair{v, v}, batch_size, shape[1]);
     p_cache->Push(std::move(page));
   }
-  auto cache = p_cache->Commit();
+  return p_cache->Commit();
+}
+}  // namespace
+
+TEST(ArrayCache, Push) {
+  std::size_t n_batches = 4, batch_size = 1024;
+  auto cache = CreateCache(n_batches, batch_size);
   for (std::size_t i = 0; i < n_batches; ++i) {
     auto batch = cache.gpairs.Slice(i * batch_size, linalg::All());
     auto e = static_cast<float>(i);
@@ -35,6 +41,15 @@ TEST(ArrayPageSource, Basic) {
   std::map<std::string, std::shared_ptr<Cache>> cache_info;
   std::string cache_prefix = "cache";
   auto id = MakeCache(this, ".ap", false, cache_prefix, &cache_info);
-  auto source = std::make_unique<ArrayPageSource>(cache_info.at(id));
+
+  std::size_t n_batches = 4, batch_size = 1024;
+  auto cache = CreateCache(n_batches, batch_size);
+  std::vector<bst_idx_t> batch_ptr{0};
+  for (std::size_t i = 0; i < n_batches; ++i) {
+    batch_ptr.push_back(batch_size + batch_ptr[i]);
+  }
+
+  auto source =
+      std::make_unique<ArrayPageSource>(std::move(cache), std::move(batch_ptr), cache_info.at(id));
 }
 }  // namespace xgboost::data

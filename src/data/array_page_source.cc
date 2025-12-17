@@ -8,13 +8,17 @@
 namespace xgboost::data {
 void ArrayPageSource::Fetch() {
   if (!this->ReadCache()) {
+    // this is not possible.
     this->WriteCache();
   }
 }
 
 void ArrayPageSource::EndIter() { this->count_ = 0; }
 
-ArrayPageSource& ArrayPageSource::operator++() { return *this; }
+ArrayPageSource& ArrayPageSource::operator++() {
+  ++this->count_;
+  return *this;
+}
 
 void ArrayCache::Clear() {
   if (this->last_.valid()) {
