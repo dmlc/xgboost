@@ -2548,9 +2548,10 @@ class Booster:
         self,
         dtrain: DMatrix,
         iteration: int,
-        grad: Optional[NumpyOrCupy],
-        hess: Optional[NumpyOrCupy],
-        fobj: Optional[PlainObj],
+        *,
+        grad: Optional[NumpyOrCupy] = None,
+        hess: Optional[NumpyOrCupy] = None,
+        fobj: Optional[PlainObj] = None,
     ) -> None:
         """Boost the booster for one iteration with customized gradient statistics.
 
