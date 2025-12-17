@@ -44,10 +44,12 @@ TEST(ArrayPageSource, Basic) {
 
   std::size_t n_batches = 4, batch_size = 1024;
   auto cache = CreateCache(n_batches, batch_size);
+
   std::vector<bst_idx_t> batch_ptr{0};
   for (std::size_t i = 0; i < n_batches; ++i) {
     batch_ptr.push_back(batch_size + batch_ptr[i]);
   }
+  ASSERT_EQ(batch_ptr, cache->batch_ptr);
 
   auto n_targets = cache->gpairs.Shape(1);
   auto source = std::make_shared<ArrayPageSource>(std::move(cache), std::move(batch_ptr), n_targets,

@@ -74,12 +74,6 @@ ArrayPageSource& ArrayPageSource::operator++() {
   return *this;
 }
 
-void ArrayCacheWriter::Wait() {
-  if (this->last_.valid()) {
-    this->last_.get();
-  }
-}
-
 ArrayCacheWriter::ArrayCacheWriter(Context const* ctx, common::Span<std::size_t const, 2> shape)
     : cache_{std::make_shared<ArrayPage>()} {
   this->cache_->gpairs.SetDevice(ctx->Device());
@@ -91,9 +85,11 @@ ArrayCacheWriter::ArrayCacheWriter(Context const* ctx, common::Span<std::size_t 
 void ArrayCacheWriter::Push(std::shared_ptr<ArrayPage> page) {
   CHECK(this->cache_);
   auto n = page->gpairs.Shape(0);
-  auto h_cache = this->cache_->gpairs.HostView();
   CHECK_LE(this->offset_ + n, this->cache_->gpairs.Shape(0));
-  auto fut = workers_.Submit([page = std::move(page), offset = this->offset_, h_cache] {
+  workers_.Submit([page = std::move(page), offset = this->offset_, cache = this->cache_] {
+    cache->batch_ptr.push_back(offset);
+    auto h_cache = cache->gpairs.HostView();
+
     auto out = h_cache.Slice(offset, linalg::All());
     CHECK(out.CContiguous());
     auto in = page->gpairs.View(page->gpairs.Device());
@@ -101,12 +97,12 @@ void ArrayCacheWriter::Push(std::shared_ptr<ArrayPage> page) {
                       curt::DefaultStream());
   });
   offset_ += n;
-  this->Wait();
-  this->last_ = std::move(fut);
 }
 
 std::shared_ptr<ArrayPage> ArrayCacheWriter::Commit() {
-  this->Wait();
+  auto fut =
+      workers_.Submit([&] { this->cache_->batch_ptr.push_back(this->cache_->gpairs.Shape(0)); });
+  fut.get();  // Need to wait for the last task to ensure all prior tasks are complete.
   return std::move(this->cache_);
 }
 }  // namespace xgboost::data

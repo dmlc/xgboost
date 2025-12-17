@@ -90,13 +90,10 @@ class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPo
 };
 
 class ArrayCacheWriter {
+  // Single thread, we use the thread pool for easy task submit
   common::ThreadPool workers_{StringView{"aqu"}, 1, InitNewThread{}};
   std::shared_ptr<ArrayPage> cache_;
   std::size_t offset_{0};
-  std::int32_t it_{0};
-  std::future<void> last_;
-
-  void Wait();
 
  public:
   explicit ArrayCacheWriter(Context const* ctx, common::Span<std::size_t const, 2> shape);
