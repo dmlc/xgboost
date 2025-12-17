@@ -11,10 +11,12 @@
 #include "../../common/deterministic.cuh"
 #include "../../common/device_helpers.cuh"
 #include "../../common/linalg_op.cuh"  // for tbegin
+#include "../../data/array_page_source.h"
 #include "../../data/ellpack_page.cuh"
 #include "histogram.cuh"
 #include "row_partitioner.cuh"
 #include "xgboost/base.h"
+#include "xgboost/gradient.h"
 
 namespace xgboost::tree {
 namespace {
@@ -134,6 +136,47 @@ MultiGradientQuantiser::MultiGradientQuantiser(Context const* ctx,
   for (bst_target_t t = 0, n_targets = gpair.Shape(1); t < n_targets; ++t) {
     h_quantizers.emplace_back(ctx, gpair.Slice(linalg::All(), t), info);
   }
+  this->quantizers_ = h_quantizers;
+}
+
+MultiGradientQuantiser::MultiGradientQuantiser(Context const* ctx, GradientContainer* gpair,
+                                               MetaInfo const& info) {
+  std::vector<GradientQuantiser> h_quantizers;
+
+  using GradientSumT = GradientPairPrecise;
+  using T = typename GradientSumT::ValueT;
+  auto n_samples = info.num_row_;
+
+  for (bst_target_t t = 0, n_targets = gpair->NumTargetsN(); t < n_targets; ++t) {
+    Pair sum;
+    for (auto const& batch : gpair->GetGrad()) {
+      auto d_gpairs = batch.gpairs.View(ctx->Device());
+      auto beg = thrust::make_transform_iterator(linalg::tcbegin(d_gpairs), Clip{});
+      Pair p = dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + d_gpairs.Size(), Pair{},
+                          thrust::plus<Pair>{});
+      sum = sum + p;
+    }
+
+    GradientPair positive_sum{sum.first}, negative_sum{sum.second};
+    auto histogram_rounding =
+        GradientSumT{common::CreateRoundingFactor<T>(
+                         std::max(positive_sum.GetGrad(), negative_sum.GetGrad()), n_samples),
+                     common::CreateRoundingFactor<T>(
+                         std::max(positive_sum.GetHess(), negative_sum.GetHess()), n_samples)};
+
+    using IntT = typename GradientPairInt64::ValueT;
+
+    auto to_floating_point_ =
+        histogram_rounding /
+        static_cast<T>(static_cast<IntT>(1)
+                       << (sizeof(typename GradientSumT::ValueT) * 8 - 2));  // keep 1 for sign bit
+
+    auto to_fixed_point_ = GradientSumT(static_cast<T>(1) / to_floating_point_.GetGrad(),
+                                        static_cast<T>(1) / to_floating_point_.GetHess());
+
+    h_quantizers.emplace_back(to_fixed_point_, to_floating_point_);
+  }
+
   this->quantizers_ = h_quantizers;
 }
 

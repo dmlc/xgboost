@@ -2,6 +2,7 @@
  * Copyright 2020-2025, XGBoost Contributors
  */
 #pragma once
+#include "xgboost/gradient.h"
 #include "../../common/device_helpers.cuh"  // for ToSpan
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "xgboost/base.h"                   // for GradientPairPrecise, GradientPairInt64
@@ -50,6 +51,7 @@ class MultiGradientQuantiser {
  public:
   MultiGradientQuantiser(Context const* ctx, linalg::MatrixView<GradientPair const> gpair,
                          MetaInfo const& info);
+  MultiGradientQuantiser(Context const* ctx, GradientContainer* gpair, MetaInfo const& info);
 
   [[nodiscard]] auto Quantizers() const { return dh::ToSpan(this->quantizers_); }
 };
