@@ -40,6 +40,7 @@ PlainObj = Callable[[np.ndarray, "DMatrix"], Tuple[np.ndarray, np.ndarray]]
 # The `iteration` parameter of the objective prototype is provided as a hint to users
 # which iteration the current call belongs to.
 
+
 class Objective(ABC):
     """Base class for custom objective functions.
 

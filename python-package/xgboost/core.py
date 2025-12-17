@@ -2456,7 +2456,7 @@ class Booster:
         dtrain :
             Training data.
         iteration:
-            The current Training iteration.
+            The current training iteration.
         fobj :
             Custom objective function.
 
@@ -2487,12 +2487,12 @@ class Booster:
 
         Parameters
         ----------
-        y_pred:
-            Prediction from the booster.
-        iteration:
-            The current training iteration.
         dtrain :
             The training DMatrix.
+        iteration:
+            The current training iteration.
+        y_pred:
+            Prediction from the booster.
         fobj :
             Custom objective function.
 
