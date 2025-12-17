@@ -10,7 +10,25 @@ namespace xgboost::data {
 
 struct ArrayPageNoOpWriter {};
 
-struct ArrayPageReader {};
+struct ArrayPageReader {
+  std::int32_t batch_idx = 0;
+
+  std::shared_ptr<ArrayPage> cache;
+
+  explicit ArrayPageReader(std::uint64_t offset_bytes, std::vector<bst_idx_t> const& batch_ptr) {
+    CHECK(cache);
+    auto size_bytes = [&](std::size_t i) {
+      // auto beg = batch_ptr.at(i);
+      auto end = batch_ptr.at(i + 1);
+      auto n_columns = this->cache->gpairs.Shape(1);
+      //  - beg
+      auto n_rows = end;
+      auto n_bytes = common::SizeBytes<GradientPair>(n_rows * n_columns);
+      // accumulated bytes
+      return n_bytes;
+    };
+  }
+};
 
 struct ArrayPageFormat {
   template <typename... Args>
@@ -38,7 +56,7 @@ struct ArrayPageFormatPolicy {
 
   std::unique_ptr<ReaderT> CreateReader(StringView name, std::uint64_t offset,
                                         std::uint64_t length) const {
-    return std::make_unique<ReaderT>();
+    return std::make_unique<ReaderT>(offset);
   }
 
   auto CreatePageFormat(BatchParam const&) const {
