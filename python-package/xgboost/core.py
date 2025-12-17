@@ -2578,8 +2578,7 @@ class Booster:
 
         if all(arg is not None for arg in (grad, hess, fobj)):
             raise ValueError(
-                "Both objective and gradients are provided for the internal "
-                "boost function. Use one or the other."
+                "Provide either the objective, or the gradient and hessian, not both."
             )
 
         # Handle the objective function
