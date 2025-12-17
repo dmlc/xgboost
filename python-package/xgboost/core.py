@@ -2606,8 +2606,8 @@ class Booster:
             return
 
         raise ValueError(
-            "Invalid arguments for the boost function. Either provide both of the ",
-            "gradient and the hessian, or provide an objective function.",
+            "Invalid arguments for the boost function. Either provide both of the "
+            "gradient and the hessian, or provide an objective function."
         )
 
     def eval_set(

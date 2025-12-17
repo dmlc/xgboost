@@ -347,7 +347,6 @@ auto MakeGradientInterface(Context const *ctx, G const *grad, H const *hess, lin
 }
 }  // namespace detail
 
-// fixme: namespace
 [[nodiscard]] inline xgboost::data::DMatrixProxy *GetDMatrixProxy(DMatrixHandle handle) {
   auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
   CHECK(p_m);

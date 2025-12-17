@@ -925,7 +925,7 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out) {
   });
 }
 
-// fixme: hidden
+// Hidden: working-in-progress support for batched gradient
 XGB_DLL int XGDMatrixNumBatches(DMatrixHandle handle, bst_ulong *out) {
   return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
     return static_cast<xgboost::bst_ulong>(p_fmat->NumBatches());
