@@ -1231,3 +1231,36 @@ test_that("xgb.train works with nrounds=0 (serialization, continuation, callback
     expect_equal(iter_cb, 5)
   }
 })
+
+test_that("predict respects base_margin inside xgb.DMatrix", {
+  # Reuse global data variable 'train'
+  dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = 1)
+
+  # Train a dummy model
+  bst <- xgb.train(
+    params = list(objective = "binary:logistic", nthread = 1),
+    data = dtrain,
+    nrounds = 1,
+    verbose = 0
+  )
+
+  # Create a small test DMatrix
+  dtest <- xgb.DMatrix(train$data[1:10, ], label = train$label[1:10], nthread = 1)
+
+  # Case 1: Set margin to 0.5 inside the DMatrix
+  setinfo(dtest, "base_margin", rep(0.5, 10))
+  p1 <- predict(bst, dtest)
+
+  # Case 2: Set margin to 1.5 inside the DMatrix
+  # This failed in the issue report (p1 was equal to p2)
+  setinfo(dtest, "base_margin", rep(1.5, 10))
+  p2 <- predict(bst, dtest)
+
+  # If the bug exists, p1 == p2. If fixed, p1 != p2.
+  expect_false(isTRUE(all.equal(p1, p2)))
+
+  # Case 3: Explicit override via argument (previously forbidden)
+  # We pass margin=0.5 explicitly, which should match p1
+  p3 <- predict(bst, dtest, base_margin = rep(0.5, 10))
+  expect_equal(p1, p3, tolerance = 1e-6)
+})
