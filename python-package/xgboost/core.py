@@ -2475,15 +2475,12 @@ class Booster:
 
         self.boost(dtrain, iteration, grad=None, hess=None, fobj=fobj)
 
-    def gradient(
+    def _gradient(
         self, dtrain: DMatrix, iteration: int, y_pred: ArrayLike, fobj: PlainObj
     ) -> _GradientContainer:
         """Calculate the gradient using a custom objective.
 
-        .. warning::
-
-            Like :py:func:`xgboost.Booster.update`, this function should not be called
-            directly by users.
+        .. versionadded:: 3.2.0
 
         Parameters
         ----------
@@ -2543,7 +2540,7 @@ class Booster:
 
         return gradc
 
-    def boost(  # pylint: disable=too-many-positional-arguments
+    def boost(
         self,
         dtrain: DMatrix,
         iteration: int,
@@ -2569,6 +2566,11 @@ class Booster:
             The first order of gradient.
         hess :
             The second order of gradient.
+        fobj :
+
+            .. versionadded:: 3.2.0
+
+            Custom objective function.
 
         """
         self._assign_dmatrix_features(dtrain)
@@ -2581,8 +2583,8 @@ class Booster:
             )
 
         # Handle the objective function
-        if isinstance(fobj, Objective) or callable(fobj):
-            gradc = self.gradient(dtrain, iteration, y_pred, fobj)
+        if callable(fobj):
+            gradc = self._gradient(dtrain, iteration, y_pred, fobj)
             _check_call(
                 _LIB.XGBoosterTrainOneIterWithSplitGrad(
                     self.handle, dtrain.handle, iteration, gradc.handle

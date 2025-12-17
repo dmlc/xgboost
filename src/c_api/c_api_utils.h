@@ -262,7 +262,7 @@ void XGBBuildInfoDevice(Json* p_info);
  */
 inline std::shared_ptr<DMatrix> CastDMatrixHandle(DMatrixHandle const handle) {
   auto pp_m = static_cast<std::shared_ptr<DMatrix> *>(handle);
-  StringView msg{"Invalid DMatrix handle"};
+  StringView msg{"Invalid DMatrix handle."};
   CHECK(pp_m) << msg;
   auto p_m = *pp_m;
   CHECK(p_m) << msg;

@@ -1205,6 +1205,14 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
 // Hidden, working-in-progress support for reduced gradient. CUDA-only at the moment.
 /**
  * @brief Use a different type of gradient for tree split.
+ *
+ * @param handle Booster handle
+ * @param dtrain The training data.
+ * @param iter   The current iteration round. When training continuation is used, the count
+ *               should restart.
+ * @param grad   Gradient container, value gradient is optional.
+ *
+ * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHandle dtrain, int iter,
                                                GradientContainerHandle grad) {
@@ -1217,7 +1225,7 @@ XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHand
   CHECK_EQ(gpairs->gpairs.gpair.Shape(0), p_fmat->Info().num_row_)
       << "Mismatched size between the gradient and training data.";
   if (gpairs->gpairs.HasValueGrad()) {
-    CHECK(ctx->IsCUDA()) << "Reduced gradient with CPU" << MTNotImplemented();
+    CHECK(ctx->IsCUDA()) << "Reduced gradient" << MTNotImplemented();
   }
   learner->BoostOneIter(iter, p_fmat, &gpairs->gpairs);
   API_END();

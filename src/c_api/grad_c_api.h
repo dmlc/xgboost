@@ -17,6 +17,7 @@ struct GradientContainerWithCtx {
 };
 
 inline auto CastGradientContainerHandle(GradientContainerHandle handle) {
+  CHECK(handle) << "Invalid gradient container handle.";
   return static_cast<GradientContainerWithCtx *>(handle);
 }
 }  // namespace xgboost
