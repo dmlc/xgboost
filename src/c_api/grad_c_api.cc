@@ -94,11 +94,10 @@ XGB_DLL int XGDMatrixInfoBatchNext(InfoIterHandle iter_handle, DMatrixHandle out
   auto ctx = iter->p_fmat->Ctx();
 
   linalg::Extent range;
-  // We cannot safely split the data if there are groups. It doesn't hurt accuracy too
-  // much since we do it for distributed training, but it's better to be a bit less
-  // efficient than be less accurate.
-  bool has_groups = !iter->p_fmat->Info().group_ptr_.empty();
-  if (has_groups) {
+  // We cannot safely split the data if there are groups. Although it doesn't reduce
+  // accuracy too much for most cases, we split the data for distributed training as
+  // well. But it's better to be a bit less efficient than be less accurate.
+  if (iter->p_fmat->Info().IsRanking()) {
     range = linalg::Range<std::size_t>(0, iter->p_fmat->Info().num_row_);
   } else {
     auto begin = iter->p_fmat->BaseRowId(iter->batch_idx);
@@ -110,7 +109,7 @@ XGB_DLL int XGDMatrixInfoBatchNext(InfoIterHandle iter_handle, DMatrixHandle out
   iter->p_fmat->Info().Slice(ctx, range, &proxy->Info());
 
   iter->batch_idx++;
-  if (iter->batch_idx == iter->p_fmat->NumBatches() || has_groups) {
+  if (iter->batch_idx == iter->p_fmat->NumBatches() || iter->p_fmat->Info().IsRanking()) {
     // Mark the iterator as invalid. For LTR, this is a single iteration.
     iter->p_fmat = nullptr;
   }

@@ -475,7 +475,7 @@ MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs
 
 void MetaInfo::Slice(Context const* ctx, linalg::Extent range, MetaInfo* p_out) const {
   CHECK(!this->IsColumnSplit()) << "Column split is not yet supported.";
-  if (!group_ptr_.empty()) {
+  if (this->IsRanking()) {
     // Ensure it's using the whole range. The slice method is just a copy in this case.
     CHECK_EQ(range.Size(), this->num_row_);
   }
