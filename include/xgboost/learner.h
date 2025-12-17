@@ -173,6 +173,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * @return The number of features
    */
   virtual bst_feature_t GetNumFeature() const = 0;
+  virtual bst_target_t OutputLength() const = 0;
 
   /*!
    * \brief Set additional attribute to the Booster.

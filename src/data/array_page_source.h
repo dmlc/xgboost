@@ -61,6 +61,7 @@ struct ArrayPageFormatPolicy {
   }
 };
 
+// fixme: we should use Matrix as page type, the ArrayPage contains `batch_ptr`.
 class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPolicy> {
   using Super = SparsePageSourceImpl<ArrayPage, ArrayPageFormatPolicy>;
   Context const* ctx_;
@@ -73,8 +74,9 @@ class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPo
 
  public:
   explicit ArrayPageSource(Context const* ctx, std::shared_ptr<ArrayPage> cache,
-                           bst_feature_t n_features, std::shared_ptr<Cache> cache_info)
-      : Super::SparsePageSourceImpl{std::numeric_limits<float>::quiet_NaN(), 2, n_features,
+                           std::shared_ptr<Cache> cache_info)
+      : Super::SparsePageSourceImpl{std::numeric_limits<float>::quiet_NaN(), 2,
+                                    static_cast<bst_feature_t>(cache->gpairs.Shape(1)),
                                     std::move(cache_info)},
         ctx_{ctx},
         cache_{cache} {
@@ -93,6 +95,7 @@ class ArrayCacheWriter {
   explicit ArrayCacheWriter(Context const* ctx, common::Span<std::size_t const, 2> shape);
 
   void Push(std::shared_ptr<ArrayPage> page);
-  std::shared_ptr<ArrayPage> Commit();
+  [[nodiscard]] bool CanCommit() const;
+  [[nodiscard]] std::shared_ptr<ArrayPage> Commit();
 };
 }  // namespace xgboost::data

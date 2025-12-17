@@ -395,7 +395,7 @@ class Intercept : public Learner {
   /**
    * Get the number of targets from the cache using the objective function.
    */
-  void GetNumTargets(CacheT const& cache) {
+  void CalcNumTargets(CacheT const& cache) {
     CHECK(this->obj_);
     bst_target_t n_targets = 1;
     for (auto const& d : cache) {
@@ -423,7 +423,7 @@ class Intercept : public Learner {
   }
 
   void InitModelUserParam(LearnerTrainParam const& tparam, CacheT const& cache) {
-    this->GetNumTargets(cache);
+    this->CalcNumTargets(cache);
 
     if (this->NeedFit()) {
       // Initialize with a sensible default value to get prediction/model io going.
@@ -660,6 +660,8 @@ class LearnerConfiguration : public Intercept {
   uint32_t GetNumFeature() const override {
     return learner_model_param_.num_feature;
   }
+
+  bst_target_t OutputLength() const override { return this->learner_model_param_.OutputLength(); }
 
   void SetAttr(const std::string& key, const std::string& value) override {
     attributes_[key] = value;

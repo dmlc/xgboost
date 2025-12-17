@@ -17,8 +17,7 @@ namespace xgboost {
 namespace data {
 class ArrayPageSource;
 struct ArrayPage;
-
-class HostGpairsCache;
+class ArrayCacheWriter;
 }
 
 /**
@@ -26,15 +25,21 @@ class HostGpairsCache;
  */
 struct GradientContainer {
  private:
-  std::shared_ptr<data::HostGpairsCache> gpair_cache_;
+  // Storage for the batched gradient.
+  // std::shared_ptr<data::ArrayPage> cache_;
+  // Writer for the cache, reset after all pages in an iteration are written
+  std::shared_ptr<data::ArrayCacheWriter> writer_;
+  // Reader for the cache, reset and become valid after all pages in an iteration are
+  // written
+  std::shared_ptr<data::ArrayPageSource> reader_;
 
  public:
+  GradientContainer() = default;  // fixme
+  explicit GradientContainer(Context const* ctx, common::Span<std::size_t const, 2> shape);
   /** @brief Gradient used for multi-target tree split and linear model, required. */
   linalg::Matrix<GradientPair> gpair;
   /** @brief Gradient used for tree leaf value, optional. */
   linalg::Matrix<GradientPair> value_gpair;
-
-  std::shared_ptr<data::ArrayPageSource> gpair_iter;
 
   [[nodiscard]] bool HasValueGrad() const noexcept { return !value_gpair.Empty(); }
 

@@ -102,7 +102,11 @@ void ArrayCacheWriter::Push(std::shared_ptr<ArrayPage> page) {
   offset_ += n;
 }
 
-std::shared_ptr<ArrayPage> ArrayCacheWriter::Commit() {
+[[nodiscard]] bool ArrayCacheWriter::CanCommit() const {
+  return this->offset_ == this->cache_->gpairs.Shape(0);
+}
+
+[[nodiscard]] std::shared_ptr<ArrayPage> ArrayCacheWriter::Commit() {
   auto fut =
       workers_.Submit([&] { this->cache_->batch_ptr.push_back(this->cache_->gpairs.Shape(0)); });
   fut.get();  // Need to wait for the last task to ensure all prior tasks are complete.

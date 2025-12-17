@@ -15,12 +15,17 @@
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGGradientContainerCreate(BoosterHandle handle, GradientContainerHandle *out) {
+XGB_DLL int XGGradientContainerCreate(BoosterHandle handle, JArrayStr config,
+                                      GradientContainerHandle *out) {
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(out);
+  auto jconfig = Json::Load(StringView{config});
+  auto n_samples = get<Integer const>(jconfig["n_samples"]);
   auto *learner = static_cast<Learner *>(handle);
-  *out = new GradientContainerWithCtx{learner->Ctx()};
+  auto n_targets = learner->OutputLength();
+  std::size_t shape[2]{static_cast<std::size_t>(n_samples), n_targets};
+  *out = new GradientContainerWithCtx{learner->Ctx(), common::Span<std::size_t const, 2>{shape}};
   API_END();
 }
 

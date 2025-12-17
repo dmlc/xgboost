@@ -7,6 +7,7 @@
 
 #include "../../../src/common/linalg_op.h"
 #include "../../../src/data/array_page_source.h"
+#include "xgboost/gradient.h"
 #include "../helpers.h"
 
 namespace xgboost::data {
@@ -53,8 +54,7 @@ TEST(ArrayPageSource, Basic) {
 
   auto n_targets = cache->gpairs.Shape(1);
   auto ctx = MakeCUDACtx(0);
-  auto source =
-      std::make_shared<ArrayPageSource>(&ctx, std::move(cache), n_targets, cache_info.at(id));
+  auto source = std::make_shared<ArrayPageSource>(&ctx, std::move(cache), cache_info.at(id));
   auto batch_set = BatchSet{BatchIterator<ArrayPage>{source}};
   std::int32_t k = 0;
   for (auto const& page : batch_set) {
@@ -65,6 +65,26 @@ TEST(ArrayPageSource, Basic) {
       ASSERT_EQ(static_cast<float>(k), v.GetHess());
     }
     ++k;
+  }
+}
+
+TEST(GradientContainer, IO) {
+  std::size_t n_batches = 4, batch_size = 1024;
+  auto ctx = MakeCUDACtx(0);
+  std::size_t shape[2]{batch_size * n_batches, 128};
+  GradientContainer gpairs{&ctx, common::Span<std::size_t const>{shape}};
+  for (std::size_t i = 0; i < n_batches; ++i) {
+    auto v = static_cast<float>(i);
+    auto grad = linalg::Constant<float>(&ctx, v, batch_size, shape[1]);
+    auto sgrad = linalg::ArrayInterfaceStr(grad.View(ctx.Device()));
+    auto hess = linalg::Constant<float>(&ctx, v, batch_size, shape[1]);
+    auto shess = linalg::ArrayInterfaceStr(hess.View(ctx.Device()));
+    gpairs.PushGrad(&ctx, StringView{sgrad}, StringView{shess});
+  }
+  auto batch_set = gpairs.GetGrad();
+  for (auto it = batch_set.begin(); it != batch_set.end(); ++it) {
+    auto const& page = it.Page();
+    std::cout << page->gpairs.Size() << std::endl;
   }
 }
 }  // namespace xgboost::data

@@ -13,7 +13,8 @@ struct GradientContainerWithCtx {
   Context const *ctx;
   GradientContainer gpairs;
 
-  explicit GradientContainerWithCtx(Context const *ctx) : ctx{ctx} {}
+  explicit GradientContainerWithCtx(Context const *ctx, common::Span<std::size_t const, 2> shape)
+      : ctx{ctx}, gpairs{ctx, shape} {}
 };
 
 inline auto CastGradientContainerHandle(GradientContainerHandle handle) {

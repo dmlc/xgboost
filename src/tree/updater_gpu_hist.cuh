@@ -534,13 +534,13 @@ class MultiTargetHistMaker {
   }
 
   void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree) {
-    auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {
       this->value_gpair_ = linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device()};
       gpair->value_gpair.SetDevice(this->ctx_->Device());
       this->value_gpair_.Data()->Copy(*gpair->value_gpair.Data());
     }
 
+    auto* split_grad = gpair->Grad();
     this->GrowTree(split_grad, p_fmat, task, p_tree);
 
     if (gpair->HasValueGrad()) {
