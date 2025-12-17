@@ -74,15 +74,8 @@ class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPo
 
  public:
   explicit ArrayPageSource(Context const* ctx, std::shared_ptr<ArrayPage> cache,
-                           std::shared_ptr<Cache> cache_info)
-      : Super::SparsePageSourceImpl{std::numeric_limits<float>::quiet_NaN(), 2,
-                                    static_cast<bst_feature_t>(cache->gpairs.Shape(1)),
-                                    std::move(cache_info)},
-        ctx_{ctx},
-        cache_{cache} {
-    this->SetArrayCache(ctx, cache);
-    this->Fetch();
-  }
+                           std::shared_ptr<Cache> cache_info);
+  ~ArrayPageSource() override;
 };
 
 class ArrayCacheWriter {

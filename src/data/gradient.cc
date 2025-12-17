@@ -85,7 +85,6 @@ void GradientContainer::PushGrad(Context const* ctx, StringView grad, StringView
     std::string cache_prefix = "grad";
     auto id = MakeCache(this, ".ap", true, cache_prefix, &cache_info);
 
-    std::cout << "commit reader:" << cache->NumBatches() << std::endl;
     auto ref = cache_info.at(id);
     for (std::int32_t i = 0; i < cache->NumBatches(); ++i) {
       auto v = cache->gpairs.Slice(
@@ -94,7 +93,6 @@ void GradientContainer::PushGrad(Context const* ctx, StringView grad, StringView
     }
     ref->Commit();
     this->reader_ = std::make_shared<data::ArrayPageSource>(ctx, std::move(cache), cache_info.at(id));
-    std::cout << "reader ptr:" << this->reader_.get() << std::endl;
   }
 }
 
@@ -106,7 +104,6 @@ void GradientContainer::PushValueGrad(Context const* ctx, StringView grad, Strin
 }
 
 BatchSet<data::ArrayPage> GradientContainer::GetGrad() {
-  std::cout << __func__ <<  " this:" << this << std::endl;
   CHECK(this->reader_);
   BatchParam p;
   // fixme:

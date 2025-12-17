@@ -44,20 +44,27 @@ void ArrayPageReader::Read(ArrayPage* page) const {
   cuda_impl::ReadArrayPage(this->ctx_, d_dst, h_src);
 }
 
-void ArrayPageSource::Fetch() {
-  std::cout << "fetch written:" << cache_info_->written << std::endl;
-  CHECK(this->ReadCache());
-  // if (!this->ReadCache()) {
-  //   this->page_.reset(new ArrayPage{});
-  //   auto iter = this->Iter();
-  //   auto offset = this->cache_->batch_ptr.at(iter);
-  //   auto offset_bytes = common::SizeBytes<GradientPair>(offset * this->n_features_);
-  //   auto reader = ArrayPageReader{this->ctx_, offset_bytes, this->cache_};
-  //   reader.Read(this->page_.get());
-  //   std::cout << "write cache:" << iter << std::endl;
-  //   this->WriteCache();
-  // }
+ArrayPageSource::ArrayPageSource(Context const* ctx, std::shared_ptr<ArrayPage> cache,
+                                 std::shared_ptr<Cache> cache_info)
+    : Super::SparsePageSourceImpl{std::numeric_limits<float>::quiet_NaN(), 2,
+                                  static_cast<bst_feature_t>(cache->gpairs.Shape(1)),
+                                  std::move(cache_info)},
+      ctx_{ctx},
+      cache_{cache} {
+
+  auto h_cache = this->cache_->gpairs.HostView().Values();
+  dh::safe_cuda(cudaHostRegister(h_cache.data(), h_cache.size_bytes(), cudaHostRegisterDefault));
+
+  this->SetArrayCache(ctx, cache);
+  this->Fetch();
 }
+
+ArrayPageSource::~ArrayPageSource() {
+  auto h_cache = this->cache_->gpairs.HostView().Values();
+  dh::safe_cuda(cudaHostUnregister(h_cache.data()));
+}
+
+void ArrayPageSource::Fetch() { CHECK(this->ReadCache()); }
 
 void ArrayPageSource::EndIter() {
   std::cout << __func__ << std::endl;
@@ -115,6 +122,8 @@ void ArrayCacheWriter::Push(std::shared_ptr<ArrayPage> page) {
   auto fut =
       workers_.Submit([&] { this->cache_->batch_ptr.push_back(this->cache_->gpairs.Shape(0)); });
   fut.get();  // Need to wait for the last task to ensure all prior tasks are complete.
+  auto h_cache = this->cache_->gpairs.HostView().Values();
+  dh::safe_cuda(cudaHostUnregister(h_cache.data()));
   return std::move(this->cache_);
 }
 }  // namespace xgboost::data
