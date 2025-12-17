@@ -9,5 +9,6 @@
 namespace xgboost::data {
 struct ArrayPage {
   linalg::Matrix<GradientPair> gpairs;
+  std::vector<bst_idx_t> batch_ptr;
 };
 }  // namespace xgboost::data

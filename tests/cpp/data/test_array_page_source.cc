@@ -14,7 +14,7 @@ namespace {
 auto CreateCache(std::size_t n_batches, std::size_t batch_size) {
   std::size_t shape[2]{n_batches * batch_size, 128};
   auto ctx = MakeCUDACtx(0);
-  auto p_cache = std::make_unique<ArrayCache>(&ctx, common::Span<std::size_t>{shape});
+  auto p_cache = std::make_unique<ArrayCacheWriter>(&ctx, common::Span<std::size_t>{shape});
   for (std::size_t i = 0; i < n_batches; ++i) {
     auto v = static_cast<float>(i);
     auto page = std::make_shared<ArrayPage>();
@@ -53,9 +53,16 @@ TEST(ArrayPageSource, Basic) {
   auto source = std::make_shared<ArrayPageSource>(std::move(cache), std::move(batch_ptr), n_targets,
                                                   cache_info.at(id));
   auto batch_set = BatchSet{BatchIterator<ArrayPage>{source}};
+  std::int32_t k = 0;
   for (auto const& page : batch_set) {
     ASSERT_EQ(page.gpairs.Shape(0), batch_size);
     ASSERT_EQ(page.gpairs.Shape(1), n_targets);
+    std::cout << page.gpairs(0, 0) << ", ";
+    for (auto v : page.gpairs.HostView()) {
+      ASSERT_EQ(static_cast<float>(k), v.GetGrad());
+      ASSERT_EQ(static_cast<float>(k), v.GetHess());
+    }
+    ++k;
   }
 }
 }  // namespace xgboost::data

@@ -11,11 +11,12 @@ namespace xgboost::data {
 
 struct ArrayPageNoOpWriter {};
 
-struct ArrayPageReader {
-  std::int32_t batch_idx = -1;
+class ArrayPageReader {
+  std::int32_t batch_idx_ = -1;
   std::vector<bst_idx_t> batch_ptr_;
   std::shared_ptr<ArrayPage> cache_;
 
+ public:
   explicit ArrayPageReader(std::uint64_t offset_bytes, std::vector<bst_idx_t> const& batch_ptr,
                            std::shared_ptr<ArrayPage>);
 
@@ -60,7 +61,6 @@ struct ArrayPageFormatPolicy {
   }
 
   void SetArrayCache(std::shared_ptr<ArrayPage> cache, std::vector<bst_idx_t> batch_ptr) {
-    std::cout << "set cache:" << this << std::endl;
     this->cache_ = std::move(cache);
     this->batch_ptr_ = std::move(batch_ptr);
     CHECK(this->cache_);
@@ -84,23 +84,22 @@ class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPo
                                     std::move(cache_info)},
         batch_ptr_{std::move(batch_ptr)},
         cache_{cache} {
-    std::cout << "create:" << this << std::endl;
     this->SetArrayCache(cache, this->batch_ptr_);
     this->Fetch();
   }
 };
 
-class ArrayCache {
+class ArrayCacheWriter {
   common::ThreadPool workers_{StringView{"aqu"}, 1, InitNewThread{}};
   std::shared_ptr<ArrayPage> cache_;
   std::size_t offset_{0};
   std::int32_t it_{0};
   std::future<void> last_;
 
-  void Clear();
+  void Wait();
 
  public:
-  explicit ArrayCache(Context const* ctx, common::Span<std::size_t const, 2> shape);
+  explicit ArrayCacheWriter(Context const* ctx, common::Span<std::size_t const, 2> shape);
 
   void Push(std::shared_ptr<ArrayPage> page);
   std::shared_ptr<ArrayPage> Commit();

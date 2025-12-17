@@ -11,7 +11,6 @@ ArrayPageReader::ArrayPageReader(std::uint64_t offset_bytes,
                                  std::shared_ptr<ArrayPage> cache)
     : cache_{std::move(cache)} {
   CHECK(cache_);
-  // fixme: binary seaerch
   auto size_bytes = [&](std::size_t i) {
     auto beg = batch_ptr.at(i);
     auto n_columns = this->cache_->gpairs.Shape(1);
@@ -20,20 +19,17 @@ ArrayPageReader::ArrayPageReader(std::uint64_t offset_bytes,
     // accumulated bytes
     return n_bytes;
   };
-  for (std::size_t i = 0; i < batch_ptr.size() - 1; ++i) {
-    auto n_bytes = size_bytes(i);
-    if (n_bytes == offset_bytes) {
-      this->batch_idx = i;
-      break;
-    }
-  }
-  CHECK_NE(this->batch_idx, -1) << "Seek failed";
+  auto beg = common::MakeIndexTransformIter(size_bytes);
+  auto end = beg + batch_ptr.size();
+  auto res_it = std::lower_bound(beg, beg + batch_ptr.size(), offset_bytes);
+  CHECK(res_it != end) << "Seek failed";
+  this->batch_idx_ = std::distance(beg, res_it);
   this->batch_ptr_ = batch_ptr;
 }
 
 void ArrayPageReader::Read(ArrayPage* page) const {
-  auto begin = this->batch_ptr_.at(batch_idx);
-  auto end = this->batch_ptr_.at(batch_idx + 1);
+  auto begin = this->batch_ptr_.at(batch_idx_);
+  auto end = this->batch_ptr_.at(batch_idx_ + 1);
   auto h_cache =
       std::as_const(this->cache_->gpairs).Slice(linalg::Range(begin, end), linalg::All());
   Context ctx = Context{}.MakeCUDA(0);  // fixme
@@ -78,13 +74,13 @@ ArrayPageSource& ArrayPageSource::operator++() {
   return *this;
 }
 
-void ArrayCache::Clear() {
+void ArrayCacheWriter::Wait() {
   if (this->last_.valid()) {
     this->last_.get();
   }
 }
 
-ArrayCache::ArrayCache(Context const* ctx, common::Span<std::size_t const, 2> shape)
+ArrayCacheWriter::ArrayCacheWriter(Context const* ctx, common::Span<std::size_t const, 2> shape)
     : cache_{std::make_shared<ArrayPage>()} {
   this->cache_->gpairs.SetDevice(ctx->Device());
   this->cache_->gpairs.Reshape(shape);
@@ -92,7 +88,7 @@ ArrayCache::ArrayCache(Context const* ctx, common::Span<std::size_t const, 2> sh
   dh::safe_cuda(cudaHostRegister(h_cache.data(), h_cache.size_bytes(), cudaHostRegisterDefault));
 }
 
-void ArrayCache::Push(std::shared_ptr<ArrayPage> page) {
+void ArrayCacheWriter::Push(std::shared_ptr<ArrayPage> page) {
   CHECK(this->cache_);
   auto n = page->gpairs.Shape(0);
   auto h_cache = this->cache_->gpairs.HostView();
@@ -105,12 +101,12 @@ void ArrayCache::Push(std::shared_ptr<ArrayPage> page) {
                       curt::DefaultStream());
   });
   offset_ += n;
-  this->Clear();
+  this->Wait();
   this->last_ = std::move(fut);
 }
 
-std::shared_ptr<ArrayPage> ArrayCache::Commit() {
-  this->Clear();
+std::shared_ptr<ArrayPage> ArrayCacheWriter::Commit() {
+  this->Wait();
   return std::move(this->cache_);
 }
 }  // namespace xgboost::data
