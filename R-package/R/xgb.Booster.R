@@ -364,19 +364,11 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   is_dmatrix <- inherits(newdata, "xgb.DMatrix")
   if (is_dmatrix) {
     rnames <- NULL
-
+    
     # FIX: If user passed a margin argument, apply it to the DMatrix.
     if (!is.null(base_margin)) {
       setinfo(newdata, "base_margin", base_margin)
-    } else {
-      # FIX: If user passed NULL, check if DMatrix has an internal margin.
-      # This ensures we respect margins set via setinfo() previously.
-      internal_margin <- getinfo(newdata, "base_margin")
-      if (length(internal_margin) > 0) {
-        base_margin <- internal_margin
-      }
     }
-
   } else {
     rnames <- row.names(newdata)
   }
