@@ -6,17 +6,16 @@
 #include "../common/cuda_rt_utils.h"
 
 namespace xgboost::data {
-ArrayPageReader::ArrayPageReader(std::uint64_t offset_bytes,
-                                 std::vector<bst_idx_t> const& batch_ptr,
-                                 std::shared_ptr<ArrayPage> cache)
+ArrayPageReader::ArrayPageReader(std::uint64_t offset_bytes, std::shared_ptr<ArrayPage> cache)
     : cache_{std::move(cache)} {
   CHECK(cache_);
+  auto const& batch_ptr = this->cache_->batch_ptr;
   auto size_bytes = [&](std::size_t i) {
     auto beg = batch_ptr.at(i);
     auto n_columns = this->cache_->gpairs.Shape(1);
     auto n_rows = beg;
     auto n_bytes = common::SizeBytes<GradientPair>(n_rows * n_columns);
-    // accumulated bytes
+    // Accumulated bytes
     return n_bytes;
   };
   auto beg = common::MakeIndexTransformIter(size_bytes);
@@ -24,12 +23,11 @@ ArrayPageReader::ArrayPageReader(std::uint64_t offset_bytes,
   auto res_it = std::lower_bound(beg, beg + batch_ptr.size(), offset_bytes);
   CHECK(res_it != end) << "Seek failed";
   this->batch_idx_ = std::distance(beg, res_it);
-  this->batch_ptr_ = batch_ptr;
 }
 
 void ArrayPageReader::Read(ArrayPage* page) const {
-  auto begin = this->batch_ptr_.at(batch_idx_);
-  auto end = this->batch_ptr_.at(batch_idx_ + 1);
+  auto begin = this->cache_->batch_ptr.at(batch_idx_);
+  auto end = this->cache_->batch_ptr.at(batch_idx_ + 1);
   auto h_cache =
       std::as_const(this->cache_->gpairs).Slice(linalg::Range(begin, end), linalg::All());
   Context ctx = Context{}.MakeCUDA(0);  // fixme
@@ -45,10 +43,9 @@ void ArrayPageSource::Fetch() {
   if (!this->ReadCache()) {
     this->page_.reset(new ArrayPage{});
     auto iter = this->Iter();
-    auto offset = this->batch_ptr_.at(iter);
+    auto offset = this->cache_->batch_ptr.at(iter);
     auto offset_bytes = common::SizeBytes<GradientPair>(offset * this->n_features_);
-    CHECK(this->cache_) << this;
-    auto reader = ArrayPageReader{offset_bytes, this->batch_ptr_, this->cache_};
+    auto reader = ArrayPageReader{offset_bytes, this->cache_};
     reader.Read(this->page_.get());
     this->WriteCache();
   }
@@ -63,9 +60,10 @@ void ArrayPageSource::EndIter() {
 ArrayPageSource& ArrayPageSource::operator++() {
   ++this->count_;
 
-  CHECK(!this->batch_ptr_.empty());
-  auto n_batches = this->batch_ptr_.size() - 1;
-  this->at_end_ = (count_ == n_batches);
+  auto n_batches = this->cache_->NumBatches();
+  CHECK_NE(n_batches, 0);
+
+  this->at_end_ = (static_cast<decltype(n_batches)>(count_) == n_batches);
   if (this->at_end_) {
     this->EndIter();
   } else {

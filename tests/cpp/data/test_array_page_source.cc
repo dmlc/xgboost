@@ -52,14 +52,12 @@ TEST(ArrayPageSource, Basic) {
   ASSERT_EQ(batch_ptr, cache->batch_ptr);
 
   auto n_targets = cache->gpairs.Shape(1);
-  auto source = std::make_shared<ArrayPageSource>(std::move(cache), std::move(batch_ptr), n_targets,
-                                                  cache_info.at(id));
+  auto source = std::make_shared<ArrayPageSource>(std::move(cache), n_targets, cache_info.at(id));
   auto batch_set = BatchSet{BatchIterator<ArrayPage>{source}};
   std::int32_t k = 0;
   for (auto const& page : batch_set) {
     ASSERT_EQ(page.gpairs.Shape(0), batch_size);
     ASSERT_EQ(page.gpairs.Shape(1), n_targets);
-    std::cout << page.gpairs(0, 0) << ", ";
     for (auto v : page.gpairs.HostView()) {
       ASSERT_EQ(static_cast<float>(k), v.GetGrad());
       ASSERT_EQ(static_cast<float>(k), v.GetHess());
