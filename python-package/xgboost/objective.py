@@ -79,6 +79,11 @@ def _reshape_grad(array: NumpyOrCupy, n_samples: int) -> NumpyOrCupy:
             " be (n_samples, n_targets) or (n_samples, n_classes).",
             FutureWarning,
         )
+        if array.size % n_samples != 0:
+            raise ValueError(
+                f"Invalid gradient shape: {array.shape}. The number of samples of "
+                f"the current batch: {n_samples}."
+            )
         array = array.reshape(n_samples, array.size // n_samples)
     return array
 
