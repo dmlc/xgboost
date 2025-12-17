@@ -80,6 +80,7 @@ class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPo
 
 class ArrayCacheWriter {
   // Single thread, we use the thread pool for easy task submit
+  // fixme: need to share the thread pool across iterations somehow.
   common::ThreadPool workers_{StringView{"aqu"}, 1, InitNewThread{}};
   std::shared_ptr<ArrayPage> cache_;
   std::size_t offset_{0};
