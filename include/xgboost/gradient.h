@@ -32,6 +32,7 @@ struct GradientContainer {
   // Reader for the cache, reset and become valid after all pages in an iteration are
   // written
   std::shared_ptr<data::ArrayPageSource> reader_;
+  bst_target_t n_targets_ = 0;
 
  public:
   GradientContainer() = default;  // fixme
@@ -77,6 +78,7 @@ struct GradientContainer {
   void PushValueGrad(Context const* ctx, StringView grad, StringView hess);
 
   BatchSet<data::ArrayPage> GetGrad();
+  bst_target_t NumTargetsN() const { return this->n_targets_; }
 };
 
 template <typename G, typename H>

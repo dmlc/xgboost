@@ -77,7 +77,8 @@ void GradientContainer::PushGrad(Context const* ctx, StringView grad, StringView
   if (writer_ && writer_->CanCommit()) {
     auto cache = this->writer_->Commit();
     this->writer_.reset();
-    auto n_targets = cache;
+    auto n_targets = cache->gpairs.Shape(1);
+    this->n_targets_ = n_targets;
 
     // fixme: cleanup
     std::map<std::string, std::shared_ptr<data::Cache>> cache_info;
