@@ -84,6 +84,7 @@ from .objective import (
     TreeObjective,
     _grad_arrinf,
     _GradientContainer,
+    _reshape_grad,
 )
 
 if TYPE_CHECKING:
@@ -2518,9 +2519,14 @@ class Booster:
                 sgrad, shess = fobj(y_pred, dtrain)
                 vgrad, vhess = None, None
 
-            gradc.push_grad(sgrad, shess)
+            n_samples = y_pred.shape[0]
+            gradc.push_grad(
+                _reshape_grad(sgrad, n_samples), _reshape_grad(shess, n_samples)
+            )
             if vgrad is not None:
-                gradc.push_value_grad(vgrad, vhess)
+                gradc.push_value_grad(
+                    _reshape_grad(vgrad, n_samples), _reshape_grad(vhess, n_samples)
+                )
 
         if dtrain.num_batches() == 1:
             # Calculate the gradient without the overhead of a proxy DMatrix.
@@ -2592,15 +2598,15 @@ class Booster:
                     self.handle,
                     dtrain.handle,
                     iteration,
-                    _grad_arrinf(grad, n_samples),
-                    _grad_arrinf(hess, n_samples),
+                    _grad_arrinf(_reshape_grad(grad, n_samples)),
+                    _grad_arrinf(_reshape_grad(hess, n_samples)),
                 )
             )
             return
 
         raise ValueError(
             "Invalid arguments for the boost function. Either provide both of the ",
-            "gradient and the hessian, or provide an objective function."
+            "gradient and the hessian, or provide an objective function.",
         )
 
     def eval_set(

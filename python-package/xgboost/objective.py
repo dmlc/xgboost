@@ -67,7 +67,18 @@ class TreeObjective(Objective):
         return grad, hess
 
 
-def _grad_arrinf(array: NumpyOrCupy, n_samples: int) -> bytes:
+def _reshape_grad(array: NumpyOrCupy, n_samples: int) -> NumpyOrCupy:
+    if array.shape[0] != n_samples and is_flatten(array):
+        warnings.warn(
+            "Since 2.1.0, the shape of the gradient and hessian is required to"
+            " be (n_samples, n_targets) or (n_samples, n_classes).",
+            FutureWarning,
+        )
+        array = array.reshape(n_samples, array.size // n_samples)
+    return array
+
+
+def _grad_arrinf(array: NumpyOrCupy) -> bytes:
     """Get array interface for gradient matrices."""
     # Can we check for __array_interface__ instead of a specific type instead?
     msg = (
@@ -77,14 +88,6 @@ def _grad_arrinf(array: NumpyOrCupy, n_samples: int) -> bytes:
     )
     if not isinstance(array, np.ndarray) and not _is_cupy_alike(array):
         raise TypeError(msg)
-
-    if array.shape[0] != n_samples and is_flatten(array):
-        warnings.warn(
-            "Since 2.1.0, the shape of the gradient and hessian is required to"
-            " be (n_samples, n_targets) or (n_samples, n_classes).",
-            FutureWarning,
-        )
-        array = array.reshape(n_samples, array.size // n_samples)
 
     if isinstance(array, np.ndarray):
         array, _ = _ensure_np_dtype(array, array.dtype)
@@ -107,16 +110,16 @@ class _GradientContainer:
         """Push a batch of tree leaf value gradient into the container."""
         from .core import _LIB, _check_call
 
-        i_grad = _grad_arrinf(grad, grad.shape[0])
-        i_hess = _grad_arrinf(hess, hess.shape[0])
+        i_grad = _grad_arrinf(grad)
+        i_hess = _grad_arrinf(hess)
         _check_call(_LIB.XGGradientContainerPushValueGrad(self.handle, i_grad, i_hess))
 
-    def push_grad(self, sgrad: NumpyOrCupy, shess: NumpyOrCupy) -> None:
+    def push_grad(self, grad: NumpyOrCupy, hess: NumpyOrCupy) -> None:
         """Push a batch of (tree split) gradient into the container."""
         from .core import _LIB, _check_call
 
-        i_grad = _grad_arrinf(sgrad, sgrad.shape[0])
-        i_hess = _grad_arrinf(shess, shess.shape[0])
+        i_grad = _grad_arrinf(grad)
+        i_hess = _grad_arrinf(hess)
         _check_call(_LIB.XGGradientContainerPushGrad(self.handle, i_grad, i_hess))
 
     def __del__(self) -> None:
