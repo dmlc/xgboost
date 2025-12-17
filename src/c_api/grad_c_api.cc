@@ -15,16 +15,17 @@
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGGradientContainerCreate(BoosterHandle handle, JArrayStr config,
+XGB_DLL int XGGradientContainerCreate(BoosterHandle handle, DMatrixHandle dtrain,
                                       GradientContainerHandle *out) {
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(out);
-  auto jconfig = Json::Load(StringView{config});
-  auto n_samples = get<Integer const>(jconfig["n_samples"]);
+  // auto jconfig = Json::Load(StringView{config});
+  // auto n_samples = get<Integer const>(jconfig["n_samples"]);
+  auto p_fmat = CastDMatrixHandle(dtrain);
   auto *learner = static_cast<Learner *>(handle);
   auto n_targets = learner->OutputLength();
-  std::size_t shape[2]{static_cast<std::size_t>(n_samples), n_targets};
+  std::size_t shape[2]{static_cast<std::size_t>(p_fmat->Info().num_row_), n_targets};
   *out = new GradientContainerWithCtx{learner->Ctx(), common::Span<std::size_t const, 2>{shape}};
   API_END();
 }

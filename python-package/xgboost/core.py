@@ -2495,7 +2495,11 @@ class Booster:
 
         """
         handle = ctypes.c_void_p()
-        _check_call(_LIB.XGGradientContainerCreate(self.handle, ctypes.byref(handle)))
+        _check_call(
+            _LIB.XGGradientContainerCreate(
+                self.handle, dtrain.handle, ctypes.byref(handle)
+            )
+        )
         gradc = _GradientContainer(handle)
 
         def calc_grad(y_pred: ArrayLike, dtrain: DMatrix) -> None:
@@ -2503,7 +2507,7 @@ class Booster:
             vgrad: Optional[ArrayLike]
             vhess: Optional[ArrayLike]
 
-            if isinstance(fobj, TreeObjective) or hasattr(fobj, "split_grad"):
+            if isinstance(fobj, TreeObjective):
                 # full gradient for leaf values
                 vgrad, vhess = fobj(iteration, y_pred, dtrain)
                 # Reduced gradient for split nodes

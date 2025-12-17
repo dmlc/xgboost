@@ -85,7 +85,16 @@ void GradientContainer::PushGrad(Context const* ctx, StringView grad, StringView
     std::string cache_prefix = "grad";
     auto id = MakeCache(this, ".ap", true, cache_prefix, &cache_info);
 
+    std::cout << "commit reader:" << cache->NumBatches() << std::endl;
+    auto ref = cache_info.at(id);
+    for (std::int32_t i = 0; i < cache->NumBatches(); ++i) {
+      auto v = cache->gpairs.Slice(
+          linalg::Range(cache->batch_ptr.at(i), cache->batch_ptr.at(i + 1)), linalg::All());
+      ref->Push(v.Size() * sizeof(GradientPair));
+    }
+    ref->Commit();
     this->reader_ = std::make_shared<data::ArrayPageSource>(ctx, std::move(cache), cache_info.at(id));
+    std::cout << "reader ptr:" << this->reader_.get() << std::endl;
   }
 }
 
@@ -97,7 +106,13 @@ void GradientContainer::PushValueGrad(Context const* ctx, StringView grad, Strin
 }
 
 BatchSet<data::ArrayPage> GradientContainer::GetGrad() {
+  std::cout << __func__ <<  " this:" << this << std::endl;
   CHECK(this->reader_);
+  BatchParam p;
+  // fixme:
+  // p.n_prefetch_batches = cuda_impl::DftPrefetchBatches();
+  p.n_prefetch_batches = 2;
+  this->reader_->Reset(p);
   return BatchSet{BatchIterator<data::ArrayPage>{this->reader_}};
 }
 }  // namespace xgboost

@@ -45,18 +45,22 @@ void ArrayPageReader::Read(ArrayPage* page) const {
 }
 
 void ArrayPageSource::Fetch() {
-  if (!this->ReadCache()) {
-    this->page_.reset(new ArrayPage{});
-    auto iter = this->Iter();
-    auto offset = this->cache_->batch_ptr.at(iter);
-    auto offset_bytes = common::SizeBytes<GradientPair>(offset * this->n_features_);
-    auto reader = ArrayPageReader{this->ctx_, offset_bytes, this->cache_};
-    reader.Read(this->page_.get());
-    this->WriteCache();
-  }
+  std::cout << "fetch written:" << cache_info_->written << std::endl;
+  CHECK(this->ReadCache());
+  // if (!this->ReadCache()) {
+  //   this->page_.reset(new ArrayPage{});
+  //   auto iter = this->Iter();
+  //   auto offset = this->cache_->batch_ptr.at(iter);
+  //   auto offset_bytes = common::SizeBytes<GradientPair>(offset * this->n_features_);
+  //   auto reader = ArrayPageReader{this->ctx_, offset_bytes, this->cache_};
+  //   reader.Read(this->page_.get());
+  //   std::cout << "write cache:" << iter << std::endl;
+  //   this->WriteCache();
+  // }
 }
 
 void ArrayPageSource::EndIter() {
+  std::cout << __func__ << std::endl;
   this->cache_info_->Commit();
   CHECK_GE(this->count_, 1);
   this->count_ = 0;
@@ -98,6 +102,7 @@ void ArrayCacheWriter::Push(std::shared_ptr<ArrayPage> page) {
     auto in = page->gpairs.View(page->gpairs.Device());
     curt::MemcpyAsync(out.Values().data(), in.Values().data(), in.Values().size_bytes(),
                       curt::DefaultStream());
+    curt::DefaultStream().Sync();
   });
   offset_ += n;
 }

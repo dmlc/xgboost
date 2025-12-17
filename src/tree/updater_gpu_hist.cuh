@@ -10,6 +10,7 @@
 
 #include "../common/device_helpers.cuh"        // for MakeTransformIterator
 #include "../data/array_page_source.h"
+#include <thrust/iterator/tabulate_output_iterator.h>  // for make_tabulate_output_iterator
 #include "../common/nvtx_utils.h"              // for xgboost_NVTX_FN_RANGE
 #include "driver.h"                            // for Driver
 #include "gpu_hist/feature_groups.cuh"         // for FeatureGroups
@@ -68,13 +69,14 @@ void AssignNodes(TreeView const& tree, std::vector<ExpandEntry> const& candidate
 void CalcRootSum(Context const* ctx, GradientContainer* gpairs, MetaInfo const& info,
                  common::Span<GradientQuantiser const> roundings,
                  common::Span<GradientPairInt64> root_sum) {
-  auto n_samples = info.num_row_;
+  // auto n_samples = info.num_row_;
   auto n_targets = gpairs->NumTargetsN();
   // Calculate the root sum
   CHECK_EQ(n_targets, root_sum.size());
 
   for (auto const& batch : gpairs->GetGrad()) {
     auto d_gpair = batch.gpairs.View(ctx->Device());
+    auto n_samples = d_gpair.Shape(0);
     auto key_it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
       auto cidx = i / n_samples;
       return cidx;
@@ -86,8 +88,15 @@ void CalcRootSum(Context const* ctx, GradientContainer* gpairs, MetaInfo const& 
           auto g = d_gpair(ridx, cidx);
           return roundings[cidx].ToFixedPoint(g);
         });
-    thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + n_samples * n_targets, val_it,
-                          thrust::make_discard_iterator(), dh::tbegin(root_sum));
+
+    // auto out_it = thrust::make_tabulate_output_iterator(
+    //     [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) { root_sum[idx] += v; });
+    dh::device_vector<GradientPairInt64> tmp(root_sum.size());
+    thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + n_samples * n_targets,
+                          val_it, thrust::make_discard_iterator(), tmp.begin());
+    auto d_tmp = dh::ToSpan(tmp);  // fixme
+    thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0), root_sum.size(),
+                       [=] XGBOOST_DEVICE(std::int32_t i) { root_sum[i] += d_tmp[i]; });
   }
 }
 
@@ -220,7 +229,7 @@ class MultiTargetHistMaker {
     auto gpair_set = this->split_gpair_->GetGrad();
     auto gpair_it = gpair_set.begin();
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-      CHECK(gpair_it != gpair_set.end());
+      CHECK(gpair_it != gpair_set.end()) << "k:" << k;
       auto d_gpair = gpair_it.Page()->gpairs.View(ctx_->Device());
       this->BuildHist(page, d_gpair, k, RegTree::kRoot);
       ++k;

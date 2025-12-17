@@ -150,7 +150,8 @@ MultiGradientQuantiser::MultiGradientQuantiser(Context const* ctx, GradientConta
   for (bst_target_t t = 0, n_targets = gpair->NumTargetsN(); t < n_targets; ++t) {
     Pair sum;
     for (auto const& batch : gpair->GetGrad()) {
-      auto d_gpairs = batch.gpairs.View(ctx->Device());
+      std::cout << "sum" << std::endl;
+      auto d_gpairs = batch.gpairs.View(ctx->Device()).Slice(linalg::All(), t);
       auto beg = thrust::make_transform_iterator(linalg::tcbegin(d_gpairs), Clip{});
       Pair p = dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + d_gpairs.Size(), Pair{},
                           thrust::plus<Pair>{});
