@@ -52,7 +52,9 @@ TEST(ArrayPageSource, Basic) {
   ASSERT_EQ(batch_ptr, cache->batch_ptr);
 
   auto n_targets = cache->gpairs.Shape(1);
-  auto source = std::make_shared<ArrayPageSource>(std::move(cache), n_targets, cache_info.at(id));
+  auto ctx = MakeCUDACtx(0);
+  auto source =
+      std::make_shared<ArrayPageSource>(&ctx, std::move(cache), n_targets, cache_info.at(id));
   auto batch_set = BatchSet{BatchIterator<ArrayPage>{source}};
   std::int32_t k = 0;
   for (auto const& page : batch_set) {

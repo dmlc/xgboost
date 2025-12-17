@@ -6,8 +6,9 @@
 #include "../common/cuda_rt_utils.h"
 
 namespace xgboost::data {
-ArrayPageReader::ArrayPageReader(std::uint64_t offset_bytes, std::shared_ptr<ArrayPage> cache)
-    : cache_{std::move(cache)} {
+ArrayPageReader::ArrayPageReader(Context const* ctx, std::uint64_t offset_bytes,
+                                 std::shared_ptr<ArrayPage> cache)
+    : ctx_{ctx}, cache_{std::move(cache)} {
   CHECK(cache_);
   auto const& batch_ptr = this->cache_->batch_ptr;
   auto size_bytes = [&](std::size_t i) {
@@ -30,11 +31,10 @@ void ArrayPageReader::Read(ArrayPage* page) const {
   auto end = this->cache_->batch_ptr.at(batch_idx_ + 1);
   auto h_cache =
       std::as_const(this->cache_->gpairs).Slice(linalg::Range(begin, end), linalg::All());
-  Context ctx = Context{}.MakeCUDA(0);  // fixme
   CHECK(h_cache.CContiguous());
-  page->gpairs.SetDevice(ctx.Device());
+  page->gpairs.SetDevice(ctx_->Device());
   page->gpairs.Reshape(h_cache.Shape());
-  auto d_dst = page->gpairs.View(ctx.Device()).Values();
+  auto d_dst = page->gpairs.View(ctx_->Device()).Values();
   curt::MemcpyAsync(d_dst.data(), h_cache.Values().data(), d_dst.size_bytes(),
                     curt::DefaultStream());
 }
@@ -45,7 +45,7 @@ void ArrayPageSource::Fetch() {
     auto iter = this->Iter();
     auto offset = this->cache_->batch_ptr.at(iter);
     auto offset_bytes = common::SizeBytes<GradientPair>(offset * this->n_features_);
-    auto reader = ArrayPageReader{offset_bytes, this->cache_};
+    auto reader = ArrayPageReader{this->ctx_, offset_bytes, this->cache_};
     reader.Read(this->page_.get());
     this->WriteCache();
   }

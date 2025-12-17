@@ -11,11 +11,13 @@ namespace xgboost::data {
 struct ArrayPageNoOpWriter {};
 
 class ArrayPageReader {
+  Context const* ctx_;
   std::int32_t batch_idx_ = -1;
   std::shared_ptr<ArrayPage> cache_;
 
  public:
-  explicit ArrayPageReader(std::uint64_t offset_bytes, std::shared_ptr<ArrayPage> cache);
+  explicit ArrayPageReader(Context const* ctx, std::uint64_t offset_bytes,
+                           std::shared_ptr<ArrayPage> cache);
 
   void Read(ArrayPage* page) const;
 };
@@ -32,6 +34,7 @@ struct ArrayPageFormat {
 
 struct ArrayPageFormatPolicy {
  private:
+  Context const* ctx_;
   std::shared_ptr<ArrayPage> cache_;
 
  public:
@@ -44,14 +47,15 @@ struct ArrayPageFormatPolicy {
 
   [[nodiscard]] auto CreateReader(StringView, std::uint64_t offset, std::uint64_t) const {
     CHECK(this->cache_);
-    return std::make_unique<ReaderT>(offset, this->cache_);
+    return std::make_unique<ReaderT>(ctx_, offset, this->cache_);
   }
 
   [[nodiscard]] auto CreatePageFormat(BatchParam const&) const {
     return std::make_unique<ArrayPageFormat>();
   }
 
-  void SetArrayCache(std::shared_ptr<ArrayPage> cache) {
+  void SetArrayCache(Context const* ctx, std::shared_ptr<ArrayPage> cache) {
+    this->ctx_ = ctx;
     this->cache_ = std::move(cache);
     CHECK(this->cache_);
   }
@@ -59,6 +63,7 @@ struct ArrayPageFormatPolicy {
 
 class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPolicy> {
   using Super = SparsePageSourceImpl<ArrayPage, ArrayPageFormatPolicy>;
+  Context const* ctx_;
   std::shared_ptr<ArrayPage> cache_;
 
  protected:
@@ -67,12 +72,13 @@ class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPo
   ArrayPageSource& operator++() final;
 
  public:
-  explicit ArrayPageSource(std::shared_ptr<ArrayPage> cache, bst_feature_t n_features,
-                           std::shared_ptr<Cache> cache_info)
+  explicit ArrayPageSource(Context const* ctx, std::shared_ptr<ArrayPage> cache,
+                           bst_feature_t n_features, std::shared_ptr<Cache> cache_info)
       : Super::SparsePageSourceImpl{std::numeric_limits<float>::quiet_NaN(), 2, n_features,
                                     std::move(cache_info)},
+        ctx_{ctx},
         cache_{cache} {
-    this->SetArrayCache(cache);
+    this->SetArrayCache(ctx, cache);
     this->Fetch();
   }
 };
