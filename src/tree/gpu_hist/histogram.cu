@@ -147,16 +147,21 @@ MultiGradientQuantiser::MultiGradientQuantiser(Context const* ctx, GradientConta
   using T = typename GradientSumT::ValueT;
   auto n_samples = info.num_row_;
 
-  for (bst_target_t t = 0, n_targets = gpair->NumTargetsN(); t < n_targets; ++t) {
-    Pair sum;
-    for (auto const& batch : gpair->GetGrad()) {
+  auto n_targets = gpair->NumTargetsN();
+  std::vector<Pair> sums(n_targets);
+
+  for (auto const& batch : gpair->GetGrad()) {
+    for (bst_target_t t = 0; t < n_targets; ++t) {
       auto d_gpairs = batch.gpairs.View(ctx->Device()).Slice(linalg::All(), t);
       auto beg = thrust::make_transform_iterator(linalg::tcbegin(d_gpairs), Clip{});
       Pair p = dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + d_gpairs.Size(), Pair{},
                           thrust::plus<Pair>{});
-      sum = sum + p;
+      sums[t] = sums[t] + p;
     }
+  }
 
+  for (bst_target_t t = 0; t < n_targets; ++t) {
+    auto const& sum = sums[t];
     GradientPair positive_sum{sum.first}, negative_sum{sum.second};
     auto histogram_rounding =
         GradientSumT{common::CreateRoundingFactor<T>(
