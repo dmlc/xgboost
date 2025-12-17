@@ -35,6 +35,11 @@ __all__ = ["Objective", "TreeObjective"]
 PlainObj = Callable[[np.ndarray, "DMatrix"], Tuple[np.ndarray, np.ndarray]]
 
 
+# Since 3.2, we are working with batched data in the Python interface. An objective can
+# be invoked multiple times for each iteration.
+# The `iteration` parameter of the objective prototype is provided as a hint to users
+# which iteration the current call belongs to.
+
 class Objective(ABC):
     """Base class for custom objective functions.
 

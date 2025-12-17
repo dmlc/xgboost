@@ -2534,7 +2534,6 @@ class Booster:
             return gradc
 
         base_rowid = 0
-
         # Calculate gradient for each batch
         for proxy in dtrain.info_batches():
             n_samples = proxy.num_row()
