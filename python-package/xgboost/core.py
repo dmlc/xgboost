@@ -2503,7 +2503,7 @@ class Booster:
             vgrad: Optional[ArrayLike]
             vhess: Optional[ArrayLike]
 
-            if isinstance(fobj, TreeObjective):
+            if isinstance(fobj, TreeObjective) or hasattr(fobj, "split_grad"):
                 # full gradient for leaf values
                 vgrad, vhess = fobj(iteration, y_pred, dtrain)
                 # Reduced gradient for split nodes
