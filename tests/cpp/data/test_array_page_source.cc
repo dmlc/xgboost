@@ -29,7 +29,7 @@ TEST(ArrayCache, Push) {
   std::size_t n_batches = 4, batch_size = 1024;
   auto cache = CreateCache(n_batches, batch_size);
   for (std::size_t i = 0; i < n_batches; ++i) {
-    auto batch = cache.gpairs.Slice(i * batch_size, linalg::All());
+    auto batch = cache->gpairs.Slice(i * batch_size, linalg::All());
     auto e = static_cast<float>(i);
     for (auto v : batch) {
       ASSERT_EQ(v.GetGrad(), e);
@@ -40,7 +40,7 @@ TEST(ArrayCache, Push) {
 TEST(ArrayPageSource, Basic) {
   std::map<std::string, std::shared_ptr<Cache>> cache_info;
   std::string cache_prefix = "grad";
-  auto id = MakeCache(this, ".ap", false, cache_prefix, &cache_info);
+  auto id = MakeCache(this, ".ap", true, cache_prefix, &cache_info);
 
   std::size_t n_batches = 4, batch_size = 1024;
   auto cache = CreateCache(n_batches, batch_size);
@@ -49,11 +49,13 @@ TEST(ArrayPageSource, Basic) {
     batch_ptr.push_back(batch_size + batch_ptr[i]);
   }
 
-  auto source =
-      std::make_unique<ArrayPageSource>(std::move(cache), std::move(batch_ptr), cache_info.at(id));
-  auto batch_set = BatchSet{BatchIterator<ArrayPage>{source.get()}};
+  auto n_targets = cache->gpairs.Shape(1);
+  auto source = std::make_shared<ArrayPageSource>(std::move(cache), std::move(batch_ptr), n_targets,
+                                                  cache_info.at(id));
+  auto batch_set = BatchSet{BatchIterator<ArrayPage>{source}};
   for (auto const& page : batch_set) {
-    std::cout << "size:" << page.gpairs.Size() << std::endl;
+    ASSERT_EQ(page.gpairs.Shape(0), batch_size);
+    ASSERT_EQ(page.gpairs.Shape(1), n_targets);
   }
 }
 }  // namespace xgboost::data

@@ -3,51 +3,23 @@
  */
 #pragma once
 
+#include "../common/linalg_op.h"
 #include "array_page.h"
 #include "sparse_page_source.h"
-#include "../common/linalg_op.h"
 
 namespace xgboost::data {
 
 struct ArrayPageNoOpWriter {};
 
 struct ArrayPageReader {
-  std::int32_t batch_idx = 0;
+  std::int32_t batch_idx = -1;
   std::vector<bst_idx_t> batch_ptr_;
-  std::shared_ptr<ArrayPage> cache;
+  std::shared_ptr<ArrayPage> cache_;
 
-  explicit ArrayPageReader(std::uint64_t offset_bytes, std::vector<bst_idx_t> const& batch_ptr) {
-    CHECK(cache);
-    // fixme: binary seaerch
-    auto size_bytes = [&](std::size_t i) {
-      // auto beg = batch_ptr.at(i);
-      auto end = batch_ptr.at(i + 1);
-      auto n_columns = this->cache->gpairs.Shape(1);
-      //  - beg
-      auto n_rows = end;
-      auto n_bytes = common::SizeBytes<GradientPair>(n_rows * n_columns);
-      // accumulated bytes
-      return n_bytes;
-    };
-    for (std::size_t i = 0; i < batch_ptr.size(); ++i) {
-      auto n_bytes = size_bytes(i);
-      if (n_bytes == offset_bytes) {
-        this->batch_idx = i;
-        break;
-      }
-    }
-    LOG(FATAL) << "Seek failed";
-    this->batch_ptr_ = batch_ptr;
-  }
+  explicit ArrayPageReader(std::uint64_t offset_bytes, std::vector<bst_idx_t> const& batch_ptr,
+                           std::shared_ptr<ArrayPage>);
 
-  void Read(ArrayPage* page) const {
-    auto begin = this->batch_ptr_.at(batch_idx);
-    auto end = this->batch_ptr_.at(batch_idx + 1);
-    auto h_cache =
-        std::as_const(this->cache->gpairs).Slice(linalg::Range(begin, end), linalg::All());
-    Context ctx = Context{}.MakeCUDA(0);  // fixme
-    linalg::Copy(&ctx, h_cache, &page->gpairs);
-  }
+  void Read(ArrayPage* page) const;
 };
 
 struct ArrayPageFormat {
@@ -63,7 +35,7 @@ struct ArrayPageFormat {
 
 struct ArrayPageFormatPolicy {
  private:
-  ArrayPage cache_;
+  std::shared_ptr<ArrayPage> cache_;
   std::vector<bst_idx_t> batch_ptr_;
 
  public:
@@ -78,7 +50,8 @@ struct ArrayPageFormatPolicy {
 
   std::unique_ptr<ReaderT> CreateReader(StringView, std::uint64_t offset, std::uint64_t) const {
     // fixme: no copy
-    return std::make_unique<ReaderT>(offset, this->batch_ptr_);
+    CHECK(this->cache_);
+    return std::make_unique<ReaderT>(offset, this->batch_ptr_, this->cache_);
   }
 
   auto CreatePageFormat(BatchParam const&) const {
@@ -86,15 +59,18 @@ struct ArrayPageFormatPolicy {
     return fmt;
   }
 
-  void SetCache(ArrayPage cache, std::vector<bst_idx_t> batch_ptr) {
+  void SetArrayCache(std::shared_ptr<ArrayPage> cache, std::vector<bst_idx_t> batch_ptr) {
+    std::cout << "set cache:" << this << std::endl;
     this->cache_ = std::move(cache);
     this->batch_ptr_ = std::move(batch_ptr);
+    CHECK(this->cache_);
   }
 };
 
 class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPolicy> {
   using Super = SparsePageSourceImpl<ArrayPage, ArrayPageFormatPolicy>;
   std::vector<bst_idx_t> batch_ptr_;
+  std::shared_ptr<ArrayPage> cache_;
 
  protected:
   void Fetch() final;
@@ -102,18 +78,21 @@ class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPo
   ArrayPageSource& operator++() final;
 
  public:
-  explicit ArrayPageSource(ArrayPage cache, std::vector<bst_idx_t> batch_ptr,
-                           std::shared_ptr<Cache> cache_info)
-      : Super::SparsePageSourceImpl{std::numeric_limits<float>::quiet_NaN(), 2, 1u,
+  explicit ArrayPageSource(std::shared_ptr<ArrayPage> cache, std::vector<bst_idx_t> batch_ptr,
+                           bst_feature_t n_features, std::shared_ptr<Cache> cache_info)
+      : Super::SparsePageSourceImpl{std::numeric_limits<float>::quiet_NaN(), 2, n_features,
                                     std::move(cache_info)},
-        batch_ptr_{std::move(batch_ptr)} {
-    this->SetCache(std::move(cache), this->batch_ptr_);
+        batch_ptr_{std::move(batch_ptr)},
+        cache_{cache} {
+    std::cout << "create:" << this << std::endl;
+    this->SetArrayCache(cache, this->batch_ptr_);
+    this->Fetch();
   }
 };
 
 class ArrayCache {
   common::ThreadPool workers_{StringView{"aqu"}, 1, InitNewThread{}};
-  ArrayPage cache_;
+  std::shared_ptr<ArrayPage> cache_;
   std::size_t offset_{0};
   std::int32_t it_{0};
   std::future<void> last_;
@@ -124,6 +103,6 @@ class ArrayCache {
   explicit ArrayCache(Context const* ctx, common::Span<std::size_t const, 2> shape);
 
   void Push(std::shared_ptr<ArrayPage> page);
-  ArrayPage Commit();
+  std::shared_ptr<ArrayPage> Commit();
 };
 }  // namespace xgboost::data
