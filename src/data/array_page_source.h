@@ -5,6 +5,7 @@
 
 #include "array_page.h"
 #include "sparse_page_source.h"
+#include "../common/linalg_op.h"
 
 namespace xgboost::data {
 
@@ -12,11 +13,12 @@ struct ArrayPageNoOpWriter {};
 
 struct ArrayPageReader {
   std::int32_t batch_idx = 0;
-
+  std::vector<bst_idx_t> batch_ptr_;
   std::shared_ptr<ArrayPage> cache;
 
   explicit ArrayPageReader(std::uint64_t offset_bytes, std::vector<bst_idx_t> const& batch_ptr) {
     CHECK(cache);
+    // fixme: binary seaerch
     auto size_bytes = [&](std::size_t i) {
       // auto beg = batch_ptr.at(i);
       auto end = batch_ptr.at(i + 1);
@@ -27,6 +29,24 @@ struct ArrayPageReader {
       // accumulated bytes
       return n_bytes;
     };
+    for (std::size_t i = 0; i < batch_ptr.size(); ++i) {
+      auto n_bytes = size_bytes(i);
+      if (n_bytes == offset_bytes) {
+        this->batch_idx = i;
+        break;
+      }
+    }
+    LOG(FATAL) << "Seek failed";
+    this->batch_ptr_ = batch_ptr;
+  }
+
+  void Read(ArrayPage* page) const {
+    auto begin = this->batch_ptr_.at(batch_idx);
+    auto end = this->batch_ptr_.at(batch_idx + 1);
+    auto h_cache =
+        std::as_const(this->cache->gpairs).Slice(linalg::Range(begin, end), linalg::All());
+    Context ctx = Context{}.MakeCUDA(0);  // fixme
+    linalg::Copy(&ctx, h_cache, &page->gpairs);
   }
 };
 
@@ -36,6 +56,7 @@ struct ArrayPageFormat {
     return page.gpairs.Data()->SizeBytes();
   }
   bool Read(ArrayPage* page, ArrayPageReader* fi) const {
+    fi->Read(page);
     return true;
   }
 };
@@ -43,6 +64,7 @@ struct ArrayPageFormat {
 struct ArrayPageFormatPolicy {
  private:
   ArrayPage cache_;
+  std::vector<bst_idx_t> batch_ptr_;
 
  public:
   using WriterT = ArrayPageNoOpWriter;
@@ -54,9 +76,9 @@ struct ArrayPageFormatPolicy {
     return std::make_unique<WriterT>();
   }
 
-  std::unique_ptr<ReaderT> CreateReader(StringView name, std::uint64_t offset,
-                                        std::uint64_t length) const {
-    return std::make_unique<ReaderT>(offset);
+  std::unique_ptr<ReaderT> CreateReader(StringView, std::uint64_t offset, std::uint64_t) const {
+    // fixme: no copy
+    return std::make_unique<ReaderT>(offset, this->batch_ptr_);
   }
 
   auto CreatePageFormat(BatchParam const&) const {
@@ -64,7 +86,10 @@ struct ArrayPageFormatPolicy {
     return fmt;
   }
 
-  void SetCache(ArrayPage cache) { this->cache_ = std::move(cache); }
+  void SetCache(ArrayPage cache, std::vector<bst_idx_t> batch_ptr) {
+    this->cache_ = std::move(cache);
+    this->batch_ptr_ = std::move(batch_ptr);
+  }
 };
 
 class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPolicy> {
@@ -82,7 +107,7 @@ class ArrayPageSource : public SparsePageSourceImpl<ArrayPage, ArrayPageFormatPo
       : Super::SparsePageSourceImpl{std::numeric_limits<float>::quiet_NaN(), 2, 1u,
                                     std::move(cache_info)},
         batch_ptr_{std::move(batch_ptr)} {
-    this->SetCache(std::move(cache));
+    this->SetCache(std::move(cache), this->batch_ptr_);
   }
 };
 

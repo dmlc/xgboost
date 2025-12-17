@@ -39,7 +39,7 @@ TEST(ArrayCache, Push) {
 
 TEST(ArrayPageSource, Basic) {
   std::map<std::string, std::shared_ptr<Cache>> cache_info;
-  std::string cache_prefix = "cache";
+  std::string cache_prefix = "grad";
   auto id = MakeCache(this, ".ap", false, cache_prefix, &cache_info);
 
   std::size_t n_batches = 4, batch_size = 1024;
@@ -51,5 +51,9 @@ TEST(ArrayPageSource, Basic) {
 
   auto source =
       std::make_unique<ArrayPageSource>(std::move(cache), std::move(batch_ptr), cache_info.at(id));
+  auto batch_set = BatchSet{BatchIterator<ArrayPage>{source.get()}};
+  for (auto const& page : batch_set) {
+    std::cout << "size:" << page.gpairs.Size() << std::endl;
+  }
 }
 }  // namespace xgboost::data

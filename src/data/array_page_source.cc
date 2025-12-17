@@ -8,12 +8,16 @@
 namespace xgboost::data {
 void ArrayPageSource::Fetch() {
   if (!this->ReadCache()) {
-    // this is not possible.
+    std::cout << "write cache" << std::endl;
     this->WriteCache();
   }
 }
 
-void ArrayPageSource::EndIter() { this->count_ = 0; }
+void ArrayPageSource::EndIter() {
+  this->cache_info_->Commit();
+  CHECK_GE(this->count_, 1);
+  this->count_ = 0;
+}
 
 ArrayPageSource& ArrayPageSource::operator++() {
   ++this->count_;
