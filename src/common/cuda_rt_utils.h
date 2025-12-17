@@ -39,6 +39,9 @@ void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor);
 [[nodiscard]] std::int32_t GetNumaId();
 
 [[nodiscard]] std::int32_t GetMpCnt(std::int32_t device);
+
+[[nodiscard]] bool MemoryPoolsSupported(std::int32_t device);
+
 // cudaMemcpyAsync
 void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream);
 }  // namespace xgboost::curt
