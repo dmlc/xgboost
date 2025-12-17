@@ -1259,8 +1259,15 @@ test_that("predict respects base_margin inside xgb.DMatrix", {
   expect_false(isTRUE(all.equal(p1, p2)))
 
   # Case 3: Explicit override via argument (The Fix)
-  # We reuse dtest1 but explicitly pass margin=1.5.
-  # This verifies that the argument successfully calls setinfo() internally.
-  p3 <- predict(bst, dtest1, base_margin = rep(1.5, 10))
+  # We use a FRESH DMatrix to ensure we test the argument wiring, not the
+  # C++ cache. If we reused dtest1, XGBoost would return the cached
+  # prediction from Case 1.
+  dtest3 <- xgb.DMatrix(train$data[1:10, ], label = train$label[1:10], nthread = 1)
+
+  # Even if dtest3 has margin 0.5 inside...
+  setinfo(dtest3, "base_margin", rep(0.5, 10))
+
+  # ... passing 1.5 as an argument should override it (and match p2)
+  p3 <- predict(bst, dtest3, base_margin = rep(1.5, 10))
   expect_equal(p2, p3, tolerance = 1e-6)
 })
