@@ -635,6 +635,10 @@ class MultiTargetHistMaker {
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},
-        batch_ptr_{std::move(batch_ptr)} {}
+        batch_ptr_{std::move(batch_ptr)} {
+    if (!param_.monotone_constraints.empty()) {
+      LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
+    }
+  }
 };
 }  // namespace xgboost::tree::cuda_impl
