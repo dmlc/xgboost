@@ -4,9 +4,8 @@ from typing import Any, Literal, TypeAlias
 
 import numpy as np
 
-from ..compat import import_cupy
+from ..compat import _is_cupy_alike, import_cupy
 from ..core import DMatrix
-from ..data import _is_cupy_alike
 
 Device: TypeAlias = Literal["cpu", "cuda"]
 

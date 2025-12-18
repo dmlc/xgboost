@@ -93,18 +93,17 @@ from ..callback import TrainingCallback
 from ..collective import Config as CollConfig
 from ..collective import _Args as CollArgs
 from ..collective import _ArgVals as CollArgsVals
-from ..compat import _is_cudf_df
+from ..compat import _is_cudf_df, _is_cudf_ser, _is_cupy_alike
 from ..core import (
     Booster,
     DMatrix,
     Metric,
-    Objective,
+    PlainObj,
     XGBoostError,
     _check_distributed_params,
     _deprecate_positional_args,
     _expect,
 )
-from ..data import _is_cudf_ser, _is_cupy_alike
 from ..sklearn import (
     XGBClassifier,
     XGBClassifierBase,
@@ -726,7 +725,7 @@ async def _train_async(
     dtrain: DaskDMatrix,
     num_boost_round: int,
     evals: Optional[Sequence[Tuple[DaskDMatrix, str]]],
-    obj: Optional[Objective],
+    obj: Optional[PlainObj],
     early_stopping_rounds: Optional[int],
     verbose_eval: Union[int, bool],
     xgb_model: Optional[Booster],
@@ -831,7 +830,7 @@ def train(  # pylint: disable=unused-argument
     num_boost_round: int = 10,
     *,
     evals: Optional[Sequence[Tuple[DaskDMatrix, str]]] = None,
-    obj: Optional[Objective] = None,
+    obj: Optional[PlainObj] = None,
     early_stopping_rounds: Optional[int] = None,
     xgb_model: Optional[Booster] = None,
     verbose_eval: Union[int, bool] = True,

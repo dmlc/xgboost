@@ -55,7 +55,7 @@ from .core import (
     Booster,
     DMatrix,
     Metric,
-    Objective,
+    PlainObj,
     QuantileDMatrix,
     XGBoostError,
     _deprecate_positional_args,
@@ -112,7 +112,7 @@ _SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
 SklObjective = Optional[Union[str, _SklObjWProto, _SklObjProto]]
 
 
-def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> Objective:
+def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> PlainObj:
     """Decorate an objective function
 
     Converts an objective function using the typical sklearn metrics
@@ -1362,7 +1362,7 @@ class XGBModel(XGBModelBase):
             )
 
             if callable(self.objective):
-                obj: Optional[Objective] = _objective_decorator(self.objective)
+                obj: Optional[PlainObj] = _objective_decorator(self.objective)
                 params["objective"] = "reg:squarederror"
             else:
                 obj = None
@@ -1768,7 +1768,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             params = self.get_xgb_params()
 
             if callable(self.objective):
-                obj: Optional[Objective] = _objective_decorator(self.objective)
+                obj: Optional[PlainObj] = _objective_decorator(self.objective)
                 # Use default value. Is it really not used ?
                 params["objective"] = "binary:logistic"
             else:
