@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #pragma once
 #include <cstddef>  // for size_t
@@ -30,11 +30,6 @@ class SamplingStrategy {
   [[nodiscard]] virtual bool ConcatPages() const { return false; }
 };
 
-class ExtMemSamplingStrategy : public SamplingStrategy {
- public:
-  [[nodiscard]] bool ConcatPages() const final { return true; }
-};
-
 /**
  * @brief No-op.
  */
@@ -58,22 +53,6 @@ class UniformSampling : public SamplingStrategy {
   float subsample_;
 };
 
-/*! \brief No sampling in external memory mode. */
-class ExternalMemoryUniformSampling : public ExtMemSamplingStrategy {
- public:
-  ExternalMemoryUniformSampling(size_t n_rows, BatchParam batch_param, float subsample);
-  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
-                             DMatrix* dmat) override;
-
- private:
-  BatchParam batch_param_;
-  float subsample_;
-  std::unique_ptr<DMatrix> p_fmat_new_{nullptr};
-  dh::device_vector<GradientPair> gpair_{};
-  dh::caching_device_vector<bst_idx_t> sample_row_index_;
-  dh::device_vector<bst_idx_t> compact_row_index_;
-};
-
 /*! \brief Gradient-based sampling in in-memory mode.. */
 class GradientBasedSampling : public SamplingStrategy {
  public:
@@ -88,24 +67,6 @@ class GradientBasedSampling : public SamplingStrategy {
   dh::caching_device_vector<float> grad_sum_;
 };
 
-/*! \brief Gradient-based sampling in external memory mode.. */
-class ExternalMemoryGradientBasedSampling : public ExtMemSamplingStrategy {
- public:
-  ExternalMemoryGradientBasedSampling(size_t n_rows, BatchParam batch_param, float subsample);
-  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
-                             DMatrix* dmat) override;
-
- private:
-  BatchParam batch_param_;
-  float subsample_;
-  dh::device_vector<float> threshold_;
-  dh::device_vector<float> grad_sum_;
-  std::unique_ptr<DMatrix> p_fmat_new_{nullptr};
-  dh::device_vector<GradientPair> gpair_;
-  dh::device_vector<bst_idx_t> sample_row_index_;
-  dh::device_vector<bst_idx_t> compact_row_index_;
-};
-
 /*! \brief Draw a sample of rows from a DMatrix.
  *
  * \see Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., ... & Liu, T. Y. (2017).
@@ -118,7 +79,7 @@ class ExternalMemoryGradientBasedSampling : public ExtMemSamplingStrategy {
 class GradientBasedSampler {
  public:
   GradientBasedSampler(Context const* ctx, size_t n_rows, const BatchParam& batch_param,
-                       float subsample, int sampling_method, bool concat_pages);
+                       float subsample, int sampling_method);
 
   /*! \brief Sample from a DMatrix based on the given gradient pairs. */
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair, DMatrix* dmat);

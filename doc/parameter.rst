@@ -259,20 +259,6 @@ Parameters for Non-Exact Tree Methods
     trees. After 3.0, this parameter affects GPU algorithms as well.
 
 
-* ``extmem_single_page``, [default = ``false``]
-
-  This parameter is only used for the ``hist`` tree method with ``device=cuda`` and
-  ``subsample != 1.0``. Before 3.0, pages were always concatenated.
-
-  .. versionadded:: 3.0.0
-
-  Whether the GPU-based ``hist`` tree method should concatenate the training data into a
-  single batch instead of fetching data on-demand when external memory is used. For GPU
-  devices that don't support address translation services, external memory training is
-  expensive. This parameter can be used in combination with subsampling to reduce overall
-  memory usage without significant overhead. See :doc:`/tutorials/external_memory` for
-  more information.
-
 .. _cat-param:
 
 Parameters for Categorical Feature

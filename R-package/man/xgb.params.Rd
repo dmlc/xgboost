@@ -44,7 +44,6 @@ xgb.params(
   disable_default_eval_metric = NULL,
   use_rmm = NULL,
   max_cached_hist_node = NULL,
-  extmem_single_page = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
   sample_type = NULL,
@@ -397,19 +396,6 @@ Version added: 2.0.0
 \item For most of the cases this parameter should not be set except for growing deep
 trees. After 3.0, this parameter affects GPU algorithms as well.
 }}
-
-\item{extmem_single_page}{(for Non-Exact Tree Methods) (default = \code{FALSE})
-This parameter is only used for the \code{"hist"} tree method with \code{device="cuda"} and
-\code{subsample != 1.0}. Before 3.0, pages were always concatenated.
-
-Version added: 3.0.0
-
-Whether the GPU-based \code{"hist"} tree method should concatenate the training data into a
-single batch instead of fetching data on-demand when external memory is used. For GPU
-devices that don't support address translation services, external memory training is
-expensive. This parameter can be used in combination with subsampling to reduce overall
-memory usage without significant overhead. See \href{https://xgboost.readthedocs.io/en/latest/tutorials/external_memory.html}{Using XGBoost External Memory Version} for
-more information.}
 
 \item{max_cat_to_onehot}{(for Non-Exact Tree Methods)
 A threshold for deciding whether XGBoost should use one-hot encoding based split for
