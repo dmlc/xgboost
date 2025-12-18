@@ -15,13 +15,13 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method, bool
   constexpr size_t kCols = 1;
   bst_idx_t sample_rows = kRows * subsample;
 
-  auto dmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateSparsePageDMatrix("temp", true);
+  auto dmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
   auto gpair = GenerateRandomGradients(kRows);
   GradientPair sum_gpair{};
   for (const auto& gp : gpair.ConstHostVector()) {
     sum_gpair += gp;
   }
-  Context ctx{MakeCUDACtx(0)};
+  auto ctx = MakeCUDACtx(0);
   gpair.SetDevice(ctx.Device());
 
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};

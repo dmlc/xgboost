@@ -67,14 +67,16 @@ class GradientBasedSampling : public SamplingStrategy {
   dh::caching_device_vector<float> grad_sum_;
 };
 
-/*! \brief Draw a sample of rows from a DMatrix.
+/**
+ * @brief Draw a sample of rows from a DMatrix.
  *
- * \see Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., ... & Liu, T. Y. (2017).
+ * @see Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., ... & Liu, T. Y. (2017).
  * Lightgbm: A highly efficient gradient boosting decision tree. In Advances in Neural Information
  * Processing Systems (pp. 3146-3154).
- * \see Zhu, R. (2016). Gradient-based sampling: An adaptive importance sampling for least-squares.
+ * @see Zhu, R. (2016). Gradient-based sampling: An adaptive importance sampling for least-squares.
  * In Advances in Neural Information Processing Systems (pp. 406-414).
- * \see Ohlsson, E. (1998). Sequential Poisson sampling. Journal of official Statistics, 14(2), 149.
+ * @see Ohlsson, E. (1998). Sequential Poisson sampling. Journal of official Statistics, 14(2), 149.
+ * @see Rong Ou. (2020. Out-of-Core GPU Gradient Boosting
  */
 class GradientBasedSampler {
  public:
