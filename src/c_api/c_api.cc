@@ -902,41 +902,43 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle, xgboost::bst_ulong *out) {
+namespace {
+// out is using xgboost::bst_ulong to make sure the defs of bst_ulong match.
+template <typename Fn>
+std::enable_if_t<std::is_integral_v<std::invoke_result_t<Fn, DMatrix const *>>, int>
+GetDMatrixIntegralInfo(DMatrixHandle handle, xgboost::bst_ulong *out, Fn &&fn) {
   API_BEGIN();
   CHECK_HANDLE();
   auto p_m = CastDMatrixHandle(handle);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = static_cast<xgboost::bst_ulong>(p_m->Info().num_row_);
+  *out = fn(p_m.get());
   API_END();
 }
+}  // namespace
 
-XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, xgboost::bst_ulong *out) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto p_m = CastDMatrixHandle(handle);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = static_cast<xgboost::bst_ulong>(p_m->Info().num_col_);
-  API_END();
+XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle, bst_ulong *out) {
+  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
+    return static_cast<bst_ulong>(p_fmat->Info().num_row_);
+  });
+}
+
+XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, bst_ulong *out) {
+  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
+    return static_cast<bst_ulong>(p_fmat->Info().num_col_);
+  });
 }
 
 // We name the function non-missing instead of non-zero since zero is perfectly valid for XGBoost.
-XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle const handle, xgboost::bst_ulong *out) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto p_m = CastDMatrixHandle(handle);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = static_cast<xgboost::bst_ulong>(p_m->Info().num_nonzero_);
-  API_END();
+XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out) {
+  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
+    return static_cast<bst_ulong>(p_fmat->Info().num_nonzero_);
+  });
 }
 
 XGB_DLL int XGDMatrixDataSplitMode(DMatrixHandle handle, bst_ulong *out) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto p_m = CastDMatrixHandle(handle);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = static_cast<xgboost::bst_ulong>(p_m->Info().data_split_mode);
-  API_END();
+  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
+    return static_cast<bst_ulong>(p_fmat->Info().data_split_mode);
+  });
 }
 
 XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
