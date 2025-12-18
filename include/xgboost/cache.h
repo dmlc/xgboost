@@ -101,7 +101,7 @@ class DMatrixCache {
 
   void ClearExcess() {
     this->CheckConsistent();
-    // clear half of the entries to prevent repeatingly clearing cache.
+    // clear half of the entries to prevent repeatedly clearing cache.
     std::size_t half_size = max_size_ / 2;
     while (queue_.size() >= half_size && !queue_.empty()) {
       auto p_fmat = queue_.front();
