@@ -169,6 +169,10 @@ class MultiTargetHistMaker {
      */
     partitioners_.Reset(this->ctx_, batch_ptr_);
 
+    auto const& info = p_fmat->Info();
+    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_.colsample_bynode,
+                                param_.colsample_bylevel, param_.colsample_bytree);
+
     /**
      * Initialize the histogram
      */

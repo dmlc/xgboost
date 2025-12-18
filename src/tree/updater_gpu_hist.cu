@@ -208,9 +208,8 @@ struct GPUHistMakerDevice {
     /**
      * Initialize the evaluator
      */
-    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights.HostVector(),
-                                param.colsample_bynode, param.colsample_bylevel,
-                                param.colsample_bytree);
+    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param.colsample_bynode,
+                                param.colsample_bylevel, param.colsample_bytree);
     this->interaction_constraints.Reset(ctx_);
     this->evaluator_.Reset(this->ctx_, *cuts_, info.feature_types.ConstDeviceSpan(), info.num_col_,
                            this->param, info.IsColumnSplit());

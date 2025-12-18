@@ -11,7 +11,6 @@
 
 #include "../../common/cuda_context.cuh"
 #include "../tree_view.h"             // for MultiTargetTreeView
-#include "../updater_gpu_common.cuh"  // for SumCallbackOp
 #include "multi_evaluate_splits.cuh"  // for MultiEvalauteSplitInputs, MultiEvaluateSplitSharedInputs
 #include "quantiser.cuh"              // for GradientQuantiser
 #include "xgboost/base.h"             // for GradientPairInt64
@@ -29,12 +28,10 @@ __device__ bst_bin_t RevBinIdx(bst_bin_t gidx_begin, bst_bin_t gidx_end, bst_bin
 }
 
 // Scan the histogram in 2 dim for all nodes
-// Each block for one feature and one target
-template <std::int32_t kBlockThreads>
 struct ScanHistogramAgent {
-  using BlockScanT = cub::BlockScan<GradientPairInt64, kBlockThreads>;
+  using WarpScanT = cub::WarpScan<GradientPairInt64>;
 
-  typename BlockScanT::TempStorage *tmp_storage;
+  typename WarpScanT::TempStorage *tmp_storage;
   bst_bin_t gidx_begin;
   bst_bin_t gidx_end;
   bst_target_t n_targets;
@@ -43,21 +40,25 @@ struct ScanHistogramAgent {
   __device__ void ScanFeature(common::Span<GradientPairInt64 const> node_histogram,
                               common::Span<GradientPairInt64> scan_result, bst_target_t t,
                               BinIndexFn &&bin_idx_fn) {
-    SumCallbackOp<GradientPairInt64> prefix_op;
+    auto lane_id = dh::LaneId();
     // The forward pass and the backward pass differs in where the bin is read, which is
     // specified by the callback bin_idx_fn(). They write to the same output location.
-    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockThreads) {
-      auto bin_idx = scan_begin + threadIdx.x;
+    GradientPairInt64 warp_aggregate;
+    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end;
+         scan_begin += dh::WarpThreads()) {
+      auto bin_idx = scan_begin + lane_id;
       bool thread_active = bin_idx < gidx_end;
       auto bin =
           thread_active ? node_histogram[bin_idx_fn(bin_idx) * n_targets + t] : GradientPairInt64{};
-      BlockScanT(*tmp_storage).InclusiveScan(bin, bin, cuda::std::plus{}, prefix_op);
+      if (lane_id == 0) {
+        bin += warp_aggregate;
+      }
+      WarpScanT(*tmp_storage).InclusiveScan(bin, bin, cuda::std::plus{}, warp_aggregate);
+      // Required by the warp scan.
+      __syncwarp();
       if (thread_active) {
         scan_result[bin_idx * n_targets + t] = bin;
       }
-
-      // Required by the block scan.
-      __syncthreads();
     }
   }
   // Forward scan pass
@@ -78,33 +79,38 @@ template <std::int32_t kBlockThreads>
 __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
     common::Span<common::Span<GradientPairInt64>> outputs) {
-  constexpr std::int32_t kWarpThreads = 32;
-  auto const warp_id = static_cast<std::int32_t>(threadIdx.x) / kWarpThreads;
+  static_assert(kBlockThreads % dh::WarpThreads() == 0);
+  constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
+  auto const warp_id_in_blk = static_cast<std::int32_t>(threadIdx.x) / dh::WarpThreads();
+  // The warp index across the entire grid
+  auto const warp_id = warp_id_in_blk + kWarpsPerBlk * blockIdx.x;
+  bst_target_t const n_targets = shared.Targets();
+  auto const n_valid_warps = nodes.size() * shared.Features() * n_targets;
 
-  auto nidx_in_set = blockIdx.x;
+  if (warp_id >= n_valid_warps) {
+    return;
+  }
 
+  auto [nidx_in_set, fidx, target_idx] =
+      linalg::UnravelIndex(warp_id, nodes.size(), shared.Features(), n_targets);
   auto const &node = nodes[nidx_in_set];
   auto out = outputs[nidx_in_set];
 
-  auto fidx = blockIdx.y;
-  auto t = blockIdx.z;
-
   bst_bin_t gidx_begin = shared.feature_segments[fidx];
   bst_bin_t gidx_end = shared.feature_segments[fidx + 1];
-  bst_target_t n_targets = shared.Targets();
 
-  using AgentT = ScanHistogramAgent<kBlockThreads>;
-  __shared__ typename AgentT::BlockScanT::TempStorage tmp_storage;
-  ScanHistogramAgent<kBlockThreads> agent{&tmp_storage, gidx_begin, gidx_end, n_targets};
+  using AgentT = ScanHistogramAgent;
+  __shared__ typename AgentT::WarpScanT::TempStorage tmp_storage[kWarpsPerBlk];
+  ScanHistogramAgent agent{&tmp_storage[warp_id_in_blk], gidx_begin, gidx_end, n_targets};
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
     auto forward = out.subspan(0, node.histogram.size());
-    agent.Forward(node.histogram, forward, t);
+    agent.Forward(node.histogram, forward, target_idx);
   }
   // TODO(jiamingy): Skip the backward pass if there's no missing value.
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward) {
     auto backward = out.subspan(node.histogram.size(), node.histogram.size());
-    agent.Backward(node.histogram, backward, t);
+    agent.Backward(node.histogram, backward, target_idx);
   }
 }
 
@@ -276,17 +282,25 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   }
   dh::device_vector<common::Span<GradientPairInt64>> scans(h_scans);
 
-  // Launch histogram scan kernel
-  dim3 grid{n_nodes, n_features, n_targets};
-  std::uint32_t constexpr kBlockThreads = 32;
-  dh::LaunchKernel{grid, kBlockThreads}(  // NOLINT
-      ScanHistogramKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans));
+  // Launch histogram scan kernel, each warp handles one target of one feature of one node.
+  {
+    std::uint32_t constexpr kBlockThreads = 512;
+    constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
+    auto n_warps = n_nodes * n_targets * n_features;
+    auto n_blocks = common::DivRoundUp(n_warps, kWarpsPerBlk);
+    dim3 grid{n_blocks};
+    dh::LaunchKernel{grid, kBlockThreads}(  // NOLINT
+        ScanHistogramKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans));
+  }
 
   // Launch split evaluation kernel
   dh::device_vector<MultiSplitCandidate> d_splits(n_nodes * n_features);
-  dh::LaunchKernel{n_nodes * n_features, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
-      EvaluateSplitsKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans),
-      dh::ToSpan(d_splits));
+  {
+    std::uint32_t constexpr kBlockThreads = 32;
+    dh::LaunchKernel{n_nodes * n_features, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
+        EvaluateSplitsKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans),
+        dh::ToSpan(d_splits));
+  }
 
   // Find best split for each node
   // * 3 because of base, left, right weights.

@@ -798,4 +798,12 @@ class LDGIterator {
     return *reinterpret_cast<const T *>(tmp);
   }
 };
+
+[[nodiscard]] XGBOOST_DEV_INLINE std::uint32_t LaneId() {
+  std::uint32_t laneid;
+  asm("mov.u32 %0, %%laneid;" : "=r"(laneid));
+  return laneid;
+}
+
+constexpr std::int32_t WarpThreads() { return 32; };
 }  // namespace dh
