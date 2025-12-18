@@ -405,7 +405,7 @@ def test_invalid_meta() -> None:
     y = X.copy()
     y.iloc[0, 0] = None
     # check by the cuDF->cupy converter.
-    with pytest.raises(ValueError, match="no nulls"):
+    with pytest.raises(ValueError, match="Label contains NaN"):
         xgb.DMatrix(X, y)
-    with pytest.raises(ValueError, match="no nulls"):
+    with pytest.raises(ValueError, match="Label contains NaN"):
         xgb.QuantileDMatrix(X, y)

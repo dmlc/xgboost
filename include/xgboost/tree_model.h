@@ -408,6 +408,8 @@ class RegTree : public Model {
   [[nodiscard]] bst_node_t GetDepth(bst_node_t nidx) const;
   /**
    * @brief Set the root weight for a multi-target tree.
+   *
+   * @param weight Internal split weight, with size equals to reduced targets.
    */
   void SetRoot(linalg::VectorView<float const> weight) {
     CHECK(IsMultiTarget());

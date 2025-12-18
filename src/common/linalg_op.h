@@ -29,11 +29,11 @@
 #include "linalg_op.cuh"
 #endif
 
-#if defined(XGBOOST_USE_SYCL)
+#if defined(SYCL_LANGUAGE_VERSION)
 #include "../../plugin/sycl/common/linalg_op.h"
 #endif
 
-#if !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
+#if !defined(XGBOOST_USE_CUDA) && !defined(SYCL_LANGUAGE_VERSION)
 
 #include "common.h"           // for AssertGPUSupport
 #include "xgboost/context.h"  // for Context
@@ -156,7 +156,7 @@ void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
       [&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
       [&] { cuda_impl::ElementWiseKernel(t, std::forward<Fn>(fn), ctx->CUDACtx()->Stream()); });
 }
-#elif defined(XGBOOST_USE_SYCL)
+#elif defined(SYCL_LANGUAGE_VERSION)
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
@@ -189,7 +189,7 @@ void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
       [&] { cpu_impl::TransformIdxKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
       [&] { cuda_impl::TransformIdxKernel(ctx, t, std::forward<Fn>(fn)); });
 }
-#elif defined(XGBOOST_USE_SYCL)
+#elif defined(SYCL_LANGUAGE_VERSION)
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformIdxKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice(
@@ -220,7 +220,7 @@ void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
                       [&] { cuda_impl::TransformKernel(ctx, t, std::forward<Fn>(fn)); });
 }
-#elif defined(XGBOOST_USE_SYCL)
+#elif defined(SYCL_LANGUAGE_VERSION)
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   ctx->DispatchDevice([&] { cpu_impl::TransformKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },

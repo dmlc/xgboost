@@ -1,7 +1,7 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
-#include <thrust/reduce.h>  // for reduce_by_key
+#include <thrust/reduce.h>  // for reduce_by_key, reduce
 
 #include <cub/block/block_scan.cuh>  // for BlockScan
 #include <cub/util_type.cuh>         // for KeyValuePair
@@ -9,6 +9,7 @@
 #include <vector>                    // for vector
 
 #include "../../common/cuda_context.cuh"
+#include "../tree_view.h"             // for MultiTargetTreeView
 #include "../updater_gpu_common.cuh"  // for SumCallbackOp
 #include "multi_evaluate_splits.cuh"  // for MultiEvalauteSplitInputs, MultiEvaluateSplitSharedInputs
 #include "quantiser.cuh"              // for GradientQuantiser
@@ -202,10 +203,6 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   AgentT agent{&temp_storage, fidx};
 
   auto n_targets = shared.Targets();
-  // The number of bins in a feature
-  auto f_hist_size =
-      (shared.feature_segments[fidx + 1] - shared.feature_segments[fidx]) * n_targets;
-
   auto candidate_idx = nidx * shared.Features() + fidx;
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
@@ -225,7 +222,18 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   dh::device_vector<MultiEvaluateSplitInputs> inputs{input};
   dh::device_vector<MultiExpandEntry> outputs(1);
 
-  this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, dh::ToSpan(outputs));
+  auto d_outputs = dh::ToSpan(outputs);
+  this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, d_outputs);
+
+  auto n_targets = shared_inputs.Targets();
+  dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
+    auto weight = d_outputs[0].base_weight;
+    if (weight.empty()) {
+      return;
+    }
+    weight[t] *= shared_inputs.param.learning_rate;
+  });
+
   return outputs[0];
 }
 
@@ -256,11 +264,12 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                GradientPairInt64{});
 
   // Create spans for each node's scan results
-  dh::device_vector<common::Span<GradientPairInt64>> scans(n_nodes);
+  std::vector<common::Span<GradientPairInt64>> h_scans(n_nodes);
   for (std::size_t nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
-    scans[nidx_in_set] = dh::ToSpan(this->scan_buffer_)
-                             .subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
+    h_scans[nidx_in_set] = dh::ToSpan(this->scan_buffer_)
+                               .subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
   }
+  dh::device_vector<common::Span<GradientPairInt64>> scans(h_scans);
 
   // Launch histogram scan kernel
   dim3 grid{n_nodes, n_features, n_targets};
@@ -280,10 +289,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   auto d_weights = dh::ToSpan(this->weights_);
 
   dh::CachingDeviceUVector<float> d_parent_gains(n_nodes);
-  dh::CachingDeviceUVector<std::int32_t> sum_zeros(n_nodes * 2);
-
   auto s_parent_gains = dh::ToSpan(d_parent_gains);
-  auto s_sum_zeros = dh::ToSpan(sum_zeros);
   auto s_d_splits = dh::ToSpan(d_splits);
 
   // Process results for each node
@@ -304,7 +310,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   dh::LaunchN(n_nodes, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t nidx_in_set) {
     auto input = d_inputs[nidx_in_set];
     MultiSplitCandidate best_split = d_best_splits[nidx_in_set];
-    if (best_split.node_sum.empty()) {
+    if (best_split.child_sum.empty()) {
       // Invalid split
       out_splits[nidx_in_set] = {};
       return;
@@ -316,7 +322,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     auto right_weight = d_weights.subspan(nidx_in_set * n_targets * 3 + n_targets * 2, n_targets);
 
     auto d_roundings = shared_inputs.roundings;
-    auto node_sum = best_split.node_sum;
+    auto node_sum = best_split.child_sum;
 
     float parent_gain = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
@@ -331,6 +337,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     s_parent_gains[nidx_in_set] = parent_gain;
 
     bool l = true, r = true;
+    GradientPairPrecise lg_fst, rg_fst;
+    auto eta = shared_inputs.param.learning_rate;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto quantizer = d_roundings[t];
       auto sibling_sum = input.parent_sum[t] - node_sum[t];
@@ -338,28 +346,32 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       l = l && (node_sum[t].GetQuantisedHess() == 0);
       r = r && (sibling_sum.GetQuantisedHess() == 0);
 
+      GradientPairPrecise lg, rg;
       if (best_split.dir == kRightDir) {
         // forward pass, node_sum is the left sum
-        auto lg = quantizer.ToFloatingPoint(node_sum[t]);
-        left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess());
-        auto rg = quantizer.ToFloatingPoint(sibling_sum);
-        right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess());
+        lg = quantizer.ToFloatingPoint(node_sum[t]);
+        left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess()) * eta;
+        rg = quantizer.ToFloatingPoint(sibling_sum);
+        right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess()) * eta;
       } else {
         // backward pass, node_sum is the right sum
-        auto rg = quantizer.ToFloatingPoint(node_sum[t]);
-        right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess());
-        auto lg = quantizer.ToFloatingPoint(sibling_sum);
-        left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess());
+        rg = quantizer.ToFloatingPoint(node_sum[t]);
+        right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess()) * eta;
+        lg = quantizer.ToFloatingPoint(sibling_sum);
+        left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess()) * eta;
+      }
+
+      if (t == 0) {
+        lg_fst = lg;
+        rg_fst = rg;
       }
     }
-
-    s_sum_zeros[nidx_in_set * 2] = l;
-    s_sum_zeros[nidx_in_set * 2 + 1] = r;
 
     // Set up the output entry
     out_splits[nidx_in_set] = {input.nidx,  input.depth, best_split,
                                base_weight, left_weight, right_weight};
     out_splits[nidx_in_set].split.loss_chg -= parent_gain;
+    out_splits[nidx_in_set].UpdateFirstHessian(lg_fst, rg_fst);
 
     if (l || r) {
       out_splits[nidx_in_set] = {};
@@ -368,35 +380,50 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 }
 
 void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
-                                        MultiExpandEntry const &candidate) {
-  auto left_child = p_tree->LeftChild(candidate.nidx);
-  auto right_child = p_tree->RightChild(candidate.nidx);
-  bst_node_t max_node = std::max(left_child, right_child);
-  auto n_targets = candidate.base_weight.size();
-
+                                        common::Span<MultiExpandEntry const> d_candidates,
+                                        bst_target_t n_targets) {
+  // Assign the node sums here, for the next evaluate split call.
+  auto mt_tree = MultiTargetTreeView{ctx->Device(), p_tree};
+  auto max_in_it = dh::MakeIndexTransformIter([=] __device__(std::size_t i) -> bst_node_t {
+    return std::max(mt_tree.LeftChild(d_candidates[i].nidx),
+                    mt_tree.RightChild(d_candidates[i].nidx));
+  });
+  auto max_node = thrust::reduce(
+      ctx->CUDACtx()->CTP(), max_in_it, max_in_it + d_candidates.size(), 0,
+      [=] XGBOOST_DEVICE(bst_node_t l, bst_node_t r) { return cuda::std::max(l, r); });
   this->AllocNodeSum(max_node, n_targets);
 
-  auto parent_sum = this->GetNodeSum(candidate.nidx, n_targets);
-  auto left_sum = this->GetNodeSum(left_child, n_targets);
-  auto right_sum = this->GetNodeSum(right_child, n_targets);
+  auto node_sums = dh::ToSpan(this->node_sums_);
 
-  // Calculate node sums
-  // TODO(jiamingy): We need to batch the nodes
-  auto best_split = candidate.split;
+  dh::LaunchN(n_targets * d_candidates.size(), ctx->CUDACtx()->Stream(),
+              [=] XGBOOST_DEVICE(std::size_t i) {
+                auto get_node_sum = [&](bst_node_t nidx) {
+                  return GetNodeSumImpl(node_sums, nidx, n_targets);
+                };
+                auto nidx_in_set = i / n_targets;
+                auto t = i % n_targets;
 
-  auto node_sum = best_split.node_sum;
-  dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
-    auto sibling_sum = parent_sum[t] - node_sum[t];
-    if (best_split.dir == kRightDir) {
-      // forward pass, node_sum is the left sum
-      left_sum[t] = node_sum[t];
-      right_sum[t] = sibling_sum;
-    } else {
-      // backward pass, node_sum is the right sum
-      right_sum[t] = node_sum[t];
-      left_sum[t] = sibling_sum;
-    }
-  });
+                auto const &candidate = d_candidates[nidx_in_set];
+                auto const &best_split = candidate.split;
+
+                auto parent_sum = get_node_sum(candidate.nidx);
+                // The child sum is a pointer to the scan buffer in this evaluator. Copy
+                // the data into the node sum buffer before the next evaluation call.
+                auto node_sum = best_split.child_sum;
+                auto left_sum = get_node_sum(mt_tree.LeftChild(candidate.nidx));
+                auto right_sum = get_node_sum(mt_tree.RightChild(candidate.nidx));
+
+                auto sibling_sum = parent_sum[t] - node_sum[t];
+                if (best_split.dir == kRightDir) {
+                  // forward pass, node_sum is the left sum
+                  left_sum[t] = node_sum[t];
+                  right_sum[t] = sibling_sum;
+                } else {
+                  // backward pass, node_sum is the right sum
+                  right_sum[t] = node_sum[t];
+                  left_sum[t] = sibling_sum;
+                }
+              });
 }
 
 std::ostream &DebugPrintHistogram(std::ostream &os, common::Span<GradientPairInt64 const> node_hist,

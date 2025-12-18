@@ -106,6 +106,8 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
 
   auto &h_out_position = p_out_position->HostVector();
   updater->LeafPartition(tree, gpair, &h_out_position);
+
+  updater->ExpandTreeLeaf(p_tree);
   monitor->Stop(__func__);
 }
 
@@ -271,6 +273,11 @@ class MultiTargetHistBuilder {
                          common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);
+  }
+
+  void ExpandTreeLeaf(RegTree *p_tree) {
+    // TODO(jiamingy): Support reduced gradient.
+    p_tree->GetMultiTargetTree()->SetLeaves();
   }
 
  public:
@@ -489,6 +496,8 @@ class HistUpdater {
     }
     monitor_->Stop(__func__);
   }
+
+  void ExpandTreeLeaf(RegTree *) { /*no op for scalar trees.*/ }
 };
 
 /*! \brief construct a tree using quantized feature values */

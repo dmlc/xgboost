@@ -1115,6 +1115,7 @@ def test_deprecate_position_arg():
 def test_pandas_input():
     import pandas as pd
     from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.frozen import FrozenEstimator
 
     rng = np.random.RandomState(1994)
 
@@ -1144,10 +1145,10 @@ def test_pandas_input():
     with pytest.raises(ValueError, match="feature_names mismatch"):
         model.predict(df_incorrect)
 
-    clf_isotonic = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
+    clf_isotonic = CalibratedClassifierCV(FrozenEstimator(model), method="isotonic")
     clf_isotonic.fit(train, target)
     assert isinstance(
-        clf_isotonic.calibrated_classifiers_[0].estimator, xgb.XGBClassifier
+        clf_isotonic.calibrated_classifiers_[0].estimator.estimator, xgb.XGBClassifier
     )
     np.testing.assert_allclose(np.array(clf_isotonic.classes_), np.array([0, 1]))
 
@@ -1227,11 +1228,11 @@ def test_boost_from_prediction(tree_method: str) -> None:
 
 
 def test_estimator_type():
-    assert xgb.XGBClassifier._estimator_type == "classifier"
-    assert xgb.XGBRFClassifier._estimator_type == "classifier"
-    assert xgb.XGBRegressor._estimator_type == "regressor"
-    assert xgb.XGBRFRegressor._estimator_type == "regressor"
-    assert xgb.XGBRanker._estimator_type == "ranker"
+    assert xgb.XGBClassifier()._get_type() == "classifier"
+    assert xgb.XGBRFClassifier()._get_type() == "classifier"
+    assert xgb.XGBRegressor()._get_type() == "regressor"
+    assert xgb.XGBRFRegressor()._get_type() == "regressor"
+    assert xgb.XGBRanker()._get_type() == "ranker"
 
     from sklearn.datasets import load_digits
 
@@ -1321,6 +1322,7 @@ def test_categorical():
         reg = xgb.XGBRegressor()
         reg.load_model(path)
         assert reg.feature_types == ft
+        assert reg.enable_categorical is True
 
     onehot, y = tm.make_categorical(
         n_samples=32, n_features=2, n_categories=3, onehot=True

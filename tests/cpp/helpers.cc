@@ -29,9 +29,20 @@
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <memory>
 #include <vector>
+
+#include "rmm/version_config.hpp"
+
+// TODO(hcho3): Remove this guard once we require Rapids 25.12+
+#if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+#include "rmm/mr/per_device_resource.hpp"
+#include "rmm/mr/cuda_memory_resource.hpp"
+#include "rmm/mr/pool_memory_resource.hpp"
+#else  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
 #include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/cuda_memory_resource.hpp"
 #include "rmm/mr/device/pool_memory_resource.hpp"
+#endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 bool FileExists(const std::string& filename) {
@@ -492,9 +503,10 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
 
-  auto row_page_path =
-      data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(p_fmat.get())) + ".row.page";
-  EXPECT_TRUE(FileExists(row_page_path)) << row_page_path;
+  auto row_page_path = data::MakeId(data::MakeCachePrefix(prefix),
+                                    dynamic_cast<data::SparsePageDMatrix*>(p_fmat.get())) +
+                       ".row.page";
+  EXPECT_TRUE(FileExists(row_page_path)) << row_page_path << " prefix:" << prefix;
 
   // Loop over the batches and count the number of pages
   std::size_t batch_count = 0;

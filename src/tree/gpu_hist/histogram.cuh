@@ -9,7 +9,6 @@
 #include "../../common/device_helpers.cuh"  // for LaunchN
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
-#include "expand_entry.cuh"                 // for GPUExpandEntry
 #include "feature_groups.cuh"               // for FeatureGroupsAccessor
 #include "quantiser.cuh"                    // for GradientQuantiser
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
@@ -160,17 +159,19 @@ class DeviceHistogramBuilder {
              FeatureGroupsAccessor const& feature_groups, bst_bin_t n_total_bins,
              bool force_global_memory);
 
-  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+  void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
                       common::Span<const std::uint32_t> ridx,
                       common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
 
-  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+  // Build histograms for multiple nodes and multiple targets
+  void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       linalg::MatrixView<GradientPair const> gpair,
-                      common::Span<const std::uint32_t> ridx,
-                      common::Span<GradientPairInt64> histogram,
+                      common::Span<common::Span<const std::uint32_t>> ridxs,
+                      common::Span<common::Span<GradientPairInt64>> hists,
+                      std::vector<std::size_t> const& h_sizes_csum,
                       common::Span<GradientQuantiser const> roundings);
 
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }
@@ -179,11 +180,14 @@ class DeviceHistogramBuilder {
   void AllReduceHist(Context const* ctx, MetaInfo const& info, bst_node_t nidx,
                      std::size_t num_histograms);
 
+  [[nodiscard]] bool CanSubtract(bst_node_t nidx_parent, bst_node_t nidx_histogram) const {
+    return hist_.HistogramExists(nidx_parent) && hist_.HistogramExists(nidx_histogram);
+  }
   // Attempt to do subtraction trick
   // return true if succeeded
   [[nodiscard]] bool SubtractionTrick(Context const* ctx, bst_node_t nidx_parent,
                                       bst_node_t nidx_histogram, bst_node_t nidx_subtraction) {
-    if (!hist_.HistogramExists(nidx_histogram) || !hist_.HistogramExists(nidx_parent)) {
+    if (!this->CanSubtract(nidx_parent, nidx_histogram)) {
       return false;
     }
     auto d_node_hist_parent = hist_.GetNodeHistogram(nidx_parent);

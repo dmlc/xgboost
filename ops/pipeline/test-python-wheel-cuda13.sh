@@ -3,11 +3,17 @@
 
 set -euo pipefail
 
+if [[ "$#" -lt 1 ]]
+then
+  echo "Usage: $0 [image_repo]"
+  exit 2
+fi
+image_repo="$1"
+
 source ops/pipeline/get-docker-registry-details.sh
 source ops/pipeline/get-image-tag.sh
 
-IMAGE_REPO="xgb-ci.gpu_build_cuda13_rockylinux8"
-IMAGE_URI="${DOCKER_REGISTRY_URL}/${IMAGE_REPO}:${IMAGE_TAG}"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
 
 set -x
 python3 ops/docker_run.py --image-uri "${IMAGE_URI}" --use-gpus \

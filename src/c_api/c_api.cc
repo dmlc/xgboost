@@ -17,6 +17,7 @@
 
 #include "../common/api_entry.h"         // for XGBAPIThreadLocalEntry
 #include "../common/charconv.h"          // for from_chars, to_chars, NumericLimits, from_ch...
+#include "../common/cuda_rt_utils.h"     // for MemoryPoolsSupported
 #include "../common/error_msg.h"         // for NoFederated
 #include "../common/hist_util.h"         // for HistogramCuts
 #include "../common/io.h"                // for FileExtension, LoadSequentialFile, MemoryBuf...
@@ -148,14 +149,14 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_END();
 }
 
-XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
+XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
   API_BEGIN_UNGUARD()
 
   xgboost_CHECK_C_ARG_PTR(json_str);
   Json config{Json::Load(StringView{json_str})};
 
   // handle nthread, it's not a dmlc parameter.
-  auto& obj = get<Object>(config);
+  auto &obj = get<Object>(config);
   auto it = obj.find("nthread");
   if (it != obj.cend()) {
     auto nthread = OptionalArg<Integer>(config, "nthread", Integer::Int{0});
@@ -168,28 +169,28 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
 
   for (auto &items : obj) {
     switch (items.second.GetValue().Type()) {
-    case xgboost::Value::ValueKind::kInteger: {
-      items.second = String{std::to_string(get<Integer const>(items.second))};
-      break;
-    }
-    case xgboost::Value::ValueKind::kBoolean: {
-      if (get<Boolean const>(items.second)) {
-        items.second = String{"true"};
-      } else {
-        items.second = String{"false"};
+      case xgboost::Value::ValueKind::kInteger: {
+        items.second = String{std::to_string(get<Integer const>(items.second))};
+        break;
       }
-      break;
-    }
-    case xgboost::Value::ValueKind::kNumber: {
-      auto n = get<Number const>(items.second);
-      char chars[NumericLimits<float>::kToCharsSize];
-      auto ec = to_chars(chars, chars + sizeof(chars), n).ec;
-      CHECK(ec == std::errc());
-      items.second = String{chars};
-      break;
-    }
-    default:
-      break;
+      case xgboost::Value::ValueKind::kBoolean: {
+        if (get<Boolean const>(items.second)) {
+          items.second = String{"true"};
+        } else {
+          items.second = String{"false"};
+        }
+        break;
+      }
+      case xgboost::Value::ValueKind::kNumber: {
+        auto n = get<Number const>(items.second);
+        char chars[NumericLimits<float>::kToCharsSize];
+        auto ec = to_chars(chars, chars + sizeof(chars), n).ec;
+        CHECK(ec == std::errc());
+        items.second = String{chars};
+        break;
+      }
+      default:
+        break;
     }
   }
   auto unknown = FromJson(config, GlobalConfigThreadLocalStore::Get());
@@ -197,14 +198,23 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
     std::stringstream ss;
     ss << "Unknown global parameters: { ";
     size_t i = 0;
-    for (auto const& item : unknown) {
+    for (auto const &item : unknown) {
       ss << item.first;
       i++;
       if (i != unknown.size()) {
         ss << ", ";
       }
     }
-    LOG(FATAL) << ss.str()  << " }";
+    LOG(FATAL) << ss.str() << " }";
+  }
+
+  // Check configuration is valid.
+  bool use_async_pool = GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool;
+#if defined(XGBOOST_USE_RMM)
+  CHECK(!use_async_pool) << "Cannot enable `use_cuda_async_pool` when compiled with RMM.";
+#endif  // defined(XGBOOST_USE_RMM)
+  if (use_async_pool && !curt::MemoryPoolsSupported(xgboost::curt::CurrentDevice())) {
+    LOG(FATAL) << "CUDA async memory pool is not available for the current device.";
   }
 
   API_END();
@@ -752,22 +762,10 @@ CatContainer *CopyCatContainer(Context const *ctx, CatContainer const *cats,
 }
 }  // anonymous namespace
 
-typedef  void * CategoriesHandle;  // NOLINT
-
 /**
- * Fetching categories is experimental (3.1), C functions are hidden at the moment.
- *
  * No actual container method is exposed through the C API. It's just an opaque handle at
  * the moment. This way we get to reuse the methods and the context from the DMatrix and
  * Booster.
- */
-/**
- * @brief Create an opaque handle to the internal container.
- *
- * @param handle An instance of the data matrix.
- * @param out    Created handle to the category container. Set to NULL if there's no category.
- *
- * @return 0 when success, -1 when failure happens.
  */
 XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const * /*config*/,
                                    CategoriesHandle *out) {
@@ -786,15 +784,7 @@ XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const * /*config*/
 
   API_END()
 }
-/**
- * @brief Create an opaque handle to the internal container and export it to arrow.
- *
- * @param handle     An instance of the data matrix.
- * @param out        Created handle to the category container
- * @param export_out JSON encoded array of categories, with length equal to the number of features.
- *
- * @return 0 when success, -1 when failure happens.
- */
+
 XGB_DLL int XGDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, char const * /*config*/,
                                                 CategoriesHandle *out, char const **export_out) {
   API_BEGIN();
@@ -821,13 +811,7 @@ XGB_DLL int XGDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, char const
 
   API_END();
 }
-/**
- * @brief Free the opaque handle.
- *
- * @param handle An instance of the category container.
- *
- * @return 0 when success, -1 when failure happens.
- */
+
 XGB_DLL int XGBCategoriesFree(CategoriesHandle handle) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(handle);
@@ -1804,13 +1788,7 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
   API_END();
 }
 
-/**
- * Experimental (3.1), hidden.
- */
-/**
- * See @ref XGDMatrixGetCategories
- */
-XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, char const * /*config*/,
+XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const * /*config*/,
                                    CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
@@ -1827,9 +1805,7 @@ XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, char const * /*config*/
 
   API_END()
 }
-/**
- * See @ref XGDMatrixGetCategoriesExportToArrow
- */
+
 XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, char const * /*config*/,
                                                 CategoriesHandle *out, char const **export_out) {
   API_BEGIN()

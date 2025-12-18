@@ -30,6 +30,16 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
   (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``. See
   :doc:`/python/rmm-examples/index` for details.
 
+* ``use_cuda_async_pool`` [default=false]
+
+  Whether to use the device memory pool in the CUDA driver. This option is not available
+  if XGBoost is built with RMM support, as it is the same as using the RMM
+  `CudaAsyncMemoryResource` pool.
+
+  .. versionadded:: 3.2.0
+
+  .. warning:: This is an experimental feature and is subject to change without notice.
+
 * ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
   override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,
   the ``nthread`` parameter from the Booster and the DMatrix should be preferred as the
