@@ -6,6 +6,7 @@
 #include <cub/block/block_scan.cuh>  // for BlockScan
 #include <cub/util_type.cuh>         // for KeyValuePair
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
+#include <cuda/std/functional>       // for identity
 #include <vector>                    // for vector
 
 #include "../../common/cuda_context.cuh"
@@ -77,6 +78,9 @@ template <std::int32_t kBlockThreads>
 __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
     common::Span<common::Span<GradientPairInt64>> outputs) {
+  constexpr std::int32_t kWarpThreads = 32;
+  auto const warp_id = static_cast<std::int32_t>(threadIdx.x) / kWarpThreads;
+
   auto nidx_in_set = blockIdx.x;
 
   auto const &node = nodes[nidx_in_set];
@@ -189,7 +193,6 @@ struct EvaluateSplitAgent {
 }  // namespace
 
 // Find the best split based on the scan result
-// Only a single node is working at the moment
 template <std::int32_t kBlockThreads>
 __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
@@ -225,6 +228,7 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   auto d_outputs = dh::ToSpan(outputs);
   this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, d_outputs);
 
+  // fixme: do we still need this?
   auto n_targets = shared_inputs.Targets();
   dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
     auto weight = d_outputs[0].base_weight;
@@ -260,6 +264,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
   // Scan the histograms. One for forward and the other for backward.
   this->scan_buffer_.resize(total_hist_size * 2);
+  // Initialize the buffer
   thrust::fill(ctx->CUDACtx()->CTP(), this->scan_buffer_.begin(), this->scan_buffer_.end(),
                GradientPairInt64{});
 

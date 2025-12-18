@@ -15,7 +15,7 @@ class MultiHistEvaluator {
   // Buffer for node weights
   dh::device_vector<float> weights_;
   // Buffer for histogram scans.
-  dh::device_vector<GradientPairInt64> scan_buffer_;
+  dh::DeviceUVector<GradientPairInt64> scan_buffer_;
   // Buffer for node gradient sums.
   dh::device_vector<GradientPairInt64> node_sums_;
 

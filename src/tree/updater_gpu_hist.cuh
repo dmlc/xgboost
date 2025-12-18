@@ -10,6 +10,8 @@
 
 #include "../common/device_helpers.cuh"        // for MakeTransformIterator
 #include "../common/nvtx_utils.h"              // for xgboost_NVTX_FN_RANGE
+#include "../common/random.h"                  // for ColumnSampler
+#include "constraints.cuh"                     // for FeatureInteractionConstraintDevice
 #include "driver.h"                            // for Driver
 #include "gpu_hist/feature_groups.cuh"         // for FeatureGroups
 #include "gpu_hist/histogram.cuh"              // for DeviceHistogramBuilder
@@ -104,6 +106,8 @@ class MultiTargetHistMaker {
   std::unique_ptr<MultiGradientQuantiser> value_quantizer_;
 
   MultiHistEvaluator evaluator_;
+  std::shared_ptr<common::ColumnSampler> column_sampler_;
+  std::unique_ptr<FeatureInteractionConstraintDevice> interaction_constraints_;
 
   // Gradient used for building the tree structure
   linalg::Matrix<GradientPair> split_gpair_;
@@ -211,8 +215,13 @@ class MultiTargetHistMaker {
 
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
+    auto sampled_features = column_sampler_->GetFeatureSet(0);
+    sampled_features->SetDevice(ctx_->Device());
+    common::Span<bst_feature_t> feature_set =
+        interaction_constraints_->Query(sampled_features->DeviceSpan(), RegTree::kRoot);
     MultiEvaluateSplitInputs input{RegTree::kRoot, p_tree->GetDepth(RegTree::kRoot), d_root_sum,
-                                   node_hist};
+                                   feature_set, node_hist};
+
     auto d_roundings = split_quantizer_->Quantizers();
     GPUTrainingParam param{this->param_};
     MultiEvaluateSplitSharedInputs shared_inputs{d_roundings,
@@ -465,19 +474,38 @@ class MultiTargetHistMaker {
       bst_node_t right_nidx = mt_tree.RightChild(candidate.nidx);
       max_nidx = std::max({max_nidx, left_nidx, right_nidx});
     }
+
+    // Store the feature set ptrs so they don't go out of scope before the kernel is called
+    std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
+
     auto n_targets = this->split_gpair_.Shape(1);
     for (std::size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
       bst_node_t left_nidx = mt_tree.LeftChild(candidate.nidx);
       bst_node_t right_nidx = mt_tree.RightChild(candidate.nidx);
+
+      auto left_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(left_nidx));
+      left_sampled_features->SetDevice(ctx_->Device());
+      feature_sets.emplace_back(left_sampled_features);
+
+      common::Span<bst_feature_t> left_feature_set =
+          interaction_constraints_->Query(left_sampled_features->DeviceSpan(), left_nidx);
+
+      auto right_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(right_nidx));
+      right_sampled_features->SetDevice(ctx_->Device());
+      feature_sets.emplace_back(right_sampled_features);
+
+      common::Span<bst_feature_t> right_feature_set =
+          interaction_constraints_->Query(right_sampled_features->DeviceSpan(), right_nidx);
+
       // Make sure no allocation is happening.
       // The parent sum is calculated in the last apply tree split.
-      auto left = MultiEvaluateSplitInputs{left_nidx, candidate.depth + 1,
-                                           this->evaluator_.GetNodeSum(left_nidx, n_targets),
-                                           histogram_.GetNodeHistogram(left_nidx)};
-      auto right = MultiEvaluateSplitInputs{right_nidx, candidate.depth + 1,
-                                            this->evaluator_.GetNodeSum(right_nidx, n_targets),
-                                            histogram_.GetNodeHistogram(right_nidx)};
+      auto left = MultiEvaluateSplitInputs{
+          left_nidx, candidate.depth + 1, this->evaluator_.GetNodeSum(left_nidx, n_targets),
+          left_feature_set, histogram_.GetNodeHistogram(left_nidx)};
+      auto right = MultiEvaluateSplitInputs{
+          right_nidx, candidate.depth + 1, this->evaluator_.GetNodeSum(right_nidx, n_targets),
+          right_feature_set, histogram_.GetNodeHistogram(right_nidx)};
       h_node_inputs[i * 2] = left;
       h_node_inputs[i * 2 + 1] = right;
     }
@@ -489,7 +517,6 @@ class MultiTargetHistMaker {
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), outputs.data().get(),
                                   pinned_candidates_out.size_bytes(), cudaMemcpyDefault,
                                   ctx_->CUDACtx()->Stream()));
-
   }
 
   // TODO(jiamingy): Implement sampling.
@@ -591,6 +618,7 @@ class MultiTargetHistMaker {
 
   explicit MultiTargetHistMaker(Context const* ctx, TrainParam param,
                                 HistMakerTrainParam const* hist_param,
+                                std::shared_ptr<common::ColumnSampler> column_sampler,
                                 std::vector<bst_idx_t> batch_ptr,
                                 std::shared_ptr<common::HistogramCuts const> cuts,
                                 bool dense_compressed, bst_target_t n_targets)
@@ -600,6 +628,9 @@ class MultiTargetHistMaker {
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, n_targets, dense_compressed,
                                                         dh::MaxSharedMemory(ctx_->Ordinal()))},
+        column_sampler_{std::move(column_sampler)},
+        interaction_constraints_{
+            std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},
         batch_ptr_{std::move(batch_ptr)} {}
 };
 }  // namespace xgboost::tree::cuda_impl

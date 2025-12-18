@@ -209,7 +209,8 @@ struct MultiEvaluateSplitInputs {
   bst_node_t nidx;
   bst_node_t depth;
   common::Span<GradientPairInt64 const> parent_sum;
-  common::Span<const GradientPairInt64> histogram;
+  common::Span<bst_feature_t const> feature_set;
+  common::Span<GradientPairInt64 const> histogram;
 };
 
 // Input for evaluation kernel that can be shared by multiple tree nodes.
