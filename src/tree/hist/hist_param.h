@@ -6,9 +6,9 @@
 #include <cstddef>  // for size_t
 #include <limits>   // for numeric_limits
 
+#include "xgboost/context.h"     // for DeviceOrd
 #include "xgboost/parameter.h"   // for XGBoostParameter
 #include "xgboost/tree_model.h"  // for RegTree
-#include "xgboost/context.h"     // for DeviceOrd
 
 namespace xgboost::tree {
 struct HistMakerTrainParam : public XGBoostParameter<HistMakerTrainParam> {
@@ -23,7 +23,6 @@ struct HistMakerTrainParam : public XGBoostParameter<HistMakerTrainParam> {
   constexpr static std::size_t CudaDefaultNodes() { return static_cast<std::size_t>(1) << 12; }
 
   bool debug_synchronize{false};
-  bool extmem_single_page{false};
 
   void CheckTreesSynchronized(Context const* ctx, RegTree const* local_tree) const;
 
@@ -43,7 +42,6 @@ struct HistMakerTrainParam : public XGBoostParameter<HistMakerTrainParam> {
         .set_default(NotSet())
         .set_lower_bound(1)
         .describe("Maximum number of nodes in histogram cache.");
-    DMLC_DECLARE_FIELD(extmem_single_page).set_default(false);
   }
 };
 }  // namespace xgboost::tree

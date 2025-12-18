@@ -57,10 +57,10 @@ interface was added to the Python and C interfaces in 1.5, and to the R interfac
 3.0.0. Like the :py:class:`~xgboost.QuantileDMatrix` with :py:class:`~xgboost.DataIter`,
 XGBoost loads data batch-by-batch using the custom iterator supplied by the user. However,
 unlike the :py:class:`~xgboost.QuantileDMatrix`, external memory does not concatenate the
-batches (unless specified by the ``extmem_single_page`` for GPU) . Instead, it caches all
-batches in the external memory and fetch them on-demand. Go to the end of the document to
-see a comparison between :py:class:`~xgboost.QuantileDMatrix` and the external memory
-version of :py:class:`~xgboost.ExtMemQuantileDMatrix`.
+batches. Instead, it caches all batches in the external memory and fetch them
+on-demand. Go to the end of the document to see a comparison between
+:py:class:`~xgboost.QuantileDMatrix` and the external memory version of
+:py:class:`~xgboost.ExtMemQuantileDMatrix`.
 
 Some examples are in the ``demo`` directory for a quick start. To enable external memory
 training, the custom data iterator needs to have two class methods: ``next`` and
@@ -223,32 +223,6 @@ change model accuracy. However, the ``max_quantile_batches`` can be useful if
 construction, see :py:class:`~xgboost.QuantileDMatrix` and the following sections for more
 info. Currently, we focus on devices with ``NVLink-C2C`` support for GPU-based external
 memory support.
-
-In addition to the batch-based data fetching, the GPU version supports concatenating
-batches into a single blob for the training data to improve performance. For GPUs
-connected via PCIe instead of nvlink, the performance overhead with batch-based training
-is significant, particularly for non-dense data. Overall, it can be at least five times
-slower than in-core training. Concatenating pages can be used to get the performance
-closer to in-core training. This option should be used in combination with subsampling to
-reduce the memory usage. During concatenation, subsampling removes a portion of samples,
-reducing the training dataset size. The GPU hist tree method supports `gradient-based
-sampling`, enabling users to set a low sampling rate without compromising accuracy. Before
-3.0, concatenation with subsampling was the only option for GPU-based external
-memory. After 3.0, XGBoost uses the regular batch fetching as the default while the page
-concatenation can be enabled by:
-
-.. code-block:: python
-
-  param = {
-    "device": "cuda",
-    "extmem_single_page": true,
-    'subsample': 0.2,
-    'sampling_method': 'gradient_based',
-  }
-
-For more information about the sampling algorithm and its use in external memory training,
-see `this paper <https://arxiv.org/abs/2005.09148>`_. Lastly, see following sections for
-best practices.
 
 ==========
 NVLink-C2C
@@ -529,3 +503,4 @@ undergone multiple development iterations. Here's a brief summary of major chang
   the GPU and the rest of the cache in the host memory. In addition, XGBoost works with
   the Grace Blackwell hardware decompression engine when data is sparse.
 - The text file cache format has been removed in 3.1.0.
+- The page concatenation option has been removed in 3.2.0.

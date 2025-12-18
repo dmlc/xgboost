@@ -139,22 +139,6 @@ def test_invalid_device_extmem_qdm() -> None:
         xgb.train({"device": "cpu"}, Xy)
 
 
-def test_concat_pages_invalid() -> None:
-    it = tm.IteratorForTest(*tm.make_batches(64, 16, 4, use_cupy=True), cache=None)
-    Xy = xgb.ExtMemQuantileDMatrix(it)
-    with pytest.raises(ValueError, match="can not be used with concatenated pages"):
-        xgb.train(
-            {
-                "device": "cuda",
-                "subsample": 0.5,
-                "sampling_method": "gradient_based",
-                "extmem_single_page": True,
-                "objective": "reg:absoluteerror",
-            },
-            Xy,
-        )
-
-
 def test_concat_pages() -> None:
     boosters = []
     for min_cache_page_bytes in [0, 256, 386, np.iinfo(np.int64).max]:

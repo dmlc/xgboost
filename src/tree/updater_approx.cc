@@ -279,7 +279,6 @@ class GlobalApproxUpdater : public TreeUpdater {
     *sampled = linalg::Empty<GradientPair>(ctx_, gpair->Size(), 1);
     auto in = gpair->HostView().Values();
     std::copy(in.data(), in.data() + in.size(), sampled->HostView().Values().data());
-    error::NoPageConcat(this->hist_param_.extmem_single_page);
     SampleGradient(ctx_, param, sampled->HostView());
   }
 

@@ -97,17 +97,6 @@ void IterativeDMatrix::InitFromCUDA(
   iter.Reset();
 }
 
-IterativeDMatrix::IterativeDMatrix(std::shared_ptr<EllpackPage> ellpack, MetaInfo const& info,
-                                   BatchParam batch) {
-  this->ellpack_ = ellpack;
-  CHECK_EQ(this->info_.num_row_, 0);
-  CHECK_EQ(this->info_.num_col_, 0);
-  this->info_.Extend(info, true, true);
-  this->info_.num_nonzero_ = info.num_nonzero_;
-  CHECK_EQ(this->info_.num_row_, info.num_row_);
-  this->batch_ = batch;
-}
-
 BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
                                                           BatchParam const& param) {
   if (param.Initialized()) {
