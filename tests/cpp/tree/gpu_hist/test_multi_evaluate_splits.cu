@@ -55,9 +55,8 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     feature_segments[1] = static_cast<bst_feature_t>(n_bins_per_feat_tar);
     shared_inputs.feature_segments = dh::ToSpan(feature_segments);
 
-    shared_inputs.feature_values = dh::ToSpan(feature_values);
-
-    shared_inputs.min_values = dh::ToSpan(min_values);
+    shared_inputs.feature_values = dh::ToSpan(feature_values).data();
+    shared_inputs.min_values = dh::ToSpan(min_values).data();
 
     shared_inputs.n_bins_per_feat_tar = n_bins_per_feat_tar;
     shared_inputs.max_active_feature = 1;
@@ -171,9 +170,8 @@ TEST(EvalScan, Basic) {
   feature_segments[1] = static_cast<bst_feature_t>(n_bins_per_feat_tar);
   shared_inputs.feature_segments = dh::ToSpan(feature_segments);
 
-  shared_inputs.feature_values = dh::ToSpan(feature_values);
-
-  shared_inputs.min_values = dh::ToSpan(min_values);
+  shared_inputs.feature_values = dh::ToSpan(feature_values).data();
+  shared_inputs.min_values = dh::ToSpan(min_values).data();
 
   shared_inputs.n_bins_per_feat_tar = n_bins_per_feat_tar;
   TrainParam param;

@@ -136,7 +136,7 @@ struct EvaluateSplitAgent {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
     // Calculate split gain for each bin
     auto n_targets = shared.Targets();
-    auto roundings = shared.roundings;
+    auto roundings = shared.roundings.data();
     auto lane_id = dh::LaneId();
 
     bst_bin_t gidx_begin = shared.feature_segments[fidx];
@@ -151,7 +151,7 @@ struct EvaluateSplitAgent {
       double gain = thread_active ? 0 : kNullGain;
 
       if (thread_active) {
-        auto scan_bin = node_scan.subspan(bin_idx * n_targets, n_targets);
+        auto scan_bin = node_scan.subspan(bin_idx * n_targets, n_targets).data();
         for (bst_target_t t = 0; t < n_targets; ++t) {
           auto pg = roundings[t].ToFloatingPoint(node.parent_sum[t]);
           // left
@@ -223,7 +223,6 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   bst_feature_t fidx = warp_id % shared.max_active_feature;
   AgentT agent{&temp_storage[warp_id_in_blk], fidx};
 
-  auto n_targets = shared.Targets();
   auto candidate_idx = nidx * shared.max_active_feature + fidx;
   auto d_nodes = nodes.data();
 

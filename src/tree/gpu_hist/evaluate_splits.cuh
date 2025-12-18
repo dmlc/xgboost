@@ -220,9 +220,9 @@ struct MultiEvaluateSplitSharedInputs {
   // cut pointers
   common::Span<std::uint32_t const> feature_segments;
   // cut values
-  common::Span<float const> feature_values;
+  float const *feature_values;
   // min cut values
-  common::Span<float const> min_values;
+  float const *min_values;
   // Number of bins for one feature and one target
   bst_bin_t n_bins_per_feat_tar;
   bst_feature_t max_active_feature;

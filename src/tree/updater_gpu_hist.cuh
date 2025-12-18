@@ -230,8 +230,8 @@ class MultiTargetHistMaker {
     GPUTrainingParam param{this->param_};
     MultiEvaluateSplitSharedInputs shared_inputs{d_roundings,
                                                  this->cuts_->cut_ptrs_.ConstDeviceSpan(),
-                                                 this->cuts_->cut_values_.ConstDeviceSpan(),
-                                                 this->cuts_->min_vals_.ConstDeviceSpan(),
+                                                 this->cuts_->cut_values_.ConstDevicePointer(),
+                                                 this->cuts_->min_vals_.ConstDevicePointer(),
                                                  this->param_.max_bin,
                                                  static_cast<bst_feature_t>(feature_set.size()),
                                                  param};
@@ -514,8 +514,8 @@ class MultiTargetHistMaker {
     MultiEvaluateSplitSharedInputs shared_inputs{
         this->split_quantizer_->Quantizers(),
         this->cuts_->cut_ptrs_.ConstDeviceSpan(),
-        this->cuts_->cut_values_.ConstDeviceSpan(),
-        this->cuts_->min_vals_.ConstDeviceSpan(),
+        this->cuts_->cut_values_.ConstDevicePointer(),
+        this->cuts_->min_vals_.ConstDevicePointer(),
         this->param_.max_bin,
         max_active_feature,
         param,
