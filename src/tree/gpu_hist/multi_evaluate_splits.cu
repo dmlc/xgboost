@@ -93,11 +93,12 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
   }
   // The current histogram layout has consecutive targets, which results in excessive
   // (non-coalesced) memory access for the evaluation kernels.
-  auto [nidx_in_set, fidx, target_idx] =
+  auto [nidx_in_set, fidx_in_set, target_idx] =
       linalg::UnravelIndex(warp_id, nodes.size(), shared.max_active_feature, n_targets);
   auto const &node = nodes[nidx_in_set];
   auto out = outputs[nidx_in_set];
-
+  auto fidx = node.feature_set[fidx_in_set];
+  // The histogram is full, regardless of whether a feature is sampled.
   bst_bin_t gidx_begin = shared.feature_segments[fidx];
   bst_bin_t gidx_end = shared.feature_segments[fidx + 1];
 
@@ -220,20 +221,25 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   __shared__ typename AgentT::TempStorage temp_storage[kWarpsPerBlk];
 
   const auto nidx = warp_id / shared.max_active_feature;
-  bst_feature_t fidx = warp_id % shared.max_active_feature;
-  AgentT agent{&temp_storage[warp_id_in_blk], fidx};
+  auto const& node = nodes[nidx];
 
-  auto candidate_idx = nidx * shared.max_active_feature + fidx;
-  auto d_nodes = nodes.data();
+  bst_feature_t fidx_in_set = warp_id % shared.max_active_feature;
+  // This node might have a smaller number of sampled features.
+  if (fidx_in_set >= node.feature_set.size()) {
+    return;
+  }
+  auto fidx = node.feature_set[fidx_in_set];
+  AgentT agent{&temp_storage[warp_id_in_blk], fidx};
+  // The number of candidates is allocated using active features
+  auto candidate_idx = nidx * shared.max_active_feature + fidx_in_set;
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
-    auto forward = bin_scans[nidx].subspan(0, d_nodes[nidx].histogram.size());
-    agent.template Numerical<+1>(d_nodes[nidx], shared, forward, &out_candidates[candidate_idx]);
+    auto forward = bin_scans[nidx].subspan(0, node.histogram.size());
+    agent.template Numerical<+1>(node, shared, forward, &out_candidates[candidate_idx]);
   }
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward) {
-    auto backward =
-        bin_scans[nidx].subspan(d_nodes[nidx].histogram.size(), d_nodes[nidx].histogram.size());
-    agent.template Numerical<-1>(d_nodes[nidx], shared, backward, &out_candidates[candidate_idx]);
+    auto backward = bin_scans[nidx].subspan(node.histogram.size(), node.histogram.size());
+    agent.template Numerical<-1>(node, shared, backward, &out_candidates[candidate_idx]);
   }
 }
 

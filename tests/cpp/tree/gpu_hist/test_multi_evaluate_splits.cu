@@ -22,10 +22,14 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
   MultiEvaluateSplitSharedInputs shared_inputs;
 
   dh::device_vector<bst_feature_t> feature_segments;
+  dh::device_vector<bst_feature_t> feature_set;
   dh::device_vector<float> feature_values{.0f, .1f, .2f, .3f};
   dh::device_vector<float> min_values{-1.0f};
 
   void SetUp() override {
+    input.nidx = 0;
+    input.depth = 0;
+
     parent_sum.resize(n_targets);
     parent_sum[0] = GradientPairInt64{56, 40};
     parent_sum[1] = GradientPairInt64{96, 128};
@@ -54,6 +58,9 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     feature_segments[0] = 0;
     feature_segments[1] = static_cast<bst_feature_t>(n_bins_per_feat_tar);
     shared_inputs.feature_segments = dh::ToSpan(feature_segments);
+
+    feature_set.resize(1, 0);
+    input.feature_set = dh::ToSpan(feature_set);
 
     shared_inputs.feature_values = dh::ToSpan(feature_values).data();
     shared_inputs.min_values = dh::ToSpan(min_values).data();
