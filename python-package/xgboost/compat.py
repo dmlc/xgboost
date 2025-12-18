@@ -242,6 +242,10 @@ def is_dataframe(data: DataType) -> bool:
     )
 
 
+def _is_cupy_alike(data: DataType) -> bool:
+    return hasattr(data, "__cuda_array_interface__")
+
+
 def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statements
     """Concatenate row-wise."""
     if isinstance(value[0], np.ndarray):
@@ -264,8 +268,6 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
         from cudf import concat as CUDF_concat
 
         return CUDF_concat(value, axis=0)
-    from .data import _is_cupy_alike
-
     if _is_cupy_alike(value[0]):
         import cupy
 

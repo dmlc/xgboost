@@ -60,6 +60,7 @@ from .compat import (
     _is_cudf_df,
     _is_cudf_pandas,
     _is_cudf_ser,
+    _is_cupy_alike,
     _is_modin_df,
     _is_modin_series,
     _is_pandas_df,
@@ -1127,10 +1128,6 @@ def _from_cudf_df(
         )
     )
     return handle, feature_names, feature_types
-
-
-def _is_cupy_alike(data: DataType) -> bool:
-    return hasattr(data, "__cuda_array_interface__")
 
 
 def _transform_cupy_array(data: DataType) -> CupyT:

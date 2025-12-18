@@ -41,6 +41,7 @@ import scipy.sparse
 from ._data_utils import (
     Categories,
     TransformedDf,
+    _ensure_np_dtype,
     array_interface,
     cuda_array_interface,
     from_array_interface,
@@ -70,6 +71,7 @@ from ._typing import (
     c_bst_ulong,
 )
 from .compat import (
+    _is_cupy_alike,
     import_polars,
     import_pyarrow,
     is_pandas_available,
@@ -77,7 +79,7 @@ from .compat import (
     py_str,
 )
 from .libpath import find_lib_path
-from .objective import TreeObjective
+from .objective import Objective, TreeObjective, _grad_arrinf
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -1921,7 +1923,7 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             self.ref = weakref.ref(ref)
 
 
-Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+PlainObj = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
 Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
 
 
@@ -2389,19 +2391,23 @@ class Booster:
         self,
         dtrain: DMatrix,
         iteration: int,
-        fobj: Optional[Objective] = None,
+        fobj: Optional[PlainObj] = None,
     ) -> None:
         """Update for one iteration, with objective function calculated
-        internally.  This function should not be called directly by users.
+        internally.
+
+        .. warning::
+
+            This function should not be called directly by users.
 
         Parameters
         ----------
         dtrain :
             Training data.
         iteration :
-            Current iteration number.
+            The current training iteration.
         fobj :
-            Customized objective function.
+            Custom objective function.
 
         """
         if not isinstance(dtrain, DMatrix):
@@ -2414,106 +2420,110 @@ class Booster:
                     self.handle, ctypes.c_int(iteration), dtrain.handle
                 )
             )
-        else:
-            pred = self.predict(dtrain, output_margin=True, training=True)
-            vgrad: Optional[ArrayLike]
-            vhess: Optional[ArrayLike]
-            vgrad, vhess = fobj(pred, dtrain)
-            if isinstance(fobj, TreeObjective):
-                sgrad, shess = fobj.split_grad(vgrad, vhess)
-            else:
-                sgrad, shess = vgrad, vhess
-                vgrad, vhess = None, None
-            self.boost(
-                dtrain,
-                iteration=iteration,
-                grad=sgrad,
-                hess=shess,
-                _vgrad=vgrad,
-                _vhess=vhess,
-            )
+            return
+
+        # Forward the gradient calculation to the boost method.
+        self.boost(
+            dtrain,
+            iteration=iteration,
+            fobj=fobj,
+        )
 
     def boost(
         self,
         dtrain: DMatrix,
         iteration: int,
-        grad: NumpyOrCupy,
-        hess: NumpyOrCupy,
-        _vgrad: Optional[NumpyOrCupy] = None,  # WIP vector-leaf support
-        _vhess: Optional[NumpyOrCupy] = None,  # WIP vector-leaf support
+        *,
+        grad: Optional[NumpyOrCupy] = None,
+        hess: Optional[NumpyOrCupy] = None,
+        fobj: Optional[PlainObj] = None,
     ) -> None:
         """Boost the booster for one iteration with customized gradient statistics.
-        Like :py:func:`xgboost.Booster.update`, this function should not be called
-        directly by users.
+
+        .. warning::
+
+            Like :py:meth:`.update`, this function should not be called directly by
+            users.
 
         Parameters
         ----------
         dtrain :
             The training DMatrix.
+        iteration :
+            The current training iteration.
         grad :
             The first order of gradient.
         hess :
             The second order of gradient.
+        fobj :
+            A custom objective function. If gradient is None, then an objective function
+            is required.
 
         """
-        from .data import _ensure_np_dtype, _is_cupy_alike
-
         self._assign_dmatrix_features(dtrain)
 
-        def is_flatten(array: NumpyOrCupy) -> bool:
-            return len(array.shape) == 1 or array.shape[1] == 1
-
-        def grad_arrinf(array: NumpyOrCupy) -> bytes:
-            # Can we check for __array_interface__ instead of a specific type instead?
-            msg = (
-                "Expecting `np.ndarray` or `cupy.ndarray` for gradient and hessian."
-                f" Got: {type(array)}"
+        if all(arg is not None for arg in (grad, hess, fobj)):
+            raise ValueError(
+                "Provide either the objective, or the gradient and hessian, not both."
             )
-            if not isinstance(array, np.ndarray) and not _is_cupy_alike(array):
-                raise TypeError(msg)
+        n_samples = dtrain.num_row()
 
-            n_samples = dtrain.num_row()
-            if array.shape[0] != n_samples and is_flatten(array):
-                warnings.warn(
-                    "Since 2.1.0, the shape of the gradient and hessian is required to"
-                    " be (n_samples, n_targets) or (n_samples, n_classes).",
-                    FutureWarning,
-                )
-                array = array.reshape(n_samples, array.size // n_samples)
-
-            if isinstance(array, np.ndarray):
-                array, _ = _ensure_np_dtype(array, array.dtype)
-                interface = array_interface(array)
-            elif _is_cupy_alike(array):
-                interface = cuda_array_interface(array)
-            else:
-                raise TypeError(msg)
-
-            return interface
-
-        if _vgrad is not None or _vhess is not None:
-            assert _vhess is not None and _vgrad is not None
-            _check_call(
-                _LIB.XGBoosterTrainOneIterWithSplitGrad(
-                    self.handle,
-                    dtrain.handle,
-                    iteration,
-                    grad_arrinf(grad),
-                    grad_arrinf(hess),
-                    grad_arrinf(_vgrad),
-                    grad_arrinf(_vhess),
-                )
-            )
-        else:
+        def train_one_iter(grad: NumpyOrCupy, hess: NumpyOrCupy) -> None:
             _check_call(
                 _LIB.XGBoosterTrainOneIter(
                     self.handle,
                     dtrain.handle,
                     iteration,
-                    grad_arrinf(grad),
-                    grad_arrinf(hess),
+                    _grad_arrinf(grad, n_samples),
+                    _grad_arrinf(hess, n_samples),
                 )
             )
+
+        if grad is not None or hess is not None:
+            # Handle the case where gradient is directly provided for compatibility with
+            # XGBoost < 3.2
+            train_one_iter(grad, hess)
+            return
+
+        if fobj is None:
+            raise ValueError(
+                "Invalid input for the boost function. Either the gradient or "
+                "the objective should have a valid value."
+            )
+
+        y_pred = self.predict(dtrain, output_margin=True, training=True)
+
+        vgrad: Optional[ArrayLike]
+        vhess: Optional[ArrayLike]
+
+        if isinstance(fobj, TreeObjective):
+            # full gradient for leaf values
+            vgrad, vhess = fobj(iteration, y_pred, dtrain)
+            # Reduced gradient for split nodes
+            sgrad, shess = fobj.split_grad(iteration, vgrad, vhess)
+        elif isinstance(fobj, Objective):
+            sgrad, shess = fobj(iteration, y_pred, dtrain)
+            vgrad, vhess = None, None
+        else:
+            # Plain callable
+            sgrad, shess = fobj(y_pred, dtrain)
+            vgrad, vhess = None, None
+
+        if vgrad is None:
+            train_one_iter(sgrad, shess)
+            return
+
+        _check_call(
+            _LIB.XGBoosterTrainOneIterWithSplitGrad(
+                self.handle,
+                dtrain.handle,
+                iteration,
+                _grad_arrinf(sgrad, n_samples),
+                _grad_arrinf(shess, n_samples),
+                _grad_arrinf(vgrad, n_samples),
+                _grad_arrinf(vhess, n_samples),
+            )
+        )
 
     def eval_set(
         self,
@@ -2832,7 +2842,6 @@ class Booster:
             _is_arrow,
             _is_cudf_df,
             _is_cudf_pandas,
-            _is_cupy_alike,
             _is_list,
             _is_np_array_like,
             _is_pandas_df,
@@ -2880,8 +2889,6 @@ class Booster:
                 )
 
         if _is_np_array_like(data):
-            from .data import _ensure_np_dtype
-
             data, _ = _ensure_np_dtype(data, data.dtype)
             _check_call(
                 _LIB.XGBoosterPredictFromDense(
