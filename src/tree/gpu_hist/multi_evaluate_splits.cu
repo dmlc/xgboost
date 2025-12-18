@@ -80,12 +80,13 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
     common::Span<common::Span<GradientPairInt64>> outputs) {
   static_assert(kBlockThreads % dh::WarpThreads() == 0);
+
   constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
   auto const warp_id_in_blk = static_cast<std::int32_t>(threadIdx.x) / dh::WarpThreads();
   // The warp index across the entire grid
   auto const warp_id = warp_id_in_blk + kWarpsPerBlk * blockIdx.x;
   bst_target_t const n_targets = shared.Targets();
-  auto const n_valid_warps = nodes.size() * shared.Features() * n_targets;
+  auto const n_valid_warps = nodes.size() * shared.max_active_feature * n_targets;
 
   if (warp_id >= n_valid_warps) {
     return;
@@ -93,7 +94,7 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
   // The current histogram layout has consecutive targets, which results in excessive
   // (non-coalesced) memory access for the evaluation kernels.
   auto [nidx_in_set, fidx, target_idx] =
-      linalg::UnravelIndex(warp_id, nodes.size(), shared.Features(), n_targets);
+      linalg::UnravelIndex(warp_id, nodes.size(), shared.max_active_feature, n_targets);
   auto const &node = nodes[nidx_in_set];
   auto out = outputs[nidx_in_set];
 
@@ -116,7 +117,6 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
 }
 
 namespace {
-template <std::int32_t kBlockThreads>
 struct EvaluateSplitAgent {
   using ArgMaxT = cub::KeyValuePair<std::uint32_t, double>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
@@ -137,12 +137,14 @@ struct EvaluateSplitAgent {
     // Calculate split gain for each bin
     auto n_targets = shared.Targets();
     auto roundings = shared.roundings;
+    auto lane_id = dh::LaneId();
 
     bst_bin_t gidx_begin = shared.feature_segments[fidx];
     bst_bin_t gidx_end = shared.feature_segments[fidx + 1];
 
-    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockThreads) {
-      auto bin_idx = scan_begin + threadIdx.x;
+    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end;
+         scan_begin += dh::WarpThreads()) {
+      auto bin_idx = scan_begin + lane_id;
       bool thread_active = bin_idx < gidx_end;
 
       auto constexpr kNullGain = -std::numeric_limits<double>::infinity();
@@ -204,15 +206,25 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
     common::Span<common::Span<GradientPairInt64>> bin_scans,
     common::Span<MultiSplitCandidate> out_candidates) {
-  using AgentT = EvaluateSplitAgent<kBlockThreads>;
-  __shared__ typename AgentT::TempStorage temp_storage;
+  constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
+  auto const warp_id_in_blk = static_cast<std::int32_t>(threadIdx.x) / dh::WarpThreads();
+  // The warp index across the entire grid
+  auto const warp_id = warp_id_in_blk + kWarpsPerBlk * blockIdx.x;
+  auto const n_valid_warps = nodes.size() * shared.max_active_feature;
 
-  const auto nidx = blockIdx.x / shared.Features();
-  bst_feature_t fidx = blockIdx.x % shared.Features();
-  AgentT agent{&temp_storage, fidx};
+  if (warp_id >= n_valid_warps) {
+    return;
+  }
+
+  using AgentT = EvaluateSplitAgent;
+  __shared__ typename AgentT::TempStorage temp_storage[kWarpsPerBlk];
+
+  const auto nidx = warp_id / shared.max_active_feature;
+  bst_feature_t fidx = warp_id % shared.max_active_feature;
+  AgentT agent{&temp_storage[warp_id_in_blk], fidx};
 
   auto n_targets = shared.Targets();
-  auto candidate_idx = nidx * shared.Features() + fidx;
+  auto candidate_idx = nidx * shared.max_active_feature + fidx;
   auto d_nodes = nodes.data();
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
@@ -256,8 +268,9 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   auto n_targets = shared_inputs.Targets();
   auto n_bins_per_feat_tar = shared_inputs.n_bins_per_feat_tar;
   CHECK_GE(n_bins_per_feat_tar, 1);
-  auto n_features = shared_inputs.Features();
+  auto n_features = shared_inputs.max_active_feature;
   CHECK_GE(n_features, 1);
+  CHECK_LT(n_features, shared_inputs.feature_segments.size());
 
   std::uint32_t n_nodes = d_inputs.size();
   CHECK_EQ(n_nodes, out_splits.size());
@@ -295,8 +308,11 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   // Launch split evaluation kernel
   dh::device_vector<MultiSplitCandidate> d_splits(n_nodes * n_features);
   {
-    std::uint32_t constexpr kBlockThreads = 32;
-    dh::LaunchKernel{n_nodes * n_features, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
+    std::uint32_t constexpr kBlockThreads = 512;
+    constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
+    auto n_warps = n_nodes * n_features;
+    auto n_blocks = common::DivRoundUp(n_warps, kWarpsPerBlk);
+    dh::LaunchKernel{n_blocks, kBlockThreads, 0, ctx->CUDACtx()->Stream()}(  // NOLINT
         EvaluateSplitsKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans),
         dh::ToSpan(d_splits));
   }

@@ -225,6 +225,7 @@ struct MultiEvaluateSplitSharedInputs {
   common::Span<float const> min_values;
   // Number of bins for one feature and one target
   bst_bin_t n_bins_per_feat_tar;
+  bst_feature_t max_active_feature;
   GPUTrainingParam param;
 
   // Used for testing

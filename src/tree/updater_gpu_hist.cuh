@@ -233,6 +233,7 @@ class MultiTargetHistMaker {
                                                  this->cuts_->cut_values_.ConstDeviceSpan(),
                                                  this->cuts_->min_vals_.ConstDeviceSpan(),
                                                  this->param_.max_bin,
+                                                 static_cast<bst_feature_t>(feature_set.size()),
                                                  param};
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
     p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), entry.base_weight));
@@ -332,6 +333,7 @@ class MultiTargetHistMaker {
                                       std::vector<MultiExpandEntry> const& candidates) {
     PartitionNodes nodes(candidates.size());
     auto tree = p_tree->HostMtView();
+    // TODO(jiamingy) Avoid pulling the host tree.
     for (std::size_t i = 0, n = candidates.size(); i < n; i++) {
       auto const& e = candidates[i];
       auto split_type = tree.SplitType(e.nidx);
@@ -457,32 +459,21 @@ class MultiTargetHistMaker {
     if (candidates.empty()) {
       return;
     }
+    xgboost_NVTX_FN_RANGE();
+
     GPUTrainingParam param{this->param_};
-    MultiEvaluateSplitSharedInputs shared_inputs{
-        this->split_quantizer_->Quantizers(),
-        this->cuts_->cut_ptrs_.ConstDeviceSpan(),
-        this->cuts_->cut_values_.ConstDeviceSpan(),
-        this->cuts_->min_vals_.ConstDeviceSpan(),
-        this->param_.max_bin,
-        param,
-    };
 
     dh::device_vector<MultiEvaluateSplitInputs> inputs(2 * candidates.size());
     dh::device_vector<MultiExpandEntry> outputs(2 * candidates.size());
 
     auto mt_tree = tree.HostMtView();
     std::vector<MultiEvaluateSplitInputs> h_node_inputs(candidates.size() * 2);
-    bst_node_t max_nidx = 0;
-    for (auto const& candidate : candidates) {
-      bst_node_t left_nidx = mt_tree.LeftChild(candidate.nidx);
-      bst_node_t right_nidx = mt_tree.RightChild(candidate.nidx);
-      max_nidx = std::max({max_nidx, left_nidx, right_nidx});
-    }
 
     // Store the feature set ptrs so they don't go out of scope before the kernel is called
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
 
     auto n_targets = this->split_gpair_.Shape(1);
+    bst_feature_t max_active_feature = 0;
     for (std::size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
       bst_node_t left_nidx = mt_tree.LeftChild(candidate.nidx);
@@ -512,10 +503,24 @@ class MultiTargetHistMaker {
           right_feature_set, histogram_.GetNodeHistogram(right_nidx)};
       h_node_inputs[i * 2] = left;
       h_node_inputs[i * 2 + 1] = right;
+
+      max_active_feature = std::max({left_feature_set.size(), right_feature_set.size(),
+                                     static_cast<std::size_t>(max_active_feature)});
     }
     dh::safe_cuda(cudaMemcpyAsync(inputs.data().get(), h_node_inputs.data(),
                                   common::SizeBytes<MultiEvaluateSplitInputs>(h_node_inputs.size()),
                                   cudaMemcpyDefault, ctx_->CUDACtx()->Stream()));
+
+    MultiEvaluateSplitSharedInputs shared_inputs{
+        this->split_quantizer_->Quantizers(),
+        this->cuts_->cut_ptrs_.ConstDeviceSpan(),
+        this->cuts_->cut_values_.ConstDeviceSpan(),
+        this->cuts_->min_vals_.ConstDeviceSpan(),
+        this->param_.max_bin,
+        max_active_feature,
+        param,
+    };
+
     this->evaluator_.EvaluateSplits(this->ctx_, dh::ToSpan(inputs), shared_inputs,
                                     dh::ToSpan(outputs));
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), outputs.data().get(),
@@ -565,6 +570,10 @@ class MultiTargetHistMaker {
   }
 
   void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree) {
+    if (!param_.monotone_constraints.empty()) {
+      LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
+    }
+
     auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {
       this->value_gpair_ = linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device()};
@@ -636,9 +645,6 @@ class MultiTargetHistMaker {
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},
         batch_ptr_{std::move(batch_ptr)} {
-    if (!param_.monotone_constraints.empty()) {
-      LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
-    }
   }
 };
 }  // namespace xgboost::tree::cuda_impl
