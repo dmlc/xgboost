@@ -37,8 +37,8 @@ struct ScanHistogramAgent {
   bst_target_t n_targets;
 
   template <typename BinIndexFn>
-  __device__ void ScanFeature(common::Span<GradientPairInt64 const> node_histogram,
-                              common::Span<GradientPairInt64> scan_result, bst_target_t t,
+  __device__ void ScanFeature(GradientPairInt64 const *node_histogram,
+                              GradientPairInt64 *scan_result, bst_target_t t,
                               BinIndexFn &&bin_idx_fn) {
     auto lane_id = dh::LaneId();
     // The forward pass and the backward pass differs in where the bin is read, which is
@@ -62,14 +62,14 @@ struct ScanHistogramAgent {
     }
   }
   // Forward scan pass
-  __device__ void Forward(common::Span<GradientPairInt64 const> node_histogram,
+  __device__ void Forward(GradientPairInt64 const *node_histogram,
                           common::Span<GradientPairInt64> scan_result, bst_target_t t) {
-    this->ScanFeature(node_histogram, scan_result, t, cuda::std::identity{});
+    this->ScanFeature(node_histogram, scan_result.data(), t, cuda::std::identity{});
   }
   // Backward scan pass for missing values
-  __device__ void Backward(common::Span<GradientPairInt64 const> node_histogram,
+  __device__ void Backward(GradientPairInt64 const *node_histogram,
                            common::Span<GradientPairInt64> scan_result, bst_target_t t) {
-    this->ScanFeature(node_histogram, scan_result, t,
+    this->ScanFeature(node_histogram, scan_result.data(), t,
                       [&](bst_bin_t bin_idx) { return RevBinIdx(gidx_begin, gidx_end, bin_idx); });
   }
 };
@@ -90,7 +90,8 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
   if (warp_id >= n_valid_warps) {
     return;
   }
-
+  // The current histogram layout has consecutive targets, which results in excessive
+  // (non-coalesced) memory access for the evaluation kernels.
   auto [nidx_in_set, fidx, target_idx] =
       linalg::UnravelIndex(warp_id, nodes.size(), shared.Features(), n_targets);
   auto const &node = nodes[nidx_in_set];
@@ -105,12 +106,12 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
     auto forward = out.subspan(0, node.histogram.size());
-    agent.Forward(node.histogram, forward, target_idx);
+    agent.Forward(node.histogram.data(), forward, target_idx);
   }
   // TODO(jiamingy): Skip the backward pass if there's no missing value.
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward) {
     auto backward = out.subspan(node.histogram.size(), node.histogram.size());
-    agent.Backward(node.histogram, backward, target_idx);
+    agent.Backward(node.histogram.data(), backward, target_idx);
   }
 }
 
@@ -152,7 +153,6 @@ struct EvaluateSplitAgent {
         for (bst_target_t t = 0; t < n_targets; ++t) {
           auto pg = roundings[t].ToFloatingPoint(node.parent_sum[t]);
           // left
-          SPAN_LT(t, scan_bin.size());
           auto left_sum = roundings[t].ToFloatingPoint(scan_bin[t]);
           auto lw_t =
               ::xgboost::tree::CalcWeight(shared.param, left_sum.GetGrad(), left_sum.GetHess());
@@ -213,15 +213,16 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
 
   auto n_targets = shared.Targets();
   auto candidate_idx = nidx * shared.Features() + fidx;
+  auto d_nodes = nodes.data();
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
-    auto forward = bin_scans[nidx].subspan(0, nodes[nidx].histogram.size());
-    agent.template Numerical<+1>(nodes[nidx], shared, forward, &out_candidates[candidate_idx]);
+    auto forward = bin_scans[nidx].subspan(0, d_nodes[nidx].histogram.size());
+    agent.template Numerical<+1>(d_nodes[nidx], shared, forward, &out_candidates[candidate_idx]);
   }
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward) {
     auto backward =
-        bin_scans[nidx].subspan(nodes[nidx].histogram.size(), nodes[nidx].histogram.size());
-    agent.template Numerical<-1>(nodes[nidx], shared, backward, &out_candidates[candidate_idx]);
+        bin_scans[nidx].subspan(d_nodes[nidx].histogram.size(), d_nodes[nidx].histogram.size());
+    agent.template Numerical<-1>(d_nodes[nidx], shared, backward, &out_candidates[candidate_idx]);
   }
 }
 
@@ -234,7 +235,8 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   auto d_outputs = dh::ToSpan(outputs);
   this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, d_outputs);
 
-  // fixme: do we still need this?
+  // The `EvaluateSplits` apply eta for leaf nodes only, we need to apply it for the base
+  // weight.
   auto n_targets = shared_inputs.Targets();
   dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
     auto weight = d_outputs[0].base_weight;
@@ -269,14 +271,12 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   std::size_t total_hist_size = node_hist_size * n_nodes;
 
   // Scan the histograms. One for forward and the other for backward.
+  // Since there's only store op on the scan buffer, no need to initialize it.
   this->scan_buffer_.resize(total_hist_size * 2);
-  // Initialize the buffer
-  thrust::fill(ctx->CUDACtx()->CTP(), this->scan_buffer_.begin(), this->scan_buffer_.end(),
-               GradientPairInt64{});
 
   // Create spans for each node's scan results
   std::vector<common::Span<GradientPairInt64>> h_scans(n_nodes);
-  for (std::size_t nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
+  for (decltype(n_nodes) nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
     h_scans[nidx_in_set] = dh::ToSpan(this->scan_buffer_)
                                .subspan(nidx_in_set * node_hist_size * 2, node_hist_size * 2);
   }
@@ -288,8 +288,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
     auto n_warps = n_nodes * n_targets * n_features;
     auto n_blocks = common::DivRoundUp(n_warps, kWarpsPerBlk);
-    dim3 grid{n_blocks};
-    dh::LaunchKernel{grid, kBlockThreads}(  // NOLINT
+    dh::LaunchKernel{n_blocks, kBlockThreads}(  // NOLINT
         ScanHistogramKernel<kBlockThreads>, d_inputs, shared_inputs, dh::ToSpan(scans));
   }
 
