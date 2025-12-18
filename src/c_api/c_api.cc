@@ -906,7 +906,7 @@ namespace {
 // out is using xgboost::bst_ulong to make sure the defs of bst_ulong match.
 template <typename Fn>
 std::enable_if_t<std::is_integral_v<std::invoke_result_t<Fn, DMatrix const *>>, int>
-GetDMatrixShape(DMatrixHandle handle, xgboost::bst_ulong *out, Fn &&fn) {
+GetDMatrixIntegralInfo(DMatrixHandle handle, xgboost::bst_ulong *out, Fn &&fn) {
   API_BEGIN();
   CHECK_HANDLE();
   auto p_m = CastDMatrixHandle(handle);
@@ -917,26 +917,26 @@ GetDMatrixShape(DMatrixHandle handle, xgboost::bst_ulong *out, Fn &&fn) {
 }  // namespace
 
 XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle, bst_ulong *out) {
-  return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
+  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
     return static_cast<bst_ulong>(p_fmat->Info().num_row_);
   });
 }
 
 XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle, bst_ulong *out) {
-  return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
+  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
     return static_cast<bst_ulong>(p_fmat->Info().num_col_);
   });
 }
 
 // We name the function non-missing instead of non-zero since zero is perfectly valid for XGBoost.
 XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out) {
-  return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
+  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
     return static_cast<bst_ulong>(p_fmat->Info().num_nonzero_);
   });
 }
 
 XGB_DLL int XGDMatrixDataSplitMode(DMatrixHandle handle, bst_ulong *out) {
-  return GetDMatrixShape(handle, out, [](DMatrix const *p_fmat) {
+  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
     return static_cast<bst_ulong>(p_fmat->Info().data_split_mode);
   });
 }
