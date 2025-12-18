@@ -191,18 +191,8 @@ struct GPUHistMakerDevice {
     /**
      * Initialize the partitioners
      */
-    bool is_concat = sampler->ConcatPages();
     std::vector<bst_idx_t> batch_ptr{this->batch_ptr_};
-    if (is_concat) {
-      // Concatenate the batch ptrs as well.
-      batch_ptr = {static_cast<bst_idx_t>(0), p_fmat->Info().num_row_};
-    }
     this->partitioners_.Reset(this->ctx_, batch_ptr);
-
-    if (is_concat) {
-      CHECK_EQ(partitioners_.Size(), 1);
-      CHECK_EQ(partitioners_.Front()->Size(), p_fmat->Info().num_row_);
-    }
 
     /**
      * Initialize the evaluator
@@ -552,19 +542,9 @@ struct GPUHistMakerDevice {
   // After tree update is finished, update the position of all training
   // instances to their final leaf. This information is used later to update the
   // prediction cache
-  void FinalisePosition(DMatrix* p_fmat, RegTree const* p_tree, ObjInfo task,
+  void FinalisePosition(DMatrix* p_fmat, RegTree const* p_tree,
                         HostDeviceVector<bst_node_t>* p_out_position) {
     monitor.Start(__func__);
-    if (static_cast<std::size_t>(p_fmat->NumBatches() + 1) != this->batch_ptr_.size()) {
-      if (task.UpdateTreeLeaf()) {
-        LOG(FATAL) << "Current objective function can not be used with concatenated pages.";
-      }
-      // External memory with concatenation. Not supported.
-      p_out_position->Resize(0);
-      positions_.clear();
-      monitor.Stop(__func__);
-      return;
-    }
 
     p_out_position->SetDevice(ctx_->Device());
     p_out_position->Resize(p_fmat->Info().num_row_);
@@ -734,8 +714,8 @@ struct GPUHistMakerDevice {
     return root_entry;
   }
 
-  void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo const* task,
-                  RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
+  void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, RegTree* p_tree,
+                  HostDeviceVector<bst_node_t>* p_out_position) {
     Driver<GPUExpandEntry> driver{param, cuda_impl::kMaxNodeBatchSize};
 
     p_fmat = this->Reset(gpair_all, p_fmat);
@@ -772,7 +752,7 @@ struct GPUHistMakerDevice {
     if (p_fmat->SingleColBlock()) {
       CHECK_GE(p_tree->NumNodes(), this->partitioners_.Front()->GetNumNodes());
     }
-    this->FinalisePosition(p_fmat, p_tree, *task, p_out_position);
+    this->FinalisePosition(p_fmat, p_tree, p_out_position);
   }
 };
 
@@ -838,7 +818,7 @@ class GPUHistMaker : public TreeUpdater {
       if (p_tree->IsMultiTarget()) {
         p_mtimpl_->UpdateTree(in_gpair, p_fmat, task_, p_tree);
       } else {
-        p_scimpl_->UpdateTree(in_gpair->gpair.Data(), p_fmat, task_, p_tree, &out_position[t_idx]);
+        p_scimpl_->UpdateTree(in_gpair->gpair.Data(), p_fmat, p_tree, &out_position[t_idx]);
       }
       this->hist_maker_param_.CheckTreesSynchronized(ctx_, p_tree);
       ++t_idx;
@@ -887,7 +867,7 @@ class GPUHistMaker : public TreeUpdater {
     gpair->SetDevice(ctx_->Device());
     auto gpair_hdv = gpair->Data();
     CHECK(!p_tree->IsMultiTarget());
-    p_scimpl_->UpdateTree(gpair_hdv, p_fmat, task_, p_tree, p_out_position);
+    p_scimpl_->UpdateTree(gpair_hdv, p_fmat, p_tree, p_out_position);
   }
 
   bool UpdatePredictionCache(const DMatrix* data, linalg::MatrixView<float> p_out_preds) override {
@@ -1020,7 +1000,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     monitor_.Stop("InitData");
 
     gpair->SetDevice(ctx_->Device());
-    maker_->UpdateTree(gpair, p_fmat, task_, p_tree, p_out_position);
+    maker_->UpdateTree(gpair, p_fmat, p_tree, p_out_position);
   }
 
   bool UpdatePredictionCache(const DMatrix* data, linalg::MatrixView<float> p_out_preds) override {

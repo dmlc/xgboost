@@ -20,14 +20,10 @@ struct GradientBasedSample {
 
 class SamplingStrategy {
  public:
-  /*! \brief Sample from a DMatrix based on the given gradient pairs. */
+  /** @brief Sample from a DMatrix based on the given gradient pairs. */
   virtual GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                                      DMatrix* dmat) = 0;
   virtual ~SamplingStrategy() = default;
-  /**
-   * @brief Whether pages are concatenated after sampling.
-   */
-  [[nodiscard]] virtual bool ConcatPages() const { return false; }
 };
 
 /**
@@ -53,7 +49,7 @@ class UniformSampling : public SamplingStrategy {
   float subsample_;
 };
 
-/*! \brief Gradient-based sampling in in-memory mode.. */
+/** @brief Gradient-based sampling. */
 class GradientBasedSampling : public SamplingStrategy {
  public:
   GradientBasedSampling(std::size_t n_rows, BatchParam batch_param, float subsample);
@@ -90,8 +86,6 @@ class GradientBasedSampler {
   static size_t CalculateThresholdIndex(Context const* ctx, common::Span<GradientPair> gpair,
                                         common::Span<float> threshold, common::Span<float> grad_sum,
                                         size_t sample_rows);
-
-  [[nodiscard]] bool ConcatPages() const { return this->strategy_->ConcatPages(); }
 
  private:
   common::Monitor monitor_;
