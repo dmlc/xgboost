@@ -611,7 +611,8 @@ struct MtHistKernel {
       dim3 conf(n_blocks, feature_groups.NumGroups());
 
       kernel<<<conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream()>>>(
-          matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(), gpair, roundings.data());
+          matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(), gpair,
+          roundings.data());
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
