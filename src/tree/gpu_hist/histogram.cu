@@ -552,6 +552,9 @@ struct MtHistKernel {
     for (std::size_t j = 1; j < sizes_csum.size(); ++j) {
       auto nidx_in_set = j - 1;
       auto n_samples = sizes_csum[j] - sizes_csum[j - 1];
+      // Note: the number of targets is not factor in here. We might need to find a better
+      // strategy to make sure the ratio of blocks between nodes represent the ratio of
+      // the sizes.
       std::size_t items_per_group = n_samples * columns_per_group;
       auto n_blocks = common::DivRoundUp(items_per_group, Policy::kTileSize);
       CHECK_GT(n_blocks, 0);  // at least one block for each node.
