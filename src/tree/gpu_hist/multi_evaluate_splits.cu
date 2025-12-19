@@ -97,6 +97,10 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
       linalg::UnravelIndex(warp_id, nodes.size(), shared.max_active_feature, n_targets);
   auto const &node = nodes[nidx_in_set];
   auto out = outputs[nidx_in_set];
+  // This node might have a smaller number of sampled features.
+  if (fidx_in_set >= node.feature_set.size()) {
+    return;
+  }
   auto fidx = node.feature_set[fidx_in_set];
   // The histogram is full, regardless of whether a feature is sampled.
   bst_bin_t gidx_begin = shared.feature_segments[fidx];
