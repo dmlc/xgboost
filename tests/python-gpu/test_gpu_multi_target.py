@@ -4,6 +4,7 @@ import pytest
 
 from xgboost import config_context
 from xgboost.testing.multi_target import (
+    run_column_sampling,
     run_deterministic,
     run_eta,
     run_multiclass,
@@ -38,3 +39,7 @@ def test_eta() -> None:
 
 def test_deterministic() -> None:
     run_deterministic("cuda")
+
+
+def test_column_sampling() -> None:
+    run_column_sampling("cuda")
