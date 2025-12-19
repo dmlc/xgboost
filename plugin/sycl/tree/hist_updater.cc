@@ -579,7 +579,7 @@ void HistUpdater<GradientSumT>::InitData(
 
   // store a pointer to the tree
   p_last_tree_ = &tree;
-  column_sampler_->Init(ctx_, info.num_col_, info.feature_weights.ConstHostVector(),
+  column_sampler_->Init(ctx_, info.num_col_, info.feature_weights,
                         param_.colsample_bynode, param_.colsample_bylevel,
                         param_.colsample_bytree);
   if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
