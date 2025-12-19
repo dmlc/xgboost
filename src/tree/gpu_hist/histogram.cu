@@ -330,8 +330,6 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups, RidxIterSpan* d_ridx_iters,
     common::Span<std::uint32_t const> blk_ptr, common::Span<GradientPairInt64>* node_hists,
     linalg::MatrixView<GradientPair const> d_gpair, GradientQuantiser const* roundings) {
-  auto d_roundings = roundings;
-
   FeatureGroup group = feature_groups[blockIdx.y];
   std::uint32_t const feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
 
@@ -350,7 +348,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
   auto const* __restrict__ d_feature_segments = matrix.feature_segments;
 
   bst_target_t const n_targets = d_gpair.Shape(1);
-  bst_idx_t const n_elements = ridx_size * feature_stride * n_targets;
+  bst_idx_t const n_elements = static_cast<bst_idx_t>(ridx_size) * feature_stride * n_targets;
 
   extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
   // Privatized histogram
@@ -394,7 +392,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
       }
       // TODO(jiamingy): When the number of targets is non-trivial, we need to split up
       // the histograms due to shared memory size.
-      auto adjusted = d_roundings[target_idx].ToFixedPoint(d_gpair(ridx, target_idx));
+      auto adjusted = roundings[target_idx].ToFixedPoint(d_gpair(ridx, target_idx));
       atomic_add(compressed_bin + target_idx, adjusted);
     }
   };
