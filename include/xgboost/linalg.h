@@ -190,9 +190,9 @@ constexpr auto ArrToTuple(T (&arr)[N]) {
 // uint division optimization inspired by the CIndexer in cupy.  Division operation is
 // slow on both CPU and GPU, especially 64 bit integer.  So here we first try to avoid 64
 // bit when the index is smaller, then try to avoid division when it's exp of 2.
-template <typename I, std::int32_t D>
-LINALG_HD auto UnravelImpl(I idx, common::Span<size_t const, D> shape) {
-  std::size_t index[D]{0};
+template <typename I, typename U, std::int32_t D>
+LINALG_HD auto UnravelImpl(I idx, common::Span<U const, D> shape) {
+  U index[D]{0};
   static_assert(std::is_signed_v<decltype(D)>,
                 "Don't change the type without changing the for loop.");
   auto const sptr = shape.data();
@@ -209,6 +209,21 @@ LINALG_HD auto UnravelImpl(I idx, common::Span<size_t const, D> shape) {
   }
   index[0] = idx;
   return ArrToTuple(index);
+}
+
+// Register-friendly version of unravel. Removes the branching operation and doesn't
+// create a tuple.
+template <typename I, typename U, std::int32_t D>
+LINALG_HD void UnravelImpl(I idx, U const (&shape)[D], U (&index)[D]) {
+  static_assert(std::is_signed_v<decltype(D)>,
+                "Don't change the type without changing the for loop.");
+  for (std::int32_t dim = D; --dim > 0;) {
+    auto s = static_cast<std::remove_const_t<std::remove_reference_t<I>>>(shape[dim]);
+    auto t = idx / s;
+    index[dim] = idx - t * s;
+    idx = t;
+  }
+  index[0] = idx;
 }
 
 template <size_t dim, typename I, int32_t D>
@@ -604,16 +619,16 @@ auto MakeTensorView(Context const *ctx, HostDeviceVector<T> const *data, S &&...
 /**
  * \brief Turns linear index into multi-dimension index.  Similar to numpy unravel.
  */
-template <size_t D>
-LINALG_HD auto UnravelIndex(size_t idx, common::Span<size_t const, D> shape) {
+template <std::size_t D, typename I>
+LINALG_HD auto UnravelIndex(size_t idx, common::Span<I const, D> shape) {
   if (idx > std::numeric_limits<uint32_t>::max()) {
-    return detail::UnravelImpl<uint64_t, D>(static_cast<uint64_t>(idx), shape);
+    return detail::UnravelImpl<uint64_t, I, D>(static_cast<uint64_t>(idx), shape);
   } else {
-    return detail::UnravelImpl<uint32_t, D>(static_cast<uint32_t>(idx), shape);
+    return detail::UnravelImpl<uint32_t, I, D>(static_cast<uint32_t>(idx), shape);
   }
 }
 
-template <size_t D>
+template <std::size_t D>
 LINALG_HD auto UnravelIndex(size_t idx, std::size_t const (&shape)[D]) {
   return UnravelIndex(idx, common::Span<std::size_t const, D>(shape));
 }
