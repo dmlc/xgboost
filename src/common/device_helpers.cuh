@@ -805,5 +805,5 @@ class LDGIterator {
   return laneid;
 }
 
-constexpr std::int32_t WarpThreads() { return 32; };
+constexpr std::int32_t WarpThreads() { return 32; }
 }  // namespace dh

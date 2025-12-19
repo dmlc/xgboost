@@ -125,12 +125,8 @@ namespace {
 struct EvaluateSplitAgent {
   using ArgMaxT = cub::KeyValuePair<std::uint32_t, double>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
-  using SumReduceT = cub::WarpReduce<GradientPairInt64>;
 
-  struct TempStorage {
-    typename MaxReduceT::TempStorage max_reduce;
-    typename SumReduceT::TempStorage sum_reduce;
-  } *temp_storage;
+  typename MaxReduceT::TempStorage* temp_storage;
   bst_feature_t fidx;
 
   template <std::int32_t d_step>
@@ -173,7 +169,7 @@ struct EvaluateSplitAgent {
         }
       }
 
-      auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax{});
+      auto best = MaxReduceT(*temp_storage).Reduce({threadIdx.x, gain}, cub::ArgMax{});
       auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
 
       if (threadIdx.x == best_thread && !isinf(gain)) {
@@ -222,7 +218,7 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   }
 
   using AgentT = EvaluateSplitAgent;
-  __shared__ typename AgentT::TempStorage temp_storage[kWarpsPerBlk];
+  __shared__ typename AgentT::MaxReduceT::TempStorage temp_storage[kWarpsPerBlk];
 
   const auto nidx = warp_id / shared.max_active_feature;
   auto const& node = nodes[nidx];
