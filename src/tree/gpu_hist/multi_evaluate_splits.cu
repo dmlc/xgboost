@@ -285,7 +285,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   }
 
   // Calculate total scan buffer size needed for all nodes
-  auto node_hist_size = n_targets * n_features * n_bins_per_feat_tar;
+  auto node_hist_size = n_targets * shared_inputs.Features() * n_bins_per_feat_tar;
   std::size_t total_hist_size = node_hist_size * n_nodes;
 
   // Scan the histograms. One for forward and the other for backward.
