@@ -303,10 +303,12 @@ def run_deterministic(device: Device) -> None:
 
 
 def run_column_sampling(device: Device) -> None:
+    """Test with column sampling."""
     n_features = 32
     X, y = make_regression(
         n_samples=1024, n_features=n_features, random_state=1994, n_targets=3
     )
+    # First half is valid, second half is 0.
     feature_weights = np.zeros(shape=(n_features, 1), dtype=np.float32)
     feature_weights[: n_features // 2] = 1.0 / (n_features / 2)
     Xy = QuantileDMatrix(X, y, feature_weights=feature_weights)
