@@ -599,7 +599,7 @@ class MultiTargetHistMaker {
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, n_targets, dense_compressed,
-                                                        dh::MaxSharedMemory(ctx_->Ordinal()))},
+                                                        SharedMemoryDftBytes(ctx_->Ordinal()))},
         batch_ptr_{std::move(batch_ptr)} {}
 };
 }  // namespace xgboost::tree::cuda_impl

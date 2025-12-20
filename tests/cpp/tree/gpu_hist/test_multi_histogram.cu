@@ -43,7 +43,7 @@ class MultiHistTest
     this->cuts = page->CutsShared();
 
     this->p_fg =
-        std::make_unique<FeatureGroups>(*cuts, this->n_targets, true, dh::MaxSharedMemory(0));
+        std::make_unique<FeatureGroups>(*cuts, this->n_targets, true, SharedMemoryDftBytes(0));
 
     bst_bin_t n_total_bins = n_targets * n_features * n_bins;
     auto fg_acc = p_fg->DeviceAccessor(ctx.Device());

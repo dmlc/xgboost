@@ -38,6 +38,16 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
 namespace cuda_impl {
 // Start with about 16mb
 std::size_t constexpr DftReserveSize() { return 1 << 22; }
+
+// Tune the shared memory size based on maximum shared memory.
+inline std::size_t SharedMemoryDftBytes(std::int32_t device) {
+  auto max_optin = dh::MaxSharedMemoryOptin(device);
+  auto constexpr kB = 1024;
+  if (max_optin > 196 * kB) {
+    return 96 * kB;
+  }
+  return dh::MaxSharedMemory(device);
+}
 }  // namespace cuda_impl
 
 /**
