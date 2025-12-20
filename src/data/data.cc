@@ -513,8 +513,8 @@ void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T
 }  // namespace
 
 void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView interface_str) {
-  CHECK(!this->has_been_read_)
-      << "Don't modify the DMatrix it's used. This violates some caches in XGBoost.";
+  this->SetReadFlag(false);
+
   Json j_interface = Json::Load(interface_str);
   bool is_cuda{false};
   if (IsA<Array>(j_interface)) {

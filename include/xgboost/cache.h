@@ -78,7 +78,8 @@ class DMatrixCache {
       auto p_fmat = queue_.front();
       auto it = container_.find(p_fmat);
       CHECK(it != container_.cend());
-      if (it->second.ref.expired()) {
+      // Re-new the cache if this has never been read.
+      if (it->second.ref.expired() || !it->second.ref.lock()->Info().HasBeenRead()) {
         expired.push_back(it->first);
       } else {
         remained.push(it->first);

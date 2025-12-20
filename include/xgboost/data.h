@@ -218,8 +218,9 @@ class MetaInfo {
    * @brief Setter for categories.
    */
   void Cats(std::shared_ptr<CatContainer> cats);
-
-  void SetReadFlag() { this->has_been_read_ = true; }
+  // Flag to indicate whether one needs to refresh the DMatrix cache.
+  void SetReadFlag(bool has_been_read) { this->has_been_read_ = has_been_read; }
+  [[nodiscard]] bool HasBeenRead() const { return this->has_been_read_; }
 
  private:
   void SetInfoFromHost(Context const* ctx, StringView key, Json arr);
@@ -743,7 +744,7 @@ class DMatrix {
 
 template <>
 inline BatchSet<SparsePage> DMatrix::GetBatches() {
-  this->Info().SetReadFlag();
+  this->Info().SetReadFlag(true);
   return GetRowBatches();
 }
 
@@ -764,37 +765,37 @@ inline bool DMatrix::PageExists<SparsePage>() const {
 
 template <>
 inline BatchSet<SparsePage> DMatrix::GetBatches(Context const*) {
-  this->Info().SetReadFlag();
+  this->Info().SetReadFlag(true);
   return GetRowBatches();
 }
 
 template <>
 inline BatchSet<CSCPage> DMatrix::GetBatches(Context const* ctx) {
-  this->Info().SetReadFlag();
+  this->Info().SetReadFlag(true);
   return GetColumnBatches(ctx);
 }
 
 template <>
 inline BatchSet<SortedCSCPage> DMatrix::GetBatches(Context const* ctx) {
-  this->Info().SetReadFlag();
+  this->Info().SetReadFlag(true);
   return GetSortedColumnBatches(ctx);
 }
 
 template <>
 inline BatchSet<EllpackPage> DMatrix::GetBatches(Context const* ctx, BatchParam const& param) {
-  this->Info().SetReadFlag();
+  this->Info().SetReadFlag(true);
   return GetEllpackBatches(ctx, param);
 }
 
 template <>
 inline BatchSet<GHistIndexMatrix> DMatrix::GetBatches(Context const* ctx, BatchParam const& param) {
-  this->Info().SetReadFlag();
+  this->Info().SetReadFlag(true);
   return GetGradientIndex(ctx, param);
 }
 
 template <>
 inline BatchSet<ExtSparsePage> DMatrix::GetBatches(Context const* ctx, BatchParam const& param) {
-  this->Info().SetReadFlag();
+  this->Info().SetReadFlag(true);
   return GetExtBatches(ctx, param);
 }
 }  // namespace xgboost
