@@ -187,9 +187,9 @@ __device__ xgboost::common::Range BlockStrideRange(T begin, T end) {
 
 // Threadblock iterates over range, filling with value. Requires all threads in
 // block to be active.
-template <typename IterT, typename ValueT>
-__device__ void BlockFill(IterT begin, size_t n, ValueT value) {
-  for (auto i : BlockStrideRange(static_cast<size_t>(0), n)) {
+template <typename IterT, typename ValueT, typename SizeT>
+__device__ void BlockFill(IterT begin, SizeT n, ValueT value) {
+  for (auto i : BlockStrideRange(static_cast<SizeT>(0), n)) {
     begin[i] = value;
   }
 }

@@ -1,9 +1,11 @@
 /**
  * Copyright 2020-2025, XGBoost Contributors
  */
-#ifndef HISTOGRAM_CUH_
-#define HISTOGRAM_CUH_
-#include <memory>  // for unique_ptr
+#pragma once
+
+#include <cstddef>  // for size_t
+#include <cstdint>  // for int32_t
+#include <memory>   // for unique_ptr
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for LaunchN
@@ -16,8 +18,23 @@
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
+[[nodiscard]] inline std::size_t DftHistSharedMemoryBytes(std::int32_t device) {
+  auto max_shared_optin = dh::MaxSharedMemoryOptin(device);
+  auto max_shared = dh::MaxSharedMemory(device);
+  // Use larger shared memory if available.
+  //
+  // By default, max_shared is 48 kB for most GPUs. Optin size varies between archs, some
+  // have large optin size, like the H200. We expand the shared memory size for those
+  // large devices.
+  constexpr std::size_t kThreshold = 4;
+  if (max_shared_optin > max_shared * kThreshold) {
+    return 2 * max_shared;
+  }
+  return max_shared;
+}
+
 /**
- * \brief An atomicAdd designed for gradient pair with better performance.  For general
+ * @brief An atomicAdd designed for gradient pair with better performance.  For general
  *        int64_t atomicAdd, one can simply cast it to unsigned long long. Exposed for testing.
  */
 XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
@@ -235,4 +252,3 @@ class DeviceHistogramBuilder {
   }
 };
 }  // namespace xgboost::tree
-#endif  // HISTOGRAM_CUH_

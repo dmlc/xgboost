@@ -191,6 +191,10 @@ class MultiTargetHistMaker {
     }
 
     bool force_global = false;
+    auto n_total_bins = cuts_->TotalBins() * static_cast<bst_idx_t>(n_targets);
+    CHECK_LT(n_total_bins, std::numeric_limits<bst_bin_t>::max())
+        << "Too many histogram bins: n_total_bins = max_bin * n_features * n_targets";
+
     histogram_.Reset(this->ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
                      feature_groups_->DeviceAccessor(ctx_->Device()),
                      cuts_->TotalBins() * n_targets, force_global);
@@ -242,6 +246,8 @@ class MultiTargetHistMaker {
   }
 
   void ApplySplit(std::vector<MultiExpandEntry> const& h_candidates, RegTree* p_tree) {
+    xgboost_NVTX_FN_RANGE();
+
     CHECK(!h_candidates.empty());
     auto n_targets = h_candidates.front().base_weight.size();
 
@@ -555,6 +561,9 @@ class MultiTargetHistMaker {
     if (positions_.empty()) {
       return false;
     }
+
+    xgboost_NVTX_FN_RANGE();
+
     auto d_position = dh::ToSpan(positions_);
     CHECK_EQ(out_preds_d.Shape(0), d_position.size());
     auto mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
@@ -570,6 +579,8 @@ class MultiTargetHistMaker {
   }
 
   void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree) {
+    xgboost_NVTX_FN_RANGE();
+
     if (!param_.monotone_constraints.empty()) {
       LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
     }
@@ -592,6 +603,8 @@ class MultiTargetHistMaker {
 
   void GrowTree(linalg::Matrix<GradientPair>* split_gpair, DMatrix* p_fmat, ObjInfo const*,
                 RegTree* p_tree) {
+    xgboost_NVTX_FN_RANGE();
+
     if (!this->hist_param_->debug_synchronize) {
       LOG(FATAL) << "GPU" << MTNotImplemented();
     }
@@ -640,11 +653,12 @@ class MultiTargetHistMaker {
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, n_targets, dense_compressed,
-                                                        dh::MaxSharedMemory(ctx_->Ordinal()))},
+                                                        DftHistSharedMemoryBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},
         batch_ptr_{std::move(batch_ptr)} {
+    xgboost_NVTX_FN_RANGE();
   }
 };
 }  // namespace xgboost::tree::cuda_impl
