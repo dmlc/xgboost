@@ -628,9 +628,9 @@ struct MtHistKernel {
         //
         // Also, it must precede the `cudaOccupancyMaxActiveBlocksPerMultiprocessor`,
         // otherwise the shmem bytes might be invalid.
+        dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                           max_shared_bytes));
         if (shmem_bytes > v.shmem_bytes) {
-          dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-                                             shmem_bytes));
           v.shmem_bytes = shmem_bytes;
         }
         // Use this as a limiter, works for root node. Not too bad an option for child nodes.
