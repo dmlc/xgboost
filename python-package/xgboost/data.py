@@ -25,6 +25,7 @@ import numpy as np
 
 from ._data_utils import (
     AifType,
+    ArrowCatMixin,
     Categories,
     DfCatAccessor,
     TransformedDf,
@@ -34,7 +35,6 @@ from ._data_utils import (
     array_hasobject,
     array_interface,
     array_interface_dict,
-    arrow_cat_inf,
     check_cudf_meta,
     cuda_array_interface,
     cuda_array_interface_dict,
@@ -494,8 +494,7 @@ def is_pd_sparse_dtype(dtype: PandasDType) -> bool:
     return is_sparse(dtype)
 
 
-def pandas_pa_type(ser: Any) -> np.ndarray:
-    """Handle pandas pyarrow extention."""
+def pandas_pa_chunk(ser: Any) -> "pa.Array":
     pd = import_pandas()
 
     if TYPE_CHECKING:
@@ -512,6 +511,14 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     aa: "pa.ChunkedArray" = d_array.__arrow_array__()
     # combine_chunks takes the most significant amount of time
     chunk: "pa.Array" = aa.combine_chunks()
+    return chunk
+
+
+def pandas_pa_type(ser: Any) -> np.ndarray:
+    """Handle numerical pandas pyarrow extention."""
+    pa = import_pyarrow()
+
+    chunk = pandas_pa_chunk(ser)
     # When there's null value, we have to use copy
     zero_copy = chunk.null_count == 0 and not pa.types.is_boolean(chunk.type)
     # Alternately, we can use chunk.buffers(), which returns a list of buffers and
@@ -523,6 +530,11 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     arr: np.ndarray = chunk.to_numpy(zero_copy_only=zero_copy, writable=False)
     arr, _ = _ensure_np_dtype(arr, arr.dtype)
     return arr
+
+
+def pandas_pa_cat_type(ser: Any) -> np.ndarray:
+    """Handle categorical pandas pyarrow extention."""
+    return pandas_pa_chunk(ser)
 
 
 @functools.cache
@@ -583,10 +595,9 @@ def pandas_transform_data(
 
     for col, dtype in zip(data.columns, data.dtypes):
         if is_pa_ext_categorical_dtype(dtype):
-            raise ValueError(
-                "pyarrow dictionary type is not supported. Use pandas category instead."
-            )
-        if is_pd_cat_dtype(dtype):
+            arr_cat = pandas_pa_cat_type(data[col])
+            result.append(arr_cat)
+        elif is_pd_cat_dtype(dtype):
             result.append(cat_codes(data[col]))
         elif is_pa_ext_dtype(dtype):
             result.append(pandas_pa_type(data[col]))
@@ -607,7 +618,7 @@ def pandas_transform_data(
     return result
 
 
-class PandasTransformed(TransformedDf):
+class PandasTransformed(TransformedDf, ArrowCatMixin):
     """A storage class for transformed pandas DataFrame."""
 
     def __init__(
@@ -621,8 +632,11 @@ class PandasTransformed(TransformedDf):
 
         # Get the array interface representation for each column.
         for col in self.columns:
-            if _is_df_cat(col):
-                # Categorical column
+            if is_arrow_dict(col):
+                # Arrow categorical column
+                self._push_arrow_cat(col, aitfs, self.temporary_buffers)
+            elif _is_df_cat(col):
+                # Pandas categorical column
                 jnames, jcodes, buf = pd_cat_inf(col.categories, col.codes)
                 self.temporary_buffers.append(buf)
                 aitfs.append((jnames, jcodes))
@@ -756,7 +770,7 @@ def _from_pandas_series(
     )
 
 
-class ArrowTransformed(TransformedDf):
+class ArrowTransformed(TransformedDf, ArrowCatMixin):
     """A storage class for transformed arrow table."""
 
     def __init__(
@@ -777,15 +791,7 @@ class ArrowTransformed(TransformedDf):
 
         def push_series(col: Union["pa.NumericArray", "pa.DictionaryArray"]) -> None:
             if isinstance(col, pa.DictionaryArray):
-                cats = col.dictionary
-                codes = col.indices
-                if not isinstance(cats, (pa.StringArray, pa.LargeStringArray)):
-                    raise TypeError(
-                        "Only string-based categorical index is supported for arrow."
-                    )
-                jnames, jcodes, buf = arrow_cat_inf(cats, codes)
-                self.temporary_buffers.append(buf)
-                aitfs.append((jnames, jcodes))
+                self._push_arrow_cat(col, aitfs, self.temporary_buffers)
             else:
                 jdata = _arrow_array_inf(col)
                 aitfs.append(jdata)
