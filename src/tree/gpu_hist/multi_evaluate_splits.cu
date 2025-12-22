@@ -6,6 +6,7 @@
 #include <cub/block/block_scan.cuh>  // for BlockScan
 #include <cub/util_type.cuh>         // for KeyValuePair
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
+#include <cuda/ptx>                  // for get_sreg_laneid
 #include <cuda/std/functional>       // for identity
 #include <vector>                    // for vector
 
@@ -40,12 +41,11 @@ struct ScanHistogramAgent {
   __device__ void ScanFeature(GradientPairInt64 const *node_histogram,
                               GradientPairInt64 *scan_result, bst_target_t t,
                               BinIndexFn &&bin_idx_fn) {
-    auto lane_id = dh::LaneId();
+    auto lane_id = cuda::ptx::get_sreg_laneid();
     // The forward pass and the backward pass differs in where the bin is read, which is
     // specified by the callback bin_idx_fn(). They write to the same output location.
     GradientPairInt64 warp_aggregate;
-    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end;
-         scan_begin += dh::WarpThreads()) {
+    for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += dh::WarpThreads()) {
       auto bin_idx = scan_begin + lane_id;
       bool thread_active = bin_idx < gidx_end;
       auto bin =
@@ -126,7 +126,7 @@ struct EvaluateSplitAgent {
   using ArgMaxT = cub::KeyValuePair<std::uint32_t, double>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
 
-  typename MaxReduceT::TempStorage* temp_storage;
+  typename MaxReduceT::TempStorage *temp_storage;
   bst_feature_t fidx;
 
   template <std::int32_t d_step>
@@ -138,13 +138,12 @@ struct EvaluateSplitAgent {
     // Calculate split gain for each bin
     auto n_targets = shared.Targets();
     auto roundings = shared.roundings.data();
-    auto lane_id = dh::LaneId();
+    auto lane_id = cuda::ptx::get_sreg_laneid();
 
     bst_bin_t gidx_begin = shared.feature_segments[fidx];
     bst_bin_t gidx_end = shared.feature_segments[fidx + 1];
 
-    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end;
-         scan_begin += dh::WarpThreads()) {
+    for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += dh::WarpThreads()) {
       auto bin_idx = scan_begin + lane_id;
       bool thread_active = bin_idx < gidx_end;
 
@@ -221,7 +220,7 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   __shared__ typename AgentT::MaxReduceT::TempStorage temp_storage[kWarpsPerBlk];
 
   const auto nidx = warp_id / shared.max_active_feature;
-  auto const& node = nodes[nidx];
+  auto const &node = nodes[nidx];
 
   bst_feature_t fidx_in_set = warp_id % shared.max_active_feature;
   // This node might have a smaller number of sampled features.
