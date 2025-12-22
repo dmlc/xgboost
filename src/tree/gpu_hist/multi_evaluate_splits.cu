@@ -206,6 +206,8 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
     common::Span<common::Span<GradientPairInt64>> bin_scans,
     common::Span<MultiSplitCandidate> out_candidates) {
+  static_assert(kBlockThreads % dh::WarpThreads() == 0);
+
   constexpr std::int32_t kWarpsPerBlk = kBlockThreads / dh::WarpThreads();
   auto const warp_id_in_blk = static_cast<std::int32_t>(threadIdx.x) / dh::WarpThreads();
   // The warp index across the entire grid
@@ -222,7 +224,7 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   const auto nidx = warp_id / shared.max_active_feature;
   auto const &node = nodes[nidx];
 
-  bst_feature_t fidx_in_set = warp_id % shared.max_active_feature;
+  bst_feature_t fidx_in_set = warp_id - (nidx * shared.max_active_feature);
   // This node might have a smaller number of sampled features.
   if (fidx_in_set >= node.feature_set.size()) {
     return;
