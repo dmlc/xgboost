@@ -34,13 +34,6 @@
 #endif  // XGBOOST_LOG_WITH_TIME
 
 /*!
- * \brief Whether to customize global PRNG.
- */
-#ifndef XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-#define XGBOOST_CUSTOMIZE_GLOBAL_PRNG 0
-#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-
-/*!
  * \brief Check if alignas(*) keyword is supported. (g++ 4.8 or higher)
  */
 #if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4)
