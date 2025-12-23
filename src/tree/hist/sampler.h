@@ -57,21 +57,6 @@ inline void SampleGradient(Context const* ctx, TrainParam param,
   bst_idx_t n_samples = out.Shape(0);
   auto& rnd = common::GlobalRandom();
 
-  /**
-   * Following is similar to:
-   *
-   * @code
-   *
-   * std::bernoulli_distribution coin_flip(param.subsample);
-   * CHECK_EQ(out.Shape(1), 1) << "Multi-target with sampling for R is not yet supported.";
-   * for (size_t i = 0; i < n_samples; ++i) {
-   *   if (!(out(i, 0).GetHess() >= 0.0f && coin_flip(rnd)) || out(i, 0).GetGrad() == 0.0f) {
-   *     out(i, 0) = GradientPair(0);
-   *   }
-   * }
-   *
-   * @endcode
-   */
   std::uint64_t initial_seed = rnd();
 
   auto n_threads = static_cast<size_t>(ctx->Threads());
