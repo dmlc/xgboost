@@ -114,7 +114,7 @@ void TestMean(Context const* ctx) {
   float mean = nf * (nf - 1) / 2 / n;
 
   linalg::Vector<float> res{{1}, ctx->Device()};
-  Mean(ctx, data, &res);
+  Mean(ctx, data.View(ctx->Device()), &res);
   auto h_res = res.HostView();
   ASSERT_EQ(h_res.Size(), 1);
   ASSERT_EQ(mean, h_res(0));
