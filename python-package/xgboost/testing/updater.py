@@ -144,6 +144,8 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
     intercept = run_clf(X, y)
 
     np.testing.assert_allclose(np.sum(softmax(intercept)), 1.0)
+    np.testing.assert_allclose(np.sum(intercept), 0.0, atol=1e-6)
+
     assert np.all(softmax(intercept) > 0)
     np_int = (
         np.histogram(

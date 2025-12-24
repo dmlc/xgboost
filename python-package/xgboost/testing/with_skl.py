@@ -202,6 +202,7 @@ def run_intercept(device: Device) -> None:
     assert len(result) == 4
 
     assert (softmax(result) >= 0.0).all()
+    np.testing.assert_allclose(sum(result), 0.0, atol=1e-6)
     np.testing.assert_allclose(sum(softmax(result)), 1.0)
 
     # Tests for user input
