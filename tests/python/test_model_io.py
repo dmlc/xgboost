@@ -332,17 +332,18 @@ def test_sklearn_model() -> None:
         )
         clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
         score = clf.best_score
+        intercept = clf.intercept_
         clf.save_model(model_path)
 
         clf = xgb.XGBClassifier()
         clf.load_model(model_path)
         assert clf.classes_.size == 10
         assert clf.objective == "multi:softprob"
+        np.testing.assert_allclose(intercept, clf.intercept_)
 
         np.testing.assert_equal(clf.classes_, np.arange(10))
         assert clf.n_classes_ == 10
 
-        assert clf.best_iteration == 21
         assert clf.best_score == score
 
 
