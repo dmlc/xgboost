@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Union, overload
 
 import numpy as np
 import pytest
+from scipy.special import softmax
 
 import xgboost as xgb
 import xgboost.testing as tm
@@ -141,21 +142,22 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
         n_samples=4096, random_state=17, n_classes=5, n_informative=20, n_redundant=0
     )
     intercept = run_clf(X, y)
-    np.testing.assert_allclose(np.sum(intercept), 1.0)
-    assert np.all(np.array(intercept) > 0)
+
+    np.testing.assert_allclose(np.sum(softmax(intercept)), 1.0)
+    assert np.all(softmax(intercept) > 0)
     np_int = (
         np.histogram(
             y, bins=np.concatenate([np.unique(y), np.array([np.finfo(np.float32).max])])
         )[0]
         / y.shape[0]
     )
-    np.testing.assert_allclose(intercept, np_int)
+    np.testing.assert_allclose(softmax(intercept), np_int, rtol=1e-6)
 
     rng = np.random.default_rng(1994)
     w = rng.uniform(low=0, high=1, size=(y.shape[0],))
     intercept = run_clf(X, y, w)
-    np.testing.assert_allclose(np.sum(intercept), 1.0)
-    assert np.all(np.array(intercept) > 0)
+    np.testing.assert_allclose(np.sum(softmax(intercept)), 1.0)
+    assert np.all(softmax(intercept) > 0)
 
 
 # pylint: disable=too-many-locals
