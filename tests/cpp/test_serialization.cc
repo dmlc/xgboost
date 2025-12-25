@@ -1,11 +1,13 @@
 /**
  * Copyright 2019-2025, XGBoost Contributors
  */
+#include "test_serialization.h"
+
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/feature_map.h>  // for FeatureMap
-#include <xgboost/json.h>
+#include <xgboost/json.h>         // for Json
 #include <xgboost/learner.h>
 
 #include <string>
@@ -47,7 +49,14 @@ void CompareJSON(Json l, Json r) {
 
     for (auto const& kv : l_obj) {
       ASSERT_NE(r_obj.find(kv.first), r_obj.cend());
-      CompareJSON(l_obj.at(kv.first), r_obj.at(kv.first));
+      // Floating point array saved as a string.
+      if (kv.first == "base_score") {
+        auto l_v = Json::Load(get<String const>(l_obj.at(kv.first)));
+        auto r_v = Json::Load(get<String const>(r_obj.at(kv.first)));
+        CompareJSON(l_v, r_v);
+      } else {
+        CompareJSON(l_obj.at(kv.first), r_obj.at(kv.first));
+      }
     }
     break;
   }
@@ -120,6 +129,8 @@ void CompareJSON(Json l, Json r) {
   }
   }
 }
+
+void CompareJsonModels(Json l, Json r) { CompareJSON(std::move(l), std::move(r)); }
 
 void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr<DMatrix> p_dmat) {
   for (auto& batch : p_dmat->GetBatches<SparsePage>()) {

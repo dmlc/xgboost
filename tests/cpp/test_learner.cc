@@ -8,18 +8,18 @@
 #include <xgboost/objective.h>       // for ObjFunction
 #include <xgboost/version_config.h>  // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR
 
-#include <algorithm>                                // for equal, transform
-#include <cstddef>                                  // for size_t
-#include <iosfwd>                                   // for ofstream
-#include <limits>                                   // for numeric_limits
-#include <map>                                      // for map
-#include <memory>                                   // for unique_ptr, shared_ptr, __shared_ptr_...
-#include <random>                                   // for uniform_real_distribution
-#include <string>                                   // for allocator, basic_string, string, oper...
-#include <thread>                                   // for thread
-#include <type_traits>                              // for is_integral
-#include <utility>                                  // for pair
-#include <vector>                                   // for vector
+#include <algorithm>    // for equal, transform
+#include <cstddef>      // for size_t
+#include <iosfwd>       // for ofstream
+#include <limits>       // for numeric_limits
+#include <map>          // for map
+#include <memory>       // for unique_ptr, shared_ptr, __shared_ptr_...
+#include <random>       // for uniform_real_distribution
+#include <string>       // for allocator, basic_string, string, oper...
+#include <thread>       // for thread
+#include <type_traits>  // for is_integral
+#include <utility>      // for pair
+#include <vector>       // for vector
 
 #include "../../src/collective/communicator-inl.h"  // for GetRank, GetWorldSize
 #include "../../src/common/api_entry.h"             // for XGBAPIThreadLocalEntry
@@ -31,6 +31,7 @@
 #include "filesystem.h"                             // for TemporaryDirectory
 #include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
 #include "objective_helpers.h"                      // for MakeObjNamesForTest, ObjTestNameGenerator
+#include "test_serialization.h"                     // for CompareJsonModels
 #include "xgboost/base.h"                           // for bst_float, Args, bst_feature_t, bst_int
 #include "xgboost/context.h"                        // for Context, DeviceOrd
 #include "xgboost/data.h"                           // for DMatrix, MetaInfo, DataType
@@ -652,7 +653,7 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
 
     Json model{Object{}};
     learner->SaveModel(&model);
-    ASSERT_EQ(model, expected_model);
+    CompareJsonModels(model, expected_model);
   }
 
  public:
