@@ -349,7 +349,7 @@ void TestAbsoluteErrorLeaf(const Context* ctx) {
 
   for (bst_target_t t{0}; t < kTargets; ++t) {
     auto h_labels = info.labels.HostView().Slice(linalg::All(), t);
-    std::iota(linalg::begin(h_labels), linalg::end(h_labels), 0);
+    std::iota(linalg::begin(h_labels), linalg::end(h_labels), .0f);
 
     auto h_predt =
         linalg::MakeTensorView(ctx, predt.HostSpan(), kRows, kTargets).Slice(linalg::All(), t);

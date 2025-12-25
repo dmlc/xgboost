@@ -27,11 +27,6 @@ __host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
 }
 
 XGBOOST_DEV_INLINE bst_feature_t FeatIdx(FeatureGroup const& group, bst_idx_t idx,
-                                         cuda_impl::RowIndexT ridx, std::int32_t feature_stride) {
-  return group.start_feature + idx - ridx * feature_stride;
-}
-
-XGBOOST_DEV_INLINE bst_feature_t FeatIdx(FeatureGroup const& group, bst_idx_t idx,
                                          std::int32_t feature_stride) {
   return group.start_feature + idx % feature_stride;
 }
@@ -307,16 +302,68 @@ __global__ void __launch_bounds__(kBlockThreads)
   }
 }
 
-template <std::int32_t kBlockThreadsIn, std::int32_t kItemsPerThreadIn, bool kDenseIn,
-          bool kCompressedIn, bool kSharedMemIn>
-struct HistPolicy {
-  static constexpr std::int32_t kBlockThreads = kBlockThreadsIn;
-  static constexpr std::int32_t kItemsPerThread = kItemsPerThreadIn;
-  static constexpr std::int32_t kTileSize = kBlockThreadsIn * kItemsPerThreadIn;
-  static constexpr bool kDense = kDenseIn;
-  static constexpr bool kCompressed = kCompressedIn;
-  static constexpr bool kSharedMem = kSharedMemIn;
+template <std::int32_t BlockThreads, std::int32_t MinBlocks>
+struct HistTuning {
+  static constexpr std::int32_t kBlockThreads = BlockThreads;
+  static constexpr std::int32_t kMinBlocks = MinBlocks;
 };
+
+namespace {
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/#feature-set-compiler-targets
+// Technical Specifications                  7.5  | 8.0  | 8.6  8.7 | 8.9 | 9.0 10.0 | 11.0 12.0
+// Maximum number of resident blocks per SM  16   | 32   | 16       | 24  | 32       | 24
+// Maximum number of resident warps per SM   32   | 64   | 48             | 64       | 48
+// Maximum number of resident threads per SM 1024 | 2048 | 1536           | 2048     | 1536
+
+using HistSm75 = HistTuning<1024, 1>;
+
+using HistSm80 = HistTuning<1024, 2>;
+
+using HistSm86 = HistTuning<768, 2>;
+
+using HistSm90 = HistTuning<1024, 2>;
+
+using HistSm110 = HistTuning<768, 2>;
+
+#if __CUDA_ARCH__ >= 1100
+using HistBound = HistSm110;
+#elif __CUDA_ARCH__ >= 900
+using HistBound = HistSm90;
+#elif __CUDA_ARCH__ >= 860
+using HistBound = HistSm86;
+#elif __CUDA_ARCH__ >= 800
+using HistBound = HistSm80;
+#else
+using HistBound = HistSm75;
+#endif
+
+template <typename HistArchPolicy, std::int32_t ItemsPerThread, bool Dense, bool Compressed,
+          bool SharedMem>
+struct HistPolicy : public HistArchPolicy {
+  static constexpr std::int32_t kItemsPerThread = ItemsPerThread;
+  static constexpr std::int32_t kTileSize = HistArchPolicy::kBlockThreads * ItemsPerThread;
+  static constexpr bool kDense = Dense;
+  static constexpr bool kCompressed = Compressed;
+  static constexpr bool kSharedMem = SharedMem;
+};
+
+template <typename Fn>
+void DispatchCudaSm(std::int32_t device, Fn&& fn) {
+  std::int32_t version = 0;
+  dh::safe_cuda(cub::SmVersion(version, device));
+  if (version >= 1100) {
+    fn(HistSm110{});
+  } else if (version >= 900) {
+    fn(HistSm90{});
+  } else if (version >= 860) {
+    fn(HistSm86{});
+  } else if (version >= 800) {
+    fn(HistSm80{});
+  } else {
+    fn(HistSm75{});
+  }
+}
+}  // namespace
 
 /**
  * @brief Kernel for multi-target histogram.
@@ -331,38 +378,30 @@ struct HistPolicy {
  * @param blk_ptr        Indptr for mapping blockIdx.x to nidx_in_set.
  */
 template <typename Policy, typename Accessor, typename RidxIterSpan>
-__global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
+__global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) void HistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups, RidxIterSpan* d_ridx_iters,
     common::Span<std::uint32_t const> blk_ptr, common::Span<GradientPairInt64>* node_hists,
-    linalg::MatrixView<GradientPair const> d_gpair,
-    common::Span<GradientQuantiser const> roundings) {
-  auto d_roundings = roundings.data();
-
+    GradientPair const* d_gpair, bst_target_t n_targets, GradientQuantiser const* d_roundings) {
   FeatureGroup group = feature_groups[blockIdx.y];
-  std::int32_t feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
-
-  // Find the node for this block.
-  auto nidx_in_set = dh::SegmentId(blk_ptr.data(), blk_ptr.data() + blk_ptr.size(), blockIdx.x);
-  auto starting_blk = blk_ptr[nidx_in_set];
-  // Grid-strided loop
-  auto const kStride = Policy::kTileSize * (blk_ptr[nidx_in_set + 1] - starting_blk);
-  // Offset of the first grid
-  std::size_t offset = (blockIdx.x - starting_blk) * Policy::kTileSize;
-
-  auto d_ridx = d_ridx_iters[nidx_in_set];
-  auto p_ridx = d_ridx_iters[nidx_in_set].data();
-
-  bst_idx_t n_elements = feature_stride * d_ridx.size();
+  bst_feature_t const feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
 
   using Idx = RowPartitioner::RowIndexT;
-  bst_target_t const n_targets = roundings.size();
+
+  // Find the node for this block.
+  auto const* XGBOOST_RESTRICT p_blk_ptr = blk_ptr.data();
+  Idx nidx_in_set = dh::SegmentId(p_blk_ptr, p_blk_ptr + blk_ptr.size(), blockIdx.x);
+  Idx starting_blk = p_blk_ptr[nidx_in_set];
+
+  Idx const ridx_size = d_ridx_iters[nidx_in_set].size();
+  auto const d_ridx = d_ridx_iters[nidx_in_set].data();
 
   extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
   // Privatized histogram
   auto smem_hist = reinterpret_cast<GradientPairInt64*>(shmem);
 
+  bst_bin_t const n_target_bins = group.num_bins * n_targets;
   if constexpr (Policy::kSharedMem) {
-    dh::BlockFill(smem_hist, group.num_bins * n_targets, GradientPairInt64{});
+    dh::BlockFill(smem_hist, n_target_bins, GradientPairInt64{});
     __syncthreads();
   }
 
@@ -377,9 +416,18 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
   };
 
   auto process_valid_tile = [&](auto idx) {
-    auto ridx_in_node = idx / feature_stride;
-    Idx ridx = p_ridx[ridx_in_node];
-    auto fidx = FeatIdx(group, idx, ridx_in_node, feature_stride);
+    // unrolled version unravel to save registers:
+    // auto [ridx, fidx, target_idx] = unravel_index(idx, (n_rows, feature_stride, n_targets));
+    //
+    // ridx_in_set: Index into the row batch
+    // fidx_in_set: Index into the feature group
+    Idx target_idx = idx - (idx / n_targets) * n_targets;
+    Idx fidx_in_set = (idx / n_targets) - ((idx / n_targets) / feature_stride) * feature_stride;
+    Idx ridx_in_set = (idx / n_targets) / feature_stride;
+
+    Idx ridx = d_ridx[ridx_in_set];
+    auto fidx = fidx_in_set + group.start_feature;
+
     bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
     if (Policy::kDense || compressed_bin != matrix.NullValue()) {
       if constexpr (Policy::kCompressed) {
@@ -391,31 +439,35 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
       } else {
         compressed_bin *= n_targets;
       }
-      // TODO(jiamingy): Assign a thread for each target. When there are multiple targets,
-      // this can cause significant stall. Enable vector load if possible.
-      //
       // TODO(jiamingy): When the number of targets is non-trivial, we need to split up
       // the histograms due to shared memory size.
-      for (bst_target_t t = 0; t < n_targets; ++t) {
-        auto adjusted = d_roundings[t].ToFixedPoint(d_gpair(ridx, t));
-        atomic_add(compressed_bin + t, adjusted);
-      }
+      auto adjusted = d_roundings[target_idx].ToFixedPoint(
+          d_gpair[static_cast<std::size_t>(ridx) * n_targets + target_idx]);
+      atomic_add(compressed_bin + target_idx, adjusted);
     }
   };
+
+  // The number of elements for this grid to process
+  bst_idx_t const n_elements = static_cast<std::size_t>(ridx_size) * feature_stride * n_targets;
 
   auto process_gpair_tile = [&](auto full_tile, auto offset) {
 #pragma unroll 1
     for (std::int32_t j = 0; j < Policy::kItemsPerThread; ++j) {
-      std::int32_t const idx = offset + j * Policy::kBlockThreads + threadIdx.x;
+      bst_idx_t const idx = offset + j * Policy::kBlockThreads + threadIdx.x;
       if (full_tile || idx < n_elements) {
         process_valid_tile(idx);
       }
     }
   };
 
+  // Grid-strided loop
+  auto const kStride = Policy::kTileSize * (p_blk_ptr[nidx_in_set + 1] - starting_blk);
+  // Offset of the first grid
+  bst_idx_t offset = (blockIdx.x - starting_blk) * Policy::kTileSize;
+
   while (offset < n_elements) {
     std::int32_t const valid_items =
-        cuda::std::min(n_elements - offset, static_cast<std::size_t>(Policy::kTileSize));
+        cuda::std::min(n_elements - offset, static_cast<bst_idx_t>(Policy::kTileSize));
     if (Policy::kTileSize == valid_items) {
       process_gpair_tile(std::true_type{}, offset);
     } else {
@@ -432,7 +484,7 @@ __global__ __launch_bounds__(Policy::kBlockThreads) void HistKernel(
   __syncthreads();
 
   auto start_bin = group.start_bin * n_targets;
-  for (auto i : dh::BlockStrideRange(0u, group.num_bins * n_targets)) {
+  for (auto i : dh::BlockStrideRange(0, n_target_bins)) {
     AtomicAddGpairGlobal(gmem_hist + start_bin + i, smem_hist[i]);
   }
 }
@@ -539,6 +591,7 @@ struct HistogramKernel {
   }
 };
 
+// Dispatcher for the multi-target histogram kernel.
 struct MtHistKernel {
   /**
    * @brief Partition the grid into sub-grid for nodes.
@@ -558,6 +611,9 @@ struct MtHistKernel {
     for (std::size_t j = 1; j < sizes_csum.size(); ++j) {
       auto nidx_in_set = j - 1;
       auto n_samples = sizes_csum[j] - sizes_csum[j - 1];
+      // Note: the number of targets is not factored in here. We might need to find a
+      // better strategy to make sure the ratio of blocks between nodes represent the
+      // ratio of their respected sizes.
       std::size_t items_per_group = n_samples * columns_per_group;
       auto n_blocks = common::DivRoundUp(items_per_group, Policy::kTileSize);
       CHECK_GT(n_blocks, 0);  // at least one block for each node.
@@ -573,7 +629,27 @@ struct MtHistKernel {
   struct MtHistKernelConfig {
     std::int32_t n_blocks_per_mp = 0;
     std::size_t shmem_bytes = 0;
+
+    template <typename Policy, typename Kernel>
+    void Reset(std::size_t new_shmem_bytes, Kernel* kernel, Policy, std::size_t max_shared_bytes) {
+      if (new_shmem_bytes > 0) {
+        // This function is the reason for all this trouble to cache the
+        // configuration. It blocks the device.
+        //
+        // Also, it must precede the `cudaOccupancyMaxActiveBlocksPerMultiprocessor`,
+        // otherwise the shmem bytes might be invalid.
+        dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                           max_shared_bytes));
+      }
+      if (new_shmem_bytes > this->shmem_bytes) {
+        this->shmem_bytes = new_shmem_bytes;
+      }
+      // Use this as a limiter, works for root node. Not too bad an option for child nodes.
+      dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+          &this->n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
+    }
   };
+
   // Maps kernel instantiations to their configurations. This is a mutable state, as a
   // result the histogram kernel is not thread safe.
   std::map<void*, MtHistKernelConfig> cfg;
@@ -589,8 +665,7 @@ struct MtHistKernel {
         max_shared_bytes{dh::MaxSharedMemoryOptin(ctx->Ordinal())},
         force_global{force_global} {}
 
-  template <std::int32_t kBlockThreads, bool kDense, bool kCompressed, typename Accessor,
-            typename RidxIterSpan>
+  template <bool kDense, bool kCompressed, typename Accessor, typename RidxIterSpan>
   void DispatchHistShmem(Context const* ctx, Accessor const& matrix,
                          FeatureGroupsAccessor const& feature_groups,
                          linalg::MatrixView<GradientPair const> gpair, RidxIterSpan* ridx_iters,
@@ -604,87 +679,68 @@ struct MtHistKernel {
     shmem_bytes = use_shared ? shmem_bytes : 0;
 
     auto launch = [&](auto policy, auto kernel) {
+      auto const& v = this->cfg.at(reinterpret_cast<void*>(kernel));
       using Policy = common::GetValueT<decltype(policy)>;
       int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
-      auto v = this->cfg.at(reinterpret_cast<void*>(kernel));
       CHECK_GT(v.n_blocks_per_mp, 0);
       std::uint32_t n_blocks = 0;
       auto blk_ptr = AllocateBlocks<Policy>(h_sizes_csum, columns_per_group,
                                             v.n_blocks_per_mp * n_mps, &n_blocks);
       CHECK_GE(n_blocks, hists.size());
       dim3 conf(n_blocks, feature_groups.NumGroups());
-
+      CHECK(gpair.CContiguous());
       kernel<<<conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream()>>>(
-          matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(), gpair, roundings);
+          matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(),
+          gpair.Values().data(), gpair.Shape(1), roundings.data());
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
+    auto set_cfg = [&](auto policy, auto kernel) {
+      using Policy = common::GetValueT<decltype(policy)>;
+
+      auto it = this->cfg.find(reinterpret_cast<void*>(kernel));
+
+      MtHistKernelConfig v;
+      if (it == cfg.cend()) {
+        v.Reset(shmem_bytes, kernel, Policy{}, max_shared_bytes);
+        this->cfg[reinterpret_cast<void*>(kernel)] = v;
+      }
+    };
+
     if (use_shared) {
-      using Policy = HistPolicy<kBlockThreads, kItemsPerThread, kDense, kCompressed, true>;
-      auto kernel = HistKernel<Policy, Accessor, RidxIterSpan>;
-      auto it = cfg.find(reinterpret_cast<void*>(kernel));
-      if (it == cfg.cend()) {
-        MtHistKernelConfig v;
-        // This function is the reason for all this trouble to cache the
-        // configuration. It blocks the device.
-        //
-        // Also, it must precede the `cudaOccupancyMaxActiveBlocksPerMultiprocessor`,
-        // otherwise the shmem bytes might be invalid.
-        if (shmem_bytes > v.shmem_bytes) {
-          dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-                                             shmem_bytes));
-          v.shmem_bytes = shmem_bytes;
-        }
-        // Use this as a limiter, works for root node. Not too bad an option for child nodes.
-        dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-            &v.n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
-        this->cfg[reinterpret_cast<void*>(kernel)] = v;
-      }
-      launch(Policy{}, kernel);
+      DispatchCudaSm(ctx->Ordinal(), [&](auto arch) {
+        using Arch = common::GetValueT<decltype(arch)>;
+        using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, true>;
+        auto kernel = HistKernel<Policy, Accessor, RidxIterSpan>;
+        set_cfg(Policy{}, kernel);
+        launch(Policy{}, kernel);
+      });
+
     } else {
-      using Policy = HistPolicy<kBlockThreads, kItemsPerThread, kDense, kCompressed, false>;
-      auto kernel = HistKernel<Policy, Accessor, RidxIterSpan>;
-      auto it = cfg.find(reinterpret_cast<void*>(kernel));
-      if (it == cfg.cend()) {
-        MtHistKernelConfig v;
-        dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-            &v.n_blocks_per_mp, kernel, Policy::kBlockThreads, shmem_bytes));
-        this->cfg[reinterpret_cast<void*>(kernel)] = v;
-      }
-      launch(Policy{}, kernel);
+      DispatchCudaSm(ctx->Ordinal(), [&](auto arch) {
+        using Arch = common::GetValueT<decltype(arch)>;
+        using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, false>;
+        auto kernel = HistKernel<Policy, Accessor, RidxIterSpan>;
+        set_cfg(Policy{}, kernel);
+        launch(Policy{}, kernel);
+      });
     }
   }
 
-  template <std::int32_t kBlockThreads, typename Accessor, typename... Args>
+  template <typename Accessor, typename... Args>
   void DispatchHistCompress(Context const* ctx, Accessor const& matrix, Args&&... args) {
     if (matrix.IsDense()) {
-      DispatchHistShmem<kBlockThreads, true, true>(ctx, matrix, std::forward<Args>(args)...);
+      DispatchHistShmem<true, true>(ctx, matrix, std::forward<Args>(args)...);
     } else if (matrix.IsDenseCompressed()) {
-      DispatchHistShmem<kBlockThreads, false, true>(ctx, matrix, std::forward<Args>(args)...);
+      DispatchHistShmem<false, true>(ctx, matrix, std::forward<Args>(args)...);
     } else {
-      DispatchHistShmem<kBlockThreads, false, false>(ctx, matrix, std::forward<Args>(args)...);
-    }
-  }
-
-  template <typename... Args>
-  void DispatchHistPolicyBlockSize(Args&&... args) {
-    // An heuristic to choose the block size based on the number of multi processors.
-    //
-    // The usual practice is to use the SM version for tuning. But we don't have the
-    // resource to followup with benchmarks for every architecture.
-    constexpr std::int32_t kMpThreshold = 128;
-    if (this->n_mps >= kMpThreshold) {
-      constexpr std::int32_t kBlockThreads = 1024;
-      DispatchHistCompress<kBlockThreads>(std::forward<Args>(args)...);
-    } else {
-      constexpr std::int32_t kBlockThreads = 768;
-      DispatchHistCompress<kBlockThreads>(std::forward<Args>(args)...);
+      DispatchHistShmem<false, false>(ctx, matrix, std::forward<Args>(args)...);
     }
   }
 
   template <typename... Args>
   void Dispatch(Args&&... args) {
-    this->DispatchHistPolicyBlockSize(std::forward<Args>(args)...);
+    this->DispatchHistCompress(std::forward<Args>(args)...);
   }
 };
 

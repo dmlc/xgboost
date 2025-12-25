@@ -44,11 +44,11 @@ struct FeatureGroupsAccessor {
   FeatureGroupsAccessor(common::Span<const bst_feature_t> feature_segments,
                         common::Span<const bst_bin_t> bin_segments, bst_bin_t max_group_bins)
       : feature_segments{feature_segments},
-        bin_segments{bin_segments},
+        bin_segments{bin_segments.data()},
         max_group_bins{max_group_bins} {}
 
   common::Span<const bst_feature_t> feature_segments;
-  common::Span<const int> bin_segments;
+  int const* bin_segments;
   bst_bin_t max_group_bins;
 
   /** @brief Gets the number of feature groups. */
@@ -56,8 +56,8 @@ struct FeatureGroupsAccessor {
 
   /** @brief Gets the information about a feature group with index i. */
   XGBOOST_DEVICE FeatureGroup operator[](bst_feature_t i) const {
-    return {feature_segments[i], feature_segments[i + 1] - feature_segments[i], bin_segments[i],
-            bin_segments[i + 1] - bin_segments[i]};
+    auto p_fs = feature_segments.data();
+    return {p_fs[i], p_fs[i + 1] - p_fs[i], bin_segments[i], bin_segments[i + 1] - bin_segments[i]};
   }
   /** @brief The needed shared memory size for the largest group. */
   [[nodiscard]] std::size_t ShmemSize(bst_target_t n_targets) const {
