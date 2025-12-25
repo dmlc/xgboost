@@ -620,7 +620,6 @@ the function signature.}
 \value{
 A model object, inheriting from both \code{xgboost} and \code{xgb.Booster}. Compared to the regular
 \code{xgb.Booster} model class produced by \code{\link[=xgb.train]{xgb.train()}}, this \code{xgboost} class will have an
-
 additional attribute \code{metadata} containing information which is used for formatting prediction
 outputs, such as class names for classification problems.
 }
