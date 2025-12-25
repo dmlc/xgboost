@@ -239,9 +239,9 @@ class ColMaker: public TreeUpdater {
         if (!column_sampler_) {
           column_sampler_ = common::MakeColumnSampler(ctx_);
         }
-        column_sampler_->Init(
-            ctx_, fmat.Info().num_col_, fmat.Info().feature_weights.ConstHostVector(),
-            param_.colsample_bynode, param_.colsample_bylevel, param_.colsample_bytree);
+        column_sampler_->Init(ctx_, fmat.Info().num_col_, fmat.Info().feature_weights,
+                              param_.colsample_bynode, param_.colsample_bylevel,
+                              param_.colsample_bytree);
       }
       {
         // setup temp space for each thread

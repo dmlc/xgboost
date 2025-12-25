@@ -798,4 +798,6 @@ class LDGIterator {
     return *reinterpret_cast<const T *>(tmp);
   }
 };
+
+constexpr std::int32_t WarpThreads() { return 32; }
 }  // namespace dh

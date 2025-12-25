@@ -127,9 +127,12 @@ class ColumnSampler {
    * @param colsample_bylevel Sampling rate for tree level.
    * @param colsample_bytree  Sampling rate for tree.
    */
-  void Init(Context const* ctx, int64_t num_col, std::vector<float> feature_weights,
+  void Init(Context const* ctx, int64_t num_col, HostDeviceVector<float> const& feature_weights,
             float colsample_bynode, float colsample_bylevel, float colsample_bytree) {
-    feature_weights_.HostVector() = std::move(feature_weights);
+    this->feature_weights_.SetDevice(ctx->Device()), feature_weights.SetDevice(ctx->Device());
+    this->feature_weights_.Resize(feature_weights.Size());
+    this->feature_weights_.Copy(feature_weights);
+
     colsample_bylevel_ = colsample_bylevel;
     colsample_bytree_ = colsample_bytree;
     colsample_bynode_ = colsample_bynode;

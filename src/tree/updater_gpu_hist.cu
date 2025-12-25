@@ -197,9 +197,8 @@ struct GPUHistMakerDevice {
     /**
      * Initialize the evaluator
      */
-    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights.HostVector(),
-                                param.colsample_bynode, param.colsample_bylevel,
-                                param.colsample_bytree);
+    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param.colsample_bynode,
+                                param.colsample_bylevel, param.colsample_bytree);
     this->interaction_constraints.Reset(ctx_);
     this->evaluator_.Reset(this->ctx_, *cuts_, info.feature_types.ConstDeviceSpan(), info.num_col_,
                            this->param, info.IsColumnSplit());
@@ -253,7 +252,7 @@ struct GPUHistMakerDevice {
         // is_dense represents the local data
         p_fmat->IsDense() && !collective::IsDistributed()};
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
-    // Store the feature set ptrs so they dont go out of scope before the kernel is called
+    // Store the feature set ptrs so they don't go out of scope before the kernel is called
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_sets;
     auto sc_tree = tree.HostScView();
     for (std::size_t i = 0; i < candidates.size(); i++) {
@@ -844,7 +843,8 @@ class GPUHistMaker : public TreeUpdater {
                                                            column_sampler_, batch, p_fmat->Info(),
                                                            batch_ptr, cuts, dense_compressed);
     this->p_mtimpl_ = std::make_unique<cuda_impl::MultiTargetHistMaker>(
-        this->ctx_, *param, &hist_maker_param_, batch_ptr, cuts, dense_compressed, n_targets);
+        this->ctx_, *param, &hist_maker_param_, this->column_sampler_, batch_ptr, cuts,
+        dense_compressed, n_targets);
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;

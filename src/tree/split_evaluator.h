@@ -13,7 +13,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <utility>
 #include <vector>
 
 #include "../common/math.h"
@@ -21,13 +20,11 @@
 #include "param.h"
 #include "xgboost/context.h"
 #include "xgboost/host_device_vector.h"
-#include "xgboost/tree_model.h"
 
 namespace xgboost::tree {
 class TreeEvaluator {
   // hist and exact use parent id to calculate constraints.
-  static constexpr bst_node_t kRootParentId =
-      (-1 & static_cast<bst_node_t>((1U << 31) - 1));
+  static constexpr bst_node_t kRootParentId = (-1 & static_cast<bst_node_t>((1U << 31) - 1));
 
   HostDeviceVector<float> lower_bounds_;
   HostDeviceVector<float> upper_bounds_;
@@ -85,6 +82,7 @@ class TreeEvaluator {
                     this->CalcGainGivenWeight(param, right, wright);
 
       if (constraint == 0) {
+        // no constraint
         return gain;
       } else if (constraint > 0) {
         return wleft <= wright ? gain : negative_infinity;
@@ -100,7 +98,7 @@ class TreeEvaluator {
       if (!has_constraint) {
         return w;
       }
-
+      // Calculate bound weight
       if (nodeid == kRootParentId) {
         return w;
       } else if (w < lower[nodeid]) {
@@ -204,15 +202,6 @@ class TreeEvaluator {
         common::Range(0, 1), 1, device_)
         .Eval(&lower_bounds_, &upper_bounds_, &monotone_);
   }
-};
-
-enum SplitType {
-  // numerical split
-  kNum = 0,
-  // onehot encoding based categorical split
-  kOneHot = 1,
-  // partition-based categorical split
-  kPart = 2
 };
 }  // namespace xgboost::tree
 

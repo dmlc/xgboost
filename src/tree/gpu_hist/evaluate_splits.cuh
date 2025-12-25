@@ -209,7 +209,8 @@ struct MultiEvaluateSplitInputs {
   bst_node_t nidx;
   bst_node_t depth;
   common::Span<GradientPairInt64 const> parent_sum;
-  common::Span<const GradientPairInt64> histogram;
+  common::Span<bst_feature_t const> feature_set;
+  common::Span<GradientPairInt64 const> histogram;
 };
 
 // Input for evaluation kernel that can be shared by multiple tree nodes.
@@ -219,11 +220,12 @@ struct MultiEvaluateSplitSharedInputs {
   // cut pointers
   common::Span<std::uint32_t const> feature_segments;
   // cut values
-  common::Span<float const> feature_values;
+  float const *feature_values;
   // min cut values
-  common::Span<float const> min_values;
+  float const *min_values;
   // Number of bins for one feature and one target
   bst_bin_t n_bins_per_feat_tar;
+  bst_feature_t max_active_feature;
   GPUTrainingParam param;
 
   // Used for testing
