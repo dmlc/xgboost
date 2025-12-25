@@ -372,9 +372,6 @@ void DispatchCudaSm(std::int32_t device, Fn&& fn) {
  * now, we define a different version as a playground, without risking regressing the
  * established one.
  *
- * Alternative to the minBlocks for launch bounds, we might use the `__maxnreg__` to limit
- * registery.
- *
  * @param matrix         An ellpack accessor.
  * @param feature_groups Grouping for privatized histogram.
  * @param d_ridx_iters   Pointer to row index spans. One span per node.
