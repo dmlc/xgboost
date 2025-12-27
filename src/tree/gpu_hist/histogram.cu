@@ -486,9 +486,6 @@ __global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) vo
   Idx nidx_in_set = dh::SegmentId(p_blk_ptr, p_blk_ptr + blk_ptr.size(), blockIdx.x);
   Idx starting_blk = p_blk_ptr[nidx_in_set];
 
-  Idx const ridx_size = d_ridx_iters[nidx_in_set].size();
-  auto const d_ridx = d_ridx_iters[nidx_in_set].data();
-
   extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
 
   // Privatized histogram
@@ -496,23 +493,27 @@ __global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) vo
   auto d_node_hist = node_hists + nidx_in_set;
   auto const n_bins_per_target = d_node_hist->size() / n_targets;
 
-  // Grid-strided loop
-  auto const kStride = Policy::kTileSize * (p_blk_ptr[nidx_in_set + 1] - starting_blk);
-  // Offset of the first grid
+  auto n_blks = p_blk_ptr[nidx_in_set + 1] - p_blk_ptr[nidx_in_set];
   auto blkid_in_set = blockIdx.x - starting_blk;
-  bst_idx_t offset = blkid_in_set * Policy::kTileSize;
+
+  // unravel_index(blkdid_in_set, {n_blocks_one_node_target, n_targets})
+  auto blkid_for_node = blkid_in_set / n_targets;
+  bst_target_t target_idx = blkid_in_set - blkid_for_node * n_targets;
+
+  // Offset of the first grid
+  bst_idx_t offset = blkid_for_node * Policy::kTileSize;
+  // Grid-strided loop
+  auto const kStride = Policy::kTileSize * (n_blks / n_targets);
 
   FeatureGroup group = feature_groups[blockIdx.y];
 
-  // Loop over the targets. This might not be the most efficient way to write a CUDA
-  // kernel as we need to load the data multiple times. However, with a target-major
-  // layout, we don't have to pack the histogram for all targets into the shared memory.
-  for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
-    auto gmem_hist = d_node_hist->data() + target_idx * n_bins_per_target;
-    auto t_gpair = d_gpair + n_samples * target_idx;
-    HistKernelOneNodeTarget<Policy>(matrix, group, d_ridx_iters[nidx_in_set], t_gpair, smem_hist,
-                                    gmem_hist, offset, kStride);
-  }
+  // This might not be the most efficient way to write a CUDA kernel as we need to load
+  // the data multiple times (n_targets). However, with a target-major layout, we don't
+  // have to pack the histogram for all targets into the shared memory.
+  auto gmem_hist = d_node_hist->data() + target_idx * n_bins_per_target;
+  auto t_gpair = d_gpair + n_samples * target_idx;
+  HistKernelOneNodeTarget<Policy>(matrix, group, d_ridx_iters[nidx_in_set], t_gpair, smem_hist,
+                                  gmem_hist, offset, kStride);
 }
 
 namespace {
@@ -630,20 +631,21 @@ struct MtHistKernel {
   template <typename Policy>
   static auto AllocateBlocks(std::vector<std::size_t> const& sizes_csum,
                              std::int32_t columns_per_group, std::size_t max_blocks_per_node,
-                             std::uint32_t* p_out_blocks) {
+                             bst_target_t n_targets, std::uint32_t* p_out_blocks) {
     CHECK_GT(max_blocks_per_node, 0);
     std::vector<std::uint32_t> blk_ptr{0};
-    std::uint32_t n_total_blocks = 0;
+    bst_idx_t n_total_blocks = 0;
     for (std::size_t j = 1; j < sizes_csum.size(); ++j) {
       auto nidx_in_set = j - 1;
       auto n_samples = sizes_csum[j] - sizes_csum[j - 1];
       std::size_t items_per_group = n_samples * columns_per_group;
       auto n_blocks = common::DivRoundUp(items_per_group, Policy::kTileSize);
       CHECK_GT(n_blocks, 0);  // at least one block for each node.
-      n_blocks = std::min(n_blocks, max_blocks_per_node);
+      n_blocks = std::min(n_blocks, max_blocks_per_node) * n_targets;
       blk_ptr.push_back(blk_ptr[nidx_in_set] + n_blocks);
       n_total_blocks += n_blocks;
     }
+    // check overflow
     CHECK_EQ(n_total_blocks, blk_ptr.back());
     *p_out_blocks = blk_ptr.back();
     return dh::device_vector<std::uint32_t>{blk_ptr};
@@ -710,7 +712,7 @@ struct MtHistKernel {
       // fixme: experiment with one block per target.
       std::uint32_t n_blocks = 0;
       auto blk_ptr = AllocateBlocks<Policy>(h_sizes_csum, columns_per_group,
-                                            v.n_blocks_per_mp * n_mps, &n_blocks);
+                                            v.n_blocks_per_mp * n_mps, n_targets, &n_blocks);
       CHECK_GE(n_blocks, hists.size());
       dim3 conf(n_blocks, feature_groups.NumGroups());
       kernel<<<conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream()>>>(
