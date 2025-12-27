@@ -30,4 +30,24 @@ void CalculateContributionsApprox(tree::ScalarTreeView const& tree, const RegTre
 void CalculateContributions(tree::ScalarTreeView const& tree, const RegTree::FVec& feat,
                             std::vector<float>* mean_values, float* out_contribs, int condition,
                             unsigned condition_feature);
+
+
+class PreprocessedLeaf{
+ public:
+ int tree_idx;
+ std::uint64_t leaf_path;
+ float null_coalition_weight;
+ std::map<int, std::vector<double>> S;
+ PreprocessedLeaf() = default;
+ PreprocessedLeaf(int tree_idx, std::uint64_t leaf_path, float null_coalition_weight, std::map<int, std::vector<double>> S) : tree_idx(tree_idx), leaf_path(leaf_path), null_coalition_weight(null_coalition_weight), S(S) {
+ }
+
+};
+
+
+std::uint64_t ExtractBinaryPath(tree::ScalarTreeView const& tree, const RegTree::FVec& feat, 
+                                                       std::uint64_t leaf_path);
+
+std::vector<PreprocessedLeaf> PreprocessTree(int tree_idx, tree::ScalarTreeView const& tree);
+
 }  // namespace xgboost
