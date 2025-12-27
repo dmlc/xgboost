@@ -37,14 +37,14 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     histogram.resize(n_bins_per_feat_tar * n_targets);
     // first target, dense,                    // 0/0, 56/40
     histogram[0] = GradientPairInt64{8, 4};    // 8/4, 48/36
-    histogram[2] = GradientPairInt64{12, 8};   // 20/12, 36/28
-    histogram[4] = GradientPairInt64{16, 12};  // 36/24, 20/16
-    histogram[6] = GradientPairInt64{20, 16};  // 56/40, 0/0
+    histogram[1] = GradientPairInt64{12, 8};   // 20/12, 36/28
+    histogram[2] = GradientPairInt64{16, 12};  // 36/24, 20/16
+    histogram[3] = GradientPairInt64{20, 16};  // 56/40, 0/0
 
     // second target, dense                    // 0/0,  96/128
-    histogram[1] = GradientPairInt64{11, 13};  // 11/13, 85/115
-    histogram[3] = GradientPairInt64{19, 29};  // 30/42, 66/86
-    histogram[5] = GradientPairInt64{27, 45};  // 57/87, 39/41
+    histogram[4] = GradientPairInt64{11, 13};  // 11/13, 85/115
+    histogram[5] = GradientPairInt64{19, 29};  // 30/42, 66/86
+    histogram[6] = GradientPairInt64{27, 45};  // 57/87, 39/41
     histogram[7] = GradientPairInt64{39, 41};  // 96/128, 0/0
 
     input.parent_sum = dh::ToSpan(parent_sum);

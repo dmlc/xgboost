@@ -48,8 +48,8 @@ struct ScanHistogramAgent {
     for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += dh::WarpThreads()) {
       auto bin_idx = scan_begin + lane_id;
       bool thread_active = bin_idx < gidx_end;
-      auto bin =
-          thread_active ? node_histogram[bin_idx_fn(bin_idx) * n_targets + t] : GradientPairInt64{};
+      // Read from histogram: [target][bins]
+      auto bin = thread_active ? node_histogram[bin_idx_fn(bin_idx)] : GradientPairInt64{};
       if (lane_id == 0) {
         bin += warp_aggregate;
       }
@@ -57,6 +57,8 @@ struct ScanHistogramAgent {
       // Required by the warp scan.
       __syncwarp();
       if (thread_active) {
+        // Write to scan result: [bins][targets]
+        // The layout is changed from target-major to bin-major here.
         scan_result[bin_idx * n_targets + t] = bin;
       }
     }
@@ -91,8 +93,7 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
   if (warp_id >= n_valid_warps) {
     return;
   }
-  // The current histogram layout has consecutive targets, which results in excessive
-  // (non-coalesced) memory access for the evaluation kernels.
+
   auto [nidx_in_set, fidx_in_set, target_idx] =
       linalg::UnravelIndex(warp_id, nodes.size(), shared.max_active_feature, n_targets);
   auto const &node = nodes[nidx_in_set];
@@ -106,18 +107,22 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
   bst_bin_t gidx_begin = shared.feature_segments[fidx];
   bst_bin_t gidx_end = shared.feature_segments[fidx + 1];
 
+  // Get total bins from feature_segments (last element)
+  bst_bin_t n_bins_per_target = shared.feature_segments.back();
+
   using AgentT = ScanHistogramAgent;
   __shared__ typename AgentT::WarpScanT::TempStorage tmp_storage[kWarpsPerBlk];
   ScanHistogramAgent agent{&tmp_storage[warp_id_in_blk], gidx_begin, gidx_end, n_targets};
+  auto t_hist = node.histogram.subspan(n_bins_per_target * target_idx, n_bins_per_target);
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
     auto forward = out.subspan(0, node.histogram.size());
-    agent.Forward(node.histogram.data(), forward, target_idx);
+    agent.Forward(t_hist.data(), forward, target_idx);
   }
   // TODO(jiamingy): Skip the backward pass if there's no missing value.
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward) {
     auto backward = out.subspan(node.histogram.size(), node.histogram.size());
-    agent.Backward(node.histogram.data(), backward, target_idx);
+    agent.Backward(t_hist.data(), backward, target_idx);
   }
 }
 
@@ -151,11 +156,13 @@ struct EvaluateSplitAgent {
       double gain = thread_active ? 0 : kNullGain;
 
       if (thread_active) {
-        auto scan_bin = node_scan.subspan(bin_idx * n_targets, n_targets).data();
+        // Scan result layout: [bins][targets]
+        // bin_idx is the global bin index
+        auto scan_bin_offset = bin_idx * n_targets;
         for (bst_target_t t = 0; t < n_targets; ++t) {
           auto pg = roundings[t].ToFloatingPoint(node.parent_sum[t]);
           // left
-          auto left_sum = roundings[t].ToFloatingPoint(scan_bin[t]);
+          auto left_sum = roundings[t].ToFloatingPoint(node_scan[scan_bin_offset + t]);
           auto lw_t =
               ::xgboost::tree::CalcWeight(shared.param, left_sum.GetGrad(), left_sum.GetHess());
           // right
@@ -188,7 +195,10 @@ struct EvaluateSplitAgent {
             fvalue = shared.feature_values[split_gidx - 1];
           }
         }
-        auto scan_bin = node_scan.subspan(bin_idx * n_targets, n_targets);
+        // Scan result layout: [bins][targets] - all targets for this bin are contiguous
+        // bin_idx is the global bin index
+        auto scan_bin_offset = bin_idx * n_targets;
+        auto scan_bin = node_scan.subspan(scan_bin_offset, n_targets);
         // Missing values go to right in the forward pass, go to left in the backward pass.
         best_split->Update(gain, d_step == 1 ? kRightDir : kLeftDir, fvalue, fidx, scan_bin, false,
                            shared.param, shared.roundings);
@@ -201,6 +211,10 @@ struct EvaluateSplitAgent {
 }  // namespace
 
 // Find the best split based on the scan result
+//
+// The scan buffer has a bin-major layout, instead of the target-major layout used by the
+// histogram kernel and the scan kernel. This helps us keep a reference to the bin in the
+// split candidate.
 template <std::int32_t kBlockThreads>
 __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
@@ -324,9 +338,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   }
 
   // Find best split for each node
-  // * 3 because of base, left, right weights.
-  this->weights_.resize(n_nodes * n_targets * 3);
-  auto d_weights = dh::ToSpan(this->weights_);
+  auto d_weights = WeightBuffer::Make(n_nodes, n_targets, &this->weights_);
 
   dh::CachingDeviceUVector<float> d_parent_gains(n_nodes);
   auto s_parent_gains = dh::ToSpan(d_parent_gains);
@@ -357,9 +369,9 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     }
 
     // Calculate weights for this node
-    auto base_weight = d_weights.subspan(nidx_in_set * n_targets * 3, n_targets);
-    auto left_weight = d_weights.subspan(nidx_in_set * n_targets * 3 + n_targets, n_targets);
-    auto right_weight = d_weights.subspan(nidx_in_set * n_targets * 3 + n_targets * 2, n_targets);
+    auto base_weight = d_weights.Base(nidx_in_set);
+    auto left_weight = d_weights.Left(nidx_in_set);
+    auto right_weight = d_weights.Right(nidx_in_set);
 
     auto d_roundings = shared_inputs.roundings;
     auto node_sum = best_split.child_sum;
@@ -475,10 +487,15 @@ std::ostream &DebugPrintHistogram(std::ostream &os, common::Span<GradientPairInt
 
   std::vector<GradientPairInt64> h_node_hist(node_hist.size());
   dh::CopyDeviceSpanToVector(&h_node_hist, node_hist);
+  auto h_s_node_hist = common::Span{h_node_hist};
+  std::size_t n_bins_per_target = h_node_hist.size() / n_targets;
+
   for (bst_target_t t = 0; t < n_targets; ++t) {
     os << "Target:" << t << std::endl;
-    for (std::size_t i = t; i < h_node_hist.size() / n_targets; i += n_targets) {
-      os << h_roundings[t].ToFloatingPoint(h_node_hist[i]) << ", ";
+
+    auto target_bins = h_s_node_hist.subspan(n_bins_per_target * t, n_bins_per_target);
+    for (std::size_t i = 0; i < n_bins_per_target; ++i) {
+      os << h_roundings[t].ToFloatingPoint(target_bins[i]) << ", ";
     }
     os << std::endl;
   }

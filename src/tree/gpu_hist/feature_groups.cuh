@@ -60,8 +60,8 @@ struct FeatureGroupsAccessor {
     return {p_fs[i], p_fs[i + 1] - p_fs[i], bin_segments[i], bin_segments[i + 1] - bin_segments[i]};
   }
   /** @brief The needed shared memory size for the largest group. */
-  [[nodiscard]] std::size_t ShmemSize(bst_target_t n_targets) const {
-    return sizeof(GradientPairInt64) * this->max_group_bins * n_targets;
+  [[nodiscard]] std::size_t ShmemSize() const {
+    return sizeof(GradientPairInt64) * this->max_group_bins;
   }
 };
 
@@ -98,13 +98,11 @@ struct FeatureGroups {
    * @brief Creates feature groups by splitting features into groups.
    *
    * @param cuts Histogram cuts that given the number of bins per feature.
-   * @param n_targets The number of outputs.
    * @param is_dense Whether the data matrix is dense.
    * @param shm_size Available size of shared memory per thread block (in bytes) used to
    *  compute feature groups.
    */
-  FeatureGroups(common::HistogramCuts const& cuts, bst_target_t n_targets, bool is_dense,
-                size_t shm_size);
+  FeatureGroups(common::HistogramCuts const& cuts, bool is_dense, size_t shm_size);
 
   /**
    * @brief Creates a single feature group containing all features and bins.

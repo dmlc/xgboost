@@ -11,10 +11,8 @@
 #include "feature_groups.cuh"
 
 namespace xgboost::tree {
-FeatureGroups::FeatureGroups(common::HistogramCuts const& cuts, bst_target_t n_targets,
-                             bool is_dense, size_t shm_size)
+FeatureGroups::FeatureGroups(common::HistogramCuts const& cuts, bool is_dense, size_t shm_size)
     : max_group_bins{0} {
-  CHECK_GE(n_targets, 1);
   // Only use a single feature group for sparse matrices.
   bool single_group = !is_dense;
   if (single_group) {
@@ -28,8 +26,8 @@ FeatureGroups::FeatureGroups(common::HistogramCuts const& cuts, bst_target_t n_t
   bin_segments_h.push_back(0);
 
   std::vector<std::uint32_t> const& cut_ptrs = cuts.Ptrs();
-  // Maximum number of bins that can be placed into shared memory.
-  std::size_t max_shmem_bins = shm_size / (sizeof(GradientPairInt64) * n_targets);
+  // Maximum number of bins that can be placed into shared memory (single target).
+  std::size_t max_shmem_bins = shm_size / sizeof(GradientPairInt64);
 
   for (size_t i = 2; i < cut_ptrs.size(); ++i) {
     int last_start = bin_segments_h.back();

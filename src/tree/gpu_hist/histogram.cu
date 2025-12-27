@@ -363,6 +363,103 @@ void DispatchCudaSm(std::int32_t device, Fn&& fn) {
     fn(HistSm75{});
   }
 }
+
+__device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT gpairs) {
+  static_assert(sizeof(int4) == sizeof(GradientPairInt64));
+  auto g = *reinterpret_cast<int4 const*>(gpairs);
+  return *reinterpret_cast<GradientPairInt64*>(&g);
+}
+
+// Build the histogram for a single target in a single node.
+template <typename Policy, typename Accessor, typename RidxIterSpan>
+__device__ void HistKernelOneNodeTarget(Accessor const matrix, FeatureGroup const& group,
+                                        RidxIterSpan d_ridx_iter,
+                                        GradientPairInt64 const* XGBOOST_RESTRICT gpair,
+                                        GradientPairInt64* smem_hist, GradientPairInt64* gmem_hist,
+                                        bst_target_t offset, std::uint32_t stride) {
+  bst_feature_t const feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
+
+  using Idx = RowPartitioner::RowIndexT;
+
+  Idx const ridx_size = d_ridx_iter.size();
+  auto const d_ridx = d_ridx_iter.data();
+
+  extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
+
+  if constexpr (Policy::kSharedMem) {
+    dh::BlockFill(smem_hist, group.num_bins, GradientPairInt64{});
+    __syncthreads();
+  }
+
+  auto atomic_add = [&](auto bin_idx, auto const& adjusted) {
+    if constexpr (Policy::kSharedMem) {
+      AtomicAddGpairShared(smem_hist + bin_idx, adjusted);
+    } else {
+      // gmem_hist is a subspan for the current target.
+      AtomicAddGpairGlobal(gmem_hist + bin_idx, adjusted);
+    }
+  };
+
+  auto process_valid_tile = [&](auto idx) {
+    // unrolled version unravel to save registers:
+    // auto [ridx, fidx] = unravel_index(idx, (n_rows, feature_stride));
+    //
+    // ridx_in_set: Index into the row batch
+    // fidx_in_set: Index into the feature group
+    Idx ridx_in_set = idx / feature_stride;
+    Idx fidx_in_set = idx - ridx_in_set * feature_stride;
+
+    Idx ridx = d_ridx[ridx_in_set];
+    auto fidx = fidx_in_set + group.start_feature;
+
+    bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
+    if (Policy::kDense || compressed_bin != matrix.NullValue()) {
+      auto g = LoadGpair(gpair + ridx);
+      if constexpr (Policy::kCompressed) {
+        compressed_bin += matrix.feature_segments[fidx];
+      }
+      if constexpr (Policy::kSharedMem) {
+        compressed_bin -= group.start_bin;
+      }
+      atomic_add(compressed_bin, g);
+    }
+  };
+
+  // The number of elements for this grid to process
+  bst_idx_t const n_elements = static_cast<std::size_t>(ridx_size) * feature_stride;
+
+  auto process_gpair_tile = [&](auto full_tile, auto offset) {
+#pragma unroll 1
+    for (std::int32_t j = 0; j < Policy::kItemsPerThread; ++j) {
+      bst_idx_t const idx = offset + j * Policy::kBlockThreads + threadIdx.x;
+      if (full_tile || idx < n_elements) {
+        process_valid_tile(idx);
+      }
+    }
+  };
+
+  while (offset < n_elements) {
+    std::int32_t const valid_items =
+        cuda::std::min(n_elements - offset, static_cast<bst_idx_t>(Policy::kTileSize));
+    if (Policy::kTileSize == valid_items) {
+      process_gpair_tile(std::true_type{}, offset);
+    } else {
+      process_gpair_tile(std::false_type{}, offset);
+    }
+    offset += stride;
+  }
+
+  if constexpr (!Policy::kSharedMem) {
+    return;
+  }
+
+  // Write shared memory back to global memory
+  __syncthreads();
+
+  for (auto bin_idx : dh::BlockStrideRange(0, group.num_bins)) {
+    AtomicAddGpairGlobal(gmem_hist + group.start_bin + bin_idx, smem_hist[bin_idx]);
+  }
+}
 }  // namespace
 
 /**
@@ -381,10 +478,7 @@ template <typename Policy, typename Accessor, typename RidxIterSpan>
 __global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) void HistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups, RidxIterSpan* d_ridx_iters,
     common::Span<std::uint32_t const> blk_ptr, common::Span<GradientPairInt64>* node_hists,
-    GradientPair const* d_gpair, bst_target_t n_targets, GradientQuantiser const* d_roundings) {
-  FeatureGroup group = feature_groups[blockIdx.y];
-  bst_feature_t const feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
-
+    GradientPairInt64 const* d_gpair, bst_idx_t n_samples, bst_target_t n_targets) {
   using Idx = RowPartitioner::RowIndexT;
 
   // Find the node for this block.
@@ -396,96 +490,28 @@ __global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) vo
   auto const d_ridx = d_ridx_iters[nidx_in_set].data();
 
   extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
+
   // Privatized histogram
   auto smem_hist = reinterpret_cast<GradientPairInt64*>(shmem);
-
-  bst_bin_t const n_target_bins = group.num_bins * n_targets;
-  if constexpr (Policy::kSharedMem) {
-    dh::BlockFill(smem_hist, n_target_bins, GradientPairInt64{});
-    __syncthreads();
-  }
-
-  auto gmem_hist = node_hists[nidx_in_set].data();
-
-  auto atomic_add = [&](auto bin_idx, auto const& adjusted) {
-    if constexpr (Policy::kSharedMem) {
-      AtomicAddGpairShared(smem_hist + bin_idx, adjusted);
-    } else {
-      AtomicAddGpairGlobal(gmem_hist + bin_idx, adjusted);
-    }
-  };
-
-  auto process_valid_tile = [&](auto idx) {
-    // unrolled version unravel to save registers:
-    // auto [ridx, fidx, target_idx] = unravel_index(idx, (n_rows, feature_stride, n_targets));
-    //
-    // ridx_in_set: Index into the row batch
-    // fidx_in_set: Index into the feature group
-    Idx target_idx = idx - (idx / n_targets) * n_targets;
-    Idx fidx_in_set = (idx / n_targets) - ((idx / n_targets) / feature_stride) * feature_stride;
-    Idx ridx_in_set = (idx / n_targets) / feature_stride;
-
-    Idx ridx = d_ridx[ridx_in_set];
-    auto fidx = fidx_in_set + group.start_feature;
-
-    bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
-    if (Policy::kDense || compressed_bin != matrix.NullValue()) {
-      if constexpr (Policy::kCompressed) {
-        compressed_bin += matrix.feature_segments[fidx];
-      }
-      if constexpr (Policy::kSharedMem) {
-        // Handle privatized histogram indexing.
-        compressed_bin = (compressed_bin - group.start_bin) * n_targets;
-      } else {
-        compressed_bin *= n_targets;
-      }
-      // TODO(jiamingy): When the number of targets is non-trivial, we need to split up
-      // the histograms due to shared memory size.
-      auto adjusted = d_roundings[target_idx].ToFixedPoint(
-          d_gpair[static_cast<std::size_t>(ridx) * n_targets + target_idx]);
-      atomic_add(compressed_bin + target_idx, adjusted);
-    }
-  };
-
-  // The number of elements for this grid to process
-  bst_idx_t const n_elements = static_cast<std::size_t>(ridx_size) * feature_stride * n_targets;
-
-  auto process_gpair_tile = [&](auto full_tile, auto offset) {
-#pragma unroll 1
-    for (std::int32_t j = 0; j < Policy::kItemsPerThread; ++j) {
-      bst_idx_t const idx = offset + j * Policy::kBlockThreads + threadIdx.x;
-      if (full_tile || idx < n_elements) {
-        process_valid_tile(idx);
-      }
-    }
-  };
+  auto d_node_hist = node_hists + nidx_in_set;
+  auto const n_bins_per_target = d_node_hist->size() / n_targets;
 
   // Grid-strided loop
   auto const kStride = Policy::kTileSize * (p_blk_ptr[nidx_in_set + 1] - starting_blk);
   // Offset of the first grid
-  bst_idx_t offset = (blockIdx.x - starting_blk) * Policy::kTileSize;
+  auto blkid_in_set = blockIdx.x - starting_blk;
+  bst_idx_t offset = blkid_in_set * Policy::kTileSize;
 
-  while (offset < n_elements) {
-    std::int32_t const valid_items =
-        cuda::std::min(n_elements - offset, static_cast<bst_idx_t>(Policy::kTileSize));
-    if (Policy::kTileSize == valid_items) {
-      process_gpair_tile(std::true_type{}, offset);
-    } else {
-      process_gpair_tile(std::false_type{}, offset);
-    }
-    offset += kStride;
-  }
+  FeatureGroup group = feature_groups[blockIdx.y];
 
-  if constexpr (!Policy::kSharedMem) {
-    return;
-  }
-
-  // Write shared memory back to global memory
-  __syncthreads();
-
-  auto start_bin = group.start_bin * n_targets;
-  for (auto i : dh::BlockStrideRange(0, n_target_bins)) {
-    AtomicAddGpairGlobal(gmem_hist + start_bin + i, smem_hist[i]);
+  // Loop over the targets. This might not be the most efficient way to write a CUDA
+  // kernel as we need to load the data multiple times. However, with a target-major
+  // layout, we don't have to pack the histogram for all targets into the shared memory.
+  for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+    auto gmem_hist = d_node_hist->data() + target_idx * n_bins_per_target;
+    auto t_gpair = d_gpair + n_samples * target_idx;
+    HistKernelOneNodeTarget<Policy>(matrix, group, d_ridx_iters[nidx_in_set], t_gpair, smem_hist,
+                                    gmem_hist, offset, kStride);
   }
 }
 
@@ -556,7 +582,7 @@ struct HistogramKernel {
     std::fill_n(grid_sizes.data(), grid_sizes.size(), 0);
     // Decide whether to use shared memory
     // Opt into maximum shared memory for the kernel if necessary
-    this->smem_size = feature_groups.ShmemSize(/*n_targets=*/1);
+    this->smem_size = feature_groups.ShmemSize();
     this->shared = !force_global_memory && this->smem_size <= this->max_shared_memory;
     this->smem_size = this->shared ? this->smem_size : 0;
 
@@ -611,9 +637,6 @@ struct MtHistKernel {
     for (std::size_t j = 1; j < sizes_csum.size(); ++j) {
       auto nidx_in_set = j - 1;
       auto n_samples = sizes_csum[j] - sizes_csum[j - 1];
-      // Note: the number of targets is not factored in here. We might need to find a
-      // better strategy to make sure the ratio of blocks between nodes represent the
-      // ratio of their respected sizes.
       std::size_t items_per_group = n_samples * columns_per_group;
       auto n_blocks = common::DivRoundUp(items_per_group, Policy::kTileSize);
       CHECK_GT(n_blocks, 0);  // at least one block for each node.
@@ -668,13 +691,14 @@ struct MtHistKernel {
   template <bool kDense, bool kCompressed, typename Accessor, typename RidxIterSpan>
   void DispatchHistShmem(Context const* ctx, Accessor const& matrix,
                          FeatureGroupsAccessor const& feature_groups,
-                         linalg::MatrixView<GradientPair const> gpair, RidxIterSpan* ridx_iters,
+                         linalg::MatrixView<GradientPairInt64 const> gpair,
+                         RidxIterSpan* ridx_iters,
                          common::Span<common::Span<GradientPairInt64>> hists,
-                         std::vector<std::size_t> const& h_sizes_csum,
-                         common::Span<GradientQuantiser const> roundings) {
+                         std::vector<std::size_t> const& h_sizes_csum) {
+    auto d_gpair = gpair.Values().data();
     auto n_targets = gpair.Shape(1);
 
-    std::size_t shmem_bytes = feature_groups.ShmemSize(n_targets);
+    std::size_t shmem_bytes = feature_groups.ShmemSize();
     bool use_shared = !force_global && shmem_bytes <= this->max_shared_bytes;
     shmem_bytes = use_shared ? shmem_bytes : 0;
 
@@ -683,15 +707,15 @@ struct MtHistKernel {
       using Policy = common::GetValueT<decltype(policy)>;
       int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
       CHECK_GT(v.n_blocks_per_mp, 0);
+      // fixme: experiment with one block per target.
       std::uint32_t n_blocks = 0;
       auto blk_ptr = AllocateBlocks<Policy>(h_sizes_csum, columns_per_group,
                                             v.n_blocks_per_mp * n_mps, &n_blocks);
       CHECK_GE(n_blocks, hists.size());
       dim3 conf(n_blocks, feature_groups.NumGroups());
-      CHECK(gpair.CContiguous());
       kernel<<<conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream()>>>(
-          matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(),
-          gpair.Values().data(), gpair.Shape(1), roundings.data());
+          matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(), d_gpair,
+          gpair.Shape(0), n_targets);
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
@@ -706,7 +730,7 @@ struct MtHistKernel {
         this->cfg[reinterpret_cast<void*>(kernel)] = v;
       }
     };
-
+    CHECK(gpair.FContiguous());
     if (use_shared) {
       DispatchCudaSm(ctx->Ordinal(), [&](auto arch) {
         using Arch = common::GetValueT<decltype(arch)>;
@@ -794,11 +818,11 @@ class DeviceHistogramDispatchAccessor {
       CHECK_EQ(this->kernel_->smem_size, 0);
       if (matrix.IsDense()) {
         CHECK(this->kernel_->force_global ||
-              (feature_groups.ShmemSize(1) >= this->kernel_->max_shared_memory));
+              (feature_groups.ShmemSize() >= this->kernel_->max_shared_memory));
         launcher(this->kernel_->global_dense_kernel, this->kernel_->grid_sizes[K::kGlobalDense]);
       } else if (matrix.IsDenseCompressed()) {
         CHECK(this->kernel_->force_global ||
-              (feature_groups.ShmemSize(1) >= this->kernel_->max_shared_memory));
+              (feature_groups.ShmemSize() >= this->kernel_->max_shared_memory));
         launcher(this->kernel_->global_compr_kernel, this->kernel_->grid_sizes[K::kGlobalCompr]);
       } else {
         // Sparse
@@ -820,11 +844,10 @@ class DeviceHistogramDispatchAccessor {
 
   void BuildHistogram(Context const* ctx, Accessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
-                      linalg::MatrixView<GradientPair const> gpair,
+                      linalg::MatrixView<GradientPairInt64 const> gpair,
                       common::Span<common::Span<cuda_impl::RowIndexT const>> ridxs,
                       common::Span<common::Span<GradientPairInt64>> hists,
-                      std::vector<std::size_t> const& h_sizes_csum,
-                      common::Span<GradientQuantiser const> roundings) {
+                      std::vector<std::size_t> const& h_sizes_csum) {
     std::size_t n_total_samples = h_sizes_csum.back();
     if (ridxs.size() == 1 && n_total_samples == matrix.n_rows) {
       // Special optimization for the root node.
@@ -835,11 +858,11 @@ class DeviceHistogramDispatchAccessor {
           matrix.n_rows};
       dh::caching_device_vector<common::IterSpan<RidxIter>> ridx_iters(hists.size(), iter);
       this->mt_kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx_iters.data().get(), hists,
-                                 h_sizes_csum, roundings);
+                                 h_sizes_csum);
     } else {
       using RidxIter = cuda_impl::RowIndexT const;
       this->mt_kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridxs.data(), hists,
-                                 h_sizes_csum, roundings);
+                                 h_sizes_csum);
     }
   }
 };
@@ -900,14 +923,14 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx, EllpackAccessor 
 
 void DeviceHistogramBuilder::BuildHistogram(
     Context const* ctx, EllpackAccessor const& matrix, FeatureGroupsAccessor const& feature_groups,
-    linalg::MatrixView<GradientPair const> gpair,
+    linalg::MatrixView<GradientPairInt64 const> gpair,
     common::Span<common::Span<cuda_impl::RowIndexT const>> ridxs,
     common::Span<common::Span<GradientPairInt64>> hists,
-    std::vector<std::size_t> const& h_sizes_csum, common::Span<GradientQuantiser const> roundings) {
+    std::vector<std::size_t> const& h_sizes_csum) {
   std::visit(
       [&](auto&& matrix) {
         this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridxs, hists,
-                                      h_sizes_csum, roundings);
+                                      h_sizes_csum);
       },
       matrix);
 }

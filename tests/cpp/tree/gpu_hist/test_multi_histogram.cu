@@ -42,8 +42,8 @@ class MultiHistTest
     this->page = MakeEllpackForTest(&ctx, n_samples, n_features, n_bins);
     this->cuts = page->CutsShared();
 
-    this->p_fg = std::make_unique<FeatureGroups>(*cuts, this->n_targets, true,
-                                                 DftHistSharedMemoryBytes(ctx.Ordinal()));
+    this->p_fg =
+        std::make_unique<FeatureGroups>(*cuts, true, DftHistSharedMemoryBytes(ctx.Ordinal()));
 
     bst_bin_t n_total_bins = n_targets * n_features * n_bins;
     auto fg_acc = p_fg->DeviceAccessor(ctx.Device());
@@ -64,10 +64,13 @@ class MultiHistTest
     auto ridxs = dh::device_vector<common::Span<std::uint32_t const>>{dh::ToSpan(ridx)};
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{node_hist};
     auto sizes_cum = std::vector<std::size_t>{0, ridx.size()};
-    this->histogram.BuildHistogram(&this->ctx, page->GetDeviceEllpack(&ctx, {}),
-                                   p_fg->DeviceAccessor(ctx.Device()),
-                                   this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
-                                   dh::ToSpan(hists), sizes_cum, dh::ToSpan(this->quantizers));
+
+    linalg::Matrix<GradientPairInt64> gpairs_i64;
+    CalcQuantizedGpairs(&this->ctx, &this->gpairs, dh::ToSpan(this->quantizers), &gpairs_i64);
+
+    this->histogram.BuildHistogram(
+        &this->ctx, page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
+        gpairs_i64.View(this->ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists), sizes_cum);
 
     auto d_hist = this->node_hist;
     std::vector<GradientPairInt64> h_hist(d_hist.size());
@@ -90,10 +93,13 @@ class MultiHistTest
     this->histogram.AllocateHistograms(&ctx, {1, 2});
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{
         this->histogram.GetNodeHistogram(1), this->histogram.GetNodeHistogram(2)};
-    this->histogram.BuildHistogram(&this->ctx, page->GetDeviceEllpack(&ctx, {}),
-                                   p_fg->DeviceAccessor(ctx.Device()),
-                                   this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
-                                   dh::ToSpan(hists), sizes_cum, dh::ToSpan(this->quantizers));
+
+    linalg::Matrix<GradientPairInt64> gpairs_i64;
+    CalcQuantizedGpairs(&this->ctx, &this->gpairs, dh::ToSpan(this->quantizers), &gpairs_i64);
+
+    this->histogram.BuildHistogram(
+        &this->ctx, page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
+        gpairs_i64.View(this->ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists), sizes_cum);
 
     auto d_hist_1 = this->histogram.GetNodeHistogram(1);
     auto d_hist_2 = this->histogram.GetNodeHistogram(2);
