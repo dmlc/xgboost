@@ -2,8 +2,10 @@
  * Copyright 2020-2025, XGBoost Contributors
  */
 #pragma once
+#include <thrust/copy.h>  // for copy_n
+
 #include "../../common/cuda_context.cuh"    // for CUDAContext
-#include "../../common/device_helpers.cuh"  // for ToSpan
+#include "../../common/device_helpers.cuh"  // for ToSpan, MakeIndexTransformIter
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../common/linalg_op.cuh"       // for tbegin
 #include "xgboost/base.h"                   // for GradientPairPrecise, GradientPairInt64
@@ -69,13 +71,11 @@ inline void CalcQuantizedGpairs(Context const* ctx, linalg::Matrix<GradientPair>
   auto in_gpair = gpairs->View(ctx->Device());
   auto out_gpair = p_out->View(ctx->Device());
   CHECK(out_gpair.FContiguous());
-  auto it =
-      thrust::make_zip_iterator(thrust::make_counting_iterator(0ul), linalg::tcbegin(in_gpair));
-  thrust::transform(ctx->CUDACtx()->CTP(), it, it + in_gpair.Size(), linalg::tbegin(out_gpair),
-                    [=] XGBOOST_DEVICE(cuda::std::tuple<std::size_t, GradientPair> const& tup) {
-                      auto [i, v] = tup;
-                      auto target_idx = i % in_gpair.Shape(1);
-                      return roundings[target_idx].ToFixedPoint(v);
-                    });
+  auto it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
+    auto [ridx, target_idx] = linalg::UnravelIndex(i, in_gpair.Shape());
+    auto g = in_gpair(ridx, target_idx);
+    return roundings[target_idx].ToFixedPoint(g);
+  });
+  thrust::copy_n(ctx->CUDACtx()->CTP(), it, in_gpair.Size(), linalg::tbegin(out_gpair));
 }
 }  // namespace xgboost::tree
