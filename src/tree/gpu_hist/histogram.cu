@@ -132,6 +132,27 @@ MultiGradientQuantiser::MultiGradientQuantiser(Context const* ctx,
   this->quantizers_ = h_quantizers;
 }
 
+void CalcQuantizedGpairs(Context const* ctx, linalg::Matrix<GradientPair>* const gpairs,
+                         common::Span<GradientQuantiser const> roundings,
+                         linalg::Matrix<GradientPairInt64>* p_out) {
+  auto shape = gpairs->Shape();
+  if (p_out->Empty()) {
+    *p_out = linalg::Matrix<GradientPairInt64>{shape, ctx->Device(), linalg::kF};
+  } else {
+    p_out->Reshape(shape);
+  }
+
+  auto in_gpair = gpairs->View(ctx->Device());
+  auto out_gpair = p_out->View(ctx->Device());
+  CHECK(out_gpair.FContiguous());
+  auto it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
+    auto [ridx, target_idx] = linalg::UnravelIndex(i, in_gpair.Shape());
+    auto g = in_gpair(ridx, target_idx);
+    return roundings[target_idx].ToFixedPoint(g);
+  });
+  thrust::copy_n(ctx->CUDACtx()->CTP(), it, in_gpair.Size(), linalg::tbegin(out_gpair));
+}
+
 XGBOOST_DEV_INLINE void AtomicAddGpairShared(xgboost::GradientPairInt64* dest,
                                              xgboost::GradientPairInt64 const& gpair) {
   auto dst_ptr = reinterpret_cast<int64_t*>(dest);
