@@ -4,10 +4,8 @@
 #pragma once
 #include <thrust/copy.h>  // for copy_n
 
-#include "../../common/cuda_context.cuh"    // for CUDAContext
-#include "../../common/device_helpers.cuh"  // for ToSpan, MakeIndexTransformIter
+#include "../../common/device_helpers.cuh"  // for ToSpan
 #include "../../common/device_vector.cuh"   // for device_vector
-#include "../../common/linalg_op.cuh"       // for tbegin
 #include "xgboost/base.h"                   // for GradientPairPrecise, GradientPairInt64
 #include "xgboost/context.h"                // for Context
 #include "xgboost/data.h"                   // for MetaInfo

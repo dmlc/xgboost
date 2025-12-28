@@ -7,7 +7,8 @@
 #include <cstdint>  // uint32_t, int32_t
 
 #include "../../collective/aggregator.h"
-#include "../../common/cuda_rt_utils.h"  // for GetMpCnt
+#include "../../common/cuda_context.cuh"  // for CUDAContext
+#include "../../common/cuda_rt_utils.h"   // for GetMpCnt
 #include "../../common/deterministic.cuh"
 #include "../../common/device_helpers.cuh"
 #include "../../common/linalg_op.cuh"  // for tbegin
