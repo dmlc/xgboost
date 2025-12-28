@@ -77,6 +77,8 @@ struct ScanHistogramAgent {
 };
 }  // namespace
 
+// The scan kernel reads from target-major histogram layout and writes the bin-major scan
+// buffer. This helps us keep a reference to the bin in the split candidate.
 template <std::int32_t kBlockThreads>
 __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
@@ -212,9 +214,7 @@ struct EvaluateSplitAgent {
 
 // Find the best split based on the scan result
 //
-// The scan buffer has a bin-major layout, instead of the target-major layout used by the
-// histogram kernel and the scan kernel. This helps us keep a reference to the bin in the
-// split candidate.
+// The scan buffer has a bin-major layout.
 template <std::int32_t kBlockThreads>
 __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
