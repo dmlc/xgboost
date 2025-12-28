@@ -1,6 +1,7 @@
 /**
  * Copyright 2020-2025, XGBoost Contributors
  */
+#include <thrust/copy.h>                         // for copy_n
 #include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
 
 #include <algorithm>
@@ -14,6 +15,7 @@
 #include "../../common/linalg_op.cuh"  // for tbegin
 #include "../../data/ellpack_page.cuh"
 #include "histogram.cuh"
+#include "quantiser.cuh"
 #include "row_partitioner.cuh"
 #include "xgboost/base.h"
 

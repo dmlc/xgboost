@@ -2,8 +2,6 @@
  * Copyright 2020-2025, XGBoost Contributors
  */
 #pragma once
-#include <thrust/copy.h>  // for copy_n
-
 #include "../../common/device_helpers.cuh"  // for ToSpan
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "xgboost/base.h"                   // for GradientPairPrecise, GradientPairInt64
