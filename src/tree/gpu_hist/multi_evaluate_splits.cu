@@ -477,28 +477,4 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
                 }
               });
 }
-
-std::ostream &DebugPrintHistogram(std::ostream &os, common::Span<GradientPairInt64 const> node_hist,
-                                  common::Span<GradientQuantiser const> roundings,
-                                  bst_target_t n_targets) {
-  std::vector<GradientQuantiser> h_roundings;
-  thrust::copy(dh::tcbegin(roundings), dh::tcend(roundings), std::back_inserter(h_roundings));
-  dh::CopyDeviceSpanToVector(&h_roundings, roundings);
-
-  std::vector<GradientPairInt64> h_node_hist(node_hist.size());
-  dh::CopyDeviceSpanToVector(&h_node_hist, node_hist);
-  auto h_s_node_hist = common::Span{h_node_hist};
-  std::size_t n_bins_per_target = h_node_hist.size() / n_targets;
-
-  for (bst_target_t t = 0; t < n_targets; ++t) {
-    os << "Target:" << t << std::endl;
-
-    auto target_bins = h_s_node_hist.subspan(n_bins_per_target * t, n_bins_per_target);
-    for (std::size_t i = 0; i < n_bins_per_target; ++i) {
-      os << h_roundings[t].ToFloatingPoint(target_bins[i]) << ", ";
-    }
-    os << std::endl;
-  }
-  return os;
-}
 }  // namespace xgboost::tree::cuda_impl

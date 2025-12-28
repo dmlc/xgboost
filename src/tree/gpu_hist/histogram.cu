@@ -393,7 +393,7 @@ __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT
 
 // Build the histogram for a single target in a single node.
 template <typename Policy, typename Accessor, typename RidxIterSpan>
-__device__ void HistKernelOneNodeTarget(Accessor const matrix, FeatureGroup const& group,
+__device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup const& group,
                                         RidxIterSpan d_ridx_iter,
                                         GradientPairInt64 const* XGBOOST_RESTRICT gpair,
                                         GradientPairInt64* smem_hist, GradientPairInt64* gmem_hist,
