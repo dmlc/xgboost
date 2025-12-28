@@ -507,9 +507,9 @@ __global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) vo
 
   FeatureGroup group = feature_groups[blockIdx.y];
 
-  // This might not be the most efficient way to write a CUDA kernel as we need to load
-  // the data multiple times (n_targets). However, with a target-major layout, we don't
-  // have to pack the histogram for all targets into the shared memory.
+  // With a target-major layout, we don't have to pack the histogram for all targets into
+  // the shared memory. Since we launch one block for each target, the histogram index can
+  // be shared in L2.
   auto gmem_hist = d_node_hist->data() + target_idx * n_bins_per_target;
   auto t_gpair = d_gpair + n_samples * target_idx;
   HistKernelOneNodeTarget<Policy>(matrix, group, d_ridx_iters[nidx_in_set], t_gpair, smem_hist,
@@ -709,7 +709,6 @@ struct MtHistKernel {
       using Policy = common::GetValueT<decltype(policy)>;
       int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
       CHECK_GT(v.n_blocks_per_mp, 0);
-      // fixme: experiment with one block per target.
       std::uint32_t n_blocks = 0;
       auto blk_ptr = AllocateBlocks<Policy>(h_sizes_csum, columns_per_group,
                                             v.n_blocks_per_mp * n_mps, n_targets, &n_blocks);
