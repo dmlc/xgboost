@@ -388,12 +388,6 @@ void DispatchCudaSm(std::int32_t device, Fn&& fn) {
   }
 }
 
-__device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT gpairs) {
-  static_assert(sizeof(int4) == sizeof(GradientPairInt64));
-  auto g = *reinterpret_cast<int4 const*>(gpairs);
-  return *reinterpret_cast<GradientPairInt64*>(&g);
-}
-
 // Build the histogram for a single target in a single node.
 template <typename Policy, typename Accessor, typename RidxIterSpan>
 __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup const& group,
@@ -438,7 +432,7 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
 
     bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
     if (Policy::kDense || compressed_bin != matrix.NullValue()) {
-      auto g = LoadGpair(gpair + ridx);
+      auto g = gpair[ridx];
       if constexpr (Policy::kCompressed) {
         compressed_bin += matrix.feature_segments[fidx];
       }
