@@ -535,7 +535,9 @@ class QuantileHistMaker : public TreeUpdater {
 
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
-      CHECK(param->monotone_constraints.empty()) << "monotone constraint" << MTNotImplemented();
+      CHECK(param->monotone_constraints.empty()) << "Monotone constraint" << MTNotImplemented();
+      CHECK(param->interaction_constraints.empty())
+          << "Interaction constraint" << MTNotImplemented();
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(
             ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, task_, &monitor_);
