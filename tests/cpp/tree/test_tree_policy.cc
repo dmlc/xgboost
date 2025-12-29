@@ -19,7 +19,7 @@ class TestGrowPolicy : public ::testing::Test {
   float sparsity_ = 0.5;
 
  protected:
-  std::unique_ptr<Learner> TrainOneIter(Context const* ctx, std::uint32_t n_targets,
+  std::unique_ptr<Learner> TrainOneIter(Context const* ctx, bst_target_t n_targets,
                                         std::string tree_method, std::string policy,
                                         bst_node_t max_leaves, bst_node_t max_depth) {
     auto Xy =
@@ -67,7 +67,7 @@ class TestGrowPolicy : public ::testing::Test {
     };
 
     if (max_leaves == 0 && max_depth == 0) {
-      // unconstrainted
+      // unconstrained
       if (ctx->IsCPU()) {
         // GPU pre-allocates for all nodes.
         learner->UpdateOneIter(0, Xy);
