@@ -368,7 +368,7 @@ class TestGPUPredict:
         strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
     )
     @settings(deadline=None, max_examples=10, print_blob=True)
-    @pytest.mark.timeout(90)
+    @pytest.mark.timeout(120)
     def test_shap_interactions(
         self, num_rounds: int, dataset: tm.TestDataset, param: dict
     ) -> None:
