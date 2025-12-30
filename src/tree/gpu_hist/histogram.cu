@@ -408,8 +408,6 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
   Idx const ridx_size = d_ridx_iter.size();
   auto const d_ridx = d_ridx_iter.data();
 
-  extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
-
   if constexpr (Policy::kSharedMem) {
     dh::BlockFill(smem_hist, group.num_bins, GradientPairInt64{});
     __syncthreads();
@@ -517,7 +515,8 @@ __global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) vo
   auto d_node_hist = node_hists + nidx_in_set;
   auto const n_bins_per_target = d_node_hist->size() / n_targets;
 
-  auto n_blks = p_blk_ptr[nidx_in_set + 1] - p_blk_ptr[nidx_in_set];
+  // The number of blocks in this sub-grid
+  auto n_blks = p_blk_ptr[nidx_in_set + 1] - starting_blk;
   auto blkid_in_set = blockIdx.x - starting_blk;
 
   // unravel_index(blkdid_in_set, {n_blocks_one_node_target, n_targets})
