@@ -78,7 +78,8 @@ class DMatrixCache {
       auto p_fmat = queue_.front();
       auto it = container_.find(p_fmat);
       CHECK(it != container_.cend());
-      if (it->second.ref.expired()) {
+      // Re-new the cache if this has never been read.
+      if (it->second.ref.expired() || !it->second.ref.lock()->Info().HasBeenRead()) {
         expired.push_back(it->first);
       } else {
         remained.push(it->first);
@@ -101,7 +102,7 @@ class DMatrixCache {
 
   void ClearExcess() {
     this->CheckConsistent();
-    // clear half of the entries to prevent repeatingly clearing cache.
+    // clear half of the entries to prevent repeatedly clearing cache.
     std::size_t half_size = max_size_ / 2;
     while (queue_.size() >= half_size && !queue_.empty()) {
       auto p_fmat = queue_.front();
