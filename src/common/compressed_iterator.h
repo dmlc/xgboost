@@ -39,6 +39,7 @@ inline XGBOOST_DEVICE std::uint32_t SymbolBits(std::size_t n_symbols) {
   return common::Max(bits, std::uint32_t{1});
 }
 
+// The alignment is assumed to be power of 2.
 template <typename T>
 XGBOOST_HOST_DEV_INLINE CompressedByteT const *AlignDown(T const *ptr, std::uint32_t alignment) {
   return reinterpret_cast<CompressedByteT const *>(reinterpret_cast<std::uintptr_t>(ptr) &
@@ -50,6 +51,7 @@ struct PaddedPtr {
   std::int32_t head_padding;
 };
 
+// Create an aligned pointer with head padding.
 template <typename T>
 XGBOOST_DEVICE auto MakePaddedPtr(T const *XGBOOST_RESTRICT ptr, std::uint32_t alignment) {
   auto base = AlignDown(ptr, alignment);
@@ -57,7 +59,8 @@ XGBOOST_DEVICE auto MakePaddedPtr(T const *XGBOOST_RESTRICT ptr, std::uint32_t a
       base, static_cast<std::int32_t>(reinterpret_cast<CompressedByteT const *>(ptr) - base)};
 }
 
-// Vector load, load a single 64-bit unsigned integer with 2 32-bit loads.
+// Vector load, load a single 64-bit unsigned integer with 2 32-bit loads. Input ptr must
+// be correctly aligned first.
 template <typename T>
 XGBOOST_DEVICE [[nodiscard]] std::uint64_t Load64u(T const *XGBOOST_RESTRICT ptr) {
 #if defined(__clang__)
