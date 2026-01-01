@@ -132,7 +132,7 @@ struct GPUHistMakerDevice {
 
   dh::device_vector<int> monotone_constraints;
 
-  TrainParam const param;
+  TrainParam const* param;
 
   std::unique_ptr<GradientQuantiser> quantiser;
 
@@ -145,11 +145,11 @@ struct GPUHistMakerDevice {
 
   common::Monitor monitor;
 
-  GPUHistMakerDevice(Context const* ctx, TrainParam _param, HistMakerTrainParam const* hist_param,
+  GPUHistMakerDevice(Context const* ctx, TrainParam const* _param, HistMakerTrainParam const* hist_param,
                      std::shared_ptr<common::ColumnSampler> column_sampler, BatchParam batch_param,
                      MetaInfo const& info, std::vector<bst_idx_t> batch_ptr,
                      std::shared_ptr<common::HistogramCuts const> cuts, bool dense_compressed)
-      : evaluator_{_param, static_cast<bst_feature_t>(info.num_col_), ctx->Device()},
+      : evaluator_{*_param, static_cast<bst_feature_t>(info.num_col_), ctx->Device()},
         ctx_{ctx},
         column_sampler_{std::move(column_sampler)},
         batch_ptr_{std::move(batch_ptr)},
@@ -157,13 +157,13 @@ struct GPUHistMakerDevice {
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         dh::MaxSharedMemoryOptin(ctx_->Ordinal()))},
-        param{std::move(_param)},
-        interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
+        param{_param},
+        interaction_constraints(*param, static_cast<bst_feature_t>(info.num_col_)),
         sampler{std::make_unique<GradientBasedSampler>(ctx, info.num_row_, batch_param,
-                                                       param.subsample, param.sampling_method)} {
-    if (!param.monotone_constraints.empty()) {
+                                                       param->subsample, param->sampling_method)} {
+    if (!param->monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
-      monotone_constraints = param.monotone_constraints;
+      monotone_constraints = param->monotone_constraints;
     }
 
     CHECK(column_sampler_);
@@ -197,11 +197,11 @@ struct GPUHistMakerDevice {
     /**
      * Initialize the evaluator
      */
-    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param.colsample_bynode,
-                                param.colsample_bylevel, param.colsample_bytree);
+    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param->colsample_bynode,
+                                param->colsample_bylevel, param->colsample_bytree);
     this->interaction_constraints.Reset(ctx_);
     this->evaluator_.Reset(this->ctx_, *cuts_, info.feature_types.ConstDeviceSpan(), info.num_col_,
-                           this->param, info.IsColumnSplit());
+                           *this->param, info.IsColumnSplit());
 
     /**
      * Other initializations
@@ -218,7 +218,7 @@ struct GPUHistMakerDevice {
 
   GPUExpandEntry EvaluateRootSplit(DMatrix const* p_fmat, GradientPairInt64 root_sum) {
     bst_node_t nidx = RegTree::kRoot;
-    GPUTrainingParam gpu_param(param);
+    GPUTrainingParam gpu_param(*param);
     auto sampled_features = column_sampler_->GetFeatureSet(0);
     sampled_features->SetDevice(ctx_->Device());
     common::Span<bst_feature_t> feature_set =
@@ -246,7 +246,7 @@ struct GPUHistMakerDevice {
     std::vector<bst_node_t> nidx(2 * candidates.size());
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     EvaluateSplitSharedInputs shared_inputs{
-        GPUTrainingParam{param}, *quantiser, p_fmat->Info().feature_types.ConstDeviceSpan(),
+        GPUTrainingParam{*param}, *quantiser, p_fmat->Info().feature_types.ConstDeviceSpan(),
         cuts_->cut_ptrs_.ConstDeviceSpan(), cuts_->cut_values_.ConstDeviceSpan(),
         cuts_->min_vals_.ConstDeviceSpan(),
         // is_dense represents the local data
@@ -638,8 +638,8 @@ struct GPUHistMakerDevice {
     }
 
     auto base_weight = candidate.base_weight;
-    auto left_weight = candidate.left_weight * param.learning_rate;
-    auto right_weight = candidate.right_weight * param.learning_rate;
+    auto left_weight = candidate.left_weight * param->learning_rate;
+    auto right_weight = candidate.right_weight * param->learning_rate;
     auto parent_hess =
         quantiser->ToFloatingPoint(candidate.split.left_sum + candidate.split.right_sum).GetHess();
     auto left_hess = quantiser->ToFloatingPoint(candidate.split.left_sum).GetHess();
@@ -702,9 +702,9 @@ struct GPUHistMakerDevice {
     // Remember root stats
     auto root_sum = quantiser.ToFloatingPoint(root_sum_quantised);
     p_tree->Stat(kRootNIdx).sum_hess = root_sum.GetHess();
-    auto weight = CalcWeight(param, root_sum);
+    auto weight = CalcWeight(*param, root_sum);
     p_tree->Stat(kRootNIdx).base_weight = weight;
-    (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
+    (*p_tree)[kRootNIdx].SetLeaf(param->learning_rate * weight);
 
     // Generate first split
     auto root_entry = this->EvaluateRootSplit(p_fmat, root_sum_quantised);
@@ -715,7 +715,7 @@ struct GPUHistMakerDevice {
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, RegTree* p_tree,
                   HostDeviceVector<bst_node_t>* p_out_position) {
-    Driver<GPUExpandEntry> driver{param, cuda_impl::kMaxNodeBatchSize};
+    Driver<GPUExpandEntry> driver{*param, cuda_impl::kMaxNodeBatchSize};
 
     p_fmat = this->Reset(gpair_all, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
@@ -839,7 +839,7 @@ class GPUHistMaker : public TreeUpdater {
     auto batch = HistBatch(*param);
     auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
 
-    this->p_scimpl_ = std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_,
+    this->p_scimpl_ = std::make_unique<GPUHistMakerDevice>(ctx_, param, &hist_maker_param_,
                                                            column_sampler_, batch, p_fmat->Info(),
                                                            batch_ptr, cuts, dense_compressed);
     this->p_mtimpl_ = std::make_unique<cuda_impl::MultiTargetHistMaker>(
@@ -959,7 +959,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
     batch.regen = false;  // Regen only at the beginning of the iteration.
 
-    this->maker_ = std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_,
+    this->maker_ = std::make_unique<GPUHistMakerDevice>(ctx_, param, &hist_maker_param_,
                                                         column_sampler_, batch, p_fmat->Info(),
                                                         batch_ptr, cuts, dense_compressed);
 
