@@ -25,9 +25,9 @@
 #include "../common/hist_util.h"        // for HistogramCuts
 #include "../common/random.h"           // for ColumnSampler, GlobalRandom
 #include "../common/timer.h"
-#include "../data/batch_utils.h"  // for StaticBatch
-#include "../data/ellpack_page.cuh"
-#include "../data/ellpack_page.h"
+#include "../data/batch_utils.h"     // for StaticBatch
+#include "../data/ellpack_page.cuh"  // for EllpackPageImpl
+#include "../data/ellpack_page.h"    // for EllpackPage
 #include "constraints.cuh"
 #include "driver.h"
 #include "gpu_hist/evaluate_splits.cuh"
@@ -125,9 +125,7 @@ struct GPUHistMakerDevice {
   }
 
  public:
-  dh::device_vector<GradientPair> d_gpair;  // storage for gpair;
-  common::Span<GradientPair const> gpair;
-
+  linalg::Matrix<GradientPairInt64> d_gpair;  // storage for gpair;
   dh::device_vector<int> monotone_constraints;
 
   TrainParam const param;
@@ -153,8 +151,8 @@ struct GPUHistMakerDevice {
         batch_ptr_{std::move(batch_ptr)},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
-        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
-                                                        dh::MaxSharedMemoryOptin(ctx_->Ordinal()))},
+        feature_groups_{std::make_unique<FeatureGroups>(
+            *cuts_, dense_compressed, DftStHistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
         sampler{std::make_unique<GradientBasedSampler>(ctx, info.num_row_, batch_param,
@@ -177,20 +175,24 @@ struct GPUHistMakerDevice {
 
     auto const& info = p_fmat->Info();
 
+    this->quantiser = std::make_unique<GradientQuantiser>(
+        ctx_, linalg::MakeVec(this->ctx_->Device(), dh_gpair->ConstDeviceSpan()), p_fmat->Info());
+    auto gpair =
+        linalg::MakeTensorView(this->ctx_, dh_gpair->ConstDeviceSpan(), dh_gpair->Size(), 1);
+    dh::caching_device_vector<GradientQuantiser> dq{*this->quantiser};
+    CalcQuantizedGpairs(this->ctx_, gpair, dh::ToSpan(dq), &this->d_gpair);
+
     /**
      * Sampling
      */
-    dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair, ctx_->CUDACtx()->Stream());
-    auto sample = this->sampler->Sample(ctx_, dh::ToSpan(d_gpair), p_fmat);
-    this->gpair = sample.gpair;
-    p_fmat = sample.p_fmat;
+    auto gpairs = this->d_gpair.View(this->ctx_->Device()).Slice(linalg::All(), 0);
+    this->sampler->Sample(ctx_, gpairs, *this->quantiser, p_fmat);
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
     /**
      * Initialize the partitioners
      */
-    std::vector<bst_idx_t> batch_ptr{this->batch_ptr_};
-    this->partitioners_.Reset(this->ctx_, batch_ptr);
+    this->partitioners_.Reset(this->ctx_, this->batch_ptr_);
 
     /**
      * Initialize the evaluator
@@ -204,12 +206,8 @@ struct GPUHistMakerDevice {
     /**
      * Other initializations
      */
-    this->quantiser = std::make_unique<GradientQuantiser>(
-        ctx_, linalg::MakeVec(this->ctx_->Device(), this->gpair), p_fmat->Info());
-
     this->histogram_.Reset(ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
-                           feature_groups_->DeviceAccessor(ctx_->Device()), cuts_->TotalBins(),
-                           false);
+                           cuts_->TotalBins(), false);
     this->monitor.Stop(__func__);
     return p_fmat;
   }
@@ -293,8 +291,9 @@ struct GPUHistMakerDevice {
     auto d_node_hist = histogram_.GetNodeHistogram(nidx);
     auto d_ridx = partitioners_.At(k)->GetRows(nidx);
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
+    auto gpair = d_gpair.View(this->ctx_->Device());
     this->histogram_.BuildHistogram(ctx_, acc, feature_groups_->DeviceAccessor(ctx_->Device()),
-                                    this->gpair, d_ridx, d_node_hist, *quantiser);
+                                    gpair.Values(), d_ridx, d_node_hist);
     monitor.Stop(__func__);
   }
 
@@ -509,9 +508,9 @@ struct GPUHistMakerDevice {
   }
 
   struct EncodeOp {
-    common::Span<GradientPair const> d_gpair;
+    common::Span<GradientPairInt64 const> d_gpair;
     __device__ bst_node_t operator()(bst_idx_t ridx, bst_node_t nidx) const {
-      bool is_invalid = d_gpair[ridx].GetHess() - .0f == 0.f;
+      bool is_invalid = d_gpair[ridx].GetQuantisedHess() - .0f == 0.f;
       return SamplePosition::Encode(nidx, !is_invalid);
     }
   };
@@ -545,7 +544,7 @@ struct GPUHistMakerDevice {
     p_out_position->Resize(p_fmat->Info().num_row_);
     auto d_out_position = p_out_position->DeviceSpan();
 
-    auto d_gpair = this->gpair;
+    auto gpair = this->d_gpair.View(this->ctx_->Device()).Values();
 
     if (!p_fmat->SingleColBlock()) {
       for (std::size_t k = 0; k < partitioners_.Size(); ++k) {
@@ -554,7 +553,7 @@ struct GPUHistMakerDevice {
         auto base_ridx = batch_ptr_[k];
         auto n_samples = batch_ptr_.at(k + 1) - base_ridx;
         part->FinalisePosition(ctx_, d_out_position.subspan(base_ridx, n_samples), base_ridx,
-                               EncodeOp{d_gpair});
+                               EncodeOp{gpair});
       }
       return;
     }
@@ -585,7 +584,7 @@ struct GPUHistMakerDevice {
         partitioners_.Front()->FinalisePosition(
             ctx_, d_out_position, page.BaseRowId(),
             FinalizeOp<std::remove_reference_t<decltype(d_matrix)>>{s_split_data, go_left_op,
-                                                                    EncodeOp{d_gpair}});
+                                                                    EncodeOp{gpair}});
       });
     }
   }
@@ -668,12 +667,9 @@ struct GPUHistMakerDevice {
     this->monitor.Start(__func__);
 
     constexpr bst_node_t kRootNIdx = RegTree::kRoot;
-    auto quantiser = *this->quantiser;
-    auto gpair_it = dh::MakeTransformIterator<GradientPairInt64>(
-        dh::tbegin(this->gpair),
-        [=] __device__(auto const& gpair) { return quantiser.ToFixedPoint(gpair); });
+    auto gpair_it = linalg::tcbegin(this->d_gpair.View(this->ctx_->Device()));
     GradientPairInt64 root_sum_quantised =
-        dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + this->gpair.size(),
+        dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + this->d_gpair.Size(),
                    GradientPairInt64{}, cuda::std::plus<GradientPairInt64>{});
     using ReduceT = typename decltype(root_sum_quantised)::ValueT;
     auto rc = collective::GlobalSum(
@@ -690,7 +686,7 @@ struct GPUHistMakerDevice {
     this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), kRootNIdx, 1);
 
     // Remember root stats
-    auto root_sum = quantiser.ToFloatingPoint(root_sum_quantised);
+    auto root_sum = this->quantiser->ToFloatingPoint(root_sum_quantised);
     p_tree->Stat(kRootNIdx).sum_hess = root_sum.GetHess();
     auto weight = CalcWeight(param, root_sum);
     p_tree->Stat(kRootNIdx).base_weight = weight;

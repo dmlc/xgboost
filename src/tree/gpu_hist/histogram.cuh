@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #pragma once
 
@@ -12,13 +12,19 @@
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
 #include "feature_groups.cuh"               // for FeatureGroupsAccessor
-#include "quantiser.cuh"                    // for GradientQuantiser
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
 #include "xgboost/context.h"                // for Context
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
-[[nodiscard]] inline std::size_t DftHistSharedMemoryBytes(std::int32_t device) {
+// Single-target shared memory policy
+[[nodiscard]] inline std::size_t DftStHistShmemBytes(std::int32_t device) {
+  auto optin = dh::MaxSharedMemoryOptin(device);
+  return std::min(optin, std::size_t{96} * 1024);
+}
+
+// Multi-target shared memory policy
+[[nodiscard]] inline std::size_t DftMtHistShmemBytes(std::int32_t device) {
   auto max_shared_optin = dh::MaxSharedMemoryOptin(device);
   auto max_shared = dh::MaxSharedMemory(device);
   // Use larger shared memory if available.
@@ -172,16 +178,14 @@ class DeviceHistogramBuilder {
   explicit DeviceHistogramBuilder();
   ~DeviceHistogramBuilder();
   // TODO(jiamingy): use a type larger than bst_bin_t since we need to support multi-target.
-  void Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
-             FeatureGroupsAccessor const& feature_groups, bst_bin_t n_total_bins,
+  void Reset(Context const* ctx, std::size_t max_cached_hist_nodes, bst_bin_t n_total_bins,
              bool force_global_memory);
-
+  // Build histogram for single target and single node.
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
-                      common::Span<GradientPair const> gpair,
-                      common::Span<const std::uint32_t> ridx,
-                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
-
+                      common::Span<GradientPairInt64 const> gpair,
+                      common::Span<std::uint32_t const> ridx,
+                      common::Span<GradientPairInt64> histogram);
   // Build histograms for multiple nodes and multiple targets
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,

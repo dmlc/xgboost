@@ -1,28 +1,22 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #pragma once
 #include <cstddef>  // for size_t
 
 #include "../../common/device_vector.cuh"  // for device_vector, caching_device_vector
 #include "../../common/timer.h"            // for Monitor
+#include "quantiser.cuh"                   // for GradientQuantiser
 #include "xgboost/base.h"                  // for GradientPair
 #include "xgboost/data.h"                  // for BatchParam
-#include "xgboost/span.h"                  // for Span
+#include "xgboost/linalg.h"                // for MatrixView
 
 namespace xgboost::tree {
-struct GradientBasedSample {
-  /** @brief Sampled rows in ELLPACK format. */
-  DMatrix* p_fmat;
-  /** @brief Gradient pairs for the sampled rows. */
-  common::Span<GradientPair const> gpair;
-};
-
 class SamplingStrategy {
  public:
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
-  virtual GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
-                                     DMatrix* dmat) = 0;
+  virtual void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
+                      GradientQuantiser const& rounding, DMatrix* dmat) = 0;
   virtual ~SamplingStrategy() = default;
 };
 
@@ -31,8 +25,8 @@ class SamplingStrategy {
  */
 class NoSampling : public SamplingStrategy {
  public:
-  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
-                             DMatrix* dmat) override;
+  void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
+              GradientQuantiser const& rounding, DMatrix* dmat) override;
 };
 
 /**
@@ -41,8 +35,8 @@ class NoSampling : public SamplingStrategy {
 class UniformSampling : public SamplingStrategy {
  public:
   UniformSampling(BatchParam batch_param, float subsample);
-  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
-                             DMatrix* dmat) override;
+  void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
+              GradientQuantiser const& rounding, DMatrix* dmat) override;
 
  private:
   BatchParam batch_param_;
@@ -53,14 +47,14 @@ class UniformSampling : public SamplingStrategy {
 class GradientBasedSampling : public SamplingStrategy {
  public:
   GradientBasedSampling(std::size_t n_rows, BatchParam batch_param, float subsample);
-  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
-                             DMatrix* dmat) override;
+  void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
+              GradientQuantiser const& rounding, DMatrix* dmat) override;
 
  private:
   BatchParam batch_param_;
   float subsample_;
-  dh::caching_device_vector<float> threshold_;
-  dh::caching_device_vector<float> grad_sum_;
+  dh::device_vector<float> threshold_;
+  dh::device_vector<float> grad_sum_;
 };
 
 /**
@@ -79,13 +73,9 @@ class GradientBasedSampler {
   GradientBasedSampler(Context const* ctx, size_t n_rows, const BatchParam& batch_param,
                        float subsample, int sampling_method);
 
-  /*! \brief Sample from a DMatrix based on the given gradient pairs. */
-  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair, DMatrix* dmat);
-
-  /*! \brief Calculate the threshold used to normalize sampling probabilities. */
-  static size_t CalculateThresholdIndex(Context const* ctx, common::Span<GradientPair> gpair,
-                                        common::Span<float> threshold, common::Span<float> grad_sum,
-                                        size_t sample_rows);
+  /** @brief Sample from a DMatrix based on the given gradient pairs. */
+  void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
+              GradientQuantiser const& rounding, DMatrix* dmat);
 
  private:
   common::Monitor monitor_;
