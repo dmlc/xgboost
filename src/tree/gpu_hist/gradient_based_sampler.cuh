@@ -4,11 +4,11 @@
 #pragma once
 #include <cstddef>  // for size_t
 
-#include "../../common/device_vector.cuh"  // for device_vector, caching_device_vector
-#include "../../common/timer.h"            // for Monitor
-#include "xgboost/base.h"                  // for GradientPair
-#include "xgboost/data.h"                  // for BatchParam
-#include "xgboost/span.h"                  // for Span
+#include "../../common/device_vector.cuh"   // for device_vector, caching_device_vector
+#include "../../common/timer.h"             // for Monitor
+#include "xgboost/base.h"                   // for GradientPair
+#include "xgboost/data.h"                   // for BatchParam
+#include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
 struct GradientBasedSample {
@@ -59,8 +59,8 @@ class GradientBasedSampling : public SamplingStrategy {
  private:
   BatchParam batch_param_;
   float subsample_;
-  dh::caching_device_vector<float> threshold_;
-  dh::caching_device_vector<float> grad_sum_;
+  dh::device_vector<float> threshold_;
+  dh::device_vector<float> grad_sum_;
 };
 
 /**
@@ -79,13 +79,9 @@ class GradientBasedSampler {
   GradientBasedSampler(Context const* ctx, size_t n_rows, const BatchParam& batch_param,
                        float subsample, int sampling_method);
 
-  /*! \brief Sample from a DMatrix based on the given gradient pairs. */
-  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair, DMatrix* dmat);
-
-  /*! \brief Calculate the threshold used to normalize sampling probabilities. */
-  static size_t CalculateThresholdIndex(Context const* ctx, common::Span<GradientPair> gpair,
-                                        common::Span<float> threshold, common::Span<float> grad_sum,
-                                        size_t sample_rows);
+  /** @brief Sample from a DMatrix based on the given gradient pairs. */
+  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
+                             DMatrix* dmat);
 
  private:
   common::Monitor monitor_;

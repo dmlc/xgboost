@@ -12,8 +12,8 @@
 #include "dummy_quantizer.cuh"  // for MakeDummyQuantizers
 
 namespace xgboost::tree::cuda_impl {
-class MultiHistTest
-    : public ::testing::TestWithParam<std::tuple<bst_idx_t, bst_feature_t, bst_target_t, bool>> {
+class MultiHistTest : public ::testing::TestWithParam<
+                          std::tuple<bst_idx_t, bst_feature_t, bst_target_t, bool, bool>> {
  public:
   Context ctx{MakeCUDACtx(0)};
 
@@ -36,8 +36,9 @@ class MultiHistTest
   dh::device_vector<GradientQuantiser> quantizers;
 
   void SetUp() override {
-    bool force_global = false;
-    std::tie(this->n_samples, this->n_features, this->n_targets, force_global) = this->GetParam();
+    bool force_global = false, cache_grad = false;
+    std::tie(this->n_samples, this->n_features, this->n_targets, force_global, cache_grad) =
+        this->GetParam();
 
     this->page = MakeEllpackForTest(&ctx, n_samples, n_features, n_bins);
     this->cuts = page->CutsShared();
@@ -45,19 +46,18 @@ class MultiHistTest
     this->p_fg =
         std::make_unique<FeatureGroups>(*cuts, true, DftHistSharedMemoryBytes(ctx.Ordinal()));
 
-    bst_bin_t n_total_bins = n_targets * n_features * n_bins;
-    auto fg_acc = p_fg->DeviceAccessor(ctx.Device());
-    this->histogram.Reset(&ctx, /*max_cached_hist_nodes=*/3, fg_acc, n_total_bins, force_global);
-
     this->gpairs = linalg::Constant(&ctx, GradientPair{1.0f, 1.0f}, n_samples, n_targets);
+    this->quantizers = MakeDummyQuantizers(n_targets);
+
+    bst_bin_t n_total_bins = n_targets * n_features * n_bins;
+    this->histogram.Reset(&ctx, /*max_cached_hist_nodes=*/3, n_total_bins, force_global, cache_grad,
+                          dh::ToSpan(quantizers), this->gpairs.View(ctx.Device()));
 
     this->ridx.resize(n_samples);
     thrust::sequence(ctx.CUDACtx()->CTP(), ridx.begin(), ridx.end(), 0);
 
     this->histogram.AllocateHistograms(&ctx, {0});
     this->node_hist = histogram.GetNodeHistogram(0);
-
-    this->quantizers = MakeDummyQuantizers(n_targets);
   }
 
   void TestMtBuild() {
@@ -65,12 +65,10 @@ class MultiHistTest
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{node_hist};
     auto sizes_cum = std::vector<std::size_t>{0, ridx.size()};
 
-    linalg::Matrix<GradientPairInt64> gpairs_i64;
-    CalcQuantizedGpairs(&this->ctx, &this->gpairs, dh::ToSpan(this->quantizers), &gpairs_i64);
-
-    this->histogram.BuildHistogram(
-        &this->ctx, page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
-        gpairs_i64.View(this->ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists), sizes_cum);
+    this->histogram.BuildHistogram(&this->ctx, page->GetDeviceEllpack(&ctx, {}),
+                                   p_fg->DeviceAccessor(ctx.Device()),
+                                   this->gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
+                                   dh::ToSpan(hists), sizes_cum, dh::ToSpan(this->quantizers));
 
     auto d_hist = this->node_hist;
     std::vector<GradientPairInt64> h_hist(d_hist.size());
@@ -94,12 +92,10 @@ class MultiHistTest
     auto hists = dh::device_vector<common::Span<GradientPairInt64>>{
         this->histogram.GetNodeHistogram(1), this->histogram.GetNodeHistogram(2)};
 
-    linalg::Matrix<GradientPairInt64> gpairs_i64;
-    CalcQuantizedGpairs(&this->ctx, &this->gpairs, dh::ToSpan(this->quantizers), &gpairs_i64);
-
-    this->histogram.BuildHistogram(
-        &this->ctx, page->GetDeviceEllpack(&ctx, {}), p_fg->DeviceAccessor(ctx.Device()),
-        gpairs_i64.View(this->ctx.Device()), dh::ToSpan(ridxs), dh::ToSpan(hists), sizes_cum);
+    this->histogram.BuildHistogram(&this->ctx, page->GetDeviceEllpack(&ctx, {}),
+                                   p_fg->DeviceAccessor(ctx.Device()),
+                                   gpairs.View(this->ctx.Device()), dh::ToSpan(ridxs),
+                                   dh::ToSpan(hists), sizes_cum, dh::ToSpan(this->quantizers));
 
     auto d_hist_1 = this->histogram.GetNodeHistogram(1);
     auto d_hist_2 = this->histogram.GetNodeHistogram(2);
@@ -127,9 +123,9 @@ TEST_P(MultiHistTest, Children) { this->TestMtChildrenBuild(); }
 namespace {
 std::string TestName(::testing::TestParamInfo<MultiHistTest::ParamType> const& info) {
   std::stringstream ss;
-  auto [n_samples, n_features, n_targets, global] = info.param;
+  auto [n_samples, n_features, n_targets, global, cache_grad] = info.param;
   ss << "n_samples_" << n_samples << "_n_features_" << n_features << "_n_targets_" << n_targets
-     << "_global_" << global;
+     << "_global_" << global << "_cache_" << cache_grad;
   return ss.str();
 }
 }  // namespace
@@ -137,12 +133,12 @@ std::string TestName(::testing::TestParamInfo<MultiHistTest::ParamType> const& i
 INSTANTIATE_TEST_SUITE_P(Basic, MultiHistTest,
                          ::testing::Combine(::testing::Values<bst_idx_t>(256, 1024, 8192),
                                             ::testing::Values(1, 128, 257),
-                                            ::testing::Values(1, 16), ::testing::Bool()),
+                                            ::testing::Values(1, 16), ::testing::Bool(), ::testing::Bool()),
                          TestName);
 
 INSTANTIATE_TEST_SUITE_P(Large, MultiHistTest,
                          ::testing::Combine(::testing::Values<bst_idx_t>((1ul << 21)),
                                             ::testing::Values(2), ::testing::Values(2),
-                                            ::testing::Bool()),
+                                            ::testing::Bool(), ::testing::Bool()),
                          TestName);
 }  // namespace xgboost::tree::cuda_impl

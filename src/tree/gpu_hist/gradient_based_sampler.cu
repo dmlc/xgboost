@@ -154,7 +154,8 @@ GradientBasedSample NoSampling::Sample(Context const*, common::Span<GradientPair
 UniformSampling::UniformSampling(BatchParam batch_param, float subsample)
     : batch_param_{std::move(batch_param)}, subsample_{subsample} {}
 
-GradientBasedSample UniformSampling::Sample(Context const* ctx, common::Span<GradientPair> gpair,
+GradientBasedSample UniformSampling::Sample(Context const* ctx,
+                                            common::Span<GradientPair> gpair,
                                             DMatrix* p_fmat) {
   // Set gradient pair to 0 with p = 1 - subsample
   auto cuctx = ctx->CUDACtx();
@@ -171,13 +172,33 @@ GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, BatchParam batc
       threshold_(n_rows + 1, 0.0f),
       grad_sum_(n_rows, 0.0f) {}
 
+/** @brief Calculate the threshold used to normalize sampling probabilities. */
+std::size_t CalculateThresholdIndex(Context const* ctx, common::Span<GradientPair const> gpair,
+                                    common::Span<float> threshold, common::Span<float> grad_sum,
+                                    size_t sample_rows) {
+  auto cuctx = ctx->CUDACtx();
+  thrust::fill(cuctx->CTP(), dh::tend(threshold) - 1, dh::tend(threshold),
+               std::numeric_limits<float>::max());
+  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), dh::tbegin(threshold),
+                    CombineGradientPair{});
+  thrust::sort(cuctx->TP(), dh::tbegin(threshold), dh::tend(threshold) - 1);
+  thrust::inclusive_scan(cuctx->CTP(), dh::tbegin(threshold), dh::tend(threshold) - 1,
+                         dh::tbegin(grad_sum));
+  thrust::transform(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum),
+                    thrust::counting_iterator<size_t>(0), dh::tbegin(grad_sum),
+                    SampleRateDelta(threshold, gpair.size(), sample_rows));
+  thrust::device_ptr<float> min =
+      thrust::min_element(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum));
+  return cuda::std::distance(dh::tbegin(grad_sum), min) + 1;
+}
+
 GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
                                                   common::Span<GradientPair> gpair,
                                                   DMatrix* p_fmat) {
   auto cuctx = ctx->CUDACtx();
   size_t n_rows = p_fmat->Info().num_row_;
-  size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
-      ctx, gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
+  size_t threshold_index = CalculateThresholdIndex(ctx, gpair, dh::ToSpan(threshold_),
+                                                   dh::ToSpan(grad_sum_), n_rows * subsample_);
 
   // Perform Poisson sampling in place.
   thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
@@ -221,26 +242,5 @@ GradientBasedSample GradientBasedSampler::Sample(Context const* ctx,
   GradientBasedSample sample = strategy_->Sample(ctx, gpair, dmat);
   monitor_.Stop(__func__);
   return sample;
-}
-
-size_t GradientBasedSampler::CalculateThresholdIndex(Context const* ctx,
-                                                     common::Span<GradientPair> gpair,
-                                                     common::Span<float> threshold,
-                                                     common::Span<float> grad_sum,
-                                                     size_t sample_rows) {
-  auto cuctx = ctx->CUDACtx();
-  thrust::fill(cuctx->CTP(), dh::tend(threshold) - 1, dh::tend(threshold),
-               std::numeric_limits<float>::max());
-  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), dh::tbegin(threshold),
-                    CombineGradientPair{});
-  thrust::sort(cuctx->TP(), dh::tbegin(threshold), dh::tend(threshold) - 1);
-  thrust::inclusive_scan(cuctx->CTP(), dh::tbegin(threshold), dh::tend(threshold) - 1,
-                         dh::tbegin(grad_sum));
-  thrust::transform(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum),
-                    thrust::counting_iterator<size_t>(0), dh::tbegin(grad_sum),
-                    SampleRateDelta(threshold, gpair.size(), sample_rows));
-  thrust::device_ptr<float> min =
-      thrust::min_element(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum));
-  return cuda::std::distance(dh::tbegin(grad_sum), min) + 1;
 }
 };  // namespace xgboost::tree

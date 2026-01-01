@@ -25,9 +25,9 @@
 #include "../common/hist_util.h"        // for HistogramCuts
 #include "../common/random.h"           // for ColumnSampler, GlobalRandom
 #include "../common/timer.h"
-#include "../data/batch_utils.h"  // for StaticBatch
-#include "../data/ellpack_page.cuh"
-#include "../data/ellpack_page.h"
+#include "../data/batch_utils.h"     // for StaticBatch
+#include "../data/ellpack_page.cuh"  // for EllpackPageImpl
+#include "../data/ellpack_page.h"    // for EllpackPage
 #include "constraints.cuh"
 #include "driver.h"
 #include "gpu_hist/evaluate_splits.cuh"
@@ -183,16 +183,14 @@ struct GPUHistMakerDevice {
      * Sampling
      */
     dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair, ctx_->CUDACtx()->Stream());
-    auto sample = this->sampler->Sample(ctx_, dh::ToSpan(d_gpair), p_fmat);
-    this->gpair = sample.gpair;
-    p_fmat = sample.p_fmat;
+    auto sample = this->sampler->Sample(ctx_, dh::ToSpan(this->d_gpair), p_fmat);
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
+    this->gpair = sample.gpair;
 
     /**
      * Initialize the partitioners
      */
-    std::vector<bst_idx_t> batch_ptr{this->batch_ptr_};
-    this->partitioners_.Reset(this->ctx_, batch_ptr);
+    this->partitioners_.Reset(this->ctx_, this->batch_ptr_);
 
     /**
      * Initialize the evaluator
@@ -209,9 +207,11 @@ struct GPUHistMakerDevice {
     this->quantiser = std::make_unique<GradientQuantiser>(
         ctx_, linalg::MakeVec(this->ctx_->Device(), this->gpair), p_fmat->Info());
 
+    bool cache_grad = cuda_impl::NeedCacheGradient(p_fmat->Info().num_col_, 1u);
+    dh::caching_device_vector<GradientQuantiser> d_q{*this->quantiser};
     this->histogram_.Reset(ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
-                           feature_groups_->DeviceAccessor(ctx_->Device()), cuts_->TotalBins(),
-                           false);
+                           cuts_->TotalBins(), false, cache_grad, dh::ToSpan(d_q),
+                           linalg::MakeTensorView(ctx_, this->gpair, this->gpair.size(), 1));
     this->monitor.Stop(__func__);
     return p_fmat;
   }
@@ -298,7 +298,7 @@ struct GPUHistMakerDevice {
     auto d_ridx = partitioners_.At(k)->GetRows(nidx);
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
     this->histogram_.BuildHistogram(ctx_, acc, feature_groups_->DeviceAccessor(ctx_->Device()),
-                                    this->gpair, d_ridx, d_node_hist, *quantiser);
+                                    this->gpair, d_ridx, d_node_hist, *this->quantiser);
     monitor.Stop(__func__);
   }
 
@@ -838,7 +838,7 @@ class GPUHistMaker : public TreeUpdater {
     std::vector<bst_idx_t> batch_ptr;
     auto batch = HistBatch(*param);
     auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
-
+    // fixme: hyper parameter cannot be changed once set?
     this->p_scimpl_ = std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_,
                                                            column_sampler_, batch, p_fmat->Info(),
                                                            batch_ptr, cuts, dense_compressed);

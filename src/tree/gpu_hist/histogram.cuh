@@ -172,23 +172,25 @@ class DeviceHistogramBuilder {
   explicit DeviceHistogramBuilder();
   ~DeviceHistogramBuilder();
   // TODO(jiamingy): use a type larger than bst_bin_t since we need to support multi-target.
-  void Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
-             FeatureGroupsAccessor const& feature_groups, bst_bin_t n_total_bins,
-             bool force_global_memory);
-
+  void Reset(Context const* ctx, std::size_t max_cached_hist_nodes, bst_bin_t n_total_bins,
+             bool force_global_memory, bool cache_grad,
+             common::Span<GradientQuantiser const> roundings,
+             linalg::MatrixView<GradientPair const> gpairs);
+  // Build histogram for single target and single node.
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
-                      common::Span<const std::uint32_t> ridx,
-                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
-
+                      common::Span<std::uint32_t const> ridx,
+                      common::Span<GradientPairInt64> histogram,
+                      GradientQuantiser const& rounding);
   // Build histograms for multiple nodes and multiple targets
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
-                      linalg::MatrixView<GradientPairInt64 const> gpair,
+                      linalg::MatrixView<GradientPair const> gpair,
                       common::Span<common::Span<const std::uint32_t>> ridxs,
                       common::Span<common::Span<GradientPairInt64>> hists,
-                      std::vector<std::size_t> const& h_sizes_csum);
+                      std::vector<std::size_t> const& h_sizes_csum,
+                      common::Span<GradientQuantiser const> roundings);
 
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }
 
