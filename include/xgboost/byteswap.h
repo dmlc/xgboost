@@ -17,7 +17,7 @@
 
 #if defined(xgboost_IS_WIN)
 
-#include <cstdlib>  // for by _byteswap_uint64, _byteswap_ulong, _byteswap_ushort
+#include <cstdlib>  // for _byteswap_uint64, _byteswap_ulong, _byteswap_ushort
 
 #endif  // defined(xgboost_IS_WIN)
 
@@ -77,5 +77,5 @@ T ByteSwap(T v) {
   return v;
 }
 
-#endif  //  defined(__GLIBC__)
+#endif  //  defined(__CUDA_ARCH__)
 }  // namespace xgboost
