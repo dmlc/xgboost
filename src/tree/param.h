@@ -28,16 +28,16 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // minimum loss change required for a split
   float min_split_loss;
   // maximum depth of a tree
-  int max_depth;
+  bst_node_t max_depth;
   // maximum number of leaves
-  int max_leaves;
+  bst_node_t max_leaves;
   // if using histogram based algorithm, maximum number of bins per feature
-  int max_bin;
+  bst_bin_t max_bin;
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
 
-  uint32_t max_cat_to_onehot{4};
+  std::uint32_t max_cat_to_onehot{4};
 
   bst_bin_t max_cat_threshold{64};
 
@@ -63,10 +63,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   float colsample_bylevel;
   // whether to subsample columns during tree construction
   float colsample_bytree;
-  // accuracy of sketch
-  float sketch_ratio;
-  // option to open cacheline optimization
-  bool cache_opt;
   // whether refresh updater needs to update the leaf values
   bool refresh_leaf;
 
@@ -161,13 +157,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Subsample ratio of columns, resample on each tree construction.");
-    DMLC_DECLARE_FIELD(sketch_ratio)
-        .set_lower_bound(0.0f)
-        .set_default(2.0f)
-        .describe("EXP Param: Sketch accuracy related parameter of approximate algorithm.");
-    DMLC_DECLARE_FIELD(cache_opt)
-        .set_default(true)
-        .describe("EXP Param: Cache aware optimization.");
     DMLC_DECLARE_FIELD(refresh_leaf)
         .set_default(true)
         .describe("Whether the refresh updater needs to update leaf values.");

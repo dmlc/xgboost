@@ -370,7 +370,6 @@ class ColMaker: public TreeUpdater {
         const std::vector<GradientPair> &gpair,
         std::vector<ThreadEntry> &temp, // NOLINT(*)
         TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
-      CHECK(param_.cache_opt) << "Support for `cache_opt' is removed in 1.0.0";
       const std::vector<int> &qexpand = qexpand_;
       // clear all the temp statistics
       for (auto nid : qexpand) {
