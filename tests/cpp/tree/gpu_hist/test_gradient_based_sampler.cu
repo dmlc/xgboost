@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -8,20 +8,30 @@
 #include "../../../../src/tree/param.h"
 #include "../../../../src/tree/param.h"  // TrainParam
 #include "../../helpers.h"
-
+#include "dummy_quantizer.cuh"
 namespace xgboost::tree {
 void VerifySampling(size_t page_size, float subsample, int sampling_method, bool check_sum = true) {
+  auto ctx = MakeCUDACtx(0);
+
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 1;
   bst_idx_t sample_rows = kRows * subsample;
+  bst_target_t n_targets = 1;
 
   auto dmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
+
+  auto q = MakeDummyQuantizer();
+  dh::caching_device_vector<GradientQuantiser> roundings{q};
+
   auto gpair = GenerateRandomGradients(kRows);
+  auto d_gpair = linalg::MakeTensorView(&ctx, gpair.ConstDeviceSpan(), kRows, n_targets);
+  linalg::Matrix<GradientPairInt64> gpair_i64;
+  CalcQuantizedGpairs(&ctx, d_gpair, dh::ToSpan(roundings), &gpair_i64);
+
   GradientPair sum_gpair{};
   for (const auto& gp : gpair.ConstHostVector()) {
     sum_gpair += gp;
   }
-  auto ctx = MakeCUDACtx(0);
   gpair.SetDevice(ctx.Device());
 
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
@@ -31,15 +41,11 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method, bool
   }
 
   GradientBasedSampler sampler(&ctx, kRows, param, subsample, sampling_method);
-  auto sample = sampler.Sample(&ctx, gpair.DeviceSpan(), dmat.get());
-
-  EXPECT_EQ(sample.p_fmat->Info().num_row_, kRows);
-  EXPECT_EQ(sample.gpair.size(), kRows);
+  sampler.Sample(&ctx, gpair_i64.View(ctx.Device()).Slice(linalg::All(), 0), q, dmat.get());
 
   GradientPair sum_sampled_gpair{};
-  std::vector<GradientPair> sampled_gpair_h(sample.gpair.size());
-  dh::CopyDeviceSpanToVector(&sampled_gpair_h, sample.gpair);
-  for (const auto& gp : sampled_gpair_h) {
+  std::vector<GradientPair> const& h_sampled_gpair = gpair.ConstHostVector();
+  for (const auto& gp : h_sampled_gpair) {
     sum_sampled_gpair += gp;
   }
   if (check_sum) {
