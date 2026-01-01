@@ -12,6 +12,33 @@
 namespace xgboost::tree::cuda_impl {
 /** @brief Evaluator for vector leaf. */
 class MultiHistEvaluator {
+ public:
+  struct WeightBuffer {
+    // * 3 because of base, left, right weights.
+    constexpr static std::uint32_t kNodes = 3;
+
+    common::Span<float> weights;
+    bst_target_t n_targets;
+
+    static WeightBuffer Make(bst_node_t n_nodes, bst_target_t n_targets,
+                             dh::device_vector<float> *p_weights) {
+      p_weights->resize(n_nodes * n_targets * kNodes);
+      WeightBuffer buf{dh::ToSpan(*p_weights), n_targets};
+      return buf;
+    }
+    // get the base weight buffer
+    XGBOOST_DEVICE common::Span<float> Base(std::size_t nidx_in_set) const {
+      return weights.subspan(nidx_in_set * n_targets * kNodes, n_targets);
+    }
+    XGBOOST_DEVICE common::Span<float> Left(std::size_t nidx_in_set) const {
+      return weights.subspan(nidx_in_set * n_targets * kNodes + n_targets, n_targets);
+    }
+    XGBOOST_DEVICE common::Span<float> Right(std::size_t nidx_in_set) const {
+      return weights.subspan(nidx_in_set * n_targets * kNodes + n_targets * 2, n_targets);
+    }
+  };
+
+ private:
   // Buffer for node weights
   dh::device_vector<float> weights_;
   // Buffer for histogram scans.
@@ -59,8 +86,4 @@ class MultiHistEvaluator {
   void ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
                       common::Span<MultiExpandEntry const> d_candidates, bst_target_t n_targets);
 };
-
-std::ostream &DebugPrintHistogram(std::ostream &os, common::Span<GradientPairInt64 const> node_hist,
-                                  common::Span<GradientQuantiser const> roundings,
-                                  bst_target_t n_targets);
 }  // namespace xgboost::tree::cuda_impl

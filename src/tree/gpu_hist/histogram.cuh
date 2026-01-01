@@ -185,11 +185,10 @@ class DeviceHistogramBuilder {
   // Build histograms for multiple nodes and multiple targets
   void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
-                      linalg::MatrixView<GradientPair const> gpair,
+                      linalg::MatrixView<GradientPairInt64 const> gpair,
                       common::Span<common::Span<const std::uint32_t>> ridxs,
                       common::Span<common::Span<GradientPairInt64>> hists,
-                      std::vector<std::size_t> const& h_sizes_csum,
-                      common::Span<GradientQuantiser const> roundings);
+                      std::vector<std::size_t> const& h_sizes_csum);
 
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }
 

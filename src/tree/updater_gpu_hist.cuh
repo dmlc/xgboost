@@ -66,9 +66,8 @@ void AssignNodes(TreeView const& tree, std::vector<ExpandEntry> const& candidate
   }
 }
 
-void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPair> d_gpair,
-                 common::Span<GradientQuantiser const> roundings,
-                 common::Span<GradientPairInt64> root_sum) {
+inline void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPairInt64> d_gpair,
+                        common::Span<GradientPairInt64> root_sum) {
   auto n_samples = d_gpair.Shape(0);
   auto n_targets = d_gpair.Shape(1);
   // Calculate the root sum
@@ -82,7 +81,7 @@ void CalcRootSum(Context const* ctx, linalg::MatrixView<GradientPair> d_gpair,
     auto cidx = i / n_samples;
     auto ridx = i % n_samples;
     auto g = d_gpair(ridx, cidx);
-    return roundings[cidx].ToFixedPoint(g);
+    return g;
   });
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + d_gpair.Size(), val_it,
                         thrust::make_discard_iterator(), dh::tbegin(root_sum));
@@ -110,7 +109,7 @@ class MultiTargetHistMaker {
   std::unique_ptr<FeatureInteractionConstraintDevice> interaction_constraints_;
 
   // Gradient used for building the tree structure
-  linalg::Matrix<GradientPair> split_gpair_;
+  linalg::Matrix<GradientPairInt64> split_gpair_;
   // Gradient used for calculating the leaf values
   linalg::Matrix<GradientPair> value_gpair_;
   std::vector<bst_idx_t> const batch_ptr_;
@@ -129,13 +128,14 @@ class MultiTargetHistMaker {
     auto d_gpair = this->split_gpair_.View(this->ctx_->Device());
     CHECK(!this->partitioners_.Empty());
 
-    auto roundings = this->split_quantizer_->Quantizers();
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
 
     std::vector<common::Span<GradientPairInt64>> h_hists;
     std::vector<common::Span<RowIndexT const>> h_ridxs;
     std::vector<std::size_t> h_sizes_csum{0};
     std::size_t nidx_in_set = 0;
+    // TODO(jiamingy): We can assume the histogram buffers contiguous if we don't skip
+    // nodes here.
     for (auto nidx : build_nodes) {
       auto d_ridx = this->partitioners_.At(k)->GetRows(nidx);
       if (d_ridx.empty()) {
@@ -154,15 +154,14 @@ class MultiTargetHistMaker {
     dh::device_vector<common::Span<GradientPairInt64>> hists{h_hists};
     dh::device_vector<common::Span<RowIndexT const>> ridxs{h_ridxs};
 
-    this->histogram_.BuildHistogram(
-        this->ctx_, acc, this->feature_groups_->DeviceAccessor(this->ctx_->Device()), d_gpair,
-        dh::ToSpan(ridxs), dh::ToSpan(hists), h_sizes_csum, roundings);
+    this->histogram_.BuildHistogram(this->ctx_, acc,
+                                    this->feature_groups_->DeviceAccessor(this->ctx_->Device()),
+                                    d_gpair, dh::ToSpan(ridxs), dh::ToSpan(hists), h_sizes_csum);
   }
 
  public:
   void Reset(linalg::Matrix<GradientPair>* gpair_all, DMatrix* p_fmat) {
     bst_idx_t n_targets = gpair_all->Shape(1);
-    auto in_gpair = gpair_all->View(ctx_->Device());
 
     /**
      * Initialize the partitioners
@@ -176,14 +175,13 @@ class MultiTargetHistMaker {
     /**
      * Initialize the histogram
      */
-    std::size_t shape[2]{p_fmat->Info().num_row_, n_targets};
-    split_gpair_ = linalg::Matrix<GradientPair>{shape, ctx_->Device()};
-    gpair_all->SetDevice(this->ctx_->Device());
-    split_gpair_.Data()->Copy(*gpair_all->Data());
+    auto in_gpair = gpair_all->View(ctx_->Device());
     CHECK(in_gpair.CContiguous());
 
     this->split_quantizer_ = std::make_unique<MultiGradientQuantiser>(
-        this->ctx_, split_gpair_.View(ctx_->Device()), p_fmat->Info());
+        this->ctx_, gpair_all->View(ctx_->Device()), p_fmat->Info());
+    CalcQuantizedGpairs(this->ctx_, gpair_all, this->split_quantizer_->Quantizers(),
+                        &this->split_gpair_);
 
     if (!this->value_gpair_.Empty()) {
       this->value_quantizer_ = std::make_unique<MultiGradientQuantiser>(
@@ -209,7 +207,7 @@ class MultiTargetHistMaker {
     // Calculate the root sum
     this->evaluator_.AllocNodeSum(RegTree::kRoot, n_targets);
     auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
-    CalcRootSum(this->ctx_, d_gpair, this->split_quantizer_->Quantizers(), d_root_sum);
+    CalcRootSum(this->ctx_, d_gpair, d_root_sum);
 
     // Build the root histogram.
     histogram_.AllocateHistograms(ctx_, {RegTree::kRoot});
@@ -647,12 +645,12 @@ class MultiTargetHistMaker {
                                 std::shared_ptr<common::ColumnSampler> column_sampler,
                                 std::vector<bst_idx_t> batch_ptr,
                                 std::shared_ptr<common::HistogramCuts const> cuts,
-                                bool dense_compressed, bst_target_t n_targets)
+                                bool dense_compressed)
       : ctx_{ctx},
         param_{std::move(param)},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
-        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, n_targets, dense_compressed,
+        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         DftHistSharedMemoryBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{

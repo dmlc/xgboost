@@ -155,7 +155,7 @@ struct GPUHistMakerDevice {
         batch_ptr_{std::move(batch_ptr)},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
-        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, /*n_targets=*/1u, dense_compressed,
+        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         dh::MaxSharedMemoryOptin(ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
@@ -825,7 +825,7 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Stop(__func__);
   }
 
-  void InitDataOnce(TrainParam const* param, DMatrix* p_fmat, bst_target_t n_targets) {
+  void InitDataOnce(TrainParam const* param, DMatrix* p_fmat) {
     monitor_.Start(__func__);
     CHECK_GE(ctx_->Ordinal(), 0) << "Must have at least one device";
 
@@ -844,7 +844,7 @@ class GPUHistMaker : public TreeUpdater {
                                                            batch_ptr, cuts, dense_compressed);
     this->p_mtimpl_ = std::make_unique<cuda_impl::MultiTargetHistMaker>(
         this->ctx_, *param, &hist_maker_param_, this->column_sampler_, batch_ptr, cuts,
-        dense_compressed, n_targets);
+        dense_compressed);
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;
@@ -854,7 +854,7 @@ class GPUHistMaker : public TreeUpdater {
   void InitData(TrainParam const* param, DMatrix* dmat, RegTree const* p_tree) {
     monitor_.Start(__func__);
     if (!initialised_) {
-      this->InitDataOnce(param, dmat, p_tree->NumTargets());
+      this->InitDataOnce(param, dmat);
     }
     p_last_tree_ = p_tree;
     CHECK(hist_maker_param_.GetInitialised());
