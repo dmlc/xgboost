@@ -9,7 +9,6 @@
 #include <cstddef>            // for size_t
 #include <cuda/std/iterator>  // for distance
 #include <limits>
-#include <utility>
 
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/random.h"
@@ -151,8 +150,7 @@ GradientBasedSample NoSampling::Sample(Context const*, common::Span<GradientPair
   return {p_fmat, gpair};
 }
 
-UniformSampling::UniformSampling(BatchParam batch_param, float subsample)
-    : batch_param_{std::move(batch_param)}, subsample_{subsample} {}
+UniformSampling::UniformSampling(float subsample) : subsample_{subsample} {}
 
 GradientBasedSample UniformSampling::Sample(Context const* ctx, common::Span<GradientPair> gpair,
                                             DMatrix* p_fmat) {
@@ -164,12 +162,8 @@ GradientBasedSample UniformSampling::Sample(Context const* ctx, common::Span<Gra
   return {p_fmat, gpair};
 }
 
-GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, BatchParam batch_param,
-                                             float subsample)
-    : subsample_(subsample),
-      batch_param_{std::move(batch_param)},
-      threshold_(n_rows + 1, 0.0f),
-      grad_sum_(n_rows, 0.0f) {}
+GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, float subsample)
+    : subsample_(subsample), threshold_(n_rows + 1, 0.0f), grad_sum_(n_rows, 0.0f) {}
 
 GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
                                                   common::Span<GradientPair> gpair,
@@ -187,8 +181,7 @@ GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
   return {p_fmat, gpair};
 }
 
-GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows,
-                                           const BatchParam& batch_param, float subsample,
+GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows, float subsample,
                                            int sampling_method) {
   // The ctx is kept here for future development of stream-based operations.
   monitor_.Init(__func__);
@@ -202,11 +195,11 @@ GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows
 
   switch (sampling_method) {
     case TrainParam::kUniform: {
-      strategy_.reset(new UniformSampling(batch_param, subsample));
+      strategy_.reset(new UniformSampling(subsample));
       break;
     }
     case TrainParam::kGradientBased: {
-      strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
+      strategy_.reset(new GradientBasedSampling(n_rows, subsample));
       break;
     }
     default:

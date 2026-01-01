@@ -40,24 +40,22 @@ class NoSampling : public SamplingStrategy {
  */
 class UniformSampling : public SamplingStrategy {
  public:
-  UniformSampling(BatchParam batch_param, float subsample);
+  explicit UniformSampling(float subsample);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                              DMatrix* dmat) override;
 
  private:
-  BatchParam batch_param_;
   float subsample_;
 };
 
 /** @brief Gradient-based sampling. */
 class GradientBasedSampling : public SamplingStrategy {
  public:
-  GradientBasedSampling(std::size_t n_rows, BatchParam batch_param, float subsample);
+  GradientBasedSampling(std::size_t n_rows, float subsample);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                              DMatrix* dmat) override;
 
  private:
-  BatchParam batch_param_;
   float subsample_;
   dh::caching_device_vector<float> threshold_;
   dh::caching_device_vector<float> grad_sum_;
@@ -76,8 +74,7 @@ class GradientBasedSampling : public SamplingStrategy {
  */
 class GradientBasedSampler {
  public:
-  GradientBasedSampler(Context const* ctx, size_t n_rows, const BatchParam& batch_param,
-                       float subsample, int sampling_method);
+  GradientBasedSampler(Context const* ctx, size_t n_rows, float subsample, int sampling_method);
 
   /*! \brief Sample from a DMatrix based on the given gradient pairs. */
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair, DMatrix* dmat);

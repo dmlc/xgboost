@@ -30,7 +30,7 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method, bool
     EXPECT_NE(page->n_rows, kRows);
   }
 
-  GradientBasedSampler sampler(&ctx, kRows, param, subsample, sampling_method);
+  GradientBasedSampler sampler(&ctx, kRows, subsample, sampling_method);
   auto sample = sampler.Sample(&ctx, gpair.DeviceSpan(), dmat.get());
 
   EXPECT_EQ(sample.p_fmat->Info().num_row_, kRows);
