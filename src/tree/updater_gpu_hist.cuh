@@ -94,7 +94,7 @@ class MultiTargetHistMaker {
  private:
   Context const* ctx_;
 
-  TrainParam const param_;
+  TrainParam const* param_;
   RowPartitionerBatches partitioners_;
 
   HistMakerTrainParam const* hist_param_;
@@ -169,8 +169,8 @@ class MultiTargetHistMaker {
     partitioners_.Reset(this->ctx_, batch_ptr_);
 
     auto const& info = p_fmat->Info();
-    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_.colsample_bynode,
-                                param_.colsample_bylevel, param_.colsample_bytree);
+    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_->colsample_bynode,
+                                param_->colsample_bylevel, param_->colsample_bytree);
 
     /**
      * Initialize the histogram
@@ -229,12 +229,12 @@ class MultiTargetHistMaker {
                                    feature_set, node_hist};
 
     auto d_roundings = split_quantizer_->Quantizers();
-    GPUTrainingParam param{this->param_};
+    GPUTrainingParam param{*this->param_};
     MultiEvaluateSplitSharedInputs shared_inputs{d_roundings,
                                                  this->cuts_->cut_ptrs_.ConstDeviceSpan(),
                                                  this->cuts_->cut_values_.ConstDevicePointer(),
                                                  this->cuts_->min_vals_.ConstDevicePointer(),
-                                                 this->param_.max_bin,
+                                                 this->param_->max_bin,
                                                  static_cast<bst_feature_t>(feature_set.size()),
                                                  param};
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
@@ -307,7 +307,7 @@ class MultiTargetHistMaker {
       ++batch_idx;
     }
 
-    auto param = GPUTrainingParam{this->param_};
+    auto param = GPUTrainingParam{*this->param_};
     auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
     // Use full value gradient for leaf values.
     LeafWeight(this->ctx_, param, this->value_quantizer_->Quantizers(),
@@ -465,7 +465,7 @@ class MultiTargetHistMaker {
     }
     xgboost_NVTX_FN_RANGE();
 
-    GPUTrainingParam param{this->param_};
+    GPUTrainingParam param{*this->param_};
 
     dh::device_vector<MultiEvaluateSplitInputs> inputs(2 * candidates.size());
     dh::device_vector<MultiExpandEntry> outputs(2 * candidates.size());
@@ -520,7 +520,7 @@ class MultiTargetHistMaker {
         this->cuts_->cut_ptrs_.ConstDeviceSpan(),
         this->cuts_->cut_values_.ConstDevicePointer(),
         this->cuts_->min_vals_.ConstDevicePointer(),
-        this->param_.max_bin,
+        this->param_->max_bin,
         max_active_feature,
         param,
     };
@@ -579,7 +579,7 @@ class MultiTargetHistMaker {
   void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree) {
     xgboost_NVTX_FN_RANGE();
 
-    if (!param_.monotone_constraints.empty()) {
+    if (!param_->monotone_constraints.empty()) {
       LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
     }
 
@@ -606,7 +606,7 @@ class MultiTargetHistMaker {
     if (!this->hist_param_->debug_synchronize) {
       LOG(FATAL) << "GPU" << MTNotImplemented();
     }
-    Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
+    Driver<MultiExpandEntry> driver{*param_, kMaxNodeBatchSize};
 
     this->Reset(split_gpair, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
@@ -640,21 +640,21 @@ class MultiTargetHistMaker {
     this->FinalizePosition(p_fmat, p_tree);
   }
 
-  explicit MultiTargetHistMaker(Context const* ctx, TrainParam param,
+  explicit MultiTargetHistMaker(Context const* ctx, TrainParam const* param,
                                 HistMakerTrainParam const* hist_param,
                                 std::shared_ptr<common::ColumnSampler> column_sampler,
                                 std::vector<bst_idx_t> batch_ptr,
                                 std::shared_ptr<common::HistogramCuts const> cuts,
                                 bool dense_compressed)
       : ctx_{ctx},
-        param_{std::move(param)},
+        param_{param},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         DftHistSharedMemoryBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
-            std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},
+            std::make_unique<FeatureInteractionConstraintDevice>(*param, cuts_->NumFeatures())},
         batch_ptr_{std::move(batch_ptr)} {
     xgboost_NVTX_FN_RANGE();
   }

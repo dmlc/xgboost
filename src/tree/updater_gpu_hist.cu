@@ -843,7 +843,7 @@ class GPUHistMaker : public TreeUpdater {
                                                            column_sampler_, batch, p_fmat->Info(),
                                                            batch_ptr, cuts, dense_compressed);
     this->p_mtimpl_ = std::make_unique<cuda_impl::MultiTargetHistMaker>(
-        this->ctx_, *param, &hist_maker_param_, this->column_sampler_, batch_ptr, cuts,
+        this->ctx_, param, &hist_maker_param_, this->column_sampler_, batch_ptr, cuts,
         dense_compressed);
 
     p_last_fmat_ = p_fmat;
