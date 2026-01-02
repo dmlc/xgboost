@@ -9,12 +9,6 @@
 
 #include <cstdint>
 
-#if defined(__CUDA__) || defined(__NVCC__) || defined(__CUDACC__)
-
-#include <cuda/std/bit>  // for byteswap
-
-#endif  // defined(__CUDA__) || defined(__NVCC__) || defined(__CUDACC__)
-
 #if defined(xgboost_IS_WIN)
 
 #include <cstdlib>  // for _byteswap_uint64, _byteswap_ulong, _byteswap_ushort
@@ -25,8 +19,21 @@ namespace xgboost {
 #if defined(__CUDA_ARCH__)
 // CUDA kernel version
 template <typename T>
-[[nodiscard]] XGBOOST_DEVICE T ByteSwap(T v) {
-  return cuda::std::byteswap(v);
+[[nodiscard]] __device__ T ByteSwap(T v);
+
+template <>
+inline __device__ std::uint16_t ByteSwap(std::uint16_t v) {
+  return __nv_bswap16(v);
+}
+
+template <>
+inline __device__ std::uint32_t ByteSwap(std::uint32_t v) {
+  return __nv_bswap32(v);
+}
+
+template <>
+inline __device__ std::uint64_t ByteSwap(std::uint64_t v) {
+  return __nv_bswap64(v);
 }
 
 #elif defined(__GLIBC__)
