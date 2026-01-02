@@ -10,6 +10,7 @@
 #include <map>        // std::map
 #include <set>        // std::set
 #include <vector>     // std::vector
+#include <numeric>   // std::accumulate
 
 #include "../tree/tree_view.h"  // for ScalarTreeView
 #include "predict_fn.h"         // GetNextNode
@@ -62,38 +63,48 @@ std::uint64_t ExtractBinaryPath(tree::ScalarTreeView const& tree, const RegTree:
     nidx = path_index;
     depth++;
   }
-
-
   return consumer_path;
 }
 
-// Sparse storage for leaf information
-struct LeafData {
-  bst_node_t node_id;
-  double leaf_weight;
-  double probability;  // Probability of reaching this leaf
-  std::vector<int> features;
-  std::uint64_t path;
-};
-
 void GetLeafDataRecursive(tree::ScalarTreeView const& tree,
-                   std::vector<LeafData>* leaf_data, bst_node_t nidx,  
-                   std::vector<int> const& features, std::uint64_t path, int depth, double probability) {
+                   std::vector<PreprocessedLeaf>* leaf_data, bst_node_t nidx,  
+                   std::map<int, std::pair<float,float>> feature_range_map, std::map<int, double> feature_probabilities, std::uint64_t path, int depth, int tree_idx) {
 
   if (tree.IsLeaf(nidx)) {
-    // Store sparse leaf data
-    leaf_data->push_back({nidx, tree.LeafValue(nidx), probability, features, path});
+    std::vector<int> features;
+    features.reserve(feature_range_map.size());
+    std::vector<std::pair<float, float>> feature_ranges;
+    feature_ranges.reserve(feature_range_map.size());
+    std::vector<double> probabilities;
+    probabilities.reserve(feature_range_map.size());
+    for(const auto& [feature, range] : feature_range_map){
+      features.push_back(feature);
+      feature_ranges.push_back(range);
+      probabilities.push_back(feature_probabilities[feature]);
+    }
+    auto leaf_probability = std::accumulate(probabilities.begin(), probabilities.end(), 1.0,
+                                              [](double acc, const double& p) {
+                                                return acc * p;
+                                              });
+    leaf_data->push_back(PreprocessedLeaf{tree_idx, nidx, path, static_cast<float>(leaf_probability * tree.LeafValue(nidx)), tree.LeafValue(nidx), features, {}, feature_ranges, probabilities});
   } else {
     const std::uint32_t split_index = tree.SplitIndex(nidx);
-    // Create updated feature list and path for children
-    std::vector<int> child_features = features;
-    child_features.push_back(split_index);
+    if(feature_range_map.count(split_index) == 0){
+      feature_range_map[split_index] = {-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()};
+      feature_probabilities[split_index] = 1.0;
+    }
+    auto left_map = feature_range_map;
+    auto right_map = feature_range_map;
+    auto left_probabilities = feature_probabilities;
+    auto right_probabilities = feature_probabilities;
+    // When combining probabilities for a feature, both features must be active to pass
+    left_probabilities[split_index] *= tree.SumHess(tree.LeftChild(nidx)) / tree.SumHess(nidx);
+    right_probabilities[split_index] = 1.0 - left_probabilities[split_index];
+    left_map[split_index].second = std::min(tree.SplitCond(nidx), left_map[split_index].second);
+    right_map[split_index].first =  std::max(tree.SplitCond(nidx), right_map[split_index].first);
 
-    auto left_probability = tree.SumHess(tree.LeftChild(nidx)) / tree.SumHess(nidx);
-    auto right_probability = 1.0 - left_probability;
-    
-    GetLeafDataRecursive(tree, leaf_data, tree.LeftChild(nidx), child_features, path, depth + 1, probability * left_probability);
-    GetLeafDataRecursive(tree, leaf_data, tree.RightChild(nidx), child_features, path | (1ULL << depth), depth + 1, probability * right_probability);
+    GetLeafDataRecursive(tree, leaf_data, tree.LeftChild(nidx), left_map, left_probabilities, path, depth + 1, tree_idx);
+    GetLeafDataRecursive(tree, leaf_data, tree.RightChild(nidx), right_map, right_probabilities, path | (1ULL << depth), depth + 1, tree_idx);
   }
 }
 
@@ -181,49 +192,37 @@ std::vector<std::pair<int, double>> v(const std::pair<std::set<int>, std::set<in
   return res;
 }
 
-std::map<int, std::vector<double>> path_dependant_frequencies(tree::ScalarTreeView const& tree){
-  std::map<int, std::vector<double>> leaves_freq;
-  std::map<int, std::vector<double>> inner_freq;
-  inner_freq[0] = {1.0};
-  // Walk tree breadth first
-  tree.WalkTree([&](auto const& node) {
-    auto& current_freq = inner_freq[node];
-    if(tree.IsLeaf(node)) {
-      leaves_freq[node] = inner_freq[node];
-    } else {
-      auto left_prob = tree.SumHess(tree.LeftChild(node)) / tree.SumHess(node);
-      auto right_prob = tree.SumHess(tree.RightChild(node)) / tree.SumHess(node);
-      std::vector<double> left;
-      left.reserve(current_freq.size()*2);
-      for(auto freq: current_freq){
-        left.emplace_back(freq * right_prob);
-        left.emplace_back(freq * left_prob);
+std::vector<double> path_dependant_frequencies(const std::vector<double>& probabilities) {
+  // Compute the probabilities of every outcome in the path
+  const std::size_t n_paths = 1 << probabilities.size();
+  std::vector<double> f(n_paths, 0.0);
+  for (std::size_t path = 0; path < n_paths; ++path) {
+    double prob = 1.0;
+    for (std::size_t i = 0; i < probabilities.size(); ++i) {
+      if (path & (1 << i)) {
+        prob *= probabilities[i];
+      } else {
+        prob *= (1.0 - probabilities[i]);
       }
-      inner_freq[tree.LeftChild(node)] = left;
-
-      std::vector<double> right;
-      right.reserve(current_freq.size()*2);
-      for(auto freq: current_freq){
-        right.emplace_back(freq * left_prob);
-        right.emplace_back(freq * right_prob);
-      }
-      inner_freq[tree.RightChild(node)] = right;
     }
-    return true;
-  });
-  return leaves_freq;
+    f[path] = prob;
+  }
+  return f;
 }
 
 std::vector<PreprocessedLeaf> PreprocessTree(int tree_idx, tree::ScalarTreeView const& tree) {
 
-    std::vector<LeafData> leaf_data;
-    leaf_data.reserve(tree.Size());
-    GetLeafDataRecursive(tree, &leaf_data, 0, {}, 0, 0, 1.0);
-    auto f = path_dependant_frequencies(tree);
-    
-    std::vector<PreprocessedLeaf> preprocessed_leaves(leaf_data.size());
-    for(std::size_t i = 0; i < leaf_data.size(); ++i) {
-      const auto& leaf = leaf_data[i];
+    std::vector<PreprocessedLeaf> leaves;
+    leaves.reserve(tree.Size());
+    GetLeafDataRecursive(tree, &leaves, 0, {}, {}, 0, 0,  tree_idx);
+
+    for(auto & leaf: leaves)
+    {
+      // Print the features and their ranges for this leaf
+      for (size_t i = 0; i < leaf.features.size(); ++i) {
+        int feature = leaf.features[i];
+        auto range = leaf.feature_ranges[i];
+      }
 
       // Get the pattern-to-cube mapping for this leaf's path
       auto pc_pb_to_cube = MapPatternsToCube(leaf.features);
@@ -251,26 +250,24 @@ std::vector<PreprocessedLeaf> PreprocessTree(int tree_idx, tree::ScalarTreeView 
       }
       
       // Compute S: full matrix-vector multiplication S = w * M * f_l
-      auto&preprocessed_leaf = preprocessed_leaves[i];
-      preprocessed_leaf.tree_idx = tree_idx;
-      preprocessed_leaf.leaf_path = leaf.path;
-      preprocessed_leaf.null_coalition_weight = leaf.probability * leaf.leaf_weight;
-      auto &S = preprocessed_leaf.S;
-      auto &f_l = f[leaf.node_id];
+      leaf.tree_idx = tree_idx;
+      leaf.null_coalition_weight = leaf.null_coalition_weight;
+      auto &S = leaf.S;
+      auto f = path_dependant_frequencies(leaf.probabilities);
       for (auto feature : leaf.features) {
         const auto& mat = M[feature];
         S[feature] = std::vector<double>(n_paths, 0.0);
         auto& S_vec = S[feature];
         for (std::size_t row = 0; row < n_paths; ++row) {
           double dot = 0.0;
-          for (std::size_t col = 0; col < n_paths && col < f_l.size(); ++col) {
-            dot += mat[row * n_paths + col] * f_l[col];
+          for (std::size_t col = 0; col < n_paths && col < f.size(); ++col) {
+            dot += mat[row * n_paths + col] * f[col];
           }
           S_vec[row] = dot * leaf.leaf_weight;
         }
-      }
+      }                                  
     }
-  return preprocessed_leaves;
+  return leaves;
 }
 
 }  // namespace xgboost

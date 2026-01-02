@@ -32,16 +32,29 @@ void CalculateContributions(tree::ScalarTreeView const& tree, const RegTree::FVe
                             unsigned condition_feature);
 
 
-class PreprocessedLeaf{
- public:
+struct PreprocessedLeaf{
  int tree_idx;
+ bst_node_t node_id;
  std::uint64_t leaf_path;
  float null_coalition_weight;
+ float leaf_weight;
+ std::vector<int> features;
  std::map<int, std::vector<double>> S;
- PreprocessedLeaf() = default;
- PreprocessedLeaf(int tree_idx, std::uint64_t leaf_path, float null_coalition_weight, std::map<int, std::vector<double>> S) : tree_idx(tree_idx), leaf_path(leaf_path), null_coalition_weight(null_coalition_weight), S(S) {
+ std::vector<std::pair<float, float>> feature_ranges; // if feature_ranges[i].first <= x[i] < feature_ranges[i].second the instance follows this path
+ std::vector<double> probabilities; // Probability of passing each feature in the path
+ std::int64_t GetPath(const RegTree::FVec& feat) const {
+    std::int64_t path = 0;
+    for(int i = 0; i < features.size(); ++i){
+      auto feature = features[i];
+      auto range = feature_ranges[i];
+      path <<= 1;
+      if(range.first <= feat.GetFvalue(feature) && feat.GetFvalue(feature) < range.second){
+        path |= 1;
+      }
+    }
+    // Path as binary
+    return path;
  }
-
 };
 
 

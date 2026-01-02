@@ -284,5 +284,16 @@ class TestSHAP:
         assert_same(X, y)
     
 
+    def test_shap_values_single_row(self) -> None:
+        from sklearn.datasets import make_classification
+
+        X, y = make_classification(n_samples=100, n_features=5, random_state=42)
+        dmatrix = xgb.DMatrix(X, y)
+        booster = xgb.train({"max_depth": 3}, dmatrix, num_boost_round=1)
+        shap = booster.predict(xgb.DMatrix(X[0:1, :]), pred_contribs=True)
+        margin = booster.predict(xgb.DMatrix(X[0:1, :]), output_margin=True)
+        np.testing.assert_allclose(
+            np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3
+        )
 
 

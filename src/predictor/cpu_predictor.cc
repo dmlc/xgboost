@@ -932,7 +932,7 @@ class CPUPredictor : public Predictor {
             continue;
           }
           const auto& tree= std::get<tree::ScalarTreeView>(h_model.Trees()[leaf.tree_idx]);
-          auto path = ExtractBinaryPath(tree, feats, leaf.leaf_path);
+          auto path = leaf.GetPath(feats);
           auto tree_weight = (tree_weights == nullptr ? 1 : (*tree_weights)[leaf.tree_idx]);
           for (size_t ci = 0; ci < ncolumns; ++ci) {
             if(leaf.S.count(ci) > 0){
