@@ -322,7 +322,7 @@ disable the estimation, specify a real number argument.
 \item \code{"error@t"}: a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
 \item \code{"merror"}: Multiclass classification error rate. It is calculated as \verb{#(wrong cases)/#(all cases)}.
 \item \code{"mlogloss"}: \href{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}{Multiclass logloss}.
-\item \code{"auc"}: receiver operating characteristic area under the curve.
+\item \code{"auc"}: area under the receiver-operating characteristic curve.
 Available for classification and learning-to-rank tasks.
 \itemize{
 \item When used with binary classification, the objective should be \code{"binary:logistic"} or similar functions that work on probability.
