@@ -625,7 +625,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #'   - `"error@t"`: a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
 #'   - `"merror"`: Multiclass classification error rate. It is calculated as `#(wrong cases)/#(all cases)`.
 #'   - `"mlogloss"`: [Multiclass logloss](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html).
-#'   - `"auc"`: receiver operating characteristic area under the curve.
+#'   - `"auc"`: area under the receiver-operating characteristic curve.
 #'     Available for classification and learning-to-rank tasks.
 #'     - When used with binary classification, the objective should be `"binary:logistic"` or similar functions that work on probability.
 #'     - When used with multi-class classification, objective should be `"multi:softprob"` instead of `"multi:softmax"`, as the latter doesn't output probability.  Also the AUC is calculated by 1-vs-rest with reference class weighted by class prevalence.
