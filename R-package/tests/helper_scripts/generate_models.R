@@ -55,7 +55,7 @@ generate_logistic_model <- function() {
   objective <- c('binary:logistic', 'binary:logitraw')
   name <- c('logit', 'logitraw')
 
-  for (i in seq_len(length(objective))) {
+  for (i in seq_along(objective)) {
     data <- xgb.DMatrix(X, label = y, weight = w, nthread = 1)
     params <- list(tree_method = 'hist', num_parallel_tree = metadata$kForests,
                    max_depth = metadata$kMaxDepth, objective = objective[i])
