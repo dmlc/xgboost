@@ -22,8 +22,8 @@
 namespace xgboost::tree {
 namespace {
 struct Pair {
-  GradientPair first;
-  GradientPair second;
+  GradientPairPrecise first;
+  GradientPairPrecise second;
 };
 __host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
   return {lhs.first + rhs.first, lhs.second + rhs.second};
@@ -62,7 +62,7 @@ struct Clip {
     auto ng = Nclip(x.GetGrad());
     auto nh = Nclip(x.GetHess());
 
-    return {GradientPair{pg, ph}, GradientPair{ng, nh}};
+    return {GradientPairPrecise{pg, ph}, GradientPairPrecise{ng, nh}};
   }
 };
 
@@ -90,7 +90,7 @@ GradientQuantiser::GradientQuantiser(Context const* ctx,
   auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(reinterpret_cast<ReduceT*>(&p), 4));
   collective::SafeColl(rc);
 
-  GradientPair positive_sum{p.first}, negative_sum{p.second};
+  GradientSumT positive_sum{p.first}, negative_sum{p.second};
 
   std::size_t total_rows = gpair.Size();
   rc = collective::GlobalSum(ctx, info, linalg::MakeVec(&total_rows, 1));
@@ -120,8 +120,8 @@ GradientQuantiser::GradientQuantiser(Context const* ctx,
    * rounding is calcuated as exp(m), see the rounding factor calcuation for
    * details.
    */
-  to_fixed_point_ = GradientSumT(static_cast<T>(1) / to_floating_point_.GetGrad(),
-                                 static_cast<T>(1) / to_floating_point_.GetHess());
+  to_fixed_point_ = GradientSumT{static_cast<T>(1) / to_floating_point_.GetGrad(),
+                                 static_cast<T>(1) / to_floating_point_.GetHess()};
 }
 
 MultiGradientQuantiser::MultiGradientQuantiser(Context const* ctx,
