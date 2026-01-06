@@ -63,15 +63,7 @@ XGBOOST_DEVICE auto MakePaddedPtr(T const *XGBOOST_RESTRICT ptr, std::uint32_t a
 // be correctly aligned first.
 template <typename T>
 XGBOOST_DEVICE [[nodiscard]] std::uint64_t Load64u(T const *XGBOOST_RESTRICT ptr) {
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wuninitialized"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wuninitialized"
-#endif
-
-  std::uint64_t u64;
+  std::uint64_t u64 = 0;
   auto out_ptr = reinterpret_cast<std::uint32_t *>(&u64);
   // base ptr in uint32
   auto in_ptr = reinterpret_cast<std::uint32_t const *>(ptr);
@@ -79,12 +71,6 @@ XGBOOST_DEVICE [[nodiscard]] std::uint64_t Load64u(T const *XGBOOST_RESTRICT ptr
   out_ptr[0] = in_ptr[0];
   out_ptr[1] = in_ptr[1];
   return u64;
-
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
 }
 }  // namespace detail
 
