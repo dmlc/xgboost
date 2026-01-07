@@ -65,8 +65,8 @@ public class XGBoost {
     /**
      * Trains the XGBoost models based on the data elements in the given partition.
      *
-     * @param it The iterable object consisting of labeled points with vectors as features and a double value as
-     * the label.
+     * @param it The iterable object consisting of labeled points with vectors as features and
+     *           a double value as the label.
      * @param collector The collector object that is used to emit the trained XGBoost model.
      * @throws XGBoostError Error thrown during training.
      */
