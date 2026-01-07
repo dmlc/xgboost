@@ -29,11 +29,10 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method, bool
   linalg::Matrix<GradientPairInt64> gpair_i64;
   CalcQuantizedGpairs(&ctx, d_gpair, dh::ToSpan(roundings), &gpair_i64);
 
-  GradientPair sum_gpair{};
-  for (const auto& gp : gpair.ConstHostVector()) {
-    sum_gpair += gp;
+  GradientPairPrecise sum_gpair{};
+  for (const auto& gp : gpair_i64.HostView()) {
+    sum_gpair += q.ToFloatingPoint(gp);
   }
-  gpair.SetDevice(ctx.Device());
 
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
@@ -44,10 +43,9 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method, bool
   GradientBasedSampler sampler(&ctx, kRows, param, subsample, sampling_method);
   sampler.Sample(&ctx, gpair_i64.View(ctx.Device()).Slice(linalg::All(), 0), q, dmat.get());
 
-  GradientPair sum_sampled_gpair{};
-  std::vector<GradientPair> const& h_sampled_gpair = gpair.ConstHostVector();
-  for (const auto& gp : h_sampled_gpair) {
-    sum_sampled_gpair += gp;
+  GradientPairPrecise sum_sampled_gpair{};
+  for (auto const& gp : gpair_i64.HostView()) {
+    sum_sampled_gpair += q.ToFloatingPoint(gp);
   }
   if (check_sum) {
     ASSERT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.03f * kRows);
