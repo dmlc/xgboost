@@ -55,9 +55,9 @@ class TreeObjective(Objective):
     # pylint: disable=unused-argument
     def split_grad(
         self, iteration: int, grad: ArrayLike, hess: ArrayLike
-    ) -> Tuple[ArrayLike, ArrayLike]:
+    ) -> Tuple[ArrayLike, ArrayLike] | None:
         """Provide a different gradient type for finding tree structures."""
-        return grad, hess
+        return None
 
 
 def _grad_arrinf(array: NumpyOrCupy, n_samples: int) -> bytes:

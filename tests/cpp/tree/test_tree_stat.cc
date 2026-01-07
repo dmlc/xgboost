@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>       // for Context
@@ -82,6 +82,19 @@ TEST_F(UpdaterTreeStatTest, Approx) {
   this->RunTest(&ctx, "grow_histmaker");
 }
 
+namespace {
+void BuildTree(Context const* ctx, DMatrix* p_fmat, GradientContainer* grad,
+               std::string const& name, Args const& args, RegTree* p_tree) {
+  tree::TrainParam param;
+  param.Init(args);
+  ObjInfo task{ObjInfo::kRegression};
+  auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(name, ctx, &task)};
+  up->Configure({});
+  std::vector<HostDeviceVector<bst_node_t>> position(1);
+  up->Update(&param, grad, p_fmat, common::Span{position}, {p_tree});
+}
+}  // namespace
+
 /**
  * @brief Test changing learning rate doesn't change internal splits.
  */
@@ -94,17 +107,13 @@ class TestSplitWithEta : public ::testing::Test {
       auto tree =
           std::make_unique<RegTree>(n_targets, static_cast<bst_feature_t>(Xy->Info().num_col_));
       std::vector<RegTree*> trees{tree.get()};
-      ObjInfo task{ObjInfo::kRegression};
-      std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create(name, ctx, &task)};
-      updater->Configure({});
 
       auto grad = GenerateRandomGradients(ctx, Xy->Info().num_row_, n_targets);
       CHECK_EQ(grad.gpair.Shape(1), n_targets);
-      tree::TrainParam param;
-      param.Init(Args{{"learning_rate", std::to_string(eta)}});
-      HostDeviceVector<bst_node_t> position;
+      auto args = Args{{"learning_rate", std::to_string(eta)}};
 
-      updater->Update(&param, &grad, Xy.get(), common::Span{&position, 1}, trees);
+      BuildTree(ctx, Xy.get(), &grad, name, args, tree.get());
+
       CHECK_EQ(tree->NumTargets(), n_targets);
       if (n_targets > 1) {
         CHECK(tree->IsMultiTarget());
@@ -152,7 +161,7 @@ class TestSplitWithEta : public ::testing::Test {
   }
 };
 
-TEST_F(TestSplitWithEta, HistMulti) {
+TEST_F(TestSplitWithEta, MultiHist) {
   Context ctx;
   bst_target_t n_targets{3};
   this->Run(&ctx, n_targets, "grow_quantile_histmaker");
@@ -183,6 +192,12 @@ TEST_F(TestSplitWithEta, GpuHist) {
   this->Run(&ctx, n_targets, "grow_gpu_hist");
 }
 
+TEST_F(TestSplitWithEta, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  bst_target_t n_targets{3};
+  this->Run(&ctx, n_targets, "grow_gpu_hist");
+}
+
 TEST_F(TestSplitWithEta, GpuApprox) {
   auto ctx = MakeCUDACtx(0);
   bst_target_t n_targets{1};
@@ -191,19 +206,20 @@ TEST_F(TestSplitWithEta, GpuApprox) {
 #endif  // defined(XGBOOST_USE_CUDA)
 
 class TestMinSplitLoss : public ::testing::Test {
-  std::shared_ptr<DMatrix> dmat_;
+  std::shared_ptr<DMatrix> p_fmat_;
   GradientContainer gpair_;
 
-  void SetUp() override {
+  void SynthesizeData(bst_target_t n_targets) {
     constexpr size_t kRows = 32;
     constexpr size_t kCols = 16;
     constexpr float kSparsity = 0.6;
-    dmat_ = RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).GenerateDMatrix();
+    p_fmat_ =
+        RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).Targets(n_targets).GenerateDMatrix();
     Context ctx;
-    gpair_ = GenerateRandomGradients(&ctx, kRows, 1);
+    gpair_ = GenerateRandomGradients(&ctx, kRows, n_targets);
   }
 
-  std::int32_t Update(Context const* ctx, std::string updater, float gamma) {
+  bst_node_t Update(Context const* ctx, std::string updater, float gamma) {
     Args args{{"max_depth", "1"},
               {"max_leaves", "0"},
 
@@ -218,32 +234,28 @@ class TestMinSplitLoss : public ::testing::Test {
 
               // test gamma
               {"gamma", std::to_string(gamma)}};
-    tree::TrainParam param;
-    param.UpdateAllowUnknown(args);
-    ObjInfo task{ObjInfo::kRegression};
 
-    auto up = std::unique_ptr<TreeUpdater>{TreeUpdater::Create(updater, ctx, &task)};
-    up->Configure({});
+    RegTree tree{static_cast<bst_target_t>(this->gpair_.gpair.Shape(1)),
+                 static_cast<bst_target_t>(this->p_fmat_->Info().num_col_)};
 
-    RegTree tree;
-    std::vector<HostDeviceVector<bst_node_t>> position(1);
-    up->Update(&param, &gpair_, dmat_.get(), position, {&tree});
-
+    BuildTree(ctx, p_fmat_.get(), &gpair_, updater, args, &tree);
     auto n_nodes = tree.NumExtraNodes();
     return n_nodes;
   }
 
  public:
-  void RunTest(Context const* ctx, std::string updater) {
+  void RunTest(Context const* ctx, std::string updater, bst_target_t n_targets) {
+    this->SynthesizeData(n_targets);
+
     {
-      int32_t n_nodes = Update(ctx, updater, 0.01);
+      bst_node_t n_nodes = this->Update(ctx, updater, 0.01);
       // This is not strictly verified, meaning the numeber `2` is whatever GPU_Hist retured
       // when writing this test, and only used for testing larger gamma (below) does prevent
       // building tree.
       ASSERT_EQ(n_nodes, 2);
     }
     {
-      int32_t n_nodes = Update(ctx, updater, 100.0);
+      int32_t n_nodes = this->Update(ctx, updater, 100.0);
       // No new nodes with gamma == 100.
       ASSERT_EQ(n_nodes, static_cast<decltype(n_nodes)>(0));
     }
@@ -254,23 +266,189 @@ class TestMinSplitLoss : public ::testing::Test {
 
 TEST_F(TestMinSplitLoss, Approx) {
   Context ctx;
-  this->RunTest(&ctx, "grow_histmaker");
+  this->RunTest(&ctx, "grow_histmaker", 1u);
 }
 
 TEST_F(TestMinSplitLoss, Hist) {
   Context ctx;
-  this->RunTest(&ctx, "grow_quantile_histmaker");
+  this->RunTest(&ctx, "grow_quantile_histmaker", 1u);
+}
+
+TEST_F(TestMinSplitLoss, MultiHist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker", 2u);
 }
 
 #if defined(XGBOOST_USE_CUDA)
 TEST_F(TestMinSplitLoss, GpuHist) {
   auto ctx = MakeCUDACtx(0);
-  this->RunTest(&ctx, "grow_gpu_hist");
+  this->RunTest(&ctx, "grow_gpu_hist", 1u);
+}
+
+TEST_F(TestMinSplitLoss, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist", 2u);
 }
 
 TEST_F(TestMinSplitLoss, GpuApprox) {
   auto ctx = MakeCUDACtx(0);
-  this->RunTest(&ctx, "grow_gpu_approx");
+  this->RunTest(&ctx, "grow_gpu_approx", 1u);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
+class TestRegularization : public ::testing::Test {
+ public:
+  void Run(Context const* ctx, std::string const& updater, std::string p, bst_target_t n_targets) {
+    bst_idx_t n_samples = 4096;
+    bst_feature_t n_features = 32;
+    auto p_fmat = RandomDataGenerator(n_samples, n_features, .0f)
+                      .Seed(3)
+                      .Targets(n_targets)
+                      .GenerateDMatrix(true);
+    auto gpairs = GenerateRandomGradients(ctx, n_samples, n_targets);
+
+    RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
+                   static_cast<bst_target_t>(p_fmat->Info().num_col_)};
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{p, "0.0"}}, &tree_0);
+    // not exact, just checking the tree can be built
+    if (n_targets > 1) {
+      ASSERT_GE(tree_0.NumNodes(), 40);
+    } else {
+      ASSERT_GE(tree_0.NumNodes(), 50);
+    }
+
+    RegTree tree_1{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
+                   static_cast<bst_target_t>(p_fmat->Info().num_col_)};
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{p, "1024.0"}}, &tree_1);
+    ASSERT_EQ(tree_1.NumNodes(), 1);
+  }
+};
+
+class TestLambda : public TestRegularization {
+ public:
+  void RunTest(Context const* ctx, std::string const& updater, bst_target_t n_targets) {
+    this->Run(ctx, updater, "lambda", n_targets);
+  }
+};
+
+TEST_F(TestLambda, Hist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker", 1u);
+}
+
+TEST_F(TestLambda, MultiHist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker", 3u);
+}
+
+TEST_F(TestLambda, Approx) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_histmaker", 1u);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestLambda, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist", 1u);
+}
+
+TEST_F(TestLambda, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist", 3u);
+}
+
+TEST_F(TestLambda, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_approx", 1u);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
+class TestAlpha : public TestRegularization {
+ public:
+  void RunTest(Context const* ctx, std::string const& updater, bst_target_t n_targets) {
+    this->Run(ctx, updater, "alpha", n_targets);
+  }
+};
+
+TEST_F(TestAlpha, Hist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker", 1u);
+}
+
+TEST_F(TestAlpha, MultiHist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker", 3u);
+}
+
+TEST_F(TestAlpha, Approx) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_histmaker", 1u);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestAlpha, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist", 1u);
+}
+
+TEST_F(TestAlpha, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist", 3u);
+}
+
+TEST_F(TestAlpha, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_approx", 1u);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
+class TestMaxDeltaStep : public ::testing::Test {
+ public:
+  void RunTest(Context const* ctx, std::string const& updater, bst_target_t n_targets) {
+    bst_idx_t n_samples = 4096;
+    bst_feature_t n_features = 32;
+    auto p_fmat = RandomDataGenerator(n_samples, n_features, .0f)
+                      .Seed(3)
+                      .Targets(n_targets)
+                      .GenerateDMatrix(true);
+    auto gpairs = GenerateRandomGradients(ctx, n_samples, n_targets);
+
+    RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
+                   static_cast<bst_target_t>(p_fmat->Info().num_col_)};
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}}, &tree_0);
+    ASSERT_EQ(tree_0.NumNodes(), 1);
+  }
+};
+
+TEST_F(TestMaxDeltaStep, Hist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker", 1u);
+}
+
+TEST_F(TestMaxDeltaStep, MultiHist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker", 3u);
+}
+
+TEST_F(TestMaxDeltaStep, Approx) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_histmaker", 1u);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestMaxDeltaStep, GpuiHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist", 3u);
+}
+
+TEST_F(TestMaxDeltaStep, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist", 3u);
+}
+
+TEST_F(TestMaxDeltaStep, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_approx", 1u);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

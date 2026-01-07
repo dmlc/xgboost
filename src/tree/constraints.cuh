@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019 XGBoost contributors
+/**
+ * Copyright 2019-2026, XGBoost contributors
  *
  * \file Various constraints used in GPU_Hist.
  */
@@ -8,14 +8,13 @@
 
 #include <dmlc/json.h>
 
-#include <cinttypes>
 #include <vector>
 
-#include "param.h"
-#include "constraints.h"
-#include "xgboost/span.h"
 #include "../common/bitfield.h"
-#include "../common/device_helpers.cuh"
+#include "../common/device_vector.cuh"  // for device_vector
+#include "constraints.h"
+#include "param.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 // Feature interaction constraints built for GPU Hist updater.
@@ -81,16 +80,17 @@ struct FeatureInteractionConstraintDevice {
   void Reset(Context const* ctx);
   /*! \brief Return a list of features given node id */
   common::Span<bst_feature_t> QueryNode(Context const* ctx, bst_node_t nid);
-  /*!
-   * \brief Return a list of selected features from given feature_list and node id.
+  /**
+   * @brief Return a list of selected features from given feature_list and node id.
    *
-   * \param feature_list A list of features
-   * \param nid node id
+   * @param feature_list A list of features
+   * @param nidx node id
    *
-   * \return A list of features picked from `feature_list' that conform to constraints in
+   * @return A list of features picked from `feature_list' that conform to constraints in
    * node.
    */
-  common::Span<bst_feature_t> Query(common::Span<bst_feature_t> feature_list, int32_t nid);
+  common::Span<bst_feature_t const> Query(common::Span<bst_feature_t const> feature_list,
+                                          bst_node_t nidx);
   /*! \brief Apply split for node_id. */
   void Split(bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id);
 };

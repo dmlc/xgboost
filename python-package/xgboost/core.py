@@ -2500,7 +2500,14 @@ class Booster:
             # full gradient for leaf values
             vgrad, vhess = fobj(iteration, y_pred, dtrain)
             # Reduced gradient for split nodes
-            sgrad, shess = fobj.split_grad(iteration, vgrad, vhess)
+            split_grad = fobj.split_grad(iteration, vgrad, vhess)
+            # Switch the role of gradient if there's no split gradient but the tree
+            # objective is used.
+            if split_grad is not None:
+                sgrad, shess = split_grad
+            else:
+                sgrad, shess = vgrad, vhess
+                vgrad, vhess = None, None
         elif isinstance(fobj, Objective):
             sgrad, shess = fobj(iteration, y_pred, dtrain)
             vgrad, vhess = None, None

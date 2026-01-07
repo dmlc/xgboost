@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost contributors
+ * Copyright 2025-2026, XGBoost contributors
  */
 #include <thrust/reduce.h>  // for reduce_by_key, reduce
 
@@ -162,13 +162,13 @@ struct EvaluateSplitAgent {
         // bin_idx is the global bin index
         auto scan_bin_offset = bin_idx * n_targets;
         for (bst_target_t t = 0; t < n_targets; ++t) {
-          auto pg = roundings[t].ToFloatingPoint(node.parent_sum[t]);
+          auto parent_sum = roundings[t].ToFloatingPoint(node.parent_sum[t]);
           // left
           auto left_sum = roundings[t].ToFloatingPoint(node_scan[scan_bin_offset + t]);
           auto lw_t =
               ::xgboost::tree::CalcWeight(shared.param, left_sum.GetGrad(), left_sum.GetHess());
           // right
-          auto right_sum = pg - left_sum;
+          auto right_sum = parent_sum - left_sum;
           auto rw_t =
               ::xgboost::tree::CalcWeight(shared.param, right_sum.GetGrad(), right_sum.GetHess());
 
@@ -272,9 +272,6 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   auto n_targets = shared_inputs.Targets();
   dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
     auto weight = d_outputs[0].base_weight;
-    if (weight.empty()) {
-      return;
-    }
     weight[t] *= shared_inputs.param.learning_rate;
   });
 
@@ -339,9 +336,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
   // Find best split for each node
   auto d_weights = WeightBuffer::Make(n_nodes, n_targets, &this->weights_);
-
-  dh::CachingDeviceUVector<float> d_parent_gains(n_nodes);
-  auto s_parent_gains = dh::ToSpan(d_parent_gains);
   auto s_d_splits = dh::ToSpan(d_splits);
 
   // Process results for each node
@@ -386,7 +380,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       base_weight[t] = CalcWeight(shared_inputs.param, g.GetGrad(), g.GetHess());
       parent_gain += -base_weight[t] * ThresholdL1(g.GetGrad(), shared_inputs.param.reg_alpha);
     }
-    s_parent_gains[nidx_in_set] = parent_gain;
 
     bool l = true, r = true;
     GradientPairPrecise lg_fst, rg_fst;
@@ -426,7 +419,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     out_splits[nidx_in_set].UpdateFirstHessian(lg_fst, rg_fst);
 
     if (l || r) {
-      out_splits[nidx_in_set] = {};
+      out_splits[nidx_in_set].split.loss_chg = -std::numeric_limits<float>::max();
     }
   });
 }

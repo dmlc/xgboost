@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file param.h
  * \brief training parameters, statistics used to support tree construction.
  * \author Tianqi Chen
@@ -245,7 +245,7 @@ XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(Train
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
+XGBOOST_DEVICE T CalcGain(TrainingParams const &p, T sum_grad, T sum_hess) {
   if (sum_hess < p.min_child_weight || sum_hess <= 0.0) {
     return static_cast<T>(0.0);
   }
@@ -253,8 +253,7 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
     if (p.reg_alpha == 0.0f) {
       return common::Sqr(sum_grad) / (sum_hess + p.reg_lambda);
     } else {
-      return common::Sqr(ThresholdL1(sum_grad, p.reg_alpha)) /
-          (sum_hess + p.reg_lambda);
+      return common::Sqr(ThresholdL1(sum_grad, p.reg_alpha)) / (sum_hess + p.reg_lambda);
     }
   } else {
     T w = CalcWeight(p, sum_grad, sum_hess);

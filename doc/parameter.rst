@@ -96,7 +96,7 @@ Parameters for Tree Booster
 
 * ``gamma`` [default=0, alias: ``min_split_loss``]
 
-  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score.
+  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score. This is the same :math:`\gamma` described in the :doc:`/tutorials/model`.
   - range: [0,∞]
 
 * ``max_depth`` [default=6, type=int32]
@@ -148,7 +148,7 @@ Parameters for Tree Booster
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
-  - L2 regularization term on weights. Increasing this value will make model more conservative.
+  - L2 regularization term on weights. Increasing this value will make model more conservative. This is the :math:`\lambda` described in the :doc:`/tutorials/model`.
   - range: [0, :math:`\infty`]
 
 * ``alpha`` [default=0, alias: ``reg_alpha``]
@@ -267,7 +267,7 @@ Parameters for Categorical Feature
 These parameters are only used for training with categorical data. See
 :doc:`/tutorials/categorical` for more information.
 
-.. note:: These parameters are experimental. ``exact`` tree method is not yet supported.
+.. note:: The ``exact`` tree method is not supported for categorical features.
 
 
 * ``max_cat_to_onehot``

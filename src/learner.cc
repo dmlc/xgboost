@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file learner.cc
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
@@ -866,31 +866,6 @@ class LearnerConfiguration : public Intercept {
 
     for (auto& p_metric : metrics_) {
       p_metric->Configure(args);
-    }
-  }
-
-  /**
-   * Get number of targets from objective function.
-   */
-  void ConfigureTargets() {
-    CHECK(this->obj_);
-    auto const& cache = this->prediction_container_.Container();
-    bst_target_t n_targets = 1;
-    for (auto const& d : cache) {
-      if (n_targets == 1) {
-        n_targets = this->obj_->Targets(d.first.ptr->Info());
-      } else {
-        auto t = this->obj_->Targets(d.first.ptr->Info());
-        CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
-      }
-    }
-
-    if (mparam_.num_target > 1) {
-      CHECK(n_targets == 1 || n_targets == mparam_.num_target)
-          << "Inconsistent configuration of the `num_target`.  Configuration result from input "
-          << "data:" << n_targets << ", configuration from parameters:" << mparam_.num_target;
-    } else {
-      mparam_.num_target = n_targets;
     }
   }
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  * \file updater_quantile_hist.cc
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
@@ -535,9 +535,12 @@ class QuantileHistMaker : public TreeUpdater {
 
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
-      CHECK(param->monotone_constraints.empty()) << "Monotone constraint" << MTNotImplemented();
-      CHECK(param->interaction_constraints.empty())
-          << "Interaction constraint" << MTNotImplemented();
+      if (!param->monotone_constraints.empty()) {
+        LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
+      }
+      if (!param->interaction_constraints.empty()) {
+        LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
+      }
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(
             ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, task_, &monitor_);
