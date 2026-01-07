@@ -574,6 +574,16 @@ class MultiTargetHistMaker {
   void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree) {
     xgboost_NVTX_FN_RANGE();
 
+    if (param_.grow_policy == TrainParam::kLossGuide) {
+      LOG(FATAL) << "Loss guide" << MTNotImplemented();
+    }
+    if (!param_.monotone_constraints.empty()) {
+      LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
+    }
+    if (!param_.interaction_constraints.empty()) {
+      LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
+    }
+
     auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {
       this->value_gpair_ = linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device()};
@@ -645,16 +655,6 @@ class MultiTargetHistMaker {
             std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},
         batch_ptr_{std::move(batch_ptr)} {
     xgboost_NVTX_FN_RANGE();
-
-    if (param_.grow_policy == TrainParam::kLossGuide) {
-      LOG(FATAL) << "Loss guide" << MTNotImplemented();
-    }
-    if (!param_.monotone_constraints.empty()) {
-      LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
-    }
-    if (!param_.interaction_constraints.empty()) {
-      LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
-    }
   }
 };
 }  // namespace xgboost::tree::cuda_impl

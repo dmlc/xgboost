@@ -436,9 +436,9 @@ TEST_F(TestMaxDeltaStep, Approx) {
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(TestMaxDeltaStep, GpuiHist) {
+TEST_F(TestMaxDeltaStep, GpuHist) {
   auto ctx = MakeCUDACtx(0);
-  this->RunTest(&ctx, "grow_gpu_hist", 3u);
+  this->RunTest(&ctx, "grow_gpu_hist", 1u);
 }
 
 TEST_F(TestMaxDeltaStep, GpuMultiHist) {
