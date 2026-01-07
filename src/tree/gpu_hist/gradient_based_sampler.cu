@@ -157,17 +157,9 @@ void UniformSampling::Sample(Context const* ctx, linalg::VectorView<GradientPair
                              GradientQuantiser const&, DMatrix*) {
   // Set gradient pair to 0 with p = 1 - subsample
   auto cuctx = ctx->CUDACtx();
-  auto seed = common::GlobalRandom()();
-  auto dist = BernoulliTrial{seed, subsample_};
-  auto cit = thrust::make_counting_iterator(0ul);
-  thrust::transform(cuctx->CTP(), cit, cit + gpair.Size(), linalg::tcbegin(gpair),
-                    linalg::tbegin(gpair),
-                    [=] XGBOOST_DEVICE(std::size_t i, GradientPairInt64 const& g) {
-                      if (dist(i)) {
-                        return GradientPairInt64{};
-                      }
-                      return g;
-                    });
+  thrust::replace_if(cuctx->CTP(), linalg::tbegin(gpair), linalg::tend(gpair),
+                     thrust::make_counting_iterator(0ul),
+                     BernoulliTrial(common::GlobalRandom()(), subsample_), GradientPairInt64{});
 }
 
 GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, BatchParam batch_param,
