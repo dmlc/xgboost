@@ -24,6 +24,7 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method, bool
   dh::caching_device_vector<GradientQuantiser> roundings{q};
 
   auto gpair = GenerateRandomGradients(kRows);
+  gpair.SetDevice(ctx.Device());
   auto d_gpair = linalg::MakeTensorView(&ctx, gpair.ConstDeviceSpan(), kRows, n_targets);
   linalg::Matrix<GradientPairInt64> gpair_i64;
   CalcQuantizedGpairs(&ctx, d_gpair, dh::ToSpan(roundings), &gpair_i64);
