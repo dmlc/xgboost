@@ -249,13 +249,13 @@ class TestMinSplitLoss : public ::testing::Test {
 
     {
       bst_node_t n_nodes = this->Update(ctx, updater, 0.01);
-      // This is not strictly verified, meaning the numeber `2` is whatever GPU_Hist retured
+      // This is not strictly verified, meaning the number `2` is whatever GPU_Hist retured
       // when writing this test, and only used for testing larger gamma (below) does prevent
       // building tree.
       ASSERT_EQ(n_nodes, 2);
     }
     {
-      int32_t n_nodes = this->Update(ctx, updater, 100.0);
+      bst_node_t n_nodes = this->Update(ctx, updater, 100.0);
       // No new nodes with gamma == 100.
       ASSERT_EQ(n_nodes, static_cast<decltype(n_nodes)>(0));
     }
