@@ -13,19 +13,20 @@
 #include <vector>     // for vector
 
 #include "../../collective/allgather.h"
-#include "../../common/categorical.h"  // for CatBitField
-#include "../../common/hist_util.h"    // for GHistRow, HistogramCuts
-#include "../../common/linalg_op.h"    // for cbegin, cend, begin
-#include "../../common/random.h"       // for ColumnSampler
-#include "../constraints.h"            // for FeatureInteractionConstraintHost
-#include "../param.h"                  // for TrainParam
-#include "../split_evaluator.h"        // for TreeEvaluator
-#include "../tree_view.h"              // for MultiTargetTreeView
-#include "expand_entry.h"              // for MultiExpandEntry
-#include "hist_cache.h"                // for BoundedHistCollection
-#include "xgboost/base.h"              // for bst_node_t, bst_target_t, bst_feature_t
-#include "xgboost/context.h"           // for COntext
-#include "xgboost/linalg.h"            // for Constants, Vector
+#include "../../collective/communicator-inl.h"  // for GetWorldSize
+#include "../../common/categorical.h"           // for CatBitField
+#include "../../common/hist_util.h"             // for GHistRow, HistogramCuts
+#include "../../common/linalg_op.h"             // for cbegin, cend, begin
+#include "../../common/random.h"                // for ColumnSampler
+#include "../constraints.h"                     // for FeatureInteractionConstraintHost
+#include "../param.h"                           // for TrainParam
+#include "../split_evaluator.h"                 // for TreeEvaluator
+#include "../tree_view.h"                       // for MultiTargetTreeView
+#include "expand_entry.h"                       // for MultiExpandEntry
+#include "hist_cache.h"                         // for BoundedHistCollection
+#include "xgboost/base.h"                       // for bst_node_t, bst_target_t, bst_feature_t
+#include "xgboost/context.h"                    // for COntext
+#include "xgboost/linalg.h"                     // for Constants, Vector
 
 namespace xgboost::tree {
 /**

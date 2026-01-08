@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
@@ -180,7 +180,8 @@ class GPUHistEvaluator {
    * \brief Sort the histogram based on output to obtain contiguous partitions.
    */
   common::Span<bst_feature_t const> SortHistogram(
-      common::Span<const EvaluateSplitInputs> d_inputs, EvaluateSplitSharedInputs shared_inputs,
+      Context const *ctx, common::Span<const EvaluateSplitInputs> d_inputs,
+      EvaluateSplitSharedInputs shared_inputs,
       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public

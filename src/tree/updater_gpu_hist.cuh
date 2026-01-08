@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost contributors
+ * Copyright 2025-2026, XGBoost contributors
  */
 #pragma once
 #include <thrust/reduce.h>   // for reduce_by_key
@@ -222,9 +222,8 @@ class MultiTargetHistMaker {
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
     auto sampled_features = column_sampler_->GetFeatureSet(0);
-    sampled_features->SetDevice(ctx_->Device());
-    common::Span<bst_feature_t> feature_set =
-        interaction_constraints_->Query(sampled_features->DeviceSpan(), RegTree::kRoot);
+    common::Span<bst_feature_t const> feature_set =
+        interaction_constraints_->Query(sampled_features->ConstDeviceSpan(), RegTree::kRoot);
     MultiEvaluateSplitInputs input{RegTree::kRoot, p_tree->GetDepth(RegTree::kRoot), d_root_sum,
                                    feature_set, node_hist};
 
@@ -484,18 +483,14 @@ class MultiTargetHistMaker {
       bst_node_t right_nidx = mt_tree.RightChild(candidate.nidx);
 
       auto left_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(left_nidx));
-      left_sampled_features->SetDevice(ctx_->Device());
       feature_sets.emplace_back(left_sampled_features);
-
-      common::Span<bst_feature_t> left_feature_set =
-          interaction_constraints_->Query(left_sampled_features->DeviceSpan(), left_nidx);
+      common::Span<bst_feature_t const> left_feature_set =
+          interaction_constraints_->Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
 
       auto right_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(right_nidx));
-      right_sampled_features->SetDevice(ctx_->Device());
       feature_sets.emplace_back(right_sampled_features);
-
-      common::Span<bst_feature_t> right_feature_set =
-          interaction_constraints_->Query(right_sampled_features->DeviceSpan(), right_nidx);
+      common::Span<bst_feature_t const> right_feature_set =
+          interaction_constraints_->Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
 
       // Make sure no allocation is happening.
       // The parent sum is calculated in the last apply tree split.
@@ -579,8 +574,14 @@ class MultiTargetHistMaker {
   void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree) {
     xgboost_NVTX_FN_RANGE();
 
+    if (param_.grow_policy == TrainParam::kLossGuide) {
+      LOG(FATAL) << "Loss guide" << MTNotImplemented();
+    }
     if (!param_.monotone_constraints.empty()) {
       LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
+    }
+    if (!param_.interaction_constraints.empty()) {
+      LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
     }
 
     auto* split_grad = gpair->Grad();
@@ -589,6 +590,7 @@ class MultiTargetHistMaker {
       gpair->value_gpair.SetDevice(this->ctx_->Device());
       this->value_gpair_.Data()->Copy(*gpair->value_gpair.Data());
     }
+    CHECK_LE(split_grad->Shape(1), p_tree->NumTargets());
 
     this->GrowTree(split_grad, p_fmat, task, p_tree);
 
@@ -602,10 +604,6 @@ class MultiTargetHistMaker {
   void GrowTree(linalg::Matrix<GradientPair>* split_gpair, DMatrix* p_fmat, ObjInfo const*,
                 RegTree* p_tree) {
     xgboost_NVTX_FN_RANGE();
-
-    if (!this->hist_param_->debug_synchronize) {
-      LOG(FATAL) << "GPU" << MTNotImplemented();
-    }
     Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
 
     this->Reset(split_gpair, p_fmat);

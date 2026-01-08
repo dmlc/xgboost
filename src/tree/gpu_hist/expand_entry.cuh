@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef EXPAND_ENTRY_CUH_
 #define EXPAND_ENTRY_CUH_
@@ -31,7 +31,9 @@ struct GPUExpandEntry {
         left_weight{left},
         right_weight{right} {}
   [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t num_leaves) const {
-    if (split.loss_chg <= kRtEps) return false;
+    if (split.loss_chg <= kRtEps) {
+      return false;
+    }
     if (split.left_sum.GetQuantisedHess() == 0 || split.right_sum.GetQuantisedHess() == 0) {
       return false;
     }
@@ -149,8 +151,8 @@ struct MultiExpandEntry {
   [[nodiscard]] bst_node_t GetDepth() const { return depth; }
 
   [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t n_leaves) const {
-    // The split evaluator handles the zero Hessian case. It returns an empty expand entry
-    // if there the Hessian is invalid.
+    // The split evaluator handles the zero Hessian case. It returns an expand entry with
+    // -inf loss_chg if the Hessian is invalid.
     if (split.loss_chg <= kRtEps) {
       return false;
     }

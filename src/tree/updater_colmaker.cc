@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file updater_colmaker.cc
  * \brief use columnwise update to construct a tree
  * \author Tianqi Chen
@@ -8,7 +8,8 @@
 #include <cmath>
 #include <vector>
 
-#include "../common/error_msg.h"  // for NoCategorical
+#include "../collective/communicator-inl.h"  // for IsDistributed
+#include "../common/error_msg.h"             // for NoCategorical
 #include "../common/random.h"
 #include "constraints.h"
 #include "param.h"

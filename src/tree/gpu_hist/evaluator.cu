@@ -1,14 +1,13 @@
 /**
- * Copyright 2022-2025, XGBoost Contributors
+ * Copyright 2022-2026, XGBoost Contributors
  *
- * \brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
+ * @brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
  */
 #include <thrust/logical.h>  // thrust::any_of
 #include <thrust/sort.h>     // thrust::stable_sort
 
 #include "../../common/cuda_context.cuh"  // for CUDAContext
-#include "../../common/cuda_stream.h"     // for DefaultStream
 #include "../../common/device_helpers.cuh"
 #include "../../common/hist_util.h"  // common::HistogramCuts
 #include "evaluate_splits.cuh"
@@ -67,16 +66,16 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
 }
 
 common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
-    common::Span<const EvaluateSplitInputs> d_inputs, EvaluateSplitSharedInputs shared_inputs,
+    Context const *ctx, common::Span<const EvaluateSplitInputs> d_inputs,
+    EvaluateSplitSharedInputs shared_inputs,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
-  dh::XGBCachingDeviceAllocator<char> alloc;
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
-  dh::Iota(sorted_idx, curt::DefaultStream());
+  dh::Iota(sorted_idx, ctx->CUDACtx()->Stream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
   auto it = thrust::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
   auto total_bins = shared_inputs.feature_values.size();
-  thrust::transform(thrust::cuda::par(alloc), it, it + data.size(), dh::tbegin(data),
+  thrust::transform(ctx->CUDACtx()->CTP(), it, it + data.size(), dh::tbegin(data),
                     [=] XGBOOST_DEVICE(uint32_t i) {
                       auto const &input = d_inputs[i / total_bins];
                       auto j = i % total_bins;
@@ -93,7 +92,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
   // - nodes
   // - features within each node
   // - gradients within each feature
-  thrust::stable_sort_by_key(thrust::cuda::par(alloc), dh::tbegin(data), dh::tend(data),
+  thrust::stable_sort_by_key(ctx->CUDACtx()->CTP(), dh::tbegin(data), dh::tend(data),
                              dh::tbegin(sorted_idx),
                              [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
                                auto li = thrust::get<0>(l);

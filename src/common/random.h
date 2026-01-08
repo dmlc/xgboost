@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file random.h
  * \brief Utility related to random.
  * \author Tianqi Chen
@@ -11,18 +11,14 @@
 
 #include <algorithm>
 #include <functional>
-#include <limits>
 #include <map>
 #include <memory>
 #include <numeric>
 #include <random>
-#include <utility>
 #include <vector>
 
 #include "../collective/broadcast.h"  // for Broadcast
-#include "../collective/communicator-inl.h"
 #include "algorithm.h"  // ArgSort
-#include "common.h"
 #include "xgboost/context.h"  // Context
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"
@@ -191,10 +187,14 @@ class ColumnSampler {
     }
     if (colsample_bynode_ == 1.0f) {
       // Level sampling
-      return feature_set_level_[depth];
+      auto ptr = feature_set_level_[depth];
+      ptr->SetDevice(this->ctx_->Device());
+      return ptr;
     }
     // Need to sample for the node individually
-    return ColSample(feature_set_level_[depth], colsample_bynode_);
+    auto ptr = ColSample(feature_set_level_[depth], colsample_bynode_);
+    ptr->SetDevice(this->ctx_->Device());
+    return ptr;
   }
 };
 
