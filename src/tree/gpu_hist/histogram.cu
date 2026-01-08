@@ -513,8 +513,8 @@ struct HistKernel {
                    static_cast<cuda_impl::RowIndexT>(
                        common::DivRoundUp(items_per_group, Policy::kTileSize)));
       dim3 conf(n_blocks, feature_groups.NumGroups());
-      kernel<<<conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream()>>>(
-          matrix, feature_groups, ridx, gpair, hist);
+      dh::LaunchKernel(conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream())(
+          kernel, matrix, feature_groups, ridx, gpair, hist);
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
@@ -563,9 +563,9 @@ struct HistKernel {
                                             v.n_blocks_per_mp * n_mps, n_targets, &n_blocks);
       CHECK_GE(n_blocks, hists.size());
       dim3 conf(n_blocks, feature_groups.NumGroups());
-      kernel<<<conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream()>>>(
-          matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(), d_gpair, n_samples,
-          n_targets);
+      dh::LaunchKernel(conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream())(
+          kernel, matrix, feature_groups, ridx_iters, dh::ToSpan(blk_ptr), hists.data(), d_gpair,
+          n_samples, n_targets);
       dh::safe_cuda(cudaPeekAtLastError());
     };
 
