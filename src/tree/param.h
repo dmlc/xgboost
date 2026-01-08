@@ -231,8 +231,8 @@ XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad,
 
 // calculate weight given the statistics
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(
-    TrainingParams const &p, T sum_grad, T sum_hess) {
+XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(TrainingParams const &p,
+                                                                           T sum_grad, T sum_hess) {
   if (sum_hess < p.min_child_weight || sum_hess <= 0.0) {
     return 0.0;
   }
