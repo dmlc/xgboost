@@ -237,7 +237,7 @@ XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(Train
     return 0.0;
   }
   T dw = -ThresholdL1(sum_grad, p.reg_alpha) / (sum_hess + p.reg_lambda);
-  if (p.max_delta_step != 0.0f && ::abs(dw) > p.max_delta_step) {
+  if (p.max_delta_step != 0.0f && ::fabs(dw) > p.max_delta_step) {
     dw = ::copysign(p.max_delta_step, dw);
   }
   return dw;
