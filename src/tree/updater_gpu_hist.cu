@@ -154,7 +154,7 @@ struct GPUHistMakerDevice {
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(
-            *cuts_, dense_compressed, DftHistSharedMemoryBytes(this->ctx_->Ordinal()))},
+            *cuts_, dense_compressed, DftStHistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
         sampler{std::make_unique<GradientBasedSampler>(ctx, info.num_row_, batch_param,

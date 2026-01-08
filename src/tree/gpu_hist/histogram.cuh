@@ -17,7 +17,14 @@
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
-[[nodiscard]] inline std::size_t DftHistSharedMemoryBytes(std::int32_t device) {
+// Single-target shared memory policy
+[[nodiscard]] inline std::size_t DftStHistShmemBytes(std::int32_t device) {
+  auto optin = dh::MaxSharedMemoryOptin(device);
+  return std::min(optin, std::size_t{96} * 1024);
+}
+
+// Multi-target shared memory policy
+[[nodiscard]] inline std::size_t DftMtHistShmemBytes(std::int32_t device) {
   auto max_shared_optin = dh::MaxSharedMemoryOptin(device);
   auto max_shared = dh::MaxSharedMemory(device);
   // Use larger shared memory if available.

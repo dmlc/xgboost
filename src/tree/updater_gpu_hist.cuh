@@ -652,7 +652,7 @@ class MultiTargetHistMaker {
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
-                                                        DftHistSharedMemoryBytes(ctx_->Ordinal()))},
+                                                        DftMtHistShmemBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},

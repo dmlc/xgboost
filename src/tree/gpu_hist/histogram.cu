@@ -199,17 +199,22 @@ using HistSm90 = HistTuning<1024, 2>;
 
 using HistSm110 = HistTuning<768, 2>;
 
+// Multi-target launch bounds
 #if __CUDA_ARCH__ >= 1100
-using HistBound = HistSm110;
+using MtHistBound = HistSm110;
 #elif __CUDA_ARCH__ >= 900
-using HistBound = HistSm90;
+using MtHistBound = HistSm90;
 #elif __CUDA_ARCH__ >= 860
-using HistBound = HistSm86;
+using MtHistBound = HistSm86;
 #elif __CUDA_ARCH__ >= 800
-using HistBound = HistSm80;
+using MtHistBound = HistSm80;
 #else
-using HistBound = HistSm75;
+using MtHistBound = HistSm75;
 #endif
+
+// Single-target launch buonds
+// Maximize the number of threads instead of tuning for occupancy for single target.
+using StHistBound = HistSm75;
 
 template <typename HistArchPolicy, std::int32_t ItemsPerThread, bool Dense, bool Compressed,
           bool SharedMem>
@@ -337,7 +342,7 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
  * @brief Kernel for the single-target histogram.
  */
 template <typename Policy, typename Accessor>
-__global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) void StHistKernel(
+__global__ __launch_bounds__(StHistBound::kBlockThreads, StHistBound::kMinBlocks) void StHistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups,
     common::Span<cuda_impl::RowIndexT const> d_ridx_iter,
     common::Span<GradientPairInt64 const> d_gpair, common::Span<GradientPairInt64> node_hist) {
@@ -366,7 +371,7 @@ __global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) vo
  * @param blk_ptr        Indptr for mapping blockIdx.x to nidx_in_set.
  */
 template <typename Policy, typename Accessor, typename RidxIterSpan>
-__global__ __launch_bounds__(HistBound::kBlockThreads, HistBound::kMinBlocks) void MtHistKernel(
+__global__ __launch_bounds__(MtHistBound::kBlockThreads, MtHistBound::kMinBlocks) void MtHistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups, RidxIterSpan* d_ridx_iters,
     common::Span<std::uint32_t const> blk_ptr, common::Span<GradientPairInt64>* node_hists,
     GradientPairInt64 const* d_gpair, bst_idx_t n_samples, bst_target_t n_targets) {
@@ -517,23 +522,18 @@ struct HistKernel {
           kernel, matrix, feature_groups, ridx, gpair, hist);
       dh::safe_cuda(cudaPeekAtLastError());
     };
+    using Arch = StHistBound;
 
     if (use_shared) {
-      DispatchCudaSm(ctx->Ordinal(), [&](auto arch) {
-        using Arch = common::GetValueT<decltype(arch)>;
-        using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, true>;
-        auto kernel = StHistKernel<Policy, Accessor>;
-        this->SetCfg(Policy{}, shmem_bytes, kernel);
-        launch(Policy{}, kernel);
-      });
+      using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, true>;
+      auto kernel = StHistKernel<Policy, Accessor>;
+      this->SetCfg(Policy{}, shmem_bytes, kernel);
+      launch(Policy{}, kernel);
     } else {
-      DispatchCudaSm(ctx->Ordinal(), [&](auto arch) {
-        using Arch = common::GetValueT<decltype(arch)>;
-        using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, false>;
-        auto kernel = StHistKernel<Policy, Accessor>;
-        this->SetCfg(Policy{}, shmem_bytes, kernel);
-        launch(Policy{}, kernel);
-      });
+      using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, false>;
+      auto kernel = StHistKernel<Policy, Accessor>;
+      this->SetCfg(Policy{}, shmem_bytes, kernel);
+      launch(Policy{}, kernel);
     }
   }
 
