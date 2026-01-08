@@ -8,6 +8,7 @@
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector
 
+#include "../collective/communicator-inl.h"    // for IsDistributed
 #include "../common/device_helpers.cuh"        // for MakeTransformIterator
 #include "../common/nvtx_utils.h"              // for xgboost_NVTX_FN_RANGE
 #include "../common/random.h"                  // for ColumnSampler
@@ -19,6 +20,7 @@
 #include "gpu_hist/multi_evaluate_splits.cuh"  // for MultiHistEvaluator
 #include "gpu_hist/row_partitioner.cuh"        // for RowPartitioner
 #include "hist/hist_param.h"                   // for HistMakerTrainParam
+#include "sample_position.h"                   // for SamplePosition
 #include "tree_view.h"                         // for MultiTargetTreeView
 #include "xgboost/base.h"                      // for bst_idx_t
 #include "xgboost/context.h"                   // for Context
@@ -113,8 +115,6 @@ class MultiTargetHistMaker {
   // Gradient used for calculating the leaf values
   linalg::Matrix<GradientPair> value_gpair_;
   std::vector<bst_idx_t> const batch_ptr_;
-  // Node index of each sample
-  dh::device_vector<bst_node_t> positions_;
 
   dh::PinnedMemory pinned_;
 
@@ -534,11 +534,13 @@ class MultiTargetHistMaker {
     }
   };
 
-  void FinalizePosition(DMatrix* p_fmat, RegTree const* p_tree) {
+  void FinalizePosition(DMatrix* p_fmat, RegTree const* p_tree,
+                        HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
 
-    positions_.resize(p_fmat->Info().num_row_, 0);
-    auto d_out_position = dh::ToSpan(positions_);
+    p_out_position->SetDevice(ctx_->Device());
+    p_out_position->Resize(p_fmat->Info().num_row_);
+    auto d_out_position = p_out_position->DeviceSpan();
 
     for (std::size_t k = 0; k < partitioners_.Size(); ++k) {
       auto& part = partitioners_.At(k);
@@ -550,14 +552,13 @@ class MultiTargetHistMaker {
     }
   }
 
-  bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d, RegTree const* p_tree) {
-    if (positions_.empty()) {
-      return false;
-    }
-
+  bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d,
+                             common::Span<HostDeviceVector<bst_node_t>> out_position,
+                             RegTree const* p_tree) {
     xgboost_NVTX_FN_RANGE();
 
-    auto d_position = dh::ToSpan(positions_);
+    CHECK_EQ(out_position.size(), 1);
+    auto d_position = out_position.front().ConstDeviceSpan();
     CHECK_EQ(out_preds_d.Shape(0), d_position.size());
     auto mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
     thrust::for_each_n(this->ctx_->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul),
@@ -565,23 +566,34 @@ class MultiTargetHistMaker {
                          auto [sample_idx, target_idx] =
                              linalg::UnravelIndex(i, out_preds_d.Shape());
                          bst_node_t nidx = d_position[sample_idx];
+                         nidx = SamplePosition::Decode(nidx);
                          auto weight = mt_tree.LeafValue(nidx);
                          out_preds_d(sample_idx, target_idx) += weight(target_idx);
                        });
     return true;
   }
 
-  void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree) {
+  void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree,
+                  HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
 
     if (param_.grow_policy == TrainParam::kLossGuide) {
       LOG(FATAL) << "Loss guide" << MTNotImplemented();
+    }
+    if (1.0f - param_.subsample > kRtEps) {
+      LOG(FATAL) << "Subsample" << MTNotImplemented();
     }
     if (!param_.monotone_constraints.empty()) {
       LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
     }
     if (!param_.interaction_constraints.empty()) {
       LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
+    }
+    if (collective::IsDistributed()) {
+      LOG(FATAL) << "Distributed training" << MTNotImplemented();
+    }
+    if (this->cuts_->HasCategorical()) {
+      LOG(FATAL) << "Categorical feature" << MTNotImplemented();
     }
 
     auto* split_grad = gpair->Grad();
@@ -592,7 +604,7 @@ class MultiTargetHistMaker {
     }
     CHECK_LE(split_grad->Shape(1), p_tree->NumTargets());
 
-    this->GrowTree(split_grad, p_fmat, task, p_tree);
+    this->GrowTree(split_grad, p_fmat, task, p_tree, p_out_position);
 
     if (gpair->HasValueGrad()) {
       this->ExpandTreeLeaf(gpair->value_gpair, p_tree);
@@ -602,7 +614,7 @@ class MultiTargetHistMaker {
   }
 
   void GrowTree(linalg::Matrix<GradientPair>* split_gpair, DMatrix* p_fmat, ObjInfo const*,
-                RegTree* p_tree) {
+                RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
     Driver<MultiExpandEntry> driver{param_, kMaxNodeBatchSize};
 
@@ -635,7 +647,7 @@ class MultiTargetHistMaker {
     if (p_fmat->SingleColBlock()) {
       CHECK_GE(p_tree->NumNodes(), this->partitioners_.Front()->GetNumNodes());
     }
-    this->FinalizePosition(p_fmat, p_tree);
+    this->FinalizePosition(p_fmat, p_tree, p_out_position);
   }
 
   explicit MultiTargetHistMaker(Context const* ctx, TrainParam param,
@@ -653,8 +665,6 @@ class MultiTargetHistMaker {
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},
-        batch_ptr_{std::move(batch_ptr)} {
-    xgboost_NVTX_FN_RANGE();
-  }
+        batch_ptr_{std::move(batch_ptr)} {}
 };
 }  // namespace xgboost::tree::cuda_impl

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_TEST_REGRESSION_OBJ_H_
 #define XGBOOST_TEST_REGRESSION_OBJ_H_
@@ -35,6 +35,8 @@ void TestCoxRegressionGPair(const Context* ctx);
 void TestAbsoluteError(const Context* ctx);
 
 void TestAbsoluteErrorLeaf(const Context* ctx);
+
+void TestAbsoluteErrorVectorLeaf(Context const* ctx);
 
 void TestPseudoHuber(const Context* ctx);
 

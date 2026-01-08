@@ -16,7 +16,7 @@ TEST_F(TestPredictionCache, Hist) {
   this->RunTest(&ctx, "grow_quantile_histmaker", "one_output_per_tree");
 }
 
-TEST_F(TestPredictionCache, HistMulti) {
+TEST_F(TestPredictionCache, MultiHist) {
   Context ctx;
   this->RunTest(&ctx, "grow_quantile_histmaker", "multi_output_tree");
 }

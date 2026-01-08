@@ -1,35 +1,56 @@
 /**
- * Copyright 2023-2025, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
+#include "test_multi_target_tree_model.h"
+
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
+#include <xgboost/linalg.h>   // for Vector
 #include <xgboost/multi_target_tree_model.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
+#include <memory>   // for unique_ptr
 #include <numeric>  // for iota
 
 #include "../../../src/tree/tree_view.h"
 
 namespace xgboost {
-namespace {
-auto MakeTreeForTest() {
-  bst_target_t n_targets{3};
+std::unique_ptr<RegTree> MakeMtTreeForTest(bst_target_t n_targets) {
   bst_feature_t n_features{4};
   std::unique_ptr<RegTree> tree{std::make_unique<RegTree>(n_targets, n_features)};
   CHECK(tree->IsMultiTarget());
-  linalg::Vector<float> base_weight{{1.0f, 2.0f, 3.0f}, {3ul}, DeviceOrd::CPU()};
+
+  auto iota_weights = [&](float init, HostDeviceVector<float>* data,
+                          common::Span<std::size_t> shape) {
+    shape[0] = n_targets;
+    auto& h_data = data->HostVector();
+    h_data.resize(n_targets);
+    std::iota(h_data.begin(), h_data.end(), init);
+  };
+
+  linalg::Vector<float> base_weight;
+  base_weight.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
+    iota_weights(1.0f, data, shape);
+  });
   tree->SetRoot(base_weight.HostView());
-  linalg::Vector<float> left_weight{{2.0f, 3.0f, 4.0f}, {3ul}, DeviceOrd::CPU()};
-  linalg::Vector<float> right_weight{{3.0f, 4.0f, 5.0f}, {3ul}, DeviceOrd::CPU()};
+
+  linalg::Vector<float> left_weight;
+  left_weight.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
+    iota_weights(2.0f, data, shape);
+  });
+  linalg::Vector<float> right_weight;
+  right_weight.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
+    iota_weights(3.0f, data, shape);
+  });
+
   tree->ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
                    left_weight.HostView(), right_weight.HostView());
   tree->GetMultiTargetTree()->SetLeaves();
   return tree;
 }
-}  // namespace
 
 TEST(MultiTargetTree, JsonIO) {
-  auto tree = MakeTreeForTest();
+  auto tree = MakeMtTreeForTest(3);
   ASSERT_EQ(tree->NumNodes(), 3);
   ASSERT_EQ(tree->NumTargets(), 3);
   ASSERT_EQ(tree->GetMultiTargetTree()->Size(), 3);
@@ -72,7 +93,7 @@ TEST(MultiTargetTree, JsonIO) {
 
 namespace {
 void TestTreeDump(std::string format, std::string leaf_key) {
-  auto tree = MakeTreeForTest();
+  auto tree = MakeMtTreeForTest(3);
   auto n_features = tree->NumFeatures();
   FeatureMap fmap;
   for (bst_feature_t f = 0; f < n_features; ++f) {
@@ -107,7 +128,7 @@ TEST(MultiTargetTree, TextDump) { TestTreeDump("text", "leaf="); }
 TEST(MultiTargetTree, JsonDump) { TestTreeDump("json", "\"leaf\": "); }
 
 TEST(MultiTargetTree, View) {
-  auto tree = MakeTreeForTest();
+  auto tree = MakeMtTreeForTest(3);
   auto v = tree->HostMtView();
   ASSERT_EQ(v.NumTargets(), 3);
   ASSERT_EQ(v.Size(), 3);

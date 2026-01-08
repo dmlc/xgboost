@@ -1,7 +1,8 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
- * \file linalg.h
- * \brief Linear algebra related utilities.
+ * Copyright 2021-2026, XGBoost Contributors
+ *
+ * @file linalg.h
+ * @brief Linear algebra related utilities.
  */
 #ifndef XGBOOST_LINALG_H_
 #define XGBOOST_LINALG_H_
@@ -979,7 +980,7 @@ auto EmptyLike(Context const *ctx, Tensor<T, kDim> const &in) {
 }
 
 /**
- * \brief Create an array with value v.
+ * @brief Create an array with value v.
  */
 template <typename T, typename... Index>
 auto Constant(Context const *ctx, T v, Index &&...index) {
@@ -991,7 +992,7 @@ auto Constant(Context const *ctx, T v, Index &&...index) {
 }
 
 /**
- * \brief Like `np.zeros`, return a new array of given shape and type, filled with zeros.
+ * @brief Like `np.zeros`, return a new array of given shape and type, filled with zeros.
  */
 template <typename T, typename... Index>
 auto Zeros(Context const *ctx, Index &&...index) {
@@ -1015,6 +1016,16 @@ void Stack(Tensor<T, D> *l, Tensor<T, D> const &r) {
     data->Extend(*r.Data());
     shape[0] = l->Shape(0) + r.Shape(0);
   });
+}
+
+/**
+ * @brief Push an extra dim to the end.
+ */
+template <typename T>
+MatrixView<T> ExpandDim(VectorView<T> x) {
+  std::size_t shape[2]{x.Shape(0), 1};
+  std::size_t stride[2]{x.Stride(0), 1};
+  return MatrixView<T>{x.Values(), shape, stride, x.Device()};
 }
 }  // namespace xgboost::linalg
 

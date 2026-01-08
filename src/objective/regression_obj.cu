@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file regression_obj.cu
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
@@ -780,8 +780,14 @@ class MeanAbsoluteError : public ObjFunction {
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
                       float learning_rate, HostDeviceVector<float> const& prediction,
                       bst_target_t group_idx, RegTree* p_tree) const override {
-    ::xgboost::obj::UpdateTreeLeaf(ctx_, position, group_idx, info, learning_rate, prediction, 0.5,
-                                   p_tree);
+    std::vector<float> alphas;
+    if (p_tree->IsMultiTarget()) {
+      alphas.resize(p_tree->NumTargets(), 0.5);
+    } else {
+      alphas.push_back(0.5);
+    }
+    ::xgboost::obj::UpdateTreeLeaf(ctx_, position, group_idx, info, learning_rate, prediction,
+                                   alphas, p_tree);
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "mae"; }
