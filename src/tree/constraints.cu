@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
@@ -181,7 +181,7 @@ common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(Contex
   return {s_result_buffer_.data(), s_result_buffer_.data() + n_available};
 }
 
-__global__ void SetInputBufferKernel(common::Span<bst_feature_t> feature_list_input,
+__global__ void SetInputBufferKernel(common::Span<bst_feature_t const> feature_list_input,
                                      LBitField64 result_buffer_input) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < feature_list_input.size()) {
@@ -196,15 +196,15 @@ __global__ void QueryFeatureListKernel(LBitField64 node_constraints,
   result_buffer_output &= result_buffer_input;
 }
 
-common::Span<bst_feature_t> FeatureInteractionConstraintDevice::Query(
-    common::Span<bst_feature_t> feature_list, int32_t nid) {
-  if (!has_constraint_ || nid == 0) {
+common::Span<bst_feature_t const> FeatureInteractionConstraintDevice::Query(
+    common::Span<bst_feature_t const> feature_list, bst_node_t nidx) {
+  if (!has_constraint_ || nidx == 0) {
     return feature_list;
   }
 
   ClearBuffers();
 
-  LBitField64 node_constraints = s_node_constraints_[nid];
+  LBitField64 node_constraints = s_node_constraints_[nidx];
   CHECK_EQ(input_buffer_bits_.Capacity(), output_buffer_bits_.Capacity());
 
   uint32_t constexpr kBlockThreads = 256;

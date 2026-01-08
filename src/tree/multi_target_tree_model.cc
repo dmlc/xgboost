@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2025, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include "xgboost/multi_target_tree_model.h"
 
@@ -52,6 +52,7 @@ MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
 }
 
 void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight) {
+  CHECK(!weight.Empty());
   auto const next_nidx = RegTree::kRoot + 1;
 
   this->weights_.SetDevice(weight.Device());

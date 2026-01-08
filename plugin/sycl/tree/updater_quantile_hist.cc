@@ -12,10 +12,10 @@
 #include "xgboost/tree_updater.h"
 #pragma GCC diagnostic pop
 
-#include "xgboost/logging.h"
-
-#include "updater_quantile_hist.h"
+#include "../../src/collective/communicator-inl.h"  // for IsDistributed
 #include "../data.h"
+#include "updater_quantile_hist.h"
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace sycl {

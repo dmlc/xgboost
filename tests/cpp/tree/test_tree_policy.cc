@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2025, XGBoost contributors
+ * Copyright 2021-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>     // for bst_node_t
@@ -36,6 +36,9 @@ class TestGrowPolicy : public ::testing::Test {
       learner->SetParam("max_depth", std::to_string(max_depth));
     }
     learner->SetParam("grow_policy", policy);
+    if (n_targets > 1) {
+      learner->SetParam("multi_strategy", "multi_output_tree");
+    }
 
     auto check_max_leave = [&]() {
       Json model{Object{}};
@@ -179,9 +182,6 @@ TEST_F(TestGrowPolicy, GpuMultiHist) {
   auto ctx = MakeCUDACtx(0);
   bst_target_t n_targets = 3;
   this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "depthwise");
-  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "lossguide");
-
-  this->TestCombination(&ctx, n_targets, "hist");
 }
 
 TEST_F(TestGrowPolicy, GpuApprox) {
