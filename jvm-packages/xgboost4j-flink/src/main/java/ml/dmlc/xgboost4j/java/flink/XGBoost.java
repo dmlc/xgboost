@@ -63,7 +63,7 @@ public class XGBoost {
     }
 
     /**
-     * Trains the XGBoost models based on the data elements in the given partition.
+     * Trains the XGBoost model based on the data elements in the given partition.
      *
      * @param it The iterable object consisting of labeled points with vectors as features and
      *           a double value as the label.
