@@ -30,7 +30,7 @@ TEST(EllpackPage, EmptyDMatrix) {
   auto impl = page.Impl();
   ASSERT_EQ(impl->info.row_stride, 0);
   ASSERT_EQ(impl->Cuts().TotalBins(), 0);
-  ASSERT_EQ(impl->gidx_buffer.size(), 5);
+  ASSERT_EQ(impl->gidx_buffer.size(), 9);
 }
 
 TEST(EllpackPage, BuildGidxDense) {

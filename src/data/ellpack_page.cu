@@ -14,6 +14,7 @@
 
 #include "../common/algorithm.cuh"          // for InclusiveScan
 #include "../common/categorical.h"          // for IsCat
+#include "../common/compressed_iterator.h"  // for CompressedIterator
 #include "../common/cuda_context.cuh"       // for CUDAContext
 #include "../common/cuda_rt_utils.h"        // for SetDevice
 #include "../common/cuda_stream.h"          // for DefaultStream
