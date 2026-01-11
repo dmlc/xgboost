@@ -9,22 +9,29 @@ import numpy as np
 import pytest
 from scipy.special import softmax
 
-import xgboost as xgb
 import xgboost.testing as tm
-from xgboost.core import _parse_version
-from xgboost.data import is_pd_cat_dtype
 
-from ..core import DataIter
+from ..callback import TrainingCallback
+from ..core import (
+    Booster,
+    DataIter,
+    DMatrix,
+    ExtMemQuantileDMatrix,
+    QuantileDMatrix,
+)
+from ..data import is_pd_cat_dtype
+from ..sklearn import XGBClassifier, XGBModel, XGBRegressor
+from ..training import train
 from .data_iter import CatIter
 from .utils import Device
 
 
 @overload
-def get_basescore(model: xgb.XGBModel) -> List[float]: ...
+def get_basescore(model: XGBModel) -> List[float]: ...
 
 
 @overload
-def get_basescore(model: xgb.Booster) -> List[float]: ...
+def get_basescore(model: Booster) -> List[float]: ...
 
 
 @overload
@@ -32,10 +39,10 @@ def get_basescore(model: Dict[str, Any]) -> List[float]: ...
 
 
 def get_basescore(
-    model: Union[xgb.XGBModel, xgb.Booster, Dict],
+    model: Union[XGBModel, Booster, Dict],
 ) -> List[float]:
     """Get base score from an XGBoost sklearn estimator."""
-    if isinstance(model, xgb.XGBModel):
+    if isinstance(model, XGBModel):
         model = model.get_booster()
 
     if isinstance(model, dict):
@@ -57,7 +64,7 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
     )
 
     def run_reg(X: np.ndarray, y: np.ndarray) -> None:  # pylint: disable=invalid-name
-        reg = xgb.XGBRegressor(
+        reg = XGBRegressor(
             tree_method=tree_method, max_depth=1, n_estimators=1, device=device
         )
         reg.fit(X, y, eval_set=[(X, y)])
@@ -66,7 +73,7 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
 
         n_targets = 1 if y.ndim == 1 else y.shape[1]
         intercept = np.full(shape=(n_targets,), fill_value=0.5, dtype=np.float32)
-        reg = xgb.XGBRegressor(
+        reg = XGBRegressor(
             tree_method=tree_method,
             device=device,
             max_depth=1,
@@ -90,7 +97,7 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
     def run_clf(
         X: np.ndarray, y: np.ndarray, w: Optional[np.ndarray] = None
     ) -> List[float]:
-        clf = xgb.XGBClassifier(
+        clf = XGBClassifier(
             tree_method=tree_method, max_depth=1, n_estimators=1, device=device
         )
         if w is not None:
@@ -107,7 +114,7 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
 
         n_targets = 1 if y.ndim == 1 else y.shape[1]
         intercept = np.full(shape=(n_targets,), fill_value=0.5, dtype=np.float32)
-        clf = xgb.XGBClassifier(
+        clf = XGBClassifier(
             tree_method=tree_method,
             max_depth=1,
             n_estimators=1,
@@ -186,14 +193,14 @@ def check_quantile_loss(tree_method: str, weighted: bool, device: Device) -> Non
     else:
         weight = None
 
-    Xy = xgb.QuantileDMatrix(X, y, weight=weight)
+    Xy = QuantileDMatrix(X, y, weight=weight)
 
     alpha = np.array([0.1, 0.5])
     # non-zero base score can cause floating point difference with GPU predictor.
     # multi-class has small difference than single target in the prediction kernel
     base_score = np.zeros(shape=alpha.shape, dtype=np.float32)
     evals_result: Dict[str, Dict] = {}
-    booster_multi = xgb.train(
+    booster_multi = train(
         {
             "objective": "reg:quantileerror",
             "tree_method": tree_method,
@@ -225,7 +232,7 @@ def check_quantile_loss(tree_method: str, weighted: bool, device: Device) -> Non
     for i in range(alpha.shape[0]):
         a = alpha[i]
 
-        booster_i = xgb.train(
+        booster_i = train(
             {
                 "objective": "reg:quantileerror",
                 "tree_method": tree_method,
@@ -266,17 +273,17 @@ def check_quantile_loss_extmem(
         cache="cache",
         on_host=False,
     )
-    Xy_it = xgb.DMatrix(it)
+    Xy_it = DMatrix(it)
     params = {
         "tree_method": tree_method,
         "objective": "reg:quantileerror",
         "device": device,
         "quantile_alpha": [0.2, 0.8],
     }
-    booster_it = xgb.train(params, Xy_it)
+    booster_it = train(params, Xy_it)
     X, y, w = it.as_arrays()
-    Xy = xgb.DMatrix(X, y, weight=w)
-    booster = xgb.train(params, Xy)
+    Xy = DMatrix(X, y, weight=w)
+    booster = train(params, Xy)
 
     predt_it = booster_it.predict(Xy_it)
     predt = booster.predict(Xy)
@@ -317,17 +324,15 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
             on_host=on_host,
         )
 
-    Xy_it = xgb.ExtMemQuantileDMatrix(it, max_bin=n_bins, enable_categorical=is_cat)
+    Xy_it = ExtMemQuantileDMatrix(it, max_bin=n_bins, enable_categorical=is_cat)
     with pytest.raises(ValueError, match="Only the `hist`"):
-        booster_it = xgb.train(
+        booster_it = train(
             {"device": device, "tree_method": "approx", "max_bin": n_bins},
             Xy_it,
             num_boost_round=8,
         )
 
-    booster_it = xgb.train(
-        {"device": device, "max_bin": n_bins}, Xy_it, num_boost_round=8
-    )
+    booster_it = train({"device": device, "max_bin": n_bins}, Xy_it, num_boost_round=8)
     if is_cat:
         it = CatIter(
             n_samples_per_batch=n_samples_per_batch,
@@ -347,8 +352,8 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
             ),
             cache=None,
         )
-    Xy = xgb.QuantileDMatrix(it, max_bin=n_bins, enable_categorical=is_cat)
-    booster = xgb.train({"device": device, "max_bin": n_bins}, Xy, num_boost_round=8)
+    Xy = QuantileDMatrix(it, max_bin=n_bins, enable_categorical=is_cat)
+    booster = train({"device": device, "max_bin": n_bins}, Xy, num_boost_round=8)
 
     cut_it = Xy_it.get_quantile_cut()
     cut = Xy.get_quantile_cut()
@@ -389,12 +394,12 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     # numerical
     X, y, w = tm.make_regression(n_samples, n_features, use_cupy=use_cupy)
     # - qdm
-    Xyw: xgb.DMatrix = xgb.QuantileDMatrix(X, y, weight=w, max_bin=max_bin)
+    Xyw: DMatrix = QuantileDMatrix(X, y, weight=w, max_bin=max_bin)
     indptr, data = Xyw.get_quantile_cut()
     check_cut((max_bin + 1) * n_features, indptr, data, dtypes)
     # - dm
-    Xyw = xgb.DMatrix(X, y, weight=w)
-    xgb.train({"tree_method": tree_method, "max_bin": max_bin}, Xyw)
+    Xyw = DMatrix(X, y, weight=w)
+    train({"tree_method": tree_method, "max_bin": max_bin}, Xyw)
     indptr, data = Xyw.get_quantile_cut()
     check_cut((max_bin + 1) * n_features, indptr, data, dtypes)
     # - ext mem
@@ -405,8 +410,8 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
         cache="cache",
         on_host=False,
     )
-    Xy: xgb.DMatrix = xgb.DMatrix(it)
-    xgb.train({"tree_method": tree_method, "max_bin": max_bin}, Xyw)
+    Xy: DMatrix = DMatrix(it)
+    train({"tree_method": tree_method, "max_bin": max_bin}, Xyw)
     indptr, data = Xyw.get_quantile_cut()
     check_cut((max_bin + 1) * n_features, indptr, data, dtypes)
 
@@ -422,12 +427,12 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
         X = cudf.from_pandas(X)
         y = cp.array(y)
     # - qdm
-    Xy = xgb.QuantileDMatrix(X, y, max_bin=max_bin, enable_categorical=True)
+    Xy = QuantileDMatrix(X, y, max_bin=max_bin, enable_categorical=True)
     indptr, data = Xy.get_quantile_cut()
     check_cut(n_categories * n_features, indptr, data, X.dtypes)
     # - dm
-    Xy = xgb.DMatrix(X, y, enable_categorical=True)
-    xgb.train({"tree_method": tree_method, "max_bin": max_bin}, Xy)
+    Xy = DMatrix(X, y, enable_categorical=True)
+    train({"tree_method": tree_method, "max_bin": max_bin}, Xy)
     indptr, data = Xy.get_quantile_cut()
     check_cut(n_categories * n_features, indptr, data, X.dtypes)
 
@@ -439,12 +444,12 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     n_num_features = n_features - n_cat_features
     n_entries = n_categories * n_cat_features + (max_bin + 1) * n_num_features
     # - qdm
-    Xy = xgb.QuantileDMatrix(X, y, max_bin=max_bin, enable_categorical=True)
+    Xy = QuantileDMatrix(X, y, max_bin=max_bin, enable_categorical=True)
     indptr, data = Xy.get_quantile_cut()
     check_cut(n_entries, indptr, data, X.dtypes)
     # - dm
-    Xy = xgb.DMatrix(X, y, enable_categorical=True)
-    xgb.train({"tree_method": tree_method, "max_bin": max_bin}, Xy)
+    Xy = DMatrix(X, y, enable_categorical=True)
+    train({"tree_method": tree_method, "max_bin": max_bin}, Xy)
     indptr, data = Xy.get_quantile_cut()
     check_cut(n_entries, indptr, data, X.dtypes)
 
@@ -473,7 +478,7 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
     onehot: bool,
     extmem: bool,
     enable_categorical: bool,
-) -> xgb.DMatrix:
+) -> DMatrix:
     n_batches = max(min(2, n_samples), 1)
     it = CatIter(
         n_samples // n_batches,
@@ -488,16 +493,16 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
     )
     if extmem:
         if tree_method == "hist":
-            Xy: xgb.DMatrix = xgb.ExtMemQuantileDMatrix(
+            Xy: DMatrix = ExtMemQuantileDMatrix(
                 it, enable_categorical=enable_categorical
             )
         elif tree_method == "approx":
-            Xy = xgb.DMatrix(it, enable_categorical=enable_categorical)
+            Xy = DMatrix(it, enable_categorical=enable_categorical)
         else:
             raise ValueError(f"tree_method {tree_method} not supported.")
     else:
         cat, label = it.xy()
-        Xy = xgb.DMatrix(cat, label, enable_categorical=enable_categorical)
+        Xy = DMatrix(cat, label, enable_categorical=enable_categorical)
     return Xy
 
 
@@ -534,7 +539,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
         extmem=extmem,
         enable_categorical=False,
     )
-    xgb.train(
+    train(
         parameters,
         Xy_onehot,
         num_boost_round=rounds,
@@ -553,7 +558,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
         extmem=extmem,
         enable_categorical=True,
     )
-    xgb.train(
+    train(
         parameters,
         Xy_cat,
         num_boost_round=rounds,
@@ -577,7 +582,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     # switch to partition-based splits
     parameters["max_cat_to_onehot"] = USE_PART
     parameters["reg_lambda"] = 0
-    xgb.train(
+    train(
         parameters,
         Xy_cat,
         num_boost_round=rounds,
@@ -592,7 +597,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
 
     parameters["reg_lambda"] = 1.0
     by_grouping = {}
-    xgb.train(
+    train(
         parameters,
         Xy_cat,
         num_boost_round=32,
@@ -631,7 +636,7 @@ def check_categorical_missing(  # pylint: disable=too-many-arguments
         parameters["max_cat_to_onehot"] = max_cat_to_onehot
 
         evals_result: Dict[str, Dict] = {}
-        booster = xgb.train(
+        booster = train(
             parameters,
             Xy,
             num_boost_round=16,
@@ -664,7 +669,7 @@ def run_max_cat(tree_method: str, device: Device) -> None:
         dtype="category",
     )[:n].to_frame()
 
-    reg = xgb.XGBRegressor(
+    reg = XGBRegressor(
         enable_categorical=True,
         tree_method=tree_method,
         device=device,
@@ -684,29 +689,29 @@ def run_invalid_category(tree_method: str, device: Device) -> None:
     X[13, 7] = np.iinfo(np.int32).max + 1
 
     # Check is performed during sketching.
-    Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
+    Xy = DMatrix(X, y, feature_types=["c"] * 10)
     with pytest.raises(ValueError):
-        xgb.train({"tree_method": tree_method, "device": device}, Xy)
+        train({"tree_method": tree_method, "device": device}, Xy)
 
     X[13, 7] = 16777216
-    Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
+    Xy = DMatrix(X, y, feature_types=["c"] * 10)
     with pytest.raises(ValueError):
-        xgb.train({"tree_method": tree_method, "device": device}, Xy)
+        train({"tree_method": tree_method, "device": device}, Xy)
 
     # mixed positive and negative values
     X = rng.normal(loc=0, scale=1, size=1000).reshape(100, 10)  # type: ignore
     y = rng.normal(loc=0, scale=1, size=100)
 
-    Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
+    Xy = DMatrix(X, y, feature_types=["c"] * 10)
     with pytest.raises(ValueError):
-        xgb.train({"tree_method": tree_method, "device": device}, Xy)
+        train({"tree_method": tree_method, "device": device}, Xy)
 
     if device == "cuda":
         import cupy as cp
 
         X, y = cp.array(X), cp.array(y)
         with pytest.raises(ValueError):
-            Xy = xgb.QuantileDMatrix(X, y, feature_types=["c"] * 10)
+            QuantileDMatrix(X, y, feature_types=["c"] * 10)
 
 
 def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
@@ -723,21 +728,17 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     if weighted:
         w = rng.normal(size=n_samples)
         w -= w.min()
-        Xy = xgb.DMatrix(X, y, weight=w)
+        Xy = DMatrix(X, y, weight=w)
 
-        (sk_major, sk_minor, _), _ = _parse_version(sklearn_version)
-        if sk_major > 1 or sk_minor >= 7:
-            kwargs = {"percentile_rank": 50}
-        else:
-            kwargs = {"percentile": 50}
+        kwargs = {"percentile_rank": 50}
         base_score = stats._weighted_percentile(  # pylint: disable=protected-access
             y, w, **kwargs
         )
     else:
-        Xy = xgb.DMatrix(X, y)
+        Xy = DMatrix(X, y)
         base_score = np.median(y)
 
-    booster_0 = xgb.train(
+    booster_0 = train(
         {
             "tree_method": tree_method,
             "base_score": base_score,
@@ -747,7 +748,7 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
         Xy,
         num_boost_round=1,
     )
-    booster_1 = xgb.train(
+    booster_1 = train(
         {
             "tree_method": tree_method,
             "objective": "reg:absoluteerror",
@@ -762,11 +763,11 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     assert get_basescore(config_0) == get_basescore(config_1)
 
     raw_booster = booster_1.save_raw(raw_format="ubj")
-    booster_2 = xgb.Booster(model_file=raw_booster)
+    booster_2 = Booster(model_file=raw_booster)
     config_2 = json.loads(booster_2.save_config())
     assert get_basescore(config_1) == get_basescore(config_2)
 
-    booster_0 = xgb.train(
+    booster_0 = train(
         {
             "tree_method": tree_method,
             "base_score": base_score + 1.0,
@@ -782,7 +783,7 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     )
 
     evals_result: Dict[str, Dict[str, list]] = {}
-    xgb.train(
+    train(
         {
             "tree_method": tree_method,
             "device": device,
@@ -801,11 +802,11 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
 
 
 def train_result(
-    param: Dict[str, Any], dmat: xgb.DMatrix, num_rounds: int
+    param: Dict[str, Any], dmat: DMatrix, num_rounds: int
 ) -> Dict[str, Any]:
     """Get training result from parameters and data."""
     result: Dict[str, Any] = {}
-    booster = xgb.train(
+    booster = train(
         param,
         dmat,
         num_rounds,
@@ -821,10 +822,10 @@ def train_result(
     return result
 
 
-class ResetStrategy(xgb.callback.TrainingCallback):
+class ResetStrategy(TrainingCallback):
     """Callback for testing multi-output."""
 
-    def after_iteration(self, model: xgb.Booster, epoch: int, evals_log: dict) -> bool:
+    def after_iteration(self, model: Booster, epoch: int, evals_log: dict) -> bool:
         if epoch % 2 == 0:
             model.set_param({"multi_strategy": "multi_output_tree"})
         else:

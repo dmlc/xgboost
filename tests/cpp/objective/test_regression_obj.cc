@@ -304,6 +304,7 @@ void TestAbsoluteError(const Context* ctx) {
   info.labels.Reshape(6, 1);
   info.labels.Data()->HostVector() = labels;
   info.num_row_ = labels.size();
+
   HostDeviceVector<float> predt{1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
   info.weights_.HostVector() = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
 
@@ -312,14 +313,16 @@ void TestAbsoluteError(const Context* ctx) {
 
   RegTree tree;
   tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+  bst_node_t left_nidx = tree.LeftChild(RegTree::kRoot);
+  bst_node_t right_nidx = tree.RightChild(RegTree::kRoot);
 
   HostDeviceVector<bst_node_t> position(labels.size(), 0);
   auto& h_position = position.HostVector();
   for (size_t i = 0; i < labels.size(); ++i) {
     if (i < labels.size() / 2) {
-      h_position[i] = 1;  // left
+      h_position[i] = left_nidx;
     } else {
-      h_position[i] = 2;  // right
+      h_position[i] = right_nidx;
     }
   }
 
@@ -332,7 +335,7 @@ void TestAbsoluteError(const Context* ctx) {
   param.Init(Args{});
   auto lr = param.learning_rate;
 
-  obj->UpdateTreeLeaf(position, info, param.learning_rate, predt, 0, &tree);
+  obj->UpdateTreeLeaf(position, info, lr, predt, 0, &tree);
   ASSERT_EQ(tree[1].LeafValue(), -1.0f * lr);
   ASSERT_EQ(tree[2].LeafValue(), -4.0f * lr);
 }
