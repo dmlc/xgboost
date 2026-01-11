@@ -717,7 +717,6 @@ def run_invalid_category(tree_method: str, device: Device) -> None:
 def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     """Test for adaptive trees."""
     rng = np.random.RandomState(1994)
-    from sklearn import __version__ as sklearn_version
     from sklearn.datasets import make_regression
     from sklearn.utils import stats
 
