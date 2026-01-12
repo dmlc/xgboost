@@ -31,10 +31,10 @@ auto DispatchWeight(DeviceOrd device, RegTree const* tree) {
 }
 }  // namespace
 
-ScalarTreeView::ScalarTreeView(DeviceOrd device, RegTree const* tree)
+ScalarTreeView::ScalarTreeView(DeviceOrd device, bool need_stat, RegTree const* tree)
     : CategoriesMixIn{tree->GetCategoriesMatrix(device)},
       nodes{tree->GetNodes(device).data()},
-      stats{tree->GetStats(device).data()},
+      stats{need_stat ? tree->GetStats(device).data() : nullptr},
       n{tree->NumNodes()} {
   CHECK(!tree->IsMultiTarget());
 }

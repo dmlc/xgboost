@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
@@ -78,29 +78,29 @@ TEST(CpuPredictor, ArrayTreeLayout) {
     tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0);
   }
 
-  auto sc_tree = tree::ScalarTreeView{ctx.Device(), &tree};
+  auto sc_tree = tree::ScalarTreeView{ctx.Device(), false, &tree};
   {
-    constexpr int kDepth = 1;
+    constexpr bst_node_t kDepth = 1;
     LayoutForTest<kDepth> buffer(sc_tree, sc_tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 2;
+    constexpr bst_node_t kDepth = 2;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 3;
+    constexpr bst_node_t kDepth = 3;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 4;
+    constexpr bst_node_t kDepth = 4;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 5;
+    constexpr bst_node_t kDepth = 5;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }

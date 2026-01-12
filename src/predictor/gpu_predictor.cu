@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  */
 #include <GPUTreeShap/gpu_treeshap.h>
 #include <thrust/copy.h>
@@ -974,7 +974,7 @@ class GPUPredictor : public xgboost::Predictor {
     out_preds->SetDevice(ctx_->Device());
     auto const& info = p_fmat->Info();
 
-    DeviceModel d_model{this->ctx_->Device(), model, tree_begin, tree_end, &this->model_mu_,
+    DeviceModel d_model{this->ctx_->Device(), model, false, tree_begin, tree_end, &this->model_mu_,
                         CopyViews{this->ctx_}};
 
     if (info.IsColumnSplit()) {
@@ -1036,7 +1036,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto n_samples = m->NumRows();
     auto n_features = model.learner_model_param->num_feature;
 
-    DeviceModel d_model{ctx_->Device(),       model, tree_begin, tree_end, &this->model_mu_,
+    DeviceModel d_model{ctx_->Device(),       model, false, tree_begin, tree_end, &this->model_mu_,
                         CopyViews{this->ctx_}};
 
     if constexpr (std::is_same_v<Adapter, data::CudfAdapter>) {
@@ -1116,7 +1116,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto phis = out_contribs->DeviceSpan();
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model{this->ctx_->Device(), model, 0, tree_end, &this->model_mu_,
+    DeviceModel d_model{this->ctx_->Device(), model, true, 0, tree_end, &this->model_mu_,
                         CopyViews{this->ctx_}};
 
     auto new_enc =
@@ -1177,7 +1177,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto phis = out_contribs->DeviceSpan();
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model{this->ctx_->Device(), model, 0, tree_end, &this->model_mu_,
+    DeviceModel d_model{this->ctx_->Device(), model, true, 0, tree_end, &this->model_mu_,
                         CopyViews{this->ctx_}};
 
     dh::device_vector<uint32_t> categories;
@@ -1223,7 +1223,7 @@ class GPUPredictor : public xgboost::Predictor {
     predictions->SetDevice(ctx_->Device());
     predictions->Resize(n_samples * tree_end);
 
-    DeviceModel d_model{ctx_->Device(),       model, 0, tree_end, &this->model_mu_,
+    DeviceModel d_model{ctx_->Device(),       model, false, 0, tree_end, &this->model_mu_,
                         CopyViews{this->ctx_}};
 
     if (info.IsColumnSplit()) {

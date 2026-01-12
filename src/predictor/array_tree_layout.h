@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2025, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  * \file array_tree_layout.cc
  * \brief Implementation of array tree layout -- a powerfull inference optimization method.
  */
@@ -11,7 +11,6 @@
 #include <type_traits>  // for conditional_t
 
 #include "../common/categorical.h"            // for IsCat
-#include "../tree/tree_view.h"                // for ScalarTreeView, MultiTargetTreeView
 #include "xgboost/tree_model.h"               // for RegTree
 
 namespace xgboost::predictor {
