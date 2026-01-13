@@ -34,7 +34,6 @@ classifiers = [
 dependencies = [
     "numpy",
     "scipy",
-    "nvidia-nccl-cu12 ; platform_system == 'Linux'",
 ]
 
 [project.urls]
