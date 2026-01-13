@@ -319,15 +319,8 @@ void TestAbsoluteError(const Context* ctx) {
   bst_node_t left_nidx = tree.LeftChild(RegTree::kRoot);
   bst_node_t right_nidx = tree.RightChild(RegTree::kRoot);
 
-  HostDeviceVector<bst_node_t> position(labels.size(), 0);
-  auto& h_position = position.HostVector();
-  for (size_t i = 0; i < labels.size(); ++i) {
-    if (i < labels.size() / 2) {
-      h_position[i] = left_nidx;
-    } else {
-      h_position[i] = right_nidx;
-    }
-  }
+  HostDeviceVector<bst_node_t> position;
+  MakePositionsForTest(info.num_row_, left_nidx, right_nidx, &position);
 
   auto& h_predt = predt.HostVector();
   for (size_t i = 0; i < h_predt.size(); ++i) {
