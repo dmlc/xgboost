@@ -35,6 +35,8 @@ class Objective(ABC):
 
         Do not use this class unless you want to participate in development.
 
+    .. versionadded:: 3.2.0
+
     """
 
     @abstractmethod
@@ -49,6 +51,8 @@ class TreeObjective(Objective):
     .. warning::
 
         Do not use this class unless you want to participate in development.
+
+    .. versionadded:: 3.2.0
 
     """
 

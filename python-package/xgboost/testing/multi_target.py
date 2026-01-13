@@ -1,6 +1,7 @@
 """Tests for multi-target training."""
 
 # pylint: disable=unbalanced-tuple-unpacking
+from types import ModuleType
 from typing import Dict, Optional, Tuple
 
 import numpy as np
@@ -134,42 +135,55 @@ def run_absolute_error(device: Device) -> None:
     assert evals_result["Train"]["mae"][-1] < 30.0
 
 
+def _array_impl(device: Device) -> ModuleType:
+    if device == "cuda":
+        nda = import_cupy()
+    else:
+        nda = np
+    return nda
+
+
 class LsObj0(TreeObjective):
     """Split grad is the same as value grad."""
+
+    def __init__(self, device: Device) -> None:
+        self.device = device
 
     def __call__(
         self, iteration: int, y_pred: ArrayLike, dtrain: DMatrix
     ) -> Tuple[ArrayLike, ArrayLike]:
-        cp = import_cupy()
+        nda = _array_impl(self.device)
 
         y_true = dtrain.get_label().reshape(y_pred.shape)
         grad, hess = tm.ls_obj(y_true, y_pred, None)
-        return cp.array(grad), cp.array(hess)
+        return nda.array(grad), nda.array(hess)
 
     def split_grad(
         self, iteration: int, grad: ArrayLike, hess: ArrayLike
     ) -> Tuple[ArrayLike, ArrayLike]:
-        cp = import_cupy()
-
-        return cp.array(grad), cp.array(hess)
+        nda = _array_impl(self.device)
+        return nda.array(grad), nda.array(hess)
 
 
 class LsObj1(Objective):
     """No split grad."""
 
+    def __init__(self, device: Device) -> None:
+        self.device = device
+
     def __call__(
         self, iteration: int, y_pred: ArrayLike, dtrain: DMatrix
     ) -> Tuple[ArrayLike, ArrayLike]:
-        cp = import_cupy()
+        nda = _array_impl(self.device)
 
         y_true = dtrain.get_label().reshape(y_pred.shape)
         grad, hess = tm.ls_obj(y_true, y_pred, None)
-        return cp.array(grad), cp.array(hess)
+        return nda.array(grad), nda.array(hess)
 
 
 def run_reduced_grad(device: Device) -> None:
     """Basic test for using reduced gradient for tree splits."""
-    import cupy as cp
+    nda = _array_impl(device)
 
     X, y = make_regression(
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
@@ -197,13 +211,13 @@ def run_reduced_grad(device: Device) -> None:
         assert non_increasing(evals_result["Train"]["rmse"])
         return booster
 
-    booster_0 = run_test(LsObj0())
-    booster_1 = run_test(LsObj1())
+    booster_0 = run_test(LsObj0(device))
+    booster_1 = run_test(LsObj1(device))
     np.testing.assert_allclose(
         booster_0.inplace_predict(X), booster_1.inplace_predict(X)
     )
 
-    booster_2 = run_test(LsObj0(), [0.5] * y.shape[1])
+    booster_2 = run_test(LsObj0(device), [0.5] * y.shape[1])
     booster_3 = run_test(None, [0.5] * y.shape[1])
     np.testing.assert_allclose(
         booster_2.inplace_predict(X), booster_3.inplace_predict(X)
@@ -215,14 +229,15 @@ def run_reduced_grad(device: Device) -> None:
 
         def __init__(self, check_used: bool):
             self._chk = check_used
+            super().__init__(device=device)
 
         def split_grad(
             self, iteration: int, grad: ArrayLike, hess: ArrayLike
-        ) -> Tuple[cp.ndarray, cp.ndarray]:
+        ) -> Tuple[np.ndarray, np.ndarray]:
             if self._chk:
                 assert False
-            sgrad = cp.mean(grad, axis=1)
-            shess = cp.mean(hess, axis=1)
+            sgrad = nda.mean(grad, axis=1)
+            shess = nda.mean(hess, axis=1)
             return sgrad, shess
 
     run_test(LsObj2(False))
@@ -232,10 +247,7 @@ def run_reduced_grad(device: Device) -> None:
 
 def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     """Test vector leaf with external memory."""
-    if device == "cuda":
-        from cupy import asarray
-    else:
-        from numpy import asarray
+    nda = _array_impl(device)
 
     n_batches = 4
     n_rounds = 8
@@ -256,10 +268,12 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         X_i, y_i = make_regression(
             n_samples=4096, n_features=8, random_state=(i + 1), n_targets=n_targets
         )
-        Xs.append(asarray(X_i))
-        ys.append(asarray(y_i))
+        Xs.append(nda.asarray(X_i))
+        ys.append(nda.asarray(y_i))
     it = IteratorForTest(Xs, ys, None, cache="cache", on_host=True)
-    Xy: DMatrix = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0)
+    Xy: DMatrix = ExtMemQuantileDMatrix(
+        it, cache_host_ratio=1.0 if device == "cuda" else None
+    )
 
     evals_result_0: Dict[str, Dict] = {}
     booster_0 = train(
@@ -287,8 +301,9 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     X, _, _ = it.as_arrays()
     assert_allclose(device, booster_0.inplace_predict(X), booster_1.inplace_predict(X))
 
-    v = build_info()["THRUST_VERSION"]
-    if v[0] < 3:
+    binfo = build_info()
+    tv = "THRUST_VERSION"
+    if device == "cuda" and tv in binfo and binfo[tv][0] < 3:
         pytest.xfail("CCCL version too old.")
 
     it = IteratorForTest(
@@ -299,14 +314,14 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         on_host=True,
         min_cache_page_bytes=X.shape[0] // n_batches * X.shape[1],
     )
-    Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0)
+    Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0 if device == "cuda" else None)
 
     evals_result_2: Dict[str, Dict] = {}
     booster_2 = train(
         params,
         Xy,
         evals=[(Xy, "Train")],
-        obj=LsObj0(),
+        obj=LsObj0(device),
         num_boost_round=n_rounds,
         evals_result=evals_result_2,
     )
@@ -343,7 +358,7 @@ def run_eta(device: Device) -> None:
         np.testing.assert_allclose(predt_0 * 2, predt_2, rtol=1e-6)
 
     run(None)
-    run(LsObj0())
+    run(LsObj0(device))
 
 
 def run_deterministic(device: Device) -> None:

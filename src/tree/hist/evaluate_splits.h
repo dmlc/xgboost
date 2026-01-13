@@ -662,10 +662,12 @@ class HistMultiEvaluator {
   }
 
   void ApplyTreeSplit(MultiExpandEntry const &candidate, RegTree *p_tree) {
-    auto n_targets = p_tree->NumTargets();
+    // Use the split gradient's number of targets for intermediate weights
+    // This may differ from p_tree->NumTargets() when using reduced gradient
+    auto n_split_targets = candidate.split.left_sum.size();
     auto parent_sum = stats_.Slice(candidate.nid, linalg::All());
 
-    auto weight = linalg::Empty<float>(ctx_, 3, n_targets);
+    auto weight = linalg::Empty<float>(ctx_, 3, n_split_targets);
     auto base_weight = weight.Slice(0, linalg::All());
     CalcWeight(*param_, parent_sum, base_weight);
 
@@ -700,7 +702,7 @@ class HistMultiEvaluator {
     if (n_nodes >= stats_.Shape(0)) {
       stats_.Reshape(n_nodes * 2, stats_.Shape(1));
     }
-    CHECK_EQ(stats_.Shape(1), n_targets);
+    CHECK_EQ(stats_.Shape(1), n_split_targets);
     auto left_sum_stat = stats_.Slice(left_child, linalg::All());
     std::copy(candidate.split.left_sum.cbegin(), candidate.split.left_sum.cend(),
               linalg::begin(left_sum_stat));
