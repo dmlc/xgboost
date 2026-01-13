@@ -399,35 +399,32 @@ void TestAbsoluteErrorLeaf(const Context* ctx) {
   }
 }
 
-void TestAbsoluteErrorVectorLeaf(Context const* ctx) {
-  bst_target_t n_targets = 3;
-  bst_idx_t n_samples = 16;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx)};
+void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, bst_idx_t n_samples,
+                       bst_idx_t n_target_labels, std::vector<float> const& sol_left,
+                       std::vector<float> const& sol_right) {
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(name, ctx)};
+  obj->Configure(args);
 
+  bst_target_t n_targets = 3;
   auto tree = MakeMtTreeForTest(n_targets);
 
   bst_node_t left_nidx = tree->LeftChild(RegTree::kRoot);
   bst_node_t right_nidx = tree->RightChild(RegTree::kRoot);
 
   MetaInfo info;
-  MakeIotaLabelsForTest(n_samples, n_targets, &info);
+  MakeIotaLabelsForTest(n_samples, n_target_labels, &info);
   HostDeviceVector<bst_node_t> position;
   MakePositionsForTest(info.num_row_, left_nidx, right_nidx, &position);
 
   HostDeviceVector<float> predt(info.labels.Shape(0) * n_targets, 0.0f);
 
-  tree::TrainParam param;
-  param.Init(Args{{"eta", "2.0"}});
-  auto lr = param.learning_rate;
-
+  auto lr = 2.0f;
   obj->UpdateTreeLeaf(position, info, lr, predt, 0, tree.get());
 
   auto mt_tree = tree->HostMtView();
   auto left = mt_tree.LeafValue(mt_tree.LeftChild(RegTree::kRoot));
   auto right = mt_tree.LeafValue(mt_tree.RightChild(RegTree::kRoot));
 
-  std::vector<float> sol_left{21.0f, 23.0f, 25.0f};
-  std::vector<float> sol_right{69.0f, 71.0f, 73.0f};
   for (std::size_t i = 0; i < left.Size(); ++i) {
     ASSERT_FLOAT_EQ(left(i), sol_left[i]);
     ASSERT_FLOAT_EQ(right(i), sol_right[i]);

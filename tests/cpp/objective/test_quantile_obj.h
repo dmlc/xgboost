@@ -12,8 +12,6 @@ void TestQuantile(Context const* ctx);
 
 void TestQuantileIntercept(Context const* ctx);
 
-void TestQuantileVectorLeaf(Context const* ctx);
-
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_REGRESSION_OBJ_H_

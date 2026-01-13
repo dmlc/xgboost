@@ -36,7 +36,9 @@ void TestAbsoluteError(const Context* ctx);
 
 void TestAbsoluteErrorLeaf(const Context* ctx);
 
-void TestAbsoluteErrorVectorLeaf(Context const* ctx);
+void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, bst_idx_t n_samples,
+                       bst_idx_t n_target_labels, std::vector<float> const& sol_left,
+                       std::vector<float> const& sol_right);
 
 void TestPseudoHuber(const Context* ctx);
 

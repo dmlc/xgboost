@@ -140,7 +140,10 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
 
 TEST(Objective, DeclareUnifiedTest(AbsoluteErrorVectorLeaf)) {
   Context ctx = MakeCUDACtx(GPUIDX);
-  TestAbsoluteErrorVectorLeaf(&ctx);
+  bst_idx_t n_samples = 16;
+  std::vector<float> sol_left{21.0f, 23.0f, 25.0f};
+  std::vector<float> sol_right{69.0f, 71.0f, 73.0f};
+  TestVectorLeafObj(&ctx, "reg:absoluteerror", Args{}, n_samples, 3u, sol_left, sol_right);
 }
 
 TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {

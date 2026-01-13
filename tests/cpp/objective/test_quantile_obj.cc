@@ -13,14 +13,9 @@
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector
 
-#include "../../../src/tree/param.h"      // for TrainParam
-#include "../../../src/tree/tree_view.h"  // for MultiTargetTreeView
 #include "../helpers.h"                   // CheckConfigReload,MakeCUDACtx,DeclareUnifiedTest
-#include "../tree/test_multi_target_tree_model.h"  // for MakeMtTreeForTest
-#include "test_objective_helpers.h"  // for MakePositionsForTest, MakeIotaLabelsForTest
 
 namespace xgboost {
-
 void TestQuantile(Context const* ctx) {
   {
     Args args{{"quantile_alpha", "[0.6, 0.8]"}};
@@ -75,40 +70,5 @@ void TestQuantileIntercept(Context const* ctx) {
   ASSERT_EQ(base_scores.Size(), 2);
   ASSERT_NEAR(base_scores(0), 3.0, kRtEps);
   ASSERT_NEAR(base_scores(1), 5.0, kRtEps);
-}
-
-void TestQuantileVectorLeaf(Context const* ctx) {
-  Args args{{"quantile_alpha", "[0.25, 0.5, 0.75]"}};
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx)};
-  obj->Configure(args);
-
-  bst_target_t n_targets = 3;
-  auto tree = MakeMtTreeForTest(n_targets);
-
-  bst_node_t left_nidx = tree->LeftChild(RegTree::kRoot);
-  bst_node_t right_nidx = tree->RightChild(RegTree::kRoot);
-
-  MetaInfo info;
-  MakeIotaLabelsForTest(10, 1u, &info);
-  HostDeviceVector<bst_node_t> position;
-  MakePositionsForTest(info.num_row_, left_nidx, right_nidx, &position);
-
-  HostDeviceVector<float> predt(info.labels.Shape(0) * n_targets, 0.0f);
-
-  tree::TrainParam param;
-  param.Init(Args{{"eta", "2.0"}});
-  auto lr = param.learning_rate;
-
-  obj->UpdateTreeLeaf(position, info, lr, predt, 0, tree.get());
-
-  auto mt_tree = tree->HostMtView();
-  auto left = mt_tree.LeafValue(mt_tree.LeftChild(RegTree::kRoot));
-  auto right = mt_tree.LeafValue(mt_tree.RightChild(RegTree::kRoot));
-  std::vector<float> sol_left{1.0f, 4.0f, 7.0f};
-  std::vector<float> sol_right{11.0f, 14.0f, 17.0f};
-  for (std::size_t i = 0; i < left.Size(); ++i) {
-    ASSERT_FLOAT_EQ(left(i), sol_left[i]);
-    ASSERT_FLOAT_EQ(right(i), sol_right[i]);
-  }
 }
 }  // namespace xgboost
