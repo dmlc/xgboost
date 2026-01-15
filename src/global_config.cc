@@ -22,7 +22,7 @@ void InitNewThread::operator()() const {
   if (config.nthread > 0) {
     omp_set_num_threads(config.nthread);
   }
-  if (device >= 0) {
+  if (device > 0) {
     curt::SetDevice(this->device);
   }
 }

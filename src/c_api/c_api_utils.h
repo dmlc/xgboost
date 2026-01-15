@@ -180,7 +180,7 @@ inline float GetMissing(Json const &config) {
 // Safe guard some global variables from being changed by XGBoost.
 class XGBoostAPIGuard {
 #if defined(XGBOOST_USE_CUDA)
-  int32_t device_id_ {0};
+  std::int32_t device_id_ {0};
 
   void SetGPUAttribute();
   void RestoreGPUAttribute();
