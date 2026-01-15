@@ -72,4 +72,4 @@ jobs:
         with:
           cache-key-prefix: ${{ github.job }}-${{ matrix.build_suite }}
       - name: Build and test
-        run: bash ops/pipeline/build-cpu-impl.sh ${{ matrix.build_suite }}
+        run: bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
