@@ -25,6 +25,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2.0.1
         with:
+          mask-password: 'false'
           registries: '492475357299'
     outputs:
       docker_registry: ${{ steps.login-ecr.outputs.registry }}
