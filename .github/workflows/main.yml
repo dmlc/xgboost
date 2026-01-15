@@ -12,7 +12,6 @@ concurrency:
 env:
   BRANCH_NAME: >-
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
-  IMAGE_TAG: main
 
 jobs:
   ecr-login:
@@ -49,7 +48,7 @@ jobs:
           - variant: sanitizer
             build_suite: cpu-sanitizer
     container:
-      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.cpu:${{ env.IMAGE_TAG }}
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.cpu:main
       credentials:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
