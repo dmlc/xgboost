@@ -23,6 +23,8 @@ case "${suite}" in
       -DGOOGLE_TEST=ON \
       -DUSE_DMLC_GTEST=ON \
       -DENABLE_ALL_WARNINGS=ON \
+      -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+      -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
       -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
       -DCMAKE_PREFIX_PATH='/opt/grpc' \
       -DPLUGIN_FEDERATED=ON

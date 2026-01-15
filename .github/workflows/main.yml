@@ -45,11 +45,14 @@ jobs:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
       # Remove default build config to ensure CMake-configured header is used
       - name: Remove default build config
         run: rm -fv dmlc-core/include/dmlc/build_config_default.h
+      - uses: trivialfis/sccache-gha/actions/sccache@main
+        with:
+          cache-key-prefix: ${{ github.job }}
       - name: Build and test CPU (non-sanitizer)
         run: bash ops/pipeline/build-cpu-impl.sh cpu
