@@ -52,8 +52,6 @@ jobs:
       - name: Remove default build config
         run: rm -fv dmlc-core/include/dmlc/build_config_default.h
       - uses: trivialfis/sccache-gha/actions/sccache@main
-        with:
-          cache-key-prefix: ${{ github.job }}
       - name: Build and test CPU (non-sanitizer)
         run: bash ops/pipeline/build-cpu-impl.sh cpu
       - name: Show sccache stats
