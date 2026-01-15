@@ -169,8 +169,6 @@ class MultiTargetHistBuilder {
   RegTree const *p_last_tree_{nullptr};
   DMatrix const *p_last_fmat_{nullptr};
 
-  ObjInfo const *task_{nullptr};
-
  public:
   void UpdatePosition(DMatrix *p_fmat, RegTree const *p_tree,
                       std::vector<MultiExpandEntry> const &applied) {
@@ -389,14 +387,13 @@ class MultiTargetHistBuilder {
   explicit MultiTargetHistBuilder(Context const *ctx, MetaInfo const &info, TrainParam const *param,
                                   HistMakerTrainParam const *hist_param,
                                   std::shared_ptr<common::ColumnSampler> column_sampler,
-                                  ObjInfo const *task, common::Monitor *monitor)
+                                  common::Monitor *monitor)
       : monitor_{monitor},
         param_{param},
         hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
         evaluator_{std::make_unique<HistMultiEvaluator>(ctx, info, param, col_sampler_)},
-        ctx_{ctx},
-        task_{task} {
+        ctx_{ctx} {
     monitor_->Init(__func__);
   }
 
@@ -608,12 +605,10 @@ class QuantileHistMaker : public TreeUpdater {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
 
   common::Monitor monitor_;
-  ObjInfo const *task_{nullptr};
   HistMakerTrainParam hist_param_;
 
  public:
-  explicit QuantileHistMaker(Context const *ctx, ObjInfo const *task)
-      : TreeUpdater{ctx}, task_{task} {}
+  explicit QuantileHistMaker(Context const *ctx, ObjInfo const *) : TreeUpdater{ctx} {}
 
   void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
   void LoadConfig(Json const &in) override {
@@ -644,7 +639,7 @@ class QuantileHistMaker : public TreeUpdater {
       }
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(
-            ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, task_, &monitor_);
+            ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, &monitor_);
       }
     } else {
       CHECK(hist_param_.GetInitialised());
