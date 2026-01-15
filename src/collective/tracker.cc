@@ -142,13 +142,18 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     auto& worker = workers[r];
     auto next = BootstrapNext(r, n_workers_);
     auto const& next_w = workers[next];
-    bootstrap_threads.emplace_back([next, &worker, &next_w, init = InitNewThread{}] {
-      init();
-      auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
-      std::string str;
-      Json::Dump(jnext, &str);
-      worker.Send(StringView{str});
-    });
+    bootstrap_threads.emplace_back(
+        [next, &worker, &next_w, init = [config = *GlobalConfigThreadLocalStore::Get()] {
+          // The thread init function here doesn't set any state in openmp and CUDA as the
+          // tracker doesn't need them.
+          *GlobalConfigThreadLocalStore::Get() = config;
+        }] {
+          init();
+          auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
+          std::string str;
+          Json::Dump(jnext, &str);
+          worker.Send(StringView{str});
+        });
     std::string name = "tkbs_t-" + std::to_string(r);
     common::NameThread(&bootstrap_threads.back(), name.c_str());
   }
