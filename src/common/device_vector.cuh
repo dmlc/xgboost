@@ -6,6 +6,8 @@
 #include <thrust/device_ptr.h>               // for device_ptr
 #include <thrust/device_vector.h>            // for device_vector
 
+#include "xgboost/windefs.h"
+
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <cuda/version>                       // for CCCL_MAJOR_VERSION
 #include <cuda/memory_resource>               // for async_resource_ref
@@ -339,8 +341,12 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
   using pointer = typename Super::pointer;      // NOLINT(readability-identifier-naming)
   using size_type = typename Super::size_type;  // NOLINT(readability-identifier-naming)
 
+#if defined(xgboost_IS_WIN)
+  XGBAsyncPoolAllocator() : use_async_pool_{false} {}
+#else
   XGBAsyncPoolAllocator()
       : use_async_pool_{::xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool} {}
+#endif
 
   template <typename U>
   struct rebind {                            // NOLINT(readability-identifier-naming)
