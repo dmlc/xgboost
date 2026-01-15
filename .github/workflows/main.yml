@@ -56,3 +56,5 @@ jobs:
           cache-key-prefix: ${{ github.job }}
       - name: Build and test CPU (non-sanitizer)
         run: bash ops/pipeline/build-cpu-impl.sh cpu
+      - name: Show sccache stats
+        run: sccache --show-stats
