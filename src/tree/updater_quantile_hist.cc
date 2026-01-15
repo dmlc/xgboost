@@ -212,8 +212,6 @@ class MultiTargetHistBuilder {
     }
     partitioner_.resize(page_idx);
 
-    // Use the split gradient's number of targets for histogram building
-    // This may differ from p_tree->NumTargets() when using reduced gradient
     bst_target_t n_targets = gpair.Shape(1);
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
@@ -232,8 +230,6 @@ class MultiTargetHistBuilder {
     best.nid = RegTree::kRoot;
     best.depth = 0;
 
-    // Use the split gradient's number of targets for histogram building
-    // This may differ from p_tree->NumTargets() when using reduced gradient
     auto n_targets = gpair.Shape(1);
     linalg::Matrix<GradientPairPrecise> root_sum_tloc =
         linalg::Empty<GradientPairPrecise>(ctx_, ctx_->Threads(), n_targets);
@@ -267,7 +263,7 @@ class MultiTargetHistBuilder {
     p_tree->SetRoot(weight_t);
     std::vector<BoundedHistCollection const *> hists;
     std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
-    // Use the split gradient's number of targets for histogram access
+
     for (bst_target_t t{0}; t < n_targets; ++t) {
       hists.push_back(&(*histogram_builder_).Histogram(t));
     }

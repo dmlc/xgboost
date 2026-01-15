@@ -353,8 +353,6 @@ class MultiHistogramBuilder {
                      std::vector<Partitioner> const &partitioners,
                      linalg::MatrixView<GradientPair const> gpair, ExpandEntry const &best,
                      BatchParam const &param, bool force_read_by_column = false) {
-    // Use gradient's number of targets for histogram building
-    // This may differ from tree.NumTargets() when using reduced gradient
     auto n_targets = gpair.Shape(1);
     CHECK_EQ(p_fmat->Info().num_row_, gpair.Shape(0));
     CHECK_EQ(target_builders_.size(), n_targets);
@@ -415,8 +413,6 @@ class MultiHistogramBuilder {
       auto space = ConstructHistSpace(partitioners, nodes_to_build, page,
                                       cache_manager_.L1Size(), param.max_bin, read_by_column);
 
-      // Use gradient's number of targets for histogram building
-      // This may differ from tree.NumTargets() when using reduced gradient
       auto n_targets = gpair.Shape(1);
       for (bst_target_t t = 0; t < n_targets; ++t) {
         auto t_gpair = gpair.Slice(linalg::All(), t);
@@ -428,7 +424,6 @@ class MultiHistogramBuilder {
       page_idx++;
     }
 
-    // Use gradient's number of targets for histogram synchronization
     auto n_targets = gpair.Shape(1);
     for (bst_target_t t = 0; t < n_targets; ++t) {
       this->target_builders_[t].SyncHistogram(ctx, tree, nodes_to_build, nodes_to_sub);
