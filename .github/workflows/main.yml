@@ -33,17 +33,28 @@ jobs:
       docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
 
   build-cpu:
-    name: Build CPU
+    name: Build CPU (${{ matrix.variant }})
     needs: ecr-login
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
-      - tag=main-build-cpu
+      - tag=main-build-cpu-${{ matrix.variant }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: default
+            container_options: ''
+            build_suite: cpu
+          - variant: sanitizer
+            container_options: '--privileged'
+            build_suite: cpu-sanitizer
     container:
       image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.cpu:main
       credentials:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
+      options: ${{ matrix.container_options }}
     steps:
       - uses: actions/checkout@v6.0.1
         with:
@@ -51,8 +62,14 @@ jobs:
       # Remove default build config to ensure CMake-configured header is used
       - name: Remove default build config
         run: rm -fv dmlc-core/include/dmlc/build_config_default.h
+      - name: Configure the system for sanitizers
+        if: matrix.variant == 'sanitizer'
+        run: |
+          echo "ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer" >> $GITHUB_ENV
+          echo "ASAN_OPTIONS=symbolize=1" >> $GITHUB_ENV
+          echo "UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log" >> $GITHUB_ENV
+          # Work around https://github.com/google/sanitizers/issues/1614
+          sysctl vm.mmap_rnd_bits=28
       - uses: trivialfis/sccache-gha/actions/sccache@main
-      - name: Build and test CPU (non-sanitizer)
-        run: bash ops/pipeline/build-cpu-impl.sh cpu
-      - name: Show sccache stats
-        run: sccache --show-stats
+      - name: Build and test
+        run: bash ops/pipeline/build-cpu-impl.sh ${{ matrix.build_suite }}
