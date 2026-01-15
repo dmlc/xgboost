@@ -1,6 +1,5 @@
 #!/bin/bash
 ## Build and test XGBoost with AMD64 CPU
-## Companion script for ops/pipeline/build-cpu.sh
 
 set -euox pipefail
 
