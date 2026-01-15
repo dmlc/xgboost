@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <thrust/transform.h>  // for transform
 
@@ -88,8 +88,6 @@ struct GPUHistMakerDevice {
 
   DeviceHistogramBuilder histogram_;
   std::vector<bst_idx_t> const batch_ptr_;
-  // node idx for each sample
-  dh::device_vector<bst_node_t> positions_;
   HistMakerTrainParam const* hist_param_;
   std::shared_ptr<common::HistogramCuts const> const cuts_;
   std::unique_ptr<FeatureGroups> feature_groups_;
@@ -221,8 +219,8 @@ struct GPUHistMakerDevice {
     GPUTrainingParam gpu_param(param);
     auto sampled_features = column_sampler_->GetFeatureSet(0);
     sampled_features->SetDevice(ctx_->Device());
-    common::Span<bst_feature_t> feature_set =
-        interaction_constraints.Query(sampled_features->DeviceSpan(), nidx);
+    common::Span<bst_feature_t const> feature_set =
+        interaction_constraints.Query(sampled_features->ConstDeviceSpan(), nidx);
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, histogram_.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{gpu_param,
                                             *quantiser,
@@ -262,15 +260,13 @@ struct GPUHistMakerDevice {
       nidx[i * 2] = left_nidx;
       nidx[i * 2 + 1] = right_nidx;
       auto left_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(left_nidx));
-      left_sampled_features->SetDevice(ctx_->Device());
       feature_sets.emplace_back(left_sampled_features);
-      common::Span<bst_feature_t> left_feature_set =
-          interaction_constraints.Query(left_sampled_features->DeviceSpan(), left_nidx);
+      common::Span<bst_feature_t const> left_feature_set =
+          interaction_constraints.Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
       auto right_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(right_nidx));
-      right_sampled_features->SetDevice(ctx_->Device());
       feature_sets.emplace_back(right_sampled_features);
-      common::Span<bst_feature_t> right_feature_set =
-          interaction_constraints.Query(right_sampled_features->DeviceSpan(), right_nidx);
+      common::Span<bst_feature_t const> right_feature_set =
+          interaction_constraints.Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
       h_node_inputs[i * 2] = {left_nidx, candidate.depth + 1, candidate.split.left_sum,
                               left_feature_set, histogram_.GetNodeHistogram(left_nidx)};
       h_node_inputs[i * 2 + 1] = {right_nidx, candidate.depth + 1, candidate.split.right_sum,
@@ -543,7 +539,7 @@ struct GPUHistMakerDevice {
   // prediction cache
   void FinalisePosition(DMatrix* p_fmat, RegTree const* p_tree,
                         HostDeviceVector<bst_node_t>* p_out_position) {
-    monitor.Start(__func__);
+    xgboost_NVTX_FN_RANGE();
 
     p_out_position->SetDevice(ctx_->Device());
     p_out_position->Resize(p_fmat->Info().num_row_);
@@ -560,8 +556,6 @@ struct GPUHistMakerDevice {
         part->FinalisePosition(ctx_, d_out_position.subspan(base_ridx, n_samples), base_ridx,
                                EncodeOp{d_gpair});
       }
-      dh::CopyTo(d_out_position, &positions_, this->ctx_->CUDACtx()->Stream());
-      monitor.Stop(__func__);
       return;
     }
 
@@ -592,23 +586,19 @@ struct GPUHistMakerDevice {
             ctx_, d_out_position, page.BaseRowId(),
             FinalizeOp<std::remove_reference_t<decltype(d_matrix)>>{s_split_data, go_left_op,
                                                                     EncodeOp{d_gpair}});
-
-        dh::CopyTo(d_out_position, &positions_, this->ctx_->CUDACtx()->Stream());
       });
     }
-    monitor.Stop(__func__);
   }
 
-  bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d, RegTree const* p_tree) {
-    if (positions_.empty()) {
-      return false;
-    }
-
+  bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d,
+                             common::Span<HostDeviceVector<bst_node_t>> out_position,
+                             RegTree const* p_tree) {
     CHECK(p_tree);
     CHECK(out_preds_d.Device().IsCUDA());
     CHECK_EQ(out_preds_d.Device().ordinal, ctx_->Ordinal());
 
-    auto d_position = dh::ToSpan(positions_);
+    CHECK_EQ(out_position.size(), 1);
+    auto d_position = out_position.front().ConstDeviceSpan();
     CHECK_EQ(out_preds_d.Size(), d_position.size());
 
     // Use the nodes from tree, the leaf value might be changed by the objective since the
@@ -805,9 +795,6 @@ class GPUHistMaker : public TreeUpdater {
   void Update(TrainParam const* param, GradientContainer* in_gpair, DMatrix* p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               std::vector<RegTree*> const& trees) override {
-    if (in_gpair->HasValueGrad() || in_gpair->gpair.Shape(1) > 1) {
-      CHECK(!this->task_->UpdateTreeLeaf()) << "Adaptive tree" << MTNotImplemented();
-    }
     in_gpair->gpair.SetDevice(this->ctx_->Device());
 
     // build tree
@@ -815,8 +802,9 @@ class GPUHistMaker : public TreeUpdater {
     for (xgboost::RegTree* p_tree : trees) {
       this->InitData(param, p_fmat, p_tree);
       if (p_tree->IsMultiTarget()) {
-        p_mtimpl_->UpdateTree(in_gpair, p_fmat, task_, p_tree);
+        p_mtimpl_->UpdateTree(in_gpair, p_fmat, task_, p_tree, &out_position[t_idx]);
       } else {
+        CHECK_EQ(in_gpair->gpair.Shape(1), 1);
         p_scimpl_->UpdateTree(in_gpair->gpair.Data(), p_fmat, p_tree, &out_position[t_idx]);
       }
       this->hist_maker_param_.CheckTreesSynchronized(ctx_, p_tree);
@@ -870,8 +858,13 @@ class GPUHistMaker : public TreeUpdater {
     p_scimpl_->UpdateTree(gpair_hdv, p_fmat, p_tree, p_out_position);
   }
 
-  bool UpdatePredictionCache(const DMatrix* data, linalg::MatrixView<float> p_out_preds) override {
-    if (p_scimpl_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
+  bool UpdatePredictionCache(DMatrix const* p_fmat,
+                             common::Span<HostDeviceVector<bst_node_t>> out_position,
+                             linalg::MatrixView<float> p_out_preds) override {
+    if (p_scimpl_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != p_fmat) {
+      return false;
+    }
+    if (out_position.size() > 1) {
       return false;
     }
 
@@ -879,9 +872,9 @@ class GPUHistMaker : public TreeUpdater {
 
     if (this->p_last_tree_->IsMultiTarget()) {
       CHECK(p_mtimpl_);
-      return p_mtimpl_->UpdatePredictionCache(p_out_preds, p_last_tree_);
+      return p_mtimpl_->UpdatePredictionCache(p_out_preds, out_position, p_last_tree_);
     } else {
-      return p_scimpl_->UpdatePredictionCache(p_out_preds, p_last_tree_);
+      return p_scimpl_->UpdatePredictionCache(p_out_preds, out_position, p_last_tree_);
     }
   }
 
@@ -1003,12 +996,17 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     maker_->UpdateTree(gpair, p_fmat, p_tree, p_out_position);
   }
 
-  bool UpdatePredictionCache(const DMatrix* data, linalg::MatrixView<float> p_out_preds) override {
-    if (maker_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
+  bool UpdatePredictionCache(DMatrix const* p_fmat,
+                             common::Span<HostDeviceVector<bst_node_t>> out_position,
+                             linalg::MatrixView<float> p_out_preds) override {
+    if (maker_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != p_fmat) {
+      return false;
+    }
+    if (out_position.size() > 1) {
       return false;
     }
     monitor_.Start(__func__);
-    bool result = maker_->UpdatePredictionCache(p_out_preds, p_last_tree_);
+    bool result = maker_->UpdatePredictionCache(p_out_preds, out_position, p_last_tree_);
     monitor_.Stop(__func__);
     return result;
   }

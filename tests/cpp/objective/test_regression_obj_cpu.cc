@@ -1,12 +1,11 @@
 /**
- * Copyright 2018-2024, XGBoost contributors
+ * Copyright 2018-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
 #include "../../../src/objective/adaptive.h"
-#include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
 #include "test_regression_obj.h"
 
@@ -137,6 +136,14 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
 TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   Context ctx = MakeCUDACtx(GPUIDX);
   TestAbsoluteErrorLeaf(&ctx);
+}
+
+TEST(Objective, DeclareUnifiedTest(AbsoluteErrorVectorLeaf)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  bst_idx_t n_samples = 16;
+  std::vector<float> sol_left{21.0f, 23.0f, 25.0f};
+  std::vector<float> sol_right{69.0f, 71.0f, 73.0f};
+  TestVectorLeafObj(&ctx, "reg:absoluteerror", Args{}, n_samples, 3u, sol_left, sol_right);
 }
 
 TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {

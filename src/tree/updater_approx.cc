@@ -130,12 +130,14 @@ class GlobalApproxBuilder {
     return nodes.front();
   }
 
-  void UpdatePredictionCache(DMatrix const *data, linalg::MatrixView<float> out_preds) const {
+  void UpdatePredictionCache(DMatrix const *p_fmat, common::Span<bst_node_t const> node_position,
+                             linalg::MatrixView<float> out_preds) const {
     monitor_->Start(__func__);
     // Caching prediction seems redundant for approx tree method, as sketching takes up
     // majority of training time.
-    CHECK_EQ(out_preds.Size(), data->Info().num_row_);
-    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
+    CHECK_EQ(out_preds.Size(), p_fmat->Info().num_row_);
+    CHECK_EQ(node_position.size(), p_fmat->Info().num_row_);
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, node_position, out_preds);
     monitor_->Stop(__func__);
   }
 
@@ -152,9 +154,6 @@ class GlobalApproxBuilder {
   void LeafPartition(RegTree const &tree, common::Span<float const> hess,
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
-    if (!task_->UpdateTreeLeaf()) {
-      return;
-    }
     p_out_position->resize(hess.size());
     for (auto const &part : partitioner_) {
       part.LeafPartition(ctx_, tree.HostScView(), hess,
@@ -313,11 +312,16 @@ class GlobalApproxUpdater : public TreeUpdater {
     }
   }
 
-  bool UpdatePredictionCache(const DMatrix *data, linalg::MatrixView<float> out_preds) override {
-    if (data != cached_ || !pimpl_) {
+  bool UpdatePredictionCache(DMatrix const *p_fmat,
+                             common::Span<HostDeviceVector<bst_node_t>> out_position,
+                             linalg::MatrixView<float> out_preds) override {
+    if (p_fmat != cached_ || !pimpl_) {
       return false;
     }
-    this->pimpl_->UpdatePredictionCache(data, out_preds);
+    if (out_position.size() > 1) {
+      return false;
+    }
+    this->pimpl_->UpdatePredictionCache(p_fmat, out_position.front().ConstHostSpan(), out_preds);
     return true;
   }
 

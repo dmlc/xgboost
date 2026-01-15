@@ -1,11 +1,10 @@
 /**
- * Copyright 2025, XGBoost contributors
+ * Copyright 2025-2026, XGBoost contributors
  */
 #pragma once
 
 #include "../../common/device_vector.cuh"  // for device_vector
 #include "evaluate_splits.cuh"             // for MultiEvaluateSplitSharedInputs
-#include "quantiser.cuh"                   // for GradientQuantiser
 #include "xgboost/base.h"                  // for GradientPairInt64
 #include "xgboost/context.h"               // for Context
 
@@ -15,13 +14,13 @@ class MultiHistEvaluator {
  public:
   struct WeightBuffer {
     // * 3 because of base, left, right weights.
-    constexpr static std::uint32_t kNodes = 3;
+    constexpr static bst_node_t kNodes = 3;
 
     common::Span<float> weights;
     bst_target_t n_targets;
 
     static WeightBuffer Make(bst_node_t n_nodes, bst_target_t n_targets,
-                             dh::device_vector<float> *p_weights) {
+                             dh::DeviceUVector<float> *p_weights) {
       p_weights->resize(n_nodes * n_targets * kNodes);
       WeightBuffer buf{dh::ToSpan(*p_weights), n_targets};
       return buf;
@@ -40,7 +39,7 @@ class MultiHistEvaluator {
 
  private:
   // Buffer for node weights
-  dh::device_vector<float> weights_;
+  dh::DeviceUVector<float> weights_;
   // Buffer for histogram scans.
   dh::DeviceUVector<GradientPairInt64> scan_buffer_;
   // Buffer for node gradient sums.

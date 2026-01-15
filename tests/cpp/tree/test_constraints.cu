@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/copy.h>
@@ -218,18 +218,15 @@ TEST(GPUFeatureInteractionConstraint, QueryNode) {
 }
 
 namespace {
-
-void CompareFeatureList(common::Span<bst_feature_t> s_output, std::vector<bst_feature_t> solution) {
+void CompareFeatureList(common::Span<bst_feature_t const> s_output,
+                        std::vector<bst_feature_t> solution) {
   std::vector<bst_feature_t> h_output(s_output.size());
-  thrust::copy(thrust::device_ptr<bst_feature_t>(s_output.data()),
-               thrust::device_ptr<bst_feature_t>(s_output.data() + s_output.size()),
-               h_output.begin());
+  thrust::copy(dh::tcbegin(s_output), dh::tcend(s_output), h_output.begin());
   ASSERT_EQ(h_output.size(), solution.size());
   for (size_t i = 0; i < solution.size(); ++i) {
     ASSERT_EQ(h_output[i], solution[i]);
   }
 }
-
 }  // anonymous namespace
 
 TEST(GPUFeatureInteractionConstraint, Query) {

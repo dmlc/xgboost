@@ -21,7 +21,6 @@ from typing import (
     Generator,
     List,
     Optional,
-    Sequence,
     Set,
     Tuple,
     TypedDict,
@@ -49,6 +48,9 @@ from .data import (
     make_categorical,
     make_sparse_regression,
 )
+
+# Used to be defined in this top level module.
+from .utils import non_decreasing, non_increasing  # NOLINT
 
 hypothesis = pytest.importorskip("hypothesis")
 
@@ -497,14 +499,6 @@ _unweighted_multi_datasets_strategy = strategies.sampled_from(
 multi_dataset_strategy = make_datasets_with_margin(
     _unweighted_multi_datasets_strategy
 )()
-
-
-def non_increasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
-    return all((y - x) < tolerance for x, y in zip(L, L[1:]))
-
-
-def non_decreasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
-    return all((y - x) >= -tolerance for x, y in zip(L, L[1:]))
 
 
 M = TypeVar("M", xgb.Booster, xgb.XGBModel)

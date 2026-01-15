@@ -84,10 +84,6 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     TrainParam param;
     param.Init(Args{});
     ASSERT_FALSE(candidate.IsValid(param, 100));
-    ASSERT_TRUE(candidate.base_weight.empty());
-    ASSERT_TRUE(candidate.left_weight.empty());
-    ASSERT_TRUE(candidate.right_weight.empty());
-    ASSERT_TRUE(candidate.split.child_sum.empty());
   }
 };
 
