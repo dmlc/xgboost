@@ -268,13 +268,7 @@ inline detail::MemoryLogger &GlobalMemoryLogger() {
 }
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-
-#if (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-using DeviceAsyncResourceRef = cuda::mr::resource_ref<cuda::mr::device_accessible>;
-#else  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-using DeviceAsyncResourceRef = cuda::mr::async_resource_ref<cuda::mr::device_accessible>;
-#endif  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-
+using DeviceAsyncResourceRef = rmm::device_async_resource_ref;
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 namespace detail {
@@ -284,13 +278,6 @@ namespace detail {
  */
 template <typename T>
 class ThrustAllocMrAdapter : public thrust::device_malloc_allocator<T> {
-// TODO(hcho3): Remove this guard once we require Rapids 25.12+
-#if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-  DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource_ref()};
-#else  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-  DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource()};
-#endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-
  public:
   using Super = thrust::device_malloc_allocator<T>;
   using pointer = typename Super::pointer;      // NOLINT(readability-identifier-naming)
@@ -303,22 +290,38 @@ class ThrustAllocMrAdapter : public thrust::device_malloc_allocator<T> {
 
   ThrustAllocMrAdapter() = default;
   pointer allocate(size_type n) {  // NOLINT(readability-identifier-naming)
+
+    // TODO(hcho3): Remove this guard once we require Rapids 25.12+
+#if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+    DeviceAsyncResourceRef mr{rmm::mr::get_current_device_resource_ref()};
+#else   // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+    DeviceAsyncResourceRef mr{rmm::mr::get_current_device_resource()};
+#endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+
     auto n_bytes = xgboost::common::SizeBytes<T>(n);
     auto s = cuda::stream_ref{::xgboost::curt::DefaultStream()};
 #if (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-    auto p = static_cast<T *>(mr_.allocate(s, n_bytes, std::alignment_of_v<T>));
-#else  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-    auto p = static_cast<T *>(mr_.allocate_async(n_bytes, std::alignment_of_v<T>, s));
+    auto p = static_cast<T *>(mr.allocate(s, n_bytes, std::alignment_of_v<T>));
+#else   // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
+    auto p = static_cast<T *>(mr.allocate_async(n_bytes, std::alignment_of_v<T>, s));
 #endif  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
     return thrust::device_pointer_cast(p);
   }
   void deallocate(pointer ptr, size_type n) {  // NOLINT(readability-identifier-naming)
+
+    // TODO(hcho3): Remove this guard once we require Rapids 25.12+
+#if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+    DeviceAsyncResourceRef mr{rmm::mr::get_current_device_resource_ref()};
+#else   // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+    DeviceAsyncResourceRef mr{rmm::mr::get_current_device_resource()};
+#endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+
     auto n_bytes = xgboost::common::SizeBytes<T>(n);
     auto s = ::xgboost::curt::DefaultStream();
 #if (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-    return mr_.deallocate(cuda::stream_ref{s}, thrust::raw_pointer_cast(ptr), n_bytes);
-#else  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-    return mr_.deallocate_async(thrust::raw_pointer_cast(ptr), n_bytes, cuda::stream_ref{s});
+    return mr.deallocate(cuda::stream_ref{s}, thrust::raw_pointer_cast(ptr), n_bytes);
+#else   // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
+    return mr.deallocate_async(thrust::raw_pointer_cast(ptr), n_bytes, cuda::stream_ref{s});
 #endif  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
   }
 };
