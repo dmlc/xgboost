@@ -266,7 +266,7 @@ if(USE_OPENMP)
   if(APPLE)
     find_openmp_macos()
   else()
-    find_package(OpenMP REQUIRED)
+    find_package(OpenMP REQUIRED C CXX)
   endif()
 endif()
 
