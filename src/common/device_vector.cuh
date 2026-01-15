@@ -384,7 +384,11 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
   }
 
   // Used for tests.
-  void SetAsync(bool use_async_pool) { this->use_async_pool_ = use_async_pool; }
+  void SetAsync(bool use_async_pool) {
+#if !defined(xgboost_IS_WIN)
+    this->use_async_pool_ = use_async_pool;
+#endif
+  }
 };
 
 template <typename T>
