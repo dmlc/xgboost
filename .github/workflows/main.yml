@@ -14,21 +14,67 @@ env:
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
-  build-cpu:
-    name: Build CPU
+  ecr-login:
+    name: Login to AWS ECR
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
-      - tag=main-build-cpu
+      - tag=main-ecr-login
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2.0.1
+        with:
+          mask-password: 'false'
+          registries: '492475357299'
+    outputs:
+      docker_registry: ${{ steps.login-ecr.outputs.registry }}
+      docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+
+  build-cpu:
+    name: Build CPU (${{ matrix.variant }})
+    needs: ecr-login
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cpu-${{ matrix.variant }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: default
+            build_suite: cpu
+          - variant: sanitizer
+            build_suite: cpu-sanitizer
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.cpu:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
+      options: '--privileged'
+    steps:
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-cpu.sh
+      # Remove default build config to ensure CMake-configured header is used
+      - name: Remove default build config
+        run: rm -fv dmlc-core/include/dmlc/build_config_default.h
+      - name: Configure the system for sanitizers
+        if: matrix.variant == 'sanitizer'
+        run: |
+          echo "ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer" >> $GITHUB_ENV
+          echo "ASAN_OPTIONS=symbolize=1" >> $GITHUB_ENV
+          echo "UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log" >> $GITHUB_ENV
+          # Work around https://github.com/google/sanitizers/issues/1614
+          sysctl vm.mmap_rnd_bits=28
+      - uses: trivialfis/sccache-gha/actions/sccache@main
+        with:
+          cache-key-prefix: ${{ github.job }}-${{ matrix.build_suite }}
+      - name: Build and test
+        run: bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
+      - name: Show sccache stats
+        run: sccache --show-stats
 
   build-cuda:
     name: Build CUDA + manylinux_2_28_${{ matrix.arch }} wheel
