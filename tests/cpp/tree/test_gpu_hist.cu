@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>                // for Args
@@ -45,7 +45,7 @@ void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat,
   hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
                      {tree});
   auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
-  ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, cache));
+  ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, common::Span{position}, cache));
 }
 }  // anonymous namespace
 

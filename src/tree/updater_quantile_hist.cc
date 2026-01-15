@@ -263,10 +263,6 @@ class MultiTargetHistBuilder {
   void LeafPartition(RegTree const &tree, linalg::MatrixView<GradientPair const> gpair,
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
-    if (!task_->UpdateTreeLeaf()) {
-      monitor_->Stop(__func__);
-      return;
-    }
     p_out_position->resize(gpair.Shape(0));
     for (auto const &part : partitioner_) {
       part.LeafPartition(ctx_, tree.HostMtView(), gpair,
@@ -295,15 +291,17 @@ class MultiTargetHistBuilder {
     monitor_->Init(__func__);
   }
 
-  bool UpdatePredictionCache(DMatrix const *data, linalg::MatrixView<float> out_preds) const {
+  bool UpdatePredictionCache(DMatrix const *p_fmat, common::Span<bst_node_t const> node_position,
+                             linalg::MatrixView<float> out_preds) const {
     // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
     // conjunction with Update().
-    if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
+    if (!p_last_fmat_ || !p_last_tree_ || p_fmat != p_last_fmat_) {
       return false;
     }
     monitor_->Start(__func__);
-    CHECK_EQ(out_preds.Size(), data->Info().num_row_ * p_last_tree_->NumTargets());
-    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
+    CHECK_EQ(out_preds.Size(), p_fmat->Info().num_row_ * p_last_tree_->NumTargets());
+    CHECK_EQ(node_position.size(), p_fmat->Info().num_row_);
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, node_position, out_preds);
     monitor_->Stop(__func__);
     return true;
   }
@@ -326,14 +324,13 @@ class HistUpdater {
   DMatrix const *const p_last_fmat_{nullptr};
 
   std::unique_ptr<MultiHistogramBuilder> histogram_builder_;
-  ObjInfo const *task_{nullptr};
   // Context for number of threads
   Context const *ctx_{nullptr};
 
  public:
   explicit HistUpdater(Context const *ctx, std::shared_ptr<common::ColumnSampler> column_sampler,
                        TrainParam const *param, HistMakerTrainParam const *hist_param,
-                       DMatrix const *fmat, ObjInfo const *task, common::Monitor *monitor)
+                       DMatrix const *fmat, common::Monitor *monitor)
       : monitor_{monitor},
         param_{param},
         hist_param_{hist_param},
@@ -341,12 +338,12 @@ class HistUpdater {
         evaluator_{std::make_unique<HistEvaluator>(ctx, param, fmat->Info(), col_sampler_)},
         p_last_fmat_(fmat),
         histogram_builder_{new MultiHistogramBuilder},
-        task_{task},
         ctx_{ctx} {
     monitor_->Init(__func__);
   }
 
-  bool UpdatePredictionCache(DMatrix const *data, linalg::MatrixView<float> out_preds) const {
+  bool UpdatePredictionCache(DMatrix const *data, common::Span<bst_node_t const> node_position,
+                             linalg::MatrixView<float> out_preds) const {
     // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
     // conjunction with Update().
     if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
@@ -354,7 +351,8 @@ class HistUpdater {
     }
     monitor_->Start(__func__);
     CHECK_EQ(out_preds.Size(), data->Info().num_row_);
-    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
+    CHECK_EQ(node_position.size(), data->Info().num_row_);
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, node_position, out_preds);
     monitor_->Stop(__func__);
     return true;
   }
@@ -485,10 +483,6 @@ class HistUpdater {
   void LeafPartition(RegTree const &tree, linalg::MatrixView<GradientPair const> gpair,
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
-    if (!task_->UpdateTreeLeaf()) {
-      monitor_->Stop(__func__);
-      return;
-    }
     p_out_position->resize(gpair.Shape(0));
     for (auto const &part : partitioner_) {
       part.LeafPartition(ctx_, tree.HostScView(), gpair,
@@ -549,7 +543,7 @@ class QuantileHistMaker : public TreeUpdater {
       CHECK(hist_param_.GetInitialised());
       if (!p_impl_) {
         p_impl_ = std::make_unique<HistUpdater>(ctx_, column_sampler_, param, &hist_param_, p_fmat,
-                                                task_, &monitor_);
+                                                &monitor_);
       }
     }
 
@@ -586,13 +580,19 @@ class QuantileHistMaker : public TreeUpdater {
     }
   }
 
-  bool UpdatePredictionCache(const DMatrix *data, linalg::MatrixView<float> out_preds) override {
+  bool UpdatePredictionCache(DMatrix const *p_fmat,
+                             common::Span<HostDeviceVector<bst_node_t>> node_position,
+                             linalg::MatrixView<float> out_preds) override {
+    if (node_position.size() > 1) {
+      return false;
+    }
+    auto position = node_position.front().ConstHostSpan();
     if (out_preds.Shape(1) > 1) {
       CHECK(p_mtimpl_);
-      return p_mtimpl_->UpdatePredictionCache(data, out_preds);
+      return p_mtimpl_->UpdatePredictionCache(p_fmat, position, out_preds);
     } else {
       CHECK(p_impl_);
-      return p_impl_->UpdatePredictionCache(data, out_preds);
+      return p_impl_->UpdatePredictionCache(p_fmat, position, out_preds);
     }
   }
 

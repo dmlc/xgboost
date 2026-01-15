@@ -1,4 +1,3 @@
-from itertools import product
 from typing import Any, Dict
 
 import numpy as np
@@ -17,9 +16,7 @@ from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
-    check_init_estimation,
     check_quantile_loss,
-    run_adaptive,
     run_invalid_category,
     run_max_cat,
     train_result,
@@ -320,16 +317,6 @@ class TestTreeMethod:
         check_categorical_missing(
             rows, cols, cats, device="cpu", tree_method="hist", extmem=False
         )
-
-    @pytest.mark.skipif(**tm.no_sklearn())
-    @pytest.mark.parametrize(
-        "tree_method,weighted", list(product(["approx", "hist"], [True, False]))
-    )
-    def test_adaptive(self, tree_method: str, weighted: bool) -> None:
-        run_adaptive(tree_method, weighted, "cpu")
-
-    def test_init_estimation(self) -> None:
-        check_init_estimation("hist", "cpu")
 
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:

@@ -1,16 +1,29 @@
 from typing import Any, Dict
 
+import pytest
 from hypothesis import given, note, settings, strategies
 
 from xgboost import testing as tm
-from xgboost.testing.multi_target import run_multiclass, run_multilabel
+from xgboost.testing.multi_target import (
+    run_absolute_error,
+    run_multiclass,
+    run_multilabel,
+    run_quantile_loss,
+)
 from xgboost.testing.params import (
     exact_parameter_strategy,
     hist_cache_strategy,
     hist_multi_parameter_strategy,
     hist_parameter_strategy,
 )
-from xgboost.testing.updater import train_result
+from xgboost.testing.updater import check_quantile_loss_rf, train_result
+
+
+@pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
+def test_quantile_loss_rf(multi_strategy: str) -> None:
+    check_quantile_loss_rf("cpu", "hist", multi_strategy)
+    if multi_strategy == "one_output_per_tree":
+        check_quantile_loss_rf("cpu", "approx", multi_strategy)
 
 
 class TestTreeMethodMulti:
@@ -83,3 +96,12 @@ def test_multiclass() -> None:
 
 def test_multilabel() -> None:
     run_multilabel("cpu", None)
+
+
+@pytest.mark.parametrize("weighted", [True, False])
+def test_quantile_loss(weighted: bool) -> None:
+    run_quantile_loss("cpu", weighted)
+
+
+def test_absolute_error() -> None:
+    run_absolute_error("cpu")

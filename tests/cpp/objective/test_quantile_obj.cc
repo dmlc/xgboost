@@ -1,22 +1,23 @@
 /**
- * Copyright 2017-2024 by XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
-#include <xgboost/base.h>       // Args
-#include <xgboost/context.h>    // Context
-#include <xgboost/objective.h>  // ObjFunction
-#include <xgboost/span.h>       // Span
-
-#include <memory>               // std::unique_ptr
-#include <vector>               // std::vector
-
-#include "../helpers.h"         // CheckConfigReload,MakeCUDACtx,DeclareUnifiedTest
-
 #include "test_quantile_obj.h"
 
-namespace xgboost {
+#include <xgboost/base.h>        // for Args
+#include <xgboost/context.h>     // for Context
+#include <xgboost/data.h>        // for MetaInfo
+#include <xgboost/objective.h>   // for ObjFunction
+#include <xgboost/span.h>        // for Span
+#include <xgboost/tree_model.h>  // for RegTree
 
-void TestQuantile(const Context* ctx) {
-{
+#include <memory>  // for unique_ptr
+#include <vector>  // for vector
+
+#include "../helpers.h"                   // CheckConfigReload,MakeCUDACtx,DeclareUnifiedTest
+
+namespace xgboost {
+void TestQuantile(Context const* ctx) {
+  {
     Args args{{"quantile_alpha", "[0.6, 0.8]"}};
     std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx)};
     obj->Configure(args);
@@ -36,7 +37,7 @@ void TestQuantile(const Context* ctx) {
   CheckObjFunction(obj, predts, labels, weights, grad, hess);
 }
 
-void TestQuantileIntercept(const Context* ctx) {
+void TestQuantileIntercept(Context const* ctx) {
   Args args{{"quantile_alpha", "[0.6, 0.8]"}};
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx)};
   obj->Configure(args);

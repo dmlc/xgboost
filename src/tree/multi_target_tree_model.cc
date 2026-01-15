@@ -138,7 +138,8 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
 }
 
 void MultiTargetTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights) {
-  CHECK_EQ(this->NumLeaves(), 0);
+  auto is_partial_tree = this->NumLeaves() == 0;
+  CHECK(is_partial_tree || leaves.size() == this->NumLeaves());
   auto n_targets = this->NumTargets();
   std::int32_t nidx_in_set = 0;
   auto n_leaves = leaves.size();
@@ -152,7 +153,9 @@ void MultiTargetTree::SetLeaves(std::vector<bst_node_t> leaves, common::Span<flo
     auto w_in = weights.subspan(nidx_in_set * n_targets, n_targets);
     auto w_out = h_weights.subspan(nidx_in_set * n_targets, n_targets);
     std::copy(w_in.cbegin(), w_in.cend(), w_out.begin());
-    CHECK_EQ(h_leaf_mapping[nidx], InvalidNodeId());
+    if (is_partial_tree) {
+      CHECK_EQ(h_leaf_mapping[nidx], InvalidNodeId());
+    }
     h_leaf_mapping[nidx] = nidx_in_set;
     nidx_in_set++;
   }
