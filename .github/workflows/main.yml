@@ -44,17 +44,15 @@ jobs:
       matrix:
         include:
           - variant: default
-            container_options: ''
             build_suite: cpu
           - variant: sanitizer
-            container_options: '--privileged'
             build_suite: cpu-sanitizer
     container:
       image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.cpu:main
       credentials:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
-      options: ${{ matrix.container_options }}
+      options: '--privileged'
     steps:
       - uses: actions/checkout@v6.0.1
         with:
@@ -71,5 +69,7 @@ jobs:
           # Work around https://github.com/google/sanitizers/issues/1614
           sysctl vm.mmap_rnd_bits=28
       - uses: trivialfis/sccache-gha/actions/sccache@main
+        with:
+          cache-key-prefix: ${{ github.job }}-${{ matrix.build_suite }}
       - name: Build and test
         run: bash ops/pipeline/build-cpu-impl.sh ${{ matrix.build_suite }}
