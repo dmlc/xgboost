@@ -18,7 +18,7 @@ jobs:
     name: Login to AWS ECR
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
+      - runner=linux-amd64-cpu-small
       - tag=main-ecr-login
     steps:
       - name: Login to Amazon ECR
