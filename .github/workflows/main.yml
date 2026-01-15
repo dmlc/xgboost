@@ -52,7 +52,7 @@ jobs:
       - name: Remove default build config
         run: rm -fv dmlc-core/include/dmlc/build_config_default.h
       - name: Install curl to download sccache
-        run: sudo apt install curl -y
+        run: apt install curl -y
       - uses: trivialfis/sccache-gha/actions/sccache@main
         with:
           cache-key-prefix: ${{ github.job }}
