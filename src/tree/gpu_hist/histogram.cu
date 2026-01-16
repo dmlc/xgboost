@@ -212,7 +212,7 @@ using MtHistBound = HistSm80;
 using MtHistBound = HistSm75;
 #endif
 
-// Single-target launch buonds
+// Single-target launch bounds
 // Maximize the number of threads instead of tuning for occupancy for single target.
 using StHistBound = HistSm75;
 
@@ -497,6 +497,7 @@ struct HistKernel {
         max_shared_bytes{dh::MaxSharedMemoryOptin(ctx->Ordinal())},
         force_global{force_global} {}
 
+  // Single target
   template <bool kDense, bool kCompressed, typename Accessor>
   void DispatchHistShmem(Context const* ctx, Accessor const& matrix,
                          FeatureGroupsAccessor const& feature_groups,
@@ -536,7 +537,7 @@ struct HistKernel {
       launch(Policy{}, kernel);
     }
   }
-
+  // Vector leaf
   template <bool kDense, bool kCompressed, typename Accessor, typename RidxIterSpan>
   void DispatchHistShmem(Context const* ctx, Accessor const& matrix,
                          FeatureGroupsAccessor const& feature_groups,

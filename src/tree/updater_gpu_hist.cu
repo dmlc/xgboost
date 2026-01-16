@@ -291,7 +291,7 @@ struct GPUHistMakerDevice {
     auto d_node_hist = histogram_.GetNodeHistogram(nidx);
     auto d_ridx = partitioners_.At(k)->GetRows(nidx);
     auto acc = page.Impl()->GetDeviceEllpack(this->ctx_, {});
-    auto gpair = d_gpair.View(this->ctx_->Device());
+    auto gpair = this->d_gpair.View(this->ctx_->Device());
     this->histogram_.BuildHistogram(ctx_, acc, feature_groups_->DeviceAccessor(ctx_->Device()),
                                     gpair.Values(), d_ridx, d_node_hist);
     monitor.Stop(__func__);

@@ -66,18 +66,19 @@ struct ClearEmptyRows {
   }
 };
 
-/*! \brief A functor that combines the gradient pair into a single float.
+/**
+ * @brief A functor that combines the gradient pair into a single float.
  *
  * The approach here is based on Minimal Variance Sampling (MVS), with lambda set to 0.1.
  *
- * \see Ibragimov, B., & Gusev, G. (2019). Minimal Variance Sampling in Stochastic Gradient
+ * @see Ibragimov, B., & Gusev, G. (2019). Minimal Variance Sampling in Stochastic Gradient
  * Boosting. In Advances in Neural Information Processing Systems (pp. 15061-15071).
  */
 class CombineGradientPair {
  public:
   XGBOOST_DEVICE float operator()(const GradientPairPrecise& gpair) const {
-    return cuda::std::sqrt(cuda::std::pow(gpair.GetGrad(), 2) +
-                           kLambda * cuda::std::pow(gpair.GetHess(), 2));
+    auto [g, h] = std::make_pair(gpair.GetGrad(), gpair.GetHess());
+    return cuda::std::sqrt((g * g) + kLambda * (h * h));
   }
 
  private:
