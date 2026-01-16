@@ -111,11 +111,11 @@ class SampleRateDelta {
   size_t sample_rows_;
 };
 
-/*! \brief A functor that performs Poisson sampling, and scales gradient pairs by 1/p_i. */
+/** @brief A functor that performs Poisson sampling, and scales gradient pairs by 1/p_i. */
 class PoissonSampling {
  public:
   PoissonSampling(GradientQuantiser rounding, common::Span<float const> threshold,
-                  size_t threshold_index, RandomWeight rnd)
+                  std::size_t threshold_index, RandomWeight rnd)
       : rounding_{rounding}, threshold_(threshold), threshold_index_(threshold_index), rnd_(rnd) {}
 
   XGBOOST_DEVICE GradientPairInt64 operator()(GradientPairInt64 const& gpair, std::size_t i) {
@@ -147,9 +147,6 @@ class PoissonSampling {
   RandomWeight rnd_;
   CombineGradientPair combine_;
 };
-
-void NoSampling::Sample(Context const*, linalg::VectorView<GradientPairInt64>,
-                        GradientQuantiser const&, DMatrix*) {}
 
 UniformSampling::UniformSampling(BatchParam batch_param, float subsample)
     : batch_param_{std::move(batch_param)}, subsample_{subsample} {}

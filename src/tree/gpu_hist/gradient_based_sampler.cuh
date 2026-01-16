@@ -20,13 +20,11 @@ class SamplingStrategy {
   virtual ~SamplingStrategy() = default;
 };
 
-/**
- * @brief No-op.
- */
+/** @brief No-op. */
 class NoSampling : public SamplingStrategy {
  public:
-  void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-              GradientQuantiser const& rounding, DMatrix* dmat) override;
+  void Sample(Context const*, linalg::VectorView<GradientPairInt64>, GradientQuantiser const&,
+              DMatrix*) override {}
 };
 
 /**
