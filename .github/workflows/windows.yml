@@ -46,9 +46,11 @@ jobs:
       - runner=windows-cpu
       - tag=windows-build-win64-cpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
+      - uses: trivialfis/sccache-gha/actions/msvc-dev-env@main
+      - uses: trivialfis/sccache-gha/actions/sccache@main
       - run: powershell ops/pipeline/build-win64-cpu.ps1
 
   test-win64-gpu:
