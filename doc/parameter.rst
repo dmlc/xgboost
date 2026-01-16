@@ -38,7 +38,7 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
 
   .. versionadded:: 3.2.0
 
-  .. warning:: This is an experimental feature and is subject to change without notice.
+  .. warning:: This is an experimental feature and is subject to change without notice. Windows is not supported yet.
 
 * ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
   override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,
