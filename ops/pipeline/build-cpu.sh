@@ -1,37 +1,58 @@
 #!/bin/bash
 ## Build and test XGBoost with AMD64 CPU
 
-set -euo pipefail
+set -euox pipefail
 
-source ops/pipeline/classify-git-branch.sh
-source ops/pipeline/get-docker-registry-details.sh
-source ops/pipeline/get-image-tag.sh
+if [[ "$#" -lt 1 ]]
+then
+  echo "Usage: $0 {cpu,cpu-sanitizer}"
+  exit 1
+fi
+suite="$1"
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.cpu:${IMAGE_TAG}
+mkdir -p build
+pushd build
 
-echo "--- Build CPU code"
-set -x
+case "${suite}" in
+  cpu)
+    echo "--- Build libxgboost from the source"
+    cmake .. \
+      -GNinja \
+      -DHIDE_CXX_SYMBOLS=ON \
+      -DGOOGLE_TEST=ON \
+      -DUSE_DMLC_GTEST=ON \
+      -DENABLE_ALL_WARNINGS=ON \
+      -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+      -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
+      -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
+      -DCMAKE_PREFIX_PATH='/opt/grpc' \
+      -DPLUGIN_FEDERATED=ON
+    time ninja -v
+    echo "--- Run Google Test"
+    ctest --extra-verbose
+    ;;
+  cpu-sanitizer)
+    echo "--- Run Google Test with sanitizer"
+    cmake .. \
+      -GNinja \
+      -DHIDE_CXX_SYMBOLS=ON \
+      -DGOOGLE_TEST=ON \
+      -DUSE_DMLC_GTEST=ON \
+      -DENABLE_ALL_WARNINGS=ON \
+      -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+      -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
+      -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
+      -DUSE_SANITIZER=ON \
+      -DENABLED_SANITIZERS="address;leak;undefined" \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
+    time ninja -v
+    ./testxgboost --gtest_filter=-*DeathTest*
+    ;;
+  *)
+    echo "Unrecognized argument: $suite"
+    exit 1
+    ;;
+esac
 
-# This step is not necessary, but here we include it, to ensure that
-# DMLC_CORE_USE_CMAKE flag is correctly propagated. We want to make sure that we use
-# the configured header build/dmlc/build_config.h instead of
-# include/dmlc/build_config_default.h.
-rm -fv dmlc-core/include/dmlc/build_config_default.h
-
-# Test with sanitizer
-export ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
-export ASAN_OPTIONS='symbolize=1'
-export UBSAN_OPTIONS='print_stacktrace=1:log_path=ubsan_error.log'
-# Work around https://github.com/google/sanitizers/issues/1614
-sudo sysctl vm.mmap_rnd_bits=28
-python3 ops/docker_run.py \
-  --image-uri ${IMAGE_URI} \
-  --run-args '-e ASAN_SYMBOLIZER_PATH -e ASAN_OPTIONS -e UBSAN_OPTIONS
-    --cap-add SYS_PTRACE' \
-  -- bash ops/pipeline/build-cpu-impl.sh cpu-sanitizer
-
-# Test without sanitizer
-rm -rf build/
-python3 ops/docker_run.py \
-  --image-uri ${IMAGE_URI} \
-  -- bash ops/pipeline/build-cpu-impl.sh cpu
+popd

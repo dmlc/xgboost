@@ -29,12 +29,8 @@ jobs:
           environment-name: cpp_test
           environment-file: ops/conda_env/cpp_test.yml
       - uses: trivialfis/sccache-gha/actions/sccache@main
-        with:
-          cache-key-prefix: ${{ github.job }}
       - name: Build and test XGBoost
         run: bash ops/pipeline/build-test-cpu-nonomp.sh
-      - name: Show sccache stats
-        run: sccache --show-stats
 
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
@@ -51,9 +47,5 @@ jobs:
           environment-name: cpp_test
           environment-file: ops/conda_env/cpp_test.yml
       - uses: trivialfis/sccache-gha/actions/sccache@main
-        with:
-          cache-key-prefix: ${{ github.job }}
       - name: Build and run C API demo with shared
         run: bash ops/pipeline/test-c-api-demo.sh
-      - name: Show sccache stats
-        run: sccache --show-stats
