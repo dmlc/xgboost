@@ -408,3 +408,21 @@ def run_column_sampling(device: Device) -> None:
     # not sampled
     for f in range(n_features // 2, n_features):
         assert f"f{f}" not in fscores
+
+
+def run_grow_policy(device: Device, grow_policy: str) -> None:
+    """Test grow policy (depthwise and lossguide) for vector leaf."""
+    X, y = make_regression(
+        n_samples=1024, n_features=16, random_state=1994, n_targets=3
+    )
+    Xy = QuantileDMatrix(X, y)
+
+    params = {
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "debug_synchronize": True,
+        "grow_policy": grow_policy,
+    }
+
+    evals_result = train_result(params, Xy, num_rounds=10)
+    assert non_increasing(evals_result["train"]["rmse"])

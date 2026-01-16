@@ -265,7 +265,7 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   dh::device_vector<MultiExpandEntry> outputs(1);
 
   auto d_outputs = dh::ToSpan(outputs);
-  this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, d_outputs);
+  this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, input.nidx, d_outputs);
 
   // The `EvaluateSplits` apply eta for leaf nodes only, we need to apply it for the base
   // weight.
@@ -281,6 +281,7 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
 void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                                         common::Span<MultiEvaluateSplitInputs const> d_inputs,
                                         MultiEvaluateSplitSharedInputs const &shared_inputs,
+                                        bst_node_t max_nidx,
                                         common::Span<MultiExpandEntry> out_splits) {
   auto n_targets = shared_inputs.Targets();
   auto n_bins_per_feat_tar = shared_inputs.n_bins_per_feat_tar;
@@ -295,6 +296,10 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   if (n_nodes == 0) {
     return;
   }
+
+  // Allocate weight and split sum storage on demand for the maximum node ID being evaluated.
+  this->AllocNodeWeight(max_nidx, n_targets);
+  this->AllocSplitSum(max_nidx, n_targets);
 
   // Calculate total scan buffer size needed for all nodes
   auto node_hist_size = n_targets * shared_inputs.Features() * n_bins_per_feat_tar;
@@ -335,7 +340,10 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   }
 
   // Find best split for each node
-  auto d_weights = WeightBuffer::Make(n_nodes, n_targets, &this->weights_);
+  // Use persistent weight and split sum storage indexed by node id to support loss-guide grow
+  // policy.
+  auto d_weights = this->GetNodeWeights(n_targets);
+  auto d_split_sums = dh::ToSpan(this->split_sums_);
   auto s_d_splits = dh::ToSpan(d_splits);
 
   // Process results for each node
@@ -362,13 +370,19 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       return;
     }
 
-    // Calculate weights for this node
-    auto base_weight = d_weights.Base(nidx_in_set);
-    auto left_weight = d_weights.Left(nidx_in_set);
-    auto right_weight = d_weights.Right(nidx_in_set);
+    // Calculate weights for this node using the actual node id for persistent storage
+    bst_node_t nidx = input.nidx;
+    auto base_weight = d_weights.Base(nidx);
+    auto left_weight = d_weights.Left(nidx);
+    auto right_weight = d_weights.Right(nidx);
 
     auto d_roundings = shared_inputs.roundings;
     auto node_sum = best_split.child_sum;
+
+    // Copy split sum to persistent buffer for loss-guide grow policy support.
+    // The child_sum span in best_split points to scan_buffer_ which gets reused,
+    // so we store it persistently indexed by node id.
+    auto split_sum_dest = GetNodeSumImpl(d_split_sums, nidx, n_targets);
 
     float parent_gain = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
@@ -379,6 +393,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
       base_weight[t] = CalcWeight(shared_inputs.param, g.GetGrad(), g.GetHess());
       parent_gain += -base_weight[t] * ThresholdL1(g.GetGrad(), shared_inputs.param.reg_alpha);
+
+      split_sum_dest[t] = node_sum[t];
     }
 
     bool l = true, r = true;
@@ -412,8 +428,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       }
     }
 
-    // Set up the output entry
-    out_splits[nidx_in_set] = {input.nidx,  input.depth, best_split,
+    // Set up the output entry with spans pointing to persistent weight storage
+    out_splits[nidx_in_set] = {nidx,        input.depth, best_split,
                                base_weight, left_weight, right_weight};
     out_splits[nidx_in_set].split.loss_chg -= parent_gain;
     out_splits[nidx_in_set].UpdateFirstHessian(lg_fst, rg_fst);
@@ -439,35 +455,40 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
   this->AllocNodeSum(max_node, n_targets);
 
   auto node_sums = dh::ToSpan(this->node_sums_);
+  // Use the internal split sums buffer instead of candidate.split.child_sum . It may be
+  // stale in loss-guide grow policy (entries can remain in priority queue across
+  // evaluation rounds).
+  auto split_sums = dh::ToSpan(this->split_sums_);
 
-  dh::LaunchN(n_targets * d_candidates.size(), ctx->CUDACtx()->Stream(),
-              [=] XGBOOST_DEVICE(std::size_t i) {
-                auto get_node_sum = [&](bst_node_t nidx) {
-                  return GetNodeSumImpl(node_sums, nidx, n_targets);
-                };
-                auto nidx_in_set = i / n_targets;
-                auto t = i % n_targets;
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul),
+                     n_targets * d_candidates.size(), [=] XGBOOST_DEVICE(std::size_t i) {
+                       auto get_node_sum = [&](bst_node_t nidx) {
+                         return GetNodeSumImpl(node_sums, nidx, n_targets);
+                       };
+                       auto nidx_in_set = i / n_targets;
+                       auto t = i % n_targets;
 
-                auto const &candidate = d_candidates[nidx_in_set];
-                auto const &best_split = candidate.split;
+                       auto const &candidate = d_candidates[nidx_in_set];
+                       auto const &best_split = candidate.split;
 
-                auto parent_sum = get_node_sum(candidate.nidx);
-                // The child sum is a pointer to the scan buffer in this evaluator. Copy
-                // the data into the node sum buffer before the next evaluation call.
-                auto node_sum = best_split.child_sum;
-                auto left_sum = get_node_sum(mt_tree.LeftChild(candidate.nidx));
-                auto right_sum = get_node_sum(mt_tree.RightChild(candidate.nidx));
+                       auto parent_sum = get_node_sum(candidate.nidx);
+                       // Look up split sum from persistent buffer by node id.
+                       // Use split_targets for indexing since that's what was used during storage.
+                       auto split_sum = GetNodeSumImpl(split_sums, candidate.nidx, n_targets);
+                       auto left_sum = get_node_sum(mt_tree.LeftChild(candidate.nidx));
+                       auto right_sum = get_node_sum(mt_tree.RightChild(candidate.nidx));
 
-                auto sibling_sum = parent_sum[t] - node_sum[t];
-                if (best_split.dir == kRightDir) {
-                  // forward pass, node_sum is the left sum
-                  left_sum[t] = node_sum[t];
-                  right_sum[t] = sibling_sum;
-                } else {
-                  // backward pass, node_sum is the right sum
-                  right_sum[t] = node_sum[t];
-                  left_sum[t] = sibling_sum;
-                }
-              });
+                       auto split_sum_t = split_sum[t];
+                       auto sibling_sum = parent_sum[t] - split_sum_t;
+                       if (best_split.dir == kRightDir) {
+                         // forward pass, node_sum is the left sum
+                         left_sum[t] = split_sum_t;
+                         right_sum[t] = sibling_sum;
+                       } else {
+                         // backward pass, node_sum is the right sum
+                         right_sum[t] = split_sum_t;
+                         left_sum[t] = sibling_sum;
+                       }
+                     });
 }
 }  // namespace xgboost::tree::cuda_impl

@@ -11,6 +11,7 @@ from xgboost.testing.multi_target import (
     run_quantile_loss,
     run_reduced_grad,
     run_with_iter,
+    run_grow_policy,
 )
 from xgboost.testing.params import (
     exact_parameter_strategy,
@@ -115,3 +116,8 @@ def test_reduced_grad() -> None:
 
 def test_with_iter() -> None:
     run_with_iter("cpu")
+
+
+@pytest.mark.parametrize("grow_policy", ["depthwise", "lossguide"])
+def test_grow_policy(grow_policy: str) -> None:
+    run_grow_policy("cpu", grow_policy)

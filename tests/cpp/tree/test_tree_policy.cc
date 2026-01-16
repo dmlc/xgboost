@@ -182,6 +182,9 @@ TEST_F(TestGrowPolicy, GpuMultiHist) {
   auto ctx = MakeCUDACtx(0);
   bst_target_t n_targets = 3;
   this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "depthwise");
+  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "lossguide");
+
+  this->TestCombination(&ctx, n_targets, "hist");
 }
 
 TEST_F(TestGrowPolicy, GpuApprox) {
