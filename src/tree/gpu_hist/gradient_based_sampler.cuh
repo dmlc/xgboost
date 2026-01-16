@@ -27,29 +27,25 @@ class NoSampling : public SamplingStrategy {
               DMatrix*) override {}
 };
 
-/**
- * @brief Uniform sampling in in-memory mode.
- */
+/** @brief Uniform sampling */
 class UniformSampling : public SamplingStrategy {
  public:
-  UniformSampling(BatchParam batch_param, float subsample);
+  explicit UniformSampling(float subsample) : subsample_{subsample} {}
   void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
               GradientQuantiser const& rounding, DMatrix* dmat) override;
 
  private:
-  BatchParam batch_param_;
   float subsample_;
 };
 
 /** @brief Gradient-based sampling. */
 class GradientBasedSampling : public SamplingStrategy {
  public:
-  GradientBasedSampling(std::size_t n_rows, BatchParam batch_param, float subsample);
+  GradientBasedSampling(std::size_t n_rows, float subsample);
   void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
               GradientQuantiser const& rounding, DMatrix* dmat) override;
 
  private:
-  BatchParam batch_param_;
   float subsample_;
   dh::device_vector<float> threshold_;
   dh::device_vector<float> grad_sum_;
@@ -68,8 +64,7 @@ class GradientBasedSampling : public SamplingStrategy {
  */
 class GradientBasedSampler {
  public:
-  GradientBasedSampler(Context const* ctx, size_t n_rows, const BatchParam& batch_param,
-                       float subsample, int sampling_method);
+  GradientBasedSampler(bst_idx_t n_samples, float subsample, int sampling_method);
 
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
   void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,

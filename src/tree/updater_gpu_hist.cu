@@ -142,8 +142,8 @@ struct GPUHistMakerDevice {
   common::Monitor monitor;
 
   GPUHistMakerDevice(Context const* ctx, TrainParam _param, HistMakerTrainParam const* hist_param,
-                     std::shared_ptr<common::ColumnSampler> column_sampler, BatchParam batch_param,
-                     MetaInfo const& info, std::vector<bst_idx_t> batch_ptr,
+                     std::shared_ptr<common::ColumnSampler> column_sampler, MetaInfo const& info,
+                     std::vector<bst_idx_t> batch_ptr,
                      std::shared_ptr<common::HistogramCuts const> cuts, bool dense_compressed)
       : evaluator_{_param, static_cast<bst_feature_t>(info.num_col_), ctx->Device()},
         ctx_{ctx},
@@ -155,8 +155,8 @@ struct GPUHistMakerDevice {
             *cuts_, dense_compressed, DftStHistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
-        sampler{std::make_unique<GradientBasedSampler>(ctx, info.num_row_, batch_param,
-                                                       param.subsample, param.sampling_method)} {
+        sampler{std::make_unique<GradientBasedSampler>(info.num_row_, param.subsample,
+                                                       param.sampling_method)} {
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
@@ -823,9 +823,9 @@ class GPUHistMaker : public TreeUpdater {
     auto batch = HistBatch(*param);
     auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
 
-    this->p_scimpl_ = std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_,
-                                                           column_sampler_, batch, p_fmat->Info(),
-                                                           batch_ptr, cuts, dense_compressed);
+    this->p_scimpl_ =
+        std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_, column_sampler_,
+                                             p_fmat->Info(), batch_ptr, cuts, dense_compressed);
     this->p_mtimpl_ = std::make_unique<cuda_impl::MultiTargetHistMaker>(
         this->ctx_, *param, &hist_maker_param_, this->column_sampler_, batch_ptr, cuts,
         dense_compressed);
@@ -948,9 +948,9 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
     batch.regen = false;  // Regen only at the beginning of the iteration.
 
-    this->maker_ = std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_,
-                                                        column_sampler_, batch, p_fmat->Info(),
-                                                        batch_ptr, cuts, dense_compressed);
+    this->maker_ =
+        std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_, column_sampler_,
+                                             p_fmat->Info(), batch_ptr, cuts, dense_compressed);
 
     std::size_t t_idx{0};
     for (xgboost::RegTree* tree : trees) {

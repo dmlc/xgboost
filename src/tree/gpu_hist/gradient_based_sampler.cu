@@ -148,9 +148,6 @@ class PoissonSampling {
   CombineGradientPair combine_;
 };
 
-UniformSampling::UniformSampling(BatchParam batch_param, float subsample)
-    : batch_param_{std::move(batch_param)}, subsample_{subsample} {}
-
 void UniformSampling::Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
                              GradientQuantiser const&, DMatrix*) {
   // Set gradient pair to 0 with p = 1 - subsample
@@ -160,19 +157,15 @@ void UniformSampling::Sample(Context const* ctx, linalg::VectorView<GradientPair
                      BernoulliTrial(common::GlobalRandom()(), subsample_), GradientPairInt64{});
 }
 
-GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, BatchParam batch_param,
-                                             float subsample)
-    : subsample_(subsample),
-      batch_param_{std::move(batch_param)},
-      threshold_(n_rows + 1, 0.0f),
-      grad_sum_(n_rows, 0.0f) {}
+GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, float subsample)
+    : subsample_(subsample), threshold_(n_rows + 1, 0.0f), grad_sum_(n_rows, 0.0f) {}
 
 /** @brief Calculate the threshold used to normalize sampling probabilities. */
 std::size_t CalculateThresholdIndex(Context const* ctx,
                                     linalg::VectorView<GradientPairInt64 const> gpair,
                                     GradientQuantiser const& rounding,
                                     common::Span<float> threshold, common::Span<float> grad_sum,
-                                    size_t sample_rows) {
+                                    std::size_t sample_rows) {
   auto cuctx = ctx->CUDACtx();
   thrust::fill(cuctx->CTP(), dh::tend(threshold) - 1, dh::tend(threshold),
                std::numeric_limits<float>::max());
@@ -206,10 +199,8 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::VectorView<Gradie
       PoissonSampling(rounding, dh::ToSpan(threshold_), threshold_index, RandomWeight(seed)));
 }
 
-GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows,
-                                           const BatchParam& batch_param, float subsample,
+GradientBasedSampler::GradientBasedSampler(bst_idx_t n_samples, float subsample,
                                            int sampling_method) {
-  // The ctx is kept here for future development of stream-based operations.
   monitor_.Init(__func__);
 
   bool is_sampling = subsample < 1.0;
@@ -221,11 +212,11 @@ GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows
 
   switch (sampling_method) {
     case TrainParam::kUniform: {
-      strategy_.reset(new UniformSampling(batch_param, subsample));
+      strategy_.reset(new UniformSampling{subsample});
       break;
     }
     case TrainParam::kGradientBased: {
-      strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
+      strategy_.reset(new GradientBasedSampling{n_samples, subsample});
       break;
     }
     default:

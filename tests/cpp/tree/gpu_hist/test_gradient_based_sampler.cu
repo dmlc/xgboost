@@ -40,7 +40,7 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method, bool
     EXPECT_NE(page->n_rows, kRows);
   }
 
-  GradientBasedSampler sampler(&ctx, kRows, param, subsample, sampling_method);
+  GradientBasedSampler sampler{kRows, subsample, sampling_method};
   sampler.Sample(&ctx, gpair_i64.View(ctx.Device()).Slice(linalg::All(), 0), q, dmat.get());
 
   GradientPairPrecise sum_sampled_gpair{};
