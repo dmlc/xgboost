@@ -4,8 +4,6 @@ $ErrorActionPreference = "Stop"
 
 . ops/pipeline/enforce-ci.ps1
 
-choco install gzip
-
 Write-Host "--- Build libxgboost on Windows (minimal)"
 
 mkdir build
