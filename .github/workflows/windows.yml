@@ -52,6 +52,7 @@ jobs:
       - uses: trivialfis/sccache-gha/actions/msvc-dev-env@main
       - uses: trivialfis/sccache-gha/actions/sccache@main
       - run: powershell ops/pipeline/build-win64-cpu.ps1
+      - run: sccache --show-stats
 
   test-win64-gpu:
     name: Test XGBoost on Windows

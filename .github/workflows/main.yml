@@ -73,8 +73,7 @@ jobs:
           cache-key-prefix: ${{ github.job }}-${{ matrix.build_suite }}
       - name: Build and test
         run: bash ops/pipeline/build-cpu.sh ${{ matrix.build_suite }}
-      - name: Show sccache stats
-        run: sccache --show-stats
+      - run: sccache --show-stats
 
   build-cuda:
     name: Build CUDA + manylinux_2_28_${{ matrix.arch }} wheel
