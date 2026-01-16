@@ -3,22 +3,18 @@
  */
 #include <gtest/gtest.h>
 
-#include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/gradient_based_sampler.cuh"
-#include "../../../../src/tree/param.h"
 #include "../../../../src/tree/param.h"  // TrainParam
 #include "../../helpers.h"
 #include "dummy_quantizer.cuh"
+
 namespace xgboost::tree {
-void VerifySampling(size_t page_size, float subsample, int sampling_method, bool check_sum = true) {
+void VerifySampling(float subsample, int sampling_method, bool check_sum = true) {
   auto ctx = MakeCUDACtx(0);
 
   constexpr size_t kRows = 4096;
-  constexpr size_t kCols = 1;
   bst_idx_t sample_rows = kRows * subsample;
   bst_target_t n_targets = 1;
-
-  auto dmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
 
   auto q = MakeDummyQuantizer();
   dh::caching_device_vector<GradientQuantiser> roundings{q};
@@ -34,14 +30,8 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method, bool
     sum_gpair += q.ToFloatingPoint(gp);
   }
 
-  auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
-  auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
-  if (page_size != 0) {
-    EXPECT_NE(page->n_rows, kRows);
-  }
-
   GradientBasedSampler sampler{kRows, subsample, sampling_method};
-  sampler.Sample(&ctx, gpair_i64.View(ctx.Device()).Slice(linalg::All(), 0), q, dmat.get());
+  sampler.Sample(&ctx, gpair_i64.View(ctx.Device()).Slice(linalg::All(), 0), q);
 
   GradientPairPrecise sum_sampled_gpair{};
   for (auto const& gp : gpair_i64.HostView()) {
@@ -57,24 +47,21 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method, bool
 }
 
 TEST(GradientBasedSampler, NoSampling) {
-  constexpr size_t kPageSize = 0;
   constexpr float kSubsample = 1.0f;
   constexpr int kSamplingMethod = TrainParam::kUniform;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
+  VerifySampling(kSubsample, kSamplingMethod);
 }
 
 TEST(GradientBasedSampler, UniformSampling) {
-  constexpr size_t kPageSize = 0;
   constexpr float kSubsample = 0.5;
   constexpr int kSamplingMethod = TrainParam::kUniform;
   constexpr bool kCheckSum = false;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kCheckSum);
+  VerifySampling(kSubsample, kSamplingMethod, kCheckSum);
 }
 
 TEST(GradientBasedSampler, GradientBasedSampling) {
-  constexpr size_t kPageSize = 0;
   constexpr float kSubsample = 0.8;
   constexpr int kSamplingMethod = TrainParam::kGradientBased;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
+  VerifySampling(kSubsample, kSamplingMethod);
 }
 }  // namespace xgboost::tree

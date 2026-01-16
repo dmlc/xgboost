@@ -149,7 +149,7 @@ class PoissonSampling {
 };
 
 void UniformSampling::Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-                             GradientQuantiser const&, DMatrix*) {
+                             GradientQuantiser const&) {
   // Set gradient pair to 0 with p = 1 - subsample
   auto cuctx = ctx->CUDACtx();
   thrust::replace_if(cuctx->CTP(), linalg::tbegin(gpair), linalg::tend(gpair),
@@ -186,9 +186,10 @@ std::size_t CalculateThresholdIndex(Context const* ctx,
 }
 
 void GradientBasedSampling::Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-                                   GradientQuantiser const& rounding, DMatrix* p_fmat) {
+                                   GradientQuantiser const& rounding) {
   auto cuctx = ctx->CUDACtx();
-  size_t n_rows = p_fmat->Info().num_row_;
+  size_t n_rows = gpair.Shape(0);
+  CHECK_EQ(this->grad_sum_.size(), n_rows);
   size_t threshold_index = CalculateThresholdIndex(ctx, gpair, rounding, dh::ToSpan(threshold_),
                                                    dh::ToSpan(grad_sum_), n_rows * subsample_);
   auto seed = common::GlobalRandom()();
@@ -226,9 +227,9 @@ GradientBasedSampler::GradientBasedSampler(bst_idx_t n_samples, float subsample,
 
 // Sample a DMatrix based on the given gradient pairs.
 void GradientBasedSampler::Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-                                  GradientQuantiser const& rounding, DMatrix* dmat) {
+                                  GradientQuantiser const& rounding) {
   monitor_.Start(__func__);
-  strategy_->Sample(ctx, gpair, rounding, dmat);
+  strategy_->Sample(ctx, gpair, rounding);
   monitor_.Stop(__func__);
 }
 };  // namespace xgboost::tree

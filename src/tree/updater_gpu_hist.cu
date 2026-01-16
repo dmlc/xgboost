@@ -186,7 +186,7 @@ struct GPUHistMakerDevice {
      * Sampling
      */
     auto gpairs = this->d_gpair.View(this->ctx_->Device()).Slice(linalg::All(), 0);
-    this->sampler->Sample(ctx_, gpairs, *this->quantiser, p_fmat);
+    this->sampler->Sample(ctx_, gpairs, *this->quantiser);
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
     /**

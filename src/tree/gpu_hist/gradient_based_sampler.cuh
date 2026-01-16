@@ -16,15 +16,15 @@ class SamplingStrategy {
  public:
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
   virtual void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-                      GradientQuantiser const& rounding, DMatrix* dmat) = 0;
+                      GradientQuantiser const& rounding) = 0;
   virtual ~SamplingStrategy() = default;
 };
 
 /** @brief No-op. */
 class NoSampling : public SamplingStrategy {
  public:
-  void Sample(Context const*, linalg::VectorView<GradientPairInt64>, GradientQuantiser const&,
-              DMatrix*) override {}
+  void Sample(Context const*, linalg::VectorView<GradientPairInt64>,
+              GradientQuantiser const&) override {}
 };
 
 /** @brief Uniform sampling */
@@ -32,7 +32,7 @@ class UniformSampling : public SamplingStrategy {
  public:
   explicit UniformSampling(float subsample) : subsample_{subsample} {}
   void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-              GradientQuantiser const& rounding, DMatrix* dmat) override;
+              GradientQuantiser const& rounding) override;
 
  private:
   float subsample_;
@@ -43,7 +43,7 @@ class GradientBasedSampling : public SamplingStrategy {
  public:
   GradientBasedSampling(std::size_t n_rows, float subsample);
   void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-              GradientQuantiser const& rounding, DMatrix* dmat) override;
+              GradientQuantiser const& rounding) override;
 
  private:
   float subsample_;
@@ -68,7 +68,7 @@ class GradientBasedSampler {
 
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
   void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-              GradientQuantiser const& rounding, DMatrix* dmat);
+              GradientQuantiser const& rounding);
 
  private:
   common::Monitor monitor_;
