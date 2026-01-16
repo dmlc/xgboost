@@ -1204,6 +1204,28 @@ void CopyGradientFromCudaArrays(Context const *, ArrayInterface<2, false> const 
 #else
 ;  // NOLINT
 #endif
+
+// Helper function to copy gradient from array interface to linalg::Matrix
+void CopyGradientFromArrays(Context const *ctx, ArrayInterface<2, false> const &i_grad,
+                            ArrayInterface<2, false> const &i_hess,
+                            linalg::Matrix<GradientPair> *out_gpair) {
+  auto grad_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_grad.data);
+  auto hess_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_hess.data);
+  CHECK_EQ(grad_is_cuda, hess_is_cuda) << "gradient and hessian should be on the same device.";
+
+  if (!grad_is_cuda) {
+    out_gpair->Reshape(i_grad.Shape<0>(), i_grad.Shape<1>());
+    auto h_gpair = out_gpair->HostView();
+    DispatchDType(i_grad, DeviceOrd::CPU(), [&](auto &&t_grad) {
+      DispatchDType(i_hess, DeviceOrd::CPU(), [&](auto &&t_hess) {
+        common::ParallelFor(h_gpair.Size(), ctx->Threads(),
+                            detail::CustomGradHessOp{t_grad, t_hess, h_gpair});
+      });
+    });
+  } else {
+    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, out_gpair);
+  }
+}
 }  // namespace xgboost
 
 XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, int iter,
@@ -1218,33 +1240,19 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   StringView msg{"Mismatched shape between the gradient and hessian."};
   CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
   CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
-  GradientContainer gpair;
-  auto grad_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_grad.data);
-  auto hess_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_hess.data);
   CHECK_EQ(i_grad.Shape<0>(), p_fmat->Info().num_row_)
       << "Mismatched size between the gradient and training data.";
-  CHECK_EQ(grad_is_cuda, hess_is_cuda) << "gradient and hessian should be on the same device.";
   auto *learner = static_cast<Learner *>(handle);
   auto ctx = learner->Ctx();
-  if (!grad_is_cuda) {
-    gpair.gpair.Reshape(i_grad.Shape<0>(), i_grad.Shape<1>());
-    auto h_gpair = gpair.gpair.HostView();
-    DispatchDType(i_grad, DeviceOrd::CPU(), [&](auto &&t_grad) {
-      DispatchDType(i_hess, DeviceOrd::CPU(), [&](auto &&t_hess) {
-        common::ParallelFor(h_gpair.Size(), ctx->Threads(),
-                            detail::CustomGradHessOp{t_grad, t_hess, h_gpair});
-      });
-    });
-  } else {
-    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.gpair);
-  }
+  GradientContainer gpair;
+  CopyGradientFromArrays(ctx, i_grad, i_hess, &gpair.gpair);
   learner->BoostOneIter(iter, p_fmat, &gpair);
   API_END();
 }
 
 typedef char const *JArrayStr;  // NOLINT
 
-// Hidden, working-in-progress support for reduced gradient. CUDA-only at the moment.
+// Hidden, working-in-progress support for reduced gradient.
 /**
  * @brief Use a different type of gradient for tree split.
  *
@@ -1261,20 +1269,21 @@ XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHand
   auto *learner = static_cast<Learner *>(handle);
   GradientContainer gpair;
   auto ctx = learner->Ctx();
-  CHECK(ctx->IsCUDA()) << "Reduced gradient with CPU" << MTNotImplemented();
   {
     ArrayInterface<2, false> i_grad{StringView{split_grad}};
     ArrayInterface<2, false> i_hess{StringView{split_hess}};
-    CHECK(ArrayInterfaceHandler::IsCudaPtr(i_grad.data))
-        << "Reduced gradient with CPU" << MTNotImplemented();
-    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.gpair);
+    StringView msg{"Mismatched shape between the gradient and hessian."};
+    CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
+    CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
+    CopyGradientFromArrays(ctx, i_grad, i_hess, &gpair.gpair);
   }
   {
     ArrayInterface<2, false> i_grad{StringView{value_grad}};
     ArrayInterface<2, false> i_hess{StringView{value_hess}};
-    CHECK(ArrayInterfaceHandler::IsCudaPtr(i_grad.data))
-        << "Reduced gradient with CPU" << MTNotImplemented();
-    CopyGradientFromCudaArrays(ctx, i_grad, i_hess, &gpair.value_gpair);
+    StringView msg{"Mismatched shape between the gradient and hessian."};
+    CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
+    CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
+    CopyGradientFromArrays(ctx, i_grad, i_hess, &gpair.value_gpair);
   }
 
   auto p_fmat = CastDMatrixHandle(dtrain);

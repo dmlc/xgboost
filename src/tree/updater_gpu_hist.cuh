@@ -298,7 +298,7 @@ class MultiTargetHistMaker {
         std::transform(leaves.begin(), leaves.end(), leaves_idx.begin(),
                        [](LeafInfo const& leaf) { return leaf.nidx; });
       }
-      // sanity check
+      // Sanity check: all partitioners should have the same set of leaves
       if (this->hist_param_->debug_synchronize) {
         auto it = common::MakeIndexTransformIter([&](std::size_t i) { return leaves.at(i).nidx; });
         CHECK(std::equal(it, it + n_leaves, leaves_idx.cbegin()));

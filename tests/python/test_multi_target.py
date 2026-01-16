@@ -9,6 +9,8 @@ from xgboost.testing.multi_target import (
     run_multiclass,
     run_multilabel,
     run_quantile_loss,
+    run_reduced_grad,
+    run_with_iter,
 )
 from xgboost.testing.params import (
     exact_parameter_strategy,
@@ -105,3 +107,11 @@ def test_quantile_loss(weighted: bool) -> None:
 
 def test_absolute_error() -> None:
     run_absolute_error("cpu")
+
+
+def test_reduced_grad() -> None:
+    run_reduced_grad("cpu")
+
+
+def test_with_iter() -> None:
+    run_with_iter("cpu")
