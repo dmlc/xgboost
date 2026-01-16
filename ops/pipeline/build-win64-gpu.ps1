@@ -13,14 +13,11 @@ if ( $is_release_branch -eq 0 ) {
   $arch_flag = ""
 }
 
-# Work around https://github.com/NVIDIA/cccl/issues/1956
-# TODO(hcho3): Remove this once new CUDA version ships with CCCL 2.6.0+
-git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
 mkdir build
 cd build
 cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON `
   -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON `
-  -DCMAKE_PREFIX_PATH="$(Get-Location)/../cccl" ${arch_flag}
+  ${arch_flag}
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 cmake --build . --config Release -- /m /nodeReuse:false `
   "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
