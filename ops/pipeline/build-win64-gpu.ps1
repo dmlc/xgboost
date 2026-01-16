@@ -15,10 +15,12 @@ if ( $is_release_branch -eq 0 ) {
 
 mkdir build
 cd build
-cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON `
+cmake .. -G"Ninja" -DUSE_CUDA=ON `
+  -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
   -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON `
   ${arch_flag}
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+
 cmake --build . --config Release -- /m /nodeReuse:false `
   "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }

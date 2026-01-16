@@ -8,7 +8,8 @@ Write-Host "--- Build libxgboost on Windows (minimal)"
 
 mkdir build
 cd build
-cmake .. -G"Ninja" -A -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+cmake .. -G"Ninja" `
+  -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 cmake --build . --config Release -- /m /nodeReuse:false `
