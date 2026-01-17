@@ -199,6 +199,9 @@ class MultiTargetHistBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
+      if (page.cut.HasCategorical()) {
+        LOG(FATAL) << "Categorical feature" << MTNotImplemented();
+      }
       if (page_idx < partitioner_.size()) {
         partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
                                      p_fmat->Info().IsColumnSplit());
@@ -636,6 +639,9 @@ class QuantileHistMaker : public TreeUpdater {
       }
       if (!param->interaction_constraints.empty()) {
         LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
+      }
+      if (collective::IsDistributed()) {
+        LOG(FATAL) << "Distributed training" << MTNotImplemented();
       }
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(
