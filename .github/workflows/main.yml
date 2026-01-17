@@ -76,7 +76,8 @@ jobs:
       - run: sccache --show-stats
 
   build-cuda:
-    name: Build CUDA + manylinux_2_28_${{ matrix.arch }} wheel
+    name: Build CUDA (${{ matrix.arch }})
+    needs: ecr-login
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
@@ -91,16 +92,20 @@ jobs:
         - arch: x86_64
           runner: linux-amd64-cpu
           image_repo: xgb-ci.gpu_build_rockylinux8
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - run: |
-          bash ops/pipeline/build-cuda.sh ${{ matrix.image_repo }} ${{ matrix.arch }} disable-rmm
+      - uses: trivialfis/sccache-gha/actions/sccache@main
+        with:
+          cache-key-prefix: build-cuda-${{ matrix.arch }}
+      - run: bash ops/pipeline/build-cuda.sh ${{ matrix.arch }} disable-rmm
+      - run: sccache --show-stats
       - name: Stash files
         run: |
           python3 ops/pipeline/manage-artifacts.py upload \
@@ -108,22 +113,65 @@ jobs:
             --prefix cache/${{ github.run_id }}/build-cuda-${{ matrix.arch }} \
             build/testxgboost python-package/dist/*.whl
 
+  audit-cuda-wheel:
+    name: Audit CUDA wheel for manylinux_2_28_${{ matrix.arch }}
+    needs: [ecr-login, build-cuda]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=${{ matrix.runner }}
+      - tag=main-audit-cuda-wheel-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: aarch64
+          runner: linux-arm64-cpu
+        - arch: x86_64
+          runner: linux-amd64-cpu
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.manylinux_2_28_${{ matrix.arch }}:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
+    steps:
+      - uses: actions/checkout@v6.0.1
+      - name: Unstash raw wheel
+        run: |
+          mkdir -p python-package/dist
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda-${{ matrix.arch }} \
+            --dest-dir python-package/dist \
+            *.whl
+      - run: bash ops/pipeline/audit-cuda-wheel.sh ${{ matrix.arch }}
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/audit-cuda-wheel-${{ matrix.arch }} \
+            python-package/dist/*.whl
+
   build-cuda-with-rmm:
     name: Build CUDA with RMM
+    needs: ecr-login
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=main-build-cuda-with-rmm
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - run: |
-          bash ops/pipeline/build-cuda.sh xgb-ci.gpu_build_rockylinux8 x86_64 enable-rmm
+      - uses: trivialfis/sccache-gha/actions/sccache@main
+        with:
+          cache-key-prefix: build-cuda-with-rmm
+      - run: bash ops/pipeline/build-cuda.sh x86_64 enable-rmm
+      - run: sccache --show-stats
       - name: Stash files
         run: |
           python3 ops/pipeline/manage-artifacts.py upload \
@@ -210,7 +258,7 @@ jobs:
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -227,7 +275,7 @@ jobs:
 
   test-python-wheel:
     name: Run Python tests (${{ matrix.description }})
-    needs: [build-cuda]
+    needs: [audit-cuda-wheel]
     runs-on:
       - runs-on
       - runner=${{ matrix.runner }}
@@ -242,31 +290,31 @@ jobs:
             image_repo: xgb-ci.gpu
             suite: gpu
             runner: linux-amd64-gpu
-            artifact_from: build-cuda-x86_64
+            artifact_from: audit-cuda-wheel-x86_64
           - description: multiple-gpu
             image_repo: xgb-ci.gpu
             suite: mgpu
             runner: linux-amd64-mgpu
-            artifact_from: build-cuda-x86_64
+            artifact_from: audit-cuda-wheel-x86_64
           - description: cpu-amd64
             image_repo: xgb-ci.cpu
             suite: cpu
             runner: linux-amd64-cpu
-            artifact_from: build-cuda-x86_64
+            artifact_from: audit-cuda-wheel-x86_64
           - description: cpu-arm64
             image_repo: xgb-ci.manylinux_2_28_aarch64
             suite: cpu-arm64
             runner: linux-arm64-cpu
-            artifact_from: build-cuda-aarch64
+            artifact_from: audit-cuda-wheel-aarch64
           - description: gpu-arm64
             image_repo: xgb-ci.gpu_aarch64
             suite: gpu-arm64
             runner: linux-arm64-gpu
-            artifact_from: build-cuda-aarch64
+            artifact_from: audit-cuda-wheel-aarch64
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -280,3 +328,149 @@ jobs:
             *.whl
       - name: Run Python tests, ${{ matrix.description }}
         run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.image_repo }}
+
+  build-cuda13:
+    name: Build CUDA 13 (${{ matrix.arch }})
+    needs: ecr-login
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=${{ matrix.runner }}
+      - tag=main-build-cuda13-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: aarch64
+          runner: linux-arm64-cpu
+          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
+        - arch: x86_64
+          runner: linux-amd64-cpu
+          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
+    steps:
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - uses: trivialfis/sccache-gha/actions/sccache@main
+        with:
+          cache-key-prefix: build-cuda13-${{ matrix.arch }}
+      - run: bash ops/pipeline/build-cuda13.sh ${{ matrix.arch }}
+      - run: sccache --show-stats
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda13-${{ matrix.arch }} \
+            build/testxgboost python-package/dist/*.whl
+
+  audit-cuda13-wheel:
+    name: Audit CUDA 13 wheel for manylinux_2_28_${{ matrix.arch }}
+    needs: [ecr-login, build-cuda13]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=${{ matrix.runner }}
+      - tag=main-audit-cuda13-wheel-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: aarch64
+          runner: linux-arm64-cpu
+        - arch: x86_64
+          runner: linux-amd64-cpu
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.manylinux_2_28_${{ matrix.arch }}:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
+    steps:
+      - uses: actions/checkout@v6.0.1
+      - name: Unstash raw wheel
+        run: |
+          mkdir -p python-package/dist
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda13-${{ matrix.arch }} \
+            --dest-dir python-package/dist \
+            *.whl
+      - run: bash ops/pipeline/audit-cuda-wheel.sh ${{ matrix.arch }} --cuda-variant cuda13
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/audit-cuda13-wheel-${{ matrix.arch }} \
+            python-package/dist/*.whl
+
+  test-cpp-cuda13:
+    name: Google Test (C++) with CUDA 13, arch ${{ matrix.arch }}
+    needs: [build-cuda13]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=${{ matrix.runner }}
+      - tag=main-test-cpp-cuda13-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: aarch64
+          runner: linux-arm64-gpu
+          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
+        - arch: x86_64
+          runner: linux-amd64-gpu
+          image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - name: Unstash gtest
+        run: |
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda13-${{ matrix.arch }} \
+            --dest-dir build \
+            testxgboost
+          chmod +x build/testxgboost
+      - run: bash ops/pipeline/test-cpp-cuda13.sh ${{ matrix.image_repo }}
+
+  test-python-cuda13:
+    name: Run Python tests with CUDA 13, arch ${{ matrix.arch }}
+    needs: [audit-cuda13-wheel]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=${{ matrix.runner }}
+      - tag=main-test-python-cuda13-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: linux-amd64-gpu
+            image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
+          - arch: aarch64
+            runner: linux-arm64-gpu
+            image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - name: Unstash Python wheel
+        run: |
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/audit-cuda13-wheel-${{ matrix.arch }} \
+            --dest-dir wheelhouse \
+            *.whl
+      - name: Run Python tests
+        run: bash ops/pipeline/test-python-wheel-cuda13.sh ${{ matrix.image_repo }}

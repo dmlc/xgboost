@@ -1,22 +1,16 @@
 #!/bin/bash
 ## Build XGBoost with CUDA
+## This script runs inside a container (via GitHub Actions container support)
 
 set -euo pipefail
 
-if [[ -z "${GITHUB_SHA:-}" ]]
+if [[ "$#" -lt 2 ]]
 then
-  echo "Make sure to set environment variable GITHUB_SHA"
-  exit 1
-fi
-
-if [[ "$#" -lt 3 ]]
-then
-  echo "Usage: $0 [image_repo] {x86_64,aarch64} {enable-rmm,disable-rmm}"
+  echo "Usage: $0 {x86_64,aarch64} {enable-rmm,disable-rmm}"
   exit 2
 fi
-image_repo="$1"
-arch="$2"
-rmm_flag="$3"
+arch="$1"
+rmm_flag="$2"
 export USE_FEDERATED=1
 
 # Validate RMM flag
@@ -34,12 +28,6 @@ case "${rmm_flag}" in
 esac
 
 source ops/pipeline/classify-git-branch.sh
-source ops/pipeline/get-docker-registry-details.sh
-source ops/pipeline/get-image-tag.sh
-
-WHEEL_TAG=manylinux_2_28_${arch}
-BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
-MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:${IMAGE_TAG}"
 
 echo "--- Build with CUDA"
 
@@ -52,55 +40,5 @@ fi
 
 set -x
 
-python3 ops/docker_run.py \
-  --image-uri ${BUILD_IMAGE_URI} \
-  --run-args='-e BUILD_ONLY_SM75 -e USE_RMM -e USE_FEDERATED' \
-  -- ops/pipeline/build-cuda-impl.sh
-
-echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
-python3 ops/docker_run.py \
-  --image-uri ${MANYLINUX_IMAGE_URI} \
-  -- auditwheel repair --only-plat \
-  --plat ${WHEEL_TAG} python-package/dist/*.whl
-python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
-  wheelhouse/*.whl
-mv -v wheelhouse/*.whl python-package/dist/
-if ! unzip -l ./python-package/dist/*.whl | grep libgomp > /dev/null; then
-  echo "error: libgomp.so was not vendored in the wheel"
-  exit -1
-fi
-
-# Check size of wheel
-pydistcheck --config python-package/pyproject.toml python-package/dist/*.whl
-
-if [[ $USE_RMM == 0 ]]
-then
-  if [[ $arch == "x86_64" ]]
-  then
-    # Generate the meta info which includes xgboost version and the commit info
-    # TODO(hcho3): Generate meta.json that contains both x86_64 and aarch64 wheels
-    echo "--- Generate meta info"
-    python3 ops/script/format_wheel_meta.py \
-      --wheel-path python-package/dist/*.whl  \
-      --commit-hash ${GITHUB_SHA}  \
-      --platform-tag ${WHEEL_TAG}  \
-      --meta-path python-package/dist/
-  fi
-
-  echo "--- Upload Python wheel"
-  if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-  then
-    python3 ops/pipeline/manage-artifacts.py upload \
-      --s3-bucket xgboost-nightly-builds \
-      --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
-      python-package/dist/*.whl
-
-    if [[ $arch == "x86_64" ]]
-    then
-      python3 ops/pipeline/manage-artifacts.py upload \
-        --s3-bucket xgboost-nightly-builds \
-        --prefix ${BRANCH_NAME} --make-public \
-        python-package/dist/meta.json
-    fi
-  fi
-fi
+# Run the build implementation directly (we're already inside the container)
+ops/pipeline/build-cuda-impl.sh
