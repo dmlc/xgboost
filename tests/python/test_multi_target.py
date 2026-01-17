@@ -6,6 +6,8 @@ from hypothesis import given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     run_absolute_error,
+    run_column_sampling,
+    run_eta,
     run_multiclass,
     run_multilabel,
     run_quantile_loss,
@@ -115,3 +117,11 @@ def test_reduced_grad() -> None:
 
 def test_with_iter() -> None:
     run_with_iter("cpu")
+
+
+def test_eta() -> None:
+    run_eta("cpu")
+
+
+def test_column_sampling() -> None:
+    run_column_sampling("cpu")
