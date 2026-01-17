@@ -554,7 +554,7 @@ class DeviceUVectorImpl {
     if (n == 0) {
       return this->clear();
     }
-    // n is at the second half of the dyanmic table, avoid re-allocation.
+    // n is at the second half of the dynamic table, avoid re-allocation.
     if (this->Capacity() / 2 <= n && n <= this->Capacity()) {
       this->size_ = n;
       // Early exit
