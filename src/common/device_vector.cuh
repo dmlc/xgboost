@@ -552,8 +552,7 @@ class DeviceUVectorImpl {
     using ::xgboost::common::SizeBytes;
 
     if (n == 0) {
-      this->data_.reset();
-      return;
+      return this->clear();
     }
     // n is at the second half of the dyanmic table, avoid re-allocation.
     if (this->Capacity() / 2 <= n && n <= this->Capacity()) {
@@ -593,7 +592,8 @@ class DeviceUVectorImpl {
   }
 
   void clear() {  // NOLINT
-    this->resize(0);
+    this->data_.reset();
+    this->capacity_ = this->size_ = 0;
   }
 
   [[nodiscard]] std::size_t size() const { return this->size_; }  // NOLINT
