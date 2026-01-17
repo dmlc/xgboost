@@ -75,7 +75,7 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
     // have this iterator, or unusable with segmented sum.
 #if THRUST_MAJOR_VERSION >= 3
 
-#if THRUST_MINOR_VERSION >= 3
+#if THRUST_MINOR_VERSION >= 2
     auto out_it = cuda::make_tabulate_output_iterator(
         [=] XGBOOST_DEVICE(std::int32_t idx, GradientPairInt64 v) mutable { out_t(idx) += v; });
 #else

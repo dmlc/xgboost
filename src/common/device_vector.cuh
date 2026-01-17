@@ -268,13 +268,7 @@ inline detail::MemoryLogger &GlobalMemoryLogger() {
 }
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-
-#if (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-using DeviceAsyncResourceRef = cuda::mr::resource_ref<cuda::mr::device_accessible>;
-#else  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-using DeviceAsyncResourceRef = cuda::mr::async_resource_ref<cuda::mr::device_accessible>;
-#endif  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-
+using DeviceAsyncResourceRef = rmm::device_async_resource_ref;
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 namespace detail {
