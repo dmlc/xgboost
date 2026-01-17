@@ -572,10 +572,9 @@ class DeviceUVectorImpl {
     CHECK(new_ptr.get());
 
     auto s = ::xgboost::curt::DefaultStream();
-    safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), SizeBytes<T>(this->size()),
-                              cudaMemcpyDefault, s));
-    this->size_ = n;
-    this->capacity_ = n;
+    std::size_t n_bytes = std::min(SizeBytes<T>(this->size()), SizeBytes<T>(n));
+    safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), n_bytes, cudaMemcpyDefault, s));
+    this->capacity_ = this->size_ = n;
 
     this->data_ = std::move(new_ptr);
     // swap failed with CTK12.8
