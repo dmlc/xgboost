@@ -551,9 +551,14 @@ class DeviceUVectorImpl {
   void resize(std::size_t n) {  // NOLINT
     using ::xgboost::common::SizeBytes;
 
-    if (n <= this->Capacity()) {
+    if (n == 0) {
+      this->data_.reset();
+      return;
+    }
+    // n is at the second half of the dyanmic table, avoid re-allocation.
+    if (this->Capacity() / 2 <= n && n <= this->Capacity()) {
       this->size_ = n;
-      // early exit as no allocation is needed.
+      // Early exit
       return;
     }
     CHECK_LE(this->size(), this->Capacity());
