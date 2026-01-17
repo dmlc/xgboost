@@ -173,14 +173,14 @@ class MultiTargetHistMaker {
                                 param_.colsample_bylevel, param_.colsample_bytree);
 
     /**
-     * Initialize the histogram
+     * Initialize the gradient matrix
      */
     auto in_gpair = gpair_all->View(ctx_->Device());
     CHECK(in_gpair.CContiguous());
 
-    this->split_quantizer_ = std::make_unique<MultiGradientQuantiser>(
-        this->ctx_, gpair_all->View(ctx_->Device()), p_fmat->Info());
-    CalcQuantizedGpairs(this->ctx_, gpair_all, this->split_quantizer_->Quantizers(),
+    this->split_quantizer_ =
+        std::make_unique<MultiGradientQuantiser>(this->ctx_, in_gpair, p_fmat->Info());
+    CalcQuantizedGpairs(this->ctx_, in_gpair, this->split_quantizer_->Quantizers(),
                         &this->split_gpair_);
 
     if (!this->value_gpair_.Empty()) {
@@ -188,13 +188,14 @@ class MultiTargetHistMaker {
           this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
     }
 
+    /**
+     * Initialize the histogram
+     */
     bool force_global = false;
     auto n_total_bins = cuts_->TotalBins() * static_cast<bst_idx_t>(n_targets);
     CHECK_LT(n_total_bins, std::numeric_limits<bst_bin_t>::max())
         << "Too many histogram bins: n_total_bins = max_bin * n_features * n_targets";
-
     histogram_.Reset(this->ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
-                     feature_groups_->DeviceAccessor(ctx_->Device()),
                      cuts_->TotalBins() * n_targets, force_global);
   }
 
@@ -661,7 +662,7 @@ class MultiTargetHistMaker {
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
-                                                        DftHistSharedMemoryBytes(ctx_->Ordinal()))},
+                                                        DftMtHistShmemBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},
