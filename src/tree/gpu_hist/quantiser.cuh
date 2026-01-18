@@ -54,7 +54,7 @@ class MultiGradientQuantiser {
   [[nodiscard]] auto Quantizers() const { return dh::ToSpan(this->quantizers_); }
 };
 
-void CalcQuantizedGpairs(Context const* ctx, linalg::Matrix<GradientPair>* const gpairs,
+void CalcQuantizedGpairs(Context const* ctx, linalg::MatrixView<GradientPair const> gpairs,
                          common::Span<GradientQuantiser const> roundings,
                          linalg::Matrix<GradientPairInt64>* p_out);
 }  // namespace xgboost::tree

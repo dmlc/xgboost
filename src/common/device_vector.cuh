@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  */
 #pragma once
 #include <thrust/device_malloc_allocator.h>  // for device_malloc_allocator
@@ -7,19 +7,23 @@
 #include <thrust/device_vector.h>            // for device_vector
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include <cuda/version>                       // for CCCL_MAJOR_VERSION
-#include <cuda/memory_resource>               // for async_resource_ref
-#include <cuda/stream_ref>                    // for stream_ref
 
-#include <rmm/version_config.hpp>             // for RMM_VERSION_MAJOR
+#include <cuda/memory_resource>    // for async_resource_ref
+#include <cuda/stream_ref>         // for stream_ref
+#include <cuda/version>            // for CCCL_MAJOR_VERSION
+#include <rmm/version_config.hpp>  // for RMM_VERSION_MAJOR
 
 // TODO(hcho3): Remove this guard once we require Rapids 25.12+
 #if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-#include <rmm/mr/per_device_resource.hpp>     // for get_current_device_resource
+#include <rmm/mr/per_device_resource.hpp>  // for get_current_device_resource
 #else  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
 #include <rmm/mr/device/device_memory_resource.hpp>  // for device_memory_resource
 #include <rmm/mr/device/per_device_resource.hpp>     // for get_current_device_resource
 #endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+
+#else
+
+#include "xgboost/windefs.h"  // for xgboost_IS_WIN
 
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
@@ -329,18 +333,23 @@ using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
  */
 template <typename T>
 class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
-  // Use int instead of bool to workaround an issue with MSVC 14 (VS 2022). It optimizes
-  // the constructor away and reads the wrong value from the thread local memory if a byte (bool) is
-  // used.
+#if !defined(xgboost_IS_WIN)
+  // MSVC/NVCC optimizes this variable away, as a result, we disable the async pool
+  // entirely on Windows.
   std::int32_t use_async_pool_;
+#endif
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
   using pointer = typename Super::pointer;      // NOLINT(readability-identifier-naming)
   using size_type = typename Super::size_type;  // NOLINT(readability-identifier-naming)
 
+#if defined(xgboost_IS_WIN)
+  XGBAsyncPoolAllocator() = default;
+#else
   XGBAsyncPoolAllocator()
       : use_async_pool_{::xgboost::GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool} {}
+#endif
 
   template <typename U>
   struct rebind {                            // NOLINT(readability-identifier-naming)
@@ -348,6 +357,9 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
   };
 
   pointer allocate(std::size_t n) {  // NOLINT
+#if defined(xgboost_IS_WIN)
+    return Super::allocate(n);
+#else
     if (!this->use_async_pool_) {
       return Super::allocate(n);
     }
@@ -356,18 +368,27 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
     auto n_bytes = xgboost::common::SizeBytes<T>(n);
     safe_cuda(cudaMallocAsync(&raw_ptr, n_bytes, xgboost::curt::DefaultStream()));
     return thrust::device_pointer_cast(raw_ptr);
+#endif
   }
 
   void deallocate(pointer ptr, std::size_t n) {  // NOLINT
+#if defined(xgboost_IS_WIN)
+    return Super::deallocate(ptr, n);
+#else
     if (!this->use_async_pool_) {
       return Super::deallocate(ptr, n);
     }
 
     safe_cuda(cudaFreeAsync(thrust::raw_pointer_cast(ptr), xgboost::curt::DefaultStream()));
+#endif
   }
 
   // Used for tests.
-  void SetAsync(bool use_async_pool) { this->use_async_pool_ = use_async_pool; }
+  void SetAsync(bool use_async_pool) {
+#if !defined(xgboost_IS_WIN)
+    this->use_async_pool_ = use_async_pool;
+#endif
+  }
 };
 
 template <typename T>
