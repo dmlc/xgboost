@@ -80,6 +80,7 @@ jobs:
       - uses: actions/checkout@v6.0.1
       - name: Unstash raw wheel
         run: |
+          python -m pip install awscli
           mkdir -p python-package/dist
           python3 ops/pipeline/manage-artifacts.py download \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
