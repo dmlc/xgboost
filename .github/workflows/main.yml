@@ -139,7 +139,7 @@ jobs:
           echo ${PATH} >> $GITHUB_PATH
       - name: Install deps
         run: |
-          pip install awscli wheel auditwheel
+          pip install awscli wheel auditwheel pydistcheck
       - name: Unstash raw wheel
         run: |
           mkdir -p python-package/dist
