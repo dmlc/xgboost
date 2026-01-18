@@ -133,11 +133,13 @@ jobs:
         password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
       - uses: actions/checkout@v6.0.1
-      - name: Install awscli
+      - name: Pick Python
         run: |
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          ./aws/install
+          export PATH=/opt/python/cp310-cp310/bin/:$PATH
+          echo ${PATH} >> $GITHUB_PATH
+      - name: Install deps
+        run: |
+          pip install awscli wheel auditwheel
       - name: Unstash raw wheel
         run: |
           mkdir -p python-package/dist
