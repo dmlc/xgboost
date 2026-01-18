@@ -78,9 +78,15 @@ jobs:
         password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
       - uses: actions/checkout@v6.0.1
+      - name: Pick Python
+        run: |
+          export PATH=/opt/python/cp310-cp310/bin/:$PATH
+          echo ${PATH} >> $GITHUB_PATH
+      - name: Install dependencies
+        run: |
+          pip install awscli wheel auditwheel pydistcheck
       - name: Unstash raw wheel
         run: |
-          python3 -m pip install awscli
           mkdir -p python-package/dist
           python3 ops/pipeline/manage-artifacts.py download \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
