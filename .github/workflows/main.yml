@@ -102,8 +102,6 @@ jobs:
         with:
           submodules: "true"
       - uses: trivialfis/sccache-gha/actions/sccache@main
-        with:
-          cache-key-prefix: build-cuda-${{ matrix.arch }}
       - run: bash ops/pipeline/build-cuda.sh ${{ matrix.arch }} disable-rmm
       - run: sccache --show-stats
       - name: Stash files
@@ -168,8 +166,6 @@ jobs:
         with:
           submodules: "true"
       - uses: trivialfis/sccache-gha/actions/sccache@main
-        with:
-          cache-key-prefix: build-cuda-with-rmm
       - run: bash ops/pipeline/build-cuda.sh x86_64 enable-rmm
       - run: sccache --show-stats
       - name: Stash files
