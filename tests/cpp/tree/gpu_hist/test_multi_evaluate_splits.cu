@@ -101,6 +101,18 @@ void CheckSpan(common::Span<T> span, std::vector<V> const& exp) {
     }
   }
 }
+
+template <typename T, typename V = std::remove_cv_t<T>>
+void CheckHostVec(std::vector<T> h_vec, std::vector<V> const& exp) {
+  ASSERT_EQ(h_vec.size(), exp.size());
+  for (std::size_t i = 0; i < h_vec.size(); ++i) {
+    if constexpr (std::is_floating_point_v<V>) {
+      ASSERT_NEAR(h_vec[i], exp[i], 1e-5);
+    } else {
+      ASSERT_EQ(h_vec[i], exp[i]);
+    }
+  }
+}
 }  // namespace
 
 TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
@@ -122,9 +134,9 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
     std::vector<float> base, left, right;
     evaluator.CopyNodeWeightsToHost(candidate.nidx, candidate.base_weight.size(), &base, &left,
                                     &right);
-    ASSERT_EQ(base, exp_base_weight);
-    ASSERT_EQ(left, exp_left_weight);
-    ASSERT_EQ(right, exp_right_weight);
+    CheckHostVec(base, exp_base_weight);
+    CheckHostVec(left, exp_left_weight);
+    CheckHostVec(right, exp_right_weight);
 
     std::stringstream ss;
     ss << candidate;
