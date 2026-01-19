@@ -299,7 +299,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
   // Allocate weight and split sum storage on demand for the maximum node ID being evaluated.
   this->AllocNodeWeight(max_nidx, n_targets);
-  this->AllocSplitSum(max_nidx, n_targets);
+  this->split_sums_.Alloc(max_nidx, n_targets);
 
   // Calculate total scan buffer size needed for all nodes
   auto node_hist_size = n_targets * shared_inputs.Features() * n_bins_per_feat_tar;
@@ -341,7 +341,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
   // Find best split for each node
   auto d_weights = this->GetNodeWeights(n_targets);
-  auto d_split_sums = dh::ToSpan(this->split_sums_);
+  auto d_split_sums = this->split_sums_.View();
   auto s_d_splits = dh::ToSpan(d_splits);
 
   // Process results for each node
@@ -451,41 +451,41 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
       [=] XGBOOST_DEVICE(bst_node_t l, bst_node_t r) { return cuda::std::max(l, r); });
   this->AllocNodeSum(max_node, n_targets);
 
-  auto node_sums = dh::ToSpan(this->node_sums_);
+  auto node_sums = this->node_sums_.View();
   // Use the internal split sums buffer instead of candidate.split.child_sum . It may be
   // stale in loss-guide grow policy (entries can remain in priority queue across
   // evaluation rounds).
-  auto split_sums = dh::ToSpan(this->split_sums_);
+  auto split_sums = this->split_sums_.View();
 
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul),
-                     n_targets * d_candidates.size(), [=] XGBOOST_DEVICE(std::size_t i) {
-                       auto get_node_sum = [&](bst_node_t nidx) {
-                         return GetNodeSumImpl(node_sums, nidx, n_targets);
-                       };
-                       auto nidx_in_set = i / n_targets;
-                       auto t = i % n_targets;
+  dh::LaunchN(n_targets * d_candidates.size(), ctx->CUDACtx()->Stream(),
+              [=] XGBOOST_DEVICE(std::size_t i) {
+                auto get_node_sum = [&](bst_node_t nidx) {
+                  return GetNodeSumImpl(node_sums, nidx, n_targets);
+                };
+                auto nidx_in_set = i / n_targets;
+                auto t = i % n_targets;
 
-                       auto const &candidate = d_candidates[nidx_in_set];
-                       auto const &best_split = candidate.split;
+                auto const &candidate = d_candidates[nidx_in_set];
+                auto const &best_split = candidate.split;
 
-                       auto parent_sum = get_node_sum(candidate.nidx);
-                       // Look up split sum from persistent buffer by node id.
-                       // Use split_targets for indexing since that's what was used during storage.
-                       auto split_sum = GetNodeSumImpl(split_sums, candidate.nidx, n_targets);
-                       auto left_sum = get_node_sum(mt_tree.LeftChild(candidate.nidx));
-                       auto right_sum = get_node_sum(mt_tree.RightChild(candidate.nidx));
+                auto parent_sum = get_node_sum(candidate.nidx);
+                // Look up split sum from persistent buffer by node id.
+                // Use split_targets for indexing since that's what was used during storage.
+                auto split_sum = GetNodeSumImpl(split_sums, candidate.nidx, n_targets);
+                auto left_sum = get_node_sum(mt_tree.LeftChild(candidate.nidx));
+                auto right_sum = get_node_sum(mt_tree.RightChild(candidate.nidx));
 
-                       auto split_sum_t = split_sum[t];
-                       auto sibling_sum = parent_sum[t] - split_sum_t;
-                       if (best_split.dir == kRightDir) {
-                         // forward pass, node_sum is the left sum
-                         left_sum[t] = split_sum_t;
-                         right_sum[t] = sibling_sum;
-                       } else {
-                         // backward pass, node_sum is the right sum
-                         right_sum[t] = split_sum_t;
-                         left_sum[t] = sibling_sum;
-                       }
-                     });
+                auto split_sum_t = split_sum[t];
+                auto sibling_sum = parent_sum[t] - split_sum_t;
+                if (best_split.dir == kRightDir) {
+                  // forward pass, node_sum is the left sum
+                  left_sum[t] = split_sum_t;
+                  right_sum[t] = sibling_sum;
+                } else {
+                  // backward pass, node_sum is the right sum
+                  right_sum[t] = split_sum_t;
+                  left_sum[t] = sibling_sum;
+                }
+              });
 }
 }  // namespace xgboost::tree::cuda_impl

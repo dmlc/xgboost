@@ -12,6 +12,14 @@ namespace xgboost::tree::cuda_impl {
 /** @brief Evaluator for vector leaf. */
 class MultiHistEvaluator {
  public:
+  template <typename GradT>
+  static XGBOOST_DEVICE common::Span<GradT> GetNodeSumImpl(common::Span<GradT> node_sums,
+                                                           bst_node_t nidx,
+                                                           bst_target_t n_targets) {
+    auto offset = nidx * n_targets;
+    return node_sums.subspan(offset, n_targets);
+  }
+
   /** @brief Buffer to access node weights indexed by node id. */
   struct NodeWeightBuffer {
     // * 3 because of base, left, right weights per node.
@@ -34,6 +42,29 @@ class MultiHistEvaluator {
     }
   };
 
+  struct NodeSumBuffer {
+    dh::DeviceUVector<GradientPairInt64> node_sums;
+
+    /**
+     * @brief Allocate storage for split sums up to the given node ID.
+     */
+    void Alloc(bst_node_t nidx, bst_target_t n_targets) {
+      auto end = (nidx + 1) * n_targets;
+      if (this->node_sums.size() < end) {
+        this->node_sums.resize(end);
+      }
+    }
+    [[nodiscard]] common::Span<GradientPairInt64> GetNode(bst_node_t nidx, bst_target_t n_targets) {
+      return GetNodeSumImpl(dh::ToSpan(this->node_sums), nidx, n_targets);
+    }
+    [[nodiscard]] common::Span<GradientPairInt64 const> GetNode(bst_node_t nidx,
+                                                                bst_target_t n_targets) const {
+      return GetNodeSumImpl(dh::ToSpan(this->node_sums), nidx, n_targets);
+    }
+    auto View() { return dh::ToSpan(this->node_sums); }
+    auto View() const { return dh::ToSpan(this->node_sums); }
+  };
+
  private:
   // Persistent buffer for node weights, indexed by node id.
   dh::DeviceUVector<float> node_weights_;
@@ -41,20 +72,13 @@ class MultiHistEvaluator {
   dh::DeviceUVector<GradientPairInt64> scan_buffer_;
   // Buffer for node gradient sums. Nodes stored by this buffer are valid nodes (exist in
   // the output tree) instead of candidates.
-  dh::device_vector<GradientPairInt64> node_sums_;
+  NodeSumBuffer node_sums_;
   // Buffer for split sums (child_sum at split point), indexed by node id. This temporary
   // buffer is needed because we don't have the child node index during evaluation, which
   // is only available after applying split to the tree.
-  dh::DeviceUVector<GradientPairInt64> split_sums_;
+  NodeSumBuffer split_sums_;
 
  public:
-  template <typename GradT>
-  static XGBOOST_DEVICE common::Span<GradT> GetNodeSumImpl(common::Span<GradT> node_sums,
-                                                           bst_node_t nidx,
-                                                           bst_target_t n_targets) {
-    auto offset = nidx * n_targets;
-    return node_sums.subspan(offset, n_targets);
-  }
   /**
    * @brief Run evaluation for the root node.
    */
@@ -75,36 +99,11 @@ class MultiHistEvaluator {
    * @brief Allocate storage for node sums up to the given node ID.
    */
   void AllocNodeSum(bst_node_t nidx, bst_target_t n_targets) {
-    auto end = (nidx + 1) * n_targets;
-    if (this->node_sums_.size() < end) {
-      this->node_sums_.resize(end);
-    }
+    this->node_sums_.Alloc(nidx, n_targets);
   }
   [[nodiscard]] common::Span<GradientPairInt64> GetNodeSum(bst_node_t nidx,
                                                            bst_target_t n_targets) {
-    return GetNodeSumImpl(dh::ToSpan(this->node_sums_), nidx, n_targets);
-  }
-  [[nodiscard]] common::Span<GradientPairInt64 const> GetNodeSum(bst_node_t nidx,
-                                                                 bst_target_t n_targets) const {
-    return GetNodeSumImpl(dh::ToSpan(this->node_sums_), nidx, n_targets);
-  }
-
-  /**
-   * @brief Allocate storage for split sums up to the given node ID.
-   */
-  void AllocSplitSum(bst_node_t nidx, bst_target_t n_targets) {
-    auto end = (nidx + 1) * n_targets;
-    if (this->split_sums_.size() < end) {
-      this->split_sums_.resize(end);
-    }
-  }
-  [[nodiscard]] common::Span<GradientPairInt64> GetSplitSum(bst_node_t nidx,
-                                                            bst_target_t n_targets) {
-    return GetNodeSumImpl(dh::ToSpan(this->split_sums_), nidx, n_targets);
-  }
-  [[nodiscard]] common::Span<GradientPairInt64 const> GetSplitSum(bst_node_t nidx,
-                                                                  bst_target_t n_targets) const {
-    return GetNodeSumImpl(dh::ToSpan(this->split_sums_), nidx, n_targets);
+    return this->node_sums_.GetNode(nidx, n_targets);
   }
 
   /**
