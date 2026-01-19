@@ -340,8 +340,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   }
 
   // Find best split for each node
-  // Use persistent weight and split sum storage indexed by node id to support loss-guide grow
-  // policy.
   auto d_weights = this->GetNodeWeights(n_targets);
   auto d_split_sums = dh::ToSpan(this->split_sums_);
   auto s_d_splits = dh::ToSpan(d_splits);
@@ -377,7 +375,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     auto right_weight = d_weights.Right(nidx);
 
     auto d_roundings = shared_inputs.roundings;
-    auto node_sum = best_split.child_sum;
+    auto split_sum = best_split.child_sum;
 
     // Copy split sum to persistent buffer for loss-guide grow policy support.
     // The child_sum span in best_split points to scan_buffer_ which gets reused,
@@ -387,14 +385,13 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     float parent_gain = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto quantizer = d_roundings[t];
-      auto sibling_sum = input.parent_sum[t] - node_sum[t];
-      auto sum = node_sum[t] + sibling_sum;
-      auto g = quantizer.ToFloatingPoint(sum);
+      auto sibling_sum = input.parent_sum[t] - split_sum[t];
+      auto g = quantizer.ToFloatingPoint(input.parent_sum[t]);
 
       base_weight[t] = CalcWeight(shared_inputs.param, g.GetGrad(), g.GetHess());
       parent_gain += -base_weight[t] * ThresholdL1(g.GetGrad(), shared_inputs.param.reg_alpha);
 
-      split_sum_dest[t] = node_sum[t];
+      split_sum_dest[t] = split_sum[t];
     }
 
     bool l = true, r = true;
@@ -402,21 +399,21 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     auto eta = shared_inputs.param.learning_rate;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto quantizer = d_roundings[t];
-      auto sibling_sum = input.parent_sum[t] - node_sum[t];
+      auto sibling_sum = input.parent_sum[t] - split_sum[t];
 
-      l = l && (node_sum[t].GetQuantisedHess() == 0);
+      l = l && (split_sum[t].GetQuantisedHess() == 0);
       r = r && (sibling_sum.GetQuantisedHess() == 0);
 
       GradientPairPrecise lg, rg;
       if (best_split.dir == kRightDir) {
         // forward pass, node_sum is the left sum
-        lg = quantizer.ToFloatingPoint(node_sum[t]);
+        lg = quantizer.ToFloatingPoint(split_sum[t]);
         left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess()) * eta;
         rg = quantizer.ToFloatingPoint(sibling_sum);
         right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess()) * eta;
       } else {
         // backward pass, node_sum is the right sum
-        rg = quantizer.ToFloatingPoint(node_sum[t]);
+        rg = quantizer.ToFloatingPoint(split_sum[t]);
         right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess()) * eta;
         lg = quantizer.ToFloatingPoint(sibling_sum);
         left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess()) * eta;

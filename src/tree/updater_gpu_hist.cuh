@@ -244,8 +244,8 @@ class MultiTargetHistMaker {
 
     auto shared_inputs = MakeSharedInputs(static_cast<bst_feature_t>(feature_set.size()));
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
-    auto d_weights = this->evaluator_.GetNodeWeights(n_targets);
-    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), d_weights.Base(RegTree::kRoot)));
+    auto weights = this->evaluator_.GetNodeWeights(n_targets);
+    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), weights.Base(RegTree::kRoot)));
 
     return entry;
   }

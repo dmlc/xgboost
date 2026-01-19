@@ -39,9 +39,12 @@ class MultiHistEvaluator {
   dh::DeviceUVector<float> node_weights_;
   // Buffer for histogram scans.
   dh::DeviceUVector<GradientPairInt64> scan_buffer_;
-  // Buffer for node gradient sums.
+  // Buffer for node gradient sums. Nodes stored by this buffer are valid nodes (exist in
+  // the output tree) instead of candidates.
   dh::device_vector<GradientPairInt64> node_sums_;
-  // Buffer for split sums (child_sum at split point), indexed by node id.
+  // Buffer for split sums (child_sum at split point), indexed by node id. This temporary
+  // buffer is needed because we don't have the child node index during evaluation, which
+  // is only available after applying split to the tree.
   dh::DeviceUVector<GradientPairInt64> split_sums_;
 
  public:
@@ -68,6 +71,9 @@ class MultiHistEvaluator {
                       MultiEvaluateSplitSharedInputs const &shared_inputs, bst_node_t max_nidx,
                       common::Span<MultiExpandEntry> out_splits);
 
+  /**
+   * @brief Allocate storage for node sums up to the given node ID.
+   */
   void AllocNodeSum(bst_node_t nidx, bst_target_t n_targets) {
     auto end = (nidx + 1) * n_targets;
     if (this->node_sums_.size() < end) {
@@ -92,9 +98,6 @@ class MultiHistEvaluator {
       this->split_sums_.resize(end);
     }
   }
-  /**
-   * @brief Get the split sum (child_sum at split point) for a node.
-   */
   [[nodiscard]] common::Span<GradientPairInt64> GetSplitSum(bst_node_t nidx,
                                                             bst_target_t n_targets) {
     return GetNodeSumImpl(dh::ToSpan(this->split_sums_), nidx, n_targets);
@@ -105,11 +108,7 @@ class MultiHistEvaluator {
   }
 
   /**
-   * @brief Ensure weight storage is allocated for a given node.
-   *
-   * This resizes the buffer on demand to accommodate the node ID.
-   * Also tracks the split targets count which may differ from tree targets when using reduced
-   * gradient.
+   * @brief Allocate storage for weights up to the given node ID.
    */
   void AllocNodeWeight(bst_node_t nidx, bst_target_t n_targets) {
     auto required = (nidx + 1) * n_targets * NodeWeightBuffer::kWeightsPerNode;
@@ -117,12 +116,6 @@ class MultiHistEvaluator {
       this->node_weights_.resize(required);
     }
   }
-  /**
-   * @brief Get the weight buffer accessor for all nodes.
-   *
-   * Uses the split targets count stored during allocation, which may differ from tree targets
-   * when using reduced gradient.
-   */
   [[nodiscard]] NodeWeightBuffer GetNodeWeights(bst_target_t n_targets) {
     return NodeWeightBuffer{dh::ToSpan(this->node_weights_), n_targets};
   }
