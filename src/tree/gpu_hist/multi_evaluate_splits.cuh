@@ -46,7 +46,7 @@ class MultiHistEvaluator {
     dh::DeviceUVector<GradientPairInt64> node_sums;
 
     /**
-     * @brief Allocate storage for split sums up to the given node ID.
+     * @brief Allocate storage for node sums up to the given node ID.
      */
     void Alloc(bst_node_t nidx, bst_target_t n_targets) {
       auto end = (nidx + 1) * n_targets;
@@ -70,7 +70,7 @@ class MultiHistEvaluator {
   dh::DeviceUVector<float> node_weights_;
   // Buffer for histogram scans.
   dh::DeviceUVector<GradientPairInt64> scan_buffer_;
-  // Buffer for node gradient sums. Nodes stored by this buffer are valid nodes (exist in
+  // Buffer for node gradient sums. Nodes stored in this buffer are valid nodes (exist in
   // the output tree) instead of candidates.
   NodeSumBuffer node_sums_;
   // Buffer for split sums (child_sum at split point), indexed by node id. This temporary
