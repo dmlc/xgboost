@@ -384,6 +384,37 @@ std::vector<T> Gather(const std::vector<T>& in, common::Span<bst_idx_t const> ri
   }
   return out;
 }
+
+enum class MetaField : std::int8_t {
+  kLabel = 0,
+  kWeight = 1,
+  kBaseMargin = 2,
+  kLabelLowerBound = 3,
+  kLabelUpperBound = 4,
+  kFeatureWeights = 5,
+  kGroupPtr = 6,
+};
+
+MetaField MapMetaField(StringView key) {
+  if (key == "label") {
+    return MetaField::kLabel;
+  } else if (key == "weight") {
+    return MetaField::kWeight;
+  } else if (key == "base_margin") {
+    return MetaField::kBaseMargin;
+  } else if (key == "label_lower_bound") {
+    return MetaField::kLabelLowerBound;
+  } else if (key == "label_upper_bound") {
+    return MetaField::kLabelUpperBound;
+  } else if (key == "feature_weights") {
+    return MetaField::kFeatureWeights;
+  } else if (key == "group_ptr") {
+    return MetaField::kGroupPtr;
+  } else {
+    LOG(FATAL) << "Unknown key:" << key;
+  }
+  return {};
+}
 }  // namespace
 
 namespace cuda_impl {
@@ -621,25 +652,39 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
                        const void** out_dptr) const {
   if (dtype == DataType::kFloat32) {
     const std::vector<bst_float>* vec = nullptr;
-    if (!std::strcmp(key, "label")) {
-      vec = &this->labels.Data()->HostVector();
-    } else if (!std::strcmp(key, "weight")) {
-      vec = &this->weights_.HostVector();
-    } else if (!std::strcmp(key, "base_margin")) {
-      vec = &this->base_margin_.Data()->HostVector();
-    } else if (!std::strcmp(key, "label_lower_bound")) {
-      vec = &this->labels_lower_bound_.HostVector();
-    } else if (!std::strcmp(key, "label_upper_bound")) {
-      vec = &this->labels_upper_bound_.HostVector();
-    } else if (!std::strcmp(key, "feature_weights")) {
-      vec = &this->feature_weights.HostVector();
-    } else {
-      LOG(FATAL) << "Unknown float field name: " << key;
+    switch (MapMetaField(StringView{key})) {
+      case MetaField::kLabel: {
+        vec = &this->labels.Data()->ConstHostVector();
+        break;
+      }
+      case MetaField::kWeight: {
+        vec = &this->weights_.ConstHostVector();
+        break;
+      }
+      case MetaField::kBaseMargin: {
+        vec = &this->base_margin_.Data()->ConstHostVector();
+        break;
+      }
+      case MetaField::kLabelLowerBound: {
+        vec = &this->labels_lower_bound_.ConstHostVector();
+        break;
+      }
+      case MetaField::kLabelUpperBound: {
+        vec = &this->labels_upper_bound_.ConstHostVector();
+        break;
+      }
+      case MetaField::kFeatureWeights: {
+        vec = &this->feature_weights.ConstHostVector();
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Unknown float field name: " << key;
+      }
     }
-    *out_len = static_cast<xgboost::bst_ulong>(vec->size()); // NOLINT
+    *out_len = static_cast<xgboost::bst_ulong>(vec->size());  // NOLINT
     *reinterpret_cast<float const**>(out_dptr) = dmlc::BeginPtr(*vec);
   } else if (dtype == DataType::kUInt32) {
-    const std::vector<unsigned> *vec = nullptr;
+    const std::vector<unsigned>* vec = nullptr;
     if (!std::strcmp(key, "group_ptr")) {
       vec = &this->group_ptr_;
     } else {
@@ -650,6 +695,53 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
   } else {
     LOG(FATAL) << "Unknown data type for getting meta info.";
   }
+}
+
+void MetaInfo::GetInfo(Context const* ctx, StringView key, std::string* out_array) const {
+  auto get_vec_aif = [ctx](HostDeviceVector<float> const* vec) {
+    if (!ctx->IsCUDA()) {
+      auto hv = vec->ConstHostSpan();
+      return linalg::ArrayInterfaceStr(linalg::MakeVec(ctx->Device(), hv));
+    } else {
+      vec->SetDevice(ctx->Device());
+      auto dv = vec->ConstDeviceSpan();
+      return linalg::ArrayInterfaceStr(linalg::MakeVec(ctx->Device(), dv));
+    }
+  };
+
+  std::string aif;
+  switch (MapMetaField(key)) {
+    case MetaField::kLabel: {
+      aif = linalg::ArrayInterfaceStr(this->labels.View(ctx->Device()));
+      break;
+    }
+    case MetaField::kWeight: {
+      aif = get_vec_aif(&this->weights_);
+      break;
+    }
+    case MetaField::kBaseMargin: {
+      aif = linalg::ArrayInterfaceStr(this->base_margin_.View(ctx->Device()));
+      break;
+    }
+    case MetaField::kLabelLowerBound: {
+      aif = get_vec_aif(&this->labels_lower_bound_);
+      break;
+    }
+    case MetaField::kLabelUpperBound: {
+      aif = get_vec_aif(&this->labels_upper_bound_);
+      break;
+    }
+    case MetaField::kFeatureWeights: {
+      aif = get_vec_aif(&this->feature_weights);
+      break;
+    }
+    case MetaField::kGroupPtr: {
+      aif = linalg::ArrayInterfaceStr(linalg::MakeVec(this->group_ptr_));
+      break;
+    }
+  }
+
+  *out_array = aif;
 }
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {

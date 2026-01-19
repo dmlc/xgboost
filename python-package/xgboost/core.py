@@ -1073,6 +1073,16 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                 matrix=self, data=feature_weights, name="feature_weights"
             )
 
+    def _get_info(self, field: str) -> np.ndarray:
+        c_sdata = ctypes.c_char_p()
+        _check_call(
+            _LIB.XGDMatrixGetArrayInfo(self.handle, c_str(field), ctypes.byref(c_sdata))
+        )
+        assert c_sdata.value is not None
+        idata = json.loads(c_sdata.value)
+        data = from_array_interface(idata)
+        return data
+
     def get_float_info(self, field: str) -> np.ndarray:
         """Get float property from the DMatrix.
 
@@ -1241,32 +1251,17 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         dispatch_meta_backend(self, group, "group", "uint32")
 
-    def get_label(self) -> np.ndarray:
-        """Get the label of the DMatrix.
-
-        Returns
-        -------
-        label : array
-        """
-        return self.get_float_info("label")
+    def get_label(self) -> NumpyOrCupy:
+        """Get the label of the DMatrix."""
+        return self._get_info("label")
 
     def get_weight(self) -> np.ndarray:
-        """Get the weight of the DMatrix.
-
-        Returns
-        -------
-        weight : array
-        """
-        return self.get_float_info("weight")
+        """Get the weight of the DMatrix."""
+        return self._get_info("weight")
 
     def get_base_margin(self) -> np.ndarray:
-        """Get the base margin of the DMatrix.
-
-        Returns
-        -------
-        base_margin
-        """
-        return self.get_float_info("base_margin")
+        """Get the base margin of the DMatrix."""
+        return self._get_info("base_margin")
 
     def get_group(self) -> np.ndarray:
         """Get the group of the DMatrix.
