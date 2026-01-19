@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 
 #if defined(__unix__) || defined(__APPLE__)
@@ -30,7 +30,7 @@
 #include "xgboost/collective/poll_utils.h"  // for PollHelper
 #include "xgboost/collective/result.h"      // for Result, Fail, Success
 #include "xgboost/collective/socket.h"      // for GetHostName, FailWithCode, MakeSockAddress, ...
-#include "xgboost/global_config.h"          // for InitNewThread
+#include "xgboost/global_config.h"          // for GlobalConfiguration
 #include "xgboost/json.h"                   // for Json
 
 namespace xgboost::collective {
@@ -132,6 +132,13 @@ RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
   SafeColl(rc);
 }
 
+// The thread init function here doesn't set any state in openmp and CUDA as the tracker
+// doesn't need them.
+struct TrackerInitThread {
+  GlobalConfiguration config;
+  void operator()() const { *GlobalConfigThreadLocalStore::Get() = config; }
+};
+
 Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   auto& workers = *p_workers;
 
@@ -142,13 +149,14 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     auto& worker = workers[r];
     auto next = BootstrapNext(r, n_workers_);
     auto const& next_w = workers[next];
-    bootstrap_threads.emplace_back([next, &worker, &next_w, init = InitNewThread{}] {
-      init();
-      auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
-      std::string str;
-      Json::Dump(jnext, &str);
-      worker.Send(StringView{str});
-    });
+    bootstrap_threads.emplace_back(
+        [next, &worker, &next_w, init = TrackerInitThread{*GlobalConfigThreadLocalStore::Get()}] {
+          init();
+          auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
+          std::string str;
+          Json::Dump(jnext, &str);
+          worker.Send(StringView{str});
+        });
     std::string name = "tkbs_t-" + std::to_string(r);
     common::NameThread(&bootstrap_threads.back(), name.c_str());
   }
@@ -257,7 +265,9 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     return Success();
   };
 
-  return std::async(std::launch::async, [this, handle_error, init = InitNewThread{}] {
+  return std::async(std::launch::async, [this, handle_error,
+                                         init = TrackerInitThread{
+                                             *GlobalConfigThreadLocalStore::Get()}] {
     init();
     State state{this->n_workers_};
 
