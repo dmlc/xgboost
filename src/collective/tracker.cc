@@ -149,13 +149,14 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     auto& worker = workers[r];
     auto next = BootstrapNext(r, n_workers_);
     auto const& next_w = workers[next];
-    bootstrap_threads.emplace_back([next, &worker, &next_w, init = TrackerInitThread{}] {
-      init();
-      auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
-      std::string str;
-      Json::Dump(jnext, &str);
-      worker.Send(StringView{str});
-    });
+    bootstrap_threads.emplace_back(
+        [next, &worker, &next_w, init = TrackerInitThread{*GlobalConfigThreadLocalStore::Get()}] {
+          init();
+          auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
+          std::string str;
+          Json::Dump(jnext, &str);
+          worker.Send(StringView{str});
+        });
     std::string name = "tkbs_t-" + std::to_string(r);
     common::NameThread(&bootstrap_threads.back(), name.c_str());
   }
@@ -264,7 +265,9 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     return Success();
   };
 
-  return std::async(std::launch::async, [this, handle_error, init = TrackerInitThread{}] {
+  return std::async(std::launch::async, [this, handle_error,
+                                         init = TrackerInitThread{
+                                             *GlobalConfigThreadLocalStore::Get()}] {
     init();
     State state{this->n_workers_};
 
