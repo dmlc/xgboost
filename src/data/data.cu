@@ -1,8 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
- *
- * \file data.cu
- * \brief Handles setting metainfo from array interface.
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include <thrust/gather.h>   // for gather
 #include <thrust/logical.h>  // for none_of
@@ -13,8 +10,8 @@
 #include "../common/linalg_op.cuh"
 #include "array_interface.h"
 #include "device_adapter.cuh"  // for CudfAdapter, CupyAdapter
+#include "metainfo.h"          // for LabelsCheck, WeightsCheck, ValidateQueryGroup
 #include "simple_dmatrix.h"
-#include "validation.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
@@ -119,49 +116,61 @@ void CopyQidImpl(Context const* ctx, ArrayInterface<1> array_interface,
 void MetaInfo::SetInfoFromCUDA(Context const* ctx, StringView key, Json array) {
   // multi-dim float info
   auto cuctx = ctx->CUDACtx();
-  if (key == "base_margin") {
-    CopyTensorInfoImpl(ctx, array, &base_margin_);
-    return;
-  } else if (key == "label") {
-    CopyTensorInfoImpl(ctx, array, &labels);
-    auto ptr = labels.Data()->ConstDevicePointer();
-    auto valid = thrust::none_of(cuctx->CTP(), ptr, ptr + labels.Size(), data::LabelsCheck{});
-    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
-    return;
-  }
-  // uint info
-  if (key == "group") {
-    ArrayInterface<1> array_interface{array};
-    CopyGroupInfoImpl(array_interface, &group_ptr_);
-    data::ValidateQueryGroup(group_ptr_);
-    return;
-  } else if (key == "qid") {
-    ArrayInterface<1> array_interface{array};
-    CopyQidImpl(ctx, array_interface, &group_ptr_);
-    data::ValidateQueryGroup(group_ptr_);
-    return;
-  }
-  // float info
-  linalg::Tensor<float, 1> t;
-  CopyTensorInfoImpl(ctx, array, &t);
-  if (key == "weight") {
-    this->weights_ = std::move(*t.Data());
-    auto ptr = weights_.ConstDevicePointer();
-    auto valid = thrust::none_of(cuctx->CTP(), ptr, ptr + weights_.Size(), data::WeightsCheck{});
-    CHECK(valid) << "Weights must be positive values.";
-  } else if (key == "label_lower_bound") {
-    this->labels_lower_bound_ = std::move(*t.Data());
-  } else if (key == "label_upper_bound") {
-    this->labels_upper_bound_ = std::move(*t.Data());
-  } else if (key == "feature_weights") {
-    this->feature_weights = std::move(*t.Data());
-    auto d_feature_weights = feature_weights.ConstDeviceSpan();
-    auto valid =
-        thrust::none_of(cuctx->CTP(), d_feature_weights.data(),
-                        d_feature_weights.data() + d_feature_weights.size(), data::WeightsCheck{});
-    CHECK(valid) << "Feature weight must be greater than 0.";
-  } else {
-    LOG(FATAL) << "Unknown key for MetaInfo: " << key;
+  using xgboost::data::MetaField;
+  auto copy_vec = [&](HostDeviceVector<float>* p_out) {
+    linalg::Tensor<float, 1> t;
+    CopyTensorInfoImpl(ctx, array, &t);
+    *p_out = std::move(*t.Data());
+  };
+
+  switch (data::MapMetaField(key)) {
+    case MetaField::kLabel: {
+      CopyTensorInfoImpl(ctx, array, &labels);
+      auto ptr = labels.Data()->ConstDevicePointer();
+      auto valid = thrust::none_of(cuctx->CTP(), ptr, ptr + labels.Size(), data::LabelsCheck{});
+      CHECK(valid) << "Label contains NaN, infinity or a value too large.";
+      break;
+    }
+    case MetaField::kWeight: {
+      copy_vec(&this->weights_);
+      auto ptr = weights_.ConstDevicePointer();
+      auto valid = thrust::none_of(cuctx->CTP(), ptr, ptr + weights_.Size(), data::WeightsCheck{});
+      CHECK(valid) << "Weights must be positive values.";
+      break;
+    }
+    case MetaField::kBaseMargin: {
+      CopyTensorInfoImpl(ctx, array, &base_margin_);
+      break;
+    }
+    case MetaField::kLabelLowerBound: {
+      copy_vec(&this->labels_lower_bound_);
+      break;
+    }
+    case MetaField::kLabelUpperBound: {
+      copy_vec(&this->labels_upper_bound_);
+      break;
+    }
+    case MetaField::kFeatureWeights: {
+      copy_vec(&this->feature_weights);
+      auto d_feature_weights = feature_weights.ConstDeviceSpan();
+      auto valid = thrust::none_of(cuctx->CTP(), d_feature_weights.data(),
+                                   d_feature_weights.data() + d_feature_weights.size(),
+                                   data::WeightsCheck{});
+      CHECK(valid) << "Feature weight must be greater than 0.";
+      break;
+    }
+    case MetaField::kGroupPtr: {
+      ArrayInterface<1> array_interface{array};
+      CopyGroupInfoImpl(array_interface, &group_ptr_);
+      data::ValidateQueryGroup(group_ptr_);
+      break;
+    }
+    case MetaField::kQid: {
+      ArrayInterface<1> array_interface{array};
+      CopyQidImpl(ctx, array_interface, &group_ptr_);
+      data::ValidateQueryGroup(group_ptr_);
+      break;
+    }
   }
 }
 

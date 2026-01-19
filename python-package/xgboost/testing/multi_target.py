@@ -155,7 +155,7 @@ class LsObj0(TreeObjective):
     ) -> Tuple[ArrayLike, ArrayLike]:
         nda = _array_impl(self.device)
 
-        y_true = dtrain.get_label().reshape(y_pred.shape)
+        y_true = dtrain.get_label()
         grad, hess = tm.ls_obj(y_true, y_pred, None)
         return nda.array(grad), nda.array(hess)
 
@@ -177,7 +177,7 @@ class LsObj1(Objective):
     ) -> Tuple[ArrayLike, ArrayLike]:
         nda = _array_impl(self.device)
 
-        y_true = dtrain.get_label().reshape(y_pred.shape)
+        y_true = dtrain.get_label()
         grad, hess = tm.ls_obj(y_true, y_pred, None)
         return nda.array(grad), nda.array(hess)
 

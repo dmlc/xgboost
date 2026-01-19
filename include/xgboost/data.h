@@ -150,15 +150,17 @@ class MetaInfo {
    * \param fo The output stream.
    */
   void SaveBinary(dmlc::Stream* fo) const;
-  /*!
-   * \brief Set information in the meta info with array interface.
-   * \param key The key of the information.
-   * \param interface_str String representation of json format array interface.
+  /**
+   * @brief Set information in the meta info with array interface.
+   *
+   * @param key The key of the information.
+   * @param in_array String representation of json format array interface.
    */
-  void SetInfo(Context const& ctx, StringView key, StringView interface_str);
-
-  void GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
-               const void** out_dptr) const;
+  void SetInfo(Context const& ctx, StringView key, StringView in_array);
+  // Deprecated getter
+  void GetInfo(char const* key, bst_ulong* out_len, DataType dtype, const void** out_dptr) const;
+  /** @brief Return a JSON-encoded array for a meta info. */
+  void GetInfo(Context const* ctx, StringView key, std::string* out_array) const;
 
   void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
   void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;

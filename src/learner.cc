@@ -1304,6 +1304,9 @@ class LearnerImpl : public LearnerIO {
     if (p_fmat->Info().num_row_ == 0) {
       error::WarnEmptyDataset();
     }
+    if (!p_fmat->Info().base_margin_.Empty()) {
+      CHECK(p_fmat->Info().base_margin_.Shape(1) == this->mparam_.OutputLength());
+    }
   }
 
  private:

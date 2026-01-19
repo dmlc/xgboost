@@ -46,9 +46,9 @@
 #include "ellpack_page.h"                     // for EllpackPage
 #include "file_iterator.h"                    // for ValidateFileFormat, FileIterator, Next, Reset
 #include "gradient_index.h"                   // for GHistIndexMatrix
+#include "metainfo.h"                         // for LabelsCheck, WeightsCheck, ValidateQueryGroup
 #include "simple_dmatrix.h"                   // for SimpleDMatrix
 #include "sparse_page_writer.h"               // for SparsePageFormatReg
-#include "validation.h"                       // for LabelsCheck, WeightsCheck, ValidateQueryGroup
 #include "xgboost/base.h"                     // for bst_group_t, bst_idx_t, bst_float, bst_ulong
 #include "xgboost/context.h"                  // for Context
 #include "xgboost/host_device_vector.h"       // for HostDeviceVector
@@ -510,10 +510,21 @@ void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T
     });
   });
 }
+
+void ReshapeInfo(bst_idx_t n_samples, linalg::Matrix<float>* p_info, StringView name) {
+  if (n_samples != 0 && p_info->Shape(0) != n_samples) {
+    // API functions that don't use array interface don't understand shape.
+    CHECK_EQ(p_info->Size() % n_samples, 0)
+        << "Invalid size for `" << name << "`:(" << p_info->Shape(0) << "," << p_info->Shape(1)
+        << "). n_samples:" << n_samples;
+    std::size_t n_groups = p_info->Size() / n_samples;
+    p_info->Reshape(n_samples, n_groups);
+  }
+}
 }  // namespace
 
-void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView interface_str) {
-  Json j_interface = Json::Load(interface_str);
+void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView in_array) {
+  Json j_interface = Json::Load(in_array);
   bool is_cuda{false};
   if (IsA<Array>(j_interface)) {
     auto const& array = get<Array const>(j_interface);
@@ -537,109 +548,125 @@ void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView interface_
 
 void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
   // multi-dim float info
-  if (key == "base_margin") {
-    CopyTensorInfoImpl(ctx, arr, &this->base_margin_);
-    // FIXME(jiamingy): Remove the deprecated API and let all language bindings aware of
-    // input shape.  This issue is CPU only since CUDA uses array interface from day 1.
-    //
-    // Python binding always understand the shape, so this condition should not occur for
-    // it.
-    if (this->num_row_ != 0 && this->base_margin_.Shape(0) != this->num_row_) {
-      // API functions that don't use array interface don't understand shape.
-      CHECK(this->base_margin_.Size() % this->num_row_ == 0) << "Incorrect size for base margin.";
-      size_t n_groups = this->base_margin_.Size() / this->num_row_;
-      this->base_margin_.Reshape(this->num_row_, n_groups);
-    }
-    return;
-  } else if (key == "label") {
-    CopyTensorInfoImpl(ctx, arr, &this->labels);
-    if (this->num_row_ != 0 && this->labels.Shape(0) != this->num_row_) {
-      CHECK_EQ(this->labels.Size() % this->num_row_, 0)
-          << "Incorrect size for labels: (" << this->labels.Shape(0) << "," << this->labels.Shape(1)
-          << ") v.s. " << this->num_row_;
-      size_t n_targets = this->labels.Size() / this->num_row_;
-      this->labels.Reshape(this->num_row_, n_targets);
-    }
-    auto const& h_labels = labels.Data()->ConstHostVector();
-    auto valid = std::none_of(h_labels.cbegin(), h_labels.cend(), data::LabelsCheck{});
-    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
-    return;
-  }
-  // uint info
-  if (key == "group") {
-    linalg::Vector<bst_group_t> t;
-    CopyTensorInfoImpl(ctx, arr, &t);
-    auto const& h_groups = t.Data()->HostVector();
-    group_ptr_.clear();
-    group_ptr_.resize(h_groups.size() + 1, 0);
-    group_ptr_[0] = 0;
-    std::partial_sum(h_groups.cbegin(), h_groups.cend(), group_ptr_.begin() + 1);
-    data::ValidateQueryGroup(group_ptr_);
-    return;
-  } else if (key == "qid") {
-    linalg::Tensor<bst_group_t, 1> t;
-    CopyTensorInfoImpl(ctx, arr, &t);
-    bool non_dec = true;
-    auto const& query_ids = t.Data()->HostVector();
-    for (size_t i = 1; i < query_ids.size(); ++i) {
-      if (query_ids[i] < query_ids[i - 1]) {
-        non_dec = false;
-        break;
+  using xgboost::data::MetaField;
+  auto copy_vec = [&](HostDeviceVector<float>* p_out) {
+    linalg::Tensor<float, 1> t;
+    CopyTensorInfoImpl<1>(ctx, arr, &t);
+    *p_out = std::move(*t.Data());
+  };
+  switch (data::MapMetaField(key)) {
+    case MetaField::kLabel: {
+      CopyTensorInfoImpl(ctx, arr, &this->labels);
+      if (this->num_row_ != 0 && this->labels.Shape(0) != this->num_row_) {
+        CHECK_EQ(this->labels.Size() % this->num_row_, 0)
+            << "Incorrect size for labels: (" << this->labels.Shape(0) << ","
+            << this->labels.Shape(1) << ") v.s. " << this->num_row_;
+        size_t n_targets = this->labels.Size() / this->num_row_;
+        this->labels.Reshape(this->num_row_, n_targets);
       }
+      auto const& h_labels = labels.Data()->ConstHostVector();
+      auto valid = std::none_of(h_labels.cbegin(), h_labels.cend(), data::LabelsCheck{});
+      CHECK(valid) << "Label contains NaN, infinity or a value too large.";
+      break;
     }
-    CHECK(non_dec) << "`qid` must be sorted in non-decreasing order along with data.";
-    common::RunLengthEncode(query_ids.cbegin(), query_ids.cend(), &group_ptr_);
-    data::ValidateQueryGroup(group_ptr_);
-    return;
-  }
-
-  // float info
-  linalg::Tensor<float, 1> t;
-  CopyTensorInfoImpl<1>(ctx, arr, &t);
-  if (key == "weight") {
-    this->weights_ = std::move(*t.Data());
-    auto const& h_weights = this->weights_.ConstHostVector();
-    auto valid = std::none_of(h_weights.cbegin(), h_weights.cend(),
-                              [](float w) { return w < 0 || std::isinf(w) || std::isnan(w); });
-    CHECK(valid) << "Weights must be positive values.";
-  } else if (key == "label_lower_bound") {
-    this->labels_lower_bound_ = std::move(*t.Data());
-  } else if (key == "label_upper_bound") {
-    this->labels_upper_bound_ = std::move(*t.Data());
-  } else if (key == "feature_weights") {
-    this->feature_weights = std::move(*t.Data());
-    auto const& h_feature_weights = feature_weights.ConstHostVector();
-    bool valid =
-        std::none_of(h_feature_weights.cbegin(), h_feature_weights.cend(), data::WeightsCheck{});
-    CHECK(valid) << "Feature weight must be greater than 0.";
-  } else {
-    LOG(FATAL) << "Unknown key for MetaInfo: " << key;
+    case MetaField::kWeight: {
+      copy_vec(&this->weights_);
+      auto const& h_weights = this->weights_.ConstHostVector();
+      auto valid = std::none_of(h_weights.cbegin(), h_weights.cend(),
+                                [](float w) { return w < 0 || std::isinf(w) || std::isnan(w); });
+      CHECK(valid) << "Weights must be positive values.";
+      break;
+    }
+    case MetaField::kBaseMargin: {
+      CopyTensorInfoImpl(ctx, arr, &this->base_margin_);
+      ReshapeInfo(this->num_row_, &this->base_margin_, "base_margin");
+      break;
+    }
+    case MetaField::kLabelLowerBound: {
+      copy_vec(&this->labels_lower_bound_);
+      break;
+    }
+    case MetaField::kLabelUpperBound: {
+      copy_vec(&this->labels_upper_bound_);
+      break;
+    }
+    case MetaField::kFeatureWeights: {
+      copy_vec(&this->feature_weights);
+      auto const& h_feature_weights = feature_weights.ConstHostVector();
+      bool valid =
+          std::none_of(h_feature_weights.cbegin(), h_feature_weights.cend(), data::WeightsCheck{});
+      CHECK(valid) << "Feature weight must be greater than 0.";
+      break;
+    }
+    case MetaField::kGroupPtr: {
+      linalg::Vector<bst_group_t> t;
+      CopyTensorInfoImpl(ctx, arr, &t);
+      auto const& h_groups = t.Data()->HostVector();
+      group_ptr_.clear();
+      group_ptr_.resize(h_groups.size() + 1, 0);
+      group_ptr_[0] = 0;
+      std::partial_sum(h_groups.cbegin(), h_groups.cend(), group_ptr_.begin() + 1);
+      data::ValidateQueryGroup(group_ptr_);
+      break;
+    }
+    case MetaField::kQid: {
+      linalg::Tensor<bst_group_t, 1> t;
+      CopyTensorInfoImpl(ctx, arr, &t);
+      bool non_dec = true;
+      auto const& query_ids = t.Data()->HostVector();
+      for (size_t i = 1; i < query_ids.size(); ++i) {
+        if (query_ids[i] < query_ids[i - 1]) {
+          non_dec = false;
+          break;
+        }
+      }
+      CHECK(non_dec) << "`qid` must be sorted in non-decreasing order along with data.";
+      common::RunLengthEncode(query_ids.cbegin(), query_ids.cend(), &group_ptr_);
+      data::ValidateQueryGroup(group_ptr_);
+      break;
+    }
   }
 }
 
 void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
                        const void** out_dptr) const {
+  using xgboost::data::MetaField;
+
   if (dtype == DataType::kFloat32) {
     const std::vector<bst_float>* vec = nullptr;
-    if (!std::strcmp(key, "label")) {
-      vec = &this->labels.Data()->HostVector();
-    } else if (!std::strcmp(key, "weight")) {
-      vec = &this->weights_.HostVector();
-    } else if (!std::strcmp(key, "base_margin")) {
-      vec = &this->base_margin_.Data()->HostVector();
-    } else if (!std::strcmp(key, "label_lower_bound")) {
-      vec = &this->labels_lower_bound_.HostVector();
-    } else if (!std::strcmp(key, "label_upper_bound")) {
-      vec = &this->labels_upper_bound_.HostVector();
-    } else if (!std::strcmp(key, "feature_weights")) {
-      vec = &this->feature_weights.HostVector();
-    } else {
-      LOG(FATAL) << "Unknown float field name: " << key;
+    switch (data::MapMetaField(StringView{key})) {
+      case MetaField::kLabel: {
+        vec = &this->labels.Data()->ConstHostVector();
+        break;
+      }
+      case MetaField::kWeight: {
+        vec = &this->weights_.ConstHostVector();
+        break;
+      }
+      case MetaField::kBaseMargin: {
+        vec = &this->base_margin_.Data()->ConstHostVector();
+        break;
+      }
+      case MetaField::kLabelLowerBound: {
+        vec = &this->labels_lower_bound_.ConstHostVector();
+        break;
+      }
+      case MetaField::kLabelUpperBound: {
+        vec = &this->labels_upper_bound_.ConstHostVector();
+        break;
+      }
+      case MetaField::kFeatureWeights: {
+        vec = &this->feature_weights.ConstHostVector();
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Unknown float field name: " << key;
+      }
     }
-    *out_len = static_cast<xgboost::bst_ulong>(vec->size()); // NOLINT
+    *out_len = static_cast<xgboost::bst_ulong>(vec->size());  // NOLINT
     *reinterpret_cast<float const**>(out_dptr) = dmlc::BeginPtr(*vec);
   } else if (dtype == DataType::kUInt32) {
-    const std::vector<unsigned> *vec = nullptr;
+    const std::vector<unsigned>* vec = nullptr;
     if (!std::strcmp(key, "group_ptr")) {
       vec = &this->group_ptr_;
     } else {
@@ -650,6 +677,65 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
   } else {
     LOG(FATAL) << "Unknown data type for getting meta info.";
   }
+}
+
+void MetaInfo::GetInfo(Context const* ctx, StringView key, std::string* out_array) const {
+  (void)ctx;  // TODO(jiamingy): Return the data in device memory.
+  auto get_vec_aif = [](HostDeviceVector<float> const& vec) {
+    auto hv = vec.ConstHostSpan();
+    return linalg::ArrayInterfaceStr(linalg::MakeVec(DeviceOrd::CPU(), hv));
+  };
+  auto get_mat_aif = [](linalg::Matrix<float> const& mat) {
+    if (mat.Shape(1) <= 1) {
+      // Compatible with old XGBoost when we didn't have matrix info.
+      return linalg::ArrayInterfaceStr(mat.HostView().Slice(linalg::All(), 0));
+    } else {
+      return linalg::ArrayInterfaceStr(mat.HostView());
+    }
+  };
+
+  std::string aif;
+  using xgboost::data::MetaField;
+
+  switch (data::MapMetaField(key)) {
+    case MetaField::kLabel: {
+      aif = get_mat_aif(this->labels);
+      break;
+    }
+    case MetaField::kWeight: {
+      aif = get_vec_aif(this->weights_);
+      break;
+    }
+    case MetaField::kBaseMargin: {
+      aif = get_mat_aif(this->base_margin_);
+      break;
+    }
+    case MetaField::kLabelLowerBound: {
+      aif = get_vec_aif(this->labels_lower_bound_);
+      break;
+    }
+    case MetaField::kLabelUpperBound: {
+      aif = get_vec_aif(this->labels_upper_bound_);
+      break;
+    }
+    case MetaField::kFeatureWeights: {
+      aif = get_vec_aif(this->feature_weights);
+      break;
+    }
+    case MetaField::kGroupPtr: {
+      aif = linalg::ArrayInterfaceStr(linalg::MakeVec(this->group_ptr_));
+      break;
+    }
+    case MetaField::kQid: {
+      LOG(FATAL) << "Retrieving `qid` is not supported, Use `group_ptr` instead.";
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Unknown float field name: " << key;
+    }
+  }
+
+  *out_array = aif;
 }
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {

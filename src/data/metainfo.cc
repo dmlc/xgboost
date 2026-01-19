@@ -1,9 +1,11 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
-#include "validation.h"
+#include "metainfo.h"
 
-#include "../common/error_msg.h"  // for InconsistentFeatureTypes
+#include "../common/error_msg.h"         // for InconsistentFeatureTypes
+#include "xgboost/data.h"                // for FeatureType
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
 
 #if !defined(XGBOOST_USE_CUDA)
 

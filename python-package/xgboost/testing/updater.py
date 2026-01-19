@@ -12,6 +12,7 @@ from sklearn.datasets import make_regression
 import xgboost.testing as tm
 
 from ..callback import TrainingCallback
+from ..compat import import_cupy
 from ..core import (
     Booster,
     DataIter,
@@ -24,7 +25,7 @@ from ..sklearn import XGBModel, XGBRegressor
 from ..training import train
 from .data import IteratorForTest, make_batches, make_categorical
 from .data_iter import CatIter
-from .utils import Device, non_increasing
+from .utils import Device, assert_allclose, non_increasing
 
 
 @overload
@@ -358,7 +359,8 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     )
     if use_cupy:
         import cudf
-        import cupy as cp
+
+        cp = import_cupy()
 
         X = cudf.from_pandas(X)
         y = cp.array(y)
@@ -548,7 +550,7 @@ def check_categorical_missing(  # pylint: disable=too-many-arguments
     cols: int,
     cats: int,
     *,
-    device: str,
+    device: Device,
     tree_method: str,
     extmem: bool,
 ) -> None:
@@ -581,9 +583,8 @@ def check_categorical_missing(  # pylint: disable=too-many-arguments
         )
         assert non_increasing(evals_result["Train"]["rmse"])
         y_predt = booster.predict(Xy)
-
         rmse = tm.root_mean_square(label, y_predt)
-        np.testing.assert_allclose(rmse, evals_result["Train"]["rmse"][-1], rtol=2e-5)
+        assert_allclose(device, rmse, evals_result["Train"]["rmse"][-1], rtol=2e-5)
 
     # Test with OHE split
     run(USE_ONEHOT)

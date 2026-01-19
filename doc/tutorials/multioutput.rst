@@ -118,7 +118,7 @@ implement the ``split_grad`` method.
     class LsObj(TreeObjective):
         def __call__(self, iteration: int, y_pred, dtrain):
             """Least squared error."""
-            y_true = dtrain.get_label().reshape(y_pred.shape)
+            y_true = dtrain.get_label()
             grad = y_pred - y_true
             hess = cp.ones(grad.shape)
             return cp.array(grad), cp.array(hess)
