@@ -153,9 +153,9 @@ struct MultiExpandEntry {
     if (split.loss_chg <= kRtEps) {
       return false;
     }
-    // if (base_weight.empty() || left_weight.empty() || right_weight.empty()) {
-    //   return false;
-    // }
+    if (base_weight.empty()) {
+      return false;
+    }
     if (split.loss_chg < param.min_split_loss) {
       return false;
     }
