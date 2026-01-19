@@ -199,6 +199,9 @@ class MultiTargetHistBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
+      if (page.cut.HasCategorical()) {
+        LOG(FATAL) << "Categorical features" << MTNotImplemented();
+      }
       if (page_idx < partitioner_.size()) {
         partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
                                      p_fmat->Info().IsColumnSplit());

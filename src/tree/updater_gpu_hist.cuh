@@ -594,7 +594,7 @@ class MultiTargetHistMaker {
       LOG(FATAL) << "Distributed training" << MTNotImplemented();
     }
     if (this->cuts_->HasCategorical()) {
-      LOG(FATAL) << "Categorical feature" << MTNotImplemented();
+      LOG(FATAL) << "Categorical features" << MTNotImplemented();
     }
 
     auto* split_grad = gpair->Grad();
