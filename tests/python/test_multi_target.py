@@ -6,12 +6,12 @@ from hypothesis import given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     run_absolute_error,
+    run_grow_policy,
     run_multiclass,
     run_multilabel,
     run_quantile_loss,
     run_reduced_grad,
     run_with_iter,
-    run_grow_policy,
 )
 from xgboost.testing.params import (
     exact_parameter_strategy,
