@@ -65,9 +65,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
 
   std::map<std::string, std::shared_ptr<Cache>> cache_info_;
   std::string cache_prefix_;
-#if defined(XGBOOST_USE_CUDA)
   bool const on_host_;
-#endif  // defined(XGBOOST_USE_CUDA)
   BatchParam batch_;
   bst_idx_t n_batches_{0};
 
