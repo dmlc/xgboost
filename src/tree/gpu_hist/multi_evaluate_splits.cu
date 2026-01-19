@@ -374,7 +374,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     auto left_weight = d_weights.Left(nidx);
     auto right_weight = d_weights.Right(nidx);
 
-    auto d_roundings = shared_inputs.roundings;
+    auto roundings = shared_inputs.roundings;
     auto split_sum = best_split.child_sum;
 
     // Copy split sum to persistent buffer for loss-guide grow policy support.
@@ -382,37 +382,35 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     // so we store it persistently indexed by node id.
     auto split_sum_dest = GetNodeSumImpl(d_split_sums, nidx, n_targets);
 
-    float parent_gain = 0;
-    for (bst_target_t t = 0; t < n_targets; ++t) {
-      auto quantizer = d_roundings[t];
-      auto sibling_sum = input.parent_sum[t] - split_sum[t];
-      auto g = quantizer.ToFloatingPoint(input.parent_sum[t]);
-
-      base_weight[t] = CalcWeight(shared_inputs.param, g.GetGrad(), g.GetHess());
-      parent_gain += -base_weight[t] * ThresholdL1(g.GetGrad(), shared_inputs.param.reg_alpha);
-
-      split_sum_dest[t] = split_sum[t];
-    }
-
     bool l = true, r = true;
+    float parent_gain = 0;
     GradientPairPrecise lg_fst, rg_fst;
     auto eta = shared_inputs.param.learning_rate;
+
     for (bst_target_t t = 0; t < n_targets; ++t) {
-      auto quantizer = d_roundings[t];
+      auto quantizer = roundings[t];
       auto sibling_sum = input.parent_sum[t] - split_sum[t];
 
+      // Base weight and parent gain
+      auto g = quantizer.ToFloatingPoint(input.parent_sum[t]);
+      base_weight[t] = CalcWeight(shared_inputs.param, g.GetGrad(), g.GetHess());
+      parent_gain += -base_weight[t] * ThresholdL1(g.GetGrad(), shared_inputs.param.reg_alpha);
+      split_sum_dest[t] = split_sum[t];
+
+      // Check for empty hessian
       l = l && (split_sum[t].GetQuantisedHess() == 0);
       r = r && (sibling_sum.GetQuantisedHess() == 0);
 
+      // Left/right weights
       GradientPairPrecise lg, rg;
       if (best_split.dir == kRightDir) {
-        // forward pass, node_sum is the left sum
+        // forward pass, split_sum is the left sum
         lg = quantizer.ToFloatingPoint(split_sum[t]);
         left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess()) * eta;
         rg = quantizer.ToFloatingPoint(sibling_sum);
         right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess()) * eta;
       } else {
-        // backward pass, node_sum is the right sum
+        // backward pass, split_sum is the right sum
         rg = quantizer.ToFloatingPoint(split_sum[t]);
         right_weight[t] = CalcWeight(shared_inputs.param, rg.GetGrad(), rg.GetHess()) * eta;
         lg = quantizer.ToFloatingPoint(sibling_sum);
