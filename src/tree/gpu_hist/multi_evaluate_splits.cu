@@ -426,8 +426,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     }
 
     // Set up the output entry with spans pointing to persistent weight storage
-    out_splits[nidx_in_set] = {nidx,        input.depth, best_split,
-                               base_weight, left_weight, right_weight};
+    out_splits[nidx_in_set] = {nidx, input.depth, best_split, base_weight};
     out_splits[nidx_in_set].split.loss_chg -= parent_gain;
     out_splits[nidx_in_set].UpdateFirstHessian(lg_fst, rg_fst);
 

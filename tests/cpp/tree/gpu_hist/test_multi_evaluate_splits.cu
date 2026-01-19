@@ -118,9 +118,13 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
     MultiHistEvaluator evaluator;
     auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
     ASSERT_NEAR(candidate.split.loss_chg, 3.04239, 1e-5);
-    CheckSpan(candidate.left_weight, exp_left_weight);
-    CheckSpan(candidate.right_weight, exp_right_weight);
-    CheckSpan(candidate.base_weight, exp_base_weight);
+
+    std::vector<float> base, left, right;
+    evaluator.CopyNodeWeightsToHost(candidate.nidx, candidate.base_weight.size(), &base, &left,
+                                    &right);
+    ASSERT_EQ(base, exp_base_weight);
+    ASSERT_EQ(left, exp_left_weight);
+    ASSERT_EQ(right, exp_right_weight);
 
     std::stringstream ss;
     ss << candidate;

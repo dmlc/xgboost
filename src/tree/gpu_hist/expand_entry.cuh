@@ -135,9 +135,6 @@ struct MultiExpandEntry {
   MultiSplitCandidate split;
 
   common::Span<float> base_weight;
-  common::Span<float const> left_weight;
-  common::Span<float const> right_weight;
-
   // Sum Hessian of the first target. Used as a surrogate for node size.
   double left_fst_hess{0};
   double right_fst_hess{0};
@@ -156,9 +153,9 @@ struct MultiExpandEntry {
     if (split.loss_chg <= kRtEps) {
       return false;
     }
-    if (base_weight.empty() || left_weight.empty() || right_weight.empty()) {
-      return false;
-    }
+    // if (base_weight.empty() || left_weight.empty() || right_weight.empty()) {
+    //   return false;
+    // }
     if (split.loss_chg < param.min_split_loss) {
       return false;
     }
