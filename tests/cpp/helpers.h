@@ -59,6 +59,18 @@ Float RelError(Float l, Float r) {
   return std::abs(1.0f - l / r);
 }
 
+template <typename T, typename V = std::remove_cv_t<T>>
+void AssertVecEq(std::vector<T> h_vec, std::vector<V> const& exp, float atol = 1e-5) {
+  ASSERT_EQ(h_vec.size(), exp.size());
+  for (std::size_t i = 0; i < h_vec.size(); ++i) {
+    if constexpr (std::is_floating_point_v<V>) {
+      ASSERT_NEAR(h_vec[i], exp[i], atol) << "i:" << i;
+    } else {
+      ASSERT_EQ(h_vec[i], exp[i]);
+    }
+  }
+}
+
 bool FileExists(const std::string& filename);
 
 void CreateSimpleTestData(const std::string& filename);

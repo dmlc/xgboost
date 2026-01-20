@@ -6,6 +6,7 @@ from hypothesis import given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     run_absolute_error,
+    run_grow_policy,
     run_multiclass,
     run_multilabel,
     run_quantile_loss,
@@ -115,3 +116,8 @@ def test_reduced_grad() -> None:
 
 def test_with_iter() -> None:
     run_with_iter("cpu")
+
+
+@pytest.mark.parametrize("grow_policy", ["depthwise", "lossguide"])
+def test_grow_policy(grow_policy: str) -> None:
+    run_grow_policy("cpu", grow_policy)
