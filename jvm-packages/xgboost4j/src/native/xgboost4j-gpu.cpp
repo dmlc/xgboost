@@ -29,15 +29,4 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CudaSetDevice(JNIE
   API_END();
 }
 
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    CudaFreeZero
- * Signature: ()I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CudaFreeZero(JNIEnv *, jclass) {
-  API_BEGIN();
-  xgboost::common::AssertGPUSupport();
-  API_END();
-}
-
 #endif  // XGBOOST_USE_CUDA

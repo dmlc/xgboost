@@ -214,14 +214,7 @@ private[spark] object XGBoost extends StageLevelScheduling {
   }
 
   /**
-   * Sets the CUDA device and acquires it by initializing the CUDA context.
-   *
-   * This method performs two operations:
-   * 1. Calls cudaSetDevice() to set the active GPU device for the current thread.
-   *    This also stores the device ID in a global variable to detect if a different
-   *    device is set later (which would log a warning).
-   * 2. Calls cudaFree(0) to lazily initialize the CUDA context on the selected device.
-   *    This forces CUDA to actually allocate resources on the GPU.
+   * Sets the CUDA device for current process.
    *
    * Note: Process exclusive mode is not required because we rely on Spark's resource
    * scheduler to properly assign GPU resources and prevent multiple executors from
@@ -232,7 +225,6 @@ private[spark] object XGBoost extends StageLevelScheduling {
    */
   private def setGpuDeviceAndAcquire(addr: Int): Int = {
     XGBoostJNI.CudaSetDevice(addr.toInt)
-    XGBoostJNI.CudaFreeZero()
     addr
   }
 

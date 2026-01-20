@@ -201,6 +201,4 @@ public class XGBoostJNI {
 
   // CUDA device management functions
   public final static native int CudaSetDevice(int deviceId);
-
-  public final static native int CudaFreeZero();
 }
