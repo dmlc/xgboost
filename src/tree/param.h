@@ -57,6 +57,9 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // sampling method
   enum SamplingMethod { kUniform = 0, kGradientBased = 1 };
   int sampling_method;
+  // This is not exposed to the user. Instead, it must be estimated by the sampler.
+  // The esitmated coefficient between g^2 and h^2 based on the leaf values.
+  float mvs_adaptive_lambda = 0;
   // whether to subsample columns in each split (node)
   float colsample_bynode;
   // whether to subsample columns in each level

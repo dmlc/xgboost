@@ -1,6 +1,8 @@
 /**
- * Copyright 2023 by XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
+#include "../test_sampler.h"  // VerifyApplySamplingMask
+
 #include <gtest/gtest.h>
 
 #include <cstddef>  // std::size_t
@@ -8,13 +10,13 @@
 
 #include "../../../../src/tree/hist/sampler.h"  // SampleGradient
 #include "../../../../src/tree/param.h"         // TrainParam
+#include "../../helpers.h"                      // GenerateRandomGradients
 #include "xgboost/base.h"                       // GradientPair,bst_target_t
 #include "xgboost/context.h"                    // Context
 #include "xgboost/data.h"                       // MetaInfo
 #include "xgboost/linalg.h"                     // Matrix,Constants
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 TEST(Sampler, Basic) {
   std::size_t constexpr kRows = 1024;
   double constexpr kSubsample = .2;
@@ -53,5 +55,36 @@ TEST(Sampler, Basic) {
   run(1);
   run(3);
 }
-}  // namespace tree
-}  // namespace xgboost
+
+TEST(Sampler, ApplySamplingMask) {
+  Context ctx;
+  std::size_t n_samples = 1024;
+  std::size_t n_split_targets = 2;
+  std::size_t n_value_targets = 4;  // More targets than split gradient
+  constexpr float kSubsample = 0.5f;
+
+  TrainParam param;
+  param.UpdateAllowUnknown(Args{{"subsample", std::to_string(kSubsample)}});
+
+  // Generate and sample the split gradient
+  auto split_gpairs = GenerateRandomGradients(n_samples * n_split_targets, 0.0f, 1.0f);
+  std::size_t split_shape[2] = {n_samples, n_split_targets};
+  linalg::Matrix<GradientPair> split_gpair{split_gpairs.HostVector().begin(),
+                                           split_gpairs.HostVector().end(), split_shape,
+                                           DeviceOrd::CPU()};
+  SampleGradient(&ctx, param, split_gpair.HostView());
+
+  // Generate value gradient (more targets than split)
+  auto value_gpairs = GenerateRandomGradients(n_samples * n_value_targets, 0.0f, 1.0f);
+  std::size_t value_shape[2] = {n_samples, n_value_targets};
+  linalg::Matrix<GradientPair> value_gpair{value_gpairs.HostVector().begin(),
+                                           value_gpairs.HostVector().end(), value_shape,
+                                           DeviceOrd::CPU()};
+
+  // Apply the sampling mask
+  cpu_impl::ApplySamplingMask(&ctx, split_gpair, &value_gpair);
+
+  // Verify using the shared test helper
+  VerifyApplySamplingMask(split_gpair.HostView(), value_gpair.HostView(), kSubsample);
+}
+}  // namespace xgboost::tree

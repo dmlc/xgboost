@@ -14,6 +14,7 @@ from xgboost.testing.multi_target import (
     run_multilabel,
     run_quantile_loss,
     run_reduced_grad,
+    run_subsample,
     run_with_iter,
 )
 from xgboost.testing.params import (
@@ -136,3 +137,7 @@ def test_mixed_strategy() -> None:
 
 def test_feature_importance_strategy_compare() -> None:
     run_feature_importance_strategy_compare("cpu")
+
+
+def test_subsample() -> None:
+    run_subsample("cpu", "uniform")

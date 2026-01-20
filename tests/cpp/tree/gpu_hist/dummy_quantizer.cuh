@@ -25,16 +25,25 @@ inline auto MakeDummyQuantizers(bst_target_t n_targets) {
   return d_quantizers;
 }
 
-inline auto GenerateGradientsFixedPoint(Context const* ctx, size_t n_rows, float lower = 0.0f,
+struct QuantizedGradients {
+  linalg::Matrix<GradientPairInt64> gpair;
+  MultiGradientQuantiser quantizer;
+};
+
+// Returns both quantized gradients and quantizers.
+inline auto GenerateGradientsFixedPoint(Context const* ctx, bst_idx_t n_samples,
+                                        bst_target_t n_targets = 1, float lower = 0.0f,
                                         float upper = 1.0f) {
-  auto gpairs = GenerateRandomGradients(n_rows, lower, upper);
+  auto gpairs = GenerateRandomGradients(n_samples * n_targets, lower, upper);
   gpairs.SetDevice(ctx->Device());
-  auto quantiser =
-      GradientQuantiser{ctx, linalg::MakeVec(ctx->Device(), gpairs.ConstDeviceSpan()), MetaInfo{}};
-  dh::device_vector<GradientQuantiser> roundings{quantiser};
+  auto d_gpair = linalg::MakeTensorView(ctx, gpairs.ConstDeviceSpan(), n_samples, n_targets);
+
+  // Create a quantizer per target
+  MultiGradientQuantiser multi_quantizer{ctx, d_gpair, MetaInfo{}};
+
   linalg::Matrix<GradientPairInt64> gpairs_i64;
-  CalcQuantizedGpairs(ctx, linalg::MakeTensorView(ctx, gpairs.ConstDeviceSpan(), gpairs.Size(), 1),
-                      dh::ToSpan(roundings), &gpairs_i64);
-  return gpairs_i64;
+  CalcQuantizedGpairs(ctx, d_gpair, multi_quantizer.Quantizers(), &gpairs_i64);
+
+  return QuantizedGradients{std::move(gpairs_i64), std::move(multi_quantizer)};
 }
 }  // namespace xgboost::tree

@@ -27,6 +27,11 @@ TEST_F(TestPredictionCache, GpuHist) {
   this->RunTest(&ctx, "grow_gpu_hist", "one_output_per_tree");
 }
 
+TEST_F(TestPredictionCache, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist", "multi_output_tree");
+}
+
 TEST_F(TestPredictionCache, GpuApprox) {
   auto ctx = MakeCUDACtx(0);
   this->RunTest(&ctx, "grow_gpu_approx", "one_output_per_tree");
