@@ -103,10 +103,7 @@ class TestDMatrix:
         # Slicing works with label and other meta info fields
         np.testing.assert_equal(sliced.get_label(), y[1:7])
         np.testing.assert_equal(sliced.get_float_info("feature_weights"), fw)
-        np.testing.assert_equal(sliced.get_base_margin(), base_margin[1:7, :].flatten())
-        np.testing.assert_equal(
-            sliced.get_base_margin(), sliced.get_float_info("base_margin")
-        )
+        np.testing.assert_equal(sliced.get_base_margin(), base_margin[1:7, :])
 
         # Slicing a DMatrix results into a DMatrix that's equivalent to a DMatrix that's
         # constructed from the corresponding NumPy slice

@@ -1090,16 +1090,16 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
     def get_float_info(self, field: str) -> np.ndarray:
         """Get float property from the DMatrix.
 
-        Parameters
-        ----------
-        field: str
-            The field name of the information
+        .. deprecated:: 3.2.0
 
-        Returns
-        -------
-        info : array
-            a numpy array of float information of the data
         """
+        warnings.warn(
+            (
+                "`get_float_info` has been deprecated in 3.2.0. Use dedicated methods "
+                "like `get_label` instead."
+            ),
+            FutureWarning,
+        )
         length = c_bst_ulong()
         ret = ctypes.POINTER(ctypes.c_float)()
         _check_call(
@@ -1112,16 +1112,16 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
     def get_uint_info(self, field: str) -> np.ndarray:
         """Get unsigned integer property from the DMatrix.
 
-        Parameters
-        ----------
-        field: str
-            The field name of the information
+        .. deprecated:: 3.2.0
 
-        Returns
-        -------
-        info : array
-            a numpy array of unsigned integer information of the data
         """
+        warnings.warn(
+            (
+                "`get_uint_info` has been deprecated in 3.2.0. Use dedicated methods "
+                "like `get_group` instead."
+            ),
+            FutureWarning,
+        )
         length = c_bst_ulong()
         ret = ctypes.POINTER(ctypes.c_uint)()
         _check_call(
@@ -1274,7 +1274,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         -------
         group
         """
-        group_ptr = self.get_uint_info("group_ptr")
+        group_ptr = self._get_info("group_ptr")
         return np.diff(group_ptr)
 
     def get_data(self) -> scipy.sparse.csr_matrix:
