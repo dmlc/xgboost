@@ -1073,7 +1073,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                 matrix=self, data=feature_weights, name="feature_weights"
             )
 
-    def _get_info(self, field: str) -> np.ndarray:
+    def _get_info(self, field: str) -> NumpyOrCupy:
+        """Replacement for `get_float_info` and `get_uint_info`, supports multi-dim and
+        device outputs.
+
+        """
         c_sdata = ctypes.c_char_p()
         _check_call(
             _LIB.XGDMatrixGetArrayInfo(self.handle, c_str(field), ctypes.byref(c_sdata))
@@ -1255,11 +1259,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         """Get the label of the DMatrix."""
         return self._get_info("label")
 
-    def get_weight(self) -> np.ndarray:
+    def get_weight(self) -> NumpyOrCupy:
         """Get the weight of the DMatrix."""
         return self._get_info("weight")
 
-    def get_base_margin(self) -> np.ndarray:
+    def get_base_margin(self) -> NumpyOrCupy:
         """Get the base margin of the DMatrix."""
         return self._get_info("base_margin")
 

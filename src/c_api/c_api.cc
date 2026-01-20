@@ -882,6 +882,7 @@ XGB_DLL int XGDMatrixGetArrayInfo(DMatrixHandle handle, char const *field, char 
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(field);
+  xgboost_CHECK_C_ARG_PTR(out_array);
 
   auto p_fmat = CastDMatrixHandle(handle);
   MetaInfo const &info = p_fmat->Info();
