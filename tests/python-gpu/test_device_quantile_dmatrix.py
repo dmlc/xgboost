@@ -187,7 +187,7 @@ class TestQuantileDMatrix:
         got_labels = m.get_label()
 
         cp.testing.assert_allclose(fw, got_fw)
-        cp.testing.assert_allclose(labels, got_labels)
+        cp.testing.assert_allclose(cp.expand_dims(labels, axis=1), got_labels)
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_cudf())
