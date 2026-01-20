@@ -15,24 +15,24 @@ namespace xgboost::tree {
 class SamplingStrategy {
  public:
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
-  virtual void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-                      GradientQuantiser const& rounding) = 0;
+  virtual void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
+                      common::Span<GradientQuantiser const> roundings) = 0;
   virtual ~SamplingStrategy() = default;
 };
 
 /** @brief No-op. */
 class NoSampling : public SamplingStrategy {
  public:
-  void Sample(Context const*, linalg::VectorView<GradientPairInt64>,
-              GradientQuantiser const&) override {}
+  void Sample(Context const*, linalg::MatrixView<GradientPairInt64>,
+              common::Span<GradientQuantiser const>) override {}
 };
 
 /** @brief Uniform sampling */
 class UniformSampling : public SamplingStrategy {
  public:
   explicit UniformSampling(float subsample) : subsample_{subsample} {}
-  void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-              GradientQuantiser const& rounding) override;
+  void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
+              common::Span<GradientQuantiser const> roundings) override;
 
  private:
   float subsample_;
@@ -42,12 +42,16 @@ class UniformSampling : public SamplingStrategy {
 class GradientBasedSampling : public SamplingStrategy {
  public:
   GradientBasedSampling(std::size_t n_rows, float subsample);
-  void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-              GradientQuantiser const& rounding) override;
+  void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
+              common::Span<GradientQuantiser const> roundings) override;
 
  private:
   float subsample_;
+  // abs gradient
+  dh::device_vector<float> reg_abs_grad_;
+  // sorted abs gradient
   dh::device_vector<float> threshold_;
+  // csum of sorted abs gradient
   dh::device_vector<float> grad_sum_;
 };
 
@@ -60,18 +64,30 @@ class GradientBasedSampling : public SamplingStrategy {
  * @see Zhu, R. (2016). Gradient-based sampling: An adaptive importance sampling for least-squares.
  * In Advances in Neural Information Processing Systems (pp. 406-414).
  * @see Ohlsson, E. (1998). Sequential Poisson sampling. Journal of official Statistics, 14(2), 149.
- * @see Rong Ou. (2020. Out-of-Core GPU Gradient Boosting
+ * @see Rong Ou. (2020). Out-of-Core GPU Gradient Boosting.
  */
 class GradientBasedSampler {
  public:
   GradientBasedSampler(bst_idx_t n_samples, float subsample, int sampling_method);
 
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
-  void Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
-              GradientQuantiser const& rounding);
+  void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
+              common::Span<GradientQuantiser const> roundings);
 
  private:
   common::Monitor monitor_;
   std::unique_ptr<SamplingStrategy> strategy_;
 };
-};  // namespace xgboost::tree
+
+namespace cuda_impl {
+/**
+ * @brief Apply sampling mask from sampled split gradient to value gradient.
+ *
+ * Zero out rows in value gradient where the corresponding row in split gradient was not
+ * sampled (has zero hessian). Value gradient may have more targets than split gradient.
+ */
+void ApplySamplingMask(Context const* ctx,
+                       linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
+                       linalg::Matrix<GradientPair>* value_gpair);
+}  // namespace cuda_impl
+}  // namespace xgboost::tree

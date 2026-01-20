@@ -199,6 +199,9 @@ class MultiTargetHistBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
+      if (page.cut.HasCategorical()) {
+        LOG(FATAL) << "Categorical features" << MTNotImplemented();
+      }
       if (page_idx < partitioner_.size()) {
         partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
                                      p_fmat->Info().IsColumnSplit());
@@ -680,16 +683,16 @@ class QuantileHistMaker : public TreeUpdater {
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
                                      h_out_position, *tree_it);
         if (in_gpair->HasValueGrad()) {
-          // Copy the value gradient for sampling
+          // Copy the value gradient and apply sampling mask from split gradient
           auto value_grad = linalg::Empty<GradientPair>(ctx_, in_gpair->value_gpair.Shape(0),
                                                         in_gpair->value_gpair.Shape(1));
           auto h_value_grad = value_grad.HostView();
           auto h_value_grad_in = in_gpair->value_gpair.HostView();
           std::copy(linalg::cbegin(h_value_grad_in), linalg::cend(h_value_grad_in),
                     linalg::begin(h_value_grad));
-          SampleGradient(ctx_, *param, h_value_grad);
+          cpu_impl::ApplySamplingMask(ctx_, sample_out, &value_grad);
           // Refresh the leaf weights.
-          p_mtimpl_->ExpandTreeLeaf(in_gpair->value_gpair, *tree_it);
+          p_mtimpl_->ExpandTreeLeaf(value_grad, *tree_it);
         } else {
           (*tree_it)->GetMultiTargetTree()->SetLeaves();
         }

@@ -8,7 +8,6 @@
 #include <xgboost/data.h>        // for MetaInfo
 #include <xgboost/objective.h>   // for ObjFunction
 #include <xgboost/span.h>        // for Span
-#include <xgboost/tree_model.h>  // for RegTree
 
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector

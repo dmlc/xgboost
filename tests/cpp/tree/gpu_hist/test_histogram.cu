@@ -106,7 +106,7 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     bst_bin_t num_bins = kBins * kCols;
     dh::device_vector<GradientPairInt64> histogram(num_bins);
     auto d_histogram = dh::ToSpan(histogram);
-    auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, kLower, kUpper);
+    auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, 1, kLower, kUpper).gpair;
 
     FeatureGroups feature_groups{page->Cuts(), page->IsDenseCompressed(), shm_size};
 
@@ -142,7 +142,7 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     }
 
     {
-      auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, kLower, kUpper);
+      auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, 1, kLower, kUpper).gpair;
 
       // Use a single feature group to compute the baseline.
       FeatureGroups single_group(page->Cuts());
@@ -403,8 +403,7 @@ class HistogramExternalMemoryTest
     dh::device_vector<GradientPairInt64> single_hist;
     dh::device_vector<GradientPairInt64> multi_hist;
 
-    auto gpair = GenerateGradientsFixedPoint(&ctx, n_samples);
-    gpair.SetDevice(ctx.Device());
+    auto gpair = GenerateGradientsFixedPoint(&ctx, n_samples).gpair;
     std::shared_ptr<common::HistogramCuts> cuts;
 
     std::size_t row_stride = 0;

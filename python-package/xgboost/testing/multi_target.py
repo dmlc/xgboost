@@ -719,3 +719,78 @@ def all_reg_objectives() -> List[Callable[[Device], None]]:
         run_reg_tweedie,
     ]
     return objs
+
+
+def _make_subsample_params(device: Device, sampling_method: str) -> dict:
+    params = {
+        "device": device,
+        "tree_method": "hist",
+        "multi_strategy": "multi_output_tree",
+        "subsample": 0.5,
+        "sampling_method": sampling_method,
+        "max_depth": 6,
+        "debug_synchronize": True,
+        "seed": 2026,
+    }
+    return params
+
+
+def run_subsample(device: Device, sampling_method: str) -> None:
+    """Test row subsampling."""
+    n_samples = 2048
+    X, y = make_regression(
+        n_samples=n_samples, n_features=16, n_targets=3, random_state=2026
+    )
+    Xy = QuantileDMatrix(X, y)
+
+    params = _make_subsample_params(device, sampling_method)
+
+    evals_result = train_result(params, Xy, num_rounds=16)
+    # Training should converge with subsampling
+    assert non_increasing(evals_result["train"]["rmse"], tolerance=0.01)
+
+    # Test with quantile regression
+    params = _make_subsample_params(device, sampling_method)
+    params["objective"] = "reg:quantileerror"
+    params["quantile_alpha"] = [0.25, 0.5, 0.75]
+    Xy_single = QuantileDMatrix(X, y[:, 0])
+    evals_result_q = train_result(params, Xy_single, num_rounds=16)
+    assert non_increasing(evals_result_q["train"]["quantile"], tolerance=0.01)
+
+
+def run_gradient_based_sampling_accuracy(device: Device) -> None:
+    """Test that gradient-based sampling provides better accuracy."""
+    n_samples = 4096
+    X, y = make_regression(
+        n_samples=n_samples, n_features=16, n_targets=3, random_state=2026
+    )
+    Xy = QuantileDMatrix(X, y)
+
+    params_uniform = _make_subsample_params(device, "uniform")
+
+    # Train with uniform sampling
+    evals_uniform: Dict[str, Dict] = {}
+    train(
+        params_uniform,
+        Xy,
+        num_boost_round=32,
+        evals=[(Xy, "train")],
+        verbose_eval=False,
+        evals_result=evals_uniform,
+    )
+
+    # Train with gradient-based sampling
+    params_grad = _make_subsample_params(device, "gradient_based")
+    evals_grad: Dict[str, Dict] = {}
+    train(
+        params_grad,
+        Xy,
+        num_boost_round=32,
+        evals=[(Xy, "train")],
+        verbose_eval=False,
+        evals_result=evals_grad,
+    )
+
+    uniform_final = evals_uniform["train"]["rmse"][-1]
+    grad_final = evals_grad["train"]["rmse"][-1]
+    assert grad_final < uniform_final

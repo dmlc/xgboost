@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost contributors
+ * Copyright 2021-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 
@@ -25,6 +25,11 @@ TEST_F(TestPredictionCache, MultiHist) {
 TEST_F(TestPredictionCache, GpuHist) {
   auto ctx = MakeCUDACtx(0);
   this->RunTest(&ctx, "grow_gpu_hist", "one_output_per_tree");
+}
+
+TEST_F(TestPredictionCache, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist", "multi_output_tree");
 }
 
 TEST_F(TestPredictionCache, GpuApprox) {

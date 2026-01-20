@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2025, XGBoost Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/gradient.h>  // for GradientContainer
@@ -246,6 +246,10 @@ INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestHistColumnSplit, ::testing::ValuesIn([
                            for (auto categorical : {true, false}) {
                              for (auto sparsity : {0.0f, 0.6f}) {
                                for (bst_target_t n_targets : {1u, 3u}) {
+                                 // Categorical features are not yet supported for multi-target trees.
+                                 if (categorical && n_targets > 1) {
+                                   continue;
+                                 }
                                  params.emplace_back(n_targets, categorical, sparsity);
                                }
                              }
