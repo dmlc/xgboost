@@ -64,7 +64,7 @@ PytestSkip = TypedDict("PytestSkip", {"condition": bool, "reason": str})
 def has_ipv6() -> bool:
     """Check whether IPv6 is enabled on this host."""
     # connection error in macos, still need some fixes.
-    if system() not in ("Linux", "Windows"):
+    if system() not in ("Linux", "Android", "Windows"):
         return False
 
     if socket.has_ipv6:

@@ -49,6 +49,10 @@ pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 
+[tool.cibuildwheel.android.environment]
+# Required for pthread_getname_np
+ANDROID_API_LEVEL = "26"
+
 [tool.isort]
 profile = "black"
 
