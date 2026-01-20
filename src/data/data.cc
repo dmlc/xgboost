@@ -699,41 +699,48 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
 }
 
 void MetaInfo::GetInfo(Context const* ctx, StringView key, std::string* out_array) const {
-  auto get_vec_aif = [ctx](HostDeviceVector<float> const* vec) {
+  auto get_vec_aif = [ctx](HostDeviceVector<float> const& vec) {
     if (!ctx->IsCUDA()) {
-      auto hv = vec->ConstHostSpan();
+      auto hv = vec.ConstHostSpan();
       return linalg::ArrayInterfaceStr(linalg::MakeVec(ctx->Device(), hv));
     } else {
-      vec->SetDevice(ctx->Device());
-      auto dv = vec->ConstDeviceSpan();
+      vec.SetDevice(ctx->Device());
+      auto dv = vec.ConstDeviceSpan();
       return linalg::ArrayInterfaceStr(linalg::MakeVec(ctx->Device(), dv));
+    }
+  };
+  auto get_mat_aif = [ctx](linalg::Matrix<float> const& mat) {
+    if (mat.Shape(1) <= 1) {
+      return linalg::ArrayInterfaceStr(mat.View(ctx->Device()).Slice(linalg::All(), 0));
+    } else {
+      return linalg::ArrayInterfaceStr(mat.View(ctx->Device()));
     }
   };
 
   std::string aif;
   switch (MapMetaField(key)) {
     case MetaField::kLabel: {
-      aif = linalg::ArrayInterfaceStr(this->labels.View(ctx->Device()));
+      aif = get_mat_aif(this->labels);
       break;
     }
     case MetaField::kWeight: {
-      aif = get_vec_aif(&this->weights_);
+      aif = get_vec_aif(this->weights_);
       break;
     }
     case MetaField::kBaseMargin: {
-      aif = linalg::ArrayInterfaceStr(this->base_margin_.View(ctx->Device()));
+      aif = get_mat_aif(this->base_margin_);
       break;
     }
     case MetaField::kLabelLowerBound: {
-      aif = get_vec_aif(&this->labels_lower_bound_);
+      aif = get_vec_aif(this->labels_lower_bound_);
       break;
     }
     case MetaField::kLabelUpperBound: {
-      aif = get_vec_aif(&this->labels_upper_bound_);
+      aif = get_vec_aif(this->labels_upper_bound_);
       break;
     }
     case MetaField::kFeatureWeights: {
-      aif = get_vec_aif(&this->feature_weights);
+      aif = get_vec_aif(this->feature_weights);
       break;
     }
     case MetaField::kGroupPtr: {
