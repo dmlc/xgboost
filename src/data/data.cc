@@ -564,23 +564,24 @@ void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView interface_
   } else {
     this->SetInfoFromHost(&ctx, key, j_interface);
   }
+
+  // FIXME(jiamingy): Remove the deprecated API and let all language bindings aware of
+  // input shape.  This issue is CPU only since CUDA uses array interface from day 1.
+  //
+  // Python binding always understand the shape, so this condition should not occur for
+  // it.
+  if (this->num_row_ != 0 && this->base_margin_.Shape(0) != this->num_row_) {
+    // API functions that don't use array interface don't understand shape.
+    CHECK(this->base_margin_.Size() % this->num_row_ == 0) << "Incorrect size for base margin.";
+    size_t n_groups = this->base_margin_.Size() / this->num_row_;
+    this->base_margin_.Reshape(this->num_row_, n_groups);
+  }
 }
 
 void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
   // multi-dim float info
   if (key == "base_margin") {
     CopyTensorInfoImpl(ctx, arr, &this->base_margin_);
-    // FIXME(jiamingy): Remove the deprecated API and let all language bindings aware of
-    // input shape.  This issue is CPU only since CUDA uses array interface from day 1.
-    //
-    // Python binding always understand the shape, so this condition should not occur for
-    // it.
-    if (this->num_row_ != 0 && this->base_margin_.Shape(0) != this->num_row_) {
-      // API functions that don't use array interface don't understand shape.
-      CHECK(this->base_margin_.Size() % this->num_row_ == 0) << "Incorrect size for base margin.";
-      size_t n_groups = this->base_margin_.Size() / this->num_row_;
-      this->base_margin_.Reshape(this->num_row_, n_groups);
-    }
     return;
   } else if (key == "label") {
     CopyTensorInfoImpl(ctx, arr, &this->labels);
