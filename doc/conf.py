@@ -112,6 +112,10 @@ def get_sha(branch: str) -> str | None:
 
 def download_jvm_docs() -> None:
     """Fetch docs for the JVM packages"""
+    if os.environ.get("XGBOOST_SKIP_JVM_DOCS", None) == "1":
+        print("Skipping JVM docs (XGBOOST_SKIP_JVM_DOCS=1)")
+        return
+
     print("Download JVM documents from S3.")
     branch = get_branch()
     commit = get_sha(branch)
@@ -161,6 +165,10 @@ def download_jvm_docs() -> None:
 
 def download_r_docs() -> None:
     """Fetch R document from s3."""
+    if os.environ.get("XGBOOST_SKIP_R_DOCS", None) == "1":
+        print("Skipping R docs (XGBOOST_SKIP_R_DOCS=1)")
+        return
+
     branch = get_branch()
     commit = get_sha(branch)
     print("Download R documents from S3.")
@@ -328,7 +336,10 @@ autoclass_content = "both"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build"]
+# Note: tmp/ contains pre-built HTML docs (R pkgdown, JVM javadocs/scaladocs, C++ doxygen)
+# that are copied via html_extra_path. We exclude them from Sphinx processing to avoid
+# "document isn't included in any toctree" warnings.
+exclude_patterns = ["_build", "tmp"]
 html_extra_path = []
 if is_readthedocs_build():
     html_extra_path = [TMP_DIR]
