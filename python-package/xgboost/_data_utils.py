@@ -143,13 +143,15 @@ def from_array_interface(interface: ArrayInf, zero_copy: bool = False) -> NumpyO
             self.__array_interface__ = interface
 
         @property
-        def shape(self) -> Tuple:
+        def shape(self) -> Tuple[int, ...]:
+            """Shape of the input array."""
             aif = self.__array_interface__
             assert aif is not None
             return aif["shape"]
 
         @property
-        def size(self) -> int:
+        def size(self) -> np.signedinteger:
+            """Total size of the input array."""
             return np.prod(self.shape)
 
     arr = Array()
