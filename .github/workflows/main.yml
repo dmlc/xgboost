@@ -343,6 +343,7 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
       - tag=main-build-cuda13-${{ matrix.arch }}
+      - extras=s3-cache
     strategy:
       fail-fast: false
       matrix:
@@ -359,6 +360,7 @@ jobs:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
+      - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
