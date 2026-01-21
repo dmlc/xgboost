@@ -1112,16 +1112,16 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
     def get_uint_info(self, field: str) -> np.ndarray:
         """Get unsigned integer property from the DMatrix.
 
-        .. deprecated:: 3.2.0
+        Parameters
+        ----------
+        field: str
+            The field name of the information
 
+        Returns
+        -------
+        info : array
+            a numpy array of unsigned integer information of the data
         """
-        warnings.warn(
-            (
-                "`get_uint_info` has been deprecated in 3.2.0. Use dedicated methods "
-                "like `get_group` instead."
-            ),
-            FutureWarning,
-        )
         length = c_bst_ulong()
         ret = ctypes.POINTER(ctypes.c_uint)()
         _check_call(

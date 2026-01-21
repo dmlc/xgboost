@@ -114,15 +114,9 @@ def _test_cupy_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     dmat_cupy.set_info(group=cupy_uints)
 
     # Test setting info with cupy
-    assert np.array_equal(
-        dmat.get_float_info("weight"), dmat_cupy.get_float_info("weight")
-    )
-    assert np.array_equal(
-        dmat.get_float_info("label"), dmat_cupy.get_float_info("label")
-    )
-    assert np.array_equal(
-        dmat.get_float_info("base_margin"), dmat_cupy.get_float_info("base_margin")
-    )
+    assert np.array_equal(dmat.get_weight(), dmat_cupy.get_weight())
+    assert np.array_equal(dmat.get_label(), dmat_cupy.get_label())
+    assert np.array_equal(dmat.get_base_margin(), dmat_cupy.get_base_margin())
     assert np.array_equal(
         dmat.get_uint_info("group_ptr"), dmat_cupy.get_uint_info("group_ptr")
     )
