@@ -180,7 +180,8 @@ class TestFromCupy:
     def test_dlpack_simple_dmat(self) -> None:
         n = 100
         X = cp.random.random((n, 2))
-        xgb.DMatrix(X.toDlpack())
+        capsule = X.__dlpack__()
+        xgb.DMatrix(capsule)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_cupy_categorical(self) -> None:
@@ -195,10 +196,10 @@ class TestFromCupy:
         np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_dlpack_device_dmat(self) -> None:
+    def test_dlpack_quantile_dmat(self) -> None:
         n = 100
         X = cp.random.random((n, 2))
-        m = xgb.QuantileDMatrix(X.toDlpack())
+        m = xgb.QuantileDMatrix(X.__dlpack__())
 
         with pytest.raises(
             xgb.core.XGBoostError, match="Slicing DMatrix is not supported"
