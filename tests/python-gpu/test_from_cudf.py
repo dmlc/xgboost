@@ -8,6 +8,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import is_dataframe
 from xgboost.testing.data import run_base_margin_info
+from xgboost.testing.utils import assert_allclose
 
 if TYPE_CHECKING:
     import cudf
@@ -143,9 +144,9 @@ def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     dmat_cudf.set_info(group=cudf_uints)
 
     # Test setting info with cudf DataFrame
-    assert np.array_equal(dmat.get_weight(), dmat_cudf.get_weight())
-    assert np.array_equal(dmat.get_label(), dmat_cudf.get_label())
-    assert np.array_equal(dmat.get_base_margin(), dmat_cudf.get_base_margin())
+    assert_allclose("cuda", dmat.get_weight(), dmat_cudf.get_weight())
+    assert_allclose("cuda", dmat.get_label(), dmat_cudf.get_label())
+    assert_allclose("cuda", dmat.get_base_margin(), dmat_cudf.get_base_margin())
     assert np.array_equal(
         dmat.get_uint_info("group_ptr"), dmat_cudf.get_uint_info("group_ptr")
     )
@@ -155,9 +156,9 @@ def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     dmat_cudf.set_info(label=cudf_floats[cudf_floats.columns[0]])
     dmat_cudf.set_info(base_margin=cudf_floats[cudf_floats.columns[0]])
     dmat_cudf.set_info(group=cudf_uints[cudf_uints.columns[0]])
-    assert np.array_equal(dmat.get_weight(), dmat_cudf.get_weight())
-    assert np.array_equal(dmat.get_label(), dmat_cudf.get_label())
-    assert np.array_equal(dmat.get_base_margin(), dmat_cudf.get_base_margin())
+    assert_allclose("cuda", dmat.get_weight(), dmat_cudf.get_weight())
+    assert_allclose("cuda", dmat.get_label(), dmat_cudf.get_label())
+    assert_allclose("cuda", dmat.get_base_margin(), dmat_cudf.get_base_margin())
     assert np.array_equal(
         dmat.get_uint_info("group_ptr"), dmat_cudf.get_uint_info("group_ptr")
     )
