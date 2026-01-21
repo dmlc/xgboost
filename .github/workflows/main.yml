@@ -82,6 +82,7 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
       - tag=main-build-cuda-${{ matrix.arch }}
+      - extras=s3-cache
     strategy:
       fail-fast: false
       matrix:
@@ -98,6 +99,7 @@ jobs:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
+      - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
@@ -163,12 +165,14 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=main-build-cuda-with-rmm
+      - extras=s3-cache
     container:
       image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:main
       credentials:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
+      - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
