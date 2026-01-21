@@ -572,11 +572,14 @@ void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView interface_
   // it.
   if (this->num_row_ != 0 && this->base_margin_.Shape(0) != this->num_row_) {
     // API functions that don't use array interface don't understand shape.
-    CHECK(this->base_margin_.Size() % this->num_row_ == 0)
+    CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
         << "Invalid size for base margin:(" << base_margin_.Shape(0) << "," << base_margin_.Shape(1)
         << "). n_samples:" << this->num_row_;
     size_t n_groups = this->base_margin_.Size() / this->num_row_;
     this->base_margin_.Reshape(this->num_row_, n_groups);
+  }
+  if (this->num_row_ != 0 && this->labels.Shape(0) != this->num_row_) {
+    CHECK_EQ(this->labels.Shape(0) % this->num_row_, 0);
   }
 }
 
