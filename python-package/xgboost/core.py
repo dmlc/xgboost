@@ -1074,10 +1074,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             )
 
     def _get_info(self, field: str) -> NumpyOrCupy:
-        """Replacement for `get_float_info` and `get_uint_info`, supports multi-dim and
-        device outputs.
-
-        """
+        """Get meta info."""
         c_sdata = ctypes.c_char_p()
         _check_call(
             _LIB.XGDMatrixGetArrayInfo(self.handle, c_str(field), ctypes.byref(c_sdata))
@@ -1087,49 +1084,27 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         data = from_array_interface(idata)
         return data
 
-    def get_float_info(self, field: str) -> np.ndarray:
+    def get_float_info(self, field: str) -> NumpyOrCupy:
         """Get float property from the DMatrix.
 
-        .. deprecated:: 3.2.0
+        Parameters
+        ----------
+        field: str
+            The field name of the information.
 
         """
-        warnings.warn(
-            (
-                "`get_float_info` has been deprecated in 3.2.0. Use dedicated methods "
-                "like `get_label` instead."
-            ),
-            FutureWarning,
-        )
-        length = c_bst_ulong()
-        ret = ctypes.POINTER(ctypes.c_float)()
-        _check_call(
-            _LIB.XGDMatrixGetFloatInfo(
-                self.handle, c_str(field), ctypes.byref(length), ctypes.byref(ret)
-            )
-        )
-        return ctypes2numpy(ret, length.value, np.float32)
+        return self._get_info(field)
 
-    def get_uint_info(self, field: str) -> np.ndarray:
+    def get_uint_info(self, field: str) -> NumpyOrCupy:
         """Get unsigned integer property from the DMatrix.
 
         Parameters
         ----------
         field: str
-            The field name of the information
+            The field name of the information.
 
-        Returns
-        -------
-        info : array
-            a numpy array of unsigned integer information of the data
         """
-        length = c_bst_ulong()
-        ret = ctypes.POINTER(ctypes.c_uint)()
-        _check_call(
-            _LIB.XGDMatrixGetUIntInfo(
-                self.handle, c_str(field), ctypes.byref(length), ctypes.byref(ret)
-            )
-        )
-        return ctypes2numpy(ret, length.value, np.uint32)
+        return self._get_info(field)
 
     def set_float_info(self, field: str, data: ArrayLike) -> None:
         """Set float type property into the DMatrix.
