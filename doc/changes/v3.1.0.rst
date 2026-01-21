@@ -1,4 +1,15 @@
 #################################
+3.1.3 Patch Release (Jan 08 2026)
+#################################
+
+- Scikit-learn 1.8 compatibility fix (:pr:`11858`)
+- Add ARM CUDA wheels for PyPI. (:pr:`11827`) Add nccl as dep for aarch64. (:pr:`11753`)
+- [R] Fix off-by-one bug: nrounds=0 resulted in 2 iterations :pr:`11856`
+- [R] Fix mingw warnings, winbuilder check warnings, memory safety issues. (:pr:`11859`, :pr:`11847`, :pr:`11830`, :pr:`11906`)
+- Avoid overflow in rounding estimation. (:pr:`11910`)
+- Workaround compiler issue on Windows, affects the use of max_delta_step with CUDA. (:pr:`11916`)
+
+#################################
 3.1.2 Patch Release (Nov 20 2025)
 #################################
 
