@@ -68,7 +68,7 @@ jobs:
           echo "UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log" >> $GITHUB_ENV
           # Work around https://github.com/google/sanitizers/issues/1614
           sysctl vm.mmap_rnd_bits=28
-      - uses: trivialfis/sccache-gha/actions/sccache@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
           cache-key-prefix: ${{ github.job }}-${{ matrix.build_suite }}
       - name: Build and test
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - uses: trivialfis/sccache-gha/actions/sccache@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - run: bash ops/pipeline/build-cuda.sh ${{ matrix.arch }} disable-rmm
       - run: sccache --show-stats
       - name: Stash files
@@ -176,7 +176,7 @@ jobs:
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - uses: trivialfis/sccache-gha/actions/sccache@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - run: bash ops/pipeline/build-cuda.sh x86_64 enable-rmm
       - run: sccache --show-stats
       - name: Stash files
@@ -364,7 +364,7 @@ jobs:
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - uses: trivialfis/sccache-gha/actions/sccache@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
           cache-key-prefix: build-cuda13-${{ matrix.arch }}
       - run: bash ops/pipeline/build-cuda13.sh ${{ matrix.arch }}

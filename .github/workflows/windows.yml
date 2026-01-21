@@ -49,8 +49,8 @@ jobs:
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - uses: trivialfis/sccache-gha/actions/msvc-dev-env@main
-      - uses: trivialfis/sccache-gha/actions/sccache@main
+      - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - run: powershell ops/pipeline/build-win64-cpu.ps1
       - run: sccache --show-stats
 
