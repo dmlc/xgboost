@@ -753,3 +753,21 @@ class TransformedDf(ABC):
     @abstractmethod
     def shape(self) -> Tuple[int, int]:
         """Return the shape of the dataframe."""
+
+
+class ArrowCatMixin:
+    """Mixin for handling arrow-backed dictionary array in a transformed dataframe."""
+
+    def _push_arrow_cat(
+        self, col: "pa.DictionaryArray", aitfs: AifType, temporary_buffers: List[Tuple]
+    ) -> None:
+        pa = import_pyarrow()
+        cats = col.dictionary
+        codes = col.indices
+        if not isinstance(cats, (pa.StringArray, pa.LargeStringArray)):
+            raise TypeError(
+                "Only string-based categorical index is supported for arrow."
+            )
+        jnames, jcodes, buf = arrow_cat_inf(cats, codes)
+        temporary_buffers.append(buf)
+        aitfs.append((jnames, jcodes))
