@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2026, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #include <jni.h>
 #include <xgboost/c_api.h>
@@ -509,35 +509,3 @@ int QdmFromCallback(JNIEnv *jenv, jobject jdata_iter, jlongArray jref, char cons
   return ret;
 }
 }  // namespace xgboost::jni
-
-namespace {
-/** The CUDA device that has been set for XGBoost. cudaInvalidDeviceId means not set yet. */
-int Xgboost_device{cudaInvalidDeviceId};
-}  // anonymous namespace
-
-extern "C" {
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    CudaSetDevice
- * Signature: (I)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CudaSetDevice(JNIEnv *, jclass,
-                                                                            jint id) {
-  int device_id = static_cast<int>(id);
-
-  // Check if device was already set to a different value
-  if (Xgboost_device != cudaInvalidDeviceId && Xgboost_device != device_id) {
-    LOG(WARNING) << "XGBoost: CudaSetDevice called with device " << device_id
-                 << " but device " << Xgboost_device
-                 << " was already set. Changing CUDA device after initialization may cause issues.";
-  }
-
-  dh::safe_cuda(cudaSetDevice(device_id));
-
-  // Store the device ID
-  Xgboost_device = device_id;
-  return 0;
-}
-
-}  // extern "C"
