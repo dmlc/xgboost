@@ -8,18 +8,10 @@
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
-#include <cuda/memory_resource>    // for async_resource_ref
-#include <cuda/stream_ref>         // for stream_ref
-#include <cuda/version>            // for CCCL_MAJOR_VERSION
-#include <rmm/version_config.hpp>  // for RMM_VERSION_MAJOR
-
-// TODO(hcho3): Remove this guard once we require Rapids 25.12+
-#if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-#include <rmm/mr/per_device_resource.hpp>  // for get_current_device_resource
-#else  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-#include <rmm/mr/device/device_memory_resource.hpp>  // for device_memory_resource
-#include <rmm/mr/device/per_device_resource.hpp>     // for get_current_device_resource
-#endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
+#include <cuda/version>                         // for CCCL_MAJOR_VERSION
+#include <rmm/cuda_stream_view.hpp>             // for cuda_stream_view
+#include <rmm/mr/thrust_allocator_adaptor.hpp>  // for thrust_allocator
+#include <rmm/version_config.hpp>               // for RMM_VERSION_MAJOR
 
 #else
 
@@ -267,87 +259,22 @@ inline detail::MemoryLogger &GlobalMemoryLogger() {
   return memory_logger;
 }
 
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-using DeviceAsyncResourceRef = rmm::device_async_resource_ref;
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-
 namespace detail {
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-/**
- * @brief Similar to `rmm::mr::thrust_allocator`.
- */
-#ifdef __CUDACC__
-#pragma nv_diagnostic push
-#pragma nv_diag_suppress 20011
-#endif
+
 template <typename T>
-class ThrustAllocMrAdapter {
-// TODO(hcho3): Remove this guard once we require Rapids 25.12+
-#if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-#pragma nv_exec_check_disable
-  DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource_ref()};
-#else   // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-#pragma nv_exec_check_disable
-  DeviceAsyncResourceRef mr_{rmm::mr::get_current_device_resource()};
-#endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-
+class ThrustAllocMrAdapter : public rmm::mr::thrust_allocator<T> {
  public:
-  // NOLINTBEGIN
-  using value_type = T;
-
-  using pointer = thrust::device_ptr<T>;
-
-  using const_pointer = thrust::device_ptr<const T>;
-
-  using reference = thrust::device_reference<T>;
-
-  using const_reference = thrust::device_reference<const T>;
-
-  using size_type = std::size_t;
-
-  using difference_type = typename pointer::difference_type;
-
   template <typename U>
-  struct rebind {
-    using other = ThrustAllocMrAdapter<U>;
+  struct rebind {                           // NOLINT(readability-identifier-naming)
+    using other = ThrustAllocMrAdapter<U>;  // NOLINT(readability-identifier-naming)
   };
 
-  pointer address(reference r) { return &r; }
-  const_pointer address(const_reference r) { return &r; }
-
-  pointer allocate(size_type n) {
-    auto n_bytes = xgboost::common::SizeBytes<T>(n);
-    auto s = cuda::stream_ref{::xgboost::curt::DefaultStream()};
-#if (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-    auto p = static_cast<T *>(mr_.allocate(s, n_bytes, std::alignment_of_v<T>));
-#else   // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-    auto p = static_cast<T *>(mr_.allocate_async(n_bytes, std::alignment_of_v<T>, s));
-#endif  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-    return thrust::device_pointer_cast(p);
-  }
-  void deallocate(pointer ptr, size_type n) {
-    auto n_bytes = xgboost::common::SizeBytes<T>(n);
-    auto s = ::xgboost::curt::DefaultStream();
-#if (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-    return mr_.deallocate(cuda::stream_ref{s}, thrust::raw_pointer_cast(ptr), n_bytes);
-#else   // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-    return mr_.deallocate_async(thrust::raw_pointer_cast(ptr), n_bytes, cuda::stream_ref{s});
-#endif  // (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1) || CCCL_MAJOR_VERSION > 3
-  }
-
-  size_type max_size() const { return (::cuda::std::numeric_limits<size_type>::max)() / sizeof(T); }
-
-  bool operator==(ThrustAllocMrAdapter const &) const { return true; }
-
-  bool operator!=(ThrustAllocMrAdapter const &a) const { return !operator==(a); }
-
-  // NOLINTEND
-#pragma nv_exec_check_disable
-  __host__ ThrustAllocMrAdapter() = default;
+ public:
+  ThrustAllocMrAdapter()
+      : rmm::mr::thrust_allocator<T>{
+            rmm::cuda_stream_view{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
 };
-#ifdef __CUDACC__
-#pragma nv_diagnostic pop
-#endif
 
 template <typename T>
 using XGBBaseDeviceAllocator = ThrustAllocMrAdapter<T>;
@@ -425,7 +352,7 @@ using XGBBaseDeviceAllocator = XGBAsyncPoolAllocator<T>;
  * @brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
  */
 template <class T>
-struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
+struct XGBDefaultDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
   using SuperT = XGBBaseDeviceAllocator<T>;
   using pointer = thrust::device_ptr<T>;  // NOLINT
 
@@ -460,7 +387,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
  *        RMM pool allocator is enabled. Does not initialise memory on construction.
  */
 template <class T>
-struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
+struct XGBCachingDeviceAllocatorImpl : public XGBBaseDeviceAllocator<T> {
   using SuperT = XGBBaseDeviceAllocator<T>;
   using pointer = thrust::device_ptr<T>;  // NOLINT
   template <typename U>
