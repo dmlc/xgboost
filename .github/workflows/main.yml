@@ -303,7 +303,7 @@ jobs:
             runner: linux-amd64-gpu
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda12-x86_64
-            run_args: ""
+            run_args: "--privileged"
             test_args: ""
           - cuda_version: 12
             suite: gpu
@@ -311,7 +311,7 @@ jobs:
             runner: linux-arm64-gpu
             image_repo: xgb-ci.gpu_aarch64
             artifact_from: build-cuda12-aarch64
-            run_args: ""
+            run_args: "--privileged"
             test_args: ""
           - cuda_version: 12
             suite: gpu-rmm
@@ -319,7 +319,7 @@ jobs:
             runner: linux-amd64-gpu
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda-with-rmm
-            run_args: ""
+            run_args: "--privileged"
             test_args: "--use-rmm-pool"
           - cuda_version: 12
             suite: mgpu
@@ -328,7 +328,7 @@ jobs:
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda12-x86_64
             # mgpu needs --shm-size for NCCL shared memory communication
-            run_args: "--shm-size=4g"
+            run_args: "--shm-size=4g --privileged"
             test_args: "--gtest_filter=*MGPU*"
           # CUDA 13 tests
           - cuda_version: 13
@@ -337,7 +337,7 @@ jobs:
             runner: linux-amd64-gpu
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
             artifact_from: build-cuda13-x86_64
-            run_args: ""
+            run_args: "--privileged"
             test_args: ""
           - cuda_version: 13
             suite: gpu
@@ -345,7 +345,7 @@ jobs:
             runner: linux-arm64-gpu
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
             artifact_from: build-cuda13-aarch64
-            run_args: ""
+            run_args: "--privileged"
             test_args: ""
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
@@ -392,7 +392,7 @@ jobs:
             runner: linux-amd64-gpu
             artifact_from: audit-cuda12-wheel-x86_64
             use_gpus: "--use-gpus"
-            run_args: ""
+            run_args: "--privileged"
           - cuda_version: 12
             description: multiple-gpu
             image_repo: xgb-ci.gpu
@@ -401,7 +401,7 @@ jobs:
             artifact_from: audit-cuda12-wheel-x86_64
             use_gpus: "--use-gpus"
             # mgpu needs --shm-size for NCCL shared memory communication
-            run_args: "--shm-size=4g"
+            run_args: "--shm-size=4g --privileged"
           - cuda_version: 12
             description: cpu-amd64
             image_repo: xgb-ci.cpu
@@ -425,7 +425,7 @@ jobs:
             runner: linux-arm64-gpu
             artifact_from: audit-cuda12-wheel-aarch64
             use_gpus: "--use-gpus"
-            run_args: ""
+            run_args: "--privileged"
           # CUDA 13 tests
           - cuda_version: 13
             description: single-gpu-x86_64
@@ -434,7 +434,7 @@ jobs:
             runner: linux-amd64-gpu
             artifact_from: audit-cuda13-wheel-x86_64
             use_gpus: "--use-gpus"
-            run_args: ""
+            run_args: "--privileged"
           - cuda_version: 13
             description: single-gpu-arm64
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
@@ -442,7 +442,7 @@ jobs:
             runner: linux-arm64-gpu
             artifact_from: audit-cuda13-wheel-aarch64
             use_gpus: "--use-gpus"
-            run_args: ""
+            run_args: "--privileged"
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
