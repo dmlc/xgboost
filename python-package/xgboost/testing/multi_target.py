@@ -2,7 +2,7 @@
 
 # pylint: disable=unbalanced-tuple-unpacking
 from types import ModuleType
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pytest
@@ -447,114 +447,89 @@ def run_grow_policy(device: Device, grow_policy: str) -> None:
 
 def run_mixed_strategy(device: Device) -> None:
     """Test mixed multi_strategy with ResetStrategy callback."""
-    num_classes = 3
-    num_parallel_tree = 4
     X, y = make_classification(
-        n_samples=1024, n_informative=8, n_classes=num_classes, random_state=1994
+        n_samples=1024, n_informative=8, n_classes=3, random_state=1994
     )
     Xy = DMatrix(data=X, label=y)
-    num_boost_round = 16
 
     booster = train(
         {
-            "num_parallel_tree": num_parallel_tree,
-            "num_class": num_classes,
+            "num_parallel_tree": 4,
+            "num_class": 3,
             "objective": "multi:softprob",
             "multi_strategy": "multi_output_tree",
             "device": device,
             "debug_synchronize": True,
             "base_score": 0,
         },
-        num_boost_round=num_boost_round,
+        num_boost_round=16,
         dtrain=Xy,
         callbacks=[ResetStrategy()],
     )
 
     # Test model slicing - each boosting round should be iterable
-    sliced = [t for t in booster]
-    assert len(sliced) == num_boost_round
+    assert len(list(booster)) == 16
 
     # Test that sliced predictions sum to full prediction
-    predt0 = booster.predict(Xy, output_margin=True)
-    predt1 = np.zeros(predt0.shape)
+    predt = booster.predict(Xy, output_margin=True)
+    predt_sum = np.zeros(predt.shape)
     for t in booster:
-        predt1 += t.predict(Xy, output_margin=True)
-    np.testing.assert_allclose(predt0, predt1, atol=1e-5)
+        predt_sum += t.predict(Xy, output_margin=True)
+    np.testing.assert_allclose(predt, predt_sum, atol=1e-5)
 
     # Test feature importance works with mixed trees
     for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
         scores = booster.get_score(importance_type=importance_type)
-        assert len(scores) > 0, f"No scores for {importance_type}"
-        # Verify values are scalars and non-negative
-        for feat, score in scores.items():
-            assert isinstance(
-                score, float
-            ), f"Score should be scalar, got {type(score)}"
-            assert score >= 0, f"Negative {importance_type} for {feat}: {score}"
+        assert len(scores) > 0
+        for score in scores.values():
+            assert isinstance(score, float)
+            assert score >= 0
 
 
 def run_feature_importance_strategy_compare(device: Device) -> None:
     """Different strategies produce similar feature importance ratios."""
-    num_classes = 4
     n_features = 16
     X, y = make_classification(
-        n_samples=2048,
-        n_features=n_features,
-        n_informative=10,
-        n_classes=num_classes,
+        n_samples=2048, n_features=n_features, n_informative=10, n_classes=4,
         random_state=1994,
     )
     Xy = DMatrix(data=X, label=y)
-    num_boost_round = 32
 
-    base_params = {
-        "num_class": num_classes,
+    base_params: Dict[str, Any] = {
+        "num_class": 4,
         "objective": "multi:softprob",
         "device": device,
         "debug_synchronize": True,
         "max_depth": 5,
     }
 
-    # Train with multi_output_tree strategy
-    params_mot = {**base_params, "multi_strategy": "multi_output_tree"}
-    booster_mot = train(params_mot, Xy, num_boost_round=num_boost_round)
-
-    # Train with one_output_per_tree strategy
-    params_oopt = {**base_params, "multi_strategy": "one_output_per_tree"}
-    booster_oopt = train(params_oopt, Xy, num_boost_round=num_boost_round)
-
-    # Train with mixed strategy
-    params_mixed = {**base_params, "multi_strategy": "multi_output_tree"}
-    booster_mixed = train(
-        params_mixed, Xy, num_boost_round=num_boost_round, callbacks=[ResetStrategy()]
-    )
+    # Train models with different strategies
+    boosters = [
+        train({**base_params, "multi_strategy": "multi_output_tree"}, Xy, num_boost_round=32),
+        train({**base_params, "multi_strategy": "one_output_per_tree"}, Xy, num_boost_round=32),
+        train(
+            {**base_params, "multi_strategy": "multi_output_tree"},
+            Xy,
+            num_boost_round=32,
+            callbacks=[ResetStrategy()],
+        ),
+    ]
 
     def get_normalized_importance(booster: Booster, importance_type: str) -> np.ndarray:
         """Get feature importance as normalized array (sums to 1)."""
         scores = booster.get_score(importance_type=importance_type)
-        # Convert to array with all features (missing features get 0)
         arr = np.array([scores.get(f"f{i}", 0.0) for i in range(n_features)])
-        total = arr.sum()
-        if total > 0:
-            arr = arr / total
-        return arr
+        return arr / arr.sum() if arr.sum() > 0 else arr
 
     for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
-        imp_mot = get_normalized_importance(booster_mot, importance_type)
-        imp_oopt = get_normalized_importance(booster_oopt, importance_type)
-        imp_mixed = get_normalized_importance(booster_mixed, importance_type)
+        imps = [get_normalized_importance(b, importance_type) for b in boosters]
 
         # Check that importances are not exactly the same (different strategies)
-        assert not np.allclose(imp_mot, imp_oopt)
-        assert not np.allclose(imp_mot, imp_mixed)
+        assert not np.allclose(imps[0], imps[1])
+        assert not np.allclose(imps[0], imps[2])
 
         # Check that normalized importances are similar (correlated)
-        sim_mot_oopt = cosine_similarity([imp_mot], [imp_oopt])[0, 0]
-        sim_mot_mixed = cosine_similarity([imp_mot], [imp_mixed])[0, 0]
-        sim_oopt_mixed = cosine_similarity([imp_oopt], [imp_mixed])[0, 0]
-
         # All strategies should have reasonably similar importance patterns
-        threshold = 0.9
-        assert sim_mot_oopt > threshold
-        assert sim_mot_mixed > threshold
-        assert sim_oopt_mixed > threshold
+        assert cosine_similarity([imps[0]], [imps[1]])[0, 0] > 0.9
+        assert cosine_similarity([imps[0]], [imps[2]])[0, 0] > 0.9
+        assert cosine_similarity([imps[1]], [imps[2]])[0, 0] > 0.9
