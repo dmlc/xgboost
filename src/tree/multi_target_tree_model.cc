@@ -296,6 +296,8 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
   F32Array conds(n_nodes);
   U8Array default_left(n_nodes);
   F32Array weights(this->weights_.Size());
+  F32Array loss_chg(n_nodes);
+  F32Array sum_hess(n_nodes);
 
   auto n_leaves = this->NumLeaves();
   CHECK_GE(n_leaves, 1);
@@ -307,6 +309,9 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
   auto const& h_split_index = this->split_index_.ConstHostVector();
   auto const& h_split_conds = this->split_conds_.ConstHostVector();
   auto const& h_default_left = this->default_left_.ConstHostVector();
+  auto const& h_loss_chg = this->loss_chg_.ConstHostVector();
+  auto const& h_sum_hess = this->sum_hess_.ConstHostVector();
+
   auto save_tree = [&](auto* p_indices_array) {
     auto& indices_array = *p_indices_array;
     for (bst_node_t nidx = 0; nidx < n_nodes; ++nidx) {
@@ -320,6 +325,8 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
       indices_array.Set(nidx, h_split_index[nidx]);
       conds.Set(nidx, h_split_conds[nidx]);
       default_left.Set(nidx, h_default_left[nidx]);
+      loss_chg.Set(nidx, h_loss_chg[nidx]);
+      sum_hess.Set(nidx, h_sum_hess[nidx]);
 
       // Save internal weights
       auto in_weight = this->NodeWeight(nidx);
@@ -361,16 +368,6 @@ void MultiTargetTree::SaveModel(Json* p_out) const {
 
   out[tf::kSplitCond] = std::move(conds);
   out[tf::kDftLeft] = std::move(default_left);
-
-  // Save statistics (loss_chg and sum_hess)
-  F32Array loss_chg(n_nodes);
-  F32Array sum_hess(n_nodes);
-  auto const& h_loss_chg = this->loss_chg_.ConstHostVector();
-  auto const& h_sum_hess = this->sum_hess_.ConstHostVector();
-  for (bst_node_t nidx = 0; nidx < n_nodes; ++nidx) {
-    loss_chg.Set(nidx, h_loss_chg[nidx]);
-    sum_hess.Set(nidx, h_sum_hess[nidx]);
-  }
   out[tf::kLossChg] = std::move(loss_chg);
   out[tf::kSumHess] = std::move(sum_hess);
 }
