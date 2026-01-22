@@ -199,11 +199,15 @@ def _is_cudf_pandas(data: DataType) -> bool:
 
 
 def _is_pandas_df(data: DataType) -> TypeGuard["pd.DataFrame"]:
-    return lazy_isinstance(data, "pandas.core.frame", "DataFrame")
+    return lazy_isinstance(data, "pandas.core.frame", "DataFrame") or lazy_isinstance(
+        data, "pandas", "DataFrame"
+    )
 
 
 def _is_pandas_series(data: DataType) -> TypeGuard["pd.Series"]:
-    return lazy_isinstance(data, "pandas.core.series", "Series")
+    return lazy_isinstance(data, "pandas.core.series", "Series") or lazy_isinstance(
+        data, "pandas", "Series"
+    )
 
 
 def _is_modin_df(data: DataType) -> bool:

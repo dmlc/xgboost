@@ -384,7 +384,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
     bool l = true, r = true;
     float parent_gain = 0;
-    GradientPairPrecise lg_fst, rg_fst;
+    double left_hess = 0, right_hess = 0;  // Sum of child hessians across all targets
     auto eta = shared_inputs.param.learning_rate;
 
     for (bst_target_t t = 0; t < n_targets; ++t) {
@@ -417,16 +417,14 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
         left_weight[t] = CalcWeight(shared_inputs.param, lg.GetGrad(), lg.GetHess()) * eta;
       }
 
-      if (t == 0) {
-        lg_fst = lg;
-        rg_fst = rg;
-      }
+      left_hess += lg.GetHess();
+      right_hess += rg.GetHess();
     }
 
     // Set up the output entry with spans pointing to persistent weight storage
     out_splits[nidx_in_set] = {nidx, input.depth, best_split, base_weight};
     out_splits[nidx_in_set].split.loss_chg -= parent_gain;
-    out_splits[nidx_in_set].UpdateFirstHessian(lg_fst, rg_fst);
+    out_splits[nidx_in_set].UpdateHessian(left_hess, right_hess);
 
     if (l || r) {
       out_splits[nidx_in_set].split.loss_chg = -std::numeric_limits<float>::max();
@@ -438,7 +436,7 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
                                         common::Span<MultiExpandEntry const> d_candidates,
                                         bst_target_t n_targets) {
   // Assign the node sums here, for the next evaluate split call.
-  auto mt_tree = MultiTargetTreeView{ctx->Device(), p_tree};
+  auto mt_tree = MultiTargetTreeView{ctx->Device(), false, p_tree};
   auto max_in_it = dh::MakeIndexTransformIter([=] __device__(std::size_t i) -> bst_node_t {
     return std::max(mt_tree.LeftChild(d_candidates[i].nidx),
                     mt_tree.RightChild(d_candidates[i].nidx));

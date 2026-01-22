@@ -10,7 +10,9 @@ from xgboost.testing.multi_target import (
     run_column_sampling,
     run_deterministic,
     run_eta,
+    run_feature_importance_strategy_compare,
     run_grow_policy,
+    run_mixed_strategy,
     run_multiclass,
     run_multilabel,
     run_quantile_loss,
@@ -71,6 +73,14 @@ def test_column_sampling() -> None:
 @pytest.mark.parametrize("grow_policy", ["depthwise", "lossguide"])
 def test_grow_policy(grow_policy: str) -> None:
     run_grow_policy("cuda", grow_policy)
+
+
+def test_mixed_strategy() -> None:
+    run_mixed_strategy("cuda")
+
+
+def test_feature_importance_strategy_compare() -> None:
+    run_feature_importance_strategy_compare("cuda")
 
 
 @given(hist_parameter_strategy, strategies.integers(1, 20), tm.multi_dataset_strategy)

@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost Contributors
+ * Copyright 2025-2026, XGBoost Contributors
  */
 #pragma once
 
@@ -51,7 +51,7 @@ class GBTreeModelView {
     for (bst_tree_t tree_idx = this->tree_begin; tree_idx < this->tree_end; ++tree_idx) {
       auto const& p_tree = model.trees[tree_idx];
       if (p_tree->IsMultiTarget()) {
-        auto tree = tree::MultiTargetTreeView{device, p_tree.get()};
+        auto tree = tree::MultiTargetTreeView{device, need_stat, p_tree.get()};
         this->n_nodes += tree.Size();
         trees.emplace_back(tree);
       } else {
