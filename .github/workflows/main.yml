@@ -32,6 +32,7 @@ jobs:
         id: get-image-tag
         run: |
           source ops/pipeline/get-image-tag.sh
+          echo "Using image tag $IMAGE_TAG"
           echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
     outputs:
       docker_registry: ${{ steps.login-ecr.outputs.registry }}
@@ -451,8 +452,6 @@ jobs:
     steps:
       - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
-        with:
-          submodules: "true"
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
