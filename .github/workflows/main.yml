@@ -131,7 +131,7 @@ jobs:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
-          cache-key-prefix: build-cuda${{ matrix.cuda_version }}-${{ matrix.arch }}
+          cache-key-prefix: ${{ github.job }}-${{ matrix.cuda_version }}
       - run: >-
           bash ops/pipeline/build-cuda.sh
           --cuda-version ${{ matrix.cuda_version }}
