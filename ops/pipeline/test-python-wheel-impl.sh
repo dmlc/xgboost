@@ -1,32 +1,92 @@
 #!/bin/bash
 ## Companion script for ops/pipeline/test-python-wheel.sh
+##
+## Usage:
+##   test-python-wheel-impl.sh --suite <suite> --cuda-version <12|13>
+##
+## All parameters are required (no defaults).
 
 set -eo pipefail
 
-if [[ "$#" -lt 1 ]]
-then
-  echo "Usage: $0 {gpu|mgpu|cpu|cpu-arm64}"
+suite=""
+cuda_version=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --suite)
+      suite="$2"
+      shift 2
+      ;;
+    --cuda-version)
+      cuda_version="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unrecognized argument: $1"
+      echo "Usage: $0 --suite {gpu|mgpu|gpu-arm64|cpu|cpu-arm64} --cuda-version {12|13}"
+      exit 1
+      ;;
+  esac
+done
+
+# Validate required parameters
+if [[ -z "${suite}" ]]; then
+  echo "Error: --suite is required (gpu, mgpu, gpu-arm64, cpu, or cpu-arm64)"
   exit 1
 fi
 
-suite="$1"
+if [[ -z "${cuda_version}" ]]; then
+  echo "Error: --cuda-version is required (12 or 13)"
+  exit 1
+fi
 
-# Cannot set -u before Conda env activation
-case "$suite" in
-  gpu|mgpu|gpu-arm64)
-    source activate gpu_test
-    ;;
-  cpu)
-    source activate linux_cpu_test
-    ;;
-  cpu-arm64)
-    source activate aarch64_test
+# Validate parameter values
+case "${suite}" in
+  gpu|mgpu|gpu-arm64|cpu|cpu-arm64)
     ;;
   *)
-    echo "Unrecognized argument: $suite"
+    echo "Error: --suite must be one of: gpu, mgpu, gpu-arm64, cpu, cpu-arm64. Got '${suite}'"
     exit 1
     ;;
 esac
+
+case "${cuda_version}" in
+  12|13)
+    ;;
+  *)
+    echo "Error: --cuda-version must be 12 or 13, got '${cuda_version}'"
+    exit 1
+    ;;
+esac
+
+# Set up conda environment based on CUDA version and suite
+# Cannot set -u before Conda env activation
+if [[ "${cuda_version}" == "13" ]]; then
+  # CUDA 13: Create conda environment on-the-fly
+  # Fix permissions for conda directories
+  gosu root chown -R "$(id -u):$(id -g)" /opt/miniforge/envs /opt/miniforge/pkgs/cache
+  gosu root chown "$(id -u):$(id -g)" /opt/miniforge/pkgs
+  mamba create -y -n gpu_test python=3.12 pytest cupy scipy numpy pandas scikit-learn joblib hypothesis
+  source activate gpu_test
+else
+  # CUDA 12: Use pre-existing conda environments
+  case "$suite" in
+    gpu|mgpu|gpu-arm64)
+      source activate gpu_test
+      ;;
+    cpu)
+      source activate linux_cpu_test
+      ;;
+    cpu-arm64)
+      source activate aarch64_test
+      ;;
+    *)
+      echo "Unrecognized suite: $suite"
+      exit 1
+      ;;
+  esac
+fi
 
 set -xu
 
@@ -70,7 +130,7 @@ case "$suite" in
       tests/python/test_model_compatibility.py
     ;;
   *)
-    echo "Unrecognized argument: $suite"
+    echo "Unrecognized suite: $suite"
     exit 1
     ;;
 esac
