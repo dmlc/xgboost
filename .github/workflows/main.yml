@@ -304,7 +304,7 @@ jobs:
             runner: linux-amd64-gpu
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda12-x86_64
-            container_options: "--gpus all"
+            container_options: "--gpus all --privileged"
             test_args: ""
           - cuda_version: 12
             suite: gpu
@@ -312,7 +312,7 @@ jobs:
             runner: linux-arm64-gpu
             image_repo: xgb-ci.gpu_aarch64
             artifact_from: build-cuda12-aarch64
-            container_options: "--gpus all"
+            container_options: "--gpus all --privileged"
             test_args: ""
           - cuda_version: 12
             suite: gpu-rmm
@@ -320,7 +320,7 @@ jobs:
             runner: linux-amd64-gpu
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda-with-rmm
-            container_options: "--gpus all"
+            container_options: "--gpus all --privileged"
             test_args: "--use-rmm-pool"
           - cuda_version: 12
             suite: mgpu
@@ -329,7 +329,7 @@ jobs:
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda12-x86_64
             # mgpu needs --shm-size for NCCL shared memory communication
-            container_options: "--gpus all --shm-size=4g"
+            container_options: "--gpus all --shm-size=4g --privileged"
             test_args: "--gtest_filter=*MGPU*"
           # CUDA 13 tests
           - cuda_version: 13
@@ -338,7 +338,7 @@ jobs:
             runner: linux-amd64-gpu
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
             artifact_from: build-cuda13-x86_64
-            container_options: "--gpus all"
+            container_options: "--gpus all --privileged"
             test_args: ""
           - cuda_version: 13
             suite: gpu
@@ -346,7 +346,7 @@ jobs:
             runner: linux-arm64-gpu
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
             artifact_from: build-cuda13-aarch64
-            container_options: "--gpus all"
+            container_options: "--gpus all --privileged"
             test_args: ""
     container:
       image: ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main
@@ -386,7 +386,7 @@ jobs:
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: audit-cuda12-wheel-x86_64
-            container_options: "--gpus all"
+            container_options: "--gpus all --privileged"
           - cuda_version: 12
             description: multiple-gpu
             image_repo: xgb-ci.gpu
@@ -394,7 +394,7 @@ jobs:
             runner: linux-amd64-mgpu
             artifact_from: audit-cuda12-wheel-x86_64
             # mgpu needs --shm-size for NCCL shared memory communication
-            container_options: "--gpus all --shm-size=4g"
+            container_options: "--gpus all --shm-size=4g --privileged"
           - cuda_version: 12
             description: cpu-amd64
             image_repo: xgb-ci.cpu
@@ -415,7 +415,7 @@ jobs:
             suite: gpu-arm64
             runner: linux-arm64-gpu
             artifact_from: audit-cuda12-wheel-aarch64
-            container_options: "--gpus all"
+            container_options: "--gpus all --privileged"
           # CUDA 13 tests
           - cuda_version: 13
             description: single-gpu-x86_64
@@ -423,14 +423,14 @@ jobs:
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: audit-cuda13-wheel-x86_64
-            container_options: "--gpus all"
+            container_options: "--gpus all --privileged"
           - cuda_version: 13
             description: single-gpu-arm64
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
             suite: gpu
             runner: linux-arm64-gpu
             artifact_from: audit-cuda13-wheel-aarch64
-            container_options: "--gpus all"
+            container_options: "--gpus all --privileged"
     container:
       image: ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main
       credentials:
