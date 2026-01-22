@@ -36,7 +36,7 @@ inline void GetMultiSplitForTest(RegTree *tree, float split_value,
   tree->SetRoot(base_weight.HostView(), /*sum_hess=*/0.0f);
   tree->ExpandNode(/*nidx=*/RegTree::kRoot, /*split_index=*/0, /*split_value=*/split_value,
                    /*default_left=*/true, base_weight.HostView(), left_weight.HostView(),
-                   right_weight.HostView(), /*gain=*/0.0f, /*sum_hess=*/0.0f, /*left_sum=*/0.0f,
+                   right_weight.HostView(), /*loss_chg=*/0.0f, /*sum_hess=*/0.0f, /*left_sum=*/0.0f,
                    /*right_sum=*/0.0f);
   candidates->front().split.split_value = split_value;
   candidates->front().split.sindex = 0;

@@ -752,7 +752,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
   tree->SetRoot(linalg::MakeVec(p_w.data(), p_w.size()), /*sum_hess=*/1.0f);
   tree->ExpandNode(0, static_cast<bst_feature_t>(1), 2.0, true,
                    linalg::MakeVec(p_w.data(), p_w.size()), linalg::MakeVec(l_w.data(), l_w.size()),
-                   linalg::MakeVec(r_w.data(), r_w.size()), /*gain=*/0.5f, /*sum_hess=*/1.0f,
+                   linalg::MakeVec(r_w.data(), r_w.size()), /*loss_chg=*/0.5f, /*sum_hess=*/1.0f,
                    /*left_sum=*/0.6f, /*right_sum=*/0.4f);
   tree->GetMultiTargetTree()->SetLeaves();
   ASSERT_TRUE(tree->IsMultiTarget());

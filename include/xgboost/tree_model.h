@@ -331,7 +331,7 @@ class RegTree : public Model {
   void ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond, bool default_left,
                   linalg::VectorView<float const> base_weight,
                   linalg::VectorView<float const> left_weight,
-                  linalg::VectorView<float const> right_weight, float gain, float sum_hess,
+                  linalg::VectorView<float const> right_weight, float loss_chg, float sum_hess,
                   float left_sum, float right_sum);
   /**
    * @brief Set all leaf weights for a multi-target tree.

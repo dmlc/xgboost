@@ -681,8 +681,8 @@ class HistMultiEvaluator {
         linalg::MakeVec(candidate.split.right_sum.data(), candidate.split.right_sum.size());
     CalcWeight(*param_, right_sum, param_->learning_rate, right_weight);
 
-    // Compute the gain and sum hessians for parent and children
-    float gain = candidate.split.loss_chg;
+    // Compute the loss_chg and sum hessians for parent and children
+    float loss_chg = candidate.split.loss_chg;
     // Sum hessians across all targets for each child
     float left_sum_hess = 0.0f, right_sum_hess = 0.0f;
     for (std::size_t t = 0; t < candidate.split.left_sum.size(); ++t) {
@@ -692,8 +692,8 @@ class HistMultiEvaluator {
     float sum_hess = left_sum_hess + right_sum_hess;
 
     p_tree->ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-                       candidate.split.DefaultLeft(), base_weight, left_weight, right_weight, gain,
-                       sum_hess, left_sum_hess, right_sum_hess);
+                       candidate.split.DefaultLeft(), base_weight, left_weight, right_weight,
+                       loss_chg, sum_hess, left_sum_hess, right_sum_hess);
 
     CHECK(p_tree->IsMultiTarget());
     auto mt_tree = p_tree->HostMtView();

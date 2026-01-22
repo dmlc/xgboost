@@ -49,7 +49,7 @@ MultiTargetTreeView::MultiTargetTreeView(DeviceOrd device, bool need_stat, RegTr
       split_conds{DispatchPtr(device, tree->GetMultiTargetTree()->split_conds_)},
       n{tree->NumNodes()},
       leaf_weights{DispatchWeight(device, tree)},
-      gain{need_stat ? DispatchPtr(device, tree->GetMultiTargetTree()->gain_) : nullptr},
+      loss_chg{need_stat ? DispatchPtr(device, tree->GetMultiTargetTree()->loss_chg_) : nullptr},
       sum_hess{need_stat ? DispatchPtr(device, tree->GetMultiTargetTree()->sum_hess_) : nullptr} {}
 
 MultiTargetTreeView::MultiTargetTreeView(RegTree const* tree)

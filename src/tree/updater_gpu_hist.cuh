@@ -266,14 +266,14 @@ class MultiTargetHistMaker {
       std::vector<float> h_base_weight, h_left_weight, h_right_weight;
       this->evaluator_.CopyNodeWeightsToHost(candidate.nidx, n_targets, &h_base_weight,
                                              &h_left_weight, &h_right_weight);
-      // Get gain from the split, and sum hessians for parent and children
-      float gain = candidate.split.loss_chg;
+      // Get loss_chg from the split, and sum hessians for parent and children
+      float loss_chg = candidate.split.loss_chg;
       float left_sum = static_cast<float>(candidate.left_sum);
       float right_sum = static_cast<float>(candidate.right_sum);
       float sum_hess = left_sum + right_sum;
       p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                          candidate.split.dir == kLeftDir, linalg::MakeVec(h_base_weight),
-                         linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight), gain,
+                         linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight), loss_chg,
                          sum_hess, left_sum, right_sum);
     }
 

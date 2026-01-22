@@ -58,8 +58,8 @@ class MultiTargetTree : public Model {
   HostDeviceVector<float> weights_;
   // Output weights.
   HostDeviceVector<float> leaf_weights_;
-  // Split gain (loss change) for each node.
-  HostDeviceVector<float> gain_;
+  // Loss change for each node.
+  HostDeviceVector<float> loss_chg_;
   // Sum of hessians for each node (coverage).
   HostDeviceVector<float> sum_hess_;
 
@@ -97,7 +97,7 @@ class MultiTargetTree : public Model {
   void Expand(bst_node_t nidx, bst_feature_t split_idx, float split_cond, bool default_left,
               linalg::VectorView<float const> base_weight,
               linalg::VectorView<float const> left_weight,
-              linalg::VectorView<float const> right_weight, float gain, float sum_hess,
+              linalg::VectorView<float const> right_weight, float loss_chg, float sum_hess,
               float left_sum, float right_sum);
   /** @see RegTree::SetLeaves */
   void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);

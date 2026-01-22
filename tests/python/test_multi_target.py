@@ -7,7 +7,9 @@ from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     run_absolute_error,
     run_column_sampling,
+    run_feature_importance_strategy_compare,
     run_grow_policy,
+    run_mixed_strategy,
     run_multiclass,
     run_multilabel,
     run_quantile_loss,
@@ -126,3 +128,11 @@ def test_grow_policy(grow_policy: str) -> None:
 
 def test_column_sampling() -> None:
     run_column_sampling("cpu")
+
+
+def test_mixed_strategy() -> None:
+    run_mixed_strategy("cpu")
+
+
+def test_feature_importance_strategy_compare() -> None:
+    run_feature_importance_strategy_compare("cpu")

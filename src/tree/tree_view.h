@@ -186,7 +186,7 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
   linalg::MatrixView<float const> leaf_weights;
 
   // Statistics
-  float const* gain{nullptr};
+  float const* loss_chg{nullptr};
   float const* sum_hess{nullptr};
 
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf(bst_node_t nidx) const {
@@ -223,7 +223,7 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
   // These methods require need_stat=true when constructing the view.
   // Will crash with nullptr dereference if stats were not loaded.
   [[nodiscard]] float SumHess(bst_node_t nidx) const { return sum_hess[nidx]; }
-  [[nodiscard]] float LossChg(bst_node_t nidx) const { return gain[nidx]; }
+  [[nodiscard]] float LossChg(bst_node_t nidx) const { return loss_chg[nidx]; }
   /**
    * @brief Create a device view
    *
