@@ -1,5 +1,6 @@
 # pylint: disable=protected-access
 """Shared typing definition."""
+
 import ctypes
 import os
 from typing import (
