@@ -387,9 +387,8 @@ def run_deterministic(device: Device) -> None:
 def run_column_sampling(device: Device) -> None:
     """Test column sampling with feature importance for multi-target trees."""
     n_features = 32
-    n_targets = 3
     X, y = make_regression(
-        n_samples=1024, n_features=n_features, random_state=1994, n_targets=n_targets
+        n_samples=1024, n_features=n_features, random_state=1994, n_targets=3
     )
     # First half of features have weight, second half has 0 weight (not sampled).
     feature_weights = np.zeros(shape=(n_features, 1), dtype=np.float32)
@@ -406,7 +405,7 @@ def run_column_sampling(device: Device) -> None:
 
     # Test all importance types
     for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
-        scores = booster.get_score(importance_type=importance_type)
+        scores: dict = booster.get_score(importance_type=importance_type)
         assert len(scores) > 0, f"No scores for {importance_type}"
 
         # Sampled features (first half) should be in scores
@@ -415,16 +414,11 @@ def run_column_sampling(device: Device) -> None:
 
         # Non-sampled features (second half) should NOT be in scores
         for f in range(n_features // 2, n_features):
-            assert (
-                f"f{f}" not in scores
-            ), f"f{f} should not be in {importance_type} scores"
+            assert f"f{f}" not in scores
 
-        # Verify values are scalars and non-negative
-        for feat, score in scores.items():
-            assert isinstance(
-                score, float
-            ), f"Score should be scalar, got {type(score)}"
-            assert score >= 0, f"Negative {importance_type} for {feat}: {score}"
+        for score in scores.values():
+            assert isinstance(score, float)
+            assert score >= 0
 
     # sklearn Coef
     X, y = make_multilabel_classification(random_state=1994)
