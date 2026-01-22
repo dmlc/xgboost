@@ -356,8 +356,6 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: actions/checkout@v6.0.1
-        with:
-          submodules: "true"
       - name: Unstash gtest
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
