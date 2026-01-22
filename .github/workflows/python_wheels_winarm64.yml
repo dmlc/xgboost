@@ -36,8 +36,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install wheel setuptools awscli packaging
 
-      - uses: trivialfis/sccache-gha/actions/msvc-dev-env@main
-      - uses: trivialfis/sccache-gha/actions/sccache@main
+      - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
 
       - name: Build XGBoost for Win-ARM64
         run: |
