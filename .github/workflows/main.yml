@@ -14,12 +14,12 @@ env:
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
-  ecr-login:
-    name: Login to AWS ECR
+  ci-configure:
+    name: Configure variables for CI
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
-      - tag=main-ecr-login
+      - tag=main-ci-configure
     steps:
       - name: Login to Amazon ECR
         id: login-ecr
@@ -27,14 +27,20 @@ jobs:
         with:
           mask-password: 'false'
           registries: '492475357299'
+      - name: Get image tag
+        id: get-image-tag
+        run: |
+          source ops/pipeline/get-image-tag.sh
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
     outputs:
       docker_registry: ${{ steps.login-ecr.outputs.registry }}
       docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
       docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      image_tag: ${{ steps.get-image-tag.outputs.image_tag }}
 
   build-cpu:
     name: Build CPU (${{ matrix.variant }})
-    needs: ecr-login
+    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
@@ -54,10 +60,10 @@ jobs:
             # See https://github.com/google/sanitizers/issues/1614
             container_options: "--privileged"
     container:
-      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.cpu:main
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.cpu:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
-        username: ${{ needs.ecr-login.outputs.docker_username }}
-        password: ${{ needs.ecr-login.outputs.docker_password }}
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
       options: ${{ matrix.container_options }}
     steps:
       - uses: actions/checkout@v6.0.1
@@ -83,7 +89,7 @@ jobs:
 
   build-cuda:
     name: Build CUDA ${{ matrix.cuda_version }} (${{ matrix.arch }})
-    needs: ecr-login
+    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
@@ -120,10 +126,10 @@ jobs:
           use_rmm: 0
           use_federated: 0
     container:
-      image: ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
-        username: ${{ needs.ecr-login.outputs.docker_username }}
-        password: ${{ needs.ecr-login.outputs.docker_password }}
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
@@ -147,7 +153,7 @@ jobs:
 
   audit-cuda-wheel:
     name: Audit CUDA ${{ matrix.cuda_version }} wheel for manylinux_2_28_${{ matrix.arch }}
-    needs: [ecr-login, build-cuda]
+    needs: [ci-configure, build-cuda]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
@@ -175,10 +181,10 @@ jobs:
           arch: x86_64
           runner: linux-amd64-cpu
     container:
-      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.manylinux_2_28_${{ matrix.arch }}:main
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.manylinux_2_28_${{ matrix.arch }}:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
-        username: ${{ needs.ecr-login.outputs.docker_username }}
-        password: ${{ needs.ecr-login.outputs.docker_password }}
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: actions/checkout@v6.0.1
       - name: Pick Python
@@ -206,17 +212,17 @@ jobs:
 
   build-cuda-with-rmm:
     name: Build CUDA with RMM
-    needs: ecr-login
+    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=main-build-cuda-with-rmm
       - extras=s3-cache
     container:
-      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:main
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
-        username: ${{ needs.ecr-login.outputs.docker_username }}
-        password: ${{ needs.ecr-login.outputs.docker_password }}
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
@@ -285,7 +291,7 @@ jobs:
     name: >-
       Google Test (C++) CUDA ${{ matrix.cuda_version }}
       (${{ matrix.suite }}, ${{ matrix.runner }})
-    needs: [ecr-login, build-cuda, build-cuda-with-rmm]
+    needs: [ci-configure, build-cuda, build-cuda-with-rmm]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
@@ -349,10 +355,10 @@ jobs:
             container_options: "--gpus all --privileged"
             test_args: ""
     container:
-      image: ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
-        username: ${{ needs.ecr-login.outputs.docker_username }}
-        password: ${{ needs.ecr-login.outputs.docker_password }}
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
@@ -370,7 +376,7 @@ jobs:
 
   test-python-wheel:
     name: Python tests CUDA ${{ matrix.cuda_version }} (${{ matrix.description }})
-    needs: [ecr-login, audit-cuda-wheel]
+    needs: [ci-configure, audit-cuda-wheel]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
@@ -436,10 +442,10 @@ jobs:
             artifact_from: audit-cuda13-wheel-aarch64
             container_options: "--gpus all --privileged"
     container:
-      image: ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
       credentials:
-        username: ${{ needs.ecr-login.outputs.docker_username }}
-        password: ${{ needs.ecr-login.outputs.docker_password }}
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
