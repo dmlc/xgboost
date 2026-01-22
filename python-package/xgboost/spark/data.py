@@ -1,5 +1,6 @@
 # pylint: disable=protected-access
 """Utilities for processing spark partitions."""
+
 from collections import defaultdict, namedtuple
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 

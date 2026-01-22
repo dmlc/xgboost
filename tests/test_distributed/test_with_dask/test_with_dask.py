@@ -55,7 +55,7 @@ pytestmark = tm.timeout(60)
 if hasattr(HealthCheck, "function_scoped_fixture"):
     suppress = [HealthCheck.function_scoped_fixture]
 else:
-    suppress = hypothesis.utils.conventions.not_set  # type:ignore
+    suppress = hypothesis.utils.conventions.not_set  # type: ignore
 
 
 @pytest.fixture(scope="module")
@@ -131,7 +131,7 @@ def test_from_dask_dataframe() -> None:
 
             with pytest.raises(TypeError):
                 # evals_result is not supported in dask interface.
-                dxgb.train(  # type:ignore
+                dxgb.train(  # type: ignore
                     client, {}, dtrain, num_boost_round=2, evals_result={}
                 )
             # force prediction to be computed

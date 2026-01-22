@@ -1,5 +1,6 @@
 # pylint: disable=missing-function-docstring
 """Global configuration for XGBoost"""
+
 import ctypes
 import json
 from contextlib import contextmanager
