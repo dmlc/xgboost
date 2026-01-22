@@ -381,51 +381,53 @@ jobs:
         include:
           # CUDA 12 tests
           - cuda_version: 12
-            description: single-gpu
+            description: Single GPU x86_64 CUDA 12
             image_repo: xgb-ci.gpu
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: audit-cuda12-wheel-x86_64
             container_options: "--gpus all --privileged"
           - cuda_version: 12
-            description: multiple-gpu
+            description: Multiple GPUs x86_64 CUDA 12
             image_repo: xgb-ci.gpu
             suite: mgpu
             runner: linux-amd64-mgpu
             artifact_from: audit-cuda12-wheel-x86_64
             # mgpu needs --shm-size for NCCL shared memory communication
             container_options: "--gpus all --shm-size=4g --privileged"
+          # CUDA 12 aarch64 tests
           - cuda_version: 12
-            description: cpu-amd64
+            description: Single GPU arm64 CUDA 12
+            image_repo: xgb-ci.gpu_aarch64
+            suite: gpu-arm64
+            runner: linux-arm64-gpu
+            artifact_from: audit-cuda12-wheel-aarch64
+            container_options: "--gpus all --privileged"
+          # CPU tests, the cuda_version is irrelevant.
+          - cuda_version: 12
+            description: CPU amd64
             image_repo: xgb-ci.cpu
             suite: cpu
             runner: linux-amd64-cpu
             artifact_from: audit-cuda12-wheel-x86_64
             container_options: "--init"
           - cuda_version: 12
-            description: cpu-arm64
+            description: CPU arm64
             image_repo: xgb-ci.manylinux_2_28_aarch64
             suite: cpu-arm64
             runner: linux-arm64-cpu
             artifact_from: audit-cuda12-wheel-aarch64
             container_options: "--init"
-          - cuda_version: 12
-            description: gpu-arm64
-            image_repo: xgb-ci.gpu_aarch64
-            suite: gpu-arm64
-            runner: linux-arm64-gpu
-            artifact_from: audit-cuda12-wheel-aarch64
-            container_options: "--gpus all --privileged"
           # CUDA 13 tests
           - cuda_version: 13
-            description: single-gpu-x86_64
+            description: Single GPU x86_64 CUDA 13
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: audit-cuda13-wheel-x86_64
             container_options: "--gpus all --privileged"
           - cuda_version: 13
-            description: single-gpu-arm64
+            description: Single GPU arm64 CUDA 13
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
             suite: gpu
             runner: linux-arm64-gpu
