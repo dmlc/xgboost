@@ -490,7 +490,10 @@ def run_feature_importance_strategy_compare(device: Device) -> None:
     """Different strategies produce similar feature importance ratios."""
     n_features = 16
     X, y = make_classification(
-        n_samples=2048, n_features=n_features, n_informative=10, n_classes=4,
+        n_samples=2048,
+        n_features=n_features,
+        n_informative=10,
+        n_classes=4,
         random_state=1994,
     )
     Xy = DMatrix(data=X, label=y)
@@ -505,8 +508,16 @@ def run_feature_importance_strategy_compare(device: Device) -> None:
 
     # Train models with different strategies
     boosters = [
-        train({**base_params, "multi_strategy": "multi_output_tree"}, Xy, num_boost_round=32),
-        train({**base_params, "multi_strategy": "one_output_per_tree"}, Xy, num_boost_round=32),
+        train(
+            {**base_params, "multi_strategy": "multi_output_tree"},
+            Xy,
+            num_boost_round=32,
+        ),
+        train(
+            {**base_params, "multi_strategy": "one_output_per_tree"},
+            Xy,
+            num_boost_round=32,
+        ),
         train(
             {**base_params, "multi_strategy": "multi_output_tree"},
             Xy,
