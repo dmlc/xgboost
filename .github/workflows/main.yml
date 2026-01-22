@@ -297,13 +297,14 @@ jobs:
       matrix:
         include:
           # CUDA 12 tests
+          # Note: --gpus all provides GPU access; --privileged is not needed for basic GPU tests
           - cuda_version: 12
             suite: gpu
             arch: x86_64
             runner: linux-amd64-gpu
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda12-x86_64
-            run_args: ""
+            container_options: "--gpus all"
             test_args: ""
           - cuda_version: 12
             suite: gpu
@@ -311,7 +312,7 @@ jobs:
             runner: linux-arm64-gpu
             image_repo: xgb-ci.gpu_aarch64
             artifact_from: build-cuda12-aarch64
-            run_args: ""
+            container_options: "--gpus all"
             test_args: ""
           - cuda_version: 12
             suite: gpu-rmm
@@ -319,7 +320,7 @@ jobs:
             runner: linux-amd64-gpu
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda-with-rmm
-            run_args: ""
+            container_options: "--gpus all"
             test_args: "--use-rmm-pool"
           - cuda_version: 12
             suite: mgpu
@@ -328,7 +329,7 @@ jobs:
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda12-x86_64
             # mgpu needs --shm-size for NCCL shared memory communication
-            run_args: "--shm-size=4g"
+            container_options: "--gpus all --shm-size=4g"
             test_args: "--gtest_filter=*MGPU*"
           # CUDA 13 tests
           - cuda_version: 13
@@ -337,7 +338,7 @@ jobs:
             runner: linux-amd64-gpu
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8
             artifact_from: build-cuda13-x86_64
-            run_args: ""
+            container_options: "--gpus all"
             test_args: ""
           - cuda_version: 13
             suite: gpu
@@ -345,16 +346,18 @@ jobs:
             runner: linux-arm64-gpu
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
             artifact_from: build-cuda13-aarch64
-            run_args: ""
+            container_options: "--gpus all"
             test_args: ""
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
+      options: ${{ matrix.container_options }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash gtest
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -364,12 +367,7 @@ jobs:
             testxgboost
           chmod +x build/testxgboost
       - name: Run Google Tests (${{ matrix.suite }})
-        run: |
-          python3 ops/docker_run.py \
-            --image-uri ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main \
-            --use-gpus \
-            --run-args='${{ matrix.run_args }}' \
-            -- build/testxgboost ${{ matrix.test_args }}
+        run: build/testxgboost ${{ matrix.test_args }}
 
   test-python-wheel:
     name: Python tests CUDA ${{ matrix.cuda_version }} (${{ matrix.description }})
