@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  *
  * @brief model structure for tree
  * \author Tianqi Chen
@@ -322,11 +322,17 @@ class RegTree : public Model {
                   bst_node_t leaf_right_child = kInvalidNodeId);
   /**
    * @brief Expands a leaf node into two additional leaf nodes for a multi-target tree.
+   *
+   * @param gain      The gain (loss change) from this split.
+   * @param sum_hess  The sum of hessians for the parent node (coverage).
+   * @param left_sum  The sum of hessians for the left child (coverage).
+   * @param right_sum The sum of hessians for the right child (coverage).
    */
   void ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond, bool default_left,
                   linalg::VectorView<float const> base_weight,
                   linalg::VectorView<float const> left_weight,
-                  linalg::VectorView<float const> right_weight);
+                  linalg::VectorView<float const> right_weight, float gain, float sum_hess,
+                  float left_sum, float right_sum);
   /**
    * @brief Set all leaf weights for a multi-target tree.
    *
@@ -407,13 +413,14 @@ class RegTree : public Model {
    */
   [[nodiscard]] bst_node_t GetDepth(bst_node_t nidx) const;
   /**
-   * @brief Set the root weight for a multi-target tree.
+   * @brief Set the root weight and statistics for a multi-target tree.
    *
-   * @param weight Internal split weight, with size equals to reduced targets.
+   * @param weight   Internal split weight, with size equals to reduced targets.
+   * @param sum_hess The sum of hessians for the root node (coverage).
    */
-  void SetRoot(linalg::VectorView<float const> weight) {
+  void SetRoot(linalg::VectorView<float const> weight, float sum_hess) {
     CHECK(IsMultiTarget());
-    return this->p_mt_tree_->SetRoot(weight);
+    return this->p_mt_tree_->SetRoot(weight, sum_hess);
   }
   /**
    * @brief Get the maximum depth.

@@ -384,12 +384,13 @@ def run_deterministic(device: Device) -> None:
 
 
 def run_column_sampling(device: Device) -> None:
-    """Test with column sampling."""
+    """Test column sampling with feature importance for multi-target trees."""
     n_features = 32
+    n_targets = 3
     X, y = make_regression(
-        n_samples=1024, n_features=n_features, random_state=1994, n_targets=3
+        n_samples=1024, n_features=n_features, random_state=1994, n_targets=n_targets
     )
-    # First half is valid, second half is 0.
+    # First half of features have weight, second half has 0 weight (not sampled).
     feature_weights = np.zeros(shape=(n_features, 1), dtype=np.float32)
     feature_weights[: n_features // 2] = 1.0 / (n_features / 2)
     Xy = QuantileDMatrix(X, y, feature_weights=feature_weights)
@@ -401,13 +402,28 @@ def run_column_sampling(device: Device) -> None:
         "colsample_bynode": 0.4,
     }
     booster = train(params, Xy, num_boost_round=16)
-    fscores = booster.get_fscore()
-    # sampled
-    for f in range(0, n_features // 2):
-        assert f"f{f}" in fscores
-    # not sampled
-    for f in range(n_features // 2, n_features):
-        assert f"f{f}" not in fscores
+
+    # Test all importance types
+    for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
+        scores = booster.get_score(importance_type=importance_type)
+        assert len(scores) > 0, f"No scores for {importance_type}"
+
+        # Sampled features (first half) should be in scores
+        for f in range(0, n_features // 2):
+            assert f"f{f}" in scores, f"f{f} not in {importance_type} scores"
+
+        # Non-sampled features (second half) should NOT be in scores
+        for f in range(n_features // 2, n_features):
+            assert (
+                f"f{f}" not in scores
+            ), f"f{f} should not be in {importance_type} scores"
+
+        # Verify values are scalars and non-negative
+        for feat, score in scores.items():
+            assert isinstance(
+                score, float
+            ), f"Score should be scalar, got {type(score)}"
+            assert score >= 0, f"Negative {importance_type} for {feat}: {score}"
 
 
 def run_grow_policy(device: Device, grow_policy: str) -> None:

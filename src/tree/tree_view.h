@@ -185,6 +185,10 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
 
   linalg::MatrixView<float const> leaf_weights;
 
+  // Statistics
+  float const* gain{nullptr};
+  float const* sum_hess{nullptr};
+
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf(bst_node_t nidx) const {
     return left[nidx] == InvalidNodeId();
   }
@@ -216,16 +220,16 @@ struct MultiTargetTreeView : public WalkTreeMixIn<MultiTargetTreeView>, public C
   [[nodiscard]] bst_node_t Size() const { return this->n; }
   [[nodiscard]] XGBOOST_DEVICE bool IsRoot(bst_node_t nidx) const { return nidx == RegTree::kRoot; }
 
-  [[nodiscard]] auto SumHess(bst_node_t) const {
-    LOG(FATAL) << "Tree statistic " << MTNotImplemented();
-    return linalg::MakeVec<float>(nullptr, 0);
-  }
-  [[nodiscard]] auto LossChg(bst_node_t) const {
-    LOG(FATAL) << "Tree statistic " << MTNotImplemented();
-    return 0.0f;
-  }
-  /** @brief Create a device view */
-  explicit MultiTargetTreeView(DeviceOrd device, RegTree const* tree);
+  // These methods require need_stat=true when constructing the view.
+  // Will crash with nullptr dereference if stats were not loaded.
+  [[nodiscard]] float SumHess(bst_node_t nidx) const { return sum_hess[nidx]; }
+  [[nodiscard]] float LossChg(bst_node_t nidx) const { return gain[nidx]; }
+  /**
+   * @brief Create a device view
+   *
+   * @param need_stat We can skip the stat when performing normal inference.
+   */
+  explicit MultiTargetTreeView(DeviceOrd device, bool need_stat, RegTree const* tree);
   /** @brief Create a host view */
   explicit MultiTargetTreeView(RegTree const* tree);
 };

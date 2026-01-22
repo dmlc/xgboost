@@ -245,7 +245,10 @@ class MultiTargetHistMaker {
     auto shared_inputs = MakeSharedInputs(static_cast<bst_feature_t>(feature_set.size()));
     auto entry = this->evaluator_.EvaluateSingleSplit(ctx_, input, shared_inputs);
     auto weights = this->evaluator_.GetNodeWeights(n_targets);
-    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), weights.Base(RegTree::kRoot)));
+    // Root's sum_hess is the sum of left and right child hessians
+    float root_sum_hess = static_cast<float>(entry.left_sum + entry.right_sum);
+    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), weights.Base(RegTree::kRoot)),
+                    root_sum_hess);
 
     return entry;
   }
@@ -263,9 +266,15 @@ class MultiTargetHistMaker {
       std::vector<float> h_base_weight, h_left_weight, h_right_weight;
       this->evaluator_.CopyNodeWeightsToHost(candidate.nidx, n_targets, &h_base_weight,
                                              &h_left_weight, &h_right_weight);
+      // Get gain from the split, and sum hessians for parent and children
+      float gain = candidate.split.loss_chg;
+      float left_sum = static_cast<float>(candidate.left_sum);
+      float right_sum = static_cast<float>(candidate.right_sum);
+      float sum_hess = left_sum + right_sum;
       p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                          candidate.split.dir == kLeftDir, linalg::MakeVec(h_base_weight),
-                         linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight));
+                         linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight), gain,
+                         sum_hess, left_sum, right_sum);
     }
 
     dh::device_vector<MultiExpandEntry> candidates{h_candidates};
@@ -427,7 +436,7 @@ class MultiTargetHistMaker {
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
     auto mt_tree = p_tree->HostMtView();
     AssignNodes(mt_tree, candidates, build_nidx, subtraction_nidx, [](MultiExpandEntry const& e) {
-      bool fewer_right = e.right_fst_hess < e.left_fst_hess;
+      bool fewer_right = e.right_sum < e.left_sum;
       return fewer_right;
     });
 
@@ -436,8 +445,8 @@ class MultiTargetHistMaker {
 
     histogram_.AllocateHistograms(this->ctx_, build_nidx, subtraction_nidx);
 
-    // Pull to device
-    mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
+    // Pull to device (stats not needed for partitioning)
+    mt_tree = MultiTargetTreeView{this->ctx_->Device(), false, p_tree};
 
     std::int32_t k{0};
     for (auto const& page :
@@ -559,7 +568,7 @@ class MultiTargetHistMaker {
     CHECK_EQ(out_position.size(), 1);
     auto d_position = out_position.front().ConstDeviceSpan();
     CHECK_EQ(out_preds_d.Shape(0), d_position.size());
-    auto mt_tree = MultiTargetTreeView{this->ctx_->Device(), p_tree};
+    auto mt_tree = MultiTargetTreeView{this->ctx_->Device(), false, p_tree};
     thrust::for_each_n(this->ctx_->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul),
                        out_preds_d.Size(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
                          auto [sample_idx, target_idx] =

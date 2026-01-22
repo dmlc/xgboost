@@ -6,6 +6,7 @@ from hypothesis import given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     run_absolute_error,
+    run_column_sampling,
     run_grow_policy,
     run_multiclass,
     run_multilabel,
@@ -121,3 +122,7 @@ def test_with_iter() -> None:
 @pytest.mark.parametrize("grow_policy", ["depthwise", "lossguide"])
 def test_grow_policy(grow_policy: str) -> None:
     run_grow_policy("cpu", grow_policy)
+
+
+def test_column_sampling() -> None:
+    run_column_sampling("cpu")

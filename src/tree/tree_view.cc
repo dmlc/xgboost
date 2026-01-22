@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost Contributors
+ * Copyright 2025-2026, XGBoost Contributors
  */
 #include "tree_view.h"
 
@@ -39,7 +39,7 @@ ScalarTreeView::ScalarTreeView(DeviceOrd device, bool need_stat, RegTree const* 
   CHECK(!tree->IsMultiTarget());
 }
 
-MultiTargetTreeView::MultiTargetTreeView(DeviceOrd device, RegTree const* tree)
+MultiTargetTreeView::MultiTargetTreeView(DeviceOrd device, bool need_stat, RegTree const* tree)
     : CategoriesMixIn{tree->GetCategoriesMatrix(device)},
       left{DispatchPtr(device, tree->GetMultiTargetTree()->left_)},
       right{DispatchPtr(device, tree->GetMultiTargetTree()->right_)},
@@ -48,8 +48,11 @@ MultiTargetTreeView::MultiTargetTreeView(DeviceOrd device, RegTree const* tree)
       default_left{DispatchPtr(device, tree->GetMultiTargetTree()->default_left_)},
       split_conds{DispatchPtr(device, tree->GetMultiTargetTree()->split_conds_)},
       n{tree->NumNodes()},
-      leaf_weights{DispatchWeight(device, tree)} {}
+      leaf_weights{DispatchWeight(device, tree)},
+      gain{need_stat ? DispatchPtr(device, tree->GetMultiTargetTree()->gain_) : nullptr},
+      sum_hess{need_stat ? DispatchPtr(device, tree->GetMultiTargetTree()->sum_hess_) : nullptr} {}
 
 MultiTargetTreeView::MultiTargetTreeView(RegTree const* tree)
-    : MultiTargetTreeView{DeviceOrd::CPU(), tree} {}
+    : MultiTargetTreeView{DeviceOrd::CPU(), true, tree} {}
+
 }  // namespace xgboost::tree

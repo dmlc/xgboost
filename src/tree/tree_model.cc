@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file tree_model.cc
  * \brief model structure for tree
  */
@@ -876,14 +876,15 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
 void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond,
                          bool default_left, linalg::VectorView<float const> base_weight,
                          linalg::VectorView<float const> left_weight,
-                         linalg::VectorView<float const> right_weight) {
+                         linalg::VectorView<float const> right_weight, float gain,
+                         float sum_hess, float left_sum, float right_sum) {
   CHECK(IsMultiTarget());
   CHECK_LT(split_index, this->param_.num_feature);
   CHECK(this->p_mt_tree_);
   CHECK_GT(param_.size_leaf_vector, 1);
 
   this->p_mt_tree_->Expand(nidx, split_index, split_cond, default_left, base_weight, left_weight,
-                           right_weight);
+                           right_weight, gain, sum_hess, left_sum, right_sum);
 
   split_types_.HostVector().resize(this->Size(), FeatureType::kNumerical);
   split_categories_segments_.HostVector().resize(this->Size());
