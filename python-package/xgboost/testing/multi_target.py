@@ -426,6 +426,22 @@ def run_column_sampling(device: Device) -> None:
             ), f"Score should be scalar, got {type(score)}"
             assert score >= 0, f"Negative {importance_type} for {feat}: {score}"
 
+    # sklearn Coef
+    X, y = make_multilabel_classification(random_state=1994)
+    clf = XGBClassifier(
+        multi_strategy="multi_output_tree",
+        importance_type="weight",
+        device=device,
+        colsample_bynode=0.2,
+    )
+    clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
+    fi = clf.feature_importances_
+    assert fi[0] == 0.0
+    assert fi[-1] > fi[1] * 5
+
+    w = np.polynomial.Polynomial.fit(np.arange(0, X.shape[1]), fi, deg=1)
+    assert w.coef[1] > 0.03
+
 
 def run_grow_policy(device: Device, grow_policy: str) -> None:
     """Test grow policy (depthwise and lossguide) for vector leaf."""
