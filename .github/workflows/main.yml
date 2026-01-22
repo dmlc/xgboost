@@ -391,41 +391,36 @@ jobs:
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: audit-cuda12-wheel-x86_64
-            use_gpus: "--use-gpus"
-            run_args: ""
+            container_options: "--gpus all"
           - cuda_version: 12
             description: multiple-gpu
             image_repo: xgb-ci.gpu
             suite: mgpu
             runner: linux-amd64-mgpu
             artifact_from: audit-cuda12-wheel-x86_64
-            use_gpus: "--use-gpus"
             # mgpu needs --shm-size for NCCL shared memory communication
-            run_args: "--shm-size=4g"
+            container_options: "--gpus all --shm-size=4g"
           - cuda_version: 12
             description: cpu-amd64
             image_repo: xgb-ci.cpu
             suite: cpu
             runner: linux-amd64-cpu
             artifact_from: audit-cuda12-wheel-x86_64
-            use_gpus: ""
-            run_args: ""
+            container_options: "--init"
           - cuda_version: 12
             description: cpu-arm64
             image_repo: xgb-ci.manylinux_2_28_aarch64
             suite: cpu-arm64
             runner: linux-arm64-cpu
             artifact_from: audit-cuda12-wheel-aarch64
-            use_gpus: ""
-            run_args: ""
+            container_options: "--init"
           - cuda_version: 12
             description: gpu-arm64
             image_repo: xgb-ci.gpu_aarch64
             suite: gpu-arm64
             runner: linux-arm64-gpu
             artifact_from: audit-cuda12-wheel-aarch64
-            use_gpus: "--use-gpus"
-            run_args: ""
+            container_options: "--gpus all"
           # CUDA 13 tests
           - cuda_version: 13
             description: single-gpu-x86_64
@@ -433,24 +428,24 @@ jobs:
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: audit-cuda13-wheel-x86_64
-            use_gpus: "--use-gpus"
-            run_args: ""
+            container_options: "--gpus all"
           - cuda_version: 13
             description: single-gpu-arm64
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
             suite: gpu
             runner: linux-arm64-gpu
             artifact_from: audit-cuda13-wheel-aarch64
-            use_gpus: "--use-gpus"
-            run_args: ""
+            container_options: "--gpus all"
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
+      options: ${{ matrix.container_options }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -459,11 +454,7 @@ jobs:
             --dest-dir wheelhouse \
             *.whl
       - name: Run Python tests (${{ matrix.description }})
-        run: |
-          python3 ops/docker_run.py \
-            --image-uri ${{ needs.ecr-login.outputs.docker_registry }}/${{ matrix.image_repo }}:main \
-            ${{ matrix.use_gpus }} \
-            --run-args='${{ matrix.run_args }}' \
-            -- bash ops/pipeline/test-python-wheel-impl.sh \
-              --suite ${{ matrix.suite }} \
-              --cuda-version ${{ matrix.cuda_version }}
+        run: >-
+          bash ops/pipeline/test-python-wheel-impl.sh
+          --suite ${{ matrix.suite }}
+          --cuda-version ${{ matrix.cuda_version }}
