@@ -1,29 +1,38 @@
 #!/bin/bash
 ## Deploy JVM packages to S3 bucket
 
-set -euo pipefail
+set -euox pipefail
 
-source ops/pipeline/enforce-ci.sh
-source ops/pipeline/get-docker-registry-details.sh
-source ops/pipeline/get-image-tag.sh
-
-if [[ "$#" -lt 3 ]]
+if [[ "$#" -lt 2 ]]
 then
-  echo "Usage: $0 {cpu,gpu} [image_repo] [scala_version]"
+  echo "Usage: $0 {cpu,gpu} [scala_version]"
   exit 1
 fi
 
 variant="$1"
-image_repo="$2"
-scala_version="$3"
+scala_version="$2"
+maven_options="-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
 
-IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
-
-set -x
-
-if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-then
-  echo "--- Deploy JVM packages to xgboost-maven-repo S3 repo"
-  python3 ops/docker_run.py --image-uri "${IMAGE_URI}" \
-  -- ops/pipeline/deploy-jvm-packages-impl.sh "${variant}" "${scala_version}"
-fi
+case "$variant" in
+  cpu)
+    # CPU variant
+    python ops/script/change_scala_version.py --scala-version ${scala_version} --purge-artifacts
+    bash ops/script/inject_jvm_lib.sh
+    pushd jvm-packages
+    mvn --no-transfer-progress deploy -Pdefault,release-to-s3 ${maven_options}
+    popd
+    ;;
+  gpu)
+    # GPU variant
+    python ops/script/change_scala_version.py --scala-version ${scala_version} --purge-artifacts
+    bash ops/script/inject_jvm_lib.sh
+    pushd jvm-packages
+    mvn --no-transfer-progress install -Pgpu ${maven_options}
+    mvn --no-transfer-progress deploy -Pgpu,release-to-s3 -pl xgboost4j-spark-gpu ${maven_options}
+    popd
+    ;;
+  *)
+    echo "Unrecognized argument: $variant"
+    exit 2
+    ;;
+esac

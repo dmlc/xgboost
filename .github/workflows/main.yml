@@ -275,19 +275,34 @@ jobs:
 
   build-gpu-rpkg:
     name: Build GPU-enabled R package
+    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=main-build-gpu-rpkg
+      - extras=s3-cache
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_r_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          cache-key-prefix: ${{ github.job }}
       - run: bash ops/pipeline/build-gpu-rpkg.sh
+      - run: sccache --show-stats
+      - name: Upload R package tarball
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-nightly-builds \
+            --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+            xgboost_r_gpu_linux.tar.gz
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release_')
 
   test-cpp-gpu:
     name: >-

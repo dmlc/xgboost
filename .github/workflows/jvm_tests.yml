@@ -14,6 +14,32 @@ env:
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
+  ci-configure:
+    name: Configure variables for CI
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=jvm-tests-ci-configure
+    steps:
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2.0.1
+        with:
+          mask-password: 'false'
+          registries: '492475357299'
+      - uses: actions/checkout@v6.0.1
+      - name: Get image tag
+        id: get-image-tag
+        run: |
+          source ops/pipeline/get-image-tag.sh
+          echo "Using image tag $IMAGE_TAG"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+    outputs:
+      docker_registry: ${{ steps.login-ecr.outputs.registry }}
+      docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      image_tag: ${{ steps.get-image-tag.outputs.image_tag }}
+
   build-jvm-manylinux2014:
     name: >-
       Build libxgboost4j.so targeting glibc 2.17
@@ -34,7 +60,7 @@ jobs:
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -43,19 +69,26 @@ jobs:
 
   build-jvm-gpu:
     name: Build libxgboost4j.so with CUDA
+    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=jvm-tests-build-jvm-gpu
+      - extras=s3-cache
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.jvm_gpu_build:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-jvm-gpu.sh
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - name: Build libxgboost4j.so with CUDA
+        run: bash ops/pipeline/build-jvm-gpu.sh
+      - run: sccache --show-stats
       - name: Stash files
         run: |
           python3 ops/pipeline/manage-artifacts.py upload \
@@ -71,18 +104,20 @@ jobs:
       matrix:
         include:
           - description: "MacOS (Apple Silicon)"
-            script: ops/pipeline/build-jvm-macos-apple-silicon.sh
             libname: libxgboost4j_m1.dylib
             runner: macos-14
           - description: "MacOS (Intel)"
-            script: ops/pipeline/build-jvm-macos-intel.sh
             libname: libxgboost4j_intel.dylib
             runner: macos-15-intel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - run: bash ${{ matrix.script }}
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          cache-key-prefix: ${{ github.job }}-${{ matrix.runner }}
+      - run: bash ops/pipeline/build-jvm-macos.sh
+      - run: sccache --show-stats
       - name: Upload libxgboost4j.dylib
         if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
         run: |
@@ -95,8 +130,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
-  build-test-jvm-packages:
+  build-test-jvm-packages-linux:
     name: Build and test JVM packages (Linux, Scala ${{ matrix.scala_version }})
+    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
@@ -105,18 +141,20 @@ jobs:
       fail-fast: false
       matrix:
         scala_version: ["2.12", "2.13"]
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.jvm:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+    env:
+      SCALA_VERSION: ${{ matrix.scala_version }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
       - name: Build and test JVM packages (Scala ${{ matrix.scala_version }})
         run: bash ops/pipeline/build-test-jvm-packages.sh
-        env:
-          SCALA_VERSION: ${{ matrix.scala_version }}
       - name: Stash files
         run: |
           python3 ops/pipeline/manage-artifacts.py upload \
@@ -134,7 +172,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-15-intel]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: 'true'
       - uses: actions/setup-java@v5
@@ -146,7 +184,7 @@ jobs:
           environment-name: minimal
           environment-file: ops/conda_env/minimal.yml
       - name: Cache Maven packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5.0.1
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('/jvm-packages/pom.xml') }}
@@ -176,7 +214,7 @@ jobs:
 
   test-jvm-packages-gpu:
     name: Test JVM packages with CUDA (Scala ${{ matrix.scala_version }})
-    needs: [build-jvm-gpu]
+    needs: [ci-configure, build-jvm-gpu]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-mgpu
@@ -185,14 +223,21 @@ jobs:
       fail-fast: false
       matrix:
         scala_version: ["2.12", "2.13"]
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.jvm_gpu_build:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+      options: --gpus all --shm-size=4g --privileged
+    env:
+      SCALA_VERSION: ${{ matrix.scala_version }}
+      USE_CUDA: "1"
+      SKIP_NATIVE_BUILD: "1"
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash files
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -200,17 +245,15 @@ jobs:
             --prefix cache/${{ github.run_id }}/build-jvm-gpu \
             --dest-dir lib \
             libxgboost4j.so
-      - run: bash ops/pipeline/test-jvm-gpu.sh
-        env:
-          SCALA_VERSION: ${{ matrix.scala_version }}
+      - name: Test JVM packages with CUDA
+        run: bash ops/pipeline/build-test-jvm-packages.sh
 
   deploy-jvm-packages:
     name: Deploy JVM packages to S3 (${{ matrix.variant.name }}, Scala ${{ matrix.scala_version }})
-    needs: [build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
+    needs: [ci-configure, build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
     runs-on:
-      - runs-on
+      - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
-      - run-id=${{ github.run_id }}
       - tag=jvm-tests-deploy-jvm-packages-${{ matrix.variant.name }}-scala${{ matrix.scala_version }}
     strategy:
       fail-fast: false
@@ -223,14 +266,16 @@ jobs:
             image_repo: xgb-ci.jvm_gpu_build
             artifact_from: build-jvm-gpu
         scala_version: ['2.12', '2.13']
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.variant.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash files
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -240,6 +285,5 @@ jobs:
             libxgboost4j.so
           ls -lh lib/libxgboost4j.so
       - name: Deploy JVM packages to S3
-        run: |
-          bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant.name }} \
-            ${{ matrix.variant.image_repo }} ${{ matrix.scala_version }}
+        run: bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant.name }} ${{ matrix.scala_version }}
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/release_')
