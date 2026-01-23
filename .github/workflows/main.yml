@@ -439,7 +439,7 @@ jobs:
           - cuda_version: 13
             description: GPU-arm64-CUDA-13
             image_repo: xgb-ci.gpu_build_cuda13_rockylinux8_aarch64
-            suite: gpu
+            suite: gpu-arm64
             runner: linux-arm64-gpu
             artifact_from: audit-cuda13-wheel-aarch64
             container_options: "--gpus all --privileged"
