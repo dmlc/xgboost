@@ -92,7 +92,7 @@ jobs:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
-        run: bash ops/pipeline/build-cpu.sh i386
+      - run: bash ops/pipeline/build-cpu.sh i386
 
 
   build-jvm-docs:
