@@ -76,7 +76,7 @@ else
       source activate gpu_test
       ;;
     cpu|cpu-arm64)
-      source activate aarch64_test
+      source activate linux_cpu_test
       ;;
     *)
       echo "Unrecognized suite: $suite"
