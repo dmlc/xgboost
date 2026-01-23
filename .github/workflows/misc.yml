@@ -84,17 +84,16 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=misc-build-i386
-    container:
-      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.i386:${{ needs.ci-configure.outputs.image_tag }}
-      credentials:
-        username: ${{ needs.ci-configure.outputs.docker_username }}
-        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - name: Build and test (i386)
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
         run: bash ops/pipeline/build-cpu.sh i386
+
 
   build-jvm-docs:
     name: Build docs for JVM packages
