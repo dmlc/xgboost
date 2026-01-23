@@ -52,6 +52,7 @@ Optional dask configuration
       dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"})
 
 """
+
 import logging
 from collections import defaultdict
 from contextlib import contextmanager
@@ -1422,7 +1423,7 @@ def _set_worker_client(
         model.client = client
         yield model
     finally:
-        model.client = None  # type:ignore
+        model.client = None  # type: ignore
 
 
 class DaskScikitLearnBase(XGBModel):

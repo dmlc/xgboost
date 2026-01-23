@@ -270,8 +270,7 @@ def _load_lib() -> ctypes.CDLL:
             os.environ["PATH"] = os.pathsep.join(pathBackup)
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
-        raise XGBoostError(
-            f"""
+        raise XGBoostError(f"""
 XGBoost Library ({libname}) could not be loaded.
 Likely causes:
   * OpenMP runtime is not installed
@@ -283,8 +282,7 @@ Likely causes:
   * You are running 32-bit Python on a 64-bit OS
 
 Error message(s): {os_error_list}
-"""
-        )
+""")
     _register_log_callback(lib)
 
     libver = _lib_version(lib)

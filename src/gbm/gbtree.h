@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -256,7 +256,7 @@ class GBTree : public GradientBooster {
         if constexpr (tree::IsScalarTree<decltype(tree)>()) {
           gain_map[split] += tree.Stat(nidx).loss_chg;
         } else {
-          LOG(FATAL) << "gain/total_gain " << MTNotImplemented();
+          gain_map[split] += tree.LossChg(nidx);
         }
       });
     } else if (importance_type == "cover" || importance_type == "total_cover") {
@@ -264,7 +264,7 @@ class GBTree : public GradientBooster {
         if constexpr (tree::IsScalarTree<decltype(tree)>()) {
           gain_map[split] += tree.Stat(nidx).sum_hess;
         } else {
-          LOG(FATAL) << "cover/total_cover " << MTNotImplemented();
+          gain_map[split] += tree.SumHess(nidx);
         }
       });
     } else {

@@ -258,7 +258,12 @@ class MultiTargetHistBuilder {
     std::transform(linalg::cbegin(weight_t), linalg::cend(weight_t), linalg::begin(weight_t),
                    [&](float w) { return w * param_->learning_rate; });
 
-    p_tree->SetRoot(weight_t);
+    // Compute root sum_hess by summing hessians across all targets
+    float root_sum_hess = 0.0f;
+    for (bst_target_t t{0}; t < n_targets; ++t) {
+      root_sum_hess += static_cast<float>(root_sum(t).GetHess());
+    }
+    p_tree->SetRoot(weight_t, root_sum_hess);
     std::vector<BoundedHistCollection const *> hists;
     std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
 

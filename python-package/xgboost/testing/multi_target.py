@@ -2,7 +2,7 @@
 
 # pylint: disable=unbalanced-tuple-unpacking
 from types import ModuleType
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pytest
@@ -11,6 +11,7 @@ from sklearn.datasets import (
     make_multilabel_classification,
     make_regression,
 )
+from sklearn.metrics.pairwise import cosine_similarity
 
 import xgboost.testing as tm
 
@@ -384,12 +385,12 @@ def run_deterministic(device: Device) -> None:
 
 
 def run_column_sampling(device: Device) -> None:
-    """Test with column sampling."""
+    """Test column sampling with feature importance for multi-target trees."""
     n_features = 32
     X, y = make_regression(
         n_samples=1024, n_features=n_features, random_state=1994, n_targets=3
     )
-    # First half is valid, second half is 0.
+    # First half of features have weight, second half has 0 weight (not sampled).
     feature_weights = np.zeros(shape=(n_features, 1), dtype=np.float32)
     feature_weights[: n_features // 2] = 1.0 / (n_features / 2)
     Xy = QuantileDMatrix(X, y, feature_weights=feature_weights)
@@ -401,13 +402,39 @@ def run_column_sampling(device: Device) -> None:
         "colsample_bynode": 0.4,
     }
     booster = train(params, Xy, num_boost_round=16)
-    fscores = booster.get_fscore()
-    # sampled
-    for f in range(0, n_features // 2):
-        assert f"f{f}" in fscores
-    # not sampled
-    for f in range(n_features // 2, n_features):
-        assert f"f{f}" not in fscores
+
+    # Test all importance types
+    for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
+        scores: dict = booster.get_score(importance_type=importance_type)
+        assert len(scores) > 0, f"No scores for {importance_type}"
+
+        # Sampled features (first half) should be in scores
+        for f in range(0, n_features // 2):
+            assert f"f{f}" in scores, f"f{f} not in {importance_type} scores"
+
+        # Non-sampled features (second half) should NOT be in scores
+        for f in range(n_features // 2, n_features):
+            assert f"f{f}" not in scores
+
+        for score in scores.values():
+            assert isinstance(score, float)
+            assert score >= 0
+
+    # sklearn Coef
+    X, y = make_multilabel_classification(random_state=1994)
+    clf = XGBClassifier(
+        multi_strategy="multi_output_tree",
+        importance_type="weight",
+        device=device,
+        colsample_bynode=0.2,
+    )
+    clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
+    fi = clf.feature_importances_
+    assert fi[0] == 0.0
+    assert fi[-1] > fi[1] * 5
+
+    w = np.polynomial.Polynomial.fit(np.arange(0, X.shape[1]), fi, deg=1)
+    assert w.coef[1] > 0.03
 
 
 def run_grow_policy(device: Device, grow_policy: str) -> None:
@@ -426,3 +453,104 @@ def run_grow_policy(device: Device, grow_policy: str) -> None:
 
     evals_result = train_result(params, Xy, num_rounds=10)
     assert non_increasing(evals_result["train"]["rmse"])
+
+
+def run_mixed_strategy(device: Device) -> None:
+    """Test mixed multi_strategy with ResetStrategy callback."""
+    X, y = make_classification(
+        n_samples=1024, n_informative=8, n_classes=3, random_state=1994
+    )
+    Xy = DMatrix(data=X, label=y)
+
+    booster = train(
+        {
+            "num_parallel_tree": 4,
+            "num_class": 3,
+            "objective": "multi:softprob",
+            "multi_strategy": "multi_output_tree",
+            "device": device,
+            "debug_synchronize": True,
+            "base_score": 0,
+        },
+        num_boost_round=16,
+        dtrain=Xy,
+        callbacks=[ResetStrategy()],
+    )
+
+    # Test model slicing - each boosting round should be iterable
+    assert len(list(booster)) == 16
+
+    # Test that sliced predictions sum to full prediction
+    predt = booster.predict(Xy, output_margin=True)
+    predt_sum = np.zeros(predt.shape)
+    for t in booster:
+        predt_sum += t.predict(Xy, output_margin=True)
+    np.testing.assert_allclose(predt, predt_sum, atol=1e-5)
+
+    # Test feature importance works with mixed trees
+    for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
+        scores = booster.get_score(importance_type=importance_type)
+        assert len(scores) > 0
+        for score in scores.values():
+            assert isinstance(score, float)
+            assert score >= 0
+
+
+def run_feature_importance_strategy_compare(device: Device) -> None:
+    """Different strategies produce similar feature importance ratios."""
+    n_features = 16
+    X, y = make_classification(
+        n_samples=2048,
+        n_features=n_features,
+        n_informative=10,
+        n_classes=4,
+        random_state=1994,
+    )
+    Xy = DMatrix(data=X, label=y)
+
+    base_params: Dict[str, Any] = {
+        "num_class": 4,
+        "objective": "multi:softprob",
+        "device": device,
+        "debug_synchronize": True,
+        "max_depth": 5,
+    }
+
+    # Train models with different strategies
+    boosters = [
+        train(
+            {**base_params, "multi_strategy": "multi_output_tree"},
+            Xy,
+            num_boost_round=32,
+        ),
+        train(
+            {**base_params, "multi_strategy": "one_output_per_tree"},
+            Xy,
+            num_boost_round=32,
+        ),
+        train(
+            {**base_params, "multi_strategy": "multi_output_tree"},
+            Xy,
+            num_boost_round=32,
+            callbacks=[ResetStrategy()],
+        ),
+    ]
+
+    def get_normalized_importance(booster: Booster, importance_type: str) -> np.ndarray:
+        """Get feature importance as normalized array (sums to 1)."""
+        scores = booster.get_score(importance_type=importance_type)
+        arr = np.array([scores.get(f"f{i}", 0.0) for i in range(n_features)])
+        return arr / arr.sum() if arr.sum() > 0 else arr
+
+    for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
+        imps = [get_normalized_importance(b, importance_type) for b in boosters]
+
+        # Check that importances are not exactly the same (different strategies)
+        assert not np.allclose(imps[0], imps[1])
+        assert not np.allclose(imps[0], imps[2])
+
+        # Check that normalized importances are similar (correlated)
+        # All strategies should have reasonably similar importance patterns
+        assert cosine_similarity([imps[0]], [imps[1]])[0, 0] > 0.9
+        assert cosine_similarity([imps[0]], [imps[2]])[0, 0] > 0.9
+        assert cosine_similarity([imps[1]], [imps[2]])[0, 0] > 0.9

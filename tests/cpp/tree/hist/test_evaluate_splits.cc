@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #include "../test_evaluate_splits.h"
 
@@ -204,7 +204,12 @@ TEST(HistMultiEvaluator, Evaluate) {
 
   RegTree tree{n_targets, n_features};
   auto weight = evaluator.InitRoot(root_sum.HostView());
-  tree.SetRoot(weight.HostView());
+  // Compute root sum_hess by summing hessians across all targets
+  float root_sum_hess = 0.0f;
+  for (bst_target_t t{0}; t < n_targets; ++t) {
+    root_sum_hess += static_cast<float>(root_sum.HostView()(t).GetHess());
+  }
+  tree.SetRoot(weight.HostView(), root_sum_hess);
   auto w = weight.HostView();
   ASSERT_EQ(w.Size(), n_targets);
   ASSERT_EQ(w(0), -1.5);
