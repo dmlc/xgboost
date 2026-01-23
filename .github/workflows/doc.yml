@@ -2,95 +2,108 @@ name: XGBoost-docs
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   BRANCH_NAME: >-
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
+  ci-configure:
+    name: Configure variables for CI
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=doc-ci-configure
+    steps:
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2.0.1
+        with:
+          mask-password: 'false'
+          registries: '492475357299'
+      - uses: actions/checkout@v6.0.1
+      - name: Get image tag
+        id: get-image-tag
+        run: |
+          source ops/pipeline/get-image-tag.sh
+          echo "Using image tag $IMAGE_TAG"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+    outputs:
+      docker_registry: ${{ steps.login-ecr.outputs.registry }}
+      docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      image_tag: ${{ steps.get-image-tag.outputs.image_tag }}
+
   build-jvm-docs:
     name: Build docs for JVM packages
+    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=doc-build-jvm-docs
-
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.jvm_gpu_build:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-
-      - name: Get the git hash for the push event.
-        if: ${{ github.event_name == 'push' }}
-        shell: bash
-        run: |
-          echo "HEAD_SHA=${GITHUB_SHA}" >> ${GITHUB_ENV}
-      - name: Get the git hash for the PR event.
-        if: ${{ github.event_name == 'pull_request' }}
-        shell: bash
-        run: |
-          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
-
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-jvm-gpu.sh
-      - run: bash ops/pipeline/build-jvm-doc.sh
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - name: Build libxgboost4j.so with CUDA
+        run: bash ops/pipeline/build-jvm-gpu.sh
+      - run: sccache --show-stats
+      - name: Build JVM docs
+        run: bash ops/pipeline/build-jvm-doc.sh
       - name: Upload JVM doc
         run: |
-          # xgboost-docs/{branch}/{commit}/{branch}.tar.bz2
-          # branch can be the name of the dmlc/xgboost branch, or `PR-{number}`.
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket xgboost-docs \
-            --prefix ${BRANCH_NAME}/${{ env.HEAD_SHA }} --make-public \
-            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
+            --prefix ${BRANCH_NAME}/${{ github.event.pull_request.head.sha || github.sha }} --make-public \
+            jvm-packages/${BRANCH_NAME}.tar.bz2
 
   build-r-docs:
     name: Build docs for the R package
+    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
-      - tag=r-tests-build-docs
+      - tag=doc-build-r-docs
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.cpu_build_r_doc:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-
-      - name: Get the git hash for the push event.
-        if: ${{ github.event_name == 'push' }}
-        shell: bash
-        run: |
-          echo "HEAD_SHA=${GITHUB_SHA}" >> ${GITHUB_ENV}
-      - name: Get the git hash for the PR event.
-        if: ${{ github.event_name == 'pull_request' }}
-        shell: bash
-        run: |
-          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
-
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-r-docs.sh
+      - name: Build R docs
+        run: bash ops/pipeline/build-r-docs.sh
       - name: Upload R doc
         run: |
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket xgboost-docs \
-            --prefix ${BRANCH_NAME}/${{ env.HEAD_SHA }} --make-public \
-            r-docs-${{ env.BRANCH_NAME }}.tar.bz2
+            --prefix ${BRANCH_NAME}/${{ github.event.pull_request.head.sha || github.sha }} --make-public \
+            r-docs-${BRANCH_NAME}.tar.bz2
 
   trigger-rtd-build:
     needs: [build-jvm-docs]
-    name: Trigger Read The Docs build.
+    name: Trigger Read The Docs build
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=doc-trigger-rtd-build
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
+      - uses: actions/checkout@v6.0.1
       - name: Trigger RTD
         run: bash ops/pipeline/trigger-rtd.sh
