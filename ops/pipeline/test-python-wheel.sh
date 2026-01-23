@@ -89,18 +89,15 @@ set -xu
 
 export PYSPARK_DRIVER_PYTHON=$(which python)
 export PYSPARK_PYTHON=$(which python)
+# This variable enables a special test mode in spark, but it's never publicly documented
+# as of writing.
 export SPARK_TESTING=1
 
 pip install -v ./wheelhouse/*.whl
 
 case "$suite" in
-  gpu)
+  gpu|gpu-arm64)
     echo "-- Run Python tests, using a single GPU"
-    python -c 'from cupy.cuda import jitify; jitify._init_module()'
-    pytest -v -s -rxXs --durations=0 -m 'not mgpu' tests/python-gpu
-    ;;
-  gpu-arm64)
-    echo "-- Run Python tests, using a single GPU (ARM64)"
     python -c 'from cupy.cuda import jitify; jitify._init_module()'
     pytest -v -s -rxXs --durations=0 -m 'not mgpu' tests/python-gpu
     ;;
