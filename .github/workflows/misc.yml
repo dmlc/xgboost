@@ -93,5 +93,75 @@ jobs:
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - name: Build and test (i386)
-        run: bash ops/pipeline/test-cpp-i386.sh
+        run: bash ops/pipeline/build-cpu.sh i386
+      - run: sccache --show-stats
+
+  build-jvm-docs:
+    name: Build docs for JVM packages
+    needs: ci-configure
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-build-jvm-docs
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.jvm_gpu_build:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - name: Build libxgboost4j.so with CUDA
+        run: bash ops/pipeline/build-jvm-gpu.sh
+      - run: sccache --show-stats
+      - name: Build JVM docs
+        run: bash ops/pipeline/build-jvm-doc.sh
+      - name: Upload JVM doc
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${{ github.event.pull_request.head.sha || github.sha }} --make-public \
+            jvm-packages/${BRANCH_NAME}.tar.bz2
+
+  build-r-docs:
+    name: Build docs for the R package
+    needs: ci-configure
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-build-r-docs
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.cpu_build_r_doc:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - name: Build R docs
+        run: bash ops/pipeline/build-r-docs.sh
+      - name: Upload R doc
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${{ github.event.pull_request.head.sha || github.sha }} --make-public \
+            r-docs-${BRANCH_NAME}.tar.bz2
+
+  trigger-rtd-build:
+    name: Trigger Read The Docs build
+    needs: [build-jvm-docs]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-trigger-rtd-build
+    steps:
+      - uses: actions/checkout@v6.0.1
+      - name: Trigger RTD
+        run: bash ops/pipeline/trigger-rtd.sh
