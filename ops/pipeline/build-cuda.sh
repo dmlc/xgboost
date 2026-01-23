@@ -3,7 +3,7 @@
 ## This script runs inside a container (via GitHub Actions container support)
 ##
 ## Usage:
-##   build-cuda.sh --cuda-version <12|13> --use-rmm <0|1> --use-federated <0|1> [--arch <x86_64|aarch64>]
+##   build-cuda.sh --cuda-version <12|13> --use-rmm <0|1> --use-federated <0|1>
 ##
 ## All parameters are required (no defaults).
 ##
