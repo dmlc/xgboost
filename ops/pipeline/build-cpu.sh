@@ -5,7 +5,7 @@ set -euox pipefail
 
 if [[ "$#" -lt 1 ]]
 then
-  echo "Usage: $0 {cpu,cpu-sanitizer,i386}"
+  echo "Usage: $0 {cpu,cpu-nonomp,cpu-sanitizer,i386}"
   exit 1
 fi
 suite="$1"
@@ -31,8 +31,22 @@ case "${suite}" in
     echo "--- Run Google Test"
     ctest --extra-verbose
     ;;
+  cpu-nonomp)
+    echo "--- Build and test XGBoost with OpenMP disabled"
+    cmake .. \
+      -GNinja \
+      -DUSE_OPENMP=OFF \
+      -DHIDE_CXX_SYMBOLS=ON \
+      -DGOOGLE_TEST=ON \
+      -DENABLE_ALL_WARNINGS=ON \
+      -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+      -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
+      -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
+    time ninja -v
+    ctest --extra-verbose
+    ;;
   cpu-sanitizer)
-    echo "--- Run Google Test with sanitizer"
+    echo "--- Build and test XGBoost with sanitizer"
     cmake .. \
       -GNinja \
       -DHIDE_CXX_SYMBOLS=ON \

@@ -56,7 +56,8 @@ jobs:
           environment-file: ops/conda_env/cpp_test.yml
       - uses: dmlc/xgboost-devops/actions/sccache@main
       - name: Build and test XGBoost
-        run: bash ops/pipeline/build-test-cpu-nonomp.sh
+        run: bash ops/pipeline/build-cpu.sh cpu-nonomp
+      - run: sccache --show-stats
 
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
