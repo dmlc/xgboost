@@ -461,6 +461,6 @@ jobs:
             *.whl
       - name: Run Python tests (${{ matrix.description }})
         run: >-
-          bash ops/pipeline/test-python-wheel-impl.sh
+          bash ops/pipeline/test-python-wheel.sh
           --suite ${{ matrix.suite }}
           --cuda-version ${{ matrix.cuda_version }}

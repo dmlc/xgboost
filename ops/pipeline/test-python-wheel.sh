@@ -2,7 +2,7 @@
 ## Script to test Python wheels, to be called from CI workflow
 ##
 ## Usage:
-##   test-python-wheel-impl.sh --suite <suite> --cuda-version <12|13>
+##   ops/pipeline/test-python-wheel.sh --suite <suite> --cuda-version <12|13>
 ##
 ## All parameters are required (no defaults).
 
