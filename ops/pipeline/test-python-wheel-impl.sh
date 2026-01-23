@@ -75,10 +75,7 @@ else
     gpu|mgpu|gpu-arm64)
       source activate gpu_test
       ;;
-    cpu)
-      source activate linux_cpu_test
-      ;;
-    cpu-arm64)
+    cpu|cpu-arm64)
       source activate aarch64_test
       ;;
     *)
