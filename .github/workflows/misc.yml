@@ -90,14 +90,11 @@ jobs:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - uses: dmlc/xgboost-devops/actions/sccache@main
       - name: Build and test (i386)
         run: bash ops/pipeline/build-cpu.sh i386
-      - run: sccache --show-stats
 
   build-jvm-docs:
     name: Build docs for JVM packages
@@ -142,7 +139,6 @@ jobs:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
