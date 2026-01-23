@@ -1,5 +1,5 @@
 #!/bin/bash
-## Companion script for ops/pipeline/test-python-wheel.sh
+## Script to test Python wheels, to be called from CI workflow
 ##
 ## Usage:
 ##   test-python-wheel-impl.sh --suite <suite> --cuda-version <12|13>
