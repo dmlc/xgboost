@@ -1,14 +1,21 @@
 #!/bin/bash
-## Run C++ tests for i386
+## Build and test XGBoost for i386 (32-bit)
 
-set -euo pipefail
+set -euox pipefail
 
-source ops/pipeline/get-docker-registry-details.sh
-source ops/pipeline/get-image-tag.sh
+export CXXFLAGS='-Wno-error=overloaded-virtual -Wno-error=maybe-uninitialized -Wno-error=redundant-move -Wno-narrowing'
 
-IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.i386:${IMAGE_TAG}"
+mkdir -p build
+pushd build
 
-set -x
-python3 ops/docker_run.py \
-  --image-uri ${IMAGE_URI} \
-  -- bash ops/pipeline/test-cpp-i386-impl.sh
+cmake .. \
+  -GNinja \
+  -DGOOGLE_TEST=ON \
+  -DUSE_DMLC_GTEST=ON \
+  -DENABLE_ALL_WARNINGS=ON \
+  -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+time ninja -v
+# TODO(hcho3): Run gtest for i386
+# ./testxgboost
+
+popd

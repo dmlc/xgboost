@@ -14,6 +14,32 @@ env:
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
+  ci-configure:
+    name: Configure variables for CI
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-ci-configure
+    steps:
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2.0.1
+        with:
+          mask-password: 'false'
+          registries: '492475357299'
+      - uses: actions/checkout@v6.0.1
+      - name: Get image tag
+        id: get-image-tag
+        run: |
+          source ops/pipeline/get-image-tag.sh
+          echo "Using image tag $IMAGE_TAG"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+    outputs:
+      docker_registry: ${{ steps.login-ecr.outputs.registry }}
+      docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      image_tag: ${{ steps.get-image-tag.outputs.image_tag }}
+
   gtest-cpu-nonomp:
     name: Test Google C++ unittest (CPU Non-OMP)
     runs-on: ubuntu-latest
@@ -49,3 +75,23 @@ jobs:
       - uses: dmlc/xgboost-devops/actions/sccache@main
       - name: Build and run C API demo with shared
         run: bash ops/pipeline/test-c-api-demo.sh
+
+  build-i386:
+    name: Build 32-bit (i386)
+    needs: ci-configure
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-build-i386
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.i386:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - name: Build and test (i386)
+        run: bash ops/pipeline/test-cpp-i386.sh
