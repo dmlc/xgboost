@@ -392,7 +392,7 @@ jobs:
       - name: Run Google Tests (${{ matrix.suite }})
         run: build/testxgboost ${{ matrix.test_args }}
 
-  test-python-wheel:
+  test-python-wheel-gpu:
     name: Python tests CUDA ${{ matrix.cuda_version }} (${{ matrix.description }})
     needs: [ci-configure, audit-cuda-wheel]
     runs-on:
@@ -429,21 +429,6 @@ jobs:
             runner: linux-arm64-gpu
             artifact_from: audit-cuda12-wheel-aarch64
             container_options: "--gpus all --privileged"
-          # CPU tests, the cuda_version is irrelevant.
-          - cuda_version: 12
-            description: CPU-amd64
-            image_repo: xgb-ci.cpu
-            suite: cpu
-            runner: linux-amd64-cpu
-            artifact_from: audit-cuda12-wheel-x86_64
-            container_options: "--init"
-          - cuda_version: 12
-            description: CPU-arm64
-            image_repo: xgb-ci.cpu_aarch64
-            suite: cpu-arm64
-            runner: linux-arm64-cpu
-            artifact_from: audit-cuda12-wheel-aarch64
-            container_options: "--init"
           # CUDA 13 tests
           - cuda_version: 13
             description: GPU-x86_64-CUDA-13
@@ -480,3 +465,48 @@ jobs:
           bash ops/pipeline/test-python-wheel.sh
           --suite ${{ matrix.suite }}
           --cuda-version ${{ matrix.cuda_version }}
+
+  test-python-wheel-cpu:
+    name: Python tests CPU (${{ matrix.description }})
+    needs: [ci-configure, audit-cuda-wheel]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=${{ matrix.runner }}
+      - tag=main-test-python-wheel-cuda${{ matrix.cuda_version }}-${{ matrix.description }}
+      - extras=s3-cache
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      # Uses the wheel from cuda12 for tests.
+      matrix:
+        include:
+          - description: CPU-amd64
+            image_repo: xgb-ci.cpu
+            suite: cpu
+            runner: linux-amd64-cpu
+            artifact_from: audit-cuda12-wheel-x86_64
+            container_options: "--init"
+          - description: CPU-arm64
+            image_repo: xgb-ci.cpu_aarch64
+            suite: cpu-arm64
+            runner: linux-arm64-cpu
+            artifact_from: audit-cuda12-wheel-aarch64
+            container_options: "--init"
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/${{ matrix.image_repo }}:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+      options: ${{ matrix.container_options }}
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
+      - name: Unstash Python wheel
+        run: |
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
+            --dest-dir wheelhouse \
+            *.whl
+      - name: Run Python tests (${{ matrix.description }})
+        run: bash ops/pipeline/test-python-wheel.sh --suite ${{ matrix.suite }}
