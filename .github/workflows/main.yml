@@ -472,7 +472,7 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
-      - tag=main-test-python-wheel-cuda${{ matrix.cuda_version }}-${{ matrix.description }}
+      - tag=main-test-python-wheel-cpu-${{ matrix.description }}
       - extras=s3-cache
     timeout-minutes: 60
     strategy:

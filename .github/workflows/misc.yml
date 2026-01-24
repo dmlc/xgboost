@@ -79,7 +79,6 @@ jobs:
 
   build-i386:
     name: Build 32-bit (i386)
-    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu

@@ -5,7 +5,7 @@ set -euox pipefail
 
 if [[ "$#" -lt 2 ]]
 then
-  echo "Usage: $0 {cpu,gpu} [scala_version]"
+  echo "Usage: $0 {cpu,gpu} scala_version"
   exit 1
 fi
 
