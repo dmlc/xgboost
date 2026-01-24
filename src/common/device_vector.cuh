@@ -8,10 +8,8 @@
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
-#include <cuda/version>                         // for CCCL_MAJOR_VERSION
 #include <rmm/cuda_stream_view.hpp>             // for cuda_stream_view
 #include <rmm/mr/thrust_allocator_adaptor.hpp>  // for thrust_allocator
-#include <rmm/version_config.hpp>               // for RMM_VERSION_MAJOR
 
 #else
 
