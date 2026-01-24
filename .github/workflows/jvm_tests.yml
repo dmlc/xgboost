@@ -232,7 +232,6 @@ jobs:
       USE_CUDA: "1"
       SKIP_NATIVE_BUILD: "1"
     steps:
-      - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
@@ -270,7 +269,6 @@ jobs:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      - uses: runs-on/action@v2
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
