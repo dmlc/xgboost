@@ -248,7 +248,7 @@ jobs:
 
   deploy-jvm-packages:
     name: Deploy JVM packages to S3 (${{ matrix.variant.name }}, Scala ${{ matrix.scala_version }})
-    needs: [ci-configure, build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
+    needs: [ci-configure, build-jvm-gpu, build-test-jvm-packages-linux, test-jvm-packages-gpu]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
