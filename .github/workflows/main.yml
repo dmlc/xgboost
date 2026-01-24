@@ -288,7 +288,9 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+      - name: Trust git cloning project sources
+        run: |
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
