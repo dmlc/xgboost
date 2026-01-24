@@ -152,7 +152,7 @@ jobs:
 
   trigger-rtd-build:
     name: Trigger Read The Docs build
-    needs: [build-jvm-docs]
+    needs: [build-jvm-docs, build-r-docs]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
