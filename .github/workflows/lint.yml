@@ -21,8 +21,6 @@ jobs:
       - runner=linux-amd64-cpu
       - tag=lint-clang-tidy
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
           submodules: "true"
