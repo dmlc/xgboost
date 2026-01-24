@@ -1,4 +1,4 @@
-name: XGBoost CI (misc)
+name: Miscellaneous
 
 on: [push, pull_request]
 
