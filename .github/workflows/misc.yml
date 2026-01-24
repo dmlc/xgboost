@@ -85,15 +85,12 @@ jobs:
       - runner=linux-amd64-cpu
       - tag=misc-build-i386
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/test-cpp-i386.sh
-
 
   build-jvm-docs:
     name: Build docs for JVM packages
