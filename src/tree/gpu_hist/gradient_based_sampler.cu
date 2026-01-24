@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include <thrust/functional.h>
 #include <thrust/random.h>
@@ -15,7 +15,7 @@
 #include "../../common/random.h"
 #include "../param.h"
 #include "gradient_based_sampler.cuh"
-#include "xgboost/logging.h"
+#include "quantiser.cuh"  // for GradientQuantiser
 
 namespace xgboost::tree {
 /*! \brief A functor that returns random weights. */
@@ -39,9 +39,7 @@ class BernoulliTrial {
  public:
   BernoulliTrial(size_t seed, float p) : rnd_(seed), p_(p) {}
 
-  XGBOOST_DEVICE bool operator()(size_t i) const {
-    return rnd_(i) > p_;
-  }
+  XGBOOST_DEVICE bool operator()(size_t i) const { return rnd_(i) > p_; }
 
  private:
   RandomWeight rnd_;
@@ -68,17 +66,19 @@ struct ClearEmptyRows {
   }
 };
 
-/*! \brief A functor that combines the gradient pair into a single float.
+/**
+ * @brief A functor that combines the gradient pair into a single float.
  *
  * The approach here is based on Minimal Variance Sampling (MVS), with lambda set to 0.1.
  *
- * \see Ibragimov, B., & Gusev, G. (2019). Minimal Variance Sampling in Stochastic Gradient
+ * @see Ibragimov, B., & Gusev, G. (2019). Minimal Variance Sampling in Stochastic Gradient
  * Boosting. In Advances in Neural Information Processing Systems (pp. 15061-15071).
  */
 class CombineGradientPair {
  public:
-  XGBOOST_DEVICE float operator()(const GradientPair& gpair) const {
-    return sqrtf(powf(gpair.GetGrad(), 2) + kLambda * powf(gpair.GetHess(), 2));
+  XGBOOST_DEVICE float operator()(const GradientPairPrecise& gpair) const {
+    auto [g, h] = std::make_pair(gpair.GetGrad(), gpair.GetHess());
+    return cuda::std::sqrt((g * g) + kLambda * (h * h));
   }
 
  private:
@@ -111,18 +111,19 @@ class SampleRateDelta {
   size_t sample_rows_;
 };
 
-/*! \brief A functor that performs Poisson sampling, and scales gradient pairs by 1/p_i. */
+/** @brief A functor that performs Poisson sampling, and scales gradient pairs by 1/p_i. */
 class PoissonSampling {
  public:
-  PoissonSampling(common::Span<float> threshold, size_t threshold_index, RandomWeight rnd)
-      : threshold_(threshold), threshold_index_(threshold_index), rnd_(rnd) {}
+  PoissonSampling(GradientQuantiser rounding, common::Span<float const> threshold,
+                  std::size_t threshold_index, RandomWeight rnd)
+      : rounding_{rounding}, threshold_(threshold), threshold_index_(threshold_index), rnd_(rnd) {}
 
-  XGBOOST_DEVICE GradientPair operator()(const GradientPair& gpair, size_t i) {
+  XGBOOST_DEVICE GradientPairInt64 operator()(GradientPairInt64 const& gpair, std::size_t i) {
     // If the gradient and hessian are both empty, we should never select this row.
-    if (gpair.GetGrad() == 0 && gpair.GetHess() == 0) {
+    if (gpair.GetQuantisedGrad() == 0 && gpair.GetQuantisedHess() == 0) {
       return gpair;
     }
-    float combined_gradient = combine_(gpair);
+    float combined_gradient = combine_(rounding_.ToFloatingPoint(gpair));
     float u = threshold_[threshold_index_];
     float p = combined_gradient / u;
     if (p >= 1) {
@@ -132,7 +133,7 @@ class PoissonSampling {
       // Select this row randomly with probability proportional to the combined gradient.
       // Scale gpair by 1/p.
       if (rnd_(i) <= p) {
-        return gpair / p;
+        return rounding_.ToFixedPoint(rounding_.ToFloatingPoint(gpair) / p);
       } else {
         return {};
       }
@@ -140,57 +141,67 @@ class PoissonSampling {
   }
 
  private:
-  common::Span<float> threshold_;
+  GradientQuantiser rounding_;
+  common::Span<float const> threshold_;
   size_t threshold_index_;
   RandomWeight rnd_;
   CombineGradientPair combine_;
 };
 
-GradientBasedSample NoSampling::Sample(Context const*, common::Span<GradientPair> gpair,
-                                       DMatrix* p_fmat) {
-  return {p_fmat, gpair};
-}
-
-UniformSampling::UniformSampling(BatchParam batch_param, float subsample)
-    : batch_param_{std::move(batch_param)}, subsample_{subsample} {}
-
-GradientBasedSample UniformSampling::Sample(Context const* ctx, common::Span<GradientPair> gpair,
-                                            DMatrix* p_fmat) {
+void UniformSampling::Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
+                             GradientQuantiser const&) {
   // Set gradient pair to 0 with p = 1 - subsample
   auto cuctx = ctx->CUDACtx();
-  thrust::replace_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
-                     thrust::counting_iterator<std::size_t>(0),
-                     BernoulliTrial(common::GlobalRandom()(), subsample_), GradientPair());
-  return {p_fmat, gpair};
+  thrust::replace_if(cuctx->CTP(), linalg::tbegin(gpair), linalg::tend(gpair),
+                     thrust::make_counting_iterator(0ul),
+                     BernoulliTrial(common::GlobalRandom()(), subsample_), GradientPairInt64{});
 }
 
-GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, BatchParam batch_param,
-                                             float subsample)
-    : subsample_(subsample),
-      batch_param_{std::move(batch_param)},
-      threshold_(n_rows + 1, 0.0f),
-      grad_sum_(n_rows, 0.0f) {}
+GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, float subsample)
+    : subsample_(subsample), threshold_(n_rows + 1, 0.0f), grad_sum_(n_rows, 0.0f) {}
 
-GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
-                                                  common::Span<GradientPair> gpair,
-                                                  DMatrix* p_fmat) {
+/** @brief Calculate the threshold used to normalize sampling probabilities. */
+std::size_t CalculateThresholdIndex(Context const* ctx,
+                                    linalg::VectorView<GradientPairInt64 const> gpair,
+                                    GradientQuantiser const& rounding,
+                                    common::Span<float> threshold, common::Span<float> grad_sum,
+                                    std::size_t sample_rows) {
   auto cuctx = ctx->CUDACtx();
-  size_t n_rows = p_fmat->Info().num_row_;
-  size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
-      ctx, gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
-
-  // Perform Poisson sampling in place.
-  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
-                    thrust::counting_iterator<size_t>(0), dh::tbegin(gpair),
-                    PoissonSampling(dh::ToSpan(threshold_), threshold_index,
-                                    RandomWeight(common::GlobalRandom()())));
-  return {p_fmat, gpair};
+  thrust::fill(cuctx->CTP(), dh::tend(threshold) - 1, dh::tend(threshold),
+               std::numeric_limits<float>::max());
+  auto t_it = thrust::make_transform_iterator(
+      linalg::tcbegin(gpair),
+      [=] XGBOOST_DEVICE(GradientPairInt64 const& g) { return rounding.ToFloatingPoint(g); });
+  thrust::transform(cuctx->CTP(), t_it, t_it + gpair.Size(), dh::tbegin(threshold),
+                    CombineGradientPair{});
+  thrust::sort(cuctx->TP(), dh::tbegin(threshold), dh::tend(threshold) - 1);
+  thrust::inclusive_scan(cuctx->CTP(), dh::tbegin(threshold), dh::tend(threshold) - 1,
+                         dh::tbegin(grad_sum));
+  thrust::transform(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum),
+                    thrust::make_counting_iterator(0ul), dh::tbegin(grad_sum),
+                    SampleRateDelta(threshold, gpair.Shape(0), sample_rows));
+  thrust::device_ptr<float> min =
+      thrust::min_element(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum));
+  return cuda::std::distance(dh::tbegin(grad_sum), min) + 1;
 }
 
-GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows,
-                                           const BatchParam& batch_param, float subsample,
+void GradientBasedSampling::Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
+                                   GradientQuantiser const& rounding) {
+  auto cuctx = ctx->CUDACtx();
+  size_t n_rows = gpair.Shape(0);
+  CHECK_EQ(this->grad_sum_.size(), n_rows);
+  size_t threshold_index = CalculateThresholdIndex(ctx, gpair, rounding, dh::ToSpan(threshold_),
+                                                   dh::ToSpan(grad_sum_), n_rows * subsample_);
+  auto seed = common::GlobalRandom()();
+  // Perform Poisson sampling in place.
+  thrust::transform(
+      cuctx->CTP(), linalg::tbegin(gpair), linalg::tend(gpair), thrust::make_counting_iterator(0ul),
+      linalg::tbegin(gpair),
+      PoissonSampling(rounding, dh::ToSpan(threshold_), threshold_index, RandomWeight(seed)));
+}
+
+GradientBasedSampler::GradientBasedSampler(bst_idx_t n_samples, float subsample,
                                            int sampling_method) {
-  // The ctx is kept here for future development of stream-based operations.
   monitor_.Init(__func__);
 
   bool is_sampling = subsample < 1.0;
@@ -202,11 +213,11 @@ GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows
 
   switch (sampling_method) {
     case TrainParam::kUniform: {
-      strategy_.reset(new UniformSampling(batch_param, subsample));
+      strategy_.reset(new UniformSampling{subsample});
       break;
     }
     case TrainParam::kGradientBased: {
-      strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
+      strategy_.reset(new GradientBasedSampling{n_samples, subsample});
       break;
     }
     default:
@@ -215,32 +226,10 @@ GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows
 }
 
 // Sample a DMatrix based on the given gradient pairs.
-GradientBasedSample GradientBasedSampler::Sample(Context const* ctx,
-                                                 common::Span<GradientPair> gpair, DMatrix* dmat) {
+void GradientBasedSampler::Sample(Context const* ctx, linalg::VectorView<GradientPairInt64> gpair,
+                                  GradientQuantiser const& rounding) {
   monitor_.Start(__func__);
-  GradientBasedSample sample = strategy_->Sample(ctx, gpair, dmat);
+  strategy_->Sample(ctx, gpair, rounding);
   monitor_.Stop(__func__);
-  return sample;
-}
-
-size_t GradientBasedSampler::CalculateThresholdIndex(Context const* ctx,
-                                                     common::Span<GradientPair> gpair,
-                                                     common::Span<float> threshold,
-                                                     common::Span<float> grad_sum,
-                                                     size_t sample_rows) {
-  auto cuctx = ctx->CUDACtx();
-  thrust::fill(cuctx->CTP(), dh::tend(threshold) - 1, dh::tend(threshold),
-               std::numeric_limits<float>::max());
-  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), dh::tbegin(threshold),
-                    CombineGradientPair{});
-  thrust::sort(cuctx->TP(), dh::tbegin(threshold), dh::tend(threshold) - 1);
-  thrust::inclusive_scan(cuctx->CTP(), dh::tbegin(threshold), dh::tend(threshold) - 1,
-                         dh::tbegin(grad_sum));
-  thrust::transform(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum),
-                    thrust::counting_iterator<size_t>(0), dh::tbegin(grad_sum),
-                    SampleRateDelta(threshold, gpair.size(), sample_rows));
-  thrust::device_ptr<float> min =
-      thrust::min_element(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum));
-  return cuda::std::distance(dh::tbegin(grad_sum), min) + 1;
 }
 };  // namespace xgboost::tree

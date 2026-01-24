@@ -16,13 +16,13 @@ concurrency:
 env:
   BRANCH_NAME: >-
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
-    
+
 jobs:
   python-wheels-Win-ARM64:
     name: Build wheel for Windows ARM64
     runs-on: windows-11-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: 'true'
 
@@ -36,12 +36,17 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install wheel setuptools awscli packaging
 
+      - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+
       - name: Build XGBoost for Win-ARM64
         run: |
           mkdir build
           cd build
-          cmake .. -G"Visual Studio 17 2022" -A ARM64
-          cmake --build . --config Release -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
+          cmake .. -G"Ninja" -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          cmake --build . -v
+      - run: sccache --show-stats
 
       - name: Build Python wheel xgboost for Win-ARM64
         run: |
@@ -67,7 +72,7 @@ jobs:
         run: |
           $wheelFile = Get-ChildItem python-package/wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
           Remove-Item -Path $wheelFile -Verbose
-          
+
       - name: Build Python wheel xgboost-cpu for Win-ARM64
         run: |
           # Patch to rename pkg to xgboost-cpu

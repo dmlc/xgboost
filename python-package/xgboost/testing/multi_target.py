@@ -1,7 +1,8 @@
 """Tests for multi-target training."""
 
 # pylint: disable=unbalanced-tuple-unpacking
-from typing import Dict, Optional, Tuple
+from types import ModuleType
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pytest
@@ -10,6 +11,7 @@ from sklearn.datasets import (
     make_multilabel_classification,
     make_regression,
 )
+from sklearn.metrics.pairwise import cosine_similarity
 
 import xgboost.testing as tm
 
@@ -134,42 +136,55 @@ def run_absolute_error(device: Device) -> None:
     assert evals_result["Train"]["mae"][-1] < 30.0
 
 
+def _array_impl(device: Device) -> ModuleType:
+    if device == "cuda":
+        nda = import_cupy()
+    else:
+        nda = np
+    return nda
+
+
 class LsObj0(TreeObjective):
     """Split grad is the same as value grad."""
+
+    def __init__(self, device: Device) -> None:
+        self.device = device
 
     def __call__(
         self, iteration: int, y_pred: ArrayLike, dtrain: DMatrix
     ) -> Tuple[ArrayLike, ArrayLike]:
-        cp = import_cupy()
+        nda = _array_impl(self.device)
 
         y_true = dtrain.get_label().reshape(y_pred.shape)
         grad, hess = tm.ls_obj(y_true, y_pred, None)
-        return cp.array(grad), cp.array(hess)
+        return nda.array(grad), nda.array(hess)
 
     def split_grad(
         self, iteration: int, grad: ArrayLike, hess: ArrayLike
     ) -> Tuple[ArrayLike, ArrayLike]:
-        cp = import_cupy()
-
-        return cp.array(grad), cp.array(hess)
+        nda = _array_impl(self.device)
+        return nda.array(grad), nda.array(hess)
 
 
 class LsObj1(Objective):
     """No split grad."""
 
+    def __init__(self, device: Device) -> None:
+        self.device = device
+
     def __call__(
         self, iteration: int, y_pred: ArrayLike, dtrain: DMatrix
     ) -> Tuple[ArrayLike, ArrayLike]:
-        cp = import_cupy()
+        nda = _array_impl(self.device)
 
         y_true = dtrain.get_label().reshape(y_pred.shape)
         grad, hess = tm.ls_obj(y_true, y_pred, None)
-        return cp.array(grad), cp.array(hess)
+        return nda.array(grad), nda.array(hess)
 
 
 def run_reduced_grad(device: Device) -> None:
     """Basic test for using reduced gradient for tree splits."""
-    import cupy as cp
+    nda = _array_impl(device)
 
     X, y = make_regression(
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
@@ -197,13 +212,13 @@ def run_reduced_grad(device: Device) -> None:
         assert non_increasing(evals_result["Train"]["rmse"])
         return booster
 
-    booster_0 = run_test(LsObj0())
-    booster_1 = run_test(LsObj1())
+    booster_0 = run_test(LsObj0(device))
+    booster_1 = run_test(LsObj1(device))
     np.testing.assert_allclose(
         booster_0.inplace_predict(X), booster_1.inplace_predict(X)
     )
 
-    booster_2 = run_test(LsObj0(), [0.5] * y.shape[1])
+    booster_2 = run_test(LsObj0(device), [0.5] * y.shape[1])
     booster_3 = run_test(None, [0.5] * y.shape[1])
     np.testing.assert_allclose(
         booster_2.inplace_predict(X), booster_3.inplace_predict(X)
@@ -215,14 +230,15 @@ def run_reduced_grad(device: Device) -> None:
 
         def __init__(self, check_used: bool):
             self._chk = check_used
+            super().__init__(device=device)
 
         def split_grad(
             self, iteration: int, grad: ArrayLike, hess: ArrayLike
-        ) -> Tuple[cp.ndarray, cp.ndarray]:
+        ) -> Tuple[np.ndarray, np.ndarray]:
             if self._chk:
                 assert False
-            sgrad = cp.mean(grad, axis=1)
-            shess = cp.mean(hess, axis=1)
+            sgrad = nda.mean(grad, axis=1)
+            shess = nda.mean(hess, axis=1)
             return sgrad, shess
 
     run_test(LsObj2(False))
@@ -232,10 +248,7 @@ def run_reduced_grad(device: Device) -> None:
 
 def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     """Test vector leaf with external memory."""
-    if device == "cuda":
-        from cupy import asarray
-    else:
-        from numpy import asarray
+    nda = _array_impl(device)
 
     n_batches = 4
     n_rounds = 8
@@ -256,10 +269,12 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         X_i, y_i = make_regression(
             n_samples=4096, n_features=8, random_state=(i + 1), n_targets=n_targets
         )
-        Xs.append(asarray(X_i))
-        ys.append(asarray(y_i))
+        Xs.append(nda.asarray(X_i))
+        ys.append(nda.asarray(y_i))
     it = IteratorForTest(Xs, ys, None, cache="cache", on_host=True)
-    Xy: DMatrix = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0)
+    Xy: DMatrix = ExtMemQuantileDMatrix(
+        it, cache_host_ratio=1.0 if device == "cuda" else None
+    )
 
     evals_result_0: Dict[str, Dict] = {}
     booster_0 = train(
@@ -287,8 +302,9 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     X, _, _ = it.as_arrays()
     assert_allclose(device, booster_0.inplace_predict(X), booster_1.inplace_predict(X))
 
-    v = build_info()["THRUST_VERSION"]
-    if v[0] < 3:
+    binfo = build_info()
+    tv = "THRUST_VERSION"
+    if device == "cuda" and tv in binfo and binfo[tv][0] < 3:
         pytest.xfail("CCCL version too old.")
 
     it = IteratorForTest(
@@ -299,14 +315,14 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         on_host=True,
         min_cache_page_bytes=X.shape[0] // n_batches * X.shape[1],
     )
-    Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0)
+    Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0 if device == "cuda" else None)
 
     evals_result_2: Dict[str, Dict] = {}
     booster_2 = train(
         params,
         Xy,
         evals=[(Xy, "Train")],
-        obj=LsObj0(),
+        obj=LsObj0(device),
         num_boost_round=n_rounds,
         evals_result=evals_result_2,
     )
@@ -343,7 +359,7 @@ def run_eta(device: Device) -> None:
         np.testing.assert_allclose(predt_0 * 2, predt_2, rtol=1e-6)
 
     run(None)
-    run(LsObj0())
+    run(LsObj0(device))
 
 
 def run_deterministic(device: Device) -> None:
@@ -369,12 +385,12 @@ def run_deterministic(device: Device) -> None:
 
 
 def run_column_sampling(device: Device) -> None:
-    """Test with column sampling."""
+    """Test column sampling with feature importance for multi-target trees."""
     n_features = 32
     X, y = make_regression(
         n_samples=1024, n_features=n_features, random_state=1994, n_targets=3
     )
-    # First half is valid, second half is 0.
+    # First half of features have weight, second half has 0 weight (not sampled).
     feature_weights = np.zeros(shape=(n_features, 1), dtype=np.float32)
     feature_weights[: n_features // 2] = 1.0 / (n_features / 2)
     Xy = QuantileDMatrix(X, y, feature_weights=feature_weights)
@@ -386,10 +402,155 @@ def run_column_sampling(device: Device) -> None:
         "colsample_bynode": 0.4,
     }
     booster = train(params, Xy, num_boost_round=16)
-    fscores = booster.get_fscore()
-    # sampled
-    for f in range(0, n_features // 2):
-        assert f"f{f}" in fscores
-    # not sampled
-    for f in range(n_features // 2, n_features):
-        assert f"f{f}" not in fscores
+
+    # Test all importance types
+    for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
+        scores: dict = booster.get_score(importance_type=importance_type)
+        assert len(scores) > 0, f"No scores for {importance_type}"
+
+        # Sampled features (first half) should be in scores
+        for f in range(0, n_features // 2):
+            assert f"f{f}" in scores, f"f{f} not in {importance_type} scores"
+
+        # Non-sampled features (second half) should NOT be in scores
+        for f in range(n_features // 2, n_features):
+            assert f"f{f}" not in scores
+
+        for score in scores.values():
+            assert isinstance(score, float)
+            assert score >= 0
+
+    # sklearn Coef
+    X, y = make_multilabel_classification(random_state=1994)
+    clf = XGBClassifier(
+        multi_strategy="multi_output_tree",
+        importance_type="weight",
+        device=device,
+        colsample_bynode=0.2,
+    )
+    clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
+    fi = clf.feature_importances_
+    assert fi[0] == 0.0
+    assert fi[-1] > fi[1] * 5
+
+    w = np.polynomial.Polynomial.fit(np.arange(0, X.shape[1]), fi, deg=1)
+    assert w.coef[1] > 0.03
+
+
+def run_grow_policy(device: Device, grow_policy: str) -> None:
+    """Test grow policy (depthwise and lossguide) for vector leaf."""
+    X, y = make_regression(
+        n_samples=1024, n_features=16, random_state=1994, n_targets=3
+    )
+    Xy = QuantileDMatrix(X, y)
+
+    params = {
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "debug_synchronize": True,
+        "grow_policy": grow_policy,
+    }
+
+    evals_result = train_result(params, Xy, num_rounds=10)
+    assert non_increasing(evals_result["train"]["rmse"])
+
+
+def run_mixed_strategy(device: Device) -> None:
+    """Test mixed multi_strategy with ResetStrategy callback."""
+    X, y = make_classification(
+        n_samples=1024, n_informative=8, n_classes=3, random_state=1994
+    )
+    Xy = DMatrix(data=X, label=y)
+
+    booster = train(
+        {
+            "num_parallel_tree": 4,
+            "num_class": 3,
+            "objective": "multi:softprob",
+            "multi_strategy": "multi_output_tree",
+            "device": device,
+            "debug_synchronize": True,
+            "base_score": 0,
+        },
+        num_boost_round=16,
+        dtrain=Xy,
+        callbacks=[ResetStrategy()],
+    )
+
+    # Test model slicing - each boosting round should be iterable
+    assert len(list(booster)) == 16
+
+    # Test that sliced predictions sum to full prediction
+    predt = booster.predict(Xy, output_margin=True)
+    predt_sum = np.zeros(predt.shape)
+    for t in booster:
+        predt_sum += t.predict(Xy, output_margin=True)
+    np.testing.assert_allclose(predt, predt_sum, atol=1e-5)
+
+    # Test feature importance works with mixed trees
+    for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
+        scores = booster.get_score(importance_type=importance_type)
+        assert len(scores) > 0
+        for score in scores.values():
+            assert isinstance(score, float)
+            assert score >= 0
+
+
+def run_feature_importance_strategy_compare(device: Device) -> None:
+    """Different strategies produce similar feature importance ratios."""
+    n_features = 16
+    X, y = make_classification(
+        n_samples=2048,
+        n_features=n_features,
+        n_informative=10,
+        n_classes=4,
+        random_state=1994,
+    )
+    Xy = DMatrix(data=X, label=y)
+
+    base_params: Dict[str, Any] = {
+        "num_class": 4,
+        "objective": "multi:softprob",
+        "device": device,
+        "debug_synchronize": True,
+        "max_depth": 5,
+    }
+
+    # Train models with different strategies
+    boosters = [
+        train(
+            {**base_params, "multi_strategy": "multi_output_tree"},
+            Xy,
+            num_boost_round=32,
+        ),
+        train(
+            {**base_params, "multi_strategy": "one_output_per_tree"},
+            Xy,
+            num_boost_round=32,
+        ),
+        train(
+            {**base_params, "multi_strategy": "multi_output_tree"},
+            Xy,
+            num_boost_round=32,
+            callbacks=[ResetStrategy()],
+        ),
+    ]
+
+    def get_normalized_importance(booster: Booster, importance_type: str) -> np.ndarray:
+        """Get feature importance as normalized array (sums to 1)."""
+        scores = booster.get_score(importance_type=importance_type)
+        arr = np.array([scores.get(f"f{i}", 0.0) for i in range(n_features)])
+        return arr / arr.sum() if arr.sum() > 0 else arr
+
+    for importance_type in ["weight", "gain", "total_gain", "cover", "total_cover"]:
+        imps = [get_normalized_importance(b, importance_type) for b in boosters]
+
+        # Check that importances are not exactly the same (different strategies)
+        assert not np.allclose(imps[0], imps[1])
+        assert not np.allclose(imps[0], imps[2])
+
+        # Check that normalized importances are similar (correlated)
+        # All strategies should have reasonably similar importance patterns
+        assert cosine_similarity([imps[0]], [imps[1]])[0, 0] > 0.9
+        assert cosine_similarity([imps[0]], [imps[2]])[0, 0] > 0.9
+        assert cosine_similarity([imps[1]], [imps[2]])[0, 0] > 0.9

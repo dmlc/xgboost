@@ -275,7 +275,7 @@ def test_tidy(args: argparse.Namespace) -> None:
     else:
         tidy = "clang-tidy-" + str(args.tidy_version)
     cmd = [tidy, tidy_config, test_file_path]
-    (proc_code, tidy_status, error_msg, _) = call(cmd)
+    proc_code, tidy_status, error_msg, _ = call(cmd)
     if proc_code != 0 or tidy_status != 1:
         raise RuntimeError(error_msg)
     print("clang-tidy is working.")

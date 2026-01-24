@@ -408,7 +408,14 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
     # pandas uses -1 to represent missing values for categorical features
     codes = codes.replace(-1, np.nan)
 
-    if np.issubdtype(cats.dtype, np.floating) or np.issubdtype(cats.dtype, np.integer):
+    def is_prim() -> bool:
+        dtype = cats.dtype
+        try:
+            return np.issubdtype(dtype, np.floating) or np.issubdtype(dtype, np.integer)
+        except TypeError:
+            return False
+
+    if is_prim():
         # Numeric index type
         name_values_num = cats.values
         jarr_values = array_interface_dict(name_values_num)

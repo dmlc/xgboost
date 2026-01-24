@@ -662,10 +662,12 @@ class HistMultiEvaluator {
   }
 
   void ApplyTreeSplit(MultiExpandEntry const &candidate, RegTree *p_tree) {
-    auto n_targets = p_tree->NumTargets();
+    // Use the split gradient's number of targets for intermediate weights
+    // This may differ from p_tree->NumTargets() when using reduced gradient
+    auto n_split_targets = candidate.split.left_sum.size();
     auto parent_sum = stats_.Slice(candidate.nid, linalg::All());
 
-    auto weight = linalg::Empty<float>(ctx_, 3, n_targets);
+    auto weight = linalg::Empty<float>(ctx_, 3, n_split_targets);
     auto base_weight = weight.Slice(0, linalg::All());
     CalcWeight(*param_, parent_sum, base_weight);
 
@@ -679,8 +681,19 @@ class HistMultiEvaluator {
         linalg::MakeVec(candidate.split.right_sum.data(), candidate.split.right_sum.size());
     CalcWeight(*param_, right_sum, param_->learning_rate, right_weight);
 
+    // Compute the loss_chg and sum hessians for parent and children
+    float loss_chg = candidate.split.loss_chg;
+    // Sum hessians across all targets for each child
+    float left_sum_hess = 0.0f, right_sum_hess = 0.0f;
+    for (std::size_t t = 0; t < candidate.split.left_sum.size(); ++t) {
+      left_sum_hess += candidate.split.left_sum[t].GetHess();
+      right_sum_hess += candidate.split.right_sum[t].GetHess();
+    }
+    float sum_hess = left_sum_hess + right_sum_hess;
+
     p_tree->ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-                       candidate.split.DefaultLeft(), base_weight, left_weight, right_weight);
+                       candidate.split.DefaultLeft(), base_weight, left_weight, right_weight,
+                       loss_chg, sum_hess, left_sum_hess, right_sum_hess);
 
     CHECK(p_tree->IsMultiTarget());
     auto mt_tree = p_tree->HostMtView();
@@ -700,7 +713,7 @@ class HistMultiEvaluator {
     if (n_nodes >= stats_.Shape(0)) {
       stats_.Reshape(n_nodes * 2, stats_.Shape(1));
     }
-    CHECK_EQ(stats_.Shape(1), n_targets);
+    CHECK_EQ(stats_.Shape(1), n_split_targets);
     auto left_sum_stat = stats_.Slice(left_child, linalg::All());
     std::copy(candidate.split.left_sum.cbegin(), candidate.split.left_sum.cend(),
               linalg::begin(left_sum_stat));

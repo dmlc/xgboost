@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2025, XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  *
  * @brief Core data structure for multi-target trees.
  */
@@ -58,6 +58,10 @@ class MultiTargetTree : public Model {
   HostDeviceVector<float> weights_;
   // Output weights.
   HostDeviceVector<float> leaf_weights_;
+  // Loss change for each node.
+  HostDeviceVector<float> loss_chg_;
+  // Sum of hessians for each node (coverage).
+  HostDeviceVector<float> sum_hess_;
 
   [[nodiscard]] linalg::VectorView<float const> NodeWeight(bst_node_t nidx) const {
     auto beg = nidx * this->NumSplitTargets();
@@ -81,16 +85,20 @@ class MultiTargetTree : public Model {
   MultiTargetTree& operator=(MultiTargetTree&& that) = delete;
 
   /**
-   * @brief Set the weight for the root.
+   * @brief Set the weight and statistics for the root.
+   *
+   * @param weight   The weight vector for the root node.
+   * @param sum_hess The sum of hessians for the root node (coverage).
    */
-  void SetRoot(linalg::VectorView<float const> weight);
+  void SetRoot(linalg::VectorView<float const> weight, float sum_hess);
   /**
    * @brief Expand a leaf into split node.
    */
   void Expand(bst_node_t nidx, bst_feature_t split_idx, float split_cond, bool default_left,
               linalg::VectorView<float const> base_weight,
               linalg::VectorView<float const> left_weight,
-              linalg::VectorView<float const> right_weight);
+              linalg::VectorView<float const> right_weight, float loss_chg, float sum_hess,
+              float left_sum, float right_sum);
   /** @see RegTree::SetLeaves */
   void SetLeaves(std::vector<bst_node_t> leaves, common::Span<float const> weights);
   /** @brief Copy base weight into leaf weight for a non-reduced multi-target tree. */

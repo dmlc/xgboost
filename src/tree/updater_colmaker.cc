@@ -204,9 +204,10 @@ class ColMaker: public TreeUpdater {
       }
       // remember auxiliary statistics in the tree node
       for (int nid = 0; nid < p_tree->NumNodes(); ++nid) {
-        p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
-        p_tree->Stat(nid).base_weight = snode_[nid].weight;
-        p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
+        auto &stat = p_tree->Stat(nid);
+        stat.loss_chg = snode_[nid].best.loss_chg;
+        stat.base_weight = snode_[nid].weight;
+        stat.sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
       }
     }
 

@@ -50,12 +50,52 @@ DMLC_REGISTRY_FILE_TAG(updater_quantile_hist);
 
 BatchParam HistBatch(TrainParam const *param) { return {param->max_bin, param->sparse_threshold}; }
 
+/**
+ * @brief Sum a 3D tensor along the first axis, producing a 2D matrix.
+ *
+ * Used to reduce thread-local accumulators: [n_threads, rows, cols] -> [rows, cols]
+ */
+template <typename T>
+linalg::Matrix<T> ReduceToRows(Context const *ctx, linalg::TensorView<T, 3> const &tloc) {
+  auto out = linalg::Constant<T>(ctx, T{}, tloc.Shape(1), tloc.Shape(2));
+  auto h_out = out.HostView();
+  for (std::size_t i = 0; i < tloc.Shape(0); ++i) {
+    for (std::size_t j = 0; j < tloc.Shape(1); ++j) {
+      for (std::size_t k = 0; k < tloc.Shape(2); ++k) {
+        h_out(j, k) += tloc(i, j, k);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * @brief Verify all partitioners have the same set of leaf nodes.
+ *
+ * For external memory, each batch has its own partitioner, but the tree structure
+ * is shared. This check ensures consistency across all partitions.
+ */
+void CheckPartitionerLeaves(std::vector<CommonRowPartitioner> const &partitioners,
+                            MultiTargetTreeView const &tree,
+                            std::vector<bst_node_t> const &leaves_idx) {
+  for (auto const &part : partitioners) {
+    std::vector<bst_node_t> part_leaves;
+    for (auto const &node : part.Partitions()) {
+      if (node.node_id >= 0 && tree.IsLeaf(node.node_id)) {
+        part_leaves.push_back(node.node_id);
+      }
+    }
+    CHECK_EQ(part_leaves.size(), leaves_idx.size());
+    CHECK(std::equal(part_leaves.begin(), part_leaves.end(), leaves_idx.begin()));
+  }
+}
+
 template <typename ExpandEntry, typename Updater>
 void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const> gpair,
                 Updater *updater, DMatrix *p_fmat, TrainParam const *param,
                 HostDeviceVector<bst_node_t> *p_out_position, RegTree *p_tree) {
   monitor->Start(__func__);
-  updater->InitData(p_fmat, p_tree);
+  updater->InitData(p_fmat, p_tree, gpair);
 
   Driver<ExpandEntry> driver{*param};
   auto const &tree = *p_tree;
@@ -106,8 +146,6 @@ void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const>
 
   auto &h_out_position = p_out_position->HostVector();
   updater->LeafPartition(tree, gpair, &h_out_position);
-
-  updater->ExpandTreeLeaf(p_tree);
   monitor->Stop(__func__);
 }
 
@@ -131,8 +169,6 @@ class MultiTargetHistBuilder {
   RegTree const *p_last_tree_{nullptr};
   DMatrix const *p_last_fmat_{nullptr};
 
-  ObjInfo const *task_{nullptr};
-
  public:
   void UpdatePosition(DMatrix *p_fmat, RegTree const *p_tree,
                       std::vector<MultiExpandEntry> const &applied) {
@@ -150,7 +186,8 @@ class MultiTargetHistBuilder {
     this->evaluator_->ApplyTreeSplit(candidate, p_tree);
   }
 
-  void InitData(DMatrix *p_fmat, RegTree const *p_tree) {
+  void InitData(DMatrix *p_fmat, RegTree const *p_tree,
+                linalg::MatrixView<GradientPair const> gpair) {
     monitor_->Start(__func__);
 
     p_last_fmat_ = p_fmat;
@@ -173,7 +210,7 @@ class MultiTargetHistBuilder {
     }
     partitioner_.resize(page_idx);
 
-    bst_target_t n_targets = p_tree->NumTargets();
+    bst_target_t n_targets = gpair.Shape(1);
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
                               collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
@@ -191,10 +228,9 @@ class MultiTargetHistBuilder {
     best.nid = RegTree::kRoot;
     best.depth = 0;
 
-    auto n_targets = p_tree->NumTargets();
+    auto n_targets = gpair.Shape(1);
     linalg::Matrix<GradientPairPrecise> root_sum_tloc =
         linalg::Empty<GradientPairPrecise>(ctx_, ctx_->Threads(), n_targets);
-    CHECK_EQ(root_sum_tloc.Shape(1), gpair.Shape(1));
     auto h_root_sum_tloc = root_sum_tloc.HostView();
     common::ParallelFor(gpair.Shape(0), ctx_->Threads(), [&](auto i) {
       for (bst_target_t t{0}; t < n_targets; ++t) {
@@ -222,10 +258,16 @@ class MultiTargetHistBuilder {
     std::transform(linalg::cbegin(weight_t), linalg::cend(weight_t), linalg::begin(weight_t),
                    [&](float w) { return w * param_->learning_rate; });
 
-    p_tree->SetRoot(weight_t);
+    // Compute root sum_hess by summing hessians across all targets
+    float root_sum_hess = 0.0f;
+    for (bst_target_t t{0}; t < n_targets; ++t) {
+      root_sum_hess += static_cast<float>(root_sum(t).GetHess());
+    }
+    p_tree->SetRoot(weight_t, root_sum_hess);
     std::vector<BoundedHistCollection const *> hists;
     std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
-    for (bst_target_t t{0}; t < p_tree->NumTargets(); ++t) {
+
+    for (bst_target_t t{0}; t < n_targets; ++t) {
       hists.push_back(&(*histogram_builder_).Histogram(t));
     }
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
@@ -250,7 +292,9 @@ class MultiTargetHistBuilder {
                       std::vector<MultiExpandEntry> *best_splits) {
     monitor_->Start(__func__);
     std::vector<BoundedHistCollection const *> hists;
-    for (bst_target_t t{0}; t < p_tree->NumTargets(); ++t) {
+    // Use histogram builder's number of targets (may differ from tree for reduced gradient)
+    auto n_targets = histogram_builder_->NumTargets();
+    for (bst_target_t t{0}; t < n_targets; ++t) {
       hists.push_back(&(*histogram_builder_).Histogram(t));
     }
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
@@ -271,23 +315,90 @@ class MultiTargetHistBuilder {
     monitor_->Stop(__func__);
   }
 
-  void ExpandTreeLeaf(RegTree *p_tree) {
-    // TODO(jiamingy): Support reduced gradient.
-    p_tree->GetMultiTargetTree()->SetLeaves();
+  /**
+   * @brief Calculate leaf weights using value gradient.
+   *
+   * This method supports reduced gradient. Weights in p_tree are calculated using split
+   * gradient during tree building. This function replaces those weights with new weights
+   * calculated from value gradient.
+   */
+  void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree *p_tree) {
+    auto tree = p_tree->HostMtView();
+    auto n_targets = p_tree->NumTargets();
+    auto value_gpair = full_grad.HostView();
+
+    // Collect all leaf nodes from the first partitioner
+    std::vector<bst_node_t> leaves_idx;
+    CHECK(!partitioner_.empty());
+    for (auto const &node : partitioner_.front().Partitions()) {
+      if (node.node_id >= 0 && tree.IsLeaf(node.node_id)) {
+        leaves_idx.push_back(node.node_id);
+      }
+    }
+
+    auto n_leaves = leaves_idx.size();
+    CHECK_EQ(p_tree->GetNumLeaves(), n_leaves);
+    CHECK_GT(n_leaves, 0);
+
+    // Sanity check: all partitioners should have the same set of leaves
+    if (hist_param_->debug_synchronize) {
+      CheckPartitionerLeaves(this->partitioner_, tree, leaves_idx);
+    }
+
+    // Calculate gradient sum for each leaf using thread-local storage
+    // Shape: [n_threads, n_leaves, n_targets]
+    auto n_threads = ctx_->Threads();
+    auto leaf_sums_tloc =
+        linalg::Constant(ctx_, GradientPairPrecise{}, n_threads, n_leaves, n_targets);
+    auto h_leaf_sums_tloc = leaf_sums_tloc.HostView();
+
+    for (auto const &part : partitioner_) {
+      common::BlockedSpace2d space(
+          n_leaves, [&](std::size_t leaf_idx) { return part[leaves_idx[leaf_idx]].Size(); }, 1024);
+      // when Size() is 0 (node has no rows in a partition), no blocks are created for
+      // that leaf and the lambda is never called.
+      common::ParallelFor2d(space, n_threads, [&](std::size_t leaf_idx, common::Range1d r) {
+        auto const &node = part[leaves_idx[leaf_idx]];
+        auto tidx = omp_get_thread_num();
+        // Sum gradients for rows in this leaf (row indices are global)
+        for (auto it = node.begin() + r.begin(); it != node.begin() + r.end(); ++it) {
+          for (bst_target_t t = 0; t < n_targets; ++t) {
+            h_leaf_sums_tloc(tidx, leaf_idx, t) += GradientPairPrecise{value_gpair(*it, t)};
+          }
+        }
+      });
+    }
+
+    // Reduce thread-local sums: [n_threads, n_leaves, n_targets] -> [n_leaves, n_targets]
+    auto leaf_sums = ReduceToRows(ctx_, h_leaf_sums_tloc);
+    auto h_leaf_sums = leaf_sums.HostView();
+
+    // Calculate weights for each leaf
+    linalg::Matrix<float> weights = linalg::Empty<float>(ctx_, n_leaves, n_targets);
+    auto h_weights = weights.HostView();
+    auto eta = this->param_->learning_rate;
+
+    common::ParallelFor(n_leaves, n_threads, [&](auto leaf_idx) {
+      auto grad_sum = h_leaf_sums.Slice(leaf_idx, linalg::All());
+      auto weight = h_weights.Slice(leaf_idx, linalg::All());
+      CalcWeight(*param_, grad_sum, eta, weight);
+    });
+
+    // Set leaf weights
+    p_tree->SetLeaves(leaves_idx, h_weights.Values());
   }
 
  public:
   explicit MultiTargetHistBuilder(Context const *ctx, MetaInfo const &info, TrainParam const *param,
                                   HistMakerTrainParam const *hist_param,
                                   std::shared_ptr<common::ColumnSampler> column_sampler,
-                                  ObjInfo const *task, common::Monitor *monitor)
+                                  common::Monitor *monitor)
       : monitor_{monitor},
         param_{param},
         hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
         evaluator_{std::make_unique<HistMultiEvaluator>(ctx, info, param, col_sampler_)},
-        ctx_{ctx},
-        task_{task} {
+        ctx_{ctx} {
     monitor_->Init(__func__);
   }
 
@@ -359,7 +470,7 @@ class HistUpdater {
 
  public:
   // initialize temp data structure
-  void InitData(DMatrix *fmat, RegTree const *p_tree) {
+  void InitData(DMatrix *fmat, RegTree const *p_tree, linalg::MatrixView<GradientPair const>) {
     monitor_->Start(__func__);
     bst_bin_t n_total_bins{0};
     size_t page_idx = 0;
@@ -490,8 +601,6 @@ class HistUpdater {
     }
     monitor_->Stop(__func__);
   }
-
-  void ExpandTreeLeaf(RegTree *) { /*no op for scalar trees.*/ }
 };
 
 /*! \brief construct a tree using quantized feature values */
@@ -501,12 +610,10 @@ class QuantileHistMaker : public TreeUpdater {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
 
   common::Monitor monitor_;
-  ObjInfo const *task_{nullptr};
   HistMakerTrainParam hist_param_;
 
  public:
-  explicit QuantileHistMaker(Context const *ctx, ObjInfo const *task)
-      : TreeUpdater{ctx}, task_{task} {}
+  explicit QuantileHistMaker(Context const *ctx, ObjInfo const *) : TreeUpdater{ctx} {}
 
   void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
   void LoadConfig(Json const &in) override {
@@ -537,7 +644,7 @@ class QuantileHistMaker : public TreeUpdater {
       }
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(
-            ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, task_, &monitor_);
+            ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, &monitor_);
       }
     } else {
       CHECK(hist_param_.GetInitialised());
@@ -548,7 +655,8 @@ class QuantileHistMaker : public TreeUpdater {
     }
 
     bst_target_t n_targets = trees.front()->NumTargets();
-    auto h_gpair = in_gpair->FullGradOnly()->HostView();
+    // Use split gradient for tree building
+    auto h_gpair = in_gpair->Grad()->HostView();
 
     linalg::Matrix<GradientPair> sample_out;
     auto h_sample_out = h_gpair;
@@ -571,6 +679,20 @@ class QuantileHistMaker : public TreeUpdater {
       if ((*tree_it)->IsMultiTarget()) {
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
                                      h_out_position, *tree_it);
+        if (in_gpair->HasValueGrad()) {
+          // Copy the value gradient for sampling
+          auto value_grad = linalg::Empty<GradientPair>(ctx_, in_gpair->value_gpair.Shape(0),
+                                                        in_gpair->value_gpair.Shape(1));
+          auto h_value_grad = value_grad.HostView();
+          auto h_value_grad_in = in_gpair->value_gpair.HostView();
+          std::copy(linalg::cbegin(h_value_grad_in), linalg::cend(h_value_grad_in),
+                    linalg::begin(h_value_grad));
+          SampleGradient(ctx_, *param, h_value_grad);
+          // Refresh the leaf weights.
+          p_mtimpl_->ExpandTreeLeaf(in_gpair->value_gpair, *tree_it);
+        } else {
+          (*tree_it)->GetMultiTargetTree()->SetLeaves();
+        }
       } else {
         UpdateTree<CPUExpandEntry>(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param,
                                    h_out_position, *tree_it);

@@ -28,7 +28,7 @@ jobs:
         with:
           environment-name: cpp_test
           environment-file: ops/conda_env/cpp_test.yml
-      - uses: trivialfis/sccache-gha/actions/sccache@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - name: Build and test XGBoost
         run: bash ops/pipeline/build-test-cpu-nonomp.sh
 
@@ -46,6 +46,6 @@ jobs:
         with:
           environment-name: cpp_test
           environment-file: ops/conda_env/cpp_test.yml
-      - uses: trivialfis/sccache-gha/actions/sccache@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - name: Build and run C API demo with shared
         run: bash ops/pipeline/test-c-api-demo.sh
