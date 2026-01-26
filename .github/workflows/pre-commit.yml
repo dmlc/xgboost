@@ -7,9 +7,8 @@ permissions:
 
 jobs:
   pre-commit:
-    name: Run pre-commit (non-blocking)
+    name: Run pre-commit
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:

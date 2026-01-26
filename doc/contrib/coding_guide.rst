@@ -116,10 +116,11 @@ Running Formatting Checks Locally
 Once you submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_, we perform
 two automatic checks to enforce coding style conventions. To expedite the code review process, you are encouraged to run the checks locally on your machine prior to submitting your pull request.
 
-Pre-commit (Optional)
-=====================
-We provide a minimal `pre-commit <https://pre-commit.com/>`_ configuration for basic whitespace
-and file-sanity checks. It only runs on changed files by default.
+Pre-commit
+==========
+We provide a `pre-commit <https://pre-commit.com/>`_ configuration for basic formatting and
+file-sanity checks. It only runs on changed files by default, and the same checks run in CI
+as a required (blocking) job.
 
 To enable it locally:
 
