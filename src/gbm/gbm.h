@@ -5,8 +5,7 @@
  *  that learns through gradient statistics.
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_GBM_H_
-#define XGBOOST_GBM_H_
+#pragma once
 
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
@@ -196,4 +195,3 @@ struct GradientBoosterReg
       ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->__REGISTER__(Name)
 
 }  // namespace xgboost
-#endif  // XGBOOST_GBM_H_
