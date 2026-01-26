@@ -20,6 +20,7 @@ repos:
         language: python
         types: [file]
         files: \.(cc|c|cpp|h|cu|hpp)$
+        exclude: (dmlc-core|gputreeshap)
         additional_dependencies:
           - cpplint==1.6.1
       - id: lint-cmake
@@ -27,6 +28,7 @@ repos:
         entry: cmakelint --linelength=120 --filter=-convention/filename,-package/stdargs,-readability/wonkycase
         language: python
         types: [file]
-        files: (^CMakeLists\.txt$|^cmake/.*\.cmake$)
+        files: (CMakeLists\.txt$|^cmake/.*\.cmake$)
+        exclude: (dmlc-core|gputreeshap)
         additional_dependencies:
           - cmakelint
