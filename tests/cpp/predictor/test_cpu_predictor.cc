@@ -2,7 +2,7 @@
  * Copyright 2017-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/predictor.h>
+#include "../../../src/predictor/predictor.h"  // for Predictor
 
 #include "../../../src/collective/communicator-inl.h"
 #include "../../../src/data/adapter.h"

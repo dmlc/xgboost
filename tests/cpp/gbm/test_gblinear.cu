@@ -1,10 +1,10 @@
 /**
- * Copyright 2023-2025, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/global_config.h>  // for GlobalConfigThreadLocalStore
 #include <xgboost/json.h>           // for Json, Object
-#include <xgboost/learner.h>        // for Learner
+#include "../../../src/learner.h"   // for Learner
 
 #include <algorithm>  // for transform
 #include <string>     // for string

@@ -4,47 +4,47 @@
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
  */
-#include "xgboost/learner.h"
+#include "learner.h"
 
-#include <dmlc/io.h>                      // for Stream
-#include <dmlc/parameter.h>               // for FieldEntry, DMLC_DECLARE_FIELD, Parameter, DMLC...
-#include <dmlc/thread_local.h>            // for ThreadLocalStore
+#include <dmlc/io.h>            // for Stream
+#include <dmlc/parameter.h>     // for FieldEntry, DMLC_DECLARE_FIELD, Parameter, DMLC...
+#include <dmlc/thread_local.h>  // for ThreadLocalStore
 
-#include <algorithm>                      // for equal, max, transform, sort, find_if, all_of
-#include <atomic>                         // for atomic
-#include <cctype>                         // for isalpha, isspace
-#include <cmath>                          // for isnan, isinf
-#include <cstdint>                        // for int32_t, uint32_t, int64_t, uint64_t
-#include <cstdlib>                        // for atoi
-#include <cstring>                        // for memcpy, size_t, memset
-#include <iomanip>                        // for operator<<, setiosflags
-#include <iterator>                       // for back_insert_iterator, distance, back_inserter
-#include <limits>                         // for numeric_limits
-#include <memory>                         // for allocator, unique_ptr, shared_ptr, operator==
-#include <mutex>                          // for mutex, lock_guard
-#include <sstream>                        // for operator<<, basic_ostream, basic_ostream::opera...
-#include <stack>                          // for stack
-#include <string>                         // for basic_string, char_traits, operator<, string
-#include <system_error>                   // for errc
-#include <unordered_map>                  // for operator!=, unordered_map
-#include <utility>                        // for pair, as_const, move, swap
-#include <vector>                         // for vector
+#include <algorithm>      // for equal, max, transform, sort, find_if, all_of
+#include <atomic>         // for atomic
+#include <cctype>         // for isalpha, isspace
+#include <cmath>          // for isnan, isinf
+#include <cstdint>        // for int32_t, uint32_t, int64_t, uint64_t
+#include <cstdlib>        // for atoi
+#include <cstring>        // for memcpy, size_t, memset
+#include <iomanip>        // for operator<<, setiosflags
+#include <iterator>       // for back_insert_iterator, distance, back_inserter
+#include <limits>         // for numeric_limits
+#include <memory>         // for allocator, unique_ptr, shared_ptr, operator==
+#include <mutex>          // for mutex, lock_guard
+#include <sstream>        // for operator<<, basic_ostream, basic_ostream::opera...
+#include <stack>          // for stack
+#include <string>         // for basic_string, char_traits, operator<, string
+#include <system_error>   // for errc
+#include <unordered_map>  // for operator!=, unordered_map
+#include <utility>        // for pair, as_const, move, swap
+#include <vector>         // for vector
 
 #include "collective/aggregator.h"        // for ApplyWithLabels
 #include "collective/communicator-inl.h"  // for Allreduce, Broadcast, GetRank, IsDistributed
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
-#include "common/param_array.h"           // for ParamArray
 #include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
+#include "common/param_array.h"           // for ParamArray
 #include "common/random.h"                // for GlobalRandom
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
+#include "gbm/gbm.h"                      // for GradientBooster
 #include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
-#include "xgboost/gbm.h"                  // for GradientBooster
 #include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
 #include "xgboost/host_device_vector.h"   // for HostDeviceVector
 #include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
@@ -53,7 +53,7 @@
 #include "xgboost/metric.h"               // for Metric
 #include "xgboost/objective.h"            // for ObjFunction
 #include "xgboost/parameter.h"            // for DECLARE_FIELD_ENUM_CLASS, XGBoostParameter
-#include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
+#include "predictor/predictor.h"          // for PredictionContainer, PredictionCacheEntry
 #include "xgboost/string_view.h"          // for operator<<, StringView
 #include "xgboost/task.h"                 // for ObjInfo
 

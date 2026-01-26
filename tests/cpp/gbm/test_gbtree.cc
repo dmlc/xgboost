@@ -1,11 +1,11 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 #include <xgboost/json.h>                // for Json, Object
-#include <xgboost/learner.h>             // for Learner
+#include "../../../src/learner.h"        // for Learner
 
 #include <limits>    // for numeric_limits
 #include <memory>    // for shared_ptr
@@ -17,7 +17,7 @@
 #include "../filesystem.h"  // TemporaryDirectory
 #include "../helpers.h"
 #include "xgboost/base.h"
-#include "xgboost/predictor.h"
+#include "../../../src/predictor/predictor.h"  // for Predictor
 
 namespace xgboost {
 TEST(GBTree, SelectTreeMethod) {

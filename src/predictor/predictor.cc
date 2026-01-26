@@ -1,7 +1,7 @@
 /**
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  */
-#include "xgboost/predictor.h"
+#include "predictor.h"
 
 #include <dmlc/registry.h>  // for DMLC_REGISTRY_LINK_TAG
 
@@ -9,11 +9,11 @@
 #include <string>   // for string, to_string
 
 #include "../gbm/gbtree_model.h"         // for GBTreeModel
+#include "../learner.h"                  // for LearnerModelParam
 #include "xgboost/base.h"                // for Args, bst_group_t, bst_idx_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
-#include "xgboost/learner.h"             // for LearnerModelParam
 #include "xgboost/linalg.h"              // for Tensor, TensorView
 #include "xgboost/logging.h"             // for CHECK_EQ, CHECK_NE, LOG
 

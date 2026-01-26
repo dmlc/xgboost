@@ -30,11 +30,11 @@
 #include "xgboost/context.h"                  // for Context
 #include "xgboost/data.h"                     // for Entry, DMatrix, MetaInfo, SparsePage, Batch...
 #include "xgboost/host_device_vector.h"       // for HostDeviceVector
-#include "xgboost/learner.h"                  // for LearnerModelParam
+#include "../learner.h"                       // for LearnerModelParam
+#include "predictor.h"                        // for PredictionCacheEntry, Predictor, PredictorReg
 #include "xgboost/linalg.h"                   // for TensorView, All, VectorView, Tensor
 #include "xgboost/logging.h"                  // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_NE
 #include "xgboost/multi_target_tree_model.h"  // for MultiTargetTree
-#include "xgboost/predictor.h"                // for PredictionCacheEntry, Predictor, PredictorReg
 #include "xgboost/span.h"                     // for Span
 #include "xgboost/tree_model.h"               // for RegTree, MTNotImplemented, RTreeNodeStat
 

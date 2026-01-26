@@ -1,12 +1,11 @@
-/*!
- * Copyright 2018-2019 by Contributors
+/**
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #include <xgboost/linear_updater.h>
-#include <xgboost/gbm.h>
 
+#include "../../../src/gbm/gblinear_model.h"
 #include "../helpers.h"
 #include "test_json_io.h"
-#include "../../../src/gbm/gblinear_model.h"
 #include "xgboost/base.h"
 
 namespace xgboost {

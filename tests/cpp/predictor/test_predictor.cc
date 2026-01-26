@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #include "test_predictor.h"
 
@@ -8,7 +8,7 @@
 #include <xgboost/data.h>                // for DMatrix, BatchIterator, BatchSet, MetaInfo
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 #include <xgboost/json.h>                // for Json
-#include <xgboost/predictor.h>           // for PredictionCacheEntry, Predictor, Predic...
+#include "../../../src/predictor/predictor.h"  // for PredictionCacheEntry, Predictor
 #include <xgboost/string_view.h>         // for StringView
 
 #include <limits>         // for numeric_limits

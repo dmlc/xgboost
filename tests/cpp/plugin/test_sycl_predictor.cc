@@ -1,11 +1,11 @@
 /*!
- * Copyright 2017-2025 XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
-#include <xgboost/predictor.h>
+#include "../../../src/predictor/predictor.h"  // for Predictor
 #pragma GCC diagnostic pop
 
 #pragma GCC diagnostic push
