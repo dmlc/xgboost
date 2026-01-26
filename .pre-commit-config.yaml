@@ -22,3 +22,11 @@ repos:
         files: \.(cc|c|cpp|h|cu|hpp)$
         additional_dependencies:
           - cpplint==1.6.1
+      - id: lint-cmake
+        name: CMake lint (cmakelint)
+        entry: cmakelint --linelength=120 --filter=-convention/filename,-package/stdargs,-readability/wonkycase
+        language: python
+        types: [file]
+        files: (^CMakeLists\.txt$|^cmake/.*\.cmake$)
+        additional_dependencies:
+          - cmakelint
