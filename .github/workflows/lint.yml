@@ -70,5 +70,4 @@ jobs:
           python -m pip install wheel setuptools cmakelint cpplint==1.6.1 pylint
       - name: Run lint
         run: |
-          python3 ops/script/lint_cpp.py
           bash ops/script/lint_cmake.sh

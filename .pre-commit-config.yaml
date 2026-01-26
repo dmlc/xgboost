@@ -12,3 +12,13 @@ repos:
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
       - id: mixed-line-ending
+  - repo: local
+    hooks:
+      - id: lint-cpp
+        name: C++ lint (cpplint)
+        entry: python ops/script/lint_cpp.py
+        language: python
+        types: [file]
+        files: \.(cc|c|cpp|h|cu|hpp)$
+        additional_dependencies:
+          - cpplint==1.6.1
