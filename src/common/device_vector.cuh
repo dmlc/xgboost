@@ -268,7 +268,7 @@ class ThrustAllocMrAdapter : public rmm::mr::thrust_allocator<T> {
     using other = ThrustAllocMrAdapter<U>;  // NOLINT(readability-identifier-naming)
   };
 
- public:
+
   ThrustAllocMrAdapter()
       : rmm::mr::thrust_allocator<T>{
             rmm::cuda_stream_view{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
