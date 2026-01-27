@@ -119,7 +119,9 @@ two automatic checks to enforce coding style conventions. To expedite the code r
 Pre-commit
 ==========
 We provide a `pre-commit <https://pre-commit.com/>`_ configuration for basic formatting,
-linting, and file-sanity checks. It only runs on changed files by default.
+linting, and file-sanity checks. By default, pre-commit targets changed files, but some hooks in
+this repository (for example, the Python formatting hook) are configured to examine a broader set
+of files.
 
 To enable it locally:
 
