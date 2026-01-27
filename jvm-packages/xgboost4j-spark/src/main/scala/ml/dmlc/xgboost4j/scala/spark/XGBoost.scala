@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2024 by Contributors
+ Copyright (c) 2014-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import org.apache.spark.{SparkConf, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.resource.{ResourceProfileBuilder, TaskResourceRequests}
 
-import ml.dmlc.xgboost4j.java.{Communicator, ConfigContext, RabitTracker}
+import ml.dmlc.xgboost4j.java.{Communicator, ConfigContext, RabitTracker, XGBoostJNI}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 
@@ -195,7 +195,7 @@ private[spark] object XGBoost extends StageLevelScheduling {
    *
    * @param watches       holds the dataset to be trained
    * @param runtimeParams XGBoost runtime parameters
-   * @param xgboostParams XGBoost library paramters
+   * @param xgboostParams XGBoost library parameters
    * @return a booster and the metrics
    */
   private def trainBooster(watches: Watches,
@@ -207,20 +207,25 @@ private[spark] object XGBoost extends StageLevelScheduling {
     val metrics = Array.tabulate(watches.size)(_ =>
       Array.ofDim[Float](runtimeParams.numRounds))
 
-    var params = xgboostParams
-    if (runtimeParams.runOnGpu) {
-      val gpuId = if (runtimeParams.isLocal) {
-        TaskContext.get().partitionId() % runtimeParams.numWorkers
-      } else {
-        getGPUAddrFromResources
-      }
-      logger.info("Leveraging gpu device " + gpuId + " to train")
-      params = params + ("device" -> s"cuda:$gpuId")
-    }
-    val booster = SXGBoost.train(watches.toMap("train"), params, runtimeParams.numRounds,
-      watches.toMap, metrics, runtimeParams.obj.getOrElse(null),
-      runtimeParams.eval.getOrElse(null), earlyStoppingRound = numEarlyStoppingRounds)
+    val booster = SXGBoost.train(watches.toMap("train"), xgboostParams, runtimeParams.numRounds,
+      watches.toMap, metrics, runtimeParams.obj.orNull,
+      runtimeParams.eval.orNull, earlyStoppingRound = numEarlyStoppingRounds)
     (booster, metrics)
+  }
+
+  /**
+   * Sets the CUDA device for current process.
+   *
+   * Note: Process exclusive mode is not required because we rely on Spark's resource
+   * scheduler to properly assign GPU resources and prevent multiple executors from
+   * using the same GPU simultaneously.
+   *
+   * @param addr The GPU device address/ID to set and acquire
+   * @return The same GPU device address that was passed in
+   */
+  private def setGpuDeviceAndAcquire(addr: Int): Int = {
+    XGBoostJNI.CudaSetDevice(addr.toInt)
+    addr
   }
 
   /**
@@ -246,10 +251,24 @@ private[spark] object XGBoost extends StageLevelScheduling {
     require(tracker.start(), "FAULT: Failed to start tracker")
 
     try {
-      val rabitEnv = tracker.getWorkerArgs()
+      val rabitEnv = tracker.getWorkerArgs
 
       val boostersAndMetrics = input.barrier().mapPartitions { iter =>
         val partitionId = TaskContext.getPartitionId()
+
+        var params = xgboostParams
+        // Set GPU device ID if possible
+        if (runtimeParams.runOnGpu) {
+          val gpuId = if (runtimeParams.isLocal) {
+            partitionId % runtimeParams.numWorkers
+          } else {
+            getGPUAddrFromResources
+          }
+          logger.info("Leveraging gpu device " + gpuId + " to train")
+          setGpuDeviceAndAcquire(gpuId)
+          params = params + ("device" -> s"cuda:$gpuId")
+        }
+
         rabitEnv.put("DMLC_TASK_ID", partitionId.toString)
         try {
           Communicator.init(rabitEnv)
@@ -258,7 +277,7 @@ private[spark] object XGBoost extends StageLevelScheduling {
           withResource(new ConfigContext(runtimeParams.configs.asJava)) { _ =>
             val watches = iter.next()
             try {
-              val (booster, metrics) = trainBooster(watches, runtimeParams, xgboostParams)
+              val (booster, metrics) = trainBooster(watches, runtimeParams, params)
               if (partitionId == 0) {
                 Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
               } else {

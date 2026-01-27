@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2023 by Contributors
+ Copyright (c) 2014-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import org.apache.commons.logging.LogFactory;
  *
  * @author hzx
  */
-class XGBoostJNI {
+public class XGBoostJNI {
   private static final Log logger = LogFactory.getLog(DMatrix.class);
 
   static {
@@ -198,4 +198,7 @@ class XGBoostJNI {
   public final static native int XGBSetGlobalConfig(String config);
 
   public final static native int XGBGetGlobalConfig(String[] out);
+
+  // CUDA device management functions
+  public final static native int CudaSetDevice(int deviceId);
 }
