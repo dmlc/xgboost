@@ -28,9 +28,9 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/run-clang-tidy.sh
 
-  python-mypy-lint:
+  python-mypy:
     runs-on: ubuntu-latest
-    name: Type and format checks for the Python package
+    name: Type checks for the Python package
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,11 +43,3 @@ jobs:
         shell: bash -el {0}
         run: |
           python ops/script/lint_python.py --format=0 --type-check=1 --pylint=0
-      - name: Run formatter
-        shell: bash -el {0}
-        run: |
-          python ops/script/lint_python.py --format=1 --type-check=0 --pylint=0
-      - name: Run pylint
-        shell: bash -el {0}
-        run: |
-          python ops/script/lint_python.py --format=0 --type-check=0 --pylint=1

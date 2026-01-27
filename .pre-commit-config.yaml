@@ -32,3 +32,15 @@ repos:
         exclude: (dmlc-core|gputreeshap)
         additional_dependencies:
           - cmakelint
+      - id: format-python
+        name: Python format + lint (black + isort + pylint)
+        entry: python ops/script/lint_python.py --format=1 --type-check=0 --pylint=1 --fix
+        language: python
+        types: [file]
+        files: \.py$
+        exclude: (dmlc-core|gputreeshap)
+        pass_filenames: false
+        additional_dependencies:
+          - black
+          - isort
+          - pylint

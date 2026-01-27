@@ -19,7 +19,7 @@ C++ Coding Guideline
 - Use C++17 features such as smart pointers, braced initializers, lambda functions, and ``std::thread``.
 - Use Doxygen to document all the interface code.
 - We have some comments around symbols imported by headers, some of those are hinted by `include-what-you-use <https://include-what-you-use.org>`_. It's not required.
-- We use clang-tidy and clang-format. You can check their configuration in the root directory of the XGBoost source tree.
+- We use clang-tidy. Its configuration lives in the root directory of the XGBoost source tree.
 - We have a series of automatic checks to ensure that all of our codebase complies with the Google style. Before submitting your pull request, you are encouraged to run the style checks on your machine. See :ref:`running_checks_locally`.
 
 ***********************
@@ -118,9 +118,8 @@ two automatic checks to enforce coding style conventions. To expedite the code r
 
 Pre-commit
 ==========
-We provide a `pre-commit <https://pre-commit.com/>`_ configuration for basic formatting and
-file-sanity checks. It only runs on changed files by default, and the same checks run in CI
-as a required (blocking) job.
+We provide a `pre-commit <https://pre-commit.com/>`_ configuration for basic formatting,
+linting, and file-sanity checks. It only runs on changed files by default.
 
 To enable it locally:
 
@@ -145,7 +144,7 @@ Linter
 ======
 We use a combination of linters to enforce style convention and find potential errors. Linting is especially useful for scripting languages like Python, as we can catch many errors that would have otherwise occurred at run-time.
 
-For Python scripts, `pylint <https://github.com/PyCQA/pylint>`_, `black <https://github.com/psf/black>`__ and `isort <https://github.com/PyCQA/isort>`__ are used for providing guidance on coding style, and `mypy <https://github.com/python/mypy>`__ is required for type checking. For C++, `cpplint <https://github.com/cpplint/cpplint>`_ is used along with ``clang-tidy``. For R, ``lintr`` is used.
+For Python scripts, `pylint <https://github.com/PyCQA/pylint>`_, `black <https://github.com/psf/black>`__ and `isort <https://github.com/PyCQA/isort>`__ are used for providing guidance on coding style, and `mypy <https://github.com/python/mypy>`__ is required for type checking. The Python formatting and pylint checks are bundled in the ``format-python`` pre-commit hook. For C++, `cpplint <https://github.com/cpplint/cpplint>`_ is used along with ``clang-tidy``. For R, ``lintr`` is used.
 
 To run checks for Python locally, install the checkers mentioned previously and run:
 
