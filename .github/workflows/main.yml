@@ -475,7 +475,7 @@ jobs:
             --train --model-path cross_platform_model.ubj
       - name: Upload cross-platform model artifact
         if: matrix.cuda_version == 12 && matrix.suite == 'gpu'
-        uses: actions/upload-artifact@6.0.0
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: cross-platform-model
           path: cross_platform_model.ubj
