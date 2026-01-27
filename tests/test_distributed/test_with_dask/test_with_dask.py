@@ -1573,21 +1573,30 @@ class TestWithDask:
                 assert all(results)
 
     def test_n_workers(self) -> None:
+        """Check obtaining worker addresses using input data."""
+
+        def from_delayed(fut: Any, x: np.ndarray) -> Any:
+            return da.from_delayed(fut, shape=x.shape, dtype=x.dtype)
+
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
                 workers = tm.dask.get_client_workers(client)
                 from sklearn.datasets import load_breast_cancer
 
                 X, y = load_breast_cancer(return_X_y=True)
-                dX = client.submit(da.from_array, X, workers=[workers[0]]).result()
-                dy = client.submit(da.from_array, y, workers=[workers[0]]).result()
+
+                # Use client.scatter to directly place data on specific workers.
+                X_fut_0 = client.scatter(X, workers=[workers[0]])
+                y_fut_0 = client.scatter(y, workers=[workers[0]])
+                dX = from_delayed(X_fut_0, X)
+                dy = from_delayed(y_fut_0, y)
                 train = dxgb.DaskDMatrix(client, dX, dy)
 
-                dX = dd.from_array(X)
-                dX = client.persist(dX, workers=workers[1])
-                dy = dd.from_array(y)
-                dy = client.persist(dy, workers=workers[1])
-                valid = dxgb.DaskDMatrix(client, dX, dy)
+                X_fut_1 = client.scatter(X, workers=[workers[1]])
+                y_fut_1 = client.scatter(y, workers=[workers[1]])
+                dX_valid = from_delayed(X_fut_1, X)
+                dy_valid = from_delayed(y_fut_1, y)
+                valid = dxgb.DaskDMatrix(client, dX_valid, dy_valid)
 
                 merged = dxgb._get_workers_from_data(train, evals=[(valid, "Valid")])
                 assert len(merged) == 2
