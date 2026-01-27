@@ -213,7 +213,7 @@ def hist_train(
         use_rmm=memory_pool == "rmm",
         use_cuda_async_pool=memory_pool == "cuda",
     ):
-        # Generate the data for demonstration. The sythetic data is sharded by workers.
+        # Generate the data for demonstration. The synthetic data is sharded by workers.
         files = make_batches(
             n_samples_per_batch=4096,
             n_features=16,

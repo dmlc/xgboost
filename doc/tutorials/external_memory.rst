@@ -463,9 +463,9 @@ it takes to run inference, even if a C2C link is available.
     Xy_train = xgboost.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
     Xy_valid = xgboost.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
 
-In addition, since the GPU implementation relies on asynchronous memory pool, which is
-subject to memory fragmentation regardless of whether you use the CUDA async pool or RMM.
-You might want to start the training with a fresh pool instead of starting training right
+In addition, since the GPU implementation relies on asynchronous memory pool, memory
+fragmentation can occur regardless of whether you use the CUDA async pool or RMM.  You
+might want to start the training with a fresh pool instead of starting training right
 after the ETL process. If you run into out-of-memory errors and you are convinced that the
 pool is not full yet (pool memory usage can be profiled with ``nsight-system``), consider
 using the :py:class:`~rmm.mr.ArenaMemoryResource` memory resource with RMM, or using the
