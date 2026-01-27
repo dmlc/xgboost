@@ -36,7 +36,7 @@ jobs:
           sudo apt update
           sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev librsvg2-dev librsvg2-2
         if: matrix.os == 'ubuntu-latest'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: 'true'
       - uses: r-lib/actions/setup-r@v2
@@ -79,7 +79,7 @@ jobs:
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/sccache@main
