@@ -4,6 +4,11 @@
 
 set -euo pipefail
 
+if [ -f ~/.R/Makevars ]; then
+    echo "Error: ~/.R/Makevars already exists. Aborting to avoid overwriting."
+    exit 1
+fi
+
 mkdir -p ~/.R
 cat > ~/.R/Makevars << 'EOF'
 CC = sccache gcc
