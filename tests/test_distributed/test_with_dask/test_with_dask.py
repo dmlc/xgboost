@@ -1497,8 +1497,8 @@ class TestWithDask:
         )
 
     def test_empty_quantile_dmatrix(self, client: Client) -> None:
-        X, y = make_categorical(client, 2, 30, 13)
-        X_valid, y_valid = make_categorical(client, 10000, 30, 13)
+        X, y = make_categorical(client, 1, 16, 4, onehot=True)
+        X_valid, y_valid = make_categorical(client, 4000, 16, 4, onehot=True)
 
         Xy = dxgb.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
         Xy_valid = dxgb.DaskQuantileDMatrix(
@@ -1514,7 +1514,7 @@ class TestWithDask:
         predt = dxgb.inplace_predict(client, result["booster"], X).compute()
         np.testing.assert_allclose(y.compute(), predt)
         rmse = result["history"]["Valid"]["rmse"][-1]
-        assert rmse < 32.0
+        assert rmse < 6.0
 
     @given(
         params=hist_parameter_strategy,
