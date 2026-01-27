@@ -90,7 +90,7 @@ bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShap
     // Device available memory is not accurate when a memory pool is used.
     double total_mem = curt::TotalMemory() - container_bytes;
     double total_f32 = total_mem / sizeof(float);
-    double n_max_used_f32 = std::max(total_f32 / 16.0, 1.0);  // a quarter
+    double n_max_used_f32 = std::max(total_f32 / 16.0, 1.0);  // use 1/16 of available floats
     if (shape.nnz > shape.Size()) {
       // Unknown nnz
       shape.nnz = shape.Size();
