@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #pragma once
 #include <thrust/binary_search.h>                       // thrust::upper_bound
@@ -30,10 +30,6 @@
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
-
-#if defined(XGBOOST_USE_RMM)
-#include <rmm/exec_policy.hpp>
-#endif  // defined(XGBOOST_USE_RMM)
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
 
@@ -771,11 +767,7 @@ template <cudaMemcpyKind kind, typename T, typename U>
 
 inline auto CachingThrustPolicy() {
   XGBCachingDeviceAllocator<char> alloc;
-#if THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
   return thrust::cuda::par_nosync(alloc).on(::xgboost::curt::DefaultStream());
-#else
-  return thrust::cuda::par(alloc).on(::xgboost::curt::DefaultStream());
-#endif  // THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
 }
 
 // Force nvcc to load data as constant

@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2025, XGBoost Contributors
+ * Copyright 2022-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_CUDA_CONTEXT_CUH_
 #define XGBOOST_COMMON_CUDA_CONTEXT_CUH_
@@ -16,24 +16,16 @@ struct CUDAContext {
 
  public:
   /**
-   * \brief Caching thrust policy.
+   * @brief Caching thrust policy.
    */
   auto CTP() const {
-#if THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
     return thrust::cuda::par_nosync(caching_alloc_).on(curt::DefaultStream());
-#else
-    return thrust::cuda::par(caching_alloc_).on(curt::DefaultStream());
-#endif  // THRUST_MAJOR_VERSION >= 2
   }
   /**
-   * \brief Thrust policy without caching allocator.
+   * @brief Thrust policy without caching allocator.
    */
   auto TP() const {
-#if THRUST_MAJOR_VERSION >= 2
     return thrust::cuda::par_nosync(alloc_).on(curt::DefaultStream());
-#else
-    return thrust::cuda::par(alloc_).on(curt::DefaultStream());
-#endif  // THRUST_MAJOR_VERSION >= 2
   }
   auto Stream() const { return curt::DefaultStream(); }
 };
