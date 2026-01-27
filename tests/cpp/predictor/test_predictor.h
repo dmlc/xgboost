@@ -115,10 +115,6 @@ void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsit
 
 void TestVectorLeafPrediction(Context const* ctx);
 
-class ShapExternalMemoryTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
- public:
-  void Run(Context const* ctx, bool is_qdm, bool is_interaction);
-};
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_PREDICTOR_H_

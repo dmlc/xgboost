@@ -14,6 +14,7 @@
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_predictor.h"
+#include "test_shap.h"
 
 namespace xgboost {
 TEST(CpuPredictor, Basic) {

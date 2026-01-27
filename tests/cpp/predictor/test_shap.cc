@@ -2,6 +2,7 @@
  * Copyright 2020-2026, XGBoost Contributors
  */
 #include "test_predictor.h"
+#include "test_shap.h"
 
 #include <gtest/gtest.h>
 #include <xgboost/data.h>                // for DMatrix
