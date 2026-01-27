@@ -468,6 +468,7 @@ jobs:
       # Train a model for cross-platform testing (only for CUDA 12 x86_64)
       - name: Train cross-platform test model
         if: matrix.cuda_version == 12 && matrix.suite == 'gpu'
+        shell: bash -l {0}
         run: |
           source activate gpu_test
           python tests/cross-platform/test_cross_platform_model.py \
