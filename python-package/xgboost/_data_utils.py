@@ -735,8 +735,6 @@ class TransformedDf(ABC):
 
     """
 
-    temporary_buffers: List[Tuple]
-
     def __init__(
         self,
         ref_categories: Optional[Categories],
