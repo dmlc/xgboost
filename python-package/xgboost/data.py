@@ -633,7 +633,11 @@ class PandasTransformed(TransformedDf):
                 # Numeric column
                 aitfs.append(inf)
 
-        super().__init__(ref_categories=ref_categories, aitfs=aitfs, temporary_buffers=temporary_buffers)
+        super().__init__(
+            ref_categories=ref_categories,
+            aitfs=aitfs,
+            temporary_buffers=temporary_buffers,
+        )
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -774,6 +778,7 @@ class ArrowTransformed(TransformedDf):
 
         aitfs: AifType = []
         temporary_buffers = []
+
         def push_series(col: Union["pa.NumericArray", "pa.DictionaryArray"]) -> None:
             if isinstance(col, pa.DictionaryArray):
                 cats = col.dictionary
@@ -792,7 +797,11 @@ class ArrowTransformed(TransformedDf):
         for col in self.columns:
             push_series(col)
 
-        super().__init__(ref_categories=ref_categories, aitfs=aitfs, temporary_buffers=temporary_buffers)
+        super().__init__(
+            ref_categories=ref_categories,
+            aitfs=aitfs,
+            temporary_buffers=temporary_buffers,
+        )
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -1003,6 +1012,7 @@ class CudfTransformed(TransformedDf):
 
         aitfs: AifType = []
         temporary_buffers = []
+
         def push_series(ser: Any) -> None:
             if _is_df_cat(ser):
                 cats, codes = ser.categories, ser.codes
@@ -1017,7 +1027,11 @@ class CudfTransformed(TransformedDf):
         for col in self.columns:
             push_series(col)
 
-        super().__init__(ref_categories=ref_categories, aitfs=aitfs, temporary_buffers=temporary_buffers)
+        super().__init__(
+            ref_categories=ref_categories,
+            aitfs=aitfs,
+            temporary_buffers=temporary_buffers,
+        )
 
     @property
     def shape(self) -> Tuple[int, int]:
