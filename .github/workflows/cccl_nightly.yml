@@ -41,8 +41,6 @@ jobs:
       - tag=nightly-cccl
     needs: get-latest-cccl-version
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
           submodules: "true"
@@ -74,8 +72,6 @@ jobs:
       - tag=nightly-rmm
     needs: get-latest-rmm-version
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
           submodules: "true"

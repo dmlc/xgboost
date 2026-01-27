@@ -1,30 +1,33 @@
 #!/bin/bash
+## Build XGBoost R package with GPU support and package it in a tarball.
+## Users will be able to install it without having CTK installed
+## (only a compatible NVIDIA driver is needed).
+## This script runs inside the container (via GitHub Actions container support).
 
-set -euo pipefail
+set -euox pipefail
 
-if [[ -z "${GITHUB_SHA:-}" ]]
-then
-  echo "Make sure to set environment variable GITHUB_SHA"
-  exit 1
-fi
+python3 ops/script/test_r_package.py --task=pack
+mv xgboost/ xgboost_rpack/
 
-source ops/pipeline/classify-git-branch.sh
-source ops/pipeline/get-docker-registry-details.sh
-source ops/pipeline/get-image-tag.sh
+mkdir build
+cd build
+cmake .. -GNinja \
+  -DUSE_CUDA=ON \
+  -DR_LIB=ON \
+  -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+  -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
+  -DCMAKE_CUDA_COMPILER_LAUNCHER=sccache
+ninja -v
+cd ..
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu_build_r_rockylinux8:${IMAGE_TAG}
-
-echo "--- Build XGBoost R package with CUDA"
-set -x
-python3 ops/docker_run.py \
-  --image-uri ${IMAGE_URI} \
-  -- ops/pipeline/build-gpu-rpkg-impl.sh \
-  ${GITHUB_SHA}
-
-if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-then
-  python3 ops/pipeline/manage-artifacts.py upload \
-    --s3-bucket xgboost-nightly-builds \
-    --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
-    xgboost_r_gpu_linux.tar.gz
-fi
+# This super wacky hack is found in cmake/RPackageInstall.cmake.in and
+# cmake/RPackageInstallTargetSetup.cmake. This hack lets us bypass the normal build process of R
+# and have R use xgboost.so that we've already built.
+rm -v xgboost_rpack/configure
+rm -rfv xgboost_rpack/src
+mkdir -p xgboost_rpack/src
+cp -v lib/xgboost.so xgboost_rpack/src/
+echo 'all:' > xgboost_rpack/src/Makefile
+echo 'all:' > xgboost_rpack/src/Makefile.win
+mv xgboost_rpack/ xgboost/
+tar cvzf xgboost_r_gpu_linux.tar.gz xgboost/
