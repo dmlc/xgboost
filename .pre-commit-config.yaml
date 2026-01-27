@@ -12,3 +12,23 @@ repos:
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
       - id: mixed-line-ending
+  - repo: local
+    hooks:
+      - id: lint-cpp
+        name: C++ lint (cpplint)
+        entry: python ops/script/lint_cpp.py
+        language: python
+        types: [file]
+        files: \.(cc|c|cpp|h|cu|hpp)$
+        exclude: (dmlc-core|gputreeshap)
+        additional_dependencies:
+          - cpplint==1.6.1
+      - id: lint-cmake
+        name: CMake lint (cmakelint)
+        entry: cmakelint --linelength=120 --filter=-convention/filename,-package/stdargs,-readability/wonkycase
+        language: python
+        types: [file]
+        files: (CMakeLists\.txt$|^cmake/.*\.cmake$)
+        exclude: (dmlc-core|gputreeshap)
+        additional_dependencies:
+          - cmakelint
