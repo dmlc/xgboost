@@ -47,6 +47,10 @@ jobs:
           python-version: "3.10"
           architecture: 'x64'
       - uses: r-lib/actions/setup-tinytex@v2
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+        if: matrix.os == 'ubuntu-latest'
+      - run: bash ops/script/setup_r_sccache.sh
+        if: matrix.os == 'ubuntu-latest'
       - name: Install dependencies
         shell: Rscript {0}
         run: |
@@ -59,6 +63,8 @@ jobs:
         run: |
           python ops/script/test_r_package.py --build-tool="${{ matrix.build }}" --task=check
         if: matrix.compiler == 'none'
+      - run: sccache --show-stats
+        if: matrix.os == 'ubuntu-latest'
 
   test-R-on-Debian:
     name: Test R package on Debian
@@ -76,6 +82,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - run: bash ops/script/setup_r_sccache.sh
       - name: Install dependencies
         shell: bash -l {0}
         run: |
@@ -84,6 +92,7 @@ jobs:
         shell: bash -l {0}
         run: |
           python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --build-tool=autotools --task=check
+      - run: sccache --show-stats
       - uses: dorny/paths-filter@v3
         # Run the document check if there are changes in the R package.
         id: changes
