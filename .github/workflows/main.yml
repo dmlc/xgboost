@@ -557,7 +557,7 @@ jobs:
         run: |
           python -m pip install -vvv wheelhouse/*.whl
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: python-wheel-${{ matrix.platform_id }}
           path: wheelhouse/*.whl
