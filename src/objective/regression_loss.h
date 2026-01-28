@@ -145,7 +145,9 @@ class GammaDeviance {
 // Label validation for Poisson regression (labels must be non-negative)
 struct PoissonLabel {
   XGBOOST_DEVICE static bool CheckLabel(float x) { return x >= 0.0f; }
-  static const char* LabelErrorMsg() { return "label must be non-negative."; }
+  static const char* LabelErrorMsg() {
+    return "label must be non-negative for Poisson/Tweedie regression.";
+  }
 };
 
 // Label validation for Tweedie regression (labels must be non-negative)

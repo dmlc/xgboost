@@ -435,7 +435,6 @@ class PoissonRegression : public FitInterceptGlmLike {
     preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
 
-    out_gpair->SetDevice(ctx_->Device());
     auto gpair = out_gpair->View(ctx_->Device());
 
     info.weights_.SetDevice(ctx_->Device());
@@ -629,7 +628,6 @@ class TweedieRegression : public FitInterceptGlmLike {
     preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
 
-    out_gpair->SetDevice(ctx_->Device());
     auto gpair = out_gpair->View(ctx_->Device());
 
     info.weights_.SetDevice(ctx_->Device());
