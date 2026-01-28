@@ -6,7 +6,10 @@ from hypothesis import given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     run_absolute_error,
+    run_binary_hinge,
+    run_binary_logitraw,
     run_column_sampling,
+    run_count_poisson,
     run_feature_importance_strategy_compare,
     run_grow_policy,
     run_mixed_strategy,
@@ -14,6 +17,12 @@ from xgboost.testing.multi_target import (
     run_multilabel,
     run_quantile_loss,
     run_reduced_grad,
+    run_reg_gamma,
+    run_reg_logistic,
+    run_reg_pseudohubererror,
+    run_reg_squarederror,
+    run_reg_squaredlogerror,
+    run_reg_tweedie,
     run_with_iter,
 )
 from xgboost.testing.params import (
@@ -136,3 +145,39 @@ def test_mixed_strategy() -> None:
 
 def test_feature_importance_strategy_compare() -> None:
     run_feature_importance_strategy_compare("cpu")
+
+
+def test_reg_squarederror() -> None:
+    run_reg_squarederror("cpu")
+
+
+def test_reg_logistic() -> None:
+    run_reg_logistic("cpu")
+
+
+def test_reg_gamma() -> None:
+    run_reg_gamma("cpu")
+
+
+def test_reg_squaredlogerror() -> None:
+    run_reg_squaredlogerror("cpu")
+
+
+def test_reg_pseudohubererror() -> None:
+    run_reg_pseudohubererror("cpu")
+
+
+def test_binary_logitraw() -> None:
+    run_binary_logitraw("cpu")
+
+
+def test_binary_hinge() -> None:
+    run_binary_hinge("cpu")
+
+
+def test_count_poisson() -> None:
+    run_count_poisson("cpu")
+
+
+def test_reg_tweedie() -> None:
+    run_reg_tweedie("cpu")

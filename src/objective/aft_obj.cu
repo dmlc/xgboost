@@ -68,6 +68,8 @@ class AFTObj : public ObjFunction {
   void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int /*iter*/,
                    linalg::Matrix<GradientPair>* out_gpair) override {
     const size_t ndata = preds.Size();
+    CHECK_EQ(info.labels.Size(), 0)
+        << "AFT objective uses `label_lower_bound` and `label_upper_bound` instead of `label`.";
     CHECK_EQ(info.labels_lower_bound_.Size(), ndata);
     CHECK_EQ(info.labels_upper_bound_.Size(), ndata);
     out_gpair->SetDevice(ctx_->Device());
