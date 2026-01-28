@@ -1,5 +1,5 @@
 /**
- * Copyright 2018~2024, XGBoost contributors
+ * Copyright 2018~2026, XGBoost contributors
  */
 #include <thrust/binary_search.h>
 #include <thrust/copy.h>
@@ -85,18 +85,29 @@ size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz,
 bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShape shape, int device,
                                  size_t num_cuts, bool has_weight, std::size_t container_bytes) {
   auto constexpr kIntMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
+
+  // Device available memory is not accurate when a memory pool is used.
+  auto avoid_estimation_with_pool = [&] {
+    (void)device;
+    double total_mem = curt::TotalMemory() - container_bytes;
+    double total_f32 = total_mem / sizeof(float);
+    double n_max_used_f32 = std::max(total_f32 / 8.0, 1.0);
+    if (shape.nnz > shape.Size()) {
+      // Unknown nnz
+      shape.nnz = shape.Size();
+    }
+    return std::min(static_cast<bst_idx_t>(n_max_used_f32), shape.nnz);
+  };
+
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  (void)device;
-  // Device available memory is not accurate when rmm is used.
-  double total_mem = curt::TotalMemory() - container_bytes;
-  double total_f32 = total_mem / sizeof(float);
-  double n_max_used_f32 = std::max(total_f32 / 16.0, 1.0);  // a quarter
-  if (shape.nnz > shape.Size()) {
-    // Unknown nnz
-    shape.nnz = shape.Size();
-  }
-  return std::min(static_cast<bst_idx_t>(n_max_used_f32), shape.nnz);
+  // Early exit with RMM pool
+  return avoid_estimation_with_pool();
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  // Early exit with CUDA async pool
+  if (GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool) {
+    return avoid_estimation_with_pool();
+  }
+
   (void)container_bytes;  // We known the remaining size when RMM is not used.
   if (sketch_batch_num_elements == detail::UnknownSketchNumElements()) {
     auto required_memory =
