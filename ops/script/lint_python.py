@@ -44,6 +44,7 @@ class LintersPaths:
         "tests/python/test_model_io.py",
         "tests/python/test_with_pandas.py",
         "tests/python/test_with_polars.py",
+        "tests/cross-platform/",
         "tests/python-gpu/",
         "tests/python-sycl/",
         "tests/test_distributed/test_federated/",
@@ -85,6 +86,7 @@ class LintersPaths:
         # core
         "python-package/",
         # tests
+        "tests/cross-platform/",
         "tests/test_distributed/",
         "tests/python/",
         "tests/python-gpu/",
@@ -111,6 +113,7 @@ class LintersPaths:
         "tests/python/test_model_io.py",
         "tests/python/test_ordinal.py",
         "tests/python/test_interaction_constraints.py",
+        "tests/cross-platform/",
         "tests/python-gpu/",
         "tests/test_distributed/test_federated/",
         "tests/test_distributed/test_gpu_federated/",
