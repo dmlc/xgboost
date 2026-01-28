@@ -234,12 +234,6 @@ TEST_F(MGPUPredictorTest, LesserFeaturesColumnSplit) {
   this->DoTest([] { TestPredictionWithLesserFeaturesColumnSplit(true); }, false);
 }
 
-TEST_P(ShapExternalMemoryTest, GPUPredictor) {
-  auto ctx = MakeCUDACtx(0);
-  auto [is_qdm, is_interaction] = this->GetParam();
-  this->Run(&ctx, is_qdm, is_interaction);
-}
-
 TEST(GPUPredictor, IterationRange) {
   auto ctx = MakeCUDACtx(0);
   TestIterationRange(&ctx);

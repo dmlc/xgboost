@@ -4,16 +4,27 @@
 #ifndef XGBOOST_TEST_SHAP_H_
 #define XGBOOST_TEST_SHAP_H_
 
-#include <gtest/gtest.h>
+#include <xgboost/base.h>
 #include <xgboost/context.h>
+#include <xgboost/host_device_vector.h>
 
-#include <tuple>
+#include <memory>
+#include <utility>
+#include <vector>
 
 namespace xgboost {
-class ShapExternalMemoryTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
- public:
-  void Run(Context const* ctx, bool is_qdm, bool is_interaction);
-};
+class DMatrix;
+class Learner;
+}  // namespace xgboost
+
+namespace xgboost {
+void CheckShapOutput(Context const* ctx, DMatrix* dmat, Args const& model_args);
+void CheckShapAdditivity(size_t rows, size_t cols, HostDeviceVector<float> const& shap_values,
+                         HostDeviceVector<float> const& margin_predt);
+
+using ShapTestCase = std::pair<std::shared_ptr<DMatrix>, Args>;
+std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx);
+
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_SHAP_H_

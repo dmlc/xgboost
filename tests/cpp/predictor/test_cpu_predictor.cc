@@ -146,12 +146,6 @@ TEST(CpuPredictor, ExternalMemory) {
   TestBasic(dmat.get(), &ctx);
 }
 
-TEST_P(ShapExternalMemoryTest, CPUPredictor) {
-  Context ctx;
-  auto [is_qdm, is_interaction] = this->GetParam();
-  this->Run(&ctx, is_qdm, is_interaction);
-}
-
 TEST(CpuPredictor, InplacePredict) {
   bst_idx_t constexpr kRows{128};
   bst_feature_t constexpr kCols{64};
