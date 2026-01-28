@@ -590,7 +590,8 @@ jobs:
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: macos_test
-          environment-file: ops/conda_env/macos_cpu_test.yml
+          environment-file: ops/conda_env/minimal.yml
+      - run: conda install scikit-learn numpy -y
       - name: Download macOS wheel artifact
         uses: actions/download-artifact@v7.0.0
         with:
