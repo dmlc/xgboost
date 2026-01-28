@@ -577,7 +577,7 @@ jobs:
   test-cross-platform-inference:
     name: Cross-platform inference test (macOS Apple Silicon)
     needs: [test-python-wheel-gpu, python-wheels-macos]
-    runs-on: macos-latest
+    runs-on: macos-14
     defaults:
       run:
         shell: bash -l {0}
