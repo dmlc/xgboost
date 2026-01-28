@@ -556,12 +556,14 @@ def run_feature_importance_strategy_compare(device: Device) -> None:
         assert cosine_similarity([imps[1]], [imps[2]])[0, 0] > 0.9
 
 
+# pylint: disable=too-many-arguments, too-many-locals
 def _run_regression_objective_test(
     device: Device,
     objective: str,
     metric: str,
     X: np.ndarray,
     y: np.ndarray,
+    *,
     extra_params: Optional[Dict[str, Any]] = None,
     check_pred_positive: bool = False,
     check_pred_probability: bool = False,
