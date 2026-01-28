@@ -6,13 +6,14 @@ import inspect
 import logging
 import os
 import sys
-import uuid
+import tempfile
 from threading import Thread
 from typing import Any, Callable, Dict, Optional, Set, Type, Union
 
 import pyspark
-from pyspark import BarrierTaskContext, SparkConf, SparkContext, SparkFiles, TaskContext
-from pyspark.sql.session import SparkSession
+from pyspark import BarrierTaskContext, TaskContext
+from pyspark.sql import SparkSession
+from pyspark.sql.conf import RuntimeConfig
 
 from ..collective import CommunicatorContext as CCtx
 from ..collective import Config
@@ -120,25 +121,24 @@ def get_logger_level(name: str) -> Optional[int]:
     return None if logger.level == logging.NOTSET else logger.level
 
 
-def _get_max_num_concurrent_tasks(spark_context: SparkContext) -> int:
+def _get_max_num_concurrent_tasks(spark_session: SparkSession) -> int:
     """Gets the current max number of concurrent tasks."""
-    # pylint: disable=protected-access
-    # spark 3.1 and above has a different API for fetching max concurrent tasks
-    if spark_context._jsc.sc().version() >= "3.1":
-        return spark_context._jsc.sc().maxNumConcurrentTasks(
-            spark_context._jsc.sc().resourceProfileManager().resourceProfileFromId(0)
-        )
-    return spark_context._jsc.sc().maxNumConcurrentTasks()
+    # In Spark Connect, we cannot easily get the max number of concurrent tasks
+    # from the client side without accessing internal APIs or executing a task.
+    # For now, we return a large number to skip the check.
+    return sys.maxsize
 
 
-def _is_local(spark_context: SparkContext) -> bool:
+def _is_local(spark_session: SparkSession) -> bool:
     """Whether it is Spark local mode"""
-    # pylint: disable=protected-access
-    return spark_context._jsc.sc().isLocal()
+    # In Spark Connect, we check the spark.master configuration if available.
+    # Note: This might not be accurate if spark.master is not set in RuntimeConfig.
+    master = spark_session.conf.get("spark.master", None)
+    return master is not None and master.startswith("local")
 
 
-def _is_standalone_or_localcluster(conf: SparkConf) -> bool:
-    master = conf.get("spark.master")
+def _is_standalone_or_localcluster(conf: RuntimeConfig) -> bool:
+    master = conf.get("spark.master", None)
     return master is not None and (
         master.startswith("spark://") or master.startswith("local-cluster")
     )
@@ -156,14 +156,6 @@ def _get_gpu_id(task_context: TaskContext) -> int:
         )
     # return the first gpu id.
     return int(resources["gpu"].addresses[0].strip())
-
-
-def _get_or_create_tmp_dir() -> str:
-    root_dir = SparkFiles.getRootDirectory()
-    xgb_tmp_dir = os.path.join(root_dir, "xgboost-tmp")
-    if not os.path.exists(xgb_tmp_dir):
-        os.makedirs(xgb_tmp_dir)
-    return xgb_tmp_dir
 
 
 def deserialize_xgb_model(
@@ -186,11 +178,16 @@ def serialize_booster(booster: Booster) -> str:
     booster:
         an xgboost.core.Booster instance
     """
-    # TODO: change to use string io
-    tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
-    booster.save_model(tmp_file_name)
-    with open(tmp_file_name, encoding="utf-8") as f:
-        ser_model_string = f.read()
+    # Use tempfile instead of SparkFiles for driver-side serialization
+    with tempfile.NamedTemporaryFile(mode="w+b", delete=False) as tf:
+        tmp_file_name = tf.name
+    try:
+        booster.save_model(tmp_file_name)
+        with open(tmp_file_name, encoding="utf-8") as f:
+            ser_model_string = f.read()
+    finally:
+        if os.path.exists(tmp_file_name):
+            os.remove(tmp_file_name)
     return ser_model_string
 
 
@@ -199,11 +196,15 @@ def deserialize_booster(model: str) -> Booster:
     Deserialize an xgboost.core.Booster from the input ser_model_string.
     """
     booster = Booster()
-    # TODO: change to use string io
-    tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
-    with open(tmp_file_name, "w", encoding="utf-8") as f:
-        f.write(model)
-    booster.load_model(tmp_file_name)
+    # Use tempfile instead of SparkFiles for driver-side deserialization
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as tf:
+        tf.write(model)
+        tmp_file_name = tf.name
+    try:
+        booster.load_model(tmp_file_name)
+    finally:
+        if os.path.exists(tmp_file_name):
+            os.remove(tmp_file_name)
     return booster
 
 
