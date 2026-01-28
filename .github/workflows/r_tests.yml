@@ -36,7 +36,7 @@ jobs:
           sudo apt update
           sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev librsvg2-dev librsvg2-2
         if: matrix.os == 'ubuntu-latest'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: 'true'
       - uses: r-lib/actions/setup-r@v2
@@ -47,6 +47,10 @@ jobs:
           python-version: "3.10"
           architecture: 'x64'
       - uses: r-lib/actions/setup-tinytex@v2
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+        if: matrix.os == 'ubuntu-latest'
+      - run: bash ops/script/setup_r_sccache.sh
+        if: matrix.os == 'ubuntu-latest'
       - name: Install dependencies
         shell: Rscript {0}
         run: |
@@ -59,6 +63,8 @@ jobs:
         run: |
           python ops/script/test_r_package.py --build-tool="${{ matrix.build }}" --task=check
         if: matrix.compiler == 'none'
+      - run: sccache --show-stats
+        if: matrix.os == 'ubuntu-latest'
 
   test-R-on-Debian:
     name: Test R package on Debian
@@ -73,9 +79,11 @@ jobs:
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: 'true'
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - run: bash ops/script/setup_r_sccache.sh
       - name: Install dependencies
         shell: bash -l {0}
         run: |
@@ -103,3 +111,4 @@ jobs:
           fi
           MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
           Rscript ops/script/lint_r.R $(pwd)
+      - run: sccache --show-stats
