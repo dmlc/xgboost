@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import pytest
 from hypothesis import given, note, settings, strategies
@@ -6,6 +6,7 @@ from hypothesis import given, note, settings, strategies
 from xgboost import config_context
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
+    all_reg_objectives,
     run_absolute_error,
     run_column_sampling,
     run_deterministic,
@@ -21,6 +22,7 @@ from xgboost.testing.multi_target import (
 )
 from xgboost.testing.params import hist_parameter_strategy
 from xgboost.testing.updater import check_quantile_loss_rf, train_result
+from xgboost.testing.utils import Device
 
 
 @pytest.mark.parametrize("learning_rate", [1.0, None])
@@ -92,3 +94,8 @@ def test_hist(param: Dict[str, Any], num_rounds: int, dataset: tm.TestDataset) -
     result = train_result(param, dataset.get_dmat(), num_rounds)
     note(str(result))
     assert tm.non_increasing(result["train"][dataset.metric])
+
+
+@pytest.mark.parametrize("obj_fn", all_reg_objectives())
+def test_reg_objective(obj_fn: Callable[[Device], None]) -> None:
+    obj_fn("cuda")

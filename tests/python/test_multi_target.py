@@ -1,10 +1,11 @@
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 import pytest
 from hypothesis import given, note, settings, strategies
 
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
+    all_reg_objectives,
     run_absolute_error,
     run_column_sampling,
     run_feature_importance_strategy_compare,
@@ -23,6 +24,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import check_quantile_loss_rf, train_result
+from xgboost.testing.utils import Device
 
 
 @pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
@@ -136,3 +138,8 @@ def test_mixed_strategy() -> None:
 
 def test_feature_importance_strategy_compare() -> None:
     run_feature_importance_strategy_compare("cpu")
+
+
+@pytest.mark.parametrize("obj_fn", all_reg_objectives())
+def test_reg_objective(obj_fn: Callable[[Device], None]) -> None:
+    obj_fn("cpu")
