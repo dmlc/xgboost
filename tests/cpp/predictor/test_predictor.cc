@@ -33,7 +33,6 @@ namespace xgboost {
 void TestBasic(DMatrix* dmat, Context const *ctx) {
   auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
 
-  size_t const kRows = dmat->Info().num_row_;
   size_t const kCols = dmat->Info().num_col_;
 
   LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};

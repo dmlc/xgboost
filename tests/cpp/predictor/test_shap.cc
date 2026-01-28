@@ -140,7 +140,6 @@ void CheckShapOutput(Context const* ctx, DMatrix* dmat, Args const& model_args) 
   ASSERT_EQ(shap_values.HostVector().size(), kRows * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_values, margin_predt);
 
-
   HostDeviceVector<float> shap_interactions;
   learner->Predict(p_dmat, false, &shap_interactions, 0, 0, false, false, false, false, true);
   ASSERT_EQ(shap_interactions.HostVector().size(),
@@ -178,6 +177,7 @@ void CheckShapAdditivity(size_t rows, size_t cols, HostDeviceVector<float> const
     }
   }
 }
+
 TEST(Predictor, ShapOutputCasesCPU) {
   Context ctx;
   auto cases = BuildShapTestCases(&ctx);
@@ -186,6 +186,44 @@ TEST(Predictor, ShapOutputCasesCPU) {
   }
 }
 
+TEST(Predictor, ApproxContribsBasic) {
+  Context ctx;
+  size_t constexpr kRows = 64;
+  size_t constexpr kCols = 6;
+
+  auto dmat = RandomDataGenerator(kRows, kCols, 0.0).Device(ctx.Device()).GenerateDMatrix();
+  SetLabels(dmat.get(), 1);
+
+  auto args = BaseParams(&ctx, "reg:squarederror", "3");
+  args.emplace_back("tree_method", "approx");
+
+  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  learner->SetParams(args);
+  learner->Configure();
+  for (size_t i = 0; i < 3; ++i) {
+    learner->UpdateOneIter(i, dmat);
+  }
+
+  HostDeviceVector<float> margin_predt;
+  learner->Predict(dmat, true, &margin_predt, 0, 0, false, false, false, false, false);
+
+  HostDeviceVector<float> approx_contribs;
+  learner->Predict(dmat, false, &approx_contribs, 0, 0, false, false, true, true, false);
+
+  auto const& h_margin = margin_predt.ConstHostVector();
+  auto const& h_contribs = approx_contribs.ConstHostVector();
+  ASSERT_EQ(h_margin.size(), kRows);
+  ASSERT_EQ(h_contribs.size(), kRows * (kCols + 1));
+
+  for (size_t row = 0; row < kRows; ++row) {
+    float sum = 0.0f;
+    size_t base = row * (kCols + 1);
+    for (size_t c = 0; c < kCols + 1; ++c) {
+      sum += h_contribs[base + c];
+    }
+    EXPECT_NEAR(sum, h_margin[row], 1e-2f);
+  }
+}
 
 TEST(Predictor, ShapIterationRange) {
   Context ctx;
