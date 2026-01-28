@@ -174,7 +174,76 @@ is here for experimentation purposes only. In addition,
 ``max_quantile_batches`` can help control the data placement and memory usage.
 
 Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) must be on
-the GPU. Following is a snippet from :ref:`sphx_glr_python_examples_external_memory.py`:
+the GPU. It's crucial to use an asynchronous memory pool for all memory allocations when
+training with external memory. XGBoost relies on the asynchronous memory pool to reduce
+the overhead of data fetching. There are two options for setting up the memory pool:
+
+- **CUDA Async Pool**: Uses the CUDA driver's built-in async memory pool. This option
+  doesn't require any additional dependencies. It's the same as using the
+  `CudaAsyncMemoryResource` from RMM (see below).
+- **RMM Pool**: Uses `RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__
+  with an asynchronous memory resource. This option requires RMM to be installed and
+  XGBoost to be built with RMM support.
+
+Choose the one that best fits your use case.
+
+=====================
+Using CUDA Async Pool
+=====================
+
+The CUDA async pool uses the driver's default memory pool with a configured release
+threshold. See :ref:`global_config` for the parameter `use_cuda_async_pool`.
+
+  .. versionadded:: 3.2.0
+
+  .. warning:: This is an experimental feature and is subject to change without
+               notice. Windows is not supported yet.
+
+.. code-block:: python
+
+    import cupy as cp
+    import cuda.bindings.driver as driver
+    import cuda.bindings.runtime as cudart
+    from cupy.cuda import MemoryAsyncPool
+
+    # Get the default memory pool and configure the release threshold
+    status, dft_pool = cudart.cudaDeviceGetDefaultMemPool(0)
+    # Set the release threshold to 90% of total device memory
+    status, free, total = cudart.cudaMemGetInfo()
+    v = driver.cuuint64_t(int(total * 0.9))
+    cudart.cudaMemPoolSetAttribute(
+        dft_pool,
+        cudart.cudaMemPoolAttr.cudaMemPoolAttrReleaseThreshold,
+        v,
+    )
+    # Set the allocator for cupy as well.
+    cp.cuda.set_allocator(MemoryAsyncPool().malloc)
+
+    # Make sure XGBoost is using the CUDA async pool for all allocations.
+    with xgboost.config_context(use_cuda_async_pool=True):
+        # Construct the iterators for ExtMemQuantileDMatrix
+        # ...
+        # Build the ExtMemQuantileDMatrix and start training
+        Xy_train = xgboost.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
+        # Use the training DMatrix as a reference
+        Xy_valid = xgboost.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
+        booster = xgboost.train(
+            {
+                "tree_method": "hist",
+                "max_bin": n_bins,
+                "device": device,
+            },
+            Xy_train,
+            num_boost_round=n_rounds,
+            evals=[(Xy_train, "Train"), (Xy_valid, "Valid")]
+        )
+
+==============
+Using RMM Pool
+==============
+
+Alternatively, you can use RMM with an asynchronous memory resource. If XGBoost is not
+built with RMM support, a warning will be raised:
 
 .. code-block:: python
 
@@ -182,14 +251,13 @@ the GPU. Following is a snippet from :ref:`sphx_glr_python_examples_external_mem
     import rmm
     from rmm.allocators.cupy import rmm_cupy_allocator
 
-    # It's important to use RMM for GPU-based external memory to improve performance.
-    # If XGBoost is not built with RMM support, a warning will be raised.
     # We use the pool memory resource here for simplicity, you can also try the
     # `ArenaMemoryResource` for improved memory fragmentation handling.
     mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
     rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
     cp.cuda.set_allocator(rmm_cupy_allocator)
+
     # Make sure XGBoost is using RMM for all allocations.
     with xgboost.config_context(use_rmm=True):
         # Construct the iterators for ExtMemQuantileDMatrix
@@ -210,10 +278,7 @@ the GPU. Following is a snippet from :ref:`sphx_glr_python_examples_external_mem
             evals=[(Xy_train, "Train"), (Xy_valid, "Valid")]
         )
 
-It's crucial to use `RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__ with
-an asynchronous memory resource for all memory allocation when training with external
-memory. XGBoost relies on the asynchronous memory pool to reduce the overhead of data
-fetching. In addition, the open source `NVIDIA Linux driver
+In addition, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
 is required for ``Heterogeneous memory management (HMM)`` support. Usually, users need not
 to change :py:class:`~xgboost.ExtMemQuantileDMatrix` parameters like
@@ -398,15 +463,13 @@ it takes to run inference, even if a C2C link is available.
     Xy_train = xgboost.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
     Xy_valid = xgboost.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
 
-In addition, since the GPU implementation relies on asynchronous memory pool, which is
-subject to memory fragmentation even if the :py:class:`~rmm.mr.CudaAsyncMemoryResource` is
-used. You might want to start the training with a fresh pool instead of starting training
-right after the ETL process. If you run into out-of-memory errors and you are convinced
-that the pool is not full yet (pool memory usage can be profiled with ``nsight-system``),
-consider using the :py:class:`~rmm.mr.ArenaMemoryResource` memory resource. Alternatively,
-using :py:class:`~rmm.mr.CudaAsyncMemoryResource` in conjunction with
-:py:class:`BinningMemoryResource(mr, 21, 25) <rmm.mr.BinningMemoryResource>` instead of
-the default :py:class:`~rmm.mr.PoolMemoryResource`.
+In addition, since the GPU implementation relies on asynchronous memory pool, memory
+fragmentation can occur regardless of whether you use the CUDA async pool or RMM.  You
+might want to start the training with a fresh pool instead of starting training right
+after the ETL process. If you run into out-of-memory errors and you are convinced that the
+pool is not full yet (pool memory usage can be profiled with ``nsight-system``), consider
+using the :py:class:`~rmm.mr.ArenaMemoryResource` memory resource with RMM, or using the
+CUDA asynchronous pool with the latest NVIDIA kernel driver.
 
 During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot. Other types of
 storage can be too slow for practical usage. However, your system will likely perform some
