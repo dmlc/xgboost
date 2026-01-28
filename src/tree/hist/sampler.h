@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_SAMPLER_H_
 #define XGBOOST_TREE_HIST_SAMPLER_H_
@@ -15,8 +15,7 @@
 #include "xgboost/data.h"         // MetaInfo
 #include "xgboost/linalg.h"       // TensorView
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 struct RandomReplace {
  public:
   // similar value as for minstd_rand
@@ -94,6 +93,31 @@ inline void SampleGradient(Context const* ctx, TrainParam param,
   }
   exc.Rethrow();
 }
-}  // namespace tree
-}  // namespace xgboost
+namespace cpu_impl {
+/**
+ * @brief Apply sampling mask from sampled split gradient to value gradient.
+ *
+ * Zero out rows in value gradient where the corresponding row in split gradient was not
+ * sampled (has zero hessian). Value gradient may have more targets than split gradient.
+ */
+inline void ApplySamplingMask(Context const* ctx,
+                              linalg::Matrix<GradientPair> const& sampled_split_gpair,
+                              linalg::Matrix<GradientPair>* value_gpair) {
+  CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
+  auto h_split = sampled_split_gpair.HostView();
+  auto h_value = value_gpair->HostView();
+  auto n_samples = h_value.Shape(0);
+  auto n_targets = h_value.Shape(1);
+
+  common::ParallelFor(n_samples, ctx->Threads(), [&](bst_idx_t i) {
+    // Check if this row was not sampled (hessian is zero in split gradient)
+    if (h_split(i, 0).GetHess() == 0.0f) {
+      for (bst_target_t t = 0; t < n_targets; ++t) {
+        h_value(i, t) = GradientPair{};
+      }
+    }
+  });
+}
+}  // namespace cpu_impl
+}  // namespace xgboost::tree
 #endif  // XGBOOST_TREE_HIST_SAMPLER_H_
