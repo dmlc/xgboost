@@ -12,6 +12,13 @@ repos:
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
       - id: mixed-line-ending
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v17.0.6
+    hooks:
+      - id: clang-format
+        args: [--style=file]
+        files: \.(cc|c|cpp|h|cu|hpp)$
+        exclude: (dmlc-core|gputreeshap)
   - repo: local
     hooks:
       - id: lint-cpp
@@ -32,3 +39,15 @@ repos:
         exclude: (dmlc-core|gputreeshap)
         additional_dependencies:
           - cmakelint
+      - id: format-python
+        name: Python format + lint (black + isort + pylint)
+        entry: python ops/script/lint_python.py --format=1 --type-check=0 --pylint=1 --fix
+        language: python
+        types: [file]
+        files: \.py$
+        exclude: (dmlc-core|gputreeshap)
+        pass_filenames: false
+        additional_dependencies:
+          - black
+          - isort
+          - pylint
