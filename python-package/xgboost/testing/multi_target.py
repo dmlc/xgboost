@@ -2,7 +2,7 @@
 
 # pylint: disable=unbalanced-tuple-unpacking
 from types import ModuleType
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pytest
@@ -703,3 +703,19 @@ def run_reg_tweedie(device: Device) -> None:
     _run_regression_objective_test(
         device, "reg:tweedie", "tweedie-nloglik@1.5", X, y, check_pred_positive=True
     )
+
+
+def all_reg_objectives() -> List[Callable[[Device], None]]:
+    """List of obj tests."""
+    objs: List[Callable[[Device], None]] = [
+        run_reg_squarederror,
+        run_reg_logistic,
+        run_reg_gamma,
+        run_reg_squaredlogerror,
+        run_reg_pseudohubererror,
+        run_binary_logitraw,
+        run_binary_hinge,
+        run_count_poisson,
+        run_reg_tweedie,
+    ]
+    return objs

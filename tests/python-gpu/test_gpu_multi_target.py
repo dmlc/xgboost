@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import pytest
 from hypothesis import given, note, settings, strategies
@@ -6,11 +6,9 @@ from hypothesis import given, note, settings, strategies
 from xgboost import config_context
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
+    all_reg_objectives,
     run_absolute_error,
-    run_binary_hinge,
-    run_binary_logitraw,
     run_column_sampling,
-    run_count_poisson,
     run_deterministic,
     run_eta,
     run_feature_importance_strategy_compare,
@@ -20,16 +18,11 @@ from xgboost.testing.multi_target import (
     run_multilabel,
     run_quantile_loss,
     run_reduced_grad,
-    run_reg_gamma,
-    run_reg_logistic,
-    run_reg_pseudohubererror,
-    run_reg_squarederror,
-    run_reg_squaredlogerror,
-    run_reg_tweedie,
     run_with_iter,
 )
 from xgboost.testing.params import hist_parameter_strategy
 from xgboost.testing.updater import check_quantile_loss_rf, train_result
+from xgboost.testing.utils import Device
 
 
 @pytest.mark.parametrize("learning_rate", [1.0, None])
@@ -103,37 +96,6 @@ def test_hist(param: Dict[str, Any], num_rounds: int, dataset: tm.TestDataset) -
     assert tm.non_increasing(result["train"][dataset.metric])
 
 
-def test_reg_squarederror() -> None:
-    run_reg_squarederror("cuda")
-
-
-def test_reg_logistic() -> None:
-    run_reg_logistic("cuda")
-
-
-def test_reg_gamma() -> None:
-    run_reg_gamma("cuda")
-
-
-def test_reg_squaredlogerror() -> None:
-    run_reg_squaredlogerror("cuda")
-
-
-def test_reg_pseudohubererror() -> None:
-    run_reg_pseudohubererror("cuda")
-
-
-def test_binary_logitraw() -> None:
-    run_binary_logitraw("cuda")
-
-
-def test_binary_hinge() -> None:
-    run_binary_hinge("cuda")
-
-
-def test_count_poisson() -> None:
-    run_count_poisson("cuda")
-
-
-def test_reg_tweedie() -> None:
-    run_reg_tweedie("cuda")
+@pytest.mark.parametrize("obj_fn", all_reg_objectives())
+def test_reg_objective(obj_fn: Callable[[Device], None]) -> None:
+    obj_fn("cuda")
