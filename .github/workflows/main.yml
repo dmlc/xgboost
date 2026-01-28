@@ -599,7 +599,7 @@ jobs:
           path: wheelhouse
       - name: Install XGBoost wheel
         run: |
-          pip install -v wheelhouse/*.whl
+          python -m pip install -v wheelhouse/*.whl
       - name: Download cross-platform model artifact
         uses: actions/download-artifact@v7.0.0
         with:
