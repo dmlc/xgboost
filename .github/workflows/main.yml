@@ -577,7 +577,15 @@ jobs:
   test-cross-platform-inference:
     name: Cross-platform inference test (macOS Apple Silicon)
     needs: [test-python-wheel-gpu, python-wheels-macos]
-    runs-on: macos-14
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-15-intel
+          platform_id: macosx_x86_64
+        - os: macos-14
+          platform_id: macosx_arm64
     defaults:
       run:
         shell: bash -l {0}
@@ -595,7 +603,7 @@ jobs:
       - name: Download macOS wheel artifact
         uses: actions/download-artifact@v7.0.0
         with:
-          name: python-wheel-macosx_arm64
+          name: python-wheel-${{ matrix.platform_id }}
           path: wheelhouse
       - name: Install XGBoost wheel
         run: |
