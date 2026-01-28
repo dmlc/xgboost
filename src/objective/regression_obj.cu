@@ -8,13 +8,13 @@
 
 #include <algorithm>  // for all_of
 #include <cmath>
-#include <cstdint>  // for  int32_t
+#include <cstdint>  // for int32_t
 #include <vector>   // for vector
 
 #include "../common/common.h"
 #include "../common/linalg_op.h"        // for ElementWiseKernel
 #include "../common/numeric.h"          // for Reduce
-#include "../common/optional_weight.h"  // for OptionalWeights
+#include "../common/optional_weight.h"  // for MakeOptionalWeights
 #include "../common/pseudo_huber.h"
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
@@ -289,6 +289,7 @@ class SquaredLogErrorRegression : public FitIntercept {
   }
   void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info,
                    std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) override {
+    CheckRegInputs(info, preds);
     if (iter == 0) {
       ValidateLabel<SquaredLogError>(this->ctx_, info);
     }
@@ -301,9 +302,7 @@ class SquaredLogErrorRegression : public FitIntercept {
     preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
 
-    info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
+    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
     linalg::ElementWiseKernel(this->ctx_, labels,
                               [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
                                 auto p = predt(i, j);
@@ -351,10 +350,7 @@ class PseudoHuberRegression : public FitIntercept {
     preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
 
-    info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
-
+    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
     linalg::ElementWiseKernel(
         ctx_, labels, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
           float z = predt(i, j) - labels(i, j);
@@ -422,8 +418,7 @@ class PoissonRegression : public FitInterceptGlmLike {
 
   void GetGradient(HostDeviceVector<float> const& preds, const MetaInfo& info, std::int32_t iter,
                    linalg::Matrix<GradientPair>* out_gpair) override {
-    CHECK_NE(info.labels.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.Size(), info.labels.Size()) << "labels are not correctly provided";
+    CheckRegInputs(info, preds);
     if (iter == 0) {
       ValidateLabel<PoissonLabel>(this->ctx_, info);
     }
@@ -437,10 +432,7 @@ class PoissonRegression : public FitInterceptGlmLike {
 
     auto gpair = out_gpair->View(ctx_->Device());
 
-    info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
-
+    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
     bst_float max_delta_step = param_.max_delta_step;
     linalg::ElementWiseKernel(this->ctx_, labels,
                               [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
@@ -615,8 +607,7 @@ class TweedieRegression : public FitInterceptGlmLike {
 
   void GetGradient(HostDeviceVector<float> const& preds, MetaInfo const& info, std::int32_t iter,
                    linalg::Matrix<GradientPair>* out_gpair) override {
-    CHECK_NE(info.labels.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.Size(), info.labels.Size()) << "labels are not correctly provided";
+    CheckRegInputs(info, preds);
     if (iter == 0) {
       ValidateLabel<TweedieLabel>(this->ctx_, info);
     }
@@ -630,10 +621,7 @@ class TweedieRegression : public FitInterceptGlmLike {
 
     auto gpair = out_gpair->View(ctx_->Device());
 
-    info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
-
+    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
     const float rho = param_.tweedie_variance_power;
     linalg::ElementWiseKernel(this->ctx_, labels,
                               [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
@@ -703,10 +691,7 @@ class MeanAbsoluteError : public ObjFunction {
 
     preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
-    info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
-
+    auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
     linalg::ElementWiseKernel(
         ctx_, labels, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
           auto sign = [](auto x) {
