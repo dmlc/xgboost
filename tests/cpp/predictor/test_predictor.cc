@@ -14,6 +14,8 @@
 #include <limits>         // for numeric_limits
 #include <memory>         // for shared_ptr
 #include <unordered_map>  // for unordered_map
+#include <utility>        // for move
+#include <vector>         // for vector
 
 #include "../../../src/common/bitfield.h"         // for LBitField32
 #include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
@@ -120,7 +122,6 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
   for (size_t i = 0; i < rows; ++i) {
     EXPECT_NEAR(from_hist.ConstHostVector()[i], from_full.ConstHostVector()[i], kRtEps);
   }
-
 }
 
 void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_idx_t rows,
@@ -149,14 +150,14 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
   learner->InplacePredict(x, PredictionType::kMargin, std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_0, 0, 2);
   CHECK(p_out_predictions_0);
-  HostDeviceVector<float> predict_0 (p_out_predictions_0->Size());
+  HostDeviceVector<float> predict_0(p_out_predictions_0->Size());
   predict_0.Copy(*p_out_predictions_0);
 
   HostDeviceVector<float> *p_out_predictions_1{nullptr};
   learner->InplacePredict(x, PredictionType::kMargin, std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_1, 2, 4);
   CHECK(p_out_predictions_1);
-  HostDeviceVector<float> predict_1 (p_out_predictions_1->Size());
+  HostDeviceVector<float> predict_1(p_out_predictions_1->Size());
   predict_1.Copy(*p_out_predictions_1);
 
   HostDeviceVector<float>* p_out_predictions{nullptr};
@@ -188,8 +189,8 @@ namespace {
 std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMatrix> dmat,
                                         size_t iters, size_t forest = 1) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParams(
-      Args{{"num_parallel_tree", std::to_string(forest)}, {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
+  learner->SetParams(Args{{"num_parallel_tree", std::to_string(forest)},
+                          {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
   for (size_t i = 0; i < iters; ++i) {
     learner->UpdateOneIter(i, dmat);
   }
