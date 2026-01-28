@@ -50,7 +50,7 @@ class GradientBasedSampling : public SamplingStrategy {
   // abs gradient
   dh::device_vector<float> reg_abs_grad_;
   // sorted abs gradient
-  dh::device_vector<float> threhsold_;
+  dh::device_vector<float> threshold_;
   // csum of sorted abs gradient
   dh::device_vector<float> grad_sum_;
 };
@@ -64,7 +64,7 @@ class GradientBasedSampling : public SamplingStrategy {
  * @see Zhu, R. (2016). Gradient-based sampling: An adaptive importance sampling for least-squares.
  * In Advances in Neural Information Processing Systems (pp. 406-414).
  * @see Ohlsson, E. (1998). Sequential Poisson sampling. Journal of official Statistics, 14(2), 149.
- * @see Rong Ou. (2020). Out-of-Core GPU Gradient Boosting
+ * @see Rong Ou. (2020). Out-of-Core GPU Gradient Boosting.
  */
 class GradientBasedSampler {
  public:
