@@ -2,9 +2,9 @@
 ## Script to test Python wheels, to be called from CI workflow
 ##
 ## Usage:
-##   ops/pipeline/test-python-wheel.sh --suite <suite> --cuda-version <12|13>
+##   ops/pipeline/test-python-wheel.sh --suite <suite> [--cuda-version <12|13>]
 ##
-## All parameters are required (no defaults).
+## --suite is required. --cuda-version is required for GPU suites but optional for CPU suites.
 
 set -eo pipefail
 
@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unrecognized argument: $1"
-      echo "Usage: $0 --suite {gpu|mgpu|gpu-arm64|cpu|cpu-arm64} --cuda-version {12|13}"
+      echo "Usage: $0 --suite {gpu|mgpu|gpu-arm64|cpu|cpu-arm64} [--cuda-version {12|13}]"
       exit 1
       ;;
   esac
@@ -33,11 +33,6 @@ done
 # Validate required parameters
 if [[ -z "${suite}" ]]; then
   echo "Error: --suite is required (gpu, mgpu, gpu-arm64, cpu, or cpu-arm64)"
-  exit 1
-fi
-
-if [[ -z "${cuda_version}" ]]; then
-  echo "Error: --cuda-version is required (12 or 13)"
   exit 1
 fi
 
@@ -51,39 +46,45 @@ case "${suite}" in
     ;;
 esac
 
-case "${cuda_version}" in
-  12|13)
-    ;;
-  *)
-    echo "Error: --cuda-version must be 12 or 13, got '${cuda_version}'"
-    exit 1
+# Validate --cuda-version is provided for GPU suites
+case "${suite}" in
+  gpu|mgpu|gpu-arm64)
+    if [[ -z "${cuda_version}" ]]; then
+      echo "Error: --cuda-version is required for GPU suites (12 or 13)"
+      exit 1
+    fi
     ;;
 esac
 
-# Set up conda environment based on CUDA version and suite
-# Cannot set -u before Conda env activation
-if [[ "${cuda_version}" == "13" ]]; then
-  # CUDA 13: Create conda environment on-the-fly
-  # Fix permissions for conda directories
-  gosu root chown -R "$(id -u):$(id -g)" /opt/miniforge/envs /opt/miniforge/pkgs/cache
-  gosu root chown "$(id -u):$(id -g)" /opt/miniforge/pkgs
-  mamba create -y -n gpu_test python=3.12 pytest cupy scipy numpy pandas scikit-learn joblib hypothesis
-  source activate gpu_test
-else
-  # CUDA 12: Use pre-existing conda environments
-  case "$suite" in
-    gpu|mgpu|gpu-arm64)
-      source activate gpu_test
-      ;;
-    cpu|cpu-arm64)
-      source activate linux_cpu_test
+# Validate --cuda-version value if provided
+if [[ -n "${cuda_version}" ]]; then
+  case "${cuda_version}" in
+    12|13)
       ;;
     *)
-      echo "Unrecognized suite: $suite"
+      echo "Error: --cuda-version must be 12 or 13, got '${cuda_version}'"
       exit 1
       ;;
   esac
 fi
+
+# Set up conda environment based on CUDA version and suite
+# Cannot set -u before Conda env activation
+case "$suite" in
+  gpu|mgpu|gpu-arm64)
+    if [[ "${cuda_version}" == "13" ]]; then
+      # CUDA 13: Create conda environment on-the-fly
+      # Fix permissions for conda directories
+      gosu root chown -R "$(id -u):$(id -g)" /opt/miniforge/envs /opt/miniforge/pkgs/cache
+      gosu root chown "$(id -u):$(id -g)" /opt/miniforge/pkgs
+      mamba create -y -n gpu_test python=3.12 pytest cupy scipy numpy pandas scikit-learn joblib hypothesis
+    fi
+    source activate gpu_test
+    ;;
+  cpu|cpu-arm64)
+    source activate linux_cpu_test
+    ;;
+esac
 
 set -xu
 

@@ -1,4 +1,5 @@
 name: Test XGBoost with latest CCCL and RMM
+
 on:
   workflow_dispatch:  # Can be manually triggered
   schedule:
@@ -40,8 +41,6 @@ jobs:
       - tag=nightly-cccl
     needs: get-latest-cccl-version
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
           submodules: "true"
@@ -51,6 +50,19 @@ jobs:
         run: |
           bash ops/pipeline/nightly-test-cccl.sh ${{ needs.get-latest-cccl-version.outputs.cccl_version }}
 
+  get-latest-rmm-version:
+    name: Query the latest version of RMM
+    runs-on: ubuntu-latest
+    outputs:
+      rmm_version: ${{ steps.query_version_step.outputs.rmm_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: query_version_step
+        name: Query version
+        run: |
+          source ops/pipeline/query-latest-rmm.sh
+          echo "rmm_version=${RMM_VERSION}" >> "$GITHUB_OUTPUT"
+
   test-latest-rmm:
     name: Test building XGBoost with latest nightly version of RMM
     # This job uses the stable CCCL used by RMM and rest of RAPIDS
@@ -58,9 +70,8 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=nightly-rmm
+    needs: get-latest-rmm-version
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
           submodules: "true"
@@ -68,4 +79,4 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - name: Build XGBoost with latest RMM
         run: |
-          bash ops/pipeline/nightly-test-rmm.sh
+          bash ops/pipeline/nightly-test-rmm.sh ${{ needs.get-latest-rmm-version.outputs.rmm_version }}

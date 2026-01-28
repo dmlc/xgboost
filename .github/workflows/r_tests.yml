@@ -1,4 +1,4 @@
-name: XGBoost-R-Tests
+name: R Tests
 
 on: [push, pull_request]
 

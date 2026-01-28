@@ -735,9 +735,12 @@ class TransformedDf(ABC):
 
     """
 
-    temporary_buffers: List[Tuple] = []
-
-    def __init__(self, ref_categories: Optional[Categories], aitfs: AifType) -> None:
+    def __init__(
+        self,
+        ref_categories: Optional[Categories],
+        aitfs: AifType,
+        temporary_buffers: List[Tuple],
+    ) -> None:
         self.ref_categories = ref_categories
         if ref_categories is not None and ref_categories.get_handle() is not None:
             aif = ref_categories.get_handle()
@@ -746,6 +749,7 @@ class TransformedDf(ABC):
             self.ref_aif = None
 
         self.aitfs = aitfs
+        self.temporary_buffers = temporary_buffers
 
     def array_interface(self) -> bytes:
         """Return a byte string for JSON encoded array interface."""

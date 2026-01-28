@@ -28,7 +28,10 @@ import sys
 import tempfile
 import traceback
 from functools import partial, update_wrapper, wraps
-from typing import Callable, List, ParamSpec, Tuple, TypeVar
+from typing import TYPE_CHECKING, Callable, List, Literal, ParamSpec, Tuple, TypeVar
+
+if TYPE_CHECKING:
+    from cuda.bindings.runtime import cudaError_t
 
 import numpy as np
 from loky import get_reusable_executor
@@ -39,13 +42,19 @@ from xgboost import collective as coll
 from xgboost.tracker import RabitTracker
 
 
+def _checkcu(status: "cudaError_t") -> None:
+    import cuda.bindings.runtime as cudart
+
+    if status != cudart.cudaError_t.cudaSuccess:
+        raise RuntimeError(cudart.cudaGetErrorString(status))
+
+
 def device_mem_total() -> int:
     """The total number of bytes of memory this GPU has."""
     import cuda.bindings.runtime as cudart
 
     status, free, total = cudart.cudaMemGetInfo()
-    if status != cudart.cudaError_t.cudaSuccess:
-        raise RuntimeError(cudart.cudaGetErrorString(status))
+    _checkcu(status)
     return total
 
 
@@ -137,6 +146,34 @@ def setup_rmm() -> None:
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
 
+def setup_async_pool() -> None:
+    """Setup CUDA async pool. As an alternative, the RMM plugin can be used as well. See
+    the `setup_rmm`. This is the same as using the `CudaAsyncMemoryResource` from RMM,
+    but without the RMM dependency.
+
+    .. versionadded:: 3.2.0
+
+    """
+    import cuda.bindings.driver as driver
+    import cuda.bindings.runtime as cudart
+    from cupy.cuda import MemoryAsyncPool
+
+    status, dft_pool = cudart.cudaDeviceGetDefaultMemPool(0)
+    _checkcu(status)
+
+    total = device_mem_total()
+
+    v = driver.cuuint64_t(int(total * 0.9))
+    (status,) = cudart.cudaMemPoolSetAttribute(
+        dft_pool,
+        cudart.cudaMemPoolAttr.cudaMemPoolAttrReleaseThreshold,
+        v,
+    )
+    _checkcu(status)
+    # Set the allocator for cupy as well.
+    cp.cuda.set_allocator(MemoryAsyncPool().malloc)
+
+
 R = TypeVar("R")
 P = ParamSpec("P")
 
@@ -159,15 +196,24 @@ def try_run(fn: Callable[P, R]) -> Callable[P, R]:
 
 
 @try_run
-def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> None:
+def hist_train(
+    worker_idx: int,
+    tmpdir: str,
+    device: str,
+    rabit_args: dict,
+    memory_pool: Literal["rmm", "cuda"],
+) -> None:
     """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
     faster initialization and lower memory usage.
 
     """
 
-    # Make sure XGBoost is using RMM for all allocations.
-    with coll.CommunicatorContext(**rabit_args), xgboost.config_context(use_rmm=True):
-        # Generate the data for demonstration. The sythetic data is sharded by workers.
+    # Make sure XGBoost is using the configured memory pool for all allocations.
+    with coll.CommunicatorContext(**rabit_args), xgboost.config_context(
+        use_rmm=memory_pool == "rmm",
+        use_cuda_async_pool=memory_pool == "cuda",
+    ):
+        # Generate the data for demonstration. The synthetic data is sharded by workers.
         files = make_batches(
             n_samples_per_batch=4096,
             n_features=16,
@@ -212,7 +258,7 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
     tracker.start()
     rabit_args = tracker.worker_args()
 
-    def initializer(device: str) -> None:
+    def initializer(device: str, memory_pool: str) -> None:
         # Set CUDA device before launching child processes.
         if device == "cuda":
             # name: LokyProcess-1
@@ -223,15 +269,24 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
             os.environ["CUDA_VISIBLE_DEVICES"] = devices
-            setup_rmm()
+            if memory_pool == "rmm":
+                setup_rmm()
+            elif memory_pool == "cuda":
+                setup_async_pool()
 
     with get_reusable_executor(
-        max_workers=n_workers, initargs=(args.device,), initializer=initializer
+        max_workers=n_workers,
+        initargs=(args.device, args.memory_pool),
+        initializer=initializer,
     ) as pool:
         # Poor man's currying
         fn = update_wrapper(
             partial(
-                hist_train, tmpdir=tmpdir, device=args.device, rabit_args=rabit_args
+                hist_train,
+                tmpdir=tmpdir,
+                device=args.device,
+                rabit_args=rabit_args,
+                memory_pool=args.memory_pool,
             ),
             hist_train,
         )
@@ -241,6 +296,12 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument(
+        "--memory_pool",
+        choices=["rmm", "cuda"],
+        default="rmm",
+        help="Use a memory pool for asynchronous memory allocation in XGBoost.",
+    )
     args = parser.parse_args()
     if args.device == "cuda":
         import cupy as cp
