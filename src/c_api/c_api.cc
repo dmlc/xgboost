@@ -878,6 +878,22 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
   API_END();
 }
 
+XGB_DLL int XGDMatrixGetArrayInfo(DMatrixHandle handle, char const *field, char const **out_array) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  xgboost_CHECK_C_ARG_PTR(field);
+  xgboost_CHECK_C_ARG_PTR(out_array);
+
+  auto p_fmat = CastDMatrixHandle(handle);
+  MetaInfo const &info = p_fmat->Info();
+
+  auto &res = p_fmat->GetThreadLocal().ret_str;
+  info.GetInfo(p_fmat->Ctx(), StringView{field}, &res);
+
+  *out_array = res.c_str();
+  API_END();
+}
+
 XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
                                   const char* field,
                                   xgboost::bst_ulong* out_len,

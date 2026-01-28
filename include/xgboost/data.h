@@ -157,8 +157,8 @@ class MetaInfo {
    */
   void SetInfo(Context const& ctx, StringView key, StringView interface_str);
 
-  void GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
-               const void** out_dptr) const;
+  void GetInfo(char const* key, bst_ulong* out_len, DataType dtype, const void** out_dptr) const;
+  void GetInfo(Context const* ctx, StringView key, std::string* out_array) const;
 
   void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
   void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;

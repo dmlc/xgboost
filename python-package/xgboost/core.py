@@ -1071,49 +1071,38 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                 matrix=self, data=feature_weights, name="feature_weights"
             )
 
-    def get_float_info(self, field: str) -> np.ndarray:
+    def _get_info(self, field: str) -> NumpyOrCupy:
+        """Get meta info."""
+        c_sdata = ctypes.c_char_p()
+        _check_call(
+            _LIB.XGDMatrixGetArrayInfo(self.handle, c_str(field), ctypes.byref(c_sdata))
+        )
+        assert c_sdata.value is not None
+        idata = json.loads(c_sdata.value)
+        data = from_array_interface(idata)
+        return data
+
+    def get_float_info(self, field: str) -> NumpyOrCupy:
         """Get float property from the DMatrix.
 
         Parameters
         ----------
         field: str
-            The field name of the information
+            The field name of the information.
 
-        Returns
-        -------
-        info : array
-            a numpy array of float information of the data
         """
-        length = c_bst_ulong()
-        ret = ctypes.POINTER(ctypes.c_float)()
-        _check_call(
-            _LIB.XGDMatrixGetFloatInfo(
-                self.handle, c_str(field), ctypes.byref(length), ctypes.byref(ret)
-            )
-        )
-        return ctypes2numpy(ret, length.value, np.float32)
+        return self._get_info(field)
 
-    def get_uint_info(self, field: str) -> np.ndarray:
+    def get_uint_info(self, field: str) -> NumpyOrCupy:
         """Get unsigned integer property from the DMatrix.
 
         Parameters
         ----------
         field: str
-            The field name of the information
+            The field name of the information.
 
-        Returns
-        -------
-        info : array
-            a numpy array of unsigned integer information of the data
         """
-        length = c_bst_ulong()
-        ret = ctypes.POINTER(ctypes.c_uint)()
-        _check_call(
-            _LIB.XGDMatrixGetUIntInfo(
-                self.handle, c_str(field), ctypes.byref(length), ctypes.byref(ret)
-            )
-        )
-        return ctypes2numpy(ret, length.value, np.uint32)
+        return self._get_info(field)
 
     def set_float_info(self, field: str, data: ArrayLike) -> None:
         """Set float type property into the DMatrix.
@@ -1239,32 +1228,17 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         dispatch_meta_backend(self, group, "group", "uint32")
 
-    def get_label(self) -> np.ndarray:
-        """Get the label of the DMatrix.
+    def get_label(self) -> NumpyOrCupy:
+        """Get the label of the DMatrix."""
+        return self._get_info("label")
 
-        Returns
-        -------
-        label : array
-        """
-        return self.get_float_info("label")
+    def get_weight(self) -> NumpyOrCupy:
+        """Get the weight of the DMatrix."""
+        return self._get_info("weight")
 
-    def get_weight(self) -> np.ndarray:
-        """Get the weight of the DMatrix.
-
-        Returns
-        -------
-        weight : array
-        """
-        return self.get_float_info("weight")
-
-    def get_base_margin(self) -> np.ndarray:
-        """Get the base margin of the DMatrix.
-
-        Returns
-        -------
-        base_margin
-        """
-        return self.get_float_info("base_margin")
+    def get_base_margin(self) -> NumpyOrCupy:
+        """Get the base margin of the DMatrix."""
+        return self._get_info("base_margin")
 
     def get_group(self) -> np.ndarray:
         """Get the group of the DMatrix.
@@ -1273,7 +1247,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         -------
         group
         """
-        group_ptr = self.get_uint_info("group_ptr")
+        group_ptr = self._get_info("group_ptr")
         return np.diff(group_ptr)
 
     def get_data(self) -> scipy.sparse.csr_matrix:

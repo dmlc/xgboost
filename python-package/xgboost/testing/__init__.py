@@ -38,6 +38,7 @@ from xgboost.core import ArrayLike
 from xgboost.sklearn import SklObjective
 
 from .._typing import PathLike
+from ..compat import _is_cupy_alike, import_cupy
 from .data import (
     IteratorForTest,
     get_california_housing,
@@ -615,7 +616,11 @@ def ls_obj(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Least squared error."""
     grad = y_pred - y_true
-    hess = np.ones(grad.shape)
+    if _is_cupy_alike(grad):
+        cp = import_cupy()
+        hess = cp.ones(grad.shape)
+    else:
+        hess = np.ones(grad.shape)
     if sample_weight is not None:
         grad *= sample_weight
         hess *= sample_weight

@@ -92,7 +92,9 @@ def test_mixed_devices() -> None:
     def run_gpu_cpu(DMatrixT: Type) -> bool:
         Xy = DMatrixT(X, y, enable_categorical=True)
         booster = xgb.train({"tree_method": "hist", "device": "cpu"}, Xy)
-        predt0 = booster.inplace_predict(X).get()
+        p = booster.inplace_predict(X)
+        assert not isinstance(p, np.ndarray)
+        predt0 = p.get()
         predt1 = booster.predict(DMatrixT(X, y, enable_categorical=True))
 
         np.testing.assert_allclose(predt0, predt1)
