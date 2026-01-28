@@ -166,8 +166,8 @@ void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair
 GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, float subsample)
     : subsample_(subsample),
       reg_abs_grad_(n_rows, 0.0f),
-      threhsold_(n_rows + 1, 0.0f),
-      grad_sum_(n_rows) {}
+      threshold_(n_rows + 1, 0.0f),
+      grad_sum_(n_rows, 0.0f) {}
 
 void ReduceGrad(Context const* ctx, linalg::MatrixView<GradientPairInt64 const> gpairs,
                 common::Span<GradientQuantiser const> roundings, common::Span<float> reg_abs_grad) {
@@ -210,7 +210,7 @@ void ReduceGrad(Context const* ctx, linalg::MatrixView<GradientPairInt64 const> 
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + gpairs.Size(), in_it,
                         thrust::make_discard_iterator(), dh::tbegin(reg_abs_grad));
 #endif
-};
+}
 
 /** @brief Calculate the threshold used to normalize sampling probabilities. */
 std::size_t CalculateThresholdIndex(Context const* ctx,
