@@ -119,7 +119,7 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
   return cases;
 }
 
-void CheckShapOutput(Context const* ctx, DMatrix* dmat, Args const& model_args) {
+void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   size_t const kRows = dmat->Info().num_row_;
   size_t const kCols = dmat->Info().num_col_;
 
@@ -182,7 +182,7 @@ TEST(Predictor, ShapOutputCasesCPU) {
   Context ctx;
   auto cases = BuildShapTestCases(&ctx);
   for (auto const& [dmat, args] : cases) {
-    CheckShapOutput(&ctx, dmat.get(), args);
+    CheckShapOutput(dmat.get(), args);
   }
 }
 

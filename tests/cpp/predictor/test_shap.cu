@@ -81,7 +81,7 @@ TEST(GPUPredictor, ShapOutputCasesGPU) {
   auto ctx = MakeCUDACtx(0);
   auto cases = BuildShapTestCases(&ctx);
   for (auto const& [dmat, args] : cases) {
-    CheckShapOutput(&ctx, dmat.get(), args);
+    CheckShapOutput(dmat.get(), args);
   }
 }
 }  // namespace xgboost
