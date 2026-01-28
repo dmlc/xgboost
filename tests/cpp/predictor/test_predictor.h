@@ -1,11 +1,11 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_TEST_PREDICTOR_H_
 #define XGBOOST_TEST_PREDICTOR_H_
 
 #include <xgboost/context.h>  // for Context
-#include <xgboost/predictor.h>
+#include "../../../src/predictor/predictor.h"  // for Predictor
 
 #include <cstddef>
 #include <string>

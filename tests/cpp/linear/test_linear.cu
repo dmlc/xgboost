@@ -1,8 +1,7 @@
 /**
- * Copyright 2018-2023, XGBoost Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #include <xgboost/linear_updater.h>
-#include <xgboost/gbm.h>
 
 #include "../helpers.h"
 #include "test_json_io.h"

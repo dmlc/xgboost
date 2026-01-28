@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  *
  * @file gbtree_model.h
  */
@@ -15,7 +15,7 @@
 #include "../common/threading_utils.h"
 #include "../data/cat_container.h"  // for CatContainer
 #include "xgboost/context.h"
-#include "xgboost/learner.h"
+#include "../learner.h"  // for LearnerModelParam
 #include "xgboost/model.h"
 #include "xgboost/tree_model.h"
 

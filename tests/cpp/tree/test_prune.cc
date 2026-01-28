@@ -1,11 +1,10 @@
 /**
- * Copyright 2018-2025, XGBoost Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 #include <xgboost/gradient.h>            // for GradientContainer
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
-#include <xgboost/learner.h>
 #include <xgboost/tree_updater.h>
 
 #include <memory>

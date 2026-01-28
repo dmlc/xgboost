@@ -1,17 +1,18 @@
 /**
- * Copyright 2016-2023 by XGBoost contributors
+ * Copyright 2016-2026, XGBoost contributors
  */
 #ifndef XGBOOST_COMMON_API_ENTRY_H_
 #define XGBOOST_COMMON_API_ENTRY_H_
-#include <string>               // std::string
-#include <vector>               // std::vector
 
-#include "xgboost/base.h"       // GradientPair,bst_ulong
-#include "xgboost/predictor.h"  // PredictionCacheEntry
+#include <string>  // for string
+#include <vector>  // for vector
+
+#include "../predictor/predictor.h"  // PredictionCacheEntry
+#include "xgboost/base.h"            // GradientPair,bst_ulong
 
 namespace xgboost {
 /**
- * \brief entry to to easily hold returning information
+ * @brief entry to to easily hold returning information
  */
 struct XGBAPIThreadLocalEntry {
   /*! \brief result holder for returning string */

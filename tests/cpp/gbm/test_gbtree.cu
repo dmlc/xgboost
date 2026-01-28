@@ -1,8 +1,8 @@
 /**
- * Copyright 2023-2025, XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  */
 #include <xgboost/context.h>      // for Context
-#include <xgboost/learner.h>      // for Learner
+#include "../../../src/learner.h"  // for Learner
 #include <xgboost/string_view.h>  // for StringView
 
 #include <limits>  // for numeric_limits

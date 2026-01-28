@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost contributors
+ * Copyright 2020-2026, XGBoost contributors
  */
 #include "rank_metric.h"
 
@@ -25,7 +25,7 @@
 #include "dmlc/common.h"                     // for OMPException
 #include "metric_common.h"                   // for MetricNoCache, GPUMetric, PackedReduceResult
 #include "xgboost/base.h"                    // for bst_float, bst_omp_uint, bst_group_t, Args
-#include "xgboost/cache.h"                   // for DMatrixCache
+#include "../common/cache.h"                 // for DMatrixCache
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/data.h"                    // for MetaInfo, DMatrix
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector

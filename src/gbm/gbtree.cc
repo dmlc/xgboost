@@ -24,16 +24,16 @@
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
 #include "../data/proxy_dmatrix.h"  // for DMatrixProxy, HostAdapterDispatch
+#include "gbm.h"
 #include "gbtree_model.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
-#include "xgboost/gbm.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/model.h"
 #include "xgboost/objective.h"
-#include "xgboost/predictor.h"
+#include "../predictor/predictor.h"  // for Predictor
 #include "xgboost/string_view.h"  // for StringView
 #include "xgboost/tree_model.h"   // for RegTree
 #include "xgboost/tree_updater.h"

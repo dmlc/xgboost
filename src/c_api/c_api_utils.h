@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_C_API_C_API_UTILS_H_
 #define XGBOOST_C_API_C_API_UTILS_H_
@@ -19,7 +19,7 @@
 #include "xgboost/data.h"         // DMatrix
 #include "xgboost/feature_map.h"  // for FeatureMap
 #include "xgboost/json.h"
-#include "xgboost/learner.h"
+#include "../learner.h"  // for Learner
 #include "xgboost/linalg.h"  // ArrayInterfaceHandler, MakeTensorView, ArrayInterfaceStr
 #include "xgboost/logging.h"
 #include "xgboost/string_view.h"  // StringView

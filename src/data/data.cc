@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file data.cc
  */
 #include "xgboost/data.h"
@@ -52,7 +52,7 @@
 #include "xgboost/base.h"                     // for bst_group_t, bst_idx_t, bst_float, bst_ulong
 #include "xgboost/context.h"                  // for Context
 #include "xgboost/host_device_vector.h"       // for HostDeviceVector
-#include "xgboost/learner.h"                  // for HostDeviceVector
+#include "../learner.h"                       // for Learner
 #include "xgboost/linalg.h"                   // for Tensor, Stack, TensorView, Vector, ArrayInte...
 #include "xgboost/logging.h"                  // for Error, LogCheck_EQ, CHECK, CHECK_EQ, LOG
 #include "xgboost/span.h"                     // for Span, operator!=, SpanIterator

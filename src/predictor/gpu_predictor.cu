@@ -33,7 +33,7 @@
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/multi_target_tree_model.h"  // for MultiTargetTree, MultiTargetTreeView
-#include "xgboost/predictor.h"
+#include "predictor.h"
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
 

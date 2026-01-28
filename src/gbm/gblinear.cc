@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file gblinear.cc
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
  *        the update rule is parallel coordinate descent (shotgun)
@@ -17,13 +17,13 @@
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
 #include "gblinear_model.h"
-#include "xgboost/gbm.h"
+#include "gbm.h"  // for GradientContainer
 #include "xgboost/json.h"
-#include "xgboost/learner.h"
+#include "../learner.h"  // for LearnerModelParam
 #include "xgboost/linalg.h"
 #include "xgboost/linear_updater.h"
 #include "xgboost/logging.h"
-#include "xgboost/predictor.h"
+#include "../predictor/predictor.h"  // for Predictor
 
 namespace xgboost::gbm {
 DMLC_REGISTRY_FILE_TAG(gblinear);

@@ -1,12 +1,11 @@
 /**
- * Copyright 2016-2025, XGBoost contributors
+ * Copyright 2016-2026, XGBoost contributors
  */
 #include "helpers.h"
 
 #include <gtest/gtest.h>
-#include <xgboost/gbm.h>
 #include <xgboost/json.h>
-#include <xgboost/learner.h>
+#include "../../src/learner.h"  // for Learner
 #include <xgboost/logging.h>
 #include <xgboost/metric.h>
 #include <xgboost/objective.h>
@@ -22,9 +21,10 @@
 #include "../../src/data/iterative_dmatrix.h"
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/data/sparse_page_dmatrix.h"
+#include "../../src/gbm/gbm.h"  // for GradientBooster
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/c_api.h"
-#include "xgboost/predictor.h"
+#include "../../src/predictor/predictor.h"  // for Predictor
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <memory>

@@ -1,12 +1,12 @@
 /**
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  */
 #pragma once
 #include <memory>  // for shared_ptr
 
 #include "../data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "xgboost/data.h"           // for DMatrix
-#include "xgboost/learner.h"        // LearnerModelParam
+#include "../learner.h"             // LearnerModelParam
 
 namespace xgboost::predictor {
 template <typename Adapter>

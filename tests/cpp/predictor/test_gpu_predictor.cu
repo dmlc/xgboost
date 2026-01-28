@@ -1,11 +1,11 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
-#include <xgboost/learner.h>
+#include "../../../src/learner.h"  // for Learner
 #include <xgboost/logging.h>
-#include <xgboost/predictor.h>
+#include "../../../src/predictor/predictor.h"  // for Predictor
 
 #include <string>
 

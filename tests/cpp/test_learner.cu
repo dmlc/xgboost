@@ -1,15 +1,15 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2024-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>        // for DeviceSym
 #include <xgboost/global_config.h>  // for GlobalConfigThreadLocalStore
-#include <xgboost/learner.h>
 
 #include <cstdint>  // for int32_t
 #include <memory>   // for unique_ptr
 
 #include "../../src/common/device_vector.cuh"  // for GlobalMemoryLogger
+#include "../../src/learner.h"                 // for Learner
 #include "helpers.h"                           // for RandomDataGenerator
 
 namespace xgboost {

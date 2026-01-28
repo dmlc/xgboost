@@ -1,9 +1,9 @@
 /*!
- * Copyright 2021-2022 by XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/json.h>
-#include <xgboost/learner.h>
+#include "../../../src/learner.h"  // for Learner
 
 #include <limits>
 

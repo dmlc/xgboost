@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include "test_serialization.h"
 
@@ -8,13 +8,13 @@
 #include <xgboost/data.h>
 #include <xgboost/feature_map.h>  // for FeatureMap
 #include <xgboost/json.h>         // for Json
-#include <xgboost/learner.h>
 
 #include <string>
 
 #include "../../src/common/io.h"
 #include "../../src/common/random.h"
-#include "filesystem.h"  // for TemporaryDirectory
+#include "../../src/learner.h"  // for Learner
+#include "filesystem.h"         // for TemporaryDirectory
 #include "helpers.h"
 
 namespace xgboost {

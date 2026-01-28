@@ -1,16 +1,16 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file gbm.cc
  * \brief Registry of gradient boosters.
  */
-#include "xgboost/gbm.h"
+#include "gbm.h"
 
 #include <dmlc/registry.h>
 
 #include <string>
 
 #include "xgboost/context.h"
-#include "xgboost/learner.h"
+#include "../learner.h"  // for LearnerModelParam
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::GradientBoosterReg);

@@ -1,12 +1,11 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  *
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_LEARNER_H_
-#define XGBOOST_LEARNER_H_
+#pragma once
 
 #include <dmlc/io.h>           // for Serializable
 #include <xgboost/base.h>      // for bst_feature_t, bst_target_t, bst_float, Args, GradientPair, ..
@@ -352,6 +351,4 @@ struct LearnerModelParam {
   /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
   [[nodiscard]] bool Initialized() const { return num_feature != 0 && num_output_group != 0; }
 };
-
 }  // namespace xgboost
-#endif  // XGBOOST_LEARNER_H_

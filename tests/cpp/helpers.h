@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2025, XGBoost contributors
+ * Copyright 2016-2026, XGBoost contributors
  */
 #pragma once
 
@@ -10,7 +10,7 @@
 #include <xgboost/base.h>
 #include <xgboost/context.h>
 #include <xgboost/json.h>
-#include <xgboost/learner.h>  // for LearnerModelParam
+#include "../../src/learner.h"  // for LearnerModelParam
 #include <xgboost/model.h>    // for Configurable
 
 #include <cstdint>  // std::int32_t

@@ -1,15 +1,15 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/cache.h>
 #include <xgboost/data.h>  // for DMatrix
 
-#include <cstddef>         // for size_t
-#include <cstdint>         // for uint32_t
-#include <thread>          // for thread
+#include <cstddef>  // for size_t
+#include <cstdint>  // for uint32_t
+#include <thread>   // for thread
 
-#include "helpers.h"       // for RandomDataGenerator
+#include "../../src/common/cache.h"  // for DMatrixCache
+#include "helpers.h"                 // for RandomDataGenerator
 
 namespace xgboost {
 namespace {

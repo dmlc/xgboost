@@ -20,15 +20,15 @@
 #include "../common/timer.h"
 #include "../tree/param.h"      // TrainParam
 #include "../tree/tree_view.h"  // for WalkTree
+#include "gbm.h"                // for GradientBooster
 #include "gbtree_model.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
-#include "xgboost/gbm.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/parameter.h"
-#include "xgboost/predictor.h"
+#include "../predictor/predictor.h"  // for Predictor
 #include "xgboost/tree_updater.h"
 
 namespace xgboost {

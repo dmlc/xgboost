@@ -1,9 +1,8 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <xgboost/learner.h>         // for Learner
 #include <xgboost/logging.h>         // for LogCheck_NE, CHECK_NE, LogCheck_EQ
 #include <xgboost/objective.h>       // for ObjFunction
 #include <xgboost/version_config.h>  // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR
@@ -26,6 +25,8 @@
 #include "../../src/common/io.h"                    // for LoadSequentialFile
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
 #include "../../src/common/random.h"                // for GlobalRandom
+#include "../../src/learner.h"                      // for Learner
+#include "../../src/predictor/predictor.h"          // for PredictionCacheEntry
 #include "./collective/test_worker.h"               // for TestDistributedGlobal
 #include "dmlc/omp.h"                               // for omp_get_max_threads
 #include "filesystem.h"                             // for TemporaryDirectory
@@ -39,7 +40,6 @@
 #include "xgboost/json.h"                           // for Json, Object, get, String, IsA, opera...
 #include "xgboost/linalg.h"                         // for Tensor, TensorView
 #include "xgboost/logging.h"                        // for ConsoleLogger
-#include "xgboost/predictor.h"                      // for PredictionCacheEntry
 #include "xgboost/string_view.h"                    // for StringView
 
 namespace xgboost {

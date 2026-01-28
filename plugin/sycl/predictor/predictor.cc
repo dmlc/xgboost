@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors 2017-2025
+ * Copyright by Contributors 2017-2026
  */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
@@ -17,7 +17,7 @@
 #include "dmlc/registry.h"
 
 #include "xgboost/tree_model.h"
-#include "xgboost/predictor.h"
+#include "../../../src/predictor/predictor.h"
 #include "xgboost/tree_updater.h"
 #include "../../../src/common/timer.h"
 

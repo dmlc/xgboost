@@ -1,10 +1,10 @@
 /**
- * Copyright 2018-2025, XGBoost Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #pragma once
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
-#include <xgboost/learner.h>
+#include "../learner.h"  // for LearnerModelParam
 
 #include <vector>
 #include <string>
