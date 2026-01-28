@@ -591,10 +591,6 @@ jobs:
         shell: bash -l {0}
     steps:
       - uses: actions/checkout@v6.0.1
-      - name: Set up homebrew
-        uses: Homebrew/actions/setup-homebrew@13341b4d5e459a98bbe0b122b12c11bf90518cc8
-      - name: Install libomp
-        run: brew install libomp
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: macos_test
