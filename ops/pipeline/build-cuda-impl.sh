@@ -11,7 +11,14 @@ else
   cmake_args=''
 fi
 
-if [[ "${USE_RMM:-}" == 1 ]]
+if [[ "${USE_FEDERATED:-0}" == 1 ]]
+then
+  cmake_args="${cmake_args} -DPLUGIN_FEDERATED=ON"
+else
+  cmake_args="${cmake_args} -DPLUGIN_FEDERATED=OFF"
+fi
+
+if [[ "${USE_RMM:-0}" == 1 ]]
 then
   cmake_prefix_path='/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake'
   cmake_args="${cmake_args} -DPLUGIN_RMM=ON"
@@ -27,10 +34,12 @@ pushd build
 cmake .. \
   -GNinja \
   -DCMAKE_PREFIX_PATH="${cmake_prefix_path}" \
+  -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+  -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
+  -DCMAKE_CUDA_COMPILER_LAUNCHER=sccache \
   -DUSE_CUDA=ON \
   -DUSE_OPENMP=ON \
   -DHIDE_CXX_SYMBOLS=ON \
-  -DPLUGIN_FEDERATED=ON \
   -DUSE_NCCL=ON \
   -DUSE_NCCL_LIB_PATH=ON \
   -DNCCL_INCLUDE_DIR=/usr/include \
@@ -39,7 +48,6 @@ cmake .. \
   -DUSE_DMLC_GTEST=ON \
   -DENABLE_ALL_WARNINGS=ON \
   -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-  -DBUILD_DEPRECATED_CLI=ON \
   ${cmake_args}
 time ninja -v
 popd

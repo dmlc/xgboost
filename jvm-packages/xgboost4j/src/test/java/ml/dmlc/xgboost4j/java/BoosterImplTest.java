@@ -294,7 +294,6 @@ public class BoosterImplTest {
     Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath());
     assert (Arrays.equals(bst2.toByteArray("ubj"), booster.toByteArray("ubj")));
     assert (Arrays.equals(bst2.toByteArray("json"), booster.toByteArray("json")));
-    assert (Arrays.equals(bst2.toByteArray("deprecated"), booster.toByteArray("deprecated")));
     float[][] predicts2 = bst2.predict(testMat, true, 0);
     TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f);
   }
@@ -327,7 +326,6 @@ public class BoosterImplTest {
     Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath());
     assert (Arrays.equals(bst2.toByteArray("ubj"), booster.toByteArray("ubj")));
     assert (Arrays.equals(bst2.toByteArray("json"), booster.toByteArray("json")));
-    assert (Arrays.equals(bst2.toByteArray("deprecated"), booster.toByteArray("deprecated")));
     float[][] predicts2 = bst2.predict(testMat, true, 0);
     TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f);
   }
@@ -898,5 +896,35 @@ public class BoosterImplTest {
 
     Booster booster = trainBooster(trainMat, testMat);
     TestCase.assertEquals(booster.getNumFeature(), 126);
+  }
+
+  @Test
+  public void testConcurrentPredict() throws InterruptedException, XGBoostError, ExecutionException, TimeoutException {
+    DMatrix trainMat = new DMatrix(this.train_uri);
+    DMatrix testMat = new DMatrix(this.test_uri);
+    Booster booster = trainBooster(trainMat, testMat);
+
+    float[][] expectedPredictions = booster.predict(testMat);
+
+    ExecutorService executor = Executors.newFixedThreadPool(10);
+    List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+    //10 threads - each calling predict 50 times
+    for (int t = 0; t < 10; t++) {
+      futures.add(CompletableFuture.runAsync(() -> {
+        try {
+          for (int i = 0; i < 50; i++) {
+            float[][] predictions = booster.predict(testMat);
+            assertArrayEquals(expectedPredictions, predictions);
+          }
+        } catch (XGBoostError e) {
+          throw new RuntimeException(e);
+        }
+      }, executor));
+    }
+
+    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+      .get(30, TimeUnit.SECONDS);
+    executor.shutdown();
   }
 }

@@ -11,6 +11,7 @@
 
 #include "../../../plugin/sycl/common/hist_util.h"
 #include "../../../plugin/sycl/device_manager.h"
+#include "../../../plugin/sycl/tree/hist_dispatcher.h"
 #include "sycl_helpers.h"
 #include "../helpers.h"
 
@@ -67,8 +68,9 @@ void GHistBuilderTest(float sparsity, bool force_atomic_use) {
   InitHist(qu, &hist, hist.Size(), &event);
   InitHist(qu, &hist_buffer, hist_buffer.Size(), &event);
 
+  DeviceProperties device_prop(qu->get_device());
   event = builder.BuildHist(gpair, row_set_collection[0], gmat_sycl, &hist,
-                            sparsity < eps , &hist_buffer, event, force_atomic_use);
+                            sparsity < eps , &hist_buffer, device_prop, event, force_atomic_use);
   qu->memcpy(hist_host.data(), hist.Data(),
             2 * n_bins * sizeof(GradientSumT), event);
   qu->wait_and_throw();

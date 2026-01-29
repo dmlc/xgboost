@@ -9,8 +9,15 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
+from xgboost.compat import is_dataframe
 
 pl = pytest.importorskip("polars")
+
+
+def test_type_check() -> None:
+    df = pl.DataFrame({"a": [1, 2, 3], "b": [3, 4, 5]})
+    assert is_dataframe(df)
+    assert is_dataframe(df["a"])
 
 
 @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
@@ -138,9 +145,45 @@ def test_regressor() -> None:
 def test_categorical() -> None:
     import polars as pl
 
+    cats = ["aa", "cc", "bb", "ee", "ee"]
     df = pl.DataFrame(
-        {"f0": [1, 2, 3], "b": ["a", "b", "c"]},
-        schema=[("a", pl.Int64()), ("b", pl.Categorical())],
+        {"f0": [1, 3, 2, 4, 4], "f1": cats},
+        schema=[("f0", pl.Int64()), ("f1", pl.Categorical(ordering="lexical"))],
     )
-    with pytest.raises(NotImplementedError, match="Categorical feature"):
-        xgb.DMatrix(df, enable_categorical=True)
+    with pytest.raises(ValueError, match="enable_categorical"):
+        xgb.DMatrix(df)
+
+    data = xgb.DMatrix(df, enable_categorical=True)
+    categories = data.get_categories(export_to_arrow=True)
+    assert dict(categories.to_arrow())["f0"] is None
+    f1 = dict(categories.to_arrow())["f1"]
+    assert f1 is not None
+    assert f1.to_pylist() == cats[:4]
+
+    df = pl.DataFrame(
+        {"f0": [1, 3, 2, 4, 4], "f1": cats},
+        schema=[("f0", pl.Int64()), ("f1", pl.Enum(cats[:4]))],
+    )
+    data = xgb.DMatrix(df, enable_categorical=True)
+    categories = data.get_categories(export_to_arrow=True)
+    assert dict(categories.to_arrow())["f0"] is None
+    f1 = dict(categories.to_arrow())["f1"]
+    assert f1 is not None
+    assert f1.to_pylist() == cats[:4]
+
+    rng = np.random.default_rng(2025)
+    y = rng.normal(size=(df.shape[0]))
+    Xy = xgb.QuantileDMatrix(df, y, enable_categorical=True)
+    booster = xgb.train({}, Xy, num_boost_round=8)
+    predt_0 = booster.inplace_predict(df)
+
+    df_rev = pl.DataFrame(
+        {"f0": [1, 3, 2, 4, 4], "f1": cats},
+        schema=[("f0", pl.Int64()), ("f1", pl.Enum(cats[:4][::-1]))],
+    )
+    predt_1 = booster.inplace_predict(df_rev)
+    assert (
+        df["f1"].cat.get_categories().to_list()
+        != df_rev["f1"].cat.get_categories().to_list()
+    )
+    np.testing.assert_allclose(predt_0, predt_1)

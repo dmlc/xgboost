@@ -306,7 +306,9 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
     def test_classifier_distributed_multiclass(self):
         # There is no built-in multiclass option for external storage
-        classifier = SparkXGBClassifier(num_workers=self.n_workers, n_estimators=100)
+        classifier = SparkXGBClassifier(
+            num_workers=self.n_workers, n_estimators=100, base_score=0.5
+        )
         model = classifier.fit(self.cls_df_train_distributed_multiclass)
         pred_result = model.transform(self.cls_df_test_distributed_multiclass).collect()
         for row in pred_result:

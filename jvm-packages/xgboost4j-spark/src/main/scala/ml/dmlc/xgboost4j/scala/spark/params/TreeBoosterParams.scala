@@ -231,7 +231,7 @@ private[spark] trait TreeBoosterParams extends Params {
 
 private[spark] object BoosterParams {
 
-  val supportedTreeMethods = HashSet("auto", "exact", "approx", "hist", "gpu_hist")
+  val supportedTreeMethods = HashSet("auto", "exact", "approx", "hist")
 
   val supportedUpdaters = HashSet("grow_colmaker", "grow_histmaker", "grow_quantile_histmaker",
     "grow_gpu_hist", "grow_gpu_approx", "sync", "refresh", "prune")

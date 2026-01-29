@@ -1,6 +1,7 @@
 /**
  * Copyright 2019-2025, by XGBoost Contributors
  */
+#include "error_msg.h"
 #if defined(__unix__) || defined(__APPLE__)
 
 #include <fcntl.h>     // for open, O_RDONLY, posix_fadvise
@@ -12,14 +13,15 @@
 #include <xgboost/windefs.h>
 
 #if defined(xgboost_IS_WIN)
-#include <windows.h>
+
+#include <windows.h>  // for CreateFileMapping2, CreateFileEx...
+
 #endif  // defined(xgboost_IS_WIN)
 
 #endif  // defined(__unix__) || defined(__APPLE__)
 
 #include <algorithm>     // for copy, transform
 #include <cctype>        // for tolower
-#include <cerrno>        // for errno
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t, uint32_t
 #include <cstdio>        // for fread, fseek
@@ -29,17 +31,19 @@
 #include <iterator>      // for distance
 #include <memory>        // for unique_ptr, make_unique
 #include <string>        // for string
-#include <system_error>  // for error_code, system_category
 #include <utility>       // for move
 #include <vector>        // for vector
 
 #include "io.h"
-#include "xgboost/collective/socket.h"  // for LastError
 #include "xgboost/logging.h"            // for CHECK_LE
 #include "xgboost/string_view.h"        // for StringView
 
 #if !defined(__linux__) && !defined(__GLIBC__) && !defined(xgboost_IS_WIN)
 #include <limits>  // for numeric_limits
+#endif
+
+#if defined(__linux__)
+#include <sys/sysinfo.h>
 #endif
 
 namespace xgboost::common {
@@ -130,19 +134,13 @@ std::size_t GetMmapAlignment() {
   return getpagesize();
 #endif
 }
-
-auto SystemErrorMsg() {
-  std::int32_t errsv = system::LastError();
-  auto err = std::error_code{errsv, std::system_category()};
-  return err.message();
-}
 }  // anonymous namespace
 
 std::vector<char> LoadSequentialFile(std::string uri) {
   auto OpenErr = [&uri]() {
     std::string msg;
     msg = "Opening " + uri + " failed: ";
-    msg += SystemErrorMsg();
+    msg += error::SystemError().message();
     LOG(FATAL) << msg;
   };
 
@@ -177,6 +175,57 @@ std::string FileExtension(std::string fname, bool lower) {
   }
 }
 
+struct MmapFileImpl {
+#if defined(xgboost_IS_WIN)
+  HANDLE fd{INVALID_HANDLE_VALUE};
+  HANDLE file_map{INVALID_HANDLE_VALUE};
+#else
+  std::int32_t fd{0};
+#endif  // defined(xgboost_IS_WIN)
+  std::byte* base_ptr{nullptr};
+  std::size_t base_size{0};
+  std::size_t delta{0};
+  std::string path;
+
+  MmapFileImpl() = default;
+
+#if defined(xgboost_IS_WIN)
+  MmapFileImpl(HANDLE fd, HANDLE fm, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
+               std::string path)
+      : fd{fd},
+        file_map{fm},
+        base_ptr{base_ptr},
+        base_size{base_size},
+        delta{delta},
+        path{std::move(path)} {}
+#else
+  MmapFileImpl(std::int32_t fd, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
+               std::string path)
+      : fd{fd}, base_ptr{base_ptr}, base_size{base_size}, delta{delta}, path{std::move(path)} {}
+#endif  // defined(xgboost_IS_WIN)
+
+  void const* Data() const { return this->base_ptr + this->delta; }
+  void* Data() { return this->base_ptr + this->delta; }
+};
+
+void const* MMAPFile::Data() const {
+  if (!this->p_impl) {
+    return nullptr;
+  }
+  return this->p_impl->Data();
+}
+
+void* MMAPFile::Data() {
+  if (!this->p_impl) {
+    return nullptr;
+  }
+  return this->p_impl->Data();
+}
+
+[[nodiscard]] Span<std::byte> MMAPFile::BasePtr() const {
+  return Span{this->p_impl->base_ptr, this->p_impl->base_size};
+}
+
 // For some reason, NVCC 12.1 marks the function deleted if we expose it in the header.
 // NVCC 11.8 doesn't allow `noexcept(false) = default` altogether.
 ResourceHandler::~ResourceHandler() noexcept(false) {}  // NOLINT
@@ -189,10 +238,11 @@ MMAPFile* detail::OpenMmap(std::string path, std::size_t offset, std::size_t len
 #if defined(xgboost_IS_WIN)
   HANDLE fd = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
-  CHECK_NE(fd, INVALID_HANDLE_VALUE) << "Failed to open:" << path << ". " << SystemErrorMsg();
+  CHECK_NE(fd, INVALID_HANDLE_VALUE)
+      << "Failed to open:" << path << ". " << error::SystemError().message();
 #else
   auto fd = open(path.c_str(), O_RDONLY);
-  CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << SystemErrorMsg();
+  CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << error::SystemError().message();
 #endif
 
   std::byte* ptr{nullptr};
@@ -203,26 +253,30 @@ MMAPFile* detail::OpenMmap(std::string path, std::size_t offset, std::size_t len
 #if defined(__linux__) || defined(__GLIBC__)
   int prot{PROT_READ};
   ptr = reinterpret_cast<std::byte*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
-  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  auto handle = new MMAPFile{fd, ptr, view_size, offset - view_start, std::move(path)};
+  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << error::SystemError().message();
+  auto handle = new MMAPFile{
+      std::make_unique<MmapFileImpl>(fd, ptr, view_size, offset - view_start, std::move(path))};
 #elif defined(xgboost_IS_WIN)
-  auto file_size = GetFileSize(fd, nullptr);
-  DWORD access = PAGE_READONLY;
-  auto map_file = CreateFileMapping(fd, nullptr, access, 0, file_size, nullptr);
-  access = FILE_MAP_READ;
-  std::uint32_t loff = static_cast<std::uint32_t>(view_start);
-  std::uint32_t hoff = view_start >> 32;
-  CHECK(map_file) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  ptr = reinterpret_cast<std::byte*>(MapViewOfFile(map_file, access, hoff, loff, view_size));
-  CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  auto handle = new MMAPFile{fd, map_file, ptr, view_size, offset - view_start, std::move(path)};
+  LARGE_INTEGER file_size;
+  CHECK_NE(GetFileSizeEx(fd, &file_size), 0) << error::SystemError().message();
+  auto map_file = CreateFileMappingA(fd, nullptr, PAGE_READONLY, file_size.HighPart,
+                                     file_size.LowPart, nullptr);
+  CHECK(map_file) << "Failed to map: " << path << ". " << error::SystemError().message();
+
+  auto li_vs = reinterpret_cast<LARGE_INTEGER*>(&view_start);
+  ptr = reinterpret_cast<std::byte*>(
+      MapViewOfFile(map_file, FILE_MAP_READ, li_vs->HighPart, li_vs->LowPart, view_size));
+  CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << error::SystemError().message();
+  auto handle = new MMAPFile{std::make_unique<MmapFileImpl>(fd, map_file, ptr, view_size,
+                                                            offset - view_start, std::move(path))};
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";
   int prot{PROT_READ};
   ptr = reinterpret_cast<std::byte*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
-  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  auto handle = new MMAPFile{fd, ptr, view_size, offset - view_start, std::move(path)};
+  CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << error::SystemError().message();
+  auto handle = new MMAPFile{
+      std::make_unique<MmapFileImpl>(fd, ptr, view_size, offset - view_start, std::move(path))};
 #endif  // defined(__linux__) || defined(__GLIBC__)
 
   return handle;
@@ -233,23 +287,27 @@ void detail::CloseMmap(MMAPFile* handle) {
     return;
   }
 #if defined(xgboost_IS_WIN)
-  if (handle->base_ptr) {
-    CHECK(UnmapViewOfFile(handle->base_ptr)) << "Failed to call munmap: " << SystemErrorMsg();
+  if (handle->p_impl->base_ptr) {
+    CHECK(UnmapViewOfFile(handle->p_impl->base_ptr))
+        << "Failed to call munmap: " << error::SystemError().message();
   }
-  if (handle->fd != INVALID_HANDLE_VALUE) {
-    CHECK(CloseHandle(handle->fd)) << "Failed to close handle: " << SystemErrorMsg();
+  if (handle->p_impl->fd != INVALID_HANDLE_VALUE) {
+    CHECK(CloseHandle(handle->p_impl->fd))
+        << "Failed to close handle: " << error::SystemError().message();
   }
-  if (handle->file_map != INVALID_HANDLE_VALUE) {
-    CHECK(CloseHandle(handle->file_map)) << "Failed to close mapping object: " << SystemErrorMsg();
+  if (handle->p_impl->file_map != INVALID_HANDLE_VALUE) {
+    CHECK(CloseHandle(handle->p_impl->file_map))
+        << "Failed to close mapping object: " << error::SystemError().message();
   }
 #else
-  if (handle->base_ptr) {
-    CHECK_NE(munmap(handle->base_ptr, handle->base_size), -1)
-        << "Failed to call munmap: `" << handle->path << "`. " << SystemErrorMsg();
+  if (handle->p_impl->base_ptr) {
+    CHECK_NE(munmap(handle->p_impl->base_ptr, handle->p_impl->base_size), -1)
+        << "Failed to call munmap: `" << handle->p_impl->path << "`. "
+        << error::SystemError().message();
   }
-  if (handle->fd != 0) {
-    CHECK_NE(close(handle->fd), -1)
-        << "Failed to close: `" << handle->path << "`. " << SystemErrorMsg();
+  if (handle->p_impl->fd != 0) {
+    CHECK_NE(close(handle->p_impl->fd), -1)
+        << "Failed to close: `" << handle->p_impl->path << "`. " << error::SystemError().message();
   }
 #endif
   delete handle;
@@ -260,7 +318,7 @@ MmapResource::MmapResource(StringView path, std::size_t offset, std::size_t leng
       handle_{detail::OpenMmap(std::string{path}, offset, length), detail::CloseMmap},
       n_{length} {
 #if defined(__unix__) || defined(__APPLE__)
-  madvise(handle_->base_ptr, handle_->base_size, MADV_WILLNEED);
+  madvise(handle_->p_impl->base_ptr, handle_->p_impl->base_size, MADV_WILLNEED);
 #endif  // defined(__unix__) || defined(__APPLE__)
 }
 
@@ -289,7 +347,7 @@ std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringV
   std::unique_ptr<FILE, std::function<int(FILE*)>> fp{fopen(path.c_str(), "rb"), fclose};
 
   auto err = [&] {
-    auto e = SystemErrorMsg();
+    auto e = error::SystemError().message();
     LOG(FATAL) << "Failed to read file `" << path << "`. System error message: " << e;
   };
 #if defined(__linux__)
@@ -298,7 +356,7 @@ std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringV
     err();
   }
   if (posix_fadvise(fd, offset, length, POSIX_FADV_SEQUENTIAL) != 0) {
-    LOG(FATAL) << SystemErrorMsg();
+    LOG(FATAL) << error::SystemError().message();
   }
 #endif  // defined(__linux__)
 
@@ -349,5 +407,20 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
     result += buffer.data();
   }
   return result;
+}
+
+[[nodiscard]] std::size_t TotalMemory() {
+#if defined(__linux__)
+  struct sysinfo info;
+  CHECK_EQ(sysinfo(&info), 0) << error::SystemError().message();
+  return info.totalram * info.mem_unit;
+#elif defined(xgboost_IS_WIN)
+  MEMORYSTATUSEX status;
+  status.dwLength = sizeof(status);
+  CHECK(GlobalMemoryStatusEx(&status)) << error::SystemError().message();
+  return static_cast<std::size_t>(status.ullTotalPhys);
+#else
+  LOG(FATAL) << "Not implemented";
+#endif  // defined(__linux__)
 }
 }  // namespace xgboost::common

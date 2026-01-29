@@ -185,7 +185,7 @@ Convince yourself that the implementation is correct:
         def gen_random_dirichlet(rng: np.random.Generator, m: int, k: int):
             alpha = np.exp(rng.standard_normal(size=k))
             return rng.dirichlet(alpha, size=m)
-        
+
         def test_dirichlet_fun_grad_hess():
             k = 3
             m = 10
@@ -233,12 +233,12 @@ Convince yourself that the implementation is correct:
             alpha <- exp(rnorm(k))
             y <- rdirichlet(m, alpha)
             x0 <- rnorm(k)
-            
+
             for (row in seq_len(m)) {
                 logpdf <- dirichlet.fun(matrix(x0, nrow=1), y[row,,drop=F])
                 ref_logpdf <- ddirichlet(y[row,,drop=F], exp(x0), log = T)
                 expect_equal(logpdf, -ref_logpdf)
-                
+
                 eps <- 1e-7
                 grad_num <- numeric(k)
                 for (col in seq_len(k)) {
@@ -249,10 +249,10 @@ Convince yourself that the implementation is correct:
                         - dirichlet.fun(matrix(x0, nrow=1), y[row,,drop=F])
                     ) / eps
                 }
-                
+
                 grad <- dirichlet.grad(matrix(x0, nrow=1), y[row,,drop=F])
                 expect_equal(grad |> as.vector(), grad_num, tolerance=1e-6)
-                
+
                 H_numeric <- array(dim=c(k, k))
                 for (ii in seq_len(k)) {
                     xplus <- x0
@@ -264,7 +264,7 @@ Convince yourself that the implementation is correct:
                         ) / eps
                     }
                 }
-                
+
                 H <- dirichlet.hess(matrix(xplus, nrow=1), y[row,,drop=F])
                 expect_equal(H[1,,], H_numeric, tolerance=1e-6)
             }
@@ -346,7 +346,7 @@ point, which means it will be a minimum rather than a maximum or saddle point).
             alpha <- exp(x0)
             n.samples <- 5e6
             y.samples <- rdirichlet(n.samples, alpha)
-            
+
             x.broadcast <- rep(x0, n.samples) |> matrix(ncol=k, byrow=T)
             grad.samples <- dirichlet.grad(x.broadcast, y.samples)
             ref <- crossprod(grad.samples) / n.samples
@@ -420,7 +420,7 @@ required for XGBoost's custom objectives:
     .. code-tab:: r R
 
         library(xgboost)
-        
+
         dirichlet.xgb.objective <- function(pred, dtrain) {
             y <- getinfo(dtrain, "label")
             return(
@@ -473,7 +473,7 @@ The data:
 
 .. tabs::
     .. code-tab:: py
-            
+
         # depth
         X = np.array([
             10.4,11.7,12.8,13,15.7,16.3,18,18.7,20.7,22.1,
@@ -508,9 +508,9 @@ Fitting an XGBoost model and making predictions:
 
 .. tabs::
     .. code-tab:: py
-            
+
         from typing import Dict, List
-        
+
         dtrain = xgb.DMatrix(X, label=Y)
         results: Dict[str, Dict[str, List[float]]] = {}
         booster = xgb.train(

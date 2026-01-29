@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file param.h
  * \brief training parameters, statistics used to support tree construction.
  * \author Tianqi Chen
@@ -28,16 +28,16 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // minimum loss change required for a split
   float min_split_loss;
   // maximum depth of a tree
-  int max_depth;
+  bst_node_t max_depth;
   // maximum number of leaves
-  int max_leaves;
+  bst_node_t max_leaves;
   // if using histogram based algorithm, maximum number of bins per feature
-  int max_bin;
+  bst_bin_t max_bin;
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
 
-  uint32_t max_cat_to_onehot{4};
+  std::uint32_t max_cat_to_onehot{4};
 
   bst_bin_t max_cat_threshold{64};
 
@@ -63,10 +63,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   float colsample_bylevel;
   // whether to subsample columns during tree construction
   float colsample_bytree;
-  // accuracy of sketch
-  float sketch_ratio;
-  // option to open cacheline optimization
-  bool cache_opt;
   // whether refresh updater needs to update the leaf values
   bool refresh_leaf;
 
@@ -161,13 +157,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Subsample ratio of columns, resample on each tree construction.");
-    DMLC_DECLARE_FIELD(sketch_ratio)
-        .set_lower_bound(0.0f)
-        .set_default(2.0f)
-        .describe("EXP Param: Sketch accuracy related parameter of approximate algorithm.");
-    DMLC_DECLARE_FIELD(cache_opt)
-        .set_default(true)
-        .describe("EXP Param: Cache aware optimization.");
     DMLC_DECLARE_FIELD(refresh_leaf)
         .set_default(true)
         .describe("Whether the refresh updater needs to update leaf values.");
@@ -242,21 +231,21 @@ XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad,
 
 // calculate weight given the statistics
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
-                                   T sum_hess) {
+XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(TrainingParams const &p,
+                                                                           T sum_grad, T sum_hess) {
   if (sum_hess < p.min_child_weight || sum_hess <= 0.0) {
     return 0.0;
   }
   T dw = -ThresholdL1(sum_grad, p.reg_alpha) / (sum_hess + p.reg_lambda);
-  if (p.max_delta_step != 0.0f && std::abs(dw) > p.max_delta_step) {
-    dw = std::copysign(p.max_delta_step, dw);
+  if (p.max_delta_step != 0.0f && ::fabs(dw) > p.max_delta_step) {
+    dw = ::copysign(p.max_delta_step, dw);
   }
   return dw;
 }
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
+XGBOOST_DEVICE T CalcGain(TrainingParams const &p, T sum_grad, T sum_hess) {
   if (sum_hess < p.min_child_weight || sum_hess <= 0.0) {
     return static_cast<T>(0.0);
   }
@@ -264,8 +253,7 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
     if (p.reg_alpha == 0.0f) {
       return common::Sqr(sum_grad) / (sum_hess + p.reg_lambda);
     } else {
-      return common::Sqr(ThresholdL1(sum_grad, p.reg_alpha)) /
-          (sum_hess + p.reg_lambda);
+      return common::Sqr(ThresholdL1(sum_grad, p.reg_alpha)) / (sum_hess + p.reg_lambda);
     }
   } else {
     T w = CalcWeight(p, sum_grad, sum_hess);
@@ -291,17 +279,17 @@ XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad)
 }
 
 /**
- * \brief multi-target weight, calculated with learning rate.
+ * @brief multi-target weight, calculated with learning rate.
  */
 inline void CalcWeight(TrainParam const &p, linalg::VectorView<GradientPairPrecise const> grad_sum,
                        float eta, linalg::VectorView<float> out_w) {
-  for (bst_target_t i = 0; i < out_w.Size(); ++i) {
-    out_w(i) = CalcWeight(p, grad_sum(i).GetGrad(), grad_sum(i).GetHess()) * eta;
+  for (bst_target_t t = 0, n_targets = out_w.Size(); t < n_targets; ++t) {
+    out_w(t) = CalcWeight(p, grad_sum(t).GetGrad(), grad_sum(t).GetHess()) * eta;
   }
 }
 
 /**
- * \brief multi-target weight
+ * @brief multi-target weight
  */
 inline void CalcWeight(TrainParam const &p, linalg::VectorView<GradientPairPrecise const> grad_sum,
                        linalg::VectorView<float> out_w) {
@@ -312,8 +300,8 @@ inline double CalcGainGivenWeight(TrainParam const &p,
                                   linalg::VectorView<GradientPairPrecise const> sum_grad,
                                   linalg::VectorView<float const> weight) {
   double gain{0};
-  for (bst_target_t i = 0; i < weight.Size(); ++i) {
-    gain += -weight(i) * ThresholdL1(sum_grad(i).GetGrad(), p.reg_alpha);
+  for (bst_target_t t = 0, n_targets = weight.Size(); t < n_targets; ++t) {
+    gain += -weight(t) * ThresholdL1(sum_grad(t).GetGrad(), p.reg_alpha);
   }
   return gain;
 }
@@ -411,9 +399,29 @@ struct SplitEntryContainer {
        << "dft_left: " << s.DefaultLeft() << "\n"
        << "split_index: " << s.SplitIndex() << "\n"
        << "split_value: " << s.split_value << "\n"
-       << "is_cat: " << s.is_cat << "\n"
-       << "left_sum: " << s.left_sum << "\n"
-       << "right_sum: " << s.right_sum << std::endl;
+       << "is_cat: " << s.is_cat << "\n";
+    if constexpr (std::is_same_v<GradStats, GradientT>) {
+      os << "left_sum: " << s.left_sum << "\n"
+         << "right_sum: " << s.right_sum << std::endl;
+    } else {
+      auto print_vec = [&](auto const &vec) {
+        for (std::size_t i = 0; i < vec.size(); ++i) {
+          os << vec[i];
+          if (i != vec.size() - 1) {
+            os << ", ";
+          }
+        }
+      };
+
+      os << "left_sum: [";
+      print_vec(s.left_sum);
+      os << "]\n";
+
+      os << "right_sum: [";
+      print_vec(s.right_sum);
+      os << "]\n";
+    }
+
     return os;
   }
 

@@ -7,12 +7,6 @@
 #ifndef XGBOOST_COMMON_IO_H_
 #define XGBOOST_COMMON_IO_H_
 
-#include <xgboost/windefs.h>
-
-#if defined(xgboost_IS_WIN)
-#include <windows.h>
-#endif  // defined(xgboost_IS_WIN)
-
 #include <algorithm>    // for min, fill_n, copy_n
 #include <array>        // for array
 #include <cstddef>      // for byte, size_t
@@ -230,40 +224,16 @@ inline std::string ReadAll(std::string const &path) {
   return content;
 }
 
+struct MmapFileImpl;
+
 /**
  * @brief A handle to mmap file.
  */
 struct MMAPFile {
-#if defined(xgboost_IS_WIN)
-  HANDLE fd{INVALID_HANDLE_VALUE};
-  HANDLE file_map{INVALID_HANDLE_VALUE};
-#else
-  std::int32_t fd{0};
-#endif  // defined(xgboost_IS_WIN)
-  std::byte* base_ptr{nullptr};
-  std::size_t base_size{0};
-  std::size_t delta{0};
-  std::string path;
-
-  MMAPFile() = default;
-
-#if defined(xgboost_IS_WIN)
-  MMAPFile(HANDLE fd, HANDLE fm, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
-           std::string path)
-      : fd{fd},
-        file_map{fm},
-        base_ptr{base_ptr},
-        base_size{base_size},
-        delta{delta},
-        path{std::move(path)} {}
-#else
-  MMAPFile(std::int32_t fd, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
-           std::string path)
-      : fd{fd}, base_ptr{base_ptr}, base_size{base_size}, delta{delta}, path{std::move(path)} {}
-#endif  // defined(xgboost_IS_WIN)
-
-  void const* Data() const { return this->base_ptr + this->delta; }
-  void* Data() { return this->base_ptr + this->delta; }
+  std::unique_ptr<MmapFileImpl> p_impl;
+  [[nodiscard]] void const* Data() const;
+  [[nodiscard]] void* Data();
+  [[nodiscard]] Span<std::byte> BasePtr() const;
 };
 
 namespace detail {
@@ -633,5 +603,7 @@ class AlignedMemWriteStream : public AlignedFileWriteStream {
 
 // Run a system command, get its stdout.
 [[nodiscard]] std::string CmdOutput(StringView cmd);
+
+[[nodiscard]] std::size_t TotalMemory();
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_IO_H_

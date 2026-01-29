@@ -6,8 +6,10 @@
 #include <memory>  // for make_unique
 #include <vector>  // for vector
 
+#include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/device_helpers.cuh"  // for ToSpan
 #include "../common/device_vector.cuh"   // for device_vector
+#include "../common/type.h"              // for GetValueT
 #include "../encoder/ordinal.cuh"        // for SortNames
 #include "../encoder/ordinal.h"          // for DictionaryView
 #include "../encoder/types.h"            // for Overloaded
@@ -22,41 +24,49 @@ struct CatContainerImpl {
   dh::device_vector<enc::DeviceCatIndexView> columns_v;
 
   template <typename VariantT>
-  void CopyFrom(enc::detail::ColumnsViewImpl<VariantT> that) {
+  void CopyFrom(Context const* ctx, enc::detail::ColumnsViewImpl<VariantT> that) {
     this->columns.resize(that.columns.size());
     this->columns_v.resize(that.columns.size());
     CHECK_EQ(this->columns.size(), this->columns_v.size());
+    auto stream = ctx->CUDACtx()->Stream();
 
     std::vector<decltype(columns_v)::value_type> h_columns_v(this->columns_v.size());
     for (std::size_t f_idx = 0, n = that.columns.size(); f_idx < n; ++f_idx) {
       auto const& col_v = that.columns[f_idx];
       auto dispatch = enc::Overloaded{
-          [this, f_idx, &h_columns_v](enc::CatStrArrayView const& str) {
+          [this, f_idx, &h_columns_v, stream](enc::CatStrArrayView const& str) {
             this->columns[f_idx].emplace<CatStrArray>();
             auto& col = std::get<CatStrArray>(this->columns[f_idx]);
             // Handle the offsets
             col.offsets.resize(str.offsets.size());
-            dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.offsets.data()),
-                                          str.offsets.data(), str.offsets.size_bytes(),
-                                          cudaMemcpyDefault));
+            if (!str.offsets.empty()) {
+              dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.offsets.data()),
+                                            str.offsets.data(), str.offsets.size_bytes(),
+                                            cudaMemcpyDefault, stream));
+            }
             // Handle the values
             col.values.resize(str.values.size());
-            dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.values.data()),
-                                          str.values.data(), str.values.size_bytes(),
-                                          cudaMemcpyDefault));
+            if (!col.values.empty()) {
+              dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.values.data()),
+                                            str.values.data(), str.values.size_bytes(),
+                                            cudaMemcpyDefault, stream));
+            }
             // Create the view
             h_columns_v[f_idx].emplace<enc::CatStrArrayView>();
             auto& col_v = cuda::std::get<enc::CatStrArrayView>(h_columns_v[f_idx]);
             col_v = {dh::ToSpan(col.offsets), dh::ToSpan(col.values)};
           },
-          [this, f_idx, &h_columns_v](auto&& values) {
+          [this, f_idx, &h_columns_v, stream](auto&& values) {
             using T = std::remove_cv_t<typename std::decay_t<decltype(values)>::value_type>;
 
             this->columns[f_idx].emplace<dh::device_vector<T>>();
             auto& col = std::get<dh::device_vector<T>>(this->columns[f_idx]);
 
             col.resize(values.size());
-            thrust::copy_n(values.data(), values.size(), col.data());
+            if (!values.empty()) {
+              dh::safe_cuda(cudaMemcpyAsync(col.data().get(), values.data(), values.size_bytes(),
+                                            cudaMemcpyDefault, stream));
+            }
 
             // Create the view
             using V = common::Span<std::add_const_t<T>>;
@@ -65,7 +75,7 @@ struct CatContainerImpl {
             col_v = dh::ToSpan(col);
           }};
       auto visit = [&](auto const& col) {
-        using ColT = std::remove_cv_t<std::remove_reference_t<decltype(col)>>;
+        using ColT = common::GetValueT<decltype(col)>;
         if constexpr (std::is_same_v<ColT, enc::HostCatIndexView>) {
           std::visit(dispatch, col);
         } else {
@@ -93,14 +103,18 @@ struct CatContainerImpl {
                        auto& out_str = std::get<cpu_impl::CatStrArray>(out_col);
                        // Offsets
                        out_str.offsets.resize(str.offsets.size());
-                       dh::safe_cuda(cudaMemcpyAsync(
-                           out_str.offsets.data(), thrust::raw_pointer_cast(str.offsets.data()),
-                           common::Span{out_str.offsets}.size_bytes(), cudaMemcpyDefault));
+                       if (!out_str.offsets.empty()) {
+                         dh::safe_cuda(cudaMemcpyAsync(
+                             out_str.offsets.data(), thrust::raw_pointer_cast(str.offsets.data()),
+                             common::Span{out_str.offsets}.size_bytes(), cudaMemcpyDefault));
+                       }
                        // Values
                        out_str.values.resize(str.values.size());
-                       dh::safe_cuda(cudaMemcpyAsync(
-                           out_str.values.data(), thrust::raw_pointer_cast(str.values.data()),
-                           common::Span{out_str.values}.size_bytes(), cudaMemcpyDefault));
+                       if (!out_str.values.empty()) {
+                         dh::safe_cuda(cudaMemcpyAsync(
+                             out_str.values.data(), thrust::raw_pointer_cast(str.values.data()),
+                             common::Span{out_str.values}.size_bytes(), cudaMemcpyDefault));
+                       }
                      },
                      [&](auto&& values) {
                        using T0 = decltype(values);
@@ -109,34 +123,51 @@ struct CatContainerImpl {
                        out_col.emplace<Vec>();
                        auto& out_vec = std::get<Vec>(out_col);
                        out_vec.resize(values.size());
-                       dh::safe_cuda(
-                           cudaMemcpyAsync(out_vec.data(), thrust::raw_pointer_cast(values.data()),
-                                           common::Span{out_vec}.size_bytes(), cudaMemcpyDefault));
+                       if (!out_vec.empty()) {
+                         dh::safe_cuda(cudaMemcpyAsync(
+                             out_vec.data(), thrust::raw_pointer_cast(values.data()),
+                             common::Span{out_vec}.size_bytes(), cudaMemcpyDefault));
+                       }
                      }},
                  col);
     }
     that->Finalize();
   }
 };
+
+[[nodiscard]] std::tuple<CatAccessor, dh::DeviceUVector<std::int32_t>> MakeCatAccessor(
+    Context const* ctx, enc::DeviceColumnsView const& new_enc, CatContainer const* orig_cats) {
+  dh::DeviceUVector<std::int32_t> mapping(new_enc.n_total_cats);
+  auto d_sorted_idx = orig_cats->RefSortedIndex(ctx);
+  auto orig_enc = orig_cats->DeviceView(ctx);
+  enc::Recode(EncPolicy, orig_enc, d_sorted_idx, new_enc, dh::ToSpan(mapping));
+  CHECK_EQ(new_enc.feature_segments.size(), orig_enc.feature_segments.size());
+  auto cats_mapping = enc::MappingView{new_enc.feature_segments, dh::ToSpan(mapping)};
+  auto acc = CatAccessor{cats_mapping};
+  return std::tuple{acc, std::move(mapping)};
+}
 }  // namespace cuda_impl
 
 CatContainer::CatContainer()  // NOLINT
     : cpu_impl_{std::make_unique<cpu_impl::CatContainerImpl>()},
       cu_impl_{std::make_unique<cuda_impl::CatContainerImpl>()} {}
 
-CatContainer::CatContainer(DeviceOrd device, enc::DeviceColumnsView const& df) : CatContainer{} {
+CatContainer::CatContainer(Context const* ctx, enc::DeviceColumnsView const& df, bool is_ref)
+    : CatContainer{} {
+  this->is_ref_ = is_ref;
   this->n_total_cats_ = df.n_total_cats;
 
-  this->feature_segments_.SetDevice(device);
+  this->feature_segments_.SetDevice(ctx->Device());
   this->feature_segments_.Resize(df.feature_segments.size());
   auto d_segs = this->feature_segments_.DeviceSpan();
-  thrust::copy_n(dh::tcbegin(df.feature_segments), df.feature_segments.size(), dh::tbegin(d_segs));
+  thrust::copy_n(ctx->CUDACtx()->CTP(), dh::tcbegin(df.feature_segments),
+                 df.feature_segments.size(), dh::tbegin(d_segs));
 
   // FIXME(jiamingy): We can use a single kernel for copying data once cuDF can return
-  // device data.
-  this->cu_impl_->CopyFrom(df);
+  // device data. Remove this along with the one in the device cuDF adapter.
+  this->cu_impl_->CopyFrom(ctx, df);
 
-  this->sorted_idx_.SetDevice(device);
+  this->sorted_idx_.SetDevice(ctx->Device());
   this->sorted_idx_.Resize(0);
   if (this->n_total_cats_ > 0) {
     CHECK(this->DeviceCanRead());
@@ -208,6 +239,13 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
   return this->HostCanRead() ? this->cpu_impl_->columns.empty() : this->cu_impl_->columns.empty();
 }
 
+[[nodiscard]] std::size_t CatContainer::NumFeatures() const {
+  if (this->HostCanRead()) {
+    return this->cpu_impl_->columns.size();
+  }
+  return this->cu_impl_->columns.size();
+}
+
 void CatContainer::Sort(Context const* ctx) {
   if (!this->HasCategorical()) {
     return;
@@ -246,13 +284,14 @@ void CatContainer::Sort(Context const* ctx) {
     this->feature_segments_.ConstDeviceSpan();
     // Lazy copy to device
     auto h_view = this->HostViewImpl();
-    this->cu_impl_->CopyFrom(h_view);
+    this->cu_impl_->CopyFrom(ctx, h_view);
     CHECK_EQ(this->cu_impl_->columns_v.size(), this->cpu_impl_->columns_v.size());
     CHECK_EQ(this->cu_impl_->columns.size(), this->cpu_impl_->columns.size());
   }
   CHECK(this->DeviceCanRead());
   if (this->n_total_cats_ != 0) {
     CHECK(!this->cu_impl_->columns_v.empty());
+    CHECK_EQ(this->feature_segments_.Size(), this->cu_impl_->columns_v.size() + 1);
   }
   return {dh::ToSpan(this->cu_impl_->columns_v), this->feature_segments_.ConstDeviceSpan(),
           this->n_total_cats_};

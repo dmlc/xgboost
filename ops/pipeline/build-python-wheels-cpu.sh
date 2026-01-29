@@ -31,7 +31,7 @@ echo "--- Build binary wheel for ${WHEEL_TAG} (CPU only)"
 set -x
 
 # Patch to rename pkg to xgboost-cpu
-python3 ops/script/pypi_variants.py --use-cpu-suffix=1 --require-nccl-dep=0
+python3 ops/script/pypi_variants.py --use-suffix=cpu --require-nccl-dep=na
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
   -- bash -c \

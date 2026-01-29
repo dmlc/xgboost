@@ -3,21 +3,25 @@
  */
 #pragma once
 
-#include <xgboost/base.h>  // for bst_cat_t
-
 #include <cstdint>  // for int32_t, int8_t
 #include <memory>   // for unique_ptr
 #include <mutex>    // for mutex
 #include <string>   // for string
 #include <tuple>    // for tuple
+#include <utility>  // for move
 #include <vector>   // for vector
 
+#include "../common/categorical.h"       // for AsCat
 #include "../encoder/ordinal.h"          // for CatStrArrayView
 #include "../encoder/types.h"            // for Overloaded
+#include "entry.h"                       // for COOTuple
+#include "xgboost/base.h"                // for bst_cat_t
+#include "xgboost/data.h"                // for Entry
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
-#include "xgboost/json.h"                // for Json
 
 namespace xgboost {
+class Json;
+
 /**
  * @brief Error policy class used to interface with the encoder implementaion.
  */
@@ -141,9 +145,9 @@ class CatContainer {
 
  public:
   CatContainer();
-  explicit CatContainer(enc::HostColumnsView const& df);
+  explicit CatContainer(enc::HostColumnsView const& df, bool is_ref);
 #if defined(XGBOOST_USE_CUDA)
-  explicit CatContainer(DeviceOrd device, enc::DeviceColumnsView const& df);
+  explicit CatContainer(Context const* ctx, enc::DeviceColumnsView const& df, bool is_ref);
 #endif  // defined(XGBOOST_USE_CUDA)
   ~CatContainer();
 
@@ -159,8 +163,9 @@ class CatContainer {
    *        this method returns True.
    */
   [[nodiscard]] bool Empty() const;
+  [[nodiscard]] bool NeedRecode() const { return this->HasCategorical() && !this->is_ref_; }
 
-  [[nodiscard]] std::size_t NumFeatures() const { return this->cpu_impl_->columns.size(); }
+  [[nodiscard]] std::size_t NumFeatures() const;
   /**
    * @brief The number of categories across all features.
    */
@@ -217,5 +222,61 @@ class CatContainer {
 #if defined(XGBOOST_USE_CUDA)
   std::unique_ptr<cuda_impl::CatContainerImpl> cu_impl_;
 #endif  // defined(XGBOOST_USE_CUDA)
+  bool is_ref_{false};
 };
+
+/**
+ * @brief Accessor for obtaining re-coded categories.
+ */
+struct CatAccessor {
+  enc::MappingView enc;
+
+  template <typename T, typename Fidx>
+  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx f_idx) const {
+    if (!enc.Empty() && !enc[f_idx].empty()) {
+      auto f_mapping = enc[f_idx];
+      auto cat_idx = common::AsCat(fvalue);
+      if (cat_idx >= 0 && cat_idx < common::AsCat(f_mapping.size())) {
+        fvalue = f_mapping.data()[cat_idx];
+      }
+    }
+    return fvalue;
+  }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const& e) const {
+    return this->operator()(e.fvalue, e.index);
+  }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const& e) const {
+    return this->operator()(e.value, e.column_idx);
+  }
+};
+
+/**
+ * @brief No-op accessor used to handle numeric data.
+ */
+struct NoOpAccessor {
+  constexpr explicit NoOpAccessor(enc::MappingView const&) {}
+  constexpr NoOpAccessor() = default;
+  template <typename T, typename Fidx>
+  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx) const {
+    return fvalue;
+  }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const& e) const { return e.value; }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const& e) const { return e.fvalue; }
+};
+
+void SyncCategories(Context const* ctx, CatContainer* cats, bool is_empty);
+
+namespace cpu_impl {
+inline auto MakeCatAccessor(Context const* ctx, enc::HostColumnsView const& new_enc,
+                            CatContainer const* orig_cats) {
+  std::vector<std::int32_t> mapping(new_enc.n_total_cats);
+  auto sorted_idx = orig_cats->RefSortedIndex(ctx);
+  auto orig_enc = orig_cats->HostView();
+  enc::Recode(cpu_impl::EncPolicy, orig_enc, sorted_idx, new_enc, common::Span{mapping});
+  CHECK_EQ(new_enc.feature_segments.size(), orig_enc.feature_segments.size());
+  auto cats_mapping = enc::MappingView{new_enc.feature_segments, mapping};
+  auto acc = CatAccessor{cats_mapping};
+  return std::tuple{acc, std::move(mapping)};
+}
+}  // namespace cpu_impl
 }  // namespace xgboost

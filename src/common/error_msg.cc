@@ -1,12 +1,14 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2023-2025, XGBoost contributors
  */
 #include "error_msg.h"
 
-#include <mutex>    // for call_once, once_flag
-#include <sstream>  // for stringstream
+#include <mutex>         // for call_once, once_flag
+#include <sstream>       // for stringstream
+#include <system_error>  // for error_code, system_category
 
 #include "../collective/communicator-inl.h"  // for GetRank
+#include "xgboost/collective/socket.h"       // for LastError
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/logging.h"
 
@@ -17,14 +19,25 @@ namespace xgboost::error {
   return ss.str();
 }
 
-void WarnDeprecatedGPUHist() {
-  auto msg =
-      "The tree method `gpu_hist` is deprecated since 2.0.0. To use GPU training, set the `device` "
-      R"(parameter to CUDA instead.
+[[nodiscard]] std::string InvalidModel(StringView fname) {
+  std::stringstream ss;
+  ss << "Invalid model format in: `" << fname << "`.";
+  return ss.str();
+}
 
-    E.g. tree_method = "hist", device = "cuda"
-)";
-  LOG(WARNING) << msg;
+[[nodiscard]] std::string OldBinaryModel(StringView fname) {
+  std::stringstream ss;
+  ss << "Failed to load model: `" << fname << "`. ";
+  ss << R"doc(
+The binary format has been deprecated in 1.6 and removed in 3.1, use UBJ or JSON
+instead. You can port the binary model to UBJ and JSON by re-saving it with XGBoost
+3.0. See:
+
+    https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html
+
+for more info.
+)doc";
+  return ss.str();
 }
 
 void WarnManualUpdater() {
@@ -34,15 +47,6 @@ void WarnManualUpdater() {
         << "You have manually specified the `updater` parameter. The `tree_method` parameter "
            "will be ignored. Incorrect sequence of updaters will produce undefined "
            "behavior. For common uses, we recommend using `tree_method` parameter instead.";
-  });
-}
-
-void WarnDeprecatedGPUId() {
-  static std::once_flag flag;
-  std::call_once(flag, [] {
-    auto msg = DeprecatedFunc("gpu_id", "2.0.0", "device");
-    msg += " E.g. device=cpu/cuda/cuda:0";
-    LOG(WARNING) << msg;
   });
 }
 
@@ -84,5 +88,24 @@ void CheckOldNccl(std::int32_t major, std::int32_t minor, std::int32_t patch) {
   if (minor < 23) {
     LOG(WARNING) << msg();
   }
+}
+
+[[nodiscard]] std::error_code SystemError() {
+  std::int32_t errsv = system::LastError();
+  auto err = std::error_code{errsv, std::system_category()};
+  return err;
+}
+
+void InvalidIntercept(std::int32_t n_classes, bst_target_t n_targets, std::size_t intercept_len) {
+  std::stringstream ss;
+  ss << "Invalid `base_score`, it should match the number of outputs for multi-class/target "
+     << "models. `base_score` len: " << intercept_len;
+  if (n_classes > 1) {
+    ss << ", `n_classes`: " << n_classes;
+  }
+  if (n_targets > 1) {
+    ss << ", `n_targets`: " << n_targets;
+  }
+  LOG(FATAL) << ss.str();
 }
 }  // namespace xgboost::error

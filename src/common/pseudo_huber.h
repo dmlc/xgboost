@@ -6,10 +6,10 @@
 #include "xgboost/parameter.h"
 
 namespace xgboost {
-struct PesudoHuberParam : public XGBoostParameter<PesudoHuberParam> {
+struct PseudoHuberParam : public XGBoostParameter<PseudoHuberParam> {
   float huber_slope{1.0};
 
-  DMLC_DECLARE_PARAMETER(PesudoHuberParam) {
+  DMLC_DECLARE_PARAMETER(PseudoHuberParam) {
     DMLC_DECLARE_FIELD(huber_slope)
         .set_default(1.0f)
         .describe("The delta term in Pseudo-Huber loss.");

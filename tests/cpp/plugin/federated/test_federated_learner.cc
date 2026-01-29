@@ -16,6 +16,7 @@
 
 namespace xgboost {
 namespace {
+inline constexpr bst_target_t kClassesForTest = 3;
 auto MakeModel(std::string tree_method, std::string device, std::string objective,
                std::shared_ptr<DMatrix> dmat) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
@@ -26,7 +27,7 @@ auto MakeModel(std::string tree_method, std::string device, std::string objectiv
     learner->SetParam("quantile_alpha", "0.5");
   }
   if (objective.find("multi") != std::string::npos) {
-    learner->SetParam("num_class", "3");
+    learner->SetParam("num_class", std::to_string(kClassesForTest));
   }
   learner->UpdateOneIter(0, dmat);
   Json config{Object{}};
@@ -37,15 +38,13 @@ auto MakeModel(std::string tree_method, std::string device, std::string objectiv
   return model;
 }
 
-void VerifyObjective(std::size_t rows, std::size_t cols, float expected_base_score,
-                     Json expected_model, std::string const &tree_method, std::string device,
+void VerifyObjective(std::size_t rows, std::size_t cols,
+                     std::vector<float> const &expected_base_score, Json expected_model,
+                     std::string const &tree_method, std::string device,
                      std::string const &objective) {
   auto rank = collective::GetRank();
-  std::shared_ptr<DMatrix> dmat{RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(rank == 0)};
-
-  if (rank == 0) {
-    MakeLabelForObjTest(dmat, objective);
-  }
+  std::shared_ptr<DMatrix> dmat =
+      MakeFmatForObjTest(objective, rows, cols, kClassesForTest, rank == 0);
   std::shared_ptr<DMatrix> sliced{dmat->SliceCol(collective::GetWorldSize(), rank)};
 
   auto model = MakeModel(tree_method, device, objective, sliced);
@@ -63,26 +62,7 @@ class VerticalFederatedLearnerTest : public ::testing::TestWithParam<std::string
     static auto constexpr kRows{16};
     static auto constexpr kCols{16};
 
-    std::shared_ptr<DMatrix> dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
-    MakeLabelForObjTest(dmat, objective);
-
-    auto &h_upper = dmat->Info().labels_upper_bound_.HostVector();
-    auto &h_lower = dmat->Info().labels_lower_bound_.HostVector();
-    h_lower.resize(kRows);
-    h_upper.resize(kRows);
-    for (size_t i = 0; i < kRows; ++i) {
-      h_lower[i] = 1;
-      h_upper[i] = 10;
-    }
-    if (objective.find("rank:") != std::string::npos) {
-      auto h_label = dmat->Info().labels.HostView();
-      std::size_t k = 0;
-      for (auto &v : h_label) {
-        v = k % 2 == 0;
-        ++k;
-      }
-    }
-
+    auto dmat = MakeFmatForObjTest(objective, kRows, kCols, kClassesForTest);
     auto model = MakeModel(tree_method, device, objective, dmat);
     auto score = GetBaseScore(model);
     collective::TestFederatedGlobal(kWorldSize, [&]() {

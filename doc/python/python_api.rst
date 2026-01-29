@@ -43,6 +43,8 @@ Core Data Structure
     :members:
     :show-inheritance:
 
+.. autoclass:: xgboost.core.Categories
+
 Learning API
 ------------
 .. automodule:: xgboost.training
@@ -203,6 +205,14 @@ Collective
 .. autoclass:: xgboost.collective.Config
 
 .. autofunction:: xgboost.collective.init
+
+.. autofunction:: xgboost.collective.finalize
+
+.. autofunction:: xgboost.collective.get_rank
+
+.. autofunction:: xgboost.collective.get_world_size
+
+.. autoclass:: xgboost.collective.CommunicatorContext
 
 .. automodule:: xgboost.tracker
 

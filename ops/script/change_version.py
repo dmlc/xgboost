@@ -52,16 +52,17 @@ def pypkg(
     with open(pyver_path, "w") as fd:
         fd.write(pyver + "\n")
 
-    pyprj_path = os.path.join("pyproject.toml.in")
-    with open(pyprj_path, "r") as fd:
-        pyprj = fd.read()
-    matched = re.search('version = "' + r"([0-9]+\.[0-9]+\.[0-9]+.*)" + '"', pyprj)
-    assert matched, "Couldn't find version string in pyproject.toml."
-    pyprj = pyprj[: matched.start(1)] + pyver + pyprj[matched.end(1) :]
-    with open(pyprj_path, "w") as fd:
-        fd.write(pyprj)
+    for pyprj_file in ["pyproject.toml.in", "pyproject.toml.stub.in"]:
+        pyprj_path = os.path.join(pyprj_file)
+        with open(pyprj_path, "r") as fd:
+            pyprj = fd.read()
+        matched = re.search('version = "' + r"([0-9]+\.[0-9]+\.[0-9]+.*)" + '"', pyprj)
+        assert matched, "Couldn't find version string in pyproject.toml."
+        pyprj = pyprj[: matched.start(1)] + pyver + pyprj[matched.end(1) :]
+        with open(pyprj_path, "w") as fd:
+            fd.write(pyprj)
 
-    make_pyproject(use_cpu_suffix=0, require_nccl_dep=1)
+    make_pyproject(use_suffix="na", require_nccl_dep="cu12")
 
 
 @cd(R_PACKAGE)
@@ -140,21 +141,19 @@ def main(args: argparse.Namespace) -> None:
     rpkg(major, minor, patch, is_dev=is_dev)
     jvmpkgs(major, minor, patch, rc, is_rc, is_dev)
 
-    print(
-        """
+    print("""
 
 Please examine the changes and commit. Be aware that mvn might leave backup files in the
 source tree.
 
-"""
-    )
+""")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--major", type=int)
-    parser.add_argument("--minor", type=int)
-    parser.add_argument("--patch", type=int)
+    parser.add_argument("--major", type=int, required=True)
+    parser.add_argument("--minor", type=int, required=True)
+    parser.add_argument("--patch", type=int, required=True)
     parser.add_argument("--rc", type=int, default=0)
     parser.add_argument("--is-rc", action="store_true")
     parser.add_argument("--is-dev", action="store_true")

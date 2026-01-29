@@ -1,6 +1,7 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
+#include "cuda_stream.h"       // for DefaultStream
 #include "device_helpers.cuh"  // for CurrentDevice
 #include "resource.cuh"
 #include "xgboost/string_view.h"  // for StringView
@@ -12,20 +13,28 @@ CudaMmapResource::CudaMmapResource(StringView path, std::size_t offset, std::siz
               [](MMAPFile* handle) {
                 // Don't close the mmap while CUDA kernel is running.
                 if (handle) {
-                  dh::DefaultStream().Sync();
+                  curt::DefaultStream().Sync();
                 }
                 detail::CloseMmap(handle);
               }},
       n_{length} {
   auto device = dh::CurrentDevice();
-  dh::safe_cuda(
-      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetReadMostly, device));
-  dh::safe_cuda(cudaMemAdvise(handle_->base_ptr, handle_->base_size,
-                              cudaMemAdviseSetPreferredLocation, device));
-  dh::safe_cuda(
-      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetAccessedBy, device));
-  dh::safe_cuda(
-      cudaMemPrefetchAsync(handle_->base_ptr, handle_->base_size, device, dh::DefaultStream()));
+  auto ptr = handle_->BasePtr();
+#if (CUDA_VERSION / 1000) >= 13
+  cudaMemLocation loc;
+  loc.type = cudaMemLocationTypeDevice;
+  loc.id = device;
+#else
+  auto loc = device;
+#endif  // (CUDA_VERSION / 1000) >= 13
+  dh::safe_cuda(cudaMemAdvise(ptr.data(), ptr.size(), cudaMemAdviseSetReadMostly, loc));
+  dh::safe_cuda(cudaMemAdvise(ptr.data(), ptr.size(), cudaMemAdviseSetPreferredLocation, loc));
+  dh::safe_cuda(cudaMemAdvise(ptr.data(), ptr.size(), cudaMemAdviseSetAccessedBy, loc));
+#if (CUDA_VERSION / 1000) >= 13
+  dh::safe_cuda(cudaMemPrefetchAsync(ptr.data(), ptr.size(), loc, 0, curt::DefaultStream()));
+#else
+  dh::safe_cuda(cudaMemPrefetchAsync(ptr.data(), ptr.size(), device, curt::DefaultStream()));
+#endif  // (CUDA_VERSION / 1000) >= 13
 }
 
 [[nodiscard]] void* CudaMmapResource::Data() {

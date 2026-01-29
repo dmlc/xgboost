@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  *
  * \file data.cu
  * \brief Handles setting metainfo from array interface.
@@ -7,6 +7,7 @@
 #include <thrust/gather.h>   // for gather
 #include <thrust/logical.h>  // for none_of
 
+#include "../common/algorithm.cuh"  // for RunLengthEncode
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "../common/linalg_op.cuh"
@@ -29,7 +30,7 @@ auto SetDeviceToPtr(void const* ptr) {
 }
 
 template <typename T, int32_t D>
-void CopyTensorInfoImpl(CUDAContext const* ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
+void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
   ArrayInterface<D> array(arr_interface);
   if (array.n == 0) {
     p_out->SetDevice(DeviceOrd::CUDA(0));
@@ -48,19 +49,15 @@ void CopyTensorInfoImpl(CUDAContext const* ctx, Json arr_interface, linalg::Tens
       // set data
       data->Resize(array.n);
       dh::safe_cuda(cudaMemcpyAsync(data->DevicePointer(), array.data, array.n * sizeof(T),
-                                    cudaMemcpyDefault, ctx->Stream()));
+                                    cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
     });
     return;
   }
   p_out->Reshape(array.shape);
   auto t = p_out->View(ptr_device);
-  linalg::ElementWiseTransformDevice(
-      t,
-      [=] __device__(size_t i, T) {
-        return linalg::detail::Apply(TypedIndex<T, D>{array},
-                                     linalg::UnravelIndex<D>(i, array.shape));
-      },
-      ctx->Stream());
+  linalg::cuda_impl::TransformIdxKernel(ctx, t, [=] XGBOOST_DEVICE(std::size_t i, T) {
+    return std::apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, array.shape));
+  });
 }
 
 void CopyGroupInfoImpl(ArrayInterface<1> column, std::vector<bst_group_t>* out) {
@@ -103,17 +100,13 @@ void CopyQidImpl(Context const* ctx, ArrayInterface<1> array_interface,
   dh::safe_cuda(cudaMemcpy(&non_dec, flag.data().get(), sizeof(bool),
                            cudaMemcpyDeviceToHost));
   CHECK(non_dec) << "`qid` must be sorted in increasing order along with data.";
-  size_t bytes = 0;
+
   dh::caching_device_vector<uint32_t> out(array_interface.Shape<0>());
   dh::caching_device_vector<uint32_t> cnt(array_interface.Shape<0>());
   HostDeviceVector<int> d_num_runs_out(1, 0, d);
-  cub::DeviceRunLengthEncode::Encode(nullptr, bytes, it, out.begin(), cnt.begin(),
-                                     d_num_runs_out.DevicePointer(), array_interface.Shape<0>(),
-                                     cuctx->Stream());
-  dh::CachingDeviceUVector<char> tmp(bytes);
-  cub::DeviceRunLengthEncode::Encode(tmp.data(), bytes, it, out.begin(), cnt.begin(),
-                                     d_num_runs_out.DevicePointer(), array_interface.Shape<0>(),
-                                     cuctx->Stream());
+
+  common::RunLengthEncode(cuctx->Stream(), it, out.begin(), cnt.begin(),
+                          d_num_runs_out.DevicePointer(), array_interface.Shape<0>());
 
   auto h_num_runs_out = d_num_runs_out.HostSpan()[0];
   group_ptr_.clear();
@@ -127,10 +120,10 @@ void MetaInfo::SetInfoFromCUDA(Context const* ctx, StringView key, Json array) {
   // multi-dim float info
   auto cuctx = ctx->CUDACtx();
   if (key == "base_margin") {
-    CopyTensorInfoImpl(cuctx, array, &base_margin_);
+    CopyTensorInfoImpl(ctx, array, &base_margin_);
     return;
   } else if (key == "label") {
-    CopyTensorInfoImpl(cuctx, array, &labels);
+    CopyTensorInfoImpl(ctx, array, &labels);
     auto ptr = labels.Data()->ConstDevicePointer();
     auto valid = thrust::none_of(cuctx->CTP(), ptr, ptr + labels.Size(), data::LabelsCheck{});
     CHECK(valid) << "Label contains NaN, infinity or a value too large.";
@@ -150,7 +143,7 @@ void MetaInfo::SetInfoFromCUDA(Context const* ctx, StringView key, Json array) {
   }
   // float info
   linalg::Tensor<float, 1> t;
-  CopyTensorInfoImpl(cuctx, array, &t);
+  CopyTensorInfoImpl(ctx, array, &t);
   if (key == "weight") {
     this->weights_ = std::move(*t.Data());
     auto ptr = weights_.ConstDevicePointer();

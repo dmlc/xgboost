@@ -8,6 +8,7 @@ from xgboost import testing as tm
 
 from ..compat import import_cupy
 from ..core import DataIter, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
+from .utils import predictor_equal
 
 
 def run_mixed_sparsity(device: str) -> None:
@@ -36,7 +37,7 @@ def run_mixed_sparsity(device: str) -> None:
     y_arr = np.concatenate(y, axis=0)
     Xy_1 = QuantileDMatrix(X_arr, y_arr)
 
-    assert tm.predictor_equal(Xy_0, Xy_1)
+    assert predictor_equal(Xy_0, Xy_1)
 
 
 def check_invalid_cat_batches(device: str) -> None:

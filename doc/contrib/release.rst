@@ -42,7 +42,7 @@ with a new release branch.
 
 R CRAN Package
 --------------
-Before submitting a release, one should test the package on `R-hub <https://builder.r-hub.io/>`__ and `win-builder <https://win-builder.r-project.org/>`__ first.  Please note that the R-hub Windows instance doesn't have the exact same environment as the one hosted on win-builder.
+Before submitting a release, one should test the package on `R-hub <https://r-hub.github.io/rhub/>`__ and `win-builder <https://win-builder.r-project.org/>`__ first.  Please note that the R-hub Windows instance doesn't have the exact same environment as the one hosted on win-builder.
 
 According to the `CRAN policy <https://cran.r-project.org/web/packages/policies.html>`__:
 

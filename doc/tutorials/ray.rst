@@ -250,8 +250,8 @@ a few things you need to do:
 
 
 Ray Tune supports various
-`search algorithms and libraries (e.g. BayesOpt, Tree-Parzen estimators) <https://docs.ray.io/en/latest/tune/key-concepts.html#search-algorithms>`_,
-`smart schedulers like successive halving <https://docs.ray.io/en/latest/tune/key-concepts.html#trial-schedulers>`_,
+`search algorithms and libraries (e.g. BayesOpt, Tree-Parzen estimators) <https://docs.ray.io/en/latest/tune/key-concepts.html#tune-search-algorithms>`_,
+`smart schedulers like successive halving <https://docs.ray.io/en/latest/tune/key-concepts.html#tune-schedulers>`_,
 and other features. Please refer to the `Ray Tune documentation <http://tune.io>`_
 for more information.
 

@@ -122,44 +122,6 @@ class TestBoosterIO:
             predt_1 = booster.predict(Xy)
             np.testing.assert_allclose(predt_0, predt_1)
 
-    @pytest.mark.skipif(**tm.no_json_schema())
-    def test_json_io_schema(self) -> None:
-        import jsonschema
-
-        model_path = "test_json_schema.json"
-        path = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        )
-        doc = os.path.join(path, "doc", "model.schema")
-        with open(doc, "r") as fd:
-            schema = json.load(fd)
-        parameters = {"tree_method": "hist", "booster": "gbtree"}
-        jsonschema.validate(instance=json_model(model_path, parameters), schema=schema)
-        os.remove(model_path)
-
-        parameters = {"tree_method": "hist", "booster": "dart"}
-        jsonschema.validate(instance=json_model(model_path, parameters), schema=schema)
-        os.remove(model_path)
-
-        try:
-            dtrain, _ = tm.load_agaricus(__file__)
-            xgb.train({"objective": "foo"}, dtrain, num_boost_round=1)
-        except ValueError as e:
-            e_str = str(e)
-            beg = e_str.find("Objective candidate")
-            end = e_str.find("Stack trace")
-            e_str = e_str[beg:end]
-            e_str = e_str.strip()
-            splited = e_str.splitlines()
-            objectives = [s.split(": ")[1] for s in splited]
-            j_objectives = schema["properties"]["learner"]["properties"]["objective"][
-                "oneOf"
-            ]
-            objectives_from_schema = set()
-            for j_obj in j_objectives:
-                objectives_from_schema.add(j_obj["properties"]["name"]["const"])
-            assert set(objectives) == objectives_from_schema
-
     def test_with_pathlib(self) -> None:
         """Saving and loading model files from paths."""
         save_path = Path("model.ubj")
@@ -240,10 +202,27 @@ class TestBoosterIO:
             with pytest.warns(UserWarning, match="UBJSON"):
                 booster.save_model(path_no)
 
-            booster_1 = xgb.Booster(model_file=path_no)
+            with pytest.warns(UserWarning, match="Using UBJSON"):
+                booster_1 = xgb.Booster(model_file=path_no)
             r0 = booster.save_raw(raw_format="json")
             r1 = booster_1.save_raw(raw_format="json")
             assert r0 == r1
+
+            booster.save_model(path_json)
+            rename(path_json, path_no)
+            with pytest.warns(UserWarning, match="Using JSON"):
+                xgb.Booster(model_file=path_no)
+
+    def test_invalid_format(self) -> None:
+        X, y, w = tm.make_regression(64, 16, False)
+        booster = xgb.train({}, xgb.QuantileDMatrix(X, y, weight=w), num_boost_round=3)
+        with pytest.raises(ValueError, match="Unknown model format"):
+            booster.save_raw(raw_format="deprecated")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model.deprecated")
+            with pytest.warns(UserWarning, match="Saving model in the UBJSON format"):
+                booster.save_model(path)
 
 
 def save_load_model(model_path: str) -> None:
@@ -353,17 +332,18 @@ def test_sklearn_model() -> None:
         )
         clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
         score = clf.best_score
+        intercept = clf.intercept_
         clf.save_model(model_path)
 
         clf = xgb.XGBClassifier()
         clf.load_model(model_path)
         assert clf.classes_.size == 10
         assert clf.objective == "multi:softprob"
+        np.testing.assert_allclose(intercept, clf.intercept_)
 
         np.testing.assert_equal(clf.classes_, np.arange(10))
         assert clf.n_classes_ == 10
 
-        assert clf.best_iteration == 27
         assert clf.best_score == score
 
 

@@ -24,12 +24,12 @@ inline void DeviceCheck(CatContainer const& cats) {
 }
 
 [[nodiscard]] inline CatContainer FromDf(Context const*, enc::HostColumnsView df) {
-  return CatContainer{df};
+  return CatContainer{df, false};
 }
 
 #if defined(XGBOOST_USE_CUDA)
 [[nodiscard]] inline CatContainer FromDf(Context const* ctx, enc::DeviceColumnsView df) {
-  return CatContainer{ctx->Device(), df};
+  return CatContainer{ctx, df, false};
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace test_cat_detail

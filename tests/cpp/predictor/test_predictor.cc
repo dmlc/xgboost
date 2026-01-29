@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #include "test_predictor.h"
 
@@ -18,6 +18,7 @@
 #include "../../../src/common/bitfield.h"         // for LBitField32
 #include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
 #include "../../../src/data/proxy_dmatrix.h"      // for DMatrixProxy
+#include "../../../src/tree/tree_view.h"          // for MultiTargetTreeView
 #include "../collective/test_worker.h"            // for TestDistributedGlobal
 #include "../helpers.h"                           // for GetDMatrixFromData, RandomDataGenerator
 #include "xgboost/json.h"                         // for Json, Object, get, String
@@ -33,9 +34,10 @@ void TestBasic(DMatrix* dmat, Context const *ctx) {
   size_t const kRows = dmat->Info().num_row_;
   size_t const kCols = dmat->Info().num_col_;
 
-  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
 
-  gbm::GBTreeModel model = CreateTestModel(&mparam, ctx);
+  std::unique_ptr<gbm::GBTreeModel> p_model = CreateTestModel(&mparam, ctx);
+  auto const &model = *p_model;
 
   // Test predict batch
   PredictionCacheEntry out_predictions;
@@ -127,7 +129,7 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
                           {"num_feature", std::to_string(kCols)},
                           {"num_class", std::to_string(kClasses)},
                           {"max_bin", std::to_string(bins)},
-                          {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
+                          {"device", ctx->DeviceName()}});
   learner->Configure();
 
   for (size_t i = 0; i < kIters; ++i) {
@@ -217,12 +219,17 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
   auto& h_pred_0 = predict_0.HostVector();
   auto& h_pred_1 = predict_1.HostVector();
 
+  Json config {Object{}};
+  learner->SaveConfig(&config);
+  auto base_score = GetBaseScore(config);
+
   ASSERT_EQ(h_pred.size(), rows * kClasses);
   ASSERT_EQ(h_pred.size(), h_pred_0.size());
   ASSERT_EQ(h_pred.size(), h_pred_1.size());
   for (size_t i = 0; i < h_pred.size(); ++i) {
     // Need to remove the global bias here.
-    ASSERT_NEAR(h_pred[i], h_pred_0[i] + h_pred_1[i] - 0.5f, kRtEps);
+    auto j = i % kClasses;
+    ASSERT_NEAR(h_pred[i], h_pred_0[i] + h_pred_1[i] - base_score.at(j), kRtEps);
   }
 
   learner->SetParam("device", "cpu");
@@ -349,7 +356,7 @@ void TestCategoricalPrediction(bool use_gpu, bool is_column_split) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1, ctx.Device())};
   uint32_t split_ind = 3;
   bst_cat_t split_cat = 4;
   float left_weight = 1.3f;
@@ -392,7 +399,7 @@ void TestCategoricalPredictLeaf(Context const *ctx, bool is_column_split) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1, ctx->Device())};
 
   uint32_t split_ind = 3;
   bst_cat_t split_cat = 4;
@@ -617,9 +624,8 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
   learner->LoadModel(model);
   learner->SetParam("device", ctx->DeviceName());
   learner->Configure();
-
-  if (ctx->IsCUDA()) {
-    learner->SetParam("tree_method", "gpu_hist");
+  if (!ctx->IsCPU()) {
+    learner->SetParam("tree_method", "hist");
     learner->SetParam("device", ctx->Device().Name());
   }
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
@@ -637,13 +643,13 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
   }
 
   learner->SetParam("tree_method", "hist");
-  learner->SetParam("gpu_id", "-1");
+  learner->SetParam("device", "cpu");
   // Xcode_12.4 doesn't compile with `std::make_shared`.
   auto dense = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
   auto array_interface = GetArrayInterface(&with_nan, kRows, kCols);
   std::string arr_str;
   Json::Dump(array_interface, &arr_str);
-  dynamic_cast<data::DMatrixProxy *>(dense.get())->SetArrayData(arr_str.data());
+  dynamic_cast<data::DMatrixProxy *>(dense.get())->SetArray(arr_str.data());
   HostDeviceVector<float> *p_dense_predt;
   learner->InplacePredict(dense, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
                           &p_dense_predt, 0, 0);
@@ -726,14 +732,13 @@ void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsit
 }
 
 void TestVectorLeafPrediction(Context const *ctx) {
-  std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", ctx));
+  std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
 
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;
 
   LearnerModelParam mparam{static_cast<bst_feature_t>(kCols),
-                           linalg::Vector<float>{{0.5}, {1}, DeviceOrd::CPU()}, 1, 3,
+                           linalg::Vector<float>{{0.5}, {1}, ctx->Device()}, 1, 3,
                            MultiStrategy::kMultiOutputTree};
 
   std::vector<std::unique_ptr<RegTree>> trees;
@@ -744,82 +749,101 @@ void TestVectorLeafPrediction(Context const *ctx) {
   std::vector<float> r_w(mparam.LeafLength(), 2.0f);
 
   auto &tree = trees.front();
+  tree->SetRoot(linalg::MakeVec(p_w.data(), p_w.size()), /*sum_hess=*/1.0f);
   tree->ExpandNode(0, static_cast<bst_feature_t>(1), 2.0, true,
                    linalg::MakeVec(p_w.data(), p_w.size()), linalg::MakeVec(l_w.data(), l_w.size()),
-                   linalg::MakeVec(r_w.data(), r_w.size()));
+                   linalg::MakeVec(r_w.data(), r_w.size()), /*loss_chg=*/0.5f, /*sum_hess=*/1.0f,
+                   /*left_sum=*/0.6f, /*right_sum=*/0.4f);
+  tree->GetMultiTargetTree()->SetLeaves();
   ASSERT_TRUE(tree->IsMultiTarget());
   ASSERT_TRUE(mparam.IsVectorLeaf());
 
   gbm::GBTreeModel model{&mparam, ctx};
   model.CommitModelGroup(std::move(trees), 0);
 
-  auto run_test = [&](float expected, HostDeviceVector<float> *p_data) {
-    {
+  auto test_batch = [&](float expected, HostDeviceVector<float> const*p_data) {
       auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
       PredictionCacheEntry predt_cache;
-      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+      predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
       ASSERT_EQ(predt_cache.predictions.Size(), kRows * mparam.LeafLength());
-      cpu_predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
+      predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
       auto const &h_predt = predt_cache.predictions.HostVector();
       for (auto v : h_predt) {
         ASSERT_EQ(v, expected);
       }
-    }
-
-    {
-      // inplace
+  };
+  auto test_inplace = [&](float expected, HostDeviceVector<float> const*p_data) {
       PredictionCacheEntry predt_cache;
-      auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
-      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+      std::shared_ptr<DMatrix> p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
+      predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+      if (ctx->IsCUDA()) {
+        // pull data to device.
+        p_data->SetDevice(ctx->Device());
+        p_data->ConstDeviceSpan();
+      }
       auto arr = GetArrayInterface(p_data, kRows, kCols);
       std::string str;
       Json::Dump(arr, &str);
       auto proxy = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
-      dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArrayData(str.data());
-      cpu_predictor->InplacePredict(proxy, model, std::numeric_limits<float>::quiet_NaN(),
-                                    &predt_cache, 0, 1);
+      if (ctx->IsCUDA()) {
+        dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetCudaArray(str.c_str());
+      } else {
+        dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArray(str.c_str());
+      }
+      predictor->InplacePredict(proxy, model, std::numeric_limits<float>::quiet_NaN(), &predt_cache,
+                                0, 1);
       auto const &h_predt = predt_cache.predictions.HostVector();
       for (auto v : h_predt) {
         ASSERT_EQ(v, expected);
       }
+  };
+  auto test_ghist = [&](float expected, HostDeviceVector<float> *p_data) {
+    // ghist
+    PredictionCacheEntry predt_cache;
+    auto &h_data = p_data->HostVector();
+    // give it at least two bins, otherwise the histogram cuts only have min and max values.
+    for (std::size_t i = 0; i < kCols; ++i) {
+      h_data[i] = 1.0;
+    }
+    auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
+
+    predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+
+    std::unique_ptr<ArrayIterForTest> iter;
+    if (ctx->IsCUDA()) {
+      iter.reset(new CudaArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
+                                          static_cast<std::size_t>(1)});
+    } else {
+      iter.reset(new NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
+                                           static_cast<std::size_t>(1)});
     }
 
-    {
-      // ghist
-      PredictionCacheEntry predt_cache;
-      auto &h_data = p_data->HostVector();
-      // give it at least two bins, otherwise the histogram cuts only have min and max values.
-      for (std::size_t i = 0; i < 5; ++i) {
-        h_data[i] = 1.0;
-      }
-      auto p_fmat = GetDMatrixFromData(p_data->ConstHostVector(), kRows, kCols);
+    p_fmat = std::make_shared<data::IterativeDMatrix>(
+        iter.get(), iter->Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
+        256, std::numeric_limits<std::int64_t>::max());
 
-      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
-
-      auto iter = NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
-                                        static_cast<std::size_t>(1)};
-      p_fmat = std::make_shared<data::IterativeDMatrix>(
-          &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
-          256, std::numeric_limits<std::int64_t>::max());
-
-      cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
-      cpu_predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
-      auto const &h_predt = predt_cache.predictions.HostVector();
-      // the smallest v uses the min_value from histogram cuts, which leads to a left leaf
-      // during prediction.
-      for (std::size_t i = 5; i < h_predt.size(); ++i) {
-        ASSERT_EQ(h_predt[i], expected) << i;
-      }
+    predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
+    predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);
+    auto const &h_predt = predt_cache.predictions.HostVector();
+    // the smallest v uses the min_value from histogram cuts, which leads to a left leaf
+    // during prediction.
+    for (std::size_t i = 5; i < h_predt.size(); ++i) {
+      ASSERT_EQ(h_predt[i], expected) << i;
     }
   };
 
   // go to right
-  HostDeviceVector<float> data(kRows * kCols, model.trees.front()->SplitCond(RegTree::kRoot) + 1.0);
-  run_test(2.5, &data);
+  auto mt_tree = model.trees.front()->HostMtView();
+  HostDeviceVector<float> data(kRows * kCols, mt_tree.SplitCond(RegTree::kRoot) + 1.0);
+  test_batch(2.5, &data);
+  test_inplace(2.5, &data);
+  test_ghist(2.5, &data);
 
   // go to left
-  data.HostVector().assign(data.Size(), model.trees.front()->SplitCond(RegTree::kRoot) - 1.0);
-  run_test(1.5, &data);
+  data.HostVector().assign(data.Size(), mt_tree.SplitCond(RegTree::kRoot) - 1.0);
+  test_batch(1.5, &data);
+  test_inplace(1.5, &data);
+  test_ghist(1.5, &data);
 }
 
 void ShapExternalMemoryTest::Run(Context const *ctx, bool is_qdm, bool is_interaction) {
@@ -839,7 +863,7 @@ void ShapExternalMemoryTest::Run(Context const *ctx, bool is_qdm, bool is_intera
                                  .Classes(n_classes));
   std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
   learner->SetParam("device", ctx->DeviceName());
-  learner->SetParam("base_score", "0.5");
+  learner->SetParam("base_score", "[0.5, 0.5, 0.5]");
   learner->SetParam("num_parallel_tree", "3");
   learner->SetParam("max_bin", std::to_string(max_bin));
   for (std::int32_t i = 0; i < 4; ++i) {
@@ -848,8 +872,10 @@ void ShapExternalMemoryTest::Run(Context const *ctx, bool is_qdm, bool is_intera
   Json model{Object{}};
   learner->SaveModel(&model);
   auto j_booster = model["learner"]["gradient_booster"]["model"];
-  auto model_param = MakeMP(n_features, 0.0, n_classes, ctx->Device());
 
+  auto base_score = linalg::Tensor<float, 1>{{0.0, 0.0, 0.0}, {3}, ctx->Device()};
+  LearnerModelParam model_param(n_features, std::move(base_score), n_classes, 1,
+                                MultiStrategy::kOneOutputPerTree);
   gbm::GBTreeModel gbtree{&model_param, ctx};
   gbtree.LoadModel(j_booster);
 

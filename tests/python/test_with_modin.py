@@ -4,6 +4,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.compat import is_dataframe
 from xgboost.testing.data import run_base_margin_info
 
 try:
@@ -13,6 +14,12 @@ except ImportError:
 
 
 pytestmark = pytest.mark.skipif(**tm.no_modin())
+
+
+def test_type_check() -> None:
+    df = md.DataFrame([[1, 2.0], [2, 3.0]], columns=["a", "b"])
+    assert is_dataframe(df)
+    assert is_dataframe(df.a)
 
 
 class TestModin:

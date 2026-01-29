@@ -14,7 +14,7 @@ authors = [
     { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
     { name = "Jiaming Yuan", email = "jm.yuan@outlook.com" }
 ]
-version = "3.1.0-dev"
+version = "3.2.0-dev"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 classifiers = [
@@ -28,6 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "numpy",
@@ -58,9 +59,10 @@ follow_imports = "silent"
 
 [tool.pylint.main]
 ignore = ["tests"]
-extension-pkg-whitelist = ["numpy"]
+extension-pkg-whitelist = ["numpy", "cuda"]
 disable = [
     "import-error",
+    "invalid-name",
     "attribute-defined-outside-init",
     "import-outside-toplevel",
     "too-few-public-methods",
@@ -94,3 +96,10 @@ inspect = true
 ignore = ["compiled-objects-have-debug-symbols"]
 max_allowed_size_compressed = '300M'
 max_allowed_size_uncompressed = '500M'
+
+[variant.default-priorities]
+namespace = ["nvidia"]
+
+[variant.providers.nvidia]
+requires = ["nvidia-variant-provider>=0.0.1,<1.0.0"]
+plugin-api = "nvidia_variant_provider.plugin:NvidiaVariantPlugin"

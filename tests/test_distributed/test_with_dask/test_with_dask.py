@@ -36,13 +36,16 @@ from xgboost.testing.dask import (
     check_uneven_nan,
     get_rabit_args,
     make_categorical,
+    run_recode,
 )
+from xgboost.testing.data import get_california_housing
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
     get_feature_weights,
     validate_data_initialization,
     validate_leaf_output,
 )
+from xgboost.testing.updater import get_basescore
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
@@ -52,7 +55,7 @@ pytestmark = tm.timeout(60)
 if hasattr(HealthCheck, "function_scoped_fixture"):
     suppress = [HealthCheck.function_scoped_fixture]
 else:
-    suppress = hypothesis.utils.conventions.not_set  # type:ignore
+    suppress = hypothesis.utils.conventions.not_set  # type: ignore
 
 
 @pytest.fixture(scope="module")
@@ -90,7 +93,7 @@ def generate_array(
 
 
 @pytest.mark.parametrize("to_frame", [True, False])
-def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client"):
+def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client") -> None:
     X, y = make_classification(n_samples=1000, n_features=4, random_state=123)
     if to_frame:
         import pandas as pd
@@ -128,7 +131,7 @@ def test_from_dask_dataframe() -> None:
 
             with pytest.raises(TypeError):
                 # evals_result is not supported in dask interface.
-                dxgb.train(  # type:ignore
+                dxgb.train(  # type: ignore
                     client, {}, dtrain, num_boost_round=2, evals_result={}
                 )
             # force prediction to be computed
@@ -210,7 +213,12 @@ def test_dask_sparse(client: "Client") -> None:
 
 
 def run_categorical(
-    client: "Client", tree_method: str, device: str, X, X_onehot, y
+    client: "Client",
+    tree_method: str,
+    device: str,
+    X: dd.DataFrame,
+    X_onehot: dd.DataFrame,
+    y: dd.Series,
 ) -> None:
     # Force onehot
     parameters = {
@@ -312,6 +320,10 @@ def test_categorical(client: "Client") -> None:
     )
     reg.fit(X, y)
     assert reg.get_booster().feature_types == ft
+
+
+def test_recode(client: "Client") -> None:
+    run_recode(client, "cpu")
 
 
 def test_dask_predict_shape_infer(client: "Client") -> None:
@@ -595,7 +607,7 @@ def test_dask_regressor(model: str, client: "Client") -> None:
 
 
 def run_dask_classifier(
-    X: dxgb._DaskCollection,
+    X: dxgb._DataT,
     y: dxgb._DaskCollection,
     w: dxgb._DaskCollection,
     model: str,
@@ -940,7 +952,7 @@ def test_auc(client: "Client") -> None:
 # No test for Exact, as empty DMatrix handling are mostly for distributed
 # environment and Exact doesn't support it.
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
-def test_empty_dmatrix(tree_method) -> None:
+def test_empty_dmatrix(tree_method: str) -> None:
     with LocalCluster(n_workers=kWorkers, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             parameters = {"tree_method": tree_method}
@@ -1193,7 +1205,7 @@ def test_dask_predict_leaf(booster: str, client: "Client") -> None:
     validate_leaf_output(leaf, num_parallel_tree)
 
 
-def test_dask_iteration_range(client: "Client"):
+def test_dask_iteration_range(client: "Client") -> None:
     X, y, _ = generate_array()
     n_rounds = 10
 
@@ -1226,10 +1238,12 @@ def test_dask_iteration_range(client: "Client"):
     np.testing.assert_allclose(full_predt.compute(), default.compute())
 
 
-def test_killed_task_wo_hang():
+def test_killed_task_wo_hang() -> None:
     # Test that aborting a worker doesn't lead to hang.
     class Eve(xgb.callback.TrainingCallback):
-        def after_iteration(self, model, epoch: int, evals_log) -> bool:
+        def after_iteration(
+            self, model: xgb.Booster, epoch: int, evals_log: Dict
+        ) -> bool:
             if coll.get_rank() == 1:
                 os.abort()
             return False
@@ -1402,7 +1416,7 @@ class TestWithDask:
         note(str(history))
         history = history["train"][dataset.metric]
 
-        def is_stump():
+        def is_stump() -> bool:
             return (
                 params.get("max_depth", None) == 1
                 or params.get("max_leaves", None) == 1
@@ -1483,8 +1497,8 @@ class TestWithDask:
         )
 
     def test_empty_quantile_dmatrix(self, client: Client) -> None:
-        X, y = make_categorical(client, 2, 30, 13)
-        X_valid, y_valid = make_categorical(client, 10000, 30, 13)
+        X, y = make_categorical(client, 1, 16, 4, onehot=True)
+        X_valid, y_valid = make_categorical(client, 4000, 16, 4, onehot=True)
 
         Xy = dxgb.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
         Xy_valid = dxgb.DaskQuantileDMatrix(
@@ -1500,7 +1514,7 @@ class TestWithDask:
         predt = dxgb.inplace_predict(client, result["booster"], X).compute()
         np.testing.assert_allclose(y.compute(), predt)
         rmse = result["history"]["Valid"]["rmse"][-1]
-        assert rmse < 32.0
+        assert rmse < 6.0
 
     @given(
         params=hist_parameter_strategy,
@@ -1522,9 +1536,6 @@ class TestWithDask:
         self.run_updater_test(client, params, num_rounds, dataset, "approx")
 
     def test_adaptive(self) -> None:
-        def get_score(config: Dict) -> float:
-            return float(config["learner"]["learner_model_param"]["base_score"])
-
         def local_test(rabit_args: Dict[str, Union[int, str]], worker_id: int) -> bool:
             with dxgb.CommunicatorContext(**rabit_args):
                 if worker_id == 0:
@@ -1545,8 +1556,8 @@ class TestWithDask:
                     num_boost_round=1,
                 )
                 config = json.loads(booster.save_config())
-                base_score = get_score(config)
-                assert base_score == 250.0
+                base_score = get_basescore(config)
+                assert base_score == [250.0]
                 return True
 
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
@@ -1562,21 +1573,30 @@ class TestWithDask:
                 assert all(results)
 
     def test_n_workers(self) -> None:
+        """Check obtaining worker addresses using input data."""
+
+        def from_delayed(fut: Any, x: np.ndarray) -> Any:
+            return da.from_delayed(fut, shape=x.shape, dtype=x.dtype)
+
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
                 workers = tm.dask.get_client_workers(client)
                 from sklearn.datasets import load_breast_cancer
 
                 X, y = load_breast_cancer(return_X_y=True)
-                dX = client.submit(da.from_array, X, workers=[workers[0]]).result()
-                dy = client.submit(da.from_array, y, workers=[workers[0]]).result()
+
+                # Use client.scatter to directly place data on specific workers.
+                X_fut_0 = client.scatter(X, workers=[workers[0]])
+                y_fut_0 = client.scatter(y, workers=[workers[0]])
+                dX = from_delayed(X_fut_0, X)
+                dy = from_delayed(y_fut_0, y)
                 train = dxgb.DaskDMatrix(client, dX, dy)
 
-                dX = dd.from_array(X)
-                dX = client.persist(dX, workers=workers[1])
-                dy = dd.from_array(y)
-                dy = client.persist(dy, workers=workers[1])
-                valid = dxgb.DaskDMatrix(client, dX, dy)
+                X_fut_1 = client.scatter(X, workers=[workers[1]])
+                y_fut_1 = client.scatter(y, workers=[workers[1]])
+                dX_valid = from_delayed(X_fut_1, X)
+                dy_valid = from_delayed(y_fut_1, y)
+                valid = dxgb.DaskDMatrix(client, dX_valid, dy_valid)
 
                 merged = dxgb._get_workers_from_data(train, evals=[(valid, "Valid")])
                 assert len(merged) == 2
@@ -1624,9 +1644,7 @@ class TestWithDask:
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_custom_objective(self, client: "Client") -> None:
-        from sklearn.datasets import fetch_california_housing
-
-        X, y = fetch_california_housing(return_X_y=True)
+        X, y = get_california_housing()
         X, y = da.from_array(X), da.from_array(y)
         rounds = 20
 
@@ -1677,6 +1695,30 @@ class TestWithDask:
             results_custom = reg.evals_result()
             tm.non_increasing(results_custom["validation_0"]["rmse"])
 
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_custom_metrics(self, client: "Client") -> None:
+        from sklearn.datasets import make_classification
+        from sklearn.metrics import hamming_loss, hinge_loss, log_loss
+
+        Xn, yn = make_classification(random_state=2025)
+        X, y = da.array(Xn), da.array(yn)
+
+        clf = dxgb.DaskXGBClassifier(
+            eval_metric=["logloss", hinge_loss], n_estimators=2
+        )
+        clf.fit(X, y, eval_set=[(X, y)])
+        results = clf.evals_result()["validation_0"]
+        assert "logloss" in results
+        assert "hinge_loss" in results
+
+        clf = dxgb.DaskXGBClassifier(
+            eval_metric=[hamming_loss, log_loss], n_estimators=2
+        )
+        with pytest.raises(
+            NotImplementedError, match="multiple custom metrics is not yet supported."
+        ):
+            clf.fit(X, y, eval_set=[(X, y)])
+
     def test_no_duplicated_partition(self) -> None:
         """Assert each worker has the correct amount of data, and DMatrix initialization
         doesn't generate unnecessary copies of data.
@@ -1692,9 +1734,14 @@ class TestWithDask:
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr: str, data_ref: Dict) -> None:
+                    from xgboost.dask.data import _dmatrix_from_list_of_parts
+
                     with dxgb.CommunicatorContext(**rabit_args):
-                        local_dtrain = dxgb._dmatrix_from_list_of_parts(
-                            **data_ref, nthread=7
+                        local_dtrain = _dmatrix_from_list_of_parts(
+                            **data_ref,
+                            nthread=7,
+                            model=None,
+                            Xy_cats=None,
                         )
                         total = np.array([local_dtrain.num_row()])
                         total = xgb.collective.allreduce(total, xgb.collective.Op.SUM)
@@ -1930,7 +1977,9 @@ def test_parallel_submits(client: "Client") -> None:
 def run_tree_stats(client: Client, tree_method: str, device: str) -> str:
     """assert that different workers count dosn't affect summ statistic's on root"""
 
-    def dask_train(X, y, num_obs, num_features):
+    def dask_train(
+        X: np.ndarray, y: np.ndarray, num_obs: int, num_features: int
+    ) -> Dict[str, Any]:
         chunk_size = 100
         X = da.from_array(X, chunks=(chunk_size, num_features))
         y = da.from_array(y.reshape(num_obs, 1), chunks=(chunk_size, 1))
@@ -2021,11 +2070,11 @@ def test_parallel_submit_multi_clients() -> None:
                 def _() -> dxgb.DaskXGBClassifier:
                     return futures[i][0].compute(futures[i][1]).result()
 
-                f = e.submit(_)
-                t_futures.append(f)
+                tf = e.submit(_)
+                t_futures.append(tf)
 
-        for i, f in enumerate(t_futures):
-            assert f.result().get_booster().num_boosted_rounds() == i + 1
+        for i, tf in enumerate(t_futures):
+            assert tf.result().get_booster().num_boosted_rounds() == i + 1
 
 
 def test_init_estimation(client: Client) -> None:
@@ -2033,7 +2082,7 @@ def test_init_estimation(client: Client) -> None:
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
-def test_uneven_nan(tree_method) -> None:
+def test_uneven_nan(tree_method: str) -> None:
     n_workers = 2
     with LocalCluster(n_workers=n_workers) as cluster:
         with Client(cluster) as client:
@@ -2113,7 +2162,9 @@ class TestDaskCallbacks:
         X, y = da.from_array(X), da.from_array(y)
         m = dxgb.DaskDMatrix(client, X, y)
 
-        def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix):
+        def eval_error_metric(
+            predt: np.ndarray, dtrain: xgb.DMatrix
+        ) -> Tuple[str, np.float64]:
             return tm.eval_error_metric(predt, dtrain, rev_link=False)
 
         valid = dxgb.DaskDMatrix(client, X, y)
@@ -2192,7 +2243,7 @@ class TestDaskCallbacks:
     allow_unclosed=True,
 )
 @pytest.mark.skip(reason="dmlc/xgboost#11405: test_worker_left is flaky")
-async def test_worker_left(c: Client, s: Scheduler, a: Worker, b: Worker):
+async def test_worker_left(c: Client, s: Scheduler, a: Worker, b: Worker) -> None:
     async with Worker(s.address):
         dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
         dy = da.random.random((1000,)).rechunk(chunks=(10,))
@@ -2218,7 +2269,7 @@ async def test_worker_left(c: Client, s: Scheduler, a: Worker, b: Worker):
     allow_unclosed=True,
 )
 @pytest.mark.skip
-async def test_worker_restarted(c, s, a, b):
+async def test_worker_restarted(c: Client, s: Scheduler, a: Nanny, b: Nanny) -> None:
     dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
     dy = da.random.random((1000,)).rechunk(chunks=(10,))
     d_train = await dxgb.DaskDMatrix(

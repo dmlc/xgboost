@@ -1,3 +1,38 @@
+#################################
+3.0.3 Patch Release (Jul 30 2025)
+#################################
+
+- Fix NDCG metric with non-exp gain. (:pr:`11534`)
+- Avoid using mean intercept for ``rmsle``. (:pr:`11588`)
+- [jvm-packages] add ``setNumEarlyStoppingRounds`` API (:pr:`11571`)
+- Avoid implicit synchronization in GPU evaluation. (:pr:`11542`)
+- Remove CUDA check in the array interface handler (:pr:`11386`)
+- Fix check in GPU histogram. (:pr:`11574`)
+- Support Rapids 25.06 (:pr:`11504`)
+- Adding ``enable_categorical`` to the sklearn ``.apply`` method (:pr:`11550`)
+- Make xgboost.testing compatible with scikit-learn 1.7 (:pr:`11502`)
+- Add support for building xgboost wheels on Win-ARM64 (:pr:`11572`, :pr:`11597`, :pr:`11559`)
+
+#################################
+3.0.2 Patch Release (May 25 2025)
+#################################
+
+- Dask 2025.4.0 scheduler info compatibility fix (:pr:`11462`)
+- Fix CUDA virtual memory fallback logic on WSL2 (:pr:`11471`)
+
+#################################
+3.0.1 Patch Release (May 13 2025)
+#################################
+
+- Use ``nvidia-smi`` to detect the driver version and handle old drivers that don't support virtual memory. (:pr:`11391`)
+- Optimize deep trees for GPU external memory. (:pr:`11387`)
+- Small fix for page concatenation with external memory (:pr:`11338`)
+- Build xgboost-cpu for ``manylinux_2_28_x86_64`` (:pr:`11406`)
+- Workaround for different Dask versions (:pr:`11436`)
+- Output models now use denormal floating-point instead of ``nan``. (:pr:`11428`)
+- Fix aarch64 CI. (:pr:`11454`)
+
+
 ###################
 3.0.0 (2025 Feb 27)
 ###################

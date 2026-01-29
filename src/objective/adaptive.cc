@@ -1,20 +1,22 @@
 /**
- * Copyright 2022-2025, XGBoost Contributors
+ * Copyright 2022-2026, XGBoost Contributors
  */
 #include "adaptive.h"
 
-#include <algorithm>  // std::transform,std::find_if,std::copy,std::unique
+#include <algorithm>  // for transform,find_if,copy,unique,max
 #include <cmath>      // std::isnan
 #include <cstddef>    // std::size_t
 #include <iterator>   // std::distance
 #include <vector>     // std::vector
 
 #include "../common/algorithm.h"           // ArgSort
+#include "../common/linalg_op.h"           // for VecScaMul
 #include "../common/numeric.h"             // RunLengthEncode
 #include "../common/stats.h"               // Quantile,WeightedQuantile
 #include "../common/threading_utils.h"     // ParallelFor
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
 #include "../tree/sample_position.h"       // for SamplePosition
+#include "../tree/tree_view.h"             // for WalkTree
 #include "xgboost/base.h"                  // bst_node_t
 #include "xgboost/context.h"               // Context
 #include "xgboost/data.h"                  // MetaInfo
@@ -27,7 +29,7 @@
 #include "../common/common.h"  // AssertGPUSupport
 #endif                         // !defined(XGBOOST_USE_CUDA)
 
-namespace xgboost::obj::detail {
+namespace xgboost::obj {
 void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
                         std::vector<bst_node_t> const& position, std::vector<size_t>* p_nptr,
                         std::vector<bst_node_t>* p_nidx, std::vector<size_t>* p_ridx) {
@@ -48,8 +50,8 @@ void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
   CHECK_LE(begin_pos, sorted_pos.size());
 
   std::vector<bst_node_t> leaf;
-  tree.WalkTree([&](bst_node_t nidx) {
-    if (tree[nidx].IsLeaf()) {
+  tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
+    if (tree.IsLeaf(nidx)) {
       leaf.push_back(nidx);
     }
     return true;
@@ -74,36 +76,13 @@ void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
   std::copy(beg_it, beg_it + n_unique, nidx.begin());
 
   if (n_leaf != leaf.size()) {
-    FillMissingLeaf(leaf, &nidx, &nptr);
+    detail::FillMissingLeaf(leaf, &nidx, &nptr);
   }
 }
 
-void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
-                        std::int32_t group_idx, MetaInfo const& info, float learning_rate,
-                        HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
-  auto& tree = *p_tree;
-
-  std::vector<bst_node_t> nidx;
-  std::vector<size_t> nptr;
-  std::vector<size_t> ridx;
-  EncodeTreeLeafHost(ctx, *p_tree, position, &nptr, &nidx, &ridx);
-  size_t n_leaf = nidx.size();
-  if (nptr.empty()) {
-    std::vector<float> quantiles;
-    UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
-    return;
-  }
-
-  CHECK(!position.empty());
-  std::vector<float> quantiles(n_leaf, 0);
-  std::vector<int32_t> n_valids(n_leaf, 0);
-
-  auto const& h_node_idx = nidx;
-  auto const& h_node_ptr = nptr;
-  CHECK_LE(h_node_ptr.back(), info.num_row_);
-  auto h_predt = linalg::MakeTensorView(ctx, predt.ConstHostSpan(), info.num_row_,
-                                        predt.Size() / info.num_row_);
-
+namespace cpu_impl {
+namespace {
+[[nodiscard]] std::int32_t AllocThreads(Context const* ctx, std::vector<size_t> const& h_node_ptr) {
   // A heuristic to use parallel sort. If we use multiple threads here, the sorting is
   // performed using a single thread as openmp cannot allocate new threads inside a
   // parallel region.
@@ -122,49 +101,96 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   } else {
     n_threads = ctx->Threads();
   }
+  return n_threads;
+}
+}  // namespace
+
+void UpdateTreeLeaf(Context const* ctx, std::vector<bst_node_t> const& position,
+                    bst_target_t group_idx, MetaInfo const& info, float learning_rate,
+                    HostDeviceVector<float> const& predt, std::vector<float> const& alphas,
+                    RegTree* p_tree) {
+  std::vector<bst_node_t> nidx;
+  std::vector<size_t> nptr;
+  std::vector<size_t> ridx;
+  EncodeTreeLeafHost(ctx, *p_tree, position, &nptr, &nidx, &ridx);
+  std::size_t n_leaves = nidx.size();
+  std::size_t n_alphas = alphas.size();
+  if (nptr.empty()) {
+    std::vector<float> quantiles;
+    detail::UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
+    return;
+  }
+
+  CHECK(!position.empty());
+  std::vector<float> quantiles(n_leaves * n_alphas, 0.0f);
+  std::vector<bst_node_t> n_valids(n_leaves, 0);
+
+  auto h_quantiles = linalg::MakeTensorView(ctx, common::Span{quantiles}, n_leaves, n_alphas);
+  CHECK_LE(nptr.back(), info.num_row_);
+  auto h_predt = linalg::MakeTensorView(ctx, predt.ConstHostSpan(), info.num_row_,
+                                        predt.Size() / info.num_row_);
+  if (p_tree->IsMultiTarget()) {
+    CHECK_EQ(h_predt.Shape(1), alphas.size());
+  }
+  std::int32_t n_threads = AllocThreads(ctx, nptr);
 
   collective::ApplyWithLabels(
       ctx, info, static_cast<void*>(quantiles.data()), quantiles.size() * sizeof(float), [&] {
-        // loop over each leaf
-        common::ParallelFor(quantiles.size(), n_threads, [&](size_t k) {
-          auto nidx = h_node_idx[k];
-          CHECK(tree[nidx].IsLeaf());
-          CHECK_LT(k + 1, h_node_ptr.size());
-          size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
-          auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);
+        // Loop over each leaf
+        common::ParallelFor(n_leaves, n_threads, [&](auto k) {
+          CHECK_LT(k + 1, nptr.size());
+          size_t n = nptr[k + 1] - nptr[k];
+          auto h_row_set = common::Span<size_t const>{ridx}.subspan(nptr[k], n);
 
-          auto h_labels = info.labels.HostView().Slice(linalg::All(), IdxY(info, group_idx));
+          linalg::MatrixView<float const> h_labels = info.labels.HostView();
           auto h_weights = linalg::MakeVec(&info.weights_);
+          // Loop over each target (quantile).
+          for (std::size_t alpha_idx = 0; alpha_idx < n_alphas; ++alpha_idx) {
+            // If it's vector-leaf, group_idx is 0, alpha_idx is used. Otherwise,
+            // alpha_idx is 0, the group idx is used.
+            auto predt_idx = std::max(alpha_idx, static_cast<std::size_t>(group_idx));
+            // label is a single column for quantile regression, but it's a matrix for MAE.
+            auto y_idx = std::max(alpha_idx, static_cast<std::size_t>(group_idx));
+            y_idx = std::min(y_idx, h_labels.Shape(1) - 1);
+            auto iter = common::MakeIndexTransformIter([&](std::size_t i) -> float {
+              auto row_idx = h_row_set[i];
+              return h_labels(row_idx, y_idx) - h_predt(row_idx, predt_idx);
+            });
+            auto w_it = common::MakeIndexTransformIter([&](std::size_t i) -> float {
+              auto row_idx = h_row_set[i];
+              return h_weights(row_idx);
+            });
+            auto alpha = alphas[alpha_idx];
 
-          auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
-            auto row_idx = h_row_set[i];
-            return h_labels(row_idx) - h_predt(row_idx, group_idx);
-          });
-          auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
-            auto row_idx = h_row_set[i];
-            return h_weights(row_idx);
-          });
-
-          float q{0};
-          if (info.weights_.Empty()) {
-            q = common::Quantile(ctx, alpha, iter, iter + h_row_set.size());
-          } else {
-            q = common::WeightedQuantile(ctx, alpha, iter, iter + h_row_set.size(), w_it);
+            float q{0};
+            if (info.weights_.Empty()) {
+              q = common::Quantile(ctx, alpha, iter, iter + h_row_set.size());
+            } else {
+              q = common::WeightedQuantile(ctx, alpha, iter, iter + h_row_set.size(), w_it);
+            }
+            if (std::isnan(q)) {
+              CHECK(h_row_set.empty());
+            }
+            h_quantiles(k, alpha_idx) = q;
           }
-          if (std::isnan(q)) {
-            CHECK(h_row_set.empty());
-          }
-          quantiles.at(k) = q;
         });
       });
 
-  UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
+  if (p_tree->IsMultiTarget()) {
+    linalg::VecScaMul(ctx, linalg::MakeVec(ctx->Device(), common::Span{quantiles}), learning_rate);
+    p_tree->SetLeaves(nidx, common::Span{quantiles});
+  } else {
+    detail::UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
+  }
 }
+}  // namespace cpu_impl
 
+namespace cuda_impl {
 #if !defined(XGBOOST_USE_CUDA)
-void UpdateTreeLeafDevice(Context const*, common::Span<bst_node_t const>, std::int32_t,
-                          MetaInfo const&, float, HostDeviceVector<float> const&, float, RegTree*) {
+void UpdateTreeLeaf(Context const*, common::Span<bst_node_t const>, bst_target_t, MetaInfo const&,
+                    float, HostDeviceVector<float> const&, std::vector<float> const&, RegTree*) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
-}  // namespace xgboost::obj::detail
+}  // namespace cuda_impl
+}  // namespace xgboost::obj

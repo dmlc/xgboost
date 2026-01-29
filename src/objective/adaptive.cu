@@ -1,20 +1,22 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2026, XGBoost Contributors
  */
 #include <thrust/sort.h>
 
-#include <cstdint>      // std::int32_t
-#include <cub/cub.cuh>  // NOLINT
+#include <cub/cub.cuh>         // NOLINT
 
 #include "../collective/aggregator.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
+#include "../common/cuda_stream.h"     // for Event, Stream
 #include "../common/device_helpers.cuh"
+#include "../common/linalg_op.h"  // for VecScaMul
 #include "../common/stats.cuh"
 #include "../tree/sample_position.h"  // for SamplePosition
+#include "../tree/tree_view.h"        // for WalkTree
 #include "adaptive.h"
 #include "xgboost/context.h"
 
-namespace xgboost::obj::detail {
+namespace xgboost::obj {
 void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
                           dh::device_vector<size_t>* p_ridx, HostDeviceVector<size_t>* p_nptr,
                           HostDeviceVector<bst_node_t>* p_nidx, RegTree const& tree) {
@@ -39,8 +41,8 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
                    sorted_position.cbegin();
   if (beg_pos == sorted_position.size()) {
     auto& leaf = p_nidx->HostVector();
-    tree.WalkTree([&](bst_node_t nidx) {
-      if (tree[nidx].IsLeaf()) {
+    tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
+      if (tree.IsLeaf(nidx)) {
         leaf.push_back(nidx);
       }
       return true;
@@ -69,10 +71,10 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   dh::PinnedMemory pinned_pool;
   auto pinned = pinned_pool.GetSpan<char>(sizeof(size_t) + sizeof(bst_node_t));
-  dh::CUDAStream copy_stream;
+  curt::Stream copy_stream;
   size_t* h_num_runs = reinterpret_cast<size_t*>(pinned.subspan(0, sizeof(size_t)).data());
 
-  dh::CUDAEvent e;
+  curt::Event e;
   e.Record(cuctx->Stream());
   copy_stream.View().Wait(e);
   // flag for whether there's ignored position
@@ -121,8 +123,8 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
     nidx.Resize(*h_num_runs);
 
     std::vector<bst_node_t> leaves;
-    tree.WalkTree([&](bst_node_t nidx) {
-      if (tree[nidx].IsLeaf()) {
+    tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
+      if (tree.IsLeaf(nidx)) {
         leaves.push_back(nidx);
       }
       return true;
@@ -133,7 +135,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
     // as we need to take other distributed workers into account.
     auto& h_nidx = nidx.HostVector();
     auto& h_nptr = nptr.HostVector();
-    FillMissingLeaf(leaves, &h_nidx, &h_nptr);
+    detail::FillMissingLeaf(leaves, &h_nidx, &h_nptr);
     nidx.DevicePointer();
     nptr.DevicePointer();
   }
@@ -141,9 +143,11 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   CHECK_EQ(nptr.Size(), n_leaf + 1);
 }
 
-void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          std::int32_t group_idx, MetaInfo const& info, float learning_rate,
-                          HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
+namespace cuda_impl {
+void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
+                    bst_target_t group_idx, MetaInfo const& info, float learning_rate,
+                    HostDeviceVector<float> const& predt, std::vector<float> const& h_alphas,
+                    RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   dh::device_vector<size_t> ridx;
   HostDeviceVector<size_t> nptr;
@@ -153,43 +157,59 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   if (nptr.Empty()) {
     std::vector<float> quantiles;
-    UpdateLeafValues(ctx, &quantiles, nidx.ConstHostVector(), info, learning_rate, p_tree);
+    detail::UpdateLeafValues(ctx, &quantiles, nidx.ConstHostVector(), info, learning_rate, p_tree);
   }
 
   predt.SetDevice(ctx->Device());
   auto d_predt = linalg::MakeTensorView(ctx, predt.ConstDeviceSpan(), info.num_row_,
                                         predt.Size() / info.num_row_);
   CHECK_LT(group_idx, d_predt.Shape(1));
-  auto t_predt = d_predt.Slice(linalg::All(), group_idx);
-
+  if (p_tree->IsMultiTarget()) {
+    CHECK_EQ(d_predt.Shape(1), h_alphas.size());
+  }
   HostDeviceVector<float> quantiles;
+
+  auto d_row_index = dh::ToSpan(ridx);
+  // node segments
+  auto seg_beg = nptr.ConstDevicePointer();
+  auto seg_end = seg_beg + nptr.Size();
+  CHECK_EQ(nidx.Size() + 1, nptr.Size());
+
   collective::ApplyWithLabels(ctx, info, &quantiles, [&] {
-    auto d_labels = info.labels.View(ctx->Device()).Slice(linalg::All(), IdxY(info, group_idx));
-    auto d_row_index = dh::ToSpan(ridx);
-    auto seg_beg = nptr.DevicePointer();
-    auto seg_end = seg_beg + nptr.Size();
-    auto val_beg = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                                    [=] XGBOOST_DEVICE(size_t i) {
-                                                      float p = t_predt(d_row_index[i]);
-                                                      auto y = d_labels(d_row_index[i]);
-                                                      return y - p;
-                                                    });
+    auto d_labels = info.labels.View(ctx->Device());
+
+    auto values = [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) {
+      // If it's vector-leaf, group_idx is 0, j is used. Otherwise, j is 0, group idx is used.
+      auto p_idx = cuda::std::max(j, static_cast<std::size_t>(group_idx));
+      auto p = d_predt(d_row_index[i], p_idx);
+      // label is a single column for quantile regression, but it's a matrix for MAE.
+      auto y_idx = cuda::std::max(j, static_cast<std::size_t>(group_idx));
+      y_idx = cuda::std::min(y_idx, d_labels.Shape(1) - 1);
+      auto y = d_labels(d_row_index[i], y_idx);
+      return y - p;
+    };
     CHECK_EQ(d_labels.Shape(0), position.size());
-    auto val_end = val_beg + d_labels.Shape(0);
-    CHECK_EQ(nidx.Size() + 1, nptr.Size());
+
     if (info.weights_.Empty()) {
-      common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &quantiles);
+      common::SegmentedQuantile(ctx, h_alphas, seg_beg, seg_end, values, info.num_row_, &quantiles);
     } else {
       info.weights_.SetDevice(ctx->Device());
       auto d_weights = info.weights_.ConstDeviceSpan();
       CHECK_EQ(d_weights.size(), d_row_index.size());
       auto w_it =
           thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));
-      common::SegmentedWeightedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, w_it,
+      common::SegmentedWeightedQuantile(ctx, h_alphas, seg_beg, seg_end, values, w_it,
                                         w_it + d_weights.size(), &quantiles);
     }
   });
-  UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info, learning_rate,
-                   p_tree);
+
+  if (p_tree->IsMultiTarget()) {
+    linalg::VecScaMul(ctx, linalg::MakeVec(ctx->Device(), quantiles.DeviceSpan()), learning_rate);
+    p_tree->SetLeaves(nidx.ConstHostVector(), quantiles.ConstHostSpan());
+  } else {
+    detail::UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info,
+                             learning_rate, p_tree);
+  }
 }
-}  // namespace xgboost::obj::detail
+}  // namespace cuda_impl
+}  // namespace xgboost::obj

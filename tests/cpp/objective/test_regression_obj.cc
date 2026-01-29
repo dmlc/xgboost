@@ -1,24 +1,36 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
+#include "test_regression_obj.h"
+
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/json.h>
 #include <xgboost/objective.h>
+#include <xgboost/tree_model.h>  // for RegTree
 
 #include <numeric>  // for iota
 
 #include "../../../src/common/linalg_op.h"  // for begin, end
-#include "../../../src/objective/adaptive.h"
 #include "../../../src/tree/param.h"        // for TrainParam
+#include "../../../src/tree/tree_view.h"    // for MultiTargetTreeView
 #include "../helpers.h"
+#include "../tree/test_multi_target_tree_model.h"  // for MakeMtTreeForTest
+#include "test_objective_helpers.h"  // for MakePositionsForTest, MakeIotaLabelsForTest
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/linalg.h"
-
-#include "test_regression_obj.h"
+#include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost {
+namespace {
+void CheckProbaToMargin(std::unique_ptr<ObjFunction> const& obj, float in, float expect,
+                        float abs_error = 1e-2f) {
+  linalg::Vector<float> t{{in}, {1}, obj->Ctx()->Device()};
+  obj->ProbToMargin(&t);
+  ASSERT_NEAR(t(0), expect, abs_error);
+}
+}  // namespace
 
 void TestLinearRegressionGPair(const Context* ctx) {
   std::string obj_name = "reg:squarederror";
@@ -39,7 +51,8 @@ void TestLinearRegressionGPair(const Context* ctx) {
                    {},  // empty weight
                    {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
                    {1,   1,   1,   1,    1,    1,    1, 1});
-  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+
+  ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
 
 void TestSquaredLog(const Context* ctx) {
@@ -94,11 +107,10 @@ void TestLogisticRegressionBasic(const Context* ctx) {
     << "Expected error when label not in range [0,1f] for LogisticRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.197f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), 0, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), 2.197f, 0.01f);
-  EXPECT_ANY_THROW((void)obj->ProbToMargin(10))
-      << "Expected error when base_score not in range [0,1f] for LogisticRegression";
+  CheckProbaToMargin(obj, 0.1f, -2.197f);
+  CheckProbaToMargin(obj, 0.5f, 0);
+  CheckProbaToMargin(obj, 0.9f, 2.197f);
+  ASSERT_THAT([&] { CheckProbaToMargin(obj, 10, 0); }, GMockThrow("base_score must be in (0,1)"));
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -161,9 +173,9 @@ void TestPoissonRegressionBasic(const Context* ctx) {
     << "Expected error when label < 0 for PoissonRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  CheckProbaToMargin(obj, 0.9f, -0.10f);
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -210,9 +222,9 @@ void TestGammaRegressionBasic(const Context* ctx) {
     << "Expected error when label < 0 for GammaRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  CheckProbaToMargin(obj, 0.9f, -0.10f);
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -258,9 +270,9 @@ void TestTweedieRegressionBasic(const Context* ctx) {
     << "Expected error when label < 0 for TweedieRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  CheckProbaToMargin(obj, 0.9f, -0.10f);
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -295,6 +307,7 @@ void TestAbsoluteError(const Context* ctx) {
   info.labels.Reshape(6, 1);
   info.labels.Data()->HostVector() = labels;
   info.num_row_ = labels.size();
+
   HostDeviceVector<float> predt{1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
   info.weights_.HostVector() = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
 
@@ -303,16 +316,11 @@ void TestAbsoluteError(const Context* ctx) {
 
   RegTree tree;
   tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+  bst_node_t left_nidx = tree.LeftChild(RegTree::kRoot);
+  bst_node_t right_nidx = tree.RightChild(RegTree::kRoot);
 
-  HostDeviceVector<bst_node_t> position(labels.size(), 0);
-  auto& h_position = position.HostVector();
-  for (size_t i = 0; i < labels.size(); ++i) {
-    if (i < labels.size() / 2) {
-      h_position[i] = 1;  // left
-    } else {
-      h_position[i] = 2;  // right
-    }
-  }
+  HostDeviceVector<bst_node_t> position;
+  MakePositionsForTest(info.num_row_, left_nidx, right_nidx, &position);
 
   auto& h_predt = predt.HostVector();
   for (size_t i = 0; i < h_predt.size(); ++i) {
@@ -323,7 +331,7 @@ void TestAbsoluteError(const Context* ctx) {
   param.Init(Args{});
   auto lr = param.learning_rate;
 
-  obj->UpdateTreeLeaf(position, info, param.learning_rate, predt, 0, &tree);
+  obj->UpdateTreeLeaf(position, info, lr, predt, 0, &tree);
   ASSERT_EQ(tree[1].LeafValue(), -1.0f * lr);
   ASSERT_EQ(tree[2].LeafValue(), -4.0f * lr);
 }
@@ -340,7 +348,7 @@ void TestAbsoluteErrorLeaf(const Context* ctx) {
 
   for (bst_target_t t{0}; t < kTargets; ++t) {
     auto h_labels = info.labels.HostView().Slice(linalg::All(), t);
-    std::iota(linalg::begin(h_labels), linalg::end(h_labels), 0);
+    std::iota(linalg::begin(h_labels), linalg::end(h_labels), .0f);
 
     auto h_predt =
         linalg::MakeTensorView(ctx, predt.HostSpan(), kRows, kTargets).Slice(linalg::All(), t);
@@ -381,6 +389,38 @@ void TestAbsoluteErrorLeaf(const Context* ctx) {
     ASSERT_EQ(tree[4].LeafValue(), empty_leaf * lr);
     ASSERT_EQ(tree[5].LeafValue(), -10.0f * lr);
     ASSERT_EQ(tree[6].LeafValue(), -14.0f * lr);
+  }
+}
+
+void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, bst_idx_t n_samples,
+                       bst_idx_t n_target_labels, std::vector<float> const& sol_left,
+                       std::vector<float> const& sol_right) {
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(name, ctx)};
+  obj->Configure(args);
+
+  bst_target_t n_targets = 3;
+  auto tree = MakeMtTreeForTest(n_targets);
+
+  bst_node_t left_nidx = tree->LeftChild(RegTree::kRoot);
+  bst_node_t right_nidx = tree->RightChild(RegTree::kRoot);
+
+  MetaInfo info;
+  MakeIotaLabelsForTest(n_samples, n_target_labels, &info);
+  HostDeviceVector<bst_node_t> position;
+  MakePositionsForTest(info.num_row_, left_nidx, right_nidx, &position);
+
+  HostDeviceVector<float> predt(info.labels.Shape(0) * n_targets, 0.0f);
+
+  auto lr = 2.0f;
+  obj->UpdateTreeLeaf(position, info, lr, predt, 0, tree.get());
+
+  auto mt_tree = tree->HostMtView();
+  auto left = mt_tree.LeafValue(mt_tree.LeftChild(RegTree::kRoot));
+  auto right = mt_tree.LeafValue(mt_tree.RightChild(RegTree::kRoot));
+
+  for (std::size_t i = 0; i < left.Size(); ++i) {
+    ASSERT_FLOAT_EQ(left(i), sol_left[i]);
+    ASSERT_FLOAT_EQ(right(i), sol_right[i]);
   }
 }
 

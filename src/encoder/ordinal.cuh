@@ -223,19 +223,24 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
    * Check consistency.
    */
   auto check_it = thrust::make_transform_iterator(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
-        auto l_f = orig_enc.columns[i];
-        auto r_f = new_enc.columns[i];
+      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> bool {
+        auto const& l_f = orig_enc.columns[i];
+        auto const& r_f = new_enc.columns[i];
+        if (l_f.index() != r_f.index()) {
+          return false;
+        }
         auto l_is_empty = cuda::std::visit([](auto&& arg) { return arg.empty(); }, l_f);
         auto r_is_empty = cuda::std::visit([](auto&& arg) { return arg.empty(); }, r_f);
         return l_is_empty == r_is_empty;
       });
   bool valid = thrust::reduce(exec, check_it, check_it + new_enc.Size(), true,
-                              [=] XGBOOST_DEVICE(bool l, bool r) { return l && r; });
+                              [=] XGBOOST_DEVICE(bool l, bool r) -> bool { return l && r; });
   if (!valid) {
     policy.Error(
         "Invalid new DataFrame. "
-        "The data type doesn't match the one used in the training dataset.");
+        "The data type doesn't match the one used in the training dataset. "
+        "Both should be either numeric or categorical. "
+        "For a categorical feature, the index type must match between the training and test set.");
   }
 
   /**
@@ -247,7 +252,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         auto f_idx = dh::SegmentId(new_enc.feature_segments, i);
         std::int32_t searched_idx{detail::NotFound()};
         auto const& col = orig_enc.columns[f_idx];
-        cuda::std::visit(Overloaded{[&](CatStrArrayView const& str) {
+        cuda::std::visit(Overloaded{[&](CatStrArrayView const&) {
                                       auto op = cuda_impl::SegmentedSearchSortedStrOp{
                                           orig_enc, sorted_idx, new_enc, f_idx};
                                       searched_idx = op(i);
@@ -275,10 +280,9 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         f_mapping[i - f_beg] = idx;
       });
 
-  auto err_it = thrust::find_if(exec, dh::tcbegin(mapping), dh::tcend(mapping),
-                                cuda::proclaim_return_type<bool>([=] __device__(std::int32_t v) {
-                                  return v == detail::NotFound();
-                                }));
+  auto err_it = thrust::find_if(
+      exec, dh::tcbegin(mapping), dh::tcend(mapping),
+      [=] XGBOOST_DEVICE(std::int32_t v) -> bool { return v == detail::NotFound(); });
 
   if (err_it != dh::tcend(mapping)) {
     // Report missing cat.

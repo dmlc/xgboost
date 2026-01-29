@@ -1,7 +1,9 @@
 /**
- * Copyright 2021-2024, XGBoost contributors.
+ * Copyright 2021-2025, XGBoost contributors.
  */
 #include <gtest/gtest.h>
+#include <xgboost/gradient.h>      // for GradientContainer
+#include <xgboost/tree_model.h>    // for RegTree
 #include <xgboost/tree_updater.h>  // for TreeUpdater
 
 #include <algorithm>  // for transform
@@ -14,7 +16,6 @@
 #include "../helpers.h"
 #include "test_column_split.h"  // for TestColumnSplit
 #include "test_partitioner.h"
-#include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost::tree {
 namespace {
@@ -48,7 +49,7 @@ TEST(Approx, Partitioner) {
       RegTree tree;
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
       GetSplit(&tree, min_value, &candidates);
-      partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+      partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
       ASSERT_EQ(partitioner.Size(), 3);
       ASSERT_EQ(partitioner[1].Size(), 0);
       ASSERT_EQ(partitioner[2].Size(), n_samples);
@@ -59,7 +60,7 @@ TEST(Approx, Partitioner) {
       float split_value = page.cut.Values().at(ptr / 2);
       RegTree tree;
       GetSplit(&tree, split_value, &candidates);
-      partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+      partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
 
       {
         auto left_nidx = tree[RegTree::kRoot].LeftChild();
@@ -89,8 +90,7 @@ TEST(Approx, InteractionConstraint) {
   auto p_dmat = GenerateCatDMatrix(kRows, kCols, 0.6f, false);
   Context ctx;
 
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+  GradientContainer gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   ObjInfo task{ObjInfo::kRegression};
   {
@@ -146,7 +146,7 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t base_rowid, std::shared
       RegTree tree;
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
       GetSplit(&tree, min_value, &candidates);
-      partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+      partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
       ASSERT_EQ(partitioner.Size(), 3);
       ASSERT_EQ(partitioner[1].Size(), 0);
       ASSERT_EQ(partitioner[2].Size(), n_samples);
@@ -155,7 +155,7 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t base_rowid, std::shared
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
       RegTree tree;
       GetSplit(&tree, mid_value, &candidates);
-      partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+      partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
       {
         auto left_nidx = tree[RegTree::kRoot].LeftChild();
         auto const& elem = partitioner[left_nidx];
@@ -200,7 +200,7 @@ TEST(Approx, PartitionerColumnSplit) {
     mid_value = page.cut.Values().at(ptr / 2);
     RegTree tree;
     GetSplit(&tree, mid_value, &candidates);
-    mid_partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+    mid_partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
   }
 
   auto constexpr kWorkers = 4;

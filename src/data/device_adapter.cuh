@@ -5,37 +5,40 @@
 #ifndef XGBOOST_DATA_DEVICE_ADAPTER_H_
 #define XGBOOST_DATA_DEVICE_ADAPTER_H_
 
-#include <thrust/functional.h>                  // for maximum
-#include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
-#include <thrust/logical.h>                     // for none_of
+#include <thrust/functional.h>                   // for maximum
 
 #include <cstddef>           // for size_t
 #include <cuda/std/variant>  // for variant
 #include <limits>            // for numeric_limits
+#include <memory>            // for make_unique
 #include <string>            // for string
 
+#include "../common/algorithm.cuh"  // for AllOf
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "adapter.h"
 #include "array_interface.h"
+#include "cat_container.cuh"      // for MakeCatAccessor
 #include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::data {
-class CudfAdapterBatch : public detail::NoMetaInfo {
-  friend class CudfAdapter;
+template <typename EncAccessor>
+class EncCudfAdapterBatchImpl : public detail::NoMetaInfo {
+ private:
+  common::Span<ArrayInterface<1> const> columns_;
+  bst_idx_t n_samples_{0};
+  EncAccessor acc_;
 
  public:
-  CudfAdapterBatch() = default;
-  CudfAdapterBatch(common::Span<ArrayInterface<1>> columns, size_t num_rows)
-      : columns_(columns), num_rows_(num_rows) {}
-  [[nodiscard]] std::size_t Size() const { return num_rows_ * columns_.size(); }
-  [[nodiscard]] __device__ __forceinline__ COOTuple GetElement(size_t idx) const {
-    size_t column_idx = idx % columns_.size();
-    size_t row_idx = idx / columns_.size();
-    auto const& column = columns_[column_idx];
-    float value = column.valid.Data() == nullptr || column.valid.Check(row_idx)
-                      ? column(row_idx)
-                      : std::numeric_limits<float>::quiet_NaN();
+  EncCudfAdapterBatchImpl() = default;
+  EncCudfAdapterBatchImpl(common::Span<ArrayInterface<1> const> columns, EncAccessor acc,
+                          bst_idx_t n_samples)
+      : columns_(columns), n_samples_(n_samples), acc_{std::move(acc)} {}
+  [[nodiscard]] std::size_t Size() const { return n_samples_ * columns_.size(); }
+  [[nodiscard]] __device__ __forceinline__ COOTuple GetElement(bst_idx_t idx) const {
+    auto column_idx = idx % columns_.size();
+    auto row_idx = idx / columns_.size();
+    auto value = this->GetElement(row_idx, column_idx);
     return {row_idx, column_idx, value};
   }
 
@@ -44,64 +47,22 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
     float value = column.valid.Data() == nullptr || column.valid.Check(ridx)
                       ? column(ridx)
                       : std::numeric_limits<float>::quiet_NaN();
-    return value;
+    return acc_(value, fidx);
   }
 
-  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return num_rows_; }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return n_samples_; }
   [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return columns_.size(); }
-
- private:
-  common::Span<ArrayInterface<1>> columns_;
-  size_t num_rows_{0};
+  [[nodiscard]] common::Span<ArrayInterface<1> const> Columns() const { return this->columns_; }
 };
 
-/*!
- * Please be careful that, in official specification, the only three required
- * fields are `shape', `version' and `typestr'.  Any other is optional,
- * including `data'.  But here we have one additional requirements for input
- * data:
+using CudfAdapterBatch = EncCudfAdapterBatchImpl<NoOpAccessor>;
+using EncCudfAdapterBatch = EncCudfAdapterBatchImpl<CatAccessor>;
+
+/**
+ * @brief Device columnar format. We call it cuDF, but it's just arrow-CUDA since cuDF
+ * adopts the arrow format.
  *
- * - `data' field is required, passing in an empty dataset is not accepted, as
- * most (if not all) of our algorithms don't have test for empty dataset.  An
- * error is better than a crash.
- *
- * What if invalid value from dataframe is 0 but I specify missing=NaN in
- * XGBoost?  Since validity mask is ignored, all 0s are preserved in XGBoost.
- *
- * FIXME(trivialfis): Put above into document after we have a consistent way for
- * processing input data.
- *
- * Sample input:
- * [
- *   {
- *     "shape": [
- *       10
- *     ],
- *     "strides": [
- *       4
- *     ],
- *     "data": [
- *       30074864128,
- *       false
- *     ],
- *     "typestr": "<f4",
- *     "version": 1,
- *     "mask": {
- *       "shape": [
- *         64
- *       ],
- *       "strides": [
- *         1
- *       ],
- *       "data": [
- *         30074864640,
- *         false
- *       ],
- *       "typestr": "|i1",
- *       "version": 1
- *     }
- *   }
- * ]
+ * See @ref XGDMatrixCreateFromColumnar for notes
  */
 class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
  public:
@@ -110,7 +71,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
       : CudfAdapter{StringView{cuda_interfaces_str}} {}
 
   [[nodiscard]] CudfAdapterBatch const& Value() const override {
-    CHECK_EQ(batch_.columns_.data(), columns_.data().get());
+    CHECK_EQ(batch_.Columns().data(), columns_.data().get());
     return batch_;
   }
 
@@ -125,7 +86,13 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   [[nodiscard]] enc::DeviceColumnsView DCats() const {
     return {dh::ToSpan(this->d_cats_), dh::ToSpan(this->cat_segments_), this->n_total_cats_};
   }
-  [[nodiscard]] bool HasCategorical() const { return !(n_total_cats_ == 0); }
+  [[nodiscard]] enc::DeviceColumnsView RefCats() const { return ref_cats_; }
+  [[nodiscard]] bool HasCategorical() const { return n_total_cats_ != 0; }
+  [[nodiscard]] bool HasRefCategorical() const { return this->ref_cats_.n_total_cats != 0; }
+
+  [[nodiscard]] common::Span<ArrayInterface<1> const> Columns() const {
+    return dh::ToSpan(this->columns_);
+  }
 
  private:
   CudfAdapterBatch batch_;
@@ -136,6 +103,9 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   dh::device_vector<enc::DeviceCatIndexView> d_cats_;
   dh::device_vector<std::int32_t> cat_segments_;
   std::int32_t n_total_cats_{0};
+
+  enc::DeviceColumnsView ref_cats_;                  // A view to the reference category.
+  std::vector<enc::DeviceCatIndexView> h_ref_cats_;  // host storage for column view
 
   size_t num_rows_{0};
   bst_idx_t n_bytes_{0};
@@ -168,6 +138,18 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
  private:
   ArrayInterface<2> array_interface_;
 };
+
+inline auto MakeEncColumnarBatch(Context const* ctx, CudfAdapter const* adapter) {
+  auto cats = std::make_unique<CatContainer>(ctx, adapter->RefCats(), true);
+  cats->Sort(ctx);
+  auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, adapter->DCats(), cats.get());
+  return std::tuple{EncCudfAdapterBatch{adapter->Columns(), acc, adapter->NumRows()},
+                    std::move(mapping)};
+}
+
+inline auto MakeEncColumnarBatch(Context const* ctx, std::shared_ptr<CudfAdapter> const& adapter) {
+  return MakeEncColumnarBatch(ctx, adapter.get());
+}
 
 class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
  public:
@@ -246,25 +228,18 @@ bst_idx_t GetRowCounts(Context const* ctx, const AdapterBatchT batch,
 }
 
 /**
- * \brief Check there's no inf in data.
+ * @brief Check there's no inf in data.
  */
 template <typename AdapterBatchT>
 bool NoInfInData(Context const* ctx, AdapterBatchT const& batch, IsValidFunctor is_valid) {
-  auto counting = thrust::make_counting_iterator(0llu);
-  auto value_iter = dh::MakeTransformIterator<bool>(counting, [=] XGBOOST_DEVICE(std::size_t idx) {
-    auto v = batch.GetElement(idx).value;
+  auto it = dh::MakeIndexTransformIter(
+      [=] XGBOOST_DEVICE(std::size_t idx) { return batch.GetElement(idx).value; });
+  return common::AllOf(ctx->CUDACtx()->CTP(), it, it + batch.Size(), [=] XGBOOST_DEVICE(float v) {
     if (is_valid(v) && isinf(v)) {
       return false;
     }
     return true;
   });
-  // The default implementation in thrust optimizes any_of/none_of/all_of by using small
-  // intervals to early stop. But we expect all data to be valid here, using small
-  // intervals only decreases performance due to excessive kernel launch and stream
-  // synchronization.
-  auto valid = dh::Reduce(ctx->CUDACtx()->CTP(), value_iter, value_iter + batch.Size(), true,
-                          thrust::logical_and<>{});
-  return valid;
 }
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_DEVICE_ADAPTER_H_

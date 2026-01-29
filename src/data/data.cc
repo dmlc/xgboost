@@ -30,12 +30,12 @@
 #include "../common/numeric.h"                // for Iota, RunLengthEncode
 #include "../common/threading_utils.h"        // for ParallelFor
 #include "../common/version.h"                // for Version
-#include "../data/adapter.h"                  // for COOTuple, FileAdapter, IsValidFunctor
+#include "../data/adapter.h"                  // for FileAdapter
+#include "../data/entry.h"                    // for COOTuple, IsValidFunctor
 #include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
 #include "../data/iterative_dmatrix.h"        // for IterativeDMatrix
 #include "./sparse_page_dmatrix.h"            // for SparsePageDMatrix
 #include "array_interface.h"                  // for ArrayInterfaceHandler, ArrayInterface, Dispa...
-#include "batch_utils.h"                      // for MatchingPageBytes
 #include "cat_container.h"                    // for CatContainer
 #include "dmlc/base.h"                        // for BeginPtr
 #include "dmlc/common.h"                      // for OMPException
@@ -505,7 +505,7 @@ void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T
   CHECK(t_out.CContiguous());
   auto const shape = t_out.Shape();
   DispatchDType(array, DeviceOrd::CPU(), [&](auto&& in) {
-    linalg::ElementWiseTransformHost(t_out, ctx->Threads(), [&](auto i, auto) {
+    linalg::cpu_impl::TransformIdxKernel(t_out, ctx->Threads(), [&](auto i, auto) {
       return std::apply(in, linalg::UnravelIndex<D>(i, shape));
     });
   });
@@ -876,8 +876,8 @@ bool MetaInfo::ShouldHaveLabels() const {
 
 void MetaInfo::Cats(std::shared_ptr<CatContainer> cats) {
   this->cats_ = std::move(cats);
-  CHECK_LT(cats_->NumFeatures(),
-           static_cast<decltype(cats->NumFeatures())>(std::numeric_limits<bst_cat_t>::max()));
+  CHECK_LT(cats_->NumCatsTotal(),
+           static_cast<decltype(cats->NumCatsTotal())>(std::numeric_limits<bst_cat_t>::max()));
 }
 
 using DMatrixThreadLocal =
@@ -919,16 +919,10 @@ DMatrix* TryLoadBinary(std::string fname, bool silent) {
 }  // namespace
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode) {
-  std::string fname, cache_file;
   auto dlm_pos = uri.find('#');
-  if (dlm_pos != std::string::npos) {
-    cache_file = uri.substr(dlm_pos + 1, uri.length());
-    fname = uri.substr(0, dlm_pos);
-    CHECK_EQ(cache_file.find('#'), std::string::npos)
-        << "Only one `#` is allowed in file path for cache file specification.";
-  } else {
-    fname = uri;
-  }
+  CHECK(dlm_pos == std::string::npos)
+      << "External memory training with text input has been removed.";
+  std::string fname = uri;
 
   // legacy handling of binary data loading
   DMatrix* loaded = TryLoadBinary(fname, silent);
@@ -937,30 +931,18 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   }
 
   int partid = 0, npart = 1;
-  DMatrix* dmat{};
 
-  if (cache_file.empty()) {
-    fname = data::ValidateFileFormat(fname);
-    std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
-        dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
-    data::FileAdapter adapter(parser.get());
-    dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(),
-                           cache_file, data_split_mode);
-  } else {
-    CHECK(data_split_mode != DataSplitMode::kCol)
-        << "Column-wise data split is not supported for external memory.";
-    data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart)};
-    auto config = ExtMemConfig{cache_file,
-                               false,
-                               cuda_impl::AutoHostRatio(),
-                               cuda_impl::MatchingPageBytes(),
-                               std::numeric_limits<float>::quiet_NaN(),
-                               1};
-    dmat = new data::SparsePageDMatrix{&iter, iter.Proxy(), data::fileiter::Reset,
-                                       data::fileiter::Next, config};
-  }
+  static std::once_flag warning_flag;
+  std::call_once(warning_flag, []() {
+    LOG(WARNING) << "Text file input has been deprecated since 3.1";
+  });
 
-  return dmat;
+  fname = data::ValidateFileFormat(fname);
+  std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
+      dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
+  data::FileAdapter adapter(parser.get());
+  return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), "",
+                         data_split_mode);
 }
 
 template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
@@ -1020,8 +1002,6 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const st
 
 INSTANTIATION_CREATE(DenseAdapter)
 INSTANTIATION_CREATE(ArrayAdapter)
-INSTANTIATION_CREATE(CSRAdapter)
-INSTANTIATION_CREATE(CSCAdapter)
 INSTANTIATION_CREATE(FileAdapter)
 INSTANTIATION_CREATE(CSRArrayAdapter)
 INSTANTIATION_CREATE(CSCArrayAdapter)
@@ -1031,7 +1011,7 @@ INSTANTIATION_CREATE(ColumnarAdapter)
 
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
-    float missing, int nthread, const std::string& cache_prefix, DataSplitMode data_split_mode);
+    float missing, int nthread, std::string const& cache_prefix, DataSplitMode data_split_mode);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;
@@ -1131,7 +1111,7 @@ void SparsePage::Push(const SparsePage &batch) {
 }
 
 template <typename AdapterBatchT>
-uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
+bst_idx_t SparsePage::Push(AdapterBatchT const& batch, float missing, std::int32_t nthread) {
   constexpr bool kIsRowMajor = AdapterBatchT::kIsRowMajor;
   // Allow threading only for row-major case as column-major requires O(nthread*batch_size) memory
   nthread = kIsRowMajor ? nthread : 1;
@@ -1289,19 +1269,19 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   self_offset = std::move(offset);
 }
 
-template uint64_t SparsePage::Push(const data::DenseAdapterBatch& batch, float missing,
-                                   int nthread);
-template uint64_t SparsePage::Push(const data::ArrayAdapterBatch& batch, float missing,
-                                   int nthread);
-template uint64_t SparsePage::Push(const data::CSRAdapterBatch& batch, float missing, int nthread);
-template uint64_t SparsePage::Push(const data::CSRArrayAdapterBatch& batch, float missing,
-                                   int nthread);
-template uint64_t SparsePage::Push(const data::CSCArrayAdapterBatch& batch, float missing,
-                                   int nthread);
-template uint64_t SparsePage::Push(const data::CSCAdapterBatch& batch, float missing, int nthread);
-template uint64_t SparsePage::Push(const data::FileAdapterBatch& batch, float missing, int nthread);
-template uint64_t SparsePage::Push(const data::ColumnarAdapterBatch& batch, float missing,
-                                   std::int32_t nthread);
+#define INSTANTIATE_PUSH(__BATCH_T)                                                    \
+  template std::uint64_t SparsePage::Push(const data::__BATCH_T& batch, float missing, \
+                                          std::int32_t nthread);
+
+INSTANTIATE_PUSH(DenseAdapterBatch)
+INSTANTIATE_PUSH(ArrayAdapterBatch)
+INSTANTIATE_PUSH(CSRArrayAdapterBatch)
+INSTANTIATE_PUSH(CSCArrayAdapterBatch)
+INSTANTIATE_PUSH(FileAdapterBatch)
+INSTANTIATE_PUSH(ColumnarAdapterBatch)
+INSTANTIATE_PUSH(EncColumnarAdapterBatch)
+
+#undef INSTANTIATE_PUSH
 
 namespace data {
 // List of files that will be force linked in static links.

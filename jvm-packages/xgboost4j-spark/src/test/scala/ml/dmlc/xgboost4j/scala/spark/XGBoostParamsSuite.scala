@@ -24,7 +24,6 @@ import org.scalatest.funsuite.AnyFunSuite
 class XGBoostParamsSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite {
 
   test("invalid parameters") {
-    val df = smallBinaryClassificationVector
     val estimator = new XGBoostClassifier()
 
     // We didn't set it by default
@@ -50,6 +49,13 @@ class XGBoostParamsSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite
     estimator.setCacheHostRatio(0.66f)
     val v1 = Try(estimator.getCacheHostRatio).getOrElse(Float.NaN)
     assert(v1 == 0.66f)
+  }
+
+  test("setNumEarlyStoppingRounds") {
+    val estimator = new XGBoostClassifier()
+    assert(estimator.getNumEarlyStoppingRounds == 0)
+    estimator.setNumEarlyStoppingRounds(10)
+    assert(estimator.getNumEarlyStoppingRounds == 10)
   }
 
 }

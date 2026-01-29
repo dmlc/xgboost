@@ -5,6 +5,7 @@
 #include "cuda_dr_utils.h"
 
 #include <algorithm>  // for max
+#include <charconv>   // for from_chars
 #include <cstdint>    // for int32_t
 #include <cstring>    // for memset
 #include <memory>     // for make_unique
@@ -22,8 +23,14 @@ CuDriverApi::CuDriverApi(std::int32_t cu_major, std::int32_t cu_minor, std::int3
   // similar to dlopen, but without the need to release a handle.
   auto safe_load = [](xgboost::StringView name, auto **fnptr) {
     cudaDriverEntryPointQueryResult status;
+#if (CUDA_VERSION / 1000) >= 13
+    dh::safe_cuda(cudaGetDriverEntryPointByVersion(name.c_str(), reinterpret_cast<void **>(fnptr),
+                                                   12080, cudaEnablePerThreadDefaultStream,
+                                                   &status));
+#else
     dh::safe_cuda(cudaGetDriverEntryPoint(name.c_str(), reinterpret_cast<void **>(fnptr),
                                           cudaEnablePerThreadDefaultStream, &status));
+#endif  // (CUDA_VERSION / 1000) >= 13
     CHECK(status == cudaDriverEntryPointSuccess) << name;
     CHECK(*fnptr);
   };
@@ -47,6 +54,10 @@ CuDriverApi::CuDriverApi(std::int32_t cu_major, std::int32_t cu_minor, std::int3
   } else {
     this->cuMemBatchDecompressAsync = nullptr;
   }
+#else
+  (void)cu_major;
+  (void)cu_minor;
+  (void)kdm_major;
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   CHECK(this->cuMemGetAllocationGranularity);
 }
@@ -82,7 +93,7 @@ void CuDriverApi::ThrowIfError(CUresult status, StringView fn, std::int32_t line
 
 [[nodiscard]] CuDriverApi &GetGlobalCuDriverApi() {
   std::int32_t cu_major = -1, cu_minor = -1;
-  GetDrVersionGlobal(&cu_major, &cu_minor);
+  curt::GetDrVersionGlobal(&cu_major, &cu_minor);
 
   std::int32_t kdm_major = -1, kdm_minor = -1;
   if (!GetVersionFromSmiGlobal(&kdm_major, &kdm_minor)) {
@@ -158,15 +169,15 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   if (smi_ver.size() != 2 && smi_ver.size() != 3) {
     return Invalid();
   }
-  try {
-    *p_major = std::stoi(smi_ver[0]);
-    *p_minor = std::stoi(smi_ver[1]);
-    LOG(INFO) << "Driver version: `" << *p_major << "." << *p_minor << "`";
-    return true;
-  } catch (std::exception const &) {
-  }
 
-  return Invalid();
+  auto [smajor, sminor] = std::tie(smi_ver[0], smi_ver[1]);
+  auto ret0 = std::from_chars(smajor.data(), smajor.data() + smajor.size(), *p_major);
+  auto ret1 = std::from_chars(sminor.data(), sminor.data() + sminor.size(), *p_minor);
+  if (ret0.ec != std::errc{} || ret1.ec != std::errc{}) {
+    return Invalid();
+  }
+  LOG(INFO) << "Driver version: `" << *p_major << "." << *p_minor << "`";
+  return true;
 }
 
 [[nodiscard]] bool GetVersionFromSmiGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
@@ -178,14 +189,6 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   *p_major = major;
   *p_minor = minor;
   return result;
-}
-
-void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
-  static std::once_flag once;
-  static std::int32_t major{0}, minor{0};
-  std::call_once(once, [] { xgboost::curt::DrVersion(&major, &minor); });
-  *p_major = major;
-  *p_minor = minor;
 }
 
 namespace detail {

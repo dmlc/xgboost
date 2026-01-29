@@ -113,7 +113,7 @@ inline Json MakeTrackerConfig(std::string host, std::int32_t n_workers,
 
 template <typename WorkerFn>
 void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn,
-                     std::chrono::seconds timeout = std::chrono::seconds{2}) {
+                     std::chrono::seconds timeout = std::chrono::seconds{3}) {
   std::string host;
   auto rc = GetHostAddress(&host);
   SafeColl(rc);

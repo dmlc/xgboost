@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file hist_util.cc
  */
 #include "hist_util.h"
@@ -10,6 +10,7 @@
 
 #include "../data/adapter.h"         // for SparsePageAdapterBatch
 #include "../data/gradient_index.h"  // for GHistIndexMatrix
+#include "io.h"                      // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "quantile.h"
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // for Context
@@ -27,6 +28,27 @@
 namespace xgboost::common {
 HistogramCuts::HistogramCuts() {
   cut_ptrs_.HostVector().emplace_back(0);
+}
+
+void HistogramCuts::Save(common::AlignedFileWriteStream *fo) const {
+  auto const &ptrs = this->Ptrs();
+  CHECK_LE(Span{ptrs}.size_bytes(), WriteVec(fo, ptrs));
+  auto const &vals = this->Values();
+  CHECK_LE(Span{vals}.size_bytes(), WriteVec(fo, vals));
+  auto const &mins = this->MinValues();
+  CHECK_LE(Span{mins}.size_bytes(), WriteVec(fo, mins));
+  CHECK_GE(fo->Write(has_categorical_), sizeof(has_categorical_));
+  CHECK_GE(fo->Write(max_cat_), sizeof(max_cat_));
+}
+
+[[nodiscard]] HistogramCuts *HistogramCuts::Load(common::AlignedResourceReadStream *fi) {
+  auto p_cuts = new HistogramCuts;
+  CHECK(ReadVec(fi, &p_cuts->cut_ptrs_.HostVector()));
+  CHECK(ReadVec(fi, &p_cuts->cut_values_.HostVector()));
+  CHECK(ReadVec(fi, &p_cuts->min_vals_.HostVector()));
+  CHECK(fi->Read(&p_cuts->has_categorical_));
+  CHECK(fi->Read(&p_cuts->max_cat_));
+  return p_cuts;
 }
 
 HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins, bool use_sorted,
@@ -346,18 +368,12 @@ void BuildHistDispatch(Span<GradientPair const> gpair, Span<bst_idx_t const> row
 
 template <bool any_missing>
 void BuildHist(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-               const GHistIndexMatrix &gmat, GHistRow hist, bool force_read_by_column) {
-  /* force_read_by_column is used for testing the columnwise building of histograms.
-   * default force_read_by_column = false
-   */
-  constexpr double kAdhocL2Size = 1024 * 1024 * 0.8;
-  const bool hist_fit_to_l2 = kAdhocL2Size > 2 * sizeof(float) * gmat.cut.Ptrs().back();
-  bool first_page = gmat.base_rowid == 0;
-  bool read_by_column = !hist_fit_to_l2 && !any_missing;
+               const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column) {
+  bool first_page = gmat.base_rowid == 0;;
   auto bin_type_size = gmat.index.GetBinTypeSize();
 
   GHistBuildingManager<any_missing>::DispatchAndExecute(
-      {first_page, read_by_column || force_read_by_column, bin_type_size}, [&](auto t) {
+      {first_page, read_by_column, bin_type_size}, [&](auto t) {
         using BuildingManager = decltype(t);
         BuildHistDispatch<BuildingManager>(gpair, row_indices, gmat, hist);
       });
@@ -365,9 +381,9 @@ void BuildHist(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices
 
 template void BuildHist<true>(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
                               const GHistIndexMatrix &gmat, GHistRow hist,
-                              bool force_read_by_column);
+                              bool read_by_column);
 
 template void BuildHist<false>(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
                                const GHistIndexMatrix &gmat, GHistRow hist,
-                               bool force_read_by_column);
+                               bool read_by_column);
 }  // namespace xgboost::common

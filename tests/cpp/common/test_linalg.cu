@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/equal.h>                       // for equal
@@ -7,15 +7,20 @@
 #include <thrust/sequence.h>                    // for sequence
 
 #include "../../../src/common/cuda_context.cuh"
-#include "../../../src/common/linalg_op.cuh"
+#include "../../../src/common/linalg_op.h"
+#include "../../../src/common/optional_weight.h"  // for MakeOptionalWeights
 #include "../helpers.h"
+#include "test_linalg.h"     // for TestLinalgDispatch
+#include "thrust/random.h"   // for default_random_engine
+#include "thrust/shuffle.h"  // for shuffle
 #include "xgboost/context.h"
 #include "xgboost/linalg.h"
 
 namespace xgboost::linalg {
 namespace {
 void TestElementWiseKernel() {
-  auto device = DeviceOrd::CUDA(0);
+  auto ctx = MakeCUDACtx(0);
+  auto device = ctx.Device();
   Tensor<float, 3> l{{2, 3, 4}, device};
   {
     /**
@@ -24,7 +29,7 @@ void TestElementWiseKernel() {
     // GPU view
     auto t = l.View(device).Slice(linalg::All(), 1, linalg::All());
     ASSERT_FALSE(t.CContiguous());
-    ElementWiseTransformDevice(t, [] __device__(size_t i, float) { return i; });
+    cuda_impl::TransformIdxKernel(&ctx, t, [] XGBOOST_DEVICE(std::size_t i, float) { return i; });
     // CPU view
     t = l.View(DeviceOrd::CPU()).Slice(linalg::All(), 1, linalg::All());
     std::size_t k = 0;
@@ -51,7 +56,7 @@ void TestElementWiseKernel() {
      * Contiguous
      */
     auto t = l.View(device);
-    ElementWiseTransformDevice(t, [] XGBOOST_DEVICE(size_t i, float) { return i; });
+    cuda_impl::TransformIdxKernel(&ctx, t, [] XGBOOST_DEVICE(size_t i, float) { return i; });
     ASSERT_TRUE(t.CContiguous());
     // CPU view
     t = l.View(DeviceOrd::CPU());
@@ -118,4 +123,38 @@ TEST(Linalg, GPUIter) {
 
   TestWriteAccess(cuctx, t);
 }
+
+TEST(Linalg, SmallHistogram) {
+  auto ctx = MakeCUDACtx(0);
+  // Generate random data with 4 bins and 32 elements for each bin.
+  std::size_t cnt = 32, n_bins = 4;
+  dh::device_vector<float> values(cnt * n_bins);
+  for (std::size_t i = 0; i < n_bins; ++i) {
+    thrust::fill_n(ctx.CUDACtx()->CTP(), values.begin() + i * cnt, cnt, i);
+  }
+  thrust::default_random_engine rng;
+  rng.seed(2025);
+  thrust::shuffle(ctx.CUDACtx()->CTP(), values.begin(), values.end(), rng);
+
+  linalg::MatrixView<float> indices =
+      linalg::MakeTensorView(&ctx, dh::ToSpan(values), values.size(), 1);
+  dh::CachingDeviceUVector<float> bins(n_bins);
+  HostDeviceVector<float> weights;
+  SmallHistogram(&ctx, indices, common::MakeOptionalWeights(ctx.Device(), weights),
+                 linalg::MakeTensorView(&ctx, dh::ToSpan(bins), bins.size()));
+
+  std::vector<float> h_bins(n_bins);
+  dh::safe_cuda(cudaMemcpyAsync(h_bins.data(), bins.data(), dh::ToSpan(bins).size_bytes(),
+                                cudaMemcpyDefault, ctx.CUDACtx()->Stream()));
+  for (std::size_t i = 0; i < n_bins; ++i) {
+    ASSERT_EQ(h_bins[i], cnt);
+  }
+}
+namespace {
+void TestGpuDispatch() {
+  auto ctx = MakeCUDACtx(0);
+  TestLinalgDispatch(&ctx, [] XGBOOST_DEVICE(double v) { return v + 1; });
+}
+}  // namespace
+TEST(Linalg, GpuDispatch) { TestGpuDispatch(); }
 }  // namespace xgboost::linalg

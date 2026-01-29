@@ -319,6 +319,7 @@ def test_quantile_objective(
     strategies.integers(2, 16),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
+@tm.timeout(45)
 def test_extmem_qdm(
     n_samples_per_batch: int, n_features: int, n_batches: int, n_bins: int
 ) -> None:

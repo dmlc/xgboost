@@ -84,11 +84,12 @@ OBJECTS= \
     $(PKGROOT)/src/data/iterative_dmatrix.o \
     $(PKGROOT)/src/predictor/predictor.o \
     $(PKGROOT)/src/predictor/cpu_predictor.o \
-    $(PKGROOT)/src/predictor/cpu_treeshap.o \
+    $(PKGROOT)/src/predictor/treeshap.o \
     $(PKGROOT)/src/tree/constraints.o \
     $(PKGROOT)/src/tree/param.o \
     $(PKGROOT)/src/tree/fit_stump.o \
     $(PKGROOT)/src/tree/tree_model.o \
+    $(PKGROOT)/src/tree/tree_view.o \
     $(PKGROOT)/src/tree/multi_target_tree_model.o \
     $(PKGROOT)/src/tree/tree_updater.o \
     $(PKGROOT)/src/tree/updater_approx.o \
@@ -117,6 +118,7 @@ OBJECTS= \
     $(PKGROOT)/src/collective/in_memory_handler.o \
     $(PKGROOT)/src/collective/loop.o \
     $(PKGROOT)/src/collective/socket.o \
+    $(PKGROOT)/src/common/cache_manager.o \
     $(PKGROOT)/src/common/charconv.o \
     $(PKGROOT)/src/common/column_matrix.o \
     $(PKGROOT)/src/common/common.o \
@@ -126,7 +128,9 @@ OBJECTS= \
     $(PKGROOT)/src/common/host_device_vector.o \
     $(PKGROOT)/src/common/io.o \
     $(PKGROOT)/src/common/json.o \
+    $(PKGROOT)/src/common/linalg_op.o \
     $(PKGROOT)/src/common/numeric.o \
+    $(PKGROOT)/src/common/optional_weight.o \
     $(PKGROOT)/src/common/pseudo_huber.o \
     $(PKGROOT)/src/common/quantile.o \
     $(PKGROOT)/src/common/random.o \
@@ -134,6 +138,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/survival_util.o \
     $(PKGROOT)/src/common/threading_utils.o \
     $(PKGROOT)/src/common/ranking_utils.o \
+    $(PKGROOT)/src/common/param_array.o \
     $(PKGROOT)/src/common/quantile_loss_utils.o \
     $(PKGROOT)/src/common/timer.o \
     $(PKGROOT)/src/common/version.o \

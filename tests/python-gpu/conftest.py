@@ -1,14 +1,16 @@
+from typing import Any, List
+
 import pytest
 
 from xgboost import testing as tm
 
 
-def has_rmm():
+def has_rmm() -> bool:
     return tm.no_rmm()["condition"]
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_rmm_pool(request, pytestconfig):
+def setup_rmm_pool(request: Any, pytestconfig: pytest.Config) -> None:
     tm.setup_rmm_pool(request, pytestconfig)
 
 
@@ -18,7 +20,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: List[pytest.Item]
+) -> None:
     if config.getoption("--use-rmm-pool"):
         blocklist = [
             "python-gpu/test_gpu_demos.py::test_dask_training",

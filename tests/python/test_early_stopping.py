@@ -35,7 +35,7 @@ class TestEarlyStopping:
         )
         clf3.fit(X_train, y_train, eval_set=[(X_test, y_test)])
         base_score = get_basescore(clf3)
-        assert 0.53 > base_score > 0.5
+        assert 0.53 > base_score[0] > 0.5
 
         clf3 = xgb.XGBClassifier(
             learning_rate=0.1,

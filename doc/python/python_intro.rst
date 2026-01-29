@@ -32,9 +32,9 @@ To verify your installation, run the following in Python:
 
 Data Interface
 --------------
-The XGBoost Python module is able to load data from many different types of data format including both CPU and GPU data structures. For a complete list of supported data types, please reference the :ref:`py-data`. For a detailed description of text input formats, please visit :doc:`/tutorials/input_format`.
+The XGBoost Python module is able to load data from many different types of data format including both CPU and GPU data structures. For a comprehensive list of supported data types, please reference the :doc:`/python/data_input`. For a detailed description of text input formats, please visit :doc:`/tutorials/input_format`.
 
-The input data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object. For the sklearn estimator interface, a :py:class:`DMatrix` or a :py:class:`QuantileDMatrix` is created depending on the chosen algorithm and the input, see the sklearn API reference for details. We will illustrate some of the basic input types with the ``DMatrix`` here.
+The input data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object. For the sklearn estimator interface, a :py:class:`DMatrix` or a :py:class:`QuantileDMatrix` is created depending on the chosen algorithm and the input, see the sklearn API reference for details. We will illustrate some of the basic input types using the ``DMatrix`` here.
 
 * To load a NumPy array into :py:class:`DMatrix <xgboost.DMatrix>`:
 
@@ -59,11 +59,12 @@ The input data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object. For 
     label = pandas.DataFrame(np.random.randint(2, size=4))
     dtrain = xgb.DMatrix(data, label=label)
 
-* Saving :py:class:`DMatrix <xgboost.DMatrix>` into a XGBoost binary file will make loading faster:
+* Saving :py:class:`DMatrix <xgboost.DMatrix>` into a XGBoost binary file:
 
   .. code-block:: python
 
-    dtrain = xgb.DMatrix('train.svm.txt?format=libsvm')
+    data = np.random.rand(5, 10)  # 5 entities, each contains 10 features
+    label = np.random.randint(2, size=5)  # binary target
     dtrain.save_binary('train.buffer')
 
 * Missing values can be replaced by a default value in the :py:class:`DMatrix <xgboost.DMatrix>` constructor:
@@ -78,116 +79,6 @@ The input data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object. For 
 
     w = np.random.rand(5, 1)
     dtrain = xgb.DMatrix(data, label=label, missing=np.NaN, weight=w)
-
-When performing ranking tasks, the number of weights should be equal
-to number of groups.
-
-* To load a LIBSVM text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
-
-  .. code-block:: python
-
-    dtrain = xgb.DMatrix('train.svm.txt?format=libsvm')
-    dtest = xgb.DMatrix('test.svm.buffer')
-
-  The parser in XGBoost has limited functionality. When using Python interface, it's
-  recommended to use sklearn ``load_svmlight_file`` or other similar utilites than
-  XGBoost's builtin parser.
-
-* To load a CSV file into :py:class:`DMatrix <xgboost.DMatrix>`:
-
-  .. code-block:: python
-
-    # label_column specifies the index of the column containing the true label
-    dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
-    dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
-
-  The parser in XGBoost has limited functionality. When using Python interface, it's
-  recommended to use pandas ``read_csv`` or other similar utilites than XGBoost's builtin
-  parser.
-
-.. _py-data:
-
-Supported data structures for various XGBoost functions
-=======================================================
-
-*******
-Markers
-*******
-
-- T: Supported.
-- F: Not supported.
-- NE: Invalid type for the use case. For instance, `pd.Series` can not be multi-target label.
-- NPA: Support with the help of numpy array.
-- AT: Support with the help of arrow table.
-- CPA: Support with the help of cupy array.
-- SciCSR: Support with the help of scripy sparse CSR. The conversion to scipy CSR may or may not be possible. Raise a type error if conversion fails.
-- FF: We can look forward to having its support in recent future if requested.
-- empty: To be filled in.
-
-************
-Table Header
-************
-- `X` means predictor matrix.
-- Meta info: label, weight, etc.
-- Multi Label: 2-dim label for multi-target.
-- Others: Anything else that we don't list here explicitly including formats like `lil`, `dia`, `bsr`. XGBoost will try to convert it into scipy csr.
-
-**************
-Support Matrix
-**************
-
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| Name                    | DMatrix X | QuantileDMatrix X | Sklearn X | Meta Info | Inplace prediction | Multi Label |
-+=========================+===========+===================+===========+===========+====================+=============+
-| numpy.ndarray           | T         | T                 | T         | T         | T                  | T           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| scipy.sparse.csr        | T         | T                 | T         | NE        | T                  | F           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| scipy.sparse.csc        | T         | F                 | T         | NE        | F                  | F           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| scipy.sparse.coo        | SciCSR    | F                 | SciCSR    | NE        | F                  | F           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| uri                     | T         | F                 | F         | F         | NE                 | F           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| list                    | NPA       | NPA               | NPA       | NPA       | NPA                | T           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| tuple                   | NPA       | NPA               | NPA       | NPA       | NPA                | T           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| pandas.DataFrame        | NPA       | NPA               | NPA       | NPA       | NPA                | NPA         |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| pandas.Series           | NPA       | NPA               | NPA       | NPA       | NPA                | NE          |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| cudf.DataFrame          | T         | T                 | T         | T         | T                  | T           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| cudf.Series             | T         | T                 | T         | T         | FF                 | NE          |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| cupy.ndarray            | T         | T                 | T         | T         | T                  | T           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| torch.Tensor            | T         | T                 | T         | T         | T                  | T           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| dlpack                  | CPA       | CPA               |           | CPA       | FF                 | FF          |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| modin.DataFrame         | NPA       | FF                | NPA       | NPA       | FF                 |             |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| modin.Series            | NPA       | FF                | NPA       | NPA       | FF                 |             |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| pyarrow.Table           | T         | T                 | T         | T         | T                  | T           |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| polars.DataFrame        | AT        | AT                | AT        | AT        | AT                 | AT          |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| polars.LazyFrame (WARN) | AT        | AT                | AT        | AT        | AT                 | AT          |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| polars.Series           | AT        | AT                | AT        | AT        | AT                 | NE          |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| _\_array\_\_            | NPA       | F                 | NPA       | NPA       | H                  |             |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| Others                  | SciCSR    | F                 |           | F         | F                  |             |
-+-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-
-The polars ``LazyFrame.collect`` supports many configurations, ranging from the choice of
-query engine to type coercion. XGBoost simply uses the default parameter. Please run
-``collect`` to obtain the ``DataFrame`` before passing it into XGBoost for finer control
-over the behaviour.
 
 Setting Parameters
 ------------------
@@ -227,11 +118,11 @@ Training a model requires a parameter list and data set.
   num_round = 10
   bst = xgb.train(param, dtrain, num_round, evallist)
 
-After training, the model can be saved.
+After training, the model can be saved into ``JSON`` or ``UBJSON``:
 
 .. code-block:: python
 
-  bst.save_model('0001.model')
+  bst.save_model('model.ubj')
 
 The model and its feature map can also be dumped to a text file.
 
@@ -247,10 +138,10 @@ A saved model can be loaded as follows:
 .. code-block:: python
 
   bst = xgb.Booster({'nthread': 4})  # init model
-  bst.load_model('model.bin')  # load model data
+  bst.load_model('model.ubj')  # load model data
 
-Methods including `update` and `boost` from `xgboost.Booster` are designed for
-internal usage only.  The wrapper function `xgboost.train` does some
+Methods including `update` and `boost` from :py:class:`xgboost.Booster` are designed for
+internal usage only.  The wrapper function :py:class:`xgboost.train` does some
 pre-configuration including setting up caches and some other parameters.
 
 Early Stopping

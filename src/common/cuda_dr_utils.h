@@ -16,7 +16,7 @@
 
 #include "xgboost/string_view.h"  // for StringView
 
-#if CUDART_VERSION >= 12080
+#if CUDART_VERSION >= 12080 && defined(__linux__)
 #define CUDA_HW_DECOM_AVAILABLE 1
 #endif
 
@@ -130,11 +130,6 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc);
  * @brief Cache the result from @ref GetVersionFromSmi in a global variable
  */
 [[nodiscard]] bool GetVersionFromSmiGlobal(std::int32_t *p_major, std::int32_t *p_minor);
-
-/**
- * @brief Cache the result from @ref DrVersion in a global variable
- */
-void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor);
 
 namespace detail {
 [[nodiscard]] std::int32_t GetC2cLinkCountFromSmiImpl(std::string const &smi_output);

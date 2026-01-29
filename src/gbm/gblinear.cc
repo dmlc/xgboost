@@ -13,8 +13,6 @@
 #include <string>
 #include <vector>
 
-#include "../common/common.h"
-#include "../common/cuda_rt_utils.h"  // for AllVisibleGPUs
 #include "../common/error_msg.h"      // NoCategorical, DeprecatedFunc
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
@@ -35,16 +33,6 @@ struct GBLinearTrainParam : public XGBoostParameter<GBLinearTrainParam> {
   std::string updater;
   float tolerance;
   size_t max_row_perbatch;
-
-  void CheckGPUSupport() {
-    auto n_gpus = curt::AllVisibleGPUs();
-    if (n_gpus == 0 && this->updater == "gpu_coord_descent") {
-      common::AssertGPUSupport();
-      this->UpdateAllowUnknown(Args{{"updater", "coord_descent"}});
-      LOG(WARNING) << "Loading configuration on a CPU only machine.   Changing "
-                      "updater to `coord_descent`.";
-    }
-  }
 
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
     DMLC_DECLARE_FIELD(updater)
@@ -104,13 +92,6 @@ class GBLinear : public GradientBooster {
 
   bool ModelFitted() const override { return BoostedRounds() != 0; }
 
-  void Load(dmlc::Stream* fi) override {
-    model_.Load(fi);
-  }
-  void Save(dmlc::Stream* fo) const override {
-    model_.Save(fo);
-  }
-
   void SaveModel(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String{"gblinear"};
@@ -128,7 +109,6 @@ class GBLinear : public GradientBooster {
   void LoadConfig(Json const& in) override {
     CHECK_EQ(get<String>(in["name"]), "gblinear");
     FromJson(in["gblinear_train_param"], &param_);
-    param_.CheckGPUSupport();
     updater_.reset(LinearUpdater::Create(param_.updater, ctx_));
     this->updater_->LoadConfig(in["updater"]);
   }
@@ -143,8 +123,13 @@ class GBLinear : public GradientBooster {
     this->updater_->SaveConfig(&j_updater);
   }
 
-  void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair, PredictionCacheEntry*,
+  void DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCacheEntry*,
                ObjFunction const*) override {
+    if (in_gpair->HasValueGrad()) {
+      LOG(FATAL)
+          << "Multi-target with reduced gradient is not implemented for the current booster.";
+    }
+
     monitor_.Start("DoBoost");
 
     CHECK(!p_fmat->Info().HasCategorical()) << error::NoCategorical("`gblinear`");
@@ -152,7 +137,7 @@ class GBLinear : public GradientBooster {
     this->LazySumWeights(p_fmat);
 
     if (!this->CheckConvergence()) {
-      updater_->Update(in_gpair, p_fmat, &model_, sum_instance_weight_);
+      updater_->Update(in_gpair->Grad(), p_fmat, &model_, sum_instance_weight_);
     }
     model_.num_boosted_rounds++;
     monitor_.Stop("DoBoost");
@@ -249,14 +234,6 @@ class GBLinear : public GradientBooster {
       for (bst_group_t g = 0; g < n_groups; ++g) {
         scores(i, g) = model_[i][g];
       }
-    }
-  }
-
-  [[nodiscard]] bool UseGPU() const override {
-    if (param_.updater == "gpu_coord_descent") {
-      return true;
-    } else {
-      return false;
     }
   }
 

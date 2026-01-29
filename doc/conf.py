@@ -84,7 +84,9 @@ def get_branch() -> str:
     elif branch.startswith("release_"):
         pass  # release branch, like: release_2.1.0
     elif branch == "stable":
-        branch = f"release_{xgboost.__version__}"
+        # Avoid patch release branch.
+        v = xgboost.__version__.split(".")
+        branch = f"release_{v[0]}.{v[1]}.0"
     elif is_id():
         # Likely PR branch
         branch = f"PR-{branch}"
@@ -124,10 +126,18 @@ def download_jvm_docs() -> None:
         """
         try:
             local_jvm_docs = os.environ.get("XGBOOST_JVM_DOCS", None)
+            url = f"{S3_BUCKET}/{branch}/{commit}/{branch}.tar.bz2"
             if local_jvm_docs is not None:
-                filename = os.path.expanduser(local_jvm_docs)
+                local_jvm_docs = os.path.expanduser(local_jvm_docs)
+
+            if local_jvm_docs is not None and os.path.exists(local_jvm_docs):
+                # Reuse an existing tarball.
+                filename = local_jvm_docs
+            elif local_jvm_docs is not None:
+                # Download to local_jvm_docs for future reuse.
+                filename, _ = urllib.request.urlretrieve(url, filename=local_jvm_docs)
+                print(f"Finished: {url} -> {filename}")
             else:
-                url = f"{S3_BUCKET}/{branch}/{commit}/{branch}.tar.bz2"
                 filename, _ = urllib.request.urlretrieve(url)
                 print(f"Finished: {url} -> {filename}")
             if not os.path.exists(TMP_DIR):
@@ -161,10 +171,17 @@ def download_r_docs() -> None:
     def try_fetch_r_doc(branch: str) -> bool:
         try:
             local_r_docs = os.environ.get("XGBOOST_R_DOCS", None)
+            url = f"{S3_BUCKET}/{branch}/{commit}/r-docs-{branch}.tar.bz2"
             if local_r_docs is not None:
-                filename = os.path.expanduser(local_r_docs)
+                local_r_docs = os.path.expanduser(local_r_docs)
+
+            if local_r_docs is not None and os.path.exists(local_r_docs):
+                # Reuse an existing tarball.
+                filename = local_r_docs
+            elif local_r_docs is not None:
+                filename, _ = urllib.request.urlretrieve(url, filename=local_r_docs)
+                print(f"Finished: {url} -> {filename}")
             else:
-                url = f"{S3_BUCKET}/{branch}/{commit}/r-docs-{branch}.tar.bz2"
                 filename, _ = urllib.request.urlretrieve(url)
                 print(f"Finished: {url} -> {filename}")
 
@@ -250,7 +267,6 @@ sphinx_gallery_conf = {
         "../demo/guide-python",
         "../demo/dask",
         "../demo/aft_survival",
-        "../demo/gpu_acceleration",
         "../demo/rmm_plugin",
     ],
     # path to where to save gallery generated output
@@ -258,7 +274,6 @@ sphinx_gallery_conf = {
         "python/examples",
         "python/dask-examples",
         "python/survival-examples",
-        "python/gpu-examples",
         "python/rmm-examples",
     ],
     "matplotlib_animations": True,

@@ -1,7 +1,8 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <thread>         // for thread
 #include <xgboost/base.h>  // for Args
 #include <xgboost/context.h>
 #include <xgboost/json.h>  // for FromJson, ToJson
@@ -79,20 +80,25 @@ TEST(Context, MGPUDeviceOrdinal) {
 
 TEST(Context, MGPUId) {
   Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  ctx.UpdateAllowUnknown(Args{{"device", "cuda"}});
   TestCUDA(ctx, 0);
 
   auto n_vis = curt::AllVisibleGPUs();
-  auto ord = n_vis - 1;
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", std::to_string(ord)}});
-  TestCUDA(ctx, ord);
-
-  auto device = "cuda:" + std::to_string(1001);
-  ctx.UpdateAllowUnknown(Args{{"device", device}});
-  ord = 1001 % n_vis;
-  TestCUDA(ctx, ord);
-
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "-1"}});
-  ASSERT_EQ(ctx.Device(), DeviceOrd::CPU());
+  // Use threads to avoid changing the global variable in tests.
+  auto t0 = std::thread{[n_vis] {
+    Context ctx;
+    auto ord = n_vis - 1;
+    ctx.UpdateAllowUnknown(Args{{"device", "cuda:" + std::to_string(ord)}});
+    TestCUDA(ctx, ord);
+  }};
+  auto t1 = std::thread{[n_vis] {
+    Context ctx;
+    auto device = "cuda:" + std::to_string(1001);
+    ctx.UpdateAllowUnknown(Args{{"device", device}});
+    auto ord = 1001 % n_vis;
+    TestCUDA(ctx, ord);
+  }};
+  t0.join();
+  t1.join();
 }
 }  // namespace xgboost

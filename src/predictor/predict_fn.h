@@ -8,48 +8,29 @@
 #include <vector>  // for vector
 
 #include "../common/categorical.h"  // for IsCat, Decision
-#include "../data/adapter.h"        // for COOTuple
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
 /** @brief Whether it should traverse to the left branch of a tree. */
-template <bool has_categorical>
-XGBOOST_DEVICE bool GetDecision(RegTree::Node const &node, bst_node_t nid, float fvalue,
+template <bool has_categorical, typename TreeView>
+XGBOOST_DEVICE bool GetDecision(TreeView const &tree, bst_node_t nid, float fvalue,
                                 RegTree::CategoricalSplitMatrix const &cats) {
   if (has_categorical && common::IsCat(cats.split_type, nid)) {
     auto node_categories = cats.categories.subspan(cats.node_ptr[nid].beg, cats.node_ptr[nid].size);
     return common::Decision(node_categories, fvalue);
   } else {
-    return fvalue < node.SplitCond();
+    return fvalue < tree.SplitCond(nid);
   }
 }
 
-template <bool has_missing, bool has_categorical>
-XGBOOST_DEVICE bst_node_t GetNextNode(const RegTree::Node &node, const bst_node_t nid, float fvalue,
+template <bool has_missing, bool has_categorical, typename TreeView>
+XGBOOST_DEVICE bst_node_t GetNextNode(TreeView const &tree, const bst_node_t nid, float fvalue,
                                       bool is_missing,
                                       RegTree::CategoricalSplitMatrix const &cats) {
   if (has_missing && is_missing) {
-    return node.DefaultChild();
+    return tree.DefaultChild(nid);
   } else {
-    return node.LeftChild() + !GetDecision<has_categorical>(node, nid, fvalue, cats);
-  }
-}
-
-template <bool has_missing, bool has_categorical>
-XGBOOST_DEVICE bst_node_t GetNextNodeMulti(MultiTargetTree const &tree, bst_node_t const nidx,
-                                           float fvalue, bool is_missing,
-                                           RegTree::CategoricalSplitMatrix const &cats) {
-  if (has_missing && is_missing) {
-    return tree.DefaultChild(nidx);
-  } else {
-    if (has_categorical && common::IsCat(cats.split_type, nidx)) {
-      auto node_categories =
-          cats.categories.subspan(cats.node_ptr[nidx].beg, cats.node_ptr[nidx].size);
-      return common::Decision(node_categories, fvalue) ? tree.LeftChild(nidx)
-                                                       : tree.RightChild(nidx);
-    } else {
-      return tree.LeftChild(nidx) + !(fvalue < tree.SplitCond(nidx));
-    }
+    return tree.LeftChild(nid) + !GetDecision<has_categorical>(tree, nid, fvalue, cats);
   }
 }
 
@@ -65,46 +46,5 @@ inline bst_tree_t GetTreeLimit(std::vector<std::unique_ptr<RegTree>> const &tree
   }
   return ntree_limit;
 }
-
-/**
- * @brief Accessor for obtaining re-coded categories.
- */
-struct CatAccessor {
-  enc::MappingView enc;
-
-  template <typename T, typename Fidx>
-  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx f_idx) const {
-    if (!enc.Empty() && !enc[f_idx].empty()) {
-      auto f_mapping = enc[f_idx];
-      auto cat_idx = common::AsCat(fvalue);
-      if (cat_idx >= 0 && cat_idx < common::AsCat(f_mapping.size())) {
-        fvalue = f_mapping.data()[cat_idx];
-      }
-    }
-    return fvalue;
-  }
-
-  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const {
-    return this->operator()(e.value, e.column_idx);
-  }
-
-  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const {
-    return this->operator()(e.fvalue, e.index);
-  }
-};
-
-/**
- * @brief No-op accessor used to handle numeric data.
- */
-struct NoOpAccessor {
-  XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const &) {}
-  NoOpAccessor() = default;
-  template <typename T, typename Fidx>
-  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx) const {
-    return fvalue;
-  }
-  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const { return e.value; }
-  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const { return e.fvalue; }
-};
 }  // namespace xgboost::predictor
 #endif  // XGBOOST_PREDICTOR_PREDICT_FN_H_

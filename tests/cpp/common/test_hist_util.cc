@@ -1,18 +1,21 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
+#include "test_hist_util.h"
+
 #include <gtest/gtest.h>
-#include <vector>
+#include <xgboost/data.h>                // for ExtMemConfig
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+
+#include <memory>      // for shared_ptr
 #include <string>
+#include <vector>
 
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/gradient_index.h"
 #include "../helpers.h"
-#include "test_hist_util.h"
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 void ParallelGHistBuilderReset() {
   constexpr size_t kBins = 10;
   constexpr size_t kNodes = 5;
@@ -258,8 +261,8 @@ TEST(HistUtil, DenseCutsExternalMemory) {
   int num_columns = 5;
   Context ctx;
   for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    dmlc::TemporaryDirectory tmpdir;
+    HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
+    common::TemporaryDirectory tmpdir;
     auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, tmpdir);
     for (auto num_bins : bin_sizes) {
       HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
@@ -405,5 +408,4 @@ TEST(HistUtil, SketchCategoricalFeatures) {
     return SketchOnDMatrix(&ctx, p_fmat, num_bins);
   });
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

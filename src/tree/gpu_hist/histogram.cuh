@@ -1,24 +1,46 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
-#ifndef HISTOGRAM_CUH_
-#define HISTOGRAM_CUH_
-#include <memory>  // for unique_ptr
+#pragma once
+
+#include <cstddef>  // for size_t
+#include <cstdint>  // for int32_t
+#include <memory>   // for unique_ptr
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for LaunchN
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "../../data/ellpack_page.cuh"      // for EllpackDeviceAccessor
-#include "expand_entry.cuh"                 // for GPUExpandEntry
 #include "feature_groups.cuh"               // for FeatureGroupsAccessor
-#include "quantiser.cuh"                    // for GradientQuantiser
 #include "xgboost/base.h"                   // for GradientPair, GradientPairInt64
 #include "xgboost/context.h"                // for Context
 #include "xgboost/span.h"                   // for Span
 
 namespace xgboost::tree {
+// Single-target shared memory policy
+[[nodiscard]] inline std::size_t DftStHistShmemBytes(std::int32_t device) {
+  auto optin = dh::MaxSharedMemoryOptin(device);
+  return std::min(optin, std::size_t{96} * 1024);
+}
+
+// Multi-target shared memory policy
+[[nodiscard]] inline std::size_t DftMtHistShmemBytes(std::int32_t device) {
+  auto max_shared_optin = dh::MaxSharedMemoryOptin(device);
+  auto max_shared = dh::MaxSharedMemory(device);
+  // Use larger shared memory if available.
+  //
+  // By default, max_shared is 48 kB for most GPUs. Optin size varies between archs, some
+  // have large optin size, like the H200. We expand the shared memory size for those
+  // large devices.
+  constexpr std::size_t kThreshold = 4;
+  if (max_shared_optin > max_shared * kThreshold) {
+    return 2 * max_shared;
+  }
+  return max_shared;
+}
+
 /**
- * \brief An atomicAdd designed for gradient pair with better performance.  For general
+ * @brief An atomicAdd designed for gradient pair with better performance.  For general
  *        int64_t atomicAdd, one can simply cast it to unsigned long long. Exposed for testing.
  */
 XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
@@ -59,7 +81,8 @@ class DeviceHistogramStorage {
   // overwritten when a new histogram is requested
   dh::device_vector<typename GradientSumT::ValueT> overflow_;
   std::map<int, size_t> overflow_nidx_map_;
-  int n_bins_;
+  // The total number of bins across all features and targets
+  bst_bin_t n_total_bins_;
   static constexpr std::size_t kNumItemsInGradientSum =
       sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT);
   static_assert(kNumItemsInGradientSum == 2, "Number of items in gradient type should be 2.");
@@ -68,7 +91,7 @@ class DeviceHistogramStorage {
   explicit DeviceHistogramStorage() { data_.reserve(cuda_impl::DftReserveSize()); }
 
   void Reset(Context const* ctx, bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
-    this->n_bins_ = n_total_bins;
+    this->n_total_bins_ = n_total_bins;
     auto d_data = data_.data().get();
     dh::LaunchN(data_.size(), ctx->CUDACtx()->Stream(),
                 [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
@@ -84,8 +107,8 @@ class DeviceHistogramStorage {
     return nidx_map_.find(nidx) != nidx_map_.cend() ||
            overflow_nidx_map_.find(nidx) != overflow_nidx_map_.cend();
   }
-  [[nodiscard]] int Bins() const { return n_bins_; }
-  [[nodiscard]] size_t HistogramSize() const { return n_bins_ * kNumItemsInGradientSum; }
+  [[nodiscard]] int Bins() const { return n_total_bins_; }
+  [[nodiscard]] size_t HistogramSize() const { return n_total_bins_ * kNumItemsInGradientSum; }
   dh::device_vector<typename GradientSumT::ValueT>& Data() { return data_; }
 
   void AllocateHistograms(Context const* ctx, std::vector<bst_node_t> const& new_nidxs) {
@@ -135,11 +158,11 @@ class DeviceHistogramStorage {
     if (nidx_map_.find(nidx) != nidx_map_.cend()) {
       // Fetch from normal cache
       auto ptr = data_.data().get() + nidx_map_.at(nidx);
-      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_bins_)};
+      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_total_bins_)};
     } else {
       // Fetch from overflow
       auto ptr = overflow_.data().get() + overflow_nidx_map_.at(nidx);
-      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_bins_)};
+      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_total_bins_)};
     }
   }
 };
@@ -154,16 +177,22 @@ class DeviceHistogramBuilder {
  public:
   explicit DeviceHistogramBuilder();
   ~DeviceHistogramBuilder();
-
-  void Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
-             FeatureGroupsAccessor const& feature_groups, bst_bin_t n_total_bins,
+  // TODO(jiamingy): use a type larger than bst_bin_t since we need to support multi-target.
+  void Reset(Context const* ctx, std::size_t max_cached_hist_nodes, bst_bin_t n_total_bins,
              bool force_global_memory);
-
-  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
+  // Build histogram for single target and single node.
+  void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
-                      common::Span<GradientPair const> gpair,
-                      common::Span<const std::uint32_t> ridx,
-                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
+                      common::Span<GradientPairInt64 const> gpair,
+                      common::Span<std::uint32_t const> ridx,
+                      common::Span<GradientPairInt64> histogram);
+  // Build histograms for multiple nodes and multiple targets
+  void BuildHistogram(Context const* ctx, EllpackAccessor const& matrix,
+                      FeatureGroupsAccessor const& feature_groups,
+                      linalg::MatrixView<GradientPairInt64 const> gpair,
+                      common::Span<common::Span<const std::uint32_t>> ridxs,
+                      common::Span<common::Span<GradientPairInt64>> hists,
+                      std::vector<std::size_t> const& h_sizes_csum);
 
   [[nodiscard]] auto GetNodeHistogram(bst_node_t nidx) { return hist_.GetNodeHistogram(nidx); }
 
@@ -171,11 +200,14 @@ class DeviceHistogramBuilder {
   void AllReduceHist(Context const* ctx, MetaInfo const& info, bst_node_t nidx,
                      std::size_t num_histograms);
 
+  [[nodiscard]] bool CanSubtract(bst_node_t nidx_parent, bst_node_t nidx_histogram) const {
+    return hist_.HistogramExists(nidx_parent) && hist_.HistogramExists(nidx_histogram);
+  }
   // Attempt to do subtraction trick
   // return true if succeeded
   [[nodiscard]] bool SubtractionTrick(Context const* ctx, bst_node_t nidx_parent,
                                       bst_node_t nidx_histogram, bst_node_t nidx_subtraction) {
-    if (!hist_.HistogramExists(nidx_histogram) || !hist_.HistogramExists(nidx_parent)) {
+    if (!this->CanSubtract(nidx_parent, nidx_histogram)) {
       return false;
     }
     auto d_node_hist_parent = hist_.GetNodeHistogram(nidx_parent);
@@ -188,7 +220,8 @@ class DeviceHistogramBuilder {
     return true;
   }
 
-  [[nodiscard]] auto SubtractHist(Context const* ctx, std::vector<GPUExpandEntry> const& candidates,
+  template <typename ExpandEntry>
+  [[nodiscard]] auto SubtractHist(Context const* ctx, std::vector<ExpandEntry> const& candidates,
                                   std::vector<bst_node_t> const& build_nidx,
                                   std::vector<bst_node_t> const& subtraction_nidx) {
     this->monitor_.Start(__func__);
@@ -196,7 +229,7 @@ class DeviceHistogramBuilder {
     for (std::size_t i = 0; i < subtraction_nidx.size(); i++) {
       auto build_hist_nidx = build_nidx.at(i);
       auto subtraction_trick_nidx = subtraction_nidx.at(i);
-      auto parent_nidx = candidates.at(i).nid;
+      auto parent_nidx = candidates.at(i).nidx;
 
       if (!this->SubtractionTrick(ctx, parent_nidx, build_hist_nidx, subtraction_trick_nidx)) {
         need_build.push_back(subtraction_trick_nidx);
@@ -222,4 +255,3 @@ class DeviceHistogramBuilder {
   }
 };
 }  // namespace xgboost::tree
-#endif  // HISTOGRAM_CUH_

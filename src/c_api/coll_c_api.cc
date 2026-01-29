@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include <chrono>       // for seconds
 #include <future>       // for future
@@ -105,7 +105,7 @@ void WaitImpl(TrackerHandleT *ptr, std::chrono::seconds timeout) {
 }  // namespace
 
 XGB_DLL int XGTrackerCreate(char const *config, TrackerHandle *handle) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD();
   xgboost_CHECK_C_ARG_PTR(config);
 
   Json jconfig = Json::Load(config);
@@ -133,7 +133,7 @@ XGB_DLL int XGTrackerCreate(char const *config, TrackerHandle *handle) {
 }
 
 XGB_DLL int XGTrackerWorkerArgs(TrackerHandle handle, char const **args) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD();
   auto *ptr = GetTrackerHandle(handle);
   auto &local = *CollAPIThreadLocalStore::Get();
   local.ret_str = Json::Dump(ptr->first->WorkerArgs());
@@ -143,7 +143,7 @@ XGB_DLL int XGTrackerWorkerArgs(TrackerHandle handle, char const **args) {
 }
 
 XGB_DLL int XGTrackerRun(TrackerHandle handle, char const *) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD();
   auto *ptr = GetTrackerHandle(handle);
   CHECK(!ptr->second.valid()) << "Tracker is already running.";
   ptr->second = ptr->first->Run();
@@ -151,7 +151,7 @@ XGB_DLL int XGTrackerRun(TrackerHandle handle, char const *) {
 }
 
 XGB_DLL int XGTrackerWaitFor(TrackerHandle handle, char const *config) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD();
   auto *ptr = GetTrackerHandle(handle);
   xgboost_CHECK_C_ARG_PTR(config);
   auto jconfig = Json::Load(StringView{config});
@@ -164,7 +164,7 @@ XGB_DLL int XGTrackerWaitFor(TrackerHandle handle, char const *config) {
 }
 
 XGB_DLL int XGTrackerFree(TrackerHandle handle) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD();
   using namespace std::chrono_literals;  // NOLINT
   auto *ptr = GetTrackerHandle(handle);
   ptr->first->Stop();

@@ -7,16 +7,22 @@ experiment.
 
 """
 
+from urllib.error import HTTPError
+
 import numpy as np
-from sklearn.datasets import fetch_california_housing
+from sklearn.datasets import fetch_california_housing, make_regression
 
 import xgboost as xgb
 
 
-def main():
+def main() -> None:
     n_rounds = 32
 
-    X, y = fetch_california_housing(return_X_y=True)
+    try:
+        X, y = fetch_california_housing(return_X_y=True)
+    except HTTPError:
+        # Use a synthetic dataset instead if we couldn't
+        X, y = make_regression(n_samples=20640, n_features=8, random_state=1234)
 
     # Train a model first
     X_train = X[: X.shape[0] // 2]
@@ -50,7 +56,7 @@ def main():
 
     # Refresh the model without changing the leaf value, but tree statistic including
     # cover and weight are refreshed.
-    refresh_result: xgb.callback.EvaluationMonitor.EvalsLog = {}
+    refresh_result = {}
     refreshed = xgb.train(
         {"process_type": "update", "updater": "refresh", "refresh_leaf": False},
         Xy_refresh,

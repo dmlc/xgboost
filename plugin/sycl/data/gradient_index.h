@@ -31,21 +31,9 @@ struct Index {
   Index& operator=(Index&& i) = delete;
   void SetBinTypeSize(BinTypeSize binTypeSize) {
     binTypeSize_ = binTypeSize;
-    switch (binTypeSize) {
-      case BinTypeSize::kUint8BinsTypeSize:
-        func_ = &GetValueFromUint8;
-        break;
-      case BinTypeSize::kUint16BinsTypeSize:
-        func_ = &GetValueFromUint16;
-        break;
-      case BinTypeSize::kUint32BinsTypeSize:
-        func_ = &GetValueFromUint32;
-        break;
-      default:
-        CHECK(binTypeSize == BinTypeSize::kUint8BinsTypeSize  ||
-              binTypeSize == BinTypeSize::kUint16BinsTypeSize ||
-              binTypeSize == BinTypeSize::kUint32BinsTypeSize);
-    }
+    CHECK(binTypeSize == BinTypeSize::kUint8BinsTypeSize  ||
+          binTypeSize == BinTypeSize::kUint16BinsTypeSize ||
+          binTypeSize == BinTypeSize::kUint32BinsTypeSize);
   }
   BinTypeSize GetBinTypeSize() const {
     return binTypeSize_;
@@ -65,8 +53,8 @@ struct Index {
     return data_.Size() / (binTypeSize_);
   }
 
-  void Resize(const size_t nBytesData) {
-    data_.Resize(qu_, nBytesData);
+  void Resize(::sycl::queue* qu, const size_t nBytesData) {
+    data_.Resize(qu, nBytesData);
   }
 
   uint8_t* begin() const {
@@ -77,28 +65,9 @@ struct Index {
     return data_.End();
   }
 
-  void setQueue(::sycl::queue* qu) {
-    qu_ = qu;
-  }
-
  private:
-  static uint32_t GetValueFromUint8(const uint8_t* t, size_t i) {
-    return reinterpret_cast<const uint8_t*>(t)[i];
-  }
-  static uint32_t GetValueFromUint16(const uint8_t* t, size_t i) {
-    return reinterpret_cast<const uint16_t*>(t)[i];
-  }
-  static uint32_t GetValueFromUint32(const uint8_t* t, size_t i) {
-    return reinterpret_cast<const uint32_t*>(t)[i];
-  }
-
-  using Func = uint32_t (*)(const uint8_t*, size_t);
-
   USMVector<uint8_t, MemoryType::on_device> data_;
   BinTypeSize binTypeSize_ {BinTypeSize::kUint8BinsTypeSize};
-  Func func_;
-
-  ::sycl::queue* qu_;
 };
 
 /*!
@@ -116,8 +85,8 @@ struct GHistIndexMatrix {
   USMVector<uint8_t, MemoryType::on_device> sort_buff;
   /*! \brief The corresponding cuts */
   xgboost::common::HistogramCuts cut;
-  DMatrix* p_fmat;
   size_t max_num_bins;
+  size_t min_num_bins;
   size_t nbins;
   size_t nfeatures;
   size_t row_stride;
@@ -127,11 +96,10 @@ struct GHistIndexMatrix {
             DMatrix *dmat, int max_num_bins);
 
   template <typename BinIdxType, bool isDense>
-  void SetIndexData(::sycl::queue* qu, BinIdxType* index_data,
-                    DMatrix *dmat,
-                    size_t nbins, size_t row_stride);
+  void SetIndexData(::sycl::queue* qu, Context const * ctx, BinIdxType* index_data,
+                    DMatrix *dmat);
 
-  void ResizeIndex(size_t n_index, bool isDense);
+  void ResizeIndex(::sycl::queue* qu, size_t n_index);
 
   inline void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.cut_ptrs_.Size() - 1;

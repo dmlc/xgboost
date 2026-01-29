@@ -14,6 +14,7 @@
 
 #include "../../src/common/hist_util.h"
 #include "../data/gradient_index.h"
+#include "../tree/hist_dispatcher.h"
 
 #include <sycl/sycl.hpp>
 
@@ -123,7 +124,7 @@ class ParallelGHistBuilder {
   }
 
   void Reset(size_t nblocks) {
-    hist_device_buffer_.Resize(qu_, nblocks * nbins_ * 2);
+    hist_device_buffer_.Resize(qu_, nblocks * nbins_);
   }
 
   GHistRowT& GetDeviceBuffer() {
@@ -161,6 +162,7 @@ class GHistBuilder {
                           GHistRowT<MemoryType::on_device>* HistCollection,
                           bool isDense,
                           GHistRowT<MemoryType::on_device>* hist_buffer,
+                          const DeviceProperties& device_prop,
                           ::sycl::event event,
                           bool force_atomic_use = false);
 

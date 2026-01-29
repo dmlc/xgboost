@@ -159,5 +159,6 @@ template <typename Fn>
   return fn();
 }
 
-void SafeColl(Result const& rc);
+void SafeColl(Result const& rc, char const* file = __builtin_FILE(),
+              std::int32_t line = __builtin_LINE());
 }  // namespace xgboost::collective

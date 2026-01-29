@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #pragma once
 #include <cstdint>      // for int8_t
@@ -21,4 +21,7 @@ common::Span<T> RestoreType(common::Span<U> data) {
   auto restored = common::Span{reinterpret_cast<T*>(data.data()), n_total_bytes / sizeof(T)};
   return restored;
 }
+
+template <typename T>
+using GetValueT = std::remove_cv_t<std::remove_reference_t<T>>;
 }  // namespace xgboost::common

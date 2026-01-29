@@ -64,3 +64,7 @@ class TestGPUBasicModels:
         )
         with pytest.raises(ValueError, match="ordinal 9999 is invalid"):
             cls2.fit(X, y)
+
+        clf = xgb.XGBClassifier(tree_method="hist", gpu_id=0)
+        with pytest.raises(ValueError, match="`gpu_id` has been removed"):
+            clf.fit(X, y)

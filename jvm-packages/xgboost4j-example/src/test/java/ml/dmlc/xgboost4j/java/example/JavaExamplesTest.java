@@ -35,8 +35,6 @@ public class JavaExamplesTest {
     CustomObjective.main(args);
     System.out.println("EarlyStopping");
     EarlyStopping.main(args);
-    System.out.println("ExternalMemory");
-    ExternalMemory.main(args);
     System.out.println("GeneralizedLinearModel");
     GeneralizedLinearModel.main(args);
     System.out.println("PredictFirstNtree");

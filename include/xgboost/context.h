@@ -163,14 +163,6 @@ struct Context : public XGBoostParameter<Context> {
   bool validate_parameters{false};
 
   /**
-   * @brief Configure the parameter `device'. Deprecated, will remove once `gpu_id` is
-   *        removed.
-   *
-   * @param require_gpu Whether GPU is explicitly required by the user through other
-   *                    configurations.
-   */
-  void ConfigureGpuId(bool require_gpu);
-  /**
    * @brief Returns the automatically chosen number of threads based on the `nthread`
    *        parameter and the system settting.
    */
@@ -206,6 +198,13 @@ struct Context : public XGBoostParameter<Context> {
    * @brief Get the current device and ordinal.
    */
   [[nodiscard]] DeviceOrd Device() const { return device_; }
+
+   /**
+   * @brief Get the current device and ordinal, if it supports fp64,
+            otherwise returns default CPU
+   */
+  [[nodiscard]] DeviceOrd DeviceFP64() const;
+
   /**
    * @brief Get the CUDA device ordinal. -1 if XGBoost is running on CPU.
    */

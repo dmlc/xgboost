@@ -7,7 +7,6 @@
 #include <dmlc/data.h>
 
 #include <algorithm>  // for transform, all_of
-#include <cmath>      // for isfinite
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint8_t
 #include <limits>     // for numeric_limits
@@ -16,11 +15,9 @@
 #include <variant>    // for variant
 #include <vector>     // for vector
 
-#include "../common/error_msg.h"  // for NoFloatCat
-#include "../common/math.h"       // for CheckNAN
-#include "../encoder/ordinal.h"   // for CatStrArrayView
-#include "../encoder/types.h"     // for TupToVarT
-#include "array_interface.h"      // for CategoricalIndexArgTypes
+#include "../data/cat_container.h"  // for CatAccessor
+#include "array_interface.h"        // for ArrayInterface
+#include "entry.h"                  // for COOTuple
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/logging.h"
@@ -73,34 +70,6 @@ namespace xgboost::data {
  * passing over the data. */
 constexpr size_t kAdapterUnknownSize = std::numeric_limits<size_t >::max();
 
-struct COOTuple {
-  COOTuple() = default;
-  XGBOOST_DEVICE COOTuple(bst_idx_t row_idx, bst_idx_t column_idx, float value)
-      : row_idx(row_idx), column_idx(column_idx), value(value) {}
-
-  bst_idx_t row_idx{0};
-  bst_idx_t column_idx{0};
-  float value{0};
-};
-
-struct IsValidFunctor {
-  float missing;
-
-  XGBOOST_DEVICE explicit IsValidFunctor(float missing) : missing(missing) {}
-
-  XGBOOST_DEVICE bool operator()(float value) const {
-    return !(common::CheckNAN(value) || value == missing);
-  }
-
-  XGBOOST_DEVICE bool operator()(const data::COOTuple& e) const {
-    return !(common::CheckNAN(e.value) || e.value == missing);
-  }
-
-  XGBOOST_DEVICE bool operator()(const Entry& e) const {
-    return !(common::CheckNAN(e.fvalue) || e.fvalue == missing);
-  }
-};
-
 namespace detail {
 
 /**
@@ -131,65 +100,7 @@ class NoMetaInfo {
   const uint64_t* Qid() const { return nullptr; }
   const float* BaseMargin() const { return nullptr; }
 };
-
 };  // namespace detail
-
-class CSRAdapterBatch : public detail::NoMetaInfo {
- public:
-  class Line {
-   public:
-    Line(bst_idx_t row_idx, bst_idx_t size, const unsigned* feature_idx, const float* values)
-        : row_idx_(row_idx), size_(size), feature_idx_(feature_idx), values_(values) {}
-
-    size_t Size() const { return size_; }
-    COOTuple GetElement(size_t idx) const {
-      return COOTuple{row_idx_, feature_idx_[idx], values_[idx]};
-    }
-
-   private:
-    bst_idx_t row_idx_;
-    bst_idx_t size_;
-    const unsigned* feature_idx_;
-    const float* values_;
-  };
-  CSRAdapterBatch(const size_t* row_ptr, const unsigned* feature_idx,
-                  const float* values, size_t num_rows, size_t, size_t)
-      : row_ptr_(row_ptr),
-        feature_idx_(feature_idx),
-        values_(values),
-        num_rows_(num_rows) {}
-  const Line GetLine(size_t idx) const {
-    size_t begin_offset = row_ptr_[idx];
-    size_t end_offset = row_ptr_[idx + 1];
-    return Line(idx, end_offset - begin_offset, &feature_idx_[begin_offset],
-                &values_[begin_offset]);
-  }
-  size_t Size() const { return num_rows_; }
-  static constexpr bool kIsRowMajor = true;
-
- private:
-  const size_t* row_ptr_;
-  const unsigned* feature_idx_;
-  const float* values_;
-  size_t num_rows_;
-};
-
-class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
- public:
-  CSRAdapter(const size_t* row_ptr, const unsigned* feature_idx, const float* values,
-             bst_idx_t num_rows, bst_idx_t num_elements, size_t num_features)
-      : batch_(row_ptr, feature_idx, values, num_rows, num_elements, num_features),
-        num_rows_(num_rows),
-        num_columns_(num_features) {}
-  const CSRAdapterBatch& Value() const override { return batch_; }
-  bst_idx_t NumRows() const { return num_rows_; }
-  bst_idx_t NumColumns() const { return num_columns_; }
-
- private:
-  CSRAdapterBatch batch_;
-  bst_idx_t num_rows_;
-  bst_idx_t num_columns_;
-};
 
 class DenseAdapterBatch : public detail::NoMetaInfo {
  public:
@@ -218,6 +129,8 @@ class DenseAdapterBatch : public detail::NoMetaInfo {
   const Line GetLine(size_t idx) const {
     return Line(values_ + idx * num_features_, num_features_, idx);
   }
+  [[nodiscard]] std::size_t NumRows() const { return num_rows_; }
+  [[nodiscard]] std::size_t NumCols() const { return num_features_; }
   static constexpr bool kIsRowMajor = true;
 
  private:
@@ -234,8 +147,8 @@ class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
         num_columns_(num_features) {}
   const DenseAdapterBatch& Value() const override { return batch_; }
 
-  size_t NumRows() const { return num_rows_; }
-  size_t NumColumns() const { return num_columns_; }
+  [[nodiscard]] std::size_t NumRows() const { return num_rows_; }
+  [[nodiscard]] std::size_t NumColumns() const { return num_columns_; }
 
  private:
   DenseAdapterBatch batch_;
@@ -340,15 +253,15 @@ class CSRArrayAdapterBatch : public detail::NoMetaInfo {
         n_features_{n_features} {
   }
 
-  size_t NumRows() const {
+  [[nodiscard]] std::size_t NumRows() const {
     size_t size = indptr_.Shape<0>();
     size = size == 0 ? 0 : size - 1;
     return size;
   }
-  size_t NumCols() const { return n_features_; }
-  size_t Size() const { return this->NumRows(); }
+  [[nodiscard]] std::size_t NumCols() const { return n_features_; }
+  [[nodiscard]] std::size_t Size() const { return this->NumRows(); }
 
-  Line const GetLine(size_t idx) const {
+  [[nodiscard]] Line const GetLine(size_t idx) const {
     auto begin_no_stride = TypedIndex<size_t, 1>{indptr_}(idx);
     auto end_no_stride = TypedIndex<size_t, 1>{indptr_}(idx + 1);
 
@@ -366,9 +279,7 @@ class CSRArrayAdapterBatch : public detail::NoMetaInfo {
 };
 
 /**
- * Adapter for CSR array on host, in Python that's `scipy.sparse.csr_matrix`.  This is
- * similar to `CSRAdapter`, but supports __array_interface__ instead of raw pointers.  An
- * advantage is this can handle various data type without making a copy.
+ * @brief Adapter for CSR array on host, in Python that's `scipy.sparse.csr_matrix`.
  */
 class CSRArrayAdapter : public detail::SingleBatchDataIter<CSRArrayAdapterBatch> {
  public:
@@ -379,15 +290,13 @@ class CSRArrayAdapter : public detail::SingleBatchDataIter<CSRArrayAdapterBatch>
                                   static_cast<bst_feature_t>(num_cols_)};
   }
 
-  CSRArrayAdapterBatch const& Value() const override {
-    return batch_;
-  }
-  size_t NumRows() const {
+  [[nodiscard]] CSRArrayAdapterBatch const& Value() const override { return batch_; }
+  [[nodiscard]] std::size_t NumRows() const {
     size_t size = indptr_.Shape<0>();
     size = size == 0 ? 0 : size - 1;
     return size;
   }
-  size_t NumColumns() const { return num_cols_; }
+  [[nodiscard]] std::size_t NumColumns() const { return num_cols_; }
 
  private:
   CSRArrayAdapterBatch batch_;
@@ -395,72 +304,6 @@ class CSRArrayAdapter : public detail::SingleBatchDataIter<CSRArrayAdapterBatch>
   ArrayInterface<1> indices_;
   ArrayInterface<1> values_;
   size_t num_cols_;
-};
-
-class CSCAdapterBatch : public detail::NoMetaInfo {
- public:
-  CSCAdapterBatch(const size_t* col_ptr, const unsigned* row_idx,
-                  const float* values, size_t num_features)
-      : col_ptr_(col_ptr),
-        row_idx_(row_idx),
-        values_(values),
-        num_features_(num_features) {}
-
- private:
-  class Line {
-   public:
-    Line(size_t col_idx, size_t size, const unsigned* row_idx,
-         const float* values)
-        : col_idx_(col_idx), size_(size), row_idx_(row_idx), values_(values) {}
-
-    size_t Size() const { return size_; }
-    COOTuple GetElement(size_t idx) const {
-      return COOTuple{row_idx_[idx], col_idx_, values_[idx]};
-    }
-
-   private:
-    size_t col_idx_;
-    size_t size_;
-    const unsigned* row_idx_;
-    const float* values_;
-  };
-
- public:
-  size_t Size() const { return num_features_; }
-  const Line GetLine(size_t idx) const {
-    size_t begin_offset = col_ptr_[idx];
-    size_t end_offset = col_ptr_[idx + 1];
-    return Line(idx, end_offset - begin_offset, &row_idx_[begin_offset],
-                &values_[begin_offset]);
-  }
-  static constexpr bool kIsRowMajor = false;
-
- private:
-  const size_t* col_ptr_;
-  const unsigned* row_idx_;
-  const float* values_;
-  size_t num_features_;
-};
-
-class CSCAdapter : public detail::SingleBatchDataIter<CSCAdapterBatch> {
- public:
-  CSCAdapter(const size_t* col_ptr, const unsigned* row_idx,
-             const float* values, size_t num_features, size_t num_rows)
-      : batch_(col_ptr, row_idx, values, num_features),
-        num_rows_(num_rows),
-        num_columns_(num_features) {}
-  const CSCAdapterBatch& Value() const override { return batch_; }
-
-  // JVM package sends 0 as unknown
-  size_t NumRows() const {
-    return num_rows_ == 0 ? kAdapterUnknownSize : num_rows_;
-  }
-  size_t NumColumns() const { return num_columns_; }
-
- private:
-  CSCAdapterBatch batch_;
-  size_t num_rows_;
-  size_t num_columns_;
 };
 
 class CSCArrayAdapterBatch : public detail::NoMetaInfo {
@@ -481,8 +324,8 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
           values_{std::move(values)},
           offset_{offset} {}
 
-    std::size_t Size() const { return values_.Shape<0>(); }
-    COOTuple GetElement(std::size_t idx) const {
+    [[nodiscard]] std::size_t Size() const { return values_.Shape<0>(); }
+    [[nodiscard]] COOTuple GetElement(std::size_t idx) const {
       return {TypedIndex<std::size_t, 1>{row_idx_}(offset_ + idx), column_idx_,
               values_(offset_ + idx)};
     }
@@ -495,8 +338,11 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
                        ArrayInterface<1> values)
       : indptr_{std::move(indptr)}, indices_{std::move(indices)}, values_{std::move(values)} {}
 
-  std::size_t Size() const { return indptr_.n - 1; }
-  Line GetLine(std::size_t idx) const {
+  [[nodiscard]] std::size_t Size() const noexcept(true) {
+    auto n = indptr_.n;
+    return (n == 0) ? n : (n - 1);
+  }
+  [[nodiscard]] Line GetLine(std::size_t idx) const {
     auto begin_no_stride = TypedIndex<std::size_t, 1>{indptr_}(idx);
     auto end_no_stride = TypedIndex<std::size_t, 1>{indptr_}(idx + 1);
 
@@ -513,7 +359,7 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
 };
 
 /**
- * \brief CSC adapter with support for array interface.
+ * @brief CSC adapter with support for array interface.
  */
 class CSCArrayAdapter : public detail::SingleBatchDataIter<CSCArrayAdapterBatch> {
   ArrayInterface<1> indptr_;
@@ -538,16 +384,21 @@ class CSCArrayAdapter : public detail::SingleBatchDataIter<CSCArrayAdapterBatch>
   [[nodiscard]] const CSCArrayAdapterBatch& Value() const override { return batch_; }
 };
 
-class ColumnarAdapterBatch : public detail::NoMetaInfo {
-  common::Span<ArrayInterface<1>> columns_;
+template <typename EncAccessor>
+class EncColumnarAdapterBatchImpl : public detail::NoMetaInfo {
+  using ArrayInf = std::add_const_t<ArrayInterface<1>>;
+
+  common::Span<ArrayInf> columns_;
+  EncAccessor acc_;
 
   class Line {
-    common::Span<ArrayInterface<1>> const& columns_;
+    common::Span<ArrayInf> const& columns_;
     std::size_t const ridx_;
+    EncAccessor const& acc_;
 
    public:
-    explicit Line(common::Span<ArrayInterface<1>> const& columns, std::size_t ridx)
-        : columns_{columns}, ridx_{ridx} {}
+    explicit Line(common::Span<ArrayInf> const& columns, EncAccessor const& acc, std::size_t ridx)
+        : columns_{columns}, ridx_{ridx}, acc_{acc} {}
     [[nodiscard]] std::size_t Size() const { return columns_.empty() ? 0 : columns_.size(); }
 
     [[nodiscard]] COOTuple GetElement(std::size_t fidx) const {
@@ -555,16 +406,17 @@ class ColumnarAdapterBatch : public detail::NoMetaInfo {
       float value = column.valid.Data() == nullptr || column.valid.Check(ridx_)
                         ? column(ridx_)
                         : std::numeric_limits<float>::quiet_NaN();
-      return {ridx_, fidx, value};
+      return {ridx_, fidx, acc_(value, fidx)};
     }
   };
 
  public:
-  ColumnarAdapterBatch() = default;
-  explicit ColumnarAdapterBatch(common::Span<ArrayInterface<1>> columns) : columns_{columns} {}
-  [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, ridx}; }
+  EncColumnarAdapterBatchImpl() = default;
+  explicit EncColumnarAdapterBatchImpl(common::Span<ArrayInf> columns, EncAccessor acc)
+      : columns_{columns}, acc_{std::move(acc)} {}
+  [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, this->acc_, ridx}; }
   [[nodiscard]] std::size_t Size() const {
-    return columns_.empty() ? 0 : columns_.front().Shape<0>();
+    return columns_.empty() ? 0 : columns_.front().template Shape<0>();
   }
   [[nodiscard]] std::size_t NumCols() const { return columns_.empty() ? 0 : columns_.size(); }
   [[nodiscard]] std::size_t NumRows() const { return this->Size(); }
@@ -572,92 +424,29 @@ class ColumnarAdapterBatch : public detail::NoMetaInfo {
   static constexpr bool kIsRowMajor = true;
 };
 
-/**
- * @brief Get string names and codes for categorical features.
- *
- * @return The number of categories for the current column.
- */
-template <bool allow_mask, typename CategoricalIndex>
-[[nodiscard]] std::size_t GetArrowDictionary(Json jcol,
-                                             std::vector<CategoricalIndex>* p_cat_columns,
-                                             std::vector<ArrayInterface<1, allow_mask>>* p_columns,
-                                             std::size_t* p_n_bytes, bst_idx_t* p_n_samples) {
-  auto& cat_columns = *p_cat_columns;
-  // arrow StringArray for name of categories
-  auto const& jnames = get<Object const>(jcol[0]);
-  // There are 3 buffers for a StringArray, validity mask, offset, and data. Mask
-  // and data are represented by a single masked array.
-  auto const& joffset = get<Object const>(jnames.at("offsets"));
-  auto offset = ArrayInterface<1>{joffset};
-  auto const& jstr = get<Object const>(jnames.at("values"));
-  auto strbuf = ArrayInterface<1>(jstr);
-  CHECK_EQ(strbuf.type, ArrayInterfaceHandler::kI1);
-
-  auto names = enc::CatStrArrayView{
-      common::Span{static_cast<std::int32_t const*>(offset.data), offset.Shape<0>()},
-      common::Span<std::int8_t const>{reinterpret_cast<std::int8_t const*>(strbuf.data), strbuf.n}};
-  cat_columns.emplace_back(names);
-
-  // arrow Integer array for encoded categories
-  auto const& jcodes = get<Object const>(jcol[1]);
-  auto codes = ArrayInterface<1>{jcodes};
-  p_columns->push_back(codes);
-
-  auto& n_bytes = *p_n_bytes;
-  n_bytes += codes.ElementSize() * codes.Shape<0>();
-  n_bytes += names.SizeBytes();
-
-  *p_n_samples = std::max(*p_n_samples, static_cast<bst_idx_t>(codes.Shape<0>()));
-  return names.size();
-}
-
-/**
- * @brief Get numeric names and codes for categorical features.
- *
- * @return The number of categories for the current column.
- */
-template <typename CategoricalIndex, bool allow_mask>
-[[nodiscard]] std::size_t GetArrowNumericIndex(
-    DeviceOrd device, Json jcol, std::vector<CategoricalIndex>* p_cat_columns,
-    std::vector<ArrayInterface<1, allow_mask>>* p_columns, std::size_t* p_n_bytes,
-    bst_idx_t* p_n_samples) {
-  auto const& first = get<Object const>(jcol[0]);
-  auto names = ArrayInterface<1>{first};
-  auto& n_bytes = *p_n_bytes;
-  DispatchDType(names, device, [&](auto t) {
-    using T = typename decltype(t)::value_type;
-    constexpr bool kKnownType = enc::MemberOf<std::remove_cv_t<T>, enc::CatPrimIndexTypes>::value;
-    CHECK(kKnownType) << "Unsupported categorical index type.";
-    if constexpr (std::is_floating_point_v<T>) {
-      LOG(FATAL) << error::NoFloatCat();
-    }
-    auto span = common::Span{t.Values().data(), t.Size()};
-    if constexpr (kKnownType) {
-      p_cat_columns->emplace_back(span);
-      n_bytes += span.size_bytes();
-    }
-  });
-  auto const& jcodes = get<Object const>(jcol[1]);
-  auto codes = ArrayInterface<1>{jcodes};
-  p_columns->push_back(codes);
-
-  n_bytes += codes.ElementSize() * codes.Shape<0>();
-  *p_n_samples = std::max(*p_n_samples, static_cast<bst_idx_t>(codes.Shape<0>()));
-
-  return names.n;
-}
+using ColumnarAdapterBatch = EncColumnarAdapterBatchImpl<NoOpAccessor>;
+using EncColumnarAdapterBatch = EncColumnarAdapterBatchImpl<CatAccessor>;
 
 /**
  * @brief Adapter for columnar format (arrow).
  *
- *   Supports for both numeric values and categorical values.
+ *   Supports both numeric values and categorical values.
+ *
+ * See @ref XGDMatrixCreateFromColumnar for notes
  */
 class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch> {
   std::vector<ArrayInterface<1>> columns_;
+  enc::HostColumnsView ref_cats_;
   std::vector<enc::HostCatIndexView> cats_;
   std::vector<std::int32_t> cat_segments_;
   ColumnarAdapterBatch batch_;
   std::size_t n_bytes_{0};
+
+  [[nodiscard]] static bool HasCatImpl(std::vector<enc::HostCatIndexView> const& cats) {
+    return !std::all_of(cats.cbegin(), cats.cend(), [](auto const& cats) {
+      return std::visit([](auto&& cats) { return cats.empty(); }, cats);
+    });
+  }
 
  public:
   /**
@@ -674,18 +463,31 @@ class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch>
     return 0;
   }
   [[nodiscard]] bst_idx_t NumColumns() const { return columns_.size(); }
-  [[nodiscard]] bool HasCategorical() const {
-    return !std::all_of(this->cats_.cbegin(), this->cats_.cend(), [](auto const& cats) {
-      return std::visit([](auto&& cats) { return cats.empty(); }, cats);
-    });
-  }
+
+  [[nodiscard]] bool HasCategorical() const { return HasCatImpl(this->cats_); }
+  [[nodiscard]] bool HasRefCategorical() const { return !this->ref_cats_.Empty(); }
+
   [[nodiscard]] std::size_t SizeBytes() const { return n_bytes_; }
 
   [[nodiscard]] enc::HostColumnsView Cats() const {
     return {this->cats_, this->cat_segments_,
             static_cast<std::int32_t>(this->cat_segments_.back())};
   }
+  [[nodiscard]] enc::HostColumnsView RefCats() const { return this->ref_cats_; }
+  [[nodiscard]] common::Span<ArrayInterface<1> const> Columns() const { return this->columns_; }
 };
+
+inline auto MakeEncColumnarBatch(Context const* ctx, ColumnarAdapter const* adapter) {
+  auto cats = std::make_unique<CatContainer>(adapter->RefCats(), true);
+  cats->Sort(ctx);
+  auto [acc, mapping] = cpu_impl::MakeCatAccessor(ctx, adapter->Cats(), cats.get());
+  return std::tuple{EncColumnarAdapterBatch{adapter->Columns(), acc}, std::move(mapping)};
+}
+
+inline auto MakeEncColumnarBatch(Context const* ctx,
+                                 std::shared_ptr<ColumnarAdapter> const& adapter) {
+  return MakeEncColumnarBatch(ctx, adapter.get());
+}
 
 class FileAdapterBatch {
  public:

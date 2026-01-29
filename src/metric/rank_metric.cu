@@ -38,7 +38,7 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
   predt.SetDevice(ctx->Device());
   auto d_rank_idx = p_cache->SortedIdx(ctx, predt.ConstDeviceSpan());
   auto topk = p_cache->Param().TopK();
-  auto d_weight = common::MakeOptionalWeights(ctx, info.weights_);
+  auto d_weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
 
   auto it = dh::MakeTransformIterator<double>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
@@ -62,11 +62,12 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
   thrust::fill_n(cuctx->CTP(), pre.data(), pre.size(), 0.0);
 
   std::size_t bytes;
-  cub::DeviceSegmentedReduce::Sum(nullptr, bytes, it, pre.data(), p_cache->Groups(), d_gptr.data(),
-                                  d_gptr.data() + 1, cuctx->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, bytes, it, pre.data(), p_cache->Groups(),
+                                                d_gptr.data(), d_gptr.data() + 1, cuctx->Stream()));
   dh::TemporaryArray<char> temp(bytes);
-  cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, it, pre.data(), p_cache->Groups(),
-                                  d_gptr.data(), d_gptr.data() + 1, cuctx->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, it, pre.data(),
+                                                p_cache->Groups(), d_gptr.data(), d_gptr.data() + 1,
+                                                cuctx->Stream()));
 
   auto w_it =
       dh::MakeTransformIterator<double>(thrust::make_counting_iterator(0ul),
@@ -85,7 +86,7 @@ PackedReduceResult NDCGScore(Context const *ctx, MetaInfo const &info,
   CHECK(p_cache);
 
   auto const &p = p_cache->Param();
-  auto d_weight = common::MakeOptionalWeights(ctx, info.weights_);
+  auto d_weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
   if (!d_weight.Empty()) {
     CHECK_EQ(d_weight.weights.size(), p_cache->Groups());
   }
@@ -166,16 +167,18 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
         });
 
     std::size_t bytes;
-    cub::DeviceSegmentedReduce::Sum(nullptr, bytes, val_it, map.data(), p_cache->Groups(),
-                                    d_group_ptr.data(), d_group_ptr.data() + 1, cuctx->Stream());
+    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, bytes, val_it, map.data(),
+                                                  p_cache->Groups(), d_group_ptr.data(),
+                                                  d_group_ptr.data() + 1, cuctx->Stream()));
     dh::TemporaryArray<char> temp(bytes);
-    cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, val_it, map.data(), p_cache->Groups(),
-                                    d_group_ptr.data(), d_group_ptr.data() + 1, cuctx->Stream());
+    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, val_it, map.data(),
+                                                  p_cache->Groups(), d_group_ptr.data(),
+                                                  d_group_ptr.data() + 1, cuctx->Stream()));
   }
 
   PackedReduceResult result{0.0, 0.0};
   {
-    auto d_weight = common::MakeOptionalWeights(ctx, info.weights_);
+    auto d_weight = common::MakeOptionalWeights(ctx->Device(), info.weights_);
     if (!d_weight.Empty()) {
       CHECK_EQ(d_weight.weights.size(), p_cache->Groups());
     }

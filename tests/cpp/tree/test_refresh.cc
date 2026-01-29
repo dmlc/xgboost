@@ -1,7 +1,8 @@
 /**
- * Copyright 2018-2023 by XGBoost Contributors
+ * Copyright 2018-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/gradient.h>  // for GradientContainer
 #include <xgboost/host_device_vector.h>
 #include <xgboost/task.h>  // for ObjInfo
 #include <xgboost/tree_updater.h>
@@ -19,9 +20,18 @@ TEST(Updater, Refresh) {
   bst_feature_t constexpr kCols = 16;
   Context ctx;
 
-  linalg::Matrix<GradientPair> gpair
-      {{ {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
-         {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} }, {8, 1}, ctx.Device()};
+  GradientContainer gpair;
+  gpair.gpair = linalg::Matrix<GradientPair>{{{0.23f, 0.24f},
+                                              {0.23f, 0.24f},
+                                              {0.23f, 0.24f},
+                                              {0.23f, 0.24f},
+                                              {0.27f, 0.29f},
+                                              {0.27f, 0.29f},
+                                              {0.27f, 0.29f},
+                                              {0.27f, 0.29f}},
+                                             {8, 1},
+                                             ctx.Device()};
+
   std::shared_ptr<DMatrix> p_dmat{
     RandomDataGenerator{kRows, kCols, 0.4f}.Seed(3).GenerateDMatrix()};
   std::vector<std::pair<std::string, std::string>> cfg{

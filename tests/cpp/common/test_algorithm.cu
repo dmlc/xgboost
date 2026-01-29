@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/copy.h>      // copy
@@ -13,8 +13,7 @@
 #include "../../../src/common/device_helpers.cuh"
 #include "../helpers.h"  // MakeCUDACtx
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 void TestSegmentedArgSort() {
   auto ctx = MakeCUDACtx(0);
 
@@ -41,8 +40,8 @@ void TestSegmentedArgSort() {
   thrust::copy(sorted_idx.begin(), sorted_idx.end(), h_sorted_index.begin());
 
   for (size_t i = 1; i < kGroups + 1; ++i) {
-    auto group_sorted_idx = common::Span<size_t>(h_sorted_index)
-                                .subspan(offset_ptr[i - 1], offset_ptr[i] - offset_ptr[i - 1]);
+    auto group_sorted_idx =
+        Span<size_t>(h_sorted_index).subspan(offset_ptr[i - 1], offset_ptr[i] - offset_ptr[i - 1]);
     ASSERT_TRUE(std::is_sorted(group_sorted_idx.begin(), group_sorted_idx.end(), std::greater<>{}));
     ASSERT_EQ(group_sorted_idx.back(), 0);
     for (auto j : group_sorted_idx) {
@@ -91,5 +90,26 @@ TEST(Algorithm, SegmentedSequence) {
   ASSERT_EQ(idx[3], 3);
   ASSERT_EQ(idx[15], 11);
 }
-}  // namespace common
-}  // namespace xgboost
+
+namespace {
+void TestAllOf(std::size_t n) {
+  auto ctx = MakeCUDACtx(0);
+  dh::device_vector<double> values(n);
+  dh::Iota(dh::ToSpan(values), ctx.CUDACtx()->Stream());
+  EXPECT_TRUE(AllOf(ctx.CUDACtx()->CTP(), values.cbegin(), values.cend(),
+                    [n] XGBOOST_DEVICE(double v) { return v < n; }));
+  if (n == 0) {
+    return;
+  }
+  EXPECT_FALSE(AllOf(ctx.CUDACtx()->CTP(), values.cbegin(), values.cend(),
+                     [n] XGBOOST_DEVICE(double v) { return v < n && v > 0; }));
+}
+}  // namespace
+
+TEST(Algorithm, AllOf) {
+  TestAllOf(0);
+  TestAllOf(1);
+  TestAllOf(2);
+  TestAllOf(4096);
+}
+}  // namespace xgboost::common

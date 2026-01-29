@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2024, XGBoost Contributors
+ * Copyright 2016-2025, XGBoost Contributors
  */
 #include <xgboost/data.h>
 
@@ -10,7 +10,7 @@
 #include "../../../src/data/adapter.h"         // ArrayAdapter
 #include "../../../src/data/simple_dmatrix.h"  // SimpleDMatrix
 #include "../collective/test_worker.h"         // for TestDistributedGlobal
-#include "../filesystem.h"                     // dmlc::TemporaryDirectory
+#include "../filesystem.h"                     // for TemporaryDirectory
 #include "../helpers.h"                        // RandomDataGenerator,CreateSimpleTestData
 #include "xgboost/base.h"
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
@@ -23,8 +23,8 @@ std::string UriSVM(std::string name) { return name + "?format=libsvm"; }
 }  // namespace
 
 TEST(SimpleDMatrix, MetaInfo) {
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  common::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.Str() + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file));
 
@@ -39,8 +39,8 @@ TEST(SimpleDMatrix, MetaInfo) {
 }
 
 TEST(SimpleDMatrix, RowAccess) {
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  common::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.Str() + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file), false);
 
@@ -63,8 +63,8 @@ TEST(SimpleDMatrix, RowAccess) {
 
 TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   Context ctx;
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  common::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.Str() + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file));
 
@@ -82,14 +82,17 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
 }
 
 TEST(SimpleDMatrix, Empty) {
-  std::vector<float> data{};
-  std::vector<unsigned> feature_idx = {};
-  std::vector<size_t> row_ptr = {};
+  HostDeviceVector<float> data{};
+  HostDeviceVector<unsigned> feature_idx{};
+  HostDeviceVector<size_t> row_ptr{};
 
-  data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(),
-                               0, 0, 0);
-  std::unique_ptr<data::SimpleDMatrix> dmat(new data::SimpleDMatrix(
-      &csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  auto j_data = Json::Dump(GetArrayInterface(&data, 0, 1));
+  auto j_feature_idx = Json::Dump(GetArrayInterface(&feature_idx, 0, 1));
+  auto j_row_ptr = Json::Dump(GetArrayInterface(&row_ptr, 0, 1));
+
+  data::CSRArrayAdapter csr_adapter(j_row_ptr, j_feature_idx, j_data, 0);
+  std::unique_ptr<data::SimpleDMatrix> dmat(
+      new data::SimpleDMatrix(&csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
   CHECK_EQ(dmat->Info().num_row_, 0);
   CHECK_EQ(dmat->Info().num_col_, 0);
@@ -98,8 +101,7 @@ TEST(SimpleDMatrix, Empty) {
   }
 
   data::DenseAdapter dense_adapter(nullptr, 0, 0);
-  dmat.reset( new data::SimpleDMatrix(&dense_adapter,
-                                      std::numeric_limits<float>::quiet_NaN(), 1) );
+  dmat.reset(new data::SimpleDMatrix(&dense_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
   CHECK_EQ(dmat->Info().num_row_, 0);
   CHECK_EQ(dmat->Info().num_col_, 0);
@@ -107,9 +109,8 @@ TEST(SimpleDMatrix, Empty) {
     CHECK_EQ(batch.Size(), 0);
   }
 
-  data::CSCAdapter csc_adapter(nullptr, nullptr, nullptr, 0, 0);
-  dmat.reset(new data::SimpleDMatrix(
-      &csc_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  data::CSCArrayAdapter csc_adapter(j_row_ptr, j_feature_idx, j_data, 0);
+  dmat.reset(new data::SimpleDMatrix(&csc_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
   CHECK_EQ(dmat->Info().num_row_, 0);
   CHECK_EQ(dmat->Info().num_col_, 0);
@@ -119,36 +120,40 @@ TEST(SimpleDMatrix, Empty) {
 }
 
 TEST(SimpleDMatrix, MissingData) {
-  std::vector<float> data{0.0, std::nanf(""), 1.0};
-  std::vector<unsigned> feature_idx = {0, 1, 0};
-  std::vector<size_t> row_ptr = {0, 2, 3};
+  HostDeviceVector<float> data{0.0, std::nanf(""), 1.0};
+  HostDeviceVector<unsigned> feature_idx = {0, 1, 0};
+  HostDeviceVector<size_t> row_ptr = {0, 2, 3};
 
-  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           3, 2);
-  std::unique_ptr<data::SimpleDMatrix> dmat{new data::SimpleDMatrix{
-      &adapter, std::numeric_limits<float>::quiet_NaN(), 1}};
+  auto j_data = Json::Dump(GetArrayInterface(&data, 3, 1));
+  auto j_feature_idx = Json::Dump(GetArrayInterface(&feature_idx, 3, 1));
+  auto j_row_ptr = Json::Dump(GetArrayInterface(&row_ptr, 3, 1));
+
+  data::CSRArrayAdapter adapter{j_row_ptr, j_feature_idx, j_data, 2ul};
+  std::unique_ptr<data::SimpleDMatrix> dmat{
+      new data::SimpleDMatrix{&adapter, std::numeric_limits<float>::quiet_NaN(), 1}};
   CHECK_EQ(dmat->Info().num_nonzero_, 2);
   dmat.reset(new data::SimpleDMatrix(&adapter, 1.0, 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 1);
 
   {
-    data[1] = std::numeric_limits<float>::infinity();
-    data::DenseAdapter adapter(data.data(), data.size(), 1);
-    EXPECT_THROW(data::SimpleDMatrix dmat(
-                     &adapter, std::numeric_limits<float>::quiet_NaN(), -1),
+    data.HostVector()[1] = std::numeric_limits<float>::infinity();
+    data::DenseAdapter adapter(data.ConstHostPointer(), data.Size(), 1);
+    EXPECT_THROW(data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1),
                  dmlc::Error);
   }
 }
 
 TEST(SimpleDMatrix, EmptyRow) {
-  std::vector<float> data{0.0, 1.0};
-  std::vector<unsigned> feature_idx = {0, 1};
-  std::vector<size_t> row_ptr = {0, 2, 2};
+  HostDeviceVector<float> data{0.0, 1.0};
+  HostDeviceVector<unsigned> feature_idx{0, 1};
+  HostDeviceVector<size_t> row_ptr{0, 2, 2};
 
-  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           2, 2);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
+  auto j_data = Json::Dump(GetArrayInterface(&data, 2, 1));
+  auto j_feature_idx = Json::Dump(GetArrayInterface(&feature_idx, 2, 1));
+  auto j_row_ptr = Json::Dump(GetArrayInterface(&row_ptr, 3, 1));
+
+  data::CSRArrayAdapter adapter{j_row_ptr, j_feature_idx, j_data, 2};
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 2);
   CHECK_EQ(dmat.Info().num_row_, 2);
   CHECK_EQ(dmat.Info().num_col_, 2);
@@ -178,12 +183,16 @@ TEST(SimpleDMatrix, FromDense) {
 }
 
 TEST(SimpleDMatrix, FromCSC) {
-  std::vector<float> data = {1, 3, 2, 4, 5};
-  std::vector<unsigned> row_idx = {0, 1, 0, 1, 2};
-  std::vector<size_t> col_ptr = {0, 2, 5};
-  data::CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 2, 3);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           -1);
+  HostDeviceVector<float> data{1, 3, 2, 4, 5};
+  HostDeviceVector<unsigned> row_idx{0, 1, 0, 1, 2};
+  HostDeviceVector<size_t> col_ptr{0, 2, 5};
+
+  auto j_data = Json::Dump(GetArrayInterface(&data, data.Size(), 1));
+  auto j_row_idx = Json::Dump(GetArrayInterface(&row_idx, row_idx.Size(), 1));
+  auto j_col_ptr = Json::Dump(GetArrayInterface(&col_ptr, col_ptr.Size(), 1));
+
+  data::CSCArrayAdapter adapter{j_col_ptr, j_row_idx, j_data, 3};
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1);
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);
   EXPECT_EQ(dmat.Info().num_nonzero_, 5);
@@ -208,8 +217,8 @@ TEST(SimpleDMatrix, FromCSC) {
 }
 
 TEST(SimpleDMatrix, FromFile) {
-  dmlc::TemporaryDirectory tempdir;
-  std::string filename = tempdir.path + "test.libsvm";
+  common::TemporaryDirectory tempdir;
+  std::string filename = tempdir.Str() + "/test.libsvm";
   CreateBigTestData(filename, 3 * 5);
   // Add an empty row at the end of the matrix
   {
@@ -390,13 +399,13 @@ TEST(SimpleDMatrix, SliceCol) {
 }
 
 TEST(SimpleDMatrix, SaveLoadBinary) {
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  common::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.Str() + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(UriSVM(tmp_file));
   data::SimpleDMatrix *simple_dmat = dynamic_cast<data::SimpleDMatrix*>(dmat);
 
-  const std::string tmp_binfile = tempdir.path + "/csr_source.binary";
+  const std::string tmp_binfile = tempdir.Str() + "/csr_source.binary";
   simple_dmat->SaveToLocalFile(tmp_binfile);
   xgboost::DMatrix * dmat_read = xgboost::DMatrix::Load(tmp_binfile);
 

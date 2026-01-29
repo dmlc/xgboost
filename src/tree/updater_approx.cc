@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost contributors
+ * Copyright 2021-2025, XGBoost contributors
  *
  * \brief Implementation for the approx tree method.
  */
@@ -21,13 +21,14 @@
 #include "driver.h"                          // for Driver
 #include "hist/evaluate_splits.h"            // for HistEvaluator, UpdatePredictionCacheImpl
 #include "hist/expand_entry.h"               // for CPUExpandEntry
-#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
+#include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for GradStats, TrainParam
 #include "xgboost/base.h"                    // for Args, GradientPair, bst_node_t, bst_bin_t
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/data.h"                    // for DMatrix, BatchSet, BatchIterator, MetaInfo
+#include "xgboost/gradient.h"                // for GradientContainer
 #include "xgboost/host_device_vector.h"      // for HostDeviceVector
 #include "xgboost/json.h"                    // for Object, Json, FromJson, ToJson, get
 #include "xgboost/linalg.h"                  // for Matrix, MakeTensorView, Empty, MatrixView
@@ -112,7 +113,7 @@ class GlobalApproxBuilder {
     collective::SafeColl(rc);
 
     std::vector<CPUExpandEntry> nodes{best};
-    this->histogram_builder_.BuildRootHist(p_fmat, p_tree, partitioner_,
+    this->histogram_builder_.BuildRootHist(p_fmat, p_tree->HostScView(), partitioner_,
                                            linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1),
                                            best, BatchSpec(*param_, hess));
 
@@ -129,12 +130,14 @@ class GlobalApproxBuilder {
     return nodes.front();
   }
 
-  void UpdatePredictionCache(DMatrix const *data, linalg::MatrixView<float> out_preds) const {
+  void UpdatePredictionCache(DMatrix const *p_fmat, common::Span<bst_node_t const> node_position,
+                             linalg::MatrixView<float> out_preds) const {
     monitor_->Start(__func__);
     // Caching prediction seems redundant for approx tree method, as sketching takes up
     // majority of training time.
-    CHECK_EQ(out_preds.Size(), data->Info().num_row_);
-    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
+    CHECK_EQ(out_preds.Size(), p_fmat->Info().num_row_);
+    CHECK_EQ(node_position.size(), p_fmat->Info().num_row_);
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, node_position, out_preds);
     monitor_->Stop(__func__);
   }
 
@@ -143,7 +146,7 @@ class GlobalApproxBuilder {
                       std::vector<GradientPair> const &gpair, common::Span<float> hess) {
     monitor_->Start(__func__);
     this->histogram_builder_.BuildHistLeftRight(
-        ctx_, p_fmat, p_tree, partitioner_, valid_candidates,
+        ctx_, p_fmat, p_tree->HostScView(), partitioner_, valid_candidates,
         linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1), BatchSpec(*param_, hess));
     monitor_->Stop(__func__);
   }
@@ -151,12 +154,9 @@ class GlobalApproxBuilder {
   void LeafPartition(RegTree const &tree, common::Span<float const> hess,
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
-    if (!task_->UpdateTreeLeaf()) {
-      return;
-    }
     p_out_position->resize(hess.size());
     for (auto const &part : partitioner_) {
-      part.LeafPartition(ctx_, tree, hess,
+      part.LeafPartition(ctx_, tree.HostScView(), hess,
                          common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);
@@ -212,7 +212,7 @@ class GlobalApproxBuilder {
       size_t page_id = 0;
       for (auto const &page :
            p_fmat->GetBatches<GHistIndexMatrix>(ctx_, BatchSpec(*param_, hess))) {
-        partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree);
+        partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree->HostScView());
         page_id++;
       }
       monitor_->Stop("UpdatePosition");
@@ -278,13 +278,12 @@ class GlobalApproxUpdater : public TreeUpdater {
     *sampled = linalg::Empty<GradientPair>(ctx_, gpair->Size(), 1);
     auto in = gpair->HostView().Values();
     std::copy(in.data(), in.data() + in.size(), sampled->HostView().Values().data());
-    error::NoPageConcat(this->hist_param_.extmem_single_page);
     SampleGradient(ctx_, param, sampled->HostView());
   }
 
   [[nodiscard]] char const *Name() const override { return "grow_histmaker"; }
 
-  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *m,
+  void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *m,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     CHECK(hist_param_.GetInitialised());
@@ -293,6 +292,7 @@ class GlobalApproxUpdater : public TreeUpdater {
     }
     pimpl_ = std::make_unique<GlobalApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
                                                    column_sampler_, task_, &monitor_);
+    auto gpair = in_gpair->FullGradOnly();
 
     linalg::Matrix<GradientPair> h_gpair;
     // Obtain the hessian values for weighted sketching
@@ -312,11 +312,16 @@ class GlobalApproxUpdater : public TreeUpdater {
     }
   }
 
-  bool UpdatePredictionCache(const DMatrix *data, linalg::MatrixView<float> out_preds) override {
-    if (data != cached_ || !pimpl_) {
+  bool UpdatePredictionCache(DMatrix const *p_fmat,
+                             common::Span<HostDeviceVector<bst_node_t>> out_position,
+                             linalg::MatrixView<float> out_preds) override {
+    if (p_fmat != cached_ || !pimpl_) {
       return false;
     }
-    this->pimpl_->UpdatePredictionCache(data, out_preds);
+    if (out_position.size() > 1) {
+      return false;
+    }
+    this->pimpl_->UpdatePredictionCache(p_fmat, out_position.front().ConstHostSpan(), out_preds);
     return true;
   }
 

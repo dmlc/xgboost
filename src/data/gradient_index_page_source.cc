@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #include "gradient_index_page_source.h"
 
@@ -8,6 +8,7 @@
 
 #include "../common/hist_util.h"  // for HistogramCuts
 #include "gradient_index.h"       // for GHistIndexMatrix
+#include "proxy_dmatrix.h"        // for DispatchAny
 
 namespace xgboost::data {
 void GradientIndexPageSource::Fetch() {
@@ -33,7 +34,7 @@ void ExtGradientIndexPageSource::Fetch() {
   if (!this->ReadCache()) {
     CHECK_EQ(count_, source_->Iter());
     CHECK_NE(cuts_.Values().size(), 0);
-    HostAdapterDispatch(proxy_, [this](auto const& value) {
+    cpu_impl::DispatchAny(proxy_, [this](auto const& value) {
       CHECK(this->proxy_->Ctx()->IsCPU()) << "All batches must use the same device type.";
       auto h_feature_types = proxy_->Info().feature_types.ConstHostSpan();
       // This does three things:

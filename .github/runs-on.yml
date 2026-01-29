@@ -22,20 +22,30 @@ runners:
     cpu: 16
     family: ["c7i-flex", "c7i", "c7a", "c5", "c5a"]
     image: linux-amd64
+    spot: "false"
   linux-amd64-gpu:
     family: ["g4dn.xlarge"]
     image: linux-amd64
+    spot: "false"
   linux-amd64-mgpu:
     family: ["g4dn.12xlarge"]
     image: linux-amd64
+    spot: "false"
   linux-arm64-cpu:
     cpu: 16
     family: ["c6g", "c7g"]
     image: linux-arm64
+    spot: "false"
+  linux-arm64-gpu:
+    family: ["g5g.xlarge"]
+    image: linux-arm64
+    spot: "false"
   windows-gpu:
     family: ["g4dn.2xlarge"]
     image: windows-amd64
+    spot: "false"
   windows-cpu:
     cpu: 32
     family: ["c7i-flex", "c7i", "c7a", "c5", "c5a"]
     image: windows-amd64
+    spot: "false"

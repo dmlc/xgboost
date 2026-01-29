@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost contributors
+ * Copyright 2021-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
@@ -19,8 +19,8 @@ TEST(GHistIndexPageRawFormat, IO) {
   Context ctx;
 
   auto m = RandomDataGenerator{100, 14, 0.5}.GenerateDMatrix();
-  dmlc::TemporaryDirectory tmpdir;
-  std::string path = tmpdir.path + "/ghistindex.page";
+  common::TemporaryDirectory tmpdir;
+  std::string path = tmpdir.Str() + "/ghistindex.page";
   auto batch = BatchParam{256, 0.5};
 
   common::HistogramCuts cuts;

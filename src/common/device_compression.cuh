@@ -9,12 +9,16 @@
 #include "compressed_iterator.h"    // for CompressedByteT
 #include "cuda_dr_utils.h"          // for CUDA_HW_DECOM_AVAILABLE
 #include "cuda_pinned_allocator.h"  // for HostPinnedMemPool
+#include "cuda_stream.h"            // for StreamRef
 #include "device_compression.h"     // for CuMemParams
 #include "device_vector.cuh"        // for DeviceUVector
 #include "ref_resource_view.h"      // for RefResourceView
 #include "xgboost/span.h"           // for Span
 
 namespace xgboost::dc {
+
+using HostPinnedMemPool = common::cuda_impl::HostPinnedMemPool;
+
 /**
  * @brief Use nvcomp to compress the data.
  *
@@ -37,26 +41,29 @@ namespace xgboost::dc {
  * @param allow_fallback Allow fallback to nvcomp implementation if hardware accelerated
  *   implementation is not available. Used for testing.
  */
-void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
+void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
                       common::Span<common::CompressedByteT> out, bool allow_fallback);
 
 /**
  * @brief Coalesce the compressed chunks into a contiguous host pinned buffer.
  *
  * @param stream CUDA stream.
+ * @param pool Pinned memory pool for storing the results.
  * @param in_params Params from @ref CompressSnappy, specifies the chunks.
  * @param in_buf The buffer storing compressed chunks.
  * @param p_out Re-newed parameters to keep track of the buffers.
  */
 [[nodiscard]] common::RefResourceView<std::uint8_t> CoalesceCompressedBuffersToHost(
-    dh::CUDAStreamView stream, CuMemParams const& in_params,
-    dh::DeviceUVector<std::uint8_t> const& in_buf, CuMemParams* p_out);
+    curt::StreamRef stream, std::shared_ptr<HostPinnedMemPool> pool,
+    CuMemParams const& in_params, dh::DeviceUVector<std::uint8_t> const& in_buf,
+    CuMemParams* p_out);
 
 // We store decompression parameters in struct of vectors. This is due to nvcomp works
 // with this format. But the CUDA driver works with vector of structs. We can optimize
 // toward the driver decompression function if the overhead is significant (too many
 // chunks).
 struct SnappyDecomprMgrImpl {
+  std::size_t n_dst_bytes{0};
   // src of the CUmemDecompressParams
   dh::device_vector<void const*> d_in_chunk_ptrs;
   // srcNumBytes of the CUmemDecompressParams
@@ -81,8 +88,7 @@ struct SnappyDecomprMgrImpl {
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   }
 
-  SnappyDecomprMgrImpl(dh::CUDAStreamView s,
-                       std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool,
+  SnappyDecomprMgrImpl(curt::StreamRef s, std::shared_ptr<HostPinnedMemPool> pool,
                        CuMemParams params, common::Span<std::uint8_t const> in_compressed_data);
 
 #if defined(CUDA_HW_DECOM_AVAILABLE) && defined(XGBOOST_USE_NVCOMP)
@@ -95,14 +101,24 @@ struct SnappyDecomprMgrImpl {
   SnappyDecomprMgrImpl(SnappyDecomprMgrImpl&& that) = default;
   SnappyDecomprMgrImpl& operator=(SnappyDecomprMgrImpl const&) = delete;
   SnappyDecomprMgrImpl& operator=(SnappyDecomprMgrImpl&&) = default;
+
+  [[nodiscard]] bool Empty() const;
 };
 
-inline auto MakeSnappyDecomprMgr(dh::CUDAStreamView s,
-                                 std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool,
-                                 CuMemParams params,
-                                 common::Span<std::uint8_t const> in_compressed_data) {
+#if defined(XGBOOST_USE_NVCOMP)
+[[nodiscard]] inline auto MakeSnappyDecomprMgr(
+    curt::StreamRef s, std::shared_ptr<HostPinnedMemPool> pool, CuMemParams params,
+    common::Span<std::uint8_t const> in_compressed_data) {
   SnappyDecomprMgr mgr;
   *mgr.Impl() = SnappyDecomprMgrImpl{s, std::move(pool), std::move(params), in_compressed_data};
   return mgr;
 }
+#else
+[[nodiscard]] inline auto MakeSnappyDecomprMgr(curt::StreamRef,
+                                               std::shared_ptr<HostPinnedMemPool>, CuMemParams,
+                                               common::Span<std::uint8_t const>) {
+  SnappyDecomprMgr mgr;
+  return mgr;
+}
+#endif  // defined(XGBOOST_USE_NVCOMP)
 }  // namespace xgboost::dc

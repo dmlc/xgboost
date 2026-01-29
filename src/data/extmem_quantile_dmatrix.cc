@@ -49,6 +49,8 @@ ExtMemQuantileDMatrix::ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrix
   }
   this->batch_ = p;
   this->fmat_ctx_ = ctx;
+
+  SyncCategories(&ctx, info_.Cats(), info_.num_row_ == 0);
 }
 
 ExtMemQuantileDMatrix::~ExtMemQuantileDMatrix() {
@@ -77,7 +79,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
 
   common::HistogramCuts cuts;
   ExternalDataInfo ext_info;
-  cpu_impl::GetDataShape(ctx, proxy, *iter, missing, &ext_info);
+  cpu_impl::GetDataShape(ctx, proxy, iter.get(), missing, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
 
   this->n_batches_ = ext_info.n_batches;

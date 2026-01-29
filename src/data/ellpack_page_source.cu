@@ -8,21 +8,39 @@
 #include <numeric>    // for accumulate
 #include <utility>    // for move
 
-#include "../common/common.h"               // for HumanMemUnit, safe_cuda
-#include "../common/cuda_rt_utils.h"        // for SetDevice
-#include "../common/cuda_stream_pool.cuh"   // for StreamPool
-#include "../common/device_helpers.cuh"     // for CUDAStreamView, DefaultStream
-#include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
-#include "../common/resource.cuh"           // for PrivateCudaMmapConstStream
-#include "../common/transform_iterator.h"   // for MakeIndexTransformIter
-#include "batch_utils.h"                    // for HostRatioIsAuto
-#include "ellpack_page.cuh"                 // for EllpackPageImpl
-#include "ellpack_page.h"                   // for EllpackPage
+#include "../common/common.h"                // for HumanMemUnit, safe_cuda
+#include "../common/cuda_dr_utils.h"         // for CUDA_HW_DECOM_AVAILABLE
+#include "../common/cuda_rt_utils.h"         // for SetDevice, GetDrVersionGlobal
+#include "../common/cuda_stream.h"           // for StreamRef, DefaultStream, Event
+#include "../common/cuda_stream_pool.h"      // for StreamPool
+#include "../common/device_compression.cuh"  // for CompressSnappy, MakeSnappyDecomprMgr
+#include "../common/device_helpers.cuh"      // for CurrentDevice
+#include "../common/numa_topo.h"             // for NumaMemCanCross, GetNumaMemBind
+#include "../common/ref_resource_view.cuh"   // for MakeFixedVecWithCudaMalloc
+#include "../common/resource.cuh"            // for PrivateCudaMmapConstStream
+#include "../common/transform_iterator.h"    // for MakeIndexTransformIter
+#include "batch_utils.h"                     // for HostRatioIsAuto
+#include "ellpack_page.cuh"                  // for EllpackPageImpl
+#include "ellpack_page.h"                    // for EllpackPage
 #include "ellpack_page_source.h"
-#include "proxy_dmatrix.cuh"  // for Dispatch
+#include "proxy_dmatrix.cuh"  // for DispatchAny
 #include "xgboost/base.h"     // for bst_idx_t
 
 namespace xgboost::data {
+namespace {
+// Can we use hardware decompression?
+[[nodiscard]] bool CanUseHwDecomp(EllpackPageImpl const* page, bool allow_fallback) {
+#if defined(CUDA_HW_DECOM_AVAILABLE) && defined(XGBOOST_USE_NVCOMP)
+  // We use it only for sparse pages.
+  return !page->IsDenseCompressed() && (dc::GetGlobalDeStatus().avail || allow_fallback);
+#else
+  (void)allow_fallback;
+  (void)page;
+  return false;
+#endif
+}
+}  // namespace
+
 /**
  * Cache
  */
@@ -31,7 +49,21 @@ EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers)
       buffer_bytes{std::move(cinfo.buffer_bytes)},
       buffer_rows{std::move(cinfo.buffer_rows)},
       cache_host_ratio{cinfo.cache_host_ratio},
-      streams{std::make_unique<curt::StreamPool>(n_workers)} {
+      hw_decomp_ratio{cinfo.hw_decomp_ratio},
+      allow_decomp_fallback{cinfo.allow_decomp_fallback},
+      streams{std::make_unique<curt::StreamPool>(n_workers)},
+      pool{[] {
+#if defined(__linux__)
+        std::int32_t major = -1, minor = -1;
+        curt::GetDrVersionGlobal(&major, &minor);
+        if (major >= 12 && minor >= 5 || major > 12) {
+          return std::make_shared<dc::HostPinnedMemPool>();
+        }
+        return std::shared_ptr<dc::HostPinnedMemPool>{nullptr};
+#else
+        return std::shared_ptr<dc::HostPinnedMemPool>{nullptr};
+#endif
+      }()} {
   CHECK_EQ(buffer_bytes.size(), buffer_rows.size());
   CHECK(!detail::HostRatioIsAuto(this->cache_host_ratio));
   CHECK_GE(this->cache_host_ratio, 0.0) << error::CacheHostRatioInvalid();
@@ -54,11 +86,13 @@ EllpackMemCache::~EllpackMemCache() = default;
 }
 
 [[nodiscard]] std::size_t EllpackMemCache::SizeBytes(std::size_t i) const noexcept(true) {
-  return this->h_pages.at(i)->MemCostBytes() + this->d_pages.at(i).size_bytes();
+  return this->h_pages.at(i)->MemCostBytes() + this->d_pages.at(i).size_bytes() +
+         this->c_pages.at(i).first.DecompressedBytes();
 }
 
 [[nodiscard]] std::size_t EllpackMemCache::GidxSizeBytes(std::size_t i) const noexcept(true) {
-  return this->h_pages.at(i)->gidx_buffer.size_bytes() + this->d_pages.at(i).size_bytes();
+  return this->h_pages.at(i)->gidx_buffer.size_bytes() + this->d_pages.at(i).size_bytes() +
+         this->c_pages.at(i).first.DecompressedBytes();
 }
 
 [[nodiscard]] std::size_t EllpackMemCache::GidxSizeBytes() const noexcept(true) {
@@ -70,13 +104,15 @@ EllpackMemCache::~EllpackMemCache() = default;
 [[nodiscard]] EllpackMemCache::PagePtr EllpackMemCache::At(std::int32_t k) const {
   auto const* h_ptr = this->h_pages.at(k).get();
   auto const* d_ptr = &this->d_pages.at(k);
-  return std::make_pair(h_ptr, d_ptr);
+  auto const* c_ptr = &this->c_pages.at(k);
+  return std::make_tuple(h_ptr, d_ptr, c_ptr);
 }
 
 [[nodiscard]] EllpackMemCache::PageRef EllpackMemCache::Back() {
   auto& h_ref = this->h_pages.back();
   auto& d_ref = this->d_pages.back();
-  return {h_ref, d_ref};
+  auto& c_ref = this->c_pages.back();
+  return {h_ref, d_ref, c_ref};
 }
 
 /**
@@ -144,22 +180,51 @@ class EllpackHostCacheStreamImpl {
                    std::size_t{1});
       return n_bytes;
     };
+
     // Finish writing a (concatenated) cache page.
-    auto commit_page = [cache_host_ratio, get_host_nbytes](EllpackPageImpl const* old_impl) {
+    auto commit_page = [&](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
       auto new_impl = std::make_unique<EllpackPageImpl>();
       new_impl->CopyInfo(old_impl);
-      // Split the cache into host cache and device cache
 
-      // Host cache
+      // Split the cache into host cache, compressed host cache, and the device cache. We
+      // use the decompression engine only for sparse data.
       auto n_bytes = get_host_nbytes(old_impl);
       CHECK_LE(n_bytes, old_impl->gidx_buffer.size_bytes());
-      new_impl->gidx_buffer =
-          common::MakeFixedVecWithPinnedMalloc<common::CompressedByteT>(n_bytes);
-      if (n_bytes > 0) {
-        dh::safe_cuda(cudaMemcpyAsync(new_impl->gidx_buffer.data(), old_impl->gidx_buffer.data(),
-                                      n_bytes, cudaMemcpyDefault));
+      std::size_t n_h_bytes = n_bytes, n_comp_bytes = 0;
+      bool can_use_hw = CanUseHwDecomp(old_impl, this->cache_->allow_decomp_fallback);
+      if (can_use_hw) {
+        // FIXME(jiamingy): The decomp_ratio is not exposed to the user and we don't yet
+        // have auto configuration for this parameter. We can make it more flexible. More
+        // profiling is needed.
+        bool specified = std::isnan(this->cache_->hw_decomp_ratio);
+        auto hw_decomp_ratio = specified ? 0.4f : this->cache_->hw_decomp_ratio;
+        CHECK_LE(hw_decomp_ratio, 1.0);
+        CHECK_GE(hw_decomp_ratio, 0.0);
+        n_comp_bytes = n_bytes * hw_decomp_ratio;
+        n_h_bytes = n_bytes - n_comp_bytes;
       }
+      CHECK_EQ(n_bytes, n_h_bytes + n_comp_bytes);
+
+      // Normal host cache
+      new_impl->gidx_buffer =
+          common::MakeFixedVecWithPinnedMalloc<common::CompressedByteT>(n_h_bytes);
+      if (n_h_bytes > 0) {
+        dh::safe_cuda(cudaMemcpyAsync(new_impl->gidx_buffer.data(), old_impl->gidx_buffer.data(),
+                                      n_h_bytes, cudaMemcpyDefault));
+      }
+
+      // Compressed host cache
+      dh::DeviceUVector<std::uint8_t> tmp;
+      dc::CuMemParams c_out;
+      std::size_t constexpr kChunkSize = 1ul << 21;
+      auto params = dc::CompressSnappy(
+          &ctx, old_impl->gidx_buffer.ToSpan().subspan(n_h_bytes, n_comp_bytes), &tmp, kChunkSize);
+      common::RefResourceView<std::uint8_t> c_buf = dc::CoalesceCompressedBuffersToHost(
+          ctx.CUDACtx()->Stream(), this->cache_->pool, params, tmp, &c_out);
+      auto c_page = dc::MakeSnappyDecomprMgr(ctx.CUDACtx()->Stream(), this->cache_->pool,
+                                             std::move(c_out), c_buf.ToSpan());
+      CHECK_EQ(c_page.DecompressedBytes() + new_impl->gidx_buffer.size_bytes(), n_bytes);
 
       // Device cache
       auto remaining = old_impl->gidx_buffer.size_bytes() - n_bytes;
@@ -169,20 +234,24 @@ class EllpackHostCacheStreamImpl {
                                       remaining, cudaMemcpyDefault));
       }
       CHECK_LE(new_impl->gidx_buffer.size(), old_impl->gidx_buffer.size());
-      CHECK_EQ(new_impl->MemCostBytes() + d_page.size_bytes(), old_impl->MemCostBytes());
+      CHECK_EQ(new_impl->MemCostBytes() + d_page.size_bytes() + c_page.DecompressedBytes(),
+               old_impl->MemCostBytes());
       LOG(INFO) << "Create cache page with size:"
-                << common::HumanMemUnit(new_impl->MemCostBytes() + d_page.size_bytes());
-      return std::make_pair(std::move(new_impl), std::move(d_page));
+                << common::HumanMemUnit(new_impl->MemCostBytes() + d_page.size_bytes() +
+                                        c_page.DecompressedBytes());
+      return std::make_tuple(std::move(new_impl), std::move(d_page),
+                             std::make_pair(std::move(c_page), std::move(c_buf)));
     };
 
     if (no_concat) {
       CHECK(new_page);
       auto old_impl = page.Impl();
-      auto [commited, d_page] = commit_page(old_impl);
+      auto [commited, d_page, c_page] = commit_page(old_impl);
 
       this->cache_->offsets.push_back(old_impl->n_rows * old_impl->info.row_stride);
       this->cache_->h_pages.emplace_back(std::move(commited));
       this->cache_->d_pages.emplace_back(std::move(d_page));
+      this->cache_->c_pages.emplace_back(std::move(c_page));
       return new_page;
     }
 
@@ -208,9 +277,10 @@ class EllpackHostCacheStreamImpl {
       // Make sure we can always access the back of the vectors
       this->cache_->h_pages.emplace_back(std::move(new_impl));
       this->cache_->d_pages.emplace_back();
+      this->cache_->c_pages.emplace_back();
     } else {
-      // Concatenate into the device pages even though `d_pages` is used. We split the
-      // page at the commit stage.
+      // Concatenate into the device pages even though `d_pages` and `c_pages` are
+      // used. We split the page at the commit stage.
       CHECK(!this->cache_->h_pages.empty());
       CHECK_EQ(cache_idx, this->cache_->h_pages.size() - 1);
       auto& new_impl = this->cache_->h_pages.back();
@@ -224,16 +294,25 @@ class EllpackHostCacheStreamImpl {
     }
 
     CHECK_EQ(this->cache_->h_pages.size(), this->cache_->d_pages.size());
+    CHECK_EQ(this->cache_->h_pages.size(), this->cache_->c_pages.size());
     return new_page;
   }
 
-  void Read(EllpackPage* out, bool prefetch_copy) const {
+  void Read(Context const* ctx, EllpackPage* out, bool prefetch_copy) const {
     CHECK_EQ(this->cache_->h_pages.size(), this->cache_->d_pages.size());
-    auto [h_page, d_page] = this->cache_->At(this->ptr_);
+    CHECK_EQ(this->cache_->h_pages.size(), this->cache_->c_pages.size());
+    auto [h_page, d_page, c_page] = this->cache_->At(this->ptr_);
     // Skip copy if the full page is on device
-    bool on_device = h_page->gidx_buffer.empty() && !d_page->empty();
-    auto ctx = Context{}.MakeCUDA(dh::CurrentDevice());
+    bool on_device = (h_page->gidx_buffer.empty() && c_page->first.Empty()) && !d_page->empty();
+
     auto out_impl = out->Impl();
+    // We can't access a compressed page directly.
+    if (!c_page->first.Empty()) {
+      prefetch_copy = true;
+    }
+
+    LOG(DEBUG) << "On device: " << on_device << ", prefetch copy:" << prefetch_copy
+               << ", compressed:" << (!c_page->first.Empty());
     if (on_device) {
       CHECK(h_page->gidx_buffer.empty());
       auto d_res = d_page->Resource();
@@ -241,19 +320,35 @@ class EllpackHostCacheStreamImpl {
           d_res->DataAs<common::CompressedByteT>(), d_page->size(), d_res};
       CHECK(out_impl->d_gidx_buffer.empty());
     } else if (prefetch_copy) {
+      // Copy the data in the same order as written
+      // Normal host cache
       auto n_bytes = this->cache_->GidxSizeBytes(this->ptr_);
       out_impl->gidx_buffer = common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(n_bytes);
       if (!h_page->gidx_buffer.empty()) {
         dh::safe_cuda(cudaMemcpyAsync(out_impl->gidx_buffer.data(), h_page->gidx_buffer.data(),
                                       h_page->gidx_buffer.size_bytes(), cudaMemcpyDefault,
-                                      ctx.CUDACtx()->Stream()));
+                                      ctx->CUDACtx()->Stream()));
       }
+      // Compressed host cache
+      if (!c_page->first.Empty()) {
+        auto stream = this->cache_->streams->Next();
+        auto out = out_impl->gidx_buffer.ToSpan().subspan(h_page->gidx_buffer.size_bytes(),
+                                                          c_page->first.DecompressedBytes());
+        dc::DecompressSnappy(stream, c_page->first, out, this->cache_->allow_decomp_fallback);
+        curt::Event e;
+        e.Record(stream);
+        ctx->CUDACtx()->Stream().Wait(e);
+      }
+      // Device cache
       if (!d_page->empty()) {
-        auto beg = out_impl->gidx_buffer.data() + h_page->gidx_buffer.size();
-        dh::safe_cuda(cudaMemcpyAsync(beg, d_page->data(), d_page->size_bytes(), cudaMemcpyDefault,
-                                      ctx.CUDACtx()->Stream()));
+        auto out = out_impl->gidx_buffer.ToSpan().subspan(h_page->gidx_buffer.size_bytes() +
+                                                          c_page->first.DecompressedBytes());
+        CHECK_EQ(out.size_bytes(), d_page->size_bytes());
+        dh::safe_cuda(cudaMemcpyAsync(out.data(), d_page->data(), d_page->size_bytes(),
+                                      cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
       }
     } else {
+      // Direct access
       auto h_res = h_page->gidx_buffer.Resource();
       CHECK(h_res->DataAs<common::CompressedByteT>() == h_page->gidx_buffer.data());
       out_impl->gidx_buffer = common::RefResourceView<common::CompressedByteT>{
@@ -283,8 +378,8 @@ std::shared_ptr<EllpackMemCache const> EllpackHostCacheStream::Share() const {
 
 void EllpackHostCacheStream::Seek(bst_idx_t offset_bytes) { this->p_impl_->Seek(offset_bytes); }
 
-void EllpackHostCacheStream::Read(EllpackPage* page, bool prefetch_copy) const {
-  this->p_impl_->Read(page, prefetch_copy);
+void EllpackHostCacheStream::Read(Context const* ctx, EllpackPage* page, bool prefetch_copy) const {
+  this->p_impl_->Read(ctx, page, prefetch_copy);
 }
 
 [[nodiscard]] bool EllpackHostCacheStream::Write(EllpackPage const& page) {
@@ -384,7 +479,7 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
   std::vector<std::size_t> cache_rows;
 
   for (std::size_t i = 0; i < ext_info.n_batches; ++i) {
-    auto n_samples = ext_info.base_rowids[i+1] - ext_info.base_rowids[i];
+    auto n_samples = ext_info.base_rowids[i + 1] - ext_info.base_rowids[i];
     auto n_bytes = common::CompressedBufferWriter::CalculateBufferSize(
         ext_info.row_stride * n_samples, ell_info.n_symbols);
 
@@ -465,7 +560,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
   if (!this->ReadCache()) {
     auto iter = this->source_->Iter();
     CHECK_EQ(this->Iter(), iter);
-    cuda_impl::Dispatch(proxy_, [this](auto const& value) {
+    cuda_impl::DispatchAny(proxy_, [this](auto const& value) {
       CHECK(this->proxy_->Ctx()->IsCUDA()) << "All batches must use the same device type.";
       proxy_->Info().feature_types.SetDevice(dh::GetDevice(this->ctx_));
       auto d_feature_types = proxy_->Info().feature_types.ConstDeviceSpan();
@@ -490,12 +585,12 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
                                              this->GetCuts()};
       this->info_->Extend(proxy_->Info(), false, true);
     });
-    LOG(INFO) << "Generated an Ellpack page with size: "
-              << common::HumanMemUnit(this->page_->Impl()->MemCostBytes())
-              << " from an batch with estimated size: "
-              << cuda_impl::Dispatch<false>(proxy_, [](auto const& adapter) {
-                   return common::HumanMemUnit(adapter->SizeBytes());
-                 });
+    LOG(DEBUG) << "Generated an Ellpack page with size: "
+               << common::HumanMemUnit(this->page_->Impl()->MemCostBytes())
+               << " from an batch with estimated size: "
+               << cuda_impl::DispatchAny<false>(proxy_, [](auto const& adapter) {
+                    return common::HumanMemUnit(adapter->SizeBytes());
+                  });
     this->page_->SetBaseRowId(this->ext_info_.base_rowids.at(iter));
     this->WriteCache();
   }
@@ -508,4 +603,26 @@ template void
 ExtEllpackPageSourceImpl<EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
 template void
 ExtEllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
+
+namespace detail {
+void EllpackFormatCheckNuma(StringView msg) {
+#if defined(__linux__)
+  bool can_cross = common::NumaMemCanCross();
+  std::uint32_t numa = 0;
+  auto incorrect = [&numa] {
+    std::uint32_t cpu = 0;
+    return common::GetCpuNuma(&cpu, &numa) && static_cast<std::int32_t>(numa) != curt::GetNumaId();
+  };
+
+  if (can_cross && !common::GetNumaMemBind()) {
+    LOG(WARNING) << "Running on a NUMA system without membind." << msg;
+  } else if (can_cross && incorrect()) {
+    LOG(WARNING) << "Incorrect NUMA CPU bind, CPU node:" << numa
+                 << ", GPU node:" << curt::GetNumaId() << "." << msg;
+  }
+#else
+  (void)msg;
+#endif
+}
+}  // namespace detail
 }  // namespace xgboost::data

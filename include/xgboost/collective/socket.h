@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #pragma once
 
@@ -301,7 +301,7 @@ class TCPSocket {
     };
 
 #if defined(_WIN32)
-    WSAPROTOCOL_INFOA info;
+    WSAPROTOCOL_INFOW info;
     socklen_t len = sizeof(info);
     xgboost_CHECK_SYS_CALL(
         getsockopt(handle_, SOL_SOCKET, SO_PROTOCOL_INFO, reinterpret_cast<char *>(&info), &len),

@@ -32,11 +32,7 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
   new_obj->GetGradient(dummy_predt, info, 0, &gpair);
 
   bst_target_t n_targets = this->Targets(info);
-  linalg::Vector<float> leaf_weight;
-  tree::FitStump(this->ctx_, info, gpair, n_targets, &leaf_weight);
-  // Workaround, we don't support multi-target due to binary model serialization for
-  // base margin.
-  common::Mean(this->ctx_, leaf_weight, base_score);
+  tree::FitStump(this->ctx_, info, gpair, n_targets, base_score);
   this->PredTransform(base_score->Data());
 }
 
@@ -45,13 +41,12 @@ void FitInterceptGlmLike::InitEstimation(MetaInfo const& info,
   if (this->Task().task == ObjInfo::kRegression) {
     CheckInitInputs(info);
   }
-  linalg::Vector<float> out;
   if (info.weights_.Empty()) {
-    common::SampleMean(this->ctx_, info.IsColumnSplit(), info.labels, &out);
+    common::SampleMean(this->ctx_, info.IsColumnSplit(), info.labels, base_score);
   } else {
-    common::WeightedSampleMean(this->ctx_, info.IsColumnSplit(), info.labels, info.weights_, &out);
+    common::WeightedSampleMean(this->ctx_, info.IsColumnSplit(), info.labels, info.weights_,
+                               base_score);
   }
-  common::Mean(this->ctx_, out, base_score);
-  CHECK_EQ(base_score->Size(), 1);
+  CHECK_GE(base_score->Size(), 1);
 }
 }  // namespace xgboost::obj

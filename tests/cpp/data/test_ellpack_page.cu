@@ -7,6 +7,7 @@
 
 #include "../../../src/common/categorical.h"          // for AsCat
 #include "../../../src/common/compressed_iterator.h"  // for CompressedByteT
+#include "../../../src/common/cuda_stream.h"          // for DefaultStream
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/device_adapter.cuh"  // for CupyAdapter
 #include "../../../src/data/ellpack_page.cuh"
@@ -29,7 +30,7 @@ TEST(EllpackPage, EmptyDMatrix) {
   auto impl = page.Impl();
   ASSERT_EQ(impl->info.row_stride, 0);
   ASSERT_EQ(impl->Cuts().TotalBins(), 0);
-  ASSERT_EQ(impl->gidx_buffer.size(), 5);
+  ASSERT_EQ(impl->gidx_buffer.size(), 9);
 }
 
 TEST(EllpackPage, BuildGidxDense) {
@@ -220,66 +221,6 @@ TEST(EllpackPage, Copy) {
   }
 }
 
-TEST(EllpackPage, Compact) {
-  constexpr size_t kRows = 16;
-  constexpr size_t kCols = 2;
-  constexpr size_t kCompactedRows = 8;
-
-  // Create a DMatrix with multiple batches.
-  auto dmat =
-      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(2).GenerateSparsePageDMatrix("temp", true);
-  auto ctx = MakeCUDACtx(0);
-  auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
-  auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
-
-  // Create an empty result page.
-  EllpackPageImpl result(&ctx, page->CutsShared(), page->is_dense, page->info.row_stride,
-                         kCompactedRows);
-
-  // Compact batch pages into the result page.
-  std::vector<size_t> row_indexes_h {
-    SIZE_MAX, 0, 1, 2, SIZE_MAX, 3, SIZE_MAX, 4, 5, SIZE_MAX, 6, SIZE_MAX, 7, SIZE_MAX, SIZE_MAX,
-    SIZE_MAX};
-  thrust::device_vector<size_t> row_indexes_d = row_indexes_h;
-  common::Span<size_t> row_indexes_span(row_indexes_d.data().get(), kRows);
-  for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
-    result.Compact(&ctx, batch.Impl(), row_indexes_span);
-  }
-
-  size_t current_row = 0;
-  thrust::device_vector<bst_float> row_d(kCols);
-  thrust::device_vector<bst_float> row_result_d(kCols);
-  std::vector<bst_float> row(kCols);
-  std::vector<bst_float> row_result(kCols);
-  for (auto& page : dmat->GetBatches<EllpackPage>(&ctx, param)) {
-    auto impl = page.Impl();
-    ASSERT_EQ(impl->base_rowid, current_row);
-
-    for (size_t i = 0; i < impl->Size(); i++) {
-      size_t compacted_row = row_indexes_h[current_row];
-      if (compacted_row == SIZE_MAX) {
-        current_row++;
-        continue;
-      }
-
-      impl->Visit(&ctx, {}, [&](auto&& acc) {
-        dh::LaunchN(kCols, ReadRowFunction{acc, current_row, row_d.data().get()});
-      });
-
-      dh::safe_cuda(cudaDeviceSynchronize());
-      thrust::copy(row_d.begin(), row_d.end(), row.begin());
-
-      result.Visit(&ctx, {}, [&](auto&& acc) {
-        dh::LaunchN(kCols, ReadRowFunction(acc, compacted_row, row_result_d.data().get()));
-      });
-      thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
-
-      EXPECT_EQ(row, row_result);
-      current_row++;
-    }
-  }
-}
-
 namespace {
 // Test for treating sparse ellpack as a dense
 class CompressedDense : public ::testing::TestWithParam<std::size_t> {
@@ -364,7 +305,7 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
                         false,      d_row_counts,    {},
                         n_features, n_samples,       cuts};
     this->CheckBasic(&ctx, batch, null_column, impl);
-    dh::DefaultStream().Sync();
+    curt::DefaultStream().Sync();
   }
 
   void CheckFromToGHist(std::size_t null_column) {

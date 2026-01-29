@@ -10,7 +10,6 @@ Contents
 --------
 - [Code Examples](#code-examples)
   - [Features Walkthrough](#features-walkthrough)
-  - [Basic Examples by Tasks](#basic-examples-by-tasks)
   - [Benchmarks](#benchmarks)
 - [Machine Learning Challenge Winning Solutions](#machine-learning-challenge-winning-solutions)
 - [Tutorials](#tutorials)
@@ -22,16 +21,18 @@ Contents
 
 Code Examples
 -------------
+
 ### Features Walkthrough
 
 _Note: for the R package, see the in-package examples and vignettes instead_
+
+_Note: For the Python package, see [Feature Walk through](https://xgboost.readthedocs.io/en/stable/python/examples/index.html)._
 
 This is a list of short codes introducing different functionalities of xgboost packages.
 
 * Basic walkthrough of packages
   [python](guide-python/basic_walkthrough.py)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/basic_walkthrough.jl)
-  [PHP](https://github.com/bpachev/xgboost-php/blob/master/demo/titanic_demo.php)
 * Customize loss function, and evaluation metric
   [python](guide-python/custom_objective.py)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/custom_objective.jl)
@@ -50,16 +51,6 @@ This is a list of short codes introducing different functionalities of xgboost p
 * Predicting leaf indices
   [python](guide-python/predict_leaf_indices.py)
 
-### Basic Examples by Tasks
-
-Most of examples in this section are based on CLI or python version.
-However, the parameter settings can be applied to all versions
-
-- [Binary classification](CLI/binary_classification)
-- [Multiclass classification](multiclass_classification)
-- [Regression](CLI/regression)
-- [Learning to Rank](rank)
-
 ### Benchmarks
 
 - [Starter script for Kaggle Higgs Boson](kaggle-higgs)
@@ -73,6 +64,7 @@ XGBoost is extensively used by machine learning practitioners to create state of
 this is a list of machine learning winning solutions with XGBoost.
 Please send pull requests if you find ones that are missing here.
 
+- Gábor Melis, 1st place winner of [Kaggle Higgs competition](https://github.com/ghl3/higgs-kaggle) conducted between May and September 2014. Link to [discussion](http://no2147483647.wordpress.com/2014/09/17/winning-solution-of-kaggle-higgs-competition-what-a-single-model-can-do/), [code](https://github.com/phunterlau/kaggle_higgs) and [news article](https://atlas.cern/updates/news/machine-learning-wins-higgs-challenge)
 - Bishwarup Bhattacharjee, 1st place winner of [Allstate Claims Severity](https://www.kaggle.com/competitions/allstate-claims-severity/overview) conducted on December 2016. Link to [discussion](https://www.kaggle.com/competitions/allstate-claims-severity/discussion/26416)
 - Benedikt Schifferer, Gilberto Titericz, Chris Deotte, Christof Henkel, Kazuki Onodera, Jiwei Liu, Bojan Tunguz, Even Oldridge, Gabriel De Souza Pereira Moreira and Ahmet Erdem, 1st place winner of [Twitter RecSys Challenge 2020](https://recsys-twitter.com/) conducted from June,20-August,20. [GPU Accelerated Feature Engineering and Training for Recommender Systems](https://medium.com/rapids-ai/winning-solution-of-recsys2020-challenge-gpu-accelerated-feature-engineering-and-training-for-cd67c5a87b1f)
 - Eugene Khvedchenya,Jessica Fridrich, Jan Butora, Yassine Yousfi 1st place winner in [ALASKA2 Image Steganalysis](https://www.kaggle.com/c/alaska2-image-steganalysis/overview). Link to [discussion](https://www.kaggle.com/c/alaska2-image-steganalysis/discussion/168546)

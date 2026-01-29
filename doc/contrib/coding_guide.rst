@@ -116,6 +116,31 @@ Running Formatting Checks Locally
 Once you submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_, we perform
 two automatic checks to enforce coding style conventions. To expedite the code review process, you are encouraged to run the checks locally on your machine prior to submitting your pull request.
 
+Pre-commit
+==========
+We provide a `pre-commit <https://pre-commit.com/>`_ configuration for basic formatting and
+file-sanity checks. It only runs on changed files by default, and the same checks run in CI
+as a required (blocking) job.
+
+To enable it locally:
+
+.. code-block:: bash
+
+  python -m pip install pre-commit
+  pre-commit install
+
+To run it on the files you have staged for commit:
+
+.. code-block:: bash
+
+  pre-commit run
+
+To run it on a specific range of commits (e.g. in CI or for a local comparison):
+
+.. code-block:: bash
+
+  pre-commit run --from-ref <base> --to-ref <head>
+
 Linter
 ======
 We use a combination of linters to enforce style convention and find potential errors. Linting is especially useful for scripting languages like Python, as we can catch many errors that would have otherwise occurred at run-time.
@@ -144,12 +169,6 @@ To run checks for cpplint locally:
   cd /path/to/xgboost/
   python ./ops/script/lint_cpp.py
 
-
-See next section for clang-tidy. For CMake scripts:
-
-.. code-block:: bash
-
-  bash ./ops/script/lint_cmake.sh
 
 Lastly, the linter for jvm-packages is integrated into the maven build process.
 

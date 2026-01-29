@@ -1,5 +1,5 @@
-/*!
- * Copyright 2015-2022 by XGBoost Contributors
+/**
+ * Copyright 2015-2025, XGBoost Contributors
  * \file gbm.cc
  * \brief Registry of gradient boosters.
  */
@@ -7,9 +7,7 @@
 
 #include <dmlc/registry.h>
 
-#include <memory>
 #include <string>
-#include <vector>
 
 #include "xgboost/context.h"
 #include "xgboost/learner.h"

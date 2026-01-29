@@ -1,12 +1,16 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_QUANTILE_CUH_
 #define XGBOOST_COMMON_QUANTILE_CUH_
 
 #include <thrust/logical.h>  // for any_of
 
+#include <cstddef>     // for size_t
+#include <functional>  // for equal_to
+
 #include "categorical.h"
+#include "common.h"          // for HumanMemUnit
 #include "cuda_context.cuh"  // for CUDAContext
 #include "cuda_rt_utils.h"   // for SetDevice
 #include "device_helpers.cuh"
@@ -181,7 +185,7 @@ class SketchContainer {
     this->Current().shrink_to_fit();
     this->Other().clear();
     this->Other().shrink_to_fit();
-    LOG(DEBUG) << "Quantile memory cost:" << this->MemCapacityBytes();
+    LOG(DEBUG) << "Quantile memory cost:" << common::HumanMemUnit(this->MemCapacityBytes());
   }
 
   /* \brief Merge quantiles from other GPU workers. */
@@ -203,8 +207,8 @@ class SketchContainer {
   SketchContainer& operator=(const SketchContainer&) = delete;
 
   /* \brief Removes all the duplicated elements in quantile structure. */
-  template <typename KeyComp = thrust::equal_to<size_t>>
-  size_t Unique(Context const* ctx, KeyComp key_comp = thrust::equal_to<size_t>{}) {
+  template <typename KeyComp = std::equal_to<size_t>>
+  std::size_t Unique(Context const* ctx, KeyComp key_comp = std::equal_to<size_t>{}) {
     timer_.Start(__func__);
     curt::SetDevice(ctx->Ordinal());
     this->columns_ptr_.SetDevice(ctx->Device());

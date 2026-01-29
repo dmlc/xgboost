@@ -283,23 +283,11 @@ void AddMissingToJson(xgboost::Json *jconfig, SEXP missing, SEXPTYPE arr_type) {
 }
 }  // namespace
 
-struct RRNGStateController {
-  RRNGStateController() {
-    GetRNGstate();
-  }
-
-  ~RRNGStateController() {
-    PutRNGstate();
-  }
-};
-
 /*!
  * \brief macro to annotate begin of api
  */
 #define R_API_BEGIN()                           \
   try {                                         \
-    RRNGStateController rng_controller{};
-
 /* Note: an R error triggers a long jump, hence all C++ objects that
 allocated memory through non-R allocators, including the exception
 object, need to be destructed before triggering the R error.
@@ -685,8 +673,8 @@ XGB_DLL SEXP XGProxyDMatrixCreate_R() {
   CHECK_CALL(XGProxyDMatrixCreate(&proxy_dmat_handle));
   R_SetExternalPtrAddr(out, proxy_dmat_handle);
   R_RegisterCFinalizerEx(out, _DMatrixFinalizer, TRUE);
-  Rf_unprotect(1);
   R_API_END();
+  Rf_unprotect(1);
   return out;
 }
 
@@ -829,8 +817,8 @@ SEXP XGDMatrixCreateFromCallbackGeneric_R(
 
   R_SetExternalPtrAddr(out, out_dmat);
   R_RegisterCFinalizerEx(out, _DMatrixFinalizer, TRUE);
-  Rf_unprotect(2);
   R_API_END();
+  Rf_unprotect(2);
   return out;
 }
 
@@ -1210,8 +1198,8 @@ XGB_DLL SEXP XGBoosterUpdateOneIter_R(SEXP handle, SEXP iter, SEXP dtrain) {
 XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP grad, SEXP hess) {
   R_API_BEGIN();
   CHECK_EQ(Rf_xlength(grad), Rf_xlength(hess)) << "gradient and hess must have same length.";
-  SEXP gdim = Rf_getAttrib(grad, R_DimSymbol);
-  SEXP hdim = Rf_getAttrib(hess, R_DimSymbol);
+  SEXP gdim = Rf_protect(Rf_getAttrib(grad, R_DimSymbol));
+  SEXP hdim = Rf_protect(Rf_getAttrib(hess, R_DimSymbol));
 
   int res_code;
   {
@@ -1224,6 +1212,7 @@ XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP g
   }
   CHECK_CALL(res_code);
 
+  Rf_unprotect(2);
   R_API_END();
   return R_NilValue;
 }

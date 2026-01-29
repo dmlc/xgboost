@@ -1,16 +1,37 @@
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
+import pytest
 from hypothesis import given, note, settings, strategies
 
-import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.multi_target import (
+    all_reg_objectives,
+    run_absolute_error,
+    run_column_sampling,
+    run_feature_importance_strategy_compare,
+    run_grow_policy,
+    run_mixed_strategy,
+    run_multiclass,
+    run_multilabel,
+    run_quantile_loss,
+    run_reduced_grad,
+    run_with_iter,
+)
 from xgboost.testing.params import (
     exact_parameter_strategy,
     hist_cache_strategy,
     hist_multi_parameter_strategy,
     hist_parameter_strategy,
 )
-from xgboost.testing.updater import ResetStrategy, train_result
+from xgboost.testing.updater import check_quantile_loss_rf, train_result
+from xgboost.testing.utils import Device
+
+
+@pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])
+def test_quantile_loss_rf(multi_strategy: str) -> None:
+    check_quantile_loss_rf("cpu", "hist", multi_strategy)
+    if multi_strategy == "one_output_per_tree":
+        check_quantile_loss_rf("cpu", "approx", multi_strategy)
 
 
 class TestTreeMethodMulti:
@@ -78,28 +99,47 @@ class TestTreeMethodMulti:
 
 
 def test_multiclass() -> None:
-    X, y = tm.datasets.make_classification(
-        128, n_features=12, n_informative=10, n_classes=4
-    )
-    clf = xgb.XGBClassifier(
-        multi_strategy="multi_output_tree", callbacks=[ResetStrategy()], n_estimators=10
-    )
-    clf.fit(X, y, eval_set=[(X, y)])
-    assert clf.objective == "multi:softprob"
-    assert tm.non_increasing(clf.evals_result()["validation_0"]["mlogloss"])
-
-    proba = clf.predict_proba(X)
-    assert proba.shape == (y.shape[0], 4)
+    run_multiclass("cpu", None)
 
 
 def test_multilabel() -> None:
-    X, y = tm.datasets.make_multilabel_classification(128)
-    clf = xgb.XGBClassifier(
-        multi_strategy="multi_output_tree", callbacks=[ResetStrategy()], n_estimators=10
-    )
-    clf.fit(X, y, eval_set=[(X, y)])
-    assert clf.objective == "binary:logistic"
-    assert tm.non_increasing(clf.evals_result()["validation_0"]["logloss"])
+    run_multilabel("cpu", None)
 
-    proba = clf.predict_proba(X)
-    assert proba.shape == y.shape
+
+@pytest.mark.parametrize("weighted", [True, False])
+def test_quantile_loss(weighted: bool) -> None:
+    run_quantile_loss("cpu", weighted)
+
+
+def test_absolute_error() -> None:
+    run_absolute_error("cpu")
+
+
+def test_reduced_grad() -> None:
+    run_reduced_grad("cpu")
+
+
+def test_with_iter() -> None:
+    run_with_iter("cpu")
+
+
+@pytest.mark.parametrize("grow_policy", ["depthwise", "lossguide"])
+def test_grow_policy(grow_policy: str) -> None:
+    run_grow_policy("cpu", grow_policy)
+
+
+def test_column_sampling() -> None:
+    run_column_sampling("cpu")
+
+
+def test_mixed_strategy() -> None:
+    run_mixed_strategy("cpu")
+
+
+def test_feature_importance_strategy_compare() -> None:
+    run_feature_importance_strategy_compare("cpu")
+
+
+@pytest.mark.parametrize("obj_fn", all_reg_objectives())
+def test_reg_objective(obj_fn: Callable[[Device], None]) -> None:
+    obj_fn("cpu")

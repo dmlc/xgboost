@@ -25,7 +25,7 @@ jobs:
       - runner=windows-cpu
       - tag=windows-build-win64-gpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
       - run: powershell ops/pipeline/build-win64-gpu.ps1
@@ -36,7 +36,7 @@ jobs:
           python ops/pipeline/manage-artifacts.py upload `
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} `
             --prefix cache/${{ github.run_id }}/build-win64-gpu `
-            build/testxgboost.exe xgboost.exe `
+            build/testxgboost.exe `
             (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
 
   build-win64-cpu:
@@ -46,10 +46,13 @@ jobs:
       - runner=windows-cpu
       - tag=windows-build-win64-cpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
+      - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - run: powershell ops/pipeline/build-win64-cpu.ps1
+      - run: sccache --show-stats
 
   test-win64-gpu:
     name: Test XGBoost on Windows
@@ -59,7 +62,7 @@ jobs:
       - runner=windows-gpu
       - tag=windows-test-win64-gpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
       - name: Unstash files
@@ -70,8 +73,7 @@ jobs:
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} `
             --prefix cache/${{ github.run_id }}/build-win64-gpu `
             --dest-dir build `
-            *.whl testxgboost.exe xgboost.exe
-          Move-Item -Path build/xgboost.exe -Destination .
+            *.whl testxgboost.exe
           New-Item -ItemType Directory -Path python-package/dist/ -Force
           Move-Item -Path (Get-ChildItem build/*.whl | Select-Object -Expand FullName) `
             -Destination python-package/dist/

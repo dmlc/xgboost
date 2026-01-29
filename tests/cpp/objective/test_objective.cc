@@ -25,7 +25,7 @@ namespace xgboost {
 TEST(Objective, PredTransform) {
   // Test that show PredTransform uses the same device with predictor.
   xgboost::Context tparam;
-  tparam.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  tparam.UpdateAllowUnknown(Args{{"device", "cuda"}});
   size_t n = 100;
 
   for (const auto& entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
@@ -50,7 +50,7 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
 
  public:
   void Run(std::string objective) {
-    auto Xy = MakeFmatForObjTest(objective, 10, 10);
+    auto Xy = MakeFmatForObjTest(objective, 10, 10, 3);
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
     std::unique_ptr<ObjFunction> objfn{ObjFunction::Create(objective, &ctx_)};
 

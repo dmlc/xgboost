@@ -25,6 +25,15 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
       << "Only the `hist` tree method can use the `QuantileDMatrix`.";
 }
 
+/**
+ * @brief Check whether we should configure `min_cache_page_bytes`.
+ *
+ * Defined by @ref AutoCachePageBytes .
+ */
+[[nodiscard]] bool CachePageBytesIsAuto(std::int64_t min_cache_page_bytes) {
+  return min_cache_page_bytes == cuda_impl::AutoCachePageBytes();
+}
+
 [[nodiscard]] std::pair<double, std::int64_t> DftPageSizeHostRatio(
     std::size_t n_cache_bytes, bool is_validation, double cache_host_ratio,
     std::int64_t min_cache_page_bytes) {
@@ -84,7 +93,7 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
     cache_host_ratio = 0.0;
   } else {
     // The number of bytes that must be in the host memory.
-    auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes;
+    auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes * 0.85;
     cache_host_ratio = static_cast<double>(h_cache_nbytes) / static_cast<double>(n_cache_bytes);
     if (lc > 0) {
       // 0 < lc < 10, C2C is available, but with reduced link count.

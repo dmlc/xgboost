@@ -9,7 +9,7 @@
 #include "../../../src/data/ellpack_page_source.h"      // for EllpackFormatStreamPolicy
 #include "../../../src/tree/param.h"                    // for TrainParam
 #include "../../../src/data/batch_utils.h"              // for AutoHostRatio
-#include "../filesystem.h"                              // dmlc::TemporaryDirectory
+#include "../filesystem.h"                              // for TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost::data {
@@ -43,8 +43,8 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
     param.prefetch_copy = prefetch_copy;
 
     auto m = RandomDataGenerator{100, 14, 0.5}.GenerateDMatrix();
-    dmlc::TemporaryDirectory tmpdir;
-    std::string path = tmpdir.path + "/ellpack.page";
+    common::TemporaryDirectory tmpdir;
+    std::string path = tmpdir.Str() + "/ellpack.page";
 
     std::shared_ptr<common::HistogramCuts const> cuts;
     for (auto const &page : m->GetBatches<EllpackPage>(&ctx, param)) {
@@ -198,7 +198,11 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
       EXPECT_TRUE(page.Impl()->IsDense());
       CalcCacheMapping(&ctx, page.Impl()->IsDense(), cuts, min_cache_page_bytes, ext_info, false,
                        &cinfo);
-      EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
+      if (min_cache_page_bytes == ::xgboost::cuda_impl::MatchingPageBytes()) {
+        EXPECT_EQ(cinfo.NumBatchesCc(), ext_info.n_batches);
+      } else {
+        EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
+      }
       policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
     }
 
@@ -219,6 +223,11 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
     return mem_cache;
   };
 
+  {
+    auto mem_cache =
+        test(::xgboost::cuda_impl::MatchingPageBytes(), ::xgboost::cuda_impl::AutoHostRatio());
+    ASSERT_EQ(mem_cache->d_pages.size(), 8);
+  }
   {
     auto mem_cache = test(n_features * n_samples, ::xgboost::cuda_impl::AutoHostRatio());
     ASSERT_EQ(mem_cache->h_pages.size(), 4);

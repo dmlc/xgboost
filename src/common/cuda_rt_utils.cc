@@ -3,6 +3,8 @@
  */
 #include "cuda_rt_utils.h"
 
+#include "cuda_stream.h"  // for StreamRef
+
 #if defined(XGBOOST_USE_CUDA)
 #include <cuda_runtime_api.h>
 
@@ -42,29 +44,17 @@ std::int32_t CurrentDevice(bool raise) {
 }
 
 // alternatively: `nvidia-smi -q | grep Addressing`
-bool SupportsPageableMem() {
+[[nodiscard]] bool SupportsPageableMem() {
   std::int32_t res{0};
   dh::safe_cuda(cudaDeviceGetAttribute(&res, cudaDevAttrPageableMemoryAccess, CurrentDevice()));
   return res == 1;
 }
 
-bool SupportsAts() {
+[[nodiscard]] bool SupportsAts() {
   std::int32_t res{0};
   dh::safe_cuda(cudaDeviceGetAttribute(&res, cudaDevAttrPageableMemoryAccessUsesHostPageTables,
                                        CurrentDevice()));
   return res == 1;
-}
-
-void CheckComputeCapability() {
-  for (std::int32_t d_idx = 0; d_idx < AllVisibleGPUs(); ++d_idx) {
-    cudaDeviceProp prop;
-    dh::safe_cuda(cudaGetDeviceProperties(&prop, d_idx));
-    std::ostringstream oss;
-    oss << "CUDA Capability Major/Minor version number: " << prop.major << "." << prop.minor
-        << " is insufficient.  Need >=3.5";
-    int failed = prop.major < 3 || (prop.major == 3 && prop.minor < 5);
-    if (failed) LOG(WARNING) << oss.str() << " for device: " << d_idx;
-  }
 }
 
 void SetDevice(std::int32_t device) {
@@ -95,20 +85,37 @@ void GetVersionImpl(Fn&& fn, std::int32_t* major, std::int32_t* minor) {
 }
 }  // namespace
 
-void RtVersion(std::int32_t* major, std::int32_t* minor) {
+void GetRtVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaRuntimeGetVersion(ver)); }, major,
                  minor);
 }
 
-void DrVersion(std::int32_t* major, std::int32_t* minor) {
+void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaDriverGetVersion(ver)); }, major, minor);
 }
 
 [[nodiscard]] std::int32_t GetNumaId() {
   std::int32_t numa_id = -1;
-  dh::safe_cuda(cudaDeviceGetAttribute(&numa_id, cudaDevAttrNumaId, curt::CurrentDevice()));
+  dh::safe_cuda(cudaDeviceGetAttribute(&numa_id, cudaDevAttrHostNumaId, curt::CurrentDevice()));
   numa_id = std::max(numa_id, 0);
   return numa_id;
+}
+
+[[nodiscard]] std::int32_t GetMpCnt(std::int32_t device) {
+  std::int32_t n_mps = 0;
+  dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
+  CHECK_GT(n_mps, 0);
+  return n_mps;
+}
+
+[[nodiscard]] bool MemoryPoolsSupported(std::int32_t device) {
+  std::int32_t res = 0;
+  dh::safe_cuda(cudaDeviceGetAttribute(&res, cudaDevAttrMemoryPoolsSupported, device));
+  return !!res;
+}
+
+void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream) {
+  dh::safe_cuda(cudaMemcpyAsync(dst, src, count, cudaMemcpyDefault, stream));
 }
 
 #else
@@ -139,6 +146,15 @@ void SetDevice(std::int32_t device) {
   common::AssertGPUSupport();
   return 0;
 }
+
+[[nodiscard]] std::int32_t GetMpCnt(std::int32_t) {
+  common::AssertGPUSupport();
+  return 0;
+}
+
+[[nodiscard]] bool MemoryPoolsSupported(std::int32_t) { return false; }
+
+void MemcpyAsync(void*, const void*, std::size_t, StreamRef) { common::AssertGPUSupport(); }
 
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::curt

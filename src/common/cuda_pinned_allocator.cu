@@ -63,6 +63,7 @@ namespace xgboost::common::cuda_impl {
       [](cudaMemPool_t* mem_pool) {
         if (mem_pool) {
           dh::safe_cuda(cudaMemPoolDestroy(*mem_pool));
+          delete mem_pool;
         }
       }};
   return mem_pool;

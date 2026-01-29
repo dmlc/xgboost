@@ -48,6 +48,7 @@ def pack_rpackage() -> Path:
         )
 
     shutil.copytree("R-package", dest)
+    os.remove(dest / "bootstrap.R")
     # core
     shutil.copytree("src", dest / "src" / "src")
     shutil.copytree("include", dest / "src" / "include")
@@ -300,27 +301,61 @@ def test_with_cmake(args: argparse.Namespace) -> None:
 
 
 @record_time
+def test_with_rchk() -> None:
+    """Test with rchk, which is one of the additional checks in CRAN.
+
+    See https://github.com/kalibera/rchk/blob/master/doc/DOCKER.md for reference.
+
+    """
+    results_dir = os.path.join(ROOT, "rchk_results")
+    if os.path.exists(results_dir):
+        raise ValueError(f"{results_dir} exists, please remove it first.")
+    src_dir = pack_rpackage()
+    tarball = build_rpackage(src_dir)
+
+    os.mkdir(results_dir)
+    shutil.copyfile(tarball, os.path.join(results_dir, tarball))
+
+    tarball = os.path.basename(tarball)
+    pkgpath = os.path.join("/rchk/packages/", tarball)
+    image = "kalibera/rchk:latest"
+    cmd = [
+        "docker",
+        "run",
+        "--rm",
+        "--mount",
+        f"type=bind,src={results_dir},dst=/rchk/packages",
+        image,
+        pkgpath,
+    ]
+    subprocess.check_call(cmd)
+
+
+@record_time
 def main(args: argparse.Namespace) -> None:
-    if args.task == "pack":
-        pack_rpackage()
-    elif args.task == "build":
-        src_dir = pack_rpackage()
-        build_rpackage(src_dir)
-    elif args.task == "doc":
-        check_rmarkdown()
-    elif args.task == "check":
-        if args.build_tool == "autotools" and system() != "Windows":
+    match args.task:
+        case "pack":
+            pack_rpackage()
+        case "build":
             src_dir = pack_rpackage()
-            tarball = build_rpackage(src_dir)
-            check_rpackage(tarball)
-        elif args.build_tool == "autotools":
-            test_with_autotools()
-        else:
-            test_with_cmake(args)
-    elif args.task == "timings":
-        check_example_timing(Path("xgboost.Rcheck"), 2.5)
-    else:
-        raise ValueError("Unexpected task.")
+            build_rpackage(src_dir)
+        case "doc":
+            check_rmarkdown()
+        case "check":
+            if args.build_tool == "autotools" and system() != "Windows":
+                src_dir = pack_rpackage()
+                tarball = build_rpackage(src_dir)
+                check_rpackage(tarball)
+            elif args.build_tool == "autotools":
+                test_with_autotools()
+            else:
+                test_with_cmake(args)
+        case "rchk":
+            test_with_rchk()
+        case "timings":
+            check_example_timing(Path("xgboost.Rcheck"), 2.5)
+        case _:
+            raise ValueError("Unexpected task.")
 
 
 if __name__ == "__main__":
@@ -334,7 +369,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--task",
         type=str,
-        choices=["pack", "build", "check", "doc", "timings"],
+        choices=["pack", "build", "check", "doc", "timings", "rchk"],
         default="check",
         required=False,
     )

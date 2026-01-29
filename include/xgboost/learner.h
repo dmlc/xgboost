@@ -1,6 +1,6 @@
 /**
- * Copyright 2015-2023 by XGBoost Contributors
- * \file learner.h
+ * Copyright 2015-2025, XGBoost Contributors
+ *
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
  * \author Tianqi Chen
@@ -8,22 +8,23 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
-#include <dmlc/io.h>          // for Serializable
-#include <xgboost/base.h>     // for bst_feature_t, bst_target_t, bst_float, Args, GradientPair, ..
-#include <xgboost/context.h>  // for Context
-#include <xgboost/linalg.h>   // for Tensor, TensorView
-#include <xgboost/metric.h>   // for Metric
-#include <xgboost/model.h>    // for Configurable, Model
-#include <xgboost/span.h>     // for Span
-#include <xgboost/task.h>     // for ObjInfo
+#include <dmlc/io.h>           // for Serializable
+#include <xgboost/base.h>      // for bst_feature_t, bst_target_t, bst_float, Args, GradientPair, ..
+#include <xgboost/context.h>   // for Context
+#include <xgboost/gradient.h>  // for GradientContainer
+#include <xgboost/linalg.h>    // for Vector, VectorView
+#include <xgboost/metric.h>    // for Metric
+#include <xgboost/model.h>     // for Configurable, Model
+#include <xgboost/span.h>      // for Span
+#include <xgboost/task.h>      // for ObjInfo
 
-#include <algorithm>          // for max
-#include <cstdint>            // for int32_t, uint32_t, uint8_t
-#include <map>                // for map
-#include <memory>             // for shared_ptr, unique_ptr
-#include <string>             // for string
-#include <utility>            // for move
-#include <vector>             // for vector
+#include <algorithm>  // for max
+#include <cstdint>    // for int32_t, uint32_t, uint8_t
+#include <map>        // for map
+#include <memory>     // for shared_ptr, unique_ptr
+#include <string>     // for string
+#include <utility>    // for move
+#include <vector>     // for vector
 
 namespace xgboost {
 class FeatureMap;
@@ -35,6 +36,7 @@ class Json;
 struct XGBAPIThreadLocalEntry;
 template <typename T>
 class HostDeviceVector;
+class CatContainer;
 
 enum class PredictionType : std::uint8_t {  // NOLINT
   kValue = 0,
@@ -46,25 +48,24 @@ enum class PredictionType : std::uint8_t {  // NOLINT
   kLeaf = 6
 };
 
-/*!
- * \brief Learner class that does training and prediction.
+/**
+ * @brief Learner class that does training and prediction.
  *  This is the user facing module of xgboost training.
  *  The Load/Save function corresponds to the model used in python/R.
- *  \code
+ *  @code
  *
- *  std::unique_ptr<Learner> learner(new Learner::Create(cache_mats));
- *  learner.Configure(configs);
+ *  std::unique_ptr<Learner> learner{Learner::Create(cache_mats)};
+ *  learner->Configure(configs);
  *
  *  for (int iter = 0; iter < max_iter; ++iter) {
  *    learner->UpdateOneIter(iter, train_mat);
  *    LOG(INFO) << learner->EvalOneIter(iter, data_sets, data_names);
  *  }
  *
- *  \endcode
+ *  @endcode
  */
 class Learner : public Model, public Configurable, public dmlc::Serializable {
  public:
-  /*! \brief virtual destructor */
   ~Learner() override;
   /*!
    * \brief Configure Learner based on set parameters.
@@ -87,7 +88,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * @param in_gpair The input gradient statistics.
    */
   virtual void BoostOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train,
-                            linalg::Matrix<GradientPair>* in_gpair) = 0;
+                            GradientContainer* in_gpair) = 0;
   /*!
    * \brief evaluate the model for specific iteration using the configured metrics.
    * \param iter iteration number
@@ -151,9 +152,6 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
 
-  virtual void LoadModel(dmlc::Stream* fi) = 0;
-  virtual void SaveModel(dmlc::Stream* fo) const = 0;
-
   /*!
    * \brief Set multiple parameters at once.
    *
@@ -170,11 +168,11 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   virtual void SetParam(const std::string& key, const std::string& value) = 0;
 
-  /*!
-   * \brief Get the number of features of the booster.
-   * \return number of features
+  /**
+   * @brief Get the number of features of the booster.
+   * @return The number of features
    */
-  virtual uint32_t GetNumFeature() const = 0;
+  virtual bst_feature_t GetNumFeature() const = 0;
 
   /*!
    * \brief Set additional attribute to the Booster.
@@ -224,16 +222,19 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param fn Output feature types
    */
   virtual void GetFeatureTypes(std::vector<std::string>* ft) const = 0;
-
   /**
-   * \brief Slice the model.
+   * @brief Getter for categories.
+   */
+  [[nodiscard]] virtual CatContainer const* Cats() const = 0;
+  /**
+   * @brief Slice the model.
    *
    * See InplacePredict for layer parameters.
    *
-   * \param step step size between slice.
-   * \param out_of_bound Return true if end layer is out of bound.
+   * @param step step size between slice.
+   * @param out_of_bound Return true if end layer is out of bound.
    *
-   * \return a sliced model.
+   * @return a sliced model.
    */
   virtual Learner* Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step,
                          bool* out_of_bound) = 0;
@@ -283,7 +284,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
 struct LearnerModelParamLegacy;
 
 /**
- * \brief Strategy for building multi-target models.
+ * @brief Strategy for building multi-target models.
  */
 enum class MultiStrategy : std::int32_t {
   kOneOutputPerTree = 0,
@@ -291,50 +292,53 @@ enum class MultiStrategy : std::int32_t {
 };
 
 /**
- * \brief Basic model parameters, used to describe the booster.
+ * @brief Basic model parameters, used to describe the booster.
  */
 struct LearnerModelParam {
  private:
   /**
-   * \brief Global bias, this is just a scalar value but can be extended to vector when we
+   * @brief Global bias, this is just a scalar value but can be extended to vector when we
    *        support multi-class and multi-target.
+   *
+   * The value stored here is the value before applying the inverse link function, used
+   * for initializing the prediction matrix/vector.
    */
-  linalg::Tensor<float, 1> base_score_;
+  linalg::Vector<float> base_score_;
+
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
+                    MultiStrategy multi_strategy);
 
  public:
   /**
-   * \brief The number of features.
+   * @brief The number of features.
    */
   bst_feature_t num_feature{0};
   /**
-   * \brief The number of classes or targets.
+   * @brief The number of classes or targets.
    */
   std::uint32_t num_output_group{0};
   /**
-   * \brief Current task, determined by objective.
+   * @brief Current task, determined by objective.
    */
   ObjInfo task{ObjInfo::kRegression};
   /**
-   * \brief Strategy for building multi-target models.
+   * @brief Strategy for building multi-target models.
    */
   MultiStrategy multi_strategy{MultiStrategy::kOneOutputPerTree};
 
   LearnerModelParam() = default;
-  // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
-  // this one as an immutable copy.
   LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                    linalg::Tensor<float, 1> base_margin, ObjInfo t, MultiStrategy multi_strategy);
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
-                    MultiStrategy multi_strategy);
-  LearnerModelParam(bst_feature_t n_features, linalg::Tensor<float, 1> base_score,
+                    linalg::Vector<float> base_score, ObjInfo t, MultiStrategy multi_strategy);
+  // This ctor is only used by tests.
+  LearnerModelParam(bst_feature_t n_features, linalg::Vector<float> base_score,
                     std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy)
       : base_score_{std::move(base_score)},
         num_feature{n_features},
         num_output_group{std::max(n_groups, n_targets)},
         multi_strategy{multi_strategy} {}
 
-  linalg::TensorView<float const, 1> BaseScore(Context const* ctx) const;
-  [[nodiscard]] linalg::TensorView<float const, 1> BaseScore(DeviceOrd device) const;
+  linalg::VectorView<float const> BaseScore(Context const* ctx) const;
+  [[nodiscard]] linalg::VectorView<float const> BaseScore(DeviceOrd device) const;
 
   void Copy(LearnerModelParam const& that);
   [[nodiscard]] bool IsVectorLeaf() const noexcept {

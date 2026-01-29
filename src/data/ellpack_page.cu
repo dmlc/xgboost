@@ -6,15 +6,18 @@
 #include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for transform_output_iterator
 
-#include <algorithm>  // for copy
-#include <limits>     // for numeric_limits
-#include <utility>    // for move
-#include <vector>     // for vector
+#include <algorithm>          // for copy
+#include <cuda/std/iterator>  // for distance
+#include <limits>             // for numeric_limits
+#include <utility>            // for move
+#include <vector>             // for vector
 
 #include "../common/algorithm.cuh"          // for InclusiveScan
 #include "../common/categorical.h"          // for IsCat
+#include "../common/compressed_iterator.h"  // for CompressedIterator
 #include "../common/cuda_context.cuh"       // for CUDAContext
 #include "../common/cuda_rt_utils.h"        // for SetDevice
+#include "../common/cuda_stream.h"          // for DefaultStream
 #include "../common/hist_util.cuh"          // for HistogramCuts
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
 #include "../common/transform_iterator.h"   // for MakeIndexTransformIter
@@ -74,13 +77,13 @@ __global__ void CompressBinEllpackKernel(
     auto row_end = entries + row_ptrs[irow + 1] - row_ptrs[0];
     auto it = thrust::make_transform_iterator(thrust::make_counting_iterator(0ul),
                                               [=](std::size_t i) { return row_beg[i].index; });
-    auto it_end = it + thrust::distance(row_beg, row_end);
+    auto it_end = it + cuda::std::distance(row_beg, row_end);
     auto res_it = thrust::lower_bound(thrust::seq, it, it_end, cpr_fidx);
     if (res_it == it_end || cpr_fidx != *res_it) {
       wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + cpr_fidx);
       return;
     }
-    cpr_fidx = thrust::distance(it, res_it);
+    cpr_fidx = cuda::std::distance(it, res_it);
     SPAN_CHECK(cpr_fidx < row_length);
   }
 
@@ -116,7 +119,7 @@ __global__ void CompressBinEllpackKernel(
     }
     if (!kDenseCompressed) {
       // Sparse data, use the compressed fidx.  Add the number of bins in previous
-      // features since we can't compresse it based on feature-local index.
+      // features since we can't compress it based on feature-local index.
       bin += cut_ptrs[fidx];
     } else {
       // Write to the actual fidx for dense data.
@@ -396,6 +399,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, AdapterBatch batch, float m
       std::shared_ptr<common::HistogramCuts const> cuts);
 
 ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
+ELLPACK_BATCH_SPECIALIZE(data::EncCudfAdapterBatch)
 ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
 
 #undef ELLPACK_BATCH_SPECIALIZE
@@ -461,6 +465,10 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
       info{CalcNumSymbols(
           ctx,
           [&] {
+            if (page.Size() == 0) {
+              return static_cast<typename decltype(page.row_ptr)::value_type>(0);
+            }
+            CHECK_GE(page.row_ptr.size(), 2);
             auto it = common::MakeIndexTransformIter(
                 [&](bst_idx_t i) { return page.row_ptr[i + 1] - page.row_ptr[i]; });
             return *std::max_element(it, it + page.Size());
@@ -491,7 +499,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
 
 EllpackPageImpl::~EllpackPageImpl() noexcept(false) {
   // Sync the stream to make sure all running CUDA kernels finish before deallocation.
-  auto status = dh::DefaultStream().Sync(false);
+  auto status = curt::DefaultStream().Sync(false);
   if (status != cudaSuccess) {
     auto str = cudaGetErrorString(status);
     // For external-memory, throwing here can trigger a series of calls to
@@ -535,65 +543,6 @@ bst_idx_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page,
   });
   monitor_.Stop(__func__);
   return n_elements;
-}
-
-// A functor that compacts the rows from one EllpackPage into another.
-template <typename IterT>
-struct CompactPage {
-  common::CompressedBufferWriter cbw;
-  common::CompressedByteT* dst_data_d;
-  IterT src_iterator_d;
-  /**
-   * @brief An array that maps the rows from the full DMatrix to the compacted page.
-   *
-   * The total size is the number of rows in the original, uncompacted DMatrix.
-   * Elements are the row ids in the compacted page. Rows not needed are set to
-   * SIZE_MAX.
-   *
-   * An example compacting 16 rows to 8 rows:
-   * [SIZE_MAX, 0, 1, SIZE_MAX, SIZE_MAX, 2, SIZE_MAX, 3, 4, 5, SIZE_MAX, 6,
-   * SIZE_MAX, 7, SIZE_MAX, SIZE_MAX]
-   */
-  common::Span<size_t> row_indexes;
-  size_t base_rowid;
-  size_t row_stride;
-
-  CompactPage(EllpackPageImpl* dst, EllpackAccessorImpl<IterT> src,
-              common::Span<size_t> row_indexes)
-      : cbw{dst->NumSymbols()},
-        dst_data_d{dst->gidx_buffer.data()},
-        src_iterator_d{src.gidx_iter},
-        row_indexes(row_indexes),
-        base_rowid{src.base_rowid},
-        row_stride{src.row_stride} {}
-
-  __device__ void operator()(bst_idx_t row_id) {
-    size_t src_row = base_rowid + row_id;
-    size_t dst_row = row_indexes[src_row];
-    if (dst_row == SIZE_MAX) {
-      return;
-    }
-    size_t dst_offset = dst_row * row_stride;
-    size_t src_offset = row_id * row_stride;
-    for (size_t j = 0; j < row_stride; j++) {
-      cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[src_offset + j], dst_offset + j);
-    }
-  }
-};
-
-// Compacts the data from the given EllpackPage into the current page.
-void EllpackPageImpl::Compact(Context const* ctx, EllpackPageImpl const* page,
-                              common::Span<size_t> row_indexes) {
-  monitor_.Start(__func__);
-  CHECK_EQ(this->info.row_stride, page->info.row_stride);
-  CHECK_EQ(this->NumSymbols(), page->NumSymbols());
-  CHECK_LE(page->base_rowid + page->n_rows, row_indexes.size());
-  auto cuctx = ctx->CUDACtx();
-  page->Visit(ctx, {}, [&](auto&& src) {
-    dh::LaunchN(page->n_rows, cuctx->Stream(), CompactPage{this, src, row_indexes});
-  });
-
-  monitor_.Stop(__func__);
 }
 
 void EllpackPageImpl::SetCuts(std::shared_ptr<common::HistogramCuts const> cuts) {

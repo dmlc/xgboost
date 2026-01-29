@@ -1,9 +1,10 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>                // for Args
 #include <xgboost/context.h>             // for Context
+#include <xgboost/gradient.h>            // for GradientContainer
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 #include <xgboost/json.h>                // for Json
 #include <xgboost/task.h>                // for ObjInfo
@@ -21,9 +22,9 @@
 
 namespace xgboost::tree {
 namespace {
-void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
+void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat,
                 RegTree* tree, HostDeviceVector<bst_float>* preds, float subsample,
-                const std::string& sampling_method, bst_bin_t max_bin, bool concat_pages) {
+                const std::string& sampling_method, bst_bin_t max_bin) {
   Args args{
       {"max_depth", "2"},
       {"max_bin", std::to_string(max_bin)},
@@ -38,21 +39,13 @@ void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix
 
   ObjInfo task{ObjInfo::kRegression};
   std::unique_ptr<TreeUpdater> hist_maker{TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
-  if (subsample < 1.0) {
-    hist_maker->Configure(Args{{"extmem_single_page", std::to_string(concat_pages)}});
-  } else {
-    hist_maker->Configure(Args{});
-  }
+  hist_maker->Configure(Args{});
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
                      {tree});
   auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
-  if (subsample < 1.0 && !dmat->SingleColBlock() && concat_pages) {
-    ASSERT_FALSE(hist_maker->UpdatePredictionCache(dmat, cache));
-  } else {
-    ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, cache));
-  }
+  ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, common::Span{position}, cache));
 }
 }  // anonymous namespace
 
@@ -67,18 +60,17 @@ TEST(GpuHist, UniformSampling) {
   auto p_fmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
   ASSERT_TRUE(p_fmat->SingleColBlock());
 
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+  auto gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows, false);
+  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows);
   // Build another tree using sampling.
   RegTree tree_sampling;
   HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, ctx.Device());
   UpdateTree(&ctx, &gpair, p_fmat.get(), &tree_sampling, &preds_sampling, kSubsample, "uniform",
-             kRows, false);
+             kRows);
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
@@ -97,20 +89,18 @@ TEST(GpuHist, GradientBasedSampling) {
 
   // Create an in-memory DMatrix.
   auto p_fmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
-
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+  auto gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows, false);
+  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows);
 
   // Build another tree using sampling.
   RegTree tree_sampling;
   HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, ctx.Device());
   UpdateTree(&ctx, &gpair, p_fmat.get(), &tree_sampling, &preds_sampling, kSubsample,
-             "gradient_based", kRows, false);
+             "gradient_based", kRows);
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
@@ -135,17 +125,16 @@ TEST(GpuHist, ExternalMemory) {
   ASSERT_TRUE(p_fmat->SingleColBlock());
 
   auto ctx = MakeCUDACtx(0);
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+  auto gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows, true);
+  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows);
   // Build another tree using multiple ELLPACK pages.
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat_ext.get(), &tree_ext, &preds_ext, 1.0, "uniform", kRows, true);
+  UpdateTree(&ctx, &gpair, p_fmat_ext.get(), &tree_ext, &preds_ext, 1.0, "uniform", kRows);
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
@@ -177,22 +166,21 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
                         .GenerateSparsePageDMatrix("temp", true);
   ASSERT_FALSE(p_fmat_ext->SingleColBlock());
 
-  linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(kRows));
+  auto gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   // Build a tree using the in-memory DMatrix.
   auto rng = common::GlobalRandom();
 
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, kSubsample, kSamplingMethod, kRows, true);
+  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, kSubsample, kSamplingMethod, kRows);
 
   // Build another tree using multiple ELLPACK pages.
   common::GlobalRandom() = rng;
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, ctx.Device());
   UpdateTree(&ctx, &gpair, p_fmat_ext.get(), &tree_ext, &preds_ext, kSubsample, kSamplingMethod,
-             kRows, true);
+             kRows);
 
   Json jtree{Object{}};
   Json jtree_ext{Object{}};
@@ -232,42 +220,6 @@ TEST(GpuHist, MaxDepth) {
   ASSERT_THROW({learner->UpdateOneIter(0, p_mat);}, dmlc::Error);
 }
 
-TEST(GpuHist, PageConcatConfig) {
-  auto ctx = MakeCUDACtx(0);
-  bst_idx_t n_samples = 64, n_features = 32;
-  auto p_fmat = RandomDataGenerator{n_samples, n_features, 0}.Batches(2).GenerateSparsePageDMatrix(
-      "temp", true);
-
-  auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
-  learner->SetParam("device", ctx.DeviceName());
-  learner->SetParam("extmem_single_page", "true");
-  learner->SetParam("subsample", "0.8");
-  learner->Configure();
-
-  learner->UpdateOneIter(0, p_fmat);
-  learner->SetParam("extmem_single_page", "false");
-  learner->Configure();
-  // GPU Hist rebuilds the updater after configuration. Training continues
-  learner->UpdateOneIter(1, p_fmat);
-
-  learner->SetParam("extmem_single_page", "true");
-  learner->SetParam("subsample", "1.0");
-  ASSERT_THAT([&] { learner->UpdateOneIter(2, p_fmat); }, GMockThrow("extmem_single_page"));
-
-  // Throws error on CPU.
-  {
-    auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
-    learner->SetParam("extmem_single_page", "true");
-    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); }, GMockThrow("extmem_single_page"));
-  }
-  {
-    auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
-    learner->SetParam("extmem_single_page", "true");
-    learner->SetParam("tree_method", "approx");
-    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); }, GMockThrow("extmem_single_page"));
-  }
-}
-
 namespace {
 RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
   ObjInfo task{ObjInfo::kRegression};
@@ -276,9 +228,7 @@ RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
 
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
-
-  linalg::Matrix<GradientPair> gpair({dmat->Info().num_row_}, ctx->Device());
-  gpair.Data()->Copy(GenerateRandomGradients(dmat->Info().num_row_));
+  auto gpair = GenerateRandomGradients(ctx, dmat->Info().num_row_, 1);
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   RegTree tree;

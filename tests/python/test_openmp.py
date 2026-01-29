@@ -80,6 +80,7 @@ class TestOMP:
         assert np.array_equal(auc_1, auc_3)
 
     @pytest.mark.skipif(**tm.no_sklearn())
+    @pytest.mark.timeout(30)
     def test_with_omp_thread_limit(self):
         args = [
             "python", os.path.join(

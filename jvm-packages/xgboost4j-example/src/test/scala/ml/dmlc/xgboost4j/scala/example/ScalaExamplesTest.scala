@@ -28,8 +28,6 @@ class ScalaExamplesTest extends AnyFunSuite {
     CrossValidation.main(args)
     println("CustomObjective")
     CustomObjective.main(args)
-    println("ExternalMemory")
-    ExternalMemory.main(args)
     println("GeneralizedLinearModel")
     GeneralizedLinearModel.main(args)
     println("PredictFirstNTree")

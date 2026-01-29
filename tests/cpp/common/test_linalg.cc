@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -8,9 +8,10 @@
 
 #include <cstddef>  // size_t
 #include <numeric>  // iota
-#include <vector>
+#include <vector>   // for vector
 
 #include "../../../src/common/linalg_op.h"
+#include "test_linalg.h"  // for TestLinalgDispatch
 
 namespace xgboost::linalg {
 namespace {
@@ -329,11 +330,11 @@ TEST(Linalg, Popc) {
 
 TEST(Linalg, Stack) {
   Tensor<float, 3> l{{2, 3, 4}, CPU(), Order::kC};
-  ElementWiseTransformHost(l.View(CPU()), omp_get_max_threads(),
-                           [=](size_t i, float) { return i; });
+  cpu_impl::TransformIdxKernel(l.View(CPU()), omp_get_max_threads(),
+                               [=](size_t i, float) { return i; });
   Tensor<float, 3> r_0{{2, 3, 4}, CPU(), Order::kC};
-  ElementWiseTransformHost(r_0.View(CPU()), omp_get_max_threads(),
-                           [=](size_t i, float) { return i; });
+  cpu_impl::TransformIdxKernel(r_0.View(CPU()), omp_get_max_threads(),
+                               [=](size_t i, float) { return i; });
 
   Stack(&l, r_0);
 
@@ -370,6 +371,67 @@ TEST(Linalg, FOrder) {
   for (auto it = ptr; it != ptr + kRows; ++it) {
     ASSERT_EQ(*it, k);
     k += kCols;
+  }
+}
+
+TEST(Linalg, IO) {
+  std::vector<double> data(128, 0);
+  std::iota(data.begin(), data.end(), 0.0f);
+  Vector<double> vec(data.begin(), data.end(), {data.size()}, DeviceOrd::CPU());
+  Json jvec{F32Array{}};
+  SaveVector(vec, &jvec);
+
+  auto check = [&data](linalg::Vector<double> const &loaded) {
+    ASSERT_EQ(loaded.Size(), data.size());
+    for (std::size_t i = 0; i < data.size(); ++i) {
+      ASSERT_NEAR(data[i], loaded(i), kRtEps);
+    }
+  };
+
+  {
+    auto str = Json::Dump(jvec);
+    auto jloaded = Json::Load(StringView{str});
+
+    Vector<double> loaded;
+    LoadVector(jloaded, &loaded);
+    check(loaded);
+  }
+  {
+    Vector<double> loaded;
+    LoadVector(jvec, &loaded);
+    check(loaded);
+  }
+  {
+    std::vector<char> str;
+    Json::Dump(jvec, &str, std::ios::binary);
+    auto jloaded = Json::Load(StringView{str.data(), str.size()}, std::ios::binary);
+
+    Vector<double> loaded;
+    LoadVector(jloaded, &loaded);
+    check(loaded);
+  }
+}
+
+TEST(Linalg, CpuDispatch) {
+  Context ctx;
+  TestLinalgDispatch(&ctx, [](auto v) { return v + 1; });
+}
+
+TEST(Linalg, ExpandDim) {
+  Context ctx;
+  linalg::Matrix<float> x = Zeros<float>(&ctx, 16, 8);
+  std::size_t i = 0;
+  for (auto &v : x.HostView()) {
+    v = static_cast<float>(i);
+    ++i;
+  }
+  auto y = x.Slice(linalg::All(), 2);
+  auto z = ExpandDim(y);
+  ASSERT_EQ(z.Size(), x.Shape(0));
+  ASSERT_EQ(z.Shape(0), x.Shape(0));
+  ASSERT_EQ(z.Shape(1), 1);
+  for (std::size_t i = 0; i < z.Size(); ++i) {
+    ASSERT_EQ(z(i, 0), y(i));
   }
 }
 }  // namespace xgboost::linalg

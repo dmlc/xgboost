@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #pragma once
 #include <thrust/binary_search.h>                       // thrust::upper_bound
@@ -7,6 +7,7 @@
 #include <thrust/device_vector.h>                       // for device_vector
 #include <thrust/execution_policy.h>                    // thrust::seq
 #include <thrust/iterator/discard_iterator.h>           // for discard_iterator
+#include <thrust/iterator/reverse_iterator.h>           // for make_reverse_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // make_transform_output_iterator
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
@@ -16,19 +17,19 @@
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
+#include <cuda/std/iterator>  // for iterator_traits
+#include <cuda/std/utility>   // for pair
+#include <functional>         // for equal_to
 #include <variant>            // for variant, visit
 #include <vector>             // for vector
 
 #include "common.h"
 #include "cuda_rt_utils.h"  // for GetNumaId, CurrentDevice
+#include "cuda_stream.h"    // for Stream
 #include "device_vector.cuh"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
-
-#if defined(XGBOOST_USE_RMM)
-#include <rmm/exec_policy.hpp>
-#endif  // defined(XGBOOST_USE_RMM)
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
 
@@ -182,9 +183,9 @@ __device__ xgboost::common::Range BlockStrideRange(T begin, T end) {
 
 // Threadblock iterates over range, filling with value. Requires all threads in
 // block to be active.
-template <typename IterT, typename ValueT>
-__device__ void BlockFill(IterT begin, size_t n, ValueT value) {
-  for (auto i : BlockStrideRange(static_cast<size_t>(0), n)) {
+template <typename IterT, typename ValueT, typename SizeT>
+__device__ void BlockFill(IterT begin, SizeT n, ValueT value) {
+  for (auto i : BlockStrideRange(static_cast<SizeT>(0), n)) {
     begin[i] = value;
   }
 }
@@ -251,18 +252,6 @@ inline void LaunchN(size_t n, L lambda) {
 template <typename Container>
 void Iota(Container array, cudaStream_t stream) {
   LaunchN(array.size(), stream, [=] __device__(size_t i) { array[i] = i; });
-}
-
-// dh::DebugSyncDevice(__FILE__, __LINE__);
-inline void DebugSyncDevice(char const *file = __builtin_FILE(), int32_t line = __builtin_LINE()) {
-  {
-    auto err = cudaDeviceSynchronize();
-    ThrowOnCudaError(err, file, line);
-  }
-  {
-    auto err = cudaGetLastError();
-    ThrowOnCudaError(err, file, line);
-  }
 }
 
 // Faster to instantiate than caching_device_vector and invokes no synchronisation
@@ -567,6 +556,11 @@ XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIt
   return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
 }
 
+template <typename Fn>
+XGBOOST_DEVICE auto MakeIndexTransformIter(Fn &&fn) {
+  return thrust::make_transform_iterator(thrust::make_counting_iterator(0ul), std::forward<Fn>(fn));
+}
+
 template <typename It>
 size_t XGBOOST_DEVICE SegmentId(It first, It last, size_t idx) {
   size_t segment_id = thrust::upper_bound(thrust::seq, first, last, idx) - 1 - first;
@@ -605,17 +599,16 @@ struct SegmentedUniqueReduceOp {
  * \return Number of unique values in total.
  */
 template <typename DerivedPolicy, typename KeyInIt, typename KeyOutIt, typename ValInIt,
-          typename ValOutIt, typename CompValue, typename CompKey = thrust::equal_to<size_t>>
+          typename ValOutIt, typename CompValue, typename CompKey = std::equal_to<size_t>>
 size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
                        KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
                        ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
-                       CompValue comp, CompKey comp_key = thrust::equal_to<size_t>{}) {
-  using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
+                       CompValue comp, CompKey comp_key = std::equal_to<size_t>{}) {
+  using Key = cuda::std::pair<size_t, typename cuda::std::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
-      thrust::make_counting_iterator(static_cast<size_t>(0)),
-      [=] __device__(size_t i) {
+      thrust::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(std::size_t i) {
         size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
-        return thrust::make_pair(seg, *(val_first + i));
+        return cuda::std::make_pair(seg, *(val_first + i));
       });
   size_t segments_len = key_segments_last - key_segments_first;
   thrust::fill(exec, key_segments_out, key_segments_out + segments_len, 0);
@@ -656,22 +649,19 @@ size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy
  * \tparam val_out            output iterator for values
  * \tparam comp               binary comparison operator
  */
-template <typename DerivedPolicy, typename SegInIt, typename SegOutIt,
-          typename KeyInIt, typename ValInIt, typename ValOutIt, typename Comp>
-size_t SegmentedUniqueByKey(
-    const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
-    SegInIt key_segments_first, SegInIt key_segments_last, KeyInIt key_first,
-    KeyInIt key_last, ValInIt val_first, SegOutIt key_segments_out,
-    ValOutIt val_out, Comp comp) {
+template <typename DerivedPolicy, typename SegInIt, typename SegOutIt, typename KeyInIt,
+          typename ValInIt, typename ValOutIt, typename Comp>
+size_t SegmentedUniqueByKey(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                            SegInIt key_segments_first, SegInIt key_segments_last,
+                            KeyInIt key_first, KeyInIt key_last, ValInIt val_first,
+                            SegOutIt key_segments_out, ValOutIt val_out, Comp comp) {
   using Key =
-      thrust::pair<size_t,
-                   typename thrust::iterator_traits<KeyInIt>::value_type>;
+      cuda::std::pair<std::size_t, typename cuda::std::iterator_traits<KeyInIt>::value_type>;
 
   auto unique_key_it = dh::MakeTransformIterator<Key>(
-      thrust::make_counting_iterator(static_cast<size_t>(0)),
-      [=] __device__(size_t i) {
+      thrust::make_counting_iterator(static_cast<size_t>(0)), [=] __device__(size_t i) {
         size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
-        return thrust::make_pair(seg, *(key_first + i));
+        return cuda::std::make_pair(seg, *(key_first + i));
       });
   size_t segments_len = key_segments_last - key_segments_first;
   thrust::fill(exec, key_segments_out, key_segments_out + segments_len, 0);
@@ -682,19 +672,19 @@ size_t SegmentedUniqueByKey(
   auto reduce_it = thrust::make_transform_output_iterator(
       thrust::make_discard_iterator(),
       detail::SegmentedUniqueReduceOp<Key, SegOutIt>{key_segments_out});
-  auto uniques_ret = thrust::unique_by_key_copy(
-      exec, unique_key_it, unique_key_it + n_inputs, val_first, reduce_it,
-      val_out, [=] __device__(Key const &l, Key const &r) {
-        if (l.first == r.first) {
-          // In the same segment.
-          return comp(thrust::get<1>(l), thrust::get<1>(r));
-        }
-        return false;
-      });
+  auto uniques_ret =
+      thrust::unique_by_key_copy(exec, unique_key_it, unique_key_it + n_inputs, val_first,
+                                 reduce_it, val_out, [=] __device__(Key const &l, Key const &r) {
+                                   if (l.first == r.first) {
+                                     // In the same segment.
+                                     return comp(l.second, r.second);
+                                   }
+                                   return false;
+                                 });
   auto n_uniques = uniques_ret.second - val_out;
   CHECK_LE(n_uniques, n_inputs);
-  thrust::exclusive_scan(exec, key_segments_out,
-                         key_segments_out + segments_len, key_segments_out, 0);
+  thrust::exclusive_scan(exec, key_segments_out, key_segments_out + segments_len, key_segments_out,
+                         0);
   return n_uniques;
 }
 
@@ -715,93 +705,9 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
   return aggregate;
 }
 
-class CUDAStreamView;
-
-class CUDAEvent {
-  std::unique_ptr<cudaEvent_t, void (*)(cudaEvent_t *)> event_;
-
- public:
-  explicit CUDAEvent(bool disable_timing = true)
-      : event_{[disable_timing] {
-                 auto e = new cudaEvent_t;
-                 dh::safe_cuda(cudaEventCreateWithFlags(
-                     e, disable_timing ? cudaEventDisableTiming : cudaEventDefault));
-                 return e;
-               }(),
-               [](cudaEvent_t *e) {
-                 if (e) {
-                   dh::safe_cuda(cudaEventDestroy(*e));
-                   delete e;
-                 }
-               }} {}
-
-  inline void Record(CUDAStreamView stream);  // NOLINT
-  // Define swap-based ctor to make sure an event is always valid.
-  CUDAEvent(CUDAEvent &&e) : CUDAEvent() { std::swap(this->event_, e.event_); }
-  CUDAEvent &operator=(CUDAEvent &&e) {
-    std::swap(this->event_, e.event_);
-    return *this;
-  }
-
-  operator cudaEvent_t() const { return *event_; }                // NOLINT
-  cudaEvent_t const *data() const { return this->event_.get(); }  // NOLINT
-  void Sync() { dh::safe_cuda(cudaEventSynchronize(*this->data())); }
-};
-
-class CUDAStreamView {
-  cudaStream_t stream_{nullptr};
-
- public:
-  explicit CUDAStreamView(cudaStream_t s) : stream_{s} {}
-  void Wait(CUDAEvent const &e) {
-#if defined(__CUDACC_VER_MAJOR__)
-#if __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0
-    // CUDA == 11.0
-    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, 0));
-#else
-    // CUDA > 11.0
-    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
-#endif  // __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0:
-#else   // clang
-    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
-#endif  //  defined(__CUDACC_VER_MAJOR__)
-  }
-  operator cudaStream_t() const {  // NOLINT
-    return stream_;
-  }
-  cudaError_t Sync(bool error = true) {
-    if (error) {
-      dh::safe_cuda(cudaStreamSynchronize(stream_));
-      return cudaSuccess;
-    }
-    return cudaStreamSynchronize(stream_);
-  }
-};
-
-inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
-  dh::safe_cuda(cudaEventRecord(*event_, cudaStream_t{stream}));
-}
-
-// Changing this has effect on prediction return, where we need to pass the pointer to
-// third-party libraries like cuPy
-inline CUDAStreamView DefaultStream() { return CUDAStreamView{cudaStreamPerThread}; }
-
-class CUDAStream {
-  cudaStream_t stream_;
-
- public:
-  CUDAStream() { dh::safe_cuda(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking)); }
-  ~CUDAStream() { dh::safe_cuda(cudaStreamDestroy(stream_)); }
-
-  [[nodiscard]] CUDAStreamView View() const { return CUDAStreamView{stream_}; }
-  [[nodiscard]] cudaStream_t Handle() const { return stream_; }
-
-  void Sync() { this->View().Sync(); }
-  void Wait(CUDAEvent const &e) { this->View().Wait(e); }
-};
-
 template <class Src, class Dst>
-void CopyTo(Src const &src, Dst *dst, CUDAStreamView stream = DefaultStream()) {
+void CopyTo(Src const &src, Dst *dst,
+            ::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {
   if (src.empty()) {
     dst->clear();
     return;
@@ -813,7 +719,6 @@ void CopyTo(Src const &src, Dst *dst, CUDAStreamView stream = DefaultStream()) {
   dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
                                 src.size() * sizeof(SVT), cudaMemcpyDefault, stream));
 }
-
 
 /**
  * @brief Wrapper for the @ref cudaMemcpyBatchAsync .
@@ -862,11 +767,7 @@ template <cudaMemcpyKind kind, typename T, typename U>
 
 inline auto CachingThrustPolicy() {
   XGBCachingDeviceAllocator<char> alloc;
-#if THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
-  return thrust::cuda::par_nosync(alloc).on(DefaultStream());
-#else
-  return thrust::cuda::par(alloc).on(DefaultStream());
-#endif  // THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
+  return thrust::cuda::par_nosync(alloc).on(::xgboost::curt::DefaultStream());
 }
 
 // Force nvcc to load data as constant
@@ -889,4 +790,6 @@ class LDGIterator {
     return *reinterpret_cast<const T *>(tmp);
   }
 };
+
+constexpr std::int32_t WarpThreads() { return 32; }
 }  // namespace dh

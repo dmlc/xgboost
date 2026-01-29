@@ -8,17 +8,18 @@ Write-Host "--- Build libxgboost on Windows (minimal)"
 
 mkdir build
 cd build
-cmake .. -G"Visual Studio 17 2022" -A x64
+cmake .. -G"Ninja" -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-cmake --build . --config Release -- /m /nodeReuse:false `
-  "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
+
+cmake --build . -v
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 Write-Host "--- Build binary wheel"
 cd ..
 # Patch to rename pkg to xgboost-cpu
 conda activate
-python ops/script/pypi_variants.py --use-cpu-suffix=1 --require-nccl-dep=0
+python ops/script/pypi_variants.py --use-suffix=cpu --require-nccl-dep=na
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 cd python-package

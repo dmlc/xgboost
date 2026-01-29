@@ -5,6 +5,8 @@
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 
+#include "cuda_stream.h"  // for StreamRef
+
 namespace xgboost::curt {
 std::int32_t AllVisibleGPUs();
 
@@ -15,12 +17,10 @@ std::int32_t CurrentDevice(bool raise = true);
 
 // Whether the device supports coherently accessing pageable memory without calling
 // `cudaHostRegister` on it
-bool SupportsPageableMem();
+[[nodiscard]] bool SupportsPageableMem();
 
 // Address Translation Service (ATS)
-bool SupportsAts();
-
-void CheckComputeCapability();
+[[nodiscard]] bool SupportsAts();
 
 void SetDevice(std::int32_t device);
 
@@ -30,11 +30,18 @@ void SetDevice(std::int32_t device);
 [[nodiscard]] std::size_t TotalMemory();
 
 // Returns the CUDA Runtime version.
-void RtVersion(std::int32_t* major, std::int32_t* minor);
+void GetRtVersionGlobal(std::int32_t* major, std::int32_t* minor);
 
 // Returns the latest version of CUDA supported by the driver.
-void DrVersion(std::int32_t* major, std::int32_t* minor);
+void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor);
 
 // Get the current device's numa ID.
 [[nodiscard]] std::int32_t GetNumaId();
+
+[[nodiscard]] std::int32_t GetMpCnt(std::int32_t device);
+
+[[nodiscard]] bool MemoryPoolsSupported(std::int32_t device);
+
+// cudaMemcpyAsync
+void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream);
 }  // namespace xgboost::curt

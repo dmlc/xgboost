@@ -13,7 +13,6 @@ from xgboost.testing import (
     make_categorical,
     make_ltr,
     make_sparse_regression,
-    predictor_equal,
 )
 from xgboost.testing.data import check_inf, np_dtypes
 from xgboost.testing.data_iter import run_mixed_sparsity
@@ -21,6 +20,7 @@ from xgboost.testing.quantile_dmatrix import (
     check_categorical_strings,
     check_ref_quantile_cut,
 )
+from xgboost.testing.utils import predictor_equal
 
 
 class TestQuantileDMatrix:
@@ -399,5 +399,11 @@ class TestQuantileDMatrix:
     def test_cv_error(self) -> None:
         X, y = make_sparse_regression(8, 2, sparsity=0.2, as_dense=False)
         Xy = xgb.QuantileDMatrix(X, y)
-        with pytest.raises(ValueError, match=""):
-            cv = xgb.cv({}, Xy, 10, nfold=10, early_stopping_rounds=10)
+        with pytest.raises(ValueError):
+            xgb.cv({}, Xy, 10, nfold=10, early_stopping_rounds=10)
+
+
+def test_feature_types() -> None:
+    it = IteratorForTest(*make_batches(32, 8, 4, False), cache=None)
+    with pytest.raises(ValueError, match="specified as batch argument"):
+        xgb.QuantileDMatrix(it, feature_types=["q"] * 8)

@@ -1,11 +1,11 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_DETERMINISTIC_CUH_
 #define XGBOOST_COMMON_DETERMINISTIC_CUH_
 
-#include <cmath>
-#include <limits>          // std::numeric_limits
+#include <cmath>   // for frexp, ldexp
+#include <limits>  // for numeric_limits
 
 #include "xgboost/base.h"  // XGBOOST_DEVICE
 
@@ -22,7 +22,7 @@ namespace common {
  * Summation' by Demmel and Nguyen.
  */
 template <typename T>
-XGBOOST_DEVICE T CreateRoundingFactor(T max_abs, int n) {
+XGBOOST_DEVICE T CreateRoundingFactor(T max_abs, bst_idx_t n) {
   T delta = max_abs / (static_cast<T>(1.0) -
                        static_cast<T>(2.0) * static_cast<T>(n) * std::numeric_limits<T>::epsilon());
 

@@ -30,7 +30,11 @@ class Value {
   }
 
  public:
-  /*!\brief Simplified implementation of LLVM RTTI. */
+  /**
+   * @brief Simplified implementation of LLVM RTTI.
+   *
+   * @note The integer ID must be kept stable.
+   */
   enum class ValueKind : std::int64_t {
     kString = 0,
     kNumber = 1,
@@ -45,8 +49,11 @@ class Value {
     kI8Array = 9,
     kU8Array = 10,
     kI16Array = 11,
-    kI32Array = 12,
-    kI64Array = 13
+    kU16Array = 12,
+    kI32Array = 13,
+    kU32Array = 14,
+    kI64Array = 15,
+    kU64Array = 16,
   };
 
   explicit Value(ValueKind _kind) : kind_{_kind} {}
@@ -193,13 +200,25 @@ using U8Array = JsonTypedArray<std::uint8_t, Value::ValueKind::kU8Array>;
  */
 using I16Array = JsonTypedArray<std::int16_t, Value::ValueKind::kI16Array>;
 /**
+ * @brief Typed UBJSON array for uint16_t.
+ */
+using U16Array = JsonTypedArray<std::uint16_t, Value::ValueKind::kU16Array>;
+/**
  * @brief Typed UBJSON array for int32_t.
  */
 using I32Array = JsonTypedArray<std::int32_t, Value::ValueKind::kI32Array>;
 /**
+ * @brief Typed UBJSON array for uint32_t.
+ */
+using U32Array = JsonTypedArray<std::uint32_t, Value::ValueKind::kU32Array>;
+/**
  * @brief Typed UBJSON array for int64_t.
  */
 using I64Array = JsonTypedArray<std::int64_t, Value::ValueKind::kI64Array>;
+/**
+ * @brief Typed UBJSON array for uint64_t.
+ */
+using U64Array = JsonTypedArray<std::uint64_t, Value::ValueKind::kU64Array>;
 
 class JsonObject : public Value {
  public:

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
@@ -7,6 +7,7 @@
 
 #include "../../common/categorical.h"
 #include "../../common/cuda_pinned_allocator.h"
+#include "../../common/cuda_stream.h"  // for Stream
 #include "../split_evaluator.h"
 #include "../updater_gpu_common.cuh"  // for DeviceSplitCandidate
 #include "expand_entry.cuh"
@@ -20,8 +21,8 @@ namespace tree {
 
 // Inputs specific to each node
 struct EvaluateSplitInputs {
-  int nidx;
-  int depth;
+  bst_node_t nidx;
+  bst_node_t depth;
   GradientPairInt64 parent_sum;
   common::Span<const bst_feature_t> feature_set;
   common::Span<const GradientPairInt64> gradient_histogram;
@@ -65,7 +66,7 @@ class GPUHistEvaluator {
   // host storage for categories for each node, used for sort based splits.
   std::vector<CatST, Alloc> h_split_cats_;
   // stream for copying categories from device back to host for expanding the decision tree.
-  dh::CUDAStream copy_stream_;
+  curt::Stream copy_stream_;
   // storage for sorted index of feature histogram, used for sort based splits.
   dh::device_vector<bst_feature_t> cat_sorted_idx_;
   // cached input for sorting the histogram, used for sort based splits.
@@ -87,7 +88,7 @@ class GPUHistEvaluator {
   DeviceOrd device_;
 
   // Copy the categories from device to host asynchronously.
-  void CopyToHost( const std::vector<bst_node_t>& nidx);
+  void CopyToHost(const std::vector<bst_node_t> &nidx);
 
   /**
    * \brief Get host category storage of nidx for internal calculation.
@@ -126,7 +127,7 @@ class GPUHistEvaluator {
   }
 
   auto SortInput(int num_nodes, bst_feature_t total_bins) {
-    if(!need_sort_histogram_) return common::Span<SortPair>();
+    if (!need_sort_histogram_) return common::Span<SortPair>();
     sort_input_.resize(num_nodes * total_bins);
     return dh::ToSpan(sort_input_);
   }
@@ -167,10 +168,10 @@ class GPUHistEvaluator {
   void ApplyTreeSplit(GPUExpandEntry const &candidate, RegTree *p_tree) {
     auto &tree = *p_tree;
     // Set up child constraints
-    auto left_child = tree[candidate.nid].LeftChild();
-    auto right_child = tree[candidate.nid].RightChild();
-    tree_evaluator_.AddSplit(candidate.nid, left_child, right_child,
-                             tree[candidate.nid].SplitIndex(), candidate.left_weight,
+    auto left_child = tree[candidate.nidx].LeftChild();
+    auto right_child = tree[candidate.nidx].RightChild();
+    tree_evaluator_.AddSplit(candidate.nidx, left_child, right_child,
+                             tree[candidate.nidx].SplitIndex(), candidate.left_weight,
                              candidate.right_weight);
   }
 
@@ -178,21 +179,21 @@ class GPUHistEvaluator {
   /**
    * \brief Sort the histogram based on output to obtain contiguous partitions.
    */
-  common::Span<bst_feature_t const> SortHistogram(common::Span<const EvaluateSplitInputs> d_inputs,
+  common::Span<bst_feature_t const> SortHistogram(
+      Context const *ctx, common::Span<const EvaluateSplitInputs> d_inputs,
       EvaluateSplitSharedInputs shared_inputs,
       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public
-  void LaunchEvaluateSplits(
-      bst_feature_t max_active_features,
-      common::Span<const EvaluateSplitInputs> d_inputs,
-      EvaluateSplitSharedInputs shared_inputs,
-      TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-      common::Span<DeviceSplitCandidate> out_splits);
+  void LaunchEvaluateSplits(Context const *ctx, bst_feature_t max_active_features,
+                            common::Span<const EvaluateSplitInputs> d_inputs,
+                            EvaluateSplitSharedInputs shared_inputs,
+                            TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                            common::Span<DeviceSplitCandidate> out_splits);
   /**
    * \brief Evaluate splits for left and right nodes.
    */
-  void EvaluateSplits(Context const* ctx, const std::vector<bst_node_t> &nidx,
+  void EvaluateSplits(Context const *ctx, const std::vector<bst_node_t> &nidx,
                       bst_feature_t max_active_features,
                       common::Span<const EvaluateSplitInputs> d_inputs,
                       EvaluateSplitSharedInputs shared_inputs,
@@ -202,6 +203,43 @@ class GPUHistEvaluator {
    */
   GPUExpandEntry EvaluateSingleSplit(Context const *ctx, EvaluateSplitInputs input,
                                      EvaluateSplitSharedInputs shared_inputs);
+};
+
+// Input for evaluation kernel for each tree node.
+struct MultiEvaluateSplitInputs {
+  bst_node_t nidx;
+  bst_node_t depth;
+  common::Span<GradientPairInt64 const> parent_sum;
+  common::Span<bst_feature_t const> feature_set;
+  common::Span<GradientPairInt64 const> histogram;
+};
+
+// Input for evaluation kernel that can be shared by multiple tree nodes.
+struct MultiEvaluateSplitSharedInputs {
+  // len == n_targets
+  common::Span<GradientQuantiser const> roundings;
+  // cut pointers
+  common::Span<std::uint32_t const> feature_segments;
+  // cut values
+  float const *feature_values;
+  // min cut values
+  float const *min_values;
+  // Number of bins for one feature and one target
+  bst_bin_t n_bins_per_feat_tar;
+  bst_feature_t max_active_feature;
+  GPUTrainingParam param;
+
+  // Used for testing
+  enum OnePass {
+    kNone,      // normal
+    kForward,   // only perform the forward pass
+    kBackward,  // only perform the backward pass
+  } one_pass{kNone};
+
+  [[nodiscard]] XGBOOST_DEVICE bst_target_t Targets() const { return roundings.size(); }
+  [[nodiscard]] XGBOOST_DEVICE bst_feature_t Features() const {
+    return this->feature_segments.size() - 1;
+  }
 };
 }  // namespace tree
 }  // namespace xgboost

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost contributors
+ * Copyright 2021-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>  // for CSCPage, SortedCSCPage, SparsePage
@@ -9,8 +9,8 @@
 
 #include "../../../src/common/io.h"  // for PrivateMmapConstStream, AlignedResourceReadStream...
 #include "../../../src/data/sparse_page_writer.h"  // for CreatePageFormat
+#include "../filesystem.h"                         // for TemporaryDirectory
 #include "../helpers.h"                            // for RandomDataGenerator
-#include "dmlc/filesystem.h"                       // for TemporaryDirectory
 #include "xgboost/context.h"                       // for Context
 
 namespace xgboost::data {
@@ -20,8 +20,8 @@ template <typename S> void TestSparsePageRawFormat() {
 
   auto m = RandomDataGenerator{100, 14, 0.5}.GenerateDMatrix();
   ASSERT_TRUE(m->SingleColBlock());
-  dmlc::TemporaryDirectory tmpdir;
-  std::string path = tmpdir.path + "/sparse.page";
+  common::TemporaryDirectory tmpdir;
+  std::string path = tmpdir.Str() + "/sparse.page";
   S orig;
   std::size_t n_bytes{0};
   {

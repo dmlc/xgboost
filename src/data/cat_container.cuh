@@ -62,13 +62,16 @@ struct EncThrustPolicy {
 
   [[nodiscard]] auto ThrustPolicy() const {
     dh::XGBCachingDeviceAllocator<char> alloc;
-    auto exec = thrust::cuda::par_nosync(alloc).on(dh::DefaultStream());
+    auto exec = thrust::cuda::par_nosync(alloc).on(curt::DefaultStream());
     return exec;
   }
-  [[nodiscard]] auto Stream() const { return dh::DefaultStream(); }
+  [[nodiscard]] auto Stream() const { return curt::DefaultStream(); }
 };
 
 using EncPolicyT = enc::Policy<EncErrorPolicy, EncThrustPolicy>;
 
 inline EncPolicyT EncPolicy = EncPolicyT{};
+
+[[nodiscard]] std::tuple<CatAccessor, dh::DeviceUVector<std::int32_t>> MakeCatAccessor(
+    Context const* ctx, enc::DeviceColumnsView const& new_enc, CatContainer const* orig_cats);
 }  // namespace xgboost::cuda_impl

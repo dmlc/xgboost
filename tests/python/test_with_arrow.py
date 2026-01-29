@@ -5,6 +5,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.compat import is_dataframe
 from xgboost.core import DataSplitMode
 
 pytestmark = pytest.mark.skipif(
@@ -15,6 +16,14 @@ pytestmark = pytest.mark.skipif(
 import pandas as pd
 import pyarrow as pa
 import pyarrow.csv as pc
+
+
+def test_type_check() -> None:
+    df = pd.DataFrame(
+        [[0, 1, 2.0, 3.0], [1, 2, 3.0, 4.0]], columns=["a", "b", "c", "d"]
+    )
+    table = pa.Table.from_pandas(df)
+    assert is_dataframe(table)
 
 
 class TestArrowTable:

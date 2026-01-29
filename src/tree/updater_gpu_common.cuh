@@ -40,7 +40,6 @@ struct GPUTrainingParam {
 };
 
 /**
- * @enum DefaultDirection node.cuh
  * @brief Default direction to be followed in case of missing values
  */
 enum DefaultDirection {
@@ -53,13 +52,13 @@ enum DefaultDirection {
 struct DeviceSplitCandidate {
   float loss_chg{-std::numeric_limits<float>::max()};
   DefaultDirection dir{kLeftDir};
-  int findex {-1};
-  float fvalue {0};
+  int findex{-1};
+  float fvalue{0};
   // categorical split, either it's the split category for OHE or the threshold for partition-based
   // split.
   bst_cat_t thresh{-1};
 
-  bool is_cat { false };
+  bool is_cat{false};
 
   GradientPairInt64 left_sum;
   GradientPairInt64 right_sum;
@@ -73,14 +72,14 @@ struct DeviceSplitCandidate {
     if (loss_chg_in > loss_chg &&
         quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
         quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
-        loss_chg = loss_chg_in;
-        dir = dir_in;
-        fvalue = fvalue_in;
-        is_cat = cat;
-        left_sum = left_sum_in;
-        right_sum = right_sum_in;
-        findex = findex_in;
-      }
+      loss_chg = loss_chg_in;
+      dir = dir_in;
+      fvalue = fvalue_in;
+      is_cat = cat;
+      left_sum = left_sum_in;
+      right_sum = right_sum_in;
+      findex = findex_in;
+    }
   }
 
   /**
@@ -90,18 +89,18 @@ struct DeviceSplitCandidate {
                                 bst_feature_t findex_in, GradientPairInt64 left_sum_in,
                                 GradientPairInt64 right_sum_in, GPUTrainingParam const& param,
                                 const GradientQuantiser& quantiser) {
-      if (loss_chg_in > loss_chg &&
-          quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
-          quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
-        loss_chg = loss_chg_in;
-        dir = dir_in;
-        fvalue = std::numeric_limits<float>::quiet_NaN();
-        thresh = thresh_in;
-        is_cat = true;
-        left_sum = left_sum_in;
-        right_sum = right_sum_in;
-        findex = findex_in;
-      }
+    if (loss_chg_in > loss_chg &&
+        quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
+        quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
+      loss_chg = loss_chg_in;
+      dir = dir_in;
+      fvalue = std::numeric_limits<float>::quiet_NaN();
+      thresh = thresh_in;
+      is_cat = true;
+      left_sum = left_sum_in;
+      right_sum = right_sum_in;
+      findex = findex_in;
+    }
   }
 
   [[nodiscard]] XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
@@ -117,6 +116,44 @@ struct DeviceSplitCandidate {
        << "right sum: " << c.right_sum << std::endl;
     return os;
   }
+};
+
+struct MultiSplitCandidate {
+  float loss_chg{-std::numeric_limits<float>::max()};
+  DefaultDirection dir{kLeftDir};
+  int findex{-1};
+  float fvalue{0};
+  // categorical split, either it's the split category for OHE or the threshold for partition-based
+  // split.
+  bst_cat_t thresh{-1};
+
+  bool is_cat{false};
+
+  common::Span<GradientPairInt64 const> child_sum;
+
+  MultiSplitCandidate() = default;
+
+  XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in, float fvalue_in,
+                             int findex_in, common::Span<GradientPairInt64 const> node_sum_in,
+                             bool cat, GPUTrainingParam const& /*param*/,
+                             common::Span<GradientQuantiser const> /*roundings*/) {
+    // TODO(jiamingy): Support min_child_weight
+    if (loss_chg_in > loss_chg) {
+      loss_chg = loss_chg_in;
+      dir = dir_in;
+      fvalue = fvalue_in;
+      is_cat = cat;
+      child_sum = node_sum_in;
+      findex = findex_in;
+    }
+  }
+  XGBOOST_DEVICE void Update(MultiSplitCandidate const& that, GPUTrainingParam const& param,
+                             common::Span<GradientQuantiser const> roundings) {
+    this->Update(that.loss_chg, that.dir, that.fvalue, that.findex, that.child_sum, that.is_cat,
+                 param, roundings);
+  }
+
+  [[nodiscard]] XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
 };
 
 namespace cuda_impl {
@@ -139,9 +176,9 @@ inline BatchParam ApproxBatch(TrainParam const& p, common::Span<float const> hes
 template <typename T>
 struct SumCallbackOp {
   // Running prefix
-  T running_total;
-  // Constructor
-  XGBOOST_DEVICE SumCallbackOp() : running_total(T()) {}
+  T running_total{T{}};
+
+  SumCallbackOp() = default;
   XGBOOST_DEVICE T operator()(T block_aggregate) {
     T old_prefix = running_total;
     running_total += block_aggregate;

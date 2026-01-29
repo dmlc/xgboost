@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>                         // for Args, bst_target_t
@@ -16,7 +16,6 @@
 
 #include "../../src/common/linalg_op.h"           // for begin, cbegin, cend
 #include "../../src/common/stats.h"               // for Median
-#include "../../src/common/transform_iterator.h"  // for IndexTransformIter
 #include "helpers.h"                              // for RandomDataGenerator
 #include "xgboost/host_device_vector.h"           // for HostDeviceVector
 #include "xgboost/linalg.h"                       // for Tensor, All, TensorView, Vector
@@ -82,10 +81,9 @@ class TestL1MultiTarget : public ::testing::Test {
 
     Json config{Object{}};
     learner->SaveConfig(&config);
-    auto base_score =
-        std::stod(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+    auto base_score = GetBaseScore(config);
 
-    std::vector<float> base_scores;
+    std::vector<float> split_scores;
     for (bst_target_t t{0}; t < p_fmat->Info().labels.Shape(1); ++t) {
       auto t_Xy = weight ? single_w_[t] : single_[t];
       std::unique_ptr<Learner> sl{Learner::Create({t_Xy})};
@@ -96,16 +94,14 @@ class TestL1MultiTarget : public ::testing::Test {
       sl->UpdateOneIter(0, t_Xy);
       Json s_config{Object{}};
       sl->SaveConfig(&s_config);
-      auto s_base_score =
-          std::stod(get<String const>(s_config["learner"]["learner_model_param"]["base_score"]));
+      auto s_base_score = GetBaseScore(s_config);
+      ASSERT_EQ(s_base_score.size(), 1);
       linalg::Vector<float> out;
       common::Median(sl->Ctx(), t_Xy->Info().labels, t_Xy->Info().weights_, &out);
-      ASSERT_FLOAT_EQ(s_base_score, out(0));
-      base_scores.push_back(s_base_score);
+      ASSERT_FLOAT_EQ(s_base_score[0], out(0));
+      split_scores.push_back(s_base_score[0]);
     }
-    auto mean = std::accumulate(base_scores.cbegin(), base_scores.cend(), .0f) /
-                static_cast<float>(base_scores.size());
-    ASSERT_FLOAT_EQ(mean, base_score);
+    ASSERT_EQ(split_scores, base_score);
   }
 
   void RunTest(Context const* ctx, std::string const& tree_method) {

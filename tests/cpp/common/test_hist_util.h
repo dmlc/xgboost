@@ -1,10 +1,10 @@
-/*!
- * Copyright 2019-2022 by XGBoost Contributors
+/**
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #pragma once
 #include <gtest/gtest.h>
 
-#include <fstream>
+#include <memory>  // for shared_ptr
 #include <random>
 #include <string>
 #include <vector>
@@ -12,19 +12,17 @@
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
 #ifdef __CUDACC__
 #include <xgboost/json.h>
+
 #include "../../../src/data/device_adapter.cuh"
 #endif  // __CUDACC__
 
 // Some helper functions used to test both GPU and CPU algorithms
 //
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
   // Generate columns with different ranges
 inline std::vector<float> GenerateRandom(int num_rows, int num_columns) {
   std::vector<float> x(num_rows*num_columns);
@@ -71,25 +69,6 @@ GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns) {
   data::DenseAdapter adapter(x.data(), num_rows, num_columns);
   return std::shared_ptr<data::SimpleDMatrix>(new data::SimpleDMatrix(
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
-}
-
-inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
-    const std::vector<float>& x, int num_rows, int num_columns,
-    const dmlc::TemporaryDirectory& tempdir) {
-  // Create the svm file in a temp dir
-  const std::string tmp_file = tempdir.path + "/temp.libsvm";
-  std::ofstream fo(tmp_file.c_str());
-  for (auto i = 0; i < num_rows; i++) {
-    std::stringstream row_data;
-    for (auto j = 0; j < num_columns; j++) {
-      row_data << 1 << " " << j << ":" << std::setprecision(15)
-               << x[i * num_columns + j];
-    }
-    fo << row_data.str() << "\n";
-  }
-  fo.close();
-  return std::shared_ptr<DMatrix>(
-      DMatrix::Load(tmp_file + "?format=libsvm" + "#" + tmp_file + ".cache"));
 }
 
 // Test that elements are approximately equally distributed among bins
@@ -260,5 +239,4 @@ void TestCategoricalSketch(size_t n, size_t num_categories, int32_t num_bins,
     ASSERT_EQ(x[i], values[i]);
   }
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

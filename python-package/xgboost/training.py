@@ -1,10 +1,22 @@
-# pylint: disable=too-many-locals, too-many-arguments, invalid-name
+# pylint: disable=too-many-locals, too-many-arguments
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
+
 import copy
 import os
 import weakref
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
 import numpy as np
 
@@ -15,18 +27,26 @@ from .callback import (
     EvaluationMonitor,
     TrainingCallback,
 )
-from .compat import SKLEARN_INSTALLED, DataFrame, XGBStratifiedKFold
+from .compat import SKLEARN_INSTALLED, XGBStratifiedKFold
 from .core import (
     Booster,
     DMatrix,
     Metric,
-    Objective,
+    PlainObj,
     XGBoostError,
     _deprecate_positional_args,
     _RefMixIn,
 )
 
+if TYPE_CHECKING:
+    from pandas import DataFrame as PdDataFrame
+
 _CVFolds = Sequence["CVPack"]
+
+_RefError = (
+    "Training dataset should be used as a reference when constructing the "
+    "`QuantileDMatrix` for evaluation.",
+)
 
 
 @_deprecate_positional_args
@@ -36,7 +56,7 @@ def train(
     num_boost_round: int = 10,
     *,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
-    obj: Optional[Objective] = None,
+    obj: Optional[PlainObj] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     evals_result: Optional[TrainingCallback.EvalsLog] = None,
@@ -158,10 +178,7 @@ def train(
             and va.ref is not weakref.ref(dtrain)
             and va is not dtrain
         ):
-            raise ValueError(
-                "Training dataset should be used as a reference when constructing "
-                "the `QuantileDMatrix` for evaluation."
-            )
+            raise ValueError(_RefError)
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
     start_iteration = 0
@@ -210,7 +227,7 @@ class CVPack:
 
         return _inner
 
-    def update(self, iteration: int, fobj: Optional[Objective]) -> None:
+    def update(self, iteration: int, fobj: Optional[PlainObj]) -> None:
         """ "Update the boosters for one iteration"""
         self.bst.update(self.dtrain, iteration, fobj)
 
@@ -223,7 +240,7 @@ class _PackedBooster:
     def __init__(self, cvfolds: _CVFolds) -> None:
         self.cvfolds = cvfolds
 
-    def update(self, iteration: int, obj: Optional[Objective]) -> None:
+    def update(self, iteration: int, obj: Optional[PlainObj]) -> None:
         """Iterate through folds for update"""
         for fold in self.cvfolds:
             fold.update(iteration, obj)
@@ -424,7 +441,7 @@ def cv(
     stratified: bool = False,
     folds: XGBStratifiedKFold = None,
     metrics: Sequence[str] = (),
-    obj: Optional[Objective] = None,
+    obj: Optional[PlainObj] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     fpreproc: Optional[FPreProcCallable] = None,
@@ -435,8 +452,7 @@ def cv(
     callbacks: Optional[Sequence[TrainingCallback]] = None,
     shuffle: bool = True,
     custom_metric: Optional[Metric] = None,
-) -> Union[Dict[str, float], DataFrame]:
-    # pylint: disable = invalid-name
+) -> Union[Dict[str, float], "PdDataFrame"]:
     """Cross-validation with given parameters.
 
     Parameters

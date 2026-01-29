@@ -1,0 +1,136 @@
+name: Build Python wheels using Wheel Variant prototype (WheelNext)
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  ecr-login:
+    name: Login to AWS ECR
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=python-wheels-variants-ecr-login
+    steps:
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2.0.1
+        with:
+          mask-password: 'false'
+          registries: '492475357299'
+    outputs:
+      docker_registry: ${{ steps.login-ecr.outputs.registry }}
+      docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+
+  build-variant-wheels:
+    name: Build raw wheel for variant
+    needs: ecr-login
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=python-wheels-variants-build
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
+    steps:
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          cache-key-prefix: build-variant-wheels
+      - run: bash ops/pipeline/build-variant-wheels.sh
+      - run: sccache --show-stats
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-variant-wheels \
+            python-package/dist/*.whl
+
+  audit-variant-wheel:
+    name: Audit variant wheel for manylinux_2_28_x86_64
+    needs: [ecr-login, build-variant-wheels]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=python-wheels-variants-audit
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.manylinux_2_28_x86_64:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
+    steps:
+      - uses: actions/checkout@v6.0.1
+      - name: Pick Python
+        run: |
+          export PATH=/opt/python/cp310-cp310/bin/:$PATH
+          echo ${PATH} >> $GITHUB_PATH
+      - name: Install dependencies
+        run: |
+          pip install awscli wheel auditwheel pydistcheck
+      - name: Unstash raw wheel
+        run: |
+          mkdir -p python-package/dist
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-variant-wheels \
+            --dest-dir python-package/dist \
+            *.whl
+      - name: Audit wheel
+        run: |
+          WHEEL_TAG=manylinux_2_28_x86_64
+          echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
+          auditwheel repair --only-plat --plat ${WHEEL_TAG} python-package/dist/*.whl
+          python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
+            wheelhouse/*.whl
+          mv -v wheelhouse/*.whl python-package/dist/
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/audit-variant-wheel \
+            python-package/dist/*.whl
+
+  convert-variant-wheel:
+    name: Convert to variant wheel (WheelNext)
+    needs: [ecr-login, audit-variant-wheel]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=python-wheels-variants-convert
+    container:
+      image: ${{ needs.ecr-login.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:main
+      credentials:
+        username: ${{ needs.ecr-login.outputs.docker_username }}
+        password: ${{ needs.ecr-login.outputs.docker_password }}
+    steps:
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - name: Unstash audited wheel
+        run: |
+          mkdir -p python-package/dist
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/audit-variant-wheel \
+            --dest-dir python-package/dist \
+            *.whl
+      - name: Convert to variant wheel
+        run: bash ops/pipeline/build-variant-wheels-impl.sh

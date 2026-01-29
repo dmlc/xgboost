@@ -6,7 +6,6 @@ Before running XGBoost, we must set three types of parameters: general parameter
 - **General parameters** relate to which booster we are using to do boosting, commonly tree or linear model
 - **Booster parameters** depend on which booster you have chosen
 - **Learning task parameters** decide on the learning scenario. For example, regression tasks may use different parameters with ranking tasks.
-- **Command line parameters** relate to behavior of CLI version of XGBoost.
 
 .. note:: Parameters in R package
 
@@ -30,6 +29,16 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
   memory. The primary memory is always allocated on the RMM pool when XGBoost is built
   (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``. See
   :doc:`/python/rmm-examples/index` for details.
+
+* ``use_cuda_async_pool`` [default=false]
+
+  Whether to use the device memory pool in the CUDA driver. This option is not available
+  if XGBoost is built with RMM support, as it is the same as using the RMM
+  `CudaAsyncMemoryResource` pool.
+
+  .. versionadded:: 3.2.0
+
+  .. warning:: This is an experimental feature and is subject to change without notice. Windows is not supported yet.
 
 * ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
   override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,
@@ -87,7 +96,7 @@ Parameters for Tree Booster
 
 * ``gamma`` [default=0, alias: ``min_split_loss``]
 
-  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score.
+  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score. This is the same :math:`\gamma` described in the :doc:`/tutorials/model`.
   - range: [0,∞]
 
 * ``max_depth`` [default=6, type=int32]
@@ -139,7 +148,7 @@ Parameters for Tree Booster
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
-  - L2 regularization term on weights. Increasing this value will make model more conservative.
+  - L2 regularization term on weights. Increasing this value will make model more conservative. This is the :math:`\lambda` described in the :doc:`/tutorials/model`.
   - range: [0, :math:`\infty`]
 
 * ``alpha`` [default=0, alias: ``reg_alpha``]
@@ -250,20 +259,6 @@ Parameters for Non-Exact Tree Methods
     trees. After 3.0, this parameter affects GPU algorithms as well.
 
 
-* ``extmem_single_page``, [default = ``false``]
-
-  This parameter is only used for the ``hist`` tree method with ``device=cuda`` and
-  ``subsample != 1.0``. Before 3.0, pages were always concatenated.
-
-  .. versionadded:: 3.0.0
-
-  Whether the GPU-based ``hist`` tree method should concatenate the training data into a
-  single batch instead of fetching data on-demand when external memory is used. For GPU
-  devices that don't support address translation services, external memory training is
-  expensive. This parameter can be used in combination with subsampling to reduce overall
-  memory usage without significant overhead. See :doc:`/tutorials/external_memory` for
-  more information.
-
 .. _cat-param:
 
 Parameters for Categorical Feature
@@ -272,7 +267,7 @@ Parameters for Categorical Feature
 These parameters are only used for training with categorical data. See
 :doc:`/tutorials/categorical` for more information.
 
-.. note:: These parameters are experimental. ``exact`` tree method is not yet supported.
+.. note:: The ``exact`` tree method is not supported for categorical features.
 
 
 * ``max_cat_to_onehot``
@@ -419,13 +414,18 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``base_score``
 
-  - The initial prediction score of all instances, global bias
-  - The parameter is automatically estimated for selected objectives before training. To
-    disable the estimation, specify a real number argument.
-  - If ``base_margin`` is supplied, ``base_score`` will not be added.
-  - For sufficient number of iterations, changing this value will not have too much effect.
+  The initial prediction score of all instances, also known as the global bias, or the intercept.
 
-  See :doc:`/tutorials/intercept` for more info.
+  .. versionchanged:: 3.1.0
+
+    XGBoost is updated to use vector-valued intercept by default.
+
+  - The parameter is automatically estimated for selected objectives before training. To
+    disable the estimation, specify a real number argument, e.g. ``base_score = 0.5``.
+  - If ``base_margin`` is supplied, ``base_score`` will not be used.
+  - If we train the model with a sufficient number of iterations, changing this value does not offer significant benefit.
+
+  See :doc:`/tutorials/intercept` for more information, including different use cases.
 
 * ``eval_metric`` [default according to objective]
 
@@ -569,64 +569,3 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 * ``ndcg_exp_gain`` [default = ``true``]
 
   Whether we should use exponential gain function for ``NDCG``. There are two forms of gain function for ``NDCG``, one is using relevance value directly while the other is using :math:`2^{rel} - 1` to emphasize on retrieving relevant documents. When ``ndcg_exp_gain`` is true (the default), relevance degree cannot be greater than 31.
-
-***********************
-Command Line Parameters
-***********************
-The following parameters are only used in the console version of XGBoost. The CLI has been
-deprecated and will be removed in future releases.
-
-* ``num_round``
-
-  - The number of rounds for boosting
-
-* ``data``
-
-  - The path of training data
-
-* ``test:data``
-
-  - The path of test data to do prediction
-
-* ``save_period`` [default=0]
-
-  - The period to save the model. Setting ``save_period=10`` means that for every 10 rounds XGBoost will save the model. Setting it to 0 means not saving any model during the training.
-
-* ``task`` [default= ``train``] options: ``train``, ``pred``, ``eval``, ``dump``
-
-  - ``train``: training using data
-  - ``pred``: making prediction for test:data
-  - ``eval``: for evaluating statistics specified by ``eval[name]=filename``
-  - ``dump``: for dump the learned model into text format
-
-* ``model_in`` [default=NULL]
-
-  - Path to input model, needed for ``test``, ``eval``, ``dump`` tasks. If it is specified in training, XGBoost will continue training from the input model.
-
-* ``model_out`` [default=NULL]
-
-  - Path to output model after training finishes. If not specified, XGBoost will output files with such names as ``0003.model`` where ``0003`` is number of boosting rounds.
-
-* ``model_dir`` [default= ``models/``]
-
-  - The output directory of the saved models during training
-
-* ``fmap``
-
-  - Feature map, used for dumping model
-
-* ``dump_format`` [default= ``text``] options: ``text``, ``json``
-
-  - Format of model dump file
-
-* ``name_dump`` [default= ``dump.txt``]
-
-  - Name of model dump file
-
-* ``name_pred`` [default= ``pred.txt``]
-
-  - Name of prediction file, used in pred mode
-
-* ``pred_margin`` [default=0]
-
-  - Predict margin instead of transformed probability

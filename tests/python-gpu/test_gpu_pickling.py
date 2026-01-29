@@ -3,6 +3,7 @@
 import os
 import pickle
 import subprocess
+from typing import Any, Dict, Tuple, Union
 
 import numpy as np
 import pytest
@@ -16,7 +17,7 @@ model_path = "./model.pkl"
 pytestmark = tm.timeout(30)
 
 
-def build_dataset():
+def build_dataset() -> Tuple[np.ndarray, np.ndarray]:
     N = 10
     x = np.linspace(0, N * N, N * N)
     x = x.reshape((N, N))
@@ -24,12 +25,12 @@ def build_dataset():
     return x, y
 
 
-def save_pickle(bst, path):
+def save_pickle(bst: Union[xgb.Booster, xgb.XGBModel], path: str) -> None:
     with open(path, "wb") as fd:
         pickle.dump(bst, fd)
 
 
-def load_pickle(path):
+def load_pickle(path: str) -> Any:
     with open(path, "rb") as fd:
         bst = pickle.load(fd)
     return bst
@@ -38,7 +39,7 @@ def load_pickle(path):
 class TestPickling:
     args_template = ["pytest", "--verbose", "-s", "--fulltrace"]
 
-    def run_pickling(self, bst) -> None:
+    def run_pickling(self, bst: Union[xgb.Booster, xgb.XGBModel]) -> None:
         save_pickle(bst, model_path)
         args = [
             "pytest",
@@ -67,7 +68,7 @@ class TestPickling:
 
     # TODO: This test is too slow
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_pickling(self):
+    def test_pickling(self) -> None:
         x, y = build_dataset()
         train_x = xgb.DMatrix(x, label=y)
 
@@ -86,7 +87,7 @@ class TestPickling:
         self.run_pickling(bst)
 
     @pytest.mark.mgpu
-    def test_wrap_gpu_id(self):
+    def test_wrap_gpu_id(self) -> None:
         X, y = build_dataset()
         dtrain = xgb.DMatrix(X, y)
 
@@ -107,41 +108,46 @@ class TestPickling:
         assert status == 0
         os.remove(model_path)
 
-    def test_pickled_context(self):
+    def test_pickled_context(self) -> None:
         x, y = tm.make_sparse_regression(10, 10, sparsity=0.8, as_dense=True)
         train_x = xgb.DMatrix(x, label=y)
 
+        def run_test(param: Dict[str, Any]) -> None:
+            bst = xgb.train(param, train_x)
+
+            save_pickle(bst, model_path)
+
+            args = self.args_template.copy()
+            root = tm.project_root(__file__)
+            path = os.path.join(root, "tests", "python-gpu", "load_pickle.py")
+            args.append(path + "::TestLoadPickle::test_context_is_removed")
+
+            cuda_environment = {"CUDA_VISIBLE_DEVICES": "-1"}
+            env = os.environ.copy()
+            env.update(cuda_environment)
+
+            # Load model in a CPU only environment.
+            status = subprocess.call(args, env=env)
+            assert status == 0
+
+            args = self.args_template.copy()
+            args.append(
+                "./tests/python-gpu/"
+                "load_pickle.py::TestLoadPickle::test_context_is_preserved"
+            )
+
+            # Load in environment that has GPU.
+            env = os.environ.copy()
+            assert "CUDA_VISIBLE_DEVICES" not in env.keys()
+            status = subprocess.call(args, env=env)
+            assert status == 0
+
+            os.remove(model_path)
+
         param = {"tree_method": "hist", "verbosity": 1, "device": "cuda"}
-        bst = xgb.train(param, train_x)
-
-        save_pickle(bst, model_path)
-
-        args = self.args_template.copy()
-        root = tm.project_root(__file__)
-        path = os.path.join(root, "tests", "python-gpu", "load_pickle.py")
-        args.append(path + "::TestLoadPickle::test_context_is_removed")
-
-        cuda_environment = {"CUDA_VISIBLE_DEVICES": "-1"}
-        env = os.environ.copy()
-        env.update(cuda_environment)
-
-        # Load model in a CPU only environment.
-        status = subprocess.call(args, env=env)
-        assert status == 0
-
-        args = self.args_template.copy()
-        args.append(
-            "./tests/python-gpu/"
-            "load_pickle.py::TestLoadPickle::test_context_is_preserved"
-        )
-
-        # Load in environment that has GPU.
-        env = os.environ.copy()
-        assert "CUDA_VISIBLE_DEVICES" not in env.keys()
-        status = subprocess.call(args, env=env)
-        assert status == 0
-
-        os.remove(model_path)
+        run_test(param)
+        param = {"booster": "gblinear", "updater": "coord_descent", "device": "cuda"}
+        run_test(param)
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_predict_sklearn_pickle(self) -> None:
@@ -174,7 +180,7 @@ class TestPickling:
         cpu_pred = model.predict(x, output_margin=True)
         np.testing.assert_allclose(cpu_pred, gpu_pred, rtol=1e-5)
 
-    def test_training_on_cpu_only_env(self):
+    def test_training_on_cpu_only_env(self) -> None:
         cuda_environment = {"CUDA_VISIBLE_DEVICES": "-1"}
         env = os.environ.copy()
         env.update(cuda_environment)

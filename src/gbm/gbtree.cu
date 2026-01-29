@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 
@@ -34,10 +34,10 @@ void GPUDartInplacePredictInc(common::Span<float> out_predts, common::Span<float
                               float tree_w, size_t n_rows,
                               linalg::TensorView<float const, 1> base_score, bst_group_t n_groups,
                               bst_group_t group) {
-  CHECK_EQ(base_score.Size(), 1);
+  CHECK_EQ(base_score.Size(), n_groups);
   dh::LaunchN(n_rows, [=] XGBOOST_DEVICE(size_t ridx) {
     const size_t offset = ridx * n_groups + group;
-    out_predts[offset] += (predts[offset] - base_score(0)) * tree_w;
+    out_predts[offset] += (predts[offset] - base_score(group)) * tree_w;
   });
 }
 }  // namespace xgboost::gbm

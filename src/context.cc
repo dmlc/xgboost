@@ -22,6 +22,10 @@
 
 #endif  // !defined(XGBOOST_USE_CUDA)
 
+#if defined(XGBOOST_USE_SYCL)
+#include "../plugin/sycl/context_helper.h"
+#endif  // defined (XGBOOST_USE_SYCL)
+
 namespace xgboost {
 
 DMLC_REGISTER_PARAMETER(Context);
@@ -230,36 +234,17 @@ void Context::Init(Args const& kwargs) {
   }
 }
 
-void Context::ConfigureGpuId(bool require_gpu) {
-  if (this->IsCPU() && require_gpu) {
-    this->UpdateAllowUnknown(Args{{kDevice, DeviceSym::CUDA()}});
-  }
-}
-
 void Context::SetDeviceOrdinal(Args const& kwargs) {
   auto gpu_id_it = std::find_if(kwargs.cbegin(), kwargs.cend(),
                                 [](auto const& p) { return p.first == "gpu_id"; });
   auto has_gpu_id = gpu_id_it != kwargs.cend();
+  if (has_gpu_id) {
+    LOG(FATAL) << "`gpu_id` has been removed since 3.1. Use `device` instead.";
+  }
+
   auto device_it = std::find_if(kwargs.cbegin(), kwargs.cend(),
                                 [](auto const& p) { return p.first == kDevice; });
   auto has_device = device_it != kwargs.cend();
-  if (has_device && has_gpu_id) {
-    LOG(FATAL) << "Both `device` and `gpu_id` are specified. Use `device` instead.";
-  }
-
-  if (has_gpu_id) {
-    // Compatible with XGBoost < 2.0.0
-    error::WarnDeprecatedGPUId();
-    auto opt_id = ParseInt(StringView{gpu_id_it->second});
-    CHECK(opt_id.has_value()) << "Invalid value for `gpu_id`. Got:" << gpu_id_it->second;
-    if (opt_id.value() > DeviceOrd::CPUOrdinal()) {
-      this->UpdateAllowUnknown(Args{{kDevice, DeviceOrd::CUDA(opt_id.value()).Name()}});
-    } else {
-      this->UpdateAllowUnknown(Args{{kDevice, DeviceOrd::CPU().Name()}});
-    }
-    return;
-  }
-
   auto new_d = MakeDeviceOrd(this->device, this->fail_on_invalid_gpu_id);
 
   if (!has_device) {
@@ -280,6 +265,14 @@ std::int32_t Context::Threads() const {
     n_threads = std::min(n_threads, cfs_cpu_count_);
   }
   return n_threads;
+}
+
+DeviceOrd Context::DeviceFP64() const {
+  #if defined(XGBOOST_USE_SYCL)
+    return sycl::DeviceFP64(device_);
+  #else
+    return device_;
+  #endif  // defined(XGBOOST_USE_SYCL)
 }
 
 #if !defined(XGBOOST_USE_CUDA)

@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.69)
 
-AC_INIT([xgboost],[3.1.0],[],[xgboost],[])
+AC_INIT([xgboost],[3.2.0],[],[xgboost],[])
 
 : ${R_HOME=`R RHOME`}
 if test -z "${R_HOME}"; then
@@ -122,5 +122,5 @@ AC_SUBST(BACKTRACE_LIB)
 AC_SUBST(XGBOOST_BUILTIN_PREFETCH_PRESENT)
 AC_SUBST(XGBOOST_MM_PREFETCH_PRESENT)
 AC_CONFIG_FILES([src/Makevars])
-AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_HEADERS([src/config.h])
 AC_OUTPUT

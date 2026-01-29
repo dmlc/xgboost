@@ -47,7 +47,7 @@ trait TrainTestData {
         }
       }
 
-      XGBLabeledPoint(label, featureSize, null, values)
+      new XGBLabeledPoint(label, featureSize, null, values)
     }.toList
   }
 
@@ -58,7 +58,7 @@ trait TrainTestData {
       val label = original.head.toFloat
       val group = original.last.toInt
       val values = original.slice(1, length - 1).map(_.toFloat)
-      XGBLabeledPoint(label, values.size, null, values, 1f, group, Float.NaN)
+      new XGBLabeledPoint(label, values.size, null, values, 1f, group, Float.NaN)
     }.toList
   }
 }
@@ -70,7 +70,7 @@ object Classification extends TrainTestData {
   Random.setSeed(10)
   val randomWeights = Array.fill(train.length)(Random.nextFloat())
   val trainWithWeight = train.zipWithIndex.map { case (v, index) =>
-    XGBLabeledPoint(v.label, v.size, v.indices, v.values,
+    new XGBLabeledPoint(v.label, v.size, v.indices, v.values,
       randomWeights(index), v.group, v.baseMargin)
   }
 }
@@ -89,7 +89,7 @@ object MultiClassification extends TrainTestData {
   Random.setSeed(10)
   val randomWeights = Array.fill(train.length)(Random.nextFloat())
   val trainWithWeight = train.zipWithIndex.map { case (v, index) =>
-    XGBLabeledPoint(v.label, v.size, v.indices, v.values,
+    new XGBLabeledPoint(v.label, v.size, v.indices, v.values,
       randomWeights(index), v.group, v.baseMargin)
   }
 
@@ -104,7 +104,7 @@ object MultiClassification extends TrainTestData {
         values(i) = featuresAndLabel(i).toFloat
       }
 
-      XGBLabeledPoint(label, values.length - 1, null, values.take(values.length - 1))
+      new XGBLabeledPoint(label, values.length - 1, null, values.take(values.length - 1))
     }.toList
   }
 }
@@ -119,7 +119,7 @@ object Regression extends TrainTestData {
   Random.setSeed(10)
   val randomWeights = Array.fill(train.length)(Random.nextFloat())
   val trainWithWeight = train.zipWithIndex.map { case (v, index) =>
-    XGBLabeledPoint(v.label, v.size, v.indices, v.values,
+    new XGBLabeledPoint(v.label, v.size, v.indices, v.values,
       randomWeights(index), v.group, v.baseMargin)
   }
 
@@ -128,7 +128,7 @@ object Regression extends TrainTestData {
     val train: Seq[XGBLabeledPoint] = getLabeledPointsWithGroup("/rank.train.csv")
     // use the group as the weight
     val trainWithWeight = train.map { labelPoint =>
-      XGBLabeledPoint(labelPoint.label, labelPoint.size, labelPoint.indices, labelPoint.values,
+      new XGBLabeledPoint(labelPoint.label, labelPoint.size, labelPoint.indices, labelPoint.values,
         labelPoint.group, labelPoint.group, labelPoint.baseMargin)
     }
     val trainGroups = train.map(_.group)

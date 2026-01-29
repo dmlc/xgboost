@@ -77,12 +77,17 @@ test_that("custom objective with multi-class shape", {
   n_classes <- 3
 
   fake_softprob <- function(preds, dtrain) {
-    expect_true(all(matrix(preds) == 0.5))
+    mpreds <- as.matrix(preds)
+    expect_equal(
+      mpreds,
+      matrix(0.5, nrow = nrow(mpreds), ncol = ncol(mpreds)),
+      tolerance = 1e-4
+    )
     ## use numeric vector here to test compatibility with XGBoost < 2.1
     grad <- rnorm(length(as.matrix(preds)))
     expect_equal(dim(data)[1] * n_classes, dim(as.matrix(preds))[1] * n_classes)
     hess <- rnorm(length(as.matrix(preds)))
-    return(list(grad = grad, hess = hess))
+    list(grad = grad, hess = hess)
   }
   fake_merror <- function(preds, dtrain) {
     expect_equal(dim(data)[1] * n_classes, dim(as.matrix(preds))[1])

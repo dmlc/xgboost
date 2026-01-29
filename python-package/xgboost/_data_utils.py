@@ -2,11 +2,13 @@
 
 import copy
 import ctypes
-import functools
 import json
+from abc import ABC, abstractmethod
+from functools import cache as fcache
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
     List,
     Literal,
@@ -14,6 +16,7 @@ from typing import (
     Protocol,
     Tuple,
     Type,
+    TypeAlias,
     TypedDict,
     TypeGuard,
     Union,
@@ -23,7 +26,14 @@ from typing import (
 
 import numpy as np
 
-from ._typing import CNumericPtr, DataType, NumpyDType, NumpyOrCupy
+from ._typing import (
+    ArrowCatList,
+    CNumericPtr,
+    DataType,
+    FeatureTypes,
+    NumpyDType,
+    NumpyOrCupy,
+)
 from .compat import import_cupy, import_pyarrow, lazy_isinstance
 
 if TYPE_CHECKING:
@@ -39,18 +49,7 @@ class _ArrayLikeArg(Protocol):
 
 class _CudaArrayLikeArg(Protocol):
     @property
-    def __cuda_array_interface__(self) -> "ArrayInf": ...
-
-
-class TransformedDf(Protocol):
-    """Protocol class for storing transformed dataframe."""
-
-    def array_interface(self) -> bytes:
-        """Get a JSON-encoded list of array interfaces."""
-
-    @property
-    def shape(self) -> Tuple[int, int]:
-        """Return the shape of the dataframe."""
+    def __cuda_array_interface__(self) -> "CudaArrayInf": ...
 
 
 ArrayInf = TypedDict(
@@ -65,7 +64,23 @@ ArrayInf = TypedDict(
     },
 )
 
+CudaArrayInf = TypedDict(
+    "CudaArrayInf",
+    {
+        "data": Tuple[int, bool],
+        "typestr": str,
+        "version": Literal[3],
+        "strides": Optional[Tuple[int, ...]],
+        "shape": Tuple[int, ...],
+        "mask": Union["ArrayInf", None, _ArrayLikeArg],
+        "stream": int,
+    },
+)
+
 StringArray = TypedDict("StringArray", {"offsets": ArrayInf, "values": ArrayInf})
+CudaStringArray = TypedDict(
+    "CudaStringArray", {"offsets": CudaArrayInf, "values": CudaArrayInf}
+)
 
 
 def array_hasobject(data: DataType) -> bool:
@@ -77,14 +92,14 @@ def array_hasobject(data: DataType) -> bool:
     )
 
 
-def cuda_array_interface_dict(data: _CudaArrayLikeArg) -> ArrayInf:
+def cuda_array_interface_dict(data: _CudaArrayLikeArg) -> CudaArrayInf:
     """Returns a dictionary storing the CUDA array interface."""
     if array_hasobject(data):
         raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     ainf = data.__cuda_array_interface__
     if "mask" in ainf:
         ainf["mask"] = ainf["mask"].__cuda_array_interface__  # type: ignore
-    return cast(ArrayInf, ainf)
+    return ainf
 
 
 def cuda_array_interface(data: _CudaArrayLikeArg) -> bytes:
@@ -199,12 +214,18 @@ class DfCatAccessor(Protocol):
     @property
     def dtype(self) -> np.dtype: ...  # pylint: disable=missing-function-docstring
 
+    @property
+    def values(self) -> np.ndarray: ...  # pylint: disable=missing-function-docstring
+
     def to_arrow(  # pylint: disable=missing-function-docstring
         self,
     ) -> Union["pa.StringArray", "pa.IntegerArray"]: ...
 
     @property
-    def __cuda_array_interface__(self) -> ArrayInf: ...
+    def __cuda_array_interface__(self) -> CudaArrayInf: ...
+
+    @property
+    def _column(self) -> Any: ...
 
 
 def _is_df_cat(data: Any) -> TypeGuard[DfCatAccessor]:
@@ -212,37 +233,64 @@ def _is_df_cat(data: Any) -> TypeGuard[DfCatAccessor]:
     return hasattr(data, "categories") and hasattr(data, "codes")
 
 
-@functools.cache
-def _arrow_typestr() -> Dict["pa.DataType", str]:
+@fcache
+def _arrow_npdtype() -> Dict[Any, Type[np.number]]:
     import pyarrow as pa
 
-    mapping = {
-        pa.int8(): "<i1",
-        pa.int16(): "<i2",
-        pa.int32(): "<i4",
-        pa.int64(): "<i8",
-        pa.uint8(): "<u1",
-        pa.uint16(): "<u2",
-        pa.uint32(): "<u4",
-        pa.uint64(): "<u8",
+    mapping: Dict[Any, Type[np.number]] = {
+        pa.int8(): np.int8,
+        pa.int16(): np.int16,
+        pa.int32(): np.int32,
+        pa.int64(): np.int64,
+        pa.uint8(): np.uint8,
+        pa.uint16(): np.uint16,
+        pa.uint32(): np.uint32,
+        pa.uint64(): np.uint64,
+        pa.float16(): np.float16,
+        pa.float32(): np.float32,
+        pa.float64(): np.float64,
     }
 
     return mapping
 
 
-def npstr_to_arrow_strarr(strarr: np.ndarray) -> Tuple[np.ndarray, str]:
-    """Convert a numpy string array to an arrow string array."""
-    lenarr = np.vectorize(len)
-    offsets = np.cumsum(np.concatenate([np.array([0], dtype=np.int64), lenarr(strarr)]))
-    values = strarr.sum()
-    assert "\0" not in values  # arrow string array doesn't need null terminal
-    return offsets.astype(np.int32), values
+@overload
+def _arrow_buf_inf(address: int, typestr: str, size: int, stream: None) -> ArrayInf: ...
 
 
-def _arrow_cat_inf(  # pylint: disable=too-many-locals
-    cats: "pa.StringArray",
-    codes: Union[_ArrayLikeArg, _CudaArrayLikeArg, "pa.IntegerArray"],
-) -> Tuple[StringArray, ArrayInf, Tuple]:
+@overload
+def _arrow_buf_inf(
+    address: int, typestr: str, size: int, stream: int
+) -> CudaArrayInf: ...
+
+
+def _arrow_buf_inf(
+    address: int, typestr: str, size: int, stream: Optional[int]
+) -> Union[ArrayInf, CudaArrayInf]:
+    if stream is not None:
+        jcuaif: CudaArrayInf = {
+            "data": (address, True),
+            "typestr": typestr,
+            "version": 3,
+            "strides": None,
+            "shape": (size,),
+            "mask": None,
+            "stream": stream,
+        }
+        return jcuaif
+
+    jaif: ArrayInf = {
+        "data": (address, True),
+        "typestr": typestr,
+        "version": 3,
+        "strides": None,
+        "shape": (size,),
+        "mask": None,
+    }
+    return jaif
+
+
+def _arrow_cat_names_inf(cats: "pa.StringArray") -> Tuple[StringArray, Any]:
     if not TYPE_CHECKING:
         pa = import_pyarrow()
 
@@ -254,50 +302,77 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
     assert offset.is_cpu
 
     off_len = len(cats) + 1
-    if offset.size != off_len * (np.iinfo(np.int32).bits / 8):
-        raise TypeError("Arrow dictionary type offsets is required to be 32 bit.")
 
-    joffset: ArrayInf = {
-        "data": (offset.address, True),
-        "typestr": "<i4",
-        "version": 3,
-        "strides": None,
-        "shape": (off_len,),
-        "mask": None,
-    }
+    def get_n_bytes(typ: Type) -> int:
+        return off_len * (np.iinfo(typ).bits // 8)
 
-    def make_buf_inf(buf: pa.Buffer, typestr: str) -> ArrayInf:
-        return {
-            "data": (buf.address, True),
-            "typestr": typestr,
-            "version": 3,
-            "strides": None,
-            "shape": (buf.size,),
-            "mask": None,
-        }
+    if offset.size == get_n_bytes(np.int64):
+        if not isinstance(cats, pa.LargeStringArray):
+            arrow_str_error = "Expecting a `pyarrow.Array`."
+            raise TypeError(arrow_str_error + f" Got: {type(cats)}.")
+        # Convert to 32bit integer, arrow recommends against the use of i64. Also,
+        # XGBoost cannot handle large number of categories (> 2**31).
+        i32cats = cats.cast(pa.string())
+        mask, offset, data = i32cats.buffers()
 
-    jdata = make_buf_inf(data, "<i1")
+    if offset.size != get_n_bytes(np.int32):
+        raise TypeError(
+            "Arrow dictionary type offsets is required to be 32-bit integer."
+        )
+
+    joffset = _arrow_buf_inf(offset.address, "<i4", off_len, None)
+    jdata = _arrow_buf_inf(data.address, "|i1", data.size, None)
     # Categories should not have missing values.
     assert mask is None
 
     jnames: StringArray = {"offsets": joffset, "values": jdata}
+    return jnames, (mask, offset, data)
 
-    def make_array_inf(
-        array: Any,
-    ) -> Tuple[ArrayInf, Optional[Tuple[pa.Buffer, pa.Buffer]]]:
-        """Helper for handling categorical codes."""
-        # Handle cuDF data
-        if hasattr(array, "__cuda_array_interface__"):
-            inf = cuda_array_interface_dict(array)
-            return inf, None
 
-        # Other types (like arrow itself) are not yet supported.
-        raise TypeError("Invalid input type.")
+def _arrow_array_inf(
+    array: "pa.Array",
+) -> ArrayInf:
+    """Helper for handling categorical codes."""
+    if not TYPE_CHECKING:
+        pa = import_pyarrow()
+    if not isinstance(array, pa.Array):  # pylint: disable=E0606
+        raise TypeError(f"Invalid input type: {type(array)}")
 
-    cats_tmp = (mask, offset, data)
-    jcodes, codes_tmp = make_array_inf(codes)
+    mask, data = array.buffers()
+    jdata = make_array_interface(
+        data.address,
+        shape=(len(array),),
+        dtype=_arrow_npdtype()[array.type],
+        is_cuda=not data.is_cpu,
+    )
 
-    return jnames, jcodes, (cats_tmp, codes_tmp)
+    if mask is not None:
+        jmask: Optional[ArrayInf] = {
+            "data": (mask.address, True),
+            "typestr": "<t1",
+            "version": 3,
+            "strides": None,
+            "shape": (len(array),),
+            "mask": None,
+        }
+        if not mask.is_cpu:
+            jmask["stream"] = STREAM_PER_THREAD  # type: ignore
+    else:
+        jmask = None
+
+    jdata["mask"] = jmask
+    return jdata
+
+
+def arrow_cat_inf(  # pylint: disable=too-many-locals
+    cats: "pa.StringArray",
+    codes: Union[_ArrayLikeArg, _CudaArrayLikeArg, "pa.IntegerArray"],
+) -> Tuple[StringArray, ArrayInf, Tuple]:
+    """Get the array interface representation of a string-based category array."""
+    jnames, cats_tmp = _arrow_cat_names_inf(cats)
+    jcodes = _arrow_array_inf(codes)
+
+    return jnames, jcodes, (cats_tmp, None)
 
 
 def _ensure_np_dtype(
@@ -312,80 +387,81 @@ def _ensure_np_dtype(
     return data, dtype
 
 
-@overload
-def array_interface_dict(data: np.ndarray) -> ArrayInf: ...
+def _is_flatten(array: NumpyOrCupy) -> bool:
+    return len(array.shape) == 1 or array.shape[1] == 1
 
 
-@overload
-def array_interface_dict(
-    data: DfCatAccessor,
-) -> Tuple[StringArray, ArrayInf, Tuple]: ...
-
-
-@overload
-def array_interface_dict(
-    data: "pa.DictionaryArray",
-) -> Tuple[StringArray, ArrayInf, Tuple]: ...
-
-
-def array_interface_dict(  # pylint: disable=too-many-locals
-    data: Union[np.ndarray, DfCatAccessor],
-) -> Union[ArrayInf, Tuple[StringArray, ArrayInf, Optional[Tuple]]]:
+def array_interface_dict(data: np.ndarray) -> ArrayInf:
     """Returns an array interface from the input."""
-    # Handle categorical values
-    if _is_df_cat(data):
-        cats = data.categories
-        # pandas uses -1 to represent missing values for categorical features
-        codes = data.codes.replace(-1, np.nan)
-
-        if np.issubdtype(cats.dtype, np.floating) or np.issubdtype(
-            cats.dtype, np.integer
-        ):
-            # Numeric index type
-            name_values = cats.values
-            jarr_values = array_interface_dict(name_values)
-            code_values = codes.values
-            jarr_codes = array_interface_dict(code_values)
-            return jarr_values, jarr_codes, (name_values, code_values)
-
-        # String index type
-        name_offsets, name_values = npstr_to_arrow_strarr(cats.values)
-        name_offsets, _ = _ensure_np_dtype(name_offsets, np.int32)
-        joffsets = array_interface_dict(name_offsets)
-        bvalues = name_values.encode("utf-8")
-
-        ptr = ctypes.c_void_p.from_buffer(ctypes.c_char_p(bvalues)).value
-        assert ptr is not None
-
-        jvalues: ArrayInf = {
-            "data": (ptr, True),
-            "typestr": "|i1",
-            "shape": (len(name_values),),
-            "strides": None,
-            "version": 3,
-            "mask": None,
-        }
-        jnames: StringArray = {"offsets": joffsets, "values": jvalues}
-
-        code_values = codes.values
-        jcodes = array_interface_dict(code_values)
-
-        buf = (
-            name_offsets,
-            name_values,
-            bvalues,
-            code_values,
-        )  # store temporary values
-        return jnames, jcodes, buf
-
-    # Handle numeric values
-    assert isinstance(data, np.ndarray)
     if array_hasobject(data):
         raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     ainf = data.__array_interface__
     if "mask" in ainf:
         ainf["mask"] = ainf["mask"].__array_interface__
     return cast(ArrayInf, ainf)
+
+
+def pd_cat_inf(  # pylint: disable=too-many-locals
+    cats: DfCatAccessor, codes: "pd.Series"
+) -> Tuple[Union[StringArray, ArrayInf], ArrayInf, Tuple]:
+    """Get the array interface representation of pandas category accessor."""
+    # pandas uses -1 to represent missing values for categorical features
+    codes = codes.replace(-1, np.nan)
+
+    def is_prim() -> bool:
+        dtype = cats.dtype
+        try:
+            return np.issubdtype(dtype, np.floating) or np.issubdtype(dtype, np.integer)
+        except TypeError:
+            return False
+
+    if is_prim():
+        # Numeric index type
+        name_values_num = cats.values
+        jarr_values = array_interface_dict(name_values_num)
+        code_values = codes.values
+        jarr_codes = array_interface_dict(code_values)
+        return jarr_values, jarr_codes, (name_values_num, code_values)
+
+    def npstr_to_arrow_strarr(strarr: np.ndarray) -> Tuple[np.ndarray, str]:
+        """Convert a numpy string array to an arrow string array."""
+        lenarr = np.vectorize(len)
+        offsets = np.cumsum(
+            np.concatenate([np.array([0], dtype=np.int64), lenarr(strarr)])
+        )
+        values = strarr.sum()
+        assert "\0" not in values  # arrow string array doesn't need null terminal
+        return offsets.astype(np.int32), values
+
+    # String index type
+    name_offsets, name_values = npstr_to_arrow_strarr(cats.values)
+    name_offsets, _ = _ensure_np_dtype(name_offsets, np.int32)
+    joffsets = array_interface_dict(name_offsets)
+    bvalues = name_values.encode("utf-8")
+
+    ptr = ctypes.c_void_p.from_buffer(ctypes.c_char_p(bvalues)).value
+    assert ptr is not None
+
+    jvalues: ArrayInf = {
+        "data": (ptr, True),
+        "typestr": "|i1",
+        "shape": (len(name_values),),
+        "strides": None,
+        "version": 3,
+        "mask": None,
+    }
+    jnames: StringArray = {"offsets": joffsets, "values": jvalues}
+
+    code_values = codes.values
+    jcodes = array_interface_dict(code_values)
+
+    buf = (
+        name_offsets,
+        name_values,
+        bvalues,
+        code_values,
+    )  # store temporary values
+    return jnames, jcodes, buf
 
 
 def array_interface(data: np.ndarray) -> bytes:
@@ -404,18 +480,287 @@ def check_cudf_meta(data: _CudaArrayLikeArg, field: str) -> None:
         raise ValueError(f"Missing value is not allowed for: {field}")
 
 
-def cudf_cat_inf(
+class ArrowSchema(ctypes.Structure):
+    """The Schema type from arrow C array."""
+
+    _fields_ = [
+        ("format", ctypes.c_char_p),
+        ("name", ctypes.c_char_p),
+        ("metadata", ctypes.c_char_p),
+        ("flags", ctypes.c_int64),
+        ("n_children", ctypes.c_int64),
+        ("children", ctypes.POINTER(ctypes.c_void_p)),
+        ("dictionary", ctypes.c_void_p),
+        ("release", ctypes.c_void_p),
+        ("private_data", ctypes.c_void_p),
+    ]
+
+
+class ArrowArray(ctypes.Structure):
+    """The Array type from arrow C array."""
+
+
+ArrowArray._fields_ = [  # pylint: disable=protected-access
+    ("length", ctypes.c_int64),
+    ("null_count", ctypes.c_int64),
+    ("offset", ctypes.c_int64),
+    ("n_buffers", ctypes.c_int64),
+    ("n_children", ctypes.c_int64),
+    ("buffers", ctypes.POINTER(ctypes.c_void_p)),
+    ("children", ctypes.POINTER(ctypes.POINTER(ArrowArray))),
+    ("dictionary", ctypes.POINTER(ArrowArray)),
+    ("release", ctypes.c_void_p),
+    ("private_data", ctypes.c_void_p),
+]
+
+
+class ArrowDeviceArray(ctypes.Structure):
+    """The Array type from arrow C device array."""
+
+    _fields_ = [
+        ("array", ArrowArray),
+        ("device_id", ctypes.c_int64),
+        ("device_type", ctypes.c_int32),
+        ("sync_event", ctypes.c_void_p),
+        ("reserved", ctypes.c_int64 * 3),
+    ]
+
+
+PyCapsule_GetName = ctypes.pythonapi.PyCapsule_GetName
+PyCapsule_GetName.restype = ctypes.c_char_p
+PyCapsule_GetName.argtypes = [ctypes.py_object]
+
+
+PyCapsule_GetPointer = ctypes.pythonapi.PyCapsule_GetPointer
+PyCapsule_GetPointer.restype = ctypes.c_void_p
+PyCapsule_GetPointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
+
+
+def wait_event(event_hdl: int) -> None:
+    """Wait for CUDA event exported by arrow."""
+    # cuda-python is a dependency of cuDF.
+    from cuda.bindings import runtime as cudart
+
+    event = ctypes.cast(event_hdl, ctypes.POINTER(ctypes.c_int64))
+    (status,) = cudart.cudaStreamWaitEvent(
+        STREAM_PER_THREAD,
+        event.contents.value,
+        cudart.cudaEventWaitDefault,
+    )
+    if status != cudart.cudaError_t.cudaSuccess:
+        _, msg = cudart.cudaGetErrorString(status)
+        raise ValueError(msg)
+
+
+def cudf_cat_inf(  # pylint: disable=too-many-locals
     cats: DfCatAccessor, codes: "pd.Series"
-) -> Tuple[Union[ArrayInf, StringArray], ArrayInf, Tuple]:
+) -> Tuple[Union[CudaArrayInf, CudaStringArray], ArrayInf, Tuple]:
     """Obtain the cuda array interface for cuDF categories."""
     cp = import_cupy()
     is_num_idx = cp.issubdtype(cats.dtype, cp.floating) or cp.issubdtype(
         cats.dtype, cp.integer
     )
     if is_num_idx:
-        cats_ainf = cats.__cuda_array_interface__
+        cats_ainf = cuda_array_interface_dict(cats)
         codes_ainf = cuda_array_interface_dict(codes)
         return cats_ainf, codes_ainf, (cats, codes)
 
-    joffset, jdata, buf = _arrow_cat_inf(cats.to_arrow(), codes)
-    return joffset, jdata, buf
+    # pylint: disable=protected-access
+    arrow_col = cats._column.to_pylibcudf(mode="read")
+    # Tuple[types.CapsuleType, types.CapsuleType]
+    schema, array = arrow_col.__arrow_c_device_array__()
+
+    array_ptr = PyCapsule_GetPointer(array, PyCapsule_GetName(array))
+    schema_ptr = PyCapsule_GetPointer(schema, PyCapsule_GetName(schema))
+
+    # Cast to arrow array
+    arrow_device_array = ctypes.cast(
+        array_ptr, ctypes.POINTER(ArrowDeviceArray)
+    ).contents
+    wait_event(arrow_device_array.sync_event)
+    assert arrow_device_array.device_type == 2  # 2 is CUDA
+
+    arrow_array = arrow_device_array.array
+    mask, offset, data = (
+        arrow_array.buffers[0],
+        arrow_array.buffers[1],
+        arrow_array.buffers[2],
+    )
+    # Categories should not have missing values.
+    assert mask is None
+    assert arrow_array.n_children == 0
+    assert arrow_array.n_buffers == 3
+    assert arrow_array.offset == 0
+
+    # Cast to ArrowSchema
+    arrow_schema = ctypes.cast(schema_ptr, ctypes.POINTER(ArrowSchema)).contents
+    assert arrow_schema.format in (b"u", b"U", b"vu")  # utf8, large utf8
+    if arrow_schema.format in (b"u", b"vu"):
+        joffset: CudaArrayInf = _arrow_buf_inf(
+            offset, "<i4", arrow_array.length + 1, STREAM_PER_THREAD
+        )
+    elif arrow_schema.format == b"U":
+        raise TypeError("Large string for category index (names) is not supported.")
+    else:
+        raise TypeError(
+            "Unexpected type for category index. It's neither numeric nor string."
+        )
+    # 0 size for unknown
+    jdata: CudaArrayInf = _arrow_buf_inf(data, "|i1", 0, STREAM_PER_THREAD)
+    jnames: CudaStringArray = {
+        "offsets": joffset,
+        "values": jdata,
+    }
+
+    jcodes = cuda_array_interface_dict(codes)
+    return jnames, jcodes, (arrow_col,)
+
+
+class Categories:
+    """An internal storage class for categories returned by the DMatrix and the
+    Booster. This class is designed to be opaque. It is intended to be used exclusively
+    by XGBoost as an intermediate storage for re-coding categorical data.
+
+    The categories are saved along with the booster object. As a result, users don't
+    need to preserve this class for re-coding. Use the booster model IO instead if you
+    want to preserve the categories in a stable format.
+
+    .. versionadded:: 3.1.0
+
+    .. warning::
+
+        This class is internal.
+
+    .. code-block:: python
+
+        Xy = xgboost.QuantileDMatrix(X, y, enable_categorical=True)
+        booster = xgboost.train({}, Xy)
+
+        categories = booster.get_categories() # Get categories
+
+        # Use categories as a reference for re-coding
+        Xy_new = xgboost.QuantileDMatrix(
+            X_new, y_new, feature_types=categories, enable_categorical=True, ref=Xy
+        )
+
+        # Categories will be part of the `model.json`.
+        booster.save_model("model.json")
+
+    """
+
+    def __init__(
+        self,
+        handle: Tuple[ctypes.c_void_p, Callable[[], None]],
+        arrow_arrays: Optional[ArrowCatList],
+    ) -> None:
+        # The handle type is a bundle of the handle and the free call. Otherwise, we
+        # will have to import the `_lib` and the `_check_call` from the core module
+        # inside the __del__ method to avoid cyclic model dependency.
+        # Importing modules in __del__ can result in Python abort if __del__ is called
+        # during exception handling (interpreter is shutting down).
+        self._handle, self._free = handle
+        self._arrow_arrays = arrow_arrays
+
+    def to_arrow(self) -> ArrowCatList:
+        """Get the categories in the dataset. The results are stored in a list of
+        (feature name, arrow array) pairs, with one array for each categorical
+        feature. If a feature is numerical, then the corresponding column in the list is
+        None. A value error will be raised if this container was created without the
+        `export_to_arrow` option.
+
+        """
+        if self._arrow_arrays is None:
+            raise ValueError(
+                "The `export_to_arrow` option of the `get_categories` method"
+                " is required."
+            )
+        return self._arrow_arrays
+
+    def empty(self) -> bool:
+        """Returns True if there's no category."""
+        return self._handle.value is None
+
+    def get_handle(self) -> int:
+        """Internal method for retrieving the handle."""
+        assert self._handle.value
+        return self._handle.value
+
+    def __del__(self) -> None:
+        if self._handle.value is None:
+            return
+        self._free()
+
+
+def get_ref_categories(
+    feature_types: Optional[Union[FeatureTypes, Categories]],
+) -> Tuple[Optional[FeatureTypes], Optional[Categories]]:
+    """Get the optional reference categories from the `feature_types`. This is used by
+    various `DMatrix` where the `feature_types` is reused for specifying the reference
+    categories.
+
+    """
+    if isinstance(feature_types, Categories):
+        ref_categories = feature_types
+        feature_types = None
+    else:
+        ref_categories = None
+    return feature_types, ref_categories
+
+
+# Type schema for storing JSON-encoded array interface
+AifType: TypeAlias = List[
+    Union[
+        # numeric column
+        Union[ArrayInf, CudaArrayInf],
+        # categorical column
+        Tuple[
+            # (cuda) numeric index | (cuda) string index
+            Union[ArrayInf, CudaArrayInf, StringArray, CudaStringArray],
+            Union[ArrayInf, CudaArrayInf],  # codes
+        ],
+    ]
+]
+
+
+class TransformedDf(ABC):
+    """Internal class for storing transformed dataframe.
+
+    Parameters
+    ----------
+    ref_categories :
+        Optional reference categories used for re-coding.
+
+    aitfs :
+        Array interface for each column.
+
+    """
+
+    def __init__(
+        self,
+        ref_categories: Optional[Categories],
+        aitfs: AifType,
+        temporary_buffers: List[Tuple],
+    ) -> None:
+        self.ref_categories = ref_categories
+        if ref_categories is not None and ref_categories.get_handle() is not None:
+            aif = ref_categories.get_handle()
+            self.ref_aif: Optional[int] = aif
+        else:
+            self.ref_aif = None
+
+        self.aitfs = aitfs
+        self.temporary_buffers = temporary_buffers
+
+    def array_interface(self) -> bytes:
+        """Return a byte string for JSON encoded array interface."""
+        if self.ref_categories is not None:
+            ref_inf: dict = {"ref_categories": self.ref_aif, "columns": self.aitfs}
+            inf = bytes(json.dumps(ref_inf), "utf-8")
+        else:
+            inf = bytes(json.dumps(self.aitfs), "utf-8")
+        return inf
+
+    @property
+    @abstractmethod
+    def shape(self) -> Tuple[int, int]:
+        """Return the shape of the dataframe."""

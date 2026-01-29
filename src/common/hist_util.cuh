@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost contributors
+ * Copyright 2020-2025, XGBoost contributors
  *
  * \brief Front end and utilities for GPU based sketching.  Works on sliding window
  *        instead of stream.
@@ -15,9 +15,9 @@
 #include <cstdint>    // for uint32_t
 #include <limits>     // for numeric_limits
 
-#include "../data/adapter.h"  // for IsValidFunctor
-#include "algorithm.cuh"      // for CopyIf
-#include "cuda_context.cuh"   // for CUDAContext
+#include "../data/entry.h"   // for IsValidFunctor
+#include "algorithm.cuh"     // for CopyIf
+#include "cuda_context.cuh"  // for CUDAContext
 #include "device_helpers.cuh"
 #include "hist_util.h"
 #include "quantile.cuh"
@@ -45,11 +45,7 @@ __global__ void GetColumnSizeSharedMemKernel(IterSpan<BatchIt> batch_iter,
 
   dh::BlockFill(smem_cs_ptr, out_column_size.size(), 0);
 
-#if CUB_VERSION >= 300000
   __syncthreads();
-#else
-  cub::CTA_SYNC();
-#endif
 
   auto n = batch_iter.size();
 
@@ -60,11 +56,7 @@ __global__ void GetColumnSizeSharedMemKernel(IterSpan<BatchIt> batch_iter,
     }
   }
 
-#if CUB_VERSION >= 300000
   __syncthreads();
-#else
-  cub::CTA_SYNC();
-#endif
 
   auto out_global_ptr = out_column_size;
   for (auto i : dh::BlockStrideRange(static_cast<std::size_t>(0), out_column_size.size())) {

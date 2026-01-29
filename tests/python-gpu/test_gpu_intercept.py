@@ -1,0 +1,20 @@
+from itertools import product
+
+import pytest
+
+from xgboost.testing.intercept import run_adaptive, run_exp_family, run_init_estimation
+
+
+def test_init_estimation() -> None:
+    run_init_estimation("hist", "cuda")
+
+
+@pytest.mark.parametrize(
+    "tree_method,weighted", list(product(["approx", "hist"], [True, False]))
+)
+def test_adaptive(tree_method: str, weighted: bool) -> None:
+    run_adaptive(tree_method, weighted, "cuda")
+
+
+def test_exp_family() -> None:
+    run_exp_family("cuda")

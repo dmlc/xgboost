@@ -15,6 +15,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypeAlias,
     TypeVar,
     Union,
     cast,
@@ -23,6 +24,7 @@ from typing import (
 import numpy
 
 from . import collective
+from ._typing import EvalsLog, _ScoreList
 from .core import (
     Booster,
     DMatrix,
@@ -41,7 +43,6 @@ __all__ = [
 ]
 
 _Score = Union[float, Tuple[float, float]]
-_ScoreList = Union[List[float], List[Tuple[float, float]]]
 
 _Model = Any  # real type is Union[Booster, CVPack]; need more work
 
@@ -54,7 +55,7 @@ class TrainingCallback(ABC):
 
     """
 
-    EvalsLog = Dict[str, Dict[str, _ScoreList]]  # pylint: disable=invalid-name
+    EvalsLog: TypeAlias = EvalsLog
 
     def __init__(self) -> None:
         pass
@@ -159,7 +160,7 @@ class CallbackContainer:
         output_margin: bool = True,
         is_cv: bool = False,
     ) -> None:
-        self.callbacks = set(callbacks)
+        self.callbacks = list(dict.fromkeys(callbacks))
         for cb in callbacks:
             if not isinstance(cb, TrainingCallback):
                 raise TypeError("callback must be an instance of `TrainingCallback`.")
@@ -172,7 +173,7 @@ class CallbackContainer:
             raise TypeError(msg)
 
         self.metric = metric
-        self.history: TrainingCallback.EvalsLog = collections.OrderedDict()
+        self.history: EvalsLog = collections.OrderedDict()
         self._output_margin = output_margin
         self.is_cv = is_cv
 
@@ -301,9 +302,7 @@ class LearningRateScheduler(TrainingCallback):
             self.learning_rates = lambda epoch: cast(Sequence, learning_rates)[epoch]
         super().__init__()
 
-    def after_iteration(
-        self, model: _Model, epoch: int, evals_log: TrainingCallback.EvalsLog
-    ) -> bool:
+    def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
         model.set_param("learning_rate", self.learning_rates(epoch))
         return False
 
@@ -372,7 +371,7 @@ class EarlyStopping(TrainingCallback):
         self.rounds = rounds
         self.save_best = save_best
         self.maximize = maximize
-        self.stopping_history: TrainingCallback.EvalsLog = {}
+        self.stopping_history: EvalsLog = {}
         self._min_delta = min_delta
         if self._min_delta < 0:
             raise ValueError("min_delta must be greater or equal to 0.")
@@ -454,9 +453,7 @@ class EarlyStopping(TrainingCallback):
             return True
         return False
 
-    def after_iteration(
-        self, model: _Model, epoch: int, evals_log: TrainingCallback.EvalsLog
-    ) -> bool:
+    def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
         epoch += self.starting_round  # training continuation
         msg = "Must have at least 1 validation dataset for early stopping."
         if len(evals_log.keys()) < 1:
@@ -555,9 +552,7 @@ class EvaluationMonitor(TrainingCallback):
             msg = f"\t{data + '-' + metric}:{score:.5f}"
         return msg
 
-    def after_iteration(
-        self, model: _Model, epoch: int, evals_log: TrainingCallback.EvalsLog
-    ) -> bool:
+    def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
         if not evals_log:
             return False
 
@@ -636,9 +631,7 @@ class TrainingCheckPoint(TrainingCallback):
         self._start = model.num_boosted_rounds()
         return model
 
-    def after_iteration(
-        self, model: _Model, epoch: int, evals_log: TrainingCallback.EvalsLog
-    ) -> bool:
+    def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
         if self._epoch == self._iterations:
             path = os.path.join(
                 self._path,

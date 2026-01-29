@@ -1063,6 +1063,9 @@ setinfo.xgb.DMatrix <- function(object, name, info) {
   if (name == "label") {
     if (NROW(info) != nrow(object))
       stop("The length of labels must equal to the number of rows in the input data")
+    if (is.factor(info)) {
+      stop("'label' must be a numeric variable.")
+    }
     .Call(XGDMatrixSetInfo_R, object, name, info)
     return(TRUE)
   }

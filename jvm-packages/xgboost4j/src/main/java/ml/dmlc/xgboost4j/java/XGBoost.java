@@ -386,6 +386,16 @@ public class XGBoost {
   }
 
   // visiable for testing
+
+  /**
+   * Decides whether the evaluation metrics are to be maximized or not.
+   *
+   * @param evalInfo The evaluation log string from which the metric name is inferred.
+   * @param evalNames The names of the evaluation matrices.
+   * @param params The parameters that contain information regarding whether the
+   *  evaluation metrics are to be maximized or not.
+   * @return True if the evaluation metrics are to be maximized, false otherwise.
+   */
   public static boolean isMaximizeEvaluation(String evalInfo,
                                              String[] evalNames,
                                              Map<String, Object> params) {

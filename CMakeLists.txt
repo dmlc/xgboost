@@ -4,7 +4,7 @@ if(PLUGIN_SYCL)
   string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-project(xgboost LANGUAGES CXX C VERSION 3.1.0)
+project(xgboost LANGUAGES CXX C VERSION 3.2.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 
@@ -53,6 +53,7 @@ option(USE_OPENMP "Build with OpenMP support." ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
 option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
+option(BUILD_WITH_GIT_HASH "Add a short git hash to the build info." OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -206,6 +207,9 @@ endif()
 if(PLUGIN_DENSE_PARSER)
   message(SEND_ERROR "The option `PLUGIN_DENSE_PARSER` has been removed from XGBoost.")
 endif()
+if(BUILD_DEPRECATED_CLI)
+  message(SEND_ERROR  "The option `BUILD_DEPRECATED_CLI` is removed from XGBoost.")
+endif()
 
 #-- Sanitizer
 if(USE_SANITIZER)
@@ -252,7 +256,9 @@ if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
 endif()
 
-find_package(Threads REQUIRED)
+if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Emscripten"))
+  find_package(Threads REQUIRED)
+endif()
 
 # -- OpenMP
 include(cmake/FindOpenMPMacOS.cmake)
@@ -260,7 +266,7 @@ if(USE_OPENMP)
   if(APPLE)
     find_openmp_macos()
   else()
-    find_package(OpenMP REQUIRED)
+    find_package(OpenMP REQUIRED C CXX)
   endif()
 endif()
 
@@ -363,7 +369,7 @@ if(PLUGIN_SYCL)
   set(CMAKE_CXX_LINK_EXECUTABLE
       "icpx <FLAGS> <CMAKE_CXX_LINK_FLAGS> -qopenmp <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
   set(CMAKE_CXX_CREATE_SHARED_LIBRARY
-      "icpx <CMAKE_SHARED_LIBRARY_CXX_FLAGS> -qopenmp <LANGUAGE_COMPILE_FLAGS> \
+      "icpx -shared <CMAKE_SHARED_LIBRARY_CXX_FLAGS> -qopenmp <LANGUAGE_COMPILE_FLAGS> \
       <CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS> <SONAME_FLAG>,<TARGET_SONAME> \
       -o <TARGET> <OBJECTS> <LINK_LIBRARIES>")
 endif()
@@ -381,28 +387,6 @@ target_include_directories(xgboost
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 #-- End shared library
 
-#-- CLI for xgboost
-if(BUILD_DEPRECATED_CLI)
-  add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
-  target_link_libraries(runxgboost PRIVATE objxgboost)
-  target_include_directories(runxgboost
-    PRIVATE
-    ${xgboost_SOURCE_DIR}/include
-    ${xgboost_SOURCE_DIR}/dmlc-core/include
-  )
-  set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
-  xgboost_target_properties(runxgboost)
-  xgboost_target_link_libraries(runxgboost)
-  xgboost_target_defs(runxgboost)
-
-  if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
-    set_output_directory(runxgboost ${xgboost_BINARY_DIR})
-  else()
-    set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
-  endif()
-endif()
-#-- End CLI for xgboost
-
 # Common setup for all targets
 foreach(target xgboost objxgboost dmlc)
   xgboost_target_properties(${target})
@@ -416,7 +400,7 @@ if(JVM_BINDINGS)
   xgboost_target_defs(xgboost4j)
 endif()
 
-if(USE_OPENMP AND APPLE)
+if(USE_OPENMP AND APPLE AND NOT BUILD_STATIC_LIB)
   patch_openmp_path_macos(xgboost libxgboost)
 endif()
 
@@ -424,11 +408,6 @@ if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
   set_output_directory(xgboost ${xgboost_BINARY_DIR}/lib)
 else()
   set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
-endif()
-
-# Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
-if(BUILD_DEPRECATED_CLI)
-  add_dependencies(xgboost runxgboost)
 endif()
 
 #-- Installing XGBoost
@@ -465,17 +444,9 @@ install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
 #
 # https://github.com/dmlc/xgboost/issues/6085
 if(BUILD_STATIC_LIB)
-  if(BUILD_DEPRECATED_CLI)
-    set(INSTALL_TARGETS xgboost runxgboost objxgboost dmlc)
-  else()
-    set(INSTALL_TARGETS xgboost objxgboost dmlc)
-  endif()
+  set(INSTALL_TARGETS xgboost objxgboost dmlc)
 else()
-  if(BUILD_DEPRECATED_CLI)
-    set(INSTALL_TARGETS xgboost runxgboost)
-  else()
-    set(INSTALL_TARGETS xgboost)
-  endif()
+  set(INSTALL_TARGETS xgboost)
 endif()
 
 install(TARGETS ${INSTALL_TARGETS}
@@ -520,21 +491,6 @@ if(GOOGLE_TEST)
     NAME TestXGBoostLib
     COMMAND testxgboost
     WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-  # CLI tests
-  configure_file(
-    ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in
-    ${xgboost_BINARY_DIR}/tests/cli/machine.conf
-    @ONLY
-    NEWLINE_STYLE UNIX)
-  if(BUILD_DEPRECATED_CLI)
-    add_test(
-      NAME TestXGBoostCLI
-      COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
-      WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-    set_tests_properties(TestXGBoostCLI
-      PROPERTIES
-      PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
-  endif()
 endif()
 
 # Add xgboost.pc

@@ -1,15 +1,17 @@
 /**
- * Copyright 2020-2023 XGBoost contributors
+ * Copyright 2020-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
 
-#include <any>  // for any_cast
-#include <memory>
+#include <any>     // for any_cast
+#include <memory>  // for shared_ptr
+#include <vector>  // for vector
 
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../helpers.h"
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
 
 namespace xgboost::data {
 TEST(ProxyDMatrix, DeviceData) {
@@ -23,7 +25,7 @@ TEST(ProxyDMatrix, DeviceData) {
                     .GenerateColumnarArrayInterface(&label_storage);
 
   DMatrixProxy proxy;
-  proxy.SetCUDAArray(data.c_str());
+  proxy.SetCudaArray(data.c_str());
   proxy.SetInfo("label", labels.c_str());
 
   ASSERT_EQ(proxy.Adapter().type(), typeid(std::shared_ptr<CupyAdapter>));
@@ -35,7 +37,7 @@ TEST(ProxyDMatrix, DeviceData) {
   data = RandomDataGenerator(kRows, kCols, 0)
              .Device(FstCU())
              .GenerateColumnarArrayInterface(&columnar_storage);
-  proxy.SetCUDAArray(data.c_str());
+  proxy.SetCudaColumnar(data.c_str());
   ASSERT_EQ(proxy.Adapter().type(), typeid(std::shared_ptr<CudfAdapter>));
   ASSERT_EQ(std::any_cast<std::shared_ptr<CudfAdapter>>(proxy.Adapter())->NumRows(), kRows);
   ASSERT_EQ(std::any_cast<std::shared_ptr<CudfAdapter>>(proxy.Adapter())->NumColumns(), kCols);

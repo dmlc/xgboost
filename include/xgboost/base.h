@@ -34,13 +34,6 @@
 #endif  // XGBOOST_LOG_WITH_TIME
 
 /*!
- * \brief Whether to customize global PRNG.
- */
-#ifndef XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-#define XGBOOST_CUSTOMIZE_GLOBAL_PRNG 0
-#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-
-/*!
  * \brief Check if alignas(*) keyword is supported. (g++ 4.8 or higher)
  */
 #if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4)
@@ -114,7 +107,7 @@ using bst_bin_t = std::int32_t;  // NOLINT
  */
 using bst_idx_t = std::uint64_t;  // NOLINT
 /**
- * \brief Type for tree node index.
+ * \brief Type for tree node index and tree depth.
  */
 using bst_node_t = std::int32_t;      // NOLINT
 /**
