@@ -3,6 +3,8 @@
  *
  * \brief Utilities for testing categorical data support.
  */
+#ifndef TESTS_CPP_CATEGORICAL_HELPERS_H_
+#define TESTS_CPP_CATEGORICAL_HELPERS_H_
 #include <numeric>
 #include <vector>
 
@@ -22,3 +24,5 @@ inline std::vector<float> OneHotEncodeFeature(std::vector<float> x, size_t num_c
 }
 
 }  // namespace xgboost
+
+#endif  // TESTS_CPP_CATEGORICAL_HELPERS_H_

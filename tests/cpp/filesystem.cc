@@ -6,6 +6,8 @@
 #include <xgboost/windefs.h>
 
 #include <filesystem>  // for path, temp_directory_path
+#include <string>
+#include <utility>
 
 #if !defined(xgboost_IS_WIN)
 

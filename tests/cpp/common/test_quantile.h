@@ -1,8 +1,8 @@
 /**
  * Copyright 2020-2024, XGBoost Contributors
  */
-#ifndef XGBOOST_TESTS_CPP_COMMON_TEST_QUANTILE_H_
-#define XGBOOST_TESTS_CPP_COMMON_TEST_QUANTILE_H_
+#ifndef TESTS_CPP_COMMON_TEST_QUANTILE_H_
+#define TESTS_CPP_COMMON_TEST_QUANTILE_H_
 
 #include <algorithm>
 #include <vector>
@@ -40,4 +40,4 @@ void RunWithSeedsAndBins(size_t rows, Fn fn) {
 }
 }  // namespace xgboost::common
 
-#endif  // XGBOOST_TESTS_CPP_COMMON_TEST_QUANTILE_H_
+#endif  // TESTS_CPP_COMMON_TEST_QUANTILE_H_

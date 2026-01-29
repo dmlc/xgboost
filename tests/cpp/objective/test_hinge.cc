@@ -7,6 +7,8 @@
 #include <xgboost/objective.h>
 
 #include <limits>
+#include <memory>
+#include <vector>
 
 #include "../../../src/common/linalg_op.h"
 #include "../helpers.h"

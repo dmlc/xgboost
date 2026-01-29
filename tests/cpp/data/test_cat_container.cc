@@ -6,6 +6,8 @@
 
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "../encoder/df_mock.h"
 
 namespace xgboost {

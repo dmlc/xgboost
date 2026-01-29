@@ -1,6 +1,8 @@
 /**
  * Copyright 2022-2024, XGBoost Contributors
  */
+#ifndef TESTS_CPP_TREE_TEST_EVALUATE_SPLITS_H_
+#define TESTS_CPP_TREE_TEST_EVALUATE_SPLITS_H_
 #include <gtest/gtest.h>
 #include <xgboost/base.h>                // for GradientPairInternal, GradientPairPrecise
 #include <xgboost/data.h>                // for MetaInfo
@@ -89,4 +91,7 @@ class TestCategoricalSplitWithMissing : public testing::Test {
     ASSERT_EQ(right_sum.GetHess(), parent_sum_.GetHess() - left_sum.GetHess());
   }
 };
+
 }  // namespace xgboost::tree
+
+#endif  // TESTS_CPP_TREE_TEST_EVALUATE_SPLITS_H_

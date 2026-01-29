@@ -97,7 +97,8 @@ void TestPartitionBasedSplit::SetUp() {
 void TestEvaluateSplits(bool force_read_by_column) {
   Context ctx;
   ctx.nthread = 4;
-  int static constexpr kRows = 8, kCols = 16;
+  static constexpr int kRows = 8;
+  static constexpr int kCols = 16;
   auto sampler = std::make_shared<common::ColumnSampler>(1u);
 
   TrainParam param;
@@ -111,7 +112,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
                                           {2.27f, 0.28f},  {0.27f, 0.29f}, {0.37f, 0.39f},
                                           {-0.47f, 0.49f}, {0.57f, 0.59f}};
 
-  size_t constexpr kMaxBins = 4;
+  static constexpr size_t kMaxBins = 4;
   // dense, no missing values
   GHistIndexMatrix gmat(&ctx, dmat.get(), kMaxBins, 0.5, false);
   common::RowSetCollection row_set_collection;
@@ -237,7 +238,8 @@ TEST(HistEvaluator, Apply) {
   Context ctx;
   ctx.nthread = 4;
   RegTree tree;
-  int static constexpr kNRows = 8, kNCols = 16;
+  static constexpr int kNRows = 8;
+  static constexpr int kNCols = 16;
   TrainParam param;
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
@@ -281,7 +283,8 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
 namespace {
 auto CompareOneHotAndPartition(bool onehot) {
   Context ctx;
-  int static constexpr kRows = 128, kCols = 1;
+  static constexpr int kRows = 128;
+  static constexpr int kCols = 1;
   std::vector<FeatureType> ft(kCols, FeatureType::kCategorical);
 
   TrainParam param;

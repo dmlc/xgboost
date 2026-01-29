@@ -4,7 +4,9 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>  // for BatchParam
 
+#include <memory>  // for shared_ptr, unique_ptr
 #include <tuple>   // for tuple
+#include <utility>  // for move
 #include <vector>  // for vector
 
 #include "../../../src/data/batch_utils.h"     // for AutoHostRatio

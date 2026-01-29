@@ -13,10 +13,13 @@
 #include <xgboost/learner.h>  // for LearnerModelParam
 #include <xgboost/model.h>    // for Configurable
 
+#include <algorithm>
 #include <cstdint>  // std::int32_t
 #include <cstdio>
+#include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #if defined(__CUDACC__)

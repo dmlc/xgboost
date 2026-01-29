@@ -1,10 +1,11 @@
 /**
  * Copyright 2022-2025, XGBoost Contributors
  */
-#ifndef XGBOOST_TESTS_CPP_FILESYSTEM_H
-#define XGBOOST_TESTS_CPP_FILESYSTEM_H
+#ifndef TESTS_CPP_FILESYSTEM_H_
+#define TESTS_CPP_FILESYSTEM_H_
 
 #include <filesystem>  // for path
+#include <string>      // for string
 
 namespace xgboost::common {
 class TemporaryDirectory {
@@ -22,4 +23,4 @@ class TemporaryDirectory {
 };
 }  // namespace xgboost::common
 
-#endif  // XGBOOST_TESTS_CPP_FILESYSTEM_H
+#endif  // TESTS_CPP_FILESYSTEM_H_

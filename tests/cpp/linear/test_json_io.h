@@ -1,12 +1,13 @@
 /*!
  * Copyright 2020 XGBoost contributors
  */
-#ifndef XGBOOST_TEST_JSON_IO_H_
-#define XGBOOST_TEST_JSON_IO_H_
+#ifndef TESTS_CPP_LINEAR_TEST_JSON_IO_H_
+#define TESTS_CPP_LINEAR_TEST_JSON_IO_H_
 
 #include <xgboost/json.h>
 #include <xgboost/linear_updater.h>
 
+#include <memory>
 #include <string>
 
 #include "../../../src/gbm/gblinear_model.h"
@@ -39,4 +40,4 @@ inline void TestUpdaterJsonIO(std::string updater_str) {
 
 }  // namespace xgboost
 
-#endif  // XGBOOST_TEST_JSON_IO_H_
+#endif  // TESTS_CPP_LINEAR_TEST_JSON_IO_H_

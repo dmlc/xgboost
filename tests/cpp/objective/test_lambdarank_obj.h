@@ -1,8 +1,8 @@
 /**
  * Copyright 2023-2025, XGBoost Contributors
  */
-#ifndef XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
-#define XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
+#ifndef TESTS_CPP_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
+#define TESTS_CPP_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
 #include <gtest/gtest.h>
 #include <xgboost/data.h>                // for MetaInfo
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
@@ -43,4 +43,4 @@ void TestMAPGPair(Context const* ctx);
  */
 void InitMakePairTest(Context const* ctx, MetaInfo* out_info, HostDeviceVector<float>* out_predt);
 }  // namespace xgboost::obj
-#endif  // XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
+#endif  // TESTS_CPP_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_

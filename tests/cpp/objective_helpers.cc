@@ -3,6 +3,8 @@
  */
 #include "objective_helpers.h"
 
+#include <memory>
+
 #include "../../src/common/linalg_op.h"  // for begin, end
 #include "helpers.h"                     // for RandomDataGenerator
 

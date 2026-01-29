@@ -5,6 +5,10 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "../../../src/common/survival_util.h"
 #include "../helpers.h"

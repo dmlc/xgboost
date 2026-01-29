@@ -361,7 +361,6 @@ void WriteNullValues(Context const* ctx, EllpackPageImpl* dst,
                      common::Span<size_t const> row_counts) {
   // Write the null values
   auto null = dst->NullValue();
-  ;
   common::CompressedBufferWriter writer(dst->NumSymbols());
   auto d_compressed_buffer = dst->gidx_buffer.data();
   auto row_stride = dst->info.row_stride;

@@ -7,6 +7,8 @@
 #include <xgboost/data.h>                // for ExtMemConfig
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 
+#include <algorithm>
+#include <limits>
 #include <memory>  // for shared_ptr
 #include <string>
 #include <vector>

@@ -4,8 +4,12 @@
 #pragma once
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <limits>
+#include <map>
 #include <memory>  // for shared_ptr
 #include <random>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -87,7 +91,7 @@ inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
   int expected_bin_weight = total_weight / local_num_bins;
   // Allow up to 30% deviation. This test is not very strict, it only ensures
   // roughly equal distribution
-  int allowable_error = std::max(2, int(expected_bin_weight * 0.3));
+  int allowable_error = std::max(2, static_cast<int>(expected_bin_weight * 0.3));
 
   // First and last bin can have smaller
   for (auto& kv : bin_weights) {

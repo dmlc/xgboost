@@ -5,6 +5,10 @@
 
 #include <xgboost/metric.h>
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "../helpers.h"
 
 namespace xgboost::metric {

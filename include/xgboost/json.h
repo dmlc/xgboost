@@ -95,11 +95,11 @@ class JsonString : public Value {
 
  public:
   JsonString() : Value(ValueKind::kString) {}
-  JsonString(std::string const& str)
+  explicit JsonString(std::string const& str)
       :  // NOLINT
         Value(ValueKind::kString),
         str_{str} {}
-  JsonString(std::string&& str) noexcept
+  explicit JsonString(std::string&& str) noexcept
       :  // NOLINT
         Value(ValueKind::kString),
         str_{std::forward<std::string>(str)} {}
@@ -124,9 +124,9 @@ class JsonArray : public Value {
 
  public:
   JsonArray() : Value(ValueKind::kArray) {}
-  JsonArray(std::vector<Json>&& arr) noexcept  // NOLINT
+  explicit JsonArray(std::vector<Json>&& arr) noexcept  // NOLINT
       : Value(ValueKind::kArray), vec_{std::forward<std::vector<Json>>(arr)} {}
-  JsonArray(std::vector<Json> const& arr)
+  explicit JsonArray(std::vector<Json> const& arr)
       :  // NOLINT
         Value(ValueKind::kArray),
         vec_{arr} {}

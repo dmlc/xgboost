@@ -1,8 +1,8 @@
 /*!
  * Copyright 2018 XGBoost contributors
  */
-#ifndef XGBOOST_TEST_SPAN_H_
-#define XGBOOST_TEST_SPAN_H_
+#ifndef TESTS_CPP_COMMON_TEST_SPAN_H_
+#define TESTS_CPP_COMMON_TEST_SPAN_H_
 
 #include <xgboost/base.h>
 #include <xgboost/span.h>
@@ -31,7 +31,7 @@ namespace common {
 struct TestTestStatus {
   int* status_;
 
-  TestTestStatus(int* _status) : status_(_status) {}
+  explicit TestTestStatus(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -42,7 +42,7 @@ struct TestTestStatus {
 struct TestAssignment {
   int* status_;
 
-  TestAssignment(int* _status) : status_(_status) {}
+  explicit TestAssignment(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -62,7 +62,7 @@ struct TestAssignment {
 struct TestBeginEnd {
   int* status_;
 
-  TestBeginEnd(int* _status) : status_(_status) {}
+  explicit TestBeginEnd(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -82,7 +82,7 @@ struct TestBeginEnd {
 struct TestRBeginREnd {
   int* status_;
 
-  TestRBeginREnd(int* _status) : status_(_status) {}
+  explicit TestRBeginREnd(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -108,7 +108,7 @@ struct TestRBeginREnd {
 struct TestObservers {
   int* status_;
 
-  TestObservers(int* _status) : status_(_status) {}
+  explicit TestObservers(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -133,7 +133,7 @@ struct TestObservers {
 struct TestCompare {
   int* status_;
 
-  TestCompare(int* _status) : status_(_status) {}
+  explicit TestCompare(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -161,7 +161,7 @@ struct TestCompare {
 struct TestIterConstruct {
   int* status_;
 
-  TestIterConstruct(int* _status) : status_(_status) {}
+  explicit TestIterConstruct(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index.
@@ -178,7 +178,7 @@ struct TestIterConstruct {
 struct TestIterRef {
   int* status_;
 
-  TestIterRef(int* _status) : status_(_status) {}
+  explicit TestIterRef(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -194,7 +194,7 @@ struct TestIterRef {
 struct TestIterCalculate {
   int* status_;
 
-  TestIterCalculate(int* _status) : status_(_status) {}
+  explicit TestIterCalculate(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -225,7 +225,7 @@ struct TestIterCalculate {
 struct TestIterCompare {
   int* status_;
 
-  TestIterCompare(int* _status) : status_(_status) {}
+  explicit TestIterCompare(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -253,7 +253,7 @@ struct TestIterCompare {
 struct TestAsBytes {
   int* status_;
 
-  TestAsBytes(int* _status) : status_(_status) {}
+  explicit TestAsBytes(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -284,7 +284,7 @@ struct TestAsBytes {
 struct TestAsWritableBytes {
   int* status_;
 
-  TestAsWritableBytes(int* _status) : status_(_status) {}
+  explicit TestAsWritableBytes(int* _status) : status_(_status) {}
 
   XGBOOST_DEVICE void operator()() { this->operator()(0); }
   XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
@@ -314,4 +314,4 @@ struct TestAsWritableBytes {
 }  // namespace common
 }  // namespace xgboost
 
-#endif
+#endif  // TESTS_CPP_COMMON_TEST_SPAN_H_

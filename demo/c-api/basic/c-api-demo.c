@@ -6,6 +6,7 @@
  */
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h> /* uint32_t,uint64_t */
 #include <stdio.h>
@@ -28,13 +29,13 @@ static void MakeArrayInterface(size_t data, size_t n, char const* typestr, size_
   static char const kTemplate[] =
       "{\"data\": [%lu, true], \"shape\": [%lu, %lu], \"typestr\": \"%s\", \"version\": 3}";
   memset(out, '\0', length);
-  sprintf(out, kTemplate, data, n, 1ul, typestr);
+  snprintf(out, length, kTemplate, data, n, 1ul, typestr);
 }
 /* Make Json encoded DMatrix configuration. */
 static void MakeConfig(int n_threads, size_t length, char* out) {
   static char const kTemplate[] = "{\"missing\": NaN, \"nthread\": %d}";
   memset(out, '\0', length);
-  sprintf(out, kTemplate, n_threads);
+  snprintf(out, length, kTemplate, n_threads);
 }
 
 int main() {
@@ -76,7 +77,7 @@ int main() {
 
   bst_ulong num_feature = 0;
   safe_xgboost(XGBoosterGetNumFeature(booster, &num_feature));
-  printf("num_feature: %lu\n", (unsigned long)(num_feature));
+  printf("num_feature: %" PRIu64 "\n", (uint64_t)(num_feature));
 
   // predict
   bst_ulong out_len = 0;

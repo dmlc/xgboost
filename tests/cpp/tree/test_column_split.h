@@ -7,6 +7,7 @@
 
 #include <cstddef>  // for size_t
 #include <memory>   // for shared_ptr
+#include <string>   // for string
 #include <vector>   // for vector
 
 #include "../helpers.h"  // for RandomDataGenerator

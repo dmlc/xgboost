@@ -1,6 +1,10 @@
 // Copyright by Contributors
+#ifndef TESTS_CPP_METRIC_TEST_MULTICLASS_METRIC_H_
+#define TESTS_CPP_METRIC_TEST_MULTICLASS_METRIC_H_
+
 #include <xgboost/metric.h>
 
+#include <memory>
 #include <string>
 
 #include "../helpers.h"
@@ -88,3 +92,5 @@ inline void VerifyMultiClassLogLoss(DataSplitMode data_split_mode, DeviceOrd dev
 
 }  // namespace metric
 }  // namespace xgboost
+
+#endif  // TESTS_CPP_METRIC_TEST_MULTICLASS_METRIC_H_

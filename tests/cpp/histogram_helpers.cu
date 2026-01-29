@@ -5,6 +5,7 @@
 #include <xgboost/data.h>  // for FeatureType
 #include <xgboost/span.h>  // for Span
 
+#include <limits>
 #include <memory>  // for make_unique
 #include <random>  // for uniform_real_distribution
 #include <vector>  // for vector

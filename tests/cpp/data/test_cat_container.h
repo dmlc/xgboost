@@ -5,6 +5,8 @@
 
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "../../../src/data/cat_container.h"
 
 namespace xgboost {

@@ -1,6 +1,8 @@
 /**
  * Copyright 2024, XGBoost Contributors
  */
+#ifndef TESTS_CPP_DATA_TEST_EXTMEM_QUANTILE_DMATRIX_H_
+#define TESTS_CPP_DATA_TEST_EXTMEM_QUANTILE_DMATRIX_H_
 #include <xgboost/base.h>
 #include <xgboost/context.h>
 
@@ -72,3 +74,5 @@ void TestExtMemQdmBasic(Context const* ctx, bool on_host, float sparsity, Equal&
   }
 }
 }  // namespace xgboost::data
+
+#endif  // TESTS_CPP_DATA_TEST_EXTMEM_QUANTILE_DMATRIX_H_

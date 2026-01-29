@@ -13,6 +13,7 @@
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for uint32_t
+#include <memory>   // for make_shared
 #include <numeric>  // for iota
 #include <utility>  // for move
 #include <vector>   // for vector

@@ -15,6 +15,7 @@
 #include <filesystem>  // for path
 #include <limits>      // for numeric_limits
 #include <random>      // for mt19937
+#include <utility>
 
 #include "../../src/collective/communicator-inl.h"  // for GetRank
 #include "../../src/data/adapter.h"

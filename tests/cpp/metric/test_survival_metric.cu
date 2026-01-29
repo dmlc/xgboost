@@ -3,6 +3,8 @@
  */
 #include <gtest/gtest.h>
 
+#include <memory>
+
 #include "test_survival_metric.h"
 #include "xgboost/metric.h"
 

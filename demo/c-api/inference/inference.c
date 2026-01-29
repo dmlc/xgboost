@@ -75,7 +75,8 @@ char const *Matrix_ArrayInterface(Matrix self) {
       "{\"data\": [%lu, true], \"shape\": [%lu, %lu], "
       "\"typestr\": \"<f4\", \"version\": 3}";
   memset(self->_array_intrerface, '\0', sizeof(self->_array_intrerface));
-  sprintf(self->_array_intrerface, template, (size_t)self->data, self->shape[0], self->shape[1]);
+  snprintf(self->_array_intrerface, sizeof(self->_array_intrerface), template,
+           (size_t)self->data, self->shape[0], self->shape[1]);
   return self->_array_intrerface;
 }
 

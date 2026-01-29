@@ -126,7 +126,6 @@ class USMVector {
       size_ = size_new;
       capacity_ = size_new;
       data_ = allocate_memory_(qu, size_);
-      ;
       if (size_old > 0) {
         qu->memcpy(data_.get(), data_old.get(), sizeof(T) * size_old).wait();
       }

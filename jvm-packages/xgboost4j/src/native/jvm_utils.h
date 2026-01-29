@@ -1,8 +1,8 @@
 /**
  *  Copyright 2014-2025, XGBoost Contributors
  */
-#ifndef JVM_UTILS_H_
-#define JVM_UTILS_H_
+#ifndef XGBOOST_NATIVE_JVM_UTILS_H_
+#define XGBOOST_NATIVE_JVM_UTILS_H_
 
 #include <jni.h>
 
@@ -28,4 +28,4 @@ T CheckJvmCall(T const &v, JNIEnv *jenv) {
   return v;
 }
 
-#endif  // JVM_UTILS_H_
+#endif  // XGBOOST_NATIVE_JVM_UTILS_H_

@@ -5,13 +5,14 @@
 #include <gtest/gtest.h>
 #include <xgboost/global_config.h>  // for InitNewThread
 
-#include <chrono>   // for seconds
-#include <cstdint>  // for int32_t
-#include <fstream>  // for ifstream
-#include <string>   // for string
-#include <thread>   // for thread
-#include <utility>  // for move
-#include <vector>   // for vector
+#include <algorithm>  // for max
+#include <chrono>     // for seconds
+#include <cstdint>    // for int32_t
+#include <fstream>    // for ifstream
+#include <string>     // for string
+#include <thread>     // for thread
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../../../src/collective/comm.h"              // for RabitComm
 #include "../../../src/collective/communicator-inl.h"  // for Init, Finalize

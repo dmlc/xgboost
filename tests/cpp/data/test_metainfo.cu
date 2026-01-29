@@ -6,6 +6,9 @@
 #include <xgboost/data.h>
 #include <xgboost/json.h>
 
+#include <string>
+#include <vector>
+
 #include "../../../src/common/device_helpers.cuh"
 #include "test_array_interface.h"
 #include "test_metainfo.h"

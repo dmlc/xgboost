@@ -359,7 +359,6 @@ template <bool any_missing>
 void BuildHist(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
                const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column) {
   bool first_page = gmat.base_rowid == 0;
-  ;
   auto bin_type_size = gmat.index.GetBinTypeSize();
 
   GHistBuildingManager<any_missing>::DispatchAndExecute(

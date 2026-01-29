@@ -8,6 +8,8 @@
 #include <xgboost/tree_updater.h>
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"

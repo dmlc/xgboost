@@ -5,8 +5,11 @@
 #include <xgboost/json.h>
 #include <xgboost/metric.h>
 
+#include <algorithm>
+#include <functional>
 #include <memory>
 #include <numeric>  // for iota
+#include <vector>
 
 #include "../helpers.h"
 

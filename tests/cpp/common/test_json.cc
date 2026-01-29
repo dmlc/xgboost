@@ -448,7 +448,7 @@ TEST(Json, Invalid) {
       std::string msg = e.what();
       ASSERT_NE(msg.find("Unknown"), std::string::npos);
       has_thrown = true;
-    };
+    }
     ASSERT_TRUE(has_thrown);
   }
   {
@@ -460,7 +460,7 @@ TEST(Json, Invalid) {
       std::string msg = e.what();
       ASSERT_NE(msg.find("position: 1"), std::string::npos);
       has_thrown = true;
-    };
+    }
     ASSERT_TRUE(has_thrown);
   }
   {
@@ -473,7 +473,7 @@ TEST(Json, Invalid) {
       // EOF is printed as 255 on s390x
       ASSERT_TRUE(msg.find("EOF") != std::string::npos || msg.find("255") != std::string::npos);
       has_thrown = true;
-    };
+    }
     ASSERT_TRUE(has_thrown);
   }
 }

@@ -7,6 +7,7 @@
 #include <federated.pb.h>
 
 #include <algorithm>  // for copy_n
+#include <string>
 
 #include "../../src/collective/allgather.h"
 #include "../../src/common/common.h"    // for AssertGPUSupport

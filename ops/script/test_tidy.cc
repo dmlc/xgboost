@@ -1,3 +1,6 @@
+/**
+ * Copyright 2026, XGBoost contributors
+ */
 #include <iostream>
 #include <vector>
 

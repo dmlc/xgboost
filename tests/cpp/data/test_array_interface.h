@@ -1,12 +1,17 @@
 /**
  * Copyright 2019-2024, XGBoost Contributors
  */
+#ifndef TESTS_CPP_DATA_TEST_ARRAY_INTERFACE_H_
+#define TESTS_CPP_DATA_TEST_ARRAY_INTERFACE_H_
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>  // for device
 #include <thrust/sequence.h>          // for sequence
 #include <xgboost/data.h>
 #include <xgboost/json.h>
+
+#include <string>
+#include <vector>
 
 namespace xgboost {
 template <typename T>
@@ -78,4 +83,7 @@ Json Generate2dArrayInterface(int rows, int cols, std::string typestr,
   array_interface["stream"] = nullptr;
   return array_interface;
 }
+
 }  // namespace xgboost
+
+#endif  // TESTS_CPP_DATA_TEST_ARRAY_INTERFACE_H_

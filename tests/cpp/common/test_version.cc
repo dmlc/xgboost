@@ -30,7 +30,6 @@ TEST(Version, Basic) {
   {
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
     auto triplet{Version::Load(fi.get())};
-    ;
     ASSERT_TRUE(Version::Same(triplet));
   }
 
@@ -48,14 +47,12 @@ TEST(Version, Basic) {
   v = std::stoi(str, &ptr);
   ASSERT_EQ(str.at(ptr), '.');
   ASSERT_EQ(v, XGBOOST_VER_MINOR) << "minor: " << v;
-  ;
 
   str = str.substr(ptr + 1);
 
   ptr = 0;
   v = std::stoi(str, &ptr);
   ASSERT_EQ(v, XGBOOST_VER_PATCH) << "patch: " << v;
-  ;
 
   str = str.substr(ptr);
   ASSERT_EQ(str.size(), 0);

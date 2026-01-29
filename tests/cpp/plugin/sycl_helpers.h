@@ -3,6 +3,8 @@
  */
 #pragma once
 
+#include <vector>
+
 #include "../../plugin/sycl/data.h"
 #include "../../plugin/sycl/device_manager.h"
 #include "../helpers.h"

@@ -7,8 +7,11 @@
 #include <gmock/gmock.h>
 #include <xgboost/data.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
+#include <tuple>
+#include <vector>
 
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../filesystem.h"              // TemporaryDirectory
@@ -149,7 +152,6 @@ TEST(MetaInfo, SaveLoadBinary) {
   std::transform(names.cbegin(), names.cend(), c_names.begin(),
                  [](auto const &str) { return str.c_str(); });
   info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size());
-  ;
 
   common::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.Str() + "/metainfo.binary";

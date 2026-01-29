@@ -9,6 +9,7 @@
 
 #include <algorithm>  // for transform
 #include <iterator>   // for back_insert_iterator, back_inserter
+#include <memory>     // for shared_ptr
 #include <string>     // for string
 #include <vector>     // for vector
 
@@ -30,7 +31,7 @@ inline std::string ObjTestNameGenerator(const ::testing::TestParamInfo<ParamType
     name[std::distance(name.cbegin(), it)] = '_';
   }
   return name;
-};
+}
 
 /**
  * @brief Construct random label for testing.

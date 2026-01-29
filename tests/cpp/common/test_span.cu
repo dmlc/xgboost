@@ -7,7 +7,9 @@
 #include <thrust/host_vector.h>
 #include <xgboost/span.h>
 
+#include <algorithm>
 #include <numeric>  // for iota
+#include <string>
 
 #include "../../../src/common/device_helpers.cuh"
 #include "test_span.h"

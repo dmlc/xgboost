@@ -11,6 +11,8 @@
 
 #include <memory>   // for unique_ptr
 #include <numeric>  // for iota
+#include <string>   // for string
+#include <vector>   // for vector
 
 #include "../../../src/tree/tree_view.h"
 

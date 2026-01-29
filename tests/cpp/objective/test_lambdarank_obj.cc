@@ -7,6 +7,7 @@
 
 #include <algorithm>         // for sort
 #include <cstddef>           // for size_t
+#include <functional>        // for greater
 #include <initializer_list>  // for initializer_list
 #include <memory>            // for unique_ptr, shared_ptr, make_shared
 #include <numeric>           // for iota

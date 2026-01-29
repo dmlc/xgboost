@@ -22,8 +22,8 @@ TEST(CompressedIterator, Size) {
 }
 
 TEST(CompressedIterator, Test) {
-  ASSERT_TRUE(detail::SymbolBits(256) == 8);
-  ASSERT_TRUE(detail::SymbolBits(150) == 8);
+  ASSERT_EQ(detail::SymbolBits(256), 8);
+  ASSERT_EQ(detail::SymbolBits(150), 8);
   std::vector<int> test_cases = {1, 3, 426, 21, 64, 256, 100000, INT32_MAX};
   int num_elements = 1000;
   int repetitions = 1000;
@@ -47,7 +47,7 @@ TEST(CompressedIterator, Test) {
         output[i] = ci[i];
       }
 
-      ASSERT_TRUE(input == output);
+      ASSERT_EQ(input, output);
 
       // Test write Symbol
       std::vector<unsigned char> buffer2(

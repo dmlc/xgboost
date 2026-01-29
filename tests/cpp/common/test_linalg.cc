@@ -10,6 +10,7 @@
 
 #include <cstddef>  // size_t
 #include <numeric>  // iota
+#include <utility>  // for move
 #include <vector>   // for vector
 
 #include "../../../src/common/linalg_op.h"

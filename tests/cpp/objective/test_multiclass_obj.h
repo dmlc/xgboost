@@ -1,8 +1,8 @@
 /**
  * Copyright 2020-2023 by XGBoost Contributors
  */
-#ifndef XGBOOST_TEST_MULTICLASS_OBJ_H_
-#define XGBOOST_TEST_MULTICLASS_OBJ_H_
+#ifndef TESTS_CPP_OBJECTIVE_TEST_MULTICLASS_OBJ_H_
+#define TESTS_CPP_OBJECTIVE_TEST_MULTICLASS_OBJ_H_
 
 #include <xgboost/context.h>  // for Context
 
@@ -16,4 +16,4 @@ void TestSoftprobMultiClassBasic(const Context* ctx);
 
 }  // namespace xgboost
 
-#endif  // XGBOOST_TEST_MULTICLASS_OBJ_H_
+#endif  // TESTS_CPP_OBJECTIVE_TEST_MULTICLASS_OBJ_H_

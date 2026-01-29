@@ -8,6 +8,7 @@
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 
 #include <numeric>  // for iota
+#include <vector>   // for vector
 
 namespace xgboost {
 // Generate node position for two nodes.

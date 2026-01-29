@@ -6,6 +6,11 @@
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "../helpers.h"
 
 namespace xgboost {

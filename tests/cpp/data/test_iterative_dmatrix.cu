@@ -3,7 +3,10 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <memory>  // for dynamic_pointer_cast
+#include <string>
+#include <vector>
 
 #include "../../../src/common/io.h"  // for AlignedFileWriteStream
 #include "../../../src/data/device_adapter.cuh"

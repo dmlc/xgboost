@@ -7,6 +7,8 @@
 #include <xgboost/data.h>  // for BatchParam
 
 #include <algorithm>  // for equal
+#include <string>
+#include <vector>
 
 #include "../../../src/common/column_matrix.h"  // for ColumnMatrix
 #include "../../../src/data/gradient_index.h"   // for GHistIndexMatrix

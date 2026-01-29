@@ -9,6 +9,11 @@
 
 #include <xgboost/data.h>  // for SparsePage
 
+#include <algorithm>
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "./helpers.h"  // for RandomDataGenerator
 
 namespace xgboost {

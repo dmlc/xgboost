@@ -10,7 +10,10 @@
 #include <xgboost/json.h>         // for Json
 #include <xgboost/learner.h>
 
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../../src/common/io.h"
 #include "../../src/common/random.h"

@@ -690,7 +690,7 @@ TEST(GBTree, InplacePredictionError) {
 #else
       CHECK(p_fmat);
 #endif  // defined(XGBOOST_USE_CUDA)
-    };
+    }
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
     learner->SetParams(Args{{"booster", booster},
                             {"max_bin", std::to_string(max_bins)},
