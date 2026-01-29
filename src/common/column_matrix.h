@@ -166,7 +166,7 @@ class ColumnMatrix {
     }
 
     /**
-     * @param feature_offsets Offest of the first element for each feature
+     * @param feature_offsets Offset of the first element for each feature
      * @param type            Type of each column (Dense or Sparse).
      */
     void InitOffsetsPadded(const RefResourceView<std::size_t>& feature_offsets,
@@ -178,9 +178,9 @@ class ColumnMatrix {
       }
 
       /*
-       * For missing indicator feature offsets are alligned to be a factor of
+       * For missing indicator feature offsets are aligned to be a factor of
        * BitFieldT::kValueSize (4 bytes).
-       * This is critical requariment for thread-safe access to bitfield.
+       * This is critical requirement for thread-safe access to bitfield.
        * Each word processed by one thread.
        */
       for (std::size_t fid = 1; fid < feature_offsets.size(); ++fid) {
