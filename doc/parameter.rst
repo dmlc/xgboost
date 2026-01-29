@@ -514,7 +514,8 @@ Parameter for using Quantile Loss (``reg:quantileerror``)
 Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likelihood of AFT metric (``aft-nloglik``)
 ====================================================================================================================
 
-* ``aft_loss_distribution``: Probability Density Function, ``normal``, ``logistic``, or ``extreme``.
+* ``aft_loss_distribution``: Probability Density Function for the AFT distribution; ``normal``, ``logistic``, or ``extreme``.
+* ``aft_loss_distribution_scale``: Scaling factor for the AFT distribution. Range: (0,∞)
 
 .. _ltr-param:
 
