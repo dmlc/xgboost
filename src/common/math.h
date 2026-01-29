@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file math.h
  * \brief additional math utils
  * \author Tianqi Chen

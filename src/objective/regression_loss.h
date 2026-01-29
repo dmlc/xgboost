@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 #define XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
@@ -135,9 +135,7 @@ class GammaDeviance {
   }
   XGBOOST_DEVICE static bool CheckIntercept(float base_score) { return base_score > 0; }
 
-  XGBOOST_DEVICE static float FirstOrderGradient(float p, float y) {
-    return 1.0f - y / p;
-  }
+  XGBOOST_DEVICE static float FirstOrderGradient(float p, float y) { return 1.0f - y / p; }
   XGBOOST_DEVICE static float SecondOrderGradient(float p, float y) { return y / p; }
   static ObjInfo Info() { return ObjInfo::kRegression; }
   static const char* Name() { return "reg:gamma"; }
