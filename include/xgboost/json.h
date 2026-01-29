@@ -95,14 +95,10 @@ class JsonString : public Value {
 
  public:
   JsonString() : Value(ValueKind::kString) {}
-  explicit JsonString(std::string const& str)
-      :  // NOLINT
-        Value(ValueKind::kString),
-        str_{str} {}
-  explicit JsonString(std::string&& str) noexcept
-      :  // NOLINT
-        Value(ValueKind::kString),
-        str_{std::forward<std::string>(str)} {}
+  JsonString(std::string const& str)  // NOLINT
+      : Value(ValueKind::kString), str_{str} {}
+  JsonString(std::string&& str) noexcept  // NOLINT
+      : Value(ValueKind::kString), str_{std::forward<std::string>(str)} {}
   JsonString(JsonString&& str) noexcept : Value(ValueKind::kString) {  // NOLINT
     std::swap(str.str_, this->str_);
   }
@@ -124,12 +120,10 @@ class JsonArray : public Value {
 
  public:
   JsonArray() : Value(ValueKind::kArray) {}
-  explicit JsonArray(std::vector<Json>&& arr) noexcept  // NOLINT
+  JsonArray(std::vector<Json>&& arr) noexcept  // NOLINT
       : Value(ValueKind::kArray), vec_{std::forward<std::vector<Json>>(arr)} {}
-  explicit JsonArray(std::vector<Json> const& arr)
-      :  // NOLINT
-        Value(ValueKind::kArray),
-        vec_{arr} {}
+  JsonArray(std::vector<Json> const& arr)  // NOLINT
+      : Value(ValueKind::kArray), vec_{arr} {}
   JsonArray(JsonArray const& that) = delete;
   JsonArray(JsonArray&& that) noexcept;
 
