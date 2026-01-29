@@ -244,7 +244,8 @@ def run_exp_family(device: Device) -> None:
 
 
 def run_logistic_degenerate(device: Device) -> None:
-    "Test https://github.com/dmlc/xgboost/issues/11499 ."
+    """Test https://github.com/dmlc/xgboost/issues/11499 ."""
+
     def run(v: float) -> None:
         dtrain = DMatrix(np.asarray([[1.0], [1.0]]), label=[v, v])
         bst = train(
