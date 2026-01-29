@@ -4,7 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/collective/socket.h>
 
-#include <cerrno>        // EADDRNOTAVAIL
+#include <cerrno>  // EADDRNOTAVAIL
+#include <string>
 #include <system_error>  // std::error_code, std::system_category
 
 #include "test_worker.h"  // for SocketTest

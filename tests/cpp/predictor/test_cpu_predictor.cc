@@ -4,6 +4,11 @@
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 
+#include <limits>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "../../../src/collective/communicator-inl.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"

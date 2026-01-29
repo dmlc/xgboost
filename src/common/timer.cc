@@ -3,6 +3,7 @@
  */
 #include "timer.h"
 
+#include <string>
 #include <utility>
 
 #include "../collective/communicator-inl.h"

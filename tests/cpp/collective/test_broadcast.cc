@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/collective/socket.h>
 
+#include <algorithm>
 #include <cstdint>  // for int32_t
 #include <string>   // for string
 #include <thread>   // for thread

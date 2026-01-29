@@ -3,6 +3,7 @@
  */
 #include "xgboost/json.h"
 
+#include <algorithm>         // for copy, equal
 #include <array>             // for array
 #include <cctype>            // for isdigit
 #include <cmath>             // for isinf, isnan
@@ -14,7 +15,10 @@
 #include <iterator>          // for distance
 #include <limits>            // for numeric_limits
 #include <sstream>           // for operator<<, basic_ostream, operator&, ios, stringstream
+#include <string>            // for string
 #include <system_error>      // for errc
+#include <utility>           // for move
+#include <vector>            // for vector
 
 #include "./math.h"                 // for CheckNAN
 #include "charconv.h"               // for to_chars, NumericLimits, from_chars, to_chars_result

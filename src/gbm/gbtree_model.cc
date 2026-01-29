@@ -5,8 +5,10 @@
 
 #include <algorithm>  // for transform, max_element
 #include <cstddef>    // for size_t
+#include <memory>     // for make_shared
 #include <numeric>    // for partial_sum
 #include <utility>    // for move, pair
+#include <vector>     // for vector
 
 #include "../common/threading_utils.h"  // for ParallelFor
 #include "xgboost/context.h"            // for Context

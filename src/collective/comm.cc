@@ -11,6 +11,7 @@
 #include <string>     // for string
 #include <thread>     // for thread
 #include <utility>    // for move, forward
+#include <vector>     // for vector
 #if !defined(XGBOOST_USE_NCCL)
 #include "../common/common.h"           // for AssertNCCLSupport
 #endif                                  // !defined(XGBOOST_USE_NCCL)

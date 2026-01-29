@@ -3,6 +3,8 @@
  */
 #include "array_interface.h"
 
+#include <string>  // for string
+
 #if !defined(XGBOOST_USE_CUDA)
 
 #include "../common/common.h"  // for AssertGPUSupport

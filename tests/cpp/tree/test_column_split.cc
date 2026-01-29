@@ -7,6 +7,7 @@
 #include <xgboost/tree_model.h>    // for RegTree
 #include <xgboost/tree_updater.h>  // for TreeUpdater
 
+#include <memory>
 #include <string>  // for string
 #include <vector>  // for vector
 

@@ -4,6 +4,8 @@
  */
 #include "../sycl/device_manager.h"
 
+#include <vector>
+
 #include "../../src/collective/communicator-inl.h"
 
 namespace xgboost {

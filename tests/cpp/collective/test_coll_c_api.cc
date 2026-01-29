@@ -5,7 +5,9 @@
 #include <xgboost/c_api.h>
 
 #include <chrono>  // for ""s
+#include <string>
 #include <thread>  // for thread
+#include <vector>
 
 #include "../../../src/collective/allgather.h"  // for RingAllgather
 #include "../../../src/collective/tracker.h"

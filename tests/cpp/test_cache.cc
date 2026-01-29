@@ -7,7 +7,9 @@
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for uint32_t
-#include <thread>   // for thread
+#include <memory>
+#include <thread>  // for thread
+#include <vector>
 
 #include "helpers.h"  // for RandomDataGenerator
 

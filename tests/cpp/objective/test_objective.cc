@@ -5,6 +5,10 @@
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "../helpers.h"
 #include "../objective_helpers.h"
 

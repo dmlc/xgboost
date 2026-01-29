@@ -9,7 +9,8 @@
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t, int64_t
-#include <vector>   // for vector
+#include <string>
+#include <vector>  // for vector
 
 #include "../../../src/collective/allgather.h"     // for RingAllgather
 #include "../../../src/common/device_helpers.cuh"  // for ToSpan,  device_vector

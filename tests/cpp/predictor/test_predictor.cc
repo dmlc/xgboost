@@ -11,8 +11,9 @@
 #include <xgboost/predictor.h>           // for PredictionCacheEntry, Predictor, Predic...
 #include <xgboost/string_view.h>         // for StringView
 
-#include <limits>         // for numeric_limits
-#include <memory>         // for shared_ptr
+#include <limits>  // for numeric_limits
+#include <memory>  // for shared_ptr
+#include <string>
 #include <unordered_map>  // for unordered_map
 #include <utility>        // for move
 #include <vector>         // for vector

@@ -1,6 +1,8 @@
 // Copyright by Contributors
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "../../../src/tree/param.h"
 #include "../helpers.h"
 

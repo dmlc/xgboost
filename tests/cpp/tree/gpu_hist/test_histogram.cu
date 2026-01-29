@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
 
+#include <algorithm>
+#include <limits>
 #include <memory>  // for unique_ptr
 #include <tuple>   // for tuple
 #include <vector>  // for vector

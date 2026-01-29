@@ -9,6 +9,8 @@
 #include <xgboost/tree_updater.h>  // for TreeUpdater
 
 #include <memory>  // for unique_ptr
+#include <string>
+#include <vector>
 
 #include "../../../src/tree/io_utils.h"   // for DftBadValue
 #include "../../../src/tree/param.h"      // for TrainParam

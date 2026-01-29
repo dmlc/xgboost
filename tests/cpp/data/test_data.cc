@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "../filesystem.h"  // TemporaryDirectory

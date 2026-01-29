@@ -6,6 +6,8 @@
 #include <array>   // std::array
 #include <limits>  // std::numeric_limits
 #include <memory>  // std::unique_ptr
+#include <string>
+#include <vector>
 
 #include "../../../src/data/adapter.h"         // ArrayAdapter
 #include "../../../src/data/simple_dmatrix.h"  // SimpleDMatrix

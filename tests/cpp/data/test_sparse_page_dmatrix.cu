@@ -3,6 +3,10 @@
  */
 #include <xgboost/data.h>  // for DMatrix
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "../../../src/common/compressed_iterator.h"
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/ellpack_page.h"

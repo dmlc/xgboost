@@ -4,8 +4,11 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
+#include <limits>
+#include <memory>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"

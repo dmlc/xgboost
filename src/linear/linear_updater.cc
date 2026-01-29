@@ -4,6 +4,8 @@
 #include <dmlc/registry.h>
 #include <xgboost/linear_updater.h>
 
+#include <string>
+
 #include "./param.h"
 
 namespace dmlc {

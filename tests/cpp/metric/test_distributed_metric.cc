@@ -10,6 +10,7 @@
 #include <functional>  // for function
 #include <string>      // for string
 #include <thread>      // for thread
+#include <vector>
 
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "test_auc.h"

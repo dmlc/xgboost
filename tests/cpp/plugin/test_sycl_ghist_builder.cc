@@ -9,6 +9,8 @@
 #include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
 #pragma GCC diagnostic pop
 
+#include <vector>
+
 #include "../../../plugin/sycl/common/hist_util.h"
 #include "../../../plugin/sycl/device_manager.h"
 #include "../../../plugin/sycl/tree/hist_dispatcher.h"

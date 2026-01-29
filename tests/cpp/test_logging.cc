@@ -5,6 +5,7 @@
 #include <xgboost/logging.h>
 
 #include <map>
+#include <string>
 
 namespace xgboost {
 

@@ -3,7 +3,11 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <memory>
 #include <numeric>  // for iota
+#include <string>
+#include <vector>
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/collective/coll.h"  // for Coll

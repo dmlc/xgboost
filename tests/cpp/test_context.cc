@@ -6,6 +6,7 @@
 #include <xgboost/context.h>
 
 #include <sstream>
+#include <string>
 
 namespace xgboost {
 TEST(Context, CPU) {

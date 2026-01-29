@@ -4,6 +4,11 @@
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
 
+#include <algorithm>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "../../../src/data/array_interface.h"
 #include "../helpers.h"
 #include "dmlc/logging.h"

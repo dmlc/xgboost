@@ -9,6 +9,8 @@
 #include <xgboost/json.h>
 #include <xgboost/task.h>
 
+#include <memory>
+
 #include "../../../plugin/sycl/tree/updater_quantile_hist.h"  // for QuantileHistMaker
 #pragma GCC diagnostic pop
 

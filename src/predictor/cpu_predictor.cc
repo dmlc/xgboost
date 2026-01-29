@@ -5,7 +5,9 @@
 #include <cassert>    // for assert
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t, uint64_t
+#include <limits>     // for numeric_limits
 #include <memory>     // for unique_ptr, shared_ptr
+#include <utility>    // for swap
 #include <vector>     // for vector
 
 #include "../collective/allreduce.h"          // for Allreduce

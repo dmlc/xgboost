@@ -12,6 +12,7 @@
 #include <thrust/sort.h>
 #include <xgboost/logging.h>
 
+#include <algorithm>
 #include <cstddef>  // for size_t
 #include <utility>
 #include <vector>

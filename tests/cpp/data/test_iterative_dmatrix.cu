@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <limits>
 #include <memory>  // for dynamic_pointer_cast
 #include <string>
 #include <vector>

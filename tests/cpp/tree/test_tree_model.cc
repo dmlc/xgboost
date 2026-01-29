@@ -3,7 +3,10 @@
  */
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <stack>  // for stack
+#include <string>
+#include <vector>
 
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/categorical.h"

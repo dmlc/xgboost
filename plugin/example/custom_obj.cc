@@ -10,6 +10,8 @@
 #include <xgboost/objective.h>
 #include <xgboost/parameter.h>
 
+#include <vector>
+
 namespace xgboost::obj {
 // This is a helpful data structure to define parameters
 // You do not have to use it.

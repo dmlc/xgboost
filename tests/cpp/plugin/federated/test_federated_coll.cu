@@ -5,6 +5,9 @@
 #include <gtest/gtest.h>
 #include <xgboost/collective/result.h>  // for Result
 
+#include <memory>  // for make_shared, shared_ptr
+#include <vector>  // for vector
+
 #include "../../../../src/collective/allreduce.h"
 #include "../../../../src/common/cuda_rt_utils.h"     // for AllVisibleGPUs
 #include "../../../../src/common/device_helpers.cuh"  // for device_vector

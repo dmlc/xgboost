@@ -10,6 +10,7 @@
 #include <iterator>   // for back_inserter
 #include <memory>     // for shared_ptr, unique_ptr
 #include <string>     // for string
+#include <utility>    // for move
 
 #include "../common/json_utils.h"  // for OptionalArg
 #include "coll.h"                  // for Coll

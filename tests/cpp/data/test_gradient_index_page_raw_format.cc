@@ -6,6 +6,8 @@
 
 #include <cstddef>  // for size_t
 #include <memory>   // for unique_ptr
+#include <string>
+#include <utility>
 
 #include "../../../src/common/column_matrix.h"  // for common::ColumnMatrix
 #include "../../../src/common/io.h"             // for MmapResource, AlignedResourceReadStream...

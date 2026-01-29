@@ -8,6 +8,8 @@
 #include <cstring>    // for memcpy
 #include <memory>     // for shared_ptr
 #include <sstream>    // for stringstream
+#include <string>     // for string
+#include <utility>    // for move
 #include <vector>     // for vector
 
 #include "../common/cuda_context.cuh"    // for CUDAContext

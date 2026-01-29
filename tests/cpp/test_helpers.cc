@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <string>
+#include <vector>
 
 #include "../../src/data/array_interface.h"
 #include "filesystem.h"  // for TemporaryDirectory

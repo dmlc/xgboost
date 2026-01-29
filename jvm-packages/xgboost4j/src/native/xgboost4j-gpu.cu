@@ -4,6 +4,11 @@
 #include <jni.h>
 #include <xgboost/c_api.h>
 
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "../../../../src/common/common.h"
 #include "../../../../src/common/cuda_pinned_allocator.h"
 #include "../../../../src/common/device_vector.cuh"  // for device_vector

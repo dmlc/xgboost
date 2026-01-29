@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <numeric>
+#include <vector>
 
 #include "../../../src/common/numeric.h"
 

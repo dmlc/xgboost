@@ -9,6 +9,11 @@
 #include <thrust/iterator/constant_iterator.h>  // for make_constant_iterator
 #include <thrust/sequence.h>                    // for sequence
 
+#include <future>
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "../../../src/common/ref_resource_view.cuh"
 #include "../../../src/common/threadpool.h"  // for ThreadPool
 #include "../helpers.h"                      // for MakeCUDACtx

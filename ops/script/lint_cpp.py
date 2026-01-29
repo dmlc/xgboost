@@ -68,9 +68,15 @@ class Lint:
             ",".join(
                 [
                     "-build/c++11",
+                    "-build/c++17",
                     "-build/include",
                     "-runtime/references",
+                    "-readability/nolint",
+                    # In general, trust clang-format to handle whitespace formatting
                     "-whitespace/braces",
+                    "-whitespace/parens",
+                    "-whitespace/indent_namespace",
+                    "-whitespace/newline",
                     "+build/namespaces",
                     "+build/include_what_you_use",
                 ]

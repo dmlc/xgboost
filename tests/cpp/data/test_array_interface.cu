@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
 
+#include <vector>
+
 #include "../../../src/data/array_interface.h"
 #include "../helpers.h"
 

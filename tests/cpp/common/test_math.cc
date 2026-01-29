@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <numeric>  // for accumulate
+#include <vector>
 
 #include "../../../src/common/math.h"
 

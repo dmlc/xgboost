@@ -8,8 +8,11 @@
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t
 #include <cstring>       // for memcpy, memset
+#include <limits>        // for numeric_limits
+#include <string>        // for string
 #include <system_error>  // for error_code, system_category
 #include <thread>        // for sleep_for
+#include <utility>       // for move
 
 #include "xgboost/collective/poll_utils.h"  // for PollHelper
 #include "xgboost/collective/result.h"      // for Result

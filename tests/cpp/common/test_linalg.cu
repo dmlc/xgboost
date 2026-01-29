@@ -6,6 +6,8 @@
 #include <thrust/iterator/constant_iterator.h>  // for make_constant_iterator
 #include <thrust/sequence.h>                    // for sequence
 
+#include <vector>
+
 #include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/linalg_op.h"
 #include "../../../src/common/optional_weight.h"  // for MakeOptionalWeights

@@ -5,6 +5,7 @@
 #include <xgboost/feature_map.h>  // for FeatureMap
 
 #include <memory>
+#include <string>
 
 #include "../helpers.h"
 #include "xgboost/context.h"

@@ -6,6 +6,8 @@
 #include <xgboost/learner.h>
 
 #include <limits>
+#include <memory>
+#include <vector>
 
 #include "../../../src/common/categorical.h"
 #include "../helpers.h"

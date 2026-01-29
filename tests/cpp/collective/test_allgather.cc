@@ -8,10 +8,12 @@
 #include <chrono>     // for seconds
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
-#include <numeric>    // for iota
-#include <string>     // for string
-#include <thread>     // for thread
-#include <vector>     // for vector
+#include <memory>
+#include <numeric>  // for iota
+#include <string>   // for string
+#include <thread>   // for thread
+#include <utility>
+#include <vector>  // for vector
 
 #include "../../../src/collective/allgather.h"  // for RingAllgather
 #include "../../../src/collective/coll.h"       // for Coll

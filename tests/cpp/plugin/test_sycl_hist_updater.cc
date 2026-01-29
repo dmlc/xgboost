@@ -3,7 +3,10 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <oneapi/dpl/random>
+#include <set>
+#include <vector>
 
 #include "../../../plugin/sycl/device_manager.h"
 #include "../../../plugin/sycl/tree/hist_updater.h"

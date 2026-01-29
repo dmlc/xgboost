@@ -3,6 +3,7 @@
  */
 #include <algorithm>  // for :max
 #include <limits>     // for numeric_limits
+#include <vector>
 
 #include "../../collective/allgather.h"
 #include "../../collective/communicator-inl.h"  // for GetWorldSize, GetRank

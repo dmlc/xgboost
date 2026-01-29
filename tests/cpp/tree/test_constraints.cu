@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/tree/constraints.cuh"

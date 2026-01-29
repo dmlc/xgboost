@@ -7,6 +7,11 @@
 #include <thrust/gather.h>   // for gather
 #include <thrust/logical.h>  // for none_of
 
+#include <algorithm>  // for copy
+#include <string>     // for string
+#include <utility>    // for move
+#include <vector>     // for vector
+
 #include "../common/algorithm.cuh"  // for RunLengthEncode
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"

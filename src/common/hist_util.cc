@@ -6,6 +6,8 @@
 
 #include <dmlc/timer.h>
 
+#include <algorithm>
+#include <utility>
 #include <vector>
 
 #include "../data/adapter.h"         // for SparsePageAdapterBatch

@@ -21,6 +21,7 @@
 #include <memory>     // for unique_ptr
 #include <string>     // for string
 #include <utility>    // for move, forward
+#include <vector>     // for vector
 
 #include "../common/json_utils.h"
 #include "../common/threading_utils.h"  // for NameThread

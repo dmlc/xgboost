@@ -5,7 +5,8 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>  // for int32_t
-#include <set>      // for set
+#include <memory>
+#include <set>  // for set
 
 #include "../../../src/common/cuda_stream_pool.h"
 

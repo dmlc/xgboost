@@ -5,6 +5,8 @@
 
 #include <xgboost/linear_updater.h>
 
+#include <memory>
+
 #include "coordinate_common.h"
 
 namespace xgboost::linear {

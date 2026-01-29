@@ -4,7 +4,11 @@
 #include <gtest/gtest.h>
 #include <xgboost/span.h>  // for Span
 
-#include <array>  // for array
+#include <algorithm>  // for min, transform
+#include <array>      // for array
+#include <memory>     // for make_shared, shared_ptr
+#include <string>     // for string
+#include <vector>     // for vector
 
 #include "../../../../src/common/type.h"   // for EraseType
 #include "../../collective/test_worker.h"  // for SocketTest

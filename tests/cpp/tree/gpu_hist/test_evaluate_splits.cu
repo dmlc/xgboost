@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>
 
+#include <vector>
+
 #include "../../../../src/tree/gpu_hist/evaluate_splits.cuh"
 #include "../../collective/test_worker.h"  // for BaseMGPUTest
 #include "../../helpers.h"

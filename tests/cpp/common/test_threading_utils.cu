@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 #include <thrust/copy.h>  // thrust::copy
 
+#include <vector>
+
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/threading_utils.cuh"
 #include "../helpers.h"  // for MakeCUDACtx

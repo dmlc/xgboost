@@ -6,9 +6,15 @@
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
 
+#include <algorithm>         // for min, max_element
 #include <cuda/functional>   // for proclaim_return_type
 #include <cuda/std/utility>  // for swap
+#include <limits>            // for numeric_limits
 #include <memory>
+#include <string>         // for string
+#include <unordered_map>  // for unordered_map
+#include <utility>        // for forward
+#include <vector>         // for vector
 
 #include "../collective/allreduce.h"
 #include "../common/bitfield.h"

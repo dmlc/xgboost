@@ -4,6 +4,9 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
+#include <memory>
+#include <string>
+
 #include "../../../../src/collective/communicator-inl.h"
 #include "../../filesystem.h"  // for test_federated_data
 #include "../../helpers.h"

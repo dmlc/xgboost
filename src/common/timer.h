@@ -5,6 +5,7 @@
 #include <xgboost/logging.h>
 
 #include <chrono>
+#include <cstdio>
 #include <map>
 #include <string>
 #include <utility>

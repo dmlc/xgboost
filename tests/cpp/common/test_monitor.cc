@@ -5,6 +5,7 @@
 #include <xgboost/logging.h>
 
 #include <string>
+#include <utility>
 
 #include "../../../src/common/timer.h"
 

@@ -27,9 +27,9 @@ repos:
         language: python
         types: [file]
         files: \.(cc|c|cpp|h|cu|hpp)$
-        exclude: (dmlc-core|gputreeshap)
+        exclude: (dmlc-core|gputreeshap|demo\/c-api|jvm-packages\/xgboost4j\/src\/native\/xgboost4j\..*)
         additional_dependencies:
-          - cpplint==1.6.1
+          - cpplint
       - id: lint-cmake
         name: CMake lint (cmakelint)
         entry: cmakelint --linelength=120 --filter=-convention/filename,-package/stdargs,-readability/wonkycase

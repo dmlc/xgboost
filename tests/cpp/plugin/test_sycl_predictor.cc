@@ -8,6 +8,10 @@
 #include <xgboost/predictor.h>
 #pragma GCC diagnostic pop
 
+#include <limits>
+#include <memory>
+#include <string>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #include "../../../src/data/adapter.h"

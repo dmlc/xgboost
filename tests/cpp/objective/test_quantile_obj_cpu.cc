@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 
+#include <vector>
+
 #include "../helpers.h"
 #include "test_quantile_obj.h"
 #include "test_regression_obj.h"  // for TestVectorLeafObj

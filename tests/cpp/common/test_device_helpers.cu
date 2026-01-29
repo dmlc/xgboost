@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>  // for equal_to
+#include <limits>
 #include <vector>
 
 #include "../../../src/common/cuda_context.cuh"

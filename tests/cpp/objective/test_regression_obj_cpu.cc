@@ -5,6 +5,9 @@
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
+#include <memory>
+#include <vector>
+
 #include "../../../src/objective/adaptive.h"
 #include "../helpers.h"
 #include "test_regression_obj.h"

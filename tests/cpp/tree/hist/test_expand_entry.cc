@@ -5,6 +5,8 @@
 #include <xgboost/json.h>        // for Json
 #include <xgboost/tree_model.h>  // for RegTree
 
+#include <vector>
+
 #include "../../../../src/common/categorical.h"  // for CatBitField
 #include "../../../../src/tree/hist/expand_entry.h"
 

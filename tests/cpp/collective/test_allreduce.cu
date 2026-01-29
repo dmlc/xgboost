@@ -5,6 +5,9 @@
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>  // for host_vector
 
+#include <memory>
+#include <string>
+
 #include "../../../src/collective/comm.cuh"        // for NCCLComm
 #include "../../../src/common/cuda_rt_utils.h"     // for AllVisibleGPUs
 #include "../../../src/common/device_helpers.cuh"  // for ToSpan,  device_vector

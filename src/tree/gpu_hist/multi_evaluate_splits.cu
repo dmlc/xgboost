@@ -3,12 +3,14 @@
  */
 #include <thrust/reduce.h>  // for reduce_by_key, reduce
 
+#include <algorithm>                 // for max
 #include <cub/block/block_scan.cuh>  // for BlockScan
 #include <cub/util_type.cuh>         // for KeyValuePair
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
 #include <cuda/ptx>                  // for get_sreg_laneid
 #include <cuda/std/functional>       // for identity
-#include <vector>                    // for vector
+#include <limits>
+#include <vector>  // for vector
 
 #include "../../common/cuda_context.cuh"
 #include "../tree_view.h"             // for MultiTargetTreeView

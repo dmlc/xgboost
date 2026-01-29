@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <utility>  // for forward
+#include <vector>   // for vector
 
 #include "../common/column_matrix.h"
 #include "../common/hist_util.h"

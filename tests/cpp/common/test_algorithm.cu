@@ -8,6 +8,8 @@
 
 #include <algorithm>  // is_sorted
 #include <cstddef>    // size_t
+#include <functional>
+#include <vector>
 
 #include "../../../src/common/algorithm.cuh"
 #include "../../../src/common/device_helpers.cuh"

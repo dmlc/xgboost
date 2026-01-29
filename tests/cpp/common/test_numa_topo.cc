@@ -5,7 +5,8 @@
 
 #include <filesystem>  // for path
 #include <fstream>     // for ofstream
-#include <vector>      // for vector
+#include <string>
+#include <vector>  // for vector
 
 #include "../../../src/common/numa_topo.h"
 #include "../filesystem.h"  // for TemporaryDirectory

@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/intrusive_ptr.h>
 
+#include <utility>
+
 namespace xgboost {
 namespace {
 class NotCopyConstructible {

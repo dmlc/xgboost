@@ -8,11 +8,17 @@
 #include <dmlc/json.h>
 #include <dmlc/registry.h>
 
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <limits>
+#include <map>
+#include <memory>
 #include <sstream>
+#include <string>
 #include <type_traits>  // for is_floating_point_v
+#include <utility>
+#include <vector>
 
 #include "../common/categorical.h"  // for GetNodeCats
 #include "../common/common.h"       // for EscapeU8

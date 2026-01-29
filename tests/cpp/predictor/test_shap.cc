@@ -11,6 +11,8 @@
 
 #include <memory>  // for unique_ptr
 #include <string>  // for to_string
+#include <utility>
+#include <vector>
 
 #include "../helpers.h"
 

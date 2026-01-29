@@ -1,7 +1,10 @@
 /**
  * Copyright 2017-2024, XGBoost contributors
  */
+#include <memory>   // for make_unique
 #include <numeric>  // for accumulate
+#include <string>   // for string
+#include <utility>  // for move
 
 #include "../collective/communicator-inl.h"  // for GetRank
 #include "common.h"                          // for HumanMemUnit

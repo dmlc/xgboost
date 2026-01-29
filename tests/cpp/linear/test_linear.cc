@@ -4,6 +4,8 @@
 #include <xgboost/gbm.h>
 #include <xgboost/linear_updater.h>
 
+#include <memory>
+
 #include "../../../src/gbm/gblinear_model.h"
 #include "../helpers.h"
 #include "test_json_io.h"

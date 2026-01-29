@@ -1,6 +1,7 @@
 /**
  * Copyright 2023-2026, XGBoost contributors
  */
+#include <algorithm>
 #include <array>    // std::array
 #include <cstddef>  // std::size_t
 #include <cstdint>  // std::int32_t

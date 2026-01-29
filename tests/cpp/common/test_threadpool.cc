@@ -7,7 +7,9 @@
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 #include <future>   // for future
-#include <thread>   // for sleep_for, thread
+#include <string>
+#include <thread>  // for sleep_for, thread
+#include <vector>
 
 #include "../../../src/common/threadpool.h"
 

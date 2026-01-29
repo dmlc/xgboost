@@ -7,6 +7,9 @@
 #include <limits>  // for numeric_limits
 #include <map>
 #include <numeric>  // for iota
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "../../../src/common/io.h"
 #include "../../../src/common/json_utils.h"

@@ -11,9 +11,11 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "xgboost/tree_model.h"
 

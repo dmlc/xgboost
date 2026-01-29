@@ -6,7 +6,9 @@
 #include "hist_updater.h"
 
 #include <functional>
+#include <memory>
 #include <oneapi/dpl/random>
+#include <vector>
 
 #include "../../src/collective/allreduce.h"
 #include "../../src/tree/common_row_partitioner.h"

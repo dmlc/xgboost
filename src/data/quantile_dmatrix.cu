@@ -3,6 +3,7 @@
  */
 #include <algorithm>  // for max
 #include <limits>     // for numeric_limits
+#include <memory>     // for make_shared
 #include <numeric>    // for partial_sum
 #include <utility>    // for pair
 #include <vector>     // for vector

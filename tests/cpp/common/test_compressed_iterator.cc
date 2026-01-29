@@ -2,6 +2,7 @@
  * Copyright 2017-2024, XGBoost contributors
  */
 #include <algorithm>
+#include <vector>
 
 #include "../../../src/common/compressed_iterator.h"
 #include "gtest/gtest.h"

@@ -6,6 +6,7 @@
 #include <xgboost/context.h>  // for Context
 #include <xgboost/tree_model.h>
 
+#include <algorithm>
 #include <memory>  // for unique_ptr
 #include <string>  // for string
 

@@ -3,6 +3,7 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <any>  // for any_cast
 #include <memory>
 

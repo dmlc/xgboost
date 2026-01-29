@@ -7,6 +7,8 @@
 #include <xgboost/context.h>
 #include <xgboost/metric.h>
 
+#include <string>
+
 #include "metric_common.h"
 
 namespace xgboost {

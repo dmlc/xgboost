@@ -6,6 +6,9 @@
  */
 #include <algorithm>
 #include <cmath>
+#include <memory>
+#include <random>
+#include <utility>
 #include <vector>
 
 #include "../collective/communicator-inl.h"  // for IsDistributed

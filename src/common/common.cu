@@ -4,6 +4,8 @@
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
 
+#include <string>
+
 #include "common.h"
 
 namespace dh {

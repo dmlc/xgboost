@@ -1,6 +1,8 @@
 /**
  * Copyright 2018-2025, XGBoost Contributors
  */
+#include <vector>
+
 #include "../../../src/common/random.h"
 #include "../helpers.h"
 #include "gtest/gtest.h"

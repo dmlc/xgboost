@@ -4,6 +4,9 @@
 #include <gtest/gtest.h>
 #include <xgboost/collective/result.h>
 
+#include <string>
+#include <utility>
+
 namespace xgboost::collective {
 TEST(Result, Concat) {
   auto rc0 = Fail("foo");

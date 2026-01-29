@@ -8,10 +8,12 @@
 #include <thrust/transform_scan.h>
 #include <thrust/unique.h>
 
+#include <algorithm>
 #include <limits>       // for numeric_limits
 #include <numeric>      // for partial_sum
 #include <type_traits>  // for is_same_v
 #include <utility>
+#include <vector>
 
 #include "../collective/allgather.h"
 #include "../collective/allreduce.h"

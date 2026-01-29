@@ -5,6 +5,7 @@
 
 #include <algorithm>  // copy
 #include <cstdint>    // std::uint32_t
+#include <vector>     // for vector
 
 #include "../tree/tree_view.h"  // for ScalarTreeView
 #include "predict_fn.h"         // GetNextNode

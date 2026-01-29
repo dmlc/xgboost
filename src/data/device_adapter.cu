@@ -1,6 +1,10 @@
 /**
  * Copyright 2019-2025, XGBoost Contributors
  */
+#include <algorithm>  // for max
+#include <utility>    // for move
+#include <vector>     // for vector
+
 #include "../common/cuda_rt_utils.h"  // for SetDevice, CurrentDevice
 #include "columnar.h"                 // for GetRefCats, GetArrowDictionary
 #include "device_adapter.cuh"

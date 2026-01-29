@@ -8,6 +8,10 @@
 #include <xgboost/data.h>
 #include <xgboost/objective.h>
 
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "../../../../src/collective/communicator-inl.h"
 #include "../../../../src/common/linalg_op.h"  // for begin, end
 #include "../../helpers.h"

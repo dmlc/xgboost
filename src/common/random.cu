@@ -3,7 +3,8 @@
  */
 #include <thrust/shuffle.h>  // for shuffle
 
-#include <memory>  // for shared_ptr
+#include <algorithm>  // for max
+#include <memory>     // for shared_ptr
 
 #include "algorithm.cuh"     // for ArgSort
 #include "cuda_context.cuh"  // for CUDAContext

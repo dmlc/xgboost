@@ -3,7 +3,9 @@
  */
 #include "param.h"
 
+#include <cctype>
 #include <iostream>
+#include <string>
 #include <utility>
 #include <vector>
 

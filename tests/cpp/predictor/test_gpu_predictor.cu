@@ -7,7 +7,10 @@
 #include <xgboost/logging.h>
 #include <xgboost/predictor.h>
 
+#include <limits>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/proxy_dmatrix.h"

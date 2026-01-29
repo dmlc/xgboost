@@ -9,7 +9,8 @@
 #include <algorithm>  // for all_of
 #include <cmath>
 #include <cstdint>  // for int32_t
-#include <vector>   // for vector
+#include <string>
+#include <vector>  // for vector
 
 #include "../common/common.h"
 #include "../common/linalg_op.h"        // for ElementWiseKernel

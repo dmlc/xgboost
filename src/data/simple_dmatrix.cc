@@ -8,7 +8,9 @@
 
 #include <algorithm>
 #include <limits>
+#include <memory>
 #include <numeric>  // for accumulate
+#include <string>
 #include <type_traits>
 #include <vector>
 

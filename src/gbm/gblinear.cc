@@ -9,6 +9,7 @@
 #include <dmlc/parameter.h>
 
 #include <algorithm>
+#include <memory>
 #include <numeric>
 #include <string>
 #include <vector>

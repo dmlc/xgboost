@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
+#include <vector>
+
 #include "../../../src/common/group_data.h"
 
 namespace xgboost {

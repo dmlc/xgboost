@@ -5,6 +5,7 @@
 
 #include <mutex>         // for call_once, once_flag
 #include <sstream>       // for stringstream
+#include <string>        // for string
 #include <system_error>  // for error_code, system_category
 
 #include "../collective/communicator-inl.h"  // for GetRank

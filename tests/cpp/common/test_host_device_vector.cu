@@ -6,6 +6,10 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <xgboost/host_device_vector.h>
 
+#include <algorithm>
+#include <utility>
+#include <vector>
+
 #include "../../../src/common/cuda_rt_utils.h"  // for SetDevice
 #include "../../../src/common/device_helpers.cuh"
 

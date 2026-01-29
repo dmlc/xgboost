@@ -7,8 +7,9 @@
 #include <xgboost/learner.h>        // for Learner
 
 #include <algorithm>  // for transform
-#include <string>     // for string
-#include <utility>    // for swap
+#include <memory>
+#include <string>   // for string
+#include <utility>  // for swap
 
 #include "../helpers.h"  // for RandomDataGenerator
 

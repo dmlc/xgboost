@@ -8,6 +8,8 @@
 #include <filesystem>  // for weakly_canonical, path, u8path
 #include <map>         // for map, operator==
 #include <ostream>     // for operator<<, basic_ostream, istringstream
+#include <string>      // for string
+#include <utility>     // for pair
 #include <vector>      // for vector
 
 #include "../common/common.h"  // for Split

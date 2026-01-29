@@ -8,6 +8,7 @@
 #include <cstdint>    // for int8_t, int32_t, int64_t
 #include <memory>     // for shared_ptr
 #include <utility>    // for move
+#include <vector>     // for vector
 
 #include "broadcast.h"
 #include "comm.h"                       // for Comm, Channel

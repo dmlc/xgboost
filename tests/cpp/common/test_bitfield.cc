@@ -3,6 +3,8 @@
  */
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "../../../src/common/bitfield.h"
 
 namespace xgboost {

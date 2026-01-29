@@ -4,10 +4,12 @@
 #include <gtest/gtest.h>
 #include <xgboost/json.h>  // for Json
 
+#include <algorithm>
 #include <chrono>   // for seconds
 #include <cstdint>  // for int32_t
-#include <string>   // for string
-#include <thread>   // for thread
+#include <memory>
+#include <string>  // for string
+#include <thread>  // for thread
 
 #include "../../../src/collective/comm.h"
 #include "../../../src/collective/comm_group.h"

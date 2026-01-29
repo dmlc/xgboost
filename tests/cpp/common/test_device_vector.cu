@@ -7,6 +7,8 @@
 
 #include <numeric>  // for iota
 #include <thread>   // for thread
+#include <utility>
+#include <vector>
 
 #include "../../../src/common/cuda_rt_utils.h"     // for DrVersion
 #include "../../../src/common/device_helpers.cuh"  // for CachingThrustPolicy, PinnedMemory

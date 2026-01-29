@@ -7,6 +7,7 @@
 #include <xgboost/tree_updater.h>
 
 #include <memory>
+#include <vector>
 
 #include "../common/timer.h"
 #include "./param.h"

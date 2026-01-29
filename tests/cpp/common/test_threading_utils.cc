@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>  // for std::size_t
+#include <vector>
 
 #include "../../../src/common/threading_utils.h"  // BlockedSpace2d,ParallelFor2d,ParallelFor
 #include "xgboost/context.h"                      // Context

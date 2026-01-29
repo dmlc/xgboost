@@ -7,7 +7,10 @@
 
 #include <filesystem>  // for path
 #include <future>      // for future, async
+#include <limits>      // for numeric_limits
+#include <string>      // for string
 #include <thread>      // for sleep_for
+#include <vector>      // for vector
 
 #include "../../../src/common/io.h"
 #include "../../../src/data/batch_utils.h"  // for MatchingPageBytes
@@ -320,7 +323,7 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
     }));
   }
 
-  using namespace std::chrono_literals;
+  using namespace std::chrono_literals;  // NOLINT(build/namespaces)
 
   while (std::any_of(waiting.cbegin(), waiting.cend(),
                      [](auto const &f) { return f.wait_for(0ms) != std::future_status::ready; })) {

@@ -4,10 +4,10 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>  // for BatchParam
 
-#include <memory>  // for shared_ptr, unique_ptr
-#include <tuple>   // for tuple
+#include <memory>   // for shared_ptr, unique_ptr
+#include <tuple>    // for tuple
 #include <utility>  // for move
-#include <vector>  // for vector
+#include <vector>   // for vector
 
 #include "../../../src/data/batch_utils.h"     // for AutoHostRatio
 #include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl

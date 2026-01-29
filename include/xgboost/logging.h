@@ -14,6 +14,7 @@
 #include <xgboost/global_config.h>
 #include <xgboost/parameter.h>
 
+#include <iostream>
 #include <map>
 #include <sstream>
 #include <string>

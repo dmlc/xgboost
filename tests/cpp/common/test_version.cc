@@ -7,6 +7,7 @@
 #include <xgboost/json.h>
 #include <xgboost/version_config.h>
 
+#include <memory>
 #include <string>
 
 #include "../../../src/common/version.h"

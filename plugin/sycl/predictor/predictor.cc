@@ -8,10 +8,13 @@
 
 #include "xgboost/predictor.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <sycl/sycl.hpp>
+#include <vector>
 
 #include "../../../src/common/timer.h"
 #include "../data.h"

@@ -5,7 +5,11 @@
 
 #include <cstddef>  // for size_t
 #include <fstream>  // for ofstream
+#include <memory>
 #include <numeric>  // for iota
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "../../../src/common/io.h"
 #include "../filesystem.h"  // TemporaryDirectory

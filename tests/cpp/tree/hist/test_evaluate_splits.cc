@@ -10,9 +10,12 @@
 #include <xgboost/logging.h>     // for CHECK_EQ
 #include <xgboost/tree_model.h>  // for RegTree, RTreeNodeStat
 
+#include <algorithm>
+#include <limits>
 #include <memory>   // for make_shared, shared_ptr, addressof
 #include <numeric>  // for iota
 #include <tuple>    // for make_tuple
+#include <vector>
 
 #include "../../../../src/common/hist_util.h"           // for HistCollection, HistogramCuts
 #include "../../../../src/common/random.h"              // for ColumnSampler

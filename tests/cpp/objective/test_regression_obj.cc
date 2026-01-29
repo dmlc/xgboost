@@ -9,7 +9,10 @@
 #include <xgboost/objective.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
+#include <memory>
 #include <numeric>  // for iota
+#include <string>
+#include <vector>
 
 #include "../../../src/common/linalg_op.h"  // for begin, end
 #include "../../../src/tree/param.h"        // for TrainParam

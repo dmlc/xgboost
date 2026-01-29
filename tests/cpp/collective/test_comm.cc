@@ -3,6 +3,9 @@
  */
 #include <gtest/gtest.h>
 
+#include <thread>
+#include <vector>
+
 #include "../../../src/collective/comm.h"
 #include "../../../src/common/type.h"  // for EraseType
 #include "test_worker.h"               // for TrackerTest

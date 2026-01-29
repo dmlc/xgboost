@@ -13,7 +13,8 @@
 #include <cstddef>     // std::size_t
 #include <filesystem>  // std::filesystem
 #include <limits>      // std::numeric_limits
-#include <string>      // std::string
+#include <memory>
+#include <string>  // std::string
 #include <vector>
 
 #include "../../../src/c_api/c_api_error.h"

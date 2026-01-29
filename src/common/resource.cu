@@ -1,6 +1,8 @@
 /**
  * Copyright 2024-2025, XGBoost Contributors
  */
+#include <string>  // for string
+
 #include "cuda_stream.h"       // for DefaultStream
 #include "device_helpers.cuh"  // for CurrentDevice
 #include "resource.cuh"

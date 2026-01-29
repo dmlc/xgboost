@@ -8,6 +8,9 @@
 #include <xgboost/tree_model.h>    // for RegTree
 #include <xgboost/tree_updater.h>  // for TreeUpdater
 
+#include <memory>
+#include <vector>
+
 #include "../../../src/tree/param.h"    // for TrainParam
 #include "../collective/test_worker.h"  // for BaseMGPUTest
 #include "../helpers.h"                 // for GenerateRandomGradients

@@ -5,9 +5,11 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>  // for int64_t
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.h"

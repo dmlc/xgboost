@@ -7,10 +7,13 @@
 #include <xgboost/json.h>                // for Json, Object
 #include <xgboost/learner.h>             // for Learner
 
-#include <limits>    // for numeric_limits
+#include <limits>  // for numeric_limits
+#include <map>
 #include <memory>    // for shared_ptr
 #include <optional>  // for optional
 #include <string>    // for string
+#include <utility>
+#include <vector>
 
 #include "../../../src/data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "../../../src/gbm/gbtree.h"

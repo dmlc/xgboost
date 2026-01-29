@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 
+#include <vector>
+
 #include "histogram_helpers.h"
 
 namespace xgboost {

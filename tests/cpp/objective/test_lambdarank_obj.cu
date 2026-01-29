@@ -5,6 +5,7 @@
 #include <xgboost/context.h>  // for Context
 
 #include <cstdint>  // for uint32_t
+#include <memory>
 #include <utility>  // for make_pair
 #include <vector>   // for vector
 

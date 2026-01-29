@@ -7,6 +7,7 @@
 #include <memory>     // for shared_ptr, make_unique, make_shared
 #include <numeric>    // for accumulate
 #include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../common/common.h"                // for HumanMemUnit, safe_cuda
 #include "../common/cuda_dr_utils.h"         // for CUDA_HW_DECOM_AVAILABLE

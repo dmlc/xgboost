@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cmath>
 #include <numeric>  // for accumulate
+#include <vector>
 
 #include "../common/math.h"
 #include "../common/threading_utils.h"

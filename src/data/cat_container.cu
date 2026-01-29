@@ -4,6 +4,8 @@
 #include <thrust/copy.h>  // for copy
 
 #include <memory>  // for make_unique
+#include <tuple>
+#include <utility>
 #include <vector>  // for vector
 
 #include "../common/cuda_context.cuh"    // for CUDAContext

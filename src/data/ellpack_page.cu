@@ -9,6 +9,7 @@
 #include <algorithm>          // for copy
 #include <cuda/std/iterator>  // for distance
 #include <limits>             // for numeric_limits
+#include <memory>             // for make_shared
 #include <utility>            // for move
 #include <vector>             // for vector
 

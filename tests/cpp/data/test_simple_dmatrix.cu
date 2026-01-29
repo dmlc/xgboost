@@ -2,6 +2,11 @@
 #include <thrust/sequence.h>
 #include <xgboost/data.h>
 
+#include <limits>
+#include <set>
+#include <string>
+#include <vector>
+
 #include "../../../src/data/array_interface.h"
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/simple_dmatrix.h"

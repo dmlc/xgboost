@@ -3,6 +3,10 @@
  */
 #include <thrust/transform.h>  // for transform
 
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "../common/api_entry.h"       // for XGBAPIThreadLocalEntry
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../data/array_interface.h"   // for DispatchDType, ArrayInterface

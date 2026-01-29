@@ -1,6 +1,7 @@
 /**
  * Copyright 2023-2026, XGBoost Contributors
  */
+#include <algorithm>    // for min
 #include <chrono>       // for seconds
 #include <future>       // for future
 #include <memory>       // for unique_ptr

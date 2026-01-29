@@ -7,7 +7,9 @@
 
 #include <chrono>  // for ms, seconds
 #include <memory>  // for shared_ptr
+#include <string>  // for string
 #include <thread>  // for thread
+#include <vector>  // for vector
 
 #include "../../../../plugin/federated/federated_tracker.h"
 #include "../../../../src/collective/comm_group.h"
@@ -36,7 +38,7 @@ void TestFederatedImpl(std::int32_t n_workers, WorkerFn&& fn) {
   auto fut = tracker.Run();
 
   std::vector<std::thread> workers;
-  using namespace std::chrono_literals;
+  using namespace std::chrono_literals;  // NOLINT(build/namespaces)
   auto rc = tracker.WaitUntilReady();
   SafeColl(rc);
   std::int32_t port = tracker.Port();

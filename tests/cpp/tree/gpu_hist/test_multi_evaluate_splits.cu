@@ -3,6 +3,9 @@
  */
 #include <gtest/gtest.h>
 
+#include <string>
+#include <vector>
+
 #include "../../../../src/tree/gpu_hist/evaluate_splits.cuh"
 #include "../../../../src/tree/gpu_hist/multi_evaluate_splits.cuh"
 #include "../../helpers.h"

@@ -5,6 +5,9 @@
 #include <thrust/sequence.h>
 
 #include <cuda/functional>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
 #include "../../helpers.h"

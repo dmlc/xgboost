@@ -5,6 +5,10 @@
 #include <thrust/device_vector.h>
 #include <xgboost/data.h>
 
+#include <limits>
+#include <string>
+#include <vector>
+
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/device_adapter.cuh"
 #include "../helpers.h"

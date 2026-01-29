@@ -6,6 +6,7 @@
  * See more examples in test_c_api.cc on how to reuse a ProxyDMatrix object for reducing
  * the latency of DMatrix creation.
  */
+/* NOLINTBEGIN(*) */
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,8 +76,8 @@ char const *Matrix_ArrayInterface(Matrix self) {
       "{\"data\": [%lu, true], \"shape\": [%lu, %lu], "
       "\"typestr\": \"<f4\", \"version\": 3}";
   memset(self->_array_intrerface, '\0', sizeof(self->_array_intrerface));
-  snprintf(self->_array_intrerface, sizeof(self->_array_intrerface), template,
-           (size_t)self->data, self->shape[0], self->shape[1]);
+  snprintf(self->_array_intrerface, sizeof(self->_array_intrerface), template, (size_t)self->data,
+           self->shape[0], self->shape[1]);
   return self->_array_intrerface;
 }
 
@@ -206,3 +207,5 @@ int main() {
   Matrix_Free(y);
   return 0;
 }
+
+/* NOLINTEND(*) */

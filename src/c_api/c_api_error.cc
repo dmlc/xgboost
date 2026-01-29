@@ -7,6 +7,8 @@
 
 #include <dmlc/thread_local.h>
 
+#include <string>
+
 #include "../collective/comm.h"
 #include "../collective/comm_group.h"
 #include "xgboost/c_api.h"

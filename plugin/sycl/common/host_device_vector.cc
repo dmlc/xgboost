@@ -6,8 +6,10 @@
 
 // implementation of HostDeviceVector with sycl support
 
+#include <algorithm>
 #include <memory>
 #include <utility>
+#include <vector>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-W#pragma-messages"
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"

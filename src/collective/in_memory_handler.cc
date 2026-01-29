@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <functional>
+#include <map>
+#include <string>
 
 #include "comm.h"
 

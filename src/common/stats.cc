@@ -3,8 +3,9 @@
  */
 #include "stats.h"
 
-#include <cstddef>  // std::size_t
-#include <numeric>  // std::accumulate
+#include <algorithm>  // std::max
+#include <cstddef>    // std::size_t
+#include <numeric>    // std::accumulate
 
 #include "../collective/aggregator.h"    // for GlobalSum
 #include "linalg_op.h"                   // for Matrix

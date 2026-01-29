@@ -6,8 +6,10 @@
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 
+#include <iterator>  // for distance
 #include <set>
 #include <string>
+#include <vector>
 
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"

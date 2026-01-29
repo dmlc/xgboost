@@ -7,6 +7,7 @@
 
 #include <algorithm>  // for min
 #include <thread>     // for thread
+#include <vector>
 
 #include "../../../src/common/linalg_op.h"  // for begin, end
 #include "../../../src/common/stats.h"

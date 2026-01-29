@@ -8,7 +8,8 @@
 #include <cstdint>  // for int32_t
 #include <cstdlib>  // for getenv
 #include <limits>   // for numeric_limits
-#include <string>   // for string, stoi
+#include <memory>
+#include <string>  // for string, stoi
 
 #include "../../src/common/common.h"      // for Split
 #include "../../src/common/io.h"          // for ReadAll

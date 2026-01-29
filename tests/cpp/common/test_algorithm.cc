@@ -6,6 +6,8 @@
 #include <xgboost/span.h>
 
 #include <algorithm>  // is_sorted
+#include <functional>
+#include <vector>
 
 #include "../../../src/common/algorithm.h"
 

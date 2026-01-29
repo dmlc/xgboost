@@ -24,6 +24,7 @@
 
 #include <cstddef>
 #include <limits>
+#include <string>
 
 #include "../../../src/common/charconv.h"
 

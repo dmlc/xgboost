@@ -4,6 +4,8 @@
 
 #include <xgboost/logging.h>
 
+#include <string>
+
 #include "../../src/common/random.h"
 #include "./xgboost_R.h"
 

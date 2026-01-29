@@ -6,6 +6,7 @@
 #include <filesystem>  // for path
 #include <sstream>     // for stringstream
 #include <stack>       // for stack
+#include <string>      // for string
 
 #include "xgboost/logging.h"
 

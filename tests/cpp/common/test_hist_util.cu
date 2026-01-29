@@ -11,9 +11,10 @@
 #include <cmath>      // for floor
 #include <cstddef>    // for size_t
 #include <limits>     // for numeric_limits
-#include <string>     // for string, to_string
-#include <tuple>      // for tuple, make_tuple
-#include <vector>     // for vector
+#include <memory>
+#include <string>  // for string, to_string
+#include <tuple>   // for tuple, make_tuple
+#include <vector>  // for vector
 
 #include "../../../include/xgboost/logging.h"
 #include "../../../src/common/cuda_context.cuh"

@@ -12,10 +12,15 @@
 #include <cstdint>      // for uint64_t, int32_t, uint8_t, uint32_t
 #include <cstring>      // for size_t, strcmp, memcpy
 #include <iostream>     // for operator<<, basic_ostream, basic_ostream::op...
+#include <limits>       // for numeric_limits
 #include <map>          // for map, operator!=
+#include <memory>       // for shared_ptr, unique_ptr
 #include <numeric>      // for accumulate, partial_sum
+#include <string>       // for string
 #include <tuple>        // for get, apply
 #include <type_traits>  // for remove_pointer_t, remove_reference
+#include <utility>      // for move
+#include <vector>       // for vector
 
 #include "../collective/allgather.h"          // for AllgatherStrings
 #include "../collective/allreduce.h"          // for Allreduce

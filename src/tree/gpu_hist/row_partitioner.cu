@@ -3,6 +3,7 @@
  */
 #include <thrust/sequence.h>  // for sequence
 
+#include <limits>
 #include <vector>  // for vector
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext

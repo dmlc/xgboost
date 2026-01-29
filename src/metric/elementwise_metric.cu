@@ -8,9 +8,13 @@
  */
 #include <dmlc/registry.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <numeric>  // for accumulate
+#include <string>
+#include <vector>
 
 #include "../common/math.h"
 #include "../common/nvtx_utils.h"       // for xgboost_NVTX_FN_RANGE

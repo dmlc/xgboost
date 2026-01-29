@@ -3,7 +3,11 @@
  */
 #include <xgboost/base.h>
 
+#include <algorithm>
+#include <limits>
+#include <memory>
 #include <utility>
+#include <vector>
 
 #include "../../../src/common/categorical.h"          // for AsCat
 #include "../../../src/common/compressed_iterator.h"  // for CompressedByteT

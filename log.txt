@@ -1,0 +1,1177 @@
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check for merge conflicts................................................Passed
+check for case conflicts.................................................Passed
+check yaml...............................................................Passed
+check toml...............................................................Passed
+check json...............................................................Passed
+check that executables have shebangs.....................................Passed
+check that scripts with shebangs are executable..........................Passed
+mixed line ending........................................................Passed
+clang-format.............................................................Passed
+C++ lint (cpplint).......................................................Failed
+- hook id: lint-cpp
+- exit code: 1
+
+tests/cpp/plugin/federated/test_federated_coll.cc:28:  Add #include <memory> for make_shared<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_coll.cc:57:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_coll.cc:78:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_coll.cc:79:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/data/simple_dmatrix.cc:363:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/data/simple_dmatrix.cc:364:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+src/common/host_device_vector.cc:143:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/common/host_device_vector.cc:158:  Add #include <algorithm> for copy  [build/include_what_you_use] [4]
+tests/cpp/gbm/test_gblinear.cc:28:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/tree/hist/test_expand_entry.cc:37:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/gpu_hist/test_multi_evaluate_splits.cu:115:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/gpu_hist/test_multi_evaluate_splits.cu:131:  Add #include <string> for string  [build/include_what_you_use] [4]
+=====8/8 cpp-header files passed check=====
+=====4/10 cpp-source files passed check=====
+tests/cpp/plugin/federated/test_federated_coll.cc: 4 Errors of 1 Categories map={'build': 4}
+src/data/simple_dmatrix.cc: 2 Errors of 1 Categories map={'build': 2}
+src/common/host_device_vector.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/gbm/test_gblinear.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/tree/hist/test_expand_entry.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/tree/gpu_hist/test_multi_evaluate_splits.cu: 2 Errors of 1 Categories map={'build': 2}
+6 files failed lint
+Done processing tests/cpp/plugin/federated/test_federated_coll.cc
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing src/data/simple_dmatrix.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/common/host_device_vector.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/gbm/test_gblinear.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/tree/hist/test_expand_entry.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/tree/gpu_hist/test_multi_evaluate_splits.cu
+Category 'build' errors found: 2
+Total errors found: 2
+src/objective/hinge.cu:74:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+src/data/gradient_index.cc:214:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/data/ellpack_page.cu:461:  Add #include <memory> for make_shared<>  [build/include_what_you_use] [4]
+tests/cpp/collective/test_allreduce.cu:125:  Add #include <memory> for make_unique<>  [build/include_what_you_use] [4]
+tests/cpp/collective/test_allreduce.cu:134:  Add #include <string> for string  [build/include_what_you_use] [4]
+=====8/8 cpp-header files passed check=====
+=====6/10 cpp-source files passed check=====
+src/objective/hinge.cu: 1 Errors of 1 Categories map={'build': 1}
+src/data/gradient_index.cc: 1 Errors of 1 Categories map={'build': 1}
+src/data/ellpack_page.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/collective/test_allreduce.cu: 2 Errors of 1 Categories map={'build': 2}
+4 files failed lint
+Done processing src/objective/hinge.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/data/gradient_index.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/data/ellpack_page.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/collective/test_allreduce.cu
+Category 'build' errors found: 2
+Total errors found: 2
+src/data/proxy_dmatrix.cu:44:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/collective/test_result.cc:19:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/collective/test_result.cc:28:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/gbm/test_gbtree.cc:230:  Add #include <map> for map<>  [build/include_what_you_use] [4]
+tests/cpp/gbm/test_gbtree.cc:549:  Add #include <utility> for make_pair  [build/include_what_you_use] [4]
+tests/cpp/gbm/test_gbtree.cc:588:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/metric/test_distributed_metric.cc:103:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/gbm/test_gblinear.cu:22:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_gradient_index.cc:46:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_compressed_iterator.cc:59:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/collective/test_allgather.cc:109:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/collective/test_allgather.cc:192:  Add #include <utility> for move  [build/include_what_you_use] [4]
+=====4/4 cpp-header files passed check=====
+=====6/14 cpp-source files passed check=====
+src/data/proxy_dmatrix.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/collective/test_result.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/gbm/test_gbtree.cc: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/metric/test_distributed_metric.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/gbm/test_gblinear.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/plugin/test_sycl_gradient_index.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_compressed_iterator.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/collective/test_allgather.cc: 2 Errors of 1 Categories map={'build': 2}
+8 files failed lint
+Done processing src/data/proxy_dmatrix.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/collective/test_result.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/gbm/test_gbtree.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/metric/test_distributed_metric.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/gbm/test_gblinear.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/plugin/test_sycl_gradient_index.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_compressed_iterator.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/collective/test_allgather.cc
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/tree/test_param.cc:30:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/c_api/c_api.cu:33:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/c_api/c_api.cu:131:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/c_api/c_api.cu:208:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_group_data.cc:33:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+plugin/example/custom_obj.cc:61:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_quantile.cc:332:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_quantile.cc:354:  Add #include <algorithm> for copy  [build/include_what_you_use] [4]
+tests/cpp/objective/test_regression_obj_cpu.cc:72:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/objective/test_regression_obj_cpu.cc:153:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/tree/updater_prune.cc:38:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/linear/linear_updater.cc:15:  Add #include <string> for string  [build/include_what_you_use] [4]
+=====5/5 cpp-header files passed check=====
+=====5/13 cpp-source files passed check=====
+tests/cpp/tree/test_param.cc: 1 Errors of 1 Categories map={'build': 1}
+src/c_api/c_api.cu: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/common/test_group_data.cc: 1 Errors of 1 Categories map={'build': 1}
+plugin/example/custom_obj.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_quantile.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/objective/test_regression_obj_cpu.cc: 2 Errors of 1 Categories map={'build': 2}
+src/tree/updater_prune.cc: 1 Errors of 1 Categories map={'build': 1}
+src/linear/linear_updater.cc: 1 Errors of 1 Categories map={'build': 1}
+8 files failed lint
+Done processing tests/cpp/tree/test_param.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/c_api/c_api.cu
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/common/test_group_data.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing plugin/example/custom_obj.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_quantile.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/objective/test_regression_obj_cpu.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/tree/updater_prune.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/linear/linear_updater.cc
+Category 'build' errors found: 1
+Total errors found: 1
+src/linear/updater_gpu_coordinate.cu:226:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+src/linear/updater_gpu_coordinate.cu:229:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/predictor/treeshap.cc:227:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/predictor/gpu_predictor.cu:400:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+src/predictor/gpu_predictor.cu:845:  Add #include <unordered_map> for unordered_map<>  [build/include_what_you_use] [4]
+src/predictor/gpu_predictor.cu:1150:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/predictor/gpu_predictor.cu:1153:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/predictor/gpu_predictor.cu:1244:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+src/predictor/gpu_predictor.cu:1245:  Add #include <utility> for forward  [build/include_what_you_use] [4]
+tests/cpp/common/test_numeric.cc:27:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+=====5/5 cpp-header files passed check=====
+=====9/13 cpp-source files passed check=====
+src/linear/updater_gpu_coordinate.cu: 2 Errors of 1 Categories map={'build': 2}
+src/predictor/treeshap.cc: 1 Errors of 1 Categories map={'build': 1}
+src/predictor/gpu_predictor.cu: 6 Errors of 1 Categories map={'build': 6}
+tests/cpp/common/test_numeric.cc: 1 Errors of 1 Categories map={'build': 1}
+4 files failed lint
+Done processing src/linear/updater_gpu_coordinate.cu
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/predictor/treeshap.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/predictor/gpu_predictor.cu
+Category 'build' errors found: 6
+Total errors found: 6
+Done processing tests/cpp/common/test_numeric.cc
+Category 'build' errors found: 1
+Total errors found: 1
+tests/cpp/helpers.cc:765:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/common/test_version.cc:31:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_array_interface.cc:27:  Add #include <algorithm> for copy  [build/include_what_you_use] [4]
+tests/cpp/data/test_array_interface.cc:39:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_array_interface.cc:43:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/data/test_array_interface.cc:108:  Add #include <utility> for swap  [build/include_what_you_use] [4]
+src/common/timer.h:32:  Add #include <cstdio> for snprintf  [build/include_what_you_use] [4]
+tests/cpp/common/test_device_vector.cu:44:  Add #include <utility> for swap  [build/include_what_you_use] [4]
+tests/cpp/common/test_device_vector.cu:165:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_gradient_index_page_raw_format.cc:31:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/data/test_gradient_index_page_raw_format.cc:67:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/collective/result.cc:83:  Add #include <string> for string  [build/include_what_you_use] [4]
+=====6/7 cpp-header files passed check=====
+src/common/timer.h: 1 Errors of 1 Categories map={'build': 1}
+=====5/11 cpp-source files passed check=====
+tests/cpp/helpers.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_version.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/data/test_array_interface.cc: 4 Errors of 1 Categories map={'build': 4}
+tests/cpp/common/test_device_vector.cu: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/data/test_gradient_index_page_raw_format.cc: 2 Errors of 1 Categories map={'build': 2}
+src/collective/result.cc: 1 Errors of 1 Categories map={'build': 1}
+7 files failed lint
+Done processing tests/cpp/helpers.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_version.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/data/test_array_interface.cc
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing src/common/timer.h
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_device_vector.cu
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/data/test_gradient_index_page_raw_format.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/collective/result.cc
+Category 'build' errors found: 1
+Total errors found: 1
+tests/cpp/common/test_io.cc:186:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/common/test_io.cc:213:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_io.cc:214:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_io.cc:233:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/collective/in_memory_handler.cc:61:  Add #include <map> for map<>  [build/include_what_you_use] [4]
+src/collective/in_memory_handler.cc:245:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/objective_helpers.cc:38:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/tree/constraints.cu:101:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_bitfield.cc:80:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+plugin/sycl/common/host_device_vector.cc:212:  Add #include <algorithm> for copy  [build/include_what_you_use] [4]
+plugin/sycl/common/host_device_vector.cc:366:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+=====5/5 cpp-header files passed check=====
+=====7/13 cpp-source files passed check=====
+tests/cpp/common/test_io.cc: 4 Errors of 1 Categories map={'build': 4}
+src/collective/in_memory_handler.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/objective_helpers.cc: 1 Errors of 1 Categories map={'build': 1}
+src/tree/constraints.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_bitfield.cc: 1 Errors of 1 Categories map={'build': 1}
+plugin/sycl/common/host_device_vector.cc: 2 Errors of 1 Categories map={'build': 2}
+6 files failed lint
+Done processing tests/cpp/common/test_io.cc
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing src/collective/in_memory_handler.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/objective_helpers.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/tree/constraints.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_bitfield.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing plugin/sycl/common/host_device_vector.cc
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/tree/gpu_hist/test_evaluate_splits.cu:558:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_algorithm.cc:25:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_algorithm.cc:31:  Add #include <functional> for less<>  [build/include_what_you_use] [4]
+src/metric/metric.cc:45:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/collective/test_comm_group.cc:24:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+tests/cpp/collective/test_comm_group.cc:45:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+=====7/7 cpp-header files passed check=====
+=====7/11 cpp-source files passed check=====
+tests/cpp/tree/gpu_hist/test_evaluate_splits.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_algorithm.cc: 2 Errors of 1 Categories map={'build': 2}
+src/metric/metric.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/collective/test_comm_group.cc: 2 Errors of 1 Categories map={'build': 2}
+4 files failed lint
+Done processing tests/cpp/tree/gpu_hist/test_evaluate_splits.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_algorithm.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/metric/metric.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/collective/test_comm_group.cc
+Category 'build' errors found: 2
+Total errors found: 2
+src/objective/regression_obj.cu:652:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/common/test_hist_util.cu:818:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_host_device_vector.cu:133:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_host_device_vector.cu:174:  Add #include <utility> for move  [build/include_what_you_use] [4]
+=====8/8 cpp-header files passed check=====
+=====7/10 cpp-source files passed check=====
+src/objective/regression_obj.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_hist_util.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_host_device_vector.cu: 2 Errors of 1 Categories map={'build': 2}
+3 files failed lint
+Done processing src/objective/regression_obj.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_hist_util.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_host_device_vector.cu
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/collective/test_broadcast.cc:43:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_data.cc:24:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_data.cc:25:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/test_helpers.cc:55:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/test_helpers.cc:55:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+=====7/7 cpp-header files passed check=====
+=====8/11 cpp-source files passed check=====
+tests/cpp/collective/test_broadcast.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/plugin/federated/test_federated_data.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/test_helpers.cc: 2 Errors of 1 Categories map={'build': 2}
+3 files failed lint
+Done processing tests/cpp/collective/test_broadcast.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/plugin/federated/test_federated_data.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/test_helpers.cc
+Category 'build' errors found: 2
+Total errors found: 2
+plugin/federated/federated_comm.cc:133:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+src/learner.cc:1259:  Add #include <map> for map<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_adapter.cc:162:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_adapter.cc:163:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_adapter.cc:168:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/c_api/coll_c_api.cc:80:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+src/tree/tree_model.cc:495:  Add #include <map> for map<>  [build/include_what_you_use] [4]
+src/tree/tree_model.cc:723:  Add #include <memory> for make_unique<>  [build/include_what_you_use] [4]
+src/tree/tree_model.cc:733:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/tree/tree_model.cc:955:  Add #include <algorithm> for copy  [build/include_what_you_use] [4]
+src/tree/tree_model.cc:1018:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/tree/tree_model.cc:1211:  Add #include <utility> for move  [build/include_what_you_use] [4]
+=====5/5 cpp-header files passed check=====
+=====8/13 cpp-source files passed check=====
+plugin/federated/federated_comm.cc: 1 Errors of 1 Categories map={'build': 1}
+src/learner.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/data/test_adapter.cc: 3 Errors of 1 Categories map={'build': 3}
+src/c_api/coll_c_api.cc: 1 Errors of 1 Categories map={'build': 1}
+src/tree/tree_model.cc: 6 Errors of 1 Categories map={'build': 6}
+5 files failed lint
+Done processing plugin/federated/federated_comm.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/learner.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/data/test_adapter.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing src/c_api/coll_c_api.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/tree/tree_model.cc
+Category 'build' errors found: 6
+Total errors found: 6
+tests/cpp/common/test_quantile.cu:434:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+tests/cpp/common/test_quantile.cu:676:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/common/common.cu:12:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/common/json.cc:721:  Add #include <algorithm> for copy  [build/include_what_you_use] [4]
+src/common/json.cc:818:  Add #include <utility> for move  [build/include_what_you_use] [4]
+src/common/json.cc:915:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/common/json.cc:932:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/data/data.cc:944:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+src/data/data.cc:988:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+src/data/data.cc:1014:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/data/data.cc:1231:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/data/data.cc:1262:  Add #include <utility> for move  [build/include_what_you_use] [4]
+src/data/ellpack_page_source.cu:479:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/objective/adaptive.cu:159:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/objective/adaptive.cu:187:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+=====4/4 cpp-header files passed check=====
+=====8/14 cpp-source files passed check=====
+tests/cpp/common/test_quantile.cu: 2 Errors of 1 Categories map={'build': 2}
+src/common/common.cu: 1 Errors of 1 Categories map={'build': 1}
+src/common/json.cc: 4 Errors of 1 Categories map={'build': 4}
+src/data/data.cc: 5 Errors of 1 Categories map={'build': 5}
+src/data/ellpack_page_source.cu: 1 Errors of 1 Categories map={'build': 1}
+src/objective/adaptive.cu: 2 Errors of 1 Categories map={'build': 2}
+6 files failed lint
+Done processing tests/cpp/common/test_quantile.cu
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/common/common.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/common/json.cc
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing src/data/data.cc
+Category 'build' errors found: 5
+Total errors found: 5
+Done processing src/data/ellpack_page_source.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/objective/adaptive.cu
+Category 'build' errors found: 2
+Total errors found: 2
+src/common/device_vector.cu:15:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/common/device_vector.cu:49:  Add #include <memory> for make_unique<>  [build/include_what_you_use] [4]
+src/common/device_vector.cu:71:  Add #include <utility> for move  [build/include_what_you_use] [4]
+src/common/error_msg.cc:28:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/data/array_interface.cc:13:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/tree/gpu_hist/test_histogram.cu:207:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+tests/cpp/tree/gpu_hist/test_histogram.cu:336:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+src/tree/gpu_hist/row_partitioner.cu:19:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+=====7/7 cpp-header files passed check=====
+=====6/11 cpp-source files passed check=====
+src/common/device_vector.cu: 3 Errors of 1 Categories map={'build': 3}
+src/common/error_msg.cc: 1 Errors of 1 Categories map={'build': 1}
+src/data/array_interface.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/tree/gpu_hist/test_histogram.cu: 2 Errors of 1 Categories map={'build': 2}
+src/tree/gpu_hist/row_partitioner.cu: 1 Errors of 1 Categories map={'build': 1}
+5 files failed lint
+Done processing src/common/device_vector.cu
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing src/common/error_msg.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/data/array_interface.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/tree/gpu_hist/test_histogram.cu
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/tree/gpu_hist/row_partitioner.cu
+Category 'build' errors found: 1
+Total errors found: 1
+tests/cpp/tree/hist/test_evaluate_splits.cc:351:  Add #include <algorithm> for copy  [build/include_what_you_use] [4]
+tests/cpp/tree/hist/test_evaluate_splits.cc:360:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_threadpool.cc:39:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/common/test_threadpool.cc:55:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/common/hist_util.cc:137:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+src/common/hist_util.cc:195:  Add #include <utility> for forward  [build/include_what_you_use] [4]
+src/common/random.cu:39:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+tests/cpp/tree/test_regen.cc:55:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_regen.cc:65:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/tree/test_regen.cc:67:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_ellpack_page_raw_format.cu:47:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/data/test_ellpack_page_raw_format.cu:118:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_ellpack_page_raw_format.cu:154:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_ellpack_page_raw_format.cu:180:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_ellpack_page_raw_format.cu:206:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/common/test_ref_resource_view.cu:54:  Add #include <memory> for make_shared<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_ref_resource_view.cu:77:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_ref_resource_view.cu:83:  Add #include <utility> for move  [build/include_what_you_use] [4]
+=====3/3 cpp-header files passed check=====
+=====8/15 cpp-source files passed check=====
+tests/cpp/tree/hist/test_evaluate_splits.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/common/test_threadpool.cc: 2 Errors of 1 Categories map={'build': 2}
+src/common/hist_util.cc: 2 Errors of 1 Categories map={'build': 2}
+src/common/random.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/tree/test_regen.cc: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/data/test_ellpack_page_raw_format.cu: 5 Errors of 1 Categories map={'build': 5}
+tests/cpp/common/test_ref_resource_view.cu: 3 Errors of 1 Categories map={'build': 3}
+7 files failed lint
+Done processing tests/cpp/tree/hist/test_evaluate_splits.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/common/test_threadpool.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/common/hist_util.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/common/random.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/tree/test_regen.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/data/test_ellpack_page_raw_format.cu
+Category 'build' errors found: 5
+Total errors found: 5
+Done processing tests/cpp/common/test_ref_resource_view.cu
+Category 'build' errors found: 3
+Total errors found: 3
+tests/cpp/plugin/test_sycl_ghist_builder.cc:122:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_math.cc:12:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/collective/socket.cc:70:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+src/collective/socket.cc:189:  Add #include <utility> for move  [build/include_what_you_use] [4]
+src/collective/socket.cc:192:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/metric/multiclass_metric.cu:56:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/gpu_hist/test_row_partitioner.cu:68:  You don't need a ; after a }  [readability/braces] [4]
+tests/cpp/tree/gpu_hist/test_row_partitioner.cu:88:  You don't need a ; after a }  [readability/braces] [4]
+=====8/8 cpp-header files passed check=====
+=====5/10 cpp-source files passed check=====
+tests/cpp/plugin/test_sycl_ghist_builder.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_math.cc: 1 Errors of 1 Categories map={'build': 1}
+src/collective/socket.cc: 3 Errors of 1 Categories map={'build': 3}
+src/metric/multiclass_metric.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/tree/gpu_hist/test_row_partitioner.cu: 2 Errors of 1 Categories map={'readability': 2}
+5 files failed lint
+Done processing tests/cpp/plugin/test_sycl_ghist_builder.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_math.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/collective/socket.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing src/metric/multiclass_metric.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/tree/gpu_hist/test_row_partitioner.cu
+Category 'readability' errors found: 2
+Total errors found: 2
+src/linear/updater_coordinate.cc:29:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/linear/updater_coordinate.cc:77:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/linear/updater_coordinate.cc:94:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/linear/test_linear.cu:21:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_coll.cu:30:  Add #include <memory> for make_shared<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_coll.cu:125:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/collective/comm.cc:338:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+=====4/4 cpp-header files passed check=====
+=====10/14 cpp-source files passed check=====
+src/linear/updater_coordinate.cc: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/linear/test_linear.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/plugin/federated/test_federated_coll.cu: 2 Errors of 1 Categories map={'build': 2}
+src/collective/comm.cc: 1 Errors of 1 Categories map={'build': 1}
+4 files failed lint
+Done processing src/linear/updater_coordinate.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/linear/test_linear.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/plugin/federated/test_federated_coll.cu
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/collective/comm.cc
+Category 'build' errors found: 1
+Total errors found: 1
+tests/cpp/tree/test_tree_policy.cc:136:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+tests/cpp/collective/test_allgather.cu:109:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/common/test_algorithm.cu:39:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_algorithm.cu:45:  Add #include <functional> for greater<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_monitor.cc:31:  Add #include <utility> for make_pair  [build/include_what_you_use] [4]
+src/collective/comm.cu:51:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/collective/comm.cu:127:  Add #include <utility> for move  [build/include_what_you_use] [4]
+=====6/6 cpp-header files passed check=====
+=====7/12 cpp-source files passed check=====
+tests/cpp/tree/test_tree_policy.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/collective/test_allgather.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_algorithm.cu: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/common/test_monitor.cc: 1 Errors of 1 Categories map={'build': 1}
+src/collective/comm.cu: 2 Errors of 1 Categories map={'build': 2}
+5 files failed lint
+Done processing tests/cpp/tree/test_tree_policy.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/collective/test_allgather.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_algorithm.cu
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/common/test_monitor.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/collective/comm.cu
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/test_context.cc:45:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/c_api/test_c_api.cc:477:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_linalg.cu:146:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/data/quantile_dmatrix.cu:84:  Add #include <memory> for make_shared<>  [build/include_what_you_use] [4]
+=====7/7 cpp-header files passed check=====
+=====7/11 cpp-source files passed check=====
+tests/cpp/test_context.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/c_api/test_c_api.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_linalg.cu: 1 Errors of 1 Categories map={'build': 1}
+src/data/quantile_dmatrix.cu: 1 Errors of 1 Categories map={'build': 1}
+4 files failed lint
+Done processing tests/cpp/test_context.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/c_api/test_c_api.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_linalg.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/data/quantile_dmatrix.cu
+Category 'build' errors found: 1
+Total errors found: 1
+=====14/14 cpp-header files passed check=====
+=====4/4 cpp-source files passed check=====
+All passed!
+src/common/timer.cc:27:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/test_histogram_helpers.cu:62:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_threading_utils.cc:67:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_comm.cc:91:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_hist_updater.cc:175:  Add #include <set> for set<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_hist_updater.cc:467:  Add #include <algorithm> for sort  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_hist_updater.cc:547:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_tree_model.cc:16:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_tree_model.cc:223:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_tree_model.cc:366:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_quantile_hist_builder.cc:42:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+src/data/data.cu:48:  Add #include <algorithm> for copy  [build/include_what_you_use] [4]
+src/data/data.cu:82:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/data/data.cu:156:  Add #include <utility> for move  [build/include_what_you_use] [4]
+src/data/data.cu:236:  Add #include <string> for string  [build/include_what_you_use] [4]
+=====6/6 cpp-header files passed check=====
+=====4/12 cpp-source files passed check=====
+src/common/timer.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/test_histogram_helpers.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_threading_utils.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/plugin/federated/test_federated_comm.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/plugin/test_sycl_hist_updater.cc: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/tree/test_tree_model.cc: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/plugin/test_sycl_quantile_hist_builder.cc: 1 Errors of 1 Categories map={'build': 1}
+src/data/data.cu: 4 Errors of 1 Categories map={'build': 4}
+8 files failed lint
+Done processing src/common/timer.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/test_histogram_helpers.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_threading_utils.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/plugin/federated/test_federated_comm.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/plugin/test_sycl_hist_updater.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/tree/test_tree_model.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/plugin/test_sycl_quantile_hist_builder.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/data/data.cu
+Category 'build' errors found: 4
+Total errors found: 4
+tests/cpp/test_cache.cc:108:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/objective/test_lambdarank_obj.cu:106:  Add #include <memory> for make_shared<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_device_adapter.cu:17:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_device_adapter.cu:26:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/data/test_device_adapter.cu:66:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_column_split.cc:48:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+src/common/host_device_vector.cu:308:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+src/common/host_device_vector.cu:309:  Add #include <utility> for move  [build/include_what_you_use] [4]
+src/common/host_device_vector.cu:382:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/tree/gpu_hist/histogram.cu:476:  Add #include <map> for map<>  [build/include_what_you_use] [4]
+src/tree/gpu_hist/histogram.cu:637:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+src/tree/gpu_hist/histogram.cu:669:  Add #include <utility> for forward  [build/include_what_you_use] [4]
+src/tree/gpu_hist/histogram.cu:708:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_numa_topo.cc:112:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_gpu_predictor.cu:149:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_gpu_predictor.cu:220:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_gpu_predictor.cu:283:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+=====5/5 cpp-header files passed check=====
+=====5/13 cpp-source files passed check=====
+tests/cpp/test_cache.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/objective/test_lambdarank_obj.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/data/test_device_adapter.cu: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/tree/test_column_split.cc: 1 Errors of 1 Categories map={'build': 1}
+src/common/host_device_vector.cu: 3 Errors of 1 Categories map={'build': 3}
+src/tree/gpu_hist/histogram.cu: 4 Errors of 1 Categories map={'build': 4}
+tests/cpp/common/test_numa_topo.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/predictor/test_gpu_predictor.cu: 3 Errors of 1 Categories map={'build': 3}
+8 files failed lint
+Done processing tests/cpp/test_cache.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/objective/test_lambdarank_obj.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/data/test_device_adapter.cu
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/tree/test_column_split.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/common/host_device_vector.cu
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing src/tree/gpu_hist/histogram.cu
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing tests/cpp/common/test_numa_topo.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/predictor/test_gpu_predictor.cu
+Category 'build' errors found: 3
+Total errors found: 3
+src/context.cc:137:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/context.cc:188:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+src/common/hist_util.cu:376:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+src/data/device_adapter.cu:40:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/data/device_adapter.cu:65:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+src/data/device_adapter.cu:79:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/tree/test_constraints.cu:297:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/tree/gpu_hist/multi_evaluate_splits.cu:446:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+include/xgboost/logging.h:75:  Add #include <iostream> for cerr  [build/include_what_you_use] [4]
+=====8/9 cpp-header files passed check=====
+include/xgboost/logging.h: 1 Errors of 1 Categories map={'build': 1}
+=====4/9 cpp-source files passed check=====
+src/context.cc: 2 Errors of 1 Categories map={'build': 2}
+src/common/hist_util.cu: 1 Errors of 1 Categories map={'build': 1}
+src/data/device_adapter.cu: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/tree/test_constraints.cu: 1 Errors of 1 Categories map={'build': 1}
+src/tree/gpu_hist/multi_evaluate_splits.cu: 1 Errors of 1 Categories map={'build': 1}
+6 files failed lint
+Done processing src/context.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/common/hist_util.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/data/device_adapter.cu
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/tree/test_constraints.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/tree/gpu_hist/multi_evaluate_splits.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing include/xgboost/logging.h
+Category 'build' errors found: 1
+Total errors found: 1
+src/tree/param.cc:86:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_split_evaluator.cc:48:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_predictor.cc:708:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/c_api/c_api_error.cc:15:  Add #include <string> for string  [build/include_what_you_use] [4]
+=====8/8 cpp-header files passed check=====
+=====6/10 cpp-source files passed check=====
+src/tree/param.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/plugin/test_sycl_split_evaluator.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/predictor/test_predictor.cc: 1 Errors of 1 Categories map={'build': 1}
+src/c_api/c_api_error.cc: 1 Errors of 1 Categories map={'build': 1}
+4 files failed lint
+Done processing src/tree/param.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/plugin/test_sycl_split_evaluator.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/predictor/test_predictor.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/c_api/c_api_error.cc
+Category 'build' errors found: 1
+Total errors found: 1
+tests/cpp/common/test_random.cc:130:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/collective/tracker.cc:419:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_array_interface.cu:42:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_gpu_approx.cu:27:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_gpu_approx.cu:40:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+=====6/6 cpp-header files passed check=====
+=====8/12 cpp-source files passed check=====
+tests/cpp/common/test_random.cc: 1 Errors of 1 Categories map={'build': 1}
+src/collective/tracker.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/data/test_array_interface.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/tree/test_gpu_approx.cu: 2 Errors of 1 Categories map={'build': 2}
+4 files failed lint
+Done processing tests/cpp/common/test_random.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/collective/tracker.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/data/test_array_interface.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/tree/test_gpu_approx.cu
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/common/test_categorical.cc:81:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_categorical.cc:83:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_ellpack_page.cu:95:  Add #include <algorithm> for sort  [build/include_what_you_use] [4]
+tests/cpp/data/test_ellpack_page.cu:292:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_ellpack_page.cu:357:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_ellpack_page.cu:373:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_sparse_page_dmatrix.cc:351:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/data/test_sparse_page_dmatrix.cc:358:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_sparse_page_dmatrix.cc:374:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/objective/test_quantile_obj_cpu.cc:26:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_device_helpers.cu:127:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_shap.cc:48:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_shap.cc:107:  Add #include <utility> for move  [build/include_what_you_use] [4]
+=====2/2 cpp-header files passed check=====
+=====10/16 cpp-source files passed check=====
+tests/cpp/common/test_categorical.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/data/test_ellpack_page.cu: 4 Errors of 1 Categories map={'build': 4}
+tests/cpp/data/test_sparse_page_dmatrix.cc: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/objective/test_quantile_obj_cpu.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_device_helpers.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/predictor/test_shap.cc: 2 Errors of 1 Categories map={'build': 2}
+6 files failed lint
+Done processing tests/cpp/common/test_categorical.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/data/test_ellpack_page.cu
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing tests/cpp/data/test_sparse_page_dmatrix.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/objective/test_quantile_obj_cpu.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_device_helpers.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/predictor/test_shap.cc
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/data/test_data.cc:105:  Add #include <utility> for swap  [build/include_what_you_use] [4]
+tests/cpp/data/test_data.cc:126:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/objective/test_regression_obj.cc:362:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/objective/test_regression_obj.cc:395:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/objective/test_regression_obj.cc:409:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/data/test_sparse_page_dmatrix.cu:208:  Add #include <memory> for make_unique<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_sparse_page_dmatrix.cu:260:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/data/test_sparse_page_dmatrix.cu:294:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/data/quantile_dmatrix.cc:153:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/data/quantile_dmatrix.cc:166:  Add #include <memory> for make_unique<>  [build/include_what_you_use] [4]
+=====7/7 cpp-header files passed check=====
+=====7/11 cpp-source files passed check=====
+tests/cpp/data/test_data.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/objective/test_regression_obj.cc: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/data/test_sparse_page_dmatrix.cu: 3 Errors of 1 Categories map={'build': 3}
+src/data/quantile_dmatrix.cc: 2 Errors of 1 Categories map={'build': 2}
+4 files failed lint
+Done processing tests/cpp/data/test_data.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/objective/test_regression_obj.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/data/test_sparse_page_dmatrix.cu
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing src/data/quantile_dmatrix.cc
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/linear/test_linear.cc:53:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_simple_dmatrix.cc:234:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_simple_dmatrix.cc:406:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/common/test_stats.cc:37:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_simple_dmatrix.cu:133:  Add #include <set> for set<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_simple_dmatrix.cu:278:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_simple_dmatrix.cu:339:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+tests/cpp/data/test_simple_dmatrix.cu:340:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/metric/elementwise_metric.cu:74:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/metric/elementwise_metric.cu:208:  Add #include <cstdio> for sscanf  [build/include_what_you_use] [4]
+src/metric/elementwise_metric.cu:281:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+src/metric/elementwise_metric.cu:303:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/collective/test_socket.cc:52:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_cpu_predictor.cc:174:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_cpu_predictor.cc:218:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_cpu_predictor.cc:232:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/predictor/test_cpu_predictor.cc:233:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+=====9/9 cpp-header files passed check=====
+=====2/9 cpp-source files passed check=====
+tests/cpp/linear/test_linear.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/data/test_simple_dmatrix.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/common/test_stats.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/data/test_simple_dmatrix.cu: 4 Errors of 1 Categories map={'build': 4}
+src/metric/elementwise_metric.cu: 4 Errors of 1 Categories map={'build': 4}
+tests/cpp/collective/test_socket.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/predictor/test_cpu_predictor.cc: 4 Errors of 1 Categories map={'build': 4}
+7 files failed lint
+Done processing tests/cpp/linear/test_linear.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/data/test_simple_dmatrix.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/common/test_stats.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/data/test_simple_dmatrix.cu
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing src/metric/elementwise_metric.cu
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing tests/cpp/collective/test_socket.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/predictor/test_cpu_predictor.cc
+Category 'build' errors found: 4
+Total errors found: 4
+src/predictor/cpu_predictor.cc:344:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+src/predictor/cpu_predictor.cc:419:  Add #include <utility> for swap  [build/include_what_you_use] [4]
+src/common/quantile.cu:616:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/common/quantile.cu:679:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+plugin/sycl/predictor/predictor.cc:110:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+plugin/sycl/predictor/predictor.cc:223:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+plugin/sycl/predictor/predictor.cc:438:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+src/objective/quantile_obj.cu:43:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+src/common/stats.cc:94:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+src/data/cat_container.cu:138:  Add #include <tuple> for tuple<>  [build/include_what_you_use] [4]
+src/data/cat_container.cu:147:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/data/test_iterative_dmatrix.cu:183:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+src/gbm/gbtree_model.cc:73:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/gbm/gbtree_model.cc:119:  Add #include <memory> for make_shared<>  [build/include_what_you_use] [4]
+=====4/4 cpp-header files passed check=====
+=====6/14 cpp-source files passed check=====
+src/predictor/cpu_predictor.cc: 2 Errors of 1 Categories map={'build': 2}
+src/common/quantile.cu: 2 Errors of 1 Categories map={'build': 2}
+plugin/sycl/predictor/predictor.cc: 3 Errors of 1 Categories map={'build': 3}
+src/objective/quantile_obj.cu: 1 Errors of 1 Categories map={'build': 1}
+src/common/stats.cc: 1 Errors of 1 Categories map={'build': 1}
+src/data/cat_container.cu: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/data/test_iterative_dmatrix.cu: 1 Errors of 1 Categories map={'build': 1}
+src/gbm/gbtree_model.cc: 2 Errors of 1 Categories map={'build': 2}
+8 files failed lint
+Done processing src/predictor/cpu_predictor.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/common/quantile.cu
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing plugin/sycl/predictor/predictor.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing src/objective/quantile_obj.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/common/stats.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/data/cat_container.cu
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/data/test_iterative_dmatrix.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/gbm/gbtree_model.cc
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/data/test_file_iterator.cc:23:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_worker.h:21:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_worker.h:38:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_charconv.cc:177:  Add #include <string> for string  [build/include_what_you_use] [4]
+=====8/9 cpp-header files passed check=====
+tests/cpp/plugin/federated/test_worker.h: 2 Errors of 1 Categories map={'build': 2}
+=====7/9 cpp-source files passed check=====
+tests/cpp/data/test_file_iterator.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_charconv.cc: 1 Errors of 1 Categories map={'build': 1}
+3 files failed lint
+Done processing tests/cpp/data/test_file_iterator.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/plugin/federated/test_worker.h
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/common/test_charconv.cc
+Category 'build' errors found: 1
+Total errors found: 1
+src/collective/comm_group.cc:119:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/common/test_threading_utils.cu:28:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_tree_stat.cc:109:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_tree_stat.cc:407:  Add #include <string> for string  [build/include_what_you_use] [4]
+=====12/12 cpp-header files passed check=====
+=====3/6 cpp-source files passed check=====
+src/collective/comm_group.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_threading_utils.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/tree/test_tree_stat.cc: 2 Errors of 1 Categories map={'build': 2}
+3 files failed lint
+Done processing src/collective/comm_group.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_threading_utils.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/tree/test_tree_stat.cc
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/objective/test_objective.cc:14:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/objective/test_objective.cc:84:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/objective/test_objective.cc:95:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_learner.cc:42:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_learner.cc:48:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/federated/test_federated_learner.cc:91:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/common/resource.cu:12:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/common/test_json.cc:674:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/common/test_json.cc:765:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/common/test_json.cc:776:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_constraints.cc:68:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/test_constraints.cc:73:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/collective/test_coll_c_api.cc:45:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/collective/test_coll_c_api.cc:57:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+=====8/8 cpp-header files passed check=====
+=====4/10 cpp-source files passed check=====
+tests/cpp/objective/test_objective.cc: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/plugin/federated/test_federated_learner.cc: 3 Errors of 1 Categories map={'build': 3}
+src/common/resource.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_json.cc: 3 Errors of 1 Categories map={'build': 3}
+tests/cpp/tree/test_constraints.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/collective/test_coll_c_api.cc: 2 Errors of 1 Categories map={'build': 2}
+6 files failed lint
+Done processing tests/cpp/objective/test_objective.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/plugin/federated/test_federated_learner.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing src/common/resource.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_json.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing tests/cpp/tree/test_constraints.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/collective/test_coll_c_api.cc
+Category 'build' errors found: 2
+Total errors found: 2
+tests/cpp/test_logging.cc:50:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/common/test_intrusive_ptr.cc:100:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_host_device_vector.cc:168:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_host_device_vector.cc:209:  Add #include <utility> for move  [build/include_what_you_use] [4]
+tests/cpp/common/test_parameter.cc:32:  Add #include <map> for map<>  [build/include_what_you_use] [4]
+tests/cpp/common/test_parameter.cc:32:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/collective/test_comm.cc:20:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_predictor.cc:59:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_predictor.cc:80:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/plugin/test_sycl_predictor.cc:81:  Add #include <limits> for numeric_limits<>  [build/include_what_you_use] [4]
+plugin/sycl/device_manager.cc:62:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+=====3/3 cpp-header files passed check=====
+=====8/15 cpp-source files passed check=====
+tests/cpp/test_logging.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/common/test_intrusive_ptr.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/plugin/test_sycl_host_device_vector.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/common/test_parameter.cc: 2 Errors of 1 Categories map={'build': 2}
+tests/cpp/collective/test_comm.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/plugin/test_sycl_predictor.cc: 3 Errors of 1 Categories map={'build': 3}
+plugin/sycl/device_manager.cc: 1 Errors of 1 Categories map={'build': 1}
+7 files failed lint
+Done processing tests/cpp/test_logging.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/common/test_intrusive_ptr.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/plugin/test_sycl_host_device_vector.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/common/test_parameter.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing tests/cpp/collective/test_comm.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/plugin/test_sycl_predictor.cc
+Category 'build' errors found: 3
+Total errors found: 3
+Done processing plugin/sycl/device_manager.cc
+Category 'build' errors found: 1
+Total errors found: 1
+tests/cpp/common/test_cuda_rt_utils.cu:15:  Add #include <memory> for make_unique<>  [build/include_what_you_use] [4]
+plugin/sycl/tree/hist_updater.cc:713:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+plugin/sycl/tree/hist_updater.cc:720:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+src/data/file_iterator.cc:33:  Add #include <utility> for pair<>  [build/include_what_you_use] [4]
+src/data/file_iterator.cc:47:  Add #include <string> for string  [build/include_what_you_use] [4]
+R-package/src/xgboost_custom.cc:12:  Add #include <string> for string  [build/include_what_you_use] [4]
+src/common/quantile.cc:469:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/common/quantile.cc:474:  Add #include <algorithm> for max  [build/include_what_you_use] [4]
+src/linear/updater_shotgun.cc:93:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+jvm-packages/xgboost4j/src/native/xgboost4j-gpu.cu:355:  Add #include <string> for string  [build/include_what_you_use] [4]
+jvm-packages/xgboost4j/src/native/xgboost4j-gpu.cu:383:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+jvm-packages/xgboost4j/src/native/xgboost4j-gpu.cu:387:  Add #include <utility> for move  [build/include_what_you_use] [4]
+jvm-packages/xgboost4j/src/native/xgboost4j-gpu.cu:482:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+src/tree/updater_colmaker.cc:165:  Add #include <utility> for move  [build/include_what_you_use] [4]
+src/tree/updater_colmaker.cc:570:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+=====4/4 cpp-header files passed check=====
+=====6/14 cpp-source files passed check=====
+tests/cpp/common/test_cuda_rt_utils.cu: 1 Errors of 1 Categories map={'build': 1}
+plugin/sycl/tree/hist_updater.cc: 2 Errors of 1 Categories map={'build': 2}
+src/data/file_iterator.cc: 2 Errors of 1 Categories map={'build': 2}
+R-package/src/xgboost_custom.cc: 1 Errors of 1 Categories map={'build': 1}
+src/common/quantile.cc: 2 Errors of 1 Categories map={'build': 2}
+src/linear/updater_shotgun.cc: 1 Errors of 1 Categories map={'build': 1}
+jvm-packages/xgboost4j/src/native/xgboost4j-gpu.cu: 4 Errors of 1 Categories map={'build': 4}
+src/tree/updater_colmaker.cc: 2 Errors of 1 Categories map={'build': 2}
+8 files failed lint
+Done processing tests/cpp/common/test_cuda_rt_utils.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing plugin/sycl/tree/hist_updater.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/data/file_iterator.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing R-package/src/xgboost_custom.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing src/common/quantile.cc
+Category 'build' errors found: 2
+Total errors found: 2
+Done processing src/linear/updater_shotgun.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing jvm-packages/xgboost4j/src/native/xgboost4j-gpu.cu
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing src/tree/updater_colmaker.cc
+Category 'build' errors found: 2
+Total errors found: 2
+src/collective/allgather.cc:152:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/collective/test_allreduce.cc:75:  Add #include <memory> for shared_ptr<>  [build/include_what_you_use] [4]
+tests/cpp/collective/test_allreduce.cc:116:  Add #include <algorithm> for min  [build/include_what_you_use] [4]
+tests/cpp/collective/test_allreduce.cc:120:  Add #include <string> for string  [build/include_what_you_use] [4]
+tests/cpp/collective/test_allreduce.cc:130:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+src/gbm/gblinear.cc:308:  Add #include <memory> for unique_ptr<>  [build/include_what_you_use] [4]
+=====5/5 cpp-header files passed check=====
+=====10/13 cpp-source files passed check=====
+src/collective/allgather.cc: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/collective/test_allreduce.cc: 4 Errors of 1 Categories map={'build': 4}
+src/gbm/gblinear.cc: 1 Errors of 1 Categories map={'build': 1}
+3 files failed lint
+Done processing src/collective/allgather.cc
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/collective/test_allreduce.cc
+Category 'build' errors found: 4
+Total errors found: 4
+Done processing src/gbm/gblinear.cc
+Category 'build' errors found: 1
+Total errors found: 1
+src/tree/gpu_hist/evaluate_splits.cu:401:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/gpu_hist/test_multi_histogram.cu:46:  Add #include <memory> for make_unique<>  [build/include_what_you_use] [4]
+tests/cpp/tree/gpu_hist/test_multi_histogram.cu:101:  Add #include <vector> for vector<>  [build/include_what_you_use] [4]
+tests/cpp/tree/gpu_hist/test_multi_histogram.cu:122:  Add #include <string> for string  [build/include_what_you_use] [4]
+=====3/3 cpp-header files passed check=====
+=====2/4 cpp-source files passed check=====
+src/tree/gpu_hist/evaluate_splits.cu: 1 Errors of 1 Categories map={'build': 1}
+tests/cpp/tree/gpu_hist/test_multi_histogram.cu: 3 Errors of 1 Categories map={'build': 3}
+2 files failed lint
+Done processing src/tree/gpu_hist/evaluate_splits.cu
+Category 'build' errors found: 1
+Total errors found: 1
+Done processing tests/cpp/tree/gpu_hist/test_multi_histogram.cu
+Category 'build' errors found: 3
+Total errors found: 3
+
+CMake lint (cmakelint)...................................................Passed
+Python format + lint (black + isort + pylint)............................Passed

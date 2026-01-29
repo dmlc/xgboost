@@ -6,6 +6,9 @@
 #include <algorithm>
 #include <cstddef>  // for size_t
 #include <cstdint>
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include "cuda_stream.h"  // for DefaultStream
 #include "device_helpers.cuh"

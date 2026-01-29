@@ -7,6 +7,7 @@
 #include <algorithm>  // for max
 #include <cstddef>    // for size_t
 #include <cstdint>    // for int32_t
+#include <limits>
 
 #include "../common/common.h"            // for Range
 #include "../common/linalg_op.h"         // for ElementWiseKernel

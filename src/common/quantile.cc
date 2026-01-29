@@ -3,9 +3,11 @@
  */
 #include "quantile.h"
 
+#include <algorithm>
 #include <limits>
 #include <numeric>  // for partial_sum
 #include <utility>
+#include <vector>
 
 #include "../collective/aggregator.h"
 #include "../common/error_msg.h"  // for InvalidMaxBin

@@ -5,6 +5,9 @@
 #include <xgboost/base.h>
 #include <xgboost/parameter.h>
 
+#include <map>
+#include <string>
+
 #include "xgboost/json.h"  // for ToJson, FromJson
 
 enum class Foo : int { kBar = 0, kFrog = 1, kCat = 2, kDog = 3 };

@@ -8,6 +8,9 @@
 #include <xgboost/data.h>
 #include <xgboost/linear_updater.h>
 
+#include <memory>
+#include <vector>
+
 #include "../common/common.h"
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"

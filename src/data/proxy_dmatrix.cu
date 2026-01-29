@@ -1,6 +1,8 @@
 /**
  * Copyright 2020-2025, XGBoost contributors
  */
+#include <memory>  // for shared_ptr
+
 #include "../common/type.h"      // for GetValueT
 #include "../encoder/ordinal.h"  // for DeviceColumnsView
 #include "device_adapter.cuh"

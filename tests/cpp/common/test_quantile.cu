@@ -3,9 +3,11 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"

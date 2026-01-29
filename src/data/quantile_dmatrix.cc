@@ -3,7 +3,9 @@
  */
 #include "quantile_dmatrix.h"
 
+#include <memory>   // for make_unique, shared_ptr
 #include <numeric>  // for accumulate
+#include <vector>   // for vector
 
 #include "../collective/allreduce.h"         // for Allreduce
 #include "../collective/communicator-inl.h"  // for IsDistributed

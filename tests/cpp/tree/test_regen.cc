@@ -3,6 +3,10 @@
  */
 #include <gtest/gtest.h>
 
+#include <limits>
+#include <memory>
+#include <string>
+
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../helpers.h"

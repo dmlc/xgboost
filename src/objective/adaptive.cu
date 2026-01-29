@@ -3,7 +3,9 @@
  */
 #include <thrust/sort.h>
 
+#include <algorithm>
 #include <cub/cub.cuh>  // NOLINT
+#include <vector>
 
 #include "../collective/aggregator.h"
 #include "../common/cuda_context.cuh"  // CUDAContext

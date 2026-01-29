@@ -7,6 +7,8 @@
 
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../../../src/tree/constraints.h"
 #include "../../../src/tree/hist/evaluate_splits.h"

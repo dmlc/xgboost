@@ -8,8 +8,10 @@
 #include <algorithm>  // for find_if
 #include <charconv>   // for from_chars
 #include <iterator>   // for distance
+#include <limits>     // for numeric_limits
 #include <optional>   // for optional
 #include <regex>      // for regex_replace, regex_match
+#include <string>     // for string
 
 #include "common/cuda_rt_utils.h"  // for AllVisibleGPUs
 #include "common/error_msg.h"      // WarnDeprecatedGPUId

@@ -113,8 +113,8 @@ int DataIterator_Next(DataIterHandle handle) {
       "{\"data\": [%lu, false], \"shape\":[%lu, 1], \"typestr\": "
       "\"<f4\", \"version\": 3}";
   memset(self->_array, '\0', sizeof(self->_array));
-  snprintf(self->_array, sizeof(self->_array), array,
-           (size_t)self->data[self->cur_it], self->lengths[self->cur_it]);
+  snprintf(self->_array, sizeof(self->_array), array, (size_t)self->data[self->cur_it],
+           self->lengths[self->cur_it]);
 
   safe_xgboost(XGProxyDMatrixSetDataDense(self->_proxy, self->_array));
   /* The data passed in the iterator must remain valid (not being freed until the next

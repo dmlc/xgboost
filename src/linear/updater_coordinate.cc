@@ -5,6 +5,10 @@
 
 #include <xgboost/linear_updater.h>
 
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "../common/timer.h"
 #include "./param.h"
 #include "coordinate_common.h"
