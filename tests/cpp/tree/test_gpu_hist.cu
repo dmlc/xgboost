@@ -22,8 +22,8 @@
 
 namespace xgboost::tree {
 namespace {
-void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat,
-                RegTree* tree, HostDeviceVector<bst_float>* preds, float subsample,
+void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat, RegTree* tree,
+                HostDeviceVector<bst_float>* preds, float subsample,
                 const std::string& sampling_method, bst_bin_t max_bin) {
   Args args{
       {"max_depth", "2"},
@@ -217,13 +217,13 @@ TEST(GpuHist, MaxDepth) {
   learner->SetParam("max_depth", "32");
   learner->Configure();
 
-  ASSERT_THROW({learner->UpdateOneIter(0, p_mat);}, dmlc::Error);
+  ASSERT_THROW({ learner->UpdateOneIter(0, p_mat); }, dmlc::Error);
 }
 
 namespace {
 RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
   ObjInfo task{ObjInfo::kRegression};
-  std::unique_ptr<TreeUpdater> hist_maker {TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
+  std::unique_ptr<TreeUpdater> hist_maker{TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
   hist_maker->Configure(Args{});
 
   TrainParam param;

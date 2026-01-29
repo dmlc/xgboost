@@ -142,8 +142,8 @@ template <typename T>
   std::vector<std::int64_t> sizes(comm.World(), 0);
   sizes[comm.Rank()] = data.Values().size_bytes();
   auto erased_sizes = common::EraseType(common::Span{sizes.data(), sizes.size()});
-  auto rc = comm.Backend(DeviceOrd::CPU())
-                ->Allgather(comm.Ctx(ctx, DeviceOrd::CPU()), erased_sizes);
+  auto rc =
+      comm.Backend(DeviceOrd::CPU())->Allgather(comm.Ctx(ctx, DeviceOrd::CPU()), erased_sizes);
   if (!rc.OK()) {
     return rc;
   }

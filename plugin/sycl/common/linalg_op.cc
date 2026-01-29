@@ -3,13 +3,12 @@
  * \file linalg_op.h
  */
 
-#include "../data.h"
-#include "../device_manager.h"
+#include <sycl/sycl.hpp>
 
 #include "../../../src/common/optional_weight.h"  // for OptionalWeights
+#include "../data.h"
+#include "../device_manager.h"
 #include "xgboost/context.h"  // for Context
-
-#include <sycl/sycl.hpp>
 
 namespace xgboost::sycl::linalg {
 void SmallHistogram(Context const* ctx, xgboost::linalg::MatrixView<float const> indices,
@@ -19,14 +18,13 @@ void SmallHistogram(Context const* ctx, xgboost::linalg::MatrixView<float const>
   auto* qu = device_manager.GetQueue(ctx->Device());
 
   qu->submit([&](::sycl::handler& cgh) {
-    cgh.parallel_for<>(::sycl::range<1>(indices.Size()),
-                       [=](::sycl::id<1> pid) {
-      const size_t i = pid[0];
-      auto y = indices(i);
-      auto w = weights[i];
-      AtomicRef<float> bin_val(const_cast<float&>(bins(static_cast<std::size_t>(y))));
-      bin_val += w;
-    });
-  }).wait();
+      cgh.parallel_for<>(::sycl::range<1>(indices.Size()), [=](::sycl::id<1> pid) {
+        const size_t i = pid[0];
+        auto y = indices(i);
+        auto w = weights[i];
+        AtomicRef<float> bin_val(const_cast<float&>(bins(static_cast<std::size_t>(y))));
+        bin_val += w;
+      });
+    }).wait();
 }
 }  // namespace xgboost::sycl::linalg

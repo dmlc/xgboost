@@ -6,14 +6,14 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
-#include "../../../src/data/gradient_index.h"       // for GHistIndexMatrix
+#include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
 #pragma GCC diagnostic pop
 
 #include "../../../plugin/sycl/common/hist_util.h"
 #include "../../../plugin/sycl/device_manager.h"
 #include "../../../plugin/sycl/tree/hist_dispatcher.h"
-#include "sycl_helpers.h"
 #include "../helpers.h"
+#include "sycl_helpers.h"
 
 namespace xgboost::sycl::common {
 
@@ -42,23 +42,27 @@ void GHistBuilderTest(float sparsity, bool force_atomic_use) {
   size_t* p_row_indices = row_indices.Data();
 
   qu->submit([&](::sycl::handler& cgh) {
-    cgh.parallel_for<>(::sycl::range<1>(num_rows),
-                       [p_row_indices](::sycl::item<1> pid) {
-      const size_t idx = pid.get_id(0);
-      p_row_indices[idx] = idx;
-    });
-  }).wait_and_throw();
+      cgh.parallel_for<>(::sycl::range<1>(num_rows), [p_row_indices](::sycl::item<1> pid) {
+        const size_t idx = pid.get_id(0);
+        p_row_indices[idx] = idx;
+      });
+    }).wait_and_throw();
   row_set_collection.Init();
 
   auto builder = GHistBuilder<GradientSumT>(qu, n_bins);
 
-  HostDeviceVector<GradientPair> gpair({
-      {0.1f, 0.2f}, {0.3f, 0.4f}, {0.5f, 0.6f}, {0.7f, 0.8f},
-      {0.9f, 0.1f}, {0.2f, 0.3f}, {0.4f, 0.5f}, {0.6f, 0.7f}},
-      ctx.Device());
+  HostDeviceVector<GradientPair> gpair({{0.1f, 0.2f},
+                                        {0.3f, 0.4f},
+                                        {0.5f, 0.6f},
+                                        {0.7f, 0.8f},
+                                        {0.9f, 0.1f},
+                                        {0.2f, 0.3f},
+                                        {0.4f, 0.5f},
+                                        {0.6f, 0.7f}},
+                                       ctx.Device());
   CHECK_EQ(gpair.Size(), num_rows);
 
-  std::vector<GradientSumT> hist_host(2*n_bins);
+  std::vector<GradientSumT> hist_host(2 * n_bins);
   GHistRow<GradientSumT, MemoryType::on_device> hist(qu, 2 * n_bins);
   ::sycl::event event;
 
@@ -69,21 +73,20 @@ void GHistBuilderTest(float sparsity, bool force_atomic_use) {
   InitHist(qu, &hist_buffer, hist_buffer.Size(), &event);
 
   DeviceProperties device_prop(qu->get_device());
-  event = builder.BuildHist(gpair, row_set_collection[0], gmat_sycl, &hist,
-                            sparsity < eps , &hist_buffer, device_prop, event, force_atomic_use);
-  qu->memcpy(hist_host.data(), hist.Data(),
-            2 * n_bins * sizeof(GradientSumT), event);
+  event = builder.BuildHist(gpair, row_set_collection[0], gmat_sycl, &hist, sparsity < eps,
+                            &hist_buffer, device_prop, event, force_atomic_use);
+  qu->memcpy(hist_host.data(), hist.Data(), 2 * n_bins * sizeof(GradientSumT), event);
   qu->wait_and_throw();
 
   // Build hist on host to compare
-  std::vector<GradientSumT> hist_desired(2*n_bins);
+  std::vector<GradientSumT> hist_desired(2 * n_bins);
   for (size_t rid = 0; rid < num_rows; ++rid) {
     const size_t ibegin = gmat.row_ptr[rid];
     const size_t iend = gmat.row_ptr[rid + 1];
     for (size_t i = ibegin; i < iend; ++i) {
       const size_t bin_idx = gmat.index[i];
-      hist_desired[2*bin_idx]   += gpair.HostVector()[rid].GetGrad();
-      hist_desired[2*bin_idx+1] += gpair.HostVector()[rid].GetHess();
+      hist_desired[2 * bin_idx] += gpair.HostVector()[rid].GetGrad();
+      hist_desired[2 * bin_idx + 1] += gpair.HostVector()[rid].GetHess();
     }
   }
 
@@ -104,19 +107,16 @@ void GHistSubtractionTest() {
   ::sycl::event event;
   std::vector<GradientSumT> hist1_host = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8};
   GHistType hist1(qu, 2 * n_bins);
-  event = qu->memcpy(hist1.Data(), hist1_host.data(),
-                     2 * n_bins * sizeof(GradientSumT), event);
+  event = qu->memcpy(hist1.Data(), hist1_host.data(), 2 * n_bins * sizeof(GradientSumT), event);
 
   std::vector<GradientSumT> hist2_host = {0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1};
   GHistType hist2(qu, 2 * n_bins);
-  event = qu->memcpy(hist2.Data(), hist2_host.data(),
-            2 * n_bins * sizeof(GradientSumT), event);
+  event = qu->memcpy(hist2.Data(), hist2_host.data(), 2 * n_bins * sizeof(GradientSumT), event);
 
   std::vector<GradientSumT> hist3_host(2 * n_bins);
   GHistType hist3(qu, 2 * n_bins);
   event = SubtractionHist(qu, &hist3, hist1, hist2, n_bins, event);
-  qu->memcpy(hist3_host.data(), hist3.Data(),
-            2 * n_bins * sizeof(GradientSumT), event);
+  qu->memcpy(hist3_host.data(), hist3.Data(), 2 * n_bins * sizeof(GradientSumT), event);
   qu->wait_and_throw();
 
   std::vector<GradientSumT> hist3_desired(2 * n_bins);

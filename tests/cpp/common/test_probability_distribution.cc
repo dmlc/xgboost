@@ -2,11 +2,12 @@
  * Copyright (c) by Contributors 2020
  */
 #include <gtest/gtest.h>
-#include <memory>
-#include <cmath>
 
-#include "xgboost/logging.h"
+#include <cmath>
+#include <memory>
+
 #include "../../../src/common/probability_distribution.h"
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace common {
@@ -93,7 +94,7 @@ TEST(ProbabilityDistribution, ExtremeDist) {
     const double x = static_cast<double>(i) / 1000.0 - 20.0;
     // Numerical integration using Trapezoid Rule (p. 257, Sauer)
     mean +=
-      5e-4 * ((x - 1e-3) * ExtremeDistribution::PDF(x - 1e-3) + x * ExtremeDistribution::PDF(x));
+        5e-4 * ((x - 1e-3) * ExtremeDistribution::PDF(x - 1e-3) + x * ExtremeDistribution::PDF(x));
   }
   EXPECT_NEAR(mean, -kEulerMascheroni, 1e-7);
 
@@ -105,11 +106,11 @@ TEST(ProbabilityDistribution, ExtremeDist) {
   for (int i = 0; i <= 25000; ++i) {
     const double x = static_cast<double>(i) / 1000.0 - 20.0;
     // Numerical integration using Trapezoid Rule (p. 257, Sauer)
-    variance += 5e-4 * ((x - 1e-3 - mean) * (x - 1e-3 - mean) * ExtremeDistribution::PDF(x - 1e-3)
-                        + (x - mean) * (x - mean) * ExtremeDistribution::PDF(x));
+    variance += 5e-4 * ((x - 1e-3 - mean) * (x - 1e-3 - mean) * ExtremeDistribution::PDF(x - 1e-3) +
+                        (x - mean) * (x - mean) * ExtremeDistribution::PDF(x));
   }
   EXPECT_NEAR(variance, kPI * kPI / 6.0, 1e-6);
 }
 
-} // namespace common
+}  // namespace common
 }  // namespace xgboost

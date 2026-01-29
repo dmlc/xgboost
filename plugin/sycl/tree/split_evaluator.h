@@ -7,36 +7,35 @@
 
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
+
+#include <limits>
+#include <sycl/sycl.hpp>
 #include <utility>
 #include <vector>
-#include <limits>
 
-#include "param.h"
-#include "../data.h"
-
-#include "xgboost/tree_model.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/context.h"
-#include "../../src/common/transform.h"
 #include "../../src/common/math.h"
+#include "../../src/common/transform.h"
 #include "../../src/tree/param.h"
-
-#include <sycl/sycl.hpp>
+#include "../data.h"
+#include "param.h"
+#include "xgboost/context.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
 namespace sycl {
 namespace tree {
 
-/*! \brief SYCL implementation of TreeEvaluator, with USM memory for temporary buffer to access on device.
- *         It also contains own implementation of SplitEvaluator for device compilation, because some of the
-           functions from the original SplitEvaluator are currently not supported
+/*! \brief SYCL implementation of TreeEvaluator, with USM memory for temporary buffer to access on
+ device.
+ *         It also contains own implementation of SplitEvaluator for device compilation, because
+ some of the functions from the original SplitEvaluator are currently not supported
  */
 
-template<typename GradType>
+template <typename GradType>
 class TreeEvaluator {
   // hist and exact use parent id to calculate constraints.
-  static constexpr bst_node_t kRootParentId =
-      (-1 & static_cast<bst_node_t>((1U << 31) - 1));
+  static constexpr bst_node_t kRootParentId = (-1 & static_cast<bst_node_t>((1U << 31) - 1));
 
   USMVector<GradType> lower_bounds_;
   USMVector<GradType> upper_bounds_;
@@ -60,7 +59,7 @@ class TreeEvaluator {
     if (has_constraint_) {
       monotone_.Resize(qu_, n_features, 0);
       qu_->memcpy(monotone_.Data(), p.monotone_constraints.data(),
-                 sizeof(int) * p.monotone_constraints.size());
+                  sizeof(int) * p.monotone_constraints.size());
       qu_->wait();
 
       lower_bounds_.Resize(qu_, p.MaxNodes(), std::numeric_limits<GradType>::lowest());
@@ -69,9 +68,7 @@ class TreeEvaluator {
     param_ = TrainParam(p);
   }
 
-  bool HasConstraint() const {
-    return has_constraint_;
-  }
+  bool HasConstraint() const { return has_constraint_; }
 
   TreeEvaluator(::sycl::queue* qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
     Reset(qu, p, n_features);
@@ -84,15 +81,13 @@ class TreeEvaluator {
     bool has_constraint;
     TrainParam param;
 
-    GradType CalcSplitGain(bst_node_t nidx,
-                        bst_feature_t fidx,
-                        const GradStats<GradType>& left,
-                        const GradStats<GradType>& right) const {
+    GradType CalcSplitGain(bst_node_t nidx, bst_feature_t fidx, const GradStats<GradType>& left,
+                           const GradStats<GradType>& right) const {
       const GradType negative_infinity = -std::numeric_limits<GradType>::infinity();
       GradType wleft = this->CalcWeight(nidx, left);
       GradType wright = this->CalcWeight(nidx, right);
 
-      GradType gain = this->CalcGainGivenWeight(nidx, left,  wleft) +
+      GradType gain = this->CalcGainGivenWeight(nidx, left, wleft) +
                       this->CalcGainGivenWeight(nidx, right, wright);
       if (!has_constraint) {
         return gain;
@@ -109,10 +104,10 @@ class TreeEvaluator {
     }
 
     inline static GradType ThresholdL1(GradType w, float alpha) {
-      if (w > + alpha) {
+      if (w > +alpha) {
         return w - alpha;
       }
-      if (w < - alpha) {
+      if (w < -alpha) {
         return w + alpha;
       }
       return 0.0;
@@ -171,15 +166,12 @@ class TreeEvaluator {
  public:
   /* Get a view to the evaluator that can be passed down to device. */
   auto GetEvaluator() const {
-    return SplitEvaluator{monotone_.DataConst(),
-                          lower_bounds_.DataConst(),
-                          upper_bounds_.DataConst(),
-                          has_constraint_,
-                          param_};
+    return SplitEvaluator{monotone_.DataConst(), lower_bounds_.DataConst(),
+                          upper_bounds_.DataConst(), has_constraint_, param_};
   }
 
-  void AddSplit(bst_node_t nodeid, bst_node_t leftid, bst_node_t rightid,
-                bst_feature_t f, GradType left_weight, GradType right_weight) {
+  void AddSplit(bst_node_t nodeid, bst_node_t leftid, bst_node_t rightid, bst_feature_t f,
+                GradType left_weight, GradType right_weight) {
     if (!has_constraint_) {
       return;
     }

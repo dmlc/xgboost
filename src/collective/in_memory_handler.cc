@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <functional>
+
 #include "comm.h"
 
 namespace xgboost::collective {

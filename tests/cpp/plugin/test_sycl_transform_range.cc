@@ -32,14 +32,13 @@ TEST(SyclTransform, DeclareUnifiedTest(Basic)) {
   std::vector<float> h_sol(size);
   std::iota(h_sol.begin(), h_sol.end(), 0);
 
-  auto device =  DeviceOrd::SyclDefault();
+  auto device = DeviceOrd::SyclDefault();
   HostDeviceVector<float> const in_vec{h_in, device};
   HostDeviceVector<float> out_vec{h_out, device};
   out_vec.Fill(0);
 
-  Transform<>::Init(TestTransformRange<float>{},
-                    Range{0, static_cast<Range::DifferenceType>(size)}, 1,
-                    device)
+  Transform<>::Init(TestTransformRange<float>{}, Range{0, static_cast<Range::DifferenceType>(size)},
+                    1, device)
       .Eval(&out_vec, &in_vec);
   std::vector<float> res = out_vec.HostVector();
 

@@ -4,7 +4,6 @@
 #pragma once
 
 #include <gtest/gtest.h>
-
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
 
@@ -12,7 +11,7 @@
 
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
-#include "xgboost/task.h"             // for ObjInfo
+#include "xgboost/task.h"  // for ObjInfo
 
 namespace xgboost {
 class TestPredictionCache : public ::testing::Test {

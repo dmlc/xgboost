@@ -724,18 +724,17 @@ class ColumnSplitHelper {
       SparsePageView data{ctx_, batch, num_features};
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
       auto d_tree_groups = d_model.tree_groups;
-      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
+      dh::LaunchKernel{grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
           MaskBitVectorKernel, data, d_model.Trees(), decision_bits, missing_bits,
           d_model.tree_begin, d_model.tree_end, num_features, num_nodes, use_shared,
           std::numeric_limits<float>::quiet_NaN());
 
       AllReduceBitVectors(&decision_storage, &missing_storage);
 
-      dh::LaunchKernel {grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()}(
+      dh::LaunchKernel{grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()}(
           PredictByBitVectorKernel<predict_leaf>, d_model.Trees(),
-          out_preds->DeviceSpan().subspan(batch_offset), d_tree_groups,
-          decision_bits, missing_bits, d_model.tree_begin, d_model.tree_end, num_rows, num_nodes,
-          num_group);
+          out_preds->DeviceSpan().subspan(batch_offset), d_tree_groups, decision_bits, missing_bits,
+          d_model.tree_begin, d_model.tree_end, num_rows, num_nodes, num_group);
 
       batch_offset += batch.Size() * num_group;
     }
@@ -858,8 +857,7 @@ class LaunchConfig {
   }
 
  public:
-  LaunchConfig(Context const* ctx, bst_feature_t n_features)
-      : ctx_{ctx}, n_features_{n_features} {}
+  LaunchConfig(Context const* ctx, bst_feature_t n_features) : ctx_{ctx}, n_features_{n_features} {}
 
   template <typename Fn>
   void ForEachBatch(DMatrix* p_fmat, Fn&& fn) {
@@ -1055,18 +1053,16 @@ class GPUPredictor : public xgboost::Predictor {
       }
     }
 
-    LaunchPredict(this->ctx_, false, enc::DeviceColumnsView{}, model,
-                  [&](auto&& cfg, auto&& acc) {
-                    using EncAccessor = std::remove_reference_t<decltype(acc)>;
-                    CHECK((std::is_same_v<EncAccessor, NoOpAccessor>));
-                    using LoaderImpl = DeviceAdapterLoader<BatchT, EncAccessor>;
-                    using Loader =
-                        typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl,
-                                                                                       128>;
-                    cfg.template AllocShmem<Loader>();
-                    cfg.template LaunchPredictKernel<Loader>(
-                        m->Value(), missing, n_features, d_model, acc, 0, &out_preds->predictions);
-                  });
+    LaunchPredict(this->ctx_, false, enc::DeviceColumnsView{}, model, [&](auto&& cfg, auto&& acc) {
+      using EncAccessor = std::remove_reference_t<decltype(acc)>;
+      CHECK((std::is_same_v<EncAccessor, NoOpAccessor>));
+      using LoaderImpl = DeviceAdapterLoader<BatchT, EncAccessor>;
+      using Loader =
+          typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
+      cfg.template AllocShmem<Loader>();
+      cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
+                                               &out_preds->predictions);
+    });
   }
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,

@@ -12,13 +12,7 @@ namespace linear {
 /**
  * \brief A set of available FeatureSelector's
  */
-enum FeatureSelectorEnum {
-  kCyclic = 0,
-  kShuffle,
-  kThrifty,
-  kGreedy,
-  kRandom
-};
+enum FeatureSelectorEnum { kCyclic = 0, kShuffle, kThrifty, kGreedy, kRandom };
 
 struct LinearTrainParam : public XGBoostParameter<LinearTrainParam> {
   /*! \brief learning_rate */
@@ -38,10 +32,8 @@ struct LinearTrainParam : public XGBoostParameter<LinearTrainParam> {
         .set_lower_bound(0.0f)
         .set_default(0.0f)
         .describe("L2 regularization on weights.");
-    DMLC_DECLARE_FIELD(reg_alpha)
-        .set_lower_bound(0.0f)
-        .set_default(0.0f)
-        .describe("L1 regularization on weights.");
+    DMLC_DECLARE_FIELD(reg_alpha).set_lower_bound(0.0f).set_default(0.0f).describe(
+        "L1 regularization on weights.");
     DMLC_DECLARE_FIELD(feature_selector)
         .set_default(kCyclic)
         .add_enum("cyclic", kCyclic)

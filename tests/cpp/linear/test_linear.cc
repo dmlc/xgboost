@@ -1,12 +1,12 @@
 /*!
  * Copyright 2018-2019 by Contributors
  */
-#include <xgboost/linear_updater.h>
 #include <xgboost/gbm.h>
+#include <xgboost/linear_updater.h>
 
+#include "../../../src/gbm/gblinear_model.h"
 #include "../helpers.h"
 #include "test_json_io.h"
-#include "../../../src/gbm/gblinear_model.h"
 #include "xgboost/base.h"
 
 namespace xgboost {
@@ -33,15 +33,13 @@ TEST(Linear, Shotgun) {
     ASSERT_EQ(model.Bias()[0], 5.0f);
   }
   {
-    auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-        xgboost::LinearUpdater::Create("shotgun", &ctx));
+    auto updater =
+        std::unique_ptr<xgboost::LinearUpdater>(xgboost::LinearUpdater::Create("shotgun", &ctx));
     EXPECT_ANY_THROW(updater->Configure({{"feature_selector", "random"}}));
   }
 }
 
-TEST(Shotgun, JsonIO) {
-  TestUpdaterJsonIO("shotgun");
-}
+TEST(Shotgun, JsonIO) { TestUpdaterJsonIO("shotgun"); }
 
 TEST(Linear, coordinate) {
   size_t constexpr kRows = 10;
@@ -64,8 +62,6 @@ TEST(Linear, coordinate) {
   ASSERT_EQ(model.Bias()[0], 5.0f);
 }
 
-TEST(Coordinate, JsonIO){
-  TestUpdaterJsonIO("coord_descent");
-}
+TEST(Coordinate, JsonIO) { TestUpdaterJsonIO("coord_descent"); }
 
 }  // namespace xgboost

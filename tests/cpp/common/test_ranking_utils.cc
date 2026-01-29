@@ -4,18 +4,18 @@
 #include "test_ranking_utils.h"
 
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                       // for Args, bst_group_t, kRtEps
-#include <xgboost/context.h>                    // for Context
-#include <xgboost/data.h>                       // for MetaInfo, DMatrix
-#include <xgboost/host_device_vector.h>         // for HostDeviceVector
-#include <xgboost/logging.h>                    // for Error
-#include <xgboost/string_view.h>                // for StringView
+#include <xgboost/base.h>                // for Args, bst_group_t, kRtEps
+#include <xgboost/context.h>             // for Context
+#include <xgboost/data.h>                // for MetaInfo, DMatrix
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/logging.h>             // for Error
+#include <xgboost/string_view.h>         // for StringView
 
-#include <cstddef>                              // for size_t
-#include <cstdint>                              // for uint32_t
-#include <numeric>                              // for iota
-#include <utility>                              // for move
-#include <vector>                               // for vector
+#include <cstddef>  // for size_t
+#include <cstdint>  // for uint32_t
+#include <numeric>  // for iota
+#include <utility>  // for move
+#include <vector>   // for vector
 
 #include "../../../src/common/numeric.h"        // for Iota
 #include "../../../src/common/ranking_utils.h"  // for LambdaRankParam, ParseMetricName, MakeMet...
@@ -126,7 +126,9 @@ void TestNDCGCache(Context const* ctx) {
   info.group_ptr_ = {static_cast<bst_group_t>(0), static_cast<bst_group_t>(info.num_row_)};
 
   {
-    auto fail = [&]() { NDCGCache cache{ctx, info, param}; };
+    auto fail = [&]() {
+      NDCGCache cache{ctx, info, param};
+    };
     // empty label
     ASSERT_THROW(fail(), dmlc::Error);
     info.labels = linalg::Matrix<float>{{0.0f, 0.1f, 0.2f}, {3}, DeviceOrd::CPU()};
@@ -191,7 +193,9 @@ void TestMAPCache(Context const* ctx) {
   info.num_row_ = h_data.size();
   info.labels.Data()->HostVector() = std::move(h_data);
 
-  auto fail = [&]() { std::make_shared<MAPCache>(ctx, info, param); };
+  auto fail = [&]() {
+    std::make_shared<MAPCache>(ctx, info, param);
+  };
   // binary label
   ASSERT_THROW(fail(), dmlc::Error);
 

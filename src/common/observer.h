@@ -5,16 +5,16 @@
 #ifndef XGBOOST_COMMON_OBSERVER_H_
 #define XGBOOST_COMMON_OBSERVER_H_
 
-#include <iostream>
 #include <algorithm>
+#include <iostream>
 #include <limits>
 #include <string>
 #include <vector>
 
-#include "xgboost/host_device_vector.h"
-#include "xgboost/parameter.h"
-#include "xgboost/json.h"
 #include "xgboost/base.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/json.h"
+#include "xgboost/parameter.h"
 #include "xgboost/tree_model.h"
 
 #if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
@@ -37,21 +37,25 @@ namespace xgboost {
  */
 class TrainingObserver {
 #if defined(XGBOOST_USE_DEBUG_OUTPUT)
-  bool constexpr static kObserve {true};
+  bool constexpr static kObserve{true};
 #else
-  bool constexpr static kObserve {false};
+  bool constexpr static kObserve{false};
 #endif  // defined(XGBOOST_USE_DEBUG_OUTPUT)
 
  public:
   void Update(int32_t iter) const {
-    if (XGBOOST_EXPECT(!kObserve, true)) { return; }
+    if (XGBOOST_EXPECT(!kObserve, true)) {
+      return;
+    }
     OBSERVER_PRINT << "Iter: " << iter << OBSERVER_ENDL;
   }
   /*\brief Observe tree. */
   void Observe(RegTree const& tree) {
-    if (XGBOOST_EXPECT(!kObserve, true)) { return; }
+    if (XGBOOST_EXPECT(!kObserve, true)) {
+      return;
+    }
     OBSERVER_PRINT << "Tree:" << OBSERVER_ENDL;
-    Json j_tree {Object()};
+    Json j_tree{Object()};
     tree.SaveModel(&j_tree);
     std::string str;
     Json::Dump(j_tree, &str);
@@ -59,7 +63,9 @@ class TrainingObserver {
   }
   /*\brief Observe tree. */
   void Observe(RegTree const* p_tree) {
-    if (XGBOOST_EXPECT(!kObserve, true)) { return; }
+    if (XGBOOST_EXPECT(!kObserve, true)) {
+      return;
+    }
     auto const& tree = *p_tree;
     this->Observe(tree);
   }
@@ -74,7 +80,9 @@ class TrainingObserver {
   template <typename T>
   void Observe(std::vector<T> const& h_vec, std::string name,
                size_t n = std::numeric_limits<std::size_t>::max()) const {
-    if (XGBOOST_EXPECT(!kObserve, true)) { return; }
+    if (XGBOOST_EXPECT(!kObserve, true)) {
+      return;
+    }
     OBSERVER_PRINT << "Procedure: " << name << OBSERVER_ENDL;
 
     for (size_t i = 0; i < h_vec.size(); ++i) {
@@ -92,14 +100,18 @@ class TrainingObserver {
   template <typename T>
   void Observe(HostDeviceVector<T> const& vec, std::string name,
                size_t n = std::numeric_limits<std::size_t>::max()) const {
-    if (XGBOOST_EXPECT(!kObserve, true)) { return; }
+    if (XGBOOST_EXPECT(!kObserve, true)) {
+      return;
+    }
     auto const& h_vec = vec.HostVector();
     this->Observe(h_vec, name, n);
   }
   template <typename T>
   void Observe(HostDeviceVector<T>* vec, std::string name,
                size_t n = std::numeric_limits<std::size_t>::max()) const {
-    if (XGBOOST_EXPECT(!kObserve, true)) { return; }
+    if (XGBOOST_EXPECT(!kObserve, true)) {
+      return;
+    }
     this->Observe(*vec, name, n);
   }
 
@@ -108,14 +120,18 @@ class TrainingObserver {
             typename std::enable_if_t<std::is_base_of_v<XGBoostParameter<Parameter>, Parameter>>* =
                 nullptr>
   void Observe(const Parameter& p, std::string name) const {
-    if (XGBOOST_EXPECT(!kObserve, true)) { return; }
+    if (XGBOOST_EXPECT(!kObserve, true)) {
+      return;
+    }
 
-    Json obj {toJson(p)};
+    Json obj{toJson(p)};
     OBSERVER_PRINT << "Parameter: " << name << ":\n" << obj << OBSERVER_ENDL;
   }
   /*\brief Observe parameters provided by users. */
   void Observe(Args const& args) const {
-    if (XGBOOST_EXPECT(!kObserve, true)) { return; }
+    if (XGBOOST_EXPECT(!kObserve, true)) {
+      return;
+    }
 
     for (auto kv : args) {
       OBSERVER_PRINT << kv.first << ": " << kv.second << OBSERVER_NEWLINE;

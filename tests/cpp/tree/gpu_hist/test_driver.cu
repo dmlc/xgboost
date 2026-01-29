@@ -2,6 +2,7 @@
  * Copyright 2020-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
+
 #include "../../../../src/tree/driver.h"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"
 
@@ -56,7 +57,7 @@ TEST(GpuHist, DriverLossGuided) {
 
   Driver<GPUExpandEntry> driver(p);
   EXPECT_TRUE(driver.Pop().empty());
-  GPUExpandEntry root(0, 0, high_gain, 2.0f, 1.0f, 1.0f );
+  GPUExpandEntry root(0, 0, high_gain, 2.0f, 1.0f, 1.0f);
   driver.Push({root});
   EXPECT_EQ(driver.Pop().front().nidx, 0);
   // Select high gain first

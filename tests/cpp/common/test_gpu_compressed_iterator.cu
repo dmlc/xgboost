@@ -32,11 +32,9 @@ struct ReadSymbolFunction {
   CompressedIterator<int> ci;
   int* output_data_d;
   ReadSymbolFunction(CompressedIterator<int> ci, int* output_data_d)
-    : ci(ci), output_data_d(output_data_d) {}
+      : ci(ci), output_data_d(output_data_d) {}
 
-  __device__ void operator()(size_t i) {
-    output_data_d[i] = ci[i];
-  }
+  __device__ void operator()(size_t i) { output_data_d[i] = ci[i]; }
 };
 
 TEST(CompressedIterator, TestGPU) {
@@ -49,20 +47,17 @@ TEST(CompressedIterator, TestGPU) {
   for (auto alphabet_size : test_cases) {
     for (int i = 0; i < repetitions; i++) {
       std::vector<int> input(num_elements);
-      std::generate(input.begin(), input.end(),
-        [=]() { return rand() % alphabet_size; });
+      std::generate(input.begin(), input.end(), [=]() { return rand() % alphabet_size; });
       CompressedBufferWriter cbw(alphabet_size);
       thrust::device_vector<int> input_d(input);
 
       thrust::device_vector<unsigned char> buffer_d(
-        CompressedBufferWriter::CalculateBufferSize(input.size(),
-          alphabet_size));
+          CompressedBufferWriter::CalculateBufferSize(input.size(), alphabet_size));
 
       // write the data on device
       auto input_data_d = input_d.data().get();
       auto buffer_data_d = buffer_d.data().get();
-      dh::LaunchN(input_d.size(),
-                  WriteSymbolFunction(cbw, buffer_data_d, input_data_d));
+      dh::LaunchN(input_d.size(), WriteSymbolFunction(cbw, buffer_data_d, input_data_d));
 
       // read the data on device
       CompressedIterator<int> ci(buffer_d.data().get(), alphabet_size);

@@ -21,7 +21,7 @@
 
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/cuda_context.cuh"  // for CUDAContext
-#endif  // XGBOOST_USE_CUDA
+#endif                                 // XGBOOST_USE_CUDA
 
 using AFTParam = xgboost::common::AFTParam;
 using ProbabilityDistributionType = xgboost::common::ProbabilityDistributionType;
@@ -36,9 +36,7 @@ template <typename EvalRow>
 class ElementWiseSurvivalMetricsReduction {
  public:
   ElementWiseSurvivalMetricsReduction() = default;
-  void Configure(EvalRow policy) {
-    policy_ = policy;
-  }
+  void Configure(EvalRow policy) { policy_ = policy; }
 
   [[nodiscard]] PackedReduceResult CpuReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
@@ -57,14 +55,12 @@ class ElementWiseSurvivalMetricsReduction {
     std::vector<double> weight_tloc(n_threads, 0.0);
 
     common::ParallelFor(ndata, n_threads, [&](size_t i) {
-      const double wt =
-          h_weights.empty() ? 1.0 : static_cast<double>(h_weights[i]);
+      const double wt = h_weights.empty() ? 1.0 : static_cast<double>(h_weights[i]);
       auto t_idx = omp_get_thread_num();
-      score_tloc[t_idx] +=
-          policy_.EvalRow(static_cast<double>(h_labels_lower_bound[i]),
-                          static_cast<double>(h_labels_upper_bound[i]),
-                          static_cast<double>(h_preds[i])) *
-          wt;
+      score_tloc[t_idx] += policy_.EvalRow(static_cast<double>(h_labels_lower_bound[i]),
+                                           static_cast<double>(h_labels_upper_bound[i]),
+                                           static_cast<double>(h_preds[i])) *
+                           wt;
       weight_tloc[t_idx] += wt;
     });
 
@@ -145,41 +141,32 @@ class ElementWiseSurvivalMetricsReduction {
 struct EvalIntervalRegressionAccuracy {
   void Configure(const Args&) {}
 
-  [[nodiscard]] const char* Name() const {
-    return "interval-regression-accuracy";
-  }
+  [[nodiscard]] const char* Name() const { return "interval-regression-accuracy"; }
 
-  XGBOOST_DEVICE double EvalRow(
-      double label_lower_bound, double label_upper_bound, double log_pred) const {
+  XGBOOST_DEVICE double EvalRow(double label_lower_bound, double label_upper_bound,
+                                double log_pred) const {
     const double pred = exp(log_pred);
     return (pred >= label_lower_bound && pred <= label_upper_bound) ? 1.0 : 0.0;
   }
 
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
-  }
+  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
 };
 
 /*! \brief Negative log likelihood of Accelerated Failure Time model */
 template <typename Distribution>
 struct EvalAFTNLogLik {
-  void Configure(const Args& args) {
-    param_.UpdateAllowUnknown(args);
+  void Configure(const Args& args) { param_.UpdateAllowUnknown(args); }
+
+  [[nodiscard]] const char* Name() const { return "aft-nloglik"; }
+
+  XGBOOST_DEVICE double EvalRow(double label_lower_bound, double label_upper_bound,
+                                double pred) const {
+    return AFTLoss<Distribution>::Loss(label_lower_bound, label_upper_bound, pred,
+                                       param_.aft_loss_distribution_scale);
   }
 
-  [[nodiscard]] const char* Name() const {
-    return "aft-nloglik";
-  }
+  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
 
-  XGBOOST_DEVICE double EvalRow(
-      double label_lower_bound, double label_upper_bound, double pred) const {
-    return AFTLoss<Distribution>::Loss(
-        label_lower_bound, label_upper_bound, pred, param_.aft_loss_distribution_scale);
-  }
-
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
-  }
  private:
   AFTParam param_;
 };
@@ -208,9 +195,7 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
     return Policy::GetFinal(dat[0], dat[1]);
   }
 
-  [[nodiscard]] const char* Name() const override {
-    return policy_.Name();
-  }
+  [[nodiscard]] const char* Name() const override { return policy_.Name(); }
 
  private:
   Policy policy_;
@@ -221,9 +206,7 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
 // This class exists because we want to perform dispatch according to the distribution type at
 // configuration time, not at prediction time.
 struct AFTNLogLikDispatcher : public MetricNoCache {
-  [[nodiscard]] const char* Name() const override {
-    return "aft-nloglik";
-  }
+  [[nodiscard]] const char* Name() const override { return "aft-nloglik"; }
 
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CHECK(metric_) << "AFT metric must be configured first, with distribution type and scale";
@@ -233,17 +216,18 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
   void Configure(const Args& args) override {
     param_.UpdateAllowUnknown(args);
     switch (param_.aft_loss_distribution) {
-    case common::ProbabilityDistributionType::kNormal:
-      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(ctx_));
-      break;
-    case common::ProbabilityDistributionType::kLogistic:
-      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::LogisticDistribution>>(ctx_));
-      break;
-    case common::ProbabilityDistributionType::kExtreme:
-      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::ExtremeDistribution>>(ctx_));
-      break;
-    default:
-      LOG(FATAL) << "Unknown probability distribution";
+      case common::ProbabilityDistributionType::kNormal:
+        metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(ctx_));
+        break;
+      case common::ProbabilityDistributionType::kLogistic:
+        metric_.reset(
+            new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::LogisticDistribution>>(ctx_));
+        break;
+      case common::ProbabilityDistributionType::kExtreme:
+        metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::ExtremeDistribution>>(ctx_));
+        break;
+      default:
+        LOG(FATAL) << "Unknown probability distribution";
     }
     metric_->Configure(args);
   }
@@ -254,9 +238,7 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
     out["aft_loss_param"] = ToJson(param_);
   }
 
-  void LoadConfig(const Json& in) override {
-    FromJson(in["aft_loss_param"], &param_);
-  }
+  void LoadConfig(const Json& in) override { FromJson(in["aft_loss_param"], &param_); }
 
  private:
   AFTParam param_;

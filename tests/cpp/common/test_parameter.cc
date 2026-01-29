@@ -7,9 +7,7 @@
 
 #include "xgboost/json.h"  // for ToJson, FromJson
 
-enum class Foo : int {
-  kBar = 0, kFrog = 1, kCat = 2, kDog = 3
-};
+enum class Foo : int { kBar = 0, kFrog = 1, kCat = 2, kDog = 3 };
 
 DECLARE_FIELD_ENUM_CLASS(Foo);
 
@@ -18,13 +16,12 @@ struct MyEnumParam : xgboost::XGBoostParameter<MyEnumParam> {
   int bar;
   DMLC_DECLARE_PARAMETER(MyEnumParam) {
     DMLC_DECLARE_FIELD(foo)
-      .set_default(Foo::kBar)
-      .add_enum("bar", Foo::kBar)
-      .add_enum("frog", Foo::kFrog)
-      .add_enum("cat", Foo::kCat)
-      .add_enum("dog", Foo::kDog);
-    DMLC_DECLARE_FIELD(bar)
-      .set_default(-1);
+        .set_default(Foo::kBar)
+        .add_enum("bar", Foo::kBar)
+        .add_enum("frog", Foo::kFrog)
+        .add_enum("cat", Foo::kCat)
+        .add_enum("dog", Foo::kDog);
+    DMLC_DECLARE_FIELD(bar).set_default(-1);
   }
 };
 
@@ -32,11 +29,9 @@ DMLC_REGISTER_PARAMETER(MyEnumParam);
 
 TEST(EnumClassParam, Basic) {
   MyEnumParam param;
-  std::map<std::string, std::string> kwargs{
-    {"foo", "frog"}, {"bar", "10"}
-  };
+  std::map<std::string, std::string> kwargs{{"foo", "frog"}, {"bar", "10"}};
   // try initializing
-  param.Init(kwargs); // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
+  param.Init(kwargs);  // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
   ASSERT_EQ(param.foo, Foo::kFrog);
   ASSERT_EQ(param.bar, 10);
 
@@ -60,14 +55,12 @@ TEST(EnumClassParam, Basic) {
 }
 
 struct UpdatableParam : xgboost::XGBoostParameter<UpdatableParam> {
-  float f { 0.0f };
-  double d { 0.0 };
+  float f{0.0f};
+  double d{0.0};
 
   DMLC_DECLARE_PARAMETER(UpdatableParam) {
-    DMLC_DECLARE_FIELD(f)
-        .set_default(11.0f);
-    DMLC_DECLARE_FIELD(d)
-        .set_default(2.71828f);
+    DMLC_DECLARE_FIELD(f).set_default(11.0f);
+    DMLC_DECLARE_FIELD(d).set_default(2.71828f);
   }
 };
 

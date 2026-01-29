@@ -23,9 +23,9 @@
 // Some helper functions used to test both GPU and CPU algorithms
 //
 namespace xgboost::common {
-  // Generate columns with different ranges
+// Generate columns with different ranges
 inline std::vector<float> GenerateRandom(int num_rows, int num_columns) {
-  std::vector<float> x(num_rows*num_columns);
+  std::vector<float> x(num_rows * num_columns);
   std::mt19937 rng(0);
   std::uniform_real_distribution<float> dist(0.0, 1.0);
   std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
@@ -46,15 +46,14 @@ inline std::vector<float> GenerateRandomWeights(int num_rows) {
 }
 
 #ifdef __CUDACC__
-inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
-  int num_rows, int num_columns) {
+inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float>& x, int num_rows,
+                                         int num_columns) {
   Json array_interface{Object()};
   std::vector<Json> shape = {Json(static_cast<Integer::Int>(num_rows)),
-    Json(static_cast<Integer::Int>(num_columns))};
+                             Json(static_cast<Integer::Int>(num_columns))};
   array_interface["shape"] = Array(shape);
-  std::vector<Json> j_data{
-    Json(Integer(reinterpret_cast<Integer::Int>(x.data().get()))),
-    Json(Boolean(false))};
+  std::vector<Json> j_data{Json(Integer(reinterpret_cast<Integer::Int>(x.data().get()))),
+                           Json(Boolean(false))};
   array_interface["data"] = j_data;
   array_interface["version"] = 3;
   array_interface["typestr"] = String("<f4");
@@ -64,11 +63,11 @@ inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
 }
 #endif
 
-inline std::shared_ptr<data::SimpleDMatrix>
-GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns) {
+inline std::shared_ptr<data::SimpleDMatrix> GetDMatrixFromData(const std::vector<float>& x,
+                                                               int num_rows, int num_columns) {
   data::DenseAdapter adapter(x.data(), num_rows, num_columns);
-  return std::shared_ptr<data::SimpleDMatrix>(new data::SimpleDMatrix(
-      &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  return std::shared_ptr<data::SimpleDMatrix>(
+      new data::SimpleDMatrix(&adapter, std::numeric_limits<float>::quiet_NaN(), 1));
 }
 
 // Test that elements are approximately equally distributed among bins
@@ -84,7 +83,7 @@ inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
     bin_weights.at(bin_idx) += sorted_weights[i];
   }
   int local_num_bins = cuts.Ptrs()[column_idx + 1] - cuts.Ptrs()[column_idx];
-  auto total_weight = std::accumulate(sorted_weights.begin(), sorted_weights.end(),0);
+  auto total_weight = std::accumulate(sorted_weights.begin(), sorted_weights.end(), 0);
   int expected_bin_weight = total_weight / local_num_bins;
   // Allow up to 30% deviation. This test is not very strict, it only ensures
   // roughly equal distribution
@@ -92,19 +91,16 @@ inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
 
   // First and last bin can have smaller
   for (auto& kv : bin_weights) {
-    ASSERT_LE(std::abs(bin_weights[kv.first] - expected_bin_weight),
-              allowable_error);
+    ASSERT_LE(std::abs(bin_weights[kv.first] - expected_bin_weight), allowable_error);
   }
 }
 
 // Test sketch quantiles against the real quantiles Not a very strict
 // test
-inline void TestRank(const std::vector<float> &column_cuts,
-                     const std::vector<float> &sorted_x,
-                     const std::vector<float> &sorted_weights) {
+inline void TestRank(const std::vector<float>& column_cuts, const std::vector<float>& sorted_x,
+                     const std::vector<float>& sorted_weights) {
   double eps = 0.05;
-  auto total_weight =
-      std::accumulate(sorted_weights.begin(), sorted_weights.end(), 0.0);
+  auto total_weight = std::accumulate(sorted_weights.begin(), sorted_weights.end(), 0.0);
   // Ignore the last cut, its special
   double sum_weight = 0.0;
   size_t j = 0;
@@ -121,14 +117,12 @@ inline void TestRank(const std::vector<float> &column_cuts,
 
 inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
                            const std::vector<float>& sorted_column,
-                           const std::vector<float>& sorted_weights,
-                           size_t num_bins) {
-
+                           const std::vector<float>& sorted_weights, size_t num_bins) {
   // Check the endpoints are correct
   CHECK_GT(sorted_column.size(), 0);
   EXPECT_LT(cuts.MinValues().at(column_idx), sorted_column.front());
   EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
-  EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx+1]-1], sorted_column.back());
+  EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx + 1] - 1], sorted_column.back());
 
   // Check the cuts are sorted
   auto cuts_begin = cuts.Values().begin() + cuts.Ptrs()[column_idx];
@@ -152,8 +146,7 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
     int num_cuts_column = cuts.Ptrs()[column_idx + 1] - cuts.Ptrs()[column_idx];
     std::vector<float> column_cuts(num_cuts_column);
     std::copy(cuts.Values().begin() + cuts.Ptrs()[column_idx],
-      cuts.Values().begin() + cuts.Ptrs()[column_idx + 1],
-      column_cuts.begin());
+              cuts.Values().begin() + cuts.Ptrs()[column_idx + 1], column_cuts.begin());
     TestBinDistribution(cuts, column_idx, sorted_column, sorted_weights);
     TestRank(column_cuts, sorted_column, sorted_weights);
   }
@@ -204,8 +197,8 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat, int num_bins)
  * \param sketch Sketch function, can be on device or on host.
  */
 template <typename Fn>
-void TestCategoricalSketch(size_t n, size_t num_categories, int32_t num_bins,
-                           bool weighted, Fn sketch) {
+void TestCategoricalSketch(size_t n, size_t num_categories, int32_t num_bins, bool weighted,
+                           Fn sketch) {
   auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
   auto dmat = GetDMatrixFromData(x, n, 1);
   dmat->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);

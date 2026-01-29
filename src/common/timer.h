@@ -29,8 +29,7 @@ struct Timer {
   SecondsT Duration() const { return ClockT::now() - start; }
   void PrintElapsed(std::string label) {
     char buffer[255];
-    snprintf(buffer, sizeof(buffer), "%s:\t %fs", label.c_str(),
-             SecondsT(elapsed).count());
+    snprintf(buffer, sizeof(buffer), "%s:\t %fs", label.c_str(), SecondsT(elapsed).count());
     LOG(CONSOLE) << buffer;
     Reset();
   }
@@ -57,7 +56,7 @@ struct Monitor {
   std::map<std::string, Statistics> statistics_map_;
   Timer self_timer_;
 
-  void PrintStatistics(StatMap const& statistics) const;
+  void PrintStatistics(StatMap const &statistics) const;
 
  public:
   Monitor() { self_timer_.Start(); }

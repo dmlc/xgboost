@@ -89,7 +89,9 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureTy
   auto it = common::MakeIndexTransformIter([&](std::size_t ridx) { return page[ridx].size(); });
   common::PartialSum(n_threads, it, it + page.Size(), static_cast<size_t>(0), row_ptr.begin());
   data::SparsePageAdapterBatch adapter_batch{page};
-  auto is_valid = [](auto) { return true; };  // SparsePage always contains valid entries
+  auto is_valid = [](auto) {
+    return true;
+  };  // SparsePage always contains valid entries
   PushBatchImpl(n_threads, adapter_batch, 0, is_valid, ft);
 }
 
@@ -165,8 +167,8 @@ void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
       new_vec = {new_ptr, n_bytes / sizeof(std::uint8_t), malloc_resource};
     }
     this->data = std::move(new_vec);
-    this->index = common::Index{common::Span{data.data(), static_cast<size_t>(data.size())},
-        t_size};
+    this->index =
+        common::Index{common::Span{data.data(), static_cast<size_t>(data.size())}, t_size};
   };
 
   if ((MaxNumBinPerFeat() - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) &&
@@ -195,7 +197,7 @@ bst_bin_t GHistIndexMatrix::GetGindex(size_t ridx, size_t fidx) const {
     return static_cast<bst_bin_t>(this->index[begin + fidx]);
   }
   auto end = RowIdx(ridx + 1);
-  auto const& cut_ptrs = cut.Ptrs();
+  auto const &cut_ptrs = cut.Ptrs();
   auto f_begin = cut_ptrs[fidx];
   auto f_end = cut_ptrs[fidx + 1];
   return BinarySearchBin(begin, end, this->index, f_begin, f_end);

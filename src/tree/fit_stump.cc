@@ -22,8 +22,7 @@
 namespace xgboost::tree {
 namespace cpu_impl {
 void FitStump(Context const* ctx, MetaInfo const& info,
-              linalg::TensorView<GradientPair const, 2> gpair,
-              linalg::VectorView<float> out) {
+              linalg::TensorView<GradientPair const, 2> gpair, linalg::VectorView<float> out) {
   auto n_targets = out.Size();
   CHECK_EQ(n_targets, gpair.Shape(1));
   linalg::Tensor<GradientPairPrecise, 2> sum_tloc =

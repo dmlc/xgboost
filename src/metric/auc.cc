@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-#include "../common/algorithm.h"        // ArgSort
+#include "../common/algorithm.h"  // ArgSort
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // OptionalWeights
 #include "metric_common.h"              // MetricNoCache
@@ -32,10 +32,10 @@ DMLC_REGISTRY_FILE_TAG(auc);
  * handle the normalization.
  */
 template <typename Fn>
-std::tuple<double, double, double>
-BinaryAUC(common::Span<float const> predts, linalg::VectorView<float const> labels,
-          common::OptionalWeights weights,
-          std::vector<size_t> const &sorted_idx, Fn &&area_fn) {
+std::tuple<double, double, double> BinaryAUC(common::Span<float const> predts,
+                                             linalg::VectorView<float const> labels,
+                                             common::OptionalWeights weights,
+                                             std::vector<size_t> const &sorted_idx, Fn &&area_fn) {
   CHECK_NE(labels.Size(), 0);
   CHECK_EQ(labels.Size(), predts.size());
   auto p_predts = predts.data();
@@ -149,7 +149,7 @@ std::tuple<double, double, double> BinaryROCAUC(Context const *ctx,
 /**
  * Calculate AUC for 1 ranking group;
  */
-double GroupRankingROC(Context const* ctx, common::Span<float const> predts,
+double GroupRankingROC(Context const *ctx, common::Span<float const> predts,
                        linalg::VectorView<float const> labels, float w) {
   // on ranking, we just count all pairs.
   double auc{0};
@@ -257,7 +257,7 @@ std::pair<double, uint32_t> RankingAUC(Context const *ctx, std::vector<float> co
 template <typename Curve>
 class EvalAUC : public MetricNoCache {
   double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info) override {
-    double auc {0};
+    double auc{0};
     if (ctx_->Device().IsCUDA()) {
       preds.SetDevice(ctx_->Device());
       info.labels.SetDevice(ctx_->Device());
@@ -286,8 +286,7 @@ class EvalAUC : public MetricNoCache {
       uint32_t valid_groups = 0;
       if (info.labels.Size() != 0) {
         CHECK_EQ(info.group_ptr_.back(), info.labels.Size());
-        std::tie(auc, valid_groups) =
-            static_cast<Curve *>(this)->EvalRanking(preds, info);
+        std::tie(auc, valid_groups) = static_cast<Curve *>(this)->EvalRanking(preds, info);
       }
       if (valid_groups != info.group_ptr_.size() - 1) {
         InvalidGroupAUC();
@@ -311,8 +310,7 @@ class EvalAUC : public MetricNoCache {
        */
       double fp{0}, tp{0};
       if (!(preds.Empty() || info.labels.Size() == 0)) {
-        std::tie(fp, tp, auc) =
-            static_cast<Curve *>(this)->EvalBinary(preds, info);
+        std::tie(fp, tp, auc) = static_cast<Curve *>(this)->EvalBinary(preds, info);
       }
       auc = collective::GlobalRatio(ctx_, info, auc, fp * tp);
       if (!std::isnan(auc)) {
@@ -346,8 +344,8 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     return std::make_pair(auc, valid_groups);
   }
 
-  double EvalMultiClass(HostDeviceVector<float> const &predts,
-                        MetaInfo const &info, size_t n_classes) {
+  double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
+                        size_t n_classes) {
     double auc{0};
     auto n_threads = ctx_->Threads();
     CHECK_NE(n_classes, 0);
@@ -359,8 +357,8 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     return auc;
   }
 
-  std::tuple<double, double, double>
-  EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
+  std::tuple<double, double, double> EvalBinary(HostDeviceVector<float> const &predts,
+                                                MetaInfo const &info) {
     double fp, tp, auc;
     if (ctx_->IsCUDA()) {
       std::tie(fp, tp, auc) =
@@ -374,14 +372,12 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   }
 
  public:
-  [[nodiscard]] char const* Name() const override {
-    return "auc";
-  }
+  [[nodiscard]] char const *Name() const override { return "auc"; }
 };
 
 XGBOOST_REGISTER_METRIC(EvalAUC, "auc")
-.describe("Receiver Operating Characteristic Area Under the Curve.")
-.set_body([](const char*) { return new EvalROCAUC(); });
+    .describe("Receiver Operating Characteristic Area Under the Curve.")
+    .set_body([](const char *) { return new EvalROCAUC(); });
 
 #if !defined(XGBOOST_USE_CUDA)
 std::tuple<double, double, double> GPUBinaryROCAUC(Context const *, common::Span<float const>,
@@ -410,8 +406,8 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   std::shared_ptr<DeviceAUCCache> d_cache_;
 
  public:
-  std::tuple<double, double, double>
-  EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
+  std::tuple<double, double, double> EvalBinary(HostDeviceVector<float> const &predts,
+                                                MetaInfo const &info) {
     double pr, re, auc;
     if (ctx_->IsCUDA()) {
       std::tie(pr, re, auc) = GPUBinaryPRAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);

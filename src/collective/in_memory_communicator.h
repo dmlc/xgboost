@@ -51,9 +51,7 @@ class InMemoryCommunicator {
     return new InMemoryCommunicator(world_size, rank);
   }
 
-  InMemoryCommunicator(int world_size, int rank) {
-    handler_.Init(world_size, rank);
-  }
+  InMemoryCommunicator(int world_size, int rank) { handler_.Init(world_size, rank); }
 
   ~InMemoryCommunicator() override { handler_.Shutdown(sequence_number_++, GetRank()); }
 

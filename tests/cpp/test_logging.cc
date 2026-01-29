@@ -1,12 +1,12 @@
-#include <map>
-
 #include <gtest/gtest.h>
 #include <xgboost/logging.h>
+
+#include <map>
 
 namespace xgboost {
 
 TEST(Logging, Basic) {
-  std::map<std::string, std::string> args {};
+  std::map<std::string, std::string> args{};
   std::string output;
 
   args["verbosity"] = "0";  // silent

@@ -95,26 +95,28 @@ class JsonString : public Value {
 
  public:
   JsonString() : Value(ValueKind::kString) {}
-  JsonString(std::string const& str) :  // NOLINT
-      Value(ValueKind::kString), str_{str} {}
-  JsonString(std::string&& str) noexcept :  // NOLINT
-      Value(ValueKind::kString), str_{std::forward<std::string>(str)} {}
+  JsonString(std::string const& str)
+      :  // NOLINT
+        Value(ValueKind::kString),
+        str_{str} {}
+  JsonString(std::string&& str) noexcept
+      :  // NOLINT
+        Value(ValueKind::kString),
+        str_{std::forward<std::string>(str)} {}
   JsonString(JsonString&& str) noexcept : Value(ValueKind::kString) {  // NOLINT
     std::swap(str.str_, this->str_);
   }
 
   void Save(JsonWriter* writer) const override;
 
-  std::string const& GetString() &&      { return str_; }
-  std::string const& GetString() const & { return str_; }
-  std::string&       GetString()       & { return str_; }
+  std::string const& GetString() && { return str_; }
+  std::string const& GetString() const& { return str_; }
+  std::string& GetString() & { return str_; }
 
   bool operator==(Value const& rhs) const override;
   Value& operator=(Value const& rhs) override = delete;
 
-  static bool IsClassOf(Value const* value) {
-    return value->Type() == ValueKind::kString;
-  }
+  static bool IsClassOf(Value const* value) { return value->Type() == ValueKind::kString; }
 };
 
 class JsonArray : public Value {
@@ -124,10 +126,12 @@ class JsonArray : public Value {
   JsonArray() : Value(ValueKind::kArray) {}
   JsonArray(std::vector<Json>&& arr) noexcept  // NOLINT
       : Value(ValueKind::kArray), vec_{std::forward<std::vector<Json>>(arr)} {}
-  JsonArray(std::vector<Json> const& arr) :  // NOLINT
-      Value(ValueKind::kArray), vec_{arr} {}
+  JsonArray(std::vector<Json> const& arr)
+      :  // NOLINT
+        Value(ValueKind::kArray),
+        vec_{arr} {}
   JsonArray(JsonArray const& that) = delete;
-  JsonArray(JsonArray && that) noexcept;
+  JsonArray(JsonArray&& that) noexcept;
 
   void Save(JsonWriter* writer) const override;
 
@@ -135,16 +139,14 @@ class JsonArray : public Value {
   // silent the partial oveeridden warning
   Json& operator[](std::string const& key) override { return Value::operator[](key); }
 
-  std::vector<Json> const& GetArray() &&      { return vec_; }
-  std::vector<Json> const& GetArray() const & { return vec_; }
-  std::vector<Json>&       GetArray()       & { return vec_; }
+  std::vector<Json> const& GetArray() && { return vec_; }
+  std::vector<Json> const& GetArray() const& { return vec_; }
+  std::vector<Json>& GetArray() & { return vec_; }
 
   bool operator==(Value const& rhs) const override;
   Value& operator=(Value const& rhs) override = delete;
 
-  static bool IsClassOf(Value const* value) {
-    return value->Type() == ValueKind::kArray;
-  }
+  static bool IsClassOf(Value const* value) { return value->Type() == ValueKind::kArray; }
 };
 
 /**
@@ -263,7 +265,7 @@ class JsonNumber : public Value {
   using Float = float;
 
  private:
-  Float number_ { 0 };
+  Float number_{0};
 
  public:
   JsonNumber() : Value(ValueKind::kNumber) {}
@@ -277,16 +279,14 @@ class JsonNumber : public Value {
 
   void Save(JsonWriter* writer) const override;
 
-  Float const& GetNumber() &&      { return number_; }
-  Float const& GetNumber() const & { return number_; }
-  Float&       GetNumber()       & { return number_; }
+  Float const& GetNumber() && { return number_; }
+  Float const& GetNumber() const& { return number_; }
+  Float& GetNumber() & { return number_; }
 
   bool operator==(Value const& rhs) const override;
   Value& operator=(Value const& rhs) override = delete;
 
-  static bool IsClassOf(Value const* value) {
-    return value->Type() == ValueKind::kNumber;
-  }
+  static bool IsClassOf(Value const* value) { return value->Type() == ValueKind::kNumber; }
 };
 
 namespace detail {
@@ -295,13 +295,12 @@ using Not32SizeT = std::enable_if_t<std::is_same_v<IntT, std::uint32_t> &&
                                     !std::is_same_v<std::size_t, std::uint32_t>>;
 }
 
-
 class JsonInteger : public Value {
  public:
   using Int = int64_t;
 
  private:
-  Int integer_ {0};
+  Int integer_{0};
 
  public:
   JsonInteger() : Value(ValueKind::kInteger) {}  // NOLINT
@@ -318,20 +317,17 @@ class JsonInteger : public Value {
   JsonInteger(IntT value)  // NOLINT
       : Value(ValueKind::kInteger), integer_{static_cast<Int>(value)} {}
 
-  JsonInteger(JsonInteger &&that) noexcept
-      : Value{ValueKind::kInteger}, integer_{that.integer_} {}
+  JsonInteger(JsonInteger&& that) noexcept : Value{ValueKind::kInteger}, integer_{that.integer_} {}
 
   bool operator==(Value const& rhs) const override;
   Value& operator=(Value const& rhs) override = delete;
 
-  Int const& GetInteger() &&      { return integer_; }
-  Int const& GetInteger() const & { return integer_; }
-  Int& GetInteger() &             { return integer_; }
+  Int const& GetInteger() && { return integer_; }
+  Int const& GetInteger() const& { return integer_; }
+  Int& GetInteger() & { return integer_; }
   void Save(JsonWriter* writer) const override;
 
-  static bool IsClassOf(Value const* value) {
-    return value->Type() == ValueKind::kInteger;
-  }
+  static bool IsClassOf(Value const* value) { return value->Type() == ValueKind::kInteger; }
 };
 
 class JsonNull : public Value {
@@ -345,9 +341,7 @@ class JsonNull : public Value {
   bool operator==(Value const& rhs) const override;
   Value& operator=(Value const& rhs) override = delete;
 
-  static bool IsClassOf(Value const* value) {
-    return value->Type() == ValueKind::kNull;
-  }
+  static bool IsClassOf(Value const* value) { return value->Type() == ValueKind::kNull; }
 };
 
 /*! \brief Describes both true and false. */
@@ -359,21 +353,21 @@ class JsonBoolean : public Value {
   // Ambigious with JsonNumber.
   template <typename Bool, typename detail::IsSameT<std::remove_cv_t<Bool>, bool>* = nullptr>
   JsonBoolean(Bool value) : Value(ValueKind::kBoolean), boolean_{value} {}  // NOLINT
-  JsonBoolean(JsonBoolean&& value) noexcept:  // NOLINT
-      Value(ValueKind::kBoolean), boolean_{value.boolean_} {}
+  JsonBoolean(JsonBoolean&& value) noexcept
+      :  // NOLINT
+        Value(ValueKind::kBoolean),
+        boolean_{value.boolean_} {}
 
   void Save(JsonWriter* writer) const override;
 
-  bool const& GetBoolean() &&      { return boolean_; }
-  bool const& GetBoolean() const & { return boolean_; }
-  bool&       GetBoolean()       & { return boolean_; }
+  bool const& GetBoolean() && { return boolean_; }
+  bool const& GetBoolean() const& { return boolean_; }
+  bool& GetBoolean() & { return boolean_; }
 
   bool operator==(Value const& rhs) const override;
   Value& operator=(Value const& rhs) override = delete;
 
-  static bool IsClassOf(Value const* value) {
-    return value->Type() == ValueKind::kBoolean;
-  }
+  static bool IsClassOf(Value const* value) { return value->Type() == ValueKind::kBoolean; }
 };
 
 /*!
@@ -466,15 +460,13 @@ class Json {
     return *this;
   }
   // bool
-  explicit Json(JsonBoolean boolean) :
-      ptr_{new JsonBoolean(std::move(boolean))} {}
+  explicit Json(JsonBoolean boolean) : ptr_{new JsonBoolean(std::move(boolean))} {}
   Json& operator=(JsonBoolean boolean) {
     ptr_.reset(new JsonBoolean(std::move(boolean)));
     return *this;
   }
   // null
-  explicit Json(JsonNull null) :
-      ptr_{new JsonNull(std::move(null))} {}
+  explicit Json(JsonNull null) : ptr_{new JsonNull(std::move(null))} {}
   Json& operator=(JsonNull null) {
     ptr_.reset(new JsonNull(std::move(null)));
     return *this;
@@ -484,25 +476,23 @@ class Json {
   Json(Json const& other) = default;
   Json& operator=(Json const& other) = default;
   // move
-  Json(Json &&other) noexcept { std::swap(this->ptr_, other.ptr_); }
-  Json &operator=(Json &&other) noexcept {
+  Json(Json&& other) noexcept { std::swap(this->ptr_, other.ptr_); }
+  Json& operator=(Json&& other) noexcept {
     std::swap(this->ptr_, other.ptr_);
     return *this;
   }
 
   /*! \brief Index Json object with a std::string, used for Json Object. */
-  Json& operator[](std::string const & key) const { return (*ptr_)[key]; }
+  Json& operator[](std::string const& key) const { return (*ptr_)[key]; }
   /*! \brief Index Json object with int, used for Json Array. */
-  Json& operator[](int ind)                 const { return (*ptr_)[ind]; }
+  Json& operator[](int ind) const { return (*ptr_)[ind]; }
 
   /*! \brief Return the reference to stored Json value. */
   [[nodiscard]] Value const& GetValue() const& { return *ptr_; }
   Value const& GetValue() && { return *ptr_; }
   Value& GetValue() & { return *ptr_; }
 
-  bool operator==(Json const& rhs) const {
-    return *ptr_ == *(rhs.ptr_);
-  }
+  bool operator==(Json const& rhs) const { return *ptr_ == *(rhs.ptr_); }
 
   friend std::ostream& operator<<(std::ostream& os, Json const& j) {
     std::string str;
@@ -568,8 +558,7 @@ template <typename T, typename std::enable_if_t<std::is_same_v<T, JsonBoolean>>*
 bool& GetImpl(T& val) {  // NOLINT
   return val.GetBoolean();
 }
-template <typename T,
-          typename std::enable_if_t<std::is_same_v<T, JsonBoolean const>>* = nullptr>
+template <typename T, typename std::enable_if_t<std::is_same_v<T, JsonBoolean const>>* = nullptr>
 bool const& GetImpl(T& val) {  // NOLINT
   return val.GetBoolean();
 }
@@ -614,18 +603,18 @@ JsonObject::Map const& GetImpl(T& val) {  // NOLINT
  * \return Value contained in Json object of type T.
  */
 template <typename T, typename U>
-auto get(U& json) -> decltype(detail::GetImpl(*Cast<T>(&json.GetValue())))& { // NOLINT
+auto get(U& json) -> decltype(detail::GetImpl(*Cast<T>(&json.GetValue())))& {  // NOLINT
   auto& value = *Cast<T>(&json.GetValue());
   return detail::GetImpl(value);
 }
 
-using Object  = JsonObject;
-using Array   = JsonArray;
-using Number  = JsonNumber;
+using Object = JsonObject;
+using Array = JsonArray;
+using Number = JsonNumber;
 using Integer = JsonInteger;
 using Boolean = JsonBoolean;
-using String  = JsonString;
-using Null    = JsonNull;
+using String = JsonString;
+using Null = JsonNull;
 
 /**
  * \brief Convert XGBoost parameter to JSON object.

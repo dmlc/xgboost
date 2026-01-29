@@ -16,9 +16,9 @@ namespace common {
 #ifndef __CUDACC__
 
 using std::exp;
-using std::sqrt;
 using std::isinf;
 using std::isnan;
+using std::sqrt;
 
 #endif  // __CUDACC__
 
@@ -28,26 +28,16 @@ constexpr double kPI = 3.14159265358979323846;
 constexpr double kEulerMascheroni = 0.57721566490153286060651209008240243104215933593992;
 
 /*! \brief Enum encoding possible choices of probability distribution */
-enum class ProbabilityDistributionType : int {
-  kNormal = 0, kLogistic = 1, kExtreme = 2
-};
+enum class ProbabilityDistributionType : int { kNormal = 0, kLogistic = 1, kExtreme = 2 };
 
 struct NormalDistribution {
-  XGBOOST_DEVICE static double PDF(double z) {
-    return exp(-z * z / 2.0) / sqrt(2.0 * kPI);
-  }
+  XGBOOST_DEVICE static double PDF(double z) { return exp(-z * z / 2.0) / sqrt(2.0 * kPI); }
 
-  XGBOOST_DEVICE static double CDF(double z) {
-    return 0.5 * (1 + erf(z / sqrt(2.0)));
-  }
+  XGBOOST_DEVICE static double CDF(double z) { return 0.5 * (1 + erf(z / sqrt(2.0))); }
 
-  XGBOOST_DEVICE static double GradPDF(double z) {
-    return -z * PDF(z);
-  }
+  XGBOOST_DEVICE static double GradPDF(double z) { return -z * PDF(z); }
 
-  XGBOOST_DEVICE static double HessPDF(double z) {
-    return (z * z - 1.0) * PDF(z);
-  }
+  XGBOOST_DEVICE static double HessPDF(double z) { return (z * z - 1.0) * PDF(z); }
 
   XGBOOST_DEVICE static ProbabilityDistributionType Type() {
     return ProbabilityDistributionType::kNormal;

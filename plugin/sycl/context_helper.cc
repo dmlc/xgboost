@@ -3,11 +3,11 @@
  * \file context_helper.cc
  */
 
+#include "context_helper.h"
+
 #include <sycl/sycl.hpp>
 
-
 #include "device_manager.h"
-#include "context_helper.h"
 
 namespace xgboost {
 namespace sycl {

@@ -20,16 +20,12 @@ namespace xgboost::common {
 using CompressedByteT = unsigned char;
 
 namespace detail {
-inline void SetBit(CompressedByteT *byte, int bit_idx) {
-  *byte |= 1 << bit_idx;
-}
+inline void SetBit(CompressedByteT *byte, int bit_idx) { *byte |= 1 << bit_idx; }
 template <typename T>
 inline T CheckBit(const T &byte, int bit_idx) {
   return byte & (1 << bit_idx);
 }
-inline void ClearBit(CompressedByteT *byte, int bit_idx) {
-  *byte &= ~(1 << bit_idx);
-}
+inline void ClearBit(CompressedByteT *byte, int bit_idx) { *byte &= ~(1 << bit_idx); }
 inline constexpr int kPadding = 8;  // Assign padding so we can read slightly off
                                     // the beginning of the array
 
@@ -137,16 +133,15 @@ class CompressedBufferWriter {
   }
 
 #ifdef __CUDACC__
-  __device__ void AtomicWriteSymbol
-    (CompressedByteT* buffer, uint64_t symbol, size_t offset) {
+  __device__ void AtomicWriteSymbol(CompressedByteT *buffer, uint64_t symbol, size_t offset) {
     size_t ibit_start = offset * symbol_bits_;
     size_t ibit_end = (offset + 1) * symbol_bits_ - 1;
     size_t ibyte_start = ibit_start / 8, ibyte_end = ibit_end / 8;
 
     symbol <<= 7 - ibit_end % 8;
     for (ptrdiff_t ibyte = ibyte_end; ibyte >= static_cast<ptrdiff_t>(ibyte_start); --ibyte) {
-      dh::AtomicOrByte(reinterpret_cast<unsigned int*>(buffer + detail::kPadding),
-                       ibyte, symbol & 0xff);
+      dh::AtomicOrByte(reinterpret_cast<unsigned int *>(buffer + detail::kPadding), ibyte,
+                       symbol & 0xff);
       symbol >>= 8;
     }
   }
@@ -165,8 +160,8 @@ class CompressedBufferWriter {
         // Eject only full bytes
         size_t tmp_bytes = stored_bits / 8;
         for (size_t j = 0; j < tmp_bytes; j++) {
-          buffer[buffer_position] = static_cast<CompressedByteT>(
-              tmp >> (stored_bits - (j + 1) * 8));
+          buffer[buffer_position] =
+              static_cast<CompressedByteT>(tmp >> (stored_bits - (j + 1) * 8));
           buffer_position++;
         }
         stored_bits -= tmp_bytes * 8;
@@ -179,16 +174,13 @@ class CompressedBufferWriter {
     }
 
     // Eject all bytes
-    int tmp_bytes =
-        static_cast<int>(std::ceil(static_cast<float>(stored_bits) / 8));
+    int tmp_bytes = static_cast<int>(std::ceil(static_cast<float>(stored_bits) / 8));
     for (int j = 0; j < tmp_bytes; j++) {
       int shift_bits = static_cast<int>(stored_bits) - (j + 1) * 8;
       if (shift_bits >= 0) {
-        buffer[buffer_position] =
-            static_cast<CompressedByteT>(tmp >> shift_bits);
+        buffer[buffer_position] = static_cast<CompressedByteT>(tmp >> shift_bits);
       } else {
-        buffer[buffer_position] =
-            static_cast<CompressedByteT>(tmp << std::abs(shift_bits));
+        buffer[buffer_position] = static_cast<CompressedByteT>(tmp << std::abs(shift_bits));
       }
       buffer_position++;
     }
@@ -205,9 +197,9 @@ class CompressedBufferWriter {
 template <typename T>
 class CompressedIterator {
  public:
-  typedef T value_type;                     // NOLINT
-  typedef value_type *pointer;              // NOLINT
-  typedef value_type reference;             // NOLINT
+  typedef T value_type;          // NOLINT
+  typedef value_type *pointer;   // NOLINT
+  typedef value_type reference;  // NOLINT
 
  private:
   CompressedByteT const *XGBOOST_RESTRICT buffer_{nullptr};
@@ -281,9 +273,9 @@ class CompressedIterator {
 template <typename OutT>
 class DoubleCompressedIter {
  public:
-  using value_type = OutT;                       // NOLINT
-  using pointer = value_type *;                  // NOLINT
-  using reference = value_type;                  // NOLINT
+  using value_type = OutT;       // NOLINT
+  using pointer = value_type *;  // NOLINT
+  using reference = value_type;  // NOLINT
 
  private:
   using BufT = CompressedByteT const *;

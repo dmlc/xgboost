@@ -150,8 +150,9 @@ class Predictor {
    * \param           tree_end           The tree end index.
    * \param           tree_weights       (Optional) Weights to multiply each tree by.
    * \param           approximate        Use fast approximate algorithm.
-   * \param           condition          Condition on the condition_feature (0=no, -1=cond off, 1=cond on).
-   * \param           condition_feature  Feature to condition on (i.e. fix) during calculations.
+   * \param           condition          Condition on the condition_feature (0=no, -1=cond off,
+   * 1=cond on). \param           condition_feature  Feature to condition on (i.e. fix) during
+   * calculations.
    */
 
   virtual void PredictContribution(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
@@ -181,8 +182,7 @@ class Predictor {
 struct PredictorReg
     : public dmlc::FunctionRegEntryBase<PredictorReg, std::function<Predictor*(Context const*)>> {};
 
-#define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)      \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& \
-      __make_##PredictorReg##_##UniqueId##__ =          \
-          ::dmlc::Registry<::xgboost::PredictorReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)                                               \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& __make_##PredictorReg##_##UniqueId##__ = \
+      ::dmlc::Registry<::xgboost::PredictorReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost

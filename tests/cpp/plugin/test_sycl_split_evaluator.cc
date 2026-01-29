@@ -2,6 +2,7 @@
  * Copyright 2020-2024 by XGBoost contributors
  */
 #include <gtest/gtest.h>
+
 #include <vector>
 
 #pragma GCC diagnostic push
@@ -15,7 +16,7 @@
 
 namespace xgboost::sycl::tree {
 
-template<typename GradientSumT>
+template <typename GradientSumT>
 void BasicTestSplitEvaluator(const std::string& monotone_constraints, bool has_constrains) {
   const size_t n_columns = 2;
 
@@ -43,7 +44,7 @@ void BasicTestSplitEvaluator(const std::string& monotone_constraints, bool has_c
   }
 }
 
-template<typename GradientSumT>
+template <typename GradientSumT>
 void TestSplitEvaluator(const std::string& monotone_constraints) {
   const size_t n_columns = 2;
 
@@ -88,7 +89,7 @@ void TestSplitEvaluator(const std::string& monotone_constraints) {
     bst_node_t nidx = 0;
     bst_feature_t fidx = 0;
 
-    GradientSumT wleft  = split_evaluator.CalcWeight(nidx, left);
+    GradientSumT wleft = split_evaluator.CalcWeight(nidx, left);
     // wleft = -grad/hess = -0.1/0.2
     EXPECT_NEAR(wleft, -0.5, eps);
     GradientSumT wright = split_evaluator.CalcWeight(nidx, right);

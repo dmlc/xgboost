@@ -2,13 +2,12 @@
  * Copyright 2017-2024 by Contributors
  * \file gradient_index.cc
  */
-#include <vector>
-#include <limits>
-#include <algorithm>
-
 #include "gradient_index.h"
 
+#include <algorithm>
+#include <limits>
 #include <sycl/sycl.hpp>
+#include <vector>
 
 namespace xgboost {
 namespace sycl {
@@ -49,10 +48,8 @@ void mergeSort(BinIdxType* begin, BinIdxType* end, BinIdxType* buf) {
 }
 
 template <typename BinIdxType, bool isDense>
-void GHistIndexMatrix::SetIndexData(::sycl::queue* qu,
-                                    Context const * ctx,
-                                    BinIdxType* index_data,
-                                    DMatrix *dmat) {
+void GHistIndexMatrix::SetIndexData(::sycl::queue* qu, Context const* ctx, BinIdxType* index_data,
+                                    DMatrix* dmat) {
   if (nbins == 0) return;
   const bst_float* cut_values = cut.cut_values_.ConstDevicePointer();
   const uint32_t* cut_ptrs = cut.cut_ptrs_.ConstDevicePointer();
@@ -60,11 +57,11 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue* qu,
 
   BinIdxType* sort_data = reinterpret_cast<BinIdxType*>(sort_buff.Data());
 
-  for (auto &batch : dmat->GetBatches<SparsePage>()) {
+  for (auto& batch : dmat->GetBatches<SparsePage>()) {
     batch.data.SetDevice(ctx->Device());
     batch.offset.SetDevice(ctx->Device());
-    const xgboost::Entry *data_ptr = batch.data.ConstDevicePointer();
-    const bst_idx_t *offset_vec = batch.offset.ConstDevicePointer();
+    const xgboost::Entry* data_ptr = batch.data.ConstDevicePointer();
+    const bst_idx_t* offset_vec = batch.offset.ConstDevicePointer();
     size_t batch_size = batch.Size();
     if (batch_size > 0) {
       const auto base_rowid = batch.base_rowid;
@@ -101,8 +98,9 @@ void GHistIndexMatrix::ResizeIndex(::sycl::queue* qu, size_t n_index) {
   if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense_) {
     index.SetBinTypeSize(BinTypeSize::kUint8BinsTypeSize);
     index.Resize(qu, (sizeof(uint8_t)) * n_index);
-  } else if ((max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max())  &&
-    max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) && isDense_) {
+  } else if ((max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max()) &&
+              max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) &&
+             isDense_) {
     index.SetBinTypeSize(BinTypeSize::kUint16BinsTypeSize);
     index.Resize(qu, (sizeof(uint16_t)) * n_index);
   } else {
@@ -111,10 +109,7 @@ void GHistIndexMatrix::ResizeIndex(::sycl::queue* qu, size_t n_index) {
   }
 }
 
-void GHistIndexMatrix::Init(::sycl::queue* qu,
-                            Context const * ctx,
-                            DMatrix *dmat,
-                            int max_bins) {
+void GHistIndexMatrix::Init(::sycl::queue* qu, Context const* ctx, DMatrix* dmat, int max_bins) {
   nfeatures = dmat->Info().num_col_;
 
   cut = xgboost::common::SketchOnDMatrix(ctx, dmat, max_bins);
@@ -168,8 +163,8 @@ void GHistIndexMatrix::Init(::sycl::queue* qu,
       CHECK_EQ(curent_bin_size, BinTypeSize::kUint32BinsTypeSize);
       SetIndexData<uint32_t, true>(qu, ctx, index.data<uint32_t>(), dmat);
     }
-  /* For sparse DMatrix we have to store index of feature for each bin
-     in index field to chose right offset. So offset is nullptr and index is not reduced */
+    /* For sparse DMatrix we have to store index of feature for each bin
+       in index field to chose right offset. So offset is nullptr and index is not reduced */
   } else {
     sort_buff.Resize(qu, n_rows * row_stride * sizeof(uint32_t));
     SetIndexData<uint32_t, false>(qu, ctx, index.data<uint32_t>(), dmat);

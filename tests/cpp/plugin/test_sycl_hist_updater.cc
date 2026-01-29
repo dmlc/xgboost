@@ -5,11 +5,9 @@
 
 #include <oneapi/dpl/random>
 
-#include "../../../plugin/sycl/tree/hist_updater.h"
 #include "../../../plugin/sycl/device_manager.h"
-
+#include "../../../plugin/sycl/tree/hist_updater.h"
 #include "../../../src/tree/common_row_partitioner.h"
-
 #include "../helpers.h"
 
 namespace xgboost::sycl::tree {
@@ -18,12 +16,9 @@ namespace xgboost::sycl::tree {
 template <typename GradientSumT>
 class TestHistUpdater : public HistUpdater<GradientSumT> {
  public:
-  TestHistUpdater(const Context* ctx,
-                  ::sycl::queue* qu,
-                  const xgboost::tree::TrainParam& param,
-                  FeatureInteractionConstraintHost int_constraints_,
-                  DMatrix const* fmat) : HistUpdater<GradientSumT>(ctx, qu, param,
-                                                                   int_constraints_, fmat) {}
+  TestHistUpdater(const Context* ctx, ::sycl::queue* qu, const xgboost::tree::TrainParam& param,
+                  FeatureInteractionConstraintHost int_constraints_, DMatrix const* fmat)
+      : HistUpdater<GradientSumT>(ctx, qu, param, int_constraints_, fmat) {}
 
   void TestInitSampling(const HostDeviceVector<GradientPair>& gpair,
                         USMVector<size_t, MemoryType::on_device>* row_indices) {
@@ -31,61 +26,51 @@ class TestHistUpdater : public HistUpdater<GradientSumT> {
   }
 
   auto* TestInitData(const common::GHistIndexMatrix& gmat,
-                     const HostDeviceVector<GradientPair>& gpair,
-                     const DMatrix& fmat,
+                     const HostDeviceVector<GradientPair>& gpair, const DMatrix& fmat,
                      const RegTree& tree) {
     HistUpdater<GradientSumT>::InitData(gmat, gpair, fmat, tree);
     return &(HistUpdater<GradientSumT>::row_set_collection_);
   }
 
-  const auto* TestBuildHistogramsLossGuide(ExpandEntry entry,
-                                    const common::GHistIndexMatrix &gmat,
-                                    RegTree *p_tree,
-                                    const HostDeviceVector<GradientPair>& gpair) {
+  const auto* TestBuildHistogramsLossGuide(ExpandEntry entry, const common::GHistIndexMatrix& gmat,
+                                           RegTree* p_tree,
+                                           const HostDeviceVector<GradientPair>& gpair) {
     HistUpdater<GradientSumT>::BuildHistogramsLossGuide(entry, gmat, p_tree, gpair);
     return &(HistUpdater<GradientSumT>::hist_);
   }
 
-  auto TestInitNewNode(int nid,
-                       const common::GHistIndexMatrix& gmat,
-                       const HostDeviceVector<GradientPair>& gpair,
-                       const RegTree& tree) {
+  auto TestInitNewNode(int nid, const common::GHistIndexMatrix& gmat,
+                       const HostDeviceVector<GradientPair>& gpair, const RegTree& tree) {
     HistUpdater<GradientSumT>::InitNewNode(nid, gmat, gpair, tree);
     return HistUpdater<GradientSumT>::snode_host_[nid];
   }
 
   auto TestEvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
-                          const common::GHistIndexMatrix& gmat,
-                          const RegTree& tree) {
+                          const common::GHistIndexMatrix& gmat, const RegTree& tree) {
     HistUpdater<GradientSumT>::EvaluateSplits(nodes_set, gmat, tree);
     return HistUpdater<GradientSumT>::snode_host_;
   }
 
-  void TestApplySplit(const std::vector<ExpandEntry> nodes,
-                      const common::GHistIndexMatrix& gmat,
+  void TestApplySplit(const std::vector<ExpandEntry> nodes, const common::GHistIndexMatrix& gmat,
                       RegTree* p_tree) {
     HistUpdater<GradientSumT>::ApplySplit(nodes, gmat, p_tree);
   }
 
-  auto TestExpandWithLossGuide(const common::GHistIndexMatrix& gmat,
-                               DMatrix *p_fmat,
-                               RegTree* p_tree,
-                               const HostDeviceVector<GradientPair>& gpair) {
+  auto TestExpandWithLossGuide(const common::GHistIndexMatrix& gmat, DMatrix* p_fmat,
+                               RegTree* p_tree, const HostDeviceVector<GradientPair>& gpair) {
     HistUpdater<GradientSumT>::ExpandWithLossGuide(gmat, p_tree, gpair);
   }
 
-  auto TestExpandWithDepthWise(const common::GHistIndexMatrix& gmat,
-                               DMatrix *p_fmat,
-                               RegTree* p_tree,
-                               const HostDeviceVector<GradientPair>& gpair) {
+  auto TestExpandWithDepthWise(const common::GHistIndexMatrix& gmat, DMatrix* p_fmat,
+                               RegTree* p_tree, const HostDeviceVector<GradientPair>& gpair) {
     HistUpdater<GradientSumT>::ExpandWithDepthWise(gmat, p_tree, gpair);
   }
 };
 
-void GenerateRandomGPairs(::sycl::queue* qu, GradientPair* gpair_ptr, size_t num_rows, bool has_neg_hess) {
+void GenerateRandomGPairs(::sycl::queue* qu, GradientPair* gpair_ptr, size_t num_rows,
+                          bool has_neg_hess) {
   qu->submit([&](::sycl::handler& cgh) {
-    cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
-                                        [=](::sycl::item<1> pid) {
+    cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)), [=](::sycl::item<1> pid) {
       uint64_t i = pid.get_linear_id();
 
       constexpr uint32_t seed = 777;
@@ -121,7 +106,7 @@ void TestHistUpdaterSampling(const xgboost::tree::TrainParam& param) {
   GenerateRandomGPairs(qu, gpair.DevicePointer(), num_rows, true);
 
   updater.TestInitSampling(gpair, &row_indices_0);
-  
+
   size_t n_samples = row_indices_0.Size();
   // Half of gpairs have neg hess
   ASSERT_LT(n_samples, num_rows * 0.5 * param.subsample * 1.2);
@@ -179,7 +164,8 @@ void TestHistUpdaterInitData(const xgboost::tree::TrainParam& param, bool has_ne
   auto& row_indices = row_set_collection->Data();
 
   std::vector<size_t> row_indices_host(row_indices.Size());
-  qu->memcpy(row_indices_host.data(), row_indices.DataConst(), row_indices.Size()*sizeof(size_t)).wait();
+  qu->memcpy(row_indices_host.data(), row_indices.DataConst(), row_indices.Size() * sizeof(size_t))
+      .wait();
 
   if (!has_neg_hess) {
     for (size_t i = 0; i < num_rows; ++i) {
@@ -200,7 +186,8 @@ void TestHistUpdaterInitData(const xgboost::tree::TrainParam& param, bool has_ne
 }
 
 template <typename GradientSumT>
-void TestHistUpdaterBuildHistogramsLossGuide(const xgboost::tree::TrainParam& param, float sparsity) {
+void TestHistUpdaterBuildHistogramsLossGuide(const xgboost::tree::TrainParam& param,
+                                             float sparsity) {
   const size_t num_rows = 1u << 8;
   const size_t num_columns = 1;
   const size_t n_bins = 32;
@@ -247,14 +234,19 @@ void TestHistUpdaterBuildHistogramsLossGuide(const xgboost::tree::TrainParam& pa
   std::vector<xgboost::detail::GradientPairInternal<GradientSumT>> hist0_host(n_bins);
   std::vector<xgboost::detail::GradientPairInternal<GradientSumT>> hist1_host(n_bins);
   std::vector<xgboost::detail::GradientPairInternal<GradientSumT>> hist2_host(n_bins);
-  qu->memcpy(hist0_host.data(), (*hist)[0].DataConst(), sizeof(xgboost::detail::GradientPairInternal<GradientSumT>) * n_bins);
-  qu->memcpy(hist1_host.data(), (*hist)[1].DataConst(), sizeof(xgboost::detail::GradientPairInternal<GradientSumT>) * n_bins);
-  qu->memcpy(hist2_host.data(), (*hist)[2].DataConst(), sizeof(xgboost::detail::GradientPairInternal<GradientSumT>) * n_bins);
+  qu->memcpy(hist0_host.data(), (*hist)[0].DataConst(),
+             sizeof(xgboost::detail::GradientPairInternal<GradientSumT>) * n_bins);
+  qu->memcpy(hist1_host.data(), (*hist)[1].DataConst(),
+             sizeof(xgboost::detail::GradientPairInternal<GradientSumT>) * n_bins);
+  qu->memcpy(hist2_host.data(), (*hist)[2].DataConst(),
+             sizeof(xgboost::detail::GradientPairInternal<GradientSumT>) * n_bins);
   qu->wait();
 
   for (size_t idx_bin = 0; idx_bin < n_bins; ++idx_bin) {
-    EXPECT_NEAR(hist0_host[idx_bin].GetGrad(), hist1_host[idx_bin].GetGrad() + hist2_host[idx_bin].GetGrad(), 1e-6);
-    EXPECT_NEAR(hist0_host[idx_bin].GetHess(), hist1_host[idx_bin].GetHess() + hist2_host[idx_bin].GetHess(), 1e-6);
+    EXPECT_NEAR(hist0_host[idx_bin].GetGrad(),
+                hist1_host[idx_bin].GetGrad() + hist2_host[idx_bin].GetGrad(), 1e-6);
+    EXPECT_NEAR(hist0_host[idx_bin].GetHess(),
+                hist1_host[idx_bin].GetHess() + hist2_host[idx_bin].GetHess(), 1e-6);
   }
 }
 
@@ -299,15 +291,15 @@ void TestHistUpdaterInitNewNode(const xgboost::tree::TrainParam& param, float sp
   {
     ::sycl::buffer<GradStats<GradientSumT>> buff(&grad_stat, 1);
     qu->submit([&](::sycl::handler& cgh) {
-      auto buff_acc  = buff.template get_access<::sycl::access::mode::read_write>(cgh);
-      cgh.single_task<>([=]() {
-        for (size_t i = 0; i < num_rows; ++i) {
-          size_t row_idx = row_idxs_ptr[i];
-          buff_acc[0] += GradStats<GradientSumT>(gpair_ptr[row_idx].GetGrad(),
-                                                 gpair_ptr[row_idx].GetHess());
-        }
-      });
-    }).wait_and_throw();
+        auto buff_acc = buff.template get_access<::sycl::access::mode::read_write>(cgh);
+        cgh.single_task<>([=]() {
+          for (size_t i = 0; i < num_rows; ++i) {
+            size_t row_idx = row_idxs_ptr[i];
+            buff_acc[0] +=
+                GradStats<GradientSumT>(gpair_ptr[row_idx].GetGrad(), gpair_ptr[row_idx].GetHess());
+          }
+        });
+      }).wait_and_throw();
   }
 
   EXPECT_NEAR(snode.stats.GetGrad(), grad_stat.GetGrad(), 1e-6 * grad_stat.GetGrad());
@@ -367,29 +359,31 @@ void TestHistUpdaterEvaluateSplits(const xgboost::tree::TrainParam& param) {
   {
     ::sycl::buffer<bst_float> best_loss_chg_buff(best_loss_chg_des.data(), 1);
     qu->submit([&](::sycl::handler& cgh) {
-      auto best_loss_chg_acc = best_loss_chg_buff.template get_access<::sycl::access::mode::read_write>(cgh);
-      cgh.single_task<>([=]() {
-        for (size_t i = 1; i < size; ++i) {
-          GradStats<GradientSumT> left(0, 0);
-          GradStats<GradientSumT> right = stats - left;
-          for (size_t j = cut_ptr[i-1]; j < cut_ptr[i]; ++j) {
-            auto loss_change = evaluator.CalcSplitGain(0, i - 1, left, right) - root_gain;
-            if (loss_change > best_loss_chg_acc[0]) {
-              best_loss_chg_acc[0] = loss_change;
+        auto best_loss_chg_acc =
+            best_loss_chg_buff.template get_access<::sycl::access::mode::read_write>(cgh);
+        cgh.single_task<>([=]() {
+          for (size_t i = 1; i < size; ++i) {
+            GradStats<GradientSumT> left(0, 0);
+            GradStats<GradientSumT> right = stats - left;
+            for (size_t j = cut_ptr[i - 1]; j < cut_ptr[i]; ++j) {
+              auto loss_change = evaluator.CalcSplitGain(0, i - 1, left, right) - root_gain;
+              if (loss_change > best_loss_chg_acc[0]) {
+                best_loss_chg_acc[0] = loss_change;
+              }
+              left.Add(hist_ptr[j].GetGrad(), hist_ptr[j].GetHess());
+              right = stats - left;
             }
-            left.Add(hist_ptr[j].GetGrad(), hist_ptr[j].GetHess());
-            right = stats - left;
           }
-        }
-      });
-    }).wait();
+        });
+      }).wait();
   }
 
   ASSERT_NEAR(best_loss_chg_des[0], best_loss_chg, 1e-4);
 }
 
 template <typename GradientSumT>
-void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float sparsity, int max_bins) {
+void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float sparsity,
+                               int max_bins) {
   const size_t num_rows = 1024;
   const size_t num_columns = 2;
 
@@ -420,14 +414,17 @@ void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float spa
 
   // Copy indexes to host
   std::vector<size_t> row_indices_host(num_rows);
-  qu->memcpy(row_indices_host.data(), row_set_collection->Data().Data(), sizeof(size_t)*num_rows).wait();
+  qu->memcpy(row_indices_host.data(), row_set_collection->Data().Data(), sizeof(size_t) * num_rows)
+      .wait();
 
   // Reference Implementation
   std::vector<size_t> row_indices_desired_host(num_rows);
   size_t n_left, n_right;
   {
-    TestHistUpdater<GradientSumT> updater4verification(&ctx, qu, param, int_constraints, p_fmat.get());
-    auto* row_set_collection4verification = updater4verification.TestInitData(gmat, gpair, *p_fmat, tree);
+    TestHistUpdater<GradientSumT> updater4verification(&ctx, qu, param, int_constraints,
+                                                       p_fmat.get());
+    auto* row_set_collection4verification =
+        updater4verification.TestInitData(gmat, gpair, *p_fmat, tree);
 
     size_t n_nodes = nodes.size();
     std::vector<int32_t> split_conditions(n_nodes);
@@ -441,8 +438,8 @@ void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float spa
     });
 
     ::sycl::event event;
-    partition_builder.Partition(gmat, nodes, (*row_set_collection4verification),
-                                split_conditions, &tree, &event);
+    partition_builder.Partition(gmat, nodes, (*row_set_collection4verification), split_conditions,
+                                &tree, &event);
     qu->wait_and_throw();
 
     for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
@@ -456,10 +453,12 @@ void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float spa
     n_left = partition_builder.GetNLeftElems(0);
     n_right = partition_builder.GetNRightElems(0);
 
-    row_set_collection4verification->AddSplit(nid, tree[nid].LeftChild(),
-        tree[nid].RightChild(), n_left, n_right);
+    row_set_collection4verification->AddSplit(nid, tree[nid].LeftChild(), tree[nid].RightChild(),
+                                              n_left, n_right);
 
-    qu->memcpy(row_indices_desired_host.data(), row_set_collection4verification->Data().Data(), sizeof(size_t)*num_rows).wait();
+    qu->memcpy(row_indices_desired_host.data(), row_set_collection4verification->Data().Data(),
+               sizeof(size_t) * num_rows)
+        .wait();
   }
 
   std::sort(row_indices_desired_host.begin(), row_indices_desired_host.begin() + n_left);
@@ -503,18 +502,18 @@ void TestHistUpdaterExpandWithLossGuide(const xgboost::tree::TrainParam& param) 
   const auto& nodes = tree.GetNodes(DeviceOrd::CPU());
   std::vector<float> ans(data.size());
   for (size_t data_idx = 0; data_idx < data.size(); ++data_idx) {
-      size_t node_idx = 0;
-      while (!nodes[node_idx].IsLeaf()) {
-        node_idx = data[data_idx] < nodes[node_idx].SplitCond() ? nodes[node_idx].LeftChild() : nodes[node_idx].RightChild();
-      }
-      ans[data_idx] = nodes[node_idx].LeafValue();
+    size_t node_idx = 0;
+    while (!nodes[node_idx].IsLeaf()) {
+      node_idx = data[data_idx] < nodes[node_idx].SplitCond() ? nodes[node_idx].LeftChild()
+                                                              : nodes[node_idx].RightChild();
+    }
+    ans[data_idx] = nodes[node_idx].LeafValue();
   }
 
   ASSERT_NEAR(ans[0], -0.15, 1e-6);
   ASSERT_NEAR(ans[1], -0.45, 1e-6);
   ASSERT_NEAR(ans[2], -0.15, 1e-6);
 }
-
 
 template <typename GradientSumT>
 void TestHistUpdaterExpandWithDepthWise(const xgboost::tree::TrainParam& param) {
@@ -547,11 +546,12 @@ void TestHistUpdaterExpandWithDepthWise(const xgboost::tree::TrainParam& param) 
   const auto& nodes = tree.GetNodes(DeviceOrd::CPU());
   std::vector<float> ans(data.size());
   for (size_t data_idx = 0; data_idx < data.size(); ++data_idx) {
-      size_t node_idx = 0;
-      while (!nodes[node_idx].IsLeaf()) {
-        node_idx = data[data_idx] < nodes[node_idx].SplitCond() ? nodes[node_idx].LeftChild() : nodes[node_idx].RightChild();
-      }
-      ans[data_idx] = nodes[node_idx].LeafValue();
+    size_t node_idx = 0;
+    while (!nodes[node_idx].IsLeaf()) {
+      node_idx = data[data_idx] < nodes[node_idx].SplitCond() ? nodes[node_idx].LeftChild()
+                                                              : nodes[node_idx].RightChild();
+    }
+    ans[data_idx] = nodes[node_idx].LeafValue();
   }
 
   ASSERT_NEAR(ans[0], -0.15, 1e-6);
@@ -619,17 +619,16 @@ TEST(SyclHistUpdater, ApplySplitDence) {
   param.UpdateAllowUnknown(Args{{"max_depth", "3"}});
 
   TestHistUpdaterApplySplit<float>(param, 0.0, 256);
-  TestHistUpdaterApplySplit<float>(param, 0.0, 256+1);
+  TestHistUpdaterApplySplit<float>(param, 0.0, 256 + 1);
   TestHistUpdaterApplySplit<float>(param, 0.0, (1u << 16) + 1);
   TestHistUpdaterApplySplit<double>(param, 0.0, 256);
-  TestHistUpdaterApplySplit<double>(param, 0.0, 256+1);
+  TestHistUpdaterApplySplit<double>(param, 0.0, 256 + 1);
   TestHistUpdaterApplySplit<double>(param, 0.0, (1u << 16) + 1);
 }
 
 TEST(SyclHistUpdater, ExpandWithLossGuide) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(Args{{"max_depth", "2"},
-                                {"grow_policy", "lossguide"}});
+  param.UpdateAllowUnknown(Args{{"max_depth", "2"}, {"grow_policy", "lossguide"}});
 
   TestHistUpdaterExpandWithLossGuide<float>(param);
   TestHistUpdaterExpandWithLossGuide<double>(param);

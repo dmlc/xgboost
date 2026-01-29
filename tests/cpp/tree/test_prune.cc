@@ -26,14 +26,21 @@ TEST(Updater, Prune) {
 
   // These data are just place holders.
   GradientContainer gpair;
-  gpair.gpair = linalg::Matrix<GradientPair>
-      {{ {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f},
-         {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} }, {8, 1}, ctx.Device()};
+  gpair.gpair = linalg::Matrix<GradientPair>{{{0.50f, 0.25f},
+                                              {0.50f, 0.25f},
+                                              {0.50f, 0.25f},
+                                              {0.50f, 0.25f},
+                                              {0.25f, 0.24f},
+                                              {0.25f, 0.24f},
+                                              {0.25f, 0.24f},
+                                              {0.25f, 0.24f}},
+                                             {8, 1},
+                                             ctx.Device()};
   std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{32, 10, 0}.GenerateDMatrix()};
 
   // prepare tree
   RegTree tree = RegTree{1u, kCols};
-  std::vector<RegTree*> trees {&tree};
+  std::vector<RegTree*> trees{&tree};
   // prepare pruner
   TrainParam param;
   param.UpdateAllowUnknown(cfg);
@@ -64,12 +71,10 @@ TEST(Updater, Prune) {
 
   // Test depth
   // loss_chg > min_split_loss
-  tree.ExpandNode(tree[0].LeftChild(),
-                  0, 0.5f, true, 0.3, 0.4, 0.5,
+  tree.ExpandNode(tree[0].LeftChild(), 0, 0.5f, true, 0.3, 0.4, 0.5,
                   /*loss_chg=*/18.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
-  tree.ExpandNode(tree[0].RightChild(),
-                  0, 0.5f, true, 0.3, 0.4, 0.5,
+  tree.ExpandNode(tree[0].RightChild(), 0, 0.5f, true, 0.3, 0.4, 0.5,
                   /*loss_chg=*/19.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
 
@@ -78,8 +83,7 @@ TEST(Updater, Prune) {
   pruner->Update(&param, &gpair, p_dmat.get(), position, trees);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
-  tree.ExpandNode(tree[0].LeftChild(),
-                  0, 0.5f, true, 0.3, 0.4, 0.5,
+  tree.ExpandNode(tree[0].LeftChild(), 0, 0.5f, true, 0.3, 0.4, 0.5,
                   /*loss_chg=*/18.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
   cfg.emplace_back("min_split_loss", "0");

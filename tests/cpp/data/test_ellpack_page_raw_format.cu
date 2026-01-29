@@ -4,11 +4,11 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
+#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
 #include "../../../src/data/ellpack_page.cuh"           // for EllpackPage, GetRowStride
 #include "../../../src/data/ellpack_page_raw_format.h"  // for EllpackPageRawFormat
 #include "../../../src/data/ellpack_page_source.h"      // for EllpackFormatStreamPolicy
 #include "../../../src/tree/param.h"                    // for TrainParam
-#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
 #include "../filesystem.h"                              // for TemporaryDirectory
 #include "../helpers.h"
 

@@ -23,14 +23,14 @@
 #include "xgboost/metric.h"
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/functional.h>        // thrust::plus<>
+#include <thrust/functional.h>  // thrust::plus<>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/transform_reduce.h>
 
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #else
 #include "../common/common.h"  // for AssertGPUSupport
-#endif  // XGBOOST_USE_CUDA
+#endif                         // XGBOOST_USE_CUDA
 
 namespace xgboost::metric {
 // tag the this file, used by force static link later.
@@ -104,9 +104,7 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
 }  // anonymous namespace
 
 struct EvalRowRMSE {
-  char const *Name() const {
-    return "rmse";
-  }
+  char const* Name() const { return "rmse"; }
 
   XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     bst_float diff = label - pred;
@@ -118,9 +116,7 @@ struct EvalRowRMSE {
 };
 
 struct EvalRowRMSLE {
-  char const* Name() const {
-    return "rmsle";
-  }
+  char const* Name() const { return "rmsle"; }
 
   XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     bst_float diff = std::log1p(label) - std::log1p(pred);
@@ -132,28 +128,20 @@ struct EvalRowRMSLE {
 };
 
 struct EvalRowMAE {
-  const char *Name() const {
-    return "mae";
-  }
+  const char* Name() const { return "mae"; }
 
   XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     return std::abs(label - pred);
   }
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
-  }
+  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
 };
 
 struct EvalRowMAPE {
-  const char *Name() const {
-    return "mape";
-  }
+  const char* Name() const { return "mape"; }
   XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     return std::abs((label - pred) / label);
   }
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
-  }
+  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
 };
 
 namespace {
@@ -168,14 +156,10 @@ XGBOOST_DEVICE inline float LogLoss(float y, float py) {
 }  // anonymous namespace
 
 struct EvalRowLogLoss {
-  const char *Name() const {
-    return "logloss";
-  }
+  const char* Name() const { return "logloss"; }
 
   XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const { return LogLoss(y, py); }
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
-  }
+  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
 };
 
 class PseudoErrorLoss : public MetricNoCache {
@@ -229,7 +213,7 @@ struct EvalError {
       has_param_ = false;
     }
   }
-  [[nodiscard]] const char *Name() const {
+  [[nodiscard]] const char* Name() const {
     static thread_local std::string name;
     if (has_param_) {
       std::ostringstream os;
@@ -247,9 +231,7 @@ struct EvalError {
     return pred > threshold_ ? 1.0f - label : label;
   }
 
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
-  }
+  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
 
  private:
   bst_float threshold_;
@@ -257,9 +239,7 @@ struct EvalError {
 };
 
 struct EvalPoissonNegLogLik {
-  [[nodiscard]] const char *Name() const {
-    return "poisson-nloglik";
-  }
+  [[nodiscard]] const char* Name() const { return "poisson-nloglik"; }
 
   [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
     const bst_float eps = 1e-16f;
@@ -267,9 +247,7 @@ struct EvalPoissonNegLogLik {
     return common::LogGamma(y + 1.0f) + py - std::log(py) * y;
   }
 
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
-  }
+  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
 };
 
 /**
@@ -280,7 +258,7 @@ struct EvalPoissonNegLogLik {
  *   predt >= 0
  */
 struct EvalGammaDeviance {
-  [[nodiscard]] const char *Name() const { return "gamma-deviance"; }
+  [[nodiscard]] const char* Name() const { return "gamma-deviance"; }
 
   [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float predt) const {
     predt += kRtEps;
@@ -297,9 +275,7 @@ struct EvalGammaDeviance {
 };
 
 struct EvalGammaNLogLik {
-  static const char *Name() {
-    return "gamma-nloglik";
-  }
+  static const char* Name() { return "gamma-nloglik"; }
 
   [[nodiscard]] XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
     py = std::max(py, 1e-6f);
@@ -314,20 +290,16 @@ struct EvalGammaNLogLik {
     // general form for exponential family.
     return -((y * theta - b) / a + c);
   }
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
-  }
+  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
 };
 
 struct EvalTweedieNLogLik {
   explicit EvalTweedieNLogLik(const char* param) {
-    CHECK(param != nullptr)
-        << "tweedie-nloglik must be in format tweedie-nloglik@rho";
+    CHECK(param != nullptr) << "tweedie-nloglik must be in format tweedie-nloglik@rho";
     rho_ = atof(param);
-    CHECK(rho_ < 2 && rho_ >= 1)
-        << "tweedie variance power must be in interval [1, 2)";
+    CHECK(rho_ < 2 && rho_ >= 1) << "tweedie variance power must be in interval [1, 2)";
   }
-  [[nodiscard]] const char *Name() const {
+  [[nodiscard]] const char* Name() const {
     static thread_local std::string name;
     std::ostringstream os;
     os << "tweedie-nloglik@" << rho_;
@@ -340,9 +312,7 @@ struct EvalTweedieNLogLik {
     bst_float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;
   }
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
-  }
+  static double GetFinal(double esum, double wsum) { return wsum == 0 ? esum : esum / wsum; }
 
  protected:
   bst_float rho_;
@@ -429,14 +399,12 @@ XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
     .set_body([](const char*) { return new EvalEWiseBase<EvalGammaNLogLik>(); });
 
 XGBOOST_REGISTER_METRIC(Error, "error")
-.describe("Binary classification error.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalError>(param); });
+    .describe("Binary classification error.")
+    .set_body([](const char* param) { return new EvalEWiseBase<EvalError>(param); });
 
 XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
-.describe("tweedie-nloglik@rho for tweedie regression.")
-.set_body([](const char* param) {
-  return new EvalEWiseBase<EvalTweedieNLogLik>(param);
-});
+    .describe("tweedie-nloglik@rho for tweedie regression.")
+    .set_body([](const char* param) { return new EvalEWiseBase<EvalTweedieNLogLik>(param); });
 
 class QuantileError : public MetricNoCache {
   HostDeviceVector<float> alpha_;
@@ -475,7 +443,8 @@ class QuantileError : public MetricNoCache {
                                                 : info.weights_.ConstDeviceSpan()};
 
     auto result = Reduce(
-        ctx, info, [=] XGBOOST_DEVICE(std::size_t i, std::size_t sample_id, std::size_t target_id) {
+        ctx, info,
+        [=] XGBOOST_DEVICE(std::size_t i, std::size_t sample_id, std::size_t target_id) {
           auto idx = linalg::UnravelIndex(i, y_predt.Shape());
           sample_id = std::get<0>(idx);
           std::size_t quantile_id = std::get<1>(idx);
@@ -491,7 +460,8 @@ class QuantileError : public MetricNoCache {
           auto l =
               loss(y_predt(sample_id, quantile_id, target_id), y_true(sample_id, target_id)) * w;
           return std::make_tuple(l, w);
-        }, alpha_.Size());
+        },
+        alpha_.Size());
     std::array<double, 2> dat{result.Residue(), result.Weights()};
     auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);

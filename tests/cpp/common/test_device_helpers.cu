@@ -26,21 +26,18 @@ void TestAtomicSizeT() {
   size_t constexpr kThreads = 235;
   dh::device_vector<size_t> out(1, 0);
   auto d_out = dh::ToSpan(out);
-  dh::LaunchN(kThreads, [=] __device__(size_t idx) {
-    atomicAdd(&d_out[0], static_cast<size_t>(1));
-  });
+  dh::LaunchN(kThreads,
+              [=] __device__(size_t idx) { atomicAdd(&d_out[0], static_cast<size_t>(1)); });
   ASSERT_EQ(out[0], kThreads);
 }
 
-TEST(AtomicAdd, SizeT) {
-  TestAtomicSizeT();
-}
+TEST(AtomicAdd, SizeT) { TestAtomicSizeT(); }
 
 void TestSegmentID() {
   std::vector<size_t> segments{0, 1, 3};
   thrust::device_vector<size_t> d_segments(segments);
   auto s_segments = dh::ToSpan(d_segments);
-  dh::LaunchN(1, [=]__device__(size_t idx) {
+  dh::LaunchN(1, [=] __device__(size_t idx) {
     auto id = dh::SegmentId(s_segments, 0);
     SPAN_CHECK(id == 0);
     id = dh::SegmentId(s_segments, 1);
@@ -50,9 +47,7 @@ void TestSegmentID() {
   });
 }
 
-TEST(SegmentID, Basic) {
-  TestSegmentID();
-}
+TEST(SegmentID, Basic) { TestSegmentID(); }
 
 TEST(SegmentedUnique, Basic) {
   std::vector<float> values{0.1f, 0.2f, 0.3f, 0.62448811531066895f, 0.62448811531066895f, 0.4f};
@@ -72,7 +67,7 @@ TEST(SegmentedUnique, Basic) {
   CHECK_EQ(n_uniques, 5);
 
   std::vector<float> values_sol{0.1f, 0.2f, 0.3f, 0.62448811531066895f, 0.4f};
-  for (size_t i = 0 ; i < values_sol.size(); i ++) {
+  for (size_t i = 0; i < values_sol.size(); i++) {
     ASSERT_EQ(d_vals_out[i], values_sol[i]);
   }
 
@@ -88,7 +83,7 @@ TEST(SegmentedUnique, Basic) {
       d_values.data().get(), d_values.data().get() + d_values.size(), d_segs_out.data().get(),
       d_vals_out.data().get(), std::equal_to{});
   ASSERT_EQ(n_uniques, values.size());
-  for (size_t i = 0 ; i < values.size(); i ++) {
+  for (size_t i = 0; i < values.size(); i++) {
     ASSERT_EQ(d_vals_out[i], values[i]);
   }
 }
@@ -122,8 +117,8 @@ void TestSegmentedUniqueRegression(std::vector<SketchEntry> values, size_t n_dup
       d_values.data().get(), d_values.data().get() + d_values.size(), d_segments_out.data().get(),
       d_values.data().get(), SketchUnique{});
   ASSERT_EQ(n_uniques, values.size() - n_duplicated);
-  ASSERT_TRUE(thrust::is_sorted(thrust::device, d_values.begin(),
-                                d_values.begin() + n_uniques, IsSorted{}));
+  ASSERT_TRUE(thrust::is_sorted(thrust::device, d_values.begin(), d_values.begin() + n_uniques,
+                                IsSorted{}));
   ASSERT_EQ(segments.at(0), d_segments_out[0]);
   ASSERT_EQ(segments.at(1), d_segments_out[1] + n_duplicated);
 }
@@ -132,37 +127,29 @@ TEST(DeviceHelpers, Reduce) {
   size_t kSize = std::numeric_limits<uint32_t>::max();
   auto it = thrust::make_counting_iterator(0ul);
   dh::XGBCachingDeviceAllocator<char> alloc;
-  auto batched = dh::Reduce(thrust::cuda::par(alloc), it, it + kSize, 0ul, thrust::maximum<size_t>{});
+  auto batched =
+      dh::Reduce(thrust::cuda::par(alloc), it, it + kSize, 0ul, thrust::maximum<size_t>{});
   CHECK_EQ(batched, kSize - 1);
 }
 
-
 TEST(SegmentedUnique, Regression) {
   {
-    std::vector<SketchEntry> values{{3149, 3150, 1, 0.62392902374267578},
-                                    {3151, 3152, 1, 0.62418866157531738},
-                                    {3152, 3153, 1, 0.62419462203979492},
-                                    {3153, 3154, 1, 0.62431186437606812},
-                                    {3154, 3155, 1, 0.6244881153106689453125},
-                                    {3155, 3156, 1, 0.6244881153106689453125},
-                                    {3155, 3156, 1, 0.6244881153106689453125},
-                                    {3155, 3156, 1, 0.6244881153106689453125},
-                                    {3157, 3158, 1, 0.62552797794342041},
-                                    {3158, 3159, 1, 0.6256556510925293},
-                                    {3159, 3160, 1, 0.62571090459823608},
-                                    {3160, 3161, 1, 0.62577134370803833}};
+    std::vector<SketchEntry> values{
+        {3149, 3150, 1, 0.62392902374267578},      {3151, 3152, 1, 0.62418866157531738},
+        {3152, 3153, 1, 0.62419462203979492},      {3153, 3154, 1, 0.62431186437606812},
+        {3154, 3155, 1, 0.6244881153106689453125}, {3155, 3156, 1, 0.6244881153106689453125},
+        {3155, 3156, 1, 0.6244881153106689453125}, {3155, 3156, 1, 0.6244881153106689453125},
+        {3157, 3158, 1, 0.62552797794342041},      {3158, 3159, 1, 0.6256556510925293},
+        {3159, 3160, 1, 0.62571090459823608},      {3160, 3161, 1, 0.62577134370803833}};
     TestSegmentedUniqueRegression(values, 3);
   }
   {
-    std::vector<SketchEntry> values{{3149, 3150, 1, 0.62392902374267578},
-                                    {3151, 3152, 1, 0.62418866157531738},
-                                    {3152, 3153, 1, 0.62419462203979492},
-                                    {3153, 3154, 1, 0.62431186437606812},
-                                    {3154, 3155, 1, 0.6244881153106689453125},
-                                    {3157, 3158, 1, 0.62552797794342041},
-                                    {3158, 3159, 1, 0.6256556510925293},
-                                    {3159, 3160, 1, 0.62571090459823608},
-                                    {3160, 3161, 1, 0.62577134370803833}};
+    std::vector<SketchEntry> values{
+        {3149, 3150, 1, 0.62392902374267578},      {3151, 3152, 1, 0.62418866157531738},
+        {3152, 3153, 1, 0.62419462203979492},      {3153, 3154, 1, 0.62431186437606812},
+        {3154, 3155, 1, 0.6244881153106689453125}, {3157, 3158, 1, 0.62552797794342041},
+        {3158, 3159, 1, 0.6256556510925293},       {3159, 3160, 1, 0.62571090459823608},
+        {3160, 3161, 1, 0.62577134370803833}};
     TestSegmentedUniqueRegression(values, 0);
   }
   {
@@ -173,8 +160,8 @@ TEST(SegmentedUnique, Regression) {
 
 TEST(Allocator, DISABLED_OOM) {
   auto size = dh::AvailableMemory(0) * 4;
-  ASSERT_THROW({dh::caching_device_vector<char> vec(size);}, dmlc::Error);
-  ASSERT_THROW({dh::device_vector<char> vec(size);}, dmlc::Error);
+  ASSERT_THROW({ dh::caching_device_vector<char> vec(size); }, dmlc::Error);
+  ASSERT_THROW({ dh::device_vector<char> vec(size); }, dmlc::Error);
   // Clear last error so we don't fail subsequent tests
   cudaGetLastError();
 }

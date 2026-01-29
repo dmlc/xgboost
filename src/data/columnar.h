@@ -54,7 +54,7 @@ auto GetArrowNames(Object::Map const& jnames, std::vector<CategoricalIndex>* p_c
 #if defined(__CUDACC__)
 #pragma nv_diagnostic push
 #pragma nv_diag_suppress 20208  // long double is treated as double in device code
-#endif  // defined(__CUDACC__)
+#endif                          // defined(__CUDACC__)
       T back{0};
       dh::safe_cuda(cudaMemcpy(&back, static_cast<T const*>(offset.data) + offset_last_idx,
                                sizeof(T), cudaMemcpyDeviceToHost));

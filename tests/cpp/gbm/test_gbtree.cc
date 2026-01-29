@@ -26,12 +26,11 @@ TEST(GBTree, SelectTreeMethod) {
   Context ctx;
   LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
-  std::unique_ptr<GradientBooster> p_gbm {
-    GradientBooster::Create("gbtree", &ctx, &mparam)};
-  auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
+  std::unique_ptr<GradientBooster> p_gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
+  auto& gbtree = dynamic_cast<gbm::GBTree&>(*p_gbm);
 
   // Test if `tree_method` can be set
-  Args args {{"tree_method", "approx"}};
+  Args args{{"tree_method", "approx"}};
   gbtree.Configure({args.cbegin(), args.cend()});
 
   gbtree.Configure(args);
@@ -59,9 +58,8 @@ TEST(GBTree, PredictionCache) {
   Context ctx;
   LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
-  std::unique_ptr<GradientBooster> p_gbm {
-    GradientBooster::Create("gbtree", &ctx, &mparam)};
-  auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
+  std::unique_ptr<GradientBooster> p_gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
+  auto& gbtree = dynamic_cast<gbm::GBTree&>(*p_gbm);
 
   gbtree.Configure({{"tree_method", "hist"}});
   auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
@@ -112,8 +110,7 @@ TEST(GBTree, WrongUpdater) {
   learner->SetParams(Args{{"tree_method", "hist"}, {"process_type", "update"}});
   ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
   // Prune can not be used for learning new tree.
-  learner->SetParams(
-      Args{{"tree_method", "prune"}, {"process_type", "default"}});
+  learner->SetParams(Args{{"tree_method", "prune"}, {"process_type", "default"}});
   ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
 }
 
@@ -344,7 +341,7 @@ TEST(Dart, JsonIO) {
   std::unique_ptr<GradientBooster> gbm{
       CreateTrainedGBM("dart", Args{}, kRows, kCols, &mparam, &ctx)};
 
-  Json model {Object()};
+  Json model{Object()};
   model["model"] = Object();
   auto& j_model = model["model"];
   model["config"] = Object();
@@ -436,15 +433,12 @@ INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart, testing::Values("CPU", "GPU"));
 INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart, testing::Values("CPU"));
 #endif  // defined(XGBOOST_USE_CUDA)
 
-
 std::pair<Json, Json> TestModelSlice(std::string booster) {
   size_t constexpr kRows = 1000, kCols = 100, kForest = 2, kClasses = 3;
   auto m = RandomDataGenerator{kRows, kCols, 0}.Classes(kClasses).GenerateDMatrix(true);
 
   int32_t kIters = 10;
-  std::unique_ptr<Learner> learner {
-    Learner::Create({m})
-  };
+  std::unique_ptr<Learner> learner{Learner::Create({m})};
   learner->SetParams(Args{{"booster", booster},
                           {"tree_method", "hist"},
                           {"num_parallel_tree", std::to_string(kForest)},
@@ -463,7 +457,7 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
   bool out_of_bound = false;
 
   size_t constexpr kSliceStart = 2, kSliceEnd = 8, kStep = 3;
-  std::unique_ptr<Learner> sliced {learner->Slice(kSliceStart, kSliceEnd, kStep, &out_of_bound)};
+  std::unique_ptr<Learner> sliced{learner->Slice(kSliceStart, kSliceEnd, kStep, &out_of_bound)};
   Json sliced_model{Object()};
   sliced->SaveModel(&sliced_model);
 
@@ -471,14 +465,15 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
     if (booster == "gbtree") {
       return get<Object const>(model["learner"]["gradient_booster"]["model"]["gbtree_model_param"]);
     } else {
-      return get<Object const>(model["learner"]["gradient_booster"]["gbtree"]["model"]["gbtree_model_param"]);
+      return get<Object const>(
+          model["learner"]["gradient_booster"]["gbtree"]["model"]["gbtree_model_param"]);
     }
   };
 
   auto const& model_shape = get_shape(sliced_model);
   CHECK_EQ(get<String const>(model_shape.at("num_trees")), std::to_string(2 * kClasses * kForest));
 
-  Json sliced_config {Object()};
+  Json sliced_config{Object()};
   sliced->SaveConfig(&sliced_config);
   // Only num trees is changed
   if (booster == "gbtree") {
@@ -505,17 +500,17 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
     }
   };
 
-  auto const &sliced_trees = get_trees(sliced_model);
+  auto const& sliced_trees = get_trees(sliced_model);
   CHECK_EQ(sliced_trees.size(), 2 * kClasses * kForest);
 
   auto constexpr kLayerSize = kClasses * kForest;
-  auto const &sliced_info = get_info(sliced_model);
+  auto const& sliced_info = get_info(sliced_model);
 
   for (size_t layer = 0; layer < 2; ++layer) {
     for (size_t j = 0; j < kClasses; ++j) {
       for (size_t k = 0; k < kForest; ++k) {
         auto idx = layer * kLayerSize + j * kForest + k;
-        auto const &group = get<Integer const>(sliced_info.at(idx));
+        auto const& group = get<Integer const>(sliced_info.at(idx));
         CHECK_EQ(static_cast<size_t>(group), j);
       }
     }
@@ -554,15 +549,14 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
   return std::make_pair(model, sliced_model);
 }
 
-TEST(GBTree, Slice) {
-  TestModelSlice("gbtree");
-}
+TEST(GBTree, Slice) { TestModelSlice("gbtree"); }
 
 TEST(Dart, Slice) {
   Json model, sliced_model;
   std::tie(model, sliced_model) = TestModelSlice("dart");
   auto const& weights = get<Array const>(model["learner"]["gradient_booster"]["weight_drop"]);
-  auto const& trees = get<Array const>(model["learner"]["gradient_booster"]["gbtree"]["model"]["trees"]);
+  auto const& trees =
+      get<Array const>(model["learner"]["gradient_booster"]["gbtree"]["model"]["trees"]);
   ASSERT_EQ(weights.size(), trees.size());
 }
 
@@ -570,7 +564,7 @@ TEST(GBTree, FeatureScore) {
   size_t n_samples = 1000, n_features = 10, n_classes = 4;
   auto m = RandomDataGenerator{n_samples, n_features, 0.5}.Classes(n_classes).GenerateDMatrix(true);
 
-  std::unique_ptr<Learner> learner{ Learner::Create({m}) };
+  std::unique_ptr<Learner> learner{Learner::Create({m})};
   learner->SetParam("num_class", std::to_string(n_classes));
 
   learner->Configure();
@@ -686,7 +680,8 @@ TEST(GBTree, InplacePredictionError) {
   auto test_qdm_err = [&](std::string booster, Context const* ctx) {
     std::shared_ptr<DMatrix> p_fmat;
     bst_bin_t max_bins = 16;
-    auto rng = RandomDataGenerator{n_samples, n_features, 0.5f}.Device(ctx->Device()).Bins(max_bins);
+    auto rng =
+        RandomDataGenerator{n_samples, n_features, 0.5f}.Device(ctx->Device()).Bins(max_bins);
     if (ctx->IsCPU()) {
       p_fmat = rng.GenerateQuantileDMatrix(true);
     } else {

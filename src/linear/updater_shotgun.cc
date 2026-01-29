@@ -4,6 +4,7 @@
  */
 
 #include <xgboost/linear_updater.h>
+
 #include "coordinate_common.h"
 
 namespace xgboost::linear {
@@ -13,21 +14,20 @@ DMLC_REGISTRY_FILE_TAG(updater_shotgun);
 class ShotgunUpdater : public LinearUpdater {
  public:
   // set training parameter
-  void Configure(Args const& args) override {
+  void Configure(Args const &args) override {
     param_.UpdateAllowUnknown(args);
-    if (param_.feature_selector != kCyclic &&
-        param_.feature_selector != kShuffle) {
+    if (param_.feature_selector != kCyclic && param_.feature_selector != kShuffle) {
       LOG(FATAL) << "Unsupported feature selector for shotgun updater.\n"
                  << "Supported options are: {cyclic, shuffle}";
     }
     selector_.reset(FeatureSelector::Create(param_.feature_selector));
   }
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
+  void LoadConfig(Json const &in) override {
+    auto const &config = get<Object const>(in);
     FromJson(config.at("linear_train_param"), &param_);
   }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
+  void SaveConfig(Json *p_out) const override {
+    auto &out = *p_out;
     out["linear_train_param"] = ToJson(param_);
   }
 
@@ -39,10 +39,10 @@ class ShotgunUpdater : public LinearUpdater {
 
     // update bias
     for (int gid = 0; gid < ngroup; ++gid) {
-      auto grad = GetBiasGradientParallel(gid, ngroup, gpair->ConstHostVector(), p_fmat,
-                                          ctx_->Threads());
+      auto grad =
+          GetBiasGradientParallel(gid, ngroup, gpair->ConstHostVector(), p_fmat, ctx_->Threads());
       auto dbias = static_cast<bst_float>(param_.learning_rate *
-                               CoordinateDeltaBias(grad.first, grad.second));
+                                          CoordinateDeltaBias(grad.first, grad.second));
       model->Bias()[gid] += dbias;
       UpdateBiasResidualParallel(ctx_, gid, ngroup, dbias, &gpair->HostVector(), p_fmat);
     }

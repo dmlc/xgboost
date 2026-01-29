@@ -2,8 +2,8 @@
  * Copyright 2023-2024, XGBoost contributors
  */
 #pragma once
-#include "../../src/collective/coll.h"    // for Coll
-#include "../../src/collective/comm.h"    // for Comm
+#include "../../src/collective/coll.h"  // for Coll
+#include "../../src/collective/comm.h"  // for Comm
 
 namespace xgboost::collective {
 class FederatedColl : public Coll {

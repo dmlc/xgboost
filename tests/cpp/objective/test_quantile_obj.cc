@@ -13,7 +13,7 @@
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector
 
-#include "../helpers.h"                   // CheckConfigReload,MakeCUDACtx,DeclareUnifiedTest
+#include "../helpers.h"  // CheckConfigReload,MakeCUDACtx,DeclareUnifiedTest
 
 namespace xgboost {
 void TestQuantile(Context const* ctx) {

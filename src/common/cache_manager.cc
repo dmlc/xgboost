@@ -7,16 +7,16 @@
 
 #if defined(__x86_64__)
 
-void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
+void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (&abcd)[4]) {
 #if defined(_MSC_VER)
-    __cpuidex(reinterpret_cast<int*>(abcd), eax, ecx);
+  __cpuidex(reinterpret_cast<int*>(abcd), eax, ecx);
 #else
-    uint32_t ebx = 0, edx = 0;
-    __asm__("cpuid" : "+b"(ebx), "+a"(eax), "+c"(ecx), "=d"(edx));
-    abcd[0] = eax;
-    abcd[1] = ebx;
-    abcd[2] = ecx;
-    abcd[3] = edx;
+  uint32_t ebx = 0, edx = 0;
+  __asm__("cpuid" : "+b"(ebx), "+a"(eax), "+c"(ecx), "=d"(edx));
+  abcd[0] = eax;
+  abcd[1] = ebx;
+  abcd[2] = ecx;
+  abcd[3] = edx;
 #endif
 }
 
@@ -41,9 +41,9 @@ void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
 #define _CPUID_VENDOR_ID_AMD 0x68747541
 
 // Run CPUID and collect raw output.
-void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
-                  int* line_size, int* partitions, int* ways) {
-// Leaf 0x0 returns Vendor ID in EBX, EDX, ECX
+void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets, int* line_size,
+                  int* partitions, int* ways) {
+  // Leaf 0x0 returns Vendor ID in EBX, EDX, ECX
   uint32_t vendor_reg[4];
   RunCpuid(0, 0, vendor_reg);
   bool is_amd = (vendor_reg[1] == _CPUID_VENDOR_ID_AMD);
@@ -56,12 +56,12 @@ void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
   const uint32_t ebx = abcd[1];
   const uint32_t ecx = abcd[2];
   // const uint32_t edx = abcd[3];  // Not used
-  *type              = _CPUID_GET_TYPE(eax);
-  *level             = _CPUID_GET_LEVEL(eax);
-  *sets              = _CPUID_GET_SETS(ecx);
-  *line_size         = _CPUID_GET_LINE_SIZE(ebx);
-  *partitions        = _CPUID_GET_PARTITIONS(ebx);
-  *ways              = _CPUID_GET_WAYS(ebx);
+  *type = _CPUID_GET_TYPE(eax);
+  *level = _CPUID_GET_LEVEL(eax);
+  *sets = _CPUID_GET_SETS(ecx);
+  *line_size = _CPUID_GET_LINE_SIZE(ebx);
+  *partitions = _CPUID_GET_PARTITIONS(ebx);
+  *ways = _CPUID_GET_WAYS(ebx);
 }
 
 constexpr int kCpuidTypeNull = 0;

@@ -77,9 +77,7 @@ class RowSetCollection {
   }
 
   // clear up things
-  void Clear() {
-    elem_of_each_node_.clear();
-  }
+  void Clear() { elem_of_each_node_.clear(); }
   // initialize node id 0->everything
   void Init() {
     CHECK(elem_of_each_node_.empty());

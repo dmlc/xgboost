@@ -4,16 +4,14 @@
 #ifndef PLUGIN_SYCL_TREE_PARAM_H_
 #define PLUGIN_SYCL_TREE_PARAM_H_
 
-
 #include <cmath>
 #include <cstring>
 #include <limits>
 #include <string>
 #include <vector>
 
-
-#include "xgboost/parameter.h"
 #include "xgboost/data.h"
+#include "xgboost/parameter.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #include "../src/tree/param.h"
@@ -24,7 +22,6 @@
 namespace xgboost {
 namespace sycl {
 namespace tree {
-
 
 /*! \brief Wrapper for necessary training parameters for regression tree to access on device */
 /* The original structure xgboost::tree::TrainParam can't be used,
@@ -38,7 +35,7 @@ struct TrainParam {
 
   TrainParam() {}
 
-  explicit TrainParam(const xgboost::tree::TrainParam& param) {
+  explicit TrainParam(const xgboost::tree::TrainParam &param) {
     reg_lambda = param.reg_lambda;
     reg_alpha = param.reg_alpha;
     min_child_weight = param.min_child_weight;
@@ -54,23 +51,20 @@ using GradStats = xgboost::detail::GradientPairInternal<GradType>;
  *        Original structure cannot be used due 'cat_bits' field of type std::vector<uint32_t>,
  *        which is not device-copyable
  */
-template<typename GradientT>
+template <typename GradientT>
 struct SplitEntryContainer {
   /*! \brief loss change after split this node */
-  bst_float loss_chg {0.0f};
+  bst_float loss_chg{0.0f};
   /*! \brief split index */
   bst_feature_t sindex{0};
   bst_float split_value{0.0f};
 
-
   GradientT left_sum;
   GradientT right_sum;
 
-
   SplitEntryContainer() = default;
 
-
-  friend std::ostream& operator<<(std::ostream& os, SplitEntryContainer const& s) {
+  friend std::ostream &operator<<(std::ostream &os, SplitEntryContainer const &s) {
     os << "loss_chg: " << s.loss_chg << ", "
        << "split index: " << s.SplitIndex() << ", "
        << "split value: " << s.split_value << ", "
@@ -94,8 +88,8 @@ struct SplitEntryContainer {
    */
   inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
     if (::sycl::isinf(new_loss_chg)) {  // in some cases new_loss_chg can be NaN or Inf,
-                                      // for example when lambda = 0 & min_child_weight = 0
-                                      // skip value in this case
+                                        // for example when lambda = 0 & min_child_weight = 0
+                                        // skip value in this case
       return false;
     } else if (this->SplitIndex() <= split_index) {
       return new_loss_chg > this->loss_chg;
@@ -128,10 +122,8 @@ struct SplitEntryContainer {
    * \param default_left whether the missing value goes to left
    * \return whether the proposed split is better and can replace current split
    */
-  bool Update(bst_float new_loss_chg, unsigned split_index,
-              bst_float new_split_value, bool default_left,
-              const GradientT &left_sum,
-              const GradientT &right_sum) {
+  bool Update(bst_float new_loss_chg, unsigned split_index, bst_float new_split_value,
+              bool default_left, const GradientT &left_sum, const GradientT &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
       if (default_left) {
@@ -147,15 +139,14 @@ struct SplitEntryContainer {
     }
   }
 
-
   /*! \brief same as update, used by AllReduce*/
-  inline static void Reduce(SplitEntryContainer &dst,         // NOLINT(*)
-                            const SplitEntryContainer &src) { // NOLINT(*)
+  inline static void Reduce(SplitEntryContainer &dst,          // NOLINT(*)
+                            const SplitEntryContainer &src) {  // NOLINT(*)
     dst.Update(src);
   }
 };
 
-template<typename GradType>
+template <typename GradType>
 using SplitEntry = SplitEntryContainer<GradStats<GradType>>;
 
 }  // namespace tree

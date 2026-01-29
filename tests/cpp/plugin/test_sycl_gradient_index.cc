@@ -5,13 +5,13 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
-#include "../../../src/data/gradient_index.h"       // for GHistIndexMatrix
+#include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
 #pragma GCC diagnostic pop
 
 #include "../../../plugin/sycl/data/gradient_index.h"
 #include "../../../plugin/sycl/device_manager.h"
-#include "sycl_helpers.h"
 #include "../helpers.h"
+#include "sycl_helpers.h"
 
 namespace xgboost::sycl::data {
 
@@ -37,9 +37,7 @@ TEST(SyclGradientIndex, Init) {
     ASSERT_EQ(gmat_sycl.nfeatures, n_columns);
   }
 
-  {
-    VerifySyclVector(gmat_sycl.hit_count.ConstHostVector(), gmat.hit_count);
-  }
+  { VerifySyclVector(gmat_sycl.hit_count.ConstHostVector(), gmat.hit_count); }
 
   {
     std::vector<size_t> feature_count_sycl(n_columns, 0);

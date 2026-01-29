@@ -4,15 +4,15 @@
 #ifndef XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
 #define XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
 #include <gtest/gtest.h>
-#include <xgboost/data.h>                           // for MetaInfo
-#include <xgboost/host_device_vector.h>             // for HostDeviceVector
-#include <xgboost/linalg.h>                         // for All
-#include <xgboost/objective.h>                      // for ObjFunction
+#include <xgboost/data.h>                // for MetaInfo
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/linalg.h>              // for All
+#include <xgboost/objective.h>           // for ObjFunction
 
-#include <memory>                                   // for shared_ptr, make_shared
+#include <memory>  // for shared_ptr, make_shared
 
-#include "../../../src/common/ranking_utils.h"      // for LambdaRankParam, MAPCache
-#include "../helpers.h"                             // for EmptyDMatrix
+#include "../../../src/common/ranking_utils.h"  // for LambdaRankParam, MAPCache
+#include "../helpers.h"                         // for EmptyDMatrix
 
 namespace xgboost::obj {
 void TestMAPStat(Context const* ctx);

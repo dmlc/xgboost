@@ -29,21 +29,20 @@ namespace sycl {
 namespace tree {
 
 // training parameters specific to this algorithm
-struct HistMakerTrainParam
-    : public XGBoostParameter<HistMakerTrainParam> {
+struct HistMakerTrainParam : public XGBoostParameter<HistMakerTrainParam> {
   bool single_precision_histogram = false;
   // declare parameters
   DMLC_DECLARE_PARAMETER(HistMakerTrainParam) {
-    DMLC_DECLARE_FIELD(single_precision_histogram).set_default(false).describe(
-        "Use single precision to build histograms.");
+    DMLC_DECLARE_FIELD(single_precision_histogram)
+        .set_default(false)
+        .describe("Use single precision to build histograms.");
   }
 };
 
 /*! \brief construct a tree using quantized feature values with SYCL backend*/
-class QuantileHistMaker: public TreeUpdater {
+class QuantileHistMaker : public TreeUpdater {
  public:
-  QuantileHistMaker(Context const* ctx, ObjInfo const * task) :
-                             TreeUpdater(ctx), task_{task} {
+  QuantileHistMaker(Context const* ctx, ObjInfo const* task) : TreeUpdater(ctx), task_{task} {
     updater_monitor_.Init("SYCLQuantileHistMaker");
   }
   void Configure(const Args& args) override;
@@ -68,9 +67,7 @@ class QuantileHistMaker: public TreeUpdater {
     out["sycl_hist_train_param"] = ToJson(hist_maker_param_);
   }
 
-  char const* Name() const override {
-    return "grow_quantile_histmaker_sycl";
-  }
+  char const* Name() const override { return "grow_quantile_histmaker_sycl"; }
 
  protected:
   HistMakerTrainParam hist_maker_param_;
@@ -80,23 +77,22 @@ class QuantileHistMaker: public TreeUpdater {
   common::GHistIndexMatrix gmat_;
   // (optional) data matrix with feature grouping
   // column accessor
-  DMatrix const* p_last_dmat_ {nullptr};
-  bool is_gmat_initialized_ {false};
+  DMatrix const* p_last_dmat_{nullptr};
+  bool is_gmat_initialized_{false};
 
   xgboost::common::Monitor updater_monitor_;
 
-  template<typename GradientSumT>
-  void SetPimpl(std::unique_ptr<HistUpdater<GradientSumT>>*, DMatrix *dmat);
+  template <typename GradientSumT>
+  void SetPimpl(std::unique_ptr<HistUpdater<GradientSumT>>*, DMatrix* dmat);
 
-  template<typename GradientSumT>
+  template <typename GradientSumT>
   void CallUpdate(const std::unique_ptr<HistUpdater<GradientSumT>>& builder,
-                  xgboost::tree::TrainParam const *param,
-                  ::xgboost::linalg::Matrix<GradientPair> *gpair,
-                  DMatrix *dmat,
+                  xgboost::tree::TrainParam const* param,
+                  ::xgboost::linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
                   xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
-                  const std::vector<RegTree *> &trees);
+                  const std::vector<RegTree*>& trees);
 
-  enum class HistPrecision {fp32, fp64};
+  enum class HistPrecision { fp32, fp64 };
   HistPrecision hist_precision_;
 
   std::unique_ptr<HistUpdater<float>> pimpl_fp32;
@@ -106,9 +102,8 @@ class QuantileHistMaker: public TreeUpdater {
 
   ::sycl::queue* qu_;
   DeviceManager device_manager;
-  ObjInfo const *task_{nullptr};
+  ObjInfo const* task_{nullptr};
 };
-
 
 }  // namespace tree
 }  // namespace sycl

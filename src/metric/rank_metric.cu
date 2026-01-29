@@ -5,15 +5,15 @@
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 #include <thrust/reduce.h>                      // for reduce
 
-#include <algorithm>                            // for transform
-#include <cstddef>                              // for size_t
-#include <memory>                               // for shared_ptr
-#include <vector>                               // for vector
+#include <algorithm>  // for transform
+#include <cstddef>    // for size_t
+#include <memory>     // for shared_ptr
+#include <vector>     // for vector
 
-#include "../common/cuda_context.cuh"           // for CUDAContext
-#include "../common/device_helpers.cuh"         // for MakeTransformIterator
-#include "../common/optional_weight.h"          // for MakeOptionalWeights
-#include "../common/ranking_utils.cuh"          // for CalcQueriesDCG, NDCGCache
+#include "../common/cuda_context.cuh"    // for CUDAContext
+#include "../common/device_helpers.cuh"  // for MakeTransformIterator
+#include "../common/optional_weight.h"   // for MakeOptionalWeights
+#include "../common/ranking_utils.cuh"   // for CalcQueriesDCG, NDCGCache
 #include "metric_common.h"
 #include "rank_metric.h"
 #include "xgboost/base.h"                // for XGBOOST_DEVICE

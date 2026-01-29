@@ -11,7 +11,7 @@
 #include <memory>   // for shared_ptr
 #include <string>   // for string
 
-#include "../../src/collective/comm.h"    // for HostComm
+#include "../../src/collective/comm.h"  // for HostComm
 #include "xgboost/json.h"
 
 namespace xgboost::collective {

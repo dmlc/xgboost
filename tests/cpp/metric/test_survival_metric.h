@@ -20,7 +20,7 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
   HostDeviceVector<float> predts;
   auto p_fmat = EmptyDMatrix();
   MetaInfo& info = p_fmat->Info();
-  auto &h_predts = predts.HostVector();
+  auto& h_predts = predts.HostVector();
 
   SimpleLCG lcg;
   SimpleRealUniformDistribution<float> dist{0.0f, 1.0f};
@@ -32,8 +32,8 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
     h_predts[i] = dist(&lcg);
   }
 
-  auto &h_upper = info.labels_upper_bound_.HostVector();
-  auto &h_lower = info.labels_lower_bound_.HostVector();
+  auto& h_upper = info.labels_upper_bound_.HostVector();
+  auto& h_lower = info.labels_lower_bound_.HostVector();
   h_lower.resize(n_samples);
   h_upper.resize(n_samples);
   for (size_t i = 0; i < n_samples; ++i) {
@@ -57,10 +57,9 @@ inline void VerifyAFTNegLogLik(DataSplitMode data_split_mode, DeviceOrd device) 
   auto p_fmat = EmptyDMatrix();
   MetaInfo& info = p_fmat->Info();
   info.num_row_ = 4;
-  info.labels_lower_bound_.HostVector()
-      = { 100.0f, 0.0f, 60.0f, 16.0f };
-  info.labels_upper_bound_.HostVector()
-      = { 100.0f, 20.0f, std::numeric_limits<bst_float>::infinity(), 200.0f };
+  info.labels_lower_bound_.HostVector() = {100.0f, 0.0f, 60.0f, 16.0f};
+  info.labels_upper_bound_.HostVector() = {100.0f, 20.0f,
+                                           std::numeric_limits<bst_float>::infinity(), 200.0f};
   info.weights_.HostVector() = std::vector<bst_float>();
   info.data_split_mode = data_split_mode;
   HostDeviceVector<bst_float> preds(4, std::log(64));
@@ -69,11 +68,11 @@ inline void VerifyAFTNegLogLik(DataSplitMode data_split_mode, DeviceOrd device) 
     std::string dist_type;
     bst_float reference_value;
   };
-  for (const auto& test_case : std::vector<TestCase>{ {"normal", 2.1508f}, {"logistic", 2.1804f},
-                                                     {"extreme", 2.0706f} }) {
+  for (const auto& test_case :
+       std::vector<TestCase>{{"normal", 2.1508f}, {"logistic", 2.1804f}, {"extreme", 2.0706f}}) {
     std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &ctx));
-    metric->Configure({ {"aft_loss_distribution", test_case.dist_type},
-                       {"aft_loss_distribution_scale", "1.0"} });
+    metric->Configure(
+        {{"aft_loss_distribution", test_case.dist_type}, {"aft_loss_distribution_scale", "1.0"}});
     EXPECT_NEAR(metric->Evaluate(preds, p_fmat), test_case.reference_value, 1e-4);
   }
 }
@@ -84,8 +83,8 @@ inline void VerifyIntervalRegressionAccuracy(DataSplitMode data_split_mode, Devi
   auto p_fmat = EmptyDMatrix();
   MetaInfo& info = p_fmat->Info();
   info.num_row_ = 4;
-  info.labels_lower_bound_.HostVector() = { 20.0f, 0.0f, 60.0f, 16.0f };
-  info.labels_upper_bound_.HostVector() = { 80.0f, 20.0f, 80.0f, 200.0f };
+  info.labels_lower_bound_.HostVector() = {20.0f, 0.0f, 60.0f, 16.0f};
+  info.labels_upper_bound_.HostVector() = {80.0f, 20.0f, 80.0f, 200.0f};
   info.weights_.HostVector() = std::vector<bst_float>();
   info.data_split_mode = data_split_mode;
   HostDeviceVector<bst_float> preds(4, std::log(60.0f));

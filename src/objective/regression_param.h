@@ -15,8 +15,10 @@ struct RegLossParam : public XGBoostParameter<RegLossParam> {
   float scale_pos_weight;
   // declare parameters
   DMLC_DECLARE_PARAMETER(RegLossParam) {
-    DMLC_DECLARE_FIELD(scale_pos_weight).set_default(1.0f).set_lower_bound(0.0f)
-      .describe("Scale the weight of positive examples by this factor");
+    DMLC_DECLARE_FIELD(scale_pos_weight)
+        .set_default(1.0f)
+        .set_lower_bound(0.0f)
+        .describe("Scale the weight of positive examples by this factor");
   }
 };
 

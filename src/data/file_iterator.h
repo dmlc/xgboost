@@ -4,13 +4,13 @@
 #ifndef XGBOOST_DATA_FILE_ITERATOR_H_
 #define XGBOOST_DATA_FILE_ITERATOR_H_
 
-#include <cstdint>    // for uint32_t
-#include <memory>     // for unique_ptr
-#include <string>     // for string
-#include <utility>    // for move
+#include <cstdint>  // for uint32_t
+#include <memory>   // for unique_ptr
+#include <string>   // for string
+#include <utility>  // for move
 
-#include "dmlc/data.h"        // for RowBlock, Parser
-#include "xgboost/c_api.h"    // for XGDMatrixFree, XGProxyDMatrixCreate
+#include "dmlc/data.h"      // for RowBlock, Parser
+#include "xgboost/c_api.h"  // for XGDMatrixFree, XGProxyDMatrixCreate
 
 namespace xgboost::data {
 [[nodiscard]] std::string ValidateFileFormat(std::string const& uri);
@@ -45,9 +45,7 @@ class FileIterator {
       : uri_{ValidateFileFormat(std::move(uri))}, part_idx_{part_index}, n_parts_{num_parts} {
     XGProxyDMatrixCreate(&proxy_);
   }
-  ~FileIterator() {
-    XGDMatrixFree(proxy_);
-  }
+  ~FileIterator() { XGDMatrixFree(proxy_); }
 
   int Next();
 
@@ -59,13 +57,9 @@ class FileIterator {
 };
 
 namespace fileiter {
-inline void Reset(DataIterHandle self) {
-  static_cast<FileIterator*>(self)->Reset();
-}
+inline void Reset(DataIterHandle self) { static_cast<FileIterator*>(self)->Reset(); }
 
-inline int Next(DataIterHandle self) {
-  return static_cast<FileIterator*>(self)->Next();
-}
+inline int Next(DataIterHandle self) { return static_cast<FileIterator*>(self)->Next(); }
 }  // namespace fileiter
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_FILE_ITERATOR_H_

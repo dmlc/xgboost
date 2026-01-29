@@ -5,34 +5,31 @@
 
 #include "hist_updater.h"
 
+#include <functional>
 #include <oneapi/dpl/random>
 
-#include <functional>
-
+#include "../../src/collective/allreduce.h"
 #include "../../src/tree/common_row_partitioner.h"
-
 #include "../common/hist_util.h"
 #include "xgboost/linalg.h"
-#include "../../src/collective/allreduce.h"
 
 namespace xgboost {
 namespace sycl {
 namespace tree {
 
-using ::sycl::ext::oneapi::plus;
-using ::sycl::ext::oneapi::minimum;
 using ::sycl::ext::oneapi::maximum;
+using ::sycl::ext::oneapi::minimum;
+using ::sycl::ext::oneapi::plus;
 
 template <typename GradientSumT>
-void HistUpdater<GradientSumT>::ReduceHists(const std::vector<int>& sync_ids,
-                                            size_t nbins) {
+void HistUpdater<GradientSumT>::ReduceHists(const std::vector<int>& sync_ids, size_t nbins) {
   if (reduce_buffer_.size() < sync_ids.size() * nbins) {
     reduce_buffer_.resize(sync_ids.size() * nbins);
   }
   for (size_t i = 0; i < sync_ids.size(); i++) {
     auto& this_hist = hist_[sync_ids[i]];
     const GradientPairT* psrc = reinterpret_cast<const GradientPairT*>(this_hist.DataConst());
-    qu_->memcpy(reduce_buffer_.data() + i * nbins, psrc, nbins*sizeof(GradientPairT)).wait();
+    qu_->memcpy(reduce_buffer_.data() + i * nbins, psrc, nbins * sizeof(GradientPairT)).wait();
   }
 
   auto buffer_vec = ::xgboost::linalg::MakeVec(
@@ -43,27 +40,23 @@ void HistUpdater<GradientSumT>::ReduceHists(const std::vector<int>& sync_ids,
   for (size_t i = 0; i < sync_ids.size(); i++) {
     auto& this_hist = hist_[sync_ids[i]];
     GradientPairT* psrc = reinterpret_cast<GradientPairT*>(this_hist.Data());
-    qu_->memcpy(psrc, reduce_buffer_.data() + i * nbins, nbins*sizeof(GradientPairT)).wait();
+    qu_->memcpy(psrc, reduce_buffer_.data() + i * nbins, nbins * sizeof(GradientPairT)).wait();
   }
 }
 
 template <typename GradientSumT>
-void HistUpdater<GradientSumT>::SetHistSynchronizer(
-    HistSynchronizer<GradientSumT> *sync) {
+void HistUpdater<GradientSumT>::SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync) {
   hist_synchronizer_.reset(sync);
 }
 
 template <typename GradientSumT>
-void HistUpdater<GradientSumT>::SetHistRowsAdder(
-    HistRowsAdder<GradientSumT> *adder) {
+void HistUpdater<GradientSumT>::SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder) {
   hist_rows_adder_.reset(adder);
 }
 
 template <typename GradientSumT>
 void HistUpdater<GradientSumT>::BuildHistogramsLossGuide(
-    ExpandEntry entry,
-    const common::GHistIndexMatrix &gmat,
-    RegTree *p_tree,
+    ExpandEntry entry, const common::GHistIndexMatrix& gmat, RegTree* p_tree,
     const HostDeviceVector<GradientPair>& gpair) {
   nodes_for_explicit_hist_build_.clear();
   nodes_for_subtraction_trick_.clear();
@@ -82,11 +75,10 @@ void HistUpdater<GradientSumT>::BuildHistogramsLossGuide(
   hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
 }
 
-template<typename GradientSumT>
-void HistUpdater<GradientSumT>::BuildLocalHistograms(
-    const common::GHistIndexMatrix &gmat,
-    RegTree *p_tree,
-    const HostDeviceVector<GradientPair>& gpair) {
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::BuildLocalHistograms(const common::GHistIndexMatrix& gmat,
+                                                     RegTree* p_tree,
+                                                     const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("BuildLocalHistograms");
   const size_t n_nodes = nodes_for_explicit_hist_build_.size();
   ::sycl::event event;
@@ -105,11 +97,10 @@ void HistUpdater<GradientSumT>::BuildLocalHistograms(
   builder_monitor_.Stop("BuildLocalHistograms");
 }
 
-template<typename GradientSumT>
-void HistUpdater<GradientSumT>::BuildNodeStats(
-    const common::GHistIndexMatrix &gmat,
-    RegTree *p_tree,
-    const HostDeviceVector<GradientPair>& gpair) {
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::BuildNodeStats(const common::GHistIndexMatrix& gmat,
+                                               RegTree* p_tree,
+                                               const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("BuildNodeStats");
   for (auto const& entry : qexpand_depth_wise_) {
     int nid = entry.nid;
@@ -120,24 +111,19 @@ void HistUpdater<GradientSumT>::BuildNodeStats(
       auto parent_id = (*p_tree)[nid].Parent();
       auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
       auto parent_split_feature_id = snode_host_[parent_id].best.SplitIndex();
-      tree_evaluator_.AddSplit(
-          parent_id, left_sibling_id, nid, parent_split_feature_id,
-          snode_host_[left_sibling_id].weight, snode_host_[nid].weight);
-      interaction_constraints_.Split(parent_id, parent_split_feature_id,
-                                     left_sibling_id, nid);
+      tree_evaluator_.AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
+                               snode_host_[left_sibling_id].weight, snode_host_[nid].weight);
+      interaction_constraints_.Split(parent_id, parent_split_feature_id, left_sibling_id, nid);
     }
   }
   builder_monitor_.Stop("BuildNodeStats");
 }
 
-template<typename GradientSumT>
-void HistUpdater<GradientSumT>::AddSplitsToTree(
-    const common::GHistIndexMatrix &gmat,
-    RegTree *p_tree,
-    int *num_leaves,
-    int depth,
-    std::vector<ExpandEntry>* nodes_for_apply_split,
-    std::vector<ExpandEntry>* temp_qexpand_depth) {
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::AddSplitsToTree(const common::GHistIndexMatrix& gmat,
+                                                RegTree* p_tree, int* num_leaves, int depth,
+                                                std::vector<ExpandEntry>* nodes_for_apply_split,
+                                                std::vector<ExpandEntry>* temp_qexpand_depth) {
   builder_monitor_.Start("AddSplitsToTree");
   auto evaluator = tree_evaluator_.GetEvaluator();
   for (auto const& entry : qexpand_depth_wise_) {
@@ -156,14 +142,13 @@ void HistUpdater<GradientSumT>::AddSplitsToTree(
           evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum}) * lr;
       bst_float right_leaf_weight =
           evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum}) * lr;
-      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
-                         e.best.DefaultLeft(), e.weight, left_leaf_weight,
-                         right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
-                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
+      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft(),
+                         e.weight, left_leaf_weight, right_leaf_weight, e.best.loss_chg,
+                         e.stats.GetHess(), e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
 
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
-      temp_qexpand_depth->push_back(ExpandEntry(left_id,  p_tree->GetDepth(left_id)));
+      temp_qexpand_depth->push_back(ExpandEntry(left_id, p_tree->GetDepth(left_id)));
       temp_qexpand_depth->push_back(ExpandEntry(right_id, p_tree->GetDepth(right_id)));
       // - 1 parent + 2 new children
       (*num_leaves)++;
@@ -172,19 +157,14 @@ void HistUpdater<GradientSumT>::AddSplitsToTree(
   builder_monitor_.Stop("AddSplitsToTree");
 }
 
-
-template<typename GradientSumT>
+template <typename GradientSumT>
 void HistUpdater<GradientSumT>::EvaluateAndApplySplits(
-    const common::GHistIndexMatrix &gmat,
-    RegTree *p_tree,
-    int *num_leaves,
-    int depth,
-    std::vector<ExpandEntry> *temp_qexpand_depth) {
+    const common::GHistIndexMatrix& gmat, RegTree* p_tree, int* num_leaves, int depth,
+    std::vector<ExpandEntry>* temp_qexpand_depth) {
   EvaluateSplits(qexpand_depth_wise_, gmat, *p_tree);
 
   std::vector<ExpandEntry> nodes_for_apply_split;
-  AddSplitsToTree(gmat, p_tree, num_leaves, depth,
-                  &nodes_for_apply_split, temp_qexpand_depth);
+  AddSplitsToTree(gmat, p_tree, num_leaves, depth, &nodes_for_apply_split, temp_qexpand_depth);
   ApplySplit(nodes_for_apply_split, gmat, p_tree);
 }
 
@@ -195,26 +175,25 @@ void HistUpdater<GradientSumT>::EvaluateAndApplySplits(
 //    and use 'Subtraction Trick' to built the histogram for the right child node.
 //    This ensures that the workers operate on the same set of tree nodes.
 template <typename GradientSumT>
-void HistUpdater<GradientSumT>::SplitSiblings(
-    const std::vector<ExpandEntry> &nodes,
-    std::vector<ExpandEntry> *small_siblings,
-    std::vector<ExpandEntry> *big_siblings,
-    RegTree *p_tree) {
+void HistUpdater<GradientSumT>::SplitSiblings(const std::vector<ExpandEntry>& nodes,
+                                              std::vector<ExpandEntry>* small_siblings,
+                                              std::vector<ExpandEntry>* big_siblings,
+                                              RegTree* p_tree) {
   builder_monitor_.Start("SplitSiblings");
   for (auto const& entry : nodes) {
     int nid = entry.nid;
-    RegTree::Node &node = (*p_tree)[nid];
+    RegTree::Node& node = (*p_tree)[nid];
     if (node.IsRoot()) {
       small_siblings->push_back(entry);
     } else {
       const int32_t left_id = (*p_tree)[node.Parent()].LeftChild();
       const int32_t right_id = (*p_tree)[node.Parent()].RightChild();
 
-      if (nid == left_id && row_set_collection_[left_id ].Size() <
-                            row_set_collection_[right_id].Size()) {
+      if (nid == left_id &&
+          row_set_collection_[left_id].Size() < row_set_collection_[right_id].Size()) {
         small_siblings->push_back(entry);
-      } else if (nid == right_id && row_set_collection_[right_id].Size() <=
-                                    row_set_collection_[left_id ].Size()) {
+      } else if (nid == right_id &&
+                 row_set_collection_[right_id].Size() <= row_set_collection_[left_id].Size()) {
         small_siblings->push_back(entry);
       } else {
         big_siblings->push_back(entry);
@@ -224,16 +203,14 @@ void HistUpdater<GradientSumT>::SplitSiblings(
   builder_monitor_.Stop("SplitSiblings");
 }
 
-template<typename GradientSumT>
-void HistUpdater<GradientSumT>::ExpandWithDepthWise(
-    const common::GHistIndexMatrix &gmat,
-    RegTree *p_tree,
-    const HostDeviceVector<GradientPair>& gpair) {
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::ExpandWithDepthWise(const common::GHistIndexMatrix& gmat,
+                                                    RegTree* p_tree,
+                                                    const HostDeviceVector<GradientPair>& gpair) {
   int num_leaves = 0;
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
-  qexpand_depth_wise_.emplace_back(ExpandEntry::kRootNid,
-                                   p_tree->GetDepth(ExpandEntry::kRootNid));
+  qexpand_depth_wise_.emplace_back(ExpandEntry::kRootNid, p_tree->GetDepth(ExpandEntry::kRootNid));
   ++num_leaves;
   for (int depth = 0; depth < param_.max_depth + 1; depth++) {
     std::vector<int> sync_ids;
@@ -245,8 +222,7 @@ void HistUpdater<GradientSumT>::ExpandWithDepthWise(
     hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
     BuildNodeStats(gmat, p_tree, gpair);
 
-    EvaluateAndApplySplits(gmat, p_tree, &num_leaves, depth,
-                   &temp_qexpand_depth);
+    EvaluateAndApplySplits(gmat, p_tree, &num_leaves, depth, &temp_qexpand_depth);
 
     // clean up
     qexpand_depth_wise_.clear();
@@ -261,11 +237,10 @@ void HistUpdater<GradientSumT>::ExpandWithDepthWise(
   }
 }
 
-template<typename GradientSumT>
-void HistUpdater<GradientSumT>::ExpandWithLossGuide(
-    const common::GHistIndexMatrix& gmat,
-    RegTree* p_tree,
-    const HostDeviceVector<GradientPair>& gpair) {
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::ExpandWithLossGuide(const common::GHistIndexMatrix& gmat,
+                                                    RegTree* p_tree,
+                                                    const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("ExpandWithLossGuide");
   int num_leaves = 0;
   const auto lr = param_.learning_rate;
@@ -294,10 +269,9 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
           evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum}) * lr;
       bst_float right_leaf_weight =
           evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum}) * lr;
-      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
-                         e.best.DefaultLeft(), e.weight, left_leaf_weight,
-                         right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
-                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
+      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft(),
+                         e.weight, left_leaf_weight, right_leaf_weight, e.best.loss_chg,
+                         e.stats.GetHess(), e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
 
       this->ApplySplit({candidate}, gmat, p_tree);
 
@@ -316,8 +290,8 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
       this->InitNewNode(cleft, gmat, gpair, *p_tree);
       this->InitNewNode(cright, gmat, gpair, *p_tree);
       bst_uint featureid = snode_host_[nid].best.SplitIndex();
-      tree_evaluator_.AddSplit(nid, cleft, cright, featureid,
-                               snode_host_[cleft].weight, snode_host_[cright].weight);
+      tree_evaluator_.AddSplit(nid, cleft, cright, featureid, snode_host_[cleft].weight,
+                               snode_host_[cright].weight);
       interaction_constraints_.Split(nid, featureid, cleft, cright);
 
       this->EvaluateSplits({left_node, right_node}, gmat, *p_tree);
@@ -335,12 +309,9 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
 
 template <typename GradientSumT>
 void HistUpdater<GradientSumT>::Update(
-    xgboost::tree::TrainParam const *param,
-    const common::GHistIndexMatrix &gmat,
-    const HostDeviceVector<GradientPair>& gpair,
-    DMatrix *p_fmat,
-    xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
-    RegTree *p_tree) {
+    xgboost::tree::TrainParam const* param, const common::GHistIndexMatrix& gmat,
+    const HostDeviceVector<GradientPair>& gpair, DMatrix* p_fmat,
+    xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position, RegTree* p_tree) {
   builder_monitor_.Start("Update");
 
   tree_evaluator_.Reset(qu_, param_, p_fmat->Info().num_col_);
@@ -408,10 +379,10 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
   return true;
 }
 
-template<typename GradientSumT>
+template <typename GradientSumT>
 void HistUpdater<GradientSumT>::InitSampling(
-      const HostDeviceVector<GradientPair>& gpair,
-      USMVector<size_t, MemoryType::on_device>* row_indices) {
+    const HostDeviceVector<GradientPair>& gpair,
+    USMVector<size_t, MemoryType::on_device>* row_indices) {
   const size_t num_rows = row_indices->Size();
   auto* row_idx = row_indices->Data();
   const auto* gpair_ptr = gpair.ConstDevicePointer();
@@ -424,17 +395,16 @@ void HistUpdater<GradientSumT>::InitSampling(
     uint64_t seed = seed_;
     seed_ += num_rows;
 
-   /*
-    * oneDLP bernoulli_distribution implicitly uses double.
-    * In this case the device doesn't have fp64 support,
-    * we generate bernoulli distributed random values from uniform distribution
-    */
+    /*
+     * oneDLP bernoulli_distribution implicitly uses double.
+     * In this case the device doesn't have fp64 support,
+     * we generate bernoulli distributed random values from uniform distribution
+     */
     if (has_fp64_support_) {
       // Use oneDPL bernoulli_distribution for better perf
       event = qu_->submit([&](::sycl::handler& cgh) {
-        auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
-        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
-                                            [=](::sycl::item<1> pid) {
+        auto flag_buf_acc = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
+        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)), [=](::sycl::item<1> pid) {
           uint64_t i = pid.get_id(0);
           // Create minstd_rand engine
           oneapi::dpl::minstd_rand engine(seed, i);
@@ -450,9 +420,8 @@ void HistUpdater<GradientSumT>::InitSampling(
     } else {
       // Use oneDPL uniform, as far as bernoulli_distribution uses fp64
       event = qu_->submit([&](::sycl::handler& cgh) {
-        auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
-        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
-                                            [=](::sycl::item<1> pid) {
+        auto flag_buf_acc = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
+        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)), [=](::sycl::item<1> pid) {
           uint64_t i = pid.get_id(0);
           oneapi::dpl::minstd_rand engine(seed, i);
           oneapi::dpl::uniform_real_distribution<float> distr;
@@ -473,12 +442,10 @@ void HistUpdater<GradientSumT>::InitSampling(
   qu_->wait();
 }
 
-template<typename GradientSumT>
-void HistUpdater<GradientSumT>::InitData(
-                                const common::GHistIndexMatrix& gmat,
-                                const HostDeviceVector<GradientPair>& gpair,
-                                const DMatrix& fmat,
-                                const RegTree& tree) {
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::InitData(const common::GHistIndexMatrix& gmat,
+                                         const HostDeviceVector<GradientPair>& gpair,
+                                         const DMatrix& fmat, const RegTree& tree) {
   CHECK((param_.max_depth > 0 || param_.max_leaves > 0))
       << "max_depth or max_leaves cannot be both 0 (unlimited); "
       << "at least one should be a positive quantity.";
@@ -511,8 +478,8 @@ void HistUpdater<GradientSumT>::InitData(
     // mark subsample and build list of member rows
     if (param_.subsample < 1.0f) {
       CHECK_EQ(param_.sampling_method, xgboost::tree::TrainParam::kUniform)
-        << "Only uniform sampling is supported, "
-        << "gradient-based sampling is only support by GPU Hist.";
+          << "Only uniform sampling is supported, "
+          << "gradient-based sampling is only support by GPU Hist.";
       InitSampling(gpair, row_indices);
     } else {
       int has_neg_hess = 0;
@@ -521,16 +488,16 @@ void HistUpdater<GradientSumT>::InitData(
       {
         ::sycl::buffer<int, 1> flag_buf(&has_neg_hess, 1);
         event = qu_->submit([&](::sycl::handler& cgh) {
-          auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
+          auto flag_buf_acc = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
           cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(info.num_row_)),
-                                            [=](::sycl::item<1> pid) {
-            const size_t idx = pid.get_id(0);
-            p_row_indices[idx] = idx;
-            if (gpair_ptr[idx].GetHess() < 0.0f) {
-              AtomicRef<int> has_neg_hess_ref(flag_buf_acc[0]);
-              has_neg_hess_ref.fetch_max(1);
-            }
-          });
+                             [=](::sycl::item<1> pid) {
+                               const size_t idx = pid.get_id(0);
+                               p_row_indices[idx] = idx;
+                               if (gpair_ptr[idx].GetHess() < 0.0f) {
+                                 AtomicRef<int> has_neg_hess_ref(flag_buf_acc[0]);
+                                 has_neg_hess_ref.fetch_max(1);
+                               }
+                             });
         });
       }
 
@@ -540,15 +507,15 @@ void HistUpdater<GradientSumT>::InitData(
           ::sycl::buffer<size_t, 1> flag_buf(&max_idx, 1);
           event = qu_->submit([&](::sycl::handler& cgh) {
             cgh.depends_on(event);
-            auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
+            auto flag_buf_acc = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
             cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(info.num_row_)),
-                                                [=](::sycl::item<1> pid) {
-              const size_t idx = pid.get_id(0);
-              if (gpair_ptr[idx].GetHess() >= 0.0f) {
-                AtomicRef<size_t> max_idx_ref(flag_buf_acc[0]);
-                p_row_indices[max_idx_ref++] = idx;
-              }
-            });
+                               [=](::sycl::item<1> pid) {
+                                 const size_t idx = pid.get_id(0);
+                                 if (gpair_ptr[idx].GetHess() >= 0.0f) {
+                                   AtomicRef<size_t> max_idx_ref(flag_buf_acc[0]);
+                                   p_row_indices[max_idx_ref++] = idx;
+                                 }
+                               });
           });
         }
         row_indices->Resize(qu_, max_idx, 0, &event);
@@ -579,9 +546,8 @@ void HistUpdater<GradientSumT>::InitData(
 
   // store a pointer to the tree
   p_last_tree_ = &tree;
-  column_sampler_->Init(ctx_, info.num_col_, info.feature_weights,
-                        param_.colsample_bynode, param_.colsample_bylevel,
-                        param_.colsample_bytree);
+  column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_.colsample_bynode,
+                        param_.colsample_bylevel, param_.colsample_bytree);
   if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
     /* specialized code for dense data:
        choose the column that has a least positive number of discrete bins.
@@ -602,7 +568,7 @@ void HistUpdater<GradientSumT>::InitData(
     CHECK_GT(min_nbins_per_feature, 0U);
   }
 
-  std::fill(snode_host_.begin(), snode_host_.end(),  NodeEntry<GradientSumT>(param_));
+  std::fill(snode_host_.begin(), snode_host_.end(), NodeEntry<GradientSumT>(param_));
 
   {
     if (param_.grow_policy == xgboost::tree::TrainParam::kLossGuide) {
@@ -617,9 +583,8 @@ void HistUpdater<GradientSumT>::InitData(
     hist_buffer_.Init(qu_, nbins);
     bool isDense = data_layout_ != kSparseData;
     const size_t ncolumns = isDense ? gmat.nfeatures : gmat.row_stride;
-    size_t buffer_size = GetRequiredBufferSize<GradientSumT>
-                         (device_properties_, info.num_row_, nbins, ncolumns,
-                          gmat.max_num_bins, gmat.min_num_bins);
+    size_t buffer_size = GetRequiredBufferSize<GradientSumT>(
+        device_properties_, info.num_row_, nbins, ncolumns, gmat.max_num_bins, gmat.min_num_bins);
     hist_buffer_.Reset(buffer_size);
   }
 
@@ -627,25 +592,22 @@ void HistUpdater<GradientSumT>::InitData(
 }
 
 template <typename GradientSumT>
-void HistUpdater<GradientSumT>::AddSplitsToRowSet(
-                                                const std::vector<ExpandEntry>& nodes,
-                                                RegTree* p_tree) {
+void HistUpdater<GradientSumT>::AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes,
+                                                  RegTree* p_tree) {
   const size_t n_nodes = nodes.size();
   for (size_t i = 0; i < n_nodes; ++i) {
     const int32_t nid = nodes[i].nid;
     const size_t n_left = partition_builder_.GetNLeftElems(i);
     const size_t n_right = partition_builder_.GetNRightElems(i);
 
-    row_set_collection_.AddSplit(nid, (*p_tree)[nid].LeftChild(),
-        (*p_tree)[nid].RightChild(), n_left, n_right);
+    row_set_collection_.AddSplit(nid, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild(),
+                                 n_left, n_right);
   }
 }
 
 template <typename GradientSumT>
-void HistUpdater<GradientSumT>::ApplySplit(
-                      const std::vector<ExpandEntry> nodes,
-                      const common::GHistIndexMatrix& gmat,
-                      RegTree* p_tree) {
+void HistUpdater<GradientSumT>::ApplySplit(const std::vector<ExpandEntry> nodes,
+                                           const common::GHistIndexMatrix& gmat, RegTree* p_tree) {
   using CommonRowPartitioner = xgboost::tree::CommonRowPartitioner;
   builder_monitor_.Start("ApplySplit");
 
@@ -660,8 +622,7 @@ void HistUpdater<GradientSumT>::ApplySplit(
   });
 
   ::sycl::event event;
-  partition_builder_.Partition(gmat, nodes, row_set_collection_,
-                               split_conditions, p_tree, &event);
+  partition_builder_.Partition(gmat, nodes, row_set_collection_, split_conditions, p_tree, &event);
   qu_->wait_and_throw();
 
   for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
@@ -677,8 +638,7 @@ void HistUpdater<GradientSumT>::ApplySplit(
 }
 
 template <typename GradientSumT>
-void HistUpdater<GradientSumT>::InitNewNode(int nid,
-                                            const common::GHistIndexMatrix& gmat,
+void HistUpdater<GradientSumT>::InitNewNode(int nid, const common::GHistIndexMatrix& gmat,
                                             const HostDeviceVector<GradientPair>& gpair,
                                             const RegTree& tree) {
   builder_monitor_.Start("InitNewNode");
@@ -695,8 +655,8 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
         const auto* hist = reinterpret_cast<GradStats<GradientSumT>*>(hist_[nid].Data());
 
         std::vector<GradStats<GradientSumT>> ets(iend - ibegin);
-        qu_->memcpy(ets.data(), hist + ibegin,
-                   (iend - ibegin) * sizeof(GradStats<GradientSumT>)).wait_and_throw();
+        qu_->memcpy(ets.data(), hist + ibegin, (iend - ibegin) * sizeof(GradStats<GradientSumT>))
+            .wait_and_throw();
         for (const auto& et : ets) {
           grad_stat += et;
         }
@@ -708,19 +668,20 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
 
         ::sycl::buffer<GradStats<GradientSumT>> buff(&grad_stat, 1);
         qu_->submit([&](::sycl::handler& cgh) {
-          auto reduction = ::sycl::reduction(buff, cgh, ::sycl::plus<>());
-          cgh.parallel_for<>(::sycl::range<1>(size), reduction,
-                            [=](::sycl::item<1> pid, auto& sum) {
-            size_t i = pid.get_id(0);
-            size_t row_idx = row_idxs[i];
-            if constexpr (std::is_same<GradientPair::ValueT, GradientSumT>::value) {
-              sum += gpair_ptr[row_idx];
-            } else {
-              sum += GradStats<GradientSumT>(gpair_ptr[row_idx].GetGrad(),
-                                             gpair_ptr[row_idx].GetHess());
-            }
-          });
-        }).wait_and_throw();
+             auto reduction = ::sycl::reduction(buff, cgh, ::sycl::plus<>());
+             cgh.parallel_for<>(
+                 ::sycl::range<1>(size), reduction, [=](::sycl::item<1> pid, auto& sum) {
+                   size_t i = pid.get_id(0);
+                   size_t row_idx = row_idxs[i];
+                   if constexpr (std::is_same<GradientPair::ValueT, GradientSumT>::value) {
+                     sum += gpair_ptr[row_idx];
+                   } else {
+                     sum += GradStats<GradientSumT>(gpair_ptr[row_idx].GetGrad(),
+                                                    gpair_ptr[row_idx].GetHess());
+                   }
+                 });
+           })
+            .wait_and_throw();
       }
       auto rc = collective::Allreduce(
           ctx_, ::xgboost::linalg::MakeVec(reinterpret_cast<GradientSumT*>(&grad_stat), 2),
@@ -748,11 +709,10 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
 }
 
 // nodes_set - set of nodes to be processed in parallel
-template<typename GradientSumT>
-void HistUpdater<GradientSumT>::EvaluateSplits(
-                        const std::vector<ExpandEntry>& nodes_set,
-                        const common::GHistIndexMatrix& gmat,
-                        const RegTree& tree) {
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
+                                               const common::GHistIndexMatrix& gmat,
+                                               const RegTree& tree) {
   builder_monitor_.Start("EvaluateSplits");
 
   const size_t n_nodes_in_set = nodes_set.size();
@@ -781,7 +741,7 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
 
   split_queries_device_.Resize(qu_, total_features);
   auto event = qu_->memcpy(split_queries_device_.Data(), split_queries_host_.data(),
-                          total_features * sizeof(SplitQuery));
+                           total_features * sizeof(SplitQuery));
 
   auto evaluator = tree_evaluator_.GetEvaluator();
   SplitQuery* split_queries_device = split_queries_device_.Data();
@@ -790,7 +750,7 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
 
   snode_device_.ResizeNoCopy(qu_, snode_host_.size());
   event = qu_->memcpy(snode_device_.Data(), snode_host_.data(),
-                     snode_host_.size() * sizeof(NodeEntry<GradientSumT>), event);
+                      snode_host_.size() * sizeof(NodeEntry<GradientSumT>), event);
   const NodeEntry<GradientSumT>* snode = snode_device_.Data();
 
   const float min_child_weight = param_.min_child_weight;
@@ -804,19 +764,19 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
     cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(total_features, sub_group_size_),
                                            ::sycl::range<2>(1, sub_group_size_)),
                        [=](::sycl::nd_item<2> pid) {
-      int i = pid.get_global_id(0);
-      auto sg = pid.get_sub_group();
-      int nid = split_queries_device[i].nid;
-      int fid = split_queries_device[i].fid;
-      const GradientPairT* hist_data = split_queries_device[i].hist;
+                         int i = pid.get_global_id(0);
+                         auto sg = pid.get_sub_group();
+                         int nid = split_queries_device[i].nid;
+                         int fid = split_queries_device[i].fid;
+                         const GradientPairT* hist_data = split_queries_device[i].hist;
 
-      best_splits[i] = snode[nid].best;
-      EnumerateSplit(sg, cut_ptr, cut_val, hist_data, snode[nid],
-                     &(best_splits[i]), fid, nid, evaluator, min_child_weight);
-    });
+                         best_splits[i] = snode[nid].best;
+                         EnumerateSplit(sg, cut_ptr, cut_val, hist_data, snode[nid],
+                                        &(best_splits[i]), fid, nid, evaluator, min_child_weight);
+                       });
   });
   event = qu_->memcpy(best_splits_host_.data(), best_splits,
-                     total_features * sizeof(SplitEntry<GradientSumT>), event);
+                      total_features * sizeof(SplitEntry<GradientSumT>), event);
 
   qu_->wait();
   for (size_t i = 0; i < total_features; i++) {
@@ -832,16 +792,10 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
 // for the particular feature fid.
 template <typename GradientSumT>
 void HistUpdater<GradientSumT>::EnumerateSplit(
-    const ::sycl::sub_group& sg,
-    const uint32_t* cut_ptr,
-    const bst_float* cut_val,
-    const GradientPairT* hist_data,
-    const NodeEntry<GradientSumT>& snode,
-    SplitEntry<GradientSumT>* p_best,
-    bst_uint fid,
-    bst_uint nodeID,
-    typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator,
-    float min_child_weight) {
+    const ::sycl::sub_group& sg, const uint32_t* cut_ptr, const bst_float* cut_val,
+    const GradientPairT* hist_data, const NodeEntry<GradientSumT>& snode,
+    SplitEntry<GradientSumT>* p_best, bst_uint fid, bst_uint nodeID,
+    typename TreeEvaluator<GradientSumT>::SplitEvaluator const& evaluator, float min_child_weight) {
   SplitEntry<GradientSumT> best;
 
   int32_t ibegin = static_cast<int32_t>(cut_ptr[fid]);
@@ -880,12 +834,10 @@ void HistUpdater<GradientSumT>::EnumerateSplit(
   }
 
   bst_float total_loss_chg = ::sycl::reduce_over_group(sg, best.loss_chg, maximum<>());
-  bst_feature_t total_split_index = ::sycl::reduce_over_group(sg,
-                                                              best.loss_chg == total_loss_chg ?
-                                                              best.SplitIndex() :
-                                                              (1U << 31) - 1U, minimum<>());
-  if (best.loss_chg == total_loss_chg &&
-      best.SplitIndex() == total_split_index) p_best->Update(best);
+  bst_feature_t total_split_index = ::sycl::reduce_over_group(
+      sg, best.loss_chg == total_loss_chg ? best.SplitIndex() : (1U << 31) - 1U, minimum<>());
+  if (best.loss_chg == total_loss_chg && best.SplitIndex() == total_split_index)
+    p_best->Update(best);
 }
 
 template class HistUpdater<float>;

@@ -10,17 +10,15 @@
 #include <xgboost/data.h>
 #pragma GCC diagnostic pop
 #include <algorithm>
-#include <vector>
+#include <sycl/sycl.hpp>
 #include <utility>
+#include <vector>
 
 #include "../data.h"
-
-#include <sycl/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {
 namespace common {
-
 
 /*! \brief Collection of rowsets stored on device in USM memory */
 class RowSetCollection {
@@ -32,28 +30,19 @@ class RowSetCollection {
     const size_t* begin{nullptr};
     const size_t* end{nullptr};
     bst_node_t node_id{-1};  // id of node associated with this instance set; -1 means uninitialized
-    Elem()
-         = default;
-    Elem(const size_t* begin,
-         const size_t* end,
-         bst_node_t node_id = -1)
+    Elem() = default;
+    Elem(const size_t* begin, const size_t* end, bst_node_t node_id = -1)
         : begin(begin), end(end), node_id(node_id) {}
 
-
-    inline size_t Size() const {
-      return end - begin;
-    }
+    inline size_t Size() const { return end - begin; }
   };
 
-  inline size_t Size() const {
-    return elem_of_each_node_.size();
-  }
+  inline size_t Size() const { return elem_of_each_node_.size(); }
 
   /*! \brief return corresponding element set given the node_id */
   inline const Elem& operator[](unsigned node_id) const {
     const Elem& e = elem_of_each_node_[node_id];
-    CHECK(e.begin != nullptr)
-        << "access element that is not in the set";
+    CHECK(e.begin != nullptr) << "access element that is not in the set";
     return e;
   }
 
@@ -64,9 +53,7 @@ class RowSetCollection {
   }
 
   // clear up things
-  inline void Clear() {
-    elem_of_each_node_.clear();
-  }
+  inline void Clear() { elem_of_each_node_.clear(); }
   // initialize node id 0->everything
   inline void Init() {
     CHECK_EQ(elem_of_each_node_.size(), 0U);
@@ -79,21 +66,16 @@ class RowSetCollection {
   auto& Data() { return row_indices_; }
 
   // split rowset into two
-  inline void AddSplit(unsigned node_id,
-                       unsigned left_node_id,
-                       unsigned right_node_id,
-                       size_t n_left,
-                       size_t n_right) {
+  inline void AddSplit(unsigned node_id, unsigned left_node_id, unsigned right_node_id,
+                       size_t n_left, size_t n_right) {
     const Elem e = elem_of_each_node_[node_id];
     CHECK(e.begin != nullptr);
     size_t* all_begin = row_indices_.Begin();
     size_t* begin = all_begin + (e.begin - all_begin);
 
-
     CHECK_EQ(n_left + n_right, e.Size());
     CHECK_LE(begin + n_left, e.end);
     CHECK_EQ(begin + n_left + n_right, e.end);
-
 
     if (left_node_id >= elem_of_each_node_.size()) {
       elem_of_each_node_.resize(left_node_id + 1, Elem(nullptr, nullptr, -1));
@@ -101,7 +83,6 @@ class RowSetCollection {
     if (right_node_id >= elem_of_each_node_.size()) {
       elem_of_each_node_.resize(right_node_id + 1, Elem(nullptr, nullptr, -1));
     }
-
 
     elem_of_each_node_[left_node_id] = Elem(begin, begin + n_left, left_node_id);
     elem_of_each_node_[right_node_id] = Elem(begin + n_left, e.end, right_node_id);
@@ -118,6 +99,5 @@ class RowSetCollection {
 }  // namespace common
 }  // namespace sycl
 }  // namespace xgboost
-
 
 #endif  // PLUGIN_SYCL_COMMON_ROW_SET_H_

@@ -34,7 +34,7 @@ class StatsGPU : public ::testing::Test {
   }
 
  public:
-  void SetUp() override { ctx_  = MakeCUDACtx(0); }
+  void SetUp() override { ctx_ = MakeCUDACtx(0); }
 
   void WeightedMulti() {
     // data for one segment
@@ -81,9 +81,8 @@ class StatsGPU : public ::testing::Test {
         dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                          [=] XGBOOST_DEVICE(std::size_t i) { return d_arr(i); });
     linalg::Tensor<float, 1> weights{{10}, FstCU()};
-    linalg::cuda_impl::TransformIdxKernel(
-        &ctx_, weights.View(DeviceOrd::CUDA(0)),
-        [=] XGBOOST_DEVICE(std::size_t, float) { return 1.0; });
+    linalg::cuda_impl::TransformIdxKernel(&ctx_, weights.View(DeviceOrd::CUDA(0)),
+                                          [=] XGBOOST_DEVICE(std::size_t, float) { return 1.0; });
     auto w_it = weights.Data()->ConstDevicePointer();
     for (auto const& pair : TestSet{{0.0f, 1.0f}, {0.5f, 3.0f}, {1.0f, 5.0f}}) {
       SegmentedWeightedQuantile(&ctx_, pair.first, key_it, key_it + indptr_.Size(), val_it,

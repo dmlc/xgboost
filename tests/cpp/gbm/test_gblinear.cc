@@ -21,7 +21,7 @@ TEST(GBLinear, JsonIO) {
 
   std::unique_ptr<GradientBooster> gbm{
       CreateTrainedGBM("gblinear", Args{}, kRows, kCols, &mparam, &ctx)};
-  Json model { Object() };
+  Json model{Object()};
   gbm->SaveModel(&model);
   ASSERT_TRUE(IsA<Object>(model));
 

@@ -6,7 +6,7 @@
 #include <cstddef>  // for size_t
 #include <vector>   // for vector
 
-#include "cuda_stream.h"       // for StreamRef, Stream
+#include "cuda_stream.h"  // for StreamRef, Stream
 
 namespace xgboost::curt {
 // rmm cuda_stream_pool

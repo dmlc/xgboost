@@ -131,9 +131,7 @@ class GammaDeviance {
   }
   XGBOOST_DEVICE static bool CheckIntercept(float base_score) { return base_score > 0; }
 
-  XGBOOST_DEVICE static float FirstOrderGradient(float p, float y) {
-    return 1.0f - y / p;
-  }
+  XGBOOST_DEVICE static float FirstOrderGradient(float p, float y) { return 1.0f - y / p; }
   XGBOOST_DEVICE static float SecondOrderGradient(float p, float y) { return y / p; }
   static ObjInfo Info() { return ObjInfo::kRegression; }
   static const char* Name() { return "reg:gamma"; }

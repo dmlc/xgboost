@@ -13,7 +13,8 @@
 namespace xgboost {
 
 template <typename T>
-std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, const size_t kRows=16) {
+std::string PrepareData(std::string typestr, thrust::device_vector<T>* out,
+                        const size_t kRows = 16) {
   out->resize(kRows);
   auto& d_data = *out;
 
@@ -21,9 +22,9 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, cons
     d_data[i] = i * 2.0;
   }
 
-  Json column { Object() };
+  Json column{Object()};
 
-  std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
+  std::vector<Json> j_shape{Json(Integer(static_cast<Integer::Int>(kRows)))};
   column["shape"] = Array(j_shape);
   column["strides"] = Array(std::vector<Json>{Json(Integer{static_cast<Integer::Int>(sizeof(T))})});
   column["version"] = 3;
@@ -82,9 +83,7 @@ TEST(MetaInfo, FromInterface) {
   EXPECT_EQ(info.group_ptr_, expected_group_ptr);
 }
 
-TEST(MetaInfo, GPUStridedData) {
-  TestMetaInfoStridedData(DeviceOrd::CUDA(0));
-}
+TEST(MetaInfo, GPUStridedData) { TestMetaInfoStridedData(DeviceOrd::CUDA(0)); }
 
 TEST(MetaInfo, Group) {
   cudaSetDevice(0);
@@ -138,7 +137,6 @@ TEST(MetaInfo, GPUQid) {
     ASSERT_EQ(info.group_ptr_[i], i);
   }
 }
-
 
 TEST(MetaInfo, DeviceExtend) {
   dh::safe_cuda(cudaSetDevice(0));

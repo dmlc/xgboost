@@ -44,8 +44,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
       Context const *ctx,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
       DMatrixHandle proxy_handle, BatchParam const &p, std::shared_ptr<DMatrix> ref,
-      std::int64_t max_quantile_blocks,
-      ExtMemConfig const &config);
+      std::int64_t max_quantile_blocks, ExtMemConfig const &config);
 
   [[nodiscard]] BatchSet<GHistIndexMatrix> GetGradientIndexImpl();
   BatchSet<GHistIndexMatrix> GetGradientIndex(Context const *ctx, BatchParam const &param) override;

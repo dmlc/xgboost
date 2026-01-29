@@ -6,14 +6,14 @@
 
 #include <xgboost/logging.h>  // for CHECK_EQ, CHECK
 
-#include <cstddef>            // for size_t
-#include <memory>             // for weak_ptr, shared_ptr, make_shared
-#include <mutex>              // for mutex, lock_guard
-#include <queue>              // for queue
-#include <thread>             // for thread
-#include <unordered_map>      // for unordered_map
-#include <utility>            // for move
-#include <vector>             // for vector
+#include <cstddef>        // for size_t
+#include <memory>         // for weak_ptr, shared_ptr, make_shared
+#include <mutex>          // for mutex, lock_guard
+#include <queue>          // for queue
+#include <thread>         // for thread
+#include <unordered_map>  // for unordered_map
+#include <utility>        // for move
+#include <vector>         // for vector
 
 namespace xgboost {
 class DMatrix;

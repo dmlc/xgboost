@@ -1,10 +1,10 @@
 /**
  * Copyright 2023-2026, XGBoost contributors
  */
-#include <array>                            // std::array
-#include <cstddef>                          // std::size_t
-#include <cstdint>                          // std::int32_t
-#include <vector>                           // std::vector
+#include <array>    // std::array
+#include <cstddef>  // std::size_t
+#include <cstdint>  // std::int32_t
+#include <vector>   // std::vector
 
 #include "../common/linalg_op.h"            // ElementWiseKernel,cbegin,cend
 #include "../common/quantile_loss_utils.h"  // QuantileLossParam
@@ -20,9 +20,9 @@
 
 #if defined(XGBOOST_USE_CUDA)
 
-#include "../common/stats.cuh"      // SegmentedQuantile
+#include "../common/stats.cuh"  // SegmentedQuantile
 
-#endif                              // defined(XGBOOST_USE_CUDA)
+#endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost::obj {
 class QuantileRegression : public ObjFunction {

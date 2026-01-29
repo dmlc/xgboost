@@ -3,13 +3,13 @@
  */
 #pragma once
 
-#include <xgboost/data.h>          // for FeatureType, DMatrix
+#include <xgboost/data.h>  // for FeatureType, DMatrix
 
 #include <cstddef>  // for size_t
 #include <memory>   // for shared_ptr
 #include <vector>   // for vector
 
-#include "../helpers.h"                 // for RandomDataGenerator
+#include "../helpers.h"  // for RandomDataGenerator
 
 namespace xgboost::tree {
 inline std::shared_ptr<DMatrix> GenerateCatDMatrix(std::size_t rows, std::size_t cols,

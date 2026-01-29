@@ -5,12 +5,11 @@
 #ifndef PLUGIN_SYCL_DATA_GRADIENT_INDEX_H_
 #define PLUGIN_SYCL_DATA_GRADIENT_INDEX_H_
 
+#include <sycl/sycl.hpp>
 #include <vector>
 
-#include "../data.h"
 #include "../../src/common/hist_util.h"
-
-#include <sycl/sycl.hpp>
+#include "../data.h"
 
 namespace xgboost {
 namespace sycl {
@@ -22,52 +21,40 @@ using BinTypeSize = ::xgboost::common::BinTypeSize;
  * \brief Index data and offsets stored in USM buffers to provide access from device kernels
  */
 struct Index {
-  Index() {
-    SetBinTypeSize(binTypeSize_);
-  }
+  Index() { SetBinTypeSize(binTypeSize_); }
   Index(const Index& i) = delete;
   Index& operator=(Index i) = delete;
   Index(Index&& i) = delete;
   Index& operator=(Index&& i) = delete;
   void SetBinTypeSize(BinTypeSize binTypeSize) {
     binTypeSize_ = binTypeSize;
-    CHECK(binTypeSize == BinTypeSize::kUint8BinsTypeSize  ||
+    CHECK(binTypeSize == BinTypeSize::kUint8BinsTypeSize ||
           binTypeSize == BinTypeSize::kUint16BinsTypeSize ||
           binTypeSize == BinTypeSize::kUint32BinsTypeSize);
   }
-  BinTypeSize GetBinTypeSize() const {
-    return binTypeSize_;
-  }
+  BinTypeSize GetBinTypeSize() const { return binTypeSize_; }
 
-  template<typename T>
+  template <typename T>
   T* data() {
     return reinterpret_cast<T*>(data_.Data());
   }
 
-  template<typename T>
+  template <typename T>
   const T* data() const {
     return reinterpret_cast<const T*>(data_.DataConst());
   }
 
-  size_t Size() const {
-    return data_.Size() / (binTypeSize_);
-  }
+  size_t Size() const { return data_.Size() / (binTypeSize_); }
 
-  void Resize(::sycl::queue* qu, const size_t nBytesData) {
-    data_.Resize(qu, nBytesData);
-  }
+  void Resize(::sycl::queue* qu, const size_t nBytesData) { data_.Resize(qu, nBytesData); }
 
-  uint8_t* begin() const {
-    return data_.Begin();
-  }
+  uint8_t* begin() const { return data_.Begin(); }
 
-  uint8_t* end() const {
-    return data_.End();
-  }
+  uint8_t* end() const { return data_.End(); }
 
  private:
   USMVector<uint8_t, MemoryType::on_device> data_;
-  BinTypeSize binTypeSize_ {BinTypeSize::kUint8BinsTypeSize};
+  BinTypeSize binTypeSize_{BinTypeSize::kUint8BinsTypeSize};
 };
 
 /*!
@@ -92,12 +79,10 @@ struct GHistIndexMatrix {
   size_t row_stride;
 
   // Create a global histogram matrix based on a given DMatrix device wrapper
-  void Init(::sycl::queue* qu, Context const * ctx,
-            DMatrix *dmat, int max_num_bins);
+  void Init(::sycl::queue* qu, Context const* ctx, DMatrix* dmat, int max_num_bins);
 
   template <typename BinIdxType, bool isDense>
-  void SetIndexData(::sycl::queue* qu, Context const * ctx, BinIdxType* index_data,
-                    DMatrix *dmat);
+  void SetIndexData(::sycl::queue* qu, Context const* ctx, BinIdxType* index_data, DMatrix* dmat);
 
   void ResizeIndex(::sycl::queue* qu, size_t n_index);
 
@@ -111,9 +96,7 @@ struct GHistIndexMatrix {
       }
     }
   }
-  inline bool IsDense() const {
-    return isDense_;
-  }
+  inline bool IsDense() const { return isDense_; }
 
  private:
   bool isDense_;

@@ -97,9 +97,9 @@ inline void VerifyMultiClassAUC(DataSplitMode data_split_mode, DeviceOrd device)
   // invalid dataset
   float auc = GetMetricEval(metric,
                             {
-                                1.0f, 0.0f, 0.0f,                 // p_0
-                                0.0f, 1.0f, 0.0f,                 // p_1
-                                0.0f, 0.0f, 1.0f                  // p_2
+                                1.0f, 0.0f, 0.0f,  // p_0
+                                0.0f, 1.0f, 0.0f,  // p_1
+                                0.0f, 0.0f, 1.0f   // p_2
                             },
                             {0, 1, 1}, {}, {}, data_split_mode);  // no class 2.
   EXPECT_TRUE(std::isnan(auc)) << auc;

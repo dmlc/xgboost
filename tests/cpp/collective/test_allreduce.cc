@@ -7,8 +7,8 @@
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/collective/coll.h"  // for Coll
-#include "../../../src/common/type.h"  // for EraseType
-#include "test_worker.h"               // for WorkerForTest, TestDistributed
+#include "../../../src/common/type.h"      // for EraseType
+#include "test_worker.h"                   // for WorkerForTest, TestDistributed
 
 namespace xgboost::collective {
 namespace {

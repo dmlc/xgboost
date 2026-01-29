@@ -26,14 +26,15 @@
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.
  */
+#include "charconv.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cinttypes>
-#include <cstring>
 #include <cmath>
+#include <cstring>
 
 #include "xgboost/logging.h"
-#include "charconv.h"
 
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -57,20 +58,17 @@
 namespace xgboost {
 namespace detail {
 static constexpr char kItoaLut[200] = {
-    '0', '0', '0', '1', '0', '2', '0', '3', '0', '4', '0', '5', '0', '6', '0',
-    '7', '0', '8', '0', '9', '1', '0', '1', '1', '1', '2', '1', '3', '1', '4',
-    '1', '5', '1', '6', '1', '7', '1', '8', '1', '9', '2', '0', '2', '1', '2',
-    '2', '2', '3', '2', '4', '2', '5', '2', '6', '2', '7', '2', '8', '2', '9',
-    '3', '0', '3', '1', '3', '2', '3', '3', '3', '4', '3', '5', '3', '6', '3',
-    '7', '3', '8', '3', '9', '4', '0', '4', '1', '4', '2', '4', '3', '4', '4',
-    '4', '5', '4', '6', '4', '7', '4', '8', '4', '9', '5', '0', '5', '1', '5',
-    '2', '5', '3', '5', '4', '5', '5', '5', '6', '5', '7', '5', '8', '5', '9',
-    '6', '0', '6', '1', '6', '2', '6', '3', '6', '4', '6', '5', '6', '6', '6',
-    '7', '6', '8', '6', '9', '7', '0', '7', '1', '7', '2', '7', '3', '7', '4',
-    '7', '5', '7', '6', '7', '7', '7', '8', '7', '9', '8', '0', '8', '1', '8',
-    '2', '8', '3', '8', '4', '8', '5', '8', '6', '8', '7', '8', '8', '8', '9',
-    '9', '0', '9', '1', '9', '2', '9', '3', '9', '4', '9', '5', '9', '6', '9',
-    '7', '9', '8', '9', '9'};
+    '0', '0', '0', '1', '0', '2', '0', '3', '0', '4', '0', '5', '0', '6', '0', '7', '0', '8', '0',
+    '9', '1', '0', '1', '1', '1', '2', '1', '3', '1', '4', '1', '5', '1', '6', '1', '7', '1', '8',
+    '1', '9', '2', '0', '2', '1', '2', '2', '2', '3', '2', '4', '2', '5', '2', '6', '2', '7', '2',
+    '8', '2', '9', '3', '0', '3', '1', '3', '2', '3', '3', '3', '4', '3', '5', '3', '6', '3', '7',
+    '3', '8', '3', '9', '4', '0', '4', '1', '4', '2', '4', '3', '4', '4', '4', '5', '4', '6', '4',
+    '7', '4', '8', '4', '9', '5', '0', '5', '1', '5', '2', '5', '3', '5', '4', '5', '5', '5', '6',
+    '5', '7', '5', '8', '5', '9', '6', '0', '6', '1', '6', '2', '6', '3', '6', '4', '6', '5', '6',
+    '6', '6', '7', '6', '8', '6', '9', '7', '0', '7', '1', '7', '2', '7', '3', '7', '4', '7', '5',
+    '7', '6', '7', '7', '7', '8', '7', '9', '8', '0', '8', '1', '8', '2', '8', '3', '8', '4', '8',
+    '5', '8', '6', '8', '7', '8', '8', '8', '9', '9', '0', '9', '1', '9', '2', '9', '3', '9', '4',
+    '9', '5', '9', '6', '9', '7', '9', '8', '9', '9'};
 
 constexpr uint32_t Tens(uint32_t n) { return n == 1 ? 10 : (Tens(n - 1) * 10); }
 
@@ -84,7 +82,7 @@ struct UnsignedFloatBase10 {
 };
 
 template <typename To, typename From>
-To BitCast(From&& from) {
+To BitCast(From &&from) {
   static_assert(sizeof(From) == sizeof(To), "Bit cast doesn't change output size.");
   To t;
   std::memcpy(&t, &from, sizeof(To));
@@ -96,14 +94,13 @@ struct IEEE754 {
   static constexpr uint32_t kFloatBias = 127;
   static constexpr uint32_t kFloatExponentBits = 8;
 
-  static void Decode(float f, UnsignedFloatBase2* uf, bool* signbit);
-  static float Encode(UnsignedFloatBase2 const& uf, bool signbit);
+  static void Decode(float f, UnsignedFloatBase2 *uf, bool *signbit);
+  static float Encode(UnsignedFloatBase2 const &uf, bool signbit);
 
   static float Infinity(bool sign) {
-    uint32_t f =
-        ((static_cast<uint32_t>(sign))
-         << (IEEE754::kFloatExponentBits + IEEE754::kFloatMantissaBits)) |
-        (0xffu << IEEE754::kFloatMantissaBits);
+    uint32_t f = ((static_cast<uint32_t>(sign))
+                  << (IEEE754::kFloatExponentBits + IEEE754::kFloatMantissaBits)) |
+                 (0xffu << IEEE754::kFloatMantissaBits);
     float result = BitCast<float>(f);
     return result;
   }
@@ -115,12 +112,8 @@ struct UnsignedFloatBase2 {
   // inclusive, and can fit in a short if needed.
   uint32_t exponent;
 
-  bool Infinite() const {
-    return exponent == ((1u << IEEE754::kFloatExponentBits) - 1u);
-  }
-  bool Zero() const {
-    return mantissa == 0 && exponent == 0;
-  }
+  bool Infinite() const { return exponent == ((1u << IEEE754::kFloatExponentBits) - 1u); }
+  bool Zero() const { return mantissa == 0 && exponent == 0; }
 };
 
 inline void IEEE754::Decode(float f, UnsignedFloatBase2 *uf, bool *signbit) {
@@ -133,11 +126,10 @@ inline void IEEE754::Decode(float f, UnsignedFloatBase2 *uf, bool *signbit) {
 }
 
 inline float IEEE754::Encode(UnsignedFloatBase2 const &uf, bool signbit) {
-  uint32_t f =
-      ((((static_cast<uint32_t>(signbit)) << IEEE754::kFloatExponentBits) |
-        static_cast<uint32_t>(uf.exponent))
-       << IEEE754::kFloatMantissaBits) |
-      uf.mantissa;
+  uint32_t f = ((((static_cast<uint32_t>(signbit)) << IEEE754::kFloatExponentBits) |
+                 static_cast<uint32_t>(uf.exponent))
+                << IEEE754::kFloatMantissaBits) |
+               uf.mantissa;
   return BitCast<float>(f);
 }
 
@@ -158,44 +150,35 @@ struct RyuPowLogUtils {
   // f2s_full_table.h
   uint32_t constexpr static kFloatPow5InvBitcount = 59;
   static constexpr uint64_t kFloatPow5InvSplit[55] = {
-      576460752303423489u, 461168601842738791u, 368934881474191033u,
-      295147905179352826u, 472236648286964522u, 377789318629571618u,
-      302231454903657294u, 483570327845851670u, 386856262276681336u,
-      309485009821345069u, 495176015714152110u, 396140812571321688u,
-      316912650057057351u, 507060240091291761u, 405648192073033409u,
-      324518553658426727u, 519229685853482763u, 415383748682786211u,
-      332306998946228969u, 531691198313966350u, 425352958651173080u,
-      340282366920938464u, 544451787073501542u, 435561429658801234u,
-      348449143727040987u, 557518629963265579u, 446014903970612463u,
-      356811923176489971u, 570899077082383953u, 456719261665907162u,
-      365375409332725730u, 292300327466180584u, 467680523945888934u,
-      374144419156711148u, 299315535325368918u, 478904856520590269u,
-      383123885216472215u, 306499108173177772u, 490398573077084435u,
-      392318858461667548u, 313855086769334039u, 502168138830934462u,
-      401734511064747569u, 321387608851798056u, 514220174162876889u,
-      411376139330301511u, 329100911464241209u, 526561458342785934u,
-      421249166674228747u, 336999333339382998u, 539198933343012796u,
-      431359146674410237u, 345087317339528190u, 552139707743245103u,
-      441711766194596083u};
+      576460752303423489u, 461168601842738791u, 368934881474191033u, 295147905179352826u,
+      472236648286964522u, 377789318629571618u, 302231454903657294u, 483570327845851670u,
+      386856262276681336u, 309485009821345069u, 495176015714152110u, 396140812571321688u,
+      316912650057057351u, 507060240091291761u, 405648192073033409u, 324518553658426727u,
+      519229685853482763u, 415383748682786211u, 332306998946228969u, 531691198313966350u,
+      425352958651173080u, 340282366920938464u, 544451787073501542u, 435561429658801234u,
+      348449143727040987u, 557518629963265579u, 446014903970612463u, 356811923176489971u,
+      570899077082383953u, 456719261665907162u, 365375409332725730u, 292300327466180584u,
+      467680523945888934u, 374144419156711148u, 299315535325368918u, 478904856520590269u,
+      383123885216472215u, 306499108173177772u, 490398573077084435u, 392318858461667548u,
+      313855086769334039u, 502168138830934462u, 401734511064747569u, 321387608851798056u,
+      514220174162876889u, 411376139330301511u, 329100911464241209u, 526561458342785934u,
+      421249166674228747u, 336999333339382998u, 539198933343012796u, 431359146674410237u,
+      345087317339528190u, 552139707743245103u, 441711766194596083u};
 
   uint32_t constexpr static kFloatPow5Bitcount = 61;
   static constexpr uint64_t kFloatPow5Split[47] = {
-      1152921504606846976u, 1441151880758558720u, 1801439850948198400u,
-      2251799813685248000u, 1407374883553280000u, 1759218604441600000u,
-      2199023255552000000u, 1374389534720000000u, 1717986918400000000u,
-      2147483648000000000u, 1342177280000000000u, 1677721600000000000u,
-      2097152000000000000u, 1310720000000000000u, 1638400000000000000u,
-      2048000000000000000u, 1280000000000000000u, 1600000000000000000u,
-      2000000000000000000u, 1250000000000000000u, 1562500000000000000u,
-      1953125000000000000u, 1220703125000000000u, 1525878906250000000u,
-      1907348632812500000u, 1192092895507812500u, 1490116119384765625u,
-      1862645149230957031u, 1164153218269348144u, 1455191522836685180u,
-      1818989403545856475u, 2273736754432320594u, 1421085471520200371u,
-      1776356839400250464u, 2220446049250313080u, 1387778780781445675u,
-      1734723475976807094u, 2168404344971008868u, 1355252715606880542u,
-      1694065894508600678u, 2117582368135750847u, 1323488980084844279u,
-      1654361225106055349u, 2067951531382569187u, 1292469707114105741u,
-      1615587133892632177u, 2019483917365790221u};
+      1152921504606846976u, 1441151880758558720u, 1801439850948198400u, 2251799813685248000u,
+      1407374883553280000u, 1759218604441600000u, 2199023255552000000u, 1374389534720000000u,
+      1717986918400000000u, 2147483648000000000u, 1342177280000000000u, 1677721600000000000u,
+      2097152000000000000u, 1310720000000000000u, 1638400000000000000u, 2048000000000000000u,
+      1280000000000000000u, 1600000000000000000u, 2000000000000000000u, 1250000000000000000u,
+      1562500000000000000u, 1953125000000000000u, 1220703125000000000u, 1525878906250000000u,
+      1907348632812500000u, 1192092895507812500u, 1490116119384765625u, 1862645149230957031u,
+      1164153218269348144u, 1455191522836685180u, 1818989403545856475u, 2273736754432320594u,
+      1421085471520200371u, 1776356839400250464u, 2220446049250313080u, 1387778780781445675u,
+      1734723475976807094u, 2168404344971008868u, 1355252715606880542u, 1694065894508600678u,
+      2117582368135750847u, 1323488980084844279u, 1654361225106055349u, 2067951531382569187u,
+      1292469707114105741u, 1615587133892632177u, 2019483917365790221u};
 
   static uint32_t Pow5Factor(uint32_t value) noexcept(true) {
     uint32_t count = 0;
@@ -239,15 +222,12 @@ struct RyuPowLogUtils {
     return static_cast<int32_t>(((static_cast<uint32_t>(e)) * 1217359) >> 19);
   }
 
-  static int32_t CeilLog2Pow5(const int32_t e) {
-    return RyuPowLogUtils::Log2Pow5(e) + 1;
-  }
+  static int32_t CeilLog2Pow5(const int32_t e) { return RyuPowLogUtils::Log2Pow5(e) + 1; }
 
   /*
    * \brief Multiply 32-bit and 64-bit -> 128 bit, then access the higher bits.
    */
-  static uint32_t MulShift(const uint32_t x, const uint64_t y,
-                           const int32_t shift) noexcept(true) {
+  static uint32_t MulShift(const uint32_t x, const uint64_t y, const int32_t shift) noexcept(true) {
     // For 32-bit * 64-bit: x * y, it can be decomposed into:
     //
     //   x * (y_high + y_low) = (x * y_high) + (x * y_low)
@@ -311,8 +291,7 @@ struct RyuPowLogUtils {
     // greater than 10^1832.
     assert(expoent >= 0);
     assert(expoent <= 1 << 15);
-    return static_cast<uint32_t>(
-        ((static_cast<uint64_t>(expoent)) * 196742565691928ull) >> 48);
+    return static_cast<uint32_t>(((static_cast<uint64_t>(expoent)) * 196742565691928ull) >> 48);
   }
 };
 
@@ -321,11 +300,10 @@ constexpr uint64_t RyuPowLogUtils::kFloatPow5Split[47];
 
 class PowerBaseComputer {
  private:
-  static uint8_t
-  ToDecimalBase(bool const accept_bounds, uint32_t const mantissa_low_shift,
-                MantissaInteval const base2, MantissaInteval *base10,
-                bool *mantissa_low_is_trailing_zeros,
-                bool *mantissa_out_is_trailing_zeros) noexcept(true) {
+  static uint8_t ToDecimalBase(bool const accept_bounds, uint32_t const mantissa_low_shift,
+                               MantissaInteval const base2, MantissaInteval *base10,
+                               bool *mantissa_low_is_trailing_zeros,
+                               bool *mantissa_out_is_trailing_zeros) noexcept(true) {
     uint8_t last_removed_digit = 0;
     if (base2.exponent >= 0) {
       const uint32_t q = RyuPowLogUtils::Log10Pow2(base2.exponent);
@@ -333,26 +311,20 @@ class PowerBaseComputer {
       const int32_t k = RyuPowLogUtils::kFloatPow5InvBitcount +
                         RyuPowLogUtils::Pow5Bits(static_cast<int32_t>(q)) - 1;
       const int32_t i = -base2.exponent + static_cast<int32_t>(q) + k;
-      base10->mantissa_low =
-          RyuPowLogUtils::MulPow5InvDivPow2(base2.mantissa_low, q, i);
-      base10->mantissa_correct =
-          RyuPowLogUtils::MulPow5InvDivPow2(base2.mantissa_correct, q, i);
-      base10->mantissa_high =
-          RyuPowLogUtils::MulPow5InvDivPow2(base2.mantissa_high, q, i);
+      base10->mantissa_low = RyuPowLogUtils::MulPow5InvDivPow2(base2.mantissa_low, q, i);
+      base10->mantissa_correct = RyuPowLogUtils::MulPow5InvDivPow2(base2.mantissa_correct, q, i);
+      base10->mantissa_high = RyuPowLogUtils::MulPow5InvDivPow2(base2.mantissa_high, q, i);
 
-      if (q != 0 &&
-          (base10->mantissa_high - 1) / 10 <= base10->mantissa_low / 10) {
+      if (q != 0 && (base10->mantissa_high - 1) / 10 <= base10->mantissa_low / 10) {
         // We need to know one removed digit even if we are not going to loop
         // below. We could use q = X - 1 above, except that would require 33
         // bits for the result, and we've found that 32-bit arithmetic is
         // faster even on 64-bit machines.
-        const int32_t l =
-            RyuPowLogUtils::kFloatPow5InvBitcount +
-            RyuPowLogUtils::Pow5Bits(static_cast<int32_t>(q - 1)) - 1;
+        const int32_t l = RyuPowLogUtils::kFloatPow5InvBitcount +
+                          RyuPowLogUtils::Pow5Bits(static_cast<int32_t>(q - 1)) - 1;
         last_removed_digit = static_cast<uint8_t>(
-            RyuPowLogUtils::MulPow5InvDivPow2(
-                base2.mantissa_correct, q - 1,
-                -base2.exponent + static_cast<int32_t>(q) - 1 + l) %
+            RyuPowLogUtils::MulPow5InvDivPow2(base2.mantissa_correct, q - 1,
+                                              -base2.exponent + static_cast<int32_t>(q) - 1 + l) %
             10);
       }
       if (q <= 9) {
@@ -366,33 +338,29 @@ class PowerBaseComputer {
           *mantissa_low_is_trailing_zeros =
               RyuPowLogUtils::MultipleOfPowerOf5(base2.mantissa_low, q);
         } else {
-          base10->mantissa_high -=
-              RyuPowLogUtils::MultipleOfPowerOf5(base2.mantissa_high, q);
+          base10->mantissa_high -= RyuPowLogUtils::MultipleOfPowerOf5(base2.mantissa_high, q);
         }
       }
     } else {
       const uint32_t q = RyuPowLogUtils::Log10Pow5(-base2.exponent);
       base10->exponent = static_cast<int32_t>(q) + base2.exponent;
       const int32_t i = -base2.exponent - static_cast<int32_t>(q);
-      const int32_t k =
-          RyuPowLogUtils::Pow5Bits(i) - RyuPowLogUtils::kFloatPow5Bitcount;
+      const int32_t k = RyuPowLogUtils::Pow5Bits(i) - RyuPowLogUtils::kFloatPow5Bitcount;
       int32_t j = static_cast<int32_t>(q) - k;
-      base10->mantissa_correct = RyuPowLogUtils::MulPow5divPow2(
-          base2.mantissa_correct, static_cast<uint32_t>(i), j);
-      base10->mantissa_high = RyuPowLogUtils::MulPow5divPow2(
-          base2.mantissa_high, static_cast<uint32_t>(i), j);
-      base10->mantissa_low = RyuPowLogUtils::MulPow5divPow2(
-          base2.mantissa_low, static_cast<uint32_t>(i), j);
+      base10->mantissa_correct =
+          RyuPowLogUtils::MulPow5divPow2(base2.mantissa_correct, static_cast<uint32_t>(i), j);
+      base10->mantissa_high =
+          RyuPowLogUtils::MulPow5divPow2(base2.mantissa_high, static_cast<uint32_t>(i), j);
+      base10->mantissa_low =
+          RyuPowLogUtils::MulPow5divPow2(base2.mantissa_low, static_cast<uint32_t>(i), j);
 
-      if (q != 0 &&
-          (base10->mantissa_high - 1) / 10 <= base10->mantissa_low / 10) {
+      if (q != 0 && (base10->mantissa_high - 1) / 10 <= base10->mantissa_low / 10) {
         j = static_cast<int32_t>(q) - 1 -
-            (RyuPowLogUtils::Pow5Bits(i + 1) -
-             RyuPowLogUtils::kFloatPow5Bitcount);
-        last_removed_digit = static_cast<uint8_t>(
-            RyuPowLogUtils::MulPow5divPow2(base2.mantissa_correct,
-                                           static_cast<uint32_t>(i + 1), j) %
-            10);
+            (RyuPowLogUtils::Pow5Bits(i + 1) - RyuPowLogUtils::kFloatPow5Bitcount);
+        last_removed_digit =
+            static_cast<uint8_t>(RyuPowLogUtils::MulPow5divPow2(base2.mantissa_correct,
+                                                                static_cast<uint32_t>(i + 1), j) %
+                                 10);
       }
       if (q <= 1) {
         // {mantissa_out, mantissa_out_high, mantissa_out_low} is trailing zeros if
@@ -419,13 +387,13 @@ class PowerBaseComputer {
   /*
    * \brief A varient of extended euclidean GCD algorithm.
    */
-  static UnsignedFloatBase10
-  ShortestRepresentation(bool mantissa_low_is_trailing_zeros,
-                         bool mantissa_out_is_trailing_zeros,
-                         uint8_t last_removed_digit, bool const accept_bounds,
-                         MantissaInteval base10) noexcept(true) {
-    int32_t removed {0};
-    uint32_t output {0};
+  static UnsignedFloatBase10 ShortestRepresentation(bool mantissa_low_is_trailing_zeros,
+                                                    bool mantissa_out_is_trailing_zeros,
+                                                    uint8_t last_removed_digit,
+                                                    bool const accept_bounds,
+                                                    MantissaInteval base10) noexcept(true) {
+    int32_t removed{0};
+    uint32_t output{0};
 
     if (mantissa_low_is_trailing_zeros || mantissa_out_is_trailing_zeros) {
       // General case, which happens rarely (~4.0%).
@@ -457,10 +425,9 @@ class PowerBaseComputer {
       }
       // We need to take mantissa_out + 1 if mantissa_out is outside bounds or we need to
       // round up.
-      output = base10.mantissa_correct +
-               ((base10.mantissa_correct == base10.mantissa_low &&
-                 (!accept_bounds || !mantissa_low_is_trailing_zeros)) ||
-                last_removed_digit >= 5);
+      output = base10.mantissa_correct + ((base10.mantissa_correct == base10.mantissa_low &&
+                                           (!accept_bounds || !mantissa_low_is_trailing_zeros)) ||
+                                          last_removed_digit >= 5);
     } else {
       // Specialized for the common case (~96.0%). Percentages below are
       // relative to this. Loop iterations below (approximately): 0: 13.6%,
@@ -476,8 +443,7 @@ class PowerBaseComputer {
       // We need to take mantissa_out + 1 if mantissa_out is outside bounds or we need to
       // round up.
       output = base10.mantissa_correct +
-               (base10.mantissa_correct == base10.mantissa_low ||
-                last_removed_digit >= 5);
+               (base10.mantissa_correct == base10.mantissa_low || last_removed_digit >= 5);
     }
     const int32_t exp = base10.exponent + removed;
 
@@ -493,8 +459,7 @@ class PowerBaseComputer {
     uint32_t mantissa_base2;
     if (f.exponent == 0) {
       // We subtract 2 so that the bounds computation has 2 additional bits.
-      base2_range.exponent = static_cast<int32_t>(1) -
-                             static_cast<int32_t>(IEEE754::kFloatBias) -
+      base2_range.exponent = static_cast<int32_t>(1) - static_cast<int32_t>(IEEE754::kFloatBias) -
                              static_cast<int32_t>(IEEE754::kFloatMantissaBits) -
                              static_cast<int32_t>(2);
       static_assert(static_cast<int32_t>(1) - static_cast<int32_t>(IEEE754::kFloatBias) -
@@ -503,8 +468,8 @@ class PowerBaseComputer {
                     -151);
       mantissa_base2 = f.mantissa;
     } else {
-      base2_range.exponent = static_cast<int32_t>(f.exponent) - IEEE754::kFloatBias -
-                             IEEE754::kFloatMantissaBits - 2;
+      base2_range.exponent =
+          static_cast<int32_t>(f.exponent) - IEEE754::kFloatBias - IEEE754::kFloatMantissaBits - 2;
       mantissa_base2 = (1u << IEEE754::kFloatMantissaBits) | f.mantissa;
     }
     const bool even = (mantissa_base2 & 1) == 0;
@@ -527,10 +492,9 @@ class PowerBaseComputer {
 
     // Step 4: Find the shortest decimal representation in the interval of valid
     // representations.
-    auto out = ShortestRepresentation(mantissa_low_is_trailing_zeros,
-                                      mantissa_out_is_trailing_zeros,
-                                      last_removed_digit,
-                                      accept_bounds, base10_range);
+    auto out =
+        ShortestRepresentation(mantissa_low_is_trailing_zeros, mantissa_out_is_trailing_zeros,
+                               last_removed_digit, accept_bounds, base10_range);
     return out;
   }
 };
@@ -664,7 +628,7 @@ class RyuPrinter {
   }
 };
 
-int32_t ToCharsFloatImpl(float f, char * const result) {
+int32_t ToCharsFloatImpl(float f, char *const result) {
   // Step 1: Decode the floating-point number, and unify normalized and
   // subnormal cases.
   UnsignedFloatBase2 uf32;
@@ -680,7 +644,6 @@ int32_t ToCharsFloatImpl(float f, char * const result) {
   const auto index = RyuPrinter::PrintBase10Float(v, sign, result);
   return index;
 }
-
 
 // ====================== Integer ==================
 
@@ -704,25 +667,25 @@ void ItoaUnsignedImpl(char *first, uint32_t length, uint64_t value) {
     first[0] = kItoaLut[num];
     first[1] = kItoaLut[num + 1];
   } else {
-    first[0]= '0' + value;
+    first[0] = '0' + value;
   }
 }
 
 constexpr uint32_t ShortestDigit10Impl(uint64_t value, uint32_t n) {
   // Should trigger tail recursion optimization.
-  return value < 10 ? n :
-      (value < Tens(2) ? n + 1 :
-       (value < Tens(3) ? n + 2 :
-        (value < Tens(4) ? n + 3 :
-         ShortestDigit10Impl(value / Tens(4), n + 4))));
+  return value < 10
+             ? n
+             : (value < Tens(2)
+                    ? n + 1
+                    : (value < Tens(3)
+                           ? n + 2
+                           : (value < Tens(4) ? n + 3
+                                              : ShortestDigit10Impl(value / Tens(4), n + 4))));
 }
 
-constexpr uint32_t ShortestDigit10(uint64_t value) {
-  return ShortestDigit10Impl(value, 1);
-}
+constexpr uint32_t ShortestDigit10(uint64_t value) { return ShortestDigit10Impl(value, 1); }
 
-to_chars_result ToCharsUnsignedImpl(char *first, char *last,
-                                    uint64_t const value) {
+to_chars_result ToCharsUnsignedImpl(char *first, char *last, uint64_t const value) {
   const uint32_t output_len = ShortestDigit10(value);
   to_chars_result ret;
   if (XGBOOST_EXPECT(std::distance(first, last) == 0, false)) {
@@ -742,8 +705,7 @@ to_chars_result ToCharsUnsignedImpl(char *first, char *last,
  * double table.  But here we optimize the table size with float table instead.  The
  * result is exactly the same.
  */
-from_chars_result FromCharFloatImpl(const char *buffer, const int len,
-                                    float *result) {
+from_chars_result FromCharFloatImpl(const char *buffer, const int len, float *result) {
   if (len == 0) {
     return {buffer, std::errc::invalid_argument};
   }
@@ -817,9 +779,8 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
   if ((m10digits + exp_b10 <= -46) || (mantissa_b10 == 0)) {
     // Number is less than 1e-46, which should be rounded down to 0; return
     // +/-0.0.
-    uint32_t ieee =
-        (static_cast<uint32_t>(signed_mantissa))
-        << (IEEE754::kFloatExponentBits + IEEE754::kFloatMantissaBits);
+    uint32_t ieee = (static_cast<uint32_t>(signed_mantissa))
+                    << (IEEE754::kFloatExponentBits + IEEE754::kFloatMantissaBits);
     *result = BitCast<float>(ieee);
     return {};
   }
@@ -846,8 +807,7 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
     //
     // We use floor(log2(5^e10)) so that we get at least this many bits; better
     // to have an additional bit than to not have enough bits.
-    exp_b2 = RyuPowLogUtils::FloorLog2(mantissa_b10) + exp_b10 +
-             RyuPowLogUtils::Log2Pow5(exp_b10) -
+    exp_b2 = RyuPowLogUtils::FloorLog2(mantissa_b10) + exp_b10 + RyuPowLogUtils::Log2Pow5(exp_b10) -
              (IEEE754::kFloatMantissaBits + 1);
 
     // We now compute [m10 * 10^e10 / 2^e2] = [m10 * 5^e10 / 2^(e2-e10)].
@@ -864,13 +824,11 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
     // than e2. If e2 is less than e10, then the result must be exact. Otherwise
     // we use the existing multipleOfPowerOf2 function.
     trailing_zeros =
-        exp_b2 < exp_b10 ||
-        (exp_b2 - exp_b10 < 32 &&
-         RyuPowLogUtils::MultipleOfPowerOf2(mantissa_b10, exp_b2 - exp_b10));
+        exp_b2 < exp_b10 || (exp_b2 - exp_b10 < 32 &&
+                             RyuPowLogUtils::MultipleOfPowerOf2(mantissa_b10, exp_b2 - exp_b10));
   } else {
     exp_b2 = RyuPowLogUtils::FloorLog2(mantissa_b10) + exp_b10 -
-             RyuPowLogUtils::CeilLog2Pow5(-exp_b10) -
-             (IEEE754::kFloatMantissaBits + 1);
+             RyuPowLogUtils::CeilLog2Pow5(-exp_b10) - (IEEE754::kFloatMantissaBits + 1);
 
     // We now compute [m10 * 10^e10 / 2^e2] = [m10 / (5^(-e10) 2^(e2-e10))].
     int j = exp_b2 - exp_b10 + RyuPowLogUtils::CeilLog2Pow5(-exp_b10) - 1 +
@@ -887,17 +845,15 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
     // above, and we need to check whether 5^(-e10) divides (m10 * 2^(e10-e2)),
     // which is the case iff pow5(m10 * 2^(e10-e2)) = pow5(m10) >= -e10.
     trailing_zeros =
-        (exp_b2 < exp_b10 ||
-         (exp_b2 - exp_b10 < 32 && RyuPowLogUtils::MultipleOfPowerOf2(
-                                       mantissa_b10, exp_b2 - exp_b10))) &&
+        (exp_b2 < exp_b10 || (exp_b2 - exp_b10 < 32 && RyuPowLogUtils::MultipleOfPowerOf2(
+                                                           mantissa_b10, exp_b2 - exp_b10))) &&
         RyuPowLogUtils::MultipleOfPowerOf5(mantissa_b10, -exp_b10);
   }
 
   // Compute the final IEEE exponent.
-  uint32_t f_e2 =
-      std::max(static_cast<int32_t>(0),
-               static_cast<int32_t>(exp_b2 + IEEE754::kFloatBias +
-                                    RyuPowLogUtils::FloorLog2(mantissa_b2)));
+  uint32_t f_e2 = std::max(
+      static_cast<int32_t>(0),
+      static_cast<int32_t>(exp_b2 + IEEE754::kFloatBias + RyuPowLogUtils::FloorLog2(mantissa_b2)));
 
   if (f_e2 > 0xfe) {
     // Final IEEE exponent is larger than the maximum representable; return
@@ -909,8 +865,8 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
   // We need to figure out how much we need to shift m2. The tricky part is that
   // we need to take the final IEEE exponent into account, so we need to reverse
   // the bias and also special-case the value 0.
-  int32_t shift = (f_e2 == 0 ? 1 : f_e2) - exp_b2 - IEEE754::kFloatBias -
-                  IEEE754::kFloatMantissaBits;
+  int32_t shift =
+      (f_e2 == 0 ? 1 : f_e2) - exp_b2 - IEEE754::kFloatBias - IEEE754::kFloatMantissaBits;
   assert(shift >= 1);
 
   // We need to round up if the exact value is more than 0.5 above the value we
@@ -922,8 +878,7 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
   // exponent ieee_e2 now.
   trailing_zeros &= (mantissa_b2 & ((1u << (shift - 1)) - 1)) == 0;  // NOLINT
   uint32_t lastRemovedBit = (mantissa_b2 >> (shift - 1)) & 1;
-  bool roundup = (lastRemovedBit != 0) &&
-                 (!trailing_zeros || (((mantissa_b2 >> shift) & 1) != 0));
+  bool roundup = (lastRemovedBit != 0) && (!trailing_zeros || (((mantissa_b2 >> shift) & 1) != 0));
 
   uint32_t f_m2 = (mantissa_b2 >> shift) + roundup;
   assert(f_m2 <= (1u << (IEEE754::kFloatMantissaBits + 1)));

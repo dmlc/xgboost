@@ -3,8 +3,9 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
-#include "../helpers.h"
+
 #include "../../../src/data/array_interface.h"
+#include "../helpers.h"
 #include "dmlc/logging.h"
 #include "xgboost/json.h"
 
@@ -32,8 +33,8 @@ TEST(ArrayInterface, Initialize) {
 
 TEST(ArrayInterface, Error) {
   constexpr size_t kRows = 16, kCols = 10;
-  Json column { Object() };
-  std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
+  Json column{Object()};
+  std::vector<Json> j_shape{Json(Integer(static_cast<Integer::Int>(kRows)))};
   column["shape"] = Array(j_shape);
   std::vector<Json> j_data{Json(Integer(reinterpret_cast<Integer::Int>(nullptr))),
                            Json(Boolean(false))};
@@ -46,26 +47,21 @@ TEST(ArrayInterface, Error) {
   EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n), dmlc::Error);
   column["version"] = 3;
   // missing data
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
-               dmlc::Error);
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n), dmlc::Error);
   // null data
   column["data"] = Null{};
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
-               dmlc::Error);
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n), dmlc::Error);
   column["data"] = j_data;
   // missing typestr
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
-               dmlc::Error);
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n), dmlc::Error);
   column["typestr"] = String("<f4");
   // nullptr is not valid
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
-               dmlc::Error);
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n), dmlc::Error);
 
   HostDeviceVector<float> storage;
   auto array = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
-  j_data = {
-      Json(Integer(reinterpret_cast<Integer::Int>(storage.ConstHostPointer()))),
-      Json(Boolean(false))};
+  j_data = {Json(Integer(reinterpret_cast<Integer::Int>(storage.ConstHostPointer()))),
+            Json(Boolean(false))};
   column["data"] = j_data;
   EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n));
   // null data in mask

@@ -174,8 +174,7 @@ class GHistIndexMatrix {
    * @brief Constructor for Quantile DMatrix. Initialize basic information and prepare
    *        for push batch.
    */
-  GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts,
-                   bst_bin_t max_bin_per_feat);
+  GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts, bst_bin_t max_bin_per_feat);
 
   /**
    * @brief Constructor for the external memory Quantile DMatrix. Initialize basic

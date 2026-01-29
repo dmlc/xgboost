@@ -38,17 +38,17 @@ struct MemoryFixSizeBuffer : public dmlc::SeekStream {
    * @param p_buffer Pointer to the source buffer with size `buffer_size`.
    * @param buffer_size Size of the source buffer
    */
-  MemoryFixSizeBuffer(void *p_buffer, std::size_t buffer_size)
-      : p_buffer_(reinterpret_cast<char *>(p_buffer)), buffer_size_(buffer_size) {}
+  MemoryFixSizeBuffer(void* p_buffer, std::size_t buffer_size)
+      : p_buffer_(reinterpret_cast<char*>(p_buffer)), buffer_size_(buffer_size) {}
   ~MemoryFixSizeBuffer() override = default;
 
-  std::size_t Read(void *ptr, std::size_t size) override {
+  std::size_t Read(void* ptr, std::size_t size) override {
     std::size_t nread = std::min(buffer_size_ - curr_ptr_, size);
     if (nread != 0) std::memcpy(ptr, p_buffer_ + curr_ptr_, nread);
     curr_ptr_ += nread;
     return nread;
   }
-  std::size_t Write(const void *ptr, std::size_t size) override {
+  std::size_t Write(const void* ptr, std::size_t size) override {
     if (size == 0) return 0;
     CHECK_LE(curr_ptr_ + size, buffer_size_);
     std::memcpy(p_buffer_ + curr_ptr_, ptr, size);
@@ -70,7 +70,7 @@ struct MemoryFixSizeBuffer : public dmlc::SeekStream {
 
  protected:
   /*! \brief in memory buffer */
-  char *p_buffer_{nullptr};
+  char* p_buffer_{nullptr};
   /*! \brief current pointer */
   std::size_t buffer_size_{0};
   /*! \brief current pointer */
@@ -80,40 +80,31 @@ struct MemoryFixSizeBuffer : public dmlc::SeekStream {
 /*! \brief a in memory buffer that can be read and write as stream interface */
 struct MemoryBufferStream : public dmlc::SeekStream {
  public:
-  explicit MemoryBufferStream(std::string *p_buffer)
-      : p_buffer_(p_buffer) {
-    curr_ptr_ = 0;
-  }
+  explicit MemoryBufferStream(std::string* p_buffer) : p_buffer_(p_buffer) { curr_ptr_ = 0; }
   ~MemoryBufferStream() override = default;
-  size_t Read(void *ptr, size_t size) override {
+  size_t Read(void* ptr, size_t size) override {
     CHECK_LE(curr_ptr_, p_buffer_->length()) << "read can not have position excceed buffer length";
     size_t nread = std::min(p_buffer_->length() - curr_ptr_, size);
     if (nread != 0) std::memcpy(ptr, &(*p_buffer_)[0] + curr_ptr_, nread);
     curr_ptr_ += nread;
     return nread;
   }
-  std::size_t Write(const void *ptr, size_t size) override {
+  std::size_t Write(const void* ptr, size_t size) override {
     if (size == 0) return 0;
     if (curr_ptr_ + size > p_buffer_->length()) {
-      p_buffer_->resize(curr_ptr_+size);
+      p_buffer_->resize(curr_ptr_ + size);
     }
     std::memcpy(&(*p_buffer_)[0] + curr_ptr_, ptr, size);
     curr_ptr_ += size;
     return size;
   }
-  void Seek(size_t pos) override {
-    curr_ptr_ = static_cast<size_t>(pos);
-  }
-  size_t Tell() override {
-    return curr_ptr_;
-  }
-  virtual bool AtEnd() const {
-    return curr_ptr_ == p_buffer_->length();
-  }
+  void Seek(size_t pos) override { curr_ptr_ = static_cast<size_t>(pos); }
+  size_t Tell() override { return curr_ptr_; }
+  virtual bool AtEnd() const { return curr_ptr_ == p_buffer_->length(); }
 
  private:
   /*! \brief in memory buffer */
-  std::string *p_buffer_;
+  std::string* p_buffer_;
   /*! \brief current pointer */
   size_t curr_ptr_;
 };  // class MemoryBufferStream
@@ -136,7 +127,7 @@ class PeekableInStream : public dmlc::Stream {
 
  private:
   /*! \brief input stream */
-  dmlc::Stream *strm_;
+  dmlc::Stream* strm_;
   /*! \brief current buffer pointer */
   size_t buffer_ptr_{0};
   /*! \brief internal buffer */
@@ -212,7 +203,7 @@ inline std::string ReadAll(dmlc::Stream* fi, PeekableInStream* fp) {
 /**
  * \brief Read the whole file content into a string.
  */
-inline std::string ReadAll(std::string const &path) {
+inline std::string ReadAll(std::string const& path) {
   std::ifstream stream(path);
   if (!stream.is_open()) {
     LOG(FATAL) << "Could not open file " << path;
@@ -514,8 +505,9 @@ class PrivateMmapConstStream : public AlignedResourceReadStream {
    * @param length    See the `length` parameter of `mmap` for details.
    */
   explicit PrivateMmapConstStream(StringView path, std::size_t offset, std::size_t length)
-      : AlignedResourceReadStream{std::shared_ptr<MmapResource>{  // NOLINT
-            new MmapResource{path, offset, length}}} {}
+      : AlignedResourceReadStream{
+            std::shared_ptr<MmapResource>{// NOLINT
+                                          new MmapResource{path, offset, length}}} {}
   ~PrivateMmapConstStream() noexcept(false) override;
 };
 

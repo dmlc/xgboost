@@ -3,13 +3,13 @@
  */
 #ifndef XGBOOST_COMMON_RANKING_UTILS_H_
 #define XGBOOST_COMMON_RANKING_UTILS_H_
-#include <algorithm>                     // for min
-#include <cmath>                         // for log2, fabs, floor
-#include <cstddef>                       // for size_t
-#include <cstdint>                       // for uint32_t, uint8_t, int32_t
-#include <limits>                        // for numeric_limits
-#include <string>                        // for char_traits, string
-#include <vector>                        // for vector
+#include <algorithm>  // for min
+#include <cmath>      // for log2, fabs, floor
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t, uint8_t, int32_t
+#include <limits>     // for numeric_limits
+#include <string>     // for char_traits, string
+#include <vector>     // for vector
 
 #include "dmlc/parameter.h"              // for FieldEntry, DMLC_DECLARE_FIELD
 #include "error_msg.h"                   // for GroupWeight, GroupSize, InvalidCUDAOrdinal
@@ -330,8 +330,8 @@ class NDCGCache : public RankingCache {
   }
 
   linalg::VectorView<double const> InvIDCG(Context const* ctx) const {
-  // This function doesn't have sycl-specific implementation yet.
-  // For that reason we transfer data to host in case of sycl is used for propper execution.
+    // This function doesn't have sycl-specific implementation yet.
+    // For that reason we transfer data to host in case of sycl is used for propper execution.
     return inv_idcg_.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   }
   common::Span<double const> Discount(Context const* ctx) const {

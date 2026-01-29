@@ -18,8 +18,8 @@
 #include <vector>
 
 #include "../collective/broadcast.h"  // for Broadcast
-#include "algorithm.h"  // ArgSort
-#include "xgboost/context.h"  // Context
+#include "algorithm.h"                // ArgSort
+#include "xgboost/context.h"          // Context
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"
 
@@ -39,7 +39,7 @@ using GlobalRandomEngine = RandomEngine;
  *  This random engine is thread-local and
  *  only visible to current thread.
  */
-GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
+GlobalRandomEngine& GlobalRandom();  // NOLINT(*)
 
 /*
  * Original paper:
@@ -47,7 +47,7 @@ GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
  *
  * Blog:
  * https://timvieira.github.io/blog/post/2019/09/16/algorithms-for-sampling-without-replacement/
-*/
+ */
 template <typename T>
 std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, std::vector<T> const& array,
                                                   std::vector<float> const& weights, size_t n) {

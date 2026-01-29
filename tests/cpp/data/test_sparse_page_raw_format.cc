@@ -14,7 +14,8 @@
 #include "xgboost/context.h"                       // for Context
 
 namespace xgboost::data {
-template <typename S> void TestSparsePageRawFormat() {
+template <typename S>
+void TestSparsePageRawFormat() {
   std::unique_ptr<SparsePageFormat<S>> format{CreatePageFormat<S>("raw")};
   Context ctx;
 
@@ -38,8 +39,7 @@ template <typename S> void TestSparsePageRawFormat() {
       std::make_unique<common::PrivateMmapConstStream>(path.c_str(), 0, n_bytes)};
   format->Read(&page, fi.get());
   for (size_t i = 0; i < orig.data.Size(); ++i) {
-    ASSERT_EQ(page.data.HostVector()[i].fvalue,
-              orig.data.HostVector()[i].fvalue);
+    ASSERT_EQ(page.data.HostVector()[i].fvalue, orig.data.HostVector()[i].fvalue);
     ASSERT_EQ(page.data.HostVector()[i].index, orig.data.HostVector()[i].index);
   }
   for (size_t i = 0; i < orig.offset.Size(); ++i) {
@@ -48,15 +48,9 @@ template <typename S> void TestSparsePageRawFormat() {
   ASSERT_EQ(page.base_rowid, orig.base_rowid);
 }
 
-TEST(SparsePageRawFormat, SparsePage) {
-  TestSparsePageRawFormat<SparsePage>();
-}
+TEST(SparsePageRawFormat, SparsePage) { TestSparsePageRawFormat<SparsePage>(); }
 
-TEST(SparsePageRawFormat, CSCPage) {
-  TestSparsePageRawFormat<CSCPage>();
-}
+TEST(SparsePageRawFormat, CSCPage) { TestSparsePageRawFormat<CSCPage>(); }
 
-TEST(SparsePageRawFormat, SortedCSCPage) {
-  TestSparsePageRawFormat<SortedCSCPage>();
-}
+TEST(SparsePageRawFormat, SortedCSCPage) { TestSparsePageRawFormat<SortedCSCPage>(); }
 }  // namespace xgboost::data

@@ -39,18 +39,12 @@ void TestLinearRegressionGPair(const Context* ctx) {
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
 
   obj->Configure(args);
-  CheckObjFunction(obj,
-                   {0, 0.1f, 0.9f,   1,    0,  0.1f, 0.9f,  1},
-                   {0,   0,   0,   0,    1,    1,    1, 1},
-                   {1,   1,   1,   1,    1,    1,    1, 1},
-                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
-                   {1,   1,   1,   1,    1,    1,    1, 1});
-  CheckObjFunction(obj,
-                   {0, 0.1f, 0.9f,   1,    0,  0.1f, 0.9f,  1},
-                   {0,   0,   0,   0,    1,    1,    1, 1},
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {0, 0, 0, 0, 1, 1, 1, 1},
+                   {1, 1, 1, 1, 1, 1, 1, 1}, {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
+                   {1, 1, 1, 1, 1, 1, 1, 1});
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {0, 0, 0, 0, 1, 1, 1, 1},
                    {},  // empty weight
-                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
-                   {1,   1,   1,   1,    1,    1,    1, 1});
+                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0}, {1, 1, 1, 1, 1, 1, 1, 1});
 
   ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
@@ -63,18 +57,16 @@ void TestSquaredLog(const Context* ctx) {
   obj->Configure(args);
   CheckConfigReload(obj, obj_name);
 
-  CheckObjFunction(obj,
-                   {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // weights
+  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},       // labels
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},       // weights
                    {-0.5435f, -0.4257f, -0.25475f, -0.05855f, 0.1009f},
-                   { 1.3205f,  1.0492f,  0.69215f,  0.34115f, 0.1091f});
-  CheckObjFunction(obj,
-                   {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
-                   {},                              // empty weights
+                   {1.3205f, 1.0492f, 0.69215f, 0.34115f, 0.1091f});
+  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},       // labels
+                   {},                                   // empty weights
                    {-0.5435f, -0.4257f, -0.25475f, -0.05855f, 0.1009f},
-                   { 1.3205f,  1.0492f,  0.69215f,  0.34115f, 0.1091f});
+                   {1.3205f, 1.0492f, 0.69215f, 0.34115f, 0.1091f});
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"rmsle"});
 }
 
@@ -86,12 +78,11 @@ void TestLogisticRegressionGPair(const Context* ctx) {
   obj->Configure(args);
   CheckConfigReload(obj, obj_name);
 
-  CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,  0.9f,      1}, // preds
-                   {   0,    0,    0,    0,    1,     1,     1,     1}, // labels
-                   {   1,    1,    1,    1,    1,     1,     1,     1}, // weights
-                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f}, // out_grad
-                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f}); // out_hess
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1},                   // preds
+                   {0, 0, 0, 0, 1, 1, 1, 1},                                    // labels
+                   {1, 1, 1, 1, 1, 1, 1, 1},                                    // weights
+                   {0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},  // out_grad
+                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f, 0.24f, 0.20f, 0.19f});   // out_hess
 }
 
 void TestLogisticRegressionBasic(const Context* ctx) {
@@ -104,7 +95,7 @@ void TestLogisticRegressionBasic(const Context* ctx) {
 
   // test label validation
   EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {10}, {1}, {0}, {0}))
-    << "Expected error when label not in range [0,1f] for LogisticRegression";
+      << "Expected error when label not in range [0,1f] for LogisticRegression";
 
   // test ProbToMargin
   CheckProbaToMargin(obj, 0.1f, -2.197f);
@@ -125,52 +116,41 @@ void TestLogisticRegressionBasic(const Context* ctx) {
 void TestsLogisticRawGPair(const Context* ctx) {
   std::string obj_name = "binary:logitraw";
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction>  obj {ObjFunction::Create(obj_name, ctx)};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
   obj->Configure(args);
 
-  CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,   0.9f,     1},
-                   {   0,    0,    0,    0,    1,     1,     1,     1},
-                   {   1,    1,    1,    1,    1,     1,     1,     1},
-                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},
-                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {0, 0, 0, 0, 1, 1, 1, 1},
+                   {1, 1, 1, 1, 1, 1, 1, 1},
+                   {0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},
+                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f, 0.24f, 0.20f, 0.19f});
 }
 
 void TestPoissonRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("count:poisson", ctx)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx)};
 
   args.emplace_back("max_delta_step", "0.1f");
   obj->Configure(args);
 
-  CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
-                   {   0,    0,    0,    0,    1,    1,    1,    1},
-                   {   1,    1,    1,    1,    1,    1,    1,    1},
-                   {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {0, 0, 0, 0, 1, 1, 1, 1},
+                   {1, 1, 1, 1, 1, 1, 1, 1}, {1, 1.10f, 2.45f, 2.71f, 0, 0.10f, 1.45f, 1.71f},
                    {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
-  CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
-                   {   0,    0,    0,    0,    1,    1,    1,    1},
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {0, 0, 0, 0, 1, 1, 1, 1},
                    {},  // Empty weight
-                   {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
+                   {1, 1.10f, 2.45f, 2.71f, 0, 0.10f, 1.45f, 1.71f},
                    {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
 }
 
 void TestPoissonRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("count:poisson", ctx)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx)};
 
   obj->Configure(args);
   CheckConfigReload(obj, "count:poisson");
 
   // test label validation
   EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {-1}, {1}, {0}, {0}))
-    << "Expected error when label < 0 for PoissonRegression";
+      << "Expected error when label < 0 for PoissonRegression";
 
   // test ProbToMargin
   CheckProbaToMargin(obj, 0.1f, -2.30f);
@@ -189,23 +169,16 @@ void TestPoissonRegressionBasic(const Context* ctx) {
 
 void TestGammaRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:gamma", ctx)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", ctx)};
 
   obj->Configure(args);
-  CheckObjFunction(obj,
-                   {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
-                   {2,   2,   2,   2, 1,    1,    1,    1},
-                   {1,   1,   1,   1, 1,    1,    1,    1},
-                   {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
-                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
-  CheckObjFunction(obj,
-                   {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
-                   {2,   2,   2,   2, 1,    1,    1,    1},
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {2, 2, 2, 2, 1, 1, 1, 1},
+                   {1, 1, 1, 1, 1, 1, 1, 1}, {-1, -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
+                   {2, 1.809, 0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {2, 2, 2, 2, 1, 1, 1, 1},
                    {},  // Empty weight
-                   {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
-                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
+                   {-1, -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
+                   {2, 1.809, 0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
 }
 
 void TestGammaRegressionBasic(const Context* ctx) {
@@ -217,9 +190,9 @@ void TestGammaRegressionBasic(const Context* ctx) {
 
   // test label validation
   EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {0}, {1}, {0}, {0}))
-    << "Expected error when label = 0 for GammaRegression";
+      << "Expected error when label = 0 for GammaRegression";
   EXPECT_ANY_THROW(CheckObjFunction(obj, {-1}, {-1}, {1}, {-1}, {-3}))
-    << "Expected error when label < 0 for GammaRegression";
+      << "Expected error when label < 0 for GammaRegression";
 
   // test ProbToMargin
   CheckProbaToMargin(obj, 0.1f, -2.30f);
@@ -243,17 +216,12 @@ void TestTweedieRegressionGPair(const Context* ctx) {
   args.emplace_back("tweedie_variance_power", "1.1f");
   obj->Configure(args);
 
-  CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1, 0,  0.1f,  0.9f,    1},
-                   {   0,    0,    0,    0, 1,    1,    1,    1},
-                   {   1,    1,    1,    1, 1,    1,    1,    1},
-                   {   1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {0, 0, 0, 0, 1, 1, 1, 1},
+                   {1, 1, 1, 1, 1, 1, 1, 1}, {1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
                    {0.89f, 0.98f, 2.02f, 2.21f, 1, 1.08f, 2.11f, 2.30f});
-  CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1, 0,  0.1f,  0.9f,    1},
-                   {   0,    0,    0,    0, 1,    1,    1,    1},
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {0, 0, 0, 0, 1, 1, 1, 1},
                    {},  // Empty weight.
-                   {   1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
+                   {1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
                    {0.89f, 0.98f, 2.02f, 2.21f, 1, 1.08f, 2.11f, 2.30f});
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"tweedie-nloglik@1.1"});
 }
@@ -267,7 +235,7 @@ void TestTweedieRegressionBasic(const Context* ctx) {
 
   // test label validation
   EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {-1}, {1}, {0}, {0}))
-    << "Expected error when label < 0 for TweedieRegression";
+      << "Expected error when label < 0 for TweedieRegression";
 
   // test ProbToMargin
   CheckProbaToMargin(obj, 0.1f, -2.30f);
@@ -289,12 +257,9 @@ void TestCoxRegressionGPair(const Context* ctx) {
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx)};
 
   obj->Configure(args);
-  CheckObjFunction(obj,
-                   { 0, 0.1f, 0.9f,       1,       0,    0.1f,   0.9f,       1},
-                   { 0,   -2,   -2,       2,       3,       5,    -10,     100},
-                   { 1,    1,    1,       1,       1,       1,      1,       1},
-                   { 0,    0,    0, -0.799f, -0.788f, -0.590f, 0.910f,  1.006f},
-                   { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
+  CheckObjFunction(obj, {0, 0.1f, 0.9f, 1, 0, 0.1f, 0.9f, 1}, {0, -2, -2, 2, 3, 5, -10, 100},
+                   {1, 1, 1, 1, 1, 1, 1, 1}, {0, 0, 0, -0.799f, -0.788f, -0.590f, 0.910f, 1.006f},
+                   {0, 0, 0, 0.160f, 0.186f, 0.348f, 0.610f, 0.639f});
 }
 
 void TestAbsoluteError(const Context* ctx) {

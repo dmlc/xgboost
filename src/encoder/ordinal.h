@@ -344,8 +344,8 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
 
   std::size_t out_idx = 0;
   for (std::size_t f_idx = 0, n_features = orig_enc.Size(); f_idx < n_features; f_idx++) {
-    auto const& l_f = orig_enc.columns[f_idx];
-    auto const& r_f = new_enc.columns[f_idx];
+    auto const &l_f = orig_enc.columns[f_idx];
+    auto const &r_f = new_enc.columns[f_idx];
     auto report = [&] {
       std::stringstream ss;
       ss << "Invalid new DataFrame input for the: " << f_idx << "th feature (0-based). "

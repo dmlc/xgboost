@@ -99,10 +99,8 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
   {
     // multi-class dense training DMatrix, medium depth
     bst_target_t n_classes{3};
-    auto dmat = RandomDataGenerator(256, 8, 0.0)
-                    .Classes(n_classes)
-                    .Device(device)
-                    .GenerateDMatrix(true);
+    auto dmat =
+        RandomDataGenerator(256, 8, 0.0).Classes(n_classes).Device(device).GenerateDMatrix(true);
     SetLabels(dmat.get(), n_classes);
     auto args = BaseParams(ctx, "multi:softprob", "4");
     args.emplace_back("num_class", std::to_string(n_classes));
@@ -123,7 +121,8 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   size_t const kRows = dmat->Info().num_row_;
   size_t const kCols = dmat->Info().num_col_;
 
-  std::shared_ptr<DMatrix> p_dmat{dmat, [](DMatrix*) {}};
+  std::shared_ptr<DMatrix> p_dmat{dmat, [](DMatrix*) {
+                                  }};
   std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
   learner->SetParams(model_args);
   learner->Configure();
@@ -142,8 +141,7 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
 
   HostDeviceVector<float> shap_interactions;
   learner->Predict(p_dmat, false, &shap_interactions, 0, 0, false, false, false, false, true);
-  ASSERT_EQ(shap_interactions.HostVector().size(),
-            kRows * (kCols + 1) * (kCols + 1) * n_outputs);
+  ASSERT_EQ(shap_interactions.HostVector().size(), kRows * (kCols + 1) * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_interactions, margin_predt);
 }
 

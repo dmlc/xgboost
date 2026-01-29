@@ -11,18 +11,16 @@
 #include <string.h>
 #include <xgboost/c_api.h>
 
-#define safe_xgboost(err)                                                      \
-  if ((err) != 0) {                                                            \
-    fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #err,      \
-            XGBGetLastError());                                                \
-    exit(1);                                                                   \
+#define safe_xgboost(err)                                                                     \
+  if ((err) != 0) {                                                                           \
+    fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #err, XGBGetLastError()); \
+    exit(1);                                                                                  \
   }
 
-#define safe_malloc(ptr)                                                       \
-  if ((ptr) == NULL) {                                                         \
-    fprintf(stderr, "%s:%d: Failed to allocate memory.\n", __FILE__,           \
-            __LINE__);                                                         \
-    exit(1);                                                                   \
+#define safe_malloc(ptr)                                                        \
+  if ((ptr) == NULL) {                                                          \
+    fprintf(stderr, "%s:%d: Failed to allocate memory.\n", __FILE__, __LINE__); \
+    exit(1);                                                                    \
   }
 
 #define N_SAMPLES 128
@@ -44,8 +42,7 @@ struct _Matrix {
 typedef struct _Matrix *Matrix;
 
 /* Initialize matrix, copy data from `data` if it's not NULL. */
-void Matrix_Create(Matrix *self, float const *data, size_t n_samples,
-                   size_t n_features) {
+void Matrix_Create(Matrix *self, float const *data, size_t n_samples, size_t n_features) {
   if (self == NULL) {
     fprintf(stderr, "Invalid pointer to %s\n", __func__);
     exit(-1);
@@ -59,8 +56,7 @@ void Matrix_Create(Matrix *self, float const *data, size_t n_samples,
   (*self)->shape[1] = n_features;
 
   if (data != NULL) {
-    memcpy((*self)->data, data,
-           (*self)->shape[0] * (*self)->shape[1] * sizeof(float));
+    memcpy((*self)->data, data, (*self)->shape[0] * (*self)->shape[1] * sizeof(float));
   }
 }
 
@@ -75,11 +71,11 @@ void Matrix_Random(Matrix *self, size_t n_samples, size_t n_features) {
 
 /* Array interface specified by numpy. */
 char const *Matrix_ArrayInterface(Matrix self) {
-  char const template[] = "{\"data\": [%lu, true], \"shape\": [%lu, %lu], "
-                          "\"typestr\": \"<f4\", \"version\": 3}";
+  char const template[] =
+      "{\"data\": [%lu, true], \"shape\": [%lu, %lu], "
+      "\"typestr\": \"<f4\", \"version\": 3}";
   memset(self->_array_intrerface, '\0', sizeof(self->_array_intrerface));
-  sprintf(self->_array_intrerface, template, (size_t)self->data, self->shape[0],
-          self->shape[1]);
+  sprintf(self->_array_intrerface, template, (size_t)self->data, self->shape[0], self->shape[1]);
   return self->_array_intrerface;
 }
 
@@ -87,9 +83,7 @@ size_t Matrix_NSamples(Matrix self) { return self->shape[0]; }
 
 size_t Matrix_NFeatures(Matrix self) { return self->shape[1]; }
 
-float Matrix_At(Matrix self, size_t i, size_t j) {
-  return self->data[i * self->shape[1] + j];
-}
+float Matrix_At(Matrix self, size_t i, size_t j) { return self->data[i * self->shape[1] + j]; }
 
 void Matrix_Print(Matrix self) {
   for (size_t i = 0; i < Matrix_NSamples(self); i++) {
@@ -157,8 +151,8 @@ int main() {
     /* Pointer to a thread local contigious array, assigned in prediction function. */
     float const *out_results;
 
-    safe_xgboost(XGBoosterPredictFromDMatrix(booster, Xy, config, &out_shape,
-                                             &out_dim, &out_results));
+    safe_xgboost(
+        XGBoosterPredictFromDMatrix(booster, Xy, config, &out_shape, &out_dim, &out_results));
     if (out_dim != 2 || out_shape[0] != N_SAMPLES || out_shape[1] != 1) {
       fprintf(stderr, "Regression model should output prediction as vector.");
       exit(-1);
@@ -175,9 +169,10 @@ int main() {
   {
     /* Run inplace prediction, which is faster and more memory efficient, but supports
      * only basic inference types. */
-    char const config[] = "{\"type\": 0, \"iteration_begin\": 0, "
-                          "\"iteration_end\": 0, \"strict_shape\": true, "
-                          "\"cache_id\": 0, \"missing\": NaN}";
+    char const config[] =
+        "{\"type\": 0, \"iteration_begin\": 0, "
+        "\"iteration_end\": 0, \"strict_shape\": true, "
+        "\"cache_id\": 0, \"missing\": NaN}";
     /* Shape of output prediction */
     uint64_t const *out_shape;
     /* Dimension of output prediction */
@@ -186,13 +181,12 @@ int main() {
     float const *out_results;
 
     char const *X_interface = Matrix_ArrayInterface(X);
-    safe_xgboost(XGBoosterPredictFromDense(booster, X_interface, config, NULL,
-                                           &out_shape, &out_dim, &out_results));
+    safe_xgboost(XGBoosterPredictFromDense(booster, X_interface, config, NULL, &out_shape, &out_dim,
+                                           &out_results));
 
     if (out_dim != 2 || out_shape[0] != N_SAMPLES || out_shape[1] != 1) {
-      fprintf(stderr,
-              "Regression model should output prediction as vector, %lu, %lu",
-              out_dim, out_shape[0]);
+      fprintf(stderr, "Regression model should output prediction as vector, %lu, %lu", out_dim,
+              out_shape[0]);
       exit(-1);
     }
 

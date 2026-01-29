@@ -309,81 +309,79 @@ void TestSameOnAllWorkers() {
   constexpr size_t kRows = 1000, kCols = 100;
   Context ctx;
 
-  RunWithSeedsAndBins(
-      kRows, [=, &ctx](int32_t seed, size_t n_bins, MetaInfo const&) {
-        auto rank = collective::GetRank();
-        HostDeviceVector<float> storage;
-        std::vector<FeatureType> ft(kCols);
-        for (size_t i = 0; i < ft.size(); ++i) {
-          ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
-        }
+  RunWithSeedsAndBins(kRows, [=, &ctx](int32_t seed, size_t n_bins, MetaInfo const&) {
+    auto rank = collective::GetRank();
+    HostDeviceVector<float> storage;
+    std::vector<FeatureType> ft(kCols);
+    for (size_t i = 0; i < ft.size(); ++i) {
+      ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
+    }
 
-        auto m = RandomDataGenerator{kRows, kCols, 0}
-                     .Device(DeviceOrd::CPU())
-                     .Type(ft)
-                     .MaxCategory(17)
-                     .Seed(rank + seed)
-                     .GenerateDMatrix();
-        auto cuts = SketchOnDMatrix(&ctx, m.get(), n_bins);
-        std::vector<float> cut_values(cuts.Values().size() * world, 0);
-        std::vector<
-            typename std::remove_reference_t<decltype(cuts.Ptrs())>::value_type>
-            cut_ptrs(cuts.Ptrs().size() * world, 0);
-        std::vector<float> cut_min_values(cuts.MinValues().size() * world, 0);
+    auto m = RandomDataGenerator{kRows, kCols, 0}
+                 .Device(DeviceOrd::CPU())
+                 .Type(ft)
+                 .MaxCategory(17)
+                 .Seed(rank + seed)
+                 .GenerateDMatrix();
+    auto cuts = SketchOnDMatrix(&ctx, m.get(), n_bins);
+    std::vector<float> cut_values(cuts.Values().size() * world, 0);
+    std::vector<typename std::remove_reference_t<decltype(cuts.Ptrs())>::value_type> cut_ptrs(
+        cuts.Ptrs().size() * world, 0);
+    std::vector<float> cut_min_values(cuts.MinValues().size() * world, 0);
 
-        std::int64_t value_size = cuts.Values().size();
-        std::int64_t ptr_size = cuts.Ptrs().size();
-        std::int64_t min_value_size = cuts.MinValues().size();
+    std::int64_t value_size = cuts.Values().size();
+    std::int64_t ptr_size = cuts.Ptrs().size();
+    std::int64_t min_value_size = cuts.MinValues().size();
 
-        auto rc = collective::Success() << [&] {
-          return collective::Allreduce(&ctx, &value_size, collective::Op::kMax);
-        } << [&] {
-          return collective::Allreduce(&ctx, &ptr_size, collective::Op::kMax);
-        } << [&] {
-          return collective::Allreduce(&ctx, &min_value_size, collective::Op::kMax);
-        };
-        collective::SafeColl(rc);
-        ASSERT_EQ(ptr_size, kCols + 1);
-        ASSERT_EQ(min_value_size, kCols);
+    auto rc = collective::Success() << [&] {
+      return collective::Allreduce(&ctx, &value_size, collective::Op::kMax);
+    } << [&] {
+      return collective::Allreduce(&ctx, &ptr_size, collective::Op::kMax);
+    } << [&] {
+      return collective::Allreduce(&ctx, &min_value_size, collective::Op::kMax);
+    };
+    collective::SafeColl(rc);
+    ASSERT_EQ(ptr_size, kCols + 1);
+    ASSERT_EQ(min_value_size, kCols);
 
-        std::size_t value_offset = value_size * rank;
-        std::copy(cuts.Values().begin(), cuts.Values().end(), cut_values.begin() + value_offset);
-        std::size_t ptr_offset = ptr_size * rank;
-        std::copy(cuts.Ptrs().cbegin(), cuts.Ptrs().cend(), cut_ptrs.begin() + ptr_offset);
-        std::size_t min_values_offset = min_value_size * rank;
-        std::copy(cuts.MinValues().cbegin(), cuts.MinValues().cend(),
-                  cut_min_values.begin() + min_values_offset);
+    std::size_t value_offset = value_size * rank;
+    std::copy(cuts.Values().begin(), cuts.Values().end(), cut_values.begin() + value_offset);
+    std::size_t ptr_offset = ptr_size * rank;
+    std::copy(cuts.Ptrs().cbegin(), cuts.Ptrs().cend(), cut_ptrs.begin() + ptr_offset);
+    std::size_t min_values_offset = min_value_size * rank;
+    std::copy(cuts.MinValues().cbegin(), cuts.MinValues().cend(),
+              cut_min_values.begin() + min_values_offset);
 
-        rc = std::move(rc) << [&] {
-          return collective::Allreduce(&ctx, linalg::MakeVec(cut_values.data(), cut_values.size()),
-                                       collective::Op::kSum);
-        } << [&] {
-          return collective::Allreduce(&ctx, linalg::MakeVec(cut_ptrs.data(), cut_ptrs.size()),
-                                       collective::Op::kSum);
-        } << [&] {
-          return collective::Allreduce(
-              &ctx, linalg::MakeVec(cut_min_values.data(), cut_min_values.size()),
-              collective::Op::kSum);
-        };
-        collective::SafeColl(rc);
+    rc = std::move(rc) << [&] {
+      return collective::Allreduce(&ctx, linalg::MakeVec(cut_values.data(), cut_values.size()),
+                                   collective::Op::kSum);
+    } << [&] {
+      return collective::Allreduce(&ctx, linalg::MakeVec(cut_ptrs.data(), cut_ptrs.size()),
+                                   collective::Op::kSum);
+    } << [&] {
+      return collective::Allreduce(&ctx,
+                                   linalg::MakeVec(cut_min_values.data(), cut_min_values.size()),
+                                   collective::Op::kSum);
+    };
+    collective::SafeColl(rc);
 
-        for (std::int32_t i = 0; i < world; i++) {
-          for (std::int64_t j = 0; j < value_size; ++j) {
-            size_t idx = i * value_size + j;
-            ASSERT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
-          }
+    for (std::int32_t i = 0; i < world; i++) {
+      for (std::int64_t j = 0; j < value_size; ++j) {
+        size_t idx = i * value_size + j;
+        ASSERT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
+      }
 
-          for (std::int64_t j = 0; j < ptr_size; ++j) {
-            size_t idx = i * ptr_size + j;
-            EXPECT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
-          }
+      for (std::int64_t j = 0; j < ptr_size; ++j) {
+        size_t idx = i * ptr_size + j;
+        EXPECT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
+      }
 
-          for (std::int64_t j = 0; j < min_value_size; ++j) {
-            size_t idx = i * min_value_size + j;
-            ASSERT_EQ(cuts.MinValues().at(j), cut_min_values.at(idx));
-          }
-        }
-      });
+      for (std::int64_t j = 0; j < min_value_size; ++j) {
+        size_t idx = i * min_value_size + j;
+        ASSERT_EQ(cuts.MinValues().at(j), cut_min_values.at(idx));
+      }
+    }
+  });
 }
 }  // anonymous namespace
 

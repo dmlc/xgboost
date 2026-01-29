@@ -2,16 +2,16 @@
  * Copyright 2022-2024, XGBoost contributors.
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                         // for bst_node_t
-#include <xgboost/context.h>                      // for Context
+#include <xgboost/base.h>     // for bst_node_t
+#include <xgboost/context.h>  // for Context
 
-#include <algorithm>                              // for transform
-#include <iterator>                               // for distance
-#include <vector>                                 // for vector
+#include <algorithm>  // for transform
+#include <iterator>   // for distance
+#include <vector>     // for vector
 
-#include "../../../src/common/numeric.h"          // for ==RunLengthEncode
-#include "../../../src/common/row_set.h"          // for RowSetCollection
-#include "../../../src/data/gradient_index.h"     // for GHistIndexMatrix
+#include "../../../src/common/numeric.h"       // for ==RunLengthEncode
+#include "../../../src/common/row_set.h"       // for RowSetCollection
+#include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../../../src/tree/hist/expand_entry.h"  // for CPUExpandEntry
 #include "../helpers.h"                           // for RandomDataGenerator

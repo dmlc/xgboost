@@ -121,7 +121,7 @@ class Worker : public WorkerForTest {
     CheckV(s_recv);
 
     // Test inplace
-    auto test_inplace = [&] (AllgatherVAlgo algo) {
+    auto test_inplace = [&](AllgatherVAlgo algo) {
       std::fill_n(s_recv.data(), s_recv.size(), 0);
       auto current = s_recv.subspan(recv_segments[comm_.Rank()],
                                     recv_segments[comm_.Rank() + 1] - recv_segments[comm_.Rank()]);

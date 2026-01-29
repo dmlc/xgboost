@@ -40,9 +40,9 @@ class Node {
     }
   }
 
-  int LeftChildIdx() const {return left_child_idx; }
+  int LeftChildIdx() const { return left_child_idx; }
 
-  int RightChildIdx() const {return right_child_idx; }
+  int RightChildIdx() const { return right_child_idx; }
 
   bool IsLeaf() const { return left_child_idx == -1; }
 

@@ -44,12 +44,8 @@ TEST(DrUtils, GetC2cLinkCountFromSmi) {
     ASSERT_EQ(lc, -1);
   }
 
-  {
-    [[maybe_unused]] auto _ = GetC2cLinkCountFromSmi();
-  }
-  {
-    [[maybe_unused]] auto _ = GetC2cLinkCountFromSmiGlobal();
-  }
+  { [[maybe_unused]] auto _ = GetC2cLinkCountFromSmi(); }
+  { [[maybe_unused]] auto _ = GetC2cLinkCountFromSmiGlobal(); }
 }
 }  // namespace xgboost::cudr
 #endif  // defined(XGBOOST_USE_CUDA)

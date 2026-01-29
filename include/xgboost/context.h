@@ -36,8 +36,13 @@ struct DeviceOrd {
   static bst_d_ordinal_t constexpr CPUOrdinal() { return -1; }
   static bst_d_ordinal_t constexpr InvalidOrdinal() { return -2; }
 
-  enum Type : std::int16_t { kCPU = 0, kCUDA = 1,
-                             kSyclDefault = 2, kSyclCPU = 3, kSyclGPU = 4} device{kCPU};
+  enum Type : std::int16_t {
+    kCPU = 0,
+    kCUDA = 1,
+    kSyclDefault = 2,
+    kSyclCPU = 3,
+    kSyclGPU = 4
+  } device{kCPU};
   // CUDA or Sycl device ordinal.
   bst_d_ordinal_t ordinal{CPUOrdinal()};
 
@@ -46,9 +51,7 @@ struct DeviceOrd {
   [[nodiscard]] bool IsSyclDefault() const { return device == kSyclDefault; }
   [[nodiscard]] bool IsSyclCPU() const { return device == kSyclCPU; }
   [[nodiscard]] bool IsSyclGPU() const { return device == kSyclGPU; }
-  [[nodiscard]] bool IsSycl() const { return (IsSyclDefault() ||
-                                              IsSyclCPU() ||
-                                              IsSyclGPU()); }
+  [[nodiscard]] bool IsSycl() const { return (IsSyclDefault() || IsSyclCPU() || IsSyclGPU()); }
 
   constexpr DeviceOrd() = default;
   constexpr DeviceOrd(Type type, bst_d_ordinal_t ord) : device{type}, ordinal{ord} {}
@@ -190,19 +193,17 @@ struct Context : public XGBoostParameter<Context> {
   /**
    * @brief Is XGBoost running on any SYCL device?
    */
-  [[nodiscard]] bool IsSycl() const { return IsSyclDefault()
-                                             || IsSyclCPU()
-                                             || IsSyclGPU(); }
+  [[nodiscard]] bool IsSycl() const { return IsSyclDefault() || IsSyclCPU() || IsSyclGPU(); }
 
   /**
    * @brief Get the current device and ordinal.
    */
   [[nodiscard]] DeviceOrd Device() const { return device_; }
 
-   /**
-   * @brief Get the current device and ordinal, if it supports fp64,
-            otherwise returns default CPU
-   */
+  /**
+  * @brief Get the current device and ordinal, if it supports fp64,
+           otherwise returns default CPU
+  */
   [[nodiscard]] DeviceOrd DeviceFP64() const;
 
   /**

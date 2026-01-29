@@ -20,9 +20,11 @@
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.
  */
-#include <cstddef>
 #include <gtest/gtest.h>
+
+#include <cstddef>
 #include <limits>
+
 #include "../../../src/common/charconv.h"
 
 namespace xgboost {
@@ -40,7 +42,7 @@ static float Int32Bits2Float(uint32_t bits) {
   return f;
 }
 
-void TestRyu(char const *res, float v) {
+void TestRyu(char const* res, float v) {
   char result[xgboost::NumericLimits<float>::kToCharsSize];
   auto ret = to_chars(result, result + sizeof(result), v);
   *ret.ptr = '\0';
@@ -60,13 +62,9 @@ TEST(Ryu, Subnormal) {
   TestRyu("1E-45", std::numeric_limits<float>::denorm_min());
 }
 
-TEST(Ryu, Denormal) {
-  TestRyu("1E-45", std::numeric_limits<float>::denorm_min());
-}
+TEST(Ryu, Denormal) { TestRyu("1E-45", std::numeric_limits<float>::denorm_min()); }
 
-TEST(Ryu, SwitchToSubnormal) {
-  TestRyu("1.1754944E-38", 1.1754944E-38f);
-}
+TEST(Ryu, SwitchToSubnormal) { TestRyu("1.1754944E-38", 1.1754944E-38f); }
 
 TEST(Ryu, MinAndMax) {
   TestRyu("3.4028235E38", Int32Bits2Float(0x7f7fffff));
@@ -134,7 +132,7 @@ TEST(Ryu, Regression) {
 
 TEST(Ryu, RoundTrip) {
   float f = -1.1493590134238582e-40;
-  char result[NumericLimits<float>::kToCharsSize] { 0 };
+  char result[NumericLimits<float>::kToCharsSize]{0};
   auto ret = to_chars(result, result + sizeof(result), f);
   size_t dis = std::distance(result, ret.ptr);
   float back;
@@ -157,7 +155,7 @@ TEST(Ryu, LooksLikePow5) {
 }
 
 TEST(Ryu, OutputLength) {
-  TestRyu("1E0", 1.0f); // already tested in Basic
+  TestRyu("1E0", 1.0f);  // already tested in Basic
   TestRyu("1.2E0", 1.2f);
   TestRyu("1.23E0", 1.23f);
   TestRyu("1.234E0", 1.234f);
@@ -201,7 +199,7 @@ TEST(Ryu, MinMax) {
 TEST(Ryu, MantissaRoundingOverflow) {
   TestRyuParse(1.0f, "0.999999999");
   TestRyuParse(INFINITY, "3.4028236e+38");
-  TestRyuParse(1.1754944e-38f, "1.17549430e-38"); // FLT_MIN
+  TestRyuParse(1.1754944e-38f, "1.17549430e-38");  // FLT_MIN
 }
 
 TEST(Ryu, TrailingZeros) {

@@ -415,7 +415,8 @@ class TestMaxDeltaStep : public ::testing::Test {
 
     RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
                    static_cast<bst_target_t>(p_fmat->Info().num_col_)};
-    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}}, &tree_0);
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}},
+              &tree_0);
     ASSERT_EQ(tree_0.NumNodes(), 1);
   }
 };

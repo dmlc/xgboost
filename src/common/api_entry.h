@@ -3,8 +3,8 @@
  */
 #ifndef XGBOOST_COMMON_API_ENTRY_H_
 #define XGBOOST_COMMON_API_ENTRY_H_
-#include <string>               // std::string
-#include <vector>               // std::vector
+#include <string>  // std::string
+#include <vector>  // std::vector
 
 #include "xgboost/base.h"       // GradientPair,bst_ulong
 #include "xgboost/predictor.h"  // PredictionCacheEntry

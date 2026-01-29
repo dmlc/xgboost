@@ -39,7 +39,7 @@
 
 using SOCKET = int;
 using sock_size_t = size_t;  // NOLINT
-#endif  // !defined(_WIN32)
+#endif                       // !defined(_WIN32)
 
 #define IS_MINGW() defined(__MINGW32__)
 
@@ -61,15 +61,15 @@ using sock_size_t = size_t;  // NOLINT
 #pragma message("Distributed training on mingw is not supported.")
 typedef struct pollfd {
   SOCKET fd;
-  short  events;  // NOLINT
-  short  revents;  // NOLINT
+  short events;   // NOLINT
+  short revents;  // NOLINT
 } WSAPOLLFD, *PWSAPOLLFD, *LPWSAPOLLFD;
 
 // POLLRDNORM | POLLRDBAND
-#define POLLIN    (0x0100 | 0x0200)
-#define POLLPRI    0x0400
+#define POLLIN (0x0100 | 0x0200)
+#define POLLPRI 0x0400
 // POLLWRNORM
-#define POLLOUT    0x0010
+#define POLLOUT 0x0010
 
 #endif  // IS_MINGW() && !defined(POLLRDNORM) && !defined(POLLRDBAND)
 
@@ -139,7 +139,7 @@ struct PollHelper {
     pfd.fd = fd;
     pfd.events |= POLLIN;
   }
-  void WatchRead(xgboost::collective::TCPSocket const &socket) { this->WatchRead(socket.Handle()); }
+  void WatchRead(xgboost::collective::TCPSocket const& socket) { this->WatchRead(socket.Handle()); }
 
   /*!
    * \brief add file descriptor to watch for write
@@ -150,7 +150,7 @@ struct PollHelper {
     pfd.fd = fd;
     pfd.events |= POLLOUT;
   }
-  void WatchWrite(xgboost::collective::TCPSocket const &socket) {
+  void WatchWrite(xgboost::collective::TCPSocket const& socket) {
     this->WatchWrite(socket.Handle());
   }
 
@@ -163,7 +163,7 @@ struct PollHelper {
     pfd.fd = fd;
     pfd.events |= POLLPRI;
   }
-  void WatchException(xgboost::collective::TCPSocket const &socket) {
+  void WatchException(xgboost::collective::TCPSocket const& socket) {
     this->WatchException(socket.Handle());
   }
   /*!

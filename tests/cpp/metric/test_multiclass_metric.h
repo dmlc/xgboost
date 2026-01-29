@@ -1,5 +1,6 @@
 // Copyright by Contributors
 #include <xgboost/metric.h>
+
 #include <string>
 
 #include "../helpers.h"
@@ -13,7 +14,7 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
 
   HostDeviceVector<float> predts;
   auto p_fmat = EmptyDMatrix();
-  MetaInfo& info = p_fmat->Info();
+  MetaInfo &info = p_fmat->Info();
   auto &h_predts = predts.HostVector();
 
   SimpleLCG lcg;
@@ -46,14 +47,14 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
 
 inline void TestMultiClassError(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric * metric = xgboost::Metric::Create("merror", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("merror", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "merror");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}, {}, {}, data_split_mode));
-  EXPECT_NEAR(GetMetricEval(
-      metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}, {}, {}, data_split_mode), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
+  EXPECT_NEAR(
+      GetMetricEval(metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}, {}, {}, data_split_mode), 0,
+      1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
                             {0, 1, 2}, {}, {}, data_split_mode),
               0.666f, 0.001f);
   delete metric;
@@ -66,14 +67,14 @@ inline void VerifyMultiClassError(DataSplitMode data_split_mode, DeviceOrd devic
 
 inline void TestMultiClassLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric * metric = xgboost::Metric::Create("mlogloss", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("mlogloss", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mlogloss");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}, {}, {}, data_split_mode));
-  EXPECT_NEAR(GetMetricEval(
-    metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}, {}, {}, data_split_mode), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
+  EXPECT_NEAR(
+      GetMetricEval(metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}, {}, {}, data_split_mode), 0,
+      1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
                             {0, 1, 2}, {}, {}, data_split_mode),
               2.302f, 0.001f);
 

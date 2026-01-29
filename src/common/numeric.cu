@@ -3,7 +3,7 @@
  */
 #include <thrust/execution_policy.h>
 
-#include "device_helpers.cuh"            // dh::Reduce, dh::XGBCachingDeviceAllocator
+#include "device_helpers.cuh"  // dh::Reduce, dh::XGBCachingDeviceAllocator
 #include "numeric.h"
 #include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector

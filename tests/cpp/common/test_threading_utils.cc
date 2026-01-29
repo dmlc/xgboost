@@ -22,9 +22,9 @@ TEST(ParallelFor2d, CreateBlockedSpace2d) {
 
   for (size_t i = 0; i < kDim1; i++) {
     for (size_t j = 0; j < kDim2; j++) {
-      ASSERT_EQ(space.GetFirstDimension(i*kDim2 + j), i);
-      ASSERT_EQ(j, space.GetRange(i*kDim2 + j).begin());
-      ASSERT_EQ(j + kGrainSize, space.GetRange(i*kDim2 + j).end());
+      ASSERT_EQ(space.GetFirstDimension(i * kDim2 + j), i);
+      ASSERT_EQ(j, space.GetRange(i * kDim2 + j).begin());
+      ASSERT_EQ(j + kGrainSize, space.GetRange(i * kDim2 + j).end());
     }
   }
 }
@@ -60,10 +60,9 @@ TEST(ParallelFor2d, NonUniform) {
   // here are quite non-uniform distribution in space
   // but ParallelFor2d should split them by blocks with max size = kGrainSize
   // and process in balanced manner (optimal performance)
-  std::vector<size_t> dim2 { 1024, 500, 255, 5, 10000 };
-  BlockedSpace2d space(kDim1, [&](size_t i) {
-      return dim2[i];
-  }, kGrainSize);
+  std::vector<size_t> dim2{1024, 500, 255, 5, 10000};
+  BlockedSpace2d space(
+      kDim1, [&](size_t i) { return dim2[i]; }, kGrainSize);
 
   std::vector<std::vector<int>> working_space(kDim1);
   for (size_t i = 0; i < kDim1; i++) {

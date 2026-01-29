@@ -6,8 +6,9 @@
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
-#include <dmlc/registry.h>
 #include "survival_util.h"
+
+#include <dmlc/registry.h>
 
 namespace xgboost {
 namespace common {

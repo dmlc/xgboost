@@ -32,7 +32,9 @@ void FederatedComm::Init(std::string const& host, std::int32_t port, std::int32_
   CHECK_LT(rank, world) << "Invalid worker rank.";
 
   auto certs = {server_cert, client_cert, client_cert};
-  auto is_empty = [](auto const& s) { return s.empty(); };
+  auto is_empty = [](auto const& s) {
+    return s.empty();
+  };
   bool valid = std::all_of(certs.begin(), certs.end(), is_empty) ||
                std::none_of(certs.begin(), certs.end(), is_empty);
   CHECK(valid) << "Invalid arguments for certificates.";

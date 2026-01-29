@@ -1,10 +1,10 @@
 /**
  * Copyright 2020-2025, XGBoost contributors
  */
+#include "../common/type.h"      // for GetValueT
 #include "../encoder/ordinal.h"  // for DeviceColumnsView
 #include "device_adapter.cuh"
 #include "proxy_dmatrix.cuh"
-#include "../common/type.h"  // for GetValueT
 #include "proxy_dmatrix.h"
 
 namespace xgboost::data {

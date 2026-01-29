@@ -243,9 +243,7 @@ TEST_F(MGPUPredictorTest, IterationRangeColumnSplit) {
   TestIterationRangeColumnSplit(curt::AllVisibleGPUs(), true);
 }
 
-TEST(GPUPredictor, CategoricalPrediction) {
-  TestCategoricalPrediction(true, false);
-}
+TEST(GPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(true, false); }
 
 TEST_F(MGPUPredictorTest, CategoricalPredictionColumnSplit) {
   this->DoTest([] { TestCategoricalPrediction(true, true); }, true);

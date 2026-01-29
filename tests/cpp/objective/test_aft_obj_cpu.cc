@@ -2,15 +2,16 @@
  * Copyright 2020-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+
+#include <cmath>
+#include <limits>
 #include <memory>
 #include <vector>
-#include <limits>
-#include <cmath>
 
-#include "xgboost/objective.h"
-#include "xgboost/logging.h"
 #include "../helpers.h"
 #include "test_aft_obj.h"
+#include "xgboost/logging.h"
+#include "xgboost/objective.h"
 
 namespace xgboost::common {
 TEST(Objective, DeclareUnifiedTest(AFTObjConfiguration)) {

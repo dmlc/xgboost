@@ -80,7 +80,7 @@ TEST(ColumnSampler, ThreadSynchronisation) {
   size_t levels = 5;
   std::vector<bst_feature_t> reference_result;
   HostDeviceVector<float> feature_weights;
-  bool success = true; // Cannot use google test asserts in multithreaded region
+  bool success = true;  // Cannot use google test asserts in multithreaded region
 #pragma omp parallel num_threads(n_threads)
   {
     for (auto j = 0ull; j < iterations; j++) {

@@ -3,12 +3,12 @@
  */
 #ifndef XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
 #define XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
-#include <xgboost/context.h>                      // for Context
-#include <xgboost/linalg.h>                       // for Constant, Vector
-#include <xgboost/logging.h>                      // for CHECK
-#include <xgboost/tree_model.h>                   // for RegTree
+#include <xgboost/context.h>     // for Context
+#include <xgboost/linalg.h>      // for Constant, Vector
+#include <xgboost/logging.h>     // for CHECK
+#include <xgboost/tree_model.h>  // for RegTree
 
-#include <vector>                                 // for vector
+#include <vector>  // for vector
 
 #include "../../../src/tree/hist/expand_entry.h"  // for CPUExpandEntry, MultiExpandEntry
 

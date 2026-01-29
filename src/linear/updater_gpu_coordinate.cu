@@ -7,13 +7,13 @@
 #include <thrust/inner_product.h>
 #include <xgboost/data.h>
 #include <xgboost/linear_updater.h>
-#include "xgboost/span.h"
 
-#include "coordinate_common.h"
 #include "../common/common.h"
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
 #include "./param.h"
+#include "coordinate_common.h"
+#include "xgboost/span.h"
 
 namespace xgboost::linear {
 
@@ -35,8 +35,8 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     monitor_.Init("GPUCoordinateUpdater");
   }
 
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
+  void LoadConfig(Json const &in) override {
+    auto const &config = get<Object const>(in);
     FromJson(config.at("linear_train_param"), &tparam_);
     FromJson(config.at("coordinate_param"), &coord_param_);
   }
@@ -71,12 +71,9 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
       auto cmp = [](Entry e1, Entry e2) {
         return e1.index < e2.index;
       };
-      auto column_begin =
-          std::lower_bound(col.cbegin(), col.cend(),
-                           xgboost::Entry(0, 0.0f), cmp);
+      auto column_begin = std::lower_bound(col.cbegin(), col.cend(), xgboost::Entry(0, 0.0f), cmp);
       auto column_end =
-          std::lower_bound(col.cbegin(), col.cend(),
-                           xgboost::Entry(num_row_, 0.0f), cmp);
+          std::lower_bound(col.cbegin(), col.cend(), xgboost::Entry(num_row_, 0.0f), cmp);
       column_segments.emplace_back(static_cast<bst_uint>(column_begin - col.cbegin()),
                                    static_cast<bst_uint>(column_end - col.cbegin()));
       row_ptr_.push_back(row_ptr_.back() + (column_end - column_begin));
@@ -86,10 +83,8 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     for (size_t fidx = 0; fidx < batch.Size(); fidx++) {
       auto col = page[fidx];
       auto seg = column_segments[fidx];
-      dh::safe_cuda(cudaMemcpy(
-          data_.data().get() + row_ptr_[fidx],
-          col.data() + seg.first,
-          sizeof(Entry) * (seg.second - seg.first), cudaMemcpyHostToDevice));
+      dh::safe_cuda(cudaMemcpy(data_.data().get() + row_ptr_[fidx], col.data() + seg.first,
+                               sizeof(Entry) * (seg.second - seg.first), cudaMemcpyHostToDevice));
     }
   }
 
@@ -136,9 +131,8 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
       if (ctx_->IsCUDA()) {
         grad = GetBiasGradient(group_idx, model->learner_model_param->num_output_group);
       }
-      auto dbias = static_cast<float>(
-          tparam_.learning_rate *
-              CoordinateDeltaBias(grad.GetGrad(), grad.GetHess()));
+      auto dbias = static_cast<float>(tparam_.learning_rate *
+                                      CoordinateDeltaBias(grad.GetGrad(), grad.GetHess()));
       model->Bias()[group_idx] += dbias;
 
       // Update residual
@@ -148,18 +142,17 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     }
   }
 
-  void UpdateFeature(int fidx, int group_idx,
-                     gbm::GBLinearModel *model) {
+  void UpdateFeature(int fidx, int group_idx, gbm::GBLinearModel *model) {
     bst_float &w = (*model)[fidx][group_idx];
     // Get gradient
     auto grad = GradientPair(0, 0);
     if (ctx_->IsCUDA()) {
       grad = GetGradient(group_idx, model->learner_model_param->num_output_group, fidx);
     }
-    auto dw = static_cast<float>(tparam_.learning_rate *
-                                 CoordinateDelta(grad.GetGrad(), grad.GetHess(),
-                                                 w, tparam_.reg_alpha_denorm,
-                                                 tparam_.reg_lambda_denorm));
+    auto dw =
+        static_cast<float>(tparam_.learning_rate * CoordinateDelta(grad.GetGrad(), grad.GetHess(),
+                                                                   w, tparam_.reg_alpha_denorm,
+                                                                   tparam_.reg_lambda_denorm));
     w += dw;
 
     if (ctx_->IsCUDA()) {
@@ -174,8 +167,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     auto f = [=] __device__(size_t idx) {
       return idx * num_group + group_idx;
     };  // NOLINT
-    thrust::transform_iterator<decltype(f), decltype(counting), size_t> skip(
-        counting, f);
+    thrust::transform_iterator<decltype(f), decltype(counting), size_t> skip(counting, f);
     auto perm = thrust::make_permutation_iterator(gpair_.data(), skip);
 
     return dh::SumReduction(perm, num_row_);
@@ -203,8 +195,8 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
       auto g = d_gpair[entry.index * num_group + group_idx];
       return GradientPair{g.GetGrad() * entry.fvalue, g.GetHess() * entry.fvalue * entry.fvalue};
     };  // NOLINT
-    thrust::transform_iterator<decltype(f), decltype(counting), GradientPair>
-        multiply_iterator(counting, f);
+    thrust::transform_iterator<decltype(f), decltype(counting), GradientPair> multiply_iterator(
+        counting, f);
     return dh::SumReduction(multiply_iterator, col_size);
   }
 
@@ -221,15 +213,11 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   }
 
  private:
-  bool IsEmpty() {
-    return num_row_ == 0;
-  }
+  bool IsEmpty() { return num_row_ == 0; }
 
   void UpdateGpair(const std::vector<GradientPair> &host_gpair) {
-    dh::safe_cuda(cudaMemcpyAsync(
-        gpair_.data().get(),
-        host_gpair.data(),
-        gpair_.size() * sizeof(GradientPair), cudaMemcpyHostToDevice));
+    dh::safe_cuda(cudaMemcpyAsync(gpair_.data().get(), host_gpair.data(),
+                                  gpair_.size() * sizeof(GradientPair), cudaMemcpyHostToDevice));
   }
 
   // training parameter

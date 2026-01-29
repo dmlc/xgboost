@@ -2,6 +2,7 @@
  * Copyright 2019-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
+
 #include "../../../src/common/bitfield.h"
 
 namespace xgboost {
@@ -10,9 +11,9 @@ TEST(BitField, Check) {
   {
     std::vector<LBitField64::value_type> storage(4, 0);
     storage[2] = 2;
-    auto bits = LBitField64({storage.data(),
-                static_cast<typename common::Span<LBitField64::value_type>::index_type>(
-                    storage.size())});
+    auto bits = LBitField64(
+        {storage.data(),
+         static_cast<typename common::Span<LBitField64::value_type>::index_type>(storage.size())});
     size_t true_bit = 190;
     for (size_t i = true_bit + 1; i < bits.Capacity(); ++i) {
       ASSERT_FALSE(bits.Check(i));
@@ -26,9 +27,9 @@ TEST(BitField, Check) {
   {
     std::vector<RBitField8::value_type> storage(4, 0);
     storage[2] = 1 << 3;
-    auto bits = RBitField8({storage.data(),
-                static_cast<typename common::Span<RBitField8::value_type>::index_type>(
-                    storage.size())});
+    auto bits = RBitField8(
+        {storage.data(),
+         static_cast<typename common::Span<RBitField8::value_type>::index_type>(storage.size())});
     size_t true_bit = 19;
     for (size_t i = 0; i < true_bit; ++i) {
       ASSERT_FALSE(bits.Check(i));
@@ -69,12 +70,8 @@ void TestBitFieldSet(typename BitFieldT::value_type res, size_t index, size_t tr
 }
 
 TEST(BitField, Set) {
-  {
-    TestBitFieldSet<LBitField64>(2, 2, 190);
-  }
-  {
-    TestBitFieldSet<RBitField8>(1 << 3, 2, 19);
-  }
+  { TestBitFieldSet<LBitField64>(2, 2, 190); }
+  { TestBitFieldSet<RBitField8>(1 << 3, 2, 19); }
 }
 
 template <typename BitFieldT, typename VT = typename BitFieldT::value_type>
@@ -90,12 +87,8 @@ void TestBitFieldClear(size_t clear_bit) {
 }
 
 TEST(BitField, Clear) {
-  {
-    TestBitFieldClear<LBitField64>(190);
-  }
-  {
-    TestBitFieldClear<RBitField8>(19);
-  }
+  { TestBitFieldClear<LBitField64>(190); }
+  { TestBitFieldClear<RBitField8>(19); }
 }
 
 TEST(BitField, CTZ) {

@@ -3,7 +3,7 @@
  */
 #include "init_estimation.h"
 
-#include <memory>                        // unique_ptr
+#include <memory>  // unique_ptr
 
 #include "../common/stats.h"             // Mean
 #include "../tree/fit_stump.h"           // FitStump

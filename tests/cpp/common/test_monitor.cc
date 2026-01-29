@@ -1,18 +1,19 @@
 #include <gtest/gtest.h>
 #include <xgboost/logging.h>
+
 #include <string>
+
 #include "../../../src/common/timer.h"
 
 namespace xgboost {
 namespace common {
 TEST(Monitor, Logging) {
-  auto run_monitor =
-      []() {
-        Monitor monitor_;
-        monitor_.Init("Monitor test");
-        monitor_.Start("basic");
-        monitor_.Stop("basic");
-      };
+  auto run_monitor = []() {
+    Monitor monitor_;
+    monitor_.Init("Monitor test");
+    monitor_.Start("basic");
+    monitor_.Stop("basic");
+  };
 
   Args args = {std::make_pair("verbosity", "3")};
   ConsoleLogger::Configure(args);

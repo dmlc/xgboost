@@ -4,8 +4,8 @@
 #ifndef XGBOOST_COMMON_CACHE_MANAGER_H_
 #define XGBOOST_COMMON_CACHE_MANAGER_H_
 
-#include <cstdint>     // for int64_t
 #include <array>
+#include <cstdint>  // for int64_t
 
 namespace xgboost::common {
 
@@ -16,8 +16,8 @@ class CacheManager {
  private:
   constexpr static int64_t kUninitCache = -1;
   constexpr static int kMaxCacheSize = 4;
-  std::array<int64_t, kMaxCacheSize> cache_size_ = {kUninitCache, kUninitCache,
-                                                    kUninitCache, kUninitCache};
+  std::array<int64_t, kMaxCacheSize> cache_size_ = {kUninitCache, kUninitCache, kUninitCache,
+                                                    kUninitCache};
 
   constexpr static int64_t kDefaultL1Size = 32 * 1024;    // 32KB
   constexpr static int64_t kDefaultL2Size = 1024 * 1024;  // 1MB

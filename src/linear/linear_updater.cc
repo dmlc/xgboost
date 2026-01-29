@@ -1,8 +1,9 @@
 /*!
  * Copyright 2018
  */
-#include <xgboost/linear_updater.h>
 #include <dmlc/registry.h>
+#include <xgboost/linear_updater.h>
+
 #include "./param.h"
 
 namespace dmlc {
@@ -12,7 +13,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::LinearUpdaterReg);
 namespace xgboost {
 
 LinearUpdater* LinearUpdater::Create(const std::string& name, Context const* ctx) {
-  auto *e = ::dmlc::Registry< ::xgboost::LinearUpdaterReg>::Get()->Find(name);
+  auto* e = ::dmlc::Registry< ::xgboost::LinearUpdaterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown linear updater " << name;
   }

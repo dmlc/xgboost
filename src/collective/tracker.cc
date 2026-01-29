@@ -265,103 +265,103 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     return Success();
   };
 
-  return std::async(std::launch::async, [this, handle_error,
-                                         init = TrackerInitThread{
-                                             *GlobalConfigThreadLocalStore::Get()}] {
-    init();
-    State state{this->n_workers_};
+  return std::async(
+      std::launch::async,
+      [this, handle_error, init = TrackerInitThread{*GlobalConfigThreadLocalStore::Get()}] {
+        init();
+        State state{this->n_workers_};
 
-    auto select_accept = [&](TCPSocket* sock, auto* addr) {
-      // accept with poll so that we can enable timeout and interruption.
-      rabit::utils::PollHelper poll;
-      auto rc = Success() << [&] {
-        std::lock_guard lock{listener_mu_};
-        return listener_.NonBlocking(true);
-      } << [&] {
-        {
-          std::lock_guard lock{listener_mu_};
-          poll.WatchRead(listener_);
-        }
-        if (state.running) {
-          // Don't timeout if the communicator group is up and running.
-          return poll.Poll(std::chrono::seconds{-1});
-        } else {
-          // Have timeout for workers to bootstrap.
-          return poll.Poll(timeout_);
-        }
-      } << [&] {
-        // this->Stop() closes the socket with a lock. Therefore, when the accept returns
-        // due to shutdown, the state is still valid (closed).
-        return listener_.Accept(sock, addr);
-      };
-      return rc;
-    };
+        auto select_accept = [&](TCPSocket* sock, auto* addr) {
+          // accept with poll so that we can enable timeout and interruption.
+          rabit::utils::PollHelper poll;
+          auto rc = Success() << [&] {
+            std::lock_guard lock{listener_mu_};
+            return listener_.NonBlocking(true);
+          } << [&] {
+            {
+              std::lock_guard lock{listener_mu_};
+              poll.WatchRead(listener_);
+            }
+            if (state.running) {
+              // Don't timeout if the communicator group is up and running.
+              return poll.Poll(std::chrono::seconds{-1});
+            } else {
+              // Have timeout for workers to bootstrap.
+              return poll.Poll(timeout_);
+            }
+          } << [&] {
+            // this->Stop() closes the socket with a lock. Therefore, when the accept returns
+            // due to shutdown, the state is still valid (closed).
+            return listener_.Accept(sock, addr);
+          };
+          return rc;
+        };
 
-    while (state.ShouldContinue()) {
-      TCPSocket sock;
-      SockAddress addr;
-      this->ready_ = true;
-      auto rc = select_accept(&sock, &addr);
-      if (!rc.OK()) {
-        return Fail("Failed to accept connection.", this->Stop() + std::move(rc));
-      }
+        while (state.ShouldContinue()) {
+          TCPSocket sock;
+          SockAddress addr;
+          this->ready_ = true;
+          auto rc = select_accept(&sock, &addr);
+          if (!rc.OK()) {
+            return Fail("Failed to accept connection.", this->Stop() + std::move(rc));
+          }
 
-      auto worker = WorkerProxy{n_workers_, std::move(sock), std::move(addr)};
-      if (!worker.Status().OK()) {
-        LOG(WARNING) << "Failed to initialize worker proxy." << worker.Status().Report();
-        continue;
-      }
-      switch (worker.Command()) {
-        case proto::CMD::kStart: {
-          if (state.running) {
-            // Something went wrong with one of the workers. It got disconnected without
-            // notice.
-            state.Error();
-            rc = handle_error(worker);
-            if (!rc.OK()) {
-              return Fail("Failed to handle abort.", this->Stop() + std::move(rc));
+          auto worker = WorkerProxy{n_workers_, std::move(sock), std::move(addr)};
+          if (!worker.Status().OK()) {
+            LOG(WARNING) << "Failed to initialize worker proxy." << worker.Status().Report();
+            continue;
+          }
+          switch (worker.Command()) {
+            case proto::CMD::kStart: {
+              if (state.running) {
+                // Something went wrong with one of the workers. It got disconnected without
+                // notice.
+                state.Error();
+                rc = handle_error(worker);
+                if (!rc.OK()) {
+                  return Fail("Failed to handle abort.", this->Stop() + std::move(rc));
+                }
+              }
+
+              state.Start(std::move(worker));
+              if (state.Ready()) {
+                rc = this->Bootstrap(&state.pending);
+                state.Bootstrap();
+              }
+              if (!rc.OK()) {
+                return this->Stop() + std::move(rc);
+              }
+              continue;
+            }
+            case proto::CMD::kShutdown: {
+              if (state.during_restart) {
+                // The worker can still send shutdown after call to `std::exit`.
+                continue;
+              }
+              state.Shutdown();
+              continue;
+            }
+            case proto::CMD::kError: {
+              if (state.during_restart) {
+                // Ignore further errors.
+                continue;
+              }
+              state.Error();
+              rc = handle_error(worker);
+              continue;
+            }
+            case proto::CMD::kPrint: {
+              LOG(CONSOLE) << worker.Msg();
+              continue;
+            }
+            case proto::CMD::kInvalid:
+            default: {
+              return Fail("Invalid command received.", this->Stop());
             }
           }
-
-          state.Start(std::move(worker));
-          if (state.Ready()) {
-            rc = this->Bootstrap(&state.pending);
-            state.Bootstrap();
-          }
-          if (!rc.OK()) {
-            return this->Stop() + std::move(rc);
-          }
-          continue;
         }
-        case proto::CMD::kShutdown: {
-          if (state.during_restart) {
-            // The worker can still send shutdown after call to `std::exit`.
-            continue;
-          }
-          state.Shutdown();
-          continue;
-        }
-        case proto::CMD::kError: {
-          if (state.during_restart) {
-            // Ignore further errors.
-            continue;
-          }
-          state.Error();
-          rc = handle_error(worker);
-          continue;
-        }
-        case proto::CMD::kPrint: {
-          LOG(CONSOLE) << worker.Msg();
-          continue;
-        }
-        case proto::CMD::kInvalid:
-        default: {
-          return Fail("Invalid command received.", this->Stop());
-        }
-      }
-    }
-    return this->Stop();
-  });
+        return this->Stop();
+      });
 }
 
 [[nodiscard]] Json RabitTracker::WorkerArgs() const {

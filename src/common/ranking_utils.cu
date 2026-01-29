@@ -8,20 +8,20 @@
 #include <thrust/reduce.h>                      // for reduce
 #include <thrust/scan.h>                        // for inclusive_scan
 
-#include <cstddef>                              // for size_t
+#include <cstddef>  // for size_t
 
-#include "algorithm.cuh"                        // for SegmentedArgSort
-#include "cuda_context.cuh"                     // for CUDAContext
-#include "device_helpers.cuh"                   // for MakeTransformIterator, LaunchN
-#include "optional_weight.h"                    // for MakeOptionalWeights, OptionalWeights
-#include "ranking_utils.cuh"                    // for ThreadsForMean
+#include "algorithm.cuh"       // for SegmentedArgSort
+#include "cuda_context.cuh"    // for CUDAContext
+#include "device_helpers.cuh"  // for MakeTransformIterator, LaunchN
+#include "optional_weight.h"   // for MakeOptionalWeights, OptionalWeights
+#include "ranking_utils.cuh"   // for ThreadsForMean
 #include "ranking_utils.h"
-#include "threading_utils.cuh"                  // for SegmentedTrapezoidThreads
-#include "xgboost/base.h"                       // for XGBOOST_DEVICE, bst_group_t
-#include "xgboost/context.h"                    // for Context
-#include "xgboost/linalg.h"                     // for VectorView, All, Range
-#include "xgboost/logging.h"                    // for CHECK
-#include "xgboost/span.h"                       // for Span
+#include "threading_utils.cuh"  // for SegmentedTrapezoidThreads
+#include "xgboost/base.h"       // for XGBOOST_DEVICE, bst_group_t
+#include "xgboost/context.h"    // for Context
+#include "xgboost/linalg.h"     // for VectorView, All, Range
+#include "xgboost/logging.h"    // for CHECK
+#include "xgboost/span.h"       // for Span
 
 namespace xgboost::ltr {
 namespace cuda_impl {

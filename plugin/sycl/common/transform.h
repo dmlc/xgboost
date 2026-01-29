@@ -5,9 +5,9 @@
 #ifndef PLUGIN_SYCL_COMMON_TRANSFORM_H_
 #define PLUGIN_SYCL_COMMON_TRANSFORM_H_
 
-#include "../device_manager.h"
-
 #include <sycl/sycl.hpp>
+
+#include "../device_manager.h"
 
 namespace xgboost {
 namespace sycl {
@@ -21,12 +21,11 @@ void LaunchSyclKernel(DeviceOrd device, Functor&& _func, xgboost::common::Range 
 
   size_t size = *(_range.end());
   qu->submit([&](::sycl::handler& cgh) {
-    cgh.parallel_for<>(::sycl::range<1>(size),
-                       [=](::sycl::id<1> pid) {
-      const size_t idx = pid[0];
-      const_cast<Functor&&>(_func)(idx, _spans...);
-    });
-  }).wait();
+      cgh.parallel_for<>(::sycl::range<1>(size), [=](::sycl::id<1> pid) {
+        const size_t idx = pid[0];
+        const_cast<Functor&&>(_func)(idx, _spans...);
+      });
+    }).wait();
 }
 
 }  // namespace common

@@ -53,9 +53,9 @@ class ExtMemQuantileDMatrixCpu : public ::testing::TestWithParam<float> {
 
 TEST_P(ExtMemQuantileDMatrixCpu, Basic) { this->Run(this->GetParam()); }
 
-INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, ExtMemQuantileDMatrixCpu, ::testing::ValuesIn([] {
-                           std::vector<float> sparsities{
-                               0.0f, tree::TrainParam::DftSparseThreshold(), 0.4f, 0.8f};
-                           return sparsities;
-                         }()));
+INSTANTIATE_TEST_SUITE_P(
+    ExtMemQuantileDMatrix, ExtMemQuantileDMatrixCpu, ::testing::ValuesIn([] {
+      std::vector<float> sparsities{0.0f, tree::TrainParam::DftSparseThreshold(), 0.4f, 0.8f};
+      return sparsities;
+    }()));
 }  // namespace xgboost::data

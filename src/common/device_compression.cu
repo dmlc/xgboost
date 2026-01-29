@@ -10,8 +10,8 @@
 #include <cstdint>  // for uint8_t, uint32_t, int32_t
 #include <memory>   // for shared_ptr
 
+#include "cuda_stream.h"  // for StreamRef
 #include "device_compression.cuh"
-#include "cuda_stream.h"        // for StreamRef
 #include "device_helpers.cuh"  // for MemcpyBatchAsync
 #include "xgboost/span.h"      // for Span
 
@@ -410,9 +410,8 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
 }
 
 [[nodiscard]] common::RefResourceView<std::uint8_t> CoalesceCompressedBuffersToHost(
-    curt::StreamRef stream, std::shared_ptr<HostPinnedMemPool> pool,
-    CuMemParams const& in_params, dh::DeviceUVector<std::uint8_t> const& in_buf,
-    CuMemParams* p_out) {
+    curt::StreamRef stream, std::shared_ptr<HostPinnedMemPool> pool, CuMemParams const& in_params,
+    dh::DeviceUVector<std::uint8_t> const& in_buf, CuMemParams* p_out) {
   std::size_t n_total_act_bytes = in_params.TotalSrcActBytes();
   std::size_t n_total_bytes = in_params.TotalSrcBytes();
   if (n_total_bytes == 0) {

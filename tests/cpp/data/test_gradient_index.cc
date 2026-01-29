@@ -2,17 +2,17 @@
  * Copyright 2021-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/data.h>                       // for BatchIterator, BatchSet, DMatrix, BatchParam
+#include <xgboost/data.h>  // for BatchIterator, BatchSet, DMatrix, BatchParam
 
-#include <algorithm>                            // for sort, unique
-#include <cmath>                                // for isnan
-#include <cstddef>                              // for size_t
-#include <limits>                               // for numeric_limits
-#include <memory>                               // for shared_ptr, __shared_ptr_access, unique_ptr
-#include <string>                               // for string
-#include <tuple>                                // for make_tuple, tie, tuple
-#include <utility>                              // for move
-#include <vector>                               // for vector
+#include <algorithm>  // for sort, unique
+#include <cmath>      // for isnan
+#include <cstddef>    // for size_t
+#include <limits>     // for numeric_limits
+#include <memory>     // for shared_ptr, __shared_ptr_access, unique_ptr
+#include <string>     // for string
+#include <tuple>      // for make_tuple, tie, tuple
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../../../src/common/categorical.h"    // for AsCat
 #include "../../../src/common/column_matrix.h"  // for ColumnMatrix

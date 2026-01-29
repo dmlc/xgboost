@@ -2,6 +2,7 @@
  * Copyright 2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+
 #include <numeric>  // for accumulate
 
 #include "../../../src/common/math.h"

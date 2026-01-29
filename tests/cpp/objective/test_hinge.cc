@@ -1,13 +1,15 @@
 /**
  * Copyright 2018-2023, XGBoost Contributors
  */
-#include <xgboost/objective.h>
+#include "test_hinge.h"
+
 #include <xgboost/context.h>
+#include <xgboost/objective.h>
+
 #include <limits>
 
-#include "../helpers.h"
-#include "test_hinge.h"
 #include "../../../src/common/linalg_op.h"
+#include "../helpers.h"
 namespace xgboost {
 
 void TestHingeObj(const Context* ctx) {
@@ -15,7 +17,7 @@ void TestHingeObj(const Context* ctx) {
 
   float eps = std::numeric_limits<xgboost::bst_float>::min();
   std::vector<float> predt{-1.0f, -0.5f, 0.5f, 1.0f, -1.0f, -0.5f, 0.5f, 1.0f};
-  std::vector<float> label{ 0.0f,  0.0f, 0.0f, 0.0f,  1.0f,  1.0f,  1.0f, 1.0f};
+  std::vector<float> label{0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f};
   std::vector<float> grad{0.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 0.0f};
   std::vector<float> hess{eps, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, eps};
 

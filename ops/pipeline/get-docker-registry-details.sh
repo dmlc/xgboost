@@ -1,3 +1,4 @@
+#!/bin/bash
 ## Get details for AWS ECR (Elastic Container Registry) in environment variables
 
 ECR_AWS_ACCOUNT_ID="492475357299"

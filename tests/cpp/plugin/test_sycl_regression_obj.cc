@@ -108,13 +108,11 @@ TEST(SyclObjective, DeclareUnifiedTest(PseudoHuber)) {
 TEST(SyclObjective, CPUvsSycl) {
   Context ctx_sycl;
   ctx_sycl.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  ObjFunction * obj_sycl =
-      ObjFunction::Create("reg:squarederror", &ctx_sycl);
+  ObjFunction* obj_sycl = ObjFunction::Create("reg:squarederror", &ctx_sycl);
 
   Context ctx_cpu;
   ctx_cpu.UpdateAllowUnknown(Args{{"device", "cpu"}});
-  ObjFunction * obj_cpu =
-      ObjFunction::Create("reg:squarederror", &ctx_cpu);
+  ObjFunction* obj_cpu = ObjFunction::Create("reg:squarederror", &ctx_cpu);
 
   linalg::Matrix<GradientPair> cpu_out_preds;
   linalg::Matrix<GradientPair> sycl_out_preds;
@@ -133,7 +131,7 @@ TEST(SyclObjective, CPUvsSycl) {
   info.labels.Reshape(kRows, 1);
   auto& h_labels = info.labels.Data()->HostVector();
   for (size_t i = 0; i < h_labels.size(); ++i) {
-    h_labels[i] = 1 / static_cast<float>(i+1);
+    h_labels[i] = 1 / static_cast<float>(i + 1);
   }
 
   {

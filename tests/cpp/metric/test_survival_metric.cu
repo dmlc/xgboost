@@ -2,6 +2,7 @@
  * Copyright (c) by Contributors 2020
  */
 #include <gtest/gtest.h>
+
 #include "test_survival_metric.h"
 #include "xgboost/metric.h"
 
@@ -15,7 +16,7 @@ TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
   metric->Configure({{"aft_loss_distribution", "normal"}, {"aft_loss_distribution_scale", "10"}});
 
   // Configuration round-trip test
-  Json j_obj{ Object() };
+  Json j_obj{Object()};
   metric->SaveConfig(&j_obj);
   auto aft_param_json = j_obj["aft_loss_param"];
   EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution"]), "normal");

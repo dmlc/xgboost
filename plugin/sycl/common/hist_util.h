@@ -5,24 +5,22 @@
 #ifndef PLUGIN_SYCL_COMMON_HIST_UTIL_H_
 #define PLUGIN_SYCL_COMMON_HIST_UTIL_H_
 
-#include <vector>
-#include <unordered_map>
 #include <memory>
-
-#include "../data.h"
-#include "row_set.h"
+#include <sycl/sycl.hpp>
+#include <unordered_map>
+#include <vector>
 
 #include "../../src/common/hist_util.h"
+#include "../data.h"
 #include "../data/gradient_index.h"
 #include "../tree/hist_dispatcher.h"
-
-#include <sycl/sycl.hpp>
+#include "row_set.h"
 
 namespace xgboost {
 namespace sycl {
 namespace common {
 
-template<typename GradientSumT, MemoryType memory_type = MemoryType::shared>
+template <typename GradientSumT, MemoryType memory_type = MemoryType::shared>
 using GHistRow = USMVector<xgboost::detail::GradientPairInternal<GradientSumT>, memory_type>;
 
 using BinTypeSize = ::xgboost::common::BinTypeSize;
@@ -32,26 +30,22 @@ class ColumnMatrix;
 /*!
  * \brief Fill histogram with zeroes
  */
-template<typename GradientSumT>
-void InitHist(::sycl::queue* qu,
-              GHistRow<GradientSumT, MemoryType::on_device>* hist,
-              size_t size, ::sycl::event* event);
+template <typename GradientSumT>
+void InitHist(::sycl::queue* qu, GHistRow<GradientSumT, MemoryType::on_device>* hist, size_t size,
+              ::sycl::event* event);
 
 /*!
  * \brief Copy histogram from src to dst
  */
-template<typename GradientSumT>
-void CopyHist(::sycl::queue* qu,
-              GHistRow<GradientSumT, MemoryType::on_device>* dst,
-              const GHistRow<GradientSumT, MemoryType::on_device>& src,
-              size_t size);
+template <typename GradientSumT>
+void CopyHist(::sycl::queue* qu, GHistRow<GradientSumT, MemoryType::on_device>* dst,
+              const GHistRow<GradientSumT, MemoryType::on_device>& src, size_t size);
 
 /*!
  * \brief Compute subtraction: dst = src1 - src2
  */
-template<typename GradientSumT>
-::sycl::event SubtractionHist(::sycl::queue* qu,
-                              GHistRow<GradientSumT, MemoryType::on_device>* dst,
+template <typename GradientSumT>
+::sycl::event SubtractionHist(::sycl::queue* qu, GHistRow<GradientSumT, MemoryType::on_device>* dst,
                               const GHistRow<GradientSumT, MemoryType::on_device>& src1,
                               const GHistRow<GradientSumT, MemoryType::on_device>& src2,
                               size_t size, ::sycl::event event_priv);
@@ -59,19 +53,15 @@ template<typename GradientSumT>
 /*!
  * \brief Histograms of gradient statistics for multiple nodes
  */
-template<typename GradientSumT, MemoryType memory_type = MemoryType::shared>
+template <typename GradientSumT, MemoryType memory_type = MemoryType::shared>
 class HistCollection {
  public:
   using GHistRowT = GHistRow<GradientSumT, memory_type>;
 
   // Access histogram for i-th node
-  GHistRowT& operator[](bst_uint nid) {
-    return *(data_.at(nid));
-  }
+  GHistRowT& operator[](bst_uint nid) { return *(data_.at(nid)); }
 
-  const GHistRowT& operator[](bst_uint nid) const {
-    return *(data_.at(nid));
-  }
+  const GHistRowT& operator[](bst_uint nid) const { return *(data_.at(nid)); }
 
   // Initialize histogram collection
   void Init(::sycl::queue* qu, uint32_t nbins) {
@@ -86,13 +76,10 @@ class HistCollection {
   ::sycl::event AddHistRow(bst_uint nid) {
     ::sycl::event event;
     if (data_.count(nid) == 0) {
-      data_[nid] =
-        std::make_shared<GHistRowT>(qu_, nbins_,
-                                    xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
-                                    &event);
+      data_[nid] = std::make_shared<GHistRowT>(
+          qu_, nbins_, xgboost::detail::GradientPairInternal<GradientSumT>(0, 0), &event);
     } else {
-      data_[nid]->Resize(qu_, nbins_,
-                         xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
+      data_[nid]->Resize(qu_, nbins_, xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
                          &event);
     }
     return event;
@@ -110,7 +97,7 @@ class HistCollection {
 /*!
  * \brief Stores temporary histograms to compute them in parallel
  */
-template<typename GradientSumT>
+template <typename GradientSumT>
 class ParallelGHistBuilder {
  public:
   using GHistRowT = GHistRow<GradientSumT, MemoryType::on_device>;
@@ -123,13 +110,9 @@ class ParallelGHistBuilder {
     }
   }
 
-  void Reset(size_t nblocks) {
-    hist_device_buffer_.Resize(qu_, nblocks * nbins_);
-  }
+  void Reset(size_t nblocks) { hist_device_buffer_.Resize(qu_, nblocks * nbins_); }
 
-  GHistRowT& GetDeviceBuffer() {
-    return hist_device_buffer_;
-  }
+  GHistRowT& GetDeviceBuffer() { return hist_device_buffer_; }
 
  protected:
   /*! \brief Number of bins in each histogram */
@@ -146,10 +129,10 @@ class ParallelGHistBuilder {
 /*!
  * \brief Builder for histograms of gradient statistics
  */
-template<typename GradientSumT>
+template <typename GradientSumT>
 class GHistBuilder {
  public:
-  template<MemoryType memory_type = MemoryType::shared>
+  template <MemoryType memory_type = MemoryType::shared>
   using GHistRowT = GHistRow<GradientSumT, memory_type>;
 
   GHistBuilder() = default;
@@ -157,13 +140,10 @@ class GHistBuilder {
 
   // Construct a histogram via histogram aggregation
   ::sycl::event BuildHist(const HostDeviceVector<GradientPair>& gpair,
-                          const RowSetCollection::Elem& row_indices,
-                          const GHistIndexMatrix& gmat,
-                          GHistRowT<MemoryType::on_device>* HistCollection,
-                          bool isDense,
+                          const RowSetCollection::Elem& row_indices, const GHistIndexMatrix& gmat,
+                          GHistRowT<MemoryType::on_device>* HistCollection, bool isDense,
                           GHistRowT<MemoryType::on_device>* hist_buffer,
-                          const DeviceProperties& device_prop,
-                          ::sycl::event event,
+                          const DeviceProperties& device_prop, ::sycl::event event,
                           bool force_atomic_use = false);
 
   // Construct a histogram via subtraction trick
@@ -171,13 +151,11 @@ class GHistBuilder {
                         const GHistRowT<MemoryType::on_device>& sibling,
                         const GHistRowT<MemoryType::on_device>& parent);
 
-  uint32_t GetNumBins() const {
-      return nbins_;
-  }
+  uint32_t GetNumBins() const { return nbins_; }
 
  private:
   /*! \brief Number of all bins over all features */
-  uint32_t nbins_ { 0 };
+  uint32_t nbins_{0};
 
   ::sycl::queue* qu_;
 };

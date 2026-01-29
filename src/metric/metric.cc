@@ -25,7 +25,7 @@ Metric* CreateMetricImpl(const std::string& name) {
       prefix = buf;
       param = nullptr;
     }
-    auto *e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
+    auto* e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
     if (e == nullptr) {
       return nullptr;
     }
@@ -33,7 +33,7 @@ Metric* CreateMetricImpl(const std::string& name) {
     return p_metric;
   } else {
     std::string prefix = buf.substr(0, pos);
-    auto *e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
+    auto* e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
     if (e == nullptr) {
       return nullptr;
     }
@@ -42,8 +42,7 @@ Metric* CreateMetricImpl(const std::string& name) {
   }
 }
 
-Metric *
-Metric::Create(const std::string& name, Context const* ctx) {
+Metric* Metric::Create(const std::string& name, Context const* ctx) {
   auto metric = CreateMetricImpl<MetricReg>(name);
   if (metric == nullptr) {
     LOG(FATAL) << "Unknown metric function " << name;

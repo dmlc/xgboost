@@ -30,7 +30,7 @@ namespace xgboost::common {
  * \tparam DType type of data content
  * \tparam RType type of rank
  */
-template<typename DType, typename RType>
+template <typename DType, typename RType>
 struct WQSummary {
   /*! \brief an entry in the sketch summary */
   struct Entry {
@@ -53,18 +53,14 @@ struct WQSummary {
      */
     inline void CheckValid(RType eps = 0) const {
       CHECK(rmin >= 0 && rmax >= 0 && wmin >= 0) << "nonneg constraint";
-      CHECK(rmax- rmin - wmin > -eps) <<  "relation constraint: min/max";
+      CHECK(rmax - rmin - wmin > -eps) << "relation constraint: min/max";
     }
     /*! \return rmin estimation for v strictly bigger than value */
-    XGBOOST_DEVICE inline RType RMinNext() const {
-      return rmin + wmin;
-    }
+    XGBOOST_DEVICE inline RType RMinNext() const { return rmin + wmin; }
     /*! \return rmax estimation for v strictly smaller than value */
-    XGBOOST_DEVICE inline RType RMaxPrev() const {
-      return rmax - wmin;
-    }
+    XGBOOST_DEVICE inline RType RMaxPrev() const { return rmax - wmin; }
 
-    friend std::ostream& operator<<(std::ostream& os, Entry const& e) {
+    friend std::ostream &operator<<(std::ostream &os, Entry const &e) {
       os << "rmin: " << e.rmin << ", "
          << "rmax: " << e.rmax << ", "
          << "wmin: " << e.wmin << ", "
@@ -83,12 +79,9 @@ struct WQSummary {
       // default constructor
       QEntry() = default;
       // constructor
-      QEntry(DType value, RType weight)
-          : value(value), weight(weight) {}
+      QEntry(DType value, RType weight) : value(value), weight(weight) {}
       // comparator on value
-      inline bool operator<(const QEntry &b) const {
-        return value < b.value;
-      }
+      inline bool operator<(const QEntry &b) const { return value < b.value; }
     };
     // the input queue
     std::vector<QEntry> queue;
@@ -112,10 +105,12 @@ struct WQSummary {
         size_t j = i + 1;
         RType w = queue[i].weight;
         while (j < qtail && queue[j].value == queue[i].value) {
-          w += queue[j].weight; ++j;
+          w += queue[j].weight;
+          ++j;
         }
         out->data[out->size++] = Entry(wsum, wsum + w, w, queue[i].value);
-        wsum += w; i = j;
+        wsum += w;
+        i = j;
       }
     }
   };
@@ -124,8 +119,7 @@ struct WQSummary {
   /*! \brief number of elements in the summary */
   size_t size;
   // constructor
-  WQSummary(Entry *data, size_t size)
-      : data(data), size(size) {}
+  WQSummary(Entry *data, size_t size) : data(data), size(size) {}
   /*!
    * \return the maximum error of the Summary
    */
@@ -142,7 +136,7 @@ struct WQSummary {
    * \param qvalue the value we query for
    * \param istart starting position
    */
-  inline Entry Query(DType qvalue, size_t &istart) const { // NOLINT(*)
+  inline Entry Query(DType qvalue, size_t &istart) const {  // NOLINT(*)
     while (istart < size && qvalue > data[istart].value) {
       ++istart;
     }
@@ -156,16 +150,12 @@ struct WQSummary {
       if (istart == 0) {
         return Entry(0.0f, 0.0f, 0.0f, qvalue);
       } else {
-        return Entry(data[istart - 1].RMinNext(),
-                     data[istart].RMaxPrev(),
-                     0.0f, qvalue);
+        return Entry(data[istart - 1].RMinNext(), data[istart].RMaxPrev(), 0.0f, qvalue);
       }
     }
   }
   /*! \return maximum rank in the summary */
-  inline RType MaxRank() const {
-    return data[size - 1].rmax;
-  }
+  inline RType MaxRank() const { return data[size - 1].rmax; }
   /*!
    * \brief copy content from src
    * \param src source sketch
@@ -184,14 +174,14 @@ struct WQSummary {
     size = src.size;
     std::memcpy(data, src.data, sizeof(Entry) * size);
   }
-  inline void MakeFromSorted(const Entry* entries, size_t n) {
+  inline void MakeFromSorted(const Entry *entries, size_t n) {
     size = 0;
     for (size_t i = 0; i < n;) {
       size_t j = i + 1;
       // ignore repeated values
-      for (; j < n && entries[j].value == entries[i].value; ++j) {}
-      data[size++] = Entry(entries[i].rmin, entries[i].rmax, entries[i].wmin,
-                           entries[i].value);
+      for (; j < n && entries[j].value == entries[i].value; ++j) {
+      }
+      data[size++] = Entry(entries[i].rmin, entries[i].rmax, entries[i].wmin, entries[i].value);
       i = j;
     }
   }
@@ -219,7 +209,8 @@ struct WQSummary {
    */
   void SetPrune(const WQSummary &src, size_t maxsize) {
     if (src.size <= maxsize) {
-      this->CopyFrom(src); return;
+      this->CopyFrom(src);
+      return;
     }
     const RType begin = src.data[0].rmax;
     const RType range = src.data[src.size - 1].rmin - src.data[0].rmax;
@@ -229,18 +220,19 @@ struct WQSummary {
     // lastidx is used to avoid duplicated records
     size_t i = 1, lastidx = 0;
     for (size_t k = 1; k < n; ++k) {
-      RType dx2 =  2 * ((k * range) / n + begin);
+      RType dx2 = 2 * ((k * range) / n + begin);
       // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2
-      while (i < src.size - 1
-             && dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
+      while (i < src.size - 1 && dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
       if (i == src.size - 1) break;
       if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
         if (i != lastidx) {
-          data[size++] = src.data[i]; lastidx = i;
+          data[size++] = src.data[i];
+          lastidx = i;
         }
       } else {
         if (i + 1 != lastidx) {
-          data[size++] = src.data[i + 1]; lastidx = i + 1;
+          data[size++] = src.data[i + 1];
+          lastidx = i + 1;
         }
       }
     }
@@ -253,13 +245,14 @@ struct WQSummary {
    * \param sa first input summary to be merged
    * \param sb second input summary to be merged
    */
-  inline void SetCombine(const WQSummary &sa,
-                         const WQSummary &sb) {
+  inline void SetCombine(const WQSummary &sa, const WQSummary &sb) {
     if (sa.size == 0) {
-      this->CopyFrom(sb); return;
+      this->CopyFrom(sb);
+      return;
     }
     if (sb.size == 0) {
-      this->CopyFrom(sa); return;
+      this->CopyFrom(sa);
+      return;
     }
     CHECK(sa.size > 0 && sb.size > 0);
     const Entry *a = sa.data, *a_end = sa.data + sa.size;
@@ -270,38 +263,38 @@ struct WQSummary {
     while (a != a_end && b != b_end) {
       // duplicated value entry
       if (a->value == b->value) {
-        *dst = Entry(a->rmin + b->rmin,
-                     a->rmax + b->rmax,
-                     a->wmin + b->wmin, a->value);
+        *dst = Entry(a->rmin + b->rmin, a->rmax + b->rmax, a->wmin + b->wmin, a->value);
         aprev_rmin = a->RMinNext();
         bprev_rmin = b->RMinNext();
-        ++dst; ++a; ++b;
+        ++dst;
+        ++a;
+        ++b;
       } else if (a->value < b->value) {
-        *dst = Entry(a->rmin + bprev_rmin,
-                     a->rmax + b->RMaxPrev(),
-                     a->wmin, a->value);
+        *dst = Entry(a->rmin + bprev_rmin, a->rmax + b->RMaxPrev(), a->wmin, a->value);
         aprev_rmin = a->RMinNext();
-        ++dst; ++a;
+        ++dst;
+        ++a;
       } else {
-        *dst = Entry(b->rmin + aprev_rmin,
-                     b->rmax + a->RMaxPrev(),
-                     b->wmin, b->value);
+        *dst = Entry(b->rmin + aprev_rmin, b->rmax + a->RMaxPrev(), b->wmin, b->value);
         bprev_rmin = b->RMinNext();
-        ++dst; ++b;
+        ++dst;
+        ++b;
       }
     }
     if (a != a_end) {
       RType brmax = (b_end - 1)->rmax;
       do {
         *dst = Entry(a->rmin + bprev_rmin, a->rmax + brmax, a->wmin, a->value);
-        ++dst; ++a;
+        ++dst;
+        ++a;
       } while (a != a_end);
     }
     if (b != b_end) {
       RType armax = (a_end - 1)->rmax;
       do {
         *dst = Entry(b->rmin + aprev_rmin, b->rmax + armax, b->wmin, b->value);
-        ++dst; ++b;
+        ++dst;
+        ++b;
       } while (b != b_end);
     }
     this->size = dst - data;
@@ -309,26 +302,20 @@ struct WQSummary {
     RType err_mingap, err_maxgap, err_wgap;
     this->FixError(&err_mingap, &err_maxgap, &err_wgap);
     if (err_mingap > tol || err_maxgap > tol || err_wgap > tol) {
-      LOG(INFO) << "mingap=" << err_mingap
-                << ", maxgap=" << err_maxgap
-                << ", wgap=" << err_wgap;
+      LOG(INFO) << "mingap=" << err_mingap << ", maxgap=" << err_maxgap << ", wgap=" << err_wgap;
     }
     CHECK(size <= sa.size + sb.size) << "bug in combine";
   }
   // helper function to print the current content of sketch
   inline void Print() const {
     for (size_t i = 0; i < this->size; ++i) {
-      LOG(CONSOLE) << "[" << i << "] rmin=" << data[i].rmin
-                   << ", rmax=" << data[i].rmax
-                   << ", wmin=" << data[i].wmin
-                   << ", v=" << data[i].value;
+      LOG(CONSOLE) << "[" << i << "] rmin=" << data[i].rmin << ", rmax=" << data[i].rmax
+                   << ", wmin=" << data[i].wmin << ", v=" << data[i].value;
     }
   }
   // try to fix rounding error
   // and re-establish invariance
-  inline void FixError(RType *err_mingap,
-                       RType *err_maxgap,
-                       RType *err_wgap) const {
+  inline void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
     *err_mingap = 0;
     *err_maxgap = 0;
     *err_wgap = 0;
@@ -355,21 +342,21 @@ struct WQSummary {
 };
 
 /*! \brief try to do efficient pruning */
-template<typename DType, typename RType>
+template <typename DType, typename RType>
 struct WXQSummary : public WQSummary<DType, RType> {
   // redefine entry type
   using Entry = typename WQSummary<DType, RType>::Entry;
   // constructor
-  WXQSummary(Entry *data, size_t size)
-      : WQSummary<DType, RType>(data, size) {}
+  WXQSummary(Entry *data, size_t size) : WQSummary<DType, RType>(data, size) {}
   // check if the block is large chunk
   inline static bool CheckLarge(const Entry &e, RType chunk) {
-    return  e.RMinNext() > e.RMaxPrev() + chunk;
+    return e.RMinNext() > e.RMaxPrev() + chunk;
   }
   // set prune
   inline void SetPrune(const WQSummary<DType, RType> &src, size_t maxsize) {
     if (src.size <= maxsize) {
-      this->CopyFrom(src); return;
+      this->CopyFrom(src);
+      return;
     }
     RType begin = src.data[0].rmax;
     // n is number of points exclude the min/max points
@@ -403,19 +390,20 @@ struct WXQSummary : public WQSummary<DType, RType> {
             // accumulate the range of the rest points
             mrange += src.data[i].RMaxPrev() - src.data[bid].RMinNext();
           }
-          bid = i; ++nbig;
+          bid = i;
+          ++nbig;
         }
       }
       if (bid != src.size - 2) {
-        mrange += src.data[src.size-1].RMaxPrev() - src.data[bid].RMinNext();
+        mrange += src.data[src.size - 1].RMaxPrev() - src.data[bid].RMinNext();
       }
     }
     // assert: there cannot be more than n big data points
     if (nbig >= n) {
       // see what was the case
       LOG(INFO) << " check quantile stats, nbig=" << nbig << ", n=" << n;
-      LOG(INFO) << " srcsize=" << src.size << ", maxsize=" << maxsize
-                << ", range=" << range << ", chunk=" << chunk;
+      LOG(INFO) << " srcsize=" << src.size << ", maxsize=" << maxsize << ", range=" << range
+                << ", chunk=" << chunk;
       src.Print();
       CHECK(nbig < n) << "quantile: too many large chunk";
     }
@@ -431,18 +419,19 @@ struct WXQSummary : public WQSummary<DType, RType> {
           size_t i = bid;
           RType maxdx2 = src.data[end].RMaxPrev() * 2;
           for (; k < n; ++k) {
-            RType dx2 =  2 * ((k * mrange) / n + begin);
+            RType dx2 = 2 * ((k * mrange) / n + begin);
             if (dx2 >= maxdx2) break;
-            while (i < end &&
-                   dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
+            while (i < end && dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
             if (i == end) break;
             if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
               if (i != lastidx) {
-                this->data[this->size++] = src.data[i]; lastidx = i;
+                this->data[this->size++] = src.data[i];
+                lastidx = i;
               }
             } else {
               if (i + 1 != lastidx) {
-                this->data[this->size++] = src.data[i + 1]; lastidx = i + 1;
+                this->data[this->size++] = src.data[i + 1];
+                lastidx = i + 1;
               }
             }
           }
@@ -465,7 +454,7 @@ struct WXQSummary : public WQSummary<DType, RType> {
  * \tparam RType type of rank
  * \tparam TSummary actual summary data structure it uses
  */
-template<typename DType, typename RType, class TSummary>
+template <typename DType, typename RType, class TSummary>
 class QuantileSketchTemplate {
  public:
   static float constexpr kFactor = 8.0;
@@ -482,8 +471,7 @@ class QuantileSketchTemplate {
       this->space = src.space;
       this->data = dmlc::BeginPtr(this->space);
     }
-    SummaryContainer() : Summary(nullptr, 0) {
-    }
+    SummaryContainer() : Summary(nullptr, 0) {}
     /*! \brief reserve space for summary */
     inline void Reserve(size_t size) {
       if (size > space.size()) {
@@ -509,7 +497,7 @@ class QuantileSketchTemplate {
       return sizeof(size_t) + sizeof(Entry) * nentry;
     }
     /*! \brief save the data structure into stream */
-    template<typename TStream>
+    template <typename TStream>
     inline void Save(TStream &fo) const {  // NOLINT(*)
       fo.Write(&(this->size), sizeof(this->size));
       if (this->size != 0) {
@@ -517,13 +505,12 @@ class QuantileSketchTemplate {
       }
     }
     /*! \brief load data structure from input stream */
-    template<typename TStream>
+    template <typename TStream>
     inline void Load(TStream &fi) {  // NOLINT(*)
       CHECK_EQ(fi.Read(&this->size, sizeof(this->size)), sizeof(this->size));
       this->Reserve(this->size);
       if (this->size != 0) {
-        CHECK_EQ(fi.Read(this->data, this->size * sizeof(Entry)),
-                 this->size * sizeof(Entry));
+        CHECK_EQ(fi.Read(this->data, this->size * sizeof(Entry)), this->size * sizeof(Entry));
       }
     }
   };
@@ -541,10 +528,10 @@ class QuantileSketchTemplate {
     level.clear();
   }
 
-  inline static void LimitSizeLevel
-    (size_t maxn, double eps, size_t* out_nlevel, size_t* out_limit_size) {
-    size_t& nlevel = *out_nlevel;
-    size_t& limit_size = *out_limit_size;
+  inline static void LimitSizeLevel(size_t maxn, double eps, size_t *out_nlevel,
+                                    size_t *out_limit_size) {
+    size_t &nlevel = *out_nlevel;
+    size_t &limit_size = *out_limit_size;
     nlevel = 1;
     while (true) {
       limit_size = static_cast<size_t>(ceil(nlevel / eps)) + 1;
@@ -582,7 +569,7 @@ class QuantileSketchTemplate {
     inqueue.Push(x, w);
   }
 
-  inline void PushSummary(const Summary& summary) {
+  inline void PushSummary(const Summary &summary) {
     temp.Reserve(limit_size * 2);
     temp.SetPrune(summary, limit_size * 2);
     PushTemp();
@@ -606,7 +593,8 @@ class QuantileSketchTemplate {
           level[l].size = 0;
         } else {
           // if merged record is still smaller, no need to send to next level
-          level[l].CopyFrom(temp); break;
+          level[l].CopyFrom(temp);
+          break;
         }
       }
     }
@@ -673,20 +661,16 @@ class QuantileSketchTemplate {
  * \tparam DType type of data content
  * \tparam RType type of rank
  */
-template<typename DType, typename RType = unsigned>
-class WQuantileSketch :
-      public QuantileSketchTemplate<DType, RType, WQSummary<DType, RType> > {
-};
+template <typename DType, typename RType = unsigned>
+class WQuantileSketch : public QuantileSketchTemplate<DType, RType, WQSummary<DType, RType>> {};
 
 /*!
  * \brief Quantile sketch use WXQSummary
  * \tparam DType type of data content
  * \tparam RType type of rank
  */
-template<typename DType, typename RType = unsigned>
-class WXQuantileSketch :
-      public QuantileSketchTemplate<DType, RType, WXQSummary<DType, RType> > {
-};
+template <typename DType, typename RType = unsigned>
+class WXQuantileSketch : public QuantileSketchTemplate<DType, RType, WXQSummary<DType, RType>> {};
 
 namespace detail {
 inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
@@ -750,7 +734,7 @@ std::vector<bst_idx_t> CalcColumnSize(Batch const &batch, bst_feature_t const n_
 
 template <typename Batch, typename IsValid>
 std::vector<bst_feature_t> LoadBalance(Batch const &batch, size_t nnz, bst_feature_t n_columns,
-                                       size_t const nthreads, IsValid&& is_valid) {
+                                       size_t const nthreads, IsValid &&is_valid) {
   /* Some sparse datasets have their mass concentrating on small number of features.  To
    * avoid waiting for a few threads running forever, we here distribute different number
    * of columns to different threads according to number of entries.
@@ -809,11 +793,9 @@ class SketchContainerImpl {
                       common::Span<FeatureType const> feature_types, bool use_group);
 
   static bool UseGroup(MetaInfo const &info) {
-    size_t const num_groups =
-        info.group_ptr_.size() == 0 ? 0 : info.group_ptr_.size() - 1;
+    size_t const num_groups = info.group_ptr_.size() == 0 ? 0 : info.group_ptr_.size() - 1;
     // Use group index for weights?
-    bool const use_group_ind =
-        num_groups != 0 && (info.weights_.Size() != info.num_row_);
+    bool const use_group_ind = num_groups != 0 && (info.weights_.Size() != info.num_row_);
     return use_group_ind;
   }
 
@@ -821,9 +803,8 @@ class SketchContainerImpl {
                                         size_t const base_rowid) {
     CHECK_LT(base_rowid, group_ptr.back())
         << "Row: " << base_rowid << " is not found in any group.";
-    bst_group_t group_ind =
-        std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid) -
-        group_ptr.cbegin() - 1;
+    bst_group_t group_ind = std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid) -
+                            group_ptr.cbegin() - 1;
     return group_ind;
   }
   // Gather sketches from all workers.
@@ -892,7 +873,7 @@ class SketchContainerImpl {
 
  private:
   // Merge all categories from other workers.
-  void AllreduceCategories(Context const* ctx, MetaInfo const& info);
+  void AllreduceCategories(Context const *ctx, MetaInfo const &info);
 };
 
 class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, float>> {
@@ -920,7 +901,7 @@ struct SortedQuantile {
   /*! \brief current size of sketch */
   double next_goal;
   // pointer to the sketch to put things in
-  common::WXQuantileSketch<bst_float, bst_float>* sketch;
+  common::WXQuantileSketch<bst_float, bst_float> *sketch;
   // initialize the space
   inline void Init(unsigned max_size) {
     next_goal = -1.0f;

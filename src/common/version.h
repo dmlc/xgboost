@@ -5,6 +5,7 @@
 #define XGBOOST_COMMON_VERSION_H_
 
 #include <dmlc/io.h>
+
 #include <string>
 #include <tuple>
 
@@ -31,5 +32,5 @@ struct Version {
   static bool Same(TripletT const& triplet);
 };
 
-}      // namespace xgboost
+}  // namespace xgboost
 #endif  // XGBOOST_COMMON_VERSION_H_

@@ -3,11 +3,11 @@
  */
 #include "ranking_utils.h"
 
-#include <algorithm>          // for copy_n, max, min, none_of, all_of
-#include <cstddef>            // for size_t
-#include <cstdio>             // for sscanf
-#include <functional>         // for greater
-#include <string>             // for char_traits, string
+#include <algorithm>   // for copy_n, max, min, none_of, all_of
+#include <cstddef>     // for size_t
+#include <cstdio>      // for sscanf
+#include <functional>  // for greater
+#include <string>      // for char_traits, string
 
 #include "algorithm.h"        // for ArgSort
 #include "linalg_op.h"        // for cbegin, cend

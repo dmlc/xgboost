@@ -13,7 +13,7 @@
 #include "dmlc/registry.h"  // for Registry, FunctionRegEntryBase
 
 namespace xgboost::data {
-template<typename T>
+template <typename T>
 struct SparsePageFormatReg;
 
 /**
@@ -43,9 +43,9 @@ class SparsePageFormat {
  * \brief Create sparse page of format.
  * \return The created format functors.
  */
-template<typename T>
+template <typename T>
 inline SparsePageFormat<T>* CreatePageFormat(const std::string& name) {
-  auto *e = ::dmlc::Registry<SparsePageFormatReg<T>>::Get()->Find(name);
+  auto* e = ::dmlc::Registry<SparsePageFormatReg<T>>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown format type " << name;
     return nullptr;
@@ -56,10 +56,9 @@ inline SparsePageFormat<T>* CreatePageFormat(const std::string& name) {
 /**
  * @brief Registry entry for sparse page format.
  */
-template<typename T>
+template <typename T>
 struct SparsePageFormatReg
     : public dmlc::FunctionRegEntryBase<SparsePageFormatReg<T>,
-                                        std::function<SparsePageFormat<T>* ()>> {
-};
+                                        std::function<SparsePageFormat<T>*()>> {};
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_SPARSE_PAGE_WRITER_H_

@@ -10,8 +10,8 @@
 #include <limits>
 #include <type_traits>  // for conditional_t
 
-#include "../common/categorical.h"            // for IsCat
-#include "xgboost/tree_model.h"               // for RegTree
+#include "../common/categorical.h"  // for IsCat
+#include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
 
@@ -46,38 +46,39 @@ class ArrayTreeLayout {
 
   std::array<bst_feature_t, kNodesCount> split_index_;
   std::array<float, kNodesCount> split_cond_;
-  /* The nodes at tree levels 0, 1, ..., kNumDeepLevels - 1 are unrolled into an array-based structure.
-   *  If the tree has additional levels, this array stores the node indices of the sub-trees at level kNumDeepLevels.
-   *  This is necessary to continue processing nodes that are not eligible for array-based unrolling.
-   *  The number of sub-trees packed into this array is equal to the number of nodes at tree level kNumDeepLevels,
-   *  which is calculated as (1u << kNumDeepLevels) == kNodesCount + 1.
+  /* The nodes at tree levels 0, 1, ..., kNumDeepLevels - 1 are unrolled into an array-based
+   * structure. If the tree has additional levels, this array stores the node indices of the
+   * sub-trees at level kNumDeepLevels. This is necessary to continue processing nodes that are not
+   * eligible for array-based unrolling. The number of sub-trees packed into this array is equal to
+   * the number of nodes at tree level kNumDeepLevels, which is calculated as (1u << kNumDeepLevels)
+   * == kNodesCount + 1.
    */
   // Mapping from array node index to the RegTree node index.
   std::array<bst_node_t, kNodesCount + 1> nidx_in_tree_;
 
- /**
- * @brief Traverse the top levels of original tree and fill internal arrays
- *
- * @tparam depth the tree level being processing
- *
- * @param tree the original tree
- * @param cats matrix of categorical splits
- * @param nidx_array node idx in the array layout
- * @param nidx node idx in the original tree
- */
+  /**
+   * @brief Traverse the top levels of original tree and fill internal arrays
+   *
+   * @tparam depth the tree level being processing
+   *
+   * @param tree the original tree
+   * @param cats matrix of categorical splits
+   * @param nidx_array node idx in the array layout
+   * @param nidx node idx in the original tree
+   */
   template <int depth = 0>
   void Populate(TreeView const& tree, RegTree::CategoricalSplitMatrix const& cats,
                 bst_node_t nidx_array = 0, bst_node_t nidx = 0) {
     if constexpr (depth == kNumDeepLevels + 1) {
       return;
     } else if constexpr (depth == kNumDeepLevels) {
-        /* We store the node index in the original tree to ensure continued processing
-         * for nodes that are not eligible for array layout optimization.
-         */
-        nidx_in_tree_[nidx_array - kNodesCount] = nidx;
+      /* We store the node index in the original tree to ensure continued processing
+       * for nodes that are not eligible for array layout optimization.
+       */
+      nidx_in_tree_[nidx_array - kNodesCount] = nidx;
     } else {
       if (tree.IsLeaf(nidx)) {
-        split_index_[nidx_array]  = 0;
+        split_index_[nidx_array] = 0;
 
         /*
          * If the tree is not fully populated, we can reduce transfer costs.
@@ -87,7 +88,7 @@ class ArrayTreeLayout {
          */
         if constexpr (any_missing) default_left_[nidx_array] = 0;
         if constexpr (has_categorical) is_cat_[nidx_array] = 0;
-        split_cond_[nidx_array]   = std::numeric_limits<float>::quiet_NaN();
+        split_cond_[nidx_array] = std::numeric_limits<float>::quiet_NaN();
 
         Populate<depth + 1>(tree, cats, 2 * nidx_array + 2, nidx);
       } else {
@@ -95,21 +96,21 @@ class ArrayTreeLayout {
         if constexpr (has_categorical) {
           is_cat_[nidx_array] = common::IsCat(cats.split_type, nidx);
           if (is_cat_[nidx_array]) {
-            cat_segment_[nidx_array] = cats.categories.subspan(cats.node_ptr[nidx].beg,
-                                                               cats.node_ptr[nidx].size);
+            cat_segment_[nidx_array] =
+                cats.categories.subspan(cats.node_ptr[nidx].beg, cats.node_ptr[nidx].size);
           }
         }
 
-        split_index_[nidx_array]  = tree.SplitIndex(nidx);
-        split_cond_[nidx_array]   = tree.SplitCond(nidx);
+        split_index_[nidx_array] = tree.SplitIndex(nidx);
+        split_cond_[nidx_array] = tree.SplitCond(nidx);
 
         /*
          * LeftChild is used to determine if a node is a leaf, so it is always a valid value.
          * However, RightChild can be invalid in some exotic cases.
-         * A tree with an invalid RightChild can still be correctly processed using classical methods
-         * if the split conditions are correct.
-         * However, in an array layout, an invalid RightChild, even if unreachable, can lead to memory corruption.
-         * A check should be added to prevent this.
+         * A tree with an invalid RightChild can still be correctly processed using classical
+         * methods if the split conditions are correct. However, in an array layout, an invalid
+         * RightChild, even if unreachable, can lead to memory corruption. A check should be added
+         * to prevent this.
          */
         Populate<depth + 1>(tree, cats, 2 * nidx_array + 1, tree.LeftChild(nidx));
         bst_node_t right_child = tree.RightChild(nidx);
@@ -123,7 +124,7 @@ class ArrayTreeLayout {
   bool GetDecision(float fvalue, bst_node_t nidx) const {
     if constexpr (has_categorical) {
       if (is_cat_[nidx]) {
-       return common::Decision(cat_segment_[nidx], fvalue);
+        return common::Decision(cat_segment_[nidx], fvalue);
       } else {
         return fvalue < split_cond_[nidx];
       }
@@ -139,25 +140,17 @@ class ArrayTreeLayout {
   constexpr static int kMaxNumDeepLevels = 6;
   static_assert(kNumDeepLevels <= kMaxNumDeepLevels);
 
-  ArrayTreeLayout(TreeView const& tree, RegTree::CategoricalSplitMatrix const &cats) {
+  ArrayTreeLayout(TreeView const& tree, RegTree::CategoricalSplitMatrix const& cats) {
     Populate(tree, cats);
   }
 
-  const auto& SplitIndex() const {
-    return split_index_;
-  }
+  const auto& SplitIndex() const { return split_index_; }
 
-  const auto& SplitCond() const {
-    return split_cond_;
-  }
+  const auto& SplitCond() const { return split_cond_; }
 
-  const auto& DefaultLeft() const {
-    return default_left_;
-  }
+  const auto& DefaultLeft() const { return default_left_; }
 
-  const auto& NidxInTree() const {
-    return nidx_in_tree_;
-  }
+  const auto& NidxInTree() const { return nidx_in_tree_; }
 
   /**
    * @brief Traverse the top levels of the tree for the entire block_size.

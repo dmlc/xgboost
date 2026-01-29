@@ -13,7 +13,7 @@ class NotCopyConstructible {
   explicit NotCopyConstructible(float d) : data{d} {}
   NotCopyConstructible(NotCopyConstructible const &that) = delete;
   NotCopyConstructible &operator=(NotCopyConstructible const &that) = delete;
-  NotCopyConstructible(NotCopyConstructible&& that) = default;
+  NotCopyConstructible(NotCopyConstructible &&that) = default;
 };
 static_assert(!std::is_trivially_copy_constructible_v<NotCopyConstructible>);
 static_assert(!std::is_trivially_copy_assignable_v<NotCopyConstructible>);
@@ -21,10 +21,9 @@ static_assert(!std::is_trivially_copy_assignable_v<NotCopyConstructible>);
 class ForIntrusivePtrTest {
  public:
   mutable class IntrusivePtrCell ref;
-  float data { 0 };
+  float data{0};
 
-  friend IntrusivePtrCell &
-  IntrusivePtrRefCount(ForIntrusivePtrTest const *t) noexcept {  // NOLINT
+  friend IntrusivePtrCell &IntrusivePtrRefCount(ForIntrusivePtrTest const *t) noexcept {  // NOLINT
     return t->ref;
   }
 
@@ -36,11 +35,11 @@ class ForIntrusivePtrTest {
 }  // anonymous namespace
 
 TEST(IntrusivePtr, Basic) {
-  IntrusivePtr<ForIntrusivePtrTest> ptr {new ForIntrusivePtrTest};
+  IntrusivePtr<ForIntrusivePtrTest> ptr{new ForIntrusivePtrTest};
   auto p = ptr.get();
 
   // Copy ctor
-  IntrusivePtr<ForIntrusivePtrTest> ptr_1 { ptr };
+  IntrusivePtr<ForIntrusivePtrTest> ptr_1{ptr};
   ASSERT_EQ(ptr_1.get(), p);
 
   ASSERT_EQ((*ptr_1).data, ptr_1->data);
@@ -48,13 +47,13 @@ TEST(IntrusivePtr, Basic) {
 
   // hash
   ASSERT_EQ(std::hash<IntrusivePtr<ForIntrusivePtrTest>>{}(ptr_1),
-            std::hash<ForIntrusivePtrTest*>{}(ptr_1.get()));
+            std::hash<ForIntrusivePtrTest *>{}(ptr_1.get()));
 
   // Raw ptr comparison
   ASSERT_EQ(ptr, p);
   ASSERT_EQ(ptr_1, ptr);
 
-  ForIntrusivePtrTest* raw_ptr {nullptr};
+  ForIntrusivePtrTest *raw_ptr{nullptr};
   ASSERT_NE(ptr_1, raw_ptr);
   ASSERT_NE(raw_ptr, ptr_1);
 
@@ -98,7 +97,7 @@ TEST(IntrusivePtr, Basic) {
   ASSERT_EQ(ptr_3.use_count(), 2);
 
   // Move ctor
-  IntrusivePtr<ForIntrusivePtrTest> ptr_4 { std::move(ptr_3) };
+  IntrusivePtr<ForIntrusivePtrTest> ptr_4{std::move(ptr_3)};
   ASSERT_EQ(ptr_3.use_count(), 0);  // NOLINT
   ASSERT_EQ(ptr_4.use_count(), 2);
 
@@ -107,4 +106,4 @@ TEST(IntrusivePtr, Basic) {
   ASSERT_EQ(ptr_1, ptr_1);
   ASSERT_EQ(ptr_1 < ptr_2, ptr_1.get() < ptr_2.get());
 }
-} // namespace xgboost
+}  // namespace xgboost

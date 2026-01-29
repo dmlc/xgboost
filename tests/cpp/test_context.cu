@@ -2,12 +2,12 @@
  * Copyright 2023-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <thread>         // for thread
 #include <xgboost/base.h>  // for Args
 #include <xgboost/context.h>
 #include <xgboost/json.h>  // for FromJson, ToJson
 
 #include <string>  // for string, to_string
+#include <thread>  // for thread
 
 #include "../../src/common/cuda_rt_utils.h"  // for AllVisibleGPUs
 

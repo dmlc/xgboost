@@ -15,9 +15,11 @@
  */
 
 #include <xgboost/parameter.h>
-#include <memory>
+
 #include <algorithm>
 #include <limits>
+#include <memory>
+
 #include "probability_distribution.h"
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::common::ProbabilityDistributionType);
@@ -27,13 +29,16 @@ namespace common {
 
 #ifndef __CUDACC__
 
-using std::log;
 using std::fmax;
+using std::log;
 
 #endif  // __CUDACC__
 
 enum class CensoringType : uint8_t {
-  kUncensored, kRightCensored, kLeftCensored, kIntervalCensored
+  kUncensored,
+  kRightCensored,
+  kLeftCensored,
+  kIntervalCensored
 };
 
 namespace aft {
@@ -60,13 +65,13 @@ inline double Clip(double x, double x_min, double x_max) {
   return x;
 }
 
-template<typename Distribution>
-XGBOOST_DEVICE inline double
-GetLimitGradAtInfPred(CensoringType censor_type, bool sign, double sigma);
+template <typename Distribution>
+XGBOOST_DEVICE inline double GetLimitGradAtInfPred(CensoringType censor_type, bool sign,
+                                                   double sigma);
 
-template<typename Distribution>
-XGBOOST_DEVICE inline double
-GetLimitHessAtInfPred(CensoringType censor_type, bool sign, double sigma);
+template <typename Distribution>
+XGBOOST_DEVICE inline double GetLimitHessAtInfPred(CensoringType censor_type, bool sign,
+                                                   double sigma);
 
 }  // namespace aft
 
@@ -82,20 +87,22 @@ struct AFTParam : public XGBoostParameter<AFTParam> {
         .add_enum("normal", ProbabilityDistributionType::kNormal)
         .add_enum("logistic", ProbabilityDistributionType::kLogistic)
         .add_enum("extreme", ProbabilityDistributionType::kExtreme)
-        .describe("Choice of distribution for the noise term in "
-                  "Accelerated Failure Time model");
+        .describe(
+            "Choice of distribution for the noise term in "
+            "Accelerated Failure Time model");
     DMLC_DECLARE_FIELD(aft_loss_distribution_scale)
         .set_default(1.0f)
-        .describe("Scaling factor used to scale the distribution in "
-                  "Accelerated Failure Time model");
+        .describe(
+            "Scaling factor used to scale the distribution in "
+            "Accelerated Failure Time model");
   }
 };
 
 /*! \brief The AFT loss function */
-template<typename Distribution>
+template <typename Distribution>
 struct AFTLoss {
-  XGBOOST_DEVICE inline static
-  double Loss(double y_lower, double y_upper, double y_pred, double sigma) {
+  XGBOOST_DEVICE inline static double Loss(double y_lower, double y_upper, double y_pred,
+                                           double sigma) {
     const double log_y_lower = log(y_lower);
     const double log_y_upper = log(y_upper);
 
@@ -127,8 +134,8 @@ struct AFTLoss {
     return cost;
   }
 
-  XGBOOST_DEVICE inline static
-  double Gradient(double y_lower, double y_upper, double y_pred, double sigma) {
+  XGBOOST_DEVICE inline static double Gradient(double y_lower, double y_upper, double y_pred,
+                                               double sigma) {
     const double log_y_lower = log(y_lower);
     const double log_y_upper = log(y_upper);
     double numerator, denominator, gradient;  // numerator and denominator of gradient
@@ -176,8 +183,8 @@ struct AFTLoss {
     return aft::Clip(gradient, aft::kMinGradient, aft::kMaxGradient);
   }
 
-  XGBOOST_DEVICE inline static
-  double Hessian(double y_lower, double y_upper, double y_pred, double sigma) {
+  XGBOOST_DEVICE inline static double Hessian(double y_lower, double y_upper, double y_pred,
+                                              double sigma) {
     const double log_y_lower = log(y_lower);
     const double log_y_upper = log(y_upper);
     double numerator, denominator, hessian;  // numerator and denominator of hessian
@@ -238,103 +245,103 @@ struct AFTLoss {
 namespace aft {
 
 template <>
-XGBOOST_DEVICE inline double
-GetLimitGradAtInfPred<NormalDistribution>(CensoringType censor_type, bool sign, double sigma) {
+XGBOOST_DEVICE inline double GetLimitGradAtInfPred<NormalDistribution>(CensoringType censor_type,
+                                                                       bool sign, double sigma) {
   // Remove unused parameter compiler warning.
-  (void) sigma;
+  (void)sigma;
 
   switch (censor_type) {
-  case CensoringType::kUncensored:
-    return sign ? kMinGradient : kMaxGradient;
-  case CensoringType::kRightCensored:
-    return sign ? kMinGradient : 0.0;
-  case CensoringType::kLeftCensored:
-    return sign ? 0.0 : kMaxGradient;
-  case CensoringType::kIntervalCensored:
-    return sign ? kMinGradient : kMaxGradient;
+    case CensoringType::kUncensored:
+      return sign ? kMinGradient : kMaxGradient;
+    case CensoringType::kRightCensored:
+      return sign ? kMinGradient : 0.0;
+    case CensoringType::kLeftCensored:
+      return sign ? 0.0 : kMaxGradient;
+    case CensoringType::kIntervalCensored:
+      return sign ? kMinGradient : kMaxGradient;
   }
   return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
-XGBOOST_DEVICE inline double
-GetLimitHessAtInfPred<NormalDistribution>(CensoringType censor_type, bool sign, double sigma) {
+XGBOOST_DEVICE inline double GetLimitHessAtInfPred<NormalDistribution>(CensoringType censor_type,
+                                                                       bool sign, double sigma) {
   switch (censor_type) {
-  case CensoringType::kUncensored:
-    return 1.0 / (sigma * sigma);
-  case CensoringType::kRightCensored:
-    return sign ? (1.0 / (sigma * sigma)) : kMinHessian;
-  case CensoringType::kLeftCensored:
-    return sign ? kMinHessian : (1.0 / (sigma * sigma));
-  case CensoringType::kIntervalCensored:
-    return 1.0 / (sigma * sigma);
+    case CensoringType::kUncensored:
+      return 1.0 / (sigma * sigma);
+    case CensoringType::kRightCensored:
+      return sign ? (1.0 / (sigma * sigma)) : kMinHessian;
+    case CensoringType::kLeftCensored:
+      return sign ? kMinHessian : (1.0 / (sigma * sigma));
+    case CensoringType::kIntervalCensored:
+      return 1.0 / (sigma * sigma);
   }
   return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
-XGBOOST_DEVICE inline double
-GetLimitGradAtInfPred<LogisticDistribution>(CensoringType censor_type, bool sign, double sigma) {
+XGBOOST_DEVICE inline double GetLimitGradAtInfPred<LogisticDistribution>(CensoringType censor_type,
+                                                                         bool sign, double sigma) {
   switch (censor_type) {
-  case CensoringType::kUncensored:
-    return sign ? (-1.0 / sigma) : (1.0 / sigma);
-  case CensoringType::kRightCensored:
-    return sign ? (-1.0 / sigma) : 0.0;
-  case CensoringType::kLeftCensored:
-    return sign ? 0.0 : (1.0 / sigma);
-  case CensoringType::kIntervalCensored:
-    return sign ? (-1.0 / sigma) : (1.0 / sigma);
+    case CensoringType::kUncensored:
+      return sign ? (-1.0 / sigma) : (1.0 / sigma);
+    case CensoringType::kRightCensored:
+      return sign ? (-1.0 / sigma) : 0.0;
+    case CensoringType::kLeftCensored:
+      return sign ? 0.0 : (1.0 / sigma);
+    case CensoringType::kIntervalCensored:
+      return sign ? (-1.0 / sigma) : (1.0 / sigma);
   }
   return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
-XGBOOST_DEVICE inline double
-GetLimitHessAtInfPred<LogisticDistribution>(CensoringType censor_type, bool sign, double sigma) {
+XGBOOST_DEVICE inline double GetLimitHessAtInfPred<LogisticDistribution>(CensoringType censor_type,
+                                                                         bool sign, double sigma) {
   // Remove unused parameter compiler warning.
-  (void) sign;
-  (void) sigma;
+  (void)sign;
+  (void)sigma;
 
   switch (censor_type) {
-  case CensoringType::kUncensored:
-  case CensoringType::kRightCensored:
-  case CensoringType::kLeftCensored:
-  case CensoringType::kIntervalCensored:
-    return kMinHessian;
+    case CensoringType::kUncensored:
+    case CensoringType::kRightCensored:
+    case CensoringType::kLeftCensored:
+    case CensoringType::kIntervalCensored:
+      return kMinHessian;
   }
   return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
-XGBOOST_DEVICE inline double
-GetLimitGradAtInfPred<ExtremeDistribution>(CensoringType censor_type, bool sign, double sigma) {
+XGBOOST_DEVICE inline double GetLimitGradAtInfPred<ExtremeDistribution>(CensoringType censor_type,
+                                                                        bool sign, double sigma) {
   switch (censor_type) {
-  case CensoringType::kUncensored:
-    return sign ? kMinGradient : (1.0 / sigma);
-  case CensoringType::kRightCensored:
-    return sign ? kMinGradient : 0.0;
-  case CensoringType::kLeftCensored:
-    return sign ? 0.0 : (1.0 / sigma);
-  case CensoringType::kIntervalCensored:
-    return sign ? kMinGradient : (1.0 / sigma);
+    case CensoringType::kUncensored:
+      return sign ? kMinGradient : (1.0 / sigma);
+    case CensoringType::kRightCensored:
+      return sign ? kMinGradient : 0.0;
+    case CensoringType::kLeftCensored:
+      return sign ? 0.0 : (1.0 / sigma);
+    case CensoringType::kIntervalCensored:
+      return sign ? kMinGradient : (1.0 / sigma);
   }
   return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
-XGBOOST_DEVICE inline double
-GetLimitHessAtInfPred<ExtremeDistribution>(CensoringType censor_type, bool sign, double sigma) {
+XGBOOST_DEVICE inline double GetLimitHessAtInfPred<ExtremeDistribution>(CensoringType censor_type,
+                                                                        bool sign, double sigma) {
   // Remove unused parameter compiler warning.
-  (void) sigma;
+  (void)sigma;
 
   switch (censor_type) {
-  case CensoringType::kUncensored:
-  case CensoringType::kRightCensored:
-    return sign ? kMaxHessian : kMinHessian;
-  case CensoringType::kLeftCensored:
-    return kMinHessian;
-  case CensoringType::kIntervalCensored:
-    return sign ? kMaxHessian : kMinHessian;
+    case CensoringType::kUncensored:
+    case CensoringType::kRightCensored:
+      return sign ? kMaxHessian : kMinHessian;
+    case CensoringType::kLeftCensored:
+      return kMinHessian;
+    case CensoringType::kIntervalCensored:
+      return sign ? kMaxHessian : kMinHessian;
   }
   return std::numeric_limits<double>::quiet_NaN();
 }

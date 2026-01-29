@@ -25,12 +25,11 @@ TEST(SyclRowSetCollection, AddSplits) {
   size_t* p_row_indices = row_indices.Data();
 
   qu->submit([&](::sycl::handler& cgh) {
-    cgh.parallel_for<>(::sycl::range<1>(num_rows),
-                       [p_row_indices](::sycl::item<1> pid) {
-      const size_t idx = pid.get_id(0);
-      p_row_indices[idx] = idx;
-    });
-  }).wait_and_throw();
+      cgh.parallel_for<>(::sycl::range<1>(num_rows), [p_row_indices](::sycl::item<1> pid) {
+        const size_t idx = pid.get_id(0);
+        p_row_indices[idx] = idx;
+      });
+    }).wait_and_throw();
   row_set_collection.Init();
 
   CHECK_EQ(row_set_collection.Size(), 1);
@@ -39,7 +38,7 @@ TEST(SyclRowSetCollection, AddSplits) {
     auto& elem = row_set_collection[nid_test];
     CHECK_EQ(elem.begin, row_indices.Begin());
     CHECK_EQ(elem.end, row_indices.End());
-    CHECK_EQ(elem.node_id , 0);
+    CHECK_EQ(elem.node_id, 0);
   }
 
   size_t nid = 0;
@@ -55,7 +54,7 @@ TEST(SyclRowSetCollection, AddSplits) {
     auto& elem = row_set_collection[nid_test];
     CHECK_EQ(elem.begin, nullptr);
     CHECK_EQ(elem.end, nullptr);
-    CHECK_EQ(elem.node_id , -1);
+    CHECK_EQ(elem.node_id, -1);
   }
 
   {
@@ -63,7 +62,7 @@ TEST(SyclRowSetCollection, AddSplits) {
     auto& elem = row_set_collection[nid_test];
     CHECK_EQ(elem.begin, row_indices.Begin());
     CHECK_EQ(elem.end, row_indices.Begin() + n_left);
-    CHECK_EQ(elem.node_id , nid_test);
+    CHECK_EQ(elem.node_id, nid_test);
   }
 
   {
@@ -71,8 +70,7 @@ TEST(SyclRowSetCollection, AddSplits) {
     auto& elem = row_set_collection[nid_test];
     CHECK_EQ(elem.begin, row_indices.Begin() + n_left);
     CHECK_EQ(elem.end, row_indices.End());
-    CHECK_EQ(elem.node_id , nid_test);
+    CHECK_EQ(elem.node_id, nid_test);
   }
-
 }
 }  // namespace xgboost::sycl::common

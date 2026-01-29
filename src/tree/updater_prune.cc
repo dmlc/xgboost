@@ -55,12 +55,11 @@ class TreePruner : public TreeUpdater {
     }
     bst_node_t pid = tree[nid].Parent();
     CHECK(!tree[pid].IsLeaf());
-    RTreeNodeStat const &s = tree.Stat(pid);
+    RTreeNodeStat const& s = tree.Stat(pid);
     // Only prune when both child are leaf.
     auto left = tree[pid].LeftChild();
     auto right = tree[pid].RightChild();
-    bool balanced = tree[left].IsLeaf() &&
-                    right != RegTree::kInvalidNodeId && tree[right].IsLeaf();
+    bool balanced = tree[left].IsLeaf() && right != RegTree::kInvalidNodeId && tree[right].IsLeaf();
     if (balanced && param->NeedPrune(s.loss_chg, depth)) {
       // need to be pruned
       tree.ChangeToLeaf(pid, param->learning_rate * s.base_weight);
@@ -79,8 +78,7 @@ class TreePruner : public TreeUpdater {
         npruned = this->TryPruneLeaf(param, p_tree, nid, tree.GetDepth(nid), npruned);
       }
     }
-    LOG(INFO) << "tree pruning end, "
-              << tree.NumExtraNodes() << " extra nodes, " << npruned
+    LOG(INFO) << "tree pruning end, " << tree.NumExtraNodes() << " extra nodes, " << npruned
               << " pruned nodes, max_depth=" << tree.MaxDepth();
   }
 

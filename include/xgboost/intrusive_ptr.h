@@ -19,15 +19,12 @@ namespace xgboost {
  */
 class IntrusivePtrCell {
  private:
-  std::atomic<int32_t> count_ {0};
-  template <typename T> friend class IntrusivePtr;
+  std::atomic<int32_t> count_{0};
+  template <typename T>
+  friend class IntrusivePtr;
 
-  std::int32_t IncRef() noexcept {
-    return count_.fetch_add(1, std::memory_order_relaxed);
-  }
-  std::int32_t DecRef() noexcept {
-    return count_.fetch_sub(1, std::memory_order_release);
-  }
+  std::int32_t IncRef() noexcept { return count_.fetch_add(1, std::memory_order_relaxed); }
+  std::int32_t DecRef() noexcept { return count_.fetch_sub(1, std::memory_order_release); }
   bool IsZero() const { return Count() == 0; }
 
  public:
@@ -38,7 +35,8 @@ class IntrusivePtrCell {
 /*!
  * \brief User defined function for returning embedded reference count.
  */
-template <typename T> IntrusivePtrCell &IntrusivePtrRefCount(T const *ptr) noexcept;
+template <typename T>
+IntrusivePtrCell &IntrusivePtrRefCount(T const *ptr) noexcept;
 
 /*!
  * \brief Implementation of Intrusive Pointer.  A smart pointer that points to an object
@@ -70,7 +68,8 @@ template <typename T> IntrusivePtrCell &IntrusivePtrRefCount(T const *ptr) noexc
  *
  * \endcode
  */
-template <typename T> class IntrusivePtr {
+template <typename T>
+class IntrusivePtr {
  private:
   void IncRef(T *ptr) {
     if (ptr) {
@@ -178,12 +177,12 @@ bool operator!=(T *x, IntrusivePtr<U> const &y) noexcept {
 
 template <class T>
 bool operator<(IntrusivePtr<T> const &x, IntrusivePtr<T> const &y) noexcept {
-  return std::less<T*>{}(x.get(), y.get());
+  return std::less<T *>{}(x.get(), y.get());
 }
 
 template <class T>
 bool operator<=(IntrusivePtr<T> const &x, IntrusivePtr<T> const &y) noexcept {
-  return std::less_equal<T*>{}(x.get(), y.get());
+  return std::less_equal<T *>{}(x.get(), y.get());
 }
 
 template <class T>
@@ -197,8 +196,7 @@ bool operator>=(IntrusivePtr<T> const &x, IntrusivePtr<T> const &y) noexcept {
 }
 
 template <class E, class T, class Y>
-std::basic_ostream<E, T> &operator<<(std::basic_ostream<E, T> &os,
-                                     IntrusivePtr<Y> const &p) {
+std::basic_ostream<E, T> &operator<<(std::basic_ostream<E, T> &os, IntrusivePtr<Y> const &p) {
   os << p.get();
   return os;
 }
@@ -213,5 +211,5 @@ void swap(xgboost::IntrusivePtr<T> &x,  // NOLINT
 
 template <typename T>
 struct hash<xgboost::IntrusivePtr<T>> : public xgboost::IntrusivePtr<T>::Hash {};
-}      // namespace std
+}  // namespace std
 #endif  // XGBOOST_INTRUSIVE_PTR_H_

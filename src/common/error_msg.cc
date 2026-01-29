@@ -75,7 +75,8 @@ This warning will only be shown once.
 void CheckOldNccl(std::int32_t major, std::int32_t minor, std::int32_t patch) {
   auto msg = [&] {
     std::stringstream ss;
-    ss << "NCCL version too old: " << "(" << major << "." << minor << "." << patch << ")"
+    ss << "NCCL version too old: "
+       << "(" << major << "." << minor << "." << patch << ")"
        << ". Install NCCL >= 2.23.4 .";
     return ss.str();
   };

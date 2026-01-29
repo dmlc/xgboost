@@ -1,13 +1,14 @@
 /**
  * Copyright 2018-2023, XGBoost Contributors
  */
-#include <xgboost/objective.h>
 #include <xgboost/context.h>
+#include <xgboost/objective.h>
+
 #include <limits>
 
+#include "../../../src/common/linalg_op.h"
 #include "../helpers.h"
 #include "test_hinge.h"
-#include "../../../src/common/linalg_op.h"
 
 namespace xgboost {
 

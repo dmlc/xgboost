@@ -66,8 +66,8 @@ TEST(Categorical, MinimalSet) {
 
   HostDeviceVector<float> predt;
   {
-    std::vector<float> data{static_cast<float>(kCat),
-                            static_cast<float>(kCat + 1), 32.0f, 33.0f, 34.0f};
+    std::vector<float> data{static_cast<float>(kCat), static_cast<float>(kCat + 1), 32.0f, 33.0f,
+                            34.0f};
     auto test = GetDMatrixFromData(data, data.size(), kCols);
     learner->Predict(test, false, &predt, 0, 0, false, /*pred_leaf=*/true);
     ASSERT_EQ(predt.Size(), data.size());

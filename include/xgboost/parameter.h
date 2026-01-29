@@ -10,6 +10,7 @@
 
 #include <dmlc/parameter.h>
 #include <xgboost/base.h>
+
 #include <string>
 #include <type_traits>
 
@@ -47,43 +48,40 @@
  *   DMLC_REGISTER_PARAMETER(MyParam);
  * \endcode
  */
-#define DECLARE_FIELD_ENUM_CLASS(EnumClass) \
-namespace dmlc {  \
-namespace parameter {  \
-template <>  \
-class FieldEntry<EnumClass> : public FieldEntry<int> {  \
- public:  \
-  FieldEntry() {  \
-    static_assert(  \
-      std::is_same_v<int, typename std::underlying_type_t<EnumClass>>,  \
-      "enum class must be backed by int");  \
-    is_enum_ = true;  \
-  }  \
-  using Super = FieldEntry<int>;  \
-  void Set(void *head, const std::string &value) const override {  \
-    Super::Set(head, value);  \
-  }  \
-  inline FieldEntry<EnumClass>& add_enum(const std::string &key, EnumClass value) {  \
-    Super::add_enum(key, static_cast<int>(value));  \
-    return *this;  \
-  }  \
-  inline FieldEntry<EnumClass>& set_default(const EnumClass& default_value) {  \
-    default_value_ = static_cast<int>(default_value);  \
-    has_default_ = true;  \
-    return *this;  \
-  }  \
-  inline void Init(const std::string &key, void *head, EnumClass& ref) {  /* NOLINT */  \
-    Super::Init(key, head, *reinterpret_cast<int*>(&ref));  \
-  }  \
-};  \
-}  /* namespace parameter */  \
-}  /* namespace dmlc */
+#define DECLARE_FIELD_ENUM_CLASS(EnumClass)                                                    \
+  namespace dmlc {                                                                             \
+  namespace parameter {                                                                        \
+  template <>                                                                                  \
+  class FieldEntry<EnumClass> : public FieldEntry<int> {                                       \
+   public:                                                                                     \
+    FieldEntry() {                                                                             \
+      static_assert(std::is_same_v<int, typename std::underlying_type_t<EnumClass>>,           \
+                    "enum class must be backed by int");                                       \
+      is_enum_ = true;                                                                         \
+    }                                                                                          \
+    using Super = FieldEntry<int>;                                                             \
+    void Set(void* head, const std::string& value) const override { Super::Set(head, value); } \
+    inline FieldEntry<EnumClass>& add_enum(const std::string& key, EnumClass value) {          \
+      Super::add_enum(key, static_cast<int>(value));                                           \
+      return *this;                                                                            \
+    }                                                                                          \
+    inline FieldEntry<EnumClass>& set_default(const EnumClass& default_value) {                \
+      default_value_ = static_cast<int>(default_value);                                        \
+      has_default_ = true;                                                                     \
+      return *this;                                                                            \
+    }                                                                                          \
+    inline void Init(const std::string& key, void* head, EnumClass& ref) { /* NOLINT */        \
+      Super::Init(key, head, *reinterpret_cast<int*>(&ref));                                   \
+    }                                                                                          \
+  };                                                                                           \
+  } /* namespace parameter */                                                                  \
+  } /* namespace dmlc */
 
 namespace xgboost {
 template <typename Type>
 struct XGBoostParameter : public dmlc::Parameter<Type> {
  protected:
-  bool initialised_ {false};
+  bool initialised_{false};
 
  public:
   template <typename Container>

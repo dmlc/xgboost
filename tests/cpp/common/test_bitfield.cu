@@ -4,7 +4,9 @@
 #include <gtest/gtest.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
+
 #include <vector>
+
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/device_helpers.cuh"
 
@@ -18,7 +20,7 @@ __global__ void TestSetKernel(LBitField64 bits) {
 }
 
 TEST(BitField, StorageSize) {
-  size_t constexpr kElements { 16 };
+  size_t constexpr kElements{16};
   size_t size = LBitField64::ComputeStorageSize(kElements);
   ASSERT_EQ(1, size);
   size = RBitField8::ComputeStorageSize(4);

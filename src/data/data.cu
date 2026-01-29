@@ -97,8 +97,7 @@ void CopyQidImpl(Context const* ctx, ArrayInterface<1> array_interface,
     }
   });
   bool non_dec = true;
-  dh::safe_cuda(cudaMemcpy(&non_dec, flag.data().get(), sizeof(bool),
-                           cudaMemcpyDeviceToHost));
+  dh::safe_cuda(cudaMemcpy(&non_dec, flag.data().get(), sizeof(bool), cudaMemcpyDeviceToHost));
   CHECK(non_dec) << "`qid` must be sorted in increasing order along with data.";
 
   dh::caching_device_vector<uint32_t> out(array_interface.Shape<0>());
@@ -230,10 +229,10 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
   return new data::SimpleDMatrix(adapter, missing, nthread, data_split_mode);
 }
 
-template DMatrix* DMatrix::Create<data::CudfAdapter>(
-    data::CudfAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, DataSplitMode data_split_mode);
-template DMatrix* DMatrix::Create<data::CupyAdapter>(
-    data::CupyAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, DataSplitMode data_split_mode);
+template DMatrix* DMatrix::Create<data::CudfAdapter>(data::CudfAdapter* adapter, float missing,
+                                                     int nthread, const std::string& cache_prefix,
+                                                     DataSplitMode data_split_mode);
+template DMatrix* DMatrix::Create<data::CupyAdapter>(data::CupyAdapter* adapter, float missing,
+                                                     int nthread, const std::string& cache_prefix,
+                                                     DataSplitMode data_split_mode);
 }  // namespace xgboost

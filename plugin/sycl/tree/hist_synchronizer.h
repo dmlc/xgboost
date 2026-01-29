@@ -26,7 +26,7 @@ class HistSynchronizer {
 };
 
 template <typename GradientSumT>
-class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
+class BatchHistSynchronizer : public HistSynchronizer<GradientSumT> {
  public:
   void SyncHistograms(HistUpdater<GradientSumT>* builder, const std::vector<int>& sync_ids,
                       RegTree const* p_tree) override {
@@ -52,16 +52,14 @@ class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
     builder->builder_monitor_.Stop("SyncHistograms");
   }
 
-  std::vector<::sycl::event> GetEvents() const {
-    return hist_sync_events_;
-  }
+  std::vector<::sycl::event> GetEvents() const { return hist_sync_events_; }
 
  private:
   std::vector<::sycl::event> hist_sync_events_;
 };
 
 template <typename GradientSumT>
-class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
+class DistributedHistSynchronizer : public HistSynchronizer<GradientSumT> {
  public:
   void SyncHistograms(HistUpdater<GradientSumT>* builder, const std::vector<int>& sync_ids,
                       RegTree const* p_tree) override {
@@ -81,8 +79,8 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
         auto& parent_hist = builder->hist_local_worker_[parent_id];
 
         auto& sibling_hist = builder->hist_[sibling_nid];
-        common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,
-                                this_hist, nbins, ::sycl::event());
+        common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist, this_hist, nbins,
+                                ::sycl::event());
         builder->qu_->wait_and_throw();
         // Store posible parent node
         auto& sibling_local = builder->hist_local_worker_[sibling_nid];
@@ -98,8 +96,7 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
   }
 
   void ParallelSubtractionHist(HistUpdater<GradientSumT>* builder,
-                               const std::vector<ExpandEntry>& nodes,
-                               const RegTree * p_tree) {
+                               const std::vector<ExpandEntry>& nodes, const RegTree* p_tree) {
     const size_t nbins = builder->hist_builder_.GetNumBins();
     auto tree = p_tree->HostScView();
     for (int node = 0; node < nodes.size(); node++) {
@@ -111,8 +108,8 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
           const size_t parent_id = tree.Parent(entry.nid);
           auto& parent_hist = builder->hist_[parent_id];
           auto& sibling_hist = builder->hist_[entry.GetSiblingId(tree, parent_id)];
-          common::SubtractionHist(builder->qu_, &this_hist, parent_hist,
-                                  sibling_hist, nbins, ::sycl::event());
+          common::SubtractionHist(builder->qu_, &this_hist, parent_hist, sibling_hist, nbins,
+                                  ::sycl::event());
           builder->qu_->wait_and_throw();
         }
       }

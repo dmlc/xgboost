@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "../common/error_msg.h"      // NoCategorical, DeprecatedFunc
+#include "../common/error_msg.h"  // NoCategorical, DeprecatedFunc
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
 #include "gblinear_model.h"
@@ -35,13 +35,10 @@ struct GBLinearTrainParam : public XGBoostParameter<GBLinearTrainParam> {
   size_t max_row_perbatch;
 
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
-    DMLC_DECLARE_FIELD(updater)
-        .set_default("shotgun")
-        .describe("Update algorithm for linear model. One of shotgun/coord_descent");
-    DMLC_DECLARE_FIELD(tolerance)
-        .set_lower_bound(0.0f)
-        .set_default(0.0f)
-        .describe("Stop if largest weight update is smaller than this number.");
+    DMLC_DECLARE_FIELD(updater).set_default("shotgun").describe(
+        "Update algorithm for linear model. One of shotgun/coord_descent");
+    DMLC_DECLARE_FIELD(tolerance).set_lower_bound(0.0f).set_default(0.0f).describe(
+        "Stop if largest weight update is smaller than this number.");
     DMLC_DECLARE_FIELD(max_row_perbatch)
         .set_default(std::numeric_limits<size_t>::max())
         .describe("Maximum rows per batch.");
@@ -86,9 +83,7 @@ class GBLinear : public GradientBooster {
     updater_->Configure(cfg);
   }
 
-  int32_t BoostedRounds() const override {
-    return model_.num_boosted_rounds;
-  }
+  int32_t BoostedRounds() const override { return model_.num_boosted_rounds; }
 
   bool ModelFitted() const override { return BoostedRounds() != 0; }
 
@@ -152,7 +147,7 @@ class GBLinear : public GradientBooster {
     monitor_.Stop("PredictBatch");
   }
 
-  void PredictLeaf(DMatrix *, HostDeviceVector<bst_float> *, unsigned, unsigned) override {
+  void PredictLeaf(DMatrix*, HostDeviceVector<bst_float>*, unsigned, unsigned) override {
     LOG(FATAL) << "gblinear does not support prediction of leaf index";
   }
 
@@ -170,7 +165,7 @@ class GBLinear : public GradientBooster {
     std::fill(contribs.begin(), contribs.end(), 0);
     auto base_score = learner_model_param_->BaseScore(ctx_);
     // start collecting the contributions
-    for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+    for (const auto& batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       auto page = batch.GetView();
@@ -179,7 +174,7 @@ class GBLinear : public GradientBooster {
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
-          bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
+          bst_float* p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
           // calculate linear terms' contributions
           for (auto& ins : inst) {
             if (ins.index >= model_.learner_model_param->num_feature) continue;
@@ -201,8 +196,8 @@ class GBLinear : public GradientBooster {
     std::vector<bst_float>& contribs = out_contribs->HostVector();
 
     // linear models have no interaction effects
-    const size_t nelements = model_.learner_model_param->num_feature *
-                             model_.learner_model_param->num_feature;
+    const size_t nelements =
+        model_.learner_model_param->num_feature * model_.learner_model_param->num_feature;
     contribs.resize(p_fmat->Info().num_row_ * nelements *
                     model_.learner_model_param->num_output_group);
     std::fill(contribs.begin(), contribs.end(), 0);
@@ -213,10 +208,9 @@ class GBLinear : public GradientBooster {
     return model_.DumpModel(fmap, with_stats, format);
   }
 
-  void FeatureScore(std::string const &importance_type,
-                    common::Span<int32_t const> trees,
-                    std::vector<bst_feature_t> *out_features,
-                    std::vector<float> *out_scores) const override {
+  void FeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
+                    std::vector<bst_feature_t>* out_features,
+                    std::vector<float>* out_scores) const override {
     CHECK(!model_.weight.empty()) << "Model is not initialized";
     CHECK(trees.empty()) << "gblinear doesn't support number of trees for feature importance.";
     CHECK_EQ(importance_type, "weight")
@@ -238,18 +232,17 @@ class GBLinear : public GradientBooster {
   }
 
  protected:
-  void PredictBatchInternal(DMatrix *p_fmat,
-                            std::vector<bst_float> *out_preds) {
+  void PredictBatchInternal(DMatrix* p_fmat, std::vector<bst_float>* out_preds) {
     monitor_.Start("PredictBatchInternal");
     model_.LazyInitModel();
-    std::vector<bst_float> &preds = *out_preds;
+    std::vector<bst_float>& preds = *out_preds;
     auto base_margin = p_fmat->Info().base_margin_.View(DeviceOrd::CPU());
     // start collecting the prediction
     const int ngroup = model_.learner_model_param->num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
 
     auto base_score = learner_model_param_->BaseScore(DeviceOrd::CPU());
-    for (const auto &page : p_fmat->GetBatches<SparsePage>()) {
+    for (const auto& page : p_fmat->GetBatches<SparsePage>()) {
       auto const& batch = page.GetView();
       // output convention: nrow * k, where nrow is number of rows
       // k is number of group
@@ -279,8 +272,7 @@ class GBLinear : public GradientBooster {
     }
     float largest_dw = 0.0;
     for (size_t i = 0; i < model_.weight.size(); i++) {
-      largest_dw = std::max(
-          largest_dw, std::abs(model_.weight[i] - previous_model_.weight[i]));
+      largest_dw = std::max(largest_dw, std::abs(model_.weight[i] - previous_model_.weight[i]));
     }
     previous_model_ = model_;
 
@@ -288,9 +280,9 @@ class GBLinear : public GradientBooster {
     return is_converged_;
   }
 
-  void LazySumWeights(DMatrix *p_fmat) {
+  void LazySumWeights(DMatrix* p_fmat) {
     if (!sum_weight_complete_) {
-      auto &info = p_fmat->Info();
+      auto& info = p_fmat->Info();
       for (size_t i = 0; i < info.num_row_; i++) {
         sum_instance_weight_ += info.GetWeight(i);
       }
@@ -298,8 +290,7 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  void Pred(const SparsePage::Inst &inst, bst_float *preds, int gid,
-            bst_float base) {
+  void Pred(const SparsePage::Inst& inst, bst_float* preds, int gid, bst_float base) {
     bst_float psum = model_.Bias()[gid] + base;
     for (const auto& ins : inst) {
       if (ins.index >= model_.learner_model_param->num_feature) continue;

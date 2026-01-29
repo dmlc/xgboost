@@ -43,9 +43,8 @@ TEST(Transform, DeclareUnifiedTest(Basic)) {
   HostDeviceVector<float> out_vec{h_out, device};
   out_vec.Fill(0);
 
-  Transform<>::Init(TestTransformRange<float>{},
-                    Range{0, static_cast<Range::DifferenceType>(size)}, AllThreadsForTest(),
-                    TransformDevice())
+  Transform<>::Init(TestTransformRange<float>{}, Range{0, static_cast<Range::DifferenceType>(size)},
+                    AllThreadsForTest(), TransformDevice())
       .Eval(&out_vec, &in_vec);
   std::vector<float> res = out_vec.HostVector();
 

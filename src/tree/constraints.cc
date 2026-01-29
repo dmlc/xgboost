@@ -1,14 +1,15 @@
 /*!
  * Copyright 2018-2019 by Contributors
  */
+#include "constraints.h"
+
 #include <algorithm>
 #include <unordered_set>
 #include <vector>
 
-#include "xgboost/span.h"
-#include "xgboost/json.h"
-#include "constraints.h"
 #include "param.h"
+#include "xgboost/json.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 void FeatureInteractionConstraintHost::Configure(tree::TrainParam const& param,
@@ -33,10 +34,11 @@ void FeatureInteractionConstraintHost::Reset() {
   std::vector<std::vector<bst_feature_t>> tmp;
   try {
     ParseInteractionConstraint(this->interaction_constraint_str_, &tmp);
-  } catch (dmlc::Error const &e) {
+  } catch (dmlc::Error const& e) {
     LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
                << this->interaction_constraint_str_ << "\n"
-               << "With error:\n" << e.what();
+               << "With error:\n"
+               << e.what();
   }
   for (const auto& e : tmp) {
     interaction_constraints_.emplace_back(e.begin(), e.end());
@@ -55,13 +57,13 @@ void FeatureInteractionConstraintHost::Reset() {
   splits_.resize(1, std::unordered_set<bst_feature_t>());
 }
 
-void FeatureInteractionConstraintHost::SplitImpl(
-    bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id) {
+void FeatureInteractionConstraintHost::SplitImpl(bst_node_t node_id, bst_feature_t feature_id,
+                                                 bst_node_t left_id, bst_node_t right_id) {
   bst_node_t newsize = std::max(left_id, right_id) + 1;
 
   // Record previous splits for child nodes
   auto feature_splits = splits_[node_id];  // fid history of current node
-  feature_splits.insert(feature_id);  // add feature of current node
+  feature_splits.insert(feature_id);       // add feature of current node
   splits_.resize(newsize);
   splits_[left_id] = feature_splits;
   splits_[right_id] = feature_splits;
@@ -77,7 +79,7 @@ void FeatureInteractionConstraintHost::SplitImpl(
   }
 
   // Loop across specified interactions in constraints
-  for (const auto &constraint : interaction_constraints_) {
+  for (const auto& constraint : interaction_constraints_) {
     // flags whether the specified interaction is still relevant
     bst_uint flag = 1;
 
@@ -86,7 +88,7 @@ void FeatureInteractionConstraintHost::SplitImpl(
     for (bst_uint checkvar : feature_splits) {
       if (constraint.count(checkvar) == 0) {
         flag = 0;
-        break;   // interaction is not relevant due to unmet constraint
+        break;  // interaction is not relevant due to unmet constraint
       }
     }
 

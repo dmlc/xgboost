@@ -2,16 +2,17 @@
  * Copyright 2020-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+
 #include <algorithm>
 
-#include "helpers.h"
-#include "filesystem.h"  // for TemporaryDirectory
 #include "../../src/data/array_interface.h"
+#include "filesystem.h"  // for TemporaryDirectory
+#include "helpers.h"
 namespace xgboost {
 
 TEST(RandomDataGenerator, DMatrix) {
-  size_t constexpr kRows { 16 }, kCols { 32 };
-  float constexpr kSparsity { 0.4f };
+  size_t constexpr kRows{16}, kCols{32};
+  float constexpr kSparsity{0.4f};
   auto p_dmatrix = RandomDataGenerator{kRows, kCols, kSparsity}.GenerateDMatrix();
 
   HostDeviceVector<float> csr_value;
@@ -22,9 +23,8 @@ TEST(RandomDataGenerator, DMatrix) {
   HostDeviceVector<float> dense_data;
   RandomDataGenerator{kRows, kCols, kSparsity}.GenerateDense(&dense_data);
 
-  auto it = std::copy_if(
-      dense_data.HostVector().begin(), dense_data.HostVector().end(),
-      dense_data.HostVector().begin(), [](float v) { return !std::isnan(v); });
+  auto it = std::copy_if(dense_data.HostVector().begin(), dense_data.HostVector().end(),
+                         dense_data.HostVector().begin(), [](float v) { return !std::isnan(v); });
 
   CHECK_EQ(p_dmatrix->Info().num_row_, kRows);
   CHECK_EQ(p_dmatrix->Info().num_col_, kCols);
@@ -47,21 +47,19 @@ TEST(RandomDataGenerator, DMatrix) {
 }
 
 TEST(RandomDataGenerator, GenerateArrayInterfaceBatch) {
-  size_t constexpr kRows { 937 }, kCols { 100 }, kBatches { 13 };
-  float constexpr kSparsity { 0.4f };
+  size_t constexpr kRows{937}, kCols{100}, kBatches{13};
+  float constexpr kSparsity{0.4f};
 
   HostDeviceVector<float> storage;
   std::string array;
   std::vector<std::string> batches;
   std::tie(batches, array) =
-      RandomDataGenerator{kRows, kCols, kSparsity}.GenerateArrayInterfaceBatch(
-          &storage, kBatches);
+      RandomDataGenerator{kRows, kCols, kSparsity}.GenerateArrayInterfaceBatch(&storage, kBatches);
   CHECK_EQ(batches.size(), kBatches);
 
   size_t rows = 0;
-  for (auto const &interface_str : batches) {
-    Json j_interface =
-        Json::Load({interface_str.c_str(), interface_str.size()});
+  for (auto const& interface_str : batches) {
+    Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
     ArrayInterfaceHandler::Validate(get<Object const>(j_interface));
     CHECK_EQ(get<Integer>(j_interface["shape"][1]), kCols);
     rows += get<Integer>(j_interface["shape"][0]);

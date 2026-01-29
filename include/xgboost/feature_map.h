@@ -9,10 +9,10 @@
 
 #include <xgboost/logging.h>
 
-#include <vector>
-#include <string>
 #include <cstring>
 #include <iostream>
+#include <string>
+#include <vector>
 
 namespace xgboost {
 /*!
@@ -22,18 +22,12 @@ namespace xgboost {
 class FeatureMap {
  public:
   /*! \brief type of feature maps */
-  enum Type {
-    kIndicator = 0,
-    kQuantitive = 1,
-    kInteger = 2,
-    kFloat = 3,
-    kCategorical = 4
-  };
+  enum Type { kIndicator = 0, kQuantitive = 1, kInteger = 2, kFloat = 3, kCategorical = 4 };
   /*!
    * \brief load feature map from input stream
    * \param is Input text stream
    */
-  inline void LoadText(std::istream& is) { // NOLINT(*)
+  inline void LoadText(std::istream& is) {  // NOLINT(*)
     int fid;
     std::string fname, ftype;
     while (is >> fid >> fname >> ftype) {
@@ -46,7 +40,7 @@ class FeatureMap {
    * \param fname The feature name.
    * \param ftype The feature type.
    */
-  inline void PushBack(int fid, const char *fname, const char *ftype) {
+  inline void PushBack(int fid, const char* fname, const char* ftype) {
     CHECK_EQ(fid, static_cast<int>(names_.size()));
     names_.emplace_back(fname);
     types_.push_back(GetType(ftype));
@@ -57,12 +51,10 @@ class FeatureMap {
     types_.clear();
   }
   /*! \return number of known features */
-  inline size_t Size() const {
-    return names_.size();
-  }
+  inline size_t Size() const { return names_.size(); }
   /*! \return name of specific feature */
   inline const char* Name(size_t idx) const {
-    CHECK_LT(idx,  names_.size()) << "FeatureMap feature index exceed bound";
+    CHECK_LT(idx, names_.size()) << "FeatureMap feature index exceed bound";
     return names_[idx].c_str();
   }
   /*! \return type of specific feature */

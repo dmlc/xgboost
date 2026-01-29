@@ -1,12 +1,12 @@
 /**
  * Copyright 2018-2023, XGBoost Contributors
  */
-#include <xgboost/linear_updater.h>
 #include <xgboost/gbm.h>
+#include <xgboost/linear_updater.h>
 
+#include "../../../src/gbm/gblinear_model.h"
 #include "../helpers.h"
 #include "test_json_io.h"
-#include "../../../src/gbm/gblinear_model.h"
 
 namespace xgboost {
 
@@ -30,7 +30,5 @@ TEST(Linear, GPUCoordinate) {
   ASSERT_EQ(model.Bias()[0], 5.0f);
 }
 
-TEST(GPUCoordinate, JsonIO) {
-  TestUpdaterJsonIO("gpu_coord_descent");
-}
+TEST(GPUCoordinate, JsonIO) { TestUpdaterJsonIO("gpu_coord_descent"); }
 }  // namespace xgboost

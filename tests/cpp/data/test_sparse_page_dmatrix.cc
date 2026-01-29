@@ -307,7 +307,7 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
 
   std::vector<std::future<void>> waiting;
 
-  std::atomic<bool> exception {false};
+  std::atomic<bool> exception{false};
 
   for (int32_t i = 0; i < threads; ++i) {
     waiting.emplace_back(std::async(std::launch::async, [&]() {
@@ -322,9 +322,8 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
 
   using namespace std::chrono_literals;
 
-  while (std::any_of(waiting.cbegin(), waiting.cend(), [](auto const &f) {
-    return f.wait_for(0ms) != std::future_status::ready;
-  })) {
+  while (std::any_of(waiting.cbegin(), waiting.cend(),
+                     [](auto const &f) { return f.wait_for(0ms) != std::future_status::ready; })) {
     std::this_thread::sleep_for(50ms);
   }
 

@@ -5,11 +5,11 @@
 #include <xgboost/cache.h>
 #include <xgboost/data.h>  // for DMatrix
 
-#include <cstddef>         // for size_t
-#include <cstdint>         // for uint32_t
-#include <thread>          // for thread
+#include <cstddef>  // for size_t
+#include <cstdint>  // for uint32_t
+#include <thread>   // for thread
 
-#include "helpers.h"       // for RandomDataGenerator
+#include "helpers.h"  // for RandomDataGenerator
 
 namespace xgboost {
 namespace {

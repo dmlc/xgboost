@@ -60,16 +60,13 @@ TEST(MetaInfo, GetSetFeature) {
 
   size_t constexpr kCols = 19;
   std::vector<std::string> types(kCols, u8"float");
-  std::vector<char const*> c_types(kCols);
+  std::vector<char const *> c_types(kCols);
   std::transform(types.cbegin(), types.cend(), c_types.begin(),
                  [](auto const &str) { return str.c_str(); });
   info.num_col_ = 1;
-  EXPECT_THROW(
-      info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()),
-      dmlc::Error);
+  EXPECT_THROW(info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()), dmlc::Error);
   info.num_col_ = kCols;
-  EXPECT_NO_THROW(
-      info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()));
+  EXPECT_NO_THROW(info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()));
 
   // Test clear.
   info.SetFeatureInfo("feature_type", nullptr, 0);
@@ -127,12 +124,12 @@ TEST(MetaInfo, SaveLoadBinary) {
   xgboost::MetaInfo info;
   xgboost::Context ctx;
 
-  uint64_t constexpr kRows { 64 }, kCols { 32 };
+  uint64_t constexpr kRows{64}, kCols{32};
   auto generator = []() {
-                     static float f = 0;
-                     return f++;
-                   };
-  std::vector<float> values (kRows);
+    static float f = 0;
+    return f++;
+  };
+  std::vector<float> values(kRows);
   std::generate(values.begin(), values.end(), generator);
   info.SetInfo(ctx, "label", Make1dInterfaceTest(values.data(), kRows));
   info.SetInfo(ctx, "weight", Make1dInterfaceTest(values.data(), kRows));
@@ -143,30 +140,27 @@ TEST(MetaInfo, SaveLoadBinary) {
 
   auto featname = u8"特征名";
   std::vector<std::string> types(kCols, u8"float");
-  std::vector<char const*> c_types(kCols);
+  std::vector<char const *> c_types(kCols);
   std::transform(types.cbegin(), types.cend(), c_types.begin(),
                  [](auto const &str) { return str.c_str(); });
   info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size());
   std::vector<std::string> names(kCols, featname);
-  std::vector<char const*> c_names(kCols);
+  std::vector<char const *> c_names(kCols);
   std::transform(names.cbegin(), names.cend(), c_names.begin(),
                  [](auto const &str) { return str.c_str(); });
-  info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size());;
+  info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size());
+  ;
 
   common::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.Str() + "/metainfo.binary";
   {
-    std::unique_ptr<dmlc::Stream> fs {
-      dmlc::Stream::Create(tmp_file.c_str(), "w")
-    };
+    std::unique_ptr<dmlc::Stream> fs{dmlc::Stream::Create(tmp_file.c_str(), "w")};
     info.SaveBinary(fs.get());
   }
 
   {
     // Round-trip test
-    std::unique_ptr<dmlc::Stream> fs {
-      dmlc::Stream::Create(tmp_file.c_str(), "r")
-    };
+    std::unique_ptr<dmlc::Stream> fs{dmlc::Stream::Create(tmp_file.c_str(), "r")};
     xgboost::MetaInfo inforead;
     inforead.LoadBinary(fs.get());
     ASSERT_EQ(inforead.num_row_, kRows);
@@ -190,16 +184,12 @@ TEST(MetaInfo, SaveLoadBinary) {
                             inforead.feature_type_names.cend(),
                             [](auto const &str) { return str == u8"float"; }));
     auto h_ft = inforead.feature_types.HostSpan();
-    EXPECT_TRUE(std::all_of(h_ft.cbegin(), h_ft.cend(), [](auto f) {
-      return f == xgboost::FeatureType::kNumerical;
-    }));
+    EXPECT_TRUE(std::all_of(h_ft.cbegin(), h_ft.cend(),
+                            [](auto f) { return f == xgboost::FeatureType::kNumerical; }));
 
     EXPECT_EQ(inforead.feature_names.size(), kCols);
-    EXPECT_TRUE(std::all_of(inforead.feature_names.cbegin(),
-                            inforead.feature_names.cend(),
-                            [=](auto const& str) {
-                              return str == featname;
-                            }));
+    EXPECT_TRUE(std::all_of(inforead.feature_names.cbegin(), inforead.feature_names.cend(),
+                            [=](auto const &str) { return str == featname; }));
   }
 }
 
@@ -226,13 +216,12 @@ TEST(MetaInfo, LoadQid) {
   std::unique_ptr<xgboost::DMatrix> dmat(
       xgboost::DMatrix::Load(tmp_file + "?format=libsvm", true, xgboost::DataSplitMode::kRow));
 
-  const xgboost::MetaInfo& info = dmat->Info();
+  const xgboost::MetaInfo &info = dmat->Info();
   const std::vector<xgboost::bst_uint> expected_group_ptr{0, 4, 8, 12};
   CHECK(info.group_ptr_ == expected_group_ptr);
 
-  const std::vector<xgboost::bst_idx_t> expected_offset{
-    0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60
-  };
+  const std::vector<xgboost::bst_idx_t> expected_offset{0,  5,  10, 15, 20, 25, 30,
+                                                        35, 40, 45, 50, 55, 60};
   const std::vector<xgboost::Entry> expected_data{
       xgboost::Entry(1, 1),   xgboost::Entry(2, 1),   xgboost::Entry(3, 0),
       xgboost::Entry(4, 0.2), xgboost::Entry(5, 0),   xgboost::Entry(1, 0),
@@ -285,7 +274,7 @@ TEST(MetaInfo, Validate) {
   info.num_row_ = 10;
   info.num_nonzero_ = 12;
   info.num_col_ = 3;
-  std::vector<xgboost::bst_group_t> groups (11);
+  std::vector<xgboost::bst_group_t> groups(11);
   Context ctx;
   info.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), groups.size()));
   EXPECT_THROW(info.Validate(FstCU()), dmlc::Error);

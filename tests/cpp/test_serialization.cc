@@ -30,103 +30,103 @@ void CompareIntArray(Json l, Json r) {
 
 void CompareJSON(Json l, Json r) {
   switch (l.GetValue().Type()) {
-  case Value::ValueKind::kString: {
-    ASSERT_EQ(l, r);
-    break;
-  }
-  case Value::ValueKind::kNumber: {
-    ASSERT_NEAR(get<Number>(l), get<Number>(r), kRtEps);
-    break;
-  }
-  case Value::ValueKind::kInteger: {
-    ASSERT_EQ(l, r);
-    break;
-  }
-  case Value::ValueKind::kObject: {
-    auto const &l_obj = get<Object const>(l);
-    auto const &r_obj = get<Object const>(r);
-    ASSERT_EQ(l_obj.size(), r_obj.size());
+    case Value::ValueKind::kString: {
+      ASSERT_EQ(l, r);
+      break;
+    }
+    case Value::ValueKind::kNumber: {
+      ASSERT_NEAR(get<Number>(l), get<Number>(r), kRtEps);
+      break;
+    }
+    case Value::ValueKind::kInteger: {
+      ASSERT_EQ(l, r);
+      break;
+    }
+    case Value::ValueKind::kObject: {
+      auto const& l_obj = get<Object const>(l);
+      auto const& r_obj = get<Object const>(r);
+      ASSERT_EQ(l_obj.size(), r_obj.size());
 
-    for (auto const& kv : l_obj) {
-      ASSERT_NE(r_obj.find(kv.first), r_obj.cend());
-      // Floating point array saved as a string.
-      if (kv.first == "base_score") {
-        auto l_v = Json::Load(get<String const>(l_obj.at(kv.first)));
-        auto r_v = Json::Load(get<String const>(r_obj.at(kv.first)));
-        CompareJSON(l_v, r_v);
-      } else {
-        CompareJSON(l_obj.at(kv.first), r_obj.at(kv.first));
+      for (auto const& kv : l_obj) {
+        ASSERT_NE(r_obj.find(kv.first), r_obj.cend());
+        // Floating point array saved as a string.
+        if (kv.first == "base_score") {
+          auto l_v = Json::Load(get<String const>(l_obj.at(kv.first)));
+          auto r_v = Json::Load(get<String const>(r_obj.at(kv.first)));
+          CompareJSON(l_v, r_v);
+        } else {
+          CompareJSON(l_obj.at(kv.first), r_obj.at(kv.first));
+        }
       }
+      break;
     }
-    break;
-  }
-  case Value::ValueKind::kArray: {
-    auto const& l_arr = get<Array const>(l);
-    auto const& r_arr = get<Array const>(r);
-    ASSERT_EQ(l_arr.size(), r_arr.size());
-    for (size_t i = 0; i < l_arr.size(); ++i) {
-      CompareJSON(l_arr[i], r_arr[i]);
+    case Value::ValueKind::kArray: {
+      auto const& l_arr = get<Array const>(l);
+      auto const& r_arr = get<Array const>(r);
+      ASSERT_EQ(l_arr.size(), r_arr.size());
+      for (size_t i = 0; i < l_arr.size(); ++i) {
+        CompareJSON(l_arr[i], r_arr[i]);
+      }
+      break;
     }
-    break;
-  }
-  case Value::ValueKind::kF32Array: {
-    auto const& l_arr = get<F32Array const>(l);
-    auto const& r_arr = get<F32Array const>(r);
-    ASSERT_EQ(l_arr.size(), r_arr.size());
-    for (size_t i = 0; i < l_arr.size(); ++i) {
-      ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);
+    case Value::ValueKind::kF32Array: {
+      auto const& l_arr = get<F32Array const>(l);
+      auto const& r_arr = get<F32Array const>(r);
+      ASSERT_EQ(l_arr.size(), r_arr.size());
+      for (size_t i = 0; i < l_arr.size(); ++i) {
+        ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);
+      }
+      break;
     }
-    break;
-  }
-  case Value::ValueKind::kF64Array: {
-    auto const& l_arr = get<F64Array const>(l);
-    auto const& r_arr = get<F64Array const>(r);
-    ASSERT_EQ(l_arr.size(), r_arr.size());
-    for (size_t i = 0; i < l_arr.size(); ++i) {
-      ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);
+    case Value::ValueKind::kF64Array: {
+      auto const& l_arr = get<F64Array const>(l);
+      auto const& r_arr = get<F64Array const>(r);
+      ASSERT_EQ(l_arr.size(), r_arr.size());
+      for (size_t i = 0; i < l_arr.size(); ++i) {
+        ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);
+      }
+      break;
     }
-    break;
-  }
-  case Value::ValueKind::kI8Array: {
-    CompareIntArray<I8Array>(l, r);
-    break;
-  }
-  case Value::ValueKind::kU8Array: {
-    CompareIntArray<U8Array>(l, r);
-    break;
-  }
-  case Value::ValueKind::kI16Array: {
-    CompareIntArray<I16Array>(l, r);
-    break;
-  }
-  case Value::ValueKind::kU16Array: {
-    CompareIntArray<U16Array>(l, r);
-    break;
-  }
-  case Value::ValueKind::kI32Array: {
-    CompareIntArray<I32Array>(l, r);
-    break;
-  }
-  case Value::ValueKind::kU32Array: {
-    CompareIntArray<U32Array>(l, r);
-    break;
-  }
-  case Value::ValueKind::kI64Array: {
-    CompareIntArray<I64Array>(l, r);
-    break;
-  }
-  case Value::ValueKind::kU64Array: {
-    CompareIntArray<U64Array>(l, r);
-    break;
-  }
-  case Value::ValueKind::kBoolean: {
-    ASSERT_EQ(l, r);
-    break;
-  }
-  case Value::ValueKind::kNull: {
-    ASSERT_EQ(l, r);
-    break;
-  }
+    case Value::ValueKind::kI8Array: {
+      CompareIntArray<I8Array>(l, r);
+      break;
+    }
+    case Value::ValueKind::kU8Array: {
+      CompareIntArray<U8Array>(l, r);
+      break;
+    }
+    case Value::ValueKind::kI16Array: {
+      CompareIntArray<I16Array>(l, r);
+      break;
+    }
+    case Value::ValueKind::kU16Array: {
+      CompareIntArray<U16Array>(l, r);
+      break;
+    }
+    case Value::ValueKind::kI32Array: {
+      CompareIntArray<I32Array>(l, r);
+      break;
+    }
+    case Value::ValueKind::kU32Array: {
+      CompareIntArray<U32Array>(l, r);
+      break;
+    }
+    case Value::ValueKind::kI64Array: {
+      CompareIntArray<I64Array>(l, r);
+      break;
+    }
+    case Value::ValueKind::kU64Array: {
+      CompareIntArray<U64Array>(l, r);
+      break;
+    }
+    case Value::ValueKind::kBoolean: {
+      ASSERT_EQ(l, r);
+      break;
+    }
+    case Value::ValueKind::kNull: {
+      ASSERT_EQ(l, r);
+      break;
+    }
   }
 }
 
@@ -149,7 +149,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
   // Train for kIters.
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
-    std::unique_ptr<Learner> learner {Learner::Create({p_dmat})};
+    std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
     learner->SetParams(args);
     for (int32_t iter = 0; iter < kIters; ++iter) {
       learner->UpdateOneIter(iter, p_dmat);
@@ -165,7 +165,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
   std::vector<std::string> dumped_1;
   {
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
-    std::unique_ptr<Learner> learner {Learner::Create({p_dmat})};
+    std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
     learner->Load(fi.get());
     learner->Configure();
     dumped_1 = learner->DumpModel(fmap, true, "json");
@@ -179,8 +179,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     std::string continued_model;
     {
       // Continue the previous training with another kIters
-      std::unique_ptr<dmlc::Stream> fi(
-          dmlc::Stream::Create(fname.c_str(), "r"));
+      std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
       std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
       learner->Load(fi.get());
       learner->Configure();
@@ -191,7 +190,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
       learner->Save(&mem_out);
       ASSERT_EQ(model_at_kiter, serialised_model_tmp);
 
-      for (auto &batch : p_dmat->GetBatches<SparsePage>()) {
+      for (auto& batch : p_dmat->GetBatches<SparsePage>()) {
         batch.data.HostVector();
         batch.offset.HostVector();
       }
@@ -251,7 +250,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     }
 
     // Pull data to device
-    for (auto &batch : p_dmat->GetBatches<SparsePage>()) {
+    for (auto& batch : p_dmat->GetBatches<SparsePage>()) {
       batch.data.SetDevice(DeviceOrd::CUDA(0));
       batch.data.DeviceSpan();
       batch.offset.SetDevice(DeviceOrd::CUDA(0));
@@ -294,7 +293,9 @@ class SerializationTest : public ::testing::Test {
     xgboost::SimpleLCG gen(0);
     SimpleRealUniformDistribution<float> dis(0.0f, 1.0f);
 
-    for (auto& v : h_labels) { v = dis(&gen); }
+    for (auto& v : h_labels) {
+      v = dis(&gen);
+    }
 
     for (size_t i = 0; i < kCols; ++i) {
       std::string name = "feat_" + std::to_string(i);
@@ -382,11 +383,9 @@ TEST_F(SerializationTest, Hist) {
 }
 
 TEST_F(SerializationTest, CPUCoordDescent) {
-  TestLearnerSerialization({{"booster", "gblinear"},
-                            {"seed", "0"},
-                            {"nthread", "1"},
-                            {"updater", "coord_descent"}},
-                           fmap_, p_dmat_);
+  TestLearnerSerialization(
+      {{"booster", "gblinear"}, {"seed", "0"}, {"nthread", "1"}, {"updater", "coord_descent"}},
+      fmap_, p_dmat_);
 }
 
 #if defined(XGBOOST_USE_CUDA)
@@ -455,7 +454,7 @@ TEST_F(SerializationTest, ConfigurationCount) {
   size_t pos = 0;
   // Should run configuration exactly 2 times, one for each learner.
   while ((pos = output.find("[GPU Hist]: Configure", pos)) != std::string::npos) {
-    occureences ++;
+    occureences++;
     pos += target.size();
   }
   ASSERT_EQ(occureences, 2ul);
@@ -527,7 +526,9 @@ class LogitSerializationTest : public SerializationTest {
     auto& rnd = common::GlobalRandom();
     rnd.seed(0);
 
-    for (auto& v : h_labels) { v = flip(rnd); }
+    for (auto& v : h_labels) {
+      v = flip(rnd);
+    }
 
     for (size_t i = 0; i < kCols; ++i) {
       std::string name = "feat_" + std::to_string(i);
@@ -591,11 +592,9 @@ TEST_F(LogitSerializationTest, Hist) {
 }
 
 TEST_F(LogitSerializationTest, CPUCoordDescent) {
-  TestLearnerSerialization({{"booster", "gblinear"},
-                            {"seed", "0"},
-                            {"nthread", "1"},
-                            {"updater", "coord_descent"}},
-                           fmap_, p_dmat_);
+  TestLearnerSerialization(
+      {{"booster", "gblinear"}, {"seed", "0"}, {"nthread", "1"}, {"updater", "coord_descent"}},
+      fmap_, p_dmat_);
 }
 
 #if defined(XGBOOST_USE_CUDA)
@@ -649,13 +648,15 @@ class MultiClassesSerializationTest : public SerializationTest {
 
     std::shared_ptr<DMatrix> p_dmat{p_dmat_};
     p_dmat->Info().labels.Reshape(kRows);
-    auto &h_labels = p_dmat->Info().labels.Data()->HostVector();
+    auto& h_labels = p_dmat->Info().labels.Data()->HostVector();
 
     std::uniform_int_distribution<size_t> categorical(0, kClasses - 1);
     auto& rnd = common::GlobalRandom();
     rnd.seed(0);
 
-    for (auto& v : h_labels) { v = categorical(rnd); }
+    for (auto& v : h_labels) {
+      v = categorical(rnd);
+    }
 
     for (size_t i = 0; i < kCols; ++i) {
       std::string name = "feat_" + std::to_string(i);
@@ -737,11 +738,9 @@ TEST_F(MultiClassesSerializationTest, Hist) {
 }
 
 TEST_F(MultiClassesSerializationTest, CPUCoordDescent) {
-  TestLearnerSerialization({{"booster", "gblinear"},
-                            {"seed", "0"},
-                            {"nthread", "1"},
-                            {"updater", "coord_descent"}},
-                           fmap_, p_dmat_);
+  TestLearnerSerialization(
+      {{"booster", "gblinear"}, {"seed", "0"}, {"nthread", "1"}, {"updater", "coord_descent"}},
+      fmap_, p_dmat_);
 }
 
 #if defined(XGBOOST_USE_CUDA)
@@ -792,4 +791,4 @@ TEST_F(MultiClassesSerializationTest, GPUCoordDescent) {
                            fmap_, p_dmat_);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
-}       // namespace xgboost
+}  // namespace xgboost

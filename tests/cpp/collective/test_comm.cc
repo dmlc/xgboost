@@ -28,7 +28,9 @@ TEST_F(CommTest, Channel) {
         auto rc = Success() << [&] {
           return p_chan->SendAll(
               EraseType(common::Span<std::int32_t const>{&i, static_cast<std::size_t>(1)}));
-        } << [&] { return p_chan->Block(); };
+        } << [&] {
+          return p_chan->Block();
+        };
         SafeColl(rc);
       } else {
         auto p_chan = worker.Comm().Chan(i - 1);
@@ -36,7 +38,9 @@ TEST_F(CommTest, Channel) {
         auto rc = Success() << [&] {
           return p_chan->RecvAll(
               EraseType(common::Span<std::int32_t>{&r, static_cast<std::size_t>(1)}));
-        } << [&] { return p_chan->Block(); };
+        } << [&] {
+          return p_chan->Block();
+        };
         SafeColl(rc);
         ASSERT_EQ(r, i - 1);
       }

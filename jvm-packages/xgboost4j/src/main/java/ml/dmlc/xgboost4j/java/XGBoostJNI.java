@@ -89,7 +89,7 @@ class XGBoostJNI {
 
   /**
    * Set the feature information
-   * 
+   *
    * @param handle the DMatrix native address
    * @param field  "feature_names" or "feature_types"
    * @param values an array of string

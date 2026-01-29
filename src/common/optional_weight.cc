@@ -5,10 +5,9 @@
 
 #include <numeric>  // for accumulate
 
+#include "common.h"           // for AssertGPUSupport
 #include "xgboost/base.h"     // for bst_idx_t
 #include "xgboost/context.h"  // for Context
-
-#include "common.h"  // for AssertGPUSupport
 
 namespace xgboost::common {
 #if defined(XGBOOST_USE_CUDA)

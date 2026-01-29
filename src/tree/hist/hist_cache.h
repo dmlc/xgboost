@@ -48,13 +48,13 @@ class BoundedHistCollection {
   BoundedHistCollection() = default;
   common::GHistRow operator[](std::size_t idx) {
     auto offset = node_map_.at(idx);
-    return common::Span{data_->data(), static_cast<size_t>(data_->size())}.subspan(
-        offset, n_total_bins_);
+    return common::Span{data_->data(), static_cast<size_t>(data_->size())}.subspan(offset,
+                                                                                   n_total_bins_);
   }
   common::ConstGHistRow operator[](std::size_t idx) const {
     auto offset = node_map_.at(idx);
-    return common::Span{data_->data(), static_cast<size_t>(data_->size())}.subspan(
-        offset, n_total_bins_);
+    return common::Span{data_->data(), static_cast<size_t>(data_->size())}.subspan(offset,
+                                                                                   n_total_bins_);
   }
   void Reset(bst_bin_t n_total_bins, std::size_t n_cached_nodes) {
     n_total_bins_ = n_total_bins;

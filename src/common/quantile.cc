@@ -41,8 +41,10 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
   CHECK_EQ(hessian.size(), info.num_row_);
   std::vector<float> results(hessian.size());
   auto const &group_ptr = info.group_ptr_;
-  auto const& weights = info.weights_.HostVector();
-  auto get_weight = [&](size_t i) { return weights.empty() ? 1.0f : weights[i]; };
+  auto const &weights = info.weights_.HostVector();
+  auto get_weight = [&](size_t i) {
+    return weights.empty() ? 1.0f : weights[i];
+  };
   if (use_group) {
     CHECK_GE(group_ptr.size(), 2);
     CHECK_EQ(group_ptr.back(), hessian.size());
@@ -220,7 +222,7 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
 }
 
 template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const* ctx, MetaInfo const& info) {
+void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const *ctx, MetaInfo const &info) {
   auto world_size = collective::GetWorldSize();
   auto rank = collective::GetRank();
   if (world_size == 1 || info.IsColumnSplit()) {
@@ -302,7 +304,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
   AllreduceCategories(ctx, info);
 
-  auto& num_cuts = *p_num_cuts;
+  auto &num_cuts = *p_num_cuts;
   CHECK_EQ(num_cuts.size(), 0);
   num_cuts.resize(sketches_.size());
 

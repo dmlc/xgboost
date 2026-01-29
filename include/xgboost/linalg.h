@@ -363,8 +363,10 @@ class TensorView {
    * \brief Slice dimension for Index tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index, typename... S>
-  LINALG_HD std::enable_if_t<std::is_integral_v<Index>, size_t> MakeSliceDim(
-      size_t new_shape[D], size_t new_stride[D], Index i, S &&...slices) const {
+  LINALG_HD std::enable_if_t<std::is_integral_v<Index>, size_t> MakeSliceDim(size_t new_shape[D],
+                                                                             size_t new_stride[D],
+                                                                             Index i,
+                                                                             S &&...slices) const {
     static_assert(old_dim < kDim);
     auto offset = stride_[old_dim] * i;
     auto res =
@@ -659,8 +661,8 @@ auto MakeVec(std::vector<T> const &v) {
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> *data) {
-  return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(),
-                 data->Size(), data->Device());
+  return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(), data->Size(),
+                 data->Device());
 }
 
 template <typename T>

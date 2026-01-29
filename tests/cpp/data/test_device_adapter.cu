@@ -2,18 +2,18 @@
  * Copyright 2019-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/data.h>
-#include "../../../src/data/adapter.h"
-#include "../helpers.h"
 #include <thrust/device_vector.h>
+#include <xgboost/data.h>
+
+#include "../../../src/data/adapter.h"
 #include "../../../src/data/device_adapter.cuh"
+#include "../helpers.h"
 #include "test_array_interface.h"
 using namespace xgboost;  // NOLINT
 
-void TestCudfAdapter()
-{
-  constexpr size_t kRowsA {16};
-  constexpr size_t kRowsB {16};
+void TestCudfAdapter() {
+  constexpr size_t kRowsA{16};
+  constexpr size_t kRowsB{16};
   std::vector<Json> columns;
   thrust::device_vector<double> d_data_0(kRowsA);
   thrust::device_vector<uint32_t> d_data_1(kRowsB);
@@ -21,7 +21,7 @@ void TestCudfAdapter()
   columns.emplace_back(GenerateDenseColumn<double>("<f8", kRowsA, &d_data_0));
   columns.emplace_back(GenerateDenseColumn<uint32_t>("<u4", kRowsB, &d_data_1));
 
-  Json column_arr {columns};
+  Json column_arr{columns};
 
   std::string str;
   Json::Dump(column_arr, &str);
@@ -29,7 +29,7 @@ void TestCudfAdapter()
   data::CudfAdapter adapter(str);
 
   adapter.Next();
-  auto & batch = adapter.Value();
+  auto& batch = adapter.Value();
   EXPECT_EQ(batch.Size(), kRowsA + kRowsB);
 
   EXPECT_NO_THROW({
@@ -48,9 +48,7 @@ void TestCudfAdapter()
   });
 }
 
-TEST(DeviceAdapter, CudfAdapter) {
-  TestCudfAdapter();
-}
+TEST(DeviceAdapter, CudfAdapter) { TestCudfAdapter(); }
 
 namespace xgboost::data {
 TEST(DeviceAdapter, GetRowCounts) {

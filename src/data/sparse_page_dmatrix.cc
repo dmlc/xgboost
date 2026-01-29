@@ -42,8 +42,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   cache_prefix_ = MakeCachePrefix(cache_prefix_);
 
   DMatrixProxy *proxy = MakeProxy(proxy_);
-  auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
-      iter_, reset_, next_};
+  auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_, reset_, next_};
 
   auto get_cats = [](DMatrixProxy const *proxy) {
     if (proxy->Ctx()->IsCPU()) {

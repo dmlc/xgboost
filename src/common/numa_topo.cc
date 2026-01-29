@@ -211,7 +211,7 @@ void GetNumaHasCpuNodes(std::vector<std::int32_t> *p_nodes) {
 #endif  // defined(__linux__)
 }
 
-[[nodiscard]] bool GetCpuNuma(unsigned int* cpu, unsigned int* numa) {
+[[nodiscard]] bool GetCpuNuma(unsigned int *cpu, unsigned int *numa) {
 #ifdef SYS_getcpu
   return syscall(SYS_getcpu, cpu, numa, NULL) == 0;
 #else

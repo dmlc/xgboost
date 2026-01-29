@@ -62,8 +62,11 @@ Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t 
 
   if (shifted_rank != 0) {  // not root
     auto parent = ShiftRight(ShiftedParentRank(shifted_rank, depth), world, root);
-    auto rc = Success() << [&] { return comm.Chan(parent)->RecvAll(data); }
-                        << [&] { return comm.Chan(parent)->Block(); };
+    auto rc = Success() << [&] {
+      return comm.Chan(parent)->RecvAll(data);
+    } << [&] {
+      return comm.Chan(parent)->Block();
+    };
     if (!rc.OK()) {
       return Fail("broadcast failed.", std::move(rc));
     }

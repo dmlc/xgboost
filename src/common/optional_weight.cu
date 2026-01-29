@@ -1,9 +1,8 @@
 /**
  * Copyright 2025, XGBoost Contributors
  */
-#include <cuda/std/functional>  // for plus
-
 #include <cstddef>              // for size_t
+#include <cuda/std/functional>  // for plus
 
 #include "cuda_context.cuh"
 #include "device_helpers.cuh"

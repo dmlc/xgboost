@@ -1,3 +1,4 @@
+#!/bin/bash
 # Make sure the dependencies of XGBoost don't appear in directly downstream project.
 # Pass the executable as argument for this script
 

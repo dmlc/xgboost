@@ -53,7 +53,8 @@ Coll *FederatedColl::MakeCUDAVar() {
   };
 }
 
-[[nodiscard]] Result CUDAFederatedColl::Allgather(Comm const &comm, common::Span<std::int8_t> data) {
+[[nodiscard]] Result CUDAFederatedColl::Allgather(Comm const &comm,
+                                                  common::Span<std::int8_t> data) {
   auto cufed = dynamic_cast<CUDAFederatedComm const *>(&comm);
   CHECK(cufed);
   std::vector<std::int8_t> h_data(data.size());

@@ -18,8 +18,7 @@ void SmallHistogram(Context const* ctx, xgboost::linalg::MatrixView<float const>
                     xgboost::linalg::VectorView<float> bins);
 #if !defined(XGBOOST_USE_SYCL)
 void SmallHistogram(Context const*, xgboost::linalg::MatrixView<float const>,
-                    common::OptionalWeights const&,
-                    xgboost::linalg::VectorView<float>) {
+                    common::OptionalWeights const&, xgboost::linalg::VectorView<float>) {
   common::AssertSYCLSupport();
 }
 #endif

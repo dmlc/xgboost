@@ -5,12 +5,11 @@
 #ifndef PLUGIN_SYCL_DEVICE_MANAGER_H_
 #define PLUGIN_SYCL_DEVICE_MANAGER_H_
 
-#include <vector>
 #include <mutex>
 #include <string>
-#include <unordered_map>
-
 #include <sycl/sycl.hpp>
+#include <unordered_map>
+#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"

@@ -101,4 +101,4 @@ INSTANTIATE_TEST_SUITE_P(Objective, TestDefaultObjConfig,
                          [](const ::testing::TestParamInfo<TestDefaultObjConfig::ParamType>& info) {
                            return ObjTestNameGenerator(info);
                          });
-} // namespace xgboost
+}  // namespace xgboost

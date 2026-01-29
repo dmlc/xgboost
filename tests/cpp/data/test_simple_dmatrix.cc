@@ -164,8 +164,7 @@ TEST(SimpleDMatrix, FromDense) {
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5, 6};
   data::DenseAdapter adapter(data.data(), m, n);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           -1);
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1);
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);
   EXPECT_EQ(dmat.Info().num_nonzero_, 6);
@@ -232,8 +231,7 @@ TEST(SimpleDMatrix, FromFile) {
   auto verify_batch = [kExpectedNumRow](SparsePage const &page) {
     auto batch = page.GetView();
     EXPECT_EQ(batch.Size(), kExpectedNumRow);
-    EXPECT_EQ(page.offset.HostVector(),
-              std::vector<bst_idx_t>({0, 3, 6, 9, 12, 15, 15}));
+    EXPECT_EQ(page.offset.HostVector(), std::vector<bst_idx_t>({0, 3, 6, 9, 12, 15, 15}));
     EXPECT_EQ(page.base_rowid, 0);
 
     for (auto i = 0ull; i < batch.Size() - 1; i++) {
@@ -251,8 +249,7 @@ TEST(SimpleDMatrix, FromFile) {
 
   constexpr bst_feature_t kCols = 5;
   data::FileAdapter adapter(parser.get());
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
   ASSERT_EQ(dmat.Info().num_col_, kCols);
 
   for (auto &batch : dmat.GetBatches<SparsePage>()) {
@@ -261,33 +258,33 @@ TEST(SimpleDMatrix, FromFile) {
 }
 
 TEST(SimpleDMatrix, Slice) {
-  size_t constexpr kRows {16};
-  size_t constexpr kCols {8};
-  size_t constexpr kClasses {3};
+  size_t constexpr kRows{16};
+  size_t constexpr kCols{8};
+  size_t constexpr kClasses{3};
   auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-  auto& weights = p_m->Info().weights_.HostVector();
+  auto &weights = p_m->Info().weights_.HostVector();
   weights.resize(kRows);
   std::iota(weights.begin(), weights.end(), 0.0f);
 
-  auto& lower = p_m->Info().labels_lower_bound_.HostVector();
-  auto& upper = p_m->Info().labels_upper_bound_.HostVector();
+  auto &lower = p_m->Info().labels_lower_bound_.HostVector();
+  auto &upper = p_m->Info().labels_upper_bound_.HostVector();
   lower.resize(kRows);
   upper.resize(kRows);
 
   std::iota(lower.begin(), lower.end(), 0.0f);
   std::iota(upper.begin(), upper.end(), 1.0f);
 
-  auto& margin = p_m->Info().base_margin_;
+  auto &margin = p_m->Info().base_margin_;
   margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, DeviceOrd::CPU()};
 
-  std::array<int32_t, 3> ridxs {1, 3, 5};
-  std::unique_ptr<DMatrix> out { p_m->Slice(ridxs) };
+  std::array<int32_t, 3> ridxs{1, 3, 5};
+  std::unique_ptr<DMatrix> out{p_m->Slice(ridxs)};
   ASSERT_EQ(out->Info().labels.Size(), ridxs.size());
   ASSERT_EQ(out->Info().labels_lower_bound_.Size(), ridxs.size());
   ASSERT_EQ(out->Info().labels_upper_bound_.Size(), ridxs.size());
   ASSERT_EQ(out->Info().base_margin_.Size(), ridxs.size() * kClasses);
 
-  for (auto const& in_batch : p_m->GetBatches<SparsePage>()) {
+  for (auto const &in_batch : p_m->GetBatches<SparsePage>()) {
     auto in_page = in_batch.GetView();
     for (auto const &out_batch : out->GetBatches<SparsePage>()) {
       auto out_page = out_batch.GetView();
@@ -334,29 +331,29 @@ TEST(SimpleDMatrix, Slice) {
 }
 
 TEST(SimpleDMatrix, SliceCol) {
-  size_t constexpr kRows {16};
-  size_t constexpr kCols {8};
-  size_t constexpr kClasses {3};
+  size_t constexpr kRows{16};
+  size_t constexpr kCols{8};
+  size_t constexpr kClasses{3};
   auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-  auto& weights = p_m->Info().weights_.HostVector();
+  auto &weights = p_m->Info().weights_.HostVector();
   weights.resize(kRows);
   std::iota(weights.begin(), weights.end(), 0.0f);
 
-  auto& lower = p_m->Info().labels_lower_bound_.HostVector();
-  auto& upper = p_m->Info().labels_upper_bound_.HostVector();
+  auto &lower = p_m->Info().labels_lower_bound_.HostVector();
+  auto &upper = p_m->Info().labels_upper_bound_.HostVector();
   lower.resize(kRows);
   upper.resize(kRows);
 
   std::iota(lower.begin(), lower.end(), 0.0f);
   std::iota(upper.begin(), upper.end(), 1.0f);
 
-  auto& margin = p_m->Info().base_margin_;
+  auto &margin = p_m->Info().base_margin_;
   margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, DeviceOrd::CPU()};
 
-  auto constexpr kSlices {2};
-  auto constexpr kSliceSize {4};
+  auto constexpr kSlices{2};
+  auto constexpr kSliceSize{4};
   for (auto slice = 0; slice < kSlices; slice++) {
-    std::unique_ptr<DMatrix> out { p_m->SliceCol(kSlices, slice) };
+    std::unique_ptr<DMatrix> out{p_m->SliceCol(kSlices, slice)};
     ASSERT_EQ(out->Info().labels.Size(), kRows);
     ASSERT_EQ(out->Info().labels_lower_bound_.Size(), kRows);
     ASSERT_EQ(out->Info().labels_upper_bound_.Size(), kRows);
@@ -380,7 +377,8 @@ TEST(SimpleDMatrix, SliceCol) {
                     out->Info().labels_lower_bound_.HostVector().at(i));
           ASSERT_EQ(p_m->Info().labels_upper_bound_.HostVector().at(i),
                     out->Info().labels_upper_bound_.HostVector().at(i));
-          ASSERT_EQ(p_m->Info().weights_.HostVector().at(i), out->Info().weights_.HostVector().at(i));
+          ASSERT_EQ(p_m->Info().weights_.HostVector().at(i),
+                    out->Info().weights_.HostVector().at(i));
 
           auto out_margin = out->Info().base_margin_.View(DeviceOrd::CPU());
           auto in_margin = margin.View(DeviceOrd::CPU());
@@ -402,12 +400,12 @@ TEST(SimpleDMatrix, SaveLoadBinary) {
   common::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.Str() + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix * dmat = xgboost::DMatrix::Load(UriSVM(tmp_file));
-  data::SimpleDMatrix *simple_dmat = dynamic_cast<data::SimpleDMatrix*>(dmat);
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file));
+  data::SimpleDMatrix *simple_dmat = dynamic_cast<data::SimpleDMatrix *>(dmat);
 
   const std::string tmp_binfile = tempdir.Str() + "/csr_source.binary";
   simple_dmat->SaveToLocalFile(tmp_binfile);
-  xgboost::DMatrix * dmat_read = xgboost::DMatrix::Load(tmp_binfile);
+  xgboost::DMatrix *dmat_read = xgboost::DMatrix::Load(tmp_binfile);
 
   EXPECT_EQ(dmat->Info().num_col_, dmat_read->Info().num_col_);
   EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);
@@ -441,8 +439,8 @@ TEST(SimpleDMatrix, Threads) {
 
 namespace {
 void VerifyColumnSplit() {
-  size_t constexpr kRows {16};
-  size_t constexpr kCols {8};
+  size_t constexpr kRows{16};
+  size_t constexpr kCols{8};
   auto p_fmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(false, DataSplitMode::kCol);
 
   ASSERT_EQ(p_fmat->Info().num_col_, kCols * collective::GetWorldSize());

@@ -301,8 +301,8 @@ namespace cuda_impl {
  */
 [[nodiscard]] inline bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
   bool type_error = false;
-  auto n_samples =
-      cpu_impl::DispatchAny(proxy, [](auto const& value) { return value.NumRows(); }, &type_error);
+  auto n_samples = cpu_impl::DispatchAny(
+      proxy, [](auto const& value) { return value.NumRows(); }, &type_error);
   if (type_error) {
     n_samples = cuda_impl::BatchSamples(proxy);
   }
@@ -314,8 +314,8 @@ namespace cuda_impl {
  */
 [[nodiscard]] inline bst_feature_t BatchColumns(DMatrixProxy const* proxy) {
   bool type_error = false;
-  auto n_features =
-      cpu_impl::DispatchAny(proxy, [](auto const& value) { return value.NumCols(); }, &type_error);
+  auto n_features = cpu_impl::DispatchAny(
+      proxy, [](auto const& value) { return value.NumCols(); }, &type_error);
   if (type_error) {
     n_features = cuda_impl::BatchColumns(proxy);
   }

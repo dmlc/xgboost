@@ -2,6 +2,7 @@
  * Copyright 2018-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
+
 #include <numeric>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-W#pragma-messages"
@@ -14,7 +15,7 @@
 namespace xgboost::common {
 namespace {
 
-void InitHostDeviceVector(size_t n, DeviceOrd device, HostDeviceVector<int> *v) {
+void InitHostDeviceVector(size_t n, DeviceOrd device, HostDeviceVector<int>* v) {
   // create the vector
   v->SetDevice(device);
   v->Resize(n);
@@ -39,16 +40,14 @@ void InitHostDeviceVector(size_t n, DeviceOrd device, HostDeviceVector<int> *v) 
   std::iota(data_h.begin(), data_h.end(), 0);
 }
 
-void PlusOne(HostDeviceVector<int> *v) {
+void PlusOne(HostDeviceVector<int>* v) {
   auto device = v->Device();
-  sycl::TransformOnDeviceData(v->Device(), v->DevicePointer(), v->Size(), [=](size_t a){ return a + 1; });
+  sycl::TransformOnDeviceData(v->Device(), v->DevicePointer(), v->Size(),
+                              [=](size_t a) { return a + 1; });
   ASSERT_TRUE(v->DeviceCanWrite());
 }
 
-void CheckDevice(HostDeviceVector<int>* v,
-                 size_t size,
-                 unsigned int first,
-                 GPUAccess access) {
+void CheckDevice(HostDeviceVector<int>* v, size_t size, unsigned int first, GPUAccess access) {
   ASSERT_EQ(v->Size(), size);
 
   std::vector<int> desired_data(size);
@@ -67,9 +66,9 @@ void CheckDevice(HostDeviceVector<int>* v,
   ASSERT_FALSE(v->HostCanWrite());
 }
 
-void CheckHost(HostDeviceVector<int> *v, GPUAccess access) {
-  const std::vector<int>& data_h = access == GPUAccess::kNone ?
-    v->HostVector() : v->ConstHostVector();
+void CheckHost(HostDeviceVector<int>* v, GPUAccess access) {
+  const std::vector<int>& data_h =
+      access == GPUAccess::kNone ? v->HostVector() : v->ConstHostVector();
   for (size_t i = 0; i < v->Size(); ++i) {
     ASSERT_EQ(data_h.at(i), i + 1);
   }
@@ -154,22 +153,23 @@ TEST(SyclHostDeviceVector, Extend) {
 
   v0.Extend(v1);
   {
-    std::vector<int> desired_data(n0+n1, val);
-    sycl::VerifyOnDeviceData(v0.Device(), v0.ConstDevicePointer(), desired_data.data(), n0+n1);
+    std::vector<int> desired_data(n0 + n1, val);
+    sycl::VerifyOnDeviceData(v0.Device(), v0.ConstDevicePointer(), desired_data.data(), n0 + n1);
   }
   v1.Extend(v0);
   {
-    std::vector<int> desired_data(n0+2*n1, val);
-    sycl::VerifyOnDeviceData(v1.Device(), v1.ConstDevicePointer(), desired_data.data(), n0+2*n1);
+    std::vector<int> desired_data(n0 + 2 * n1, val);
+    sycl::VerifyOnDeviceData(v1.Device(), v1.ConstDevicePointer(), desired_data.data(),
+                             n0 + 2 * n1);
   }
 }
 
 TEST(SyclHostDeviceVector, SetDevice) {
-  std::vector<int> h_vec (2345);
+  std::vector<int> h_vec(2345);
   for (size_t i = 0; i < h_vec.size(); ++i) {
     h_vec[i] = i;
   }
-  HostDeviceVector<int> vec (h_vec);
+  HostDeviceVector<int> vec(h_vec);
   auto device = DeviceOrd::SyclDefault();
 
   vec.SetDevice(device);
@@ -185,7 +185,7 @@ TEST(SyclHostDeviceVector, SetDevice) {
 }
 
 TEST(SyclHostDeviceVector, Span) {
-  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
+  HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
   vec.SetDevice(DeviceOrd::SyclDefault());
   auto span = vec.DeviceSpan();
   ASSERT_EQ(vec.Size(), span.size());
@@ -205,8 +205,8 @@ TEST(SyclHostDeviceVector, Span) {
 }
 
 TEST(SyclHostDeviceVector, Empty) {
-  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
-  HostDeviceVector<float> another { std::move(vec) };
+  HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
+  HostDeviceVector<float> another{std::move(vec)};
   ASSERT_FALSE(another.Empty());
   ASSERT_TRUE(vec.Empty());
 }
@@ -247,5 +247,5 @@ TEST(SyclHostDeviceVector, Resize) {
     check(vec);
   }
 }
-}
+}  // namespace
 }  // namespace xgboost::common

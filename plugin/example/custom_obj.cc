@@ -19,7 +19,9 @@ struct MyLogisticParam : public XGBoostParameter<MyLogisticParam> {
   float scale_neg_weight;
   // declare parameters
   DMLC_DECLARE_PARAMETER(MyLogisticParam) {
-    DMLC_DECLARE_FIELD(scale_neg_weight).set_default(1.0f).set_lower_bound(0.0f)
+    DMLC_DECLARE_FIELD(scale_neg_weight)
+        .set_default(1.0f)
+        .set_lower_bound(0.0f)
         .describe("Scale the weight of negative examples by this factor");
   }
 };
@@ -53,12 +55,10 @@ class MyLogistic : public ObjFunction {
       out_gpair_h(i) = GradientPair(grad, hess);
     }
   }
-  [[nodiscard]] const char* DefaultEvalMetric() const override {
-    return "logloss";
-  }
-  void PredTransform(HostDeviceVector<float> *io_preds) const override {
+  [[nodiscard]] const char* DefaultEvalMetric() const override { return "logloss"; }
+  void PredTransform(HostDeviceVector<float>* io_preds) const override {
     // transform margin value to probability.
-    std::vector<float> &preds = io_preds->HostVector();
+    std::vector<float>& preds = io_preds->HostVector();
     for (auto& pred : preds) {
       pred = 1.0f / (1.0f + std::exp(-pred));
     }
@@ -77,9 +77,7 @@ class MyLogistic : public ObjFunction {
     out["my_logistic_param"] = ToJson(param_);
   }
 
-  void LoadConfig(Json const& in) override {
-    FromJson(in["my_logistic_param"], &param_);
-  }
+  void LoadConfig(Json const& in) override { FromJson(in["my_logistic_param"], &param_); }
 
  private:
   MyLogisticParam param_;
@@ -88,7 +86,7 @@ class MyLogistic : public ObjFunction {
 // Finally register the objective function.
 // After it succeeds you can try use xgboost with objective=mylogistic
 XGBOOST_REGISTER_OBJECTIVE(MyLogistic, "mylogistic")
-.describe("User defined logistic regression plugin")
-.set_body([]() { return new MyLogistic(); });
+    .describe("User defined logistic regression plugin")
+    .set_body([]() { return new MyLogistic(); });
 
 }  // namespace xgboost::obj

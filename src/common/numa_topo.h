@@ -65,7 +65,7 @@ void GetNumaHasCpuNodes(std::vector<std::int32_t> *p_nodes);
  * @brief Get numa node on Linux. Other platforms are not supported. Returns false if the
  *        call fails.
  */
-[[nodiscard]] bool GetCpuNuma(unsigned int* cpu, unsigned int* numa);
+[[nodiscard]] bool GetCpuNuma(unsigned int *cpu, unsigned int *numa);
 
 /**
  * @brief Is it physically possible to access the wrong memory?

@@ -9,11 +9,10 @@
 #include <string.h>
 #include <xgboost/c_api.h>
 
-#define safe_xgboost(err)                                                      \
-  if ((err) != 0) {                                                            \
-    fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #err,      \
-            XGBGetLastError());                                                \
-    exit(1);                                                                   \
+#define safe_xgboost(err)                                                                     \
+  if ((err) != 0) {                                                                           \
+    fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #err, XGBGetLastError()); \
+    exit(1);                                                                                  \
   }
 
 #define N_BATCHS 32
@@ -40,11 +39,10 @@ typedef struct _DataIter {
   char _array[128];
 } DataIter;
 
-#define safe_malloc(ptr)                                                       \
-  if ((ptr) == NULL) {                                                         \
-    fprintf(stderr, "%s:%d: Failed to allocate memory.\n", __FILE__,           \
-            __LINE__);                                                         \
-    exit(1);                                                                   \
+#define safe_malloc(ptr)                                                        \
+  if ((ptr) == NULL) {                                                          \
+    fprintf(stderr, "%s:%d: Failed to allocate memory.\n", __FILE__, __LINE__); \
+    exit(1);                                                                    \
   }
 
 /**
@@ -106,24 +104,23 @@ int DataIterator_Next(DataIterHandle handle) {
   DataIter *self = (DataIter *)(handle);
   if (self->cur_it == self->n) {
     self->cur_it = 0;
-    return 0;  /* At end */
+    return 0; /* At end */
   }
 
   /* A JSON string encoding array interface (standard from numpy). */
-  char array[] = "{\"data\": [%lu, false], \"shape\":[%lu, 1], \"typestr\": "
-                 "\"<f4\", \"version\": 3}";
+  char array[] =
+      "{\"data\": [%lu, false], \"shape\":[%lu, 1], \"typestr\": "
+      "\"<f4\", \"version\": 3}";
   memset(self->_array, '\0', sizeof(self->_array));
-  sprintf(self->_array, array, (size_t)self->data[self->cur_it],
-          self->lengths[self->cur_it]);
+  sprintf(self->_array, array, (size_t)self->data[self->cur_it], self->lengths[self->cur_it]);
 
   safe_xgboost(XGProxyDMatrixSetDataDense(self->_proxy, self->_array));
   /* The data passed in the iterator must remain valid (not being freed until the next
    * iteration or reset) */
-  safe_xgboost(XGDMatrixSetDenseInfo(self->_proxy, "label",
-                                     self->labels[self->cur_it],
+  safe_xgboost(XGDMatrixSetDenseInfo(self->_proxy, "label", self->labels[self->cur_it],
                                      self->lengths[self->cur_it], 1));
   self->cur_it++;
-  return 1;  /* Continue. */
+  return 1; /* Continue. */
 }
 
 void DataIterator_Reset(DataIterHandle handle) {
@@ -149,8 +146,7 @@ void TrainModel(DMatrix Xy) {
   size_t n_rounds = 10;
   for (size_t i = 0; i < n_rounds; ++i) {
     safe_xgboost(XGBoosterUpdateOneIter(booster, i, Xy));
-    safe_xgboost(XGBoosterEvalOneIter(booster, i, cache, validation_names, 1,
-                                      &validation_result));
+    safe_xgboost(XGBoosterEvalOneIter(booster, i, cache, validation_names, 1, &validation_result));
     printf("%s\n", validation_result);
   }
 
@@ -168,8 +164,8 @@ int main() {
    * prefix "cache-" will be generated in current directory */
   char config[] = "{\"missing\": NaN, \"cache_prefix\": \"cache\"}";
   DMatrix Xy;
-  safe_xgboost(XGDMatrixCreateFromCallback(
-      &iter, iter._proxy, DataIterator_Reset, DataIterator_Next, config, &Xy));
+  safe_xgboost(XGDMatrixCreateFromCallback(&iter, iter._proxy, DataIterator_Reset,
+                                           DataIterator_Next, config, &Xy));
 
   TrainModel(Xy);
 

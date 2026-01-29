@@ -54,9 +54,7 @@ TEST(ThreadPool, Basic) {
   {
     std::vector<std::future<std::size_t>> futures;
     for (std::size_t i = 0; i < static_cast<std::size_t>(n_threads) * 16; ++i) {
-      futures.emplace_back(pool.Submit([=] {
-        return i;
-      }));
+      futures.emplace_back(pool.Submit([=] { return i; }));
     }
     for (std::size_t i = 0; i < futures.size(); ++i) {
       ASSERT_EQ(futures[i].get(), i);

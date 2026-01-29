@@ -54,7 +54,8 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   collective::SafeColl(rc);
 
   // convert to 0 for all reduce
-  std::replace_if(quantiles.begin(), quantiles.end(), [](float q) { return std::isnan(q); }, 0.f);
+  std::replace_if(
+      quantiles.begin(), quantiles.end(), [](float q) { return std::isnan(q); }, 0.f);
   // use the mean value
   rc = collective::GlobalSum(ctx, info, linalg::MakeVec(quantiles.data(), quantiles.size()));
   collective::SafeColl(rc);

@@ -78,8 +78,8 @@ TEST(Tree, ExpandCategoricalFeature) {
   {
     RegTree tree;
     bst_cat_t cat = 33;
-    std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat+1));
-    LBitField32 bitset {split_cats};
+    std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
+    LBitField32 bitset{split_cats};
     bitset.Set(cat);
     tree.ExpandCategorical(0, 0, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
                            /*left_sum=*/3.0, /*right_sum=*/4.0);
@@ -126,8 +126,7 @@ void GrowTree(RegTree* p_tree) {
     bst_feature_t f = feat(&lcg);
     if (is_cat) {
       bst_cat_t cat = common::AsCat(split_cat(&lcg));
-      std::vector<uint32_t> split_cats(
-          LBitField32::ComputeStorageSize(cat + 1));
+      std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat + 1));
       LBitField32 bitset{split_cats};
       bitset.Set(cat);
       tree.ExpandCategorical(node, f, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
@@ -143,7 +142,7 @@ void GrowTree(RegTree* p_tree) {
   }
 }
 
-void CheckReload(RegTree const &tree) {
+void CheckReload(RegTree const& tree) {
   Json out{Object()};
   tree.SaveModel(&out);
 
@@ -207,16 +206,16 @@ RegTree ConstructTreeCat(std::vector<bst_cat_t>* cond) {
   cond->push_back(14);
   cond->push_back(32);
 
-  tree.ExpandCategorical(0, /*split_index=*/0, cats_storage, true, 0.0f, 2.0,
-                         3.00, 11.0, 2.0, 3.0, 4.0);
+  tree.ExpandCategorical(0, /*split_index=*/0, cats_storage, true, 0.0f, 2.0, 3.00, 11.0, 2.0, 3.0,
+                         4.0);
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();
   tree.ExpandNode(
       /*nid=*/left, /*split_index=*/1, /*split_value=*/1.0f,
       /*default_left=*/false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
       /*right_sum=*/0.0f);
-  tree.ExpandCategorical(right, /*split_index=*/0, cats_storage, true, 0.0f,
-                         2.0, 3.00, 11.0, 2.0, 3.0, 4.0);
+  tree.ExpandCategorical(right, /*split_index=*/0, cats_storage, true, 0.0f, 2.0, 3.00, 11.0, 2.0,
+                         3.0, 4.0);
   return tree;
 }
 
@@ -286,14 +285,11 @@ TEST(Tree, DumpJson) {
   str = tree.DumpModel(fmap, false, "json");
   ASSERT_EQ(str.find("cover"), std::string::npos);
 
-
   auto j_tree = Json::Load({str.c_str(), str.size()});
   ASSERT_EQ(get<Array>(j_tree["children"]).size(), 2ul);
 }
 
-TEST(Tree, DumpJsonCategorical) {
-  TestCategoricalTreeDump("json", ", ");
-}
+TEST(Tree, DumpJsonCategorical) { TestCategoricalTreeDump("json", ", "); }
 
 TEST(Tree, DumpText) {
   auto tree = ConstructTree();
@@ -330,9 +326,7 @@ TEST(Tree, DumpText) {
   ASSERT_EQ(str.find("cover"), std::string::npos);
 }
 
-TEST(Tree, DumpTextCategorical) {
-  TestCategoricalTreeDump("text", ",");
-}
+TEST(Tree, DumpTextCategorical) { TestCategoricalTreeDump("text", ","); }
 
 TEST(Tree, DumpDot) {
   auto tree = ConstructTree();
@@ -372,9 +366,7 @@ TEST(Tree, DumpDot) {
   ASSERT_NE(str.find(R"(1 -> 4 [label="no, missing")"), std::string::npos);
 }
 
-TEST(Tree, DumpDotCategorical) {
-  TestCategoricalTreeDump("dot", ",");
-}
+TEST(Tree, DumpDotCategorical) { TestCategoricalTreeDump("dot", ","); }
 
 TEST(Tree, JsonIO) {
   RegTree tree;

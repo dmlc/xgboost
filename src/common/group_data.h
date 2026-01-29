@@ -14,10 +14,10 @@
 #ifndef XGBOOST_COMMON_GROUP_DATA_H_
 #define XGBOOST_COMMON_GROUP_DATA_H_
 
-#include <cstddef>
-#include <vector>
 #include <algorithm>
+#include <cstddef>
 #include <utility>
+#include <vector>
 
 #include "xgboost/base.h"
 
@@ -29,7 +29,7 @@ namespace common {
  * \tparam SizeType type of the index range holder
  * \tparam is_row_major bool value helps to reduce memory for row major
  */
-template<typename ValueType, typename SizeType = bst_ulong, bool is_row_major = false>
+template <typename ValueType, typename SizeType = bst_ulong, bool is_row_major = false>
 class ParallelGroupBuilder {
  public:
   /**
@@ -42,12 +42,9 @@ class ParallelGroupBuilder {
    * starting from. This saves considerable amounts of time/memory when
    * incrementaly building.
    */
-  ParallelGroupBuilder(std::vector<SizeType> *p_rptr,
-                       std::vector<ValueType> *p_data,
+  ParallelGroupBuilder(std::vector<SizeType> *p_rptr, std::vector<ValueType> *p_data,
                        size_t base_row_offset = 0)
-      : rptr_(*p_rptr),
-        data_(*p_data),
-        base_row_offset_(base_row_offset) {}
+      : rptr_(*p_rptr), data_(*p_data), base_row_offset_(base_row_offset) {}
 
   /*!
    * \brief step 1: initialize the helper, with hint of number keys
@@ -64,8 +61,8 @@ class ParallelGroupBuilder {
       const size_t thread_size = is_row_major ? thread_displacement_ : full_size;
       thread_rptr_[i].resize(thread_size, 0);
     }
-    const size_t last_thread_size = is_row_major ? (full_size - (nthread - 1)*thread_displacement_)
-                                                 : full_size;
+    const size_t last_thread_size =
+        is_row_major ? (full_size - (nthread - 1) * thread_displacement_) : full_size;
     thread_rptr_[nthread - 1].resize(last_thread_size, 0);
   }
 
@@ -77,7 +74,7 @@ class ParallelGroupBuilder {
    */
   void AddBudget(std::size_t key, int threadid, SizeType nelem = 1) {
     std::vector<SizeType> &trptr = thread_rptr_[threadid];
-    size_t offset_key = is_row_major ? (key - base_row_offset_ - threadid*thread_displacement_)
+    size_t offset_key = is_row_major ? (key - base_row_offset_ - threadid * thread_displacement_)
                                      : (key - base_row_offset_);
     if (trptr.size() < offset_key + 1) {
       trptr.resize(offset_key + 1, 0);
@@ -124,10 +121,8 @@ class ParallelGroupBuilder {
       for (std::size_t i = base_row_offset_; i + 1 < rptr_.size(); ++i) {
         for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
           std::vector<SizeType> &trptr = thread_rptr_[tid];
-          if (i < trptr.size() +
-                      base_row_offset_) {  // i^th row is assigned for this thread
-            std::size_t thread_count =
-                trptr[i - base_row_offset_];  // how many entries in this row
+          if (i < trptr.size() + base_row_offset_) {  // i^th row is assigned for this thread
+            std::size_t thread_count = trptr[i - base_row_offset_];  // how many entries in this row
             trptr[i - base_row_offset_] = count + rptr_.back();
             count += thread_count;
           }
@@ -146,7 +141,7 @@ class ParallelGroupBuilder {
    * \param value The value to be pushed to the group.
    * \param threadid the id of thread that calls this function
    */
-  void Push(std::size_t key, ValueType&& value, int threadid) {
+  void Push(std::size_t key, ValueType &&value, int threadid) {
     size_t offset_key = is_row_major ? (key - base_row_offset_ - threadid * thread_displacement_)
                                      : (key - base_row_offset_);
     SizeType &rp = thread_rptr_[threadid][offset_key];

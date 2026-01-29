@@ -87,7 +87,7 @@ TEST(Objective, CPU_vs_CUDA) {
   info.labels.Reshape(kRows);
   auto& h_labels = info.labels.Data()->HostVector();
   for (size_t i = 0; i < h_labels.size(); ++i) {
-    h_labels[i] = 1 / static_cast<float>(i+1);
+    h_labels[i] = 1 / static_cast<float>(i + 1);
   }
 
   {

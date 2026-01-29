@@ -3,11 +3,11 @@
  */
 #ifndef XGBOOST_COMMON_ALGORITHM_H_
 #define XGBOOST_COMMON_ALGORITHM_H_
-#include <algorithm>          // upper_bound, stable_sort, sort, max
-#include <cstddef>            // size_t
-#include <functional>         // less
-#include <iterator>           // iterator_traits, distance
-#include <vector>             // vector
+#include <algorithm>   // upper_bound, stable_sort, sort, max
+#include <cstddef>     // size_t
+#include <functional>  // less
+#include <iterator>    // iterator_traits, distance
+#include <vector>      // vector
 
 #include "numeric.h"          // Iota
 #include "xgboost/context.h"  // Context
@@ -81,7 +81,9 @@ std::vector<Idx> ArgSort(Context const *ctx, Iter begin, Iter end, Comp comp = s
   auto n = std::distance(begin, end);
   std::vector<Idx> result(n);
   Iota(ctx, result.begin(), result.end(), 0);
-  auto op = [&](Idx const &l, Idx const &r) { return comp(begin[l], begin[r]); };
+  auto op = [&](Idx const &l, Idx const &r) {
+    return comp(begin[l], begin[r]);
+  };
   StableSort(ctx, result.begin(), result.end(), op);
   return result;
 }

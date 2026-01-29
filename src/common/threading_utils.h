@@ -103,9 +103,7 @@ class BlockedSpace2d {
   }
 
   // Amount of blocks(tasks) in a space
-  [[nodiscard]] std::size_t Size() const {
-    return ranges_.size();
-  }
+  [[nodiscard]] std::size_t Size() const { return ranges_.size(); }
 
   // get index of the first dimension of i-th block(task)
   [[nodiscard]] std::size_t GetFirstDimension(std::size_t i) const {
@@ -135,7 +133,6 @@ class BlockedSpace2d {
   std::vector<Range1d> ranges_;
   std::vector<std::size_t> first_dimension_;
 };
-
 
 // Wrapper to implement nested parallelism with simple omp parallel for
 template <typename Func>
@@ -200,48 +197,48 @@ void ParallelFor(Index size, std::int32_t n_threads, Sched sched, Func&& fn) {
 
   dmlc::OMPException exc;
   switch (sched.sched) {
-  case Sched::kAuto: {
+    case Sched::kAuto: {
 #pragma omp parallel for num_threads(n_threads)
-    for (OmpInd i = 0; i < length; ++i) {
-      exc.Run(fn, i);
+      for (OmpInd i = 0; i < length; ++i) {
+        exc.Run(fn, i);
+      }
+      break;
     }
-    break;
-  }
-  case Sched::kDynamic: {
-    if (sched.chunk == 0) {
+    case Sched::kDynamic: {
+      if (sched.chunk == 0) {
 #pragma omp parallel for num_threads(n_threads) schedule(dynamic)
-      for (OmpInd i = 0; i < length; ++i) {
-        exc.Run(fn, i);
-      }
-    } else {
+        for (OmpInd i = 0; i < length; ++i) {
+          exc.Run(fn, i);
+        }
+      } else {
 #pragma omp parallel for num_threads(n_threads) schedule(dynamic, sched.chunk)
-      for (OmpInd i = 0; i < length; ++i) {
-        exc.Run(fn, i);
+        for (OmpInd i = 0; i < length; ++i) {
+          exc.Run(fn, i);
+        }
       }
+      break;
     }
-    break;
-  }
-  case Sched::kStatic: {
-    if (sched.chunk == 0) {
+    case Sched::kStatic: {
+      if (sched.chunk == 0) {
 #pragma omp parallel for num_threads(n_threads) schedule(static)
-      for (OmpInd i = 0; i < length; ++i) {
-        exc.Run(fn, i);
-      }
-    } else {
+        for (OmpInd i = 0; i < length; ++i) {
+          exc.Run(fn, i);
+        }
+      } else {
 #pragma omp parallel for num_threads(n_threads) schedule(static, sched.chunk)
+        for (OmpInd i = 0; i < length; ++i) {
+          exc.Run(fn, i);
+        }
+      }
+      break;
+    }
+    case Sched::kGuided: {
+#pragma omp parallel for num_threads(n_threads) schedule(guided)
       for (OmpInd i = 0; i < length; ++i) {
         exc.Run(fn, i);
       }
+      break;
     }
-    break;
-  }
-  case Sched::kGuided: {
-#pragma omp parallel for num_threads(n_threads) schedule(guided)
-    for (OmpInd i = 0; i < length; ++i) {
-      exc.Run(fn, i);
-    }
-    break;
-  }
   }
   exc.Rethrow();
 }

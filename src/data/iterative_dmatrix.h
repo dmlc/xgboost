@@ -9,11 +9,11 @@
 #include <memory>   // for shared_ptr
 #include <utility>  // for move
 
-#include "quantile_dmatrix.h"     // for QuantileDMatrix
-#include "xgboost/base.h"         // for bst_bin_t
-#include "xgboost/c_api.h"        // for DataIterHandle, DMatrixHandle
-#include "xgboost/context.h"      // for Context
-#include "xgboost/data.h"         // for BatchSet
+#include "quantile_dmatrix.h"  // for QuantileDMatrix
+#include "xgboost/base.h"      // for bst_bin_t
+#include "xgboost/c_api.h"     // for DataIterHandle, DMatrixHandle
+#include "xgboost/context.h"   // for Context
+#include "xgboost/data.h"      // for BatchSet
 
 namespace xgboost {
 namespace common {

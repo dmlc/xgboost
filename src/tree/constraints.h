@@ -22,13 +22,13 @@ class FeatureInteractionConstraintHost {
   // interaction_constraints_[constraint_id] contains a single interaction
   //   constraint, which specifies a group of feature IDs that can interact
   //   with each other
-  std::vector< std::unordered_set<bst_feature_t> > interaction_constraints_;
+  std::vector<std::unordered_set<bst_feature_t> > interaction_constraints_;
   // int_cont_[nid] contains the set of all feature IDs that are allowed to
   //   be used for a split at node nid
-  std::vector< std::unordered_set<bst_feature_t> > node_constraints_;
+  std::vector<std::unordered_set<bst_feature_t> > node_constraints_;
   // splits_[nid] contains the set of all feature IDs that have been used for
   //   splits in node nid and its parents
-  std::vector< std::unordered_set<bst_feature_t> > splits_;
+  std::vector<std::unordered_set<bst_feature_t> > splits_;
   // string passed by user.
   std::string interaction_constraint_str_;
   // number of features in DMatrix/Booster
@@ -40,8 +40,7 @@ class FeatureInteractionConstraintHost {
 
  public:
   FeatureInteractionConstraintHost() = default;
-  void Split(int32_t node_id, bst_feature_t feature_id, bst_node_t left_id,
-             bst_node_t right_id) {
+  void Split(int32_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id) {
     if (!enabled_) {
       return;
     } else {
@@ -50,7 +49,9 @@ class FeatureInteractionConstraintHost {
   }
 
   bool Query(bst_node_t nid, bst_feature_t fid) const {
-    if (!enabled_) { return true; }
+    if (!enabled_) {
+      return true;
+    }
     return node_constraints_.at(nid).find(fid) != node_constraints_.at(nid).cend();
   }
 

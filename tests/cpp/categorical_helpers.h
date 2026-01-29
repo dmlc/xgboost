@@ -6,13 +6,12 @@
 #include <numeric>
 #include <vector>
 
-#include "xgboost/span.h"
-#include "helpers.h"
 #include "../../src/common/categorical.h"
+#include "helpers.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
-inline std::vector<float> OneHotEncodeFeature(std::vector<float> x,
-                                              size_t num_cat) {
+inline std::vector<float> OneHotEncodeFeature(std::vector<float> x, size_t num_cat) {
   std::vector<float> ret(x.size() * num_cat, 0);
   size_t n_rows = x.size();
   for (size_t r = 0; r < n_rows; ++r) {
@@ -22,4 +21,4 @@ inline std::vector<float> OneHotEncodeFeature(std::vector<float> x,
   return ret;
 }
 
-} // namespace xgboost
+}  // namespace xgboost

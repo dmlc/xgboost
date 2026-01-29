@@ -1,10 +1,12 @@
 /**
  * Copyright 2019-2025, XGBoost Contributors
  */
+#include "gblinear_model.h"
+
 #include <algorithm>
 #include <utility>
+
 #include "xgboost/json.h"
-#include "gblinear_model.h"
 
 namespace xgboost::gbm {
 void GBLinearModel::SaveModel(Json* p_out) const {

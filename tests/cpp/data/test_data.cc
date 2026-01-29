@@ -12,7 +12,7 @@
 
 namespace xgboost {
 TEST(SparsePage, PushCSC) {
-  std::vector<bst_idx_t> offset {0};
+  std::vector<bst_idx_t> offset{0};
   std::vector<Entry> data;
   SparsePage batch;
   batch.offset.HostVector() = offset;
@@ -55,7 +55,7 @@ TEST(SparsePage, PushCSC) {
 
   inst = page[1];
   ASSERT_EQ(inst.size(), 6ul);
-  std::vector<size_t> indices_sol {1, 2, 3};
+  std::vector<size_t> indices_sol{1, 2, 3};
   for (size_t i = 0; i < inst.size(); ++i) {
     ASSERT_EQ(inst[i].index, indices_sol[i % 3]);
   }
@@ -112,8 +112,8 @@ TEST(SparsePage, SortIndices) {
 }
 
 TEST(DMatrix, Uri) {
-  auto constexpr kRows {16};
-  auto constexpr kCols {8};
+  auto constexpr kRows{16};
+  auto constexpr kCols{8};
 
   common::TemporaryDirectory tmpdir;
   auto const path = tmpdir.Path() / "small.csv";

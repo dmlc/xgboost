@@ -20,23 +20,23 @@
 
 #endif  // defined(__unix__) || defined(__APPLE__)
 
-#include <algorithm>     // for copy, transform
-#include <cctype>        // for tolower
-#include <cstddef>       // for size_t
-#include <cstdint>       // for int32_t, uint32_t
-#include <cstdio>        // for fread, fseek
-#include <cstring>       // for memcpy
-#include <filesystem>    // for filesystem, weakly_canonical
-#include <fstream>       // for ifstream
-#include <iterator>      // for distance
-#include <memory>        // for unique_ptr, make_unique
-#include <string>        // for string
-#include <utility>       // for move
-#include <vector>        // for vector
+#include <algorithm>   // for copy, transform
+#include <cctype>      // for tolower
+#include <cstddef>     // for size_t
+#include <cstdint>     // for int32_t, uint32_t
+#include <cstdio>      // for fread, fseek
+#include <cstring>     // for memcpy
+#include <filesystem>  // for filesystem, weakly_canonical
+#include <fstream>     // for ifstream
+#include <iterator>    // for distance
+#include <memory>      // for unique_ptr, make_unique
+#include <string>      // for string
+#include <utility>     // for move
+#include <vector>      // for vector
 
 #include "io.h"
-#include "xgboost/logging.h"            // for CHECK_LE
-#include "xgboost/string_view.h"        // for StringView
+#include "xgboost/logging.h"      // for CHECK_LE
+#include "xgboost/string_view.h"  // for StringView
 
 #if !defined(__linux__) && !defined(__GLIBC__) && !defined(xgboost_IS_WIN)
 #include <limits>  // for numeric_limits
