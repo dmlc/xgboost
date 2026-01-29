@@ -1,8 +1,6 @@
 /**
  * Copyright 2014-2024, XGBoost Contributors
  */
-#include "./xgboost_R.h"  // Must follow other includes.
-
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
 #include <xgboost/c_api.h>
@@ -26,6 +24,10 @@
 #include "../../src/c_api/c_api_utils.h"  // MakeSparseFromPtr
 #include "../../src/common/threading_utils.h"
 #include "../../src/data/array_interface.h"  // for ArrayInterface
+
+// clang-format off
+#include "./xgboost_R.h"  // Must follow other includes.
+// clang-format on
 
 #ifdef _MSC_VER
 #error "Compilation of R package with MSVC is not supported due to issues handling R headers"
