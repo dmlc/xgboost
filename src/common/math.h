@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file math.h
  * \brief additional math utils
  * \author Tianqi Chen
@@ -18,7 +18,10 @@
 namespace xgboost {
 namespace common {
 
-template <typename T> XGBOOST_DEVICE T Sqr(T const &w) { return w * w; }
+template <typename T>
+XGBOOST_DEVICE T Sqr(T const &w) {
+  return w * w;
+}
 
 /*!
  * \brief calculate the sigmoid of the input.
@@ -38,6 +41,9 @@ XGBOOST_DEVICE inline double Sigmoid(double x) {
   auto y = 1.0 / denom;
   return y;
 }
+
+XGBOOST_DEVICE inline float Logit(float x) { return -logf(1.0f / x - 1.0f); }
+
 /*!
  * \brief Equality test for both integer and floating point.
  */
@@ -47,8 +53,9 @@ XGBOOST_DEVICE constexpr bool CloseTo(T a, U b) {
       std::is_floating_point_v<T> || std::is_floating_point_v<U>, double,
       typename std::conditional_t<std::is_signed_v<T> || std::is_signed_v<U>, std::int64_t,
                                   std::uint64_t>>;
-  return std::is_floating_point_v<Casted> ?
-      std::abs(static_cast<Casted>(a) -static_cast<Casted>(b)) < 1e-6 : a == b;
+  return std::is_floating_point_v<Casted>
+             ? std::abs(static_cast<Casted>(a) - static_cast<Casted>(b)) < 1e-6
+             : a == b;
 }
 
 /*!
@@ -86,7 +93,7 @@ XGBOOST_DEVICE void Softmax(Iterator start, Iterator end) {
  * \return the iterator point to the maximum value.
  * \tparam Iterator The type of the iterator.
  */
-template<typename Iterator>
+template <typename Iterator>
 XGBOOST_DEVICE inline Iterator FindMaxIndex(Iterator begin, Iterator end) {
   Iterator maxit = begin;
   for (Iterator it = begin; it != end; ++it) {
@@ -116,7 +123,7 @@ inline float LogSum(float x, float y) {
  * \return the iterator point to the maximum value.
  * \tparam Iterator The type of the iterator.
  */
-template<typename Iterator>
+template <typename Iterator>
 inline float LogSum(Iterator begin, Iterator end) {
   float mx = *begin;
   for (Iterator it = begin; it != end; ++it) {
@@ -166,15 +173,16 @@ double LogGamma(double v);
 
 #else  // Not R or R with GPU.
 
-template<typename T>
+template <typename T>
 XGBOOST_DEVICE inline T LogGamma(T v) {
 #ifdef _MSC_VER
 
 #if _MSC_VER >= 1800
   return lgamma(v);
 #else
-#pragma message("Warning: lgamma function was not available until VS2013"\
-                ", poisson regression will be disabled")
+#pragma message(                                              \
+    "Warning: lgamma function was not available until VS2013" \
+    ", poisson regression will be disabled")
   utils::Error("lgamma function was not available until VS2013");
   return static_cast<T>(1.0);
 #endif  // _MSC_VER >= 1800
