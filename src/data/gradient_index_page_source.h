@@ -48,12 +48,12 @@ class GradientIndexPageSource
   double sparse_thresh_;
 
  public:
-  GradientIndexPageSource(float missing, std::int32_t nthreads, bst_feature_t n_features,
+  GradientIndexPageSource(Context const* ctx, float missing, bst_feature_t n_features,
                           bst_idx_t n_batches, std::shared_ptr<Cache> cache, BatchParam param,
                           common::HistogramCuts cuts, bool is_dense,
                           common::Span<FeatureType const> feature_types,
                           std::shared_ptr<SparsePageSource> source)
-      : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache,
+      : PageSourceIncMixIn(missing, ctx->Threads(), n_features, n_batches, cache,
                            std::isnan(param.sparse_thresh)),
         is_dense_{is_dense},
         max_bin_per_feat_{param.max_bin},

@@ -45,7 +45,7 @@ void TestPartitioner(bst_target_t n_targets) {
   auto cuts = common::SketchOnDMatrix(&ctx, Xy.get(), 64);
 
   for (auto const& page : Xy->GetBatches<SparsePage>()) {
-    GHistIndexMatrix gmat(page, {}, cuts, 64, true, 0.5, ctx.Threads());
+    GHistIndexMatrix gmat{&ctx, page, {}, cuts, 64, true, 0.5};
     bst_feature_t const split_ind = 0;
     common::ColumnMatrix column_indices;
     column_indices.InitFromSparse(page, gmat, 0.5, ctx.Threads());
@@ -126,7 +126,7 @@ void VerifyColumnSplitPartitioner(bst_target_t n_targets, size_t n_samples,
   auto cuts = common::SketchOnDMatrix(&ctx, dmat.get(), 64);
 
   for (auto const& page : Xy->GetBatches<SparsePage>()) {
-    GHistIndexMatrix gmat(page, {}, cuts, 64, true, 0.5, ctx.Threads());
+    GHistIndexMatrix gmat(&ctx, page, {}, cuts, 64, true, 0.5);
     common::ColumnMatrix column_indices;
     column_indices.InitFromSparse(page, gmat, 0.5, ctx.Threads());
     {
@@ -197,7 +197,7 @@ void TestColumnSplitPartitioner(bst_target_t n_targets) {
   float min_value, mid_value;
   CommonRowPartitioner mid_partitioner{&ctx, n_samples, base_rowid, false};
   for (auto const& page : Xy->GetBatches<SparsePage>()) {
-    GHistIndexMatrix gmat(page, {}, cuts, 64, true, 0.5, ctx.Threads());
+    GHistIndexMatrix gmat{&ctx, page, {}, cuts, 64, true, 0.5};
     bst_feature_t const split_ind = 0;
     common::ColumnMatrix column_indices;
     column_indices.InitFromSparse(page, gmat, 0.5, ctx.Threads());
