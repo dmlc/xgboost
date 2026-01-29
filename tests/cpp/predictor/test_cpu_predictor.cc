@@ -14,6 +14,7 @@
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_predictor.h"
+#include "test_shap.h"
 
 namespace xgboost {
 TEST(CpuPredictor, Basic) {
@@ -143,12 +144,6 @@ TEST(CpuPredictor, ExternalMemory) {
   auto dmat =
       RandomDataGenerator{kRows, kCols, 0.5f}.Batches(3).GenerateSparsePageDMatrix("temp", true);
   TestBasic(dmat.get(), &ctx);
-}
-
-TEST_P(ShapExternalMemoryTest, CPUPredictor) {
-  Context ctx;
-  auto [is_qdm, is_interaction] = this->GetParam();
-  this->Run(&ctx, is_qdm, is_interaction);
 }
 
 TEST(CpuPredictor, InplacePredict) {
