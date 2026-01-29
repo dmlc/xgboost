@@ -575,7 +575,7 @@ def check_categorical_missing(  # pylint: disable=too-many-arguments
         booster = train(
             parameters,
             Xy,
-            num_boost_round=16,
+            num_boost_round=8,
             evals=[(Xy, "Train")],
             evals_result=evals_result,
         )

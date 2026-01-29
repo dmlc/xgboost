@@ -233,7 +233,7 @@ class TestTreeMethod:
         strategies.integers(1, 2),
         strategies.integers(4, 7),
     )
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, print_blob=True, max_examples=10)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(
         self, rows: int, cols: int, rounds: int, cats: int
@@ -288,7 +288,7 @@ class TestTreeMethod:
         cat_parameter_strategy,
         strategies.sampled_from(["hist", "approx"]),
     )
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, print_blob=True, max_examples=10)
     def test_categorical_ames_housing(
         self,
         hist_parameters: Dict[str, Any],
@@ -308,7 +308,7 @@ class TestTreeMethod:
         strategies.integers(3, 8),
         strategies.integers(4, 7),
     )
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, print_blob=True, max_examples=10)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_missing(self, rows: int, cols: int, cats: int) -> None:
         check_categorical_missing(

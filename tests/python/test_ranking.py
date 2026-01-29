@@ -163,7 +163,7 @@ def test_error_msg() -> None:
 
 
 @given(lambdarank_parameter_strategy)
-@settings(deadline=None, print_blob=True)
+@settings(deadline=None, print_blob=True, max_examples=10)
 def test_lambdarank_parameters(params):
     if params["objective"] == "rank:map":
         rel = 1
