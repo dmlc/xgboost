@@ -72,6 +72,7 @@ class Lint:
                     "-build/include",
                     "-runtime/references",
                     "-readability/nolint",
+                    "-readability/braces",
                     # In general, trust clang-format to handle whitespace formatting
                     "-whitespace/braces",
                     "-whitespace/parens",

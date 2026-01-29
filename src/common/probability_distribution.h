@@ -8,6 +8,8 @@
 #ifndef XGBOOST_COMMON_PROBABILITY_DISTRIBUTION_H_
 #define XGBOOST_COMMON_PROBABILITY_DISTRIBUTION_H_
 
+#include <xgboost/base.h>
+
 #include <cmath>
 
 namespace xgboost {

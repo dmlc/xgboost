@@ -63,11 +63,10 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   thrust::device_vector<cuda_impl::RowIndexT> ridx_tmp(ridx_in.size());
   thrust::device_vector<cuda_impl::RowIndexT> counts(segments.size());
 
-  auto op =
-      [=] __device__(auto ridx, int split_index, int data) {
-        return ridx % 2 == 0;
-      } std::vector<int>
-          op_data(segments.size());
+  auto op = [=] __device__(auto ridx, int split_index, int data) {
+    return ridx % 2 == 0;
+  };
+  std::vector<int> op_data(segments.size());
   std::vector<PerNodeData<int>> h_batch_info(segments.size());
   dh::TemporaryArray<PerNodeData<int>> d_batch_info(segments.size());
 
@@ -86,7 +85,8 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   auto op_without_data = [=] __device__(auto ridx) {
     return ridx % 2 == 0;
-  } for (size_t i = 0; i < segments.size(); i++) {
+  };
+  for (size_t i = 0; i < segments.size(); i++) {
     auto begin = ridx.begin() + segments[i].begin;
     auto end = ridx.begin() + segments[i].end;
     bst_uint count = counts[i];
