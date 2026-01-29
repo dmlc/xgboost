@@ -10,11 +10,13 @@
 #ifndef R_NO_REMAP
 #define R_NO_REMAP
 #endif
+// clang-format off
 #include <R.h>
-#include <R_ext/Altrep.h>
 #include <Rinternals.h>
+#include <R_ext/Altrep.h>
 #include <Rmath.h>
 #include <xgboost/c_api.h>
+// clang-format on
 
 /*!
  * \brief check whether a handle is NULL
