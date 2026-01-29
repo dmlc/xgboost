@@ -68,7 +68,9 @@ class Lint:
             ",".join(
                 [
                     "-build/c++11",
-                    "-build/include,",
+                    "-build/include",
+                    "-runtime/references",
+                    "-whitespace/braces",
                     "+build/namespaces",
                     "+build/include_what_you_use",
                 ]
