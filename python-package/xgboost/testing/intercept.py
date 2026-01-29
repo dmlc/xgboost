@@ -241,3 +241,19 @@ def run_exp_family(device: Device) -> None:
     )
     score = get_basescore(clf)
     np.testing.assert_allclose(score, 0.5, rtol=1e-3)
+
+
+def run_logistic_degenerate(device: Device) -> None:
+    "Test https://github.com/dmlc/xgboost/issues/11499 ."
+    def run(v: float) -> None:
+        dtrain = DMatrix(np.asarray([[1.0], [1.0]]), label=[v, v])
+        bst = train(
+            {"objective": "binary:logistic", "device": device},
+            dtrain,
+            1,
+        )
+        intercept = get_basescore(bst)
+        assert intercept[0] == v
+
+    run(0.0)
+    run(1.0)

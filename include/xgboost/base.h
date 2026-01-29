@@ -316,8 +316,8 @@ class GradientPairInt64 {
 
 using Args = std::vector<std::pair<std::string, std::string> >;
 
-/*! \brief small eps gap for minimum split decision. */
-constexpr bst_float kRtEps = 1e-6f;
+/** @brief small eps gap for minimum split decision. */
+constexpr inline float kRtEps = 1e-6f;
 
 /*! \brief define unsigned long for openmp loop */
 using omp_ulong = dmlc::omp_ulong;  // NOLINT

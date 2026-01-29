@@ -6,6 +6,7 @@
 
 #include <cmath>
 
+#include "../common/common.h"  // Min, Max
 #include "../common/math.h"
 #include "xgboost/string_view.h"
 #include "xgboost/task.h"  // ObjInfo
@@ -70,18 +71,21 @@ struct LogisticRegression {
     const float eps = 1e-16f;
     return fmaxf(predt * (1.0f - predt), eps);
   }
-
   XGBOOST_DEVICE static float ProbToMargin(float base_score) {
-    return -logf(1.0f / base_score - 1.0f);
+    // Bound the base score
+    base_score = common::Min(common::Max(base_score, kRtEps), 1.0f - kRtEps);
+    return common::Logit(base_score);
   }
   constexpr static StringView InterceptErrorMsg() {
     return "base_score must be in (0,1) for the logistic loss.";
   }
   XGBOOST_DEVICE static bool CheckIntercept(float base_score) {
-    return base_score > 0.0f && base_score < 1.0f;
+    // We accept equality for degenerate cases where all label is the same.
+    // https://github.com/dmlc/xgboost/issues/11499
+    return base_score >= 0.0f && base_score <= 1.0f;
   }
 
-  static const char* LabelErrorMsg() { return "label must be in [0,1] for logistic regression"; }
+  static const char* LabelErrorMsg() { return "label must be in (0, 1) for logistic regression"; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
   static const char* Name() { return "reg:logistic"; }

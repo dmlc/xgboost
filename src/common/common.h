@@ -112,6 +112,11 @@ inline std::string EscapeU8(std::string const &str) {
 }
 
 template <typename T>
+XGBOOST_DEVICE T Min(T a, T b) {
+  return a > b ? b : a;
+}
+
+template <typename T>
 XGBOOST_DEVICE T Max(T a, T b) {
   return a < b ? b : a;
 }

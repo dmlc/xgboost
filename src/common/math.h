@@ -38,6 +38,9 @@ XGBOOST_DEVICE inline double Sigmoid(double x) {
   auto y = 1.0 / denom;
   return y;
 }
+
+XGBOOST_DEVICE inline float Logit(float x) { return -logf(1.0f / x - 1.0f); }
+
 /*!
  * \brief Equality test for both integer and floating point.
  */
