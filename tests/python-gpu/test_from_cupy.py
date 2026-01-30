@@ -124,6 +124,10 @@ def _test_cupy_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
 
     run_base_margin_info(cp.asarray, DMatrixT, "cuda")
 
+    dmat_cupy = DMatrixT(cp.array(X))
+    y = dmat_cupy.get_label()
+    assert y.size == 0
+
 
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_sklearn())

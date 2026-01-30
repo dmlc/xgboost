@@ -628,73 +628,25 @@ void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
   }
 }
 
-void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
-                       const void** out_dptr) const {
-  using xgboost::data::MetaField;
-
-  if (dtype == DataType::kFloat32) {
-    const std::vector<bst_float>* vec = nullptr;
-    switch (data::MapMetaField(StringView{key}, false)) {
-      case MetaField::kLabel: {
-        vec = &this->labels.Data()->ConstHostVector();
-        break;
-      }
-      case MetaField::kWeight: {
-        vec = &this->weights_.ConstHostVector();
-        break;
-      }
-      case MetaField::kBaseMargin: {
-        vec = &this->base_margin_.Data()->ConstHostVector();
-        break;
-      }
-      case MetaField::kLabelLowerBound: {
-        vec = &this->labels_lower_bound_.ConstHostVector();
-        break;
-      }
-      case MetaField::kLabelUpperBound: {
-        vec = &this->labels_upper_bound_.ConstHostVector();
-        break;
-      }
-      case MetaField::kFeatureWeights: {
-        vec = &this->feature_weights.ConstHostVector();
-        break;
-      }
-      default: {
-        LOG(FATAL) << "Unknown float field name: " << key;
-      }
-    }
-    *out_len = static_cast<xgboost::bst_ulong>(vec->size());  // NOLINT
-    *reinterpret_cast<float const**>(out_dptr) = dmlc::BeginPtr(*vec);
-  } else if (dtype == DataType::kUInt32) {
-    const std::vector<unsigned>* vec = nullptr;
-    if (!std::strcmp(key, "group_ptr")) {
-      vec = &this->group_ptr_;
-    } else {
-      LOG(FATAL) << "Unknown uint32 field name: " << key;
-    }
-    *out_len = static_cast<xgboost::bst_ulong>(vec->size());
-    *reinterpret_cast<unsigned const**>(out_dptr) = dmlc::BeginPtr(*vec);
-  } else {
-    LOG(FATAL) << "Unknown data type for getting meta info.";
-  }
-}
-
-void MetaInfo::GetInfo(Context const* ctx, StringView key, std::string* out_array) const {
+[[nodiscard]] TypedArrayRef MetaInfo::GetInfo(Context const* ctx, StringView key) const {
   (void)ctx;  // TODO(jiamingy): Return the data in device memory.
   auto get_vec_aif = [](HostDeviceVector<float> const& vec) {
     auto hv = vec.ConstHostSpan();
-    return linalg::ArrayInterfaceStr(linalg::MakeVec(DeviceOrd::CPU(), hv));
+    return TypedArrayRef{DataType::kFloat32, TypedArrayRef::Shape{hv.size(), 1},
+                         TypedArrayRef::SizeType{1}, hv.data()};
   };
-  auto get_mat_aif = [](linalg::Matrix<float> const& mat) {
+  auto get_mat_aif = [get_vec_aif](linalg::Matrix<float> const& mat) {
     if (mat.Shape(1) <= 1) {
       // Compatible with old XGBoost when we didn't have matrix info.
-      return linalg::ArrayInterfaceStr(mat.HostView().Slice(linalg::All(), 0));
+      return get_vec_aif(*mat.Data());
     } else {
-      return linalg::ArrayInterfaceStr(mat.HostView());
+      auto hv = mat.HostView();
+      return TypedArrayRef{DataType::kFloat32, TypedArrayRef::Shape{hv.Shape(0), hv.Shape(1)},
+                           TypedArrayRef::SizeType{2}, hv.Values().data()};
     }
   };
 
-  std::string aif;
+  TypedArrayRef aif;
   using xgboost::data::MetaField;
 
   switch (data::MapMetaField(key, false)) {
@@ -723,7 +675,9 @@ void MetaInfo::GetInfo(Context const* ctx, StringView key, std::string* out_arra
       break;
     }
     case MetaField::kGroupPtr: {
-      aif = linalg::ArrayInterfaceStr(linalg::MakeVec(this->group_ptr_));
+      auto const& gptr = this->group_ptr_;
+      aif = TypedArrayRef{DataType::kUInt32, TypedArrayRef::Shape{gptr.size()},
+                          TypedArrayRef::SizeType{1}, gptr.data()};
       break;
     }
     case MetaField::kQid: {
@@ -735,7 +689,7 @@ void MetaInfo::GetInfo(Context const* ctx, StringView key, std::string* out_arra
     }
   }
 
-  *out_array = aif;
+  return aif;
 }
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {

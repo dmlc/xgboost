@@ -13,6 +13,27 @@
 
 #endif  // !defined(XGBOOST_USE_CUDA)
 
+namespace xgboost {
+std::string TypedArrayRef::ArrayInterfaceStr() const {
+  return data::DispatchDType(this->dtype, [this](auto dtype) {
+    using DType = decltype(dtype);
+    auto ptr = static_cast<std::add_pointer_t<std::add_const_t<DType>>>(this->data);
+    if (this->ndim == 1) {
+      auto vec = linalg::MakeVec(ptr, this->shape.front());
+      return linalg::ArrayInterfaceStr(vec);
+    } else {
+      auto n = this->Size();
+      if (ptr) {
+        CHECK_GT(n, 0);
+      }
+      auto mat = linalg::MakeTensorView(DeviceOrd::CPU(), common::Span{ptr, n}, this->shape[0],
+                                        this->shape[1]);
+      return linalg::ArrayInterfaceStr(mat);
+    }
+  });
+}
+}  // namespace xgboost
+
 namespace xgboost::data {
 void CheckFeatureTypes(HostDeviceVector<FeatureType> const& lhs,
                        HostDeviceVector<FeatureType> const& rhs) {

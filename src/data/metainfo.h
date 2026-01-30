@@ -83,4 +83,28 @@ void CheckFeatureTypes(HostDeviceVector<FeatureType> const& lhs,
 
 void CheckFeatureTypes(HostDeviceVector<FeatureType> const& lhs,
                        HostDeviceVector<FeatureType> const& rhs);
+
+// TODO(jiamingy): We have two sets of dtypes in XGBoost, one in `data.h`, another one in array
+// interface. We should unify them.
+template <typename Fn>
+decltype(auto) DispatchDType(DataType dtype, Fn&& fn) {
+  switch (dtype) {
+    case xgboost::DataType::kFloat32: {
+      return fn(float{});
+    }
+    case xgboost::DataType::kDouble: {
+      return fn(double{});
+    }
+    case xgboost::DataType::kUInt32: {
+      return fn(std::uint32_t{});
+    }
+    case xgboost::DataType::kUInt64: {
+      return fn(std::uint64_t{});
+    }
+    default:
+      LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype);
+  }
+  LOG(FATAL) << "Unreachable";
+  return fn(float{});
+}
 }  // namespace xgboost::data

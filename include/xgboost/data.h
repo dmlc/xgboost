@@ -17,6 +17,7 @@
 #include <xgboost/string_view.h>
 
 #include <algorithm>
+#include <array>    // for array
 #include <cstdint>  // for int32_t, uint8_t
 #include <limits>
 #include <memory>
@@ -44,6 +45,27 @@ enum class DataSplitMode : int { kRow = 0, kCol = 1 };
 
 // Forward declaration of the container used by the meta info.
 class CatContainer;
+
+/** @brief Used as a reference to a linalg::Matrix, or a vector */
+struct TypedArrayRef {
+  using SizeType = linalg::VectorView<float>::SizeType;
+  // 2-dim is the maximum for return type, we can use larger ones if needed.
+  using Shape = std::array<SizeType, 2>;
+
+  DataType dtype{DataType::kFloat32};
+  Shape shape{0, 0};
+  SizeType ndim{0};
+  void const* data{nullptr};
+
+  [[nodiscard]] std::string ArrayInterfaceStr() const;
+  [[nodiscard]] SizeType Size() const {
+    if (ndim == 1) {
+      return shape[0];
+    } else {
+      return shape[0] * shape[1];
+    }
+  }
+};
 
 /**
  * @brief Meta information about dataset, always sit in memory.
@@ -157,10 +179,8 @@ class MetaInfo {
    * @param in_array String representation of json format array interface.
    */
   void SetInfo(Context const& ctx, StringView key, StringView in_array);
-  // Deprecated getter
-  void GetInfo(char const* key, bst_ulong* out_len, DataType dtype, const void** out_dptr) const;
-  /** @brief Return a JSON-encoded array for a meta info. */
-  void GetInfo(Context const* ctx, StringView key, std::string* out_array) const;
+  /** @brief Return an array reference for a meta info. */
+  [[nodiscard]] TypedArrayRef GetInfo(Context const* ctx, StringView key) const;
 
   void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
   void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;

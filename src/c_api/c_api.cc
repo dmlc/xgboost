@@ -26,6 +26,7 @@
 #include "../data/batch_utils.h"         // for MatchingPageBytes, CachePageRatio
 #include "../data/cat_container.h"       // for CatContainer
 #include "../data/ellpack_page.h"        // for EllpackPage
+#include "../data/metainfo.h"            // for DispatchDType
 #include "../data/proxy_dmatrix.h"       // for DMatrixProxy
 #include "../data/simple_dmatrix.h"      // for SimpleDMatrix
 #include "../encoder/types.h"            // for Overloaded
@@ -830,51 +831,26 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
   API_BEGIN();
   CHECK_HANDLE();
   LOG(WARNING) << error::DeprecatedFunc(__func__, "2.1.0", "XGDMatrixSetInfoFromInterface");
-  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   CHECK(type >= 1 && type <= 4);
   xgboost_CHECK_C_ARG_PTR(field);
 
   Context ctx;
   auto dtype = static_cast<DataType>(type);
-  std::string str;
-  auto proc = [&](auto cast_d_ptr) {
-    using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
-    auto t = linalg::TensorView<T, 1>(
-        common::Span<T>{cast_d_ptr, static_cast<typename common::Span<T>::index_type>(size)},
+
+  // Legacy code using XGBoost dtype, which is a small subset of array interface types.
+  data::DispatchDType(dtype, [&](auto dtype) {
+    using DType = decltype(dtype);
+    auto cast_d_ptr = reinterpret_cast<const DType *>(data);
+    auto t = linalg::TensorView<DType const, 1>(
+        common::Span<DType const>{cast_d_ptr,
+                                  static_cast<typename common::Span<DType>::index_type>(size)},
         {size}, DeviceOrd::CPU());
     CHECK(t.CContiguous());
     Json iface{linalg::ArrayInterface(t)};
     CHECK(ArrayInterface<1>{iface}.is_contiguous);
-    str = Json::Dump(iface);
+    std::string str = Json::Dump(iface);
     return str;
-  };
-
-  // Legacy code using XGBoost dtype, which is a small subset of array interface types.
-  switch (dtype) {
-    case xgboost::DataType::kFloat32: {
-      auto cast_ptr = reinterpret_cast<const float *>(data);
-      p_fmat->Info().SetInfo(ctx, field, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kDouble: {
-      auto cast_ptr = reinterpret_cast<const double *>(data);
-      p_fmat->Info().SetInfo(ctx, field, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kUInt32: {
-      auto cast_ptr = reinterpret_cast<const uint32_t *>(data);
-      p_fmat->Info().SetInfo(ctx, field, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kUInt64: {
-      auto cast_ptr = reinterpret_cast<const uint64_t *>(data);
-      p_fmat->Info().SetInfo(ctx, field, proc(cast_ptr));
-      break;
-    }
-    default:
-      LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype);
-  }
-
+  });
   API_END();
 }
 
@@ -886,40 +862,44 @@ XGB_DLL int XGDMatrixGetInfoRef(DMatrixHandle handle, char const *field, char co
 
   auto p_fmat = CastDMatrixHandle(handle);
   MetaInfo const &info = p_fmat->Info();
+  auto aif = info.GetInfo(p_fmat->Ctx(), StringView{field});
 
   auto &res = p_fmat->GetThreadLocal().ret_str;
-  info.GetInfo(p_fmat->Ctx(), StringView{field}, &res);
-
+  res = aif.ArrayInterfaceStr();
   *out_array = res.c_str();
+
   API_END();
 }
 
-XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
-                                  const char* field,
-                                  xgboost::bst_ulong* out_len,
-                                  const bst_float** out_dptr) {
+namespace {
+template <typename T>
+int OldGetInfoImpl(const DMatrixHandle handle, const char *field, xgboost::bst_ulong *out_len,
+                   const T **out_dptr, DataType dtype) {
   API_BEGIN();
   CHECK_HANDLE();
+  auto p_fmat = CastDMatrixHandle(handle);
+  const MetaInfo &info = p_fmat->Info();
+
   xgboost_CHECK_C_ARG_PTR(field);
-  const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info();
   xgboost_CHECK_C_ARG_PTR(out_len);
   xgboost_CHECK_C_ARG_PTR(out_dptr);
-  info.GetInfo(field, out_len, DataType::kFloat32, reinterpret_cast<void const**>(out_dptr));
+
+  auto aif = info.GetInfo(p_fmat->Ctx(), StringView{field});
+  CHECK(aif.dtype == dtype) << "Invalid dtype for the requested field: `" << field << "`";
+  *out_len = aif.Size();
+  *out_dptr = static_cast<T const *>(aif.data);
   API_END();
 }
+}  // namespace
 
-XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
-                                 const char *field,
-                                 xgboost::bst_ulong *out_len,
-                                 const unsigned **out_dptr) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(field);
-  const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info();
-  xgboost_CHECK_C_ARG_PTR(out_len);
-  xgboost_CHECK_C_ARG_PTR(out_dptr);
-  info.GetInfo(field, out_len, DataType::kUInt32, reinterpret_cast<void const**>(out_dptr));
-  API_END();
+XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle, const char *field,
+                                  xgboost::bst_ulong *out_len, const float **out_dptr) {
+  return OldGetInfoImpl(handle, field, out_len, out_dptr, DataType::kFloat32);
+}
+
+XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle, const char *field,
+                                 xgboost::bst_ulong *out_len, const unsigned **out_dptr) {
+  return OldGetInfoImpl(handle, field, out_len, out_dptr, DataType::kUInt32);
 }
 
 namespace {
