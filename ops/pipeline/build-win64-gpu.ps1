@@ -21,8 +21,8 @@ cmake .. -G"Ninja" -DCMAKE_BUILD_TYPE=Release `
   -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_CUDA_COMPILER_LAUNCHER=sccache `
   ${arch_flag}
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-cmake --build . --config Release -- /m /nodeReuse:false `
-  "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
+
+cmake --build . -v
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 Write-Host "--- Build binary wheel"
