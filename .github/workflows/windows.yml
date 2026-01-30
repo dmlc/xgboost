@@ -1,4 +1,4 @@
-name: XGBoost CI (Windows)
+name: Windows
 
 on: [push, pull_request]
 
@@ -68,7 +68,7 @@ jobs:
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
       - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
-          - version: v0.13.0-rapids.5
+          version: v0.13.0-rapids.5
       - name: Unstash files
         shell: powershell
         run: |
