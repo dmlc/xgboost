@@ -1,18 +1,18 @@
 ## Build XGBoost on Windows (CPU or GPU)
 ##
 ## Usage:
-##   build-win64.ps1 --variant <cpu|gpu>
+##   build-win64.ps1 -variant <cpu|gpu>
 ##
 ## Parameters:
-##   --variant cpu  - Build CPU-only version (creates xgboost-cpu wheel)
-##   --variant gpu  - Build with CUDA support (creates default xgboost wheel, includes gtest)
+##   -variant cpu  - Build CPU-only version (creates xgboost-cpu wheel)
+##   -variant gpu  - Build with CUDA support (creates default xgboost wheel, includes gtest)
 ##
 ## Examples:
 ##   # Build CPU wheel (xgboost-cpu)
-##   powershell ops/pipeline/build-win64.ps1 --variant cpu
+##   ops/pipeline/build-win64.ps1 -variant cpu
 ##
 ##   # Build GPU wheel with CUDA
-##   powershell ops/pipeline/build-win64.ps1 --variant gpu
+##   ops/pipeline/build-win64.ps1 -variant gpu
 
 param(
   [Parameter(Mandatory=$true)]
