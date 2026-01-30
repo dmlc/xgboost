@@ -3,6 +3,9 @@
  */
 #include "metainfo.h"
 
+#include <string>       // for string
+#include <type_traits>  // for add_pointer_t
+
 #include "../common/error_msg.h"         // for InconsistentFeatureTypes
 #include "xgboost/data.h"                // for FeatureType
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
@@ -25,6 +28,9 @@ std::string TypedArrayRef::ArrayInterfaceStr() const {
       auto n = this->Size();
       if (ptr) {
         CHECK_GT(n, 0);
+      }
+      if (n > 0) {
+        CHECK(ptr);
       }
       auto mat = linalg::MakeTensorView(DeviceOrd::CPU(), common::Span{ptr, n}, this->shape[0],
                                         this->shape[1]);

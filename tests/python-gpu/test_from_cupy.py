@@ -127,6 +127,10 @@ def _test_cupy_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     dmat_cupy = DMatrixT(cp.array(X))
     y = dmat_cupy.get_label()
     assert y.size == 0
+    y = cp.array(X)
+    dmat_cupy.set_label(y)
+    y1 = dmat_cupy.get_label()
+    assert_allclose("cuda", y1, y)
 
 
 @pytest.mark.skipif(**tm.no_cupy())

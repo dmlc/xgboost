@@ -7,6 +7,7 @@
 #include <cstdint>  // for int8_t
 #include <vector>   // for vector
 
+#include "../common/error_msg.h"         // for Unreachable
 #include "xgboost/base.h"                // for bst_group_t
 #include "xgboost/data.h"                // for FeatureType
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
@@ -104,7 +105,7 @@ decltype(auto) DispatchDType(DataType dtype, Fn&& fn) {
     default:
       LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype);
   }
-  LOG(FATAL) << "Unreachable";
+  error::Unreachable();
   return fn(float{});
 }
 }  // namespace xgboost::data

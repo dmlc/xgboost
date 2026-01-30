@@ -646,50 +646,42 @@ void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
     }
   };
 
-  TypedArrayRef aif;
   using xgboost::data::MetaField;
 
   switch (data::MapMetaField(key, false)) {
     case MetaField::kLabel: {
-      aif = get_mat_aif(this->labels);
-      break;
+      return get_mat_aif(this->labels);
     }
     case MetaField::kWeight: {
-      aif = get_vec_aif(this->weights_);
-      break;
+      return get_vec_aif(this->weights_);
     }
     case MetaField::kBaseMargin: {
-      aif = get_mat_aif(this->base_margin_);
-      break;
+      return get_mat_aif(this->base_margin_);
     }
     case MetaField::kLabelLowerBound: {
-      aif = get_vec_aif(this->labels_lower_bound_);
-      break;
+      return get_vec_aif(this->labels_lower_bound_);
     }
     case MetaField::kLabelUpperBound: {
-      aif = get_vec_aif(this->labels_upper_bound_);
-      break;
+      return get_vec_aif(this->labels_upper_bound_);
     }
     case MetaField::kFeatureWeights: {
-      aif = get_vec_aif(this->feature_weights);
-      break;
+      return get_vec_aif(this->feature_weights);
     }
     case MetaField::kGroupPtr: {
       auto const& gptr = this->group_ptr_;
-      aif = TypedArrayRef{DataType::kUInt32, TypedArrayRef::Shape{gptr.size()},
-                          TypedArrayRef::SizeType{1}, gptr.data()};
-      break;
+      return TypedArrayRef{DataType::kUInt32, TypedArrayRef::Shape{gptr.size()},
+                           TypedArrayRef::SizeType{1}, gptr.data()};
     }
     case MetaField::kQid: {
       LOG(FATAL) << "Retrieving `qid` is not supported; use `group_ptr` instead.";
       break;
     }
     default: {
-      LOG(FATAL) << "Unknown float field name: " << key;
+      LOG(FATAL) << "Unknown field name: " << key;
     }
   }
-
-  return aif;
+  error::Unreachable();
+  return {};
 }
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {
