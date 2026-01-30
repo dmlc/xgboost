@@ -11,7 +11,8 @@
 #include <type_traits>  // for is_reference_v, remove_reference_t, is_same_v
 #include <utility>      // for swap, move
 
-#include "io.h"  // for ResourceHandler, AlignedResourceReadStream, MallocResource
+#include "io.h"               // for ResourceHandler, AlignedResourceReadStream, MallocResource
+#include "threading_utils.h"  // for ParallelFor
 #include "xgboost/logging.h"
 #include "xgboost/span.h"  // for Span
 
@@ -163,6 +164,27 @@ template <typename T>
   auto resource = std::make_shared<common::MallocResource>(n_elements * sizeof(T));
   auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
   std::fill_n(ref.data(), ref.size(), init);
+  return ref;
+}
+
+/**
+ * @brief Make a fixed size `RefResourceView` with malloc resource.
+ *
+ * Use n_threads to initialise the storage
+ */
+template <typename T>
+[[nodiscard]] RefResourceView<T> MakeFixedVecWithMalloc(std::size_t n_elements, T const& init,
+                                                        std::int32_t n_threads) {
+  auto resource = std::make_shared<common::MallocResource>(n_elements * sizeof(T));
+  auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
+
+  std::size_t block_size = n_elements / n_threads + (n_elements % n_threads > 0);
+  ParallelFor(n_threads, n_threads, [&](auto tid) {
+    auto begin = tid * block_size;
+    auto end = std::min((tid + 1) * block_size, n_elements);
+    auto size = end > begin ? end - begin : 0;
+    std::fill_n(ref.data() + begin, size, init);
+  });
   return ref;
 }
 

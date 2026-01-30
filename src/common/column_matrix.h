@@ -13,6 +13,7 @@
 #include <cstdint>  // for uint8_t
 #include <limits>
 #include <memory>
+#include <vector>
 #include <type_traits>  // for enable_if_t, is_same_v, is_signed_v
 
 #include "../data/adapter.h"  // for SparsePageAdapterBatch
@@ -145,15 +146,18 @@ class DenseColumnIter : public Column<BinIdxT> {
  *    in a column is below the threshold it's classified as dense column.
  */
 class ColumnMatrix {
-  /**
-   * @brief A bit set for indicating whether an element in a dense column is missing.
-   */
+/**
+ * @brief A bit set for indicating whether an element in a dense column is missing.
+ * Access is carefully managed to ensure thread safety during parallel operations.
+ */
   struct MissingIndicator {
     using BitFieldT = LBitField32;
     using T = typename BitFieldT::value_type;
 
     BitFieldT missing;
     RefResourceView<T> storage;
+    // Feature offset padded to allow concurrent access.
+    RefResourceView<std::size_t> feature_offsets_padded;
     static_assert(std::is_same_v<T, std::uint32_t>);
 
     template <typename U>
@@ -161,24 +165,64 @@ class ColumnMatrix {
       return init ? ~U{0} : U{0};
     }
 
+    /**
+     * @param feature_offsets Offset of the first element for each feature
+     * @param type            Type of each column (Dense or Sparse).
+     */
+    void InitOffsetsPadded(const RefResourceView<std::size_t>& feature_offsets,
+                           const RefResourceView<ColumnType>& type) {
+      if (feature_offsets_padded.size() != feature_offsets.size()) {
+        CHECK(feature_offsets_padded.empty());
+        feature_offsets_padded = common::MakeFixedVecWithMalloc(feature_offsets.size(),
+                                                                std::size_t{0});
+      }
+
+      /*
+       * For missing indicator feature offsets are aligned to be a factor of
+       * BitFieldT::kValueSize (4 bytes).
+       * This is critical requirement for thread-safe access to bitfield.
+       * Each word processed by one thread.
+       */
+      for (std::size_t fid = 1; fid < feature_offsets.size(); ++fid) {
+        if (type[fid - 1] == ColumnType::kDenseColumn) {
+          std::size_t n_rows = feature_offsets[fid] - feature_offsets[fid - 1];
+          std::size_t n_rows_padded =
+              DivRoundUp(n_rows, BitFieldT::kValueSize) * BitFieldT::kValueSize;
+          feature_offsets_padded[fid] = feature_offsets_padded[fid - 1] + n_rows_padded;
+        } else {
+          feature_offsets_padded[fid] = feature_offsets_padded[fid - 1];
+        }
+      }
+    }
+
     MissingIndicator() = default;
     /**
      * @param n_elements Size of the bit set
      * @param init       Initialize the indicator to true or false.
      */
-    MissingIndicator(std::size_t n_elements, bool init) {
+    MissingIndicator(const RefResourceView<std::size_t>& feature_offsets,
+                     const RefResourceView<ColumnType>& type, bool init) {
+      this->InitOffsetsPadded(feature_offsets, type);
+      size_t n_elements = feature_offsets_padded.back();
       auto m_size = missing.ComputeStorageSize(n_elements);
       storage = common::MakeFixedVecWithMalloc(m_size, InitValue<T>(init));
       this->InitView();
     }
-    /** @brief Set the i^th element to be a valid element (instead of missing). */
-    void SetValid(typename LBitField32::index_type i) { missing.Clear(i); }
+    /** @brief Set the i^th element corresponding to feature fid
+      * to be a valid element (instead of missing). */
+    void SetValid(typename LBitField32::index_type i, std::size_t fid) {
+      missing.Clear(feature_offsets_padded[fid] + i);
+    }
     /** @brief assign the storage to the view. */
     void InitView() {
       missing = LBitField32{Span{storage.data(), static_cast<size_t>(storage.size())}};
     }
 
-    void GrowTo(std::size_t n_elements, bool init) {
+    void GrowTo(const RefResourceView<std::size_t>& feature_offsets,
+                const RefResourceView<ColumnType>& type, bool init) {
+      this->InitOffsetsPadded(feature_offsets, type);
+      size_t n_elements = feature_offsets_padded.back();
+
       CHECK(storage.Resource()->Type() == ResourceHandler::kMalloc)
           << "[Internal Error]: Cannot grow the vector when external memory is used.";
       auto m_size = missing.ComputeStorageSize(n_elements);
@@ -196,22 +240,30 @@ class ColumnMatrix {
     }
   };
 
-  void InitStorage(GHistIndexMatrix const& gmat, double sparse_threshold);
+  void InitStorage(GHistIndexMatrix const& gmat, double sparse_threshold, int n_threads);
 
   template <typename ColumnBinT, typename BinT, typename RIdx>
   void SetBinSparse(BinT bin_id, RIdx rid, bst_feature_t fid, ColumnBinT* local_index) {
+    ColumnBinT* begin = &local_index[feature_offsets_[fid]];
     if (type_[fid] == kDenseColumn) {
-      ColumnBinT* begin = &local_index[feature_offsets_[fid]];
       begin[rid] = bin_id - index_base_[fid];
-      // not thread-safe with bit field.
-      // FIXME(jiamingy): We can directly assign kMissingId to the index to avoid missing
-      // flags.
-      missing_.SetValid(feature_offsets_[fid] + rid);
+      missing_.SetValid(rid, fid);
     } else {
-      ColumnBinT* begin = &local_index[feature_offsets_[fid]];
       begin[num_nonzeros_[fid]] = bin_id - index_base_[fid];
       row_ind_[feature_offsets_[fid] + num_nonzeros_[fid]] = rid;
       ++num_nonzeros_[fid];
+    }
+  }
+
+  template <typename ColumnBinT, typename BinT, typename RIdx>
+  void SetBinSparse(BinT bin_id, RIdx rid, bst_feature_t fid, ColumnBinT* local_index, size_t nnz) {
+    ColumnBinT* begin = &local_index[feature_offsets_[fid]];
+    if (type_[fid] == kDenseColumn) {
+      begin[rid] = bin_id - index_base_[fid];
+      missing_.SetValid(rid, fid);
+    } else {
+      begin[nnz] = bin_id - index_base_[fid];
+      row_ind_[feature_offsets_[fid] + nnz] = rid;
     }
   }
 
@@ -222,8 +274,8 @@ class ColumnMatrix {
   }
 
   ColumnMatrix() = default;
-  ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold) {
-    this->InitStorage(gmat, sparse_threshold);
+  ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold, int n_threads) {
+    this->InitStorage(gmat, sparse_threshold, n_threads);
   }
 
   /**
@@ -233,7 +285,7 @@ class ColumnMatrix {
   void InitFromSparse(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
                       int32_t n_threads) {
     auto batch = data::SparsePageAdapterBatch{page.GetView()};
-    this->InitStorage(gmat, sparse_threshold);
+    this->InitStorage(gmat, sparse_threshold, n_threads);
     // ignore base row id here as we always has one column matrix for each sparse page.
     this->PushBatch(n_threads, batch, std::numeric_limits<float>::quiet_NaN(), gmat, 0);
   }
@@ -284,7 +336,7 @@ class ColumnMatrix {
         SetIndexNoMissing(base_rowid, gmat.index.data<RowBinIdxT>(), size, n_features, n_threads);
       });
     } else {
-      SetIndexMixedColumns(base_rowid, batch, gmat, missing);
+      SetIndexMixedColumns(base_rowid, batch, gmat, missing, n_threads);
     }
   }
 
@@ -317,8 +369,13 @@ class ColumnMatrix {
     common::Span<const BinIdxType> bin_index = {
         reinterpret_cast<const BinIdxType*>(&index_[feature_offset * bins_type_size_]),
         column_size};
+    /*
+     * Pass the pre-calculated starting offset missing_.feature_offsets_expand[fidx]
+     * in the bitfield for this specific feature (fidx).
+     */
     return DenseColumnIter<BinIdxType, any_missing>{
-        bin_index, static_cast<bst_bin_t>(index_base_[fidx]), missing_.missing, feature_offset};
+        bin_index, static_cast<bst_bin_t>(index_base_[fidx]), missing_.missing,
+                                          missing_.feature_offsets_padded[fidx]};
   }
 
   // all columns are dense column and has no missing value
@@ -326,7 +383,7 @@ class ColumnMatrix {
   template <typename RowBinIdxT>
   void SetIndexNoMissing(bst_idx_t base_rowid, RowBinIdxT const* row_index, const size_t n_samples,
                          const size_t n_features, int32_t n_threads) {
-    missing_.GrowTo(feature_offsets_[n_features], false);
+    missing_.GrowTo(feature_offsets_, type_, false);
 
     DispatchBinType(bins_type_size_, [&](auto t) {
       using ColumnBinT = decltype(t);
@@ -349,11 +406,11 @@ class ColumnMatrix {
    * \brief Set column index for both dense and sparse columns
    */
   template <typename Batch>
-  void SetIndexMixedColumns(size_t base_rowid, Batch const& batch, const GHistIndexMatrix& gmat,
-                            float missing) {
+  void SetIndexMixedColumns(bst_idx_t base_rowid, Batch const& batch, const GHistIndexMatrix& gmat,
+                            float missing, int n_threads) {
     auto n_features = gmat.Features();
 
-    missing_.GrowTo(feature_offsets_[n_features], true);
+    missing_.GrowTo(feature_offsets_, type_, true);
     auto const* row_index = gmat.index.data<std::uint32_t>() + gmat.row_ptr[base_rowid];
     if (num_nonzeros_.empty()) {
       num_nonzeros_ = common::MakeFixedVecWithMalloc(n_features, std::size_t{0});
@@ -367,19 +424,156 @@ class ColumnMatrix {
       using ColumnBinT = decltype(t);
       ColumnBinT* local_index = reinterpret_cast<ColumnBinT*>(index_.data());
       size_t const batch_size = batch.Size();
-      size_t k{0};
-      for (size_t rid = 0; rid < batch_size; ++rid) {
-        auto line = batch.GetLine(rid);
-        for (size_t i = 0; i < line.Size(); ++i) {
-          auto coo = line.GetElement(i);
-          if (is_valid(coo)) {
-            auto fid = coo.column_idx;
-            const uint32_t bin_id = row_index[k];
-            SetBinSparse(bin_id, rid + base_rowid, fid, local_index);
-            ++k;
+
+      /* Parallel sparse batch processing
+       *
+       * This section processes the input batch in parallel across multiple threads.
+       *
+       * rows [base_rowid, batch_size + base_rowid) are divided into `n_threads` blocks.
+       * Threads process the assigned blocks of rows in parallel.
+       *
+       * As the indicator of the missing elements is stored in a bitfield, to ensure thread-safe
+       * access to the bitfield, each underlying word of the bitfield
+       * of size MissingIndicator::BitFieldT::kValueSize should be processed by
+       * a single thread. Therefore, we align the row-blocks accordingly.
+       *
+       * block_size - size of the row block assigned to each thread, divisible by the kValueSize.
+       * shift - adjustment applied to the starting row (base_rowid)
+       *         of each thread (except for the 0-th thread)
+       *         to ensure that each thread starts processing from a word boundary in the bitfield.
+       *
+       * 0-th thread processes rows
+       *      [base_rowid, base_rowid + shift + block_size)
+       * 1-st thread processes rows
+       *      [base_rowid + shift +     block_size, base_rowid + shift + 2 * block_size)
+       * 2-nd thread processes rows
+       *      [base_rowid + shift + 2 * block_size, base_rowid + shift + 3 * block_size)
+       * ...
+       * (n_threads-1)-th thread processes rows
+       *      [base_rowid + shift + (n_threads-1) * block_size, base_rowid + batch_size)
+       *
+       * Computations are done in two passes:
+       * 1) Counting non-zero elements per feature per thread
+       *    to determine their offsets for the next step.
+       *    a) Counting non-zero elements per feature per thread.
+       *    b) Aggregating counts to determine offsets.
+       * 2) Placing elements into the sparse structure using calculated offsets of non-zero elements.
+       */
+
+      // number of non-zero elements per feature per thread
+      dmlc::OMPException exc;
+            std::vector<size_t> n_elements((n_threads + 1) * n_features, 0);
+      /* n_elements[tid * n_features + fid] =
+       *   number of non-zero elements of feature fid processed by thread tid
+       * n_elements[n_threads * n_features + fid] =
+       *   total number of non-zero elements of feature fid
+       */
+
+      // offsets of non-zero elements for each thread
+      std::vector<size_t> k_offsets(n_threads + 1, 0);
+      // k_offsets[0] = 0;
+      // k_offsets[tid] - starting offset of non-zero elements processed by thread tid
+      const auto word32size = MissingIndicator::BitFieldT::kValueSize;
+
+      size_t block_size = DivRoundUp(batch_size, n_threads);   // preliminary block size
+      // align block_size to be multiple of kValueSize,
+      // so that each thread processes full words in the bitfield
+      block_size = DivRoundUp(block_size, word32size) * word32size;
+      /*
+       * To prevent race conditions on the bitfield, we ensure each thread operates on
+       * distinct 32-bit words. If a data batch (starting at `base_rowid`) doesn't align
+       * with a word boundary, this `shift` is calculated. It represents the number of rows
+       * the first thread must process to reach the next aligned word. This guarantees all
+       * subsequent thread workloads start on a clean boundary, making parallel updates safe.
+       */
+      size_t shift = word32size - (base_rowid % word32size);
+      /*
+       * If `base_rowid` is already on a word boundary, the calculation results in
+       * `kValueSize`. In this case, no shift is needed.
+       */
+      if (shift == word32size) shift = 0;
+
+      // Parallel row processing for thread-local counting.
+      #pragma omp parallel num_threads(n_threads)
+      {
+        exc.Run([&, is_valid]() {
+          int tid = omp_get_thread_num();
+          size_t begin = block_size * tid;
+          size_t end = std::min(begin + shift + block_size, batch_size);
+          // Apply shift for threads > 0 to maintain word alignment across blocks.
+          if (tid > 0) {
+            begin += shift;
           }
-        }
+          for (size_t rid = begin; rid < end; ++rid) {
+            const auto& line = batch.GetLine(rid);
+            for (size_t i = 0; i < line.Size(); ++i) {
+              auto coo = line.GetElement(i);
+              if (is_valid(coo)) {
+                auto fid = coo.column_idx;
+                if ((type_[fid] != kDenseColumn)) {
+                  n_elements[(tid + 1) * n_features + fid] += 1;
+                }
+                k_offsets[tid + 1] += 1;
+              }
+            }
+          }
+        });
       }
+      exc.Rethrow();
+
+      // Parallel feature processing to aggregate counts & calculate offsets.
+      //
+      // Compute the number of non-zero elements per feature per thread (n_elements)
+      // and the offsets to non-zero elements per thread (k_offsets).
+      //
+      // The final values of n_elements and k_offsets will be calculated
+      // after counting the number of non-zero elements per thread.
+      ParallelFor(n_features, n_threads, [&](auto fid) {
+        n_elements[fid] += num_nonzeros_[fid];
+        for (int tid = 0; tid < n_threads; ++tid) {
+          n_elements[(tid + 1) * n_features + fid] +=
+            n_elements[tid * n_features + fid];
+        }
+        num_nonzeros_[fid] = n_elements[n_threads * n_features + fid];
+      });
+      std::partial_sum(k_offsets.cbegin(), k_offsets.cend(), k_offsets.begin());
+
+      // Parallel row processing to place data using offsets into sparse structure.
+      #pragma omp parallel num_threads(n_threads)
+      {
+        // offsets of non-zero elements per feature for the current thread
+        std::vector<size_t> nnz_offsets(n_features, 0);
+        // nnz_offsets[fid] =
+        // number of non-zero elements of feature fid already processed by this thread
+        exc.Run([&, is_valid, base_rowid, row_index]() {
+          int tid = omp_get_thread_num();
+          size_t begin = block_size * tid;
+          size_t end = std::min(begin + shift + block_size, batch_size);
+          // Apply shift for threads > 0 to maintain word alignment across blocks.
+          if (tid > 0) {
+            begin += shift;
+          }
+
+          size_t k = 0;
+          for (size_t rid = begin; rid < end; ++rid) {
+            const auto& line = batch.GetLine(rid);
+            for (size_t i = 0; i < line.Size(); ++i) {
+              auto coo = line.GetElement(i);
+              if (is_valid(coo)) {
+                auto fid = coo.column_idx;
+                // get the correct offset for this thread
+                const uint32_t bin_id = row_index[k_offsets[tid] + k];
+                // calculate the correct nnz for this feature and this thread
+                size_t nnz = n_elements[tid * n_features + fid] + nnz_offsets[fid];
+                SetBinSparse(bin_id, rid + base_rowid, fid, local_index, nnz);
+                ++k;
+                nnz_offsets[fid] += (type_[fid] != kDenseColumn);
+              }
+            }
+          }
+        });
+      }
+      exc.Rethrow();
     });
   }
 
@@ -390,7 +584,7 @@ class ColumnMatrix {
   void SetIndexMixedColumns(const GHistIndexMatrix& gmat) {
     auto n_features = gmat.Features();
 
-    missing_ = MissingIndicator{feature_offsets_[n_features], true};
+    missing_ = MissingIndicator{feature_offsets_, type_, true};
     num_nonzeros_ = common::MakeFixedVecWithMalloc(n_features, std::size_t{0});
 
     DispatchBinType(bins_type_size_, [&](auto t) {

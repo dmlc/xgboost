@@ -121,7 +121,7 @@ class GHistIndexMatrix {
 
     auto n_bins_total = cut.TotalBins();
     const size_t n_index = row_ptr[rbegin + batch.Size()];  // number of entries in this page
-    ResizeIndex(n_index, isDense_);
+    ResizeIndex(n_index, isDense_, n_threads);
     if (isDense_) {
       index.SetBinOffset(cut.Ptrs());
     }
@@ -142,7 +142,7 @@ class GHistIndexMatrix {
   }
 
   // The function is only created to avoid using the column matrix in the header.
-  void ResizeColumns(double sparse_thresh);
+  void ResizeColumns(double sparse_thresh, int n_threads);
 
  public:
   /** @brief row pointer to rows by element position */
@@ -224,7 +224,7 @@ class GHistIndexMatrix {
 
     if (rbegin + batch.Size() == n_samples_total) {
       // finished
-      this->ResizeColumns(sparse_thresh);
+      this->ResizeColumns(sparse_thresh, ctx->Threads());
     }
   }
 
@@ -233,7 +233,7 @@ class GHistIndexMatrix {
   void PushAdapterBatchColumns(Context const* ctx, Batch const& batch, float missing,
                                size_t rbegin);
 
-  void ResizeIndex(const size_t n_index, const bool isDense);
+  void ResizeIndex(const size_t n_index, const bool isDense, int n_threads);
 
   void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.Ptrs().size() - 1;
