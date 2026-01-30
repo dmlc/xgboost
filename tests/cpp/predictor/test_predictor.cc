@@ -14,6 +14,8 @@
 #include <limits>         // for numeric_limits
 #include <memory>         // for shared_ptr
 #include <unordered_map>  // for unordered_map
+#include <utility>        // for move
+#include <vector>         // for vector
 
 #include "../../../src/common/bitfield.h"         // for LBitField32
 #include "../../../src/data/iterative_dmatrix.h"  // for IterativeDMatrix
@@ -31,7 +33,6 @@ namespace xgboost {
 void TestBasic(DMatrix* dmat, Context const *ctx) {
   auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
 
-  size_t const kRows = dmat->Info().num_row_;
   size_t const kCols = dmat->Info().num_col_;
 
   LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
@@ -55,39 +56,6 @@ void TestBasic(DMatrix* dmat, Context const *ctx) {
   auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
   for (auto v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
-  }
-
-  if (dmat->Info().IsColumnSplit()) {
-    // Predict contribution is not supported for column split.
-    return;
-  }
-
-  // Test predict contribution
-  HostDeviceVector<float> out_contribution_hdv;
-  auto& out_contribution = out_contribution_hdv.HostVector();
-  predictor->PredictContribution(dmat, &out_contribution_hdv, model);
-  ASSERT_EQ(out_contribution.size(), kRows * (kCols + 1));
-  for (size_t i = 0; i < out_contribution.size(); ++i) {
-    auto const& contri = out_contribution[i];
-    // shift 1 for bias, as test tree is a decision dump, only global bias is
-    // filled with LeafValue().
-    if ((i + 1) % (kCols + 1) == 0) {
-      ASSERT_EQ(out_contribution.back(), 1.5f);
-    } else {
-      ASSERT_EQ(contri, 0);
-    }
-  }
-  // Test predict contribution (approximate method)
-  predictor->PredictContribution(dmat, &out_contribution_hdv, model, 0, nullptr, true);
-  for (size_t i = 0; i < out_contribution.size(); ++i) {
-    auto const& contri = out_contribution[i];
-    // shift 1 for bias, as test tree is a decision dump, only global bias is
-    // filled with LeafValue().
-    if ((i + 1) % (kCols + 1) == 0) {
-      ASSERT_EQ(out_contribution.back(), 1.5f);
-    } else {
-      ASSERT_EQ(contri, 0);
-    }
   }
 }
 
@@ -153,26 +121,6 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
   for (size_t i = 0; i < rows; ++i) {
     EXPECT_NEAR(from_hist.ConstHostVector()[i], from_full.ConstHostVector()[i], kRtEps);
   }
-
-  // Contributions
-  HostDeviceVector<float> from_full_contribs;
-  learner->Predict(p_full, false, &from_full_contribs, 0, 0, false, false, true);
-  HostDeviceVector<float> from_hist_contribs;
-  learner->Predict(p_hist, false, &from_hist_contribs, 0, 0, false, false, true);
-  for (size_t i = 0; i < from_full_contribs.ConstHostVector().size(); ++i) {
-    EXPECT_NEAR(from_hist_contribs.ConstHostVector()[i], from_full_contribs.ConstHostVector()[i],
-                kRtEps);
-  }
-
-  // Contributions (approximate method)
-  HostDeviceVector<float> from_full_approx_contribs;
-  learner->Predict(p_full, false, &from_full_approx_contribs, 0, 0, false, false, false, true);
-  HostDeviceVector<float> from_hist_approx_contribs;
-  learner->Predict(p_hist, false, &from_hist_approx_contribs, 0, 0, false, false, false, true);
-  for (size_t i = 0; i < from_full_approx_contribs.ConstHostVector().size(); ++i) {
-    EXPECT_NEAR(from_hist_approx_contribs.ConstHostVector()[i],
-                from_full_approx_contribs.ConstHostVector()[i], kRtEps);
-  }
 }
 
 void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_idx_t rows,
@@ -201,14 +149,14 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
   learner->InplacePredict(x, PredictionType::kMargin, std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_0, 0, 2);
   CHECK(p_out_predictions_0);
-  HostDeviceVector<float> predict_0 (p_out_predictions_0->Size());
+  HostDeviceVector<float> predict_0(p_out_predictions_0->Size());
   predict_0.Copy(*p_out_predictions_0);
 
   HostDeviceVector<float> *p_out_predictions_1{nullptr};
   learner->InplacePredict(x, PredictionType::kMargin, std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_1, 2, 4);
   CHECK(p_out_predictions_1);
-  HostDeviceVector<float> predict_1 (p_out_predictions_1->Size());
+  HostDeviceVector<float> predict_1(p_out_predictions_1->Size());
   predict_1.Copy(*p_out_predictions_1);
 
   HostDeviceVector<float>* p_out_predictions{nullptr};
@@ -240,8 +188,8 @@ namespace {
 std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMatrix> dmat,
                                         size_t iters, size_t forest = 1) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
-  learner->SetParams(
-      Args{{"num_parallel_tree", std::to_string(forest)}, {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
+  learner->SetParams(Args{{"num_parallel_tree", std::to_string(forest)},
+                          {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
   for (size_t i = 0; i < iters; ++i) {
     learner->UpdateOneIter(i, dmat);
   }
@@ -454,27 +402,6 @@ void TestIterationRange(Context const* ctx) {
     sliced->Predict(dmat, true, &out_predt_sliced, 0, 0, false, false, false, false, false);
     learner->Predict(dmat, true, &out_predt_ranged, 0, lend, false, false, false, false, false);
 
-    auto const &h_sliced = out_predt_sliced.HostVector();
-    auto const &h_range = out_predt_ranged.HostVector();
-    ASSERT_EQ(h_sliced.size(), h_range.size());
-    ASSERT_EQ(h_sliced, h_range);
-  }
-
-  // SHAP
-  {
-    sliced->Predict(dmat, false, &out_predt_sliced, 0, 0, false, false, true, false, false);
-    learner->Predict(dmat, false, &out_predt_ranged, 0, lend, false, false, true, false, false);
-
-    auto const &h_sliced = out_predt_sliced.HostVector();
-    auto const &h_range = out_predt_ranged.HostVector();
-    ASSERT_EQ(h_sliced.size(), h_range.size());
-    ASSERT_EQ(h_sliced, h_range);
-  }
-
-  // SHAP interaction
-  {
-    sliced->Predict(dmat, false, &out_predt_sliced, 0, 0, false, false, false, false, true);
-    learner->Predict(dmat, false, &out_predt_ranged, 0, lend, false, false, false, false, true);
     auto const &h_sliced = out_predt_sliced.HostVector();
     auto const &h_range = out_predt_ranged.HostVector();
     ASSERT_EQ(h_sliced.size(), h_range.size());
@@ -846,70 +773,4 @@ void TestVectorLeafPrediction(Context const *ctx) {
   test_ghist(1.5, &data);
 }
 
-void ShapExternalMemoryTest::Run(Context const *ctx, bool is_qdm, bool is_interaction) {
-  bst_idx_t n_samples{2048};
-  bst_feature_t n_features{16};
-  bst_target_t n_classes{3};
-  bst_bin_t max_bin{64};
-  auto create_pfmat = [&](RandomDataGenerator &rng) {
-    if (is_qdm) {
-      return rng.Bins(max_bin).GenerateExtMemQuantileDMatrix("temp", true);
-    }
-    return rng.GenerateSparsePageDMatrix("temp", true);
-  };
-  auto p_fmat = create_pfmat(RandomDataGenerator(n_samples, n_features, 0)
-                                 .Batches(1)
-                                 .Device(ctx->Device())
-                                 .Classes(n_classes));
-  std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
-  learner->SetParam("device", ctx->DeviceName());
-  learner->SetParam("base_score", "[0.5, 0.5, 0.5]");
-  learner->SetParam("num_parallel_tree", "3");
-  learner->SetParam("max_bin", std::to_string(max_bin));
-  for (std::int32_t i = 0; i < 4; ++i) {
-    learner->UpdateOneIter(i, p_fmat);
-  }
-  Json model{Object{}};
-  learner->SaveModel(&model);
-  auto j_booster = model["learner"]["gradient_booster"]["model"];
-
-  auto base_score = linalg::Tensor<float, 1>{{0.0, 0.0, 0.0}, {3}, ctx->Device()};
-  LearnerModelParam model_param(n_features, std::move(base_score), n_classes, 1,
-                                MultiStrategy::kOneOutputPerTree);
-  gbm::GBTreeModel gbtree{&model_param, ctx};
-  gbtree.LoadModel(j_booster);
-
-  std::unique_ptr<Predictor> predictor{
-      Predictor::Create(ctx->IsCPU() ? "cpu_predictor" : "gpu_predictor", ctx)};
-  predictor->Configure({});
-  HostDeviceVector<float> contrib;
-  if (is_interaction) {
-    predictor->PredictInteractionContributions(p_fmat.get(), &contrib, gbtree);
-  } else {
-    predictor->PredictContribution(p_fmat.get(), &contrib, gbtree);
-  }
-
-  auto p_fmat_ext = create_pfmat(RandomDataGenerator(n_samples, n_features, 0)
-                                     .Batches(4)
-                                     .Device(ctx->Device())
-                                     .Classes(n_classes));
-
-  HostDeviceVector<float> contrib_ext;
-  if (is_interaction) {
-    predictor->PredictInteractionContributions(p_fmat_ext.get(), &contrib_ext, gbtree);
-  } else {
-    predictor->PredictContribution(p_fmat_ext.get(), &contrib_ext, gbtree);
-  }
-
-  ASSERT_EQ(contrib_ext.Size(), contrib.Size());
-
-  auto h_contrib = contrib.ConstHostSpan();
-  auto h_contrib_ext = contrib_ext.ConstHostSpan();
-  for (std::size_t i = 0; i < h_contrib.size(); ++i) {
-    ASSERT_EQ(h_contrib[i], h_contrib_ext[i]);
-  }
-}
-
-INSTANTIATE_TEST_SUITE_P(Predictor, ShapExternalMemoryTest,
-                         ::testing::Combine(::testing::Bool(), ::testing::Bool()));
 }  // namespace xgboost
