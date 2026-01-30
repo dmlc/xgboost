@@ -554,7 +554,7 @@ void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
     CopyTensorInfoImpl<1>(ctx, arr, &t);
     *p_out = std::move(*t.Data());
   };
-  switch (data::MapMetaField(key)) {
+  switch (data::MapMetaField(key, true)) {
     case MetaField::kLabel: {
       CopyTensorInfoImpl(ctx, arr, &this->labels);
       if (this->num_row_ != 0 && this->labels.Shape(0) != this->num_row_) {
@@ -634,7 +634,7 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
 
   if (dtype == DataType::kFloat32) {
     const std::vector<bst_float>* vec = nullptr;
-    switch (data::MapMetaField(StringView{key})) {
+    switch (data::MapMetaField(StringView{key}, false)) {
       case MetaField::kLabel: {
         vec = &this->labels.Data()->ConstHostVector();
         break;
@@ -697,7 +697,7 @@ void MetaInfo::GetInfo(Context const* ctx, StringView key, std::string* out_arra
   std::string aif;
   using xgboost::data::MetaField;
 
-  switch (data::MapMetaField(key)) {
+  switch (data::MapMetaField(key, false)) {
     case MetaField::kLabel: {
       aif = get_mat_aif(this->labels);
       break;

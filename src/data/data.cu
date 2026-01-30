@@ -123,7 +123,7 @@ void MetaInfo::SetInfoFromCUDA(Context const* ctx, StringView key, Json array) {
     *p_out = std::move(*t.Data());
   };
 
-  switch (data::MapMetaField(key)) {
+  switch (data::MapMetaField(key, true)) {
     case MetaField::kLabel: {
       CopyTensorInfoImpl(ctx, array, &labels);
       auto ptr = labels.Data()->ConstDevicePointer();

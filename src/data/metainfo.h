@@ -25,7 +25,8 @@ enum class MetaField : std::int8_t {
   kQid = 7,  // Converted into group ptr
 };
 
-inline MetaField MapMetaField(StringView key) {
+// `group_ptr` is for the output, while input is `group`.
+inline MetaField MapMetaField(StringView key, bool is_input) {
   if (key == "label") {
     return MetaField::kLabel;
   } else if (key == "weight") {
@@ -38,8 +39,9 @@ inline MetaField MapMetaField(StringView key) {
     return MetaField::kLabelUpperBound;
   } else if (key == "feature_weights") {
     return MetaField::kFeatureWeights;
-  } else if (key == "group_ptr" || key == "group") {
-    // `group_ptr` is output, `group` is input.
+  } else if (key == "group_ptr" && !is_input) {
+    return MetaField::kGroupPtr;
+  } else if (key == "group" && is_input) {
     return MetaField::kGroupPtr;
   } else if (key == "qid") {
     return MetaField::kQid;
