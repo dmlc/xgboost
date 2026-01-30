@@ -35,6 +35,7 @@
 #include "../../../../src/c_api/c_api_error.h"
 #include "../../../../src/c_api/c_api_utils.h"
 #include "../../../../src/data/array_interface.h"  // for ArrayInterface
+#include "../../../../src/common/cuda_rt_utils.h"  // for xgboost::curt::SetDevice
 
 // helper functions
 // set handle
@@ -50,6 +51,12 @@ void setHandle(JNIEnv *jenv, jlongArray jhandle, void *handle) {
 JavaVM*& GlobalJvm() {
   static JavaVM* vm;
   return vm;
+}
+
+// Global device id for CUDA, -1 means not set yet
+std::int32_t& GlobalDeviceId() {
+  static std::int32_t device_id = -1;
+  return device_id;
 }
 
 // overrides JNI on load
@@ -1576,5 +1583,23 @@ Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetGlobalConfig(JNIEnv *jenv, jclass, 
   JVM_CHECK_CALL(ret);
   jstring jret = jenv->NewStringUTF(args);
   jenv->SetObjectArrayElement(jout, 0, jret);
+  return 0;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    CudaSetDevice
+ * Signature: (I)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CudaSetDevice(JNIEnv *, jclass,
+                                                                            jint id) {
+  auto device_id = static_cast<std::int32_t>(id);
+  auto& global_device_id = GlobalDeviceId();
+  if (global_device_id != -1 && global_device_id != device_id) {
+    LOG(WARNING) << "Device ID is already set to " << global_device_id
+                 << ", but a different device ID " << device_id << " is requested.";
+  }
+  global_device_id = device_id;
+  xgboost::curt::SetDevice(device_id);
   return 0;
 }
