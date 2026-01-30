@@ -36,6 +36,17 @@ def client(cluster: LocalCluster) -> Generator[Client, None, None]:
         yield dask_client
 
 
+@pytest.fixture(autouse=True)
+def client_as_current(request: pytest.FixtureRequest) -> Generator[None, None, None]:
+    for name in ("client", "client_one_worker"):
+        if name in request.fixturenames:
+            dask_client = request.getfixturevalue(name)
+            with dask_client.as_current():
+                yield
+            return
+    yield
+
+
 @pytest.fixture(scope="session")
 def client_one_worker() -> Generator[Client, None, None]:
     n_threads = os.cpu_count()
