@@ -67,7 +67,7 @@ repos:
         language: python
         types: [file]
         files: \.py$
-        exclude: (dmlc-core|gputreeshap)
+        exclude: (dmlc-core|gputreeshap|^ops/)
         args:
           - --rcfile=python-package/pyproject.toml
         additional_dependencies:
