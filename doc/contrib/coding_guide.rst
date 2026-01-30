@@ -119,8 +119,9 @@ two automatic checks to enforce coding style conventions. To expedite the code r
 Pre-commit
 ==========
 We provide a `pre-commit <https://pre-commit.com/>`_ configuration for basic formatting,
-linting, and file-sanity checks. By default, pre-commit targets changed files, and the hooks in
-this repository are configured to operate on the files that are staged or modified.
+linting, and file-sanity checks. By default, pre-commit runs on files that are staged for commit,
+and the hooks in this repository are configured accordingly. To run on modified or untracked files,
+you can use ``pre-commit run --files <path> [...]`` or ``pre-commit run --all-files``.
 
 To enable it locally:
 
