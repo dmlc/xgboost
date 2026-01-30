@@ -33,6 +33,7 @@ jobs:
         with:
           version: v0.13.0-rapids.5
       - run: powershell ops/pipeline/build-win64-gpu.ps1
+      - run: sccache --show-stats
       - name: Stash files
         shell: powershell
         run: |
