@@ -30,9 +30,7 @@ jobs:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
       - uses: dmlc/xgboost-devops/actions/sccache@main
-        with:
-          version: v0.13.0-rapids.5
-      - run: powershell ops/pipeline/build-win64-gpu.ps1
+      - run: powershell ops/pipeline/build-win64.ps1 --variant gpu
       - run: sccache --show-stats
       - name: Stash files
         shell: powershell
@@ -56,7 +54,7 @@ jobs:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
       - uses: dmlc/xgboost-devops/actions/sccache@main
-      - run: powershell ops/pipeline/build-win64-cpu.ps1
+      - run: powershell ops/pipeline/build-win64.ps1 --variant cpu
       - run: sccache --show-stats
 
   test-win64-gpu:
