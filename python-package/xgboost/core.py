@@ -1075,7 +1075,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         """Get meta info."""
         c_sdata = ctypes.c_char_p()
         _check_call(
-            _LIB.XGDMatrixGetArrayInfo(self.handle, c_str(field), ctypes.byref(c_sdata))
+            _LIB.XGDMatrixGetInfoRef(self.handle, c_str(field), ctypes.byref(c_sdata))
         )
         assert c_sdata.value is not None
         idata = json.loads(c_sdata.value)

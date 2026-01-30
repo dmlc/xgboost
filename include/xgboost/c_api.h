@@ -880,6 +880,23 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
                                   bst_ulong size, int type);
 
 /**
+ * @brief Get a reference to data like label or weight.
+ *
+ * This method replaces the existing @ref XGDMatrixGetFloatInfo and @ref
+ * XGDMatrixGetUIntInfo to support non-vector (like a matrix) output. The output data
+ * directly references the internal storage, as a result, it's read-only and might be
+ * changed after this method call.
+ *
+ * @since 3.2.0
+ *
+ * @param field     Field name
+ * @param out_array JSON encoded __(cuda)_array_interface__ to the output.
+ *
+ * @return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixGetInfoRef(DMatrixHandle handle, char const *field, char const **out_array);
+
+/**
  * @brief get float info vector from matrix.
  * @param handle a instance of data matrix
  * @param field field name

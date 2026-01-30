@@ -878,7 +878,7 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
   API_END();
 }
 
-XGB_DLL int XGDMatrixGetArrayInfo(DMatrixHandle handle, char const *field, char const **out_array) {
+XGB_DLL int XGDMatrixGetInfoRef(DMatrixHandle handle, char const *field, char const **out_array) {
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(field);
