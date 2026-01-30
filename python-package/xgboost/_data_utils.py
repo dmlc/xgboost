@@ -157,7 +157,7 @@ def from_array_interface(interface: ArrayInf, zero_copy: bool = False) -> NumpyO
     arr = Array()
 
     # Cupy and numpy might run into issue when constructing an empty array from an array
-    # interface. we explicitly check for emptyness.
+    # interface. we explicitly check for emptiness.
     if "stream" in interface:
         # CUDA stream is presented, this is a __cuda_array_interface__.
         arr.__cuda_array_interface__ = interface

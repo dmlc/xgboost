@@ -727,7 +727,7 @@ void MetaInfo::GetInfo(Context const* ctx, StringView key, std::string* out_arra
       break;
     }
     case MetaField::kQid: {
-      LOG(FATAL) << "Retrieving `qid` is not supported, Use `group_ptr` instead.";
+      LOG(FATAL) << "Retrieving `qid` is not supported; use `group_ptr` instead.";
       break;
     }
     default: {
