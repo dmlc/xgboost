@@ -25,15 +25,10 @@ def client_kwargs(request: pytest.FixtureRequest) -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
-def cluster(client_kwargs: Dict[str, Any]) -> Generator[LocalCluster, None, None]:
+def client(client_kwargs: Dict[str, Any]) -> Generator[Client, None, None]:
     with LocalCluster(**client_kwargs) as dask_cluster:
-        yield dask_cluster
-
-
-@pytest.fixture(scope="session")
-def client(cluster: LocalCluster) -> Generator[Client, None, None]:
-    with Client(cluster) as dask_client:
-        yield dask_client
+        with Client(dask_cluster) as dask_client:
+            yield dask_client
 
 
 @pytest.fixture(autouse=True)
@@ -56,24 +51,3 @@ def client_one_worker() -> Generator[Client, None, None]:
     ) as dask_cluster:
         with Client(dask_cluster) as dask_client:
             yield dask_client
-
-
-@pytest.fixture
-def client_factory() -> Any:
-    @contextmanager
-    def _factory(**kwargs: Any) -> Iterator[Client]:
-        with LocalCluster(**kwargs) as dask_cluster:
-            with Client(dask_cluster) as dask_client:
-                yield dask_client
-
-    return _factory
-
-
-@pytest.fixture
-def client_from_cluster() -> Any:
-    @contextmanager
-    def _factory(cluster: LocalCluster) -> Iterator[Client]:
-        with Client(cluster) as dask_client:
-            yield dask_client
-
-    return _factory

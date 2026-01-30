@@ -2038,14 +2038,7 @@ def test_tree_stats(
     assert local == distributed
 
 
-@pytest.mark.parametrize(
-    "client_kwargs",
-    [pytest.param({"n_workers": 4, "dashboard_address": ":0"}, id="4-workers")],
-    indirect=True,
-)
-def test_parallel_submit_multi_clients(
-    client: "Client", cluster: "LocalCluster", client_from_cluster: Any
-) -> None:
+def test_parallel_submit_multi_clients() -> None:
     """Test for running multiple train simultaneously from multiple clients."""
     try:
         from distributed import MultiLock  # NOQA
@@ -2054,19 +2047,17 @@ def test_parallel_submit_multi_clients(
 
     from sklearn.datasets import load_digits
 
-    workers = tm.dask.get_client_workers(client)
+    with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
+        with Client(cluster) as client:
+            workers = tm.dask.get_client_workers(client)
 
-    n_submits = len(workers)
-    assert n_submits == 4
-    futures = []
+        n_submits = len(workers)
+        assert n_submits == 4
+        futures = []
 
-    with ExitStack() as stack:
         for i in range(n_submits):
-            extra_client = stack.enter_context(client_from_cluster(cluster))
+            client = Client(cluster)
             X_, y_ = load_digits(return_X_y=True)
-            X_, _, y_, _ = train_test_split(
-                X_, y_, train_size=300, stratify=y_, random_state=1994
-            )
             X_ += 1.0
             X = dd.from_array(X_, chunksize=32)
             y = dd.from_array(y_, chunksize=32)
@@ -2075,8 +2066,8 @@ def test_parallel_submit_multi_clients(
                 n_estimators=i + 1,
                 eval_metric="merror",
             )
-            f = extra_client.submit(cls.fit, X, y, pure=False)
-            futures.append((extra_client, f))
+            f = client.submit(cls.fit, X, y, pure=False)
+            futures.append((client, f))
 
         t_futures = []
         with ThreadPoolExecutor(max_workers=16) as e:
