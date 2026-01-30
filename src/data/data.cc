@@ -557,7 +557,7 @@ void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
   switch (data::MapMetaField(key, true)) {
     case MetaField::kLabel: {
       CopyTensorInfoImpl(ctx, arr, &this->labels);
-      ReshapeInfo(this->num_row_, &this->base_margin_, "label");
+      ReshapeInfo(this->num_row_, &this->labels, "label");
       auto const& h_labels = labels.Data()->ConstHostVector();
       auto valid = std::none_of(h_labels.cbegin(), h_labels.cend(), data::LabelsCheck{});
       CHECK(valid) << "Label contains NaN, infinity or a value too large.";
@@ -608,7 +608,7 @@ void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
       CopyTensorInfoImpl(ctx, arr, &t);
       bool non_dec = true;
       auto const& query_ids = t.Data()->HostVector();
-      for (size_t i = 1; i < query_ids.size(); ++i) {
+      for (std::size_t i = 1; i < query_ids.size(); ++i) {
         if (query_ids[i] < query_ids[i - 1]) {
           non_dec = false;
           break;

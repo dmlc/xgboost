@@ -171,6 +171,9 @@ void MetaInfo::SetInfoFromCUDA(Context const* ctx, StringView key, Json array) {
       data::ValidateQueryGroup(group_ptr_);
       break;
     }
+    default: {
+      LOG(FATAL) << "Unknown field name: " << key;
+    }
   }
 }
 

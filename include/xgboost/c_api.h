@@ -884,11 +884,12 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
  *
  * This method replaces the existing @ref XGDMatrixGetFloatInfo and @ref
  * XGDMatrixGetUIntInfo to support non-vector (like a matrix) output. The output data
- * directly references the internal storage, as a result, it's read-only and might be
- * changed after this method call.
+ * directly references the internal storage, as a result, it's read-only and user should
+ * copy data before the next XGBoost call.
  *
  * @since 3.2.0
  *
+ * @param handle    An instance of data matrix
  * @param field     Field name
  * @param out_array JSON encoded __(cuda)_array_interface__ to the output.
  *

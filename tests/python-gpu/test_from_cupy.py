@@ -166,11 +166,11 @@ class TestFromCupy:
         _test_from_cupy(xgb.DMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_device_dmat_from_cupy(self) -> None:
+    def test_quantile_dmat_from_cupy(self) -> None:
         _test_from_cupy(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_cupy_training_device_dmat(self) -> None:
+    def test_cupy_training_quantile_dmat(self) -> None:
         _test_cupy_training(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
