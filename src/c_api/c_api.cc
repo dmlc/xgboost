@@ -836,6 +836,7 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
 
   Context ctx;
   auto dtype = static_cast<DataType>(type);
+  auto p_fmat = CastDMatrixHandle(handle);
 
   // Legacy code using XGBoost dtype, which is a small subset of array interface types.
   data::DispatchDType(dtype, [&](auto dtype) {
@@ -849,7 +850,7 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void 
     Json iface{linalg::ArrayInterface(t)};
     CHECK(ArrayInterface<1>{iface}.is_contiguous);
     std::string str = Json::Dump(iface);
-    return str;
+    p_fmat->Info().SetInfo(ctx, field, StringView{str});
   });
   API_END();
 }
