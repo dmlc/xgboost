@@ -31,13 +31,7 @@ class DMatrix;
 struct Context;
 
 /*! \brief data type accepted by xgboost interface */
-enum class DataType : uint8_t {
-  kFloat32 = 1,
-  kDouble = 2,
-  kUInt32 = 3,
-  kUInt64 = 4,
-  kStr = 5
-};
+enum class DataType : uint8_t { kFloat32 = 1, kDouble = 2, kUInt32 = 3, kUInt64 = 4, kStr = 5 };
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
@@ -156,7 +150,7 @@ class MetaInfo {
    * \return The weight.
    */
   inline bst_float GetWeight(size_t i) const {
-    return weights_.Size() != 0 ?  weights_.HostVector()[i] : 1.0f;
+    return weights_.Size() != 0 ? weights_.HostVector()[i] : 1.0f;
   }
   /*! \brief get sorted indexes (argsort) of labels by absolute value (used by cox loss) */
   const std::vector<size_t>& LabelAbsSort(Context const* ctx) const;
@@ -182,8 +176,8 @@ class MetaInfo {
   /** @brief Return an array reference for a meta info. */
   [[nodiscard]] TypedArrayRef GetInfo(Context const* ctx, StringView key) const;
 
-  void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
-  void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;
+  void SetFeatureInfo(const char* key, const char** info, const bst_ulong size);
+  void GetFeatureInfo(const char* field, std::vector<std::string>* out_str_vecs) const;
 
   /**
    * @brief Extend with other MetaInfo.
@@ -235,7 +229,7 @@ class MetaInfo {
    */
   [[nodiscard]] CatContainer const* Cats() const;
   [[nodiscard]] CatContainer* Cats();
-  [[nodiscard]] std::shared_ptr<CatContainer const>  CatsShared() const;
+  [[nodiscard]] std::shared_ptr<CatContainer const> CatsShared() const;
   /**
    * @brief Setter for categories.
    */
@@ -267,12 +261,8 @@ struct Entry {
    */
   XGBOOST_DEVICE Entry(bst_feature_t index, bst_float fvalue) : index(index), fvalue(fvalue) {}
   /*! \brief reversely compare feature values */
-  inline static bool CmpValue(const Entry& a, const Entry& b) {
-    return a.fvalue < b.fvalue;
-  }
-  static bool CmpIndex(Entry const& a, Entry const& b) {
-    return a.index < b.index;
-  }
+  inline static bool CmpValue(const Entry& a, const Entry& b) { return a.fvalue < b.fvalue; }
+  static bool CmpIndex(Entry const& a, Entry const& b) { return a.index < b.index; }
   inline bool operator==(const Entry& other) const {
     return (this->index == other.index && this->fvalue == other.fvalue);
   }
@@ -380,7 +370,7 @@ class SparsePage {
   /*! \brief the data of the segments */
   HostDeviceVector<Entry> data;
 
-  size_t base_rowid {0};
+  size_t base_rowid{0};
 
   /*! \brief an instance of sparse vector in the batch */
   using Inst = common::Span<Entry const>;
@@ -390,9 +380,7 @@ class SparsePage {
   }
 
   /*! \brief constructor */
-  SparsePage() {
-    this->Clear();
-  }
+  SparsePage() { this->Clear(); }
 
   SparsePage(SparsePage const& that) = delete;
   SparsePage(SparsePage&& that) = default;
@@ -401,9 +389,7 @@ class SparsePage {
   virtual ~SparsePage() = default;
 
   /*! \return Number of instances in the page. */
-  [[nodiscard]] size_t Size() const {
-    return offset.Size() == 0 ? 0 : offset.Size() - 1;
-  }
+  [[nodiscard]] size_t Size() const { return offset.Size() == 0 ? 0 : offset.Size() - 1; }
 
   /*! \return estimation of memory cost of this page */
   [[nodiscard]] size_t MemCostBytes() const {
@@ -420,9 +406,7 @@ class SparsePage {
   }
 
   /*! \brief Set the base row id for this page. */
-  inline void SetBaseRowId(size_t row_id) {
-    base_rowid = row_id;
-  }
+  inline void SetBaseRowId(size_t row_id) { base_rowid = row_id; }
 
   [[nodiscard]] SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
 
@@ -458,7 +442,7 @@ class SparsePage {
    * \brief Push a sparse page
    * \param batch the row page
    */
-  void Push(const SparsePage &batch);
+  void Push(const SparsePage& batch);
   /*!
    * \brief Push a SparsePage stored in CSC format
    * \param batch The row batch to be pushed
@@ -466,7 +450,7 @@ class SparsePage {
   void PushCSC(const SparsePage& batch);
 };
 
-class CSCPage: public SparsePage {
+class CSCPage : public SparsePage {
  public:
   CSCPage() : SparsePage() {}
   explicit CSCPage(SparsePage page) : SparsePage(std::move(page)) {}
@@ -491,7 +475,7 @@ class SortedCSCPage : public SparsePage {
 class EllpackPage;
 class GHistIndexMatrix;
 
-template<typename T>
+template <typename T>
 class BatchIteratorImpl {
  public:
   using iterator_category = std::forward_iterator_tag;  // NOLINT
@@ -502,14 +486,14 @@ class BatchIteratorImpl {
   virtual std::shared_ptr<T const> Page() const = 0;
 };
 
-template<typename T>
+template <typename T>
 class BatchIterator {
  public:
   using iterator_category = std::forward_iterator_tag;  // NOLINT
   explicit BatchIterator(BatchIteratorImpl<T>* impl) { impl_.reset(impl); }
   explicit BatchIterator(std::shared_ptr<BatchIteratorImpl<T>> impl) { impl_ = impl; }
 
-  BatchIterator &operator++() {
+  BatchIterator& operator++() {
     CHECK(impl_ != nullptr);
     ++(*impl_);
     return *this;
@@ -527,19 +511,17 @@ class BatchIterator {
     return impl_->AtEnd();
   }
 
-  [[nodiscard]] std::shared_ptr<T const> Page() const {
-    return impl_->Page();
-  }
+  [[nodiscard]] std::shared_ptr<T const> Page() const { return impl_->Page(); }
 
  private:
   std::shared_ptr<BatchIteratorImpl<T>> impl_;
 };
 
-template<typename T>
+template <typename T>
 class BatchSet {
  public:
   explicit BatchSet(BatchIterator<T> begin_iter) : begin_iter_(std::move(begin_iter)) {}
-  BatchIterator<T> begin() { return begin_iter_; }  // NOLINT
+  BatchIterator<T> begin() { return begin_iter_; }              // NOLINT
   BatchIterator<T> end() { return BatchIterator<T>(nullptr); }  // NOLINT
 
  private:
@@ -595,7 +577,7 @@ struct ExtMemConfig {
 class DMatrix {
  public:
   /*! \brief default constructor */
-  DMatrix()  = default;
+  DMatrix() = default;
   /** @brief meta information of the dataset */
   [[nodiscard]] virtual MetaInfo& Info() = 0;
   virtual void SetInfo(const char* key, std::string const& interface_str) {
@@ -728,7 +710,7 @@ class DMatrix {
                          bst_bin_t max_bin, std::int64_t max_quantile_blocks,
                          ExtMemConfig const& config);
 
-  virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
+  virtual DMatrix* Slice(common::Span<int32_t const> ridxs) = 0;
 
   /**
    * @brief Slice a DMatrix by columns.

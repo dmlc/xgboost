@@ -13,7 +13,7 @@ repos:
       - id: check-shebang-scripts-are-executable
       - id: mixed-line-ending
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v17.0.6
+    rev: v21.1.8
     hooks:
       - id: clang-format
         args: [--style=file]

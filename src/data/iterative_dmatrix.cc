@@ -30,8 +30,7 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
                                    bst_bin_t max_bin, std::int64_t max_quantile_blocks)
     : proxy_{proxy} {
   // The external iterator, fetch the first batch
-  auto iter =
-      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset, next};
+  auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset, next};
   iter.Reset();
   bool valid = iter.Next();
   CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
