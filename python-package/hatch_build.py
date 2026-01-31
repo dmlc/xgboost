@@ -18,6 +18,7 @@ def get_tag() -> str:
 class CustomBuildHook(BuildHookInterface):
     """A custom build hook"""
 
+    # pylint: disable=unused-argument
     def initialize(self, version: str, build_data: Dict[str, Any]) -> None:
         """This step ccurs immediately before each build."""
         build_data["tag"] = get_tag()

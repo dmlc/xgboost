@@ -2,7 +2,12 @@ from itertools import product
 
 import pytest
 
-from xgboost.testing.intercept import run_adaptive, run_exp_family, run_init_estimation
+from xgboost.testing.intercept import (
+    run_adaptive,
+    run_exp_family,
+    run_init_estimation,
+    run_logistic_degenerate,
+)
 
 
 def test_init_estimation() -> None:
@@ -18,3 +23,7 @@ def test_adaptive(tree_method: str, weighted: bool) -> None:
 
 def test_exp_family() -> None:
     run_exp_family("cuda")
+
+
+def test_logistic_degenerate() -> None:
+    run_logistic_degenerate("cuda")
