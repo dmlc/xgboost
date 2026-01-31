@@ -262,7 +262,7 @@ enum Order : std::uint8_t {
 };
 
 /**
- * \brief A tensor view with static type and dimension. It implements indexing and slicing.
+ * @brief A tensor view with static type and dimension. It implements indexing and slicing.
  *
  * Most of the algorithms in XGBoost are implemented for both CPU and GPU without using
  * much linear algebra routines, this class is a helper intended to ease some high level
@@ -279,6 +279,7 @@ class TensorView {
  public:
   using ShapeT = std::size_t[kDim];
   using StrideT = ShapeT;
+  using SizeType = std::size_t;
 
   using element_type = T;                  // NOLINT
   using value_type = std::remove_cv_t<T>;  // NOLINT
@@ -289,7 +290,7 @@ class TensorView {
   common::Span<T> data_;
   T *ptr_{nullptr};  // pointer of data_ to avoid bound check.
 
-  size_t size_{0};
+  SizeType size_{0};
   DeviceOrd device_;
 
   // Unlike `Tensor`, the data_ can have arbitrary size since this is just a view.
@@ -302,8 +303,8 @@ class TensorView {
   }
 
   template <size_t old_dim, size_t new_dim, std::int32_t D, typename I>
-  LINALG_HD size_t MakeSliceDim(std::size_t new_shape[D], std::size_t new_stride[D],
-                                detail::RangeTag<I> &&range) const {
+  LINALG_HD SizeType MakeSliceDim(std::size_t new_shape[D], std::size_t new_stride[D],
+                                  detail::RangeTag<I> &&range) const {
     static_assert(new_dim < D);
     static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
@@ -317,8 +318,8 @@ class TensorView {
    * \brief Slice dimension for Range tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename I, typename... S>
-  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
-                                detail::RangeTag<I> &&range, S &&...slices) const {
+  LINALG_HD SizeType MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
+                                  detail::RangeTag<I> &&range, S &&...slices) const {
     static_assert(new_dim < D);
     static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
@@ -332,7 +333,7 @@ class TensorView {
   }
 
   template <size_t old_dim, size_t new_dim, int32_t D>
-  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag) const {
+  LINALG_HD SizeType MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag) const {
     static_assert(new_dim < D);
     static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
@@ -343,8 +344,8 @@ class TensorView {
    * \brief Slice dimension for All tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename... S>
-  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag,
-                                S &&...slices) const {
+  LINALG_HD SizeType MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag,
+                                  S &&...slices) const {
     static_assert(new_dim < D);
     static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
@@ -354,8 +355,8 @@ class TensorView {
   }
 
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index>
-  LINALG_HD size_t MakeSliceDim(DMLC_ATTRIBUTE_UNUSED size_t new_shape[D],
-                                DMLC_ATTRIBUTE_UNUSED size_t new_stride[D], Index i) const {
+  LINALG_HD SizeType MakeSliceDim([[maybe_unused]] size_t new_shape[D],
+                                  [[maybe_unused]] size_t new_stride[D], Index i) const {
     static_assert(old_dim < kDim);
     return stride_[old_dim] * i;
   }
@@ -363,8 +364,10 @@ class TensorView {
    * \brief Slice dimension for Index tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index, typename... S>
-  LINALG_HD std::enable_if_t<std::is_integral_v<Index>, size_t> MakeSliceDim(
-      size_t new_shape[D], size_t new_stride[D], Index i, S &&...slices) const {
+  LINALG_HD std::enable_if_t<std::is_integral_v<Index>, size_t> MakeSliceDim(size_t new_shape[D],
+                                                                             size_t new_stride[D],
+                                                                             Index i,
+                                                                             S &&...slices) const {
     static_assert(old_dim < kDim);
     auto offset = stride_[old_dim] * i;
     auto res =
@@ -659,8 +662,8 @@ auto MakeVec(std::vector<T> const &v) {
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> *data) {
-  return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(),
-                 data->Size(), data->Device());
+  return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(), data->Size(),
+                 data->Device());
 }
 
 template <typename T>

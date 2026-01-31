@@ -198,7 +198,7 @@ class EllpackFormatPolicy {
     }
     if (GlobalConfigThreadLocalStore::Get()->use_rmm) {
 #if !defined(XGBOOST_USE_RMM)
-      LOG(WARNING) << "XGBoost is not built with RMM support." << msg;
+      LOG(WARNING) << "XGBoost is not built with RMM support. But the `use_rmm` flag is enabled.";
 #endif
     }
     std::int32_t major{0}, minor{0};

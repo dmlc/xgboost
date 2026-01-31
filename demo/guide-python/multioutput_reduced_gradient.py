@@ -34,7 +34,7 @@ class LsObjMean(TreeObjective):
     def __call__(
         self, iteration: int, y_pred: np.ndarray, dtrain: xgb.DMatrix
     ) -> Tuple[np.ndarray, np.ndarray]:
-        y_true = dtrain.get_label().reshape(y_pred.shape)
+        y_true = dtrain.get_label()
         grad = y_pred - y_true
         if self.device == "cpu":
             hess = np.ones(grad.shape)
