@@ -599,7 +599,7 @@ A scalar or a list of targeted quantiles (passed as a numeric vector).
 
 Version added: 2.0.0}
 
-\item{aft_loss_distribution}{(for using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
+\item{aft_loss_distribution}{(when using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
 Probability Density Function, \code{"normal"}, \code{"logistic"}, or \code{"extreme"}.}
 
 \item{...}{Not used.
