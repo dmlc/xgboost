@@ -4,16 +4,16 @@
 #ifndef XGBOOST_TREE_HIST_SAMPLER_H_
 #define XGBOOST_TREE_HIST_SAMPLER_H_
 
-#include <cstddef>  // std::size-t
-#include <cstdint>  // std::uint64_t
-#include <random>   // bernoulli_distribution, linear_congruential_engine
+#include <cstdint>  // for uint64_t
+#include <random>   // for bernoulli_distribution, linear_congruential_engine
 
-#include "../../common/random.h"  // GlobalRandom
-#include "../param.h"             // TrainParam
-#include "xgboost/base.h"         // GradientPair
-#include "xgboost/context.h"      // Context
-#include "xgboost/data.h"         // MetaInfo
-#include "xgboost/linalg.h"       // TensorView
+#include "../math.h"          // for Sqr
+#include "../param.h"         // for TrainParam
+#include "xgboost/base.h"     // for GradientPair, bst_idx_t
+#include "xgboost/context.h"  // for Context
+#include "xgboost/data.h"     // for MetaInfo
+#include "xgboost/linalg.h"   // for TensorView
+#include "xgboost/span.h"     // for Span
 
 namespace xgboost::tree {
 struct RandomReplace {
@@ -43,81 +43,75 @@ struct RandomReplace {
   }
 };
 
-// Only uniform sampling, no gradient-based yet.
-inline void SampleGradient(Context const* ctx, TrainParam param,
+constexpr float kDefaultMvsLambda = 0.1f;
+
+struct MvsGradOp {
+  float lambda;
+  template <typename GradientType>
+  XGBOOST_DEVICE float operator()(GradientType const& gpair) const {
+    auto g = gpair.GetGrad();
+    auto h = gpair.GetHess();
+    return common::Sqr(g) + lambda * common::Sqr(h);
+  }
+};
+
+namespace cpu_impl {
+void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, float subsample);
+
+void GradientBasedSample(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
+                         float subsample);
+
+/**
+ * @brief Calculate the threshold μ for gradient-based sampling using binary search.
+ *
+ * The threshold μ is found such that the expected sample rate equals the desired rate:
+ * E[sample_rate] = (1/μ) * sum(ĝ_i for ĝ_i < μ) + count(ĝ_i >= μ) = sample_rows
+ *
+ * @param sorted_rag Sorted regularized absolute gradients (ascending order), with a sentinel
+ *                   value (max float) at the end
+ * @param grad_csum Cumulative sum of sorted gradients (size = n_samples)
+ * @param n_samples Total number of samples
+ * @param sample_rows Target number of samples
+ * @return The computed threshold μ
+ */
+float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<float const> grad_csum,
+                         bst_idx_t n_samples, bst_idx_t sample_rows);
+
+/**
+ * @brief Sample gradients based on the configured sampling method.
+ *
+ * Supports both uniform and gradient-based (MVS) sampling methods.
+ */
+inline void SampleGradient(Context const* ctx, TrainParam const& param,
                            linalg::MatrixView<GradientPair> out) {
   CHECK(out.Contiguous());
-  CHECK_EQ(param.sampling_method, TrainParam::kUniform)
-      << "Only uniform sampling is supported, gradient-based sampling is only support by GPU Hist.";
 
-  if (param.subsample >= 1.0) {
-    return;
+  std::size_t n_rows = out.Shape(0);
+  std::size_t sample_rows = static_cast<std::size_t>(n_rows * param.subsample);
+  if (sample_rows >= n_rows) {
+    return;  // No sampling needed
   }
-  bst_idx_t n_samples = out.Shape(0);
-  auto& rnd = common::GlobalRandom();
 
-  std::uint64_t initial_seed = rnd();
-
-  auto n_threads = static_cast<size_t>(ctx->Threads());
-  std::size_t const discard_size = n_samples / n_threads;
-  std::bernoulli_distribution coin_flip(param.subsample);
-
-  dmlc::OMPException exc;
-#pragma omp parallel num_threads(n_threads)
-  {
-    exc.Run([&]() {
-      const size_t tid = omp_get_thread_num();
-      const size_t ibegin = tid * discard_size;
-      const size_t iend = (tid == (n_threads - 1)) ? n_samples : ibegin + discard_size;
-
-      const uint64_t displaced_seed = RandomReplace::SimpleSkip(
-          ibegin, initial_seed, RandomReplace::kBase, RandomReplace::kMod);
-      RandomReplace::EngineT eng(displaced_seed);
-      std::size_t n_targets = out.Shape(1);
-      if (n_targets > 1) {
-        for (std::size_t i = ibegin; i < iend; ++i) {
-          if (!coin_flip(eng)) {
-            for (std::size_t j = 0; j < n_targets; ++j) {
-              out(i, j) = GradientPair{};
-            }
-          }
-        }
-      } else {
-        for (std::size_t i = ibegin; i < iend; ++i) {
-          if (!coin_flip(eng)) {
-            out(i, 0) = GradientPair{};
-          }
-        }
-      }
-    });
+  switch (param.sampling_method) {
+    case TrainParam::kUniform:
+      UniformSample(ctx, out, param.subsample);
+      break;
+    case TrainParam::kGradientBased:
+      GradientBasedSample(ctx, out, param.subsample);
+      break;
+    default:
+      LOG(FATAL) << "Unknown sampling method: " << param.sampling_method;
   }
-  exc.Rethrow();
 }
-namespace cpu_impl {
+
 /**
  * @brief Apply sampling mask from sampled split gradient to value gradient.
  *
  * Zero out rows in value gradient where the corresponding row in split gradient was not
  * sampled (has zero hessian). Value gradient may have more targets than split gradient.
  */
-inline void ApplySamplingMask(Context const* ctx,
-                              linalg::Matrix<GradientPair> const& sampled_split_gpair,
-                              linalg::Matrix<GradientPair>* value_gpair) {
-  CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
-  auto h_split = sampled_split_gpair.HostView();
-  auto h_value = value_gpair->HostView();
-  auto n_samples = h_value.Shape(0);
-  auto n_targets = h_value.Shape(1);
-
-  common::ParallelFor(n_samples, ctx->Threads(), [&](bst_idx_t i) {
-    // Check if this row was not sampled (hessian is zero in split gradient)
-    if (h_split(i, 0).GetHess() == 0.0f) {
-      for (bst_target_t t = 0; t < n_targets; ++t) {
-        h_value(i, t) = GradientPair{};
-      }
-    }
-  });
-}
+void ApplySamplingMask(Context const* ctx, linalg::Matrix<GradientPair> const& sampled_split_gpair,
+                       linalg::Matrix<GradientPair>* value_gpair);
 }  // namespace cpu_impl
 }  // namespace xgboost::tree
 #endif  // XGBOOST_TREE_HIST_SAMPLER_H_

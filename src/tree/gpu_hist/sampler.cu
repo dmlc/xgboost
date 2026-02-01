@@ -4,6 +4,8 @@
 
 #include <thrust/copy.h>  // for copy_n
 #include <thrust/functional.h>
+#include <thrust/iterator/transform_iterator.h>         // for make_transform_iterator
+#include <thrust/iterator/transform_output_iterator.h>  // for make_transform_output_iterator
 #include <thrust/random.h>
 #include <thrust/sort.h>  // for sort
 #include <thrust/transform.h>
@@ -18,17 +20,17 @@
 #include <cstddef>            // for size_t
 #include <cuda/std/iterator>  // for distance
 #include <limits>
-#include <utility>
 
-#include "../../common/cuda_context.cuh"  // for CUDAContext
-#include "../../common/math.h"            // for Sqr
+#include "../../common/cuda_context.cuh"   // for CUDAContext
+#include "../../common/device_helpers.cuh" // for MakeTransformIterator
 #include "../../common/random.h"
+#include "../hist/sampler.h"  // for kDefaultMvsLambda
 #include "../param.h"
-#include "gradient_based_sampler.cuh"
 #include "quantiser.cuh"  // for GradientQuantiser
+#include "sampler.cuh"
 
-namespace xgboost::tree {
-/*! \brief A functor that returns random weights. */
+namespace xgboost::tree::cuda_impl {
+/** @brief A functor that returns random weights. */
 class RandomWeight {
  public:
   explicit RandomWeight(size_t seed) : seed_(seed) {}
@@ -41,10 +43,10 @@ class RandomWeight {
   }
 
  private:
-  uint32_t seed_;
+  std::uint32_t seed_;
 };
 
-/*! \brief A functor that performs a Bernoulli trial to discard a gradient pair. */
+/** @brief A functor that performs a Bernoulli trial to discard a gradient pair. */
 class BernoulliTrial {
  public:
   BernoulliTrial(size_t seed, float p) : rnd_(seed), p_(p) {}
@@ -57,39 +59,29 @@ class BernoulliTrial {
 };
 
 /**
- * @brief A functor that combines the gradient pair into a single float.
- *
- * The approach here is based on Minimal Variance Sampling (MVS), with lambda set to 0.1.
- *
- * @see Ibragimov, B., & Gusev, G. (2019). Minimal Variance Sampling in Stochastic Gradient
- * Boosting. In Advances in Neural Information Processing Systems (pp. 15061-15071).
- */
-class CombineGradientPair {
- public:
-  XGBOOST_DEVICE float operator()(const GradientPairPrecise& gpair) const {
-    auto [g, h] = std::make_pair(gpair.GetGrad(), gpair.GetHess());
-    return cuda::std::sqrt((g * g) + kLambda * (h * h));
-  }
-
- private:
-  static constexpr float kLambda = 0.1f;
-};
-
-/**
  * @brief A functor that calculates the difference between the sample rate and the desired
  *        sample rows, given a cumulative gradient sum.
  */
 class SampleRateDelta {
  public:
-  SampleRateDelta(common::Span<float> threshold, size_t n_rows, size_t sample_rows)
-      : threshold_(threshold), n_rows_(n_rows), sample_rows_(sample_rows) {}
+  SampleRateDelta(common::Span<float> threshold, bst_idx_t n_samples, bst_idx_t sample_rows)
+      : threshold_(threshold), n_samples_(n_samples), sample_rows_(sample_rows) {}
 
-  XGBOOST_DEVICE float operator()(float gradient_sum, size_t row_index) const {
-    float lower = threshold_[row_index];
-    float upper = threshold_[row_index + 1];
-    float u = gradient_sum / static_cast<float>(sample_rows_ - n_rows_ + row_index + 1);
+  XGBOOST_DEVICE float operator()(float gradient_sum, bst_idx_t i) const {
+    float lower = threshold_[i];
+    float upper = threshold_[i + 1];
+
+    bst_idx_t n_above = n_samples_ - i - 1;
+    float denom = static_cast<float>(sample_rows_) - static_cast<float>(n_above);
+    // i is too small, sampling too many rows
+    if (denom <= 0) {
+      return std::numeric_limits<float>::max();
+    }
+
+    float u = gradient_sum / denom;
     if (u > lower && u <= upper) {
-      threshold_[row_index + 1] = u;
+      // Found it, set the value for future use.
+      threshold_[i + 1] = u;
       return 0.0f;
     } else {
       return std::numeric_limits<float>::max();
@@ -98,8 +90,8 @@ class SampleRateDelta {
 
  private:
   common::Span<float> threshold_;
-  size_t n_rows_;
-  size_t sample_rows_;
+  bst_idx_t n_samples_;
+  bst_idx_t sample_rows_;
 };
 
 /** @brief A functor that performs Poisson sampling, and scales gradient pairs by 1/p_i. */
@@ -116,6 +108,7 @@ class PoissonSampling {
 
   XGBOOST_DEVICE GradientPairInt64 operator()(GradientPairInt64 const& gpair, std::size_t i) {
     // If the gradient and hessian are both empty, we should never select this row.
+    // fixme: how to ensure vector-leaf is consistent?
     if (gpair.GetQuantisedGrad() == 0 && gpair.GetQuantisedHess() == 0) {
       return gpair;
     }
@@ -126,7 +119,7 @@ class PoissonSampling {
     float u = threshold_[threshold_index_];
     float combined_gradient = regularized_abs_grad_[ridx];
     float p = combined_gradient / u;
-    if (p >= 1) {
+    if (p >= 1.0f) {
       // Always select this row.
       return gpair;
     } else {
@@ -146,7 +139,6 @@ class PoissonSampling {
   common::Span<float const> regularized_abs_grad_;
   std::size_t threshold_index_;
   RandomWeight rnd_;
-  CombineGradientPair combine_;
 };
 
 void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
@@ -172,16 +164,17 @@ GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, float subsample
 
 void ReduceGrad(Context const* ctx, linalg::MatrixView<GradientPairInt64 const> gpairs,
                 common::Span<GradientQuantiser const> roundings, common::Span<float> reg_abs_grad) {
-  constexpr float kLambda = 0.1f;
+  float mvs_lambda = kDefaultMvsLambda;
   auto n_segments = gpairs.Shape(0);
   CHECK_EQ(n_segments, reg_abs_grad.size());
   auto n_targets = gpairs.Shape(1);
+  auto grad_op = MvsGradOp{mvs_lambda};
+
   auto op = [=] XGBOOST_DEVICE(cuda::std::tuple<std::size_t, GradientPairInt64> tup) -> float {
     auto [i, gpairs_i64] = tup;
     auto cidx = i % n_targets;
     auto gpair = roundings[cidx].ToFloatingPoint(gpairs_i64);
-    auto [g, h] = cuda::std::make_pair(gpair.GetGrad(), gpair.GetHess());
-    return common::Sqr(g) + kLambda * common::Sqr(h);
+    return grad_op(gpair);
   };
   auto in_it = thrust::make_transform_iterator(
       thrust::make_zip_iterator(thrust::make_counting_iterator(0ul), linalg::tcbegin(gpairs)), op);
@@ -217,28 +210,40 @@ void ReduceGrad(Context const* ctx, linalg::MatrixView<GradientPairInt64 const> 
 std::size_t CalculateThresholdIndex(Context const* ctx,
                                     linalg::MatrixView<GradientPairInt64 const> gpairs,
                                     common::Span<GradientQuantiser const> roundings,
-                                    common::Span<float> reg_abs_grad, common::Span<float> threshold,
-                                    common::Span<float> grad_csum, std::size_t sample_rows) {
+                                    common::Span<float> reg_abs_grad,
+                                    common::Span<float> thresholds, common::Span<float> grad_csum,
+                                    std::size_t sample_rows) {
   auto cuctx = ctx->CUDACtx();
+  auto n_samples = reg_abs_grad.size();
 
-  thrust::fill(cuctx->CTP(), dh::tend(threshold) - 1, dh::tend(threshold),
+  // Set a sentinel for upper bound.
+  thrust::fill(cuctx->CTP(), dh::tend(thresholds) - 1, dh::tend(thresholds),
                std::numeric_limits<float>::max());
-  // Create the regularized absolute gradient
+  // Create the regularized absolute gradient.
   ReduceGrad(ctx, gpairs, roundings, dh::ToSpan(reg_abs_grad));
-  thrust::transform(cuctx->CTP(), dh::tcbegin(reg_abs_grad), dh::tcend(reg_abs_grad) - 1,
+  thrust::transform(cuctx->CTP(), dh::tcbegin(reg_abs_grad), dh::tcend(reg_abs_grad),
                     dh::tbegin(reg_abs_grad),
                     [] XGBOOST_DEVICE(float gpair) { return cuda::std::sqrt(gpair); });
 
-  // Sort and calculate csum
-  thrust::copy(dh::tbegin(reg_abs_grad), dh::tend(reg_abs_grad), dh::tbegin(threshold));
-  thrust::sort(cuctx->TP(), dh::tbegin(threshold), dh::tend(threshold) - 1);
-  thrust::inclusive_scan(cuctx->CTP(), dh::tbegin(threshold), dh::tend(threshold) - 1,
-                         dh::tbegin(grad_csum));
+  // Sort thresholds
+  thrust::copy(cuctx->CTP(), dh::tbegin(reg_abs_grad), dh::tend(reg_abs_grad),
+               dh::tbegin(thresholds));
+  thrust::sort(cuctx->CTP(), dh::tbegin(thresholds), dh::tend(thresholds) - 1);
 
-  // sets the u for each row.
+  // scan is not yet made deterministic
+  float h_total_sum = thrust::reduce(cuctx->CTP(), dh::tbegin(thresholds), dh::tend(thresholds) - 1,
+                                     0.0f, cuda::std::plus{});
+  FloatQuantiser quantiser{h_total_sum, static_cast<bst_idx_t>(n_samples)};
+  auto in_it =
+      dh::MakeTransformIterator<std::int64_t>(dh::tbegin(thresholds), ToFixedPointOp{quantiser});
+  auto out_it =
+      thrust::make_transform_output_iterator(dh::tbegin(grad_csum), ToFloatingPointOp{quantiser});
+  thrust::inclusive_scan(cuctx->CTP(), in_it, in_it + n_samples, out_it);
+
+  // Find the threshold u for each row.
   thrust::transform(cuctx->CTP(), dh::tbegin(grad_csum), dh::tend(grad_csum),
                     thrust::make_counting_iterator(0ul), dh::tbegin(grad_csum),
-                    SampleRateDelta{threshold, gpairs.Shape(0), sample_rows});
+                    SampleRateDelta{thresholds, gpairs.Shape(0), sample_rows});
   // Find the first 0 element in grad_sum, which is within the threshold bound
   thrust::device_ptr<float> min =
       thrust::min_element(cuctx->CTP(), dh::tbegin(grad_csum), dh::tend(grad_csum));
@@ -296,8 +301,8 @@ void GradientBasedSampler::Sample(Context const* ctx, linalg::MatrixView<Gradien
   strategy_->Sample(ctx, gpair, roundings);
   monitor_.Stop(__func__);
 }
-namespace cuda_impl {
-void ApplySamplingMask(Context const* ctx,
+
+void ApplySampling(Context const* ctx,
                        linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
                        linalg::Matrix<GradientPair>* value_gpair) {
   CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
@@ -314,5 +319,4 @@ void ApplySamplingMask(Context const* ctx,
       },
       GradientPair{});
 }
-}  // namespace cuda_impl
-}  // namespace xgboost::tree
+}  // namespace xgboost::tree::cuda_impl

@@ -677,7 +677,7 @@ class QuantileHistMaker : public TreeUpdater {
         // Copy gradient into buffer for sampling. This converts C-order to F-order.
         std::copy(linalg::cbegin(h_gpair), linalg::cend(h_gpair), linalg::begin(h_sample_out));
       }
-      SampleGradient(ctx_, *param, h_sample_out);
+      cpu_impl::SampleGradient(ctx_, *param, h_sample_out);
       auto *h_out_position = &out_position[tree_it - trees.begin()];
       if ((*tree_it)->IsMultiTarget()) {
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,

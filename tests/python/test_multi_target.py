@@ -10,6 +10,7 @@ from xgboost.testing.multi_target import (
     run_column_sampling,
     run_eta,
     run_feature_importance_strategy_compare,
+    run_gradient_based_sampling_accuracy,
     run_grow_policy,
     run_mixed_strategy,
     run_multiclass,
@@ -151,5 +152,10 @@ def test_reg_objective(obj_fn: Callable[[Device], None]) -> None:
     obj_fn("cpu")
 
 
-def test_subsample() -> None:
-    run_subsample("cpu", "uniform")
+@pytest.mark.parametrize("sampling_method", ["uniform", "gradient_based"])
+def test_subsample(sampling_method: str) -> None:
+    run_subsample("cpu", sampling_method)
+
+
+def test_gradient_based_sampling_accuracy() -> None:
+    run_gradient_based_sampling_accuracy("cpu")

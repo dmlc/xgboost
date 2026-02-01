@@ -1,7 +1,8 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #pragma once
+#include "../../common/deterministic.cuh"   // for CreateRoundingFactor
 #include "../../common/device_helpers.cuh"  // for ToSpan
 #include "../../common/device_vector.cuh"   // for device_vector
 #include "xgboost/base.h"                   // for GradientPairPrecise, GradientPairInt64
@@ -10,6 +11,46 @@
 #include "xgboost/linalg.h"                 // for VectorView
 
 namespace xgboost::tree {
+
+/**
+ * @brief A simple quantiser for single float values to enable deterministic summation.
+ *
+ * Similar to GradientQuantiser but for a single float channel.
+ */
+class FloatQuantiser {
+ private:
+  double to_fixed_point_;
+  double to_floating_point_;
+
+ public:
+  FloatQuantiser(double max_abs, bst_idx_t n) {
+    auto rounding = common::CreateRoundingFactor<double>(max_abs, n);
+    // Use 62 bits for the mantissa (keep 1 for the sign bit)
+    constexpr std::int64_t kMaxInt = static_cast<std::int64_t>(1) << 62;
+    to_floating_point_ = rounding / static_cast<double>(kMaxInt);
+    to_fixed_point_ = static_cast<double>(1.0) / to_floating_point_;
+  }
+  [[nodiscard]] double FixedPointFactor() const { return to_fixed_point_; }
+  [[nodiscard]] double FloatingPointFactor() const { return to_floating_point_; }
+};
+
+/** @brief Functor for converting float to fixed-point (for use with transform iterators). */
+struct ToFixedPointOp {
+  double factor;
+  explicit ToFixedPointOp(FloatQuantiser const& q) : factor{q.FixedPointFactor()} {}
+  XGBOOST_DEVICE std::int64_t operator()(float val) const {
+    return static_cast<std::int64_t>(static_cast<double>(val) * factor);
+  }
+};
+
+/** @brief Functor for converting fixed-point to float (for use with transform iterators). */
+struct ToFloatingPointOp {
+  double factor;
+  explicit ToFloatingPointOp(FloatQuantiser const& q) : factor{q.FloatingPointFactor()} {}
+  XGBOOST_DEVICE float operator()(std::int64_t val) const {
+    return static_cast<float>(static_cast<double>(val) * factor);
+  }
+};
 class GradientQuantiser {
  private:
   /* Convert gradient to fixed point representation. */

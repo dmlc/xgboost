@@ -32,11 +32,11 @@
 #include "driver.h"
 #include "gpu_hist/evaluate_splits.cuh"
 #include "gpu_hist/expand_entry.cuh"
-#include "gpu_hist/feature_groups.cuh"          // for FeatureGroups
-#include "gpu_hist/gradient_based_sampler.cuh"  // for GradientBasedSampler
+#include "gpu_hist/feature_groups.cuh"  // for FeatureGroups
 #include "gpu_hist/histogram.cuh"
 #include "gpu_hist/quantiser.cuh"        // for GradientQuantiser
 #include "gpu_hist/row_partitioner.cuh"  // for RowPartitioner
+#include "gpu_hist/sampler.cuh"          // for GradientBasedSampler
 #include "hist/hist_param.h"             // for HistMakerTrainParam
 #include "param.h"                       // for TrainParam
 #include "sample_position.h"             // for SamplePosition
@@ -137,7 +137,7 @@ struct GPUHistMakerDevice {
 
   FeatureInteractionConstraintDevice interaction_constraints;
 
-  std::unique_ptr<GradientBasedSampler> sampler;
+  std::unique_ptr<cuda_impl::GradientBasedSampler> sampler;
 
   common::Monitor monitor;
 
@@ -155,8 +155,8 @@ struct GPUHistMakerDevice {
             *cuts_, dense_compressed, DftStHistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
-        sampler{std::make_unique<GradientBasedSampler>(info.num_row_, param.subsample,
-                                                       param.sampling_method)} {
+        sampler{std::make_unique<cuda_impl::GradientBasedSampler>(info.num_row_, param.subsample,
+                                                                  param.sampling_method)} {
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;

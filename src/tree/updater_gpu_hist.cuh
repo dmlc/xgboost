@@ -15,11 +15,11 @@
 #include "constraints.cuh"                     // for FeatureInteractionConstraintDevice
 #include "driver.h"                            // for Driver
 #include "gpu_hist/feature_groups.cuh"         // for FeatureGroups
-#include "gpu_hist/gradient_based_sampler.cuh"  // for GradientBasedSampler
 #include "gpu_hist/histogram.cuh"              // for DeviceHistogramBuilder
 #include "gpu_hist/leaf_sum.cuh"               // for LeafGradSum
 #include "gpu_hist/multi_evaluate_splits.cuh"  // for MultiHistEvaluator
 #include "gpu_hist/row_partitioner.cuh"        // for RowPartitioner
+#include "gpu_hist/sampler.cuh"                // for GradientBasedSampler
 #include "hist/hist_param.h"                   // for HistMakerTrainParam
 #include "sample_position.h"                   // for SamplePosition
 #include "tree_view.h"                         // for MultiTargetTreeView
@@ -38,7 +38,7 @@ template <typename GoLeftOp>
 struct GoLeftWrapperOp {
   GoLeftOp go_left;
   template <typename NodeSplitData>
-  __device__ bool operator()(cuda_impl::RowIndexT ridx, int /*nidx_in_batch*/,
+  __device__ bool operator()(RowIndexT ridx, int /*nidx_in_batch*/,
                              const NodeSplitData& data) const {
     return go_left(ridx, data);
   }
@@ -215,7 +215,7 @@ class MultiTargetHistMaker {
     this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_->Device()),
                           this->split_quantizer_->Quantizers());
     if (!this->value_gpair_.Empty()) {
-      cuda_impl::ApplySamplingMask(this->ctx_, this->split_gpair_, &this->value_gpair_);
+      cuda_impl::ApplySampling(this->ctx_, this->split_gpair_, &this->value_gpair_);
     }
 
     /**
@@ -392,7 +392,7 @@ class MultiTargetHistMaker {
   struct GoLeftOp {
     Accessor d_matrix;
     MultiTargetTreeView tree;
-    __device__ bool operator()(cuda_impl::RowIndexT ridx, NodeSplitData const& data) const {
+    __device__ bool operator()(RowIndexT ridx, NodeSplitData const& data) const {
       // given a row index, returns the node id it belongs to
       float cut_value = d_matrix.GetFvalue(ridx, tree.SplitIndex(data.nidx));
       // Missing value

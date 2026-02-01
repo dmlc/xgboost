@@ -11,7 +11,7 @@
 #include "xgboost/data.h"                  // for BatchParam
 #include "xgboost/linalg.h"                // for MatrixView
 
-namespace xgboost::tree {
+namespace xgboost::tree::cuda_impl {
 class SamplingStrategy {
  public:
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
@@ -79,15 +79,13 @@ class GradientBasedSampler {
   std::unique_ptr<SamplingStrategy> strategy_;
 };
 
-namespace cuda_impl {
 /**
  * @brief Apply sampling mask from sampled split gradient to value gradient.
  *
  * Zero out rows in value gradient where the corresponding row in split gradient was not
  * sampled (has zero hessian). Value gradient may have more targets than split gradient.
  */
-void ApplySamplingMask(Context const* ctx,
+void ApplySampling(Context const* ctx,
                        linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
                        linalg::Matrix<GradientPair>* value_gpair);
-}  // namespace cuda_impl
-}  // namespace xgboost::tree
+}  // namespace xgboost::tree::cuda_impl

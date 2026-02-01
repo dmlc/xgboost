@@ -278,7 +278,7 @@ class GlobalApproxUpdater : public TreeUpdater {
     *sampled = linalg::Empty<GradientPair>(ctx_, gpair->Size(), 1);
     auto in = gpair->HostView().Values();
     std::copy(in.data(), in.data() + in.size(), sampled->HostView().Values().data());
-    SampleGradient(ctx_, param, sampled->HostView());
+    cpu_impl::SampleGradient(ctx_, param, sampled->HostView());
   }
 
   [[nodiscard]] char const *Name() const override { return "grow_histmaker"; }
