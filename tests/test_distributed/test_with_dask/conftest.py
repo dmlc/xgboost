@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Generator, Iterator
+from typing import Any, Dict, Generator
 
 import pytest
 from distributed import Client, LocalCluster
