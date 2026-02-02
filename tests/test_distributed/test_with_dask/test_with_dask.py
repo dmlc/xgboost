@@ -1249,6 +1249,9 @@ def test_killed_task_wo_hang(client: "Client") -> None:
             callbacks=[Eve()],
         )
     except (ValueError, KilledWorker):
+        # These exceptions indicate that the killed worker caused training to fail
+        # promptly, which is the expected behavior for this test. We only verify
+        # that training does not hang, so the exceptions are intentionally ignored.
         pass
 
 
