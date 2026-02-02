@@ -745,8 +745,10 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' A scalar or a list of targeted quantiles (passed as a numeric vector).
 #'
 #' Version added: 2.0.0
-#' @param aft_loss_distribution (for using AFT Survival Loss (`"survival:aft"`) and Negative Log Likelihood of AFT metric (`"aft-nloglik"`))
+#' @param aft_loss_distribution (when using AFT Survival Loss (`"survival:aft"`) and Negative Log Likelihood of AFT metric (`"aft-nloglik"`))
 #' Probability Density Function, `"normal"`, `"logistic"`, or `"extreme"`.
+#' @param aft_loss_distribution_scale (when using AFT Survival Loss (`"survival:aft"`) and Negative Log Likelihood of AFT metric (`"aft-nloglik"`))
+#' Scaling factor for the AFT distribution. Range: \eqn{(0, \infty)}.
 #' @param lambdarank_pair_method (for learning to rank (`"rank:ndcg"`, `"rank:map"`, `"rank:pairwise"`)) (default = `"topk"`)
 #' How to construct pairs for pair-wise learning.
 #' - `"mean"`: Sample `lambdarank_num_pair_per_sample` pairs for each document in the query list.
@@ -834,6 +836,7 @@ xgb.params <- function(
   huber_slope = NULL,
   quantile_alpha = NULL,
   aft_loss_distribution = NULL,
+  aft_loss_distribution_scale = NULL,
   lambdarank_pair_method = NULL,
   lambdarank_num_pair_per_sample = NULL,
   lambdarank_normalization = NULL,

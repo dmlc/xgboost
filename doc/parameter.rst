@@ -1,3 +1,7 @@
+..
+  IMPORTANT: When adding new entries to this file (e.g. a new parameter),
+  the parameter should also be added under file 'R-package/R/xgb.train.R'.
+
 ##################
 XGBoost Parameters
 ##################

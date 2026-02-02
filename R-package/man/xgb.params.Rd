@@ -58,6 +58,7 @@ xgb.params(
   huber_slope = NULL,
   quantile_alpha = NULL,
   aft_loss_distribution = NULL,
+  aft_loss_distribution_scale = NULL,
   lambdarank_pair_method = NULL,
   lambdarank_num_pair_per_sample = NULL,
   lambdarank_normalization = NULL,
@@ -480,8 +481,11 @@ A scalar or a list of targeted quantiles (passed as a numeric vector).
 
 Version added: 2.0.0}
 
-\item{aft_loss_distribution}{(for using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
+\item{aft_loss_distribution}{(when using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
 Probability Density Function, \code{"normal"}, \code{"logistic"}, or \code{"extreme"}.}
+
+\item{aft_loss_distribution_scale}{(when using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
+Scaling factor for the AFT distribution. Range: \eqn{(0, \infty)}.}
 
 \item{lambdarank_pair_method}{(for learning to rank (\code{"rank:ndcg"}, \code{"rank:map"}, \code{"rank:pairwise"})) (default = \code{"topk"})
 How to construct pairs for pair-wise learning.
