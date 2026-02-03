@@ -208,13 +208,12 @@ class MultiTargetHistMaker {
     CalcQuantizedGpairs(this->ctx_, in_gpair, this->split_quantizer_->Quantizers(),
                         &this->split_gpair_);
 
-    this->value_quantizer_ = std::make_unique<MultiGradientQuantiser>(
-        this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
-
     // Sampling
     this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_->Device()),
                           this->split_quantizer_->Quantizers());
     if (!this->value_gpair_.Empty()) {
+      this->value_quantizer_ = std::make_unique<MultiGradientQuantiser>(
+          this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
       cuda_impl::ApplySampling(this->ctx_, this->split_gpair_, &this->value_gpair_);
     }
 
@@ -304,12 +303,12 @@ class MultiTargetHistMaker {
    * split gradient. This function replaces those weights with new weights calculated from
    * value gradient.
    */
-  void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
+  void ExpandTreeLeaf(RegTree* p_tree) const {
     auto n_leaves = static_cast<bst_target_t>(p_tree->GetNumLeaves());
     auto out_sum = linalg::Constant(ctx_, GradientPairInt64{}, n_leaves, p_tree->NumTargets());
     auto d_out_sum = out_sum.View(this->ctx_->Device());
 
-    auto d_full_grad = full_grad.View(this->ctx_->Device());
+    auto d_full_grad = this->value_gpair_.View(this->ctx_->Device());
     auto d_roundings = this->value_quantizer_->Quantizers();
     // Node indices for all leaves
     std::vector<bst_node_t> leaves_idx(n_leaves);
@@ -620,7 +619,7 @@ class MultiTargetHistMaker {
     this->GrowTree(split_grad, p_fmat, task, p_tree, p_out_position);
 
     if (gpair->HasValueGrad()) {
-      this->ExpandTreeLeaf(gpair->value_gpair, p_tree);
+      this->ExpandTreeLeaf(p_tree);
     } else {
       p_tree->GetMultiTargetTree()->SetLeaves();
     }
