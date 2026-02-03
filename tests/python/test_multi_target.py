@@ -1,3 +1,7 @@
+"""Tests for the CPU implementation of multi-target."""
+
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+# pylint: disable=missing-function-docstring
 from typing import Any, Callable, Dict
 
 import pytest
@@ -38,6 +42,8 @@ def test_quantile_loss_rf(multi_strategy: str) -> None:
 
 
 class TestTreeMethodMulti:
+    """Integration tests for tree methods."""
+
     @given(
         exact_parameter_strategy, strategies.integers(1, 20), tm.multi_dataset_strategy
     )

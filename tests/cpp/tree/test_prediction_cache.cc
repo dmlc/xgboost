@@ -1,9 +1,9 @@
 /**
  * Copyright 2021-2026, XGBoost contributors
  */
-#include <gtest/gtest.h>
-
 #include "test_prediction_cache.h"
+
+#include <gtest/gtest.h>
 
 namespace xgboost {
 TEST_F(TestPredictionCache, Approx) {

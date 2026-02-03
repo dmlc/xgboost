@@ -1,3 +1,6 @@
+"""Tests for the CUDA implementation of multi-target."""
+
+# pylint: disable=too-many-positional-arguments,missing-function-docstring
 from typing import Any, Callable, Dict, Optional
 
 import pytest

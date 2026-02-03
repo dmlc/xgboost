@@ -325,7 +325,7 @@ class MultiTargetHistBuilder {
    * gradient during tree building. This function replaces those weights with new weights
    * calculated from value gradient.
    */
-  void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree *p_tree) {
+  void ExpandTreeLeaf(linalg::Matrix<GradientPair> const &full_grad, RegTree *p_tree) {
     auto tree = p_tree->HostMtView();
     auto n_targets = p_tree->NumTargets();
     auto value_gpair = full_grad.HostView();

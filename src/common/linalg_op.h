@@ -127,17 +127,6 @@ auto end(TensorView<T, D>& v) {  // NOLINT
   return begin(v) + v.Size();
 }
 
-// Empty methods to make clang understand we need this module.
-template <typename T, std::int32_t D>
-auto Iter(TensorView<T, D>& v) {
-  return v;
-}
-
-template <typename T, std::int32_t D>
-auto Iter(TensorView<T, D> const& v) {
-  return v;
-}
-
 namespace detail {
 using SysTagImpl = std::int32_t;
 // Magic for complying with the ODR.
