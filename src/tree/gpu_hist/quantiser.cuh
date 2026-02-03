@@ -25,7 +25,7 @@ class FloatQuantiser {
  public:
   FloatQuantiser(double max_abs, bst_idx_t n) {
     auto rounding = common::CreateRoundingFactor<double>(max_abs, n);
-    // Use 62 bits for the mantissa (keep 1 for the sign bit)
+    // See the gradient quantizer for details.
     constexpr std::int64_t kMaxInt = static_cast<std::int64_t>(1) << 62;
     to_floating_point_ = rounding / static_cast<double>(kMaxInt);
     to_fixed_point_ = static_cast<double>(1.0) / to_floating_point_;
@@ -38,7 +38,7 @@ class FloatQuantiser {
 struct ToFixedPointOp {
   double factor;
   explicit ToFixedPointOp(FloatQuantiser const& q) : factor{q.FixedPointFactor()} {}
-  XGBOOST_DEVICE std::int64_t operator()(float val) const {
+  XGBOOST_DEVICE std::int64_t operator()(double val) const {
     return static_cast<std::int64_t>(val * factor);
   }
 };
@@ -47,10 +47,11 @@ struct ToFixedPointOp {
 struct ToFloatingPointOp {
   double factor;
   explicit ToFloatingPointOp(FloatQuantiser const& q) : factor{q.FloatingPointFactor()} {}
-  XGBOOST_DEVICE float operator()(std::int64_t val) const {
-    return static_cast<float>(static_cast<double>(val) * factor);
+  XGBOOST_DEVICE double operator()(std::int64_t val) const {
+    return static_cast<double>(val) * factor;
   }
 };
+
 class GradientQuantiser {
  private:
   /* Convert gradient to fixed point representation. */

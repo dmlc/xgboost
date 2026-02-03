@@ -234,8 +234,8 @@ std::size_t CalculateThresholdIndex(Context const* ctx,
   thrust::sort(cuctx->CTP(), dh::tbegin(thresholds), dh::tend(thresholds) - 1);
 
   // scan is not yet made deterministic
-  float h_total_sum = thrust::reduce(cuctx->CTP(), dh::tbegin(thresholds), dh::tend(thresholds) - 1,
-                                     0.0f, cuda::std::plus{});
+  double h_total_sum = thrust::reduce(cuctx->CTP(), dh::tbegin(thresholds),
+                                      dh::tend(thresholds) - 1, 0.0, cuda::std::plus{});
   FloatQuantiser quantiser{h_total_sum, static_cast<bst_idx_t>(n_samples)};
   auto in_it =
       dh::MakeTransformIterator<std::int64_t>(dh::tbegin(thresholds), ToFixedPointOp{quantiser});
