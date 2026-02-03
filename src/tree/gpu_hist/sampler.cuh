@@ -17,6 +17,10 @@ class SamplingStrategy {
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
   virtual void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
                       common::Span<GradientQuantiser const> roundings) = 0;
+  /** @brief Apply sampling weights to value gradient. */
+  virtual void ApplySampling(Context const* ctx,
+                             linalg::MatrixView<GradientPairInt64 const> sampled_split_gpair,
+                             linalg::Matrix<GradientPair>* value_gpair) = 0;
   virtual ~SamplingStrategy() = default;
 };
 
@@ -25,6 +29,8 @@ class NoSampling : public SamplingStrategy {
  public:
   void Sample(Context const*, linalg::MatrixView<GradientPairInt64>,
               common::Span<GradientQuantiser const>) override {}
+  void ApplySampling(Context const*, linalg::MatrixView<GradientPairInt64 const>,
+                     linalg::Matrix<GradientPair>*) override {}
 };
 
 /** @brief Uniform sampling */
@@ -33,6 +39,9 @@ class UniformSampling : public SamplingStrategy {
   explicit UniformSampling(float subsample) : subsample_{subsample} {}
   void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
               common::Span<GradientQuantiser const> roundings) override;
+  void ApplySampling(Context const* ctx,
+                     linalg::MatrixView<GradientPairInt64 const> sampled_split_gpair,
+                     linalg::Matrix<GradientPair>* value_gpair) override;
 
  private:
   float subsample_;
@@ -44,6 +53,9 @@ class GradientBasedSampling : public SamplingStrategy {
   GradientBasedSampling(std::size_t n_samples, float subsample);
   void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
               common::Span<GradientQuantiser const> roundings) override;
+  void ApplySampling(Context const* ctx,
+                     linalg::MatrixView<GradientPairInt64 const> sampled_split_gpair,
+                     linalg::Matrix<GradientPair>* value_gpair) override;
 
  private:
   float subsample_;
@@ -53,6 +65,7 @@ class GradientBasedSampling : public SamplingStrategy {
   dh::device_vector<float> thresholds_;
   // csum of sorted abs gradient
   dh::device_vector<float> grad_csum_;
+  std::size_t threshold_index_{0};
 };
 
 /**
@@ -73,17 +86,14 @@ class GradientBasedSampler {
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
   void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
               common::Span<GradientQuantiser const> roundings);
+  /** @brief Apply sampling weights to value gradient. */
+  void ApplySampling(Context const* ctx, linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
+                     linalg::Matrix<GradientPair>* value_gpair);
 
  private:
   common::Monitor monitor_;
   std::unique_ptr<SamplingStrategy> strategy_;
 };
-
-/**
- * @brief Apply sampling mask from sampled split gradient to value gradient.
- */
-void ApplySampling(Context const* ctx, linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
-                   linalg::Matrix<GradientPair>* value_gpair);
 
 std::size_t CalculateThresholdIndex(Context const* ctx, common::Span<float> sorted_rag,
                                     common::Span<float> grad_csum, bst_idx_t n_samples,

@@ -214,7 +214,7 @@ class MultiTargetHistMaker {
     if (!this->value_gpair_.Empty()) {
       this->value_quantizer_ = std::make_unique<MultiGradientQuantiser>(
           this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
-      cuda_impl::ApplySampling(this->ctx_, this->split_gpair_, &this->value_gpair_);
+      this->sampler_.ApplySampling(this->ctx_, this->split_gpair_, &this->value_gpair_);
     }
 
     /**

@@ -94,6 +94,16 @@ class SampleRateDelta {
   bst_idx_t sample_rows_;
 };
 
+namespace {
+XGBOOST_DEVICE float SamplingProbability(float u, common::Span<float const> rag, std::size_t ridx) {
+  if (cuda::std::abs(u) < kRtEps) {
+    u = cuda::std::copysign(kRtEps, u);
+  }
+  float combined_gradient = rag[ridx];
+  return combined_gradient / u;
+}
+}  // anonymous namespace
+
 /** @brief A functor that performs Poisson sampling, and scales gradient pairs by 1/p_i. */
 class PoissonSampling {
  public:
@@ -115,12 +125,7 @@ class PoissonSampling {
     auto [ridx, tidx] = linalg::UnravelIndex(i, n_samples, roundings_.size());
     auto q = roundings_[tidx];
 
-    float u = threshold_[threshold_index_];
-    if (cuda::std::abs(u) < kRtEps) {
-      u = cuda::std::copysign(kRtEps, u);
-    }
-    float combined_gradient = regularized_abs_grad_[ridx];
-    float p = combined_gradient / u;
+    float p = SamplingProbability(threshold_[threshold_index_], regularized_abs_grad_, ridx);
     if (p >= 1.0f) {
       // Always select this row.
       return gpair;
@@ -156,6 +161,24 @@ void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair
         return trial(ridx);
       },
       GradientPairInt64{});
+}
+
+void UniformSampling::ApplySampling(Context const* ctx,
+                                    linalg::MatrixView<GradientPairInt64 const> sampled_split_gpair,
+                                    linalg::Matrix<GradientPair>* value_gpair) {
+  CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
+  auto d_split = sampled_split_gpair;
+  auto d_value = value_gpair->View(ctx->Device());
+  auto n_targets = value_gpair->Shape(1);
+  thrust::replace_if(
+      ctx->CUDACtx()->CTP(), linalg::tbegin(d_value), linalg::tend(d_value),
+      thrust::make_counting_iterator(0ul),
+      [=] XGBOOST_DEVICE(std::size_t i) {
+        auto ridx = i / n_targets;
+        // Check if this row was not sampled (hessian is zero in split gradient)
+        return d_split(ridx, 0).GetQuantisedHess() == 0;
+      },
+      GradientPair{});
 }
 
 GradientBasedSampling::GradientBasedSampling(std::size_t n_samples, float subsample)
@@ -256,8 +279,8 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<Gradie
 
   // Use the testable version for the rest
   bst_idx_t sample_rows = n_samples * subsample_;
-  auto threshold_index = CalculateThresholdIndex(ctx, dh::ToSpan(thresholds_),
-                                                 dh::ToSpan(grad_csum_), n_samples, sample_rows);
+  threshold_index_ = CalculateThresholdIndex(ctx, dh::ToSpan(thresholds_), dh::ToSpan(grad_csum_),
+                                             n_samples, sample_rows);
 
   auto seed = common::GlobalRandom()();
   // Perform sequential Poisson sampling in place.
@@ -265,7 +288,33 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<Gradie
   thrust::transform(cuctx->CTP(), linalg::tcbegin(gpair), linalg::tcend(gpair),
                     thrust::make_counting_iterator(0ul), linalg::tbegin(gpair),
                     PoissonSampling{roundings, dh::ToSpan(thresholds_), dh::ToSpan(reg_abs_grad_),
-                                    threshold_index, RandomWeight{seed}});
+                                    threshold_index_, RandomWeight{seed}});
+}
+
+void GradientBasedSampling::ApplySampling(
+    Context const* ctx, linalg::MatrixView<GradientPairInt64 const> sampled_split_gpair,
+    linalg::Matrix<GradientPair>* value_gpair) {
+  CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
+  auto d_split = sampled_split_gpair;
+  auto d_value = value_gpair->View(ctx->Device());
+  auto n_targets = value_gpair->Shape(1);
+  auto threshold = dh::ToSpan(thresholds_);
+  auto rag = dh::ToSpan(reg_abs_grad_);
+  auto threshold_index = threshold_index_;
+  thrust::transform(ctx->CUDACtx()->CTP(), linalg::tcbegin(d_value), linalg::tcend(d_value),
+                    thrust::make_counting_iterator(0ul), linalg::tbegin(d_value),
+                    [=] XGBOOST_DEVICE(GradientPair gpair, std::size_t i) {
+                      auto ridx = i / n_targets;
+                      // Check if this row was not sampled (hessian is zero in split gradient)
+                      if (d_split(ridx, 0).GetQuantisedHess() == 0) {
+                        return GradientPair{};
+                      }
+                      float p = SamplingProbability(threshold[threshold_index], rag, ridx);
+                      if (p >= 1.0f) {
+                        return gpair;
+                      }
+                      return gpair * (1.0f / p);
+                    });
 }
 
 GradientBasedSampler::GradientBasedSampler(bst_idx_t n_samples, float subsample,
@@ -301,20 +350,11 @@ void GradientBasedSampler::Sample(Context const* ctx, linalg::MatrixView<Gradien
   monitor_.Stop(__func__);
 }
 
-void ApplySampling(Context const* ctx, linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
-                   linalg::Matrix<GradientPair>* value_gpair) {
-  CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
-  auto d_split = sampled_split_gpair.View(ctx->Device());
-  auto d_value = value_gpair->View(ctx->Device());
-  auto n_targets = value_gpair->Shape(1);
-  thrust::replace_if(
-      ctx->CUDACtx()->CTP(), linalg::tbegin(d_value), linalg::tend(d_value),
-      thrust::make_counting_iterator(0ul),
-      [=] XGBOOST_DEVICE(std::size_t i) {
-        auto ridx = i / n_targets;
-        // Check if this row was not sampled (hessian is zero in split gradient)
-        return d_split(ridx, 0).GetQuantisedHess() == 0;
-      },
-      GradientPair{});
+void GradientBasedSampler::ApplySampling(
+    Context const* ctx, linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
+    linalg::Matrix<GradientPair>* value_gpair) {
+  monitor_.Start(__func__);
+  strategy_->ApplySampling(ctx, sampled_split_gpair.View(ctx->Device()), value_gpair);
+  monitor_.Stop(__func__);
 }
 }  // namespace xgboost::tree::cuda_impl

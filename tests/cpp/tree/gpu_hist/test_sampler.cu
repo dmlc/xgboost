@@ -109,7 +109,7 @@ TEST(GpuSampler, ApplySampling) {
   linalg::Matrix<GradientPair> sampled;
   CalcFloatGrad(split_gpair.HostView(), dh::ToSpan(h_roundings), &sampled);
 
-  cuda_impl::ApplySampling(&ctx, split_gpair, &value_gpair.gpair);
+  sampler.ApplySampling(&ctx, split_gpair, &value_gpair.gpair);
   CheckSamplingMask(sampled.HostView(), value_gpair.gpair.HostView(), kSubsample);
 }
 }  // namespace xgboost::tree::cuda_impl
