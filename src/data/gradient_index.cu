@@ -92,7 +92,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
   this->cut.Values();
   this->cut.MinValues();
 
-  this->ResizeIndex(info.num_nonzero_, page->IsDense());
+  this->ResizeIndex(ctx, info.num_nonzero_, page->IsDense());
   if (page->IsDense()) {
     this->index.SetBinOffset(page->Cuts().Ptrs());
   }
