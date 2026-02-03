@@ -58,16 +58,16 @@ struct SamplingInfo {
   float threshold;
 };
 
-SamplingInfo ComputeSamplingInfo(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
-                                 float subsample) {
+SamplingInfo CalcSamplingInfo(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
+                              float subsample) {
   std::size_t n_samples = gpairs.Shape(0);
   std::size_t sample_rows = static_cast<std::size_t>(n_samples * subsample);
 
   SamplingInfo info;
-  info.reg_abs_grad = CalcRegAbsGrad(ctx, gpairs);
-  std::vector<float> thresholds = info.reg_abs_grad;        // Copy for sorting
-  thresholds.push_back(std::numeric_limits<float>::max());  // sentinel
-  common::Sort(ctx, thresholds.begin(), thresholds.end() - 1, std::less{});
+
+  std::vector<float> thresholds;
+  info.reg_abs_grad = CalcRegAbsGrad(ctx, gpairs, &thresholds);
+
   std::vector<float> grad_csum(n_samples);
   std::partial_sum(thresholds.begin(), thresholds.end() - 1, grad_csum.begin());
   info.threshold = CalculateThreshold(
@@ -162,8 +162,8 @@ void ApplySamplingMask(Context const* ctx,
 }
 }  // namespace
 
-std::vector<float> CalcRegAbsGrad(Context const* ctx,
-                                  linalg::MatrixView<GradientPair const> gpairs) {
+std::vector<float> CalcRegAbsGrad(Context const* ctx, linalg::MatrixView<GradientPair const> gpairs,
+                                  std::vector<float>* p_thresholds) {
   float mvs_lambda = kDefaultMvsLambda;
   std::size_t n_samples = gpairs.Shape(0);
   std::size_t n_targets = gpairs.Shape(1);
@@ -176,6 +176,12 @@ std::vector<float> CalcRegAbsGrad(Context const* ctx,
     }
     reg_abs_grad[i] = std::sqrt(sum_sq);
   });
+
+  auto& thresholds = *p_thresholds;
+  thresholds = reg_abs_grad;                                // Copy for sorting
+  thresholds.push_back(std::numeric_limits<float>::max());  // sentinel
+  common::Sort(ctx, thresholds.begin(), thresholds.end() - 1, std::less{});
+
   return reg_abs_grad;
 }
 
@@ -263,7 +269,7 @@ void Sampler::Sample(Context const* ctx, linalg::MatrixView<GradientPair> out) {
       UniformSample(ctx, out, subsample_);
       break;
     case TrainParam::kGradientBased: {
-      auto info = ComputeSamplingInfo(ctx, out, subsample_);
+      auto info = CalcSamplingInfo(ctx, out, subsample_);
       reg_abs_grad_ = std::move(info.reg_abs_grad);
       threshold_ = info.threshold;
       GradientBasedSampling(ctx, out, reg_abs_grad_, threshold_);
@@ -286,7 +292,7 @@ void Sampler::ApplySampling(Context const* ctx,
       break;
     }
     case TrainParam::kGradientBased: {
-      auto info = ComputeSamplingInfo(ctx, value_gpair->HostView(), subsample_);
+      auto info = CalcSamplingInfo(ctx, value_gpair->HostView(), subsample_);
       ApplyMvsWeights(ctx, sampled_split_gpair, value_gpair, info.reg_abs_grad, info.threshold);
       break;
     }

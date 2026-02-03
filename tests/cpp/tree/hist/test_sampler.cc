@@ -105,18 +105,16 @@ TEST(CpuSampler, ApplySampling) {
   linalg::Matrix<GradientPair> value_gpair{value_shape, ctx.Device()};
   *value_gpair.Data() = GenerateRandomGradients(n_samples * n_value_targets, 0.0f, 1.0f);
   linalg::Matrix<GradientPair> value_gpair_before{value_shape, ctx.Device()};
-  auto h_value_before = value_gpair_before.HostView();
-  auto h_value_init = value_gpair.HostView();
-  std::copy(linalg::cbegin(h_value_init), linalg::cend(h_value_init),
-            linalg::begin(h_value_before));
+  value_gpair_before.Data()->Copy(*value_gpair.Data());
 
   sampler.ApplySampling(&ctx, split_gpair.HostView(), &value_gpair);
   CheckSamplingMask(split_gpair.HostView(), value_gpair.HostView(), kSubsample);
+  auto h_value_before = value_gpair_before.HostView();
+
   auto h_value_after = value_gpair.HostView();
-  auto reg_abs_grad = cpu_impl::CalcRegAbsGrad(&ctx, h_value_before);
-  std::vector<float> thresholds = reg_abs_grad;
-  thresholds.push_back(std::numeric_limits<float>::max());
-  std::sort(thresholds.begin(), thresholds.end() - 1);
+  std::vector<float> thresholds;
+  auto reg_abs_grad = cpu_impl::CalcRegAbsGrad(&ctx, h_value_before, &thresholds);
+
   std::vector<float> grad_csum(n_samples);
   std::partial_sum(thresholds.begin(), thresholds.end() - 1, grad_csum.begin());
   float threshold =

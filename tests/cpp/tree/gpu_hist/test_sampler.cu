@@ -114,13 +114,12 @@ TEST(GpuSampler, ApplySampling) {
 
   sampler.ApplySampling(&ctx, split_gpair, &value_gpair.gpair);
   CheckSamplingMask(sampled.HostView(), value_gpair.gpair.HostView(), kSubsample);
-  auto h_value_after = value_gpair.gpair.HostView();
 
-  auto reg_abs_grad = ::xgboost::tree::cpu_impl::CalcRegAbsGrad(&ctx, h_value_before);
-  std::vector<float> sorted = reg_abs_grad;
-  sorted.push_back(std::numeric_limits<float>::max());
-  std::sort(sorted.begin(), sorted.end() - 1);
-  dh::device_vector<float> d_sorted(sorted);
+  auto h_value_after = value_gpair.gpair.HostView();
+  std::vector<float> thresholds;
+  auto reg_abs_grad = ::xgboost::tree::cpu_impl::CalcRegAbsGrad(&ctx, h_value_before, &thresholds);
+
+  dh::device_vector<float> d_sorted(thresholds);
   dh::device_vector<float> d_csum(n_samples);
   auto threshold_index =
       cuda_impl::CalculateThresholdIndex(&ctx, dh::ToSpan(d_sorted), dh::ToSpan(d_csum), n_samples,
