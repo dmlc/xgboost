@@ -4,6 +4,7 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.metrics import (
+    check_expectile_error,
     check_precision_score,
     check_quantile_error,
     run_pr_auc_binary,
@@ -221,3 +222,7 @@ class TestEvalMetrics:
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_quantile_error(self) -> None:
         check_quantile_error("hist", "cpu")
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_expectile_error(self) -> None:
+        check_expectile_error("hist", "cpu")

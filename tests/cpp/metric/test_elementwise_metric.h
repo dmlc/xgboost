@@ -390,4 +390,59 @@ inline void VerifyQuantile(DataSplitMode data_split_mode, DeviceOrd device) {
   EXPECT_NEAR(GetMetricEval(metric.get(), predts_3, labels, {}, {}, data_split_mode), 0.0450f,
               0.0001f);
 }
+
+inline void VerifyExpectile(DataSplitMode data_split_mode, DeviceOrd device) {
+  auto ctx = MakeCUDACtx(device.ordinal);
+  std::unique_ptr<Metric> metric{Metric::Create("expectile", &ctx)};
+
+  HostDeviceVector<float> predts{0.1f, 0.9f, 0.1f, 0.9f};
+  HostDeviceVector<float> predts_2{0.2f, 0.6f, 0.4f, 0.6f, 0.5f, 1.2f, 0.0f, 0.4f};
+  HostDeviceVector<float> predts_3{0.2f, 0.4f, 0.6f,
+                                   0.4f, 0.5f, 0.6f,
+                                   0.5f, 0.8f, 1.2f,
+                                   0.0f, 0.3f, 0.4f};
+  std::vector<float> labels{0.5f, 0.5f, 0.9f, 0.1f};
+  std::vector<float> weights{0.2f, 0.4f, 0.6f, 0.8f};
+
+  metric->Configure(Args{{"expectile_alpha", "[0.0]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights, {}, data_split_mode), 0.288f,
+              0.001f);
+  metric->Configure(Args{{"expectile_alpha", "[0.2]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights, {}, data_split_mode), 0.272f,
+              0.001f);
+  metric->Configure(Args{{"expectile_alpha", "[0.4]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights, {}, data_split_mode), 0.256f,
+              0.001f);
+  metric->Configure(Args{{"expectile_alpha", "[0.8]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights, {}, data_split_mode), 0.224f,
+              0.001f);
+  metric->Configure(Args{{"expectile_alpha", "[1.0]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights, {}, data_split_mode), 0.208f,
+              0.001f);
+
+  metric->Configure(Args{{"expectile_alpha", "[0.0]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, {}, {}, data_split_mode), 0.2f, 0.001f);
+  metric->Configure(Args{{"expectile_alpha", "[0.2]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, {}, {}, data_split_mode), 0.2f, 0.001f);
+  metric->Configure(Args{{"expectile_alpha", "[0.4]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, {}, {}, data_split_mode), 0.2f, 0.001f);
+  metric->Configure(Args{{"expectile_alpha", "[0.8]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, {}, {}, data_split_mode), 0.2f, 0.001f);
+  metric->Configure(Args{{"expectile_alpha", "[1.0]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, {}, {}, data_split_mode), 0.2f, 0.001f);
+
+  metric->Configure(Args{{"expectile_alpha", "[0.2, 0.8]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts_2, labels, {}, {}, data_split_mode), 0.01175f,
+              0.0001f);
+  metric->Configure(Args{{"expectile_alpha", "[0.2, 0.5, 0.8]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts_3, labels, {}, {}, data_split_mode), 0.0103333f,
+              0.0001f);
+
+  metric->Configure(Args{{"expectile_alpha", "[0.2, 0.8]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts_2, labels, weights, {}, data_split_mode), 0.0129f,
+              0.0001f);
+  metric->Configure(Args{{"expectile_alpha", "[0.2, 0.5, 0.8]"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(), predts_3, labels, weights, {}, data_split_mode),
+              0.0119333f, 0.0001f);
+}
 }  // namespace xgboost::metric

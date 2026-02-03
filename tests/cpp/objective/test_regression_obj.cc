@@ -424,6 +424,64 @@ void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, b
   }
 }
 
+void TestExpectileRegressionGPair(const Context* ctx) {
+  Args args{{"expectile_alpha", "0.8"}};
+
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:expectileerror", ctx)};
+  obj->Configure(args);
+  CheckConfigReload(obj, "reg:expectileerror");
+
+  std::vector<float> predts{1.0f, 2.0f, 3.0f};
+  std::vector<float> labels{3.0f, 2.0f, 1.0f};
+  std::vector<float> weights{1.0f, 1.0f, 1.0f};
+  std::vector<float> grad{-1.6f, 0.0f, 0.4f};
+  std::vector<float> hess{0.8f, 0.2f, 0.2f};
+  CheckObjFunction(obj, predts, labels, weights, grad, hess);
+  CheckObjFunction(obj, predts, labels, {}, grad, hess);
+
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"expectile"});
+}
+
+void TestExpectileRegressionMultiAlpha(const Context* ctx) {
+  Args args{{"expectile_alpha", "[0.2, 0.8]"}};
+
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:expectileerror", ctx)};
+  obj->Configure(args);
+  CheckConfigReload(obj, "reg:expectileerror");
+
+  std::vector<float> predts{0.0f, 0.0f, 0.0f, 0.0f};
+  std::vector<float> labels{1.0f, 2.0f};
+  std::vector<float> grad{-0.2f, -0.8f, -0.4f, -1.6f};
+  std::vector<float> hess{0.2f, 0.8f, 0.2f, 0.8f};
+  CheckObjFunction(obj, predts, labels, {}, grad, hess);
+}
+
+void TestExpectileRegressionInitEstimation(const Context* ctx) {
+  Args args{{"expectile_alpha", "[0.2, 0.8]"}};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:expectileerror", ctx)};
+  obj->Configure(args);
+
+  MetaInfo info;
+  info.num_row_ = 10;
+  info.labels.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
+    data->SetDevice(ctx->Device());
+    data->Resize(info.num_row_);
+    shape[0] = info.num_row_;
+    shape[1] = 1;
+
+    auto& h_labels = data->HostVector();
+    for (std::size_t i = 0; i < info.num_row_; ++i) {
+      h_labels[i] = static_cast<float>(i);
+    }
+  });
+
+  linalg::Vector<float> base_scores;
+  obj->InitEstimation(info, &base_scores);
+  ASSERT_EQ(base_scores.Size(), 2);
+  ASSERT_NEAR(base_scores(0), 4.5f, kRtEps);
+  ASSERT_NEAR(base_scores(1), 4.5f, kRtEps);
+}
+
 void TestPseudoHuber(const Context* ctx) {
   Args args;
 

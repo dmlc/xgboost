@@ -7,6 +7,7 @@
 #include <dmlc/omp.h>
 
 #include <algorithm>  // for all_of
+#include <array>      // for array
 #include <cmath>
 #include <cstdint>  // for int32_t
 #include <vector>   // for vector
@@ -16,6 +17,7 @@
 #include "../common/numeric.h"          // for Reduce
 #include "../common/optional_weight.h"  // for MakeOptionalWeights
 #include "../common/pseudo_huber.h"
+#include "../common/expectile_loss_utils.h"  // for ExpectileLossParam
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
@@ -393,6 +395,126 @@ class PseudoHuberRegression : public FitIntercept {
 XGBOOST_REGISTER_OBJECTIVE(PseudoHuberRegression, "reg:pseudohubererror")
     .describe("Regression Pseudo Huber error.")
     .set_body([]() { return new PseudoHuberRegression(); });
+
+class ExpectileRegression : public FitIntercept {
+  common::ExpectileLossParam param_;
+  HostDeviceVector<float> alpha_;
+
+  [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
+    auto const& alpha = param_.expectile_alpha.Get();
+    CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
+    if (info.ShouldHaveLabels()) {
+      CHECK_EQ(info.labels.Shape(1), 1)
+          << "Multi-target is not yet supported by the expectile loss.";
+    }
+    CHECK(!alpha.empty());
+    auto n_y = std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
+    return alpha_.Size() * n_y;
+  }
+
+ public:
+  void Configure(Args const& args) override {
+    param_.UpdateAllowUnknown(args);
+    param_.Validate();
+    alpha_.HostVector() = param_.expectile_alpha.Get();
+  }
+
+  [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
+
+  void GetGradient(HostDeviceVector<float> const& preds, const MetaInfo& info, std::int32_t iter,
+                   linalg::Matrix<GradientPair>* out_gpair) override {
+    if (iter == 0) {
+      CheckInitInputs(info);
+    }
+    CHECK_EQ(param_.expectile_alpha.Get().size(), alpha_.Size());
+
+    using SizeT = decltype(info.num_row_);
+    SizeT n_targets = this->Targets(info);
+    SizeT n_alphas = alpha_.Size();
+    CHECK_NE(n_alphas, 0);
+    CHECK_GE(n_targets, n_alphas);
+    CHECK_EQ(preds.Size(), info.num_row_ * n_targets);
+
+    auto labels = info.labels.View(ctx_->Device());
+
+    out_gpair->SetDevice(ctx_->Device());
+    CHECK_EQ(info.labels.Shape(1), 1)
+        << "Multi-target for expectile regression is not yet supported.";
+    out_gpair->Reshape(info.num_row_, n_targets);
+    auto gpair = out_gpair->View(ctx_->Device());
+
+    info.weights_.SetDevice(ctx_->Device());
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
+
+    preds.SetDevice(ctx_->Device());
+    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
+
+    alpha_.SetDevice(ctx_->Device());
+    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+
+    linalg::ElementWiseKernel(ctx_, gpair,
+                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+                                auto pred = predt(i, j);
+                                auto label = labels(i, 0);
+                                auto expectile = alpha[j];
+                                auto diff = pred - label;
+                                auto weight_scale = diff >= 0.0f ? (1.0f - expectile) : expectile;
+                                auto sample_weight = weight[i];
+                                auto grad = weight_scale * diff * sample_weight;
+                                auto hess = weight_scale * sample_weight;
+                                gpair(i, j) = GradientPair{grad, hess};
+                              });
+  }
+
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
+    CHECK(!alpha_.Empty());
+    auto n_targets = this->Targets(info);
+    base_score->SetDevice(ctx_->Device());
+    base_score->Reshape(n_targets);
+
+    linalg::Vector<float> label_mean;
+    if (info.weights_.Empty()) {
+      common::SampleMean(ctx_, info.IsColumnSplit(), info.labels, &label_mean);
+    } else {
+      common::WeightedSampleMean(ctx_, info.IsColumnSplit(), info.labels, info.weights_,
+                                 &label_mean);
+    }
+    CHECK_EQ(label_mean.Size(), 1);
+
+    auto mean_host = label_mean.HostView();
+    base_score->Data()->Fill(mean_host(0));
+  }
+
+  [[nodiscard]] const char* DefaultEvalMetric() const override { return "expectile"; }
+  [[nodiscard]] Json DefaultMetricConfig() const override {
+    CHECK(param_.GetInitialised());
+    Json config{Object{}};
+    config["name"] = String{this->DefaultEvalMetric()};
+    config["expectile_loss_param"] = ToJson(param_);
+    return config;
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("reg:expectileerror");
+    out["expectile_loss_param"] = ToJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    CHECK_EQ(get<String const>(in["name"]), "reg:expectileerror");
+    auto const& obj = get<Object const>(in);
+    auto it = obj.find("expectile_loss_param");
+    if (it != obj.cend()) {
+      FromJson(it->second, &param_);
+      alpha_.HostVector() = param_.expectile_alpha.Get();
+    }
+  }
+};
+
+XGBOOST_REGISTER_OBJECTIVE(ExpectileRegression, "reg:expectileerror")
+    .describe("Regression with expectile loss.")
+    .set_body([]() { return new ExpectileRegression(); });
 
 // declare parameter
 struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {

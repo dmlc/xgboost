@@ -16,7 +16,8 @@
 #include "../common/nvtx_utils.h"       // for xgboost_NVTX_FN_RANGE
 #include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/pseudo_huber.h"
-#include "../common/quantile_loss_utils.h"  // QuantileLossParam
+#include "../common/expectile_loss_utils.h"  // ExpectileLossParam
+#include "../common/quantile_loss_utils.h"   // QuantileLossParam
 #include "../common/threading_utils.h"
 #include "metric_common.h"              // MetricNoCache
 #include "xgboost/collective/result.h"  // for SafeColl
@@ -519,4 +520,84 @@ class QuantileError : public MetricNoCache {
 XGBOOST_REGISTER_METRIC(QuantileError, "quantile")
     .describe("Quantile regression error.")
     .set_body([](const char*) { return new QuantileError{}; });
+
+class ExpectileError : public MetricNoCache {
+  HostDeviceVector<float> alpha_;
+  common::ExpectileLossParam param_;
+
+ public:
+  void Configure(Args const& args) override {
+    param_.UpdateAllowUnknown(args);
+    param_.Validate();
+    alpha_.HostVector() = param_.expectile_alpha.Get();
+  }
+
+  double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
+    CHECK(!alpha_.Empty());
+    if (info.num_row_ == 0) {
+      // empty DMatrix on distributed env
+      std::array<double, 2> dat{0.0, 0.0};
+      auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+      collective::SafeColl(rc);
+      CHECK_GT(dat[1], 0);
+      return dat[0] / dat[1];
+    }
+
+    auto const* ctx = ctx_;
+    auto y_true = info.labels.View(ctx->Device());
+    preds.SetDevice(ctx->Device());
+    alpha_.SetDevice(ctx->Device());
+    auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+    std::size_t n_targets = preds.Size() / info.num_row_ / alpha_.Size();
+    CHECK_NE(n_targets, 0);
+    auto y_predt = linalg::MakeTensorView(ctx, &preds, static_cast<std::size_t>(info.num_row_),
+                                          alpha_.Size(), n_targets);
+
+    info.weights_.SetDevice(ctx->Device());
+    common::OptionalWeights weight{ctx->IsCPU() ? info.weights_.ConstHostSpan()
+                                                : info.weights_.ConstDeviceSpan()};
+
+    auto result = Reduce(
+        ctx, info, [=] XGBOOST_DEVICE(std::size_t i, std::size_t sample_id, std::size_t target_id) {
+          auto idx = linalg::UnravelIndex(i, y_predt.Shape());
+          sample_id = std::get<0>(idx);
+          std::size_t expectile_id = std::get<1>(idx);
+          target_id = std::get<2>(idx);
+
+          auto pred = y_predt(sample_id, expectile_id, target_id);
+          auto label = y_true(sample_id, target_id);
+          auto diff = pred - label;
+          auto expectile = alpha[expectile_id];
+          auto weight_scale = diff >= 0.0f ? (1.0f - expectile) : expectile;
+          auto sample_weight = weight[sample_id];
+          auto loss = weight_scale * diff * diff * sample_weight;
+          return std::make_tuple(loss, sample_weight);
+        }, alpha_.Size());
+    std::array<double, 2> dat{result.Residue(), result.Weights()};
+    auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), dat.size()));
+    collective::SafeColl(rc);
+    CHECK_GT(dat[1], 0);
+    return dat[0] / dat[1];
+  }
+
+  const char* Name() const override { return "expectile"; }
+  void LoadConfig(Json const& in) override {
+    auto const& obj = get<Object const>(in);
+    auto it = obj.find("expectile_loss_param");
+    if (it != obj.cend()) {
+      FromJson(it->second, &param_);
+      auto const& name = get<String const>(in["name"]);
+      CHECK_EQ(name, "expectile");
+    }
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String(this->Name());
+    out["expectile_loss_param"] = ToJson(param_);
+  }
+};
+
+XGBOOST_REGISTER_METRIC(ExpectileError, "expectile")
+    .describe("Expectile regression error.")
+    .set_body([](const char*) { return new ExpectileError{}; });
 }  // namespace xgboost::metric
