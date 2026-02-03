@@ -108,7 +108,6 @@ class PoissonSampling {
 
   XGBOOST_DEVICE GradientPairInt64 operator()(GradientPairInt64 const& gpair, std::size_t i) {
     // If the gradient and hessian are both empty, we should never select this row.
-    // fixme: how to ensure vector-leaf is consistent?
     if (gpair.GetQuantisedGrad() == 0 && gpair.GetQuantisedHess() == 0) {
       return gpair;
     }
