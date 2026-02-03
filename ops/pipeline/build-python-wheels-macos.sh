@@ -31,13 +31,15 @@ if [[ "$platform_id" == macosx_* ]]; then
     export CIBW_ARCHS=${cibw_archs}
     export CIBW_TEST_SKIP='*-macosx_arm64'
     export CIBW_BUILD_VERBOSITY=3
+    # Use static libomp.a to eliminate runtime dependency on libomp.dylib
+    export CIBW_CONFIG_SETTINGS="build_with_shared_openmp=false"
 else
     echo "Platform not supported: $platform_id"
     exit 2
 fi
 
-# Tell delocate-wheel to not vendor libomp.dylib into the wheel
-export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --exclude libomp.dylib"
+export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
+
 
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse

@@ -3,26 +3,69 @@
 
 # lint_cmake: -package/consistency
 
+function(_is_clang result_out)
+  if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+    set(${result_out} TRUE PARENT_SCOPE)
+  else()
+    set(${result_out} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+
 macro(find_openmp_macos)
   if(NOT APPLE)
     message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() must only be used on MacOS")
   endif()
-  find_package(OpenMP)
-  if(NOT OpenMP_FOUND)
-    # Try again with extra path info. This step is required for libomp 15+ from Homebrew,
-    # as libomp 15.0+ from brew is keg-only
-    # See https://github.com/Homebrew/homebrew-core/issues/112107#issuecomment-1278042927.
+
+  _is_clang(_using_clang)
+  if(NOT _using_clang)
+    find_package(OpenMP REQUIRED C CXX)
+    return()
+  endif()
+
+  if(NOT BUILD_WITH_SHARED_OPENMP)
     execute_process(COMMAND brew --prefix libomp
-                    OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-    set(OpenMP_C_FLAGS
-      "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
-    set(OpenMP_CXX_FLAGS
-      "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
+      OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE BREW_RESULT)
+    # Static linking with libomp.a eliminates runtime dependency on libomp.dylib.
+    if(BREW_RESULT EQUAL 0 AND EXISTS "${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.a")
+      set(_omp_static_lib "${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.a")
+      set(_omp_include_dir "${HOMEBREW_LIBOMP_PREFIX}/include")
+    elseif(EXISTS "/opt/local/lib/libomp/libomp.a")
+      # MacPorts
+      set(_omp_static_lib "/opt/local/lib/libomp/libomp.a")
+      set(_omp_include_dir "/opt/local/include/libomp")
+    else()
+      message(FATAL_ERROR "USE_OPENMP_STATIC=ON but libomp.a not found. "
+        "Install via: brew install libomp")
+    endif()
+
+    message(STATUS "Found static OpenMP: ${_omp_static_lib}")
+    set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -I${_omp_include_dir}")
+    set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp -I${_omp_include_dir}")
     set(OpenMP_C_LIB_NAMES omp)
     set(OpenMP_CXX_LIB_NAMES omp)
-    set(OpenMP_omp_LIBRARY ${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.dylib)
+    set(OpenMP_omp_LIBRARY "${_omp_static_lib}")
     find_package(OpenMP REQUIRED)
+  else()
+    # Dynamic linking (default)
+    find_package(OpenMP)
+    if(NOT OpenMP_FOUND)
+      # Try again with extra path info. This step is required for libomp 15+ from Homebrew,
+      # as libomp 15.0+ from brew is keg-only
+      # See https://github.com/Homebrew/homebrew-core/issues/112107#issuecomment-1278042927.
+      execute_process(COMMAND brew --prefix libomp
+	OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
+	OUTPUT_STRIP_TRAILING_WHITESPACE)
+      set(OpenMP_C_FLAGS
+        "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
+      set(OpenMP_CXX_FLAGS
+        "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
+      set(OpenMP_C_LIB_NAMES omp)
+      set(OpenMP_CXX_LIB_NAMES omp)
+      set(OpenMP_omp_LIBRARY ${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.dylib)
+      find_package(OpenMP REQUIRED)
+    endif()
   endif()
 endmacro()
 

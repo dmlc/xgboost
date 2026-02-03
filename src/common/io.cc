@@ -421,6 +421,7 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
   return static_cast<std::size_t>(status.ullTotalPhys);
 #else
   LOG(FATAL) << "Not implemented";
+  return 0;
 #endif  // defined(__linux__)
 }
 }  // namespace xgboost::common

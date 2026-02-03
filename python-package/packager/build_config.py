@@ -22,6 +22,8 @@ class BuildConfiguration:  # pylint: disable=R0902
     plugin_federated: bool = False
     # Whether to enable rmm support
     plugin_rmm: bool = False
+    # Whether to use shared OpenMP runtime on macOS (False = static libomp.a)
+    build_with_shared_openmp: bool = True
     # Special option: See explanation below
     use_system_libxgboost: bool = False
 
