@@ -9,6 +9,7 @@
 #include <limits>     // for numeric_limits
 #include <numeric>    // for partial_sum
 #include <random>     // for default_random_engine, uniform_real_distribution
+#include <utility>    // for move
 #include <vector>     // for vector
 
 #include "../../common/algorithm.h"  // for Sort

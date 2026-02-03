@@ -85,8 +85,8 @@ TEST(CpuSampler, ApplySampling) {
   constexpr float kSubsample = 0.5f;
 
   TrainParam param;
-  param.UpdateAllowUnknown(Args{{"subsample", std::to_string(kSubsample)},
-                                {"sampling_method", "gradient_based"}});
+  param.UpdateAllowUnknown(
+      Args{{"subsample", std::to_string(kSubsample)}, {"sampling_method", "gradient_based"}});
 
   // Generate and sample the split gradient
   std::size_t split_shape[2] = {n_samples, n_split_targets};
@@ -95,7 +95,8 @@ TEST(CpuSampler, ApplySampling) {
   linalg::Matrix<GradientPair> split_gpair_before{split_shape, ctx.Device()};
   auto h_split_before = split_gpair_before.HostView();
   auto h_split_init = split_gpair.HostView();
-  std::copy(linalg::cbegin(h_split_init), linalg::cend(h_split_init), linalg::begin(h_split_before));
+  std::copy(linalg::cbegin(h_split_init), linalg::cend(h_split_init),
+            linalg::begin(h_split_before));
   Sampler sampler{param};
   sampler.Sample(&ctx, split_gpair.HostView());
 
@@ -126,10 +127,10 @@ TEST(CpuSampler, ApplySampling) {
   std::sort(thresholds.begin(), thresholds.end() - 1);
   std::vector<float> grad_csum(n_samples);
   std::partial_sum(thresholds.begin(), thresholds.end() - 1, grad_csum.begin());
-  float threshold = cpu_impl::CalculateThreshold(
-      common::Span<float const>{thresholds.data(), thresholds.size()},
-      common::Span<float const>{grad_csum.data(), grad_csum.size()}, n_samples,
-      static_cast<bst_idx_t>(n_samples * kSubsample));
+  float threshold =
+      cpu_impl::CalculateThreshold(common::Span<float const>{thresholds.data(), thresholds.size()},
+                                   common::Span<float const>{grad_csum.data(), grad_csum.size()},
+                                   n_samples, static_cast<bst_idx_t>(n_samples * kSubsample));
 
   constexpr float kTolerance = 1e-3f;
   auto h_split = split_gpair.HostView();

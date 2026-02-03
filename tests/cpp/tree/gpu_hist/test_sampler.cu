@@ -130,10 +130,9 @@ TEST(GpuSampler, ApplySampling) {
   std::sort(sorted.begin(), sorted.end() - 1);
   dh::device_vector<float> d_sorted(sorted);
   dh::device_vector<float> d_csum(n_samples);
-  auto threshold_index = cuda_impl::CalculateThresholdIndex(&ctx, dh::ToSpan(d_sorted),
-                                                            dh::ToSpan(d_csum), n_samples,
-                                                            static_cast<bst_idx_t>(n_samples *
-                                                                                   kSubsample));
+  auto threshold_index =
+      cuda_impl::CalculateThresholdIndex(&ctx, dh::ToSpan(d_sorted), dh::ToSpan(d_csum), n_samples,
+                                         static_cast<bst_idx_t>(n_samples * kSubsample));
   float threshold = d_sorted[threshold_index];
 
   constexpr float kTolerance = 1e-3f;
