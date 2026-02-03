@@ -159,11 +159,11 @@ void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair
       GradientPairInt64{});
 }
 
-GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, float subsample)
+GradientBasedSampling::GradientBasedSampling(std::size_t n_samples, float subsample)
     : subsample_(subsample),
-      reg_abs_grad_(n_rows, 0.0f),
-      threshold_(n_rows + 1, 0.0f),
-      grad_sum_(n_rows, 0.0f) {}
+      reg_abs_grad_(n_samples, 0.0f),
+      thresholds_(n_samples + 1, 0.0f),
+      grad_csum_(n_samples, 0.0f) {}
 
 void ReduceGrad(Context const* ctx, linalg::MatrixView<GradientPairInt64 const> gpairs,
                 common::Span<GradientQuantiser const> roundings, common::Span<float> reg_abs_grad) {
@@ -209,36 +209,17 @@ void ReduceGrad(Context const* ctx, linalg::MatrixView<GradientPairInt64 const> 
 #endif
 }
 
-/** @brief Calculate the threshold used to normalize sampling probabilities. */
-std::size_t CalculateThresholdIndex(Context const* ctx,
-                                    linalg::MatrixView<GradientPairInt64 const> gpairs,
-                                    common::Span<GradientQuantiser const> roundings,
-                                    common::Span<float> reg_abs_grad,
-                                    common::Span<float> thresholds, common::Span<float> grad_csum,
-                                    std::size_t sample_rows) {
+std::size_t CalculateThresholdIndex(Context const* ctx, common::Span<float> sorted_rag,
+                                    common::Span<float> grad_csum, bst_idx_t n_samples,
+                                    bst_idx_t sample_rows) {
   auto cuctx = ctx->CUDACtx();
-  auto n_samples = reg_abs_grad.size();
-
-  // Set a sentinel for upper bound.
-  thrust::fill(cuctx->CTP(), dh::tend(thresholds) - 1, dh::tend(thresholds),
-               std::numeric_limits<float>::max());
-  // Create the regularized absolute gradient.
-  ReduceGrad(ctx, gpairs, roundings, dh::ToSpan(reg_abs_grad));
-  thrust::transform(cuctx->CTP(), dh::tcbegin(reg_abs_grad), dh::tcend(reg_abs_grad),
-                    dh::tbegin(reg_abs_grad),
-                    [] XGBOOST_DEVICE(float gpair) { return cuda::std::sqrt(gpair); });
-
-  // Sort thresholds
-  thrust::copy(cuctx->CTP(), dh::tbegin(reg_abs_grad), dh::tend(reg_abs_grad),
-               dh::tbegin(thresholds));
-  thrust::sort(cuctx->TP(), dh::tbegin(thresholds), dh::tend(thresholds) - 1);
 
   // scan is not yet made deterministic
-  double h_total_sum = thrust::reduce(cuctx->CTP(), dh::tbegin(thresholds),
-                                      dh::tend(thresholds) - 1, 0.0, cuda::std::plus{});
-  FloatQuantiser quantiser{h_total_sum, static_cast<bst_idx_t>(n_samples)};
+  double h_total_sum = thrust::reduce(cuctx->CTP(), dh::tbegin(sorted_rag),
+                                      dh::tend(sorted_rag) - 1, 0.0, cuda::std::plus{});
+  FloatQuantiser quantiser{h_total_sum, n_samples};
   auto in_it =
-      dh::MakeTransformIterator<std::int64_t>(dh::tbegin(thresholds), ToFixedPointOp{quantiser});
+      dh::MakeTransformIterator<std::int64_t>(dh::tbegin(sorted_rag), ToFixedPointOp{quantiser});
   auto out_it =
       thrust::make_transform_output_iterator(dh::tbegin(grad_csum), ToFloatingPointOp{quantiser});
   thrust::inclusive_scan(cuctx->CTP(), in_it, in_it + n_samples, out_it);
@@ -246,7 +227,7 @@ std::size_t CalculateThresholdIndex(Context const* ctx,
   // Find the threshold u for each row.
   thrust::transform(cuctx->CTP(), dh::tbegin(grad_csum), dh::tend(grad_csum),
                     thrust::make_counting_iterator(0ul), dh::tbegin(grad_csum),
-                    SampleRateDelta{thresholds, gpairs.Shape(0), sample_rows});
+                    SampleRateDelta{sorted_rag, n_samples, sample_rows});
   // Find the first 0 element in grad_sum, which is within the threshold bound
   thrust::device_ptr<float> min =
       thrust::min_element(cuctx->CTP(), dh::tbegin(grad_csum), dh::tend(grad_csum));
@@ -258,17 +239,33 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<Gradie
   auto cuctx = ctx->CUDACtx();
   std::size_t n_samples = gpair.Shape(0);
   CHECK_EQ(n_samples, this->reg_abs_grad_.size());
-  CHECK_EQ(n_samples, this->grad_sum_.size());
-  CHECK_EQ(n_samples + 1, this->threshold_.size());
-  std::size_t threshold_index = CalculateThresholdIndex(
-      ctx, gpair, roundings, dh::ToSpan(reg_abs_grad_), dh::ToSpan(this->threshold_),
-      dh::ToSpan(grad_sum_), n_samples * subsample_);
+  CHECK_EQ(n_samples, this->grad_csum_.size());
+  CHECK_EQ(n_samples + 1, this->thresholds_.size());
+
+  // Set a sentinel for upper bound.
+  thrust::fill(cuctx->CTP(), thresholds_.end() - 1, thresholds_.end(),
+               std::numeric_limits<float>::max());
+  // Create the regularized absolute gradient.
+  ReduceGrad(ctx, gpair, roundings, dh::ToSpan(reg_abs_grad_));
+  thrust::transform(cuctx->CTP(), reg_abs_grad_.cbegin(), reg_abs_grad_.cend(),
+                    reg_abs_grad_.begin(),
+                    [] XGBOOST_DEVICE(float gpair) { return cuda::std::sqrt(gpair); });
+
+  // Sort thresholds
+  thrust::copy(cuctx->CTP(), reg_abs_grad_.cbegin(), reg_abs_grad_.cend(), thresholds_.begin());
+  thrust::sort(cuctx->TP(), thresholds_.begin(), thresholds_.end() - 1);
+
+  // Use the testable version for the rest
+  bst_idx_t sample_rows = n_samples * subsample_;
+  auto threshold_index = CalculateThresholdIndex(ctx, dh::ToSpan(thresholds_),
+                                                 dh::ToSpan(grad_csum_), n_samples, sample_rows);
+
   auto seed = common::GlobalRandom()();
   // Perform sequential Poisson sampling in place.
   // Only the threshold_[threshold_index] is used. (that is the \mu in the paper)
   thrust::transform(cuctx->CTP(), linalg::tcbegin(gpair), linalg::tcend(gpair),
                     thrust::make_counting_iterator(0ul), linalg::tbegin(gpair),
-                    PoissonSampling{roundings, dh::ToSpan(threshold_), dh::ToSpan(reg_abs_grad_),
+                    PoissonSampling{roundings, dh::ToSpan(thresholds_), dh::ToSpan(reg_abs_grad_),
                                     threshold_index, RandomWeight{seed}});
 }
 

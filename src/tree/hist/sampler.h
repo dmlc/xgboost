@@ -13,6 +13,7 @@
 #include "xgboost/context.h"    // for Context
 #include "xgboost/data.h"       // for MetaInfo
 #include "xgboost/linalg.h"     // for TensorView
+#include "xgboost/span.h"       // for Span
 
 namespace xgboost::tree {
 struct RandomReplace {
@@ -59,6 +60,9 @@ void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, flo
 
 void GradientBasedSample(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
                          float subsample);
+
+float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<float const> grad_csum,
+                         bst_idx_t n_samples, bst_idx_t sample_rows);
 
 /**
  * @brief Sample gradients based on the configured sampling method.

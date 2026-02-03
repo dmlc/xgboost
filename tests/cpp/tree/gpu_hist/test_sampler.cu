@@ -3,8 +3,14 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>  // for sort
+#include <limits>     // for numeric_limits
+#include <numeric>    // for partial_sum
+#include <vector>     // for vector
+
 #include "../../../../src/tree/gpu_hist/sampler.cuh"
-#include "../../../../src/tree/param.h"  // TrainParam
+#include "../../../../src/tree/hist/sampler.h"  // for cpu_impl::CalculateThreshold
+#include "../../../../src/tree/param.h"         // TrainParam
 #include "../../helpers.h"
 #include "../test_sampler.h"  // VerifyApplySamplingMask
 #include "dummy_quantizer.cuh"
@@ -107,3 +113,62 @@ TEST(GpuSampler, ApplySampling) {
   CheckSamplingMask(sampled.HostView(), value_gpair.gpair.HostView(), kSubsample);
 }
 }  // namespace xgboost::tree::cuda_impl
+
+namespace xgboost::tree {
+// Test consistency between CPU and GPU threshold calculations
+TEST(CalculateThreshold, CpuGpuConsistency) {
+  auto ctx = MakeCUDACtx(0);
+
+  // Test with various gradient distributions
+  std::vector<std::vector<float>> test_cases = {
+      {0.5f, 5.0f, 1.0f, 2.0f, 2.0f},                                // Basic
+      {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // All equal
+      {0.1f, 0.5f, 1.0f, 2.0f, 5.0f, 10.0f},                         // Varied
+  };
+
+  std::vector<float> subsample_rates = {0.3f, 0.5f, 0.8f};
+
+  for (auto const& rag : test_cases) {
+    for (float subsample : subsample_rates) {
+      bst_idx_t n = rag.size();
+      bst_idx_t sample_rows = static_cast<bst_idx_t>(n * subsample);
+
+      // CPU calculation
+      std::vector<float> cpu_sorted = rag;
+      std::sort(cpu_sorted.begin(), cpu_sorted.end());
+      cpu_sorted.push_back(std::numeric_limits<float>::max());
+      std::vector<float> cpu_csum(n);
+      std::partial_sum(cpu_sorted.begin(), cpu_sorted.end() - 1, cpu_csum.begin());
+      float cpu_threshold = cpu_impl::CalculateThreshold(
+          common::Span<float const>{cpu_sorted.data(), cpu_sorted.size()},
+          common::Span<float const>{cpu_csum.data(), cpu_csum.size()}, n, sample_rows);
+
+      // GPU calculation
+      std::vector<float> gpu_sorted = rag;
+      std::sort(gpu_sorted.begin(), gpu_sorted.end());
+      gpu_sorted.push_back(std::numeric_limits<float>::max());
+      dh::device_vector<float> d_sorted(gpu_sorted);
+      dh::device_vector<float> d_csum(n);
+      std::size_t threshold_index = cuda_impl::CalculateThresholdIndex(
+          &ctx, dh::ToSpan(d_sorted), dh::ToSpan(d_csum), n, sample_rows);
+      float gpu_threshold = d_sorted[threshold_index];
+
+      // Both should produce similar expected sample counts
+      auto calc_expected = [&](float threshold) {
+        float expected = 0.0f;
+        for (bst_idx_t i = 0; i < n; ++i) {
+          expected += std::min(cpu_sorted[i] / threshold, 1.0f);
+        }
+        return expected;
+      };
+
+      float cpu_expected = calc_expected(cpu_threshold);
+      float gpu_expected = calc_expected(gpu_threshold);
+      // Both should be close to target sample_rows
+      EXPECT_NEAR(cpu_expected, sample_rows, 0.1f);
+      EXPECT_NEAR(gpu_expected, sample_rows, 0.1f);
+      EXPECT_NEAR(cpu_expected, gpu_expected, 0.1f);
+    }
+  }
+}
+}  // namespace xgboost::tree

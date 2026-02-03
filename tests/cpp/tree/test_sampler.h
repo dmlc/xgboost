@@ -7,8 +7,10 @@
 #include <xgboost/linalg.h>  // for MatrixView
 
 #include <cstddef>  // for size_t
+#include <vector>   // for vector
 
 namespace xgboost::tree {
+// Check that multi-target rows are consistently sampled and return count.
 inline bst_idx_t CheckSampledRows(linalg::MatrixView<GradientPair const> gpair) {
   auto n_samples = gpair.Shape(0);
   auto n_targets = gpair.Shape(1);
@@ -23,10 +25,10 @@ inline bst_idx_t CheckSampledRows(linalg::MatrixView<GradientPair const> gpair) 
       ++sampled_count;
     }
   }
-
   return sampled_count;
 }
 
+// Check that sampling mask was correctly applied from split gradient to value gradient.
 inline void CheckSamplingMask(linalg::MatrixView<GradientPair> h_split,
                               linalg::MatrixView<GradientPair> h_value, float subsample) {
   auto n_samples = h_value.Shape(0);
@@ -52,8 +54,8 @@ inline void CheckSamplingMask(linalg::MatrixView<GradientPair> h_split,
 }
 
 inline void CheckSampling(float subsample, bst_target_t n_targets, bool check_sum,
-                          std::vector<GradientPairPrecise> sum_sampled_gpair,
-                          std::vector<GradientPairPrecise> sum_gpair,
+                          std::vector<GradientPairPrecise> const& sum_sampled_gpair,
+                          std::vector<GradientPairPrecise> const& sum_gpair,
                           linalg::MatrixView<GradientPair> h_gpair) {
   auto n_samples = h_gpair.Shape(0);
   bst_idx_t sample_rows = n_samples * subsample;
@@ -75,20 +77,8 @@ inline void CheckSampling(float subsample, bst_target_t n_targets, bool check_su
     }
   }
 
-  // For multi-target, verify that rows are either fully sampled or fully zeroed
-  std::size_t sampled_count = 0;
-  for (std::size_t i = 0; i < n_samples; ++i) {
-    bool first_is_zero = (h_gpair(i, 0).GetGrad() == 0.0f && h_gpair(i, 0).GetHess() == 0.0f);
-    for (bst_target_t t = 1; t < n_targets; ++t) {
-      bool is_zero = (h_gpair(i, t).GetGrad() == 0.0f && h_gpair(i, t).GetHess() == 0.0f);
-      ASSERT_EQ(first_is_zero, is_zero);
-    }
-    if (!first_is_zero) {
-      ++sampled_count;
-    }
-  }
-
-  // Verify approximately the right fraction of rows are sampled
+  // Verify multi-target consistency and sample fraction (reuse CheckSampledRows)
+  auto sampled_count = CheckSampledRows(h_gpair);
   if (subsample < 1.0f) {
     double sampled_fraction = static_cast<double>(sampled_count) / n_samples;
     ASSERT_NEAR(sampled_fraction, subsample, 0.05);
