@@ -86,10 +86,13 @@ inline void SampleGradient(Context const* ctx, TrainParam const& param,
                            linalg::MatrixView<GradientPair> out) {
   CHECK(out.Contiguous());
 
-  std::size_t n_rows = out.Shape(0);
-  std::size_t sample_rows = static_cast<std::size_t>(n_rows * param.subsample);
-  if (sample_rows >= n_rows) {
+  std::size_t n_samples = out.Shape(0);
+  std::size_t sample_rows = static_cast<std::size_t>(n_samples * param.subsample);
+  if (sample_rows >= n_samples) {
     return;  // No sampling needed
+  }
+  if (n_samples == 0) {
+    return;
   }
 
   switch (param.sampling_method) {

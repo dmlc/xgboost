@@ -115,14 +115,16 @@ float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<floa
     }
 
     if (u <= lower) {
-      // u is too small relative to lower bound, need smaller i to reduce lower
       high_idx = i - 1;
     } else {
-      // u > upper, u is too large relative to upper bound, need larger i to increase upper
       low_idx = i + 1;
     }
   }
 
+  // p will be extremely small, no row can be sampled.
+  if (sample_rows == 0) {
+    return std::numeric_limits<float>::max();
+  }
   // Degenerate case: all gradients are the same, so u cannot be greater than the lower
   // bound. Fall back to using the total sum divided by sample_rows.
   return grad_csum.back() / sample_rows;

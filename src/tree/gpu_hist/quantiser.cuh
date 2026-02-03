@@ -39,7 +39,7 @@ struct ToFixedPointOp {
   double factor;
   explicit ToFixedPointOp(FloatQuantiser const& q) : factor{q.FixedPointFactor()} {}
   XGBOOST_DEVICE std::int64_t operator()(float val) const {
-    return static_cast<std::int64_t>(static_cast<double>(val) * factor);
+    return static_cast<std::int64_t>(val * factor);
   }
 };
 

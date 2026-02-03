@@ -21,8 +21,8 @@
 #include <cuda/std/iterator>  // for distance
 #include <limits>
 
-#include "../../common/cuda_context.cuh"   // for CUDAContext
-#include "../../common/device_helpers.cuh" // for MakeTransformIterator
+#include "../../common/cuda_context.cuh"    // for CUDAContext
+#include "../../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "../../common/random.h"
 #include "../hist/sampler.h"  // for kDefaultMvsLambda
 #include "../param.h"
@@ -103,8 +103,8 @@ class PoissonSampling {
       : roundings_{roundings},
         threshold_{threshold},
         regularized_abs_grad_{rag},
-        threshold_index_(threshold_index),
-        rnd_(rnd) {}
+        threshold_index_{threshold_index},
+        rnd_{rnd} {}
 
   XGBOOST_DEVICE GradientPairInt64 operator()(GradientPairInt64 const& gpair, std::size_t i) {
     // If the gradient and hessian are both empty, we should never select this row.
@@ -302,9 +302,8 @@ void GradientBasedSampler::Sample(Context const* ctx, linalg::MatrixView<Gradien
   monitor_.Stop(__func__);
 }
 
-void ApplySampling(Context const* ctx,
-                       linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
-                       linalg::Matrix<GradientPair>* value_gpair) {
+void ApplySampling(Context const* ctx, linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
+                   linalg::Matrix<GradientPair>* value_gpair) {
   CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
   auto d_split = sampled_split_gpair.View(ctx->Device());
   auto d_value = value_gpair->View(ctx->Device());
