@@ -68,24 +68,6 @@ void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, flo
   });
 }
 
-/**
- * @brief Calculate the threshold u and find the appropriate threshold index.
- *
- * The threshold μ is found such that the expected sample rate equals the desired rate:
- * E[sample_rate] = (1/μ) * sum(ĝ_i for ĝ_i < μ) + count(ĝ_i >= μ) = sample_rows
- *
- * For threshold μ in (sorted_rag[i], sorted_rag[i+1]]:
- * - Elements 0..i have p = ĝ/μ < 1
- * - Elements i+1..n-1 have p = 1
- * - Expected samples = grad_csum[i]/μ + (n_rows - i - 1) = sample_rows
- * - Therefore: μ = grad_csum[i] / (sample_rows - n_rows + i + 1)
- *
- * @param sorted_rag Sorted regularized absolute gradients (ascending order)
- * @param grad_csum Cumulative sum of sorted gradients
- * @param n_rows Total number of rows
- * @param sample_rows Target number of samples
- * @return The computed threshold μ
- */
 float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<float const> grad_csum,
                          bst_idx_t n_samples, bst_idx_t sample_rows) {
   CHECK_GE(n_samples, 1);

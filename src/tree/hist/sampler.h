@@ -13,7 +13,6 @@
 #include "xgboost/context.h"    // for Context
 #include "xgboost/data.h"       // for MetaInfo
 #include "xgboost/linalg.h"     // for TensorView
-#include "xgboost/span.h"       // for Span
 
 namespace xgboost::tree {
 struct RandomReplace {
@@ -60,22 +59,6 @@ void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, flo
 
 void GradientBasedSample(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
                          float subsample);
-
-/**
- * @brief Calculate the threshold μ for gradient-based sampling using binary search.
- *
- * The threshold μ is found such that the expected sample rate equals the desired rate:
- * E[sample_rate] = (1/μ) * sum(ĝ_i for ĝ_i < μ) + count(ĝ_i >= μ) = sample_rows
- *
- * @param sorted_rag Sorted regularized absolute gradients (ascending order), with a sentinel
- *                   value (max float) at the end
- * @param grad_csum Cumulative sum of sorted gradients (size = n_samples)
- * @param n_samples Total number of samples
- * @param sample_rows Target number of samples
- * @return The computed threshold μ
- */
-float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<float const> grad_csum,
-                         bst_idx_t n_samples, bst_idx_t sample_rows);
 
 /**
  * @brief Sample gradients based on the configured sampling method.

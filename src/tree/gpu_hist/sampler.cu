@@ -231,7 +231,7 @@ std::size_t CalculateThresholdIndex(Context const* ctx,
   // Sort thresholds
   thrust::copy(cuctx->CTP(), dh::tbegin(reg_abs_grad), dh::tend(reg_abs_grad),
                dh::tbegin(thresholds));
-  thrust::sort(cuctx->CTP(), dh::tbegin(thresholds), dh::tend(thresholds) - 1);
+  thrust::sort(cuctx->TP(), dh::tbegin(thresholds), dh::tend(thresholds) - 1);
 
   // scan is not yet made deterministic
   double h_total_sum = thrust::reduce(cuctx->CTP(), dh::tbegin(thresholds),
