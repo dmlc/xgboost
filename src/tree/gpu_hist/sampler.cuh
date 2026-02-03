@@ -5,7 +5,6 @@
 #include <cstddef>  // for size_t
 
 #include "../../common/device_vector.cuh"  // for device_vector, caching_device_vector
-#include "../../common/timer.h"            // for Monitor
 #include "quantiser.cuh"                   // for GradientQuantiser
 #include "xgboost/base.h"                  // for GradientPair
 #include "xgboost/data.h"                  // for BatchParam
@@ -65,7 +64,6 @@ class GradientBasedSampling : public SamplingStrategy {
   dh::device_vector<float> thresholds_;
   // csum of sorted abs gradient
   dh::device_vector<float> grad_csum_;
-  std::size_t threshold_index_{0};
 };
 
 /**
@@ -91,7 +89,6 @@ class GradientBasedSampler {
                      linalg::Matrix<GradientPair>* value_gpair);
 
  private:
-  common::Monitor monitor_;
   std::unique_ptr<SamplingStrategy> strategy_;
 };
 

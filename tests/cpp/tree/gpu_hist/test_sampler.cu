@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>  // for sort
+#include <cmath>      // for abs
 #include <limits>     // for numeric_limits
 #include <numeric>    // for partial_sum
 #include <vector>     // for vector
@@ -95,10 +96,11 @@ TEST(GpuSampler, ApplySampling) {
   bst_idx_t n_samples = 1024;
   bst_target_t n_split_targets = 2, n_value_targets = 4;
   constexpr float kSubsample = 0.5f;
+  constexpr int kSamplingMethod = TrainParam::kGradientBased;
 
   // Generate and sample the split gradient
   auto [split_gpair, quantizer] = GenerateGradientsFixedPoint(&ctx, n_samples, n_split_targets);
-  GradientBasedSampler sampler{n_samples, kSubsample, TrainParam::kUniform};
+  GradientBasedSampler sampler{n_samples, kSubsample, kSamplingMethod};
   sampler.Sample(&ctx, split_gpair.View(ctx.Device()), quantizer.Quantizers());
   auto d_roundings = quantizer.Quantizers();
   std::vector<GradientQuantiser> h_roundings(d_roundings.size(), MakeDummyQuantizer());
@@ -106,11 +108,54 @@ TEST(GpuSampler, ApplySampling) {
 
   // Generate value gradient (more targets than split)
   auto value_gpair = GenerateRandomGradients(&ctx, n_samples, n_value_targets);
+  auto h_value_before = value_gpair.gpair.HostView();
   linalg::Matrix<GradientPair> sampled;
   CalcFloatGrad(split_gpair.HostView(), dh::ToSpan(h_roundings), &sampled);
 
   sampler.ApplySampling(&ctx, split_gpair, &value_gpair.gpair);
   CheckSamplingMask(sampled.HostView(), value_gpair.gpair.HostView(), kSubsample);
+  auto h_value_after = value_gpair.gpair.HostView();
+
+  std::vector<float> reg_abs_grad(n_samples);
+  auto grad_op = MvsGradOp{kDefaultMvsLambda};
+  for (bst_idx_t i = 0; i < n_samples; ++i) {
+    float sum_sq = 0.0f;
+    for (bst_target_t t = 0; t < n_value_targets; ++t) {
+      sum_sq += grad_op(h_value_before(i, t));
+    }
+    reg_abs_grad[i] = std::sqrt(sum_sq);
+  }
+  std::vector<float> sorted = reg_abs_grad;
+  sorted.push_back(std::numeric_limits<float>::max());
+  std::sort(sorted.begin(), sorted.end() - 1);
+  dh::device_vector<float> d_sorted(sorted);
+  dh::device_vector<float> d_csum(n_samples);
+  auto threshold_index = cuda_impl::CalculateThresholdIndex(&ctx, dh::ToSpan(d_sorted),
+                                                            dh::ToSpan(d_csum), n_samples,
+                                                            static_cast<bst_idx_t>(n_samples *
+                                                                                   kSubsample));
+  float threshold = d_sorted[threshold_index];
+
+  constexpr float kTolerance = 1e-3f;
+  auto h_sampled_split = sampled.HostView();
+  for (bst_idx_t i = 0; i < n_samples; ++i) {
+    if (h_sampled_split(i, 0).GetHess() == 0.0f) {
+      for (bst_target_t t = 0; t < n_value_targets; ++t) {
+        ASSERT_EQ(h_value_after(i, t).GetGrad(), 0.0f);
+        ASSERT_EQ(h_value_after(i, t).GetHess(), 0.0f);
+      }
+      continue;
+    }
+    float p = std::min(reg_abs_grad[i] / threshold, 1.0f);
+    float scale = p >= 1.0f ? 1.0f : 1.0f / p;
+    for (bst_target_t t = 0; t < n_value_targets; ++t) {
+      auto expected = h_value_before(i, t) * scale;
+      auto grad_tol = kTolerance * (1.0f + std::abs(expected.GetGrad()));
+      auto hess_tol = kTolerance * (1.0f + std::abs(expected.GetHess()));
+      ASSERT_NEAR(h_value_after(i, t).GetGrad(), expected.GetGrad(), grad_tol);
+      ASSERT_NEAR(h_value_after(i, t).GetHess(), expected.GetHess(), hess_tol);
+    }
+  }
 }
 }  // namespace xgboost::tree::cuda_impl
 

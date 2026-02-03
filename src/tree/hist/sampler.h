@@ -5,7 +5,9 @@
 #define XGBOOST_TREE_HIST_SAMPLER_H_
 
 #include <cstdint>  // for uint64_t
+#include <limits>   // for numeric_limits
 #include <random>   // for bernoulli_distribution, linear_congruential_engine
+#include <vector>   // for vector
 
 #include "../../common/math.h"  // for Sqr
 #include "../param.h"           // for TrainParam
@@ -56,52 +58,25 @@ struct MvsGradOp {
 };
 
 namespace cpu_impl {
-void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, float subsample);
-
-void GradientBasedSample(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
-                         float subsample);
-
 float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<float const> grad_csum,
                          bst_idx_t n_samples, bst_idx_t sample_rows);
 
-/**
- * @brief Sample gradients based on the configured sampling method.
- *
- * Supports both uniform and gradient-based (MVS) sampling methods.
- */
-inline void SampleGradient(Context const* ctx, TrainParam const& param,
-                           linalg::MatrixView<GradientPair> out) {
-  CHECK(out.Contiguous());
+class Sampler {
+ public:
+  explicit Sampler(TrainParam const& param)
+      : sampling_method_{param.sampling_method}, subsample_{param.subsample} {}
 
-  std::size_t n_samples = out.Shape(0);
-  std::size_t sample_rows = static_cast<std::size_t>(n_samples * param.subsample);
-  if (sample_rows >= n_samples) {
-    return;  // No sampling needed
-  }
-  if (n_samples == 0) {
-    return;
-  }
+  void Sample(Context const* ctx, linalg::MatrixView<GradientPair> out);
+  void ApplySampling(Context const* ctx, linalg::MatrixView<GradientPair const> sampled_split_gpair,
+                     linalg::Matrix<GradientPair>* value_gpair) const;
 
-  switch (param.sampling_method) {
-    case TrainParam::kUniform:
-      UniformSample(ctx, out, param.subsample);
-      break;
-    case TrainParam::kGradientBased:
-      GradientBasedSample(ctx, out, param.subsample);
-      break;
-    default:
-      LOG(FATAL) << "Unknown sampling method: " << param.sampling_method;
-  }
-}
-
-/**
- * @brief Apply sampling mask from sampled split gradient to value gradient.
- *
- * Zero out rows in value gradient where the corresponding row in split gradient was not
- * sampled (has zero hessian). Value gradient may have more targets than split gradient.
- */
-void ApplySamplingMask(Context const* ctx, linalg::Matrix<GradientPair> const& sampled_split_gpair,
-                       linalg::Matrix<GradientPair>* value_gpair);
+ private:
+  int sampling_method_{TrainParam::kUniform};
+  float subsample_{1.0f};
+  bool is_sampling_{false};
+  std::vector<float> reg_abs_grad_;
+  float threshold_{std::numeric_limits<float>::max()};
+};
 }  // namespace cpu_impl
 }  // namespace xgboost::tree
 #endif  // XGBOOST_TREE_HIST_SAMPLER_H_

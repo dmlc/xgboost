@@ -44,6 +44,133 @@ void ParallelSampling(bst_idx_t n_samples, std::int32_t n_threads, Fn&& fn) {
   exc.Rethrow();
 }
 
+namespace {
+float SamplingProbability(float threshold, float reg_abs_grad) {
+  if (std::abs(threshold) < kRtEps) {
+    threshold = std::copysign(kRtEps, threshold);
+  }
+  return reg_abs_grad / threshold;
+}
+
+struct SamplingInfo {
+  std::vector<float> reg_abs_grad;
+  float threshold;
+};
+
+SamplingInfo ComputeSamplingInfo(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
+                                 float subsample) {
+  float mvs_lambda = kDefaultMvsLambda;
+  std::size_t n_samples = gpairs.Shape(0);
+  std::size_t n_targets = gpairs.Shape(1);
+  std::size_t sample_rows = static_cast<std::size_t>(n_samples * subsample);
+
+  SamplingInfo info;
+  info.reg_abs_grad.resize(n_samples);
+  auto grad_op = MvsGradOp{mvs_lambda};
+  common::ParallelFor(n_samples, ctx->Threads(), [&](auto i) {
+    float sum_sq = 0.0f;
+    for (std::size_t t = 0; t < n_targets; ++t) {
+      sum_sq += grad_op(gpairs(i, t));
+    }
+    info.reg_abs_grad[i] = std::sqrt(sum_sq);
+  });
+  std::vector<float> thresholds = info.reg_abs_grad;        // Copy for sorting
+  thresholds.push_back(std::numeric_limits<float>::max());  // sentinel
+  common::Sort(ctx, thresholds.begin(), thresholds.end() - 1, std::less{});
+  std::vector<float> grad_csum(n_samples);
+  std::partial_sum(thresholds.begin(), thresholds.end() - 1, grad_csum.begin());
+  info.threshold = CalculateThreshold(
+      common::Span<float const>{thresholds.data(), thresholds.size()},
+      common::Span<float const>{grad_csum.data(), grad_csum.size()}, n_samples, sample_rows);
+  return info;
+}
+
+void GradientBasedSampling(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
+                           common::Span<float const> reg_abs_grad, float threshold) {
+  std::uniform_real_distribution<float> dist{0.0f, 1.0f};
+  auto n_samples = gpairs.Shape(0);
+  auto n_targets = gpairs.Shape(1);
+  ParallelSampling(n_samples, ctx->Threads(), [&](std::size_t ibegin, std::size_t iend, auto& eng) {
+    for (std::size_t i = ibegin; i < iend; ++i) {
+      float p = SamplingProbability(threshold, reg_abs_grad[i]);
+      p = std::min(p, 1.0f);
+
+      // Skip rows with zero gradient (already zero)
+      if (gpairs(i, 0).GetGrad() == 0.0 && gpairs(i, 0).GetHess() == 0.0) {
+        continue;
+      }
+
+      if (p >= 1.0f) {
+        // Always select this row.
+        continue;
+      }
+      float rand_val = dist(eng);
+      if (rand_val <= p) {
+        // Selected: scale gradient by 1/p
+        float scale = 1.0f / p;
+        for (std::size_t t = 0; t < n_targets; ++t) {
+          auto old = gpairs(i, t);
+          gpairs(i, t) = old * scale;
+        }
+      } else {
+        // Not selected: zero out
+        for (std::size_t t = 0; t < n_targets; ++t) {
+          gpairs(i, t) = GradientPair{};
+        }
+      }
+    }
+  });
+}
+
+void ApplyMvsWeights(Context const* ctx, linalg::MatrixView<GradientPair const> sampled_split_gpair,
+                     linalg::Matrix<GradientPair>* value_gpair,
+                     common::Span<float const> reg_abs_grad, float threshold) {
+  CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
+  auto h_split = sampled_split_gpair;
+  auto h_value = value_gpair->HostView();
+  auto n_samples = h_value.Shape(0);
+  auto n_targets = h_value.Shape(1);
+
+  common::ParallelFor(n_samples, ctx->Threads(), [&](bst_idx_t i) {
+    // Check if this row was not sampled (hessian is zero in split gradient)
+    if (h_split(i, 0).GetHess() == 0.0f) {
+      for (bst_target_t t = 0; t < n_targets; ++t) {
+        h_value(i, t) = GradientPair{};
+      }
+      return;
+    }
+    float p = SamplingProbability(threshold, reg_abs_grad[i]);
+    p = std::min(p, 1.0f);
+    if (p >= 1.0f) {
+      return;
+    }
+    float scale = 1.0f / p;
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      h_value(i, t) = h_value(i, t) * scale;
+    }
+  });
+}
+
+void ApplySamplingMask(Context const* ctx,
+                       linalg::MatrixView<GradientPair const> sampled_split_gpair,
+                       linalg::Matrix<GradientPair>* value_gpair) {
+  CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
+  auto h_split = sampled_split_gpair;
+  auto h_value = value_gpair->HostView();
+  auto n_samples = h_value.Shape(0);
+  auto n_targets = h_value.Shape(1);
+
+  common::ParallelFor(n_samples, ctx->Threads(), [&](bst_idx_t i) {
+    // Check if this row was not sampled (hessian is zero in split gradient)
+    if (h_split(i, 0).GetHess() == 0.0f) {
+      for (bst_target_t t = 0; t < n_targets; ++t) {
+        h_value(i, t) = GradientPair{};
+      }
+    }
+  });
+}
+}  // namespace
+
 void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, float subsample) {
   bst_idx_t n_samples = out.Shape(0);
   std::bernoulli_distribution coin_flip{subsample};
@@ -113,85 +240,50 @@ float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<floa
   return grad_csum.back() / sample_rows;
 }
 
-void GradientBasedSample(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
-                         float subsample) {
-  float mvs_lambda = kDefaultMvsLambda;
-  std::size_t n_samples = gpairs.Shape(0);
-  std::size_t n_targets = gpairs.Shape(1);
-  std::size_t sample_rows = static_cast<std::size_t>(n_samples * subsample);
-
-  // Create the regularized absolute gradient
-  std::vector<float> reg_abs_grad(n_samples);
-  auto grad_op = MvsGradOp{mvs_lambda};
-  common::ParallelFor(n_samples, ctx->Threads(), [&](auto i) {
-    float sum_sq = 0.0f;
-    for (std::size_t t = 0; t < n_targets; ++t) {
-      sum_sq += grad_op(gpairs(i, t));
-    }
-    reg_abs_grad[i] = std::sqrt(sum_sq);
-  });
-  // Sort and calculate csum
-  std::vector<float> thresholds = reg_abs_grad;             // Copy for sorting
-  thresholds.push_back(std::numeric_limits<float>::max());  // sentinel
-  common::Sort(ctx, thresholds.begin(), thresholds.end() - 1, std::less{});
-  std::vector<float> grad_csum(n_samples);
-  std::partial_sum(thresholds.begin(), thresholds.end() - 1, grad_csum.begin());
-  // Find the threshold u for each row.
-  float threshold = CalculateThreshold(
-      common::Span<float const>{thresholds.data(), thresholds.size()},
-      common::Span<float const>{grad_csum.data(), grad_csum.size()}, n_samples, sample_rows);
-  if (std::abs(threshold) < kRtEps) {
-    threshold = std::copysign(kRtEps, threshold);
+void Sampler::Sample(Context const* ctx, linalg::MatrixView<GradientPair> out) {
+  CHECK(out.Contiguous());
+  std::size_t n_samples = out.Shape(0);
+  std::size_t sample_rows = static_cast<std::size_t>(n_samples * subsample_);
+  if (sample_rows >= n_samples || n_samples == 0) {
+    is_sampling_ = false;
+    return;
   }
-  // Sample rows using Poisson sampling
-  std::uniform_real_distribution<float> dist{0.0f, 1.0f};
-  ParallelSampling(n_samples, ctx->Threads(), [&](std::size_t ibegin, std::size_t iend, auto& eng) {
-    for (std::size_t i = ibegin; i < iend; ++i) {
-      float combined_gradient = reg_abs_grad[i];
-      float p = std::min(combined_gradient / threshold, 1.0f);
+  is_sampling_ = true;
 
-      // Skip rows with zero gradient (already zero)
-      if (gpairs(i, 0).GetGrad() == 0.0 && gpairs(i, 0).GetHess() == 0.0) {
-        continue;
-      }
-
-      if (p >= 1.0f) {
-        // Always select this row.
-        continue;
-      }
-      float rand_val = dist(eng);
-      if (rand_val <= p) {
-        // Selected: scale gradient by 1/p
-        float scale = 1.0f / p;
-        for (std::size_t t = 0; t < n_targets; ++t) {
-          auto old = gpairs(i, t);
-          gpairs(i, t) = old * scale;
-        }
-      } else {
-        // Not selected: zero out
-        for (std::size_t t = 0; t < n_targets; ++t) {
-          gpairs(i, t) = GradientPair{};
-        }
-      }
+  switch (sampling_method_) {
+    case TrainParam::kUniform:
+      UniformSample(ctx, out, subsample_);
+      break;
+    case TrainParam::kGradientBased: {
+      auto info = ComputeSamplingInfo(ctx, out, subsample_);
+      reg_abs_grad_ = std::move(info.reg_abs_grad);
+      threshold_ = info.threshold;
+      GradientBasedSampling(ctx, out, reg_abs_grad_, threshold_);
+      break;
     }
-  });
+    default:
+      LOG(FATAL) << "Unknown sampling method: " << sampling_method_;
+  }
 }
 
-void ApplySamplingMask(Context const* ctx, linalg::Matrix<GradientPair> const& sampled_split_gpair,
-                       linalg::Matrix<GradientPair>* value_gpair) {
-  CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
-  auto h_split = sampled_split_gpair.HostView();
-  auto h_value = value_gpair->HostView();
-  auto n_samples = h_value.Shape(0);
-  auto n_targets = h_value.Shape(1);
-
-  common::ParallelFor(n_samples, ctx->Threads(), [&](bst_idx_t i) {
-    // Check if this row was not sampled (hessian is zero in split gradient)
-    if (h_split(i, 0).GetHess() == 0.0f) {
-      for (bst_target_t t = 0; t < n_targets; ++t) {
-        h_value(i, t) = GradientPair{};
-      }
+void Sampler::ApplySampling(Context const* ctx,
+                            linalg::MatrixView<GradientPair const> sampled_split_gpair,
+                            linalg::Matrix<GradientPair>* value_gpair) const {
+  if (!is_sampling_) {
+    return;
+  }
+  switch (sampling_method_) {
+    case TrainParam::kUniform: {
+      ApplySamplingMask(ctx, sampled_split_gpair, value_gpair);
+      break;
     }
-  });
+    case TrainParam::kGradientBased: {
+      auto info = ComputeSamplingInfo(ctx, value_gpair->HostView(), subsample_);
+      ApplyMvsWeights(ctx, sampled_split_gpair, value_gpair, info.reg_abs_grad, info.threshold);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unknown sampling method: " << sampling_method_;
+  }
 }
 }  // namespace xgboost::tree::cpu_impl

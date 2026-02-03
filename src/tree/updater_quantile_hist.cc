@@ -28,7 +28,7 @@
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
-#include "hist/sampler.h"                    // for SampleGradient
+#include "hist/sampler.h"                    // for Sampler
 #include "param.h"                           // for TrainParam, GradStats
 #include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
 #include "xgboost/context.h"                 // for Context
@@ -672,12 +672,13 @@ class QuantileHistMaker : public TreeUpdater {
       h_sample_out = sample_out.HostView();
     }
 
+    cpu_impl::Sampler sampler{*param};
     for (auto tree_it = trees.begin(); tree_it != trees.end(); ++tree_it) {
       if (need_copy()) {
         // Copy gradient into buffer for sampling. This converts C-order to F-order.
         std::copy(linalg::cbegin(h_gpair), linalg::cend(h_gpair), linalg::begin(h_sample_out));
       }
-      cpu_impl::SampleGradient(ctx_, *param, h_sample_out);
+      sampler.Sample(ctx_, h_sample_out);
       auto *h_out_position = &out_position[tree_it - trees.begin()];
       if ((*tree_it)->IsMultiTarget()) {
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
@@ -690,7 +691,7 @@ class QuantileHistMaker : public TreeUpdater {
           auto h_value_grad_in = in_gpair->value_gpair.HostView();
           std::copy(linalg::cbegin(h_value_grad_in), linalg::cend(h_value_grad_in),
                     linalg::begin(h_value_grad));
-          cpu_impl::ApplySamplingMask(ctx_, sample_out, &value_grad);
+          sampler.ApplySampling(ctx_, h_sample_out, &value_grad);
           // Refresh the leaf weights.
           p_mtimpl_->ExpandTreeLeaf(value_grad, *tree_it);
         } else {

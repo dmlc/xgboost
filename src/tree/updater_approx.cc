@@ -23,7 +23,7 @@
 #include "hist/expand_entry.h"               // for CPUExpandEntry
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
-#include "hist/sampler.h"                    // for SampleGradient
+#include "hist/sampler.h"                    // for Sampler
 #include "param.h"                           // for GradStats, TrainParam
 #include "xgboost/base.h"                    // for Args, GradientPair, bst_node_t, bst_bin_t
 #include "xgboost/context.h"                 // for Context
@@ -278,7 +278,8 @@ class GlobalApproxUpdater : public TreeUpdater {
     *sampled = linalg::Empty<GradientPair>(ctx_, gpair->Size(), 1);
     auto in = gpair->HostView().Values();
     std::copy(in.data(), in.data() + in.size(), sampled->HostView().Values().data());
-    cpu_impl::SampleGradient(ctx_, param, sampled->HostView());
+    cpu_impl::Sampler sampler{param};
+    sampler.Sample(ctx_, sampled->HostView());
   }
 
   [[nodiscard]] char const *Name() const override { return "grow_histmaker"; }
