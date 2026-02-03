@@ -60,21 +60,11 @@ struct SamplingInfo {
 
 SamplingInfo ComputeSamplingInfo(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
                                  float subsample) {
-  float mvs_lambda = kDefaultMvsLambda;
   std::size_t n_samples = gpairs.Shape(0);
-  std::size_t n_targets = gpairs.Shape(1);
   std::size_t sample_rows = static_cast<std::size_t>(n_samples * subsample);
 
   SamplingInfo info;
-  info.reg_abs_grad.resize(n_samples);
-  auto grad_op = MvsGradOp{mvs_lambda};
-  common::ParallelFor(n_samples, ctx->Threads(), [&](auto i) {
-    float sum_sq = 0.0f;
-    for (std::size_t t = 0; t < n_targets; ++t) {
-      sum_sq += grad_op(gpairs(i, t));
-    }
-    info.reg_abs_grad[i] = std::sqrt(sum_sq);
-  });
+  info.reg_abs_grad = CalcRegAbsGrad(ctx, gpairs);
   std::vector<float> thresholds = info.reg_abs_grad;        // Copy for sorting
   thresholds.push_back(std::numeric_limits<float>::max());  // sentinel
   common::Sort(ctx, thresholds.begin(), thresholds.end() - 1, std::less{});
@@ -171,6 +161,23 @@ void ApplySamplingMask(Context const* ctx,
   });
 }
 }  // namespace
+
+std::vector<float> CalcRegAbsGrad(Context const* ctx,
+                                  linalg::MatrixView<GradientPair const> gpairs) {
+  float mvs_lambda = kDefaultMvsLambda;
+  std::size_t n_samples = gpairs.Shape(0);
+  std::size_t n_targets = gpairs.Shape(1);
+  std::vector<float> reg_abs_grad(n_samples);
+  auto grad_op = MvsGradOp{mvs_lambda};
+  common::ParallelFor(n_samples, ctx->Threads(), [&](auto i) {
+    float sum_sq = 0.0f;
+    for (std::size_t t = 0; t < n_targets; ++t) {
+      sum_sq += grad_op(gpairs(i, t));
+    }
+    reg_abs_grad[i] = std::sqrt(sum_sq);
+  });
+  return reg_abs_grad;
+}
 
 void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, float subsample) {
   bst_idx_t n_samples = out.Shape(0);

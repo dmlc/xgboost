@@ -116,15 +116,7 @@ TEST(GpuSampler, ApplySampling) {
   CheckSamplingMask(sampled.HostView(), value_gpair.gpair.HostView(), kSubsample);
   auto h_value_after = value_gpair.gpair.HostView();
 
-  std::vector<float> reg_abs_grad(n_samples);
-  auto grad_op = MvsGradOp{kDefaultMvsLambda};
-  for (bst_idx_t i = 0; i < n_samples; ++i) {
-    float sum_sq = 0.0f;
-    for (bst_target_t t = 0; t < n_value_targets; ++t) {
-      sum_sq += grad_op(h_value_before(i, t));
-    }
-    reg_abs_grad[i] = std::sqrt(sum_sq);
-  }
+  auto reg_abs_grad = ::xgboost::tree::cpu_impl::CalcRegAbsGrad(&ctx, h_value_before);
   std::vector<float> sorted = reg_abs_grad;
   sorted.push_back(std::numeric_limits<float>::max());
   std::sort(sorted.begin(), sorted.end() - 1);
@@ -135,26 +127,9 @@ TEST(GpuSampler, ApplySampling) {
                                          static_cast<bst_idx_t>(n_samples * kSubsample));
   float threshold = d_sorted[threshold_index];
 
-  constexpr float kTolerance = 1e-3f;
   auto h_sampled_split = sampled.HostView();
-  for (bst_idx_t i = 0; i < n_samples; ++i) {
-    if (h_sampled_split(i, 0).GetHess() == 0.0f) {
-      for (bst_target_t t = 0; t < n_value_targets; ++t) {
-        ASSERT_EQ(h_value_after(i, t).GetGrad(), 0.0f);
-        ASSERT_EQ(h_value_after(i, t).GetHess(), 0.0f);
-      }
-      continue;
-    }
-    float p = std::min(reg_abs_grad[i] / threshold, 1.0f);
-    float scale = p >= 1.0f ? 1.0f : 1.0f / p;
-    for (bst_target_t t = 0; t < n_value_targets; ++t) {
-      auto expected = h_value_before(i, t) * scale;
-      auto grad_tol = kTolerance * (1.0f + std::abs(expected.GetGrad()));
-      auto hess_tol = kTolerance * (1.0f + std::abs(expected.GetHess()));
-      ASSERT_NEAR(h_value_after(i, t).GetGrad(), expected.GetGrad(), grad_tol);
-      ASSERT_NEAR(h_value_after(i, t).GetHess(), expected.GetHess(), hess_tol);
-    }
-  }
+  ::xgboost::tree::CheckValueReweight(h_sampled_split, h_value_before, h_value_after, reg_abs_grad,
+                                      threshold);
 }
 }  // namespace xgboost::tree::cuda_impl
 

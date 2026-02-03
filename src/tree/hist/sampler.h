@@ -58,6 +58,10 @@ struct MvsGradOp {
 };
 
 namespace cpu_impl {
+// Calculate regularized absolute gradient for each row.
+std::vector<float> CalcRegAbsGrad(Context const* ctx,
+                                  linalg::MatrixView<GradientPair const> gpairs);
+
 float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<float const> grad_csum,
                          bst_idx_t n_samples, bst_idx_t sample_rows);
 

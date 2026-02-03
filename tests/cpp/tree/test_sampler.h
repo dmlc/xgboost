@@ -6,8 +6,12 @@
 #include <xgboost/base.h>    // for bst_idx_t, bst_target_t, GradientPair, GradientPairInt64
 #include <xgboost/linalg.h>  // for MatrixView
 
-#include <cstddef>  // for size_t
-#include <vector>   // for vector
+#include <algorithm>  // for min
+#include <cmath>      // for abs, copysign, sqrt
+#include <cstddef>    // for size_t
+#include <vector>     // for vector
+
+#include "../../../src/tree/hist/sampler.h"  // for CalcRegAbsGrad
 
 namespace xgboost::tree {
 // Check that multi-target rows are consistently sampled and return count.
@@ -82,6 +86,42 @@ inline void CheckSampling(float subsample, bst_target_t n_targets, bool check_su
   if (subsample < 1.0f) {
     double sampled_fraction = static_cast<double>(sampled_count) / n_samples;
     ASSERT_NEAR(sampled_fraction, subsample, 0.05);
+  }
+}
+
+// Validate that value gradients are reweighted using the provided threshold and reg_abs_grad.
+inline void CheckValueReweight(linalg::MatrixView<GradientPair const> sampled_split,
+                               linalg::MatrixView<GradientPair const> value_before,
+                               linalg::MatrixView<GradientPair const> value_after,
+                               std::vector<float> const& reg_abs_grad, float threshold,
+                               float tol = 1e-3f) {
+  CHECK_EQ(value_before.Shape(0), value_after.Shape(0));
+  CHECK_EQ(value_before.Shape(1), value_after.Shape(1));
+  CHECK_EQ(value_before.Shape(0), reg_abs_grad.size());
+
+  if (std::abs(threshold) < kRtEps) {
+    threshold = std::copysign(kRtEps, threshold);
+  }
+
+  auto n_samples = value_after.Shape(0);
+  auto n_targets = value_after.Shape(1);
+  for (bst_idx_t i = 0; i < n_samples; ++i) {
+    if (sampled_split(i, 0).GetHess() == 0.0f) {
+      for (bst_target_t t = 0; t < n_targets; ++t) {
+        ASSERT_EQ(value_after(i, t).GetGrad(), 0.0f);
+        ASSERT_EQ(value_after(i, t).GetHess(), 0.0f);
+      }
+      continue;
+    }
+    float p = std::min(reg_abs_grad[i] / threshold, 1.0f);
+    float scale = p >= 1.0f ? 1.0f : 1.0f / p;
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      auto expected = value_before(i, t) * scale;
+      auto grad_tol = tol * (1.0f + std::abs(expected.GetGrad()));
+      auto hess_tol = tol * (1.0f + std::abs(expected.GetHess()));
+      ASSERT_NEAR(value_after(i, t).GetGrad(), expected.GetGrad(), grad_tol);
+      ASSERT_NEAR(value_after(i, t).GetHess(), expected.GetHess(), hess_tol);
+    }
   }
 }
 }  // namespace xgboost::tree
