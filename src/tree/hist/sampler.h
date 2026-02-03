@@ -7,13 +7,13 @@
 #include <cstdint>  // for uint64_t
 #include <random>   // for bernoulli_distribution, linear_congruential_engine
 
-#include "../math.h"          // for Sqr
-#include "../param.h"         // for TrainParam
-#include "xgboost/base.h"     // for GradientPair, bst_idx_t
-#include "xgboost/context.h"  // for Context
-#include "xgboost/data.h"     // for MetaInfo
-#include "xgboost/linalg.h"   // for TensorView
-#include "xgboost/span.h"     // for Span
+#include "../../common/math.h"  // for Sqr
+#include "../param.h"           // for TrainParam
+#include "xgboost/base.h"       // for GradientPair, bst_idx_t
+#include "xgboost/context.h"    // for Context
+#include "xgboost/data.h"       // for MetaInfo
+#include "xgboost/linalg.h"     // for TensorView
+#include "xgboost/span.h"       // for Span
 
 namespace xgboost::tree {
 struct RandomReplace {

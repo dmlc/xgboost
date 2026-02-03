@@ -7,19 +7,16 @@
 
 #include <cmath>    // std::exp
 #include <cstddef>  // std::size_t
-#include <limits>   // std::numeric_limits
-#include <numeric>  // std::partial_sum
 #include <string>   // std::to_string
 #include <vector>   // std::vector
 
 #include "../../../../src/tree/hist/sampler.h"  // SampleGradient
 #include "../../../../src/tree/param.h"         // TrainParam
 #include "../../helpers.h"                      // GenerateRandomGradients
-#include "xgboost/base.h"     // GradientPair,bst_target_t
-#include "xgboost/context.h"  // Context
-#include "xgboost/data.h"     // MetaInfo
-#include "xgboost/linalg.h"   // Matrix,Constants
-#include "xgboost/span.h"     // Span
+#include "xgboost/base.h"                       // GradientPair,bst_target_t
+#include "xgboost/context.h"                    // Context
+#include "xgboost/data.h"                       // MetaInfo
+#include "xgboost/linalg.h"                     // Matrix,Constants
 
 namespace xgboost::tree::cpu_impl {
 void VerifySampling(float subsample, int sampling_method, bst_target_t n_targets = 1,
