@@ -338,13 +338,13 @@ def run_recode(client: Client, device: Device) -> None:
         return DMatrixT(*args, **kwargs)
 
     def run(DMatrixT: Type[dxgb.DaskDMatrix]) -> None:
-        enc, reenc, y, _, _ = make_recoded(device, n_features=16)
+        enc, reenc, y, _, _ = make_recoded(device, n_features=96)
         to = get_client_workers(client)
 
         denc, dreenc, dy = (
-            dd.from_pandas(enc, npartitions=2).persist(workers=to),
-            dd.from_pandas(reenc, npartitions=2).persist(workers=to),
-            da.from_array(y, chunks=(y.shape[0] // 2,)).persist(workers=to),
+            dd.from_pandas(enc, npartitions=8).persist(workers=to),
+            dd.from_pandas(reenc, npartitions=8).persist(workers=to),
+            da.from_array(y, chunks=(y.shape[0] // 8,)).persist(workers=to),
         )
 
         Xy = create_dmatrix(DMatrixT, client, denc, dy, enable_categorical=True)
