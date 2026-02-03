@@ -27,7 +27,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_
   cut = common::SketchOnDMatrix(ctx, p_fmat, max_bins_per_feat, sorted_sketch, hess);
 
   const uint32_t nbins = cut.Ptrs().back();
-  hit_count = common::MakeFixedVecWithMalloc(nbins, std::size_t{0});
+  hit_count = common::MakeFixedVecWithMalloc(ctx, nbins, std::size_t{0});
   hit_count_tloc_.resize(ctx->Threads() * nbins, 0);
 
   size_t new_size = 1;
@@ -35,14 +35,14 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_
     new_size += batch.Size();
   }
 
-  row_ptr = common::MakeFixedVecWithMalloc(new_size, std::size_t{0});
+  row_ptr = common::MakeFixedVecWithMalloc(ctx, new_size, std::size_t{0});
 
   const bool isDense = p_fmat->IsDense();
   this->isDense_ = isDense;
   auto ft = p_fmat->Info().feature_types.ConstHostSpan();
 
   for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-    this->PushBatch(batch, ft, ctx->Threads());
+    this->PushBatch(ctx, batch, ft);
   }
   this->columns_ = std::make_unique<common::ColumnMatrix>();
 
@@ -83,32 +83,34 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *, MetaInfo const &, EllpackPag
 
 GHistIndexMatrix::~GHistIndexMatrix() = default;
 
-void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureType const> ft,
-                                 int32_t n_threads) {
+void GHistIndexMatrix::PushBatch(Context const *ctx, SparsePage const &batch,
+                                 common::Span<FeatureType const> ft) {
   auto page = batch.GetView();
   auto it = common::MakeIndexTransformIter([&](std::size_t ridx) { return page[ridx].size(); });
-  common::PartialSum(n_threads, it, it + page.Size(), static_cast<size_t>(0), row_ptr.begin());
+  common::PartialSum(ctx->Threads(), it, it + page.Size(), static_cast<size_t>(0), row_ptr.begin());
   data::SparsePageAdapterBatch adapter_batch{page};
-  auto is_valid = [](auto) { return true; };  // SparsePage always contains valid entries
-  PushBatchImpl(n_threads, adapter_batch, 0, is_valid, ft);
+  auto is_valid = [](auto) {
+    return true;
+  };  // SparsePage always contains valid entries
+  PushBatchImpl(ctx, adapter_batch, 0, is_valid, ft);
 }
 
-GHistIndexMatrix::GHistIndexMatrix(SparsePage const &batch, common::Span<FeatureType const> ft,
-                                   common::HistogramCuts cuts, bst_bin_t max_bins_per_feat,
-                                   bool is_dense, double sparse_thresh, std::int32_t n_threads)
+GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, SparsePage const &batch,
+                                   common::Span<FeatureType const> ft, common::HistogramCuts cuts,
+                                   bst_bin_t max_bins_per_feat, bool is_dense, double sparse_thresh)
     : cut{std::move(cuts)},
       max_numeric_bins_per_feat{max_bins_per_feat},
       base_rowid{batch.base_rowid},
       isDense_{is_dense} {
-  CHECK_GE(n_threads, 1);
   CHECK_EQ(row_ptr.size(), 0);
   row_ptr = common::MakeFixedVecWithMalloc(batch.Size() + 1, std::size_t{0});
 
   const uint32_t nbins = cut.Ptrs().back();
   hit_count = common::MakeFixedVecWithMalloc(nbins, std::size_t{0});
+  auto n_threads = ctx->Threads();
   hit_count_tloc_.resize(n_threads * nbins, 0);
 
-  this->PushBatch(batch, ft, n_threads);
+  this->PushBatch(ctx, batch, ft);
   this->columns_ = std::make_unique<common::ColumnMatrix>();
   if (!std::isnan(sparse_thresh)) {
     this->columns_->InitFromSparse(batch, *this, sparse_thresh, n_threads);
@@ -140,8 +142,8 @@ void GHistIndexMatrix::ResizeColumns(double sparse_thresh) {
   this->columns_ = std::make_unique<common::ColumnMatrix>(*this, sparse_thresh);
 }
 
-void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
-  auto make_index = [this, n_index](auto t, common::BinTypeSize t_size) {
+void GHistIndexMatrix::ResizeIndex(Context const *ctx, const size_t n_index, const bool isDense) {
+  auto make_index = [this, ctx, n_index](auto t, common::BinTypeSize t_size) {
     // Must resize instead of allocating a new one. This function is called everytime a
     // new batch is pushed, and we grow the size accordingly without loosing the data in
     // the previous batches.
@@ -153,7 +155,7 @@ void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
     decltype(this->data) new_vec;
     if (!resource) {
       CHECK(this->data.empty());
-      new_vec = common::MakeFixedVecWithMalloc(n_bytes, std::uint8_t{0});
+      new_vec = common::MakeFixedVecWithMalloc(ctx, n_bytes, std::uint8_t{0});
     } else {
       CHECK(resource->Type() == common::ResourceHandler::kMalloc);
       auto malloc_resource = std::dynamic_pointer_cast<common::MallocResource>(resource);
@@ -165,8 +167,8 @@ void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
       new_vec = {new_ptr, n_bytes / sizeof(std::uint8_t), malloc_resource};
     }
     this->data = std::move(new_vec);
-    this->index = common::Index{common::Span{data.data(), static_cast<size_t>(data.size())},
-        t_size};
+    this->index =
+        common::Index{common::Span{data.data(), static_cast<size_t>(data.size())}, t_size};
   };
 
   if ((MaxNumBinPerFeat() - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) &&
@@ -195,7 +197,7 @@ bst_bin_t GHistIndexMatrix::GetGindex(size_t ridx, size_t fidx) const {
     return static_cast<bst_bin_t>(this->index[begin + fidx]);
   }
   auto end = RowIdx(ridx + 1);
-  auto const& cut_ptrs = cut.Ptrs();
+  auto const &cut_ptrs = cut.Ptrs();
   auto f_begin = cut_ptrs[fidx];
   auto f_end = cut_ptrs[fidx + 1];
   return BinarySearchBin(begin, end, this->index, f_begin, f_end);
