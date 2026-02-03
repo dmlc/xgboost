@@ -119,9 +119,9 @@ two automatic checks to enforce coding style conventions. To expedite the code r
 Pre-commit
 ==========
 We provide a `pre-commit <https://pre-commit.com/>`_ configuration for basic formatting,
-linting, and file-sanity checks. By default, pre-commit targets changed files, but some hooks in
-this repository (for example, the Python formatting hook) are configured to examine a broader set
-of files.
+linting, and file-sanity checks. By default, pre-commit runs on files that are staged for commit,
+and the hooks in this repository are configured accordingly. To run on modified or untracked files,
+you can use ``pre-commit run --files <path> [...]`` or ``pre-commit run --all-files``.
 
 To enable it locally:
 
@@ -146,14 +146,14 @@ Linter
 ======
 We use a combination of linters to enforce style convention and find potential errors. Linting is especially useful for scripting languages like Python, as we can catch many errors that would have otherwise occurred at run-time.
 
-For Python scripts, `pylint <https://github.com/PyCQA/pylint>`_, `black <https://github.com/psf/black>`__ and `isort <https://github.com/PyCQA/isort>`__ are used for providing guidance on coding style, and `mypy <https://github.com/python/mypy>`__ is required for type checking. The Python formatting and pylint checks are bundled in the ``format-python`` pre-commit hook. For C++, `cpplint <https://github.com/cpplint/cpplint>`_ is used along with ``clang-tidy``. For R, ``lintr`` is used.
+For Python scripts, `pylint <https://github.com/PyCQA/pylint>`_, `black <https://github.com/psf/black>`__ and `isort <https://github.com/PyCQA/isort>`__ are used for providing guidance on coding style, and `mypy <https://github.com/python/mypy>`__ is required for type checking. The Python formatting and pylint checks are provided via the corresponding pre-commit hooks, which operate on changed files. For C++, `cpplint <https://github.com/cpplint/cpplint>`_ is used along with ``clang-tidy``. For R, ``lintr`` is used.
 
-To run checks for Python locally, install the checkers mentioned previously and run:
+To run Python checks locally, install the checkers mentioned previously and run the pre-commit hooks for the files you changed:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python ./ops/script/lint_python.py --fix
+  pre-commit run
 
 To run checks for R:
 

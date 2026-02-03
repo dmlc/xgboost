@@ -142,14 +142,33 @@ def from_array_interface(interface: ArrayInf, zero_copy: bool = False) -> NumpyO
         def __cuda_array_interface__(self, interface: ArrayInf) -> None:
             self.__array_interface__ = interface
 
+        @property
+        def shape(self) -> Tuple[int, ...]:
+            """Shape of the input array."""
+            aif = self.__array_interface__
+            assert aif is not None
+            return aif["shape"]
+
+        @property
+        def size(self) -> np.signedinteger:
+            """Total size of the input array."""
+            return np.prod(self.shape)
+
     arr = Array()
 
+    # Cupy and numpy might run into issue when constructing an empty array from an array
+    # interface. we explicitly check for emptiness.
     if "stream" in interface:
         # CUDA stream is presented, this is a __cuda_array_interface__.
         arr.__cuda_array_interface__ = interface
-        out = import_cupy().array(arr, copy=not zero_copy)
+        cp = import_cupy()
+        if arr.size == 0:
+            return cp.empty(shape=arr.shape, dtype=np.dtype(interface["typestr"]))
+        out = cp.array(arr, copy=not zero_copy)
     else:
         arr.__array_interface__ = interface
+        if arr.size == 0:
+            return np.empty(shape=arr.shape, dtype=np.dtype(interface["typestr"]))
         out = np.array(arr, copy=not zero_copy)
 
     return out
