@@ -29,8 +29,6 @@ void VerifySampling(float subsample, int sampling_method, bst_target_t n_targets
   auto ctx = MakeCUDACtx(0);
 
   constexpr size_t kRows = 4096;
-  bst_idx_t sample_rows = kRows * subsample;
-
   auto [gpair_i64, quantizer] = GenerateGradientsFixedPoint(&ctx, kRows, n_targets);
 
   // Copy quantizers to host for summing
