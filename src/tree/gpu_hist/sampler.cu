@@ -117,6 +117,9 @@ class PoissonSampling {
     auto q = roundings_[tidx];
 
     float u = threshold_[threshold_index_];
+    if (std::abs(u) < kRtEps) {
+      u = cuda::std::copysign(kRtEps, u);
+    }
     float combined_gradient = regularized_abs_grad_[ridx];
     float p = combined_gradient / u;
     if (p >= 1.0f) {

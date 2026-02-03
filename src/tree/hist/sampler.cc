@@ -147,21 +147,20 @@ void GradientBasedSample(Context const* ctx, linalg::MatrixView<GradientPair> gp
     }
     reg_abs_grad[i] = std::sqrt(sum_sq);
   });
-
   // Sort and calculate csum
   std::vector<float> thresholds = reg_abs_grad;             // Copy for sorting
-  thresholds.push_back(std::numeric_limits<float>::max());  // sentinal
+  thresholds.push_back(std::numeric_limits<float>::max());  // sentinel
   common::Sort(ctx, thresholds.begin(), thresholds.end() - 1, std::less{});
   std::vector<float> grad_csum(n_samples);
-  // fixme:
-  // - Make sure the size is correct
   std::partial_sum(thresholds.begin(), thresholds.end() - 1, grad_csum.begin());
   // Find the threshold u for each row.
   float threshold = CalculateThreshold(
       common::Span<float const>{thresholds.data(), thresholds.size()},
       common::Span<float const>{grad_csum.data(), grad_csum.size()}, n_samples, sample_rows);
-
-  // Step 4: Sample rows using Poisson sampling
+  if (std::abs(threshold) < kRtEps) {
+    threshold = std::copysign(kRtEps, threshold);
+  }
+  // Sample rows using Poisson sampling
   std::uniform_real_distribution<float> dist{0.0f, 1.0f};
   ParallelSampling(n_samples, ctx->Threads(), [&](std::size_t ibegin, std::size_t iend, auto& eng) {
     for (std::size_t i = ibegin; i < iend; ++i) {
@@ -169,7 +168,7 @@ void GradientBasedSample(Context const* ctx, linalg::MatrixView<GradientPair> gp
       float p = std::min(combined_gradient / threshold, 1.0f);
 
       // Skip rows with zero gradient (already zero)
-      if (gpairs(i, 0).GetHess() == 0) {
+      if (gpairs(i, 0).GetGrad() == 0.0 && gpairs(i, 0).GetHess() == 0.0) {
         continue;
       }
 
