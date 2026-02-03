@@ -110,12 +110,12 @@ std::size_t CalcThresholdIndex(Context const* ctx, common::Span<float> reg_abs_g
                                bst_idx_t sample_rows) {
   auto cuctx = ctx->CUDACtx();
   // Set a sentinel for upper bound.
-  thrust::fill(cuctx->CTP(), thresholds.end() - 1, thresholds.end(),
+  thrust::fill(cuctx->CTP(), dh::tend(thresholds) - 1, dh::tend(thresholds),
                std::numeric_limits<float>::max());
   // Sort thresholds
   thrust::copy(cuctx->CTP(), dh::tcbegin(reg_abs_grad), dh::tcend(reg_abs_grad),
-               thresholds.begin());
-  thrust::sort(cuctx->TP(), thresholds.begin(), thresholds.end() - 1);
+               dh::tbegin(thresholds));
+  thrust::sort(cuctx->TP(), dh::tbegin(thresholds), dh::tend(thresholds) - 1);
   auto n_samples = reg_abs_grad.size();
   return CalculateThresholdIndex(ctx, thresholds, grad_csum, n_samples, sample_rows);
 }
