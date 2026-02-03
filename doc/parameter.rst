@@ -127,7 +127,7 @@ Parameters for Tree Booster
 
 .. versionchanged:: 3.2.0
 
-    XGBoost supports both CPU and GPU for gradient-based sampling. In addition, the adaptive coefficient is estimated instead of hardcoded.
+    XGBoost supports both CPU and GPU for gradient-based sampling.
 
   - The method to use to sample the training instances.
   - ``uniform``: each training instance has an equal probability of being selected. Typically set
