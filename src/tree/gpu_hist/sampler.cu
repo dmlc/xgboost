@@ -358,8 +358,7 @@ void GradientBasedSampling::ApplySampling(
                     });
 }
 
-GradientBasedSampler::GradientBasedSampler(bst_idx_t n_samples, float subsample,
-                                           int sampling_method) {
+Sampler::Sampler(bst_idx_t n_samples, float subsample, int sampling_method) {
   bool is_sampling = subsample < 1.0;
 
   if (!is_sampling) {
@@ -382,15 +381,15 @@ GradientBasedSampler::GradientBasedSampler(bst_idx_t n_samples, float subsample,
 }
 
 // Sample a DMatrix based on the given gradient pairs.
-void GradientBasedSampler::Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
-                                  common::Span<GradientQuantiser const> roundings) {
+void Sampler::Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
+                     common::Span<GradientQuantiser const> roundings) {
   xgboost_NVTX_FN_RANGE();
   strategy_->Sample(ctx, gpair, roundings);
 }
 
-void GradientBasedSampler::ApplySampling(
-    Context const* ctx, linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
-    linalg::Matrix<GradientPair>* value_gpair) {
+void Sampler::ApplySampling(Context const* ctx,
+                            linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
+                            linalg::Matrix<GradientPair>* value_gpair) {
   xgboost_NVTX_FN_RANGE();
   strategy_->ApplySampling(ctx, sampled_split_gpair.View(ctx->Device()), value_gpair);
 }

@@ -56,7 +56,7 @@ void VerifySampling(float subsample, int sampling_method, bst_target_t n_targets
 
   auto sum_gpair = sum_gradients();
 
-  GradientBasedSampler sampler{kRows, subsample, sampling_method};
+  Sampler sampler{kRows, subsample, sampling_method};
   sampler.Sample(&ctx, gpair_i64.View(ctx.Device()), quantizer.Quantizers());
 
   // Refresh host view after device modification
@@ -100,7 +100,7 @@ TEST(GpuSampler, ApplySampling) {
 
   // Generate and sample the split gradient
   auto [split_gpair, quantizer] = GenerateGradientsFixedPoint(&ctx, n_samples, n_split_targets);
-  GradientBasedSampler sampler{n_samples, kSubsample, kSamplingMethod};
+  Sampler sampler{n_samples, kSubsample, kSamplingMethod};
   sampler.Sample(&ctx, split_gpair.View(ctx.Device()), quantizer.Quantizers());
   auto d_roundings = quantizer.Quantizers();
   std::vector<GradientQuantiser> h_roundings(d_roundings.size(), MakeDummyQuantizer());

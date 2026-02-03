@@ -137,7 +137,7 @@ struct GPUHistMakerDevice {
 
   FeatureInteractionConstraintDevice interaction_constraints;
 
-  std::unique_ptr<cuda_impl::GradientBasedSampler> sampler;
+  std::unique_ptr<cuda_impl::Sampler> sampler;
 
   common::Monitor monitor;
 
@@ -155,8 +155,8 @@ struct GPUHistMakerDevice {
             *cuts_, dense_compressed, DftStHistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
-        sampler{std::make_unique<cuda_impl::GradientBasedSampler>(info.num_row_, param.subsample,
-                                                                  param.sampling_method)} {
+        sampler{std::make_unique<cuda_impl::Sampler>(info.num_row_, param.subsample,
+                                                     param.sampling_method)} {
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;

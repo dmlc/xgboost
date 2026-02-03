@@ -109,7 +109,7 @@ class MultiTargetHistMaker {
 
   TrainParam const param_;
   std::vector<bst_idx_t> const batch_ptr_;
-  GradientBasedSampler sampler_;
+  Sampler sampler_;
 
   RowPartitionerBatches partitioners_;
 

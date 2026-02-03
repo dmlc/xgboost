@@ -77,15 +77,16 @@ class GradientBasedSampling : public SamplingStrategy {
  * @see Ohlsson, E. (1998). Sequential Poisson sampling. Journal of official Statistics, 14(2), 149.
  * @see Rong Ou. (2020). Out-of-Core GPU Gradient Boosting.
  */
-class GradientBasedSampler {
+class Sampler {
  public:
-  GradientBasedSampler(bst_idx_t n_samples, float subsample, int sampling_method);
+  Sampler(bst_idx_t n_samples, float subsample, int sampling_method);
 
   /** @brief Sample from a DMatrix based on the given gradient pairs. */
   void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
               common::Span<GradientQuantiser const> roundings);
   /** @brief Apply sampling weights to value gradient. */
-  void ApplySampling(Context const* ctx, linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
+  void ApplySampling(Context const* ctx,
+                     linalg::Matrix<GradientPairInt64> const& sampled_split_gpair,
                      linalg::Matrix<GradientPair>* value_gpair);
 
  private:
