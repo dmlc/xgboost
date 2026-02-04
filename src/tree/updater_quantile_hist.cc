@@ -23,12 +23,13 @@
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
+#include "fit_stump.h"                       // for SumGradients
 #include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
-#include "hist/sampler.h"                    // for SampleGradient
+#include "hist/sampler.h"                    // for Sampler
 #include "param.h"                           // for TrainParam, GradStats
 #include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
 #include "xgboost/context.h"                 // for Context
@@ -199,6 +200,9 @@ class MultiTargetHistBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
+      if (page.cut.HasCategorical()) {
+        LOG(FATAL) << "Categorical features" << MTNotImplemented();
+      }
       if (page_idx < partitioner_.size()) {
         partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
                                      p_fmat->Info().IsColumnSplit());
@@ -229,31 +233,20 @@ class MultiTargetHistBuilder {
     best.depth = 0;
 
     auto n_targets = gpair.Shape(1);
-    linalg::Matrix<GradientPairPrecise> root_sum_tloc =
-        linalg::Empty<GradientPairPrecise>(ctx_, ctx_->Threads(), n_targets);
-    auto h_root_sum_tloc = root_sum_tloc.HostView();
-    common::ParallelFor(gpair.Shape(0), ctx_->Threads(), [&](auto i) {
-      for (bst_target_t t{0}; t < n_targets; ++t) {
-        h_root_sum_tloc(omp_get_thread_num(), t) += GradientPairPrecise{gpair(i, t)};
-      }
-    });
-    // Aggregate to the first row.
-    auto root_sum = h_root_sum_tloc.Slice(0, linalg::All());
-    for (std::int32_t tidx{1}; tidx < ctx_->Threads(); ++tidx) {
-      for (bst_target_t t{0}; t < n_targets; ++t) {
-        root_sum(t) += h_root_sum_tloc(tidx, t);
-      }
-    }
-    CHECK(root_sum.CContiguous());
+    auto root_sum = linalg::Empty<GradientPairPrecise>(ctx_, n_targets);
+    cpu_impl::SumGradients(ctx_, gpair, root_sum.HostView());
+    auto h_root_sum = root_sum.HostView();
+    CHECK(h_root_sum.CContiguous());
     auto rc = collective::GlobalSum(
         ctx_, p_fmat->Info(),
-        linalg::MakeVec(reinterpret_cast<double *>(root_sum.Values().data()), root_sum.Size() * 2));
+        linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
+                        h_root_sum.Size() * 2));
     collective::SafeColl(rc);
 
     histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
                                       HistBatch(param_));
 
-    auto weight = evaluator_->InitRoot(root_sum);
+    auto weight = evaluator_->InitRoot(h_root_sum);
     auto weight_t = weight.HostView();
     std::transform(linalg::cbegin(weight_t), linalg::cend(weight_t), linalg::begin(weight_t),
                    [&](float w) { return w * param_->learning_rate; });
@@ -261,7 +254,7 @@ class MultiTargetHistBuilder {
     // Compute root sum_hess by summing hessians across all targets
     float root_sum_hess = 0.0f;
     for (bst_target_t t{0}; t < n_targets; ++t) {
-      root_sum_hess += static_cast<float>(root_sum(t).GetHess());
+      root_sum_hess += static_cast<float>(h_root_sum(t).GetHess());
     }
     p_tree->SetRoot(weight_t, root_sum_hess);
     std::vector<BoundedHistCollection const *> hists;
@@ -322,7 +315,7 @@ class MultiTargetHistBuilder {
    * gradient during tree building. This function replaces those weights with new weights
    * calculated from value gradient.
    */
-  void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree *p_tree) {
+  void ExpandTreeLeaf(linalg::Matrix<GradientPair> const &full_grad, RegTree *p_tree) {
     auto tree = p_tree->HostMtView();
     auto n_targets = p_tree->NumTargets();
     auto value_gpair = full_grad.HostView();
@@ -669,27 +662,28 @@ class QuantileHistMaker : public TreeUpdater {
       h_sample_out = sample_out.HostView();
     }
 
+    cpu_impl::Sampler sampler{*param};
     for (auto tree_it = trees.begin(); tree_it != trees.end(); ++tree_it) {
       if (need_copy()) {
         // Copy gradient into buffer for sampling. This converts C-order to F-order.
         std::copy(linalg::cbegin(h_gpair), linalg::cend(h_gpair), linalg::begin(h_sample_out));
       }
-      SampleGradient(ctx_, *param, h_sample_out);
+      sampler.Sample(ctx_, h_sample_out);
       auto *h_out_position = &out_position[tree_it - trees.begin()];
       if ((*tree_it)->IsMultiTarget()) {
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
                                      h_out_position, *tree_it);
         if (in_gpair->HasValueGrad()) {
-          // Copy the value gradient for sampling
+          // Copy the value gradient and apply sampling mask from split gradient
           auto value_grad = linalg::Empty<GradientPair>(ctx_, in_gpair->value_gpair.Shape(0),
                                                         in_gpair->value_gpair.Shape(1));
           auto h_value_grad = value_grad.HostView();
           auto h_value_grad_in = in_gpair->value_gpair.HostView();
           std::copy(linalg::cbegin(h_value_grad_in), linalg::cend(h_value_grad_in),
                     linalg::begin(h_value_grad));
-          SampleGradient(ctx_, *param, h_value_grad);
+          sampler.ApplySampling(ctx_, h_sample_out, &value_grad);
           // Refresh the leaf weights.
-          p_mtimpl_->ExpandTreeLeaf(in_gpair->value_gpair, *tree_it);
+          p_mtimpl_->ExpandTreeLeaf(value_grad, *tree_it);
         } else {
           (*tree_it)->GetMultiTargetTree()->SetLeaves();
         }

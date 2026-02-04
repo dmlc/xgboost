@@ -1,18 +1,18 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2026, XGBoost Contributors
  *
  * @brief Utilities for estimating initial score.
  */
 #include "fit_stump.h"
 
-#include <cstddef>  // std::size_t
+#include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 
 #include "../collective/aggregator.h"   // for GlobalSum
-#include "../common/threading_utils.h"  // ParallelFor
-#include "xgboost/base.h"               // bst_target_t, GradientPairPrecise
-#include "xgboost/context.h"            // Context
-#include "xgboost/linalg.h"             // TensorView, Tensor, Constant
+#include "../common/threading_utils.h"  // for ParallelFor
+#include "xgboost/base.h"               // for bst_target_t, GradientPairPrecise
+#include "xgboost/context.h"            // for Context
+#include "xgboost/linalg.h"             // for MatrixView, Matrix, Constant
 #include "xgboost/logging.h"            // CHECK_EQ
 
 #if !defined(XGBOOST_USE_CUDA)
@@ -21,12 +21,11 @@
 
 namespace xgboost::tree {
 namespace cpu_impl {
-void FitStump(Context const* ctx, MetaInfo const& info,
-              linalg::TensorView<GradientPair const, 2> gpair,
-              linalg::VectorView<float> out) {
+void SumGradients(Context const* ctx, linalg::MatrixView<GradientPair const> gpair,
+                  linalg::VectorView<GradientPairPrecise> out) {
   auto n_targets = out.Size();
   CHECK_EQ(n_targets, gpair.Shape(1));
-  linalg::Tensor<GradientPairPrecise, 2> sum_tloc =
+  linalg::Matrix<GradientPairPrecise> sum_tloc =
       linalg::Constant(ctx, GradientPairPrecise{}, ctx->Threads(), n_targets);
   auto h_sum_tloc = sum_tloc.HostView();
   // first dim for gpair is samples, second dim is target.
@@ -38,11 +37,23 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   });
   // Aggregate to the first row.
   auto h_sum = h_sum_tloc.Slice(0, linalg::All());
-  for (std::int32_t i = 1; i < ctx->Threads(); ++i) {
+  for (std::int32_t i = 1, t = ctx->Threads(); i < t; ++i) {
     for (bst_target_t j = 0; j < n_targets; ++j) {
       h_sum(j) += h_sum_tloc(i, j);
     }
   }
+  for (std::size_t i = 0; i < n_targets; ++i) {
+    out(i) = h_sum(i);
+  }
+}
+
+void FitStump(Context const* ctx, MetaInfo const& info,
+              linalg::MatrixView<GradientPair const> gpair, linalg::VectorView<float> out) {
+  auto n_targets = out.Size();
+  CHECK_EQ(n_targets, gpair.Shape(1));
+  auto sum = linalg::Empty<GradientPairPrecise>(ctx, n_targets);
+  SumGradients(ctx, gpair, sum.HostView());
+  auto h_sum = sum.HostView();
   CHECK(h_sum.CContiguous());
   auto as_double = linalg::MakeTensorView(
       ctx, common::Span{reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2},
