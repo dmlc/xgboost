@@ -562,7 +562,7 @@ jobs:
         with:
           name: python-wheel-${{ matrix.platform_id }}
           path: wheelhouse/*.whl
-          retention-days: 1
+          retention-days: 2
       - name: Upload Python wheel to S3
         if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
         run: |
