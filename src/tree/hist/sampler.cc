@@ -46,13 +46,6 @@ void ParallelSampling(bst_idx_t n_samples, std::int32_t n_threads, Fn&& fn) {
 }
 
 namespace {
-float SamplingProbability(float threshold, float reg_abs_grad) {
-  if (std::abs(threshold) < kRtEps) {
-    threshold = std::copysign(kRtEps, threshold);
-  }
-  return reg_abs_grad / threshold;
-}
-
 [[nodiscard]] float CalcSamplingInfo(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
                                      float subsample, std::vector<float>* p_reg_abs_grad) {
   std::size_t n_samples = gpairs.Shape(0);
@@ -77,8 +70,6 @@ void GradientBasedSampling(Context const* ctx, linalg::MatrixView<GradientPair> 
   ParallelSampling(n_samples, ctx->Threads(), [&](std::size_t ibegin, std::size_t iend, auto& eng) {
     for (std::size_t i = ibegin; i < iend; ++i) {
       float p = SamplingProbability(threshold, reg_abs_grad[i]);
-      p = std::min(p, 1.0f);
-
       // Skip rows with zero gradient (already zero)
       if (gpairs(i, 0).GetGrad() == 0.0 && gpairs(i, 0).GetHess() == 0.0) {
         continue;
@@ -124,7 +115,6 @@ void ApplyMvsWeights(Context const* ctx, linalg::MatrixView<GradientPair const> 
       return;
     }
     float p = SamplingProbability(threshold, reg_abs_grad[i]);
-    p = std::min(p, 1.0f);
     if (p >= 1.0f) {
       return;
     }

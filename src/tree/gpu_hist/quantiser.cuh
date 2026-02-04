@@ -17,33 +17,28 @@ namespace xgboost::tree {
  *
  * Similar to GradientQuantiser but for a single float channel.
  */
-class FloatQuantiser {
- private:
-  double to_fixed_point_;
-  double to_floating_point_;
-
- public:
+struct FloatQuantiser {
+  double to_fixed_point;
+  double to_floating_point;
   FloatQuantiser(double max_abs, bst_idx_t n) {
     auto rounding = common::CreateRoundingFactor<double>(max_abs, n);
     // See the gradient quantizer for details.
     constexpr std::int64_t kMaxInt = static_cast<std::int64_t>(1) << 62;
-    to_floating_point_ = rounding / static_cast<double>(kMaxInt);
-    to_fixed_point_ = static_cast<double>(1.0) / to_floating_point_;
+    to_floating_point = rounding / static_cast<double>(kMaxInt);
+    to_fixed_point = static_cast<double>(1.0) / to_floating_point;
   }
-  [[nodiscard]] double FixedPointFactor() const { return to_fixed_point_; }
-  [[nodiscard]] double FloatingPointFactor() const { return to_floating_point_; }
 };
 // Functors that can be easily passed into thrust algorithms
 struct ToFixedPointOp {
   double factor;
-  explicit ToFixedPointOp(FloatQuantiser const& q) : factor{q.FixedPointFactor()} {}
+  explicit ToFixedPointOp(FloatQuantiser const& q) : factor{q.to_fixed_point} {}
   XGBOOST_DEVICE std::int64_t operator()(double val) const {
     return static_cast<std::int64_t>(val * factor);
   }
 };
 struct ToFloatingPointOp {
   double factor;
-  explicit ToFloatingPointOp(FloatQuantiser const& q) : factor{q.FloatingPointFactor()} {}
+  explicit ToFloatingPointOp(FloatQuantiser const& q) : factor{q.to_floating_point} {}
   XGBOOST_DEVICE double operator()(std::int64_t val) const {
     return static_cast<double>(val) * factor;
   }

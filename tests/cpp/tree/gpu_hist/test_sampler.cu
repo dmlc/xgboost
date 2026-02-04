@@ -4,7 +4,6 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>  // for sort
-#include <cmath>      // for abs
 #include <limits>     // for numeric_limits
 #include <numeric>    // for partial_sum
 #include <vector>     // for vector
@@ -156,9 +155,8 @@ TEST(CalculateThreshold, CpuGpuConsistency) {
       cpu_sorted.push_back(std::numeric_limits<float>::max());
       std::vector<float> cpu_csum(n);
       std::partial_sum(cpu_sorted.begin(), cpu_sorted.end() - 1, cpu_csum.begin());
-      float cpu_threshold = cpu_impl::CalculateThreshold(
-          common::Span<float const>{cpu_sorted.data(), cpu_sorted.size()},
-          common::Span<float const>{cpu_csum.data(), cpu_csum.size()}, n, sample_rows);
+      float cpu_threshold = cpu_impl::CalculateThreshold(common::Span{cpu_sorted},
+                                                         common::Span{cpu_csum}, n, sample_rows);
 
       // GPU calculation
       std::vector<float> gpu_sorted = rag;
@@ -174,7 +172,7 @@ TEST(CalculateThreshold, CpuGpuConsistency) {
       auto calc_expected = [&](float threshold) {
         float expected = 0.0f;
         for (bst_idx_t i = 0; i < n; ++i) {
-          expected += std::min(cpu_sorted[i] / threshold, 1.0f);
+          expected += std::min(SamplingProbability(threshold, cpu_sorted[i]), 1.0f);
         }
         return expected;
       };

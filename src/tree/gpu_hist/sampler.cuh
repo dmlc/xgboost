@@ -57,7 +57,7 @@ class GradientBasedSampling : public SamplingStrategy {
                      linalg::Matrix<GradientPair>* value_gpair) override;
 
  private:
-  float subsample_;
+  float const subsample_;
   // abs gradient
   dh::device_vector<float> reg_abs_grad_;
   // sorted abs gradient

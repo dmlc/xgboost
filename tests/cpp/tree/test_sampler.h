@@ -99,10 +99,6 @@ inline void CheckValueReweight(linalg::MatrixView<GradientPair const> sampled_sp
   CHECK_EQ(value_before.Shape(1), value_after.Shape(1));
   CHECK_EQ(value_before.Shape(0), reg_abs_grad.size());
 
-  if (std::abs(threshold) < kRtEps) {
-    threshold = std::copysign(kRtEps, threshold);
-  }
-
   auto n_samples = value_after.Shape(0);
   auto n_targets = value_after.Shape(1);
   for (bst_idx_t i = 0; i < n_samples; ++i) {
@@ -113,8 +109,8 @@ inline void CheckValueReweight(linalg::MatrixView<GradientPair const> sampled_sp
       }
       continue;
     }
-    float p = std::min(reg_abs_grad[i] / threshold, 1.0f);
-    float scale = p >= 1.0f ? 1.0f : 1.0f / p;
+    float p = std::min(SamplingProbability(threshold, reg_abs_grad[i]), 1.0f);
+    float scale = 1.0f / p;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto expected = value_before(i, t) * scale;
       auto grad_tol = tol * (1.0f + std::abs(expected.GetGrad()));

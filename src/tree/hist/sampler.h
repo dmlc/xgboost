@@ -45,6 +45,7 @@ struct RandomReplace {
   }
 };
 
+// TODO(jiamingy): Estimate it.
 constexpr float kDefaultMvsLambda = 0.1f;
 
 struct MvsGradOp {
@@ -56,6 +57,13 @@ struct MvsGradOp {
     return common::Sqr(g) + lambda * common::Sqr(h);
   }
 };
+
+XGBOOST_DEVICE inline float SamplingProbability(float u, float reg_abs_grad) {
+  if (::fabs(u) < kRtEps) {
+    u = ::copysign(kRtEps, u);
+  }
+  return reg_abs_grad / u;
+}
 
 namespace cpu_impl {
 // Calculate regularized absolute gradient for each row.

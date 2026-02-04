@@ -97,14 +97,6 @@ class SampleRateDelta {
 };
 
 namespace {
-XGBOOST_DEVICE float SamplingProbability(float u, common::Span<float const> rag, std::size_t ridx) {
-  if (cuda::std::abs(u) < kRtEps) {
-    u = cuda::std::copysign(kRtEps, u);
-  }
-  float combined_gradient = rag[ridx];
-  return combined_gradient / u;
-}
-
 std::size_t CalcThresholdIndex(Context const* ctx, common::Span<float> reg_abs_grad,
                                common::Span<float> thresholds, common::Span<float> grad_csum,
                                bst_idx_t sample_rows) {
@@ -142,7 +134,7 @@ class PoissonSampling {
     auto [ridx, tidx] = linalg::UnravelIndex(i, n_samples, roundings_.size());
     auto q = roundings_[tidx];
 
-    float p = SamplingProbability(threshold_[threshold_index_], regularized_abs_grad_, ridx);
+    float p = SamplingProbability(threshold_[threshold_index_], regularized_abs_grad_[ridx]);
     if (p >= 1.0f) {
       // Always select this row.
       return gpair;
@@ -199,7 +191,7 @@ void UniformSampling::ApplySampling(Context const* ctx,
 }
 
 GradientBasedSampling::GradientBasedSampling(std::size_t n_samples, float subsample)
-    : subsample_(subsample),
+    : subsample_{subsample},
       reg_abs_grad_(n_samples, 0.0f),
       thresholds_(n_samples + 1, 0.0f),
       grad_csum_(n_samples, 0.0f) {}
@@ -232,13 +224,13 @@ void ReduceGradImpl(Context const* ctx, linalg::MatrixView<GPair const> gpairs, 
   auto s = ctx->CUDACtx()->Stream();
   std::size_t n_bytes = 0;
   dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, in_it, dh::tbegin(reg_abs_grad),
-                                                /*num_segments*/ gpairs.Shape(0),
-                                                /*segment_size=*/gpairs.Shape(1), s));
+                                                /*num_segments=*/n_samples,
+                                                /*segment_size=*/n_targets, s));
   dh::TemporaryArray<char> alloc(n_bytes);
   dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(alloc.data().get(), n_bytes, /*d_in=*/in_it,
                                                 /*d_out=*/dh::tbegin(reg_abs_grad),
-                                                /*num_segments=*/gpairs.Shape(0),
-                                                /*segment_size=*/gpairs.Shape(1), s));
+                                                /*num_segments=*/n_samples,
+                                                /*segment_size=*/n_targets, s));
 #else
   auto key_it =
       dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) { return i / n_targets; });
@@ -348,7 +340,7 @@ void GradientBasedSampling::ApplySampling(
                       if (d_split_gpair(ridx, 0).GetQuantisedHess() == 0) {
                         return GradientPair{};
                       }
-                      float p = SamplingProbability(threshold[threshold_index], rag, ridx);
+                      float p = SamplingProbability(threshold[threshold_index], rag[ridx]);
                       if (p >= 1.0f) {
                         return gpair;
                       }
@@ -366,11 +358,11 @@ Sampler::Sampler(bst_idx_t n_samples, float subsample, int sampling_method) {
 
   switch (sampling_method) {
     case TrainParam::kUniform: {
-      strategy_.reset(new UniformSampling{subsample});
+      strategy_ = std::make_unique<UniformSampling>(subsample);
       break;
     }
     case TrainParam::kGradientBased: {
-      strategy_.reset(new GradientBasedSampling{n_samples, subsample});
+      strategy_ = std::make_unique<GradientBasedSampling>(n_samples, subsample);
       break;
     }
     default:
