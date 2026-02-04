@@ -6,23 +6,25 @@
 #include <xgboost/base.h>    // for bst_idx_t, bst_target_t, GradientPair, GradientPairInt64
 #include <xgboost/linalg.h>  // for MatrixView
 
-#include <algorithm>  // for min
-#include <cmath>      // for abs, copysign, sqrt
-#include <cstddef>    // for size_t
-#include <vector>     // for vector
+#include <cmath>    // for abs, copysign, sqrt
+#include <cstddef>  // for size_t
+#include <vector>   // for vector
 
 #include "../../../src/tree/hist/sampler.h"  // for CalcRegAbsGrad
 
 namespace xgboost::tree {
 // Check that multi-target rows are consistently sampled and return count.
-inline bst_idx_t CheckSampledRows(linalg::MatrixView<GradientPair const> gpair) {
-  auto n_samples = gpair.Shape(0);
-  auto n_targets = gpair.Shape(1);
+inline bst_idx_t CheckSampledRows(linalg::MatrixView<GradientPair const> gpair_0,
+                                  linalg::MatrixView<GradientPair const> gpair_1) {
+  CHECK_EQ(gpair_0.Shape(0), gpair_1.Shape(0));
+  CHECK_GE(gpair_1.Shape(1), gpair_1.Shape(1));
+  auto n_samples = gpair_0.Shape(0);
+  auto n_targets = gpair_1.Shape(1);
   bst_idx_t sampled_count = 0;
   for (std::size_t i = 0; i < n_samples; ++i) {
-    bool first_is_zero = (gpair(i, 0).GetGrad() == 0.0f && gpair(i, 0).GetHess() == 0.0f);
-    for (bst_target_t t = 1; t < n_targets; ++t) {
-      bool is_zero = (gpair(i, t).GetGrad() == 0.0f && gpair(i, t).GetHess() == 0.0f);
+    bool first_is_zero = gpair_0(i, 0).GetHess() == 0.0f;
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      bool is_zero = (gpair_1(i, t).GetGrad() == 0.0f && gpair_1(i, t).GetHess() == 0.0f);
       EXPECT_EQ(first_is_zero, is_zero);
     }
     if (!first_is_zero) {
@@ -36,22 +38,7 @@ inline bst_idx_t CheckSampledRows(linalg::MatrixView<GradientPair const> gpair) 
 inline void CheckSamplingMask(linalg::MatrixView<GradientPair> h_split,
                               linalg::MatrixView<GradientPair> h_value, float subsample) {
   auto n_samples = h_value.Shape(0);
-  auto n_value_targets = h_value.Shape(1);
-
-  std::size_t sampled_count = 0;
-  for (bst_idx_t i = 0; i < n_samples; ++i) {
-    bool split_is_zero = h_split(i, 0).GetHess() == 0;
-
-    for (bst_target_t t = 0; t < n_value_targets; ++t) {
-      bool value_is_zero = (h_value(i, t).GetGrad() == 0.0f && h_value(i, t).GetHess() == 0.0f);
-      ASSERT_EQ(split_is_zero, value_is_zero);
-    }
-
-    if (!split_is_zero) {
-      ++sampled_count;
-    }
-  }
-
+  std::size_t sampled_count = CheckSampledRows(h_split, h_value);
   // Verify approximately the right fraction of rows are sampled
   double sampled_fraction = static_cast<double>(sampled_count) / static_cast<double>(n_samples);
   ASSERT_NEAR(sampled_fraction, subsample, 0.05);
@@ -82,7 +69,7 @@ inline void CheckSampling(float subsample, bst_target_t n_targets, bool check_su
   }
 
   // Verify multi-target consistency and sample fraction (reuse CheckSampledRows)
-  auto sampled_count = CheckSampledRows(h_gpair);
+  auto sampled_count = CheckSampledRows(h_gpair, h_gpair);
   if (subsample < 1.0f) {
     double sampled_fraction = static_cast<double>(sampled_count) / n_samples;
     ASSERT_NEAR(sampled_fraction, subsample, 0.05);
@@ -109,10 +96,9 @@ inline void CheckValueReweight(linalg::MatrixView<GradientPair const> sampled_sp
       }
       continue;
     }
-    float p = std::min(SamplingProbability(threshold, reg_abs_grad[i]), 1.0f);
-    float scale = 1.0f / p;
+    float p = SamplingProbability(threshold, reg_abs_grad[i]);
     for (bst_target_t t = 0; t < n_targets; ++t) {
-      auto expected = value_before(i, t) * scale;
+      auto expected = RescaleGrad(p, value_before(i, t));
       auto grad_tol = tol * (1.0f + std::abs(expected.GetGrad()));
       auto hess_tol = tol * (1.0f + std::abs(expected.GetHess()));
       ASSERT_NEAR(value_after(i, t).GetGrad(), expected.GetGrad(), grad_tol);

@@ -8,6 +8,7 @@
 #include <numeric>    // for partial_sum
 #include <vector>     // for vector
 
+#include "../../../../src/tree/fit_stump.h"  // for SumGradients
 #include "../../../../src/tree/gpu_hist/sampler.cuh"
 #include "../../../../src/tree/hist/sampler.h"  // for cpu_impl::CalculateThreshold
 #include "../../../../src/tree/param.h"         // TrainParam
@@ -42,29 +43,22 @@ void VerifySampling(float subsample, int sampling_method, bst_target_t n_targets
   dh::safe_cuda(cudaMemcpy(h_quantizers.data(), quantizer.Quantizers().data(),
                            n_targets * sizeof(GradientQuantiser), cudaMemcpyDeviceToHost));
 
-  auto h_gpair_i64 = gpair_i64.HostView();
-  auto sum_gradients = [&]() {
-    std::vector<GradientPairPrecise> sum(n_targets);
-    for (std::size_t i = 0; i < kRows; ++i) {
-      for (bst_target_t t = 0; t < n_targets; ++t) {
-        sum[t] += h_quantizers[t].ToFloatingPoint(h_gpair_i64(i, t));
-      }
-    }
-    return sum;
+  auto sum_gradients = [&](linalg::MatrixView<GradientPair const> gpair) {
+    auto sum = linalg::Empty<GradientPairPrecise>(&ctx, n_targets);
+    xgboost::tree::cpu_impl::SumGradients(&ctx, gpair, sum.HostView());
+    return sum.Data()->HostVector();
   };
 
-  auto sum_gpair = sum_gradients();
-
+  linalg::Matrix<GradientPair> gpair;
+  CalcFloatGrad(gpair_i64.HostView(), common::Span{h_quantizers}, &gpair);
+  auto sum_gpair = sum_gradients(gpair.HostView());
+  // sample
   Sampler sampler{kRows, subsample, sampling_method};
   sampler.Sample(&ctx, gpair_i64.View(ctx.Device()), quantizer.Quantizers());
-
-  // Refresh host view after device modification
-  h_gpair_i64 = gpair_i64.HostView();
-  linalg::Matrix<GradientPair> gpair;
-  CalcFloatGrad(h_gpair_i64, common::Span{h_quantizers}, &gpair);
-  auto h_gpair = gpair.HostView();
-  auto sum_sampled_gpair = sum_gradients();
-  CheckSampling(subsample, n_targets, check_sum, sum_sampled_gpair, sum_gpair, h_gpair);
+  // Refresh float gradient after sampling
+  CalcFloatGrad(gpair_i64.HostView(), common::Span{h_quantizers}, &gpair);
+  auto sum_sampled_gpair = sum_gradients(gpair.HostView());
+  CheckSampling(subsample, n_targets, check_sum, sum_sampled_gpair, sum_gpair, gpair.HostView());
 }
 
 TEST(GpuSampler, NoSampling) {

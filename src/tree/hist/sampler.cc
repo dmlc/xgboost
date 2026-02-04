@@ -3,13 +3,11 @@
  */
 #include "sampler.h"  // for kDefaultMvsLambda
 
-#include <algorithm>  // for copy, min
 #include <cmath>      // for sqrt
 #include <cstddef>    // for size_t
 #include <limits>     // for numeric_limits
 #include <numeric>    // for partial_sum
 #include <random>     // for default_random_engine, uniform_real_distribution
-#include <utility>    // for move
 #include <vector>     // for vector
 
 #include "../../common/algorithm.h"  // for Sort
@@ -163,19 +161,11 @@ std::vector<float> CalcRegAbsGrad(Context const* ctx, linalg::MatrixView<Gradien
 
 void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, float subsample) {
   bst_idx_t n_samples = out.Shape(0);
+  std::size_t n_targets = out.Shape(1);
   std::bernoulli_distribution coin_flip{subsample};
+  CHECK_GE(n_targets, 1);
 
   ParallelSampling(n_samples, ctx->Threads(), [&](std::size_t ibegin, std::size_t iend, auto& eng) {
-    std::size_t n_targets = out.Shape(1);
-    if (n_targets == 1) {
-      for (std::size_t i = ibegin; i < iend; ++i) {
-        if (!coin_flip(eng)) {
-          out(i, 0) = GradientPair{};
-        }
-      }
-      return;
-    }
-
     for (std::size_t i = ibegin; i < iend; ++i) {
       if (!coin_flip(eng)) {
         for (std::size_t j = 0; j < n_targets; ++j) {
