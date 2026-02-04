@@ -33,8 +33,7 @@ class FloatQuantiser {
   [[nodiscard]] double FixedPointFactor() const { return to_fixed_point_; }
   [[nodiscard]] double FloatingPointFactor() const { return to_floating_point_; }
 };
-
-/** @brief Functor for converting float to fixed-point (for use with transform iterators). */
+// Functors that can be easily passed into thrust algorithms
 struct ToFixedPointOp {
   double factor;
   explicit ToFixedPointOp(FloatQuantiser const& q) : factor{q.FixedPointFactor()} {}
@@ -42,8 +41,6 @@ struct ToFixedPointOp {
     return static_cast<std::int64_t>(val * factor);
   }
 };
-
-/** @brief Functor for converting fixed-point to float (for use with transform iterators). */
 struct ToFloatingPointOp {
   double factor;
   explicit ToFloatingPointOp(FloatQuantiser const& q) : factor{q.FloatingPointFactor()} {}

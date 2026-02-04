@@ -53,27 +53,20 @@ float SamplingProbability(float threshold, float reg_abs_grad) {
   return reg_abs_grad / threshold;
 }
 
-struct SamplingInfo {
-  std::vector<float> reg_abs_grad;
-  float threshold;
-};
-
-SamplingInfo CalcSamplingInfo(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
-                              float subsample) {
+[[nodiscard]] float CalcSamplingInfo(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
+                                     float subsample, std::vector<float>* p_reg_abs_grad) {
   std::size_t n_samples = gpairs.Shape(0);
   std::size_t sample_rows = static_cast<std::size_t>(n_samples * subsample);
 
-  SamplingInfo info;
-
   std::vector<float> thresholds;
-  info.reg_abs_grad = CalcRegAbsGrad(ctx, gpairs, &thresholds);
+  *p_reg_abs_grad = CalcRegAbsGrad(ctx, gpairs, &thresholds);
 
   std::vector<float> grad_csum(n_samples);
   std::partial_sum(thresholds.begin(), thresholds.end() - 1, grad_csum.begin());
-  info.threshold = CalculateThreshold(
+  float threshold = CalculateThreshold(
       common::Span<float const>{thresholds.data(), thresholds.size()},
       common::Span<float const>{grad_csum.data(), grad_csum.size()}, n_samples, sample_rows);
-  return info;
+  return threshold;
 }
 
 void GradientBasedSampling(Context const* ctx, linalg::MatrixView<GradientPair> gpairs,
@@ -269,10 +262,9 @@ void Sampler::Sample(Context const* ctx, linalg::MatrixView<GradientPair> out) {
       UniformSample(ctx, out, subsample_);
       break;
     case TrainParam::kGradientBased: {
-      auto info = CalcSamplingInfo(ctx, out, subsample_);
-      reg_abs_grad_ = std::move(info.reg_abs_grad);
-      threshold_ = info.threshold;
-      GradientBasedSampling(ctx, out, reg_abs_grad_, threshold_);
+      std::vector<float> reg_abs_grad;
+      auto threshold = CalcSamplingInfo(ctx, out, subsample_, &reg_abs_grad);
+      GradientBasedSampling(ctx, out, common::Span{reg_abs_grad}, threshold);
       break;
     }
     default:
@@ -292,8 +284,9 @@ void Sampler::ApplySampling(Context const* ctx,
       break;
     }
     case TrainParam::kGradientBased: {
-      auto info = CalcSamplingInfo(ctx, value_gpair->HostView(), subsample_);
-      ApplyMvsWeights(ctx, sampled_split_gpair, value_gpair, info.reg_abs_grad, info.threshold);
+      std::vector<float> reg_abs_grad;
+      auto threshold = CalcSamplingInfo(ctx, value_gpair->HostView(), subsample_, &reg_abs_grad);
+      ApplyMvsWeights(ctx, sampled_split_gpair, value_gpair, reg_abs_grad, threshold);
       break;
     }
     default:

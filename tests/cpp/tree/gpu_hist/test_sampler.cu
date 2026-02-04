@@ -127,8 +127,7 @@ TEST(GpuSampler, ApplySampling) {
   float threshold = d_sorted[threshold_index];
 
   auto h_sampled_split = sampled.HostView();
-  ::xgboost::tree::CheckValueReweight(h_sampled_split, h_value_before, h_value_after, reg_abs_grad,
-                                      threshold);
+  CheckValueReweight(h_sampled_split, h_value_before, h_value_after, reg_abs_grad, threshold);
 }
 }  // namespace xgboost::tree::cuda_impl
 

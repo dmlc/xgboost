@@ -184,7 +184,7 @@ void UniformSampling::ApplySampling(Context const* ctx,
                                     linalg::MatrixView<GradientPairInt64 const> sampled_split_gpair,
                                     linalg::Matrix<GradientPair>* value_gpair) {
   CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
-  auto d_split = sampled_split_gpair;
+  auto d_split_gpair = sampled_split_gpair;
   auto d_value = value_gpair->View(ctx->Device());
   auto n_targets = value_gpair->Shape(1);
   thrust::replace_if(
@@ -193,7 +193,7 @@ void UniformSampling::ApplySampling(Context const* ctx,
       [=] XGBOOST_DEVICE(std::size_t i) {
         auto ridx = i / n_targets;
         // Check if this row was not sampled (hessian is zero in split gradient)
-        return d_split(ridx, 0).GetQuantisedHess() == 0;
+        return d_split_gpair(ridx, 0).GetQuantisedHess() == 0;
       },
       GradientPair{});
 }
@@ -304,7 +304,6 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<Gradie
                     reg_abs_grad_.begin(),
                     [] XGBOOST_DEVICE(float gpair) { return cuda::std::sqrt(gpair); });
 
-  // Use the testable version for the rest
   bst_idx_t sample_rows = n_samples * subsample_;
   auto threshold_index = CalcThresholdIndex(ctx, dh::ToSpan(reg_abs_grad_), dh::ToSpan(thresholds_),
                                             dh::ToSpan(grad_csum_), sample_rows);
@@ -322,10 +321,9 @@ void GradientBasedSampling::ApplySampling(
     Context const* ctx, linalg::MatrixView<GradientPairInt64 const> sampled_split_gpair,
     linalg::Matrix<GradientPair>* value_gpair) {
   CHECK_EQ(sampled_split_gpair.Shape(0), value_gpair->Shape(0));
-  auto d_split = sampled_split_gpair;
+  auto d_split_gpair = sampled_split_gpair;
   auto d_value = value_gpair->View(ctx->Device());
   auto n_targets = value_gpair->Shape(1);
-  auto cuctx = ctx->CUDACtx();
   auto n_samples = value_gpair->Shape(0);
   CHECK_EQ(n_samples, this->reg_abs_grad_.size());
   CHECK_EQ(n_samples, this->grad_csum_.size());
@@ -333,7 +331,7 @@ void GradientBasedSampling::ApplySampling(
 
   // Create the regularized absolute gradient from value gradient.
   ReduceGradValue(ctx, d_value, dh::ToSpan(reg_abs_grad_));
-  thrust::transform(cuctx->CTP(), reg_abs_grad_.cbegin(), reg_abs_grad_.cend(),
+  thrust::transform(ctx->CUDACtx()->CTP(), reg_abs_grad_.cbegin(), reg_abs_grad_.cend(),
                     reg_abs_grad_.begin(),
                     [] XGBOOST_DEVICE(float gpair) { return cuda::std::sqrt(gpair); });
   bst_idx_t sample_rows = n_samples * subsample_;
@@ -347,7 +345,7 @@ void GradientBasedSampling::ApplySampling(
                     [=] XGBOOST_DEVICE(GradientPair gpair, std::size_t i) {
                       auto ridx = i / n_targets;
                       // Check if this row was not sampled (hessian is zero in split gradient)
-                      if (d_split(ridx, 0).GetQuantisedHess() == 0) {
+                      if (d_split_gpair(ridx, 0).GetQuantisedHess() == 0) {
                         return GradientPair{};
                       }
                       float p = SamplingProbability(threshold[threshold_index], rag, ridx);

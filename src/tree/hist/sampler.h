@@ -78,8 +78,6 @@ class Sampler {
   int sampling_method_{TrainParam::kUniform};
   float subsample_{1.0f};
   bool is_sampling_{false};
-  std::vector<float> reg_abs_grad_;
-  float threshold_{std::numeric_limits<float>::max()};
 };
 }  // namespace cpu_impl
 }  // namespace xgboost::tree
