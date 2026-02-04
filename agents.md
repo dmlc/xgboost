@@ -30,19 +30,26 @@ XGBoost uses **CMake** as its primary build system. Key build files:
 ### Building XGBoost
 
 ```bash
-# Basic build
-mkdir build
+# Initialize submodules first (required)
+git submodule update --init --recursive
+
+# Basic build (modern CMake syntax)
+cmake -B build -S .
+cmake --build build -j4
+
+# Alternative: traditional syntax
+mkdir -p build
 cd build
 cmake ..
 make -j4
 
 # Build with GPU support
-cmake .. -DUSE_CUDA=ON
-make -j4
+cmake -B build -S . -DUSE_CUDA=ON
+cmake --build build -j4
 
-# Build with tests
-cmake .. -DGOOGLE_TEST=ON
-make -j4
+# Build with C++ tests enabled
+cmake -B build -S . -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
+cmake --build build -j4
 ```
 
 ## Testing
@@ -51,18 +58,24 @@ XGBoost has comprehensive test coverage across multiple languages:
 
 ### C++ Tests
 ```bash
+# Run tests (after building with -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON)
 cd build
 ctest
 ```
 
 ### Python Tests
 ```bash
-cd python-package
+# From repository root, after installing the Python package
 pytest tests/python
+
+# Or for GPU tests (requires GPU)
+pytest tests/python-gpu
 ```
 
 ### R Tests
 ```bash
+# First build the R package tarball (see R-package/README.md)
+# Then run checks on the tarball
 cd R-package
 R CMD check xgboost_*.tar.gz
 ```
