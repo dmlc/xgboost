@@ -19,7 +19,6 @@ repos:
         args:
           - --fix
           - --select=I
-          - '--config=lint.isort.known-first-party=["xgboost"]'
         files: \.py$
         exclude: (dmlc-core|gputreeshap)
       - id: ruff-format

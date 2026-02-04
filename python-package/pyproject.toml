@@ -53,6 +53,9 @@ pyspark = ["pyspark>=3.4", "scikit-learn", "cloudpickle"]
 [tool.isort]
 profile = "black"
 
+[tool.ruff.lint.isort]
+known-first-party = ["xgboost"]
+
 [tool.mypy]
 ignore_missing_imports = true
 disallow_untyped_defs = true
