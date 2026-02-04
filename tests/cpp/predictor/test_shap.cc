@@ -10,6 +10,7 @@
 #include <xgboost/json.h>                // for Json
 #include <xgboost/learner.h>             // for Learner
 #include <xgboost/linalg.h>              // for Vector
+#include <xgboost/objective.h>           // for ObjFunction
 
 #include <algorithm>
 #include <memory>  // for unique_ptr
@@ -50,23 +51,23 @@ Args BaseParams(Context const* ctx, std::string objective, std::string max_depth
               {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}};
 }
 
-gbm::GBTreeModel LoadGBTreeModel(Learner* learner, Context const* ctx,
+gbm::GBTreeModel LoadGBTreeModel(Learner* learner, Context const* ctx, Args const& model_args,
                                  LearnerModelParam* out_param) {
   Json model{Object{}};
   learner->SaveModel(&model);
 
-  CHECK(IsA<Object>(model)) << model;
   auto const& model_obj = get<Object const>(model);
-  auto learner_it = model_obj.find("learner");
-  CHECK(learner_it != model_obj.cend()) << model;
-  CHECK(IsA<Object>(learner_it->second)) << model;
-  auto const& learner_obj = get<Object const>(learner_it->second);
-
+  auto const& learner_obj = get<Object const>(model_obj.at("learner"));
   auto const& lmp = get<Object const>(learner_obj.at("learner_model_param"));
-  auto const& num_feature = get<String const>(lmp.at("num_feature"));
-  auto const& num_class = get<String const>(lmp.at("num_class"));
-  auto const& num_target = get<String const>(lmp.at("num_target"));
-  auto const& base_score_str = get<String const>(lmp.at("base_score"));
+
+  auto get_or = [&](char const* key, std::string dft) {
+    auto it = lmp.find(key);
+    return it == lmp.cend() ? dft : get<String const>(it->second);
+  };
+  auto const& num_feature = get_or("num_feature", "0");
+  auto const& num_class = get_or("num_class", "0");
+  auto const& num_target = get_or("num_target", "1");
+  auto const& base_score_str = get_or("base_score", "0");
 
   common::ParamArray<float> base_score_arr{"base_score"};
   std::stringstream ss;
@@ -78,6 +79,17 @@ gbm::GBTreeModel LoadGBTreeModel(Learner* learner, Context const* ctx,
   auto& h_base = base_score_vec.Data()->HostVector();
   h_base.assign(base_score_arr.cbegin(), base_score_arr.cend());
 
+  std::string objective{"reg:squarederror"};
+  for (auto const& kv : model_args) {
+    if (kv.first == "objective") {
+      objective = kv.second;
+      break;
+    }
+  }
+  auto obj = std::unique_ptr<ObjFunction>(ObjFunction::Create(objective, ctx));
+  obj->Configure(model_args);
+  obj->ProbToMargin(&base_score_vec);
+
   auto n_features = static_cast<bst_feature_t>(std::stol(num_feature));
   auto n_classes = static_cast<bst_target_t>(std::stol(num_class));
   auto n_targets = static_cast<bst_target_t>(std::stol(num_target));
@@ -86,10 +98,8 @@ gbm::GBTreeModel LoadGBTreeModel(Learner* learner, Context const* ctx,
                                  MultiStrategy::kOneOutputPerTree};
 
   gbm::GBTreeModel gbtree{out_param, ctx};
-  auto gbm_it = learner_obj.find("gradient_booster");
-  CHECK(gbm_it != learner_obj.cend()) << model;
-  CHECK(IsA<Object>(gbm_it->second)) << model;
-  gbtree.LoadModel(gbm_it->second);
+  auto const& gbm_obj = get<Object const>(learner_obj.at("gradient_booster"));
+  gbtree.LoadModel(gbm_obj.at("model"));
   return gbtree;
 }
 }  // namespace
@@ -184,7 +194,7 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   size_t const n_outputs = margin_predt.HostVector().size() / kRows;
 
   LearnerModelParam mparam;
-  auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), &mparam);
+  auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), model_args, &mparam);
 
   HostDeviceVector<float> shap_values;
   interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &shap_values, gbtree, 0, nullptr, 0, 0);
@@ -259,7 +269,7 @@ TEST(Predictor, ApproxContribsBasic) {
   learner->Predict(dmat, true, &margin_predt, 0, 0, false, false, false, false, false);
 
   LearnerModelParam mparam;
-  auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), &mparam);
+  auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), args, &mparam);
 
   HostDeviceVector<float> approx_contribs;
   interpretability::ApproxFeatureImportance(dmat->Ctx(), dmat.get(), &approx_contribs, gbtree, 0,

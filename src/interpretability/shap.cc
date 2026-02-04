@@ -136,9 +136,10 @@ class GHistIndexMatrixView {
 };
 }  // namespace
 
-void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
-                gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                std::vector<float> const *tree_weights, int condition, unsigned condition_feature) {
+void ShapValuesCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
+                   gbm::GBTreeModel const &model, bst_tree_t tree_end,
+                   std::vector<float> const *tree_weights, int condition,
+                   unsigned condition_feature) {
   CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
@@ -247,9 +248,10 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
   }
 }
 
-void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
-                             HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                             bst_tree_t tree_end, std::vector<float> const *tree_weights) {
+void ApproxFeatureImportanceCPU(Context const *ctx, DMatrix *p_fmat,
+                                HostDeviceVector<float> *out_contribs,
+                                gbm::GBTreeModel const &model, bst_tree_t tree_end,
+                                std::vector<float> const *tree_weights) {
   CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
@@ -352,10 +354,10 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   }
 }
 
-void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
-                           HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                           bst_tree_t tree_end, std::vector<float> const *tree_weights,
-                           bool approximate) {
+void ShapInteractionValuesCPU(Context const *ctx, DMatrix *p_fmat,
+                              HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
+                              bst_tree_t tree_end, std::vector<float> const *tree_weights,
+                              bool approximate) {
   CHECK(!model.learner_model_param->IsVectorLeaf())
       << "Predict interaction contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
