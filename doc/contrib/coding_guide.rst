@@ -185,15 +185,15 @@ To run checks for R with ``lintr``:
 
 Individual Tool Invocation
 --------------------------
-If you need to run individual linters outside of pre-commit:
+If you need to run individual linters outside of pre-commit (e.g., for debugging tool-specific issues or when pre-commit is not available):
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  # C++ linting (cpplint) - also available via pre-commit
+  # C++ linting (cpplint)
   python ./ops/script/lint_cpp.py
   
-  # Python linting (pylint) - also available via pre-commit
+  # Python linting (pylint)
   cd python-package
   pylint xgboost
 
