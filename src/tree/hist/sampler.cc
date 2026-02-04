@@ -54,9 +54,8 @@ namespace {
 
   std::vector<float> grad_csum(n_samples);
   std::partial_sum(thresholds.begin(), thresholds.end() - 1, grad_csum.begin());
-  float threshold = CalculateThreshold(
-      common::Span<float const>{thresholds.data(), thresholds.size()},
-      common::Span<float const>{grad_csum.data(), grad_csum.size()}, n_samples, sample_rows);
+  float threshold =
+      CalculateThreshold(common::Span{thresholds}, common::Span{grad_csum}, n_samples, sample_rows);
   return threshold;
 }
 
