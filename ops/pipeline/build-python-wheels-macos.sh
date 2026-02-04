@@ -16,12 +16,12 @@ if [[ "$platform_id" == macosx_* ]]; then
         # MacOS, Apple Silicon
         cpython_ver=310
         cibw_archs=arm64
-        export MACOSX_DEPLOYMENT_TARGET=12.0
+        export MACOSX_DEPLOYMENT_TARGET=14.0
     elif [[ "$platform_id" == macosx_x86_64 ]]; then
         # MacOS, Intel
         cpython_ver=310
         cibw_archs=x86_64
-        export MACOSX_DEPLOYMENT_TARGET=10.15
+        export MACOSX_DEPLOYMENT_TARGET=14.0
     else
         echo "Platform not supported: $platform_id"
         exit 3
