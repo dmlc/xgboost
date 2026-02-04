@@ -1,4 +1,4 @@
-name: XGBoost CI
+name: Main
 
 on: [push, pull_request]
 
@@ -575,7 +575,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
   test-cross-platform-inference:
-    name: Cross-platform inference test (macOS Apple Silicon)
+    name: Cross-platform inference test
     needs: [test-python-wheel-gpu, python-wheels-macos]
     runs-on: ${{ matrix.os }}
     strategy:
