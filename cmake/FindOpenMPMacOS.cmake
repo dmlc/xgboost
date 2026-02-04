@@ -36,7 +36,7 @@ macro(find_openmp_macos)
       set(_omp_static_lib "/opt/local/lib/libomp/libomp.a")
       set(_omp_include_dir "/opt/local/include/libomp")
     else()
-      message(FATAL_ERROR "USE_OPENMP_STATIC=ON but libomp.a not found. "
+      message(FATAL_ERROR "BUILD_WITH_SHARED_OPENMP=OFF (static OpenMP) but libomp.a not found. "
         "Install via: brew install libomp")
     endif()
 
