@@ -138,11 +138,12 @@ Parameters for Tree Booster
     sampling method is only supported when ``tree_method`` is set to ``hist``; other tree
     methods only support ``uniform`` sampling.
 
-    .. note::
+  .. note::
 
-       When working with reduced gradient for multi-target models, the accuracy of
-       gradient-based sampling might be worse than uniform sampling.
-
+     When working with reduced gradient for multi-target models, the accuracy of
+     gradient-based sampling might be sub-optimal. The sampling is performed using the
+     split gradient, which may not be optimal with the full gradient. Use uniform sampling
+     as an alternative.
 
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
 
