@@ -4,7 +4,7 @@
 # lint_cmake: -package/consistency
 
 function(_is_clang result_out)
-  if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+  if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
     set(${result_out} TRUE PARENT_SCOPE)
   else()
     set(${result_out} FALSE PARENT_SCOPE)
@@ -55,8 +55,8 @@ macro(find_openmp_macos)
       # as libomp 15.0+ from brew is keg-only
       # See https://github.com/Homebrew/homebrew-core/issues/112107#issuecomment-1278042927.
       execute_process(COMMAND brew --prefix libomp
-	OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
-	OUTPUT_STRIP_TRAILING_WHITESPACE)
+        OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
       set(OpenMP_C_FLAGS
         "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
       set(OpenMP_CXX_FLAGS
