@@ -3,12 +3,12 @@
  */
 #include "sampler.h"  // for kDefaultMvsLambda
 
-#include <cmath>      // for sqrt
-#include <cstddef>    // for size_t
-#include <limits>     // for numeric_limits
-#include <numeric>    // for partial_sum
-#include <random>     // for default_random_engine, uniform_real_distribution
-#include <vector>     // for vector
+#include <cmath>    // for sqrt
+#include <cstddef>  // for size_t
+#include <limits>   // for numeric_limits
+#include <numeric>  // for partial_sum
+#include <random>   // for default_random_engine, uniform_real_distribution
+#include <vector>   // for vector
 
 #include "../../common/algorithm.h"  // for Sort
 #include "../../common/random.h"     // for GlobalRandom
