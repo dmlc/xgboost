@@ -69,35 +69,40 @@ R CMD check xgboost_*.tar.gz
 
 ## Code Style and Linting
 
-### C++ Code
-- Follows Google C++ Style Guide
-- Uses **clang-format** for formatting (config: `.clang-format`)
-- Uses **clang-tidy** for static analysis (config: `.clang-tidy`)
+**Use pre-commit for all formatting and linting** - this is the recommended and primary way to ensure code quality:
 
 ```bash
-# Format C++ code
-clang-format -i src/**/*.cc include/**/*.h
-
-# Run clang-tidy
-clang-tidy src/**/*.cc
-```
-
-### Python Code
-- Follows PEP 8 style guidelines
-- Uses **pylint** and **mypy** for linting and type checking
-
-```bash
-cd python-package
-pylint xgboost
-mypy xgboost
-```
-
-### Pre-commit Hooks
-The repository uses pre-commit hooks (`.pre-commit-config.yaml`):
-```bash
+# Install pre-commit hooks (one-time setup)
+python -m pip install pre-commit
 pre-commit install
+
+# Format and lint staged files
+pre-commit run
+
+# Format and lint all files
 pre-commit run --all-files
+
+# Format and lint specific files
+pre-commit run --files path/to/file1.cc path/to/file2.py
 ```
+
+The pre-commit configuration (`.pre-commit-config.yaml`) includes:
+
+### C++ Formatting and Linting
+- **clang-format**: Automatic code formatting (config: `.clang-format`)
+  - Follows Google C++ Style Guide with customizations
+  - Formats `.cc`, `.c`, `.cpp`, `.h`, `.cu`, `.hpp` files
+- **cpplint**: Style checking and linting
+- **clang-tidy**: Static analysis (config: `.clang-tidy`)
+
+### Python Formatting and Linting
+- **black**: Automatic code formatting
+- **isort**: Import sorting
+- **pylint**: Style checking and linting (config: `python-package/pyproject.toml`)
+- **mypy**: Type checking (run separately: `cd python-package && mypy xgboost`)
+
+### CMake Linting
+- **cmakelint**: Checks CMake files for style issues
 
 ## Key Development Areas
 

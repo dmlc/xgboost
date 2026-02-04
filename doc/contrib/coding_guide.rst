@@ -109,53 +109,73 @@ Generating the Package and Running Tests
 
 The source layout of XGBoost is a bit unusual to normal R packages as XGBoost is primarily written in C++ with multiple language bindings in mind. As a result, some special cares need to be taken to generate a standard R tarball. Most of the tests are being run on CI, and as a result, the best way to see how things work is by looking at the CI configuration files (GitHub action, at the time of writing). There are helper scripts in ``ops/script`` and ``R-package/tests/helper_scripts`` for running various checks including linter and making the standard tarball.
 
-*********************************
-Running Formatting Checks Locally
-*********************************
+*******************************************
+Running Formatting and Linting Checks Locally
+*******************************************
 
 Once you submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_, we perform
-two automatic checks to enforce coding style conventions. To expedite the code review process, you are encouraged to run the checks locally on your machine prior to submitting your pull request.
+automatic checks to enforce coding style conventions and formatting. To expedite the code review process, you are encouraged to run the checks locally on your machine prior to submitting your pull request.
 
-Pre-commit
-==========
-We provide a `pre-commit <https://pre-commit.com/>`_ configuration for basic formatting,
-linting, and file-sanity checks. By default, pre-commit runs on files that are staged for commit,
-and the hooks in this repository are configured accordingly. To run on modified or untracked files,
-you can use ``pre-commit run --files <path> [...]`` or ``pre-commit run --all-files``.
+Pre-commit (Recommended)
+========================
+**Pre-commit is the recommended way to format and lint your code.** We provide a `pre-commit <https://pre-commit.com/>`_ configuration that handles all formatting (clang-format, black, isort) and linting checks (cpplint, pylint, cmakelint). By default, pre-commit runs on files that are staged for commit, and the hooks in this repository are configured accordingly.
 
-To enable it locally:
+Pre-commit will automatically:
+- **Format C++ code** with clang-format
+- **Format Python code** with black and isort
+- **Lint C++ code** with cpplint
+- **Lint Python code** with pylint
+- **Lint CMake files** with cmakelint
+- **Check for common issues** (trailing whitespace, end-of-file, merge conflicts, etc.)
+
+To enable it locally (one-time setup):
 
 .. code-block:: bash
 
   python -m pip install pre-commit
   pre-commit install
 
-To run it on the files you have staged for commit:
+To format and lint the files you have staged for commit:
 
 .. code-block:: bash
 
   pre-commit run
 
-To run it on a specific range of commits (e.g. in CI or for a local comparison):
+To format and lint all files in the repository:
+
+.. code-block:: bash
+
+  pre-commit run --all-files
+
+To format and lint specific files:
+
+.. code-block:: bash
+
+  pre-commit run --files <path> [...]
+
+To run pre-commit on a specific range of commits (e.g. in CI or for a local comparison):
 
 .. code-block:: bash
 
   pre-commit run --from-ref <base> --to-ref <head>
 
-Linter
-======
-We use a combination of linters to enforce style convention and find potential errors. Linting is especially useful for scripting languages like Python, as we can catch many errors that would have otherwise occurred at run-time.
+Manual Tool Invocation (Alternative)
+====================================
+While pre-commit is the recommended approach, you can also invoke individual tools directly if needed.
 
-For Python scripts, `pylint <https://github.com/PyCQA/pylint>`_, `black <https://github.com/psf/black>`__ and `isort <https://github.com/PyCQA/isort>`__ are used for providing guidance on coding style, and `mypy <https://github.com/python/mypy>`__ is required for type checking. The Python formatting and pylint checks are provided via the corresponding pre-commit hooks, which operate on changed files. For C++, `cpplint <https://github.com/cpplint/cpplint>`_ is used along with ``clang-tidy``. For R, ``lintr`` is used.
-
-To run Python checks locally, install the checkers mentioned previously and run the pre-commit hooks for the files you changed:
+Python Type Checking
+--------------------
+For Python type checking with `mypy <https://github.com/python/mypy>`__, which is not included in pre-commit hooks:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  pre-commit run
+  # Type checking is run separately
+  python ops/script/type_check_python.py
 
-To run checks for R:
+R Linting
+---------
+To run checks for R with ``lintr``:
 
 .. code-block:: bash
 
@@ -163,12 +183,19 @@ To run checks for R:
   R CMD INSTALL R-package/
   Rscript ops/script/lint_r.R $(pwd)
 
-To run checks for cpplint locally:
+Individual Tool Invocation
+--------------------------
+If you need to run individual linters outside of pre-commit:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
+  # C++ linting (cpplint) - also available via pre-commit
   python ./ops/script/lint_cpp.py
+  
+  # Python linting (pylint) - also available via pre-commit
+  cd python-package
+  pylint xgboost
 
 
 Lastly, the linter for jvm-packages is integrated into the maven build process.
