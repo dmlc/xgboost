@@ -23,6 +23,7 @@
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
+#include "fit_stump.h"                       // for SumGradients
 #include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
@@ -232,31 +233,20 @@ class MultiTargetHistBuilder {
     best.depth = 0;
 
     auto n_targets = gpair.Shape(1);
-    linalg::Matrix<GradientPairPrecise> root_sum_tloc =
-        linalg::Empty<GradientPairPrecise>(ctx_, ctx_->Threads(), n_targets);
-    auto h_root_sum_tloc = root_sum_tloc.HostView();
-    common::ParallelFor(gpair.Shape(0), ctx_->Threads(), [&](auto i) {
-      for (bst_target_t t{0}; t < n_targets; ++t) {
-        h_root_sum_tloc(omp_get_thread_num(), t) += GradientPairPrecise{gpair(i, t)};
-      }
-    });
-    // Aggregate to the first row.
-    auto root_sum = h_root_sum_tloc.Slice(0, linalg::All());
-    for (std::int32_t tidx{1}; tidx < ctx_->Threads(); ++tidx) {
-      for (bst_target_t t{0}; t < n_targets; ++t) {
-        root_sum(t) += h_root_sum_tloc(tidx, t);
-      }
-    }
-    CHECK(root_sum.CContiguous());
-    auto rc = collective::GlobalSum(
-        ctx_, p_fmat->Info(),
-        linalg::MakeVec(reinterpret_cast<double *>(root_sum.Values().data()), root_sum.Size() * 2));
+    auto root_sum = linalg::Empty<GradientPairPrecise>(ctx_, n_targets);
+    cpu_impl::SumGradients(ctx_, gpair, root_sum.HostView());
+    auto h_root_sum = root_sum.HostView();
+    CHECK(h_root_sum.CContiguous());
+    auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
+                                    linalg::MakeVec(
+                                        reinterpret_cast<double*>(h_root_sum.Values().data()),
+                                        h_root_sum.Size() * 2));
     collective::SafeColl(rc);
 
     histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
                                       HistBatch(param_));
 
-    auto weight = evaluator_->InitRoot(root_sum);
+    auto weight = evaluator_->InitRoot(h_root_sum);
     auto weight_t = weight.HostView();
     std::transform(linalg::cbegin(weight_t), linalg::cend(weight_t), linalg::begin(weight_t),
                    [&](float w) { return w * param_->learning_rate; });
@@ -264,7 +254,7 @@ class MultiTargetHistBuilder {
     // Compute root sum_hess by summing hessians across all targets
     float root_sum_hess = 0.0f;
     for (bst_target_t t{0}; t < n_targets; ++t) {
-      root_sum_hess += static_cast<float>(root_sum(t).GetHess());
+      root_sum_hess += static_cast<float>(h_root_sum(t).GetHess());
     }
     p_tree->SetRoot(weight_t, root_sum_hess);
     std::vector<BoundedHistCollection const *> hists;

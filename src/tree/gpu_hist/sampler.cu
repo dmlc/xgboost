@@ -366,7 +366,7 @@ Sampler::Sampler(bst_idx_t n_samples, float subsample, int sampling_method) {
       break;
     }
     default:
-      LOG(FATAL) << "unknown sampling method";
+      LOG(FATAL) << "Unknown sampling method.";
   }
 }
 

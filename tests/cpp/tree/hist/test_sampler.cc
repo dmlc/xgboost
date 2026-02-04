@@ -12,6 +12,7 @@
 #include <string>     // std::to_string
 #include <vector>     // std::vector
 
+#include "../../../../src/tree/fit_stump.h"     // SumGradients
 #include "../../../../src/tree/hist/sampler.h"  // Sampler
 #include "../../../../src/tree/param.h"         // TrainParam
 #include "../../helpers.h"                      // GenerateRandomGradients
@@ -31,13 +32,9 @@ void VerifySampling(float subsample, int sampling_method, bst_target_t n_targets
   auto h_gpair = gpair_container.gpair.HostView();
 
   auto sum_gradients = [&]() {
-    std::vector<GradientPairPrecise> sum(n_targets);
-    for (std::size_t i = 0; i < kRows; ++i) {
-      for (bst_target_t t = 0; t < n_targets; ++t) {
-        sum[t] += GradientPairPrecise{h_gpair(i, t).GetGrad(), h_gpair(i, t).GetHess()};
-      }
-    }
-    return sum;
+    auto sum = linalg::Empty<GradientPairPrecise>(&ctx, n_targets);
+    cpu_impl::SumGradients(&ctx, h_gpair, sum.HostView());
+    return sum.Data()->HostVector();
   };
 
   auto sum_gpair = sum_gradients();
