@@ -237,10 +237,10 @@ class MultiTargetHistBuilder {
     cpu_impl::SumGradients(ctx_, gpair, root_sum.HostView());
     auto h_root_sum = root_sum.HostView();
     CHECK(h_root_sum.CContiguous());
-    auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
-                                    linalg::MakeVec(
-                                        reinterpret_cast<double*>(h_root_sum.Values().data()),
-                                        h_root_sum.Size() * 2));
+    auto rc = collective::GlobalSum(
+        ctx_, p_fmat->Info(),
+        linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
+                        h_root_sum.Size() * 2));
     collective::SafeColl(rc);
 
     histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
