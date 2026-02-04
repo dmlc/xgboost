@@ -1,7 +1,6 @@
 /**
  * Copyright 2017-2026, XGBoost Contributors
  */
-#include <GPUTreeShap/gpu_treeshap.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
@@ -341,221 +340,6 @@ struct CopyViews {
 using DeviceModel = GBTreeModelView<dh::DeviceUVector, TreeViewVar, CopyViews>;
 }  // namespace
 
-struct ShapSplitCondition {
-  ShapSplitCondition() = default;
-  XGBOOST_DEVICE
-  ShapSplitCondition(float feature_lower_bound, float feature_upper_bound, bool is_missing_branch,
-                     common::CatBitField cats)
-      : feature_lower_bound(feature_lower_bound),
-        feature_upper_bound(feature_upper_bound),
-        is_missing_branch(is_missing_branch),
-        categories{std::move(cats)} {
-    assert(feature_lower_bound <= feature_upper_bound);
-  }
-
-  /*! Feature values >= lower and < upper flow down this path. */
-  float feature_lower_bound;
-  float feature_upper_bound;
-  /*! Feature value set to true flow down this path. */
-  common::CatBitField categories;
-  /*! Do missing values flow down this path? */
-  bool is_missing_branch;
-
-  // Does this instance flow down this path?
-  [[nodiscard]] XGBOOST_DEVICE bool EvaluateSplit(float x) const {
-    // is nan
-    if (isnan(x)) {
-      return is_missing_branch;
-    }
-    if (categories.Capacity() != 0) {
-      auto cat = static_cast<uint32_t>(x);
-      return categories.Check(cat);
-    } else {
-      return x >= feature_lower_bound && x < feature_upper_bound;
-    }
-  }
-
-  // the &= op in bitfiled is per cuda thread, this one loops over the entire
-  // bitfield.
-  XGBOOST_DEVICE static common::CatBitField Intersect(common::CatBitField l,
-                                                      common::CatBitField r) {
-    if (l.Data() == r.Data()) {
-      return l;
-    }
-    if (l.Capacity() > r.Capacity()) {
-      cuda::std::swap(l, r);
-    }
-    for (size_t i = 0; i < r.Bits().size(); ++i) {
-      l.Bits()[i] &= r.Bits()[i];
-    }
-    return l;
-  }
-
-  // Combine two split conditions on the same feature
-  XGBOOST_DEVICE void Merge(ShapSplitCondition other) {
-    // Combine duplicate features
-    if (categories.Capacity() != 0 || other.categories.Capacity() != 0) {
-      categories = Intersect(categories, other.categories);
-    } else {
-      feature_lower_bound = max(feature_lower_bound, other.feature_lower_bound);
-      feature_upper_bound = min(feature_upper_bound, other.feature_upper_bound);
-    }
-    is_missing_branch = is_missing_branch && other.is_missing_branch;
-  }
-};
-
-struct PathInfo {
-  std::size_t length;
-  // Node index in tree.
-  // -1 if not a leaf (internal split node)
-  bst_node_t nidx;
-  bst_tree_t tree_idx;
-
-  [[nodiscard]] XGBOOST_DEVICE bool IsLeaf() const { return nidx != -1; }
-};
-static_assert(sizeof(PathInfo) == 16);
-
-auto MakeTreeSegments(Context const* ctx, bst_tree_t tree_begin, bst_tree_t tree_end,
-                      gbm::GBTreeModel const& model) {
-  // Copy decision trees to device
-  auto tree_segments = HostDeviceVector<size_t>({}, ctx->Device());
-  auto& h_tree_segments = tree_segments.HostVector();
-  h_tree_segments.reserve((tree_end - tree_begin) + 1);
-  std::size_t sum = 0;
-  h_tree_segments.push_back(sum);
-  for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-    auto const& p_tree = model.trees.at(tree_idx);
-    CHECK(!p_tree->IsMultiTarget()) << " SHAP " << MTNotImplemented();
-    sum += p_tree->Size();
-    h_tree_segments.push_back(sum);
-  }
-  return tree_segments;
-}
-
-// Transform model into path element form for GPUTreeShap
-void ExtractPaths(Context const* ctx,
-                  dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>>* paths,
-                  gbm::GBTreeModel const& h_model, DeviceModel const& d_model,
-                  dh::device_vector<uint32_t>* path_categories) {
-  curt::SetDevice(ctx->Ordinal());
-
-  // Path length and tree index for all leaf nodes
-  dh::caching_device_vector<PathInfo> info(d_model.n_nodes);
-  auto d_trees = d_model.Trees();  // subset of trees
-  auto tree_segments = MakeTreeSegments(ctx, d_model.tree_begin, d_model.tree_end, h_model);
-  CHECK_EQ(tree_segments.ConstHostVector().back(), d_model.n_nodes);
-  auto d_tree_segments = tree_segments.ConstDeviceSpan();
-
-  auto path_it = dh::MakeIndexTransformIter(
-      cuda::proclaim_return_type<PathInfo>([=] __device__(size_t idx) -> PathInfo {
-        bst_tree_t const tree_idx = dh::SegmentId(d_tree_segments, idx);
-        bst_node_t const nidx = idx - d_tree_segments[tree_idx];
-        auto const& tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx]);
-        if (!tree.IsLeaf(nidx) || tree.IsDeleted(nidx)) {
-          // -1 if it's an internal split node
-          return PathInfo{0, -1, 0};
-        }
-        // Get the path length for leaf
-        std::size_t path_length = 1;
-        auto iter_nidx = nidx;
-        while (!tree.IsRoot(iter_nidx)) {
-          iter_nidx = tree.Parent(iter_nidx);
-          path_length++;
-        }
-        return PathInfo{path_length, nidx, tree_idx};
-      }));
-  auto end = thrust::copy_if(
-      ctx->CUDACtx()->CTP(), path_it, path_it + d_model.n_nodes, info.begin(),
-      cuda::proclaim_return_type<bool>([=] __device__(PathInfo const& e) { return e.IsLeaf(); }));
-
-  info.resize(end - info.begin());
-  using LenT = decltype(std::declval<PathInfo>().length);
-  auto length_iterator = dh::MakeTransformIterator<LenT>(
-      info.begin(), cuda::proclaim_return_type<LenT>(
-                        [=] __device__(PathInfo const& info) { return info.length; }));
-  dh::caching_device_vector<size_t> path_segments(info.size() + 1);
-  thrust::exclusive_scan(ctx->CUDACtx()->CTP(), length_iterator, length_iterator + info.size() + 1,
-                         path_segments.begin());
-
-  paths->resize(path_segments.back());
-
-  auto d_paths = dh::ToSpan(*paths);
-  auto d_info = info.data().get();
-  auto d_tree_groups = d_model.tree_groups;
-  auto d_path_segments = path_segments.data().get();
-
-  std::size_t max_cat = 0;
-  if (std::any_of(h_model.trees.cbegin(), h_model.trees.cend(),
-                  [](auto const& p_tree) { return p_tree->HasCategoricalSplit(); })) {
-    auto max_elem_it = dh::MakeIndexTransformIter([=] __device__(std::size_t i) -> std::size_t {
-      auto tree_idx = dh::SegmentId(d_tree_segments, i);
-      auto nidx = i - d_tree_segments[tree_idx];
-      return cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx])
-          .GetCategoriesMatrix()
-          .node_ptr[nidx]
-          .size;
-    });
-    auto max_cat_it =
-        thrust::max_element(ctx->CUDACtx()->CTP(), max_elem_it, max_elem_it + d_model.n_nodes);
-    dh::CachingDeviceUVector<std::size_t> d_max_cat(1);
-    auto s_max_cat = dh::ToSpan(d_max_cat);
-    dh::LaunchN(1, ctx->CUDACtx()->Stream(),
-                [=] __device__(std::size_t) { s_max_cat[0] = *max_cat_it; });
-    dh::safe_cuda(
-        cudaMemcpy(&max_cat, s_max_cat.data(), s_max_cat.size_bytes(), cudaMemcpyDeviceToHost));
-    CHECK_GE(max_cat, 1);
-    path_categories->resize(max_cat * paths->size());
-  }
-
-  common::Span<uint32_t> d_path_categories = dh::ToSpan(*path_categories);
-
-  dh::LaunchN(info.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
-    auto path_info = d_info[idx];
-    auto tree = cuda::std::get<tree::ScalarTreeView>(d_trees[path_info.tree_idx]);
-    std::int32_t group = d_tree_groups[path_info.tree_idx];
-    auto child_nidx = path_info.nidx;
-
-    float v = tree.LeafValue(child_nidx);
-    const float inf = std::numeric_limits<float>::infinity();
-    size_t output_position = d_path_segments[idx + 1] - 1;
-
-    while (!tree.IsRoot(child_nidx)) {
-      auto parent_nidx = tree.Parent(child_nidx);
-      double child_cover = tree.SumHess(child_nidx);
-      double parent_cover = tree.SumHess(parent_nidx);
-      double zero_fraction = child_cover / parent_cover;
-
-      bool is_left_path = tree.LeftChild(parent_nidx) == child_nidx;
-      bool is_missing_path = (!tree.DefaultLeft(parent_nidx) && !is_left_path) ||
-                             (tree.DefaultLeft(parent_nidx) && is_left_path);
-
-      float lower_bound = -inf;
-      float upper_bound = inf;
-      common::CatBitField bits;
-      if (common::IsCat(tree.cats.split_type, tree.Parent(child_nidx))) {
-        auto path_cats = d_path_categories.subspan(max_cat * output_position, max_cat);
-        auto node_cats = tree.NodeCats(tree.Parent(child_nidx));
-        SPAN_CHECK(path_cats.size() >= node_cats.size());
-        for (size_t i = 0; i < node_cats.size(); ++i) {
-          path_cats[i] = is_left_path ? ~node_cats[i] : node_cats[i];
-        }
-        bits = common::CatBitField{path_cats};
-      } else {
-        lower_bound = is_left_path ? -inf : tree.SplitCond(parent_nidx);
-        upper_bound = is_left_path ? tree.SplitCond(parent_nidx) : inf;
-      }
-      d_paths[output_position--] = gpu_treeshap::PathElement<ShapSplitCondition>{
-          idx,           tree.SplitIndex(parent_nidx),
-          group,         ShapSplitCondition{lower_bound, upper_bound, is_missing_path, bits},
-          zero_fraction, v};
-
-      child_nidx = parent_nidx;
-    }
-    // Root node has feature -1
-    d_paths[output_position] = {idx, -1, group, ShapSplitCondition{-inf, inf, false, {}}, 1.0, v};
-  });
-}
-
 namespace {
 template <std::size_t kBlockThreads>
 [[nodiscard]] std::size_t SharedMemoryBytes(std::size_t n_features, std::size_t max_shmem_bytes) {
@@ -782,23 +566,6 @@ class ColumnSplitHelper {
 
 using cuda_impl::MakeCatAccessor;
 
-template <typename EncAccessor>
-struct ShapSparsePageLoader {
- public:
-  using SupportShmemLoad = std::false_type;
-
-  SparsePageView data;
-  EncAccessor acc;
-
-  template <typename Fidx>
-  [[nodiscard]] __device__ float GetElement(bst_idx_t ridx, Fidx fidx) const {
-    auto fvalue = data.GetElement(ridx, fidx);
-    return acc(fvalue, fidx);
-  }
-  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return data.NumRows(); }
-  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return data.NumCols(); }
-};
-
 // Provide configuration for launching the predict kernel.
 template <typename IsDense, typename EncAccessor>
 class LaunchConfig {
@@ -893,35 +660,6 @@ class LaunchConfig {
       }
     }
   }
-  // Used by the SHAP methods.
-  template <typename Fn>
-  void ForEachBatch(DMatrix* p_fmat, EncAccessor&& acc, Fn&& fn) {
-    if (p_fmat->PageExists<SparsePage>()) {
-      for (auto& page : p_fmat->GetBatches<SparsePage>()) {
-        // Shap kernel doesn't use shared memory to stage data.
-        SparsePageView batch{ctx_, page, n_features_};
-        auto loader = ShapSparsePageLoader<EncAccessor>{batch, acc};
-        fn(std::move(loader), page.base_rowid);
-      }
-    } else {
-      p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
-
-      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
-          using Acc = std::remove_reference_t<decltype(batch)>;
-          // No shared memory use for ellpack
-          auto loader = EllpackLoader{batch,
-                                      /*use_shared=*/false,
-                                      this->n_features_,
-                                      batch.NumRows(),
-                                      std::numeric_limits<float>::quiet_NaN(),
-                                      std::forward<EncAccessor>(acc)};
-          fn(std::move(loader), batch.base_rowid);
-        });
-      }
-    }
-  }
 };
 
 template <typename Kernel>
@@ -952,20 +690,6 @@ void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView con
   }
 }
 
-template <typename Kernel>
-void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc,
-                gbm::GBTreeModel const& model, Kernel&& launch) {
-  if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
-    auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
-    auto cfg =
-        LaunchConfig<std::true_type, decltype(acc)>{ctx, model.learner_model_param->num_feature};
-    launch(std::move(cfg), std::move(acc));
-  } else {
-    auto cfg =
-        LaunchConfig<std::true_type, NoOpAccessor>{ctx, model.learner_model_param->num_feature};
-    launch(std::move(cfg), NoOpAccessor{});
-  }
-}
 }  // anonymous namespace
 
 class GPUPredictor : public xgboost::Predictor {
