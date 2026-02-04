@@ -61,6 +61,7 @@ def test_inference(model_path: str) -> None:
 
 
 def main() -> int:
+    """Entry for both training and inference."""
     parser = argparse.ArgumentParser(description="Cross-platform XGBoost model test.")
     parser.add_argument("--train", action="store_true", help="Train model using GPU")
     parser.add_argument("--inference", action="store_true", help="Test inference")
