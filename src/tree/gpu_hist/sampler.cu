@@ -35,9 +35,9 @@ namespace xgboost::tree::cuda_impl {
 /** @brief A functor that returns random weights. */
 class RandomWeight {
  public:
-  explicit RandomWeight(size_t seed) : seed_(seed) {}
+  explicit RandomWeight(std::size_t seed) : seed_(seed) {}
 
-  XGBOOST_DEVICE float operator()(size_t i) const {
+  XGBOOST_DEVICE float operator()(std::size_t i) const {
     thrust::default_random_engine rng(seed_);
     thrust::uniform_real_distribution<float> dist;
     rng.discard(i);
@@ -51,9 +51,9 @@ class RandomWeight {
 /** @brief A functor that performs a Bernoulli trial to discard a gradient pair. */
 class BernoulliTrial {
  public:
-  BernoulliTrial(size_t seed, float p) : rnd_(seed), p_(p) {}
+  BernoulliTrial(std::size_t seed, float p) : rnd_(seed), p_(p) {}
 
-  XGBOOST_DEVICE bool operator()(size_t i) const { return rnd_(i) > p_; }
+  XGBOOST_DEVICE bool operator()(std::size_t i) const { return rnd_(i) > p_; }
 
  private:
   RandomWeight rnd_;
@@ -97,9 +97,9 @@ class SampleRateDelta {
 };
 
 namespace {
-std::size_t CalcThresholdIndex(Context const* ctx, common::Span<float> reg_abs_grad,
-                               common::Span<float> thresholds, common::Span<float> grad_csum,
-                               bst_idx_t sample_rows) {
+[[nodiscard]] std::size_t CalcThresholdIndex(Context const* ctx, common::Span<float> reg_abs_grad,
+                                             common::Span<float> thresholds,
+                                             common::Span<float> grad_csum, bst_idx_t sample_rows) {
   auto cuctx = ctx->CUDACtx();
   // Set a sentinel for upper bound.
   thrust::fill(cuctx->CTP(), dh::tend(thresholds) - 1, dh::tend(thresholds),
@@ -142,7 +142,7 @@ class PoissonSampling {
       // Select this row randomly with probability proportional to the combined gradient.
       // Scale gpair by 1/p.
       if (rnd_(ridx) <= p) {
-        return q.ToFixedPoint(q.ToFloatingPoint(gpair) / p);
+        return q.ToFixedPoint(RescaleGrad(p, q.ToFloatingPoint(gpair)));
       } else {
         return {};
       }
@@ -341,10 +341,7 @@ void GradientBasedSampling::ApplySampling(
                         return GradientPair{};
                       }
                       float p = SamplingProbability(threshold[threshold_index], rag[ridx]);
-                      if (p >= 1.0f) {
-                        return gpair;
-                      }
-                      return gpair * (1.0f / p);
+                      return RescaleGrad(p, gpair);
                     });
 }
 
@@ -352,7 +349,7 @@ Sampler::Sampler(bst_idx_t n_samples, float subsample, int sampling_method) {
   bool is_sampling = subsample < 1.0;
 
   if (!is_sampling) {
-    strategy_.reset(new NoSampling{});
+    strategy_ = std::make_unique<SamplingStrategy>();
     return;
   }
 
@@ -370,7 +367,6 @@ Sampler::Sampler(bst_idx_t n_samples, float subsample, int sampling_method) {
   }
 }
 
-// Sample a DMatrix based on the given gradient pairs.
 void Sampler::Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
                      common::Span<GradientQuantiser const> roundings) {
   xgboost_NVTX_FN_RANGE();

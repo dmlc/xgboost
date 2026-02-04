@@ -11,25 +11,14 @@
 #include "xgboost/linalg.h"                // for MatrixView
 
 namespace xgboost::tree::cuda_impl {
+// no-op base class.
 class SamplingStrategy {
  public:
-  /** @brief Sample from a DMatrix based on the given gradient pairs. */
-  virtual void Sample(Context const* ctx, linalg::MatrixView<GradientPairInt64> gpair,
-                      common::Span<GradientQuantiser const> roundings) = 0;
-  /** @brief Apply sampling weights to value gradient. */
-  virtual void ApplySampling(Context const* ctx,
-                             linalg::MatrixView<GradientPairInt64 const> sampled_split_gpair,
-                             linalg::Matrix<GradientPair>* value_gpair) = 0;
+  virtual void Sample(Context const*, linalg::MatrixView<GradientPairInt64>,
+                      common::Span<GradientQuantiser const>) {}
+  virtual void ApplySampling(Context const*, linalg::MatrixView<GradientPairInt64 const>,
+                             linalg::Matrix<GradientPair>*) {};
   virtual ~SamplingStrategy() = default;
-};
-
-/** @brief No-op. */
-class NoSampling : public SamplingStrategy {
- public:
-  void Sample(Context const*, linalg::MatrixView<GradientPairInt64>,
-              common::Span<GradientQuantiser const>) override {}
-  void ApplySampling(Context const*, linalg::MatrixView<GradientPairInt64 const>,
-                     linalg::Matrix<GradientPair>*) override {}
 };
 
 /** @brief Uniform sampling */
@@ -43,7 +32,7 @@ class UniformSampling : public SamplingStrategy {
                      linalg::Matrix<GradientPair>* value_gpair) override;
 
  private:
-  float subsample_;
+  float const subsample_;
 };
 
 /** @brief Gradient-based sampling. */

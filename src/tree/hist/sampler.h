@@ -65,6 +65,15 @@ XGBOOST_DEVICE inline float SamplingProbability(float u, float reg_abs_grad) {
   return reg_abs_grad / u;
 }
 
+template <typename T>
+XGBOOST_DEVICE inline detail::GradientPairInternal<T> RescaleGrad(
+    float p, detail::GradientPairInternal<T> const& gpair) {
+  if (p >= 1.0f) {
+    return gpair;
+  }
+  return gpair * (1.0f / p);
+}
+
 namespace cpu_impl {
 // Calculate regularized absolute gradient for each row.
 std::vector<float> CalcRegAbsGrad(Context const* ctx, linalg::MatrixView<GradientPair const> gpairs,

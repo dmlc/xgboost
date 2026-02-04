@@ -81,11 +81,8 @@ void GradientBasedSampling(Context const* ctx, linalg::MatrixView<GradientPair> 
       }
       float rand_val = dist(eng);
       if (rand_val <= p) {
-        // Selected: scale gradient by 1/p
-        float scale = 1.0f / p;
         for (std::size_t t = 0; t < n_targets; ++t) {
-          auto old = gpairs(i, t);
-          gpairs(i, t) = old * scale;
+          gpairs(i, t) = RescaleGrad(p, gpairs(i, t));
         }
       } else {
         // Not selected: zero out
@@ -115,12 +112,8 @@ void ApplyMvsWeights(Context const* ctx, linalg::MatrixView<GradientPair const> 
       return;
     }
     float p = SamplingProbability(threshold, reg_abs_grad[i]);
-    if (p >= 1.0f) {
-      return;
-    }
-    float scale = 1.0f / p;
     for (bst_target_t t = 0; t < n_targets; ++t) {
-      h_value(i, t) = h_value(i, t) * scale;
+      h_value(i, t) = RescaleGrad(p, h_value(i, t));
     }
   });
 }
