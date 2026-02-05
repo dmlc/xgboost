@@ -107,6 +107,7 @@ Python Package
 
 - Fix memory leak with Python DataFrame inputs where temporary buffers were stored as
   class variables instead of instance variables. (#11961)
+- Pandas 3.0 support. (#11975)
 - Add Python type hints for tests and demos, various type hint fixes. (#11795, #11797)
 - Add Python 3.14 classifier. (#11793)
 - Maintenance (#11717, #11783)
