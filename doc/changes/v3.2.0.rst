@@ -1,0 +1,155 @@
+###################
+3.2.0 (2026 Feb 08)
+###################
+
+We are excited to announce the XGBoost 3.2 release. This release features significant
+progress on multi-target tree support with vector leaf, enhanced GPU external memory
+training, various optimizations, and the removal of the deprecated CLI.
+
+***************
+External Memory
+***************
+
+The latest XGBoost release features enhanced support for external memory training with
+GPUs. XGBoost has experimental support for using the CUDA async memory pool, which users
+can opt in to enable asynchronous memory management for efficient external memory
+training. Prior to 3.2, the RMM plugin was required. The feature is Linux-only at the
+moment. (#11706, #11715, #11718, #11931, #11865, #11959, #11962)
+
+In addition, the old page-concat option for GPU external memory has been removed. XGBoost
+will use the full dataset for training. (#11882, #11897)
+
+******************
+Multi-Target/Class
+******************
+
+This release brings substantial progress on the vector-leaf-based multi-target tree model,
+building on the multi-target intercept work from 3.1. The vector-leaf tree stores a vector
+of weights in each leaf node, enabling the model to capture correlations across targets
+during tree construction. In 3.2, we expanded the feature set to cover most of the
+commonly used training configurations.
+
+.. warning::
+
+   The vector leaf is still a work in progress. Feedback is welcome.
+
+New features for the multi-target tree include:
+
+- Reduced gradient (sketch boost) for the hist tree method, which avoids materializing the
+  full gradient matrix and improves scalability with the number of targets. Users can
+  use a custom objective to define the tree split gradient in addition to the full leaf
+  gradient.
+- Support for all regression objectives, including MAE and the quantile loss.
+- GPU ``hist`` tree method implementation has features on par with the CPU one.
+- Regularization parameters including L1/L2, ``min_split_loss``, and
+  ``max_delta_step``.
+- Row subsampling with both uniform sampling and gradient-based sampling.
+- Column sampling (feature selection), including feature weights.
+- Feature importance variants (gain and coverage).
+- Model dump support for all formats (JSON, text, graphviz).
+- External memory support.
+
+In addition, intercept initialization for the multinomial logistic objective now adheres
+to GLM semantics.
+
+Related PRs: #11950, #11914, #11913, #11965, #11941, #11967, #11940, #11896, #11894,
+#11889, #11917, #11883, #11786, #11881, #11862, #11855, #11829, #11825, #11820, #11814,
+#11729, #11724, #11747, #11798, #11791, #11789, #11781, #11778, #11777, #11744, #11922,
+#11920
+
+Currently missing features for the ``hist`` tree method with vector leaf:
+
+- Distributed training
+- Categorical features
+- Feature interaction constraints
+- Monotone constraints, which are not defined when the output is a vector.
+- Shapley values
+
+********
+Features
+********
+
+- The deprecated CLI (command line interface) has been removed. It was deprecated in
+  2.1. (#11720)
+- Expose the categories container to the C API, allowing C users to access category
+  information from the trained model. (#11794)
+- Upgrade to CUDA 12.9. (#11972, #11968)
+- Compatibility fixes for the latest RMM (25.12 and 26.02) and CCCL (thrust 3.3). (#11930,
+  #11834, #11871, #11861, #11785) A nightly CI pipeline was added to test XGBoost with the
+  latest CCCL and RMM. (#11863)
+- Fix SYCL build. (#11844)
+
+*************
+Optimizations
+*************
+
+- Various optimizations for the GPU hist tree method, some of which were done as part of
+  the vector leaf work. (#11895)
+- Enable multi-threaded data initialization for CPU. (#11974)
+- Make the ``block_size`` of the CPU histogram building kernel adaptive based on model
+  parameters and CPU cache size, demonstrating up to 2x speedup for certain
+  workloads. (#11808)
+- Small optimizations for some GPU kernels to use TMA. (#11841, #11802)
+- We now use device memory for storing the tree model, which eliminates data copies
+  between host and device during training and inference. (#11759, #11735, #11750, #11741,
+  #11752)
+
+*****
+Fixes
+*****
+
+- Fix logistic regression with constant labels. (#11973)
+- Fix OpenMP configuration for macOS. (#11976)
+
+**************
+Python Package
+**************
+
+- Fix memory leak with Python DataFrame inputs where temporary buffers were stored as
+  class variables instead of instance variables. (#11961)
+- Add Python type hints for tests and demos, various type hint fixes. (#11795, #11797)
+- Add Python 3.14 classifier. (#11793)
+- Maintenance (#11717, #11783)
+
+*********
+R Package
+*********
+
+- Fix RCHK warnings and memory safety issues. (#11938, #11935, #11847)
+- Error out on factors passed to ``DMatrix`` with an informative message. (#11810)
+- Remove calls to R's global RNG that are no longer needed. (#11848, #11887)
+- Various documentation fixes and updates. (#11773, #11890, #11732, #11846, #11981, #11842)
+
+************
+JVM Packages
+************
+
+- Remove ``synchronized`` from predict, as internal prediction is already thread-safe,
+  with a concurrency test added to verify. (#11746)
+- Set GPU device ID explicitly at the beginning of training and avoid CUDA API guard for
+  the tracker process, allowing Spark executors to run in exclusive mode. (#11939, #11929)
+- Use ``inferBatchSizeParameter`` instead of a hardcoded value. (#11745)
+- Documentation updates, maintenance. (#11691, #11915, #11743)
+
+*********
+Documents
+*********
+
+- Update references from XGBoost Operator to Kubeflow Trainer. (#11710)
+- Document the categories container and add notes for handling unseen categories. (#11788, #11868, #11774)
+- Add Intel as sponsor. (#11850)
+
+******************
+CI and Maintenance
+******************
+
+- Support pre-commit for various linting and formatting tasks. ``clang-format`` is now
+  required by the CI. (#11984, #11978, #11980, #11958, #11953, #11946)
+- We added sccache integration to XGBoost's CI workflows, which brings significant
+  speedup since a majority of the time is spent on compiling variants of XGBoost. In addition,
+  most of the workflows now use GHA container support. (#11956, #11952, #11949, #11937,
+  #11934, #11927, #11932, #11924)
+- Plenty of optimizations for tests. (#11990, #11975, #11964)
+- Various dependency updates, fixes, test refactoring, and cleanups. (#11955, #11957,
+  #11963, #11945, #11912, #11909, #11888, #11898, #11925, #11877, #11824, #11748, #11721,
+  #11705, #11699, #11832, #11796, #11828, #11852, #11800)
