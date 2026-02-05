@@ -1166,39 +1166,34 @@ bst_idx_t SparsePage::Push(AdapterBatchT const& batch, float missing, std::int32
 
   builder.InitBudget(expected_rows, nthread);
   std::vector<std::vector<uint64_t>> max_columns_vector(nthread, std::vector<uint64_t>{0});
-  dmlc::OMPException exec;
   std::atomic<bool> valid{true};
   // First-pass over the batch counting valid elements
-#pragma omp parallel num_threads(nthread)
-  {
-    exec.Run([&]() {
-      int tid = omp_get_thread_num();
-      size_t begin = tid * thread_size;
-      size_t end = tid != (nthread - 1) ? (tid + 1) * thread_size : batch_size;
-      uint64_t& max_columns_local = max_columns_vector[tid][0];
+  common::ParallelFor(static_cast<std::size_t>(nthread), nthread, [&](std::size_t tid) {
+    std::size_t begin = tid * thread_size;
+    std::size_t end =
+        tid != static_cast<std::size_t>(nthread - 1) ? (tid + 1) * thread_size : batch_size;
+    std::uint64_t& max_columns_local = max_columns_vector[tid][0];
 
-      for (size_t i = begin; i < end; ++i) {
-        auto line = batch.GetLine(i);
-        for (auto j = 0ull; j < line.Size(); j++) {
-          data::COOTuple const& element = line.GetElement(j);
-          if (!std::isinf(missing) && std::isinf(element.value)) {
-            valid = false;
-          }
-          const size_t key = element.row_idx - base_rowid;
-          CHECK_GE(key, builder_base_row_offset);
-          max_columns_local =
-              std::max(max_columns_local, static_cast<uint64_t>(element.column_idx + 1));
+    for (size_t i = begin; i < end; ++i) {
+      auto line = batch.GetLine(i);
+      for (auto j = 0ull; j < line.Size(); j++) {
+        data::COOTuple const& element = line.GetElement(j);
+        if (!std::isinf(missing) && std::isinf(element.value)) {
+          valid = false;
+        }
+        const size_t key = element.row_idx - base_rowid;
+        CHECK_GE(key, builder_base_row_offset);
+        max_columns_local =
+            std::max(max_columns_local, static_cast<uint64_t>(element.column_idx + 1));
 
-          if (!common::CheckNAN(element.value) && element.value != missing) {
-            // Adapter row index is absolute, here we want it relative to
-            // current page
-            builder.AddBudget(key, tid);
-          }
+        if (!common::CheckNAN(element.value) && element.value != missing) {
+          // Adapter row index is absolute, here we want it relative to
+          // current page
+          builder.AddBudget(key, static_cast<int>(tid));
         }
       }
-    });
-  }
-  exec.Rethrow();
+    }
+  });
   CHECK(valid) << error::InfInData();
   for (const auto& max : max_columns_vector) {
     max_columns = std::max(max_columns, max[0]);
@@ -1208,25 +1203,22 @@ bst_idx_t SparsePage::Push(AdapterBatchT const& batch, float missing, std::int32
 
   // Second pass over batch, placing elements in correct position
   auto is_valid = data::IsValidFunctor{missing};
-#pragma omp parallel num_threads(nthread)
-  {
-    exec.Run([&]() {
-      int tid = omp_get_thread_num();
-      size_t begin = tid * thread_size;
-      size_t end = tid != (nthread - 1) ? (tid + 1) * thread_size : batch_size;
-      for (size_t i = begin; i < end; ++i) {
-        auto line = batch.GetLine(i);
-        for (auto j = 0ull; j < line.Size(); j++) {
-          auto element = line.GetElement(j);
-          const size_t key = (element.row_idx - base_rowid);
-          if (is_valid(element)) {
-            builder.Push(key, Entry(element.column_idx, element.value), tid);
-          }
+  common::ParallelFor(static_cast<std::size_t>(nthread), nthread, [&](std::size_t tid) {
+    std::size_t begin = tid * thread_size;
+    std::size_t end =
+        tid != static_cast<std::size_t>(nthread - 1) ? (tid + 1) * thread_size : batch_size;
+    for (std::size_t i = begin; i < end; ++i) {
+      auto line = batch.GetLine(i);
+      for (auto j = 0ull; j < line.Size(); j++) {
+        auto element = line.GetElement(j);
+        const size_t key = (element.row_idx - base_rowid);
+        if (is_valid(element)) {
+          builder.Push(key, Entry(element.column_idx, element.value),
+                       static_cast<std::int32_t>(tid));
         }
       }
-    });
-  }
-  exec.Rethrow();
+    }
+  });
   return max_columns;
 }
 
