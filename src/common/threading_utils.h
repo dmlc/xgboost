@@ -292,9 +292,9 @@ inline std::int32_t OmpGetThreadLimit() {
 }
 
 /**
- * \brief Get thread limit from CFS.
+ * @brief Get thread limit from CFS.
  *
- *   This function has non-trivial overhead and should not be called repeatly.
+ * This function has non-trivial overhead and should not be called repeatedly.
  */
 std::int32_t GetCfsCPUCount() noexcept;
 
@@ -303,10 +303,11 @@ std::int32_t GetCfsCPUCount() noexcept;
  */
 std::int32_t OmpGetNumThreads(std::int32_t n_threads) noexcept(true);
 
-/*!
- * \brief A C-style array with in-stack allocation. As long as the array is smaller than
- * MaxStackSize, it will be allocated inside the stack. Otherwise, it will be
- * heap-allocated.
+/**
+ * @brief A C-style array with in-stack allocation.
+ *
+ * As long as the array is smaller than MaxStackSize, it will be allocated inside the
+ * stack. Otherwise, it will be heap-allocated.
  */
 template <typename T, std::size_t MaxStackSize>
 class MemStackAllocator {
