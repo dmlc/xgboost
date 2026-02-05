@@ -292,6 +292,7 @@ def launch_workers(tmpdir: str, args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    """Demo for distributed training from scratch."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     args = parser.parse_args()
