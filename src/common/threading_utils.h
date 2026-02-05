@@ -277,7 +277,7 @@ void ParallelForBlock(Index size, std::int32_t n_threads, Func&& fn) {
   std::size_t blk_size = size / n_threads + (size % n_threads > 0);
   ParallelFor(n_threads, n_threads, [&](auto tid) {
     auto blk_beg = tid * blk_size;
-    auto blk_end = std::min((tid + 1) * blk_size, size);
+    auto blk_end = std::min((tid + 1) * blk_size, static_cast<std::size_t>(size));
     if (blk_end <= blk_beg) {
       return;
     }

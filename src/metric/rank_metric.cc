@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost contributors
+ * Copyright 2020-2026, XGBoost contributors
  */
 #include "rank_metric.h"
 
@@ -22,7 +22,6 @@
 #include "../common/algorithm.h"             // for ArgSort, Sort
 #include "../common/linalg_op.h"             // for cbegin, cend
 #include "../common/optional_weight.h"       // for OptionalWeights, MakeOptionalWeights
-#include "dmlc/common.h"                     // for OMPException
 #include "metric_common.h"                   // for MetricNoCache, GPUMetric, PackedReduceResult
 #include "xgboost/base.h"                    // for bst_float, bst_omp_uint, bst_group_t, Args
 #include "xgboost/cache.h"                   // for DMatrixCache
@@ -112,13 +111,12 @@ struct EvalAMS : public MetricNoCache {
 struct EvalRank : public MetricNoCache, public EvalRankConfig {
  public:
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
-    CHECK_EQ(preds.Size(), info.labels.Size())
-        << "label size predict size not match";
+    CHECK_EQ(preds.Size(), info.labels.Size()) << "label size predict size not match";
 
     // quick consistency when group is not available
     std::vector<unsigned> tgptr(2, 0);
     tgptr[1] = static_cast<unsigned>(preds.Size());
-    const auto &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
+    const auto& gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
 
     CHECK_NE(gptr.size(), 0U) << "must specify group when constructing rank file";
     CHECK_EQ(gptr.back(), preds.Size())
@@ -126,35 +124,21 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
 
     const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
     // sum statistics
-    double sum_metric = 0.0f;
+    const auto& h_labels = info.labels.HostView();
+    CHECK_LE(h_labels.Shape(1), 1);
+    const auto& h_preds = preds.ConstHostVector();
+
     std::vector<double> sum_tloc(ctx_->Threads(), 0.0);
-
-    {
-      const auto& labels = info.labels.HostView();
-      const auto &h_preds = preds.ConstHostVector();
-
-      dmlc::OMPException exc;
-#pragma omp parallel num_threads(ctx_->Threads())
-      {
-        exc.Run([&]() {
-          // each thread takes a local rec
-          PredIndPairContainer rec;
-#pragma omp for schedule(static)
-          for (bst_omp_uint k = 0; k < ngroups; ++k) {
-            exc.Run([&]() {
-              rec.clear();
-              for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-                rec.emplace_back(h_preds[j], static_cast<int>(labels(j)));
-              }
-              sum_tloc[omp_get_thread_num()] += this->EvalGroup(&rec);
-            });
-          }
-        });
+    common::ParallelForBlock(ngroups, ctx_->Threads(), [&](auto&& blk) {
+      for (auto group_idx = blk.begin(); group_idx < blk.end(); ++group_idx) {
+        PredIndPairContainer rec;
+        for (unsigned j = gptr[group_idx]; j < gptr[group_idx + 1]; ++j) {
+          rec.emplace_back(h_preds[j], static_cast<int>(h_labels(j)));
+        }
+        sum_tloc[omp_get_thread_num()] += this->EvalGroup(&rec);
       }
-      sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
-      exc.Rethrow();
-    }
-
+    });
+    double sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
     return collective::GlobalRatio(ctx_, info, sum_metric, static_cast<double>(ngroups));
   }
 
