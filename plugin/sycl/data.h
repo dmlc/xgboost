@@ -4,12 +4,12 @@
 #ifndef PLUGIN_SYCL_DATA_H_
 #define PLUGIN_SYCL_DATA_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <vector>
-#include <memory>
-#include <algorithm>
 
 #include "xgboost/base.h"
 #pragma GCC diagnostic push
@@ -17,31 +17,26 @@
 #pragma GCC diagnostic ignored "-W#pragma-messages"
 #include "xgboost/data.h"
 #pragma GCC diagnostic pop
-#include "xgboost/logging.h"
-#include "xgboost/host_device_vector.h"
+#include <sycl/sycl.hpp>
 
 #include "../../src/common/threading_utils.h"
-
-#include <sycl/sycl.hpp>
+#include "xgboost/host_device_vector.h"
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace sycl {
 template <typename T>
-using AtomicRef = ::sycl::atomic_ref<T,
-                                    ::sycl::memory_order::relaxed,
-                                    ::sycl::memory_scope::device,
-                                    ::sycl::access::address_space::global_space>;
+using AtomicRef = ::sycl::atomic_ref<T, ::sycl::memory_order::relaxed, ::sycl::memory_scope::device,
+                                     ::sycl::access::address_space::global_space>;
 
-enum class MemoryType { shared, on_device};
+enum class MemoryType { shared, on_device };
 
 template <typename T>
 class USMDeleter {
  public:
   explicit USMDeleter(::sycl::queue* qu) : qu_(qu) {}
 
-  void operator()(T* data) const {
-    ::sycl::free(data, *qu_);
-  }
+  void operator()(T* data) const { ::sycl::free(data, *qu_); }
 
  private:
   ::sycl::queue* qu_;
@@ -59,14 +54,13 @@ class USMVector {
     }
   }
 
-  void copy_vector_to_memory_(::sycl::queue* qu, const std::vector<T> &vec) {
+  void copy_vector_to_memory_(::sycl::queue* qu, const std::vector<T>& vec) {
     if constexpr (memory_type == MemoryType::shared) {
       std::copy(vec.begin(), vec.end(), data_.get());
     } else {
       qu->memcpy(data_.get(), vec.data(), size_ * sizeof(T));
     }
   }
-
 
  public:
   USMVector() : size_(0), capacity_(0), data_(nullptr) {}
@@ -80,21 +74,20 @@ class USMVector {
     qu->fill(data_.get(), v, size_).wait();
   }
 
-  USMVector(::sycl::queue* qu, size_t size, T v,
-            ::sycl::event* event) : size_(size), capacity_(size) {
+  USMVector(::sycl::queue* qu, size_t size, T v, ::sycl::event* event)
+      : size_(size), capacity_(size) {
     data_ = allocate_memory_(qu, size_);
     *event = qu->fill(data_.get(), v, size_, *event);
   }
 
-  USMVector(::sycl::queue* qu, const std::vector<T> &vec) {
+  USMVector(::sycl::queue* qu, const std::vector<T>& vec) {
     size_ = vec.size();
     capacity_ = size_;
     data_ = allocate_memory_(qu, size_);
     copy_vector_to_memory_(qu, vec);
   }
 
-  ~USMVector() {
-  }
+  ~USMVector() {}
 
   USMVector<T>& operator=(const USMVector<T>& other) {
     size_ = other.size_;
@@ -110,11 +103,11 @@ class USMVector {
 
   size_t Capacity() const { return capacity_; }
 
-  T& operator[] (size_t i) { return data_.get()[i]; }
-  const T& operator[] (size_t i) const { return data_.get()[i]; }
+  T& operator[](size_t i) { return data_.get()[i]; }
+  const T& operator[](size_t i) const { return data_.get()[i]; }
 
-  T* Begin () const { return data_.get(); }
-  T* End () const { return data_.get() + size_; }
+  T* Begin() const { return data_.get(); }
+  T* End() const { return data_.get() + size_; }
 
   bool Empty() const { return (size_ == 0); }
 
@@ -132,7 +125,7 @@ class USMVector {
       auto data_old = data_;
       size_ = size_new;
       capacity_ = size_new;
-      data_ = allocate_memory_(qu, size_);;
+      data_ = allocate_memory_(qu, size_);
       if (size_old > 0) {
         qu->memcpy(data_.get(), data_old.get(), sizeof(T) * size_old).wait();
       }
@@ -205,11 +198,9 @@ class USMVector {
     }
   }
 
-  ::sycl::event Fill(::sycl::queue* qu, T v) {
-    return qu->fill(data_.get(), v, size_);
-  }
+  ::sycl::event Fill(::sycl::queue* qu, T v) { return qu->fill(data_.get(), v, size_); }
 
-  void Init(::sycl::queue* qu, const std::vector<T> &vec) {
+  void Init(::sycl::queue* qu, const std::vector<T>& vec) {
     size_ = vec.size();
     capacity_ = size_;
     data_ = allocate_memory_(qu, size_);
