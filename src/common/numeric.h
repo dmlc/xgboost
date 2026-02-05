@@ -45,7 +45,7 @@ void RunLengthEncode(Iter begin, Iter end, std::vector<Idx>* p_out) {
 }
 
 /**
- * @brief Varient of std::partial_sum, out_it should point to a container that has n + 1
+ * @brief Variant of std::partial_sum, out_it should point to a container that has n + 1
  *        elements. Useful for constructing a CSR indptr.
  */
 template <typename InIt, typename OutIt, typename T>
