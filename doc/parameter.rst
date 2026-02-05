@@ -125,14 +125,25 @@ Parameters for Tree Booster
 
 * ``sampling_method`` [default= ``uniform``]
 
+.. versionchanged:: 3.2.0
+
+    XGBoost supports both CPU and GPU for gradient-based sampling.
+
   - The method to use to sample the training instances.
   - ``uniform``: each training instance has an equal probability of being selected. Typically set
     ``subsample`` >= 0.5 for good results.
   - ``gradient_based``: the selection probability for each training instance is proportional to the
     *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
     ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
-    sampling method is only supported when ``tree_method`` is set to ``hist`` and the device is ``cuda``; other tree
+    sampling method is only supported when ``tree_method`` is set to ``hist``; other tree
     methods only support ``uniform`` sampling.
+
+  .. note::
+
+     When working with reduced gradient for multi-target models, the accuracy of
+     gradient-based sampling might be sub-optimal. The sampling is performed using the
+     split gradient, which may not be optimal with the full gradient. Use uniform sampling
+     as an alternative.
 
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
 

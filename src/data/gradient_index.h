@@ -61,8 +61,7 @@ class GHistIndexMatrix {
   /**
    * @brief Push a sparse page into the index matrix.
    */
-  void PushBatch(SparsePage const& batch, common::Span<FeatureType const> ft,
-                 std::int32_t n_threads);
+  void PushBatch(Context const* ctx, SparsePage const& batch, common::Span<FeatureType const> ft);
 
   template <typename Batch, typename BinIdxType, typename GetOffset, typename IsValid>
   void SetIndexData(common::Span<BinIdxType> index_data_span, size_t rbegin,
@@ -112,16 +111,17 @@ class GHistIndexMatrix {
   }
 
   template <typename Batch, typename IsValid>
-  void PushBatchImpl(int32_t n_threads, Batch const& batch, size_t rbegin, IsValid&& is_valid,
+  void PushBatchImpl(Context const* ctx, Batch const& batch, size_t rbegin, IsValid&& is_valid,
                      common::Span<FeatureType const> ft) {
     // The number of threads is pegged to the batch size. If the OMP block is parallelized
     // on anything other than the batch/block size, it should be reassigned
+    auto n_threads = ctx->Threads();
     size_t batch_threads =
         std::max(static_cast<size_t>(1), std::min(batch.Size(), static_cast<size_t>(n_threads)));
 
     auto n_bins_total = cut.TotalBins();
     const size_t n_index = row_ptr[rbegin + batch.Size()];  // number of entries in this page
-    ResizeIndex(n_index, isDense_);
+    ResizeIndex(ctx, n_index, isDense_);
     if (isDense_) {
       index.SetBinOffset(cut.Ptrs());
     }
@@ -174,8 +174,7 @@ class GHistIndexMatrix {
    * @brief Constructor for Quantile DMatrix. Initialize basic information and prepare
    *        for push batch.
    */
-  GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts,
-                   bst_bin_t max_bin_per_feat);
+  GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts, bst_bin_t max_bin_per_feat);
 
   /**
    * @brief Constructor for the external memory Quantile DMatrix. Initialize basic
@@ -194,9 +193,9 @@ class GHistIndexMatrix {
   /**
    * @brief Constructor for external memory.
    */
-  GHistIndexMatrix(SparsePage const& page, common::Span<FeatureType const> ft,
+  GHistIndexMatrix(Context const* ctx, SparsePage const& page, common::Span<FeatureType const> ft,
                    common::HistogramCuts cuts, bst_bin_t max_bins_per_feat, bool is_dense,
-                   double sparse_thresh, std::int32_t n_threads);
+                   double sparse_thresh);
   GHistIndexMatrix();  // also for ext mem, empty ctor so that we can read the cache back.
 
   /**
@@ -220,7 +219,7 @@ class GHistIndexMatrix {
     common::PartialSum(n_threads, it, it + batch.Size(), prev_sum, row_ptr.begin() + rbegin);
     auto is_valid = data::IsValidFunctor{missing};
 
-    PushBatchImpl(ctx->Threads(), batch, rbegin, is_valid, ft);
+    PushBatchImpl(ctx, batch, rbegin, is_valid, ft);
 
     if (rbegin + batch.Size() == n_samples_total) {
       // finished
@@ -233,7 +232,7 @@ class GHistIndexMatrix {
   void PushAdapterBatchColumns(Context const* ctx, Batch const& batch, float missing,
                                size_t rbegin);
 
-  void ResizeIndex(const size_t n_index, const bool isDense);
+  void ResizeIndex(Context const* ctx, const size_t n_index, const bool isDense);
 
   void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.Ptrs().size() - 1;

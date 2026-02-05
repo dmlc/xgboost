@@ -42,8 +42,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   cache_prefix_ = MakeCachePrefix(cache_prefix_);
 
   DMatrixProxy *proxy = MakeProxy(proxy_);
-  auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
-      iter_, reset_, next_};
+  auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_, reset_, next_};
 
   auto get_cats = [](DMatrixProxy const *proxy) {
     if (proxy->Ctx()->IsCPU()) {
@@ -179,8 +178,8 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
     CHECK_NE(cuts.Values().size(), 0);
     auto ft = this->info_.feature_types.ConstHostSpan();
     ghist_index_source_.reset(new GradientIndexPageSource(
-        this->missing_, ctx->Threads(), this->Info().num_col_, this->NumBatches(),
-        cache_info_.at(id), param, std::move(cuts), this->IsDense(), ft, sparse_page_source_));
+        ctx, this->missing_, this->Info().num_col_, this->NumBatches(), cache_info_.at(id), param,
+        std::move(cuts), this->IsDense(), ft, sparse_page_source_));
   } else {
     CHECK(ghist_index_source_);
     ghist_index_source_->Reset(param);
