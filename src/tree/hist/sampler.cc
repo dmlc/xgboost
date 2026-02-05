@@ -22,25 +22,17 @@ void ParallelSampling(bst_idx_t n_samples, std::int32_t n_threads, Fn&& fn) {
   auto& rnd = common::GlobalRandom();
   std::uint64_t initial_seed = rnd();
   std::size_t const discard_size = n_samples / n_threads;
+  common::ParallelFor(n_threads, n_threads, [&](auto tid) {
+    std::size_t ibegin = tid * discard_size;
+    std::size_t iend = (tid == (n_threads - 1)) ? n_samples : ibegin + discard_size;
 
-  dmlc::OMPException exc;
-#pragma omp parallel num_threads(n_threads)
-  {
-    exc.Run([&]() {
-      // setup the block
-      const std::int32_t tid = omp_get_thread_num();
-      const size_t ibegin = tid * discard_size;
-      const size_t iend = (tid == (n_threads - 1)) ? n_samples : ibegin + discard_size;
+    // Setup the eng
+    const uint64_t displaced_seed =
+        RandomReplace::SimpleSkip(ibegin, initial_seed, RandomReplace::kBase, RandomReplace::kMod);
+    RandomReplace::EngineT eng(displaced_seed);
 
-      // Setup the eng
-      const uint64_t displaced_seed = RandomReplace::SimpleSkip(
-          ibegin, initial_seed, RandomReplace::kBase, RandomReplace::kMod);
-      RandomReplace::EngineT eng(displaced_seed);
-
-      fn(ibegin, iend, eng);
-    });
-  }
-  exc.Rethrow();
+    fn(ibegin, iend, eng);
+  });
 }
 
 namespace {

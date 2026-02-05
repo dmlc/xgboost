@@ -277,7 +277,7 @@ void ParallelForBlock(Index size, std::int32_t n_threads, Func&& fn) {
   std::size_t blk_size = size / n_threads + (size % n_threads > 0);
   ParallelFor(n_threads, n_threads, [&](auto tid) {
     auto blk_beg = tid * blk_size;
-    auto blk_end = std::min((tid + 1) * blk_size, size);
+    auto blk_end = std::min((tid + 1) * blk_size, static_cast<std::size_t>(size));
     if (blk_end <= blk_beg) {
       return;
     }
@@ -292,9 +292,9 @@ inline std::int32_t OmpGetThreadLimit() {
 }
 
 /**
- * \brief Get thread limit from CFS.
+ * @brief Get thread limit from CFS.
  *
- *   This function has non-trivial overhead and should not be called repeatly.
+ * This function has non-trivial overhead and should not be called repeatedly.
  */
 std::int32_t GetCfsCPUCount() noexcept;
 
@@ -303,10 +303,11 @@ std::int32_t GetCfsCPUCount() noexcept;
  */
 std::int32_t OmpGetNumThreads(std::int32_t n_threads) noexcept(true);
 
-/*!
- * \brief A C-style array with in-stack allocation. As long as the array is smaller than
- * MaxStackSize, it will be allocated inside the stack. Otherwise, it will be
- * heap-allocated.
+/**
+ * @brief A C-style array with in-stack allocation.
+ *
+ * As long as the array is smaller than MaxStackSize, it will be allocated inside the
+ * stack. Otherwise, it will be heap-allocated.
  */
 template <typename T, std::size_t MaxStackSize>
 class MemStackAllocator {
