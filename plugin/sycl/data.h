@@ -30,7 +30,7 @@ template <typename T>
 using AtomicRef = ::sycl::atomic_ref<T,
                                     ::sycl::memory_order::relaxed,
                                     ::sycl::memory_scope::device,
-                                    ::sycl::access::address_space::ext_intel_global_device_space>;
+                                    ::sycl::access::address_space::global_space>;
 
 enum class MemoryType { shared, on_device};
 
