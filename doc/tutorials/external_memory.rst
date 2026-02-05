@@ -364,8 +364,8 @@ bandwidth by half. Even if you are not using distributed training, you should st
 attention to NUMA control since there's no guarantee that your process will have the
 correct configuration.
 
-We have tested two approaches of NUMA configuration. The first (and recommended) way is to
-use the ``numactl`` command line available on Linux distributions:
+To configure the NUMA binding from command line on Linux, one can use the ``numactl`` or
+the ``hwloc-bind``:
 
 .. code-block:: sh
 
@@ -396,15 +396,10 @@ strict flag is used:
 
     hwloc-bind --strict --membind node:${NODEID} --cpubind node:${NODEID} ./myapp
 
-Another approach is to use the CPU affinity. The `dask-cuda
-<https://github.com/rapidsai/dask-cuda>`__ project configures optimal CPU affinity for the
-Dask interface through using the `nvml` library in addition to the Linux sched
-routines. This can help guide the memory allocation policy but does not enforce it. As a
-result, when the memory is under pressure, the OS can allocate memory on different NUMA
-nodes. On the other hand, it's easier to use since launchers like
-:py:class:`~dask_cuda.LocalCUDACluster` have already integrated the solution.
 
-We use the first approach for benchmarks as it has better enforcement.
+Both projects provide a programming interface for configuring NUMA bindings within
+applications. See :ref:`sphx_glr_python_examples_distributed_extmem_basic.py` for a
+complete example of using ``pyhwloc`` in a distributed training setting.
 
 ********************
 Distributed Training
