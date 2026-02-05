@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file updater_refresh.cc
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
@@ -41,7 +41,7 @@ class TreeRefresher : public TreeUpdater {
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     const std::vector<GradientPair> &gpair_h = gpair->Data()->ConstHostVector();
     // Thread local variables.
-    std::vector<std::vector<GradStats> > stemp;
+    std::vector<std::vector<GradStats>> stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
     const int nthread = ctx_->Threads();
@@ -117,8 +117,7 @@ class TreeRefresher : public TreeUpdater {
   }
   void Refresh(TrainParam const *param, const GradStats *gstats, int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
-    tree.Stat(nid).base_weight =
-        static_cast<bst_float>(CalcWeight(*param, gstats[nid]));
+    tree.Stat(nid).base_weight = static_cast<bst_float>(CalcWeight(*param, gstats[nid]));
     tree.Stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     if (tree[nid].IsLeaf()) {
       if (param->refresh_leaf) {
