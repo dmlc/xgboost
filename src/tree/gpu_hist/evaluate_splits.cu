@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #include <algorithm>  // for :max
 #include <limits>     // for numeric_limits
@@ -115,7 +115,7 @@ class EvaluateSplitAgent {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
       GradientPairInt64 bin = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
                                             : GradientPairInt64();
-#if CUB_VERSION >= 300000
+#if CUB_VERSION >= 200800
       BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cuda::std::plus{}, prefix_op);
 #else
       BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum{}, prefix_op);
@@ -355,7 +355,7 @@ void GPUHistEvaluator::LaunchEvaluateSplits(
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<DeviceSplitCandidate> out_splits) {
   if (need_sort_histogram_) {
-    this->SortHistogram(d_inputs, shared_inputs, evaluator);
+    this->SortHistogram(ctx, d_inputs, shared_inputs, evaluator);
   }
 
   size_t combined_num_features = max_active_features * d_inputs.size();

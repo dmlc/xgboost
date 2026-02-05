@@ -13,6 +13,8 @@ See :doc:`/tutorials/multioutput` for more information.
     The feature is experimental. For the `multi_output_tree` strategy, many features are
     missing.
 
+.. seealso:: :ref:`sphx_glr_python_examples_multioutput_reduced_gradient.py`
+
 """
 
 import argparse

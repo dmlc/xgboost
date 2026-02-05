@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef EXPAND_ENTRY_CUH_
 #define EXPAND_ENTRY_CUH_
@@ -31,7 +31,9 @@ struct GPUExpandEntry {
         left_weight{left},
         right_weight{right} {}
   [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t num_leaves) const {
-    if (split.loss_chg <= kRtEps) return false;
+    if (split.loss_chg <= kRtEps) {
+      return false;
+    }
     if (split.left_sum.GetQuantisedHess() == 0 || split.right_sum.GetQuantisedHess() == 0) {
       return false;
     }
@@ -133,12 +135,9 @@ struct MultiExpandEntry {
   MultiSplitCandidate split;
 
   common::Span<float> base_weight;
-  common::Span<float const> left_weight;
-  common::Span<float const> right_weight;
-
-  // Sum Hessian of the first target. Used as a surrogate for node size.
-  double left_fst_hess{0};
-  double right_fst_hess{0};
+  // Sum of hessians across all targets for left/right children.
+  double left_sum{0};
+  double right_sum{0};
 
   MultiExpandEntry() = default;
 
@@ -149,12 +148,12 @@ struct MultiExpandEntry {
   [[nodiscard]] bst_node_t GetDepth() const { return depth; }
 
   [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t n_leaves) const {
-    // The split evaluator handles the zero Hessian case. It returns an empty expand entry
-    // if there the Hessian is invalid.
+    // The split evaluator handles the zero Hessian case. It returns an expand entry with
+    // -inf loss_chg if the Hessian is invalid.
     if (split.loss_chg <= kRtEps) {
       return false;
     }
-    if (base_weight.empty() || left_weight.empty() || right_weight.empty()) {
+    if (base_weight.empty()) {
       return false;
     }
     if (split.loss_chg < param.min_split_loss) {
@@ -169,9 +168,14 @@ struct MultiExpandEntry {
     return true;
   }
 
-  __device__ void UpdateFirstHessian(GradientPairPrecise const& lg, GradientPairPrecise const& rg) {
-    this->left_fst_hess = lg.GetHess();
-    this->right_fst_hess = rg.GetHess();
+  /**
+   * @brief Update hessian statistics.
+   * @param left_hess  Sum of hessians across all targets for left child.
+   * @param right_hess Sum of hessians across all targets for right child.
+   */
+  __device__ void UpdateHessian(double left_hess, double right_hess) {
+    this->left_sum = left_hess;
+    this->right_sum = right_hess;
   }
 
   friend std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& entry);

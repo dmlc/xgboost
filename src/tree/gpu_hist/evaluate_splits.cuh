@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
@@ -180,7 +180,8 @@ class GPUHistEvaluator {
    * \brief Sort the histogram based on output to obtain contiguous partitions.
    */
   common::Span<bst_feature_t const> SortHistogram(
-      common::Span<const EvaluateSplitInputs> d_inputs, EvaluateSplitSharedInputs shared_inputs,
+      Context const *ctx, common::Span<const EvaluateSplitInputs> d_inputs,
+      EvaluateSplitSharedInputs shared_inputs,
       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public
@@ -209,7 +210,8 @@ struct MultiEvaluateSplitInputs {
   bst_node_t nidx;
   bst_node_t depth;
   common::Span<GradientPairInt64 const> parent_sum;
-  common::Span<const GradientPairInt64> histogram;
+  common::Span<bst_feature_t const> feature_set;
+  common::Span<GradientPairInt64 const> histogram;
 };
 
 // Input for evaluation kernel that can be shared by multiple tree nodes.
@@ -219,11 +221,12 @@ struct MultiEvaluateSplitSharedInputs {
   // cut pointers
   common::Span<std::uint32_t const> feature_segments;
   // cut values
-  common::Span<float const> feature_values;
+  float const *feature_values;
   // min cut values
-  common::Span<float const> min_values;
+  float const *min_values;
   // Number of bins for one feature and one target
   bst_bin_t n_bins_per_feat_tar;
+  bst_feature_t max_active_feature;
   GPUTrainingParam param;
 
   // Used for testing

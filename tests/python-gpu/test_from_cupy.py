@@ -7,6 +7,7 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import run_base_margin_info
+from xgboost.testing.utils import assert_allclose
 
 cp = pytest.importorskip("cupy")
 
@@ -114,20 +115,22 @@ def _test_cupy_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     dmat_cupy.set_info(group=cupy_uints)
 
     # Test setting info with cupy
-    assert np.array_equal(
-        dmat.get_float_info("weight"), dmat_cupy.get_float_info("weight")
-    )
-    assert np.array_equal(
-        dmat.get_float_info("label"), dmat_cupy.get_float_info("label")
-    )
-    assert np.array_equal(
-        dmat.get_float_info("base_margin"), dmat_cupy.get_float_info("base_margin")
-    )
+    assert_allclose("cuda", dmat.get_weight(), dmat_cupy.get_weight())
+    assert_allclose("cuda", dmat.get_label(), dmat_cupy.get_label())
+    assert_allclose("cuda", dmat.get_base_margin(), dmat_cupy.get_base_margin())
     assert np.array_equal(
         dmat.get_uint_info("group_ptr"), dmat_cupy.get_uint_info("group_ptr")
     )
 
     run_base_margin_info(cp.asarray, DMatrixT, "cuda")
+
+    dmat_cupy = DMatrixT(cp.array(X))
+    y = dmat_cupy.get_label()
+    assert y.size == 0
+    y = cp.array(X)
+    dmat_cupy.set_label(y)
+    y1 = dmat_cupy.get_label()
+    assert_allclose("cuda", y1, y)
 
 
 @pytest.mark.skipif(**tm.no_cupy())
@@ -163,11 +166,11 @@ class TestFromCupy:
         _test_from_cupy(xgb.DMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_device_dmat_from_cupy(self) -> None:
+    def test_quantile_dmat_from_cupy(self) -> None:
         _test_from_cupy(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_cupy_training_device_dmat(self) -> None:
+    def test_cupy_training_quantile_dmat(self) -> None:
         _test_cupy_training(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
@@ -179,14 +182,15 @@ class TestFromCupy:
         _test_cupy_metainfo(xgb.DMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_cupy_metainfo_device_dmat(self) -> None:
+    def test_cupy_metainfo_quantile_dmat(self) -> None:
         _test_cupy_metainfo(xgb.QuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dlpack_simple_dmat(self) -> None:
         n = 100
         X = cp.random.random((n, 2))
-        xgb.DMatrix(X.toDlpack())
+        capsule = X.__dlpack__()
+        xgb.DMatrix(capsule)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_cupy_categorical(self) -> None:
@@ -201,10 +205,10 @@ class TestFromCupy:
         np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_dlpack_device_dmat(self) -> None:
+    def test_dlpack_quantile_dmat(self) -> None:
         n = 100
         X = cp.random.random((n, 2))
-        m = xgb.QuantileDMatrix(X.toDlpack())
+        m = xgb.QuantileDMatrix(X.__dlpack__())
 
         with pytest.raises(
             xgb.core.XGBoostError, match="Slicing DMatrix is not supported"

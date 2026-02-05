@@ -67,7 +67,7 @@ Capabilities of binary wheels for each platform:
 +=====================+=========+======================+
 | Linux x86_64        | |tick|  |  |tick|              |
 +---------------------+---------+----------------------+
-| Linux aarch64       | |cross| |  |cross|             |
+| Linux aarch64       | |tick|  |  |cross|             |
 +---------------------+---------+----------------------+
 | MacOS x86_64        | |cross| |  |cross|             |
 +---------------------+---------+----------------------+
@@ -75,6 +75,11 @@ Capabilities of binary wheels for each platform:
 +---------------------+---------+----------------------+
 | Windows             | |tick|  |  |cross|             |
 +---------------------+---------+----------------------+
+
+Linux aarch64 wheels now ship with CUDA support, so ``pip install xgboost`` on
+modern Jetson or Graviton machines provides the same GPU functionality as the
+Linux x86_64 wheel. Multi-node and multi-GPU training remain experimental on
+ARM64 at this time.
 
 Minimal installation (CPU-only)
 *******************************

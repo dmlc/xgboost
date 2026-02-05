@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023, XGBoost Contributors
+ * Copyright 2018-2025, XGBoost Contributors
  */
 #include "../../../src/common/random.h"
 #include "../helpers.h"
@@ -11,7 +11,7 @@ namespace {
 void TestBasic(Context const* ctx) {
   int n = 128;
   ColumnSampler cs{1u};
-  std::vector<float> feature_weights;
+  HostDeviceVector<float> feature_weights;
 
   // No node sampling
   cs.Init(ctx, n, feature_weights, 1.0f, 0.5f, 0.5f);
@@ -79,7 +79,7 @@ TEST(ColumnSampler, ThreadSynchronisation) {
   size_t iterations = 10;
   size_t levels = 5;
   std::vector<bst_feature_t> reference_result;
-  std::vector<float> feature_weights;
+  HostDeviceVector<float> feature_weights;
   bool success = true; // Cannot use google test asserts in multithreaded region
 #pragma omp parallel num_threads(n_threads)
   {
@@ -103,9 +103,9 @@ TEST(ColumnSampler, ThreadSynchronisation) {
 namespace {
 void TestWeightedSampling(Context const* ctx) {
   auto test_basic = [ctx](int first) {
-    std::vector<float> feature_weights(2);
-    feature_weights[0] = std::abs(first - 1.0f);
-    feature_weights[1] = first - 0.0f;
+    HostDeviceVector<float> feature_weights(2);
+    feature_weights.HostVector()[0] = std::abs(first - 1.0f);
+    feature_weights.HostVector()[1] = first - 0.0f;
     ColumnSampler cs{0};
     cs.Init(ctx, 2, feature_weights, 1.0, 1.0, 0.5);
     auto feature_sets = cs.GetFeatureSet(0);
@@ -118,10 +118,11 @@ void TestWeightedSampling(Context const* ctx) {
   test_basic(1);
 
   size_t constexpr kCols = 64;
-  std::vector<float> feature_weights(kCols);
+  HostDeviceVector<float> feature_weights(kCols);
   SimpleLCG rng;
   SimpleRealUniformDistribution<float> dist(.0f, 12.0f);
-  std::generate(feature_weights.begin(), feature_weights.end(), [&]() { return dist(&rng); });
+  std::generate(feature_weights.HostVector().begin(), feature_weights.HostVector().end(),
+                [&]() { return dist(&rng); });
   ColumnSampler cs{0};
   cs.Init(ctx, kCols, feature_weights, 0.5f, 1.0f, 1.0f);
   std::vector<bst_feature_t> features(kCols);
@@ -140,13 +141,14 @@ void TestWeightedSampling(Context const* ctx) {
   for (auto& f : freq) {
     f /= norm;
   }
-  norm = std::accumulate(feature_weights.cbegin(), feature_weights.cend(), .0f);
-  for (auto& f : feature_weights) {
+  auto& h_feature_weights = feature_weights.HostVector();
+  norm = std::accumulate(h_feature_weights.cbegin(), h_feature_weights.cend(), .0f);
+  for (auto& f : h_feature_weights) {
     f /= norm;
   }
 
-  for (size_t i = 0; i < feature_weights.size(); ++i) {
-    EXPECT_NEAR(freq[i], feature_weights[i], 1e-2);
+  for (size_t i = 0; i < h_feature_weights.size(); ++i) {
+    EXPECT_NEAR(freq[i], h_feature_weights[i], 1e-2);
   }
 }
 }  // namespace
@@ -166,13 +168,14 @@ TEST(ColumnSampler, GPUWeightedSampling) {
 namespace {
 void TestWeightedMultiSampling(Context const* ctx) {
   size_t constexpr kCols = 32;
-  std::vector<float> feature_weights(kCols, 0);
-  for (size_t i = 0; i < feature_weights.size(); ++i) {
-    feature_weights[i] = i;
+  HostDeviceVector<float> feature_weights(kCols, 0);
+  auto& h_feature_weights = feature_weights.HostVector();
+  for (size_t i = 0; i < h_feature_weights.size(); ++i) {
+    h_feature_weights[i] = i;
   }
   ColumnSampler cs{0};
   float bytree{0.5}, bylevel{0.5}, bynode{0.5};
-  cs.Init(ctx, feature_weights.size(), feature_weights, bytree, bylevel, bynode);
+  cs.Init(ctx, h_feature_weights.size(), feature_weights, bytree, bylevel, bynode);
   auto feature_set = cs.GetFeatureSet(0);
   size_t n_sampled = kCols * bytree * bylevel * bynode;
   ASSERT_EQ(feature_set->Size(), n_sampled);

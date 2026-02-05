@@ -1,14 +1,17 @@
 /**
  * Copyright 2020-2023 by XGBoost Contributors
  */
-#ifndef XGBOOST_TEST_PREDICTOR_H_
-#define XGBOOST_TEST_PREDICTOR_H_
+#ifndef TESTS_CPP_PREDICTOR_TEST_PREDICTOR_H_
+#define TESTS_CPP_PREDICTOR_TEST_PREDICTOR_H_
 
 #include <xgboost/context.h>  // for Context
 #include <xgboost/predictor.h>
 
 #include <cstddef>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../../../src/gbm/gbtree_model.h"  // for GBTreeModel
 #include "../helpers.h"
@@ -115,10 +118,6 @@ void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsit
 
 void TestVectorLeafPrediction(Context const* ctx);
 
-class ShapExternalMemoryTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
- public:
-  void Run(Context const* ctx, bool is_qdm, bool is_interaction);
-};
 }  // namespace xgboost
 
-#endif  // XGBOOST_TEST_PREDICTOR_H_
+#endif  // TESTS_CPP_PREDICTOR_TEST_PREDICTOR_H_

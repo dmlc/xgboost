@@ -169,7 +169,7 @@ For example:
   python3 ops/docker_run.py \
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --use-gpus \
-    -- bash ops/pipeline/test-python-wheel-impl.sh gpu
+    -- bash ops/pipeline/test-python-wheel.sh gpu
 
 Optionally, you can specify ``--run-args`` to pass extra arguments to ``docker run``:
 
@@ -181,7 +181,7 @@ Optionally, you can specify ``--run-args`` to pass extra arguments to ``docker r
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --use-gpus \
     --run-args='--shm-size=4g --privileged' \
-    -- bash ops/pipeline/test-python-wheel-impl.sh gpu
+    -- bash ops/pipeline/test-python-wheel.sh gpu
 
 See :ref:`ci_container_infra` to read about how containers are built and managed in the CI pipelines.
 
@@ -198,6 +198,15 @@ Examples: useful tasks for local development
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu_build_rockylinux8:main \
       -- ops/pipeline/build-cuda-impl.sh
 
+* Build XGBoost with GPU support on Linux ARM64
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    python3 ops/docker_run.py \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu_build_rockylinux8_aarch64:main \
+      -- ops/pipeline/build-cuda-impl.sh
+
 * Run Python tests
 
   .. code-block:: bash
@@ -205,7 +214,7 @@ Examples: useful tasks for local development
     export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
     python3 ops/docker_run.py \
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.cpu:main \
-      -- ops/pipeline/test-python-wheel-impl.sh cpu
+      -- ops/pipeline/test-python-wheel.sh cpu
 
 * Run Python tests with GPU algorithm
 
@@ -215,7 +224,17 @@ Examples: useful tasks for local development
     python3 ops/docker_run.py \
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
       --use-gpus \
-      -- ops/pipeline/test-python-wheel-impl.sh gpu
+      -- ops/pipeline/test-python-wheel.sh gpu
+
+* Run Python tests with GPU algorithm on Linux ARM64
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    python3 ops/docker_run.py \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu_aarch64:main \
+      --use-gpus \
+      -- ops/pipeline/test-python-wheel.sh gpu-arm64
 
 * Run Python tests with GPU algorithm, with multiple GPUs
 
@@ -226,7 +245,7 @@ Examples: useful tasks for local development
       --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
       --use-gpus \
       --run-args='--shm-size=4g' \
-      -- ops/pipeline/test-python-wheel-impl.sh mgpu
+      -- ops/pipeline/test-python-wheel.sh mgpu
       # --shm-size=4g is needed for multi-GPU algorithms to function
 
 * Build and test JVM packages
@@ -287,6 +306,8 @@ To opt into self-hosted runners (enabled by RunsOn), we use the following specia
     - tag=[unique tag that uniquely identifies the job in the GH Action workflow]
 
 where the runner is defined in ``.github/runs-on.yml``.
+For CUDA-enabled ARM64 builds and tests we rely on the ``linux-arm64-gpu`` runner,
+which provisions a Graviton + NVIDIA GPU instance.
 
 ===================================================================
 The Lay of the Land: how CI pipelines are organized in the codebase
@@ -514,7 +535,7 @@ Here is an example with ``docker_run.py``:
     --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --use-gpus \
     --run-args='--shm-size=4g --privileged' \
-    -- bash ops/pipeline/test-python-wheel-impl.sh gpu
+    -- bash ops/pipeline/test-python-wheel.sh gpu
 
 which are translated to the following ``docker run`` invocations:
 
@@ -533,7 +554,7 @@ which are translated to the following ``docker run`` invocations:
     -e CI_BUILD_GID=<gid> -e CI_BUILD_GROUP=<group_name> \
     --shm-size=4g --privileged \
     492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
-    bash ops/pipeline/test-python-wheel-impl.sh gpu
+    bash ops/pipeline/test-python-wheel.sh gpu
 
 
 .. _vm_images:

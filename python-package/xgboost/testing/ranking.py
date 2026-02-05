@@ -1,5 +1,6 @@
 # pylint: disable=too-many-locals
 """Tests for learning to rank."""
+
 from types import ModuleType
 from typing import Any
 
@@ -51,8 +52,10 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str, device: Device) -> No
         assert len(results) == 5
 
     # Works with custom metric
-    def neg_mse(*args: Any, **kwargs: Any) -> float:
-        return -float(mean_squared_error(*args, **kwargs))
+    def neg_mse(y_true: Any, y_pred: Any, **kwargs: Any) -> float:
+        if hasattr(y_true, "get"):
+            y_true = y_true.get()
+        return -float(mean_squared_error(y_true, y_pred, **kwargs))
 
     ranker = xgb.XGBRanker(
         n_estimators=3,

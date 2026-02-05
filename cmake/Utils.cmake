@@ -68,6 +68,7 @@ function(compute_cmake_cuda_archs archs)
   set(CMAKE_CUDA_ARCHITECTURES ${archs})
 
   # Set up defaults based on CUDA varsion
+  # Remember to update arch-specific tunings when supporting new archs.
   if(NOT CMAKE_CUDA_ARCHITECTURES)
     if(CUDA_VERSION VERSION_GREATER_EQUAL "13.0")
       set(CMAKE_CUDA_ARCHITECTURES 75 80 90 100 120)

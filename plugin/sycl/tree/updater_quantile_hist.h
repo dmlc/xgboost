@@ -53,6 +53,7 @@ class QuantileHistMaker: public TreeUpdater {
               const std::vector<RegTree*>& trees) override;
 
   bool UpdatePredictionCache(const DMatrix* data,
+                             xgboost::common::Span<HostDeviceVector<bst_node_t>>,
                              ::xgboost::linalg::MatrixView<float> out_preds) override;
 
   void LoadConfig(Json const& in) override {

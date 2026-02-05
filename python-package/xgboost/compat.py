@@ -1,5 +1,6 @@
 # pylint: disable=unused-import
 """For compatibility and optional dependencies."""
+
 import functools
 import importlib.util
 import logging
@@ -198,11 +199,15 @@ def _is_cudf_pandas(data: DataType) -> bool:
 
 
 def _is_pandas_df(data: DataType) -> TypeGuard["pd.DataFrame"]:
-    return lazy_isinstance(data, "pandas.core.frame", "DataFrame")
+    return lazy_isinstance(data, "pandas.core.frame", "DataFrame") or lazy_isinstance(
+        data, "pandas", "DataFrame"
+    )
 
 
 def _is_pandas_series(data: DataType) -> TypeGuard["pd.Series"]:
-    return lazy_isinstance(data, "pandas.core.series", "Series")
+    return lazy_isinstance(data, "pandas.core.series", "Series") or lazy_isinstance(
+        data, "pandas", "Series"
+    )
 
 
 def _is_modin_df(data: DataType) -> bool:
@@ -242,6 +247,10 @@ def is_dataframe(data: DataType) -> bool:
     )
 
 
+def _is_cupy_alike(data: DataType) -> bool:
+    return hasattr(data, "__cuda_array_interface__")
+
+
 def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statements
     """Concatenate row-wise."""
     if isinstance(value[0], np.ndarray):
@@ -264,8 +273,6 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
         from cudf import concat as CUDF_concat
 
         return CUDF_concat(value, axis=0)
-    from .data import _is_cupy_alike
-
     if _is_cupy_alike(value[0]):
         import cupy
 

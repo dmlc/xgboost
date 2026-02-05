@@ -1,3 +1,7 @@
+..
+  IMPORTANT: When adding new entries to this file (e.g. a new parameter),
+  the parameter should also be added under file 'R-package/R/xgb.train.R'.
+
 ##################
 XGBoost Parameters
 ##################
@@ -29,6 +33,16 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
   memory. The primary memory is always allocated on the RMM pool when XGBoost is built
   (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``. See
   :doc:`/python/rmm-examples/index` for details.
+
+* ``use_cuda_async_pool`` [default=false]
+
+  Whether to use the device memory pool in the CUDA driver. This option is not available
+  if XGBoost is built with RMM support, as it is the same as using the RMM
+  `CudaAsyncMemoryResource` pool.
+
+  .. versionadded:: 3.2.0
+
+  .. warning:: This is an experimental feature and is subject to change without notice. Windows is not supported yet.
 
 * ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
   override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,
@@ -86,7 +100,7 @@ Parameters for Tree Booster
 
 * ``gamma`` [default=0, alias: ``min_split_loss``]
 
-  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score.
+  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score. This is the same :math:`\gamma` described in the :doc:`/tutorials/model`.
   - range: [0,∞]
 
 * ``max_depth`` [default=6, type=int32]
@@ -111,14 +125,25 @@ Parameters for Tree Booster
 
 * ``sampling_method`` [default= ``uniform``]
 
+.. versionchanged:: 3.2.0
+
+    XGBoost supports both CPU and GPU for gradient-based sampling.
+
   - The method to use to sample the training instances.
   - ``uniform``: each training instance has an equal probability of being selected. Typically set
     ``subsample`` >= 0.5 for good results.
   - ``gradient_based``: the selection probability for each training instance is proportional to the
     *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
     ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
-    sampling method is only supported when ``tree_method`` is set to ``hist`` and the device is ``cuda``; other tree
+    sampling method is only supported when ``tree_method`` is set to ``hist``; other tree
     methods only support ``uniform`` sampling.
+
+  .. note::
+
+     When working with reduced gradient for multi-target models, the accuracy of
+     gradient-based sampling might be sub-optimal. The sampling is performed using the
+     split gradient, which may not be optimal with the full gradient. Use uniform sampling
+     as an alternative.
 
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
 
@@ -138,7 +163,7 @@ Parameters for Tree Booster
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
-  - L2 regularization term on weights. Increasing this value will make model more conservative.
+  - L2 regularization term on weights. Increasing this value will make model more conservative. This is the :math:`\lambda` described in the :doc:`/tutorials/model`.
   - range: [0, :math:`\infty`]
 
 * ``alpha`` [default=0, alias: ``reg_alpha``]
@@ -249,20 +274,6 @@ Parameters for Non-Exact Tree Methods
     trees. After 3.0, this parameter affects GPU algorithms as well.
 
 
-* ``extmem_single_page``, [default = ``false``]
-
-  This parameter is only used for the ``hist`` tree method with ``device=cuda`` and
-  ``subsample != 1.0``. Before 3.0, pages were always concatenated.
-
-  .. versionadded:: 3.0.0
-
-  Whether the GPU-based ``hist`` tree method should concatenate the training data into a
-  single batch instead of fetching data on-demand when external memory is used. For GPU
-  devices that don't support address translation services, external memory training is
-  expensive. This parameter can be used in combination with subsampling to reduce overall
-  memory usage without significant overhead. See :doc:`/tutorials/external_memory` for
-  more information.
-
 .. _cat-param:
 
 Parameters for Categorical Feature
@@ -271,7 +282,7 @@ Parameters for Categorical Feature
 These parameters are only used for training with categorical data. See
 :doc:`/tutorials/categorical` for more information.
 
-.. note:: These parameters are experimental. ``exact`` tree method is not yet supported.
+.. note:: The ``exact`` tree method is not supported for categorical features.
 
 
 * ``max_cat_to_onehot``
@@ -518,7 +529,8 @@ Parameter for using Quantile Loss (``reg:quantileerror``)
 Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likelihood of AFT metric (``aft-nloglik``)
 ====================================================================================================================
 
-* ``aft_loss_distribution``: Probability Density Function, ``normal``, ``logistic``, or ``extreme``.
+* ``aft_loss_distribution``: Probability Density Function for the AFT distribution; ``normal``, ``logistic``, or ``extreme``.
+* ``aft_loss_distribution_scale``: Scaling factor for the AFT distribution. Range: (0,∞)
 
 .. _ltr-param:
 

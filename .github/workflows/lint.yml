@@ -21,8 +21,6 @@ jobs:
       - runner=linux-amd64-cpu
       - tag=lint-clang-tidy
     steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
           submodules: "true"
@@ -30,9 +28,9 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/run-clang-tidy.sh
 
-  python-mypy-lint:
+  python-mypy:
     runs-on: ubuntu-latest
-    name: Type and format checks for the Python package
+    name: Type checks for the Python package
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,31 +42,4 @@ jobs:
       - name: Run mypy
         shell: bash -el {0}
         run: |
-          python ops/script/lint_python.py --format=0 --type-check=1 --pylint=0
-      - name: Run formatter
-        shell: bash -el {0}
-        run: |
-          python ops/script/lint_python.py --format=1 --type-check=0 --pylint=0
-      - name: Run pylint
-        shell: bash -el {0}
-        run: |
-          python ops/script/lint_python.py --format=0 --type-check=0 --pylint=1
-
-  cpp-lint:
-    runs-on: ubuntu-latest
-    name: Code linting for C++
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-          architecture: 'x64'
-      - name: Install Python packages
-        run: |
-          python -m pip install wheel setuptools cmakelint cpplint==1.6.1 pylint
-      - name: Run lint
-        run: |
-          python3 ops/script/lint_cpp.py
-          bash ops/script/lint_cmake.sh
+          python ops/script/type_check_python.py

@@ -1072,7 +1072,6 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' @inheritParams xgb.train
 #' @return A model object, inheriting from both `xgboost` and `xgb.Booster`. Compared to the regular
 #'   `xgb.Booster` model class produced by [xgb.train()], this `xgboost` class will have an
-#'
 #'   additional attribute `metadata` containing information which is used for formatting prediction
 #'   outputs, such as class names for classification problems.
 #'
@@ -1154,7 +1153,6 @@ xgboost <- function(
   disable_default_eval_metric = NULL,
   use_rmm = NULL,
   max_cached_hist_node = NULL,
-  extmem_single_page = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
   sample_type = NULL,

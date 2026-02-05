@@ -1180,7 +1180,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             train_call_kwargs_params,
             dmatrix_kwargs,
         )
-        (evals_result, config, booster) = _run_job()
+        evals_result, config, booster = _run_job()
         get_logger(_LOG_TAG).info("Finished xgboost training!")
 
         result_xgb_model = self._convert_to_sklearn_model(

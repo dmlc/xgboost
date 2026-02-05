@@ -232,21 +232,18 @@ if(USE_CUDA)
   endif()
 
   enable_language(CUDA)
-  if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 11.0)
-    message(FATAL_ERROR "CUDA version must be at least 11.0!")
+  if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 12.9)
+    message(FATAL_ERROR "CUDA version must be at least 12.9!")
   endif()
   if(DEFINED GPU_COMPUTE_VER)
     compute_cmake_cuda_archs("${GPU_COMPUTE_VER}")
   endif()
 
-  find_package(CUDAToolkit REQUIRED)
+  find_package(CUDAToolkit 12.8 REQUIRED)
 endif()
 
 if(USE_NVCOMP)
   find_package(nvcomp REQUIRED)
-  if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 12.8)
-    message(SEND_ERROR "NVComp support requires CUDA >= 12.8")
-  endif()
 endif()
 
 
@@ -266,7 +263,7 @@ if(USE_OPENMP)
   if(APPLE)
     find_openmp_macos()
   else()
-    find_package(OpenMP REQUIRED)
+    find_package(OpenMP REQUIRED C CXX)
   endif()
 endif()
 

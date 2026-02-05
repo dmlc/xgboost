@@ -1,22 +1,23 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_SAMPLER_H_
 #define XGBOOST_TREE_HIST_SAMPLER_H_
 
-#include <cstddef>  // std::size-t
-#include <cstdint>  // std::uint64_t
-#include <random>   // bernoulli_distribution, linear_congruential_engine
+#include <cstdint>  // for uint64_t
+#include <limits>   // for numeric_limits
+#include <random>   // for bernoulli_distribution, linear_congruential_engine
+#include <vector>   // for vector
 
-#include "../../common/random.h"  // GlobalRandom
-#include "../param.h"             // TrainParam
-#include "xgboost/base.h"         // GradientPair
-#include "xgboost/context.h"      // Context
-#include "xgboost/data.h"         // MetaInfo
-#include "xgboost/linalg.h"       // TensorView
+#include "../../common/math.h"  // for Sqr
+#include "../param.h"           // for TrainParam
+#include "xgboost/base.h"       // for GradientPair, bst_idx_t
+#include "xgboost/context.h"    // for Context
+#include "xgboost/data.h"       // for MetaInfo
+#include "xgboost/linalg.h"     // for TensorView
+#include "xgboost/span.h"       // for Span
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 struct RandomReplace {
  public:
   // similar value as for minstd_rand
@@ -44,66 +45,57 @@ struct RandomReplace {
   }
 };
 
-// Only uniform sampling, no gradient-based yet.
-inline void SampleGradient(Context const* ctx, TrainParam param,
-                           linalg::MatrixView<GradientPair> out) {
-  CHECK(out.Contiguous());
-  CHECK_EQ(param.sampling_method, TrainParam::kUniform)
-      << "Only uniform sampling is supported, gradient-based sampling is only support by GPU Hist.";
+// TODO(jiamingy): Estimate it.
+constexpr float kDefaultMvsLambda = 0.1f;
 
-  if (param.subsample >= 1.0) {
-    return;
+struct MvsGradOp {
+  float lambda;
+  template <typename GradientType>
+  XGBOOST_DEVICE float operator()(GradientType const& gpair) const {
+    auto g = gpair.GetGrad();
+    auto h = gpair.GetHess();
+    return common::Sqr(g) + lambda * common::Sqr(h);
   }
-  bst_idx_t n_samples = out.Shape(0);
-  auto& rnd = common::GlobalRandom();
+};
 
-#if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-  std::bernoulli_distribution coin_flip(param.subsample);
-  CHECK_EQ(out.Shape(1), 1) << "Multi-target with sampling for R is not yet supported.";
-  for (size_t i = 0; i < n_samples; ++i) {
-    if (!(out(i, 0).GetHess() >= 0.0f && coin_flip(rnd)) || out(i, 0).GetGrad() == 0.0f) {
-      out(i, 0) = GradientPair(0);
-    }
+XGBOOST_DEVICE inline float SamplingProbability(float u, float reg_abs_grad) {
+  if (::fabs(u) < kRtEps) {
+    u = ::copysign(kRtEps, u);
   }
-#else
-  std::uint64_t initial_seed = rnd();
-
-  auto n_threads = static_cast<size_t>(ctx->Threads());
-  std::size_t const discard_size = n_samples / n_threads;
-  std::bernoulli_distribution coin_flip(param.subsample);
-
-  dmlc::OMPException exc;
-#pragma omp parallel num_threads(n_threads)
-  {
-    exc.Run([&]() {
-      const size_t tid = omp_get_thread_num();
-      const size_t ibegin = tid * discard_size;
-      const size_t iend = (tid == (n_threads - 1)) ? n_samples : ibegin + discard_size;
-
-      const uint64_t displaced_seed = RandomReplace::SimpleSkip(
-          ibegin, initial_seed, RandomReplace::kBase, RandomReplace::kMod);
-      RandomReplace::EngineT eng(displaced_seed);
-      std::size_t n_targets = out.Shape(1);
-      if (n_targets > 1) {
-        for (std::size_t i = ibegin; i < iend; ++i) {
-          if (!coin_flip(eng)) {
-            for (std::size_t j = 0; j < n_targets; ++j) {
-              out(i, j) = GradientPair{};
-            }
-          }
-        }
-      } else {
-        for (std::size_t i = ibegin; i < iend; ++i) {
-          if (!coin_flip(eng)) {
-            out(i, 0) = GradientPair{};
-          }
-        }
-      }
-    });
-  }
-  exc.Rethrow();
-#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
+  return reg_abs_grad / u;
 }
-}  // namespace tree
-}  // namespace xgboost
+
+template <typename T>
+XGBOOST_DEVICE inline detail::GradientPairInternal<T> RescaleGrad(
+    float p, detail::GradientPairInternal<T> const& gpair) {
+  if (p >= 1.0f) {
+    return gpair;
+  }
+  return gpair * (1.0f / p);
+}
+
+namespace cpu_impl {
+// Calculate regularized absolute gradient for each row.
+std::vector<float> CalcRegAbsGrad(Context const* ctx, linalg::MatrixView<GradientPair const> gpairs,
+                                  std::vector<float>* p_thresholds);
+
+float CalculateThreshold(common::Span<float const> sorted_rag, common::Span<float const> grad_csum,
+                         bst_idx_t n_samples, bst_idx_t sample_rows);
+
+class Sampler {
+ public:
+  explicit Sampler(TrainParam const& param)
+      : sampling_method_{param.sampling_method}, subsample_{param.subsample} {}
+
+  void Sample(Context const* ctx, linalg::MatrixView<GradientPair> out);
+  void ApplySampling(Context const* ctx, linalg::MatrixView<GradientPair const> sampled_split_gpair,
+                     linalg::Matrix<GradientPair>* value_gpair) const;
+
+ private:
+  int sampling_method_{TrainParam::kUniform};
+  float subsample_{1.0f};
+  bool is_sampling_{false};
+};
+}  // namespace cpu_impl
+}  // namespace xgboost::tree
 #endif  // XGBOOST_TREE_HIST_SAMPLER_H_

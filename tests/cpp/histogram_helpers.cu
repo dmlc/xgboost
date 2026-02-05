@@ -54,7 +54,7 @@ namespace xgboost {
     for (bst_bin_t bin_idx = 0; bin_idx < n_bins_per_feat; ++bin_idx) {
       // min-max value for the current bin
       auto min_value = static_cast<float>(bin_idx + kRtEps);
-      auto max_value = static_cast<float>(bin_idx + 1.0 - kRtEps);
+      auto max_value = static_cast<float>(bin_idx + 1.0 - 1e-3);
       std::uniform_real_distribution<float> dist(min_value, max_value);
       for (std::size_t i = 0; i < n_values_per_bin; ++i) {
         h_values.emplace_back(dist(rng));
@@ -79,6 +79,7 @@ namespace xgboost {
       ctx, adapter.Value(), missing, true, dh::ToSpan(row_counts),
       common::Span<FeatureType const>{}, row_stride, n_samples, p_cuts);
 
+  LOG(INFO) << "Ellpack size:" << common::HumanMemUnit(ellpack->MemCostBytes());
   return ellpack;
 }
 }  // namespace xgboost

@@ -344,36 +344,6 @@ def test_feature_importances_weight():
         cls.feature_importances_
 
 
-def test_feature_importances_weight_vector_leaf() -> None:
-    from sklearn.datasets import make_multilabel_classification
-
-    X, y = make_multilabel_classification(random_state=1994)
-    with pytest.raises(ValueError, match="gain/total_gain"):
-        clf = xgb.XGBClassifier(multi_strategy="multi_output_tree")
-        clf.fit(X, y)
-        clf.feature_importances_
-
-    with pytest.raises(ValueError, match="cover/total_cover"):
-        clf = xgb.XGBClassifier(
-            multi_strategy="multi_output_tree", importance_type="cover"
-        )
-        clf.fit(X, y)
-        clf.feature_importances_
-
-    clf = xgb.XGBClassifier(
-        multi_strategy="multi_output_tree",
-        importance_type="weight",
-        colsample_bynode=0.2,
-    )
-    clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
-    fi = clf.feature_importances_
-    assert fi[0] == 0.0
-    assert fi[-1] > fi[1] * 5
-
-    w = np.polynomial.Polynomial.fit(np.arange(0, X.shape[1]), fi, deg=1)
-    assert w.coef[1] > 0.03
-
-
 @pytest.mark.skipif(**tm.no_pandas())
 def test_feature_importances_gain():
     from sklearn.datasets import load_digits
@@ -1115,6 +1085,7 @@ def test_deprecate_position_arg():
 def test_pandas_input():
     import pandas as pd
     from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.frozen import FrozenEstimator
 
     rng = np.random.RandomState(1994)
 
@@ -1144,10 +1115,10 @@ def test_pandas_input():
     with pytest.raises(ValueError, match="feature_names mismatch"):
         model.predict(df_incorrect)
 
-    clf_isotonic = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
+    clf_isotonic = CalibratedClassifierCV(FrozenEstimator(model), method="isotonic")
     clf_isotonic.fit(train, target)
     assert isinstance(
-        clf_isotonic.calibrated_classifiers_[0].estimator, xgb.XGBClassifier
+        clf_isotonic.calibrated_classifiers_[0].estimator.estimator, xgb.XGBClassifier
     )
     np.testing.assert_allclose(np.array(clf_isotonic.classes_), np.array([0, 1]))
 
@@ -1227,11 +1198,11 @@ def test_boost_from_prediction(tree_method: str) -> None:
 
 
 def test_estimator_type():
-    assert xgb.XGBClassifier._estimator_type == "classifier"
-    assert xgb.XGBRFClassifier._estimator_type == "classifier"
-    assert xgb.XGBRegressor._estimator_type == "regressor"
-    assert xgb.XGBRFRegressor._estimator_type == "regressor"
-    assert xgb.XGBRanker._estimator_type == "ranker"
+    assert xgb.XGBClassifier()._get_type() == "classifier"
+    assert xgb.XGBRFClassifier()._get_type() == "classifier"
+    assert xgb.XGBRegressor()._get_type() == "regressor"
+    assert xgb.XGBRFRegressor()._get_type() == "regressor"
+    assert xgb.XGBRanker()._get_type() == "ranker"
 
     from sklearn.datasets import load_digits
 

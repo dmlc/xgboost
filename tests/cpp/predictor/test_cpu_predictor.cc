@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
@@ -14,6 +14,7 @@
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_predictor.h"
+#include "test_shap.h"
 
 namespace xgboost {
 TEST(CpuPredictor, Basic) {
@@ -78,29 +79,29 @@ TEST(CpuPredictor, ArrayTreeLayout) {
     tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0);
   }
 
-  auto sc_tree = tree::ScalarTreeView{ctx.Device(), &tree};
+  auto sc_tree = tree::ScalarTreeView{ctx.Device(), false, &tree};
   {
-    constexpr int kDepth = 1;
+    constexpr bst_node_t kDepth = 1;
     LayoutForTest<kDepth> buffer(sc_tree, sc_tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 2;
+    constexpr bst_node_t kDepth = 2;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 3;
+    constexpr bst_node_t kDepth = 3;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 4;
+    constexpr bst_node_t kDepth = 4;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 5;
+    constexpr bst_node_t kDepth = 5;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
@@ -143,12 +144,6 @@ TEST(CpuPredictor, ExternalMemory) {
   auto dmat =
       RandomDataGenerator{kRows, kCols, 0.5f}.Batches(3).GenerateSparsePageDMatrix("temp", true);
   TestBasic(dmat.get(), &ctx);
-}
-
-TEST_P(ShapExternalMemoryTest, CPUPredictor) {
-  Context ctx;
-  auto [is_qdm, is_interaction] = this->GetParam();
-  this->Run(&ctx, is_qdm, is_interaction);
 }
 
 TEST(CpuPredictor, InplacePredict) {

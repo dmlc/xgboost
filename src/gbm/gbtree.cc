@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  *
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
@@ -199,12 +199,8 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
 
   auto& trees = *p_trees;
   CHECK_EQ(model_.param.num_parallel_tree, trees.size());
-  CHECK_EQ(model_.param.num_parallel_tree, 1)
-      << "Boosting random forest is not supported for current objective.";
-  CHECK(!trees.front()->IsMultiTarget()) << "Update tree leaf" << MTNotImplemented();
-  CHECK_EQ(trees.size(), model_.param.num_parallel_tree);
   for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
-    auto const& position = node_position.at(tree_idx);
+    auto const& position = node_position[tree_idx];
     obj->UpdateTreeLeaf(position, p_fmat->Info(), tree_param_.learning_rate / trees.size(),
                         predictions, group_idx, trees[tree_idx].get());
   }
@@ -250,7 +246,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     std::size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
-        updaters_.back()->UpdatePredictionCache(p_fmat, out)) {
+        updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position}, out)) {
       predt->Update(1);
     }
   } else if (model_.learner_model_param->OutputLength() == 1u) {
@@ -261,7 +257,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
-        updaters_.back()->UpdatePredictionCache(p_fmat, out)) {
+        updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position}, out)) {
       predt->Update(1);
     }
   } else {
@@ -281,8 +277,10 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
       auto v_predt = out.Slice(linalg::All(), linalg::Range(gid, gid + 1));
+      // random forest doesn't support the prediction cache yet.
       if (!(updaters_.size() > 0 && predt->predictions.Size() > 0 && num_new_trees == 1 &&
-            updaters_.back()->UpdatePredictionCache(p_fmat, v_predt))) {
+            updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position},
+                                                    v_predt))) {
         update_predict = false;
       }
     }

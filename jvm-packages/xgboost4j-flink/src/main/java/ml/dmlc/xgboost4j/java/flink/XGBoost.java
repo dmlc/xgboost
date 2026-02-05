@@ -62,6 +62,15 @@ public class XGBoost {
       this.workerEnvs = workerEnvs;
     }
 
+    /**
+     * Trains the XGBoost model based on the data elements in the given partition.
+     *
+     * @param it The iterable object consisting of Tuple2 instances where the first field (f0)
+     *           is a Vector representing the features and the second field (f1) is a Double
+     *           representing the label.
+     * @param collector The collector object that is used to emit the trained XGBoost model.
+     * @throws XGBoostError Error thrown during training.
+     */
     public void mapPartition(java.lang.Iterable<Tuple2<Vector, Double>> it,
                              Collector<XGBoostModel> collector) throws XGBoostError {
       workerEnvs.put(

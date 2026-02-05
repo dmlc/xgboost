@@ -60,6 +60,7 @@ from .compat import (
     _is_cudf_df,
     _is_cudf_pandas,
     _is_cudf_ser,
+    _is_cupy_alike,
     _is_modin_df,
     _is_modin_series,
     _is_pandas_df,
@@ -617,13 +618,14 @@ class PandasTransformed(TransformedDf):
         self.columns = columns
 
         aitfs: AifType = []
+        temporary_buffers = []
 
         # Get the array interface representation for each column.
         for col in self.columns:
             if _is_df_cat(col):
                 # Categorical column
                 jnames, jcodes, buf = pd_cat_inf(col.categories, col.codes)
-                self.temporary_buffers.append(buf)
+                temporary_buffers.append(buf)
                 aitfs.append((jnames, jcodes))
             else:
                 assert isinstance(col, np.ndarray)
@@ -631,7 +633,11 @@ class PandasTransformed(TransformedDf):
                 # Numeric column
                 aitfs.append(inf)
 
-        super().__init__(ref_categories=ref_categories, aitfs=aitfs)
+        super().__init__(
+            ref_categories=ref_categories,
+            aitfs=aitfs,
+            temporary_buffers=temporary_buffers,
+        )
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -765,14 +771,13 @@ class ArrowTransformed(TransformedDf):
     ) -> None:
         self.columns = columns
 
-        self.temporary_buffers: List[Tuple] = []
-
         if TYPE_CHECKING:
             import pyarrow as pa
         else:
             pa = import_pyarrow()
 
         aitfs: AifType = []
+        temporary_buffers = []
 
         def push_series(col: Union["pa.NumericArray", "pa.DictionaryArray"]) -> None:
             if isinstance(col, pa.DictionaryArray):
@@ -783,7 +788,7 @@ class ArrowTransformed(TransformedDf):
                         "Only string-based categorical index is supported for arrow."
                     )
                 jnames, jcodes, buf = arrow_cat_inf(cats, codes)
-                self.temporary_buffers.append(buf)
+                temporary_buffers.append(buf)
                 aitfs.append((jnames, jcodes))
             else:
                 jdata = _arrow_array_inf(col)
@@ -792,7 +797,11 @@ class ArrowTransformed(TransformedDf):
         for col in self.columns:
             push_series(col)
 
-        super().__init__(ref_categories=ref_categories, aitfs=aitfs)
+        super().__init__(
+            ref_categories=ref_categories,
+            aitfs=aitfs,
+            temporary_buffers=temporary_buffers,
+        )
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -1002,12 +1011,13 @@ class CudfTransformed(TransformedDf):
         # the DMatrix or the booster.
 
         aitfs: AifType = []
+        temporary_buffers = []
 
         def push_series(ser: Any) -> None:
             if _is_df_cat(ser):
                 cats, codes = ser.categories, ser.codes
                 cats_ainf, codes_ainf, buf = cudf_cat_inf(cats, codes)
-                self.temporary_buffers.append(buf)
+                temporary_buffers.append(buf)
                 aitfs.append((cats_ainf, codes_ainf))
             else:
                 # numeric column
@@ -1017,7 +1027,11 @@ class CudfTransformed(TransformedDf):
         for col in self.columns:
             push_series(col)
 
-        super().__init__(ref_categories=ref_categories, aitfs=aitfs)
+        super().__init__(
+            ref_categories=ref_categories,
+            aitfs=aitfs,
+            temporary_buffers=temporary_buffers,
+        )
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -1127,10 +1141,6 @@ def _from_cudf_df(
         )
     )
     return handle, feature_names, feature_types
-
-
-def _is_cupy_alike(data: DataType) -> bool:
-    return hasattr(data, "__cuda_array_interface__")
 
 
 def _transform_cupy_array(data: DataType) -> CupyT:

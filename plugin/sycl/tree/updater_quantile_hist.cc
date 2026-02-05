@@ -12,10 +12,10 @@
 #include "xgboost/tree_updater.h"
 #pragma GCC diagnostic pop
 
-#include "xgboost/logging.h"
-
-#include "updater_quantile_hist.h"
+#include "../../src/collective/communicator-inl.h"  // for IsDistributed
 #include "../data.h"
+#include "updater_quantile_hist.h"
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace sycl {
@@ -106,6 +106,7 @@ void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param, GradientC
 }
 
 bool QuantileHistMaker::UpdatePredictionCache(const DMatrix *data,
+                                              xgboost::common::Span<HostDeviceVector<bst_node_t>>,
                                               ::xgboost::linalg::MatrixView<float> out_preds) {
   if (param_.subsample < 1.0f) return false;
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost Contributors
+ * Copyright 2025-2026, XGBoost Contributors
  */
 #pragma once
 
@@ -11,7 +11,6 @@
 #include "../tree/tree_view.h"    // for MultiTargetTreeView, ScalarTreeView
 #include "xgboost/base.h"         // for bst_tree_t, bst_target_t
 #include "xgboost/context.h"      // for DeviceOrd
-#include "xgboost/logging.h"      // for CHECK_GT
 #include "xgboost/span.h"         // for Span
 
 namespace xgboost::predictor {
@@ -38,8 +37,9 @@ class GBTreeModelView {
   bst_node_t n_nodes{0};
 
  public:
-  explicit GBTreeModelView(DeviceOrd device, gbm::GBTreeModel const& model, bst_tree_t tree_begin,
-                           bst_tree_t tree_end, std::mutex* p_mu, CopyViews&& copy)
+  explicit GBTreeModelView(DeviceOrd device, gbm::GBTreeModel const& model, bool need_stat,
+                           bst_tree_t tree_begin, bst_tree_t tree_end, std::mutex* p_mu,
+                           CopyViews&& copy)
       : tree_begin{tree_begin},
         tree_end{tree_end},
         n_groups{model.learner_model_param->OutputLength()},
@@ -51,11 +51,11 @@ class GBTreeModelView {
     for (bst_tree_t tree_idx = this->tree_begin; tree_idx < this->tree_end; ++tree_idx) {
       auto const& p_tree = model.trees[tree_idx];
       if (p_tree->IsMultiTarget()) {
-        auto tree = tree::MultiTargetTreeView{device, p_tree.get()};
+        auto tree = tree::MultiTargetTreeView{device, need_stat, p_tree.get()};
         this->n_nodes += tree.Size();
         trees.emplace_back(tree);
       } else {
-        auto tree = tree::ScalarTreeView{device, p_tree.get()};
+        auto tree = tree::ScalarTreeView{device, need_stat, p_tree.get()};
         this->n_nodes += tree.Size();
         trees.emplace_back(tree);
       }

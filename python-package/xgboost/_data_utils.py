@@ -142,14 +142,33 @@ def from_array_interface(interface: ArrayInf, zero_copy: bool = False) -> NumpyO
         def __cuda_array_interface__(self, interface: ArrayInf) -> None:
             self.__array_interface__ = interface
 
+        @property
+        def shape(self) -> Tuple[int, ...]:
+            """Shape of the input array."""
+            aif = self.__array_interface__
+            assert aif is not None
+            return aif["shape"]
+
+        @property
+        def size(self) -> np.signedinteger:
+            """Total size of the input array."""
+            return np.prod(self.shape)
+
     arr = Array()
 
+    # Cupy and numpy might run into issue when constructing an empty array from an array
+    # interface. we explicitly check for emptiness.
     if "stream" in interface:
         # CUDA stream is presented, this is a __cuda_array_interface__.
         arr.__cuda_array_interface__ = interface
-        out = import_cupy().array(arr, copy=not zero_copy)
+        cp = import_cupy()
+        if arr.size == 0:
+            return cp.empty(shape=arr.shape, dtype=np.dtype(interface["typestr"]))
+        out = cp.array(arr, copy=not zero_copy)
     else:
         arr.__array_interface__ = interface
+        if arr.size == 0:
+            return np.empty(shape=arr.shape, dtype=np.dtype(interface["typestr"]))
         out = np.array(arr, copy=not zero_copy)
 
     return out
@@ -387,6 +406,10 @@ def _ensure_np_dtype(
     return data, dtype
 
 
+def _is_flatten(array: NumpyOrCupy) -> bool:
+    return len(array.shape) == 1 or array.shape[1] == 1
+
+
 def array_interface_dict(data: np.ndarray) -> ArrayInf:
     """Returns an array interface from the input."""
     if array_hasobject(data):
@@ -404,7 +427,14 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
     # pandas uses -1 to represent missing values for categorical features
     codes = codes.replace(-1, np.nan)
 
-    if np.issubdtype(cats.dtype, np.floating) or np.issubdtype(cats.dtype, np.integer):
+    def is_prim() -> bool:
+        dtype = cats.dtype
+        try:
+            return np.issubdtype(dtype, np.floating) or np.issubdtype(dtype, np.integer)
+        except TypeError:
+            return False
+
+    if is_prim():
         # Numeric index type
         name_values_num = cats.values
         jarr_values = array_interface_dict(name_values_num)
@@ -412,13 +442,23 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
         jarr_codes = array_interface_dict(code_values)
         return jarr_values, jarr_codes, (name_values_num, code_values)
 
-    def npstr_to_arrow_strarr(strarr: np.ndarray) -> Tuple[np.ndarray, str]:
-        """Convert a numpy string array to an arrow string array."""
+    def npstr_to_arrow_strarr(strarr: Any) -> Tuple[np.ndarray, str]:
+        """Convert a string-like array to an arrow string array."""
+        if not isinstance(strarr, np.ndarray):
+            if hasattr(strarr, "to_numpy"):
+                strarr = strarr.to_numpy(dtype=object)
+            else:
+                strarr = np.asarray(strarr, dtype=object)
+
         lenarr = np.vectorize(len)
         offsets = np.cumsum(
             np.concatenate([np.array([0], dtype=np.int64), lenarr(strarr)])
         )
-        values = strarr.sum()
+        if strarr.dtype.kind == "S":
+            str_list = [s.decode("utf-8") for s in strarr.tolist()]
+        else:
+            str_list = [str(s) for s in strarr.tolist()]
+        values = "".join(str_list)
         assert "\0" not in values  # arrow string array doesn't need null terminal
         return offsets.astype(np.int32), values
 
@@ -643,10 +683,10 @@ class Categories:
         arrow_arrays: Optional[ArrowCatList],
     ) -> None:
         # The handle type is a bundle of the handle and the free call. Otherwise, we
-        # will have to import the lib and checkcall inside the __del__ method from the
-        # core module to avoid cyclic model dependency. Importing modules in __del__ can
-        # result in Python abort if __del__ is called during exception handling
-        # (interpreter is shutting down).
+        # will have to import the `_lib` and the `_check_call` from the core module
+        # inside the __del__ method to avoid cyclic model dependency.
+        # Importing modules in __del__ can result in Python abort if __del__ is called
+        # during exception handling (interpreter is shutting down).
         self._handle, self._free = handle
         self._arrow_arrays = arrow_arrays
 
@@ -724,9 +764,12 @@ class TransformedDf(ABC):
 
     """
 
-    temporary_buffers: List[Tuple] = []
-
-    def __init__(self, ref_categories: Optional[Categories], aitfs: AifType) -> None:
+    def __init__(
+        self,
+        ref_categories: Optional[Categories],
+        aitfs: AifType,
+        temporary_buffers: List[Tuple],
+    ) -> None:
         self.ref_categories = ref_categories
         if ref_categories is not None and ref_categories.get_handle() is not None:
             aif = ref_categories.get_handle()
@@ -735,6 +778,7 @@ class TransformedDf(ABC):
             self.ref_aif = None
 
         self.aitfs = aitfs
+        self.temporary_buffers = temporary_buffers
 
     def array_interface(self) -> bytes:
         """Return a byte string for JSON encoded array interface."""

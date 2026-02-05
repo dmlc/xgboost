@@ -219,10 +219,6 @@ def test_custom_objective(
         with pytest.raises(ValueError, match=r"Only the hist"):
             clf.fit(X, y)
         return
-    if strategy == "multi_output_tree" and device == "cuda":
-        with pytest.raises(ValueError, match=r"GPU support for multi-target tree"):
-            clf.fit(X, y)
-        return
 
     clf.fit(X, y)
 

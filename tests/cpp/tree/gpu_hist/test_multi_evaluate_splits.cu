@@ -22,10 +22,14 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
   MultiEvaluateSplitSharedInputs shared_inputs;
 
   dh::device_vector<bst_feature_t> feature_segments;
+  dh::device_vector<bst_feature_t> feature_set;
   dh::device_vector<float> feature_values{.0f, .1f, .2f, .3f};
   dh::device_vector<float> min_values{-1.0f};
 
   void SetUp() override {
+    input.nidx = 0;
+    input.depth = 0;
+
     parent_sum.resize(n_targets);
     parent_sum[0] = GradientPairInt64{56, 40};
     parent_sum[1] = GradientPairInt64{96, 128};
@@ -33,14 +37,14 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     histogram.resize(n_bins_per_feat_tar * n_targets);
     // first target, dense,                    // 0/0, 56/40
     histogram[0] = GradientPairInt64{8, 4};    // 8/4, 48/36
-    histogram[2] = GradientPairInt64{12, 8};   // 20/12, 36/28
-    histogram[4] = GradientPairInt64{16, 12};  // 36/24, 20/16
-    histogram[6] = GradientPairInt64{20, 16};  // 56/40, 0/0
+    histogram[1] = GradientPairInt64{12, 8};   // 20/12, 36/28
+    histogram[2] = GradientPairInt64{16, 12};  // 36/24, 20/16
+    histogram[3] = GradientPairInt64{20, 16};  // 56/40, 0/0
 
     // second target, dense                    // 0/0,  96/128
-    histogram[1] = GradientPairInt64{11, 13};  // 11/13, 85/115
-    histogram[3] = GradientPairInt64{19, 29};  // 30/42, 66/86
-    histogram[5] = GradientPairInt64{27, 45};  // 57/87, 39/41
+    histogram[4] = GradientPairInt64{11, 13};  // 11/13, 85/115
+    histogram[5] = GradientPairInt64{19, 29};  // 30/42, 66/86
+    histogram[6] = GradientPairInt64{27, 45};  // 57/87, 39/41
     histogram[7] = GradientPairInt64{39, 41};  // 96/128, 0/0
 
     input.parent_sum = dh::ToSpan(parent_sum);
@@ -55,11 +59,15 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     feature_segments[1] = static_cast<bst_feature_t>(n_bins_per_feat_tar);
     shared_inputs.feature_segments = dh::ToSpan(feature_segments);
 
-    shared_inputs.feature_values = dh::ToSpan(feature_values);
+    feature_set.resize(1, 0);
+    input.feature_set = dh::ToSpan(feature_set);
 
-    shared_inputs.min_values = dh::ToSpan(min_values);
+    shared_inputs.feature_values = dh::ToSpan(feature_values).data();
+    shared_inputs.min_values = dh::ToSpan(min_values).data();
 
     shared_inputs.n_bins_per_feat_tar = n_bins_per_feat_tar;
+    shared_inputs.max_active_feature = 1;
+
     TrainParam param;
     param.Init(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}, {"learning_rate", "1"}});
     shared_inputs.param = GPUTrainingParam{param};
@@ -76,26 +84,15 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     TrainParam param;
     param.Init(Args{});
     ASSERT_FALSE(candidate.IsValid(param, 100));
-    ASSERT_TRUE(candidate.base_weight.empty());
-    ASSERT_TRUE(candidate.left_weight.empty());
-    ASSERT_TRUE(candidate.right_weight.empty());
-    ASSERT_TRUE(candidate.split.child_sum.empty());
   }
 };
 
 namespace {
 template <typename T, typename V = std::remove_cv_t<T>>
-void CheckSpan(common::Span<T> span, std::vector<V> const& exp) {
+void AssertDeviceVecEq(common::Span<T> span, std::vector<V> const& exp) {
   std::vector<V> h_vec(span.size());
   dh::CopyDeviceSpanToVector(&h_vec, span);
-  ASSERT_EQ(h_vec.size(), exp.size());
-  for (std::size_t i = 0; i < h_vec.size(); ++i) {
-    if constexpr (std::is_floating_point_v<V>) {
-      ASSERT_NEAR(h_vec[i], exp[i], 1e-5);
-    } else {
-      ASSERT_EQ(h_vec[i], exp[i]);
-    }
-  }
+  AssertVecEq(h_vec, exp);
 }
 }  // namespace
 
@@ -114,9 +111,13 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
     MultiHistEvaluator evaluator;
     auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
     ASSERT_NEAR(candidate.split.loss_chg, 3.04239, 1e-5);
-    CheckSpan(candidate.left_weight, exp_left_weight);
-    CheckSpan(candidate.right_weight, exp_right_weight);
-    CheckSpan(candidate.base_weight, exp_base_weight);
+
+    std::vector<float> base, left, right;
+    evaluator.CopyNodeWeightsToHost(candidate.nidx, candidate.base_weight.size(), &base, &left,
+                                    &right);
+    AssertVecEq(base, exp_base_weight);
+    AssertVecEq(left, exp_left_weight);
+    AssertVecEq(right, exp_right_weight);
 
     std::stringstream ss;
     ss << candidate;
@@ -124,11 +125,11 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
     if (one_pass != OnePass::kBackward) {
       ASSERT_NE(str.find("left_sum"), std::string::npos);
       ASSERT_EQ(str.find("right_sum"), std::string::npos);
-      CheckSpan(candidate.split.child_sum, exp_left_sum);
+      AssertDeviceVecEq(candidate.split.child_sum, exp_left_sum);
     } else {
       ASSERT_EQ(str.find("left_sum"), std::string::npos);
       ASSERT_NE(str.find("right_sum"), std::string::npos);
-      CheckSpan(candidate.split.child_sum, exp_right_sum);
+      AssertDeviceVecEq(candidate.split.child_sum, exp_right_sum);
     }
   }
 }

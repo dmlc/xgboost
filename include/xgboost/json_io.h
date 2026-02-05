@@ -1,10 +1,11 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_JSON_IO_H_
 #define XGBOOST_JSON_IO_H_
-#include <dmlc/endian.h>
+
 #include <xgboost/base.h>
+#include <xgboost/byteswap.h>  // for ByteSwap
 #include <xgboost/json.h>
 
 #include <cstdint>  // for int8_t
@@ -156,32 +157,6 @@ class JsonWriter {
   virtual void Visit(JsonBoolean const* boolean);
 };
 
-#if defined(__GLIBC__)
-template <typename T>
-T BuiltinBSwap(T v);
-
-template <>
-inline uint16_t BuiltinBSwap(uint16_t v) {
-  return __builtin_bswap16(v);
-}
-
-template <>
-inline uint32_t BuiltinBSwap(uint32_t v) {
-  return __builtin_bswap32(v);
-}
-
-template <>
-inline uint64_t BuiltinBSwap(uint64_t v) {
-  return __builtin_bswap64(v);
-}
-#else
-template <typename T>
-T BuiltinBSwap(T v) {
-  dmlc::ByteSwap(&v, sizeof(v), 1);
-  return v;
-}
-#endif  //  defined(__GLIBC__)
-
 template <typename T, std::enable_if_t<sizeof(T) == 1>* = nullptr>
 inline T ToBigEndian(T v) {
   return v;
@@ -194,7 +169,7 @@ inline T ToBigEndian(T v) {
   auto constexpr kS = sizeof(T);
   std::conditional_t<kS == 2, uint16_t, std::conditional_t<kS == 4, uint32_t, uint64_t>> u;
   std::memcpy(&u, &v, sizeof(u));
-  u = BuiltinBSwap(u);
+  u = ByteSwap(u);
   std::memcpy(&v, &u, sizeof(u));
 #endif  // DMLC_LITTLE_ENDIAN
   return v;

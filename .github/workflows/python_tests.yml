@@ -1,4 +1,4 @@
-name: XGBoost CI (Python tests)
+name: Python tests
 
 on: [push, pull_request]
 

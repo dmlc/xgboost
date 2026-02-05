@@ -55,7 +55,7 @@ from .core import (
     Booster,
     DMatrix,
     Metric,
-    Objective,
+    PlainObj,
     QuantileDMatrix,
     XGBoostError,
     _deprecate_positional_args,
@@ -112,7 +112,7 @@ _SklObjProto = Callable[[ArrayLike, ArrayLike], Tuple[np.ndarray, np.ndarray]]
 SklObjective = Optional[Union[str, _SklObjWProto, _SklObjProto]]
 
 
-def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> Objective:
+def _objective_decorator(func: Union[_SklObjWProto, _SklObjProto]) -> PlainObj:
     """Decorate an objective function
 
     Converts an objective function using the typical sklearn metrics
@@ -595,12 +595,10 @@ def xgboost_model_doc(
         return __doc[item]
 
     def adddoc(cls: TDoc) -> TDoc:
-        doc = [
-            """
+        doc = ["""
 Parameters
 ----------
-"""
-        ]
+"""]
         if extra_parameters:
             doc.append(extra_parameters)
         doc.extend([get_doc(i) for i in items])
@@ -1100,12 +1098,14 @@ class XGBModel(XGBModelBase):
         return DEFAULT_N_ESTIMATORS if self.n_estimators is None else self.n_estimators
 
     def _get_type(self) -> str:
-        if not hasattr(self, "_estimator_type"):
-            raise TypeError(
-                "`_estimator_type` undefined.  "
-                "Please use appropriate mixin to define estimator type."
-            )
-        return self._estimator_type  # pylint: disable=no-member
+        if hasattr(self, "_estimator_type"):  # scikit-learn <1.8
+            return self._estimator_type  # pylint: disable=no-member
+        if hasattr(XGBModelBase, "__sklearn_tags__"):  # scikit-learn 1.8+
+            return self.__sklearn_tags__().estimator_type
+        raise TypeError(
+            "`_estimator_type` undefined.  "
+            "Please use appropriate mixin to define estimator type."
+        )
 
     def save_model(self, fname: Union[str, os.PathLike]) -> None:
         meta: Dict[str, Any] = {}
@@ -1360,7 +1360,7 @@ class XGBModel(XGBModelBase):
             )
 
             if callable(self.objective):
-                obj: Optional[Objective] = _objective_decorator(self.objective)
+                obj: Optional[PlainObj] = _objective_decorator(self.objective)
                 params["objective"] = "reg:squarederror"
             else:
                 obj = None
@@ -1766,7 +1766,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             params = self.get_xgb_params()
 
             if callable(self.objective):
-                obj: Optional[Objective] = _objective_decorator(self.objective)
+                obj: Optional[PlainObj] = _objective_decorator(self.objective)
                 # Use default value. Is it really not used ?
                 params["objective"] = "binary:logistic"
             else:

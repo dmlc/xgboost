@@ -1,9 +1,13 @@
 /**
- * Copyright 2021-2025, XGBoost contributors
+ * Copyright 2021-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>
+#include <xgboost/base.h>     // for bst_node_t
+#include <xgboost/context.h>  // for Context
 #include <xgboost/tree_model.h>
+
+#include <memory>  // for unique_ptr
+#include <string>  // for string
 
 #include "../../../src/tree/tree_view.h"  // for WalkTree
 #include "../helpers.h"
@@ -11,20 +15,18 @@
 namespace xgboost {
 class TestGrowPolicy : public ::testing::Test {
  protected:
-  std::shared_ptr<DMatrix> Xy_;
-  size_t n_samples_ = 4096, n_features_ = 13;
+  bst_idx_t n_samples_ = 4096, n_features_ = 13;
   float sparsity_ = 0.5;
 
  protected:
-  void SetUp() override {
-    Xy_ =
-        RandomDataGenerator{n_samples_, n_features_, sparsity_}.GenerateDMatrix(
+  std::unique_ptr<Learner> TrainOneIter(Context const* ctx, bst_target_t n_targets,
+                                        std::string tree_method, std::string policy,
+                                        bst_node_t max_leaves, bst_node_t max_depth) {
+    auto Xy =
+        RandomDataGenerator{n_samples_, n_features_, sparsity_}.Targets(n_targets).GenerateDMatrix(
             true);
-  }
 
-  std::unique_ptr<Learner> TrainOneIter(Context const* ctx, std::string tree_method,
-                                        std::string policy, int32_t max_leaves, int32_t max_depth) {
-    std::unique_ptr<Learner> learner{Learner::Create({this->Xy_})};
+    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
     learner->SetParam("tree_method", tree_method);
     learner->SetParam("device", ctx->DeviceName());
     if (max_leaves >= 0) {
@@ -34,6 +36,9 @@ class TestGrowPolicy : public ::testing::Test {
       learner->SetParam("max_depth", std::to_string(max_depth));
     }
     learner->SetParam("grow_policy", policy);
+    if (n_targets > 1) {
+      learner->SetParam("multi_strategy", "multi_output_tree");
+    }
 
     auto check_max_leave = [&]() {
       Json model{Object{}};
@@ -65,47 +70,48 @@ class TestGrowPolicy : public ::testing::Test {
     };
 
     if (max_leaves == 0 && max_depth == 0) {
-      // unconstrainted
+      // unconstrained
       if (ctx->IsCPU()) {
         // GPU pre-allocates for all nodes.
-        learner->UpdateOneIter(0, Xy_);
+        learner->UpdateOneIter(0, Xy);
       }
     } else if (max_leaves > 0 && max_depth == 0) {
-      learner->UpdateOneIter(0, Xy_);
+      learner->UpdateOneIter(0, Xy);
       check_max_leave();
     } else if (max_leaves == 0 && max_depth > 0) {
-      learner->UpdateOneIter(0, Xy_);
+      learner->UpdateOneIter(0, Xy);
       check_max_depth(-1);
     } else if (max_leaves > 0 && max_depth > 0) {
-      learner->UpdateOneIter(0, Xy_);
+      learner->UpdateOneIter(0, Xy);
       check_max_leave();
       check_max_depth(2);
     } else if (max_leaves == -1 && max_depth == 0) {
       // default max_leaves is 0, so both of them are now 0
     } else {
       // default parameters
-      learner->UpdateOneIter(0, Xy_);
+      learner->UpdateOneIter(0, Xy);
     }
     return learner;
   }
 
-  void TestCombination(Context const* ctx, std::string tree_method) {
+  void TestCombination(Context const* ctx, bst_target_t n_targets, std::string tree_method) {
     for (auto policy : {"depthwise", "lossguide"}) {
       // -1 means default
       for (auto leaves : {-1, 0, 3}) {
         for (auto depth : {-1, 0, 3}) {
-          this->TrainOneIter(ctx, tree_method, policy, leaves, depth);
+          this->TrainOneIter(ctx, n_targets, tree_method, policy, leaves, depth);
         }
       }
     }
   }
 
-  void TestTreeGrowPolicy(Context const* ctx, std::string tree_method, std::string policy) {
+  void TestTreeGrowPolicy(Context const* ctx, bst_target_t n_targets, std::string tree_method,
+                          std::string policy) {
     {
       /**
        *  max_leaves
        */
-      auto learner = this->TrainOneIter(ctx, tree_method, policy, 16, -1);
+      auto learner = this->TrainOneIter(ctx, n_targets, tree_method, policy, 16, -1);
       Json model{Object{}};
       learner->SaveModel(&model);
 
@@ -118,7 +124,7 @@ class TestGrowPolicy : public ::testing::Test {
       /**
        *  max_depth
        */
-      auto learner = this->TrainOneIter(ctx, tree_method, policy, -1, 3);
+      auto learner = this->TrainOneIter(ctx, n_targets, tree_method, policy, -1, 3);
       Json model{Object{}};
       learner->SaveModel(&model);
 
@@ -137,35 +143,57 @@ class TestGrowPolicy : public ::testing::Test {
 
 TEST_F(TestGrowPolicy, Approx) {
   Context ctx;
-  this->TestTreeGrowPolicy(&ctx, "approx", "depthwise");
-  this->TestTreeGrowPolicy(&ctx, "approx", "lossguide");
+  bst_target_t n_targets = 1;
+  this->TestTreeGrowPolicy(&ctx, n_targets, "approx", "depthwise");
+  this->TestTreeGrowPolicy(&ctx, n_targets, "approx", "lossguide");
 
-  this->TestCombination(&ctx, "approx");
+  this->TestCombination(&ctx, n_targets, "approx");
 }
 
 TEST_F(TestGrowPolicy, Hist) {
   Context ctx;
-  this->TestTreeGrowPolicy(&ctx, "hist", "depthwise");
-  this->TestTreeGrowPolicy(&ctx, "hist", "lossguide");
+  bst_target_t n_targets = 1;
+  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "depthwise");
+  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "lossguide");
 
-  this->TestCombination(&ctx, "hist");
+  this->TestCombination(&ctx, n_targets, "hist");
+}
+
+TEST_F(TestGrowPolicy, MultiHist) {
+  Context ctx;
+  bst_target_t n_targets = 3;
+  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "depthwise");
+  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "lossguide");
+
+  this->TestCombination(&ctx, n_targets, "hist");
 }
 
 #if defined(XGBOOST_USE_CUDA)
 TEST_F(TestGrowPolicy, GpuHist) {
   auto ctx = MakeCUDACtx(0);
-  this->TestTreeGrowPolicy(&ctx, "hist", "depthwise");
-  this->TestTreeGrowPolicy(&ctx, "hist", "lossguide");
+  bst_target_t n_targets = 1;
+  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "depthwise");
+  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "lossguide");
 
-  this->TestCombination(&ctx, "hist");
+  this->TestCombination(&ctx, n_targets, "hist");
+}
+
+TEST_F(TestGrowPolicy, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  bst_target_t n_targets = 3;
+  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "depthwise");
+  this->TestTreeGrowPolicy(&ctx, n_targets, "hist", "lossguide");
+
+  this->TestCombination(&ctx, n_targets, "hist");
 }
 
 TEST_F(TestGrowPolicy, GpuApprox) {
   auto ctx = MakeCUDACtx(0);
-  this->TestTreeGrowPolicy(&ctx, "approx", "depthwise");
-  this->TestTreeGrowPolicy(&ctx, "approx", "lossguide");
+  bst_target_t n_targets = 1;
+  this->TestTreeGrowPolicy(&ctx, n_targets, "approx", "depthwise");
+  this->TestTreeGrowPolicy(&ctx, n_targets, "approx", "lossguide");
 
-  this->TestCombination(&ctx, "approx");
+  this->TestCombination(&ctx, n_targets, "approx");
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

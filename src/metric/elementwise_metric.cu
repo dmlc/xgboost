@@ -13,6 +13,7 @@
 #include <numeric>  // for accumulate
 
 #include "../common/math.h"
+#include "../common/nvtx_utils.h"       // for xgboost_NVTX_FN_RANGE
 #include "../common/optional_weight.h"  // OptionalWeights
 #include "../common/pseudo_huber.h"
 #include "../common/quantile_loss_utils.h"  // QuantileLossParam
@@ -191,6 +192,8 @@ class PseudoErrorLoss : public MetricNoCache {
   }
 
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
+    xgboost_NVTX_FN_RANGE();
+
     CHECK_EQ(info.labels.Shape(0), info.num_row_);
     auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
     auto labels = info.labels.View(device);

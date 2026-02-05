@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import os
 import shutil
 import sys
 import tempfile
@@ -7,13 +8,11 @@ import unittest
 from io import StringIO
 
 import pytest
-
 from xgboost import testing as tm
 
 pytestmark = [pytest.mark.skipif(**tm.no_spark())]
 
 from pyspark.sql import SparkSession
-
 from xgboost.spark.utils import _get_default_params_from_func
 
 
@@ -90,6 +89,10 @@ class TestSparkContext(object):
 
     @classmethod
     def tear_down_env(cls):
+        if os.environ.get("XGBOOST_PYSPARK_SHARED_SESSION") == "1":
+            cls.session = None
+            cls.sc = None
+            return
         cls.session.stop()
         cls.session = None
         cls.sc.stop()
@@ -102,11 +105,13 @@ class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
         cls.setup_env(
             {
                 "spark.master": "local[4]",
-                "spark.python.worker.reuse": "false",
+                "spark.python.worker.reuse": "true",
                 "spark.driver.host": "127.0.0.1",
                 "spark.task.maxFailures": "1",
+                "spark.sql.shuffle.partitions": "4",
                 "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
                 "spark.sql.pyspark.jvmStacktrace.enabled": "true",
+                "spark.ui.enabled": "false",
             }
         )
         cls.make_tempdir()
@@ -122,20 +127,25 @@ class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase
     def setUpClass(cls):
         cls.setup_env(
             {
-                "spark.master": "local-cluster[2, 2, 1024]",
-                "spark.python.worker.reuse": "false",
+                "spark.master": "local-cluster[2, 1, 1024]",
+                "spark.python.worker.reuse": "true",
                 "spark.driver.host": "127.0.0.1",
                 "spark.task.maxFailures": "1",
+                "spark.sql.shuffle.partitions": "4",
                 "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
                 "spark.sql.pyspark.jvmStacktrace.enabled": "true",
-                "spark.cores.max": "4",
+                "spark.cores.max": "2",
                 "spark.task.cpus": "1",
-                "spark.executor.cores": "2",
+                "spark.executor.cores": "1",
+                "spark.ui.enabled": "false",
             }
         )
         cls.make_tempdir()
         # We run a dummy job so that we block until the workers have connected to the master
-        cls.sc.parallelize(range(4), 4).barrier().mapPartitions(lambda _: []).collect()
+        num_slots = cls.sc.defaultParallelism
+        cls.sc.parallelize(range(num_slots), num_slots).barrier().mapPartitions(
+            lambda _: []
+        ).collect()
 
     @classmethod
     def tearDownClass(cls):

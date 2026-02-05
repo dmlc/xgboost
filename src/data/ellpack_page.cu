@@ -14,6 +14,7 @@
 
 #include "../common/algorithm.cuh"          // for InclusiveScan
 #include "../common/categorical.h"          // for IsCat
+#include "../common/compressed_iterator.h"  // for CompressedIterator
 #include "../common/cuda_context.cuh"       // for CUDAContext
 #include "../common/cuda_rt_utils.h"        // for SetDevice
 #include "../common/cuda_stream.h"          // for DefaultStream
@@ -118,7 +119,7 @@ __global__ void CompressBinEllpackKernel(
     }
     if (!kDenseCompressed) {
       // Sparse data, use the compressed fidx.  Add the number of bins in previous
-      // features since we can't compresse it based on feature-local index.
+      // features since we can't compress it based on feature-local index.
       bin += cut_ptrs[fidx];
     } else {
       // Write to the actual fidx for dense data.
@@ -542,65 +543,6 @@ bst_idx_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page,
   });
   monitor_.Stop(__func__);
   return n_elements;
-}
-
-// A functor that compacts the rows from one EllpackPage into another.
-template <typename IterT>
-struct CompactPage {
-  common::CompressedBufferWriter cbw;
-  common::CompressedByteT* dst_data_d;
-  IterT src_iterator_d;
-  /**
-   * @brief An array that maps the rows from the full DMatrix to the compacted page.
-   *
-   * The total size is the number of rows in the original, uncompacted DMatrix.
-   * Elements are the row ids in the compacted page. Rows not needed are set to
-   * SIZE_MAX.
-   *
-   * An example compacting 16 rows to 8 rows:
-   * [SIZE_MAX, 0, 1, SIZE_MAX, SIZE_MAX, 2, SIZE_MAX, 3, 4, 5, SIZE_MAX, 6,
-   * SIZE_MAX, 7, SIZE_MAX, SIZE_MAX]
-   */
-  common::Span<size_t> row_indexes;
-  size_t base_rowid;
-  size_t row_stride;
-
-  CompactPage(EllpackPageImpl* dst, EllpackAccessorImpl<IterT> src,
-              common::Span<size_t> row_indexes)
-      : cbw{dst->NumSymbols()},
-        dst_data_d{dst->gidx_buffer.data()},
-        src_iterator_d{src.gidx_iter},
-        row_indexes(row_indexes),
-        base_rowid{src.base_rowid},
-        row_stride{src.row_stride} {}
-
-  __device__ void operator()(bst_idx_t row_id) {
-    size_t src_row = base_rowid + row_id;
-    size_t dst_row = row_indexes[src_row];
-    if (dst_row == SIZE_MAX) {
-      return;
-    }
-    size_t dst_offset = dst_row * row_stride;
-    size_t src_offset = row_id * row_stride;
-    for (size_t j = 0; j < row_stride; j++) {
-      cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[src_offset + j], dst_offset + j);
-    }
-  }
-};
-
-// Compacts the data from the given EllpackPage into the current page.
-void EllpackPageImpl::Compact(Context const* ctx, EllpackPageImpl const* page,
-                              common::Span<size_t> row_indexes) {
-  monitor_.Start(__func__);
-  CHECK_EQ(this->info.row_stride, page->info.row_stride);
-  CHECK_EQ(this->NumSymbols(), page->NumSymbols());
-  CHECK_LE(page->base_rowid + page->n_rows, row_indexes.size());
-  auto cuctx = ctx->CUDACtx();
-  page->Visit(ctx, {}, [&](auto&& src) {
-    dh::LaunchN(page->n_rows, cuctx->Stream(), CompactPage{this, src, row_indexes});
-  });
-
-  monitor_.Stop(__func__);
 }
 
 void EllpackPageImpl::SetCuts(std::shared_ptr<common::HistogramCuts const> cuts) {

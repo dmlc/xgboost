@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file random.h
  * \brief Utility related to random.
  * \author Tianqi Chen
@@ -11,18 +11,14 @@
 
 #include <algorithm>
 #include <functional>
-#include <limits>
 #include <map>
 #include <memory>
 #include <numeric>
 #include <random>
-#include <utility>
 #include <vector>
 
 #include "../collective/broadcast.h"  // for Broadcast
-#include "../collective/communicator-inl.h"
 #include "algorithm.h"  // ArgSort
-#include "common.h"
 #include "xgboost/context.h"  // Context
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"
@@ -33,47 +29,10 @@ namespace xgboost::common {
  */
 using RandomEngine = std::mt19937;
 
-#if defined(XGBOOST_CUSTOMIZE_GLOBAL_PRNG) && XGBOOST_CUSTOMIZE_GLOBAL_PRNG == 1
-/*!
- * \brief An customized random engine, used to be plugged in PRNG from other systems.
- *  The implementation of this library is not provided by xgboost core library.
- *  Instead the other library can implement this class, which will be used as GlobalRandomEngine
- *  If XGBOOST_RANDOM_CUSTOMIZE = 1, by default this is switched off.
- */
-class CustomGlobalRandomEngine {
- public:
-  /*! \brief The result type */
-  using result_type = uint32_t;
-  /*! \brief The minimum of random numbers generated */
-  inline static constexpr result_type min() {
-    return 0;
-  }
-  /*! \brief The maximum random numbers generated */
-  inline static constexpr result_type max() {
-    return std::numeric_limits<result_type>::max();
-  }
-  /*!
-   * \brief seed function, to be implemented
-   * \param val The value of the seed.
-   */
-  void seed(result_type val);
-  /*!
-   * \return next random number.
-   */
-  result_type operator()();
-};
-
-/*!
- * \brief global random engine
- */
-typedef CustomGlobalRandomEngine GlobalRandomEngine;
-
-#else
 /*!
  * \brief global random engine
  */
 using GlobalRandomEngine = RandomEngine;
-#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 
 /*!
  * \brief global singleton of a random engine.
@@ -164,9 +123,12 @@ class ColumnSampler {
    * @param colsample_bylevel Sampling rate for tree level.
    * @param colsample_bytree  Sampling rate for tree.
    */
-  void Init(Context const* ctx, int64_t num_col, std::vector<float> feature_weights,
+  void Init(Context const* ctx, int64_t num_col, HostDeviceVector<float> const& feature_weights,
             float colsample_bynode, float colsample_bylevel, float colsample_bytree) {
-    feature_weights_.HostVector() = std::move(feature_weights);
+    this->feature_weights_.SetDevice(ctx->Device()), feature_weights.SetDevice(ctx->Device());
+    this->feature_weights_.Resize(feature_weights.Size());
+    this->feature_weights_.Copy(feature_weights);
+
     colsample_bylevel_ = colsample_bylevel;
     colsample_bytree_ = colsample_bytree;
     colsample_bynode_ = colsample_bynode;
@@ -225,10 +187,14 @@ class ColumnSampler {
     }
     if (colsample_bynode_ == 1.0f) {
       // Level sampling
-      return feature_set_level_[depth];
+      auto ptr = feature_set_level_[depth];
+      ptr->SetDevice(this->ctx_->Device());
+      return ptr;
     }
     // Need to sample for the node individually
-    return ColSample(feature_set_level_[depth], colsample_bynode_);
+    auto ptr = ColSample(feature_set_level_[depth], colsample_bynode_);
+    ptr->SetDevice(this->ctx_->Device());
+    return ptr;
   }
 };
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
@@ -8,6 +8,7 @@
 #include <tuple>   // for tuple
 #include <vector>  // for vector
 
+#include "../../../../src/tree/gpu_hist/expand_entry.cuh"  // for GPUExpandEntry
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for RowPartitioner
 #include "../../../../src/tree/hist/hist_param.h"             // for HistMakerTrainParam
@@ -15,6 +16,7 @@
 #include "../../categorical_helpers.h"                        // for OneHotEncodeFeature
 #include "../../helpers.h"
 #include "../../histogram_helpers.h"  // for BuildEllpackPage
+#include "dummy_quantizer.cuh"
 
 namespace xgboost::tree {
 TEST(Histogram, DeviceHistogramStorage) {
@@ -63,13 +65,12 @@ TEST(Histogram, SubtractionTrack) {
   auto page = BuildEllpackPage(&ctx, 64, 4);
   auto cuts = page->CutsShared();
   FeatureGroups fg{*cuts, true, std::numeric_limits<std::size_t>::max()};
-  auto fg_acc = fg.DeviceAccessor(ctx.Device());
   auto n_total_bins = cuts->TotalBins();
 
   // 2 nodes
   auto max_cached_hist_nodes = 2ull;
   DeviceHistogramBuilder histogram;
-  histogram.Reset(&ctx, max_cached_hist_nodes, fg_acc, n_total_bins, false);
+  histogram.Reset(&ctx, max_cached_hist_nodes, n_total_bins, false);
   histogram.AllocateHistograms(&ctx, {0, 1, 2});
   GPUExpandEntry root;
   root.nidx = 0;
@@ -83,76 +84,6 @@ TEST(Histogram, SubtractionTrack) {
   ASSERT_EQ(need_build.size(), 2);
   ASSERT_EQ(need_build[0], 4);
   ASSERT_EQ(need_build[1], 6);
-}
-
-std::vector<GradientPairPrecise> GetHostHistGpair() {
-  // 24 bins, 3 bins for each feature (column).
-  std::vector<GradientPairPrecise> hist_gpair = {
-    {0.8314f, 0.7147f}, {1.7989f, 3.7312f}, {3.3846f, 3.4598f},
-    {2.9277f, 3.5886f}, {1.8429f, 2.4152f}, {1.2443f, 1.9019f},
-    {1.6380f, 2.9174f}, {1.5657f, 2.5107f}, {2.8111f, 2.4776f},
-    {2.1322f, 3.0651f}, {3.2927f, 3.8540f}, {0.5899f, 0.9866f},
-    {1.5185f, 1.6263f}, {2.0686f, 3.1844f}, {2.4278f, 3.0950f},
-    {1.5105f, 2.1403f}, {2.6922f, 4.2217f}, {1.8122f, 1.5437f},
-    {0.0000f, 0.0000f}, {4.3245f, 5.7955f}, {1.6903f, 2.1103f},
-    {2.4012f, 4.4754f}, {3.6136f, 3.4303f}, {0.0000f, 0.0000f}
-  };
-  return hist_gpair;
-}
-
-void TestBuildHist(bool use_shared_memory_histograms) {
-  int const kNRows = 16, kNCols = 8;
-  auto ctx = MakeCUDACtx(0);
-
-  auto page = BuildEllpackPage(&ctx, kNRows, kNCols);
-
-  xgboost::SimpleLCG gen;
-  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-  HostDeviceVector<GradientPair> gpair(kNRows);
-  for (auto& gp : gpair.HostVector()) {
-    float grad = dist(&gen);
-    float hess = dist(&gen);
-    gp = GradientPair{grad, hess};
-  }
-  gpair.SetDevice(ctx.Device());
-
-  auto row_partitioner = std::make_unique<RowPartitioner>();
-  row_partitioner->Reset(&ctx, kNRows, 0);
-
-  auto quantiser = std::make_unique<GradientQuantiser>(&ctx, gpair.ConstDeviceSpan(), MetaInfo());
-  auto shm_size = use_shared_memory_histograms ? dh::MaxSharedMemoryOptin(ctx.Ordinal()) : 0;
-  FeatureGroups feature_groups(page->Cuts(), page->IsDenseCompressed(), shm_size);
-
-  DeviceHistogramBuilder builder;
-  builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
-                feature_groups.DeviceAccessor(ctx.Device()), page->Cuts().TotalBins(),
-                !use_shared_memory_histograms);
-  builder.AllocateHistograms(&ctx, {0});
-  page->Visit(&ctx, {}, [&](auto&& acc) {
-    builder.BuildHistogram(ctx.CUDACtx(), acc, feature_groups.DeviceAccessor(ctx.Device()),
-                           gpair.DeviceSpan(), row_partitioner->GetRows(0),
-                           builder.GetNodeHistogram(0), *quantiser);
-  });
-
-  auto node_histogram = builder.GetNodeHistogram(0);
-
-  std::vector<GradientPairInt64> h_result(node_histogram.size());
-  dh::CopyDeviceSpanToVector(&h_result, node_histogram);
-
-  std::vector<GradientPairPrecise> solution = GetHostHistGpair();
-  for (size_t i = 0; i < h_result.size(); ++i) {
-    auto result = quantiser->ToFloatingPoint(h_result[i]);
-    ASSERT_NEAR(result.GetGrad(), solution[i].GetGrad(), 0.01f);
-    ASSERT_NEAR(result.GetHess(), solution[i].GetHess(), 0.01f);
-  }
-}
-
-TEST(Histogram, BuildHistGlobalMem) {
-  TestBuildHist(false);
-}
-
-TEST(Histogram, BuildHistSharedMem) {
-  TestBuildHist(true);
 }
 
 namespace {
@@ -175,18 +106,15 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     bst_bin_t num_bins = kBins * kCols;
     dh::device_vector<GradientPairInt64> histogram(num_bins);
     auto d_histogram = dh::ToSpan(histogram);
-    auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
-    gpair.SetDevice(ctx.Device());
+    auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, 1, kLower, kUpper).gpair;
 
     FeatureGroups feature_groups{page->Cuts(), page->IsDenseCompressed(), shm_size};
 
-    auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
     DeviceHistogramBuilder builder;
-    builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
-                  feature_groups.DeviceAccessor(ctx.Device()), num_bins, force_global);
+    builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_bins, force_global);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(ctx.CUDACtx(), acc, feature_groups.DeviceAccessor(ctx.Device()),
-                             gpair.DeviceSpan(), ridx, d_histogram, quantiser);
+      builder.BuildHistogram(&ctx, acc, feature_groups.DeviceAccessor(ctx.Device()),
+                             gpair.View(ctx.Device()).Values(), ridx, d_histogram);
     });
 
     std::vector<GradientPairInt64> histogram_h(num_bins);
@@ -197,13 +125,11 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
       dh::device_vector<GradientPairInt64> new_histogram(num_bins);
       auto d_new_histogram = dh::ToSpan(new_histogram);
 
-      auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
       DeviceHistogramBuilder builder;
-      builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
-                    feature_groups.DeviceAccessor(ctx.Device()), num_bins, force_global);
+      builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_bins, force_global);
       page->Visit(&ctx, {}, [&](auto&& acc) {
-        builder.BuildHistogram(ctx.CUDACtx(), acc, feature_groups.DeviceAccessor(ctx.Device()),
-                               gpair.DeviceSpan(), ridx, d_new_histogram, quantiser);
+        builder.BuildHistogram(&ctx, acc, feature_groups.DeviceAccessor(ctx.Device()),
+                               gpair.View(ctx.Device()).Values(), ridx, d_new_histogram);
       });
 
       std::vector<GradientPairInt64> new_histogram_h(num_bins);
@@ -216,8 +142,7 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     }
 
     {
-      auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
-      gpair.SetDevice(ctx.Device());
+      auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, 1, kLower, kUpper).gpair;
 
       // Use a single feature group to compute the baseline.
       FeatureGroups single_group(page->Cuts());
@@ -225,11 +150,10 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
       dh::device_vector<GradientPairInt64> baseline(num_bins);
       DeviceHistogramBuilder builder;
       // Single group must use global memory.
-      builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
-                    single_group.DeviceAccessor(ctx.Device()), num_bins, /*force_global=*/true);
+      builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_bins, /*force_global=*/true);
       page->Visit(&ctx, {}, [&](auto&& acc) {
-        builder.BuildHistogram(ctx.CUDACtx(), acc, single_group.DeviceAccessor(ctx.Device()),
-                               gpair.DeviceSpan(), ridx, dh::ToSpan(baseline), quantiser);
+        builder.BuildHistogram(&ctx, acc, single_group.DeviceAccessor(ctx.Device()),
+                               gpair.View(ctx.Device()).Values(), ridx, dh::ToSpan(baseline));
       });
 
       std::vector<GradientPairInt64> baseline_h(num_bins);
@@ -290,21 +214,26 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   row_partitioner.Reset(&ctx, kRows, 0);
   auto ridx = row_partitioner.GetRows(0);
   dh::device_vector<GradientPairInt64> cat_hist(num_categories);
+
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
   gpair.SetDevice(DeviceOrd::CUDA(0));
-  auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
+  auto quantiser =
+      GradientQuantiser(&ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo());
+  dh::caching_device_vector<GradientQuantiser> dq{quantiser};
+  linalg::Matrix<GradientPairInt64> gpairs_i64;
+  CalcQuantizedGpairs(&ctx, linalg::MakeTensorView(&ctx, gpair.ConstDeviceSpan(), gpair.Size(), 1),
+                      dh::ToSpan(dq), &gpairs_i64);
   /**
    * Generate hist with cat data.
    */
-  for (auto const &batch : cat_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
+  for (auto const& batch : cat_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
     DeviceHistogramBuilder builder;
-    builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
-                  single_group.DeviceAccessor(ctx.Device()), num_categories, false);
+    builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), num_categories, false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(ctx.CUDACtx(), acc, single_group.DeviceAccessor(ctx.Device()),
-                             gpair.DeviceSpan(), ridx, dh::ToSpan(cat_hist), quantiser);
+      builder.BuildHistogram(&ctx, acc, single_group.DeviceAccessor(ctx.Device()),
+                             gpairs_i64.View(ctx.Device()).Values(), ridx, dh::ToSpan(cat_hist));
     });
   }
 
@@ -314,15 +243,14 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   auto x_encoded = OneHotEncodeFeature(x, num_categories);
   auto encode_m = GetDMatrixFromData(x_encoded, kRows, num_categories);
   dh::device_vector<GradientPairInt64> encode_hist(2 * num_categories);
-  for (auto const &batch : encode_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
+  for (auto const& batch : encode_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
     DeviceHistogramBuilder builder;
-    builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
-                  single_group.DeviceAccessor(ctx.Device()), encode_hist.size(), false);
+    builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), encode_hist.size(), false);
     page->Visit(&ctx, {}, [&](auto&& acc) {
-      builder.BuildHistogram(ctx.CUDACtx(), acc, single_group.DeviceAccessor(ctx.Device()),
-                             gpair.DeviceSpan(), ridx, dh::ToSpan(encode_hist), quantiser);
+      builder.BuildHistogram(&ctx, acc, single_group.DeviceAccessor(ctx.Device()),
+                             gpairs_i64.View(ctx.Device()).Values(), ridx, dh::ToSpan(encode_hist));
     });
   }
 
@@ -331,8 +259,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
 
   std::vector<GradientPairInt64> h_encode_hist(encode_hist.size());
   thrust::copy(encode_hist.begin(), encode_hist.end(), h_encode_hist.begin());
-  ValidateCategoricalHistogram(num_categories,
-                               common::Span<GradientPairInt64>{h_encode_hist},
+  ValidateCategoricalHistogram(num_categories, common::Span<GradientPairInt64>{h_encode_hist},
                                common::Span<GradientPairInt64>{h_cat_hist});
 }
 
@@ -349,13 +276,13 @@ TEST(Histogram, GPUHistCategorical) {
 
 namespace {
 // Atomic add as type cast for test.
-XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t *dst, int64_t src) {  // NOLINT
+XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t* dst, int64_t src) {  // NOLINT
   uint64_t* u_dst = reinterpret_cast<uint64_t*>(dst);
   uint64_t u_src = *reinterpret_cast<uint64_t*>(&src);
   uint64_t ret = ::atomicAdd(u_dst, u_src);
   return *reinterpret_cast<int64_t*>(&ret);
 }
-}
+}  // namespace
 
 void TestAtomicAdd() {
   size_t n_elements = 1024;
@@ -384,8 +311,7 @@ void TestAtomicAdd() {
   /**
    * Test for positive values that don't fit into 32 bit integer.
    */
-  thrust::fill(inputs.begin(), inputs.end(),
-               (std::numeric_limits<uint32_t>::max() / 2));
+  thrust::fill(inputs.begin(), inputs.end(), (std::numeric_limits<uint32_t>::max() / 2));
   thrust::fill(result_a.begin(), result_a.end(), 0);
   thrust::fill(result_b.begin(), result_b.end(), 0);
   dh::LaunchN(n_elements, [=] __device__(size_t i) {
@@ -399,8 +325,7 @@ void TestAtomicAdd() {
   /**
    * Test for negative values that don't fit into 32 bit integer.
    */
-  thrust::fill(inputs.begin(), inputs.end(),
-               (std::numeric_limits<int32_t>::min() / 2));
+  thrust::fill(inputs.begin(), inputs.end(), (std::numeric_limits<int32_t>::min() / 2));
   thrust::fill(result_a.begin(), result_a.end(), 0);
   thrust::fill(result_b.begin(), result_b.end(), 0);
   dh::LaunchN(n_elements, [=] __device__(size_t i) {
@@ -412,9 +337,7 @@ void TestAtomicAdd() {
   CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), result_a[0]);
 }
 
-TEST(Histogram, AtomicAddInt64) {
-  TestAtomicAdd();
-}
+TEST(Histogram, AtomicAddInt64) { TestAtomicAdd(); }
 
 TEST(Histogram, Quantiser) {
   auto ctx = MakeCUDACtx(0);
@@ -422,7 +345,8 @@ TEST(Histogram, Quantiser) {
   HostDeviceVector<GradientPair> gpair(n_samples, GradientPair{1.0, 1.0});
   gpair.SetDevice(ctx.Device());
 
-  auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
+  auto quantiser =
+      GradientQuantiser(&ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo());
   for (auto v : gpair.ConstHostVector()) {
     auto gh = quantiser.ToFloatingPoint(quantiser.ToFixedPoint(v));
     ASSERT_EQ(gh.GetGrad(), 1.0);
@@ -474,9 +398,7 @@ class HistogramExternalMemoryTest
     dh::device_vector<GradientPairInt64> single_hist;
     dh::device_vector<GradientPairInt64> multi_hist;
 
-    auto gpair = GenerateRandomGradients(n_samples);
-    gpair.SetDevice(ctx.Device());
-    auto quantiser = GradientQuantiser{&ctx, gpair.ConstDeviceSpan(), p_fmat->Info()};
+    auto gpair = GenerateGradientsFixedPoint(&ctx, n_samples).gpair;
     std::shared_ptr<common::HistogramCuts> cuts;
 
     std::size_t row_stride = 0;
@@ -503,11 +425,11 @@ class HistogramExternalMemoryTest
         auto ridx = partitioners.at(k)->GetRows(0);
         auto d_histogram = dh::ToSpan(multi_hist);
         DeviceHistogramBuilder builder;
-        builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
-                      fg->DeviceAccessor(ctx.Device()), d_histogram.size(), force_global);
+        builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
+                      force_global);
         impl->Visit(&ctx, {}, [&](auto&& acc) {
-          builder.BuildHistogram(ctx.CUDACtx(), acc, fg->DeviceAccessor(ctx.Device()),
-                                 gpair.ConstDeviceSpan(), ridx, d_histogram, quantiser);
+          builder.BuildHistogram(&ctx, acc, fg->DeviceAccessor(ctx.Device()),
+                                 gpair.View(ctx.Device()).Values(), ridx, d_histogram);
         });
         ++k;
       }
@@ -531,11 +453,11 @@ class HistogramExternalMemoryTest
       auto ridx = partitioner.GetRows(0);
       auto d_histogram = dh::ToSpan(single_hist);
       DeviceHistogramBuilder builder;
-      builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), fg->DeviceAccessor(ctx.Device()),
-                    d_histogram.size(), force_global);
+      builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), d_histogram.size(),
+                    force_global);
       concat.Visit(&ctx, {}, [&](auto&& acc) {
-        builder.BuildHistogram(ctx.CUDACtx(), acc, fg->DeviceAccessor(ctx.Device()),
-                               gpair.ConstDeviceSpan(), ridx, d_histogram, quantiser);
+        builder.BuildHistogram(&ctx, acc, fg->DeviceAccessor(ctx.Device()),
+                               gpair.View(ctx.Device()).Values(), ridx, d_histogram);
       });
     }
 

@@ -1,4 +1,4 @@
-name: XGBoost CI (misc)
+name: Miscellaneous
 
 on: [push, pull_request]
 
@@ -14,6 +14,32 @@ env:
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
+  ci-configure:
+    name: Configure variables for CI
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-ci-configure
+    steps:
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2.0.1
+        with:
+          mask-password: 'false'
+          registries: '492475357299'
+      - uses: actions/checkout@v6.0.1
+      - name: Get image tag
+        id: get-image-tag
+        run: |
+          source ops/pipeline/get-image-tag.sh
+          echo "Using image tag $IMAGE_TAG"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+    outputs:
+      docker_registry: ${{ steps.login-ecr.outputs.registry }}
+      docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      image_tag: ${{ steps.get-image-tag.outputs.image_tag }}
+
   gtest-cpu-nonomp:
     name: Test Google C++ unittest (CPU Non-OMP)
     runs-on: ubuntu-latest
@@ -21,15 +47,17 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: cpp_test
           environment-file: ops/conda_env/cpp_test.yml
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - name: Build and test XGBoost
-        run: bash ops/pipeline/build-test-cpu-nonomp.sh
+        run: bash ops/pipeline/build-cpu.sh cpu-nonomp
+      - run: sccache --show-stats
 
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
@@ -38,12 +66,96 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: cpp_test
           environment-file: ops/conda_env/cpp_test.yml
+      - uses: dmlc/xgboost-devops/actions/sccache@main
       - name: Build and run C API demo with shared
         run: bash ops/pipeline/test-c-api-demo.sh
+
+  build-i386:
+    name: Build 32-bit (i386)
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-build-i386
+    steps:
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/test-cpp-i386.sh
+
+  build-jvm-docs:
+    name: Build docs for JVM packages
+    needs: ci-configure
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-build-jvm-docs
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.jvm_gpu_build:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - name: Build libxgboost4j.so with CUDA
+        run: bash ops/pipeline/build-jvm-gpu.sh
+      - run: sccache --show-stats
+      - name: Build JVM docs
+        run: bash ops/pipeline/build-jvm-doc.sh
+      - name: Upload JVM doc
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${{ github.event.pull_request.head.sha || github.sha }} --make-public \
+            jvm-packages/${BRANCH_NAME}.tar.bz2
+
+  build-r-docs:
+    name: Build docs for the R package
+    needs: ci-configure
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-build-r-docs
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.cpu_build_r_doc:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+    steps:
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: "true"
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - run: bash ops/script/setup_r_sccache.sh
+      - name: Build R docs
+        run: bash ops/pipeline/build-r-docs.sh
+      - name: Upload R doc
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${{ github.event.pull_request.head.sha || github.sha }} --make-public \
+            r-docs-${BRANCH_NAME}.tar.bz2
+
+  trigger-rtd-build:
+    name: Trigger Read The Docs build
+    needs: [build-jvm-docs, build-r-docs]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=misc-trigger-rtd-build
+    steps:
+      - uses: actions/checkout@v6.0.1
+      - name: Trigger RTD
+        run: bash ops/pipeline/trigger-rtd.sh

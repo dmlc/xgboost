@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2025, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  *
  * @brief This module defines the dispatching functions for various linalg kernels.
  *
@@ -254,9 +254,9 @@ void VecScaDiv(Context const* ctx, linalg::VectorView<float> x, double div) {
 }
 
 template <auto _tag = detail::SysTag()>
-void LogE(Context const* ctx, linalg::VectorView<float> x) {
+void LogE(Context const* ctx, linalg::VectorView<float> x, float rt_eps = 0.0f) {
   CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
-  TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return log(v); });
+  TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return log(v + rt_eps); });
 }
 
 template <typename T, std::enable_if_t<std::is_floating_point_v<T>>* = nullptr>
