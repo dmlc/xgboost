@@ -13,11 +13,8 @@ example, following packages in addition to XGBoost native dependencies are requi
 If `device` is `cuda`, following are also needed:
 
 - cupy
-- rmm
 - cuda-python
-
-Not shown in this example, but you should pay attention to NUMA configuration as
-discussed in the tutorial.
+- pyhwloc
 
 """
 
@@ -28,18 +25,17 @@ import sys
 import tempfile
 import traceback
 from functools import partial, update_wrapper, wraps
-from typing import TYPE_CHECKING, Callable, List, Literal, ParamSpec, Tuple, TypeVar
+from typing import TYPE_CHECKING, Callable, List, ParamSpec, Tuple, TypeVar
+
+import numpy as np
+import xgboost
+from loky import get_reusable_executor
+from sklearn.datasets import make_regression
+from xgboost import collective as coll
+from xgboost.tracker import RabitTracker
 
 if TYPE_CHECKING:
     from cuda.bindings.runtime import cudaError_t
-
-import numpy as np
-from loky import get_reusable_executor
-from sklearn.datasets import make_regression
-
-import xgboost
-from xgboost import collective as coll
-from xgboost.tracker import RabitTracker
 
 
 def _checkcu(status: "cudaError_t") -> None:
@@ -53,7 +49,7 @@ def device_mem_total() -> int:
     """The total number of bytes of memory this GPU has."""
     import cuda.bindings.runtime as cudart
 
-    status, free, total = cudart.cudaMemGetInfo()
+    status, _, total = cudart.cudaMemGetInfo()
     _checkcu(status)
     return total
 
@@ -61,6 +57,7 @@ def device_mem_total() -> int:
 def make_batches(
     n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str, rank: int
 ) -> List[Tuple[str, str]]:
+    """Create a single batch of data."""
     files: List[Tuple[str, str]] = []
     rng = np.random.RandomState(rank)
     for i in range(n_batches):
@@ -94,6 +91,8 @@ class Iterator(xgboost.DataIter):
             X = np.load(X_path)
             y = np.load(y_path)
         else:
+            import cupy as cp
+
             X = cp.load(X_path)
             y = cp.load(y_path)
 
@@ -121,41 +120,37 @@ class Iterator(xgboost.DataIter):
         self._it = 0
 
 
-def setup_rmm() -> None:
-    """Setup RMM for GPU-based external memory training.
+def setup_numa() -> None:
+    """Set correct NUMA binding."""
+    from pyhwloc import from_this_system
+    from pyhwloc.cuda_runtime import get_device
+    from pyhwloc.topology import MemBindFlags, MemBindPolicy, TypeFilter
 
-    It's important to use RMM with `CudaAsyncMemoryResource` or `ArenaMemoryResource`
-    for GPU-based external memory to improve performance. If XGBoost is not built with
-    RMM support, a warning is raised when constructing the `DMatrix`.
+    devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
+    assert devices is not None
 
-    """
-    import rmm
-    from rmm.allocators.cupy import rmm_cupy_allocator
-    from rmm.mr import ArenaMemoryResource
+    with from_this_system().set_io_types_filter(TypeFilter.KEEP_ALL) as topo:
+        # Get CPU affinity for this GPU
+        # Device ordinal is handled by the CUDA_VISIBLE_DEVICES environment variable
+        dev = get_device(topo, device=0)
+        cpuset = dev.get_affinity()
 
-    if not xgboost.build_info()["USE_RMM"]:
-        return
-
-    total = device_mem_total()
-
-    mr = rmm.mr.CudaMemoryResource()
-    mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))
-
-    rmm.mr.set_current_device_resource(mr)
-    # Set the allocator for cupy as well.
-    cp.cuda.set_allocator(rmm_cupy_allocator)
+        # Set CPU binding
+        topo.set_cpubind(cpuset)
+        # Set memory binding using cpuset (hwloc determines NUMA nodes from cpuset)
+        topo.set_membind(cpuset, MemBindPolicy.BIND, MemBindFlags.STRICT)
 
 
 def setup_async_pool() -> None:
-    """Setup CUDA async pool. As an alternative, the RMM plugin can be used as well. See
-    the `setup_rmm`. This is the same as using the `CudaAsyncMemoryResource` from RMM,
-    but without the RMM dependency.
+    """Setup CUDA async pool. As an alternative, the RMM plugin can be used as well.
+    This is the same as using the `CudaAsyncMemoryResource` from RMM, but without the
+    RMM dependency.
 
     .. versionadded:: 3.2.0
 
     """
-    import cuda.bindings.driver as driver
     import cuda.bindings.runtime as cudart
+    from cuda.bindings import driver
     from cupy.cuda import MemoryAsyncPool
 
     status, dft_pool = cudart.cudaDeviceGetDefaultMemPool(0)
@@ -171,6 +166,8 @@ def setup_async_pool() -> None:
     )
     _checkcu(status)
     # Set the allocator for cupy as well.
+    import cupy as cp
+
     cp.cuda.set_allocator(MemoryAsyncPool().malloc)
 
 
@@ -201,7 +198,6 @@ def hist_train(
     tmpdir: str,
     device: str,
     rabit_args: dict,
-    memory_pool: Literal["rmm", "cuda"],
 ) -> None:
     """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
     faster initialization and lower memory usage.
@@ -209,10 +205,13 @@ def hist_train(
     """
 
     # Make sure XGBoost is using the configured memory pool for all allocations.
-    with coll.CommunicatorContext(**rabit_args), xgboost.config_context(
-        use_rmm=memory_pool == "rmm",
-        use_cuda_async_pool=memory_pool == "cuda",
+    with (
+        coll.CommunicatorContext(**rabit_args),
+        xgboost.config_context(
+            use_cuda_async_pool=device == "cuda",
+        ),
     ):
+        print("Worker: ", worker_idx)
         # Generate the data for demonstration. The synthetic data is sharded by workers.
         files = make_batches(
             n_samples_per_batch=4096,
@@ -251,32 +250,31 @@ def hist_train(
         booster.predict(Xy)
 
 
-def main(tmpdir: str, args: argparse.Namespace) -> None:
+def launch_workers(tmpdir: str, args: argparse.Namespace) -> None:
+    """Client function to launch workers."""
     n_workers = 2
 
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=n_workers)
     tracker.start()
     rabit_args = tracker.worker_args()
 
-    def initializer(device: str, memory_pool: str) -> None:
+    def initializer(device: str) -> None:
         # Set CUDA device before launching child processes.
         if device == "cuda":
             # name: LokyProcess-1
-            lop, sidx = mp.current_process().name.split("-")
+            _, sidx = mp.current_process().name.split("-")
             idx = int(sidx) - 1  # 1-based indexing from loky
             # Assuming two workers for demo.
             devices = ",".join([str(idx), str((idx + 1) % n_workers)])
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
             os.environ["CUDA_VISIBLE_DEVICES"] = devices
-            if memory_pool == "rmm":
-                setup_rmm()
-            elif memory_pool == "cuda":
-                setup_async_pool()
+            setup_numa()
+            setup_async_pool()
 
     with get_reusable_executor(
         max_workers=n_workers,
-        initargs=(args.device, args.memory_pool),
+        initargs=(args.device,),
         initializer=initializer,
     ) as pool:
         # Poor man's currying
@@ -286,28 +284,22 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
                 tmpdir=tmpdir,
                 device=args.device,
                 rabit_args=rabit_args,
-                memory_pool=args.memory_pool,
             ),
             hist_train,
         )
         pool.map(fn, range(n_workers))
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
-    parser.add_argument(
-        "--memory_pool",
-        choices=["rmm", "cuda"],
-        default="rmm",
-        help="Use a memory pool for asynchronous memory allocation in XGBoost.",
-    )
     args = parser.parse_args()
-    if args.device == "cuda":
-        import cupy as cp
+    with tempfile.TemporaryDirectory() as tmpdir:
+        if args.device == "cuda":
+            launch_workers(tmpdir, args)
+        else:
+            launch_workers(tmpdir, args)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            main(tmpdir, args)
-    else:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            main(tmpdir, args)
+
+if __name__ == "__main__":
+    main()
