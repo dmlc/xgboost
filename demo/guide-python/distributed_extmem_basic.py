@@ -121,23 +121,24 @@ class Iterator(xgboost.DataIter):
 
 
 def setup_numa() -> None:
-    """Set correct NUMA binding."""
+    """Set correct NUMA binding for GPU-based external memory training."""
     from pyhwloc import from_this_system
     from pyhwloc.cuda_runtime import get_device
     from pyhwloc.topology import MemBindFlags, MemBindPolicy, TypeFilter
 
     devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
-    assert devices is not None
+    assert devices is not None, "CUDA_VISIBLE_DEVICES must be set."
 
     with from_this_system().set_io_types_filter(TypeFilter.KEEP_ALL) as topo:
-        # Get CPU affinity for this GPU
-        # Device ordinal is handled by the CUDA_VISIBLE_DEVICES environment variable
+        # Get CPU affinity for this GPU. Device ordinal 0 is used because
+        # CUDA_VISIBLE_DEVICES has already reordered the devices.
         dev = get_device(topo, device=0)
         cpuset = dev.get_affinity()
 
         # Set CPU binding
         topo.set_cpubind(cpuset)
-        # Set memory binding using cpuset (hwloc determines NUMA nodes from cpuset)
+        # Set memory binding with STRICT policy - ensures all memory allocations come
+        # from the local NUMA node. hwloc determines the NUMA nodes from cpuset.
         topo.set_membind(cpuset, MemBindPolicy.BIND, MemBindFlags.STRICT)
 
 
@@ -295,10 +296,7 @@ def main() -> None:
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as tmpdir:
-        if args.device == "cuda":
-            launch_workers(tmpdir, args)
-        else:
-            launch_workers(tmpdir, args)
+        launch_workers(tmpdir, args)
 
 
 if __name__ == "__main__":
