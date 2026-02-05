@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost contributors.
+ * Copyright 2022-2026, XGBoost contributors.
  */
 #ifndef XGBOOST_COMMON_NUMERIC_H_
 #define XGBOOST_COMMON_NUMERIC_H_
@@ -14,10 +14,15 @@
 #include <type_traits>  // for is_same_v
 #include <vector>       // for vector
 
-#include "common.h"                      // AssertGPUSupport
 #include "threading_utils.h"             // MemStackAllocator, DefaultMaxThreads
 #include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
+
+#if !defined(XGBOOST_USE_CUDA)
+
+#include "common.h"  // AssertGPUSupport
+
+#endif  // !defined(XGBOOST_USE_CUDA)
 
 namespace xgboost::common {
 
@@ -40,7 +45,7 @@ void RunLengthEncode(Iter begin, Iter end, std::vector<Idx>* p_out) {
 }
 
 /**
- * \brief Varient of std::partial_sum, out_it should point to a container that has n + 1
+ * @brief Varient of std::partial_sum, out_it should point to a container that has n + 1
  *        elements. Useful for constructing a CSR indptr.
  */
 template <typename InIt, typename OutIt, typename T>
@@ -56,46 +61,33 @@ void PartialSum(int32_t n_threads, InIt begin, InIt end, T init, OutIt out_it) {
 
   size_t block_size = n / batch_threads;
 
-  dmlc::OMPException exc;
-#pragma omp parallel num_threads(batch_threads)
-  {
-#pragma omp for
-    for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
-      exc.Run([&]() {
-        size_t ibegin = block_size * tid;
-        size_t iend = (tid == (batch_threads - 1) ? n : (block_size * (tid + 1)));
+  // Phase 1: Compute local partial sums for each block
+  ParallelFor(batch_threads, static_cast<std::int32_t>(batch_threads), [&](auto tid) {
+    std::size_t ibegin = block_size * tid;
+    std::size_t iend = (tid == (batch_threads - 1) ? n : (block_size * (tid + 1)));
 
-        T running_sum = 0;
-        for (size_t ridx = ibegin; ridx < iend; ++ridx) {
-          running_sum += *(begin + ridx);
-          *(out_it + 1 + ridx) = running_sum;
-        }
-      });
+    T running_sum = 0;
+    for (std::size_t ridx = ibegin; ridx < iend; ++ridx) {
+      running_sum += *(begin + ridx);
+      *(out_it + 1 + ridx) = running_sum;
     }
+  });
 
-#pragma omp single
-    {
-      exc.Run([&]() {
-        partial_sums[0] = init;
-        for (size_t i = 1; i < batch_threads; ++i) {
-          partial_sums[i] = partial_sums[i - 1] + *(out_it + i * block_size);
-        }
-      });
-    }
-
-#pragma omp for
-    for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
-      exc.Run([&]() {
-        size_t ibegin = block_size * tid;
-        size_t iend = (tid == (batch_threads - 1) ? n : (block_size * (tid + 1)));
-
-        for (size_t i = ibegin; i < iend; ++i) {
-          *(out_it + 1 + i) += partial_sums[tid];
-        }
-      });
-    }
+  // Phase 2: Compute prefix sums of block sums (sequential)
+  partial_sums[0] = init;
+  for (std::size_t i = 1; i < batch_threads; ++i) {
+    partial_sums[i] = partial_sums[i - 1] + *(out_it + i * block_size);
   }
-  exc.Rethrow();
+
+  // Phase 3: Add block prefix to each element
+  ParallelFor(batch_threads, static_cast<std::int32_t>(batch_threads), [&](auto tid) {
+    std::size_t ibegin = block_size * tid;
+    std::size_t iend = (tid == (batch_threads - 1) ? n : (block_size * (tid + 1)));
+
+    for (std::size_t i = ibegin; i < iend; ++i) {
+      *(out_it + 1 + i) += partial_sums[tid];
+    }
+  });
 }
 
 namespace cuda_impl {

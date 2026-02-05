@@ -127,8 +127,6 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
     const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
     // sum statistics
     double sum_metric = 0.0f;
-
-    CHECK(ctx_);
     std::vector<double> sum_tloc(ctx_->Threads(), 0.0);
 
     {
