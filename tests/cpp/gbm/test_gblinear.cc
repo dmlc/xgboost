@@ -1,16 +1,17 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/feature_map.h>  // for FeatureMap
 
 #include <memory>
 
+#include "../../../src/gbm/gblinear_model.h"
+#include "../../../src/gbm/gbm.h"  // for GradientBooster
 #include "../helpers.h"
 #include "xgboost/context.h"
-#include "xgboost/gbm.h"
 #include "xgboost/json.h"
-#include "xgboost/learner.h"
+#include "../../../src/learner.h"  // for Learner
 
 namespace xgboost::gbm {
 TEST(GBLinear, JsonIO) {

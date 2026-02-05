@@ -1,17 +1,18 @@
 /**
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  * \file predictor.h
  * \brief Interface of predictor,
  *  performs predictions for a gradient booster.
  */
 #pragma once
-#include <dmlc/registry.h>    // for FunctionRegEntryBase
-#include <xgboost/base.h>     // for bst_tree_t
-#include <xgboost/cache.h>    // for DMatrixCache
-#include <xgboost/context.h>  // for Context
-#include <xgboost/context.h>
-#include <xgboost/data.h>
+#include <dmlc/registry.h>  // for FunctionRegEntryBase
+
+#include <xgboost/base.h>              // for bst_tree_t
+#include <xgboost/context.h>           // for Context
+#include <xgboost/data.h>              // for DMatrix
 #include <xgboost/host_device_vector.h>
+
+#include "../common/cache.h"  // for DMatrixCache
 
 #include <functional>  // for function
 #include <memory>      // for shared_ptr

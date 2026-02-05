@@ -1,11 +1,11 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
 #include <xgboost/json.h>  // Json
-#include <xgboost/learner.h>
+#include "../../../src/learner.h"  // for Learner
 #include <xgboost/version_config.h>
 
 #include <algorithm>   // for copy_n

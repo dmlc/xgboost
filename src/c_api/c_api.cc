@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  */
 #include "xgboost/c_api.h"
 
@@ -30,6 +30,7 @@
 #include "../data/proxy_dmatrix.h"       // for DMatrixProxy
 #include "../data/simple_dmatrix.h"      // for SimpleDMatrix
 #include "../encoder/types.h"            // for Overloaded
+#include "../learner.h"                  // for Learner, PredictionType
 #include "c_api_error.h"                 // for xgboost_CHECK_C_ARG_PTR, API_END, API_BEGIN
 #include "c_api_utils.h"                 // for RequiredArg, OptionalArg, GetMissing, CastDM...
 #include "dmlc/base.h"                   // for BeginPtr
@@ -43,9 +44,7 @@
 #include "xgboost/global_config.h"       // for GlobalConfiguration, GlobalConfigThreadLocal...
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/json.h"                // for Json, get, Integer, IsA, Boolean, String
-#include "xgboost/learner.h"             // for Learner, PredictionType
 #include "xgboost/logging.h"             // for LOG_FATAL, LogMessageFatal, CHECK, LogCheck_EQ
-#include "xgboost/predictor.h"           // for PredictionCacheEntry
 #include "xgboost/span.h"                // for Span
 #include "xgboost/string_view.h"         // for StringView, operator<<
 #include "xgboost/version_config.h"      // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOS...

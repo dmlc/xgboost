@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include "gbtree_model.h"
 
@@ -11,7 +11,7 @@
 #include "../common/threading_utils.h"  // for ParallelFor
 #include "xgboost/context.h"            // for Context
 #include "xgboost/json.h"               // for Json, get, Integer, Array, FromJson, ToJson, Json...
-#include "xgboost/learner.h"            // for LearnerModelParam
+#include "../learner.h"                 // for LearnerModelParam
 #include "xgboost/logging.h"            // for LogCheck_EQ, CHECK_EQ, CHECK
 #include "xgboost/tree_model.h"         // for RegTree
 

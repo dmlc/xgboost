@@ -1,9 +1,7 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  */
-#ifndef XGBOOST_CACHE_H_
-#define XGBOOST_CACHE_H_
-
+#pragma once
 #include <xgboost/logging.h>  // for CHECK_EQ, CHECK
 
 #include <cstddef>            // for size_t
@@ -201,4 +199,3 @@ class DMatrixCache {
   }
 };
 }  // namespace xgboost
-#endif  // XGBOOST_CACHE_H_

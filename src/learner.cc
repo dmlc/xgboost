@@ -4,7 +4,7 @@
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
  */
-#include "xgboost/learner.h"
+#include "learner.h"
 
 #include <dmlc/io.h>            // for Stream
 #include <dmlc/parameter.h>     // for FieldEntry, DMLC_DECLARE_FIELD, Parameter, DMLC...
@@ -41,10 +41,10 @@
 #include "common/random.h"                // for GlobalRandom
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
+#include "gbm/gbm.h"                      // for GradientBooster
 #include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
-#include "xgboost/gbm.h"                  // for GradientBooster
 #include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
 #include "xgboost/host_device_vector.h"   // for HostDeviceVector
 #include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
@@ -53,7 +53,7 @@
 #include "xgboost/metric.h"               // for Metric
 #include "xgboost/objective.h"            // for ObjFunction
 #include "xgboost/parameter.h"            // for DECLARE_FIELD_ENUM_CLASS, XGBoostParameter
-#include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
+#include "predictor/predictor.h"          // for PredictionContainer, PredictionCacheEntry
 #include "xgboost/string_view.h"          // for operator<<, StringView
 #include "xgboost/task.h"                 // for ObjInfo
 

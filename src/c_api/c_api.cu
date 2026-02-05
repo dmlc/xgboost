@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include <thrust/transform.h>  // for transform
 
@@ -13,7 +13,7 @@
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
-#include "xgboost/learner.h"
+#include "../learner.h"  // for Learner
 #if defined(XGBOOST_USE_NCCL)
 #include <nccl.h>
 #endif  // defined(XGBOOST_USE_NCCL)
