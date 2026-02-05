@@ -57,7 +57,7 @@ def device_mem_total() -> int:
 def make_batches(
     n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str, rank: int
 ) -> List[Tuple[str, str]]:
-    """Create a single batch of data."""
+    """Create multiple batches of synthetic data and return their file paths."""
     files: List[Tuple[str, str]] = []
     rng = np.random.RandomState(rank)
     for i in range(n_batches):
