@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file data.cc
  */
 #include "xgboost/data.h"
@@ -38,7 +38,6 @@
 #include "array_interface.h"                  // for ArrayInterfaceHandler, ArrayInterface, Dispa...
 #include "cat_container.h"                    // for CatContainer
 #include "dmlc/base.h"                        // for BeginPtr
-#include "dmlc/common.h"                      // for OMPException
 #include "dmlc/data.h"                        // for Parser
 #include "dmlc/endian.h"                      // for ByteSwap, DMLC_IO_NO_ENDIAN_SWAP
 #include "dmlc/io.h"                          // for Stream

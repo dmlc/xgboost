@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file quantile.h
  * \brief util to compute quantiles
  * \author Tianqi Chen
@@ -838,51 +838,44 @@ class SketchContainerImpl {
                  std::vector<int32_t> *p_num_cuts);
 
   template <typename Batch, typename IsValid>
-  void PushRowPageImpl(Batch const &batch, size_t base_rowid, OptionalWeights weights, size_t nnz,
-                       size_t n_features, bool is_dense, IsValid is_valid) {
+  void PushRowPageImpl(Batch const &batch, std::size_t base_rowid, OptionalWeights weights,
+                       size_t nnz, size_t n_features, bool is_dense, IsValid is_valid) {
     auto thread_columns_ptr = LoadBalance(batch, nnz, n_features, n_threads_, is_valid);
+    ParallelFor(static_cast<std::size_t>(n_threads_), n_threads_, [&](std::size_t tid) {
+      auto const begin = thread_columns_ptr[tid];
+      auto const end = thread_columns_ptr[tid + 1];
 
-    dmlc::OMPException exc;
-#pragma omp parallel num_threads(n_threads_)
-    {
-      exc.Run([&]() {
-        auto tid = static_cast<uint32_t>(omp_get_thread_num());
-        auto const begin = thread_columns_ptr[tid];
-        auto const end = thread_columns_ptr[tid + 1];
-
-        // do not iterate if no columns are assigned to the thread
-        if (begin < end && end <= n_features) {
-          for (size_t ridx = 0; ridx < batch.Size(); ++ridx) {
-            auto const &line = batch.GetLine(ridx);
-            auto w = weights[ridx + base_rowid];
-            if (is_dense) {
-              for (size_t ii = begin; ii < end; ii++) {
-                auto elem = line.GetElement(ii);
-                if (is_valid(elem)) {
-                  if (IsCat(feature_types_, ii)) {
-                    categories_[ii].emplace(elem.value);
-                  } else {
-                    sketches_[ii].Push(elem.value, w);
-                  }
+      // do not iterate if no columns are assigned to the thread
+      if (begin < end && end <= n_features) {
+        for (size_t ridx = 0; ridx < batch.Size(); ++ridx) {
+          auto const &line = batch.GetLine(ridx);
+          auto w = weights[ridx + base_rowid];
+          if (is_dense) {
+            for (size_t ii = begin; ii < end; ii++) {
+              auto elem = line.GetElement(ii);
+              if (is_valid(elem)) {
+                if (IsCat(feature_types_, ii)) {
+                  categories_[ii].emplace(elem.value);
+                } else {
+                  sketches_[ii].Push(elem.value, w);
                 }
               }
-            } else {
-              for (size_t i = 0; i < line.Size(); ++i) {
-                auto const &elem = line.GetElement(i);
-                if (is_valid(elem) && elem.column_idx >= begin && elem.column_idx < end) {
-                  if (IsCat(feature_types_, elem.column_idx)) {
-                    categories_[elem.column_idx].emplace(elem.value);
-                  } else {
-                    sketches_[elem.column_idx].Push(elem.value, w);
-                  }
+            }
+          } else {
+            for (size_t i = 0; i < line.Size(); ++i) {
+              auto const &elem = line.GetElement(i);
+              if (is_valid(elem) && elem.column_idx >= begin && elem.column_idx < end) {
+                if (IsCat(feature_types_, elem.column_idx)) {
+                  categories_[elem.column_idx].emplace(elem.value);
+                } else {
+                  sketches_[elem.column_idx].Push(elem.value, w);
                 }
               }
             }
           }
         }
-      });
-    }
-    exc.Rethrow();
+      }
+    });
   }
 
   /* \brief Push a CSR matrix. */
