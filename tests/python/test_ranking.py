@@ -6,10 +6,9 @@ from typing import Optional
 
 import numpy as np
 import pytest
+import xgboost
 from hypothesis import given, note, settings
 from scipy.sparse import csr_matrix
-
-import xgboost
 from xgboost import testing as tm
 from xgboost.testing.data import RelDataCV, simulate_clicks, sort_ltr_samples
 from xgboost.testing.params import lambdarank_parameter_strategy

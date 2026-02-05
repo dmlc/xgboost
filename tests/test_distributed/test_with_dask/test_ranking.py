@@ -5,7 +5,6 @@ import pytest
 import scipy.sparse
 from dask import dataframe as dd
 from distributed import Client
-
 from xgboost import dask as dxgb
 from xgboost import testing as tm
 from xgboost.testing import dask as dtm
