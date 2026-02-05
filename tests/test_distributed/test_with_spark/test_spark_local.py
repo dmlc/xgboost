@@ -9,6 +9,7 @@ from typing import Generator, Iterable, List, Sequence
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from pyspark import SparkConf
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
