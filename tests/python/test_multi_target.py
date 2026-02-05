@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict
 
 import pytest
 from hypothesis import given, note, settings, strategies
-
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     all_reg_objectives,

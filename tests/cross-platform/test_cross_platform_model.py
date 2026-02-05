@@ -5,10 +5,9 @@ import sys
 from typing import Tuple
 
 import numpy as np
+import xgboost as xgb
 from sklearn.datasets import make_classification
 from sklearn.metrics import accuracy_score
-
-import xgboost as xgb
 
 SEED = 2026
 
