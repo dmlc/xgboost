@@ -47,52 +47,44 @@ class TreeRefresher : public TreeUpdater {
     const int nthread = ctx_->Threads();
     fvec_temp.resize(nthread, RegTree::FVec());
     stemp.resize(nthread, std::vector<GradStats>());
-    dmlc::OMPException exc;
-#pragma omp parallel num_threads(nthread)
-    {
-      exc.Run([&]() {
-        int tid = omp_get_thread_num();
-        int num_nodes = 0;
+
+    bst_node_t num_nodes = 0;
+    for (auto tree : trees) {
+      num_nodes += tree->NumNodes();
+    }
+    common::ParallelFor(nthread, nthread, [&](auto tid) {
+      stemp[tid].resize(num_nodes);
+      std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats{});
+      fvec_temp[tid].Init(trees.front()->NumFeatures());
+    });
+
+    const MetaInfo &info = p_fmat->Info();
+    // start accumulating statistics
+    for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+      auto page = batch.GetView();
+      CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
+      common::ParallelFor(batch.Size(), ctx_->Threads(), [&](auto i) {
+        SparsePage::Inst inst = page[i];
+        const int tid = omp_get_thread_num();
+        const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
+        RegTree::FVec &feats = fvec_temp[tid];
+        feats.Fill(inst);
+        int offset = 0;
         for (auto tree : trees) {
-          num_nodes += tree->NumNodes();
+          AddStats(*tree, feats, gpair_h, info, ridx, dmlc::BeginPtr(stemp[tid]) + offset);
+          offset += tree->NumNodes();
         }
-        stemp[tid].resize(num_nodes, GradStats());
-        std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats());
-        fvec_temp[tid].Init(trees[0]->NumFeatures());
+        feats.Drop();
       });
     }
-    exc.Rethrow();
 
-    auto get_stats = [&]() {
-      const MetaInfo &info = p_fmat->Info();
-      // start accumulating statistics
-      for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-        auto page = batch.GetView();
-        CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
-        const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
-        common::ParallelFor(nbatch, ctx_->Threads(), [&](bst_omp_uint i) {
-          SparsePage::Inst inst = page[i];
-          const int tid = omp_get_thread_num();
-          const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
-          RegTree::FVec &feats = fvec_temp[tid];
-          feats.Fill(inst);
-          int offset = 0;
-          for (auto tree : trees) {
-            AddStats(*tree, feats, gpair_h, info, ridx, dmlc::BeginPtr(stemp[tid]) + offset);
-            offset += tree->NumNodes();
-          }
-          feats.Drop();
-        });
+    // aggregate the statistics
+    common::ParallelFor(num_nodes, ctx_->Threads(), [&](int nid) {
+      for (int tid = 1; tid < nthread; ++tid) {
+        stemp[0][nid].Add(stemp[tid][nid]);
       }
-      // aggregate the statistics
-      auto num_nodes = static_cast<int>(stemp[0].size());
-      common::ParallelFor(num_nodes, ctx_->Threads(), [&](int nid) {
-        for (int tid = 1; tid < nthread; ++tid) {
-          stemp[0][nid].Add(stemp[tid][nid]);
-        }
-      });
-    };
-    get_stats();
+    });
+
     // Synchronize the aggregated result.
     auto &sum_grad = stemp[0];
     // x2 for gradient and hessian.
