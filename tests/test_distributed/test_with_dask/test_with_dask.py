@@ -7,10 +7,9 @@ import pickle
 import socket
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Generator, Literal, Optional, Tuple, Type, Union
+from typing import Any, Dict, Literal, Optional, Tuple, Type, Union
 
 import dask
 import dask.array as da
