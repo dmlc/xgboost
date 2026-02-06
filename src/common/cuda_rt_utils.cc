@@ -188,6 +188,8 @@ void SetDevice(std::int32_t device) {
 
 void GetUuid(xgboost::common::Span<unsigned char>, std::int32_t) { common::AssertGPUSupport(); }
 
+[[nodiscard]] std::string PrintUuid(common::Span<unsigned char const, kUuidLength>) { return {}; }
+
 void MemcpyAsync(void*, const void*, std::size_t, StreamRef) { common::AssertGPUSupport(); }
 
 #endif  // !defined(XGBOOST_USE_CUDA)
