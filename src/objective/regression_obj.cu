@@ -483,7 +483,38 @@ class ExpectileRegression : public FitIntercept {
     CHECK_EQ(label_mean.Size(), 1);
 
     auto mean_host = label_mean.HostView();
-    base_score->Data()->Fill(mean_host(0));
+    auto h_labels = info.labels.HostView();
+    auto h_weights = info.weights_.ConstHostSpan();
+    auto const& alpha = param_.expectile_alpha.Get();
+
+    std::vector<double> sums(2 * n_targets, 0.0);
+    for (std::size_t i = 0; i < info.num_row_; ++i) {
+      auto label = h_labels(i, 0);
+      auto diff = mean_host(0) - label;
+      for (std::size_t j = 0; j < n_targets; ++j) {
+        auto expectile = alpha[j];
+        auto weight_scale = diff >= 0.0f ? (1.0f - expectile) : expectile;
+        double w = weight_scale;
+        if (!h_weights.empty()) {
+          w *= h_weights[i];
+        }
+        sums[2 * j] += w * label;
+        sums[2 * j + 1] += w;
+      }
+    }
+
+    collective::SafeColl(collective::GlobalSum(ctx_, info, linalg::MakeVec(sums.data(),
+                                                                          sums.size())));
+
+    auto out = base_score->HostView();
+    for (std::size_t j = 0; j < n_targets; ++j) {
+      auto denom = sums[2 * j + 1];
+      if (common::CloseTo(denom, 0.0)) {
+        out(j) = mean_host(0);
+      } else {
+        out(j) = sums[2 * j] / denom;
+      }
+    }
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "expectile"; }
