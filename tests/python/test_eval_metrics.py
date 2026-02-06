@@ -234,10 +234,10 @@ class TestEvalMetrics:
         X = np.zeros((n_samples, 1))
         dtrain = xgb.DMatrix(X, label=y)
 
-        def uniform_expectile(tau: float) -> float:
-            sqrt_tau = np.sqrt(tau)
-            sqrt_one_minus = np.sqrt(1.0 - tau)
-            return sqrt_tau / (sqrt_tau + sqrt_one_minus)
+        def uniform_expectile(alpha: float) -> float:
+            sqrt_alpha = np.sqrt(alpha)
+            sqrt_one_minus = np.sqrt(1.0 - alpha)
+            return sqrt_alpha / (sqrt_alpha + sqrt_one_minus)
 
         params = {
             "tree_method": "hist",
@@ -255,9 +255,9 @@ class TestEvalMetrics:
         num_boost_round = 200
         atol = 1e-2
 
-        for tau in [0.1, 0.5, 0.9]:
-            params["expectile_alpha"] = tau
+        for alpha in [0.1, 0.5, 0.9]:
+            params["expectile_alpha"] = alpha
             booster = xgb.train(params, dtrain, num_boost_round=num_boost_round)
             pred = float(booster.predict(dtrain).mean())
-            expected = uniform_expectile(tau)
+            expected = uniform_expectile(alpha)
         np.testing.assert_allclose(pred, expected, rtol=atol, atol=atol)
