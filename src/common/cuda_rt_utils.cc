@@ -5,6 +5,7 @@
 
 #include <cstring>  // for memcpy
 #include <set>      // for set
+#include <sstream>  // for stringstream
 
 #include "cuda_stream.h"   // for StreamRef
 #include "xgboost/span.h"  // for Span
@@ -135,13 +136,7 @@ void GetUuid(xgboost::common::Span<unsigned char> uuid, std::int32_t device) {
     if (dash_pos.find(i) != dash_pos.cend()) {
       ss << "-";
     }
-    std::stringstream byte_ss;
-    byte_ss << std::hex << (0xFF & std::uint32_t{uuid[i]});
-    auto byte_str = byte_ss.str();
-    if (byte_str.length() == 1) {
-      byte_str = "0" + byte_str;
-    }
-    ss << byte_str;
+    ss << std::setw(2) << std::setfill('0') << std::hex << (0xFF & std::uint32_t{uuid[i]});
   }
   return ss.str();
 }
