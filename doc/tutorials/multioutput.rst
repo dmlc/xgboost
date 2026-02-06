@@ -85,7 +85,8 @@ Using Reduced Gradient (Sketch Boost)
 
 .. note::
 
-   This is still working-in-progress, and most features are missing.
+   This is still working-in-progress, and most features are missing. It is documented here
+   for early testers to provide feedback. Related interface might change without notice.
 
 When the number of targets is large, training a gradient boosting tree model using the
 full gradient matrix becomes challenging. The training procedure may run out of memory for
@@ -118,7 +119,7 @@ implement the ``split_grad`` method.
     class LsObj(TreeObjective):
         def __call__(self, iteration: int, y_pred, dtrain):
             """Least squared error."""
-            y_true = dtrain.get_label().reshape(y_pred.shape)
+            y_true = dtrain.get_label()
             grad = y_pred - y_true
             hess = cp.ones(grad.shape)
             return cp.array(grad), cp.array(hess)
@@ -134,13 +135,7 @@ implement the ``split_grad`` method.
             return grad, hess
 
 See :ref:`sphx_glr_python_examples_multioutput_reduced_gradient.py` for a complete worked
-example.
-
-.. warning::
-
-   This feature is in early development and not ready for production use. It is
-   documented here for early testers to provide feedback.
-
+example. The feature supports only the ``multi_strategy=multi_output_tree``.
 
 **********
 References

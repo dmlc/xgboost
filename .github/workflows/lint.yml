@@ -42,4 +42,4 @@ jobs:
       - name: Run mypy
         shell: bash -el {0}
         run: |
-          python ops/script/lint_python.py --format=0 --type-check=1 --pylint=0
+          python ops/script/type_check_python.py

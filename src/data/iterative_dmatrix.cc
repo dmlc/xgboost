@@ -10,6 +10,7 @@
 #include <vector>     // for vector
 
 #include "../common/categorical.h"  // for IsCat
+#include "../common/error_msg.h"    // for Unreachable
 #include "../common/hist_util.h"    // for HistogramCuts
 #include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
 #include "batch_utils.h"            // for RegenGHist
@@ -29,8 +30,7 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
                                    bst_bin_t max_bin, std::int64_t max_quantile_blocks)
     : proxy_{proxy} {
   // The external iterator, fetch the first batch
-  auto iter =
-      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset, next};
+  auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset, next};
   iter.Reset();
   bool valid = iter.Next();
   CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
@@ -188,7 +188,7 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
         BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(p_ext_out));
     return BatchSet<ExtSparsePage>(begin_iter);
   }
-  LOG(FATAL) << "Unreachable";
+  error::Unreachable();
   auto begin_iter =
       BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(nullptr));
   return BatchSet<ExtSparsePage>(begin_iter);

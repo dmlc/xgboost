@@ -75,7 +75,7 @@ OBJECTS= \
     $(PKGROOT)/src/data/gradient_index.o \
     $(PKGROOT)/src/data/gradient_index_page_source.o \
     $(PKGROOT)/src/data/gradient_index_format.o \
-    $(PKGROOT)/src/data/validation.o \
+    $(PKGROOT)/src/data/metainfo.o \
     $(PKGROOT)/src/data/sparse_page_dmatrix.o \
     $(PKGROOT)/src/data/sparse_page_source.o \
     $(PKGROOT)/src/data/extmem_quantile_dmatrix.o \
@@ -101,6 +101,7 @@ OBJECTS= \
     $(PKGROOT)/src/tree/updater_sync.o \
     $(PKGROOT)/src/tree/hist/hist_param.o \
     $(PKGROOT)/src/tree/hist/histogram.o \
+    $(PKGROOT)/src/tree/hist/sampler.o \
     $(PKGROOT)/src/linear/linear_updater.o \
     $(PKGROOT)/src/linear/updater_coordinate.o \
     $(PKGROOT)/src/linear/updater_shotgun.o \

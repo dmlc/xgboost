@@ -32,11 +32,11 @@
 #include "driver.h"
 #include "gpu_hist/evaluate_splits.cuh"
 #include "gpu_hist/expand_entry.cuh"
-#include "gpu_hist/feature_groups.cuh"          // for FeatureGroups
-#include "gpu_hist/gradient_based_sampler.cuh"  // for GradientBasedSampler
+#include "gpu_hist/feature_groups.cuh"  // for FeatureGroups
 #include "gpu_hist/histogram.cuh"
 #include "gpu_hist/quantiser.cuh"        // for GradientQuantiser
 #include "gpu_hist/row_partitioner.cuh"  // for RowPartitioner
+#include "gpu_hist/sampler.cuh"          // for GradientBasedSampler
 #include "hist/hist_param.h"             // for HistMakerTrainParam
 #include "param.h"                       // for TrainParam
 #include "sample_position.h"             // for SamplePosition
@@ -137,7 +137,7 @@ struct GPUHistMakerDevice {
 
   FeatureInteractionConstraintDevice interaction_constraints;
 
-  std::unique_ptr<GradientBasedSampler> sampler;
+  std::unique_ptr<cuda_impl::Sampler> sampler;
 
   common::Monitor monitor;
 
@@ -155,8 +155,8 @@ struct GPUHistMakerDevice {
             *cuts_, dense_compressed, DftStHistShmemBytes(this->ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
-        sampler{std::make_unique<GradientBasedSampler>(info.num_row_, param.subsample,
-                                                       param.sampling_method)} {
+        sampler{std::make_unique<cuda_impl::Sampler>(info.num_row_, param.subsample,
+                                                     param.sampling_method)} {
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
@@ -185,8 +185,8 @@ struct GPUHistMakerDevice {
     /**
      * Sampling
      */
-    auto gpairs = this->d_gpair.View(this->ctx_->Device()).Slice(linalg::All(), 0);
-    this->sampler->Sample(ctx_, gpairs, *this->quantiser);
+    auto gpairs = this->d_gpair.View(this->ctx_->Device());
+    this->sampler->Sample(ctx_, gpairs, dh::ToSpan(dq));
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
     /**
@@ -507,19 +507,11 @@ struct GPUHistMakerDevice {
     monitor.Stop(__func__);
   }
 
-  struct EncodeOp {
-    common::Span<GradientPairInt64 const> d_gpair;
-    __device__ bst_node_t operator()(bst_idx_t ridx, bst_node_t nidx) const {
-      bool is_invalid = d_gpair[ridx].GetQuantisedHess() - .0f == 0.f;
-      return SamplePosition::Encode(nidx, !is_invalid);
-    }
-  };
-
   template <typename Accessor>
   struct FinalizeOp {
     common::Span<NodeSplitData> s_split_data;
     GoLeftOp<Accessor> go_left_op;
-    EncodeOp encode_op;
+    cuda_impl::EncodeOp encode_op;
 
     __device__ auto operator()(bst_idx_t row_id, bst_node_t nidx) const {
       auto split_data = s_split_data[nidx];
@@ -544,7 +536,7 @@ struct GPUHistMakerDevice {
     p_out_position->Resize(p_fmat->Info().num_row_);
     auto d_out_position = p_out_position->DeviceSpan();
 
-    auto gpair = this->d_gpair.View(this->ctx_->Device()).Values();
+    auto gpair = this->d_gpair.View(this->ctx_->Device());
 
     if (!p_fmat->SingleColBlock()) {
       for (std::size_t k = 0; k < partitioners_.Size(); ++k) {
@@ -553,7 +545,7 @@ struct GPUHistMakerDevice {
         auto base_ridx = batch_ptr_[k];
         auto n_samples = batch_ptr_.at(k + 1) - base_ridx;
         part->FinalisePosition(ctx_, d_out_position.subspan(base_ridx, n_samples), base_ridx,
-                               EncodeOp{gpair});
+                               cuda_impl::EncodeOp{gpair});
       }
       return;
     }
@@ -584,7 +576,7 @@ struct GPUHistMakerDevice {
         partitioners_.Front()->FinalisePosition(
             ctx_, d_out_position, page.BaseRowId(),
             FinalizeOp<std::remove_reference_t<decltype(d_matrix)>>{s_split_data, go_left_op,
-                                                                    EncodeOp{gpair}});
+                                                                    cuda_impl::EncodeOp{gpair}});
       });
     }
   }

@@ -40,7 +40,7 @@ ArrowCatCol: TypeAlias = Optional[Union["pa.StringArray", "pa.NumericArray"]]
 ArrowCatList: TypeAlias = List[Tuple[str, Optional[ArrowCatCol]]]
 
 CupyT = ArrayLike  # maybe need a stub for cupy arrays
-NumpyOrCupy = Any
+NumpyOrCupy = Union[np.ndarray, Any]
 NumpyDType = Union[str, Type[np.number]]
 PandasDType = Any  # real type is pandas.core.dtypes.base.ExtensionDtype
 

@@ -511,7 +511,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' - `"gradient_based"`: the selection probability for each training instance is proportional to the
 #'   \bold{regularized absolute value} of gradients (more specifically, \eqn{\sqrt{g^2+\lambda h^2}}).
 #'   `"subsample"` may be set to as low as 0.1 without loss of model accuracy. Note that this
-#'   sampling method is only supported when `"tree_method"` is set to `"hist"` and the device is `"cuda"`; other tree
+#'   sampling method is only supported when `"tree_method"` is set to `"hist"`; other tree
 #'   methods only support `"uniform"` sampling.
 #' @param colsample_bytree,colsample_bylevel,colsample_bynode (for Tree Booster) (default=1)
 #' This is a family of parameters for subsampling of columns.
@@ -745,8 +745,10 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' A scalar or a list of targeted quantiles (passed as a numeric vector).
 #'
 #' Version added: 2.0.0
-#' @param aft_loss_distribution (for using AFT Survival Loss (`"survival:aft"`) and Negative Log Likelihood of AFT metric (`"aft-nloglik"`))
+#' @param aft_loss_distribution (when using AFT Survival Loss (`"survival:aft"`) and Negative Log Likelihood of AFT metric (`"aft-nloglik"`))
 #' Probability Density Function, `"normal"`, `"logistic"`, or `"extreme"`.
+#' @param aft_loss_distribution_scale (when using AFT Survival Loss (`"survival:aft"`) and Negative Log Likelihood of AFT metric (`"aft-nloglik"`))
+#' Scaling factor for the AFT distribution. Range: \eqn{(0, \infty)}.
 #' @param lambdarank_pair_method (for learning to rank (`"rank:ndcg"`, `"rank:map"`, `"rank:pairwise"`)) (default = `"topk"`)
 #' How to construct pairs for pair-wise learning.
 #' - `"mean"`: Sample `lambdarank_num_pair_per_sample` pairs for each document in the query list.
@@ -834,6 +836,7 @@ xgb.params <- function(
   huber_slope = NULL,
   quantile_alpha = NULL,
   aft_loss_distribution = NULL,
+  aft_loss_distribution_scale = NULL,
   lambdarank_pair_method = NULL,
   lambdarank_num_pair_per_sample = NULL,
   lambdarank_normalization = NULL,

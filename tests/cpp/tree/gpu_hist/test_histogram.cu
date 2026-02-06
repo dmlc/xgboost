@@ -106,7 +106,7 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     bst_bin_t num_bins = kBins * kCols;
     dh::device_vector<GradientPairInt64> histogram(num_bins);
     auto d_histogram = dh::ToSpan(histogram);
-    auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, kLower, kUpper);
+    auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, 1, kLower, kUpper).gpair;
 
     FeatureGroups feature_groups{page->Cuts(), page->IsDenseCompressed(), shm_size};
 
@@ -142,7 +142,7 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     }
 
     {
-      auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, kLower, kUpper);
+      auto gpair = GenerateGradientsFixedPoint(&ctx, kRows, 1, kLower, kUpper).gpair;
 
       // Use a single feature group to compute the baseline.
       FeatureGroups single_group(page->Cuts());
@@ -226,7 +226,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   /**
    * Generate hist with cat data.
    */
-  for (auto const &batch : cat_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
+  for (auto const& batch : cat_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
     DeviceHistogramBuilder builder;
@@ -243,7 +243,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   auto x_encoded = OneHotEncodeFeature(x, num_categories);
   auto encode_m = GetDMatrixFromData(x_encoded, kRows, num_categories);
   dh::device_vector<GradientPairInt64> encode_hist(2 * num_categories);
-  for (auto const &batch : encode_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
+  for (auto const& batch : encode_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
     DeviceHistogramBuilder builder;
@@ -259,8 +259,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
 
   std::vector<GradientPairInt64> h_encode_hist(encode_hist.size());
   thrust::copy(encode_hist.begin(), encode_hist.end(), h_encode_hist.begin());
-  ValidateCategoricalHistogram(num_categories,
-                               common::Span<GradientPairInt64>{h_encode_hist},
+  ValidateCategoricalHistogram(num_categories, common::Span<GradientPairInt64>{h_encode_hist},
                                common::Span<GradientPairInt64>{h_cat_hist});
 }
 
@@ -277,13 +276,13 @@ TEST(Histogram, GPUHistCategorical) {
 
 namespace {
 // Atomic add as type cast for test.
-XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t *dst, int64_t src) {  // NOLINT
+XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t* dst, int64_t src) {  // NOLINT
   uint64_t* u_dst = reinterpret_cast<uint64_t*>(dst);
   uint64_t u_src = *reinterpret_cast<uint64_t*>(&src);
   uint64_t ret = ::atomicAdd(u_dst, u_src);
   return *reinterpret_cast<int64_t*>(&ret);
 }
-}
+}  // namespace
 
 void TestAtomicAdd() {
   size_t n_elements = 1024;
@@ -312,8 +311,7 @@ void TestAtomicAdd() {
   /**
    * Test for positive values that don't fit into 32 bit integer.
    */
-  thrust::fill(inputs.begin(), inputs.end(),
-               (std::numeric_limits<uint32_t>::max() / 2));
+  thrust::fill(inputs.begin(), inputs.end(), (std::numeric_limits<uint32_t>::max() / 2));
   thrust::fill(result_a.begin(), result_a.end(), 0);
   thrust::fill(result_b.begin(), result_b.end(), 0);
   dh::LaunchN(n_elements, [=] __device__(size_t i) {
@@ -327,8 +325,7 @@ void TestAtomicAdd() {
   /**
    * Test for negative values that don't fit into 32 bit integer.
    */
-  thrust::fill(inputs.begin(), inputs.end(),
-               (std::numeric_limits<int32_t>::min() / 2));
+  thrust::fill(inputs.begin(), inputs.end(), (std::numeric_limits<int32_t>::min() / 2));
   thrust::fill(result_a.begin(), result_a.end(), 0);
   thrust::fill(result_b.begin(), result_b.end(), 0);
   dh::LaunchN(n_elements, [=] __device__(size_t i) {
@@ -340,9 +337,7 @@ void TestAtomicAdd() {
   CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), result_a[0]);
 }
 
-TEST(Histogram, AtomicAddInt64) {
-  TestAtomicAdd();
-}
+TEST(Histogram, AtomicAddInt64) { TestAtomicAdd(); }
 
 TEST(Histogram, Quantiser) {
   auto ctx = MakeCUDACtx(0);
@@ -403,8 +398,7 @@ class HistogramExternalMemoryTest
     dh::device_vector<GradientPairInt64> single_hist;
     dh::device_vector<GradientPairInt64> multi_hist;
 
-    auto gpair = GenerateGradientsFixedPoint(&ctx, n_samples);
-    gpair.SetDevice(ctx.Device());
+    auto gpair = GenerateGradientsFixedPoint(&ctx, n_samples).gpair;
     std::shared_ptr<common::HistogramCuts> cuts;
 
     std::size_t row_stride = 0;

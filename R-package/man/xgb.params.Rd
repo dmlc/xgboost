@@ -58,6 +58,7 @@ xgb.params(
   huber_slope = NULL,
   quantile_alpha = NULL,
   aft_loss_distribution = NULL,
+  aft_loss_distribution_scale = NULL,
   lambdarank_pair_method = NULL,
   lambdarank_num_pair_per_sample = NULL,
   lambdarank_normalization = NULL,
@@ -165,7 +166,7 @@ The method to use to sample the training instances.
 \item \code{"gradient_based"}: the selection probability for each training instance is proportional to the
 \bold{regularized absolute value} of gradients (more specifically, \eqn{\sqrt{g^2+\lambda h^2}}).
 \code{"subsample"} may be set to as low as 0.1 without loss of model accuracy. Note that this
-sampling method is only supported when \code{"tree_method"} is set to \code{"hist"} and the device is \code{"cuda"}; other tree
+sampling method is only supported when \code{"tree_method"} is set to \code{"hist"}; other tree
 methods only support \code{"uniform"} sampling.
 }}
 
@@ -480,8 +481,11 @@ A scalar or a list of targeted quantiles (passed as a numeric vector).
 
 Version added: 2.0.0}
 
-\item{aft_loss_distribution}{(for using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
+\item{aft_loss_distribution}{(when using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
 Probability Density Function, \code{"normal"}, \code{"logistic"}, or \code{"extreme"}.}
+
+\item{aft_loss_distribution_scale}{(when using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
+Scaling factor for the AFT distribution. Range: \eqn{(0, \infty)}.}
 
 \item{lambdarank_pair_method}{(for learning to rank (\code{"rank:ndcg"}, \code{"rank:map"}, \code{"rank:pairwise"})) (default = \code{"topk"})
 How to construct pairs for pair-wise learning.

@@ -262,7 +262,7 @@ jobs:
           arch: x86_64
           runner: linux-amd64-cpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -465,6 +465,21 @@ jobs:
           bash ops/pipeline/test-python-wheel.sh
           --suite ${{ matrix.suite }}
           --cuda-version ${{ matrix.cuda_version }}
+      # Train a model for cross-platform testing (only for CUDA 12 x86_64)
+      - name: Train cross-platform test model
+        if: matrix.cuda_version == 12 && matrix.suite == 'gpu'
+        shell: bash -l {0}
+        run: |
+          source activate gpu_test
+          python tests/cross-platform/test_cross_platform_model.py \
+            --train --model-path cross_platform_model.ubj
+      - name: Upload cross-platform model artifact
+        if: matrix.cuda_version == 12 && matrix.suite == 'gpu'
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: cross-platform-model
+          path: cross_platform_model.ubj
+          retention-days: 1
 
   test-python-wheel-cpu:
     name: Python tests CPU (${{ matrix.description }})
@@ -510,3 +525,91 @@ jobs:
             *.whl
       - name: Run Python tests (${{ matrix.description }})
         run: bash ops/pipeline/test-python-wheel.sh --suite ${{ matrix.suite }}
+
+  python-wheels-macos:
+    name: Build macOS wheel (${{ matrix.platform_id }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-15-intel
+          platform_id: macosx_x86_64
+        - os: macos-14
+          platform_id: macosx_arm64
+    steps:
+      - uses: actions/checkout@v6.0.1
+        with:
+          submodules: 'true'
+      - name: Set up homebrew
+        uses: Homebrew/actions/setup-homebrew@13341b4d5e459a98bbe0b122b12c11bf90518cc8
+      - name: Install libomp
+        run: brew install libomp
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: minimal
+          environment-file: ops/conda_env/minimal.yml
+      - name: Build wheels
+        run: bash ops/pipeline/build-python-wheels-macos.sh ${{ matrix.platform_id }} ${{ github.sha }}
+      - name: Verify wheel can be installed
+        run: |
+          python -m pip install -vvv wheelhouse/*.whl
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: python-wheel-${{ matrix.platform_id }}
+          path: wheelhouse/*.whl
+          retention-days: 1
+      - name: Upload Python wheel to S3
+        if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+        run: |
+          python ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-nightly-builds \
+            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public \
+            wheelhouse/*.whl
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+  test-cross-platform-inference:
+    name: Cross-platform inference test (macOS Apple Silicon)
+    needs: [test-python-wheel-gpu, python-wheels-macos]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-15-intel
+          platform_id: macosx_x86_64
+        - os: macos-14
+          platform_id: macosx_arm64
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v6.0.1
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: macos_test
+          environment-file: ops/conda_env/minimal.yml
+      - run: conda install scikit-learn numpy -y
+      - name: Download macOS wheel artifact
+        uses: actions/download-artifact@v7.0.0
+        with:
+          name: python-wheel-${{ matrix.platform_id }}
+          path: wheelhouse
+      - name: Install XGBoost wheel
+        run: |
+          python -m pip install -v wheelhouse/*.whl
+      - name: Download cross-platform model artifact
+        uses: actions/download-artifact@v7.0.0
+        with:
+          name: cross-platform-model
+          path: .
+      - name: Run cross-platform inference test
+        run: |
+          python tests/cross-platform/test_cross_platform_model.py \
+            --inference --model-path cross_platform_model.ubj

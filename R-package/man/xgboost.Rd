@@ -390,7 +390,7 @@ The method to use to sample the training instances.
 \item \code{"gradient_based"}: the selection probability for each training instance is proportional to the
 \bold{regularized absolute value} of gradients (more specifically, \eqn{\sqrt{g^2+\lambda h^2}}).
 \code{"subsample"} may be set to as low as 0.1 without loss of model accuracy. Note that this
-sampling method is only supported when \code{"tree_method"} is set to \code{"hist"} and the device is \code{"cuda"}; other tree
+sampling method is only supported when \code{"tree_method"} is set to \code{"hist"}; other tree
 methods only support \code{"uniform"} sampling.
 }}
 
@@ -599,7 +599,7 @@ A scalar or a list of targeted quantiles (passed as a numeric vector).
 
 Version added: 2.0.0}
 
-\item{aft_loss_distribution}{(for using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
+\item{aft_loss_distribution}{(when using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
 Probability Density Function, \code{"normal"}, \code{"logistic"}, or \code{"extreme"}.}
 
 \item{...}{Not used.

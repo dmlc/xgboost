@@ -120,7 +120,7 @@ class TestGradientIndexExt : public ::testing::TestWithParam<bool> {
     std::vector<std::unique_ptr<GHistIndexMatrix>> pages;
     for (auto const &page : p_ext_fmat->GetBatches<SparsePage>()) {
       pages.emplace_back(std::make_unique<GHistIndexMatrix>(
-          page, common::Span<FeatureType const>{}, cuts, n_bins, is_dense, 0.8, ctx.Threads()));
+          &ctx, page, common::Span<FeatureType const>{}, cuts, n_bins, is_dense, 0.8));
     }
     std::int32_t k = 0;
     for (auto const &page : p_ext_fmat->GetBatches<GHistIndexMatrix>(
@@ -307,7 +307,7 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
 
   std::vector<std::future<void>> waiting;
 
-  std::atomic<bool> exception {false};
+  std::atomic<bool> exception{false};
 
   for (int32_t i = 0; i < threads; ++i) {
     waiting.emplace_back(std::async(std::launch::async, [&]() {
@@ -320,11 +320,10 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
     }));
   }
 
-  using namespace std::chrono_literals;
+  using namespace std::chrono_literals;  // NOLINT
 
-  while (std::any_of(waiting.cbegin(), waiting.cend(), [](auto const &f) {
-    return f.wait_for(0ms) != std::future_status::ready;
-  })) {
+  while (std::any_of(waiting.cbegin(), waiting.cend(),
+                     [](auto const &f) { return f.wait_for(0ms) != std::future_status::ready; })) {
     std::this_thread::sleep_for(50ms);
   }
 

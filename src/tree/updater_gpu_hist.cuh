@@ -19,6 +19,7 @@
 #include "gpu_hist/leaf_sum.cuh"               // for LeafGradSum
 #include "gpu_hist/multi_evaluate_splits.cuh"  // for MultiHistEvaluator
 #include "gpu_hist/row_partitioner.cuh"        // for RowPartitioner
+#include "gpu_hist/sampler.cuh"                // for GradientBasedSampler
 #include "hist/hist_param.h"                   // for HistMakerTrainParam
 #include "sample_position.h"                   // for SamplePosition
 #include "tree_view.h"                         // for MultiTargetTreeView
@@ -37,9 +38,19 @@ template <typename GoLeftOp>
 struct GoLeftWrapperOp {
   GoLeftOp go_left;
   template <typename NodeSplitData>
-  __device__ bool operator()(cuda_impl::RowIndexT ridx, int /*nidx_in_batch*/,
+  __device__ bool operator()(RowIndexT ridx, int /*nidx_in_batch*/,
                              const NodeSplitData& data) const {
     return go_left(ridx, data);
+  }
+};
+
+/** @brief Encode sampling information in the position. */
+struct EncodeOp {
+  linalg::MatrixView<GradientPairInt64 const> d_gpair;
+  [[nodiscard]] __device__ bst_node_t operator()(RowIndexT ridx, bst_node_t nidx) const {
+    // Check the first target - all targets in a row have the same sampling decision
+    bool is_sampled = d_gpair(ridx, 0).GetQuantisedHess() != 0;
+    return SamplePosition::Encode(nidx, is_sampled);
   }
 };
 
@@ -97,6 +108,9 @@ class MultiTargetHistMaker {
   Context const* ctx_;
 
   TrainParam const param_;
+  std::vector<bst_idx_t> const batch_ptr_;
+  Sampler sampler_;
+
   RowPartitionerBatches partitioners_;
 
   HistMakerTrainParam const* hist_param_;
@@ -114,7 +128,6 @@ class MultiTargetHistMaker {
   linalg::Matrix<GradientPairInt64> split_gpair_;
   // Gradient used for calculating the leaf values
   linalg::Matrix<GradientPair> value_gpair_;
-  std::vector<bst_idx_t> const batch_ptr_;
 
   dh::PinnedMemory pinned_;
 
@@ -175,8 +188,6 @@ class MultiTargetHistMaker {
 
  public:
   void Reset(linalg::Matrix<GradientPair>* gpair_all, DMatrix* p_fmat) {
-    bst_idx_t n_targets = gpair_all->Shape(1);
-
     /**
      * Initialize the partitioners
      */
@@ -197,20 +208,25 @@ class MultiTargetHistMaker {
     CalcQuantizedGpairs(this->ctx_, in_gpair, this->split_quantizer_->Quantizers(),
                         &this->split_gpair_);
 
+    // Sampling
+    this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_->Device()),
+                          this->split_quantizer_->Quantizers());
     if (!this->value_gpair_.Empty()) {
       this->value_quantizer_ = std::make_unique<MultiGradientQuantiser>(
           this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
+      this->sampler_.ApplySampling(this->ctx_, this->split_gpair_, &this->value_gpair_);
     }
 
     /**
      * Initialize the histogram
      */
     bool force_global = false;
-    auto n_total_bins = cuts_->TotalBins() * static_cast<bst_idx_t>(n_targets);
+    bst_idx_t n_split_targets = gpair_all->Shape(1);
+    auto n_total_bins = cuts_->TotalBins() * static_cast<bst_idx_t>(n_split_targets);
     CHECK_LT(n_total_bins, std::numeric_limits<bst_bin_t>::max())
         << "Too many histogram bins: n_total_bins = max_bin * n_features * n_targets";
     histogram_.Reset(this->ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
-                     cuts_->TotalBins() * n_targets, force_global);
+                     cuts_->TotalBins() * n_split_targets, force_global);
   }
 
   [[nodiscard]] MultiExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
@@ -287,12 +303,12 @@ class MultiTargetHistMaker {
    * split gradient. This function replaces those weights with new weights calculated from
    * value gradient.
    */
-  void ExpandTreeLeaf(linalg::Matrix<GradientPair> const& full_grad, RegTree* p_tree) const {
+  void ExpandTreeLeaf(RegTree* p_tree) const {
     auto n_leaves = static_cast<bst_target_t>(p_tree->GetNumLeaves());
     auto out_sum = linalg::Constant(ctx_, GradientPairInt64{}, n_leaves, p_tree->NumTargets());
     auto d_out_sum = out_sum.View(this->ctx_->Device());
 
-    auto d_full_grad = full_grad.View(this->ctx_->Device());
+    auto d_full_grad = this->value_gpair_.View(this->ctx_->Device());
     auto d_roundings = this->value_quantizer_->Quantizers();
     // Node indices for all leaves
     std::vector<bst_node_t> leaves_idx(n_leaves);
@@ -375,7 +391,7 @@ class MultiTargetHistMaker {
   struct GoLeftOp {
     Accessor d_matrix;
     MultiTargetTreeView tree;
-    __device__ bool operator()(cuda_impl::RowIndexT ridx, NodeSplitData const& data) const {
+    __device__ bool operator()(RowIndexT ridx, NodeSplitData const& data) const {
       // given a row index, returns the node id it belongs to
       float cut_value = d_matrix.GetFvalue(ridx, tree.SplitIndex(data.nidx));
       // Missing value
@@ -535,13 +551,6 @@ class MultiTargetHistMaker {
                                   ctx_->CUDACtx()->Stream()));
   }
 
-  // TODO(jiamingy): Implement sampling.
-  struct EncodeOp {
-    [[nodiscard]] __device__ bst_node_t operator()(cuda_impl::RowIndexT, bst_node_t nidx) const {
-      return nidx;
-    }
-  };
-
   void FinalizePosition(DMatrix* p_fmat, RegTree const* p_tree,
                         HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
@@ -549,6 +558,7 @@ class MultiTargetHistMaker {
     p_out_position->SetDevice(ctx_->Device());
     p_out_position->Resize(p_fmat->Info().num_row_);
     auto d_out_position = p_out_position->DeviceSpan();
+    auto d_gpair = this->split_gpair_.View(this->ctx_->Device());
 
     for (std::size_t k = 0; k < partitioners_.Size(); ++k) {
       auto& part = partitioners_.At(k);
@@ -556,7 +566,7 @@ class MultiTargetHistMaker {
       auto base_rowid = batch_ptr_[k];
       auto n_samples = batch_ptr_.at(k + 1) - base_rowid;
       part->FinalisePosition(ctx_, d_out_position.subspan(base_rowid, n_samples), base_rowid,
-                             EncodeOp{});
+                             EncodeOp{d_gpair});
     }
   }
 
@@ -585,9 +595,6 @@ class MultiTargetHistMaker {
                   HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
 
-    if (1.0f - param_.subsample > kRtEps) {
-      LOG(FATAL) << "Subsample" << MTNotImplemented();
-    }
     if (!param_.monotone_constraints.empty()) {
       LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
     }
@@ -598,7 +605,7 @@ class MultiTargetHistMaker {
       LOG(FATAL) << "Distributed training" << MTNotImplemented();
     }
     if (this->cuts_->HasCategorical()) {
-      LOG(FATAL) << "Categorical feature" << MTNotImplemented();
+      LOG(FATAL) << "Categorical features" << MTNotImplemented();
     }
 
     auto* split_grad = gpair->Grad();
@@ -612,7 +619,7 @@ class MultiTargetHistMaker {
     this->GrowTree(split_grad, p_fmat, task, p_tree, p_out_position);
 
     if (gpair->HasValueGrad()) {
-      this->ExpandTreeLeaf(gpair->value_gpair, p_tree);
+      this->ExpandTreeLeaf(p_tree);
     } else {
       p_tree->GetMultiTargetTree()->SetLeaves();
     }
@@ -663,13 +670,14 @@ class MultiTargetHistMaker {
                                 bool dense_compressed)
       : ctx_{ctx},
         param_{std::move(param)},
+        batch_ptr_{std::move(batch_ptr)},
+        sampler_{batch_ptr_.back(), param_.subsample, param_.sampling_method},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         DftMtHistShmemBytes(ctx_->Ordinal()))},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
-            std::make_unique<FeatureInteractionConstraintDevice>(param, cuts_->NumFeatures())},
-        batch_ptr_{std::move(batch_ptr)} {}
+            std::make_unique<FeatureInteractionConstraintDevice>(param_, cuts_->NumFeatures())} {}
 };
 }  // namespace xgboost::tree::cuda_impl
