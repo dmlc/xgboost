@@ -3,6 +3,9 @@
  */
 #include "cuda_rt_utils.h"
 
+#include <cstring>  // for memcpy
+#include <set>      // for set
+
 #include "cuda_stream.h"   // for StreamRef
 #include "xgboost/span.h"  // for Span
 
@@ -137,7 +140,7 @@ void GetUuid(xgboost::common::Span<unsigned char> uuid, std::int32_t device) {
     auto byte_str = byte_ss.str();
     if (byte_str.length() == 1) {
       byte_str = "0" + byte_str;
-    };
+    }
     ss << byte_str;
   }
   return ss.str();

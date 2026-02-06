@@ -6,9 +6,10 @@
 
 #include <cstdint>  // for int32_t
 #include <set>      // for set
-#include "xgboost/span.h"  // for Span
-#include "../../../src/common/cuda_stream_pool.h"
+
 #include "../../../src/common/cuda_rt_utils.h"
+#include "../../../src/common/cuda_stream_pool.h"
+#include "xgboost/span.h"  // for Span
 
 namespace xgboost::curt {
 TEST(RtUtils, Uuid) {

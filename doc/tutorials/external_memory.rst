@@ -332,11 +332,9 @@ Starting with 3.1, XGBoost introduces an adaptive cache for GPU-based external m
 training. The feature helps split the data cache into a host cache and a device cache. By
 keeping a portion of the cache on the GPU, we can reduce the amount of data transfer
 during training when there's sufficient amount of GPU memory. The feature can be
-controlled by the ``cache_host_ratio`` parameter in the
-:py:class:`xgboost.ExtMemQuantileDMatrix`. It is disabled when the device has full C2C
-bandwidth since it's not needed there. On devices that with reduced bandwidth or devices
-with PCIe connections, unless explicitly specified, the ratio is automatically estimated
-based on device memory size and the size of the dataset.
+controlled by the ``cache_host_ratio`` parameter of the
+:py:class:`xgboost.ExtMemQuantileDMatrix`. Unless explicitly specified, the ratio is
+automatically estimated based on device memory size and the size of the dataset.
 
 However, this parameter increases memory fragmentation as XGBoost needs large memory pages
 with irregular sizes. As a result, you might see out of memory error after the

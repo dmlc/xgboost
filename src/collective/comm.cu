@@ -10,14 +10,14 @@
 #include <sstream>    // for stringstream
 #include <vector>     // for vector
 
-#include "../common/cuda_context.cuh"    // for CUDAContext
-#include "../common/cuda_rt_utils.h"     // for SetDevice, GetUuid, PrintUuid
-#include "../common/type.h"              // for EraseType
-#include "comm.cuh"                      // for NCCLComm
-#include "comm.h"                        // for Comm
-#include "nccl_stub.h"                   // for NcclStub
-#include "xgboost/collective/result.h"   // for Result
-#include "xgboost/span.h"                // for Span
+#include "../common/cuda_context.cuh"   // for CUDAContext
+#include "../common/cuda_rt_utils.h"    // for SetDevice, GetUuid, PrintUuid
+#include "../common/type.h"             // for EraseType
+#include "comm.cuh"                     // for NCCLComm
+#include "comm.h"                       // for Comm
+#include "nccl_stub.h"                  // for NcclStub
+#include "xgboost/collective/result.h"  // for Result
+#include "xgboost/span.h"               // for Span
 
 namespace xgboost::collective {
 namespace {

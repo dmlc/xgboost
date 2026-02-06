@@ -86,7 +86,6 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
     auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes * 0.85;
     cache_host_ratio = static_cast<double>(h_cache_nbytes) / static_cast<double>(n_cache_bytes);
     if (lc > 0) {
-      // 0 < lc < 10, C2C is available, but with reduced link count.
       // No need to exceed half in practice.
       cache_host_ratio = std::max(cache_host_ratio, 0.5);
     }
