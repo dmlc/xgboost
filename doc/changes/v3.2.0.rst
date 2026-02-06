@@ -40,10 +40,10 @@ commonly used training configurations.
 
 New features for the multi-target tree include:
 
-- Reduced gradient (sketch boost) for the hist tree method, which avoids materializing the
-  full gradient matrix and improves scalability with the number of targets. Users can
-  use a custom objective to define the tree split gradient in addition to the full leaf
-  gradient.
+- Reduced gradient (sketch boost) for the hist tree method, which avoids using the full
+  gradient matrix to find tree structures for improving scalability with the number of
+  targets. Users can use a custom objective to define the tree split gradient in addition
+  to the full leaf gradient.
 - Support for all regression objectives, including MAE and the quantile loss.
 - GPU ``hist`` tree method implementation has features on par with the CPU one.
 - Regularization parameters including L1/L2, ``min_split_loss``, and
