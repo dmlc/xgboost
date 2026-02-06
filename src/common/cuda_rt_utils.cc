@@ -183,6 +183,8 @@ void SetDevice(std::int32_t device) {
 
 [[nodiscard]] bool MemoryPoolsSupported(std::int32_t) { return false; }
 
+void GetUuid(xgboost::common::Span<unsigned char>, std::int32_t) { common::AssertGPUSupport(); }
+
 void MemcpyAsync(void*, const void*, std::size_t, StreamRef) { common::AssertGPUSupport(); }
 
 #endif  // !defined(XGBOOST_USE_CUDA)
