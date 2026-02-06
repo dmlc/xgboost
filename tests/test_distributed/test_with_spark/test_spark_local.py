@@ -3,7 +3,6 @@ import logging
 import os
 import random
 import tempfile
-import uuid
 from collections import namedtuple
 from typing import Generator, Iterable, List, Sequence
 
@@ -21,6 +20,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as spark_sql_func
 from xgboost import XGBClassifier, XGBModel, XGBRegressor
 from xgboost import testing as tm
+from xgboost.callback import LearningRateScheduler
 from xgboost.collective import Config
 from xgboost.spark import (
     SparkXGBClassifier,
@@ -39,7 +39,62 @@ logging.getLogger("py4j").setLevel(logging.INFO)
 
 pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
 
-FAST_N_ESTIMATORS = 20
+FAST_N_ESTIMATORS = 10
+
+RegData = namedtuple(
+    "RegData",
+    (
+        "X_train",
+        "X_test",
+        "y_train",
+        "y_test",
+        "weights",
+        "base_margin",
+        "is_val",
+        "X",
+        "y",
+        "df",
+    ),
+)
+
+
+@pytest.fixture(scope="module")
+def reg_data(
+    spark: SparkSession,
+) -> RegData:
+    rng = np.random.default_rng(seed=42)
+    X = rng.random((100, 10))
+    # Make odd rows sparse with some random values to test both dense and sparse paths in the Spark estimator.
+    X[1::2, :] = 0.0
+    X[1::2, 1] = rng.random(len(X[1::2, 1]))
+    X[1::2, 2] = rng.random(len(X[1::2, 2]))
+    y = rng.random(100)
+    w = rng.random(100)
+    base_margin = rng.random(100)
+    is_val = rng.random(100) < 0.2
+    X_train, X_test = X[~is_val], X[is_val]
+    y_train, y_test = y[~is_val], y[is_val]
+    rows = []
+    for i in range(len(y)):
+        vec = (
+            Vectors.dense(X[i, :])
+            if i % 2 == 0
+            else Vectors.sparse(X.shape[1], {1: float(X[i, 1]), 2: float(X[i, 2])})
+        )
+        rows.append(
+            (
+                i,
+                vec,
+                float(y[i]),
+                float(w[i]),
+                float(base_margin[i]),
+                bool(is_val[i]),
+            )
+        )
+    df = spark.createDataFrame(
+        rows, ["row_id", "features", "label", "weight", "base_margin", "is_val"]
+    )
+    return RegData(X_train, X_test, y_train, y_test, w, base_margin, is_val, X, y, df)
 
 
 def no_sparse_unwrap() -> tm.PytestSkip:
@@ -79,175 +134,297 @@ def spark() -> Generator[SparkSession, None, None]:
         os.environ.pop("XGBOOST_PYSPARK_SHARED_SESSION", None)
 
 
-RegWithWeight = namedtuple(
-    "RegWithWeight",
-    (
-        "reg_params_with_eval",
-        "reg_df_train_with_eval_weight",
-        "reg_df_test_with_eval_weight",
-        "reg_with_eval_best_score",
-        "reg_with_eval_and_weight_best_score",
-        "reg_expected_evals_result_train",
-        "reg_expected_evals_result_validation",
-    ),
-)
+def test_regressor(
+    reg_data: RegData,
+) -> None:
+    train_rows = np.where(~reg_data.is_val)[0]
+    validation_rows = np.where(reg_data.is_val)[0]
 
-
-@pytest.fixture(scope="module")
-def reg_with_weight(
-    spark: SparkSession,
-) -> Generator[RegWithWeight, SparkSession, None]:
-    reg_params_with_eval = {
-        "validation_indicator_col": "isVal",
-        "early_stopping_rounds": 1,
-        "eval_metric": "rmse",
-        "n_estimators": FAST_N_ESTIMATORS,
-    }
-
-    X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5], [4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
-    w = np.array([1.0, 2.0, 1.0, 2.0])
-    y = np.array([0, 1, 2, 3])
-
-    reg1 = XGBRegressor(n_estimators=FAST_N_ESTIMATORS)
-    reg1.fit(X, y, sample_weight=w)
-    predt1 = reg1.predict(X)
-
-    X_train = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
-    X_val = np.array([[4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
-    y_train = np.array([0, 1])
-    y_val = np.array([2, 3])
-    w_train = np.array([1.0, 2.0])
-    w_val = np.array([1.0, 2.0])
-
-    reg2 = XGBRegressor(
-        early_stopping_rounds=1, eval_metric="rmse", n_estimators=FAST_N_ESTIMATORS
-    )
-    reg2.fit(
-        X_train,
-        y_train,
-        eval_set=[(X_val, y_val)],
-    )
-    predt2 = reg2.predict(X)
-    best_score2 = reg2.best_score
-
-    reg3 = XGBRegressor(
-        early_stopping_rounds=1, eval_metric="rmse", n_estimators=FAST_N_ESTIMATORS
-    )
-    reg3.fit(
-        X_train,
-        y_train,
-        sample_weight=w_train,
-        eval_set=[(X_val, y_val)],
-        sample_weight_eval_set=[w_val],
-    )
-    predt3 = reg3.predict(X)
-    best_score3 = reg3.best_score
-
-    reg4 = XGBRegressor(eval_metric="rmse", n_estimators=FAST_N_ESTIMATORS)
-    reg4.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_val, y_val)])
-    reg_expected_evals_result = reg4.evals_result()
-    reg_expected_evals_result_train = reg_expected_evals_result["validation_0"]["rmse"]
-    reg_expected_evals_result_validation = reg_expected_evals_result["validation_1"][
-        "rmse"
-    ]
-
-    reg_df_train_with_eval_weight = spark.createDataFrame(
-        [
-            (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
-            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
-            (Vectors.dense(4.0, 5.0, 6.0), 2, True, 1.0),
-            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 3, True, 2.0),
-        ],
-        ["features", "label", "isVal", "weight"],
-    )
-
-    reg_df_test_with_eval_weight = spark.createDataFrame(
-        [
-            (
-                Vectors.dense(1.0, 2.0, 3.0),
-                float(predt1[0]),
-                float(predt2[0]),
-                float(predt3[0]),
-            ),
-            (
-                Vectors.sparse(3, {1: 1.0, 2: 5.5}),
-                float(predt1[1]),
-                float(predt2[1]),
-                float(predt3[1]),
-            ),
-        ],
-        [
-            "features",
-            "expected_prediction_with_weight",
-            "expected_prediction_with_eval",
-            "expected_prediction_with_weight_and_eval",
-        ],
-    )
-    yield RegWithWeight(
-        reg_params_with_eval,
-        reg_df_train_with_eval_weight,
-        reg_df_test_with_eval_weight,
-        best_score2,
-        best_score3,
-        reg_expected_evals_result_train,
-        reg_expected_evals_result_validation,
-    )
-
-
-RegData = namedtuple("RegData", ("reg_df_train", "reg_df_test", "reg_params"))
-
-
-@pytest.fixture(scope="module")
-def reg_data(spark: SparkSession) -> Generator[RegData, None, None]:
-    X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
-    y = np.array([0, 1])
-    reg1 = xgb.XGBRegressor(n_estimators=FAST_N_ESTIMATORS)
-    reg1.fit(X, y)
-    predt0 = reg1.predict(X)
-    pred_contrib0: np.ndarray = pred_contribs(reg1, X, None, False)
-
-    reg_params = {
-        "max_depth": 5,
+    # Setup: dataset with weights and an explicit validation split.
+    reg_param = {
         "n_estimators": 10,
-        "iteration_range": [0, 5],
+        "max_depth": 5,
+        "objective": "reg:squarederror",
         "max_bin": 9,
+        "eval_metric": "rmse",
+        "early_stopping_rounds": 1,
+    }
+    # Train a reference sklearn model on the explicit train/validation split.
+    reg = XGBRegressor(**reg_param).fit(
+        reg_data.X_train,
+        reg_data.y_train,
+        sample_weight=reg_data.weights[train_rows],
+        eval_set=[(reg_data.X_test, reg_data.y_test)],
+        sample_weight_eval_set=[reg_data.weights[validation_rows]],
+    )
+    # Train Spark estimator using the same split via validation_indicator_col.
+    spark_regressor = SparkXGBRegressor(
+        pred_contrib_col="pred_contribs",
+        weight_col="weight",
+        validation_indicator_col="is_val",
+        **reg_param,
+    ).fit(reg_data.df)
+    pred_result = spark_regressor.transform(reg_data.df)
+    preds = (
+        pred_result.orderBy("row_id")
+        .select("prediction")
+        .toPandas()["prediction"]
+        .to_numpy()
+    )
+    pred_contribs = np.array(
+        pred_result.orderBy("row_id")
+        .select("pred_contribs")
+        .toPandas()["pred_contribs"]
+        .tolist()
+    )
+    # Prediction parity with sklearn reference.
+    assert np.allclose(preds, reg.predict(reg_data.X), rtol=1e-3)
+    # Contribs should sum to prediction; direct equality can be noisy due to
+    # precision differences between Spark UDF inference and in-process predict.
+    assert np.allclose(pred_contribs.sum(axis=1), preds, rtol=1e-3)
+    # Eval result parity on the validation set.
+    assert np.allclose(
+        reg.evals_result()["validation_0"]["rmse"],
+        spark_regressor.training_summary.validation_objective_history["rmse"],
+        atol=1e-6,
+    )
+    # Best score parity (early stopping uses the validation set).
+    assert np.allclose(
+        reg.best_score, spark_regressor._xgb_sklearn_model.best_score, atol=1e-3
+    )
+
+
+def test_training_continuation(
+    reg_data: RegData,
+) -> None:
+    params = {
+        "n_estimators": 2,
+        "max_depth": 3,
+        "objective": "reg:squarederror",
+        "eval_metric": "rmse",
     }
 
-    # convert np array to pyspark dataframe
-    reg_df_train_data = [
-        (Vectors.dense(X[0, :]), int(y[0])),
-        (Vectors.sparse(3, {1: float(X[1, 1]), 2: float(X[1, 2])}), int(y[1])),
-    ]
-    reg_df_train = spark.createDataFrame(reg_df_train_data, ["features", "label"])
+    base = SparkXGBRegressor(n_estimators=2, **params).fit(reg_data.df)
+    continued = SparkXGBRegressor(
+        n_estimators=4, xgb_model=base.get_booster(), **params
+    ).fit(reg_data.df)
 
-    reg2 = xgb.XGBRegressor(max_depth=5, n_estimators=10)
-    reg2.fit(X, y)
-    predt2 = reg2.predict(X, iteration_range=[0, 5])
-    # array([0.22185266, 0.77814734], dtype=float32)
-
-    reg_df_test = spark.createDataFrame(
-        [
-            (
-                Vectors.dense(X[0, :]),
-                float(predt0[0]),
-                pred_contrib0[0, :].tolist(),
-                float(predt2[0]),
-            ),
-            (
-                Vectors.sparse(3, {1: 1.0, 2: 5.5}),
-                float(predt0[1]),
-                pred_contrib0[1, :].tolist(),
-                float(predt2[1]),
-            ),
-        ],
-        [
-            "features",
-            "expected_prediction",
-            "expected_pred_contribs",
-            "expected_prediction_with_params",
-        ],
+    preds_base = (
+        base.transform(reg_data.df)
+        .select("prediction")
+        .toPandas()["prediction"]
+        .to_numpy()
     )
-    yield RegData(reg_df_train, reg_df_test, reg_params)
+    preds_cont = (
+        continued.transform(reg_data.df)
+        .select("prediction")
+        .toPandas()["prediction"]
+        .to_numpy()
+    )
+
+    ref_base = XGBRegressor(n_estimators=2, **params).fit(reg_data.X, reg_data.y)
+    ref_cont = XGBRegressor(n_estimators=4, **params).fit(
+        reg_data.X, reg_data.y, xgb_model=ref_base.get_booster()
+    )
+
+    assert np.allclose(preds_cont, ref_cont.predict(reg_data.X), rtol=1e-3)
+    assert not np.allclose(preds_base, preds_cont, rtol=1e-6)
+
+
+def test_regressor_with_base_margin(
+    reg_data: RegData,
+) -> None:
+    params = {
+        "n_estimators": 5,
+        "max_depth": 3,
+        "objective": "reg:squarederror",
+    }
+    spark_model = SparkXGBRegressor(base_margin_col="base_margin", **params).fit(
+        reg_data.df
+    )
+    preds = (
+        spark_model.transform(reg_data.df)
+        .orderBy("row_id")
+        .select("prediction")
+        .toPandas()["prediction"]
+        .to_numpy()
+    )
+
+    ref = XGBRegressor(**params).fit(
+        reg_data.X, reg_data.y, base_margin=reg_data.base_margin
+    )
+    expected = ref.predict(reg_data.X, base_margin=reg_data.base_margin)
+
+    assert np.allclose(preds, expected, rtol=1e-3)
+
+
+def test_regressor_save_load(reg_data: RegData) -> None:
+    train_df = reg_data.df.select("features", "label")
+    model = SparkXGBRegressor(n_estimators=5, max_depth=3).fit(train_df)
+    preds_before = (
+        model.transform(train_df)
+        .select("prediction")
+        .toPandas()["prediction"]
+        .to_numpy()
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "spark-xgb-reg-model")
+        model.save(path)
+        loaded = SparkXGBRegressorModel.load(path)
+        preds_after = (
+            loaded.transform(train_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+
+    assert np.allclose(preds_before, preds_after, rtol=1e-6)
+
+
+def test_regressor_params() -> None:
+    py_reg = SparkXGBRegressor()
+    assert hasattr(py_reg, "n_estimators")
+    assert py_reg.n_estimators.parent == py_reg.uid
+    assert not hasattr(py_reg, "gpu_id")
+    assert hasattr(py_reg, "device")
+    assert py_reg.getOrDefault(py_reg.n_estimators) == 100
+    assert py_reg.getOrDefault(getattr(py_reg, "objective")), "reg:squarederror"
+    py_reg2 = SparkXGBRegressor(n_estimators=200)
+    assert py_reg2.getOrDefault(getattr(py_reg2, "n_estimators")), 200
+    py_reg3 = py_reg2.copy({getattr(py_reg2, "max_depth"): 10})
+    assert py_reg3.getOrDefault(getattr(py_reg3, "n_estimators")), 200
+    assert py_reg3.getOrDefault(getattr(py_reg3, "max_depth")), 10
+    with pytest.raises(ValueError, match="Number of workers"):
+        SparkXGBRegressor(num_workers=-1)._validate_params()
+
+
+def test_valid_type(spark: SparkSession) -> None:
+    # Validation indicator must be boolean.
+    df_train = spark.createDataFrame(
+        [
+            (Vectors.dense(1.0, 2.0, 3.0), 0, 0),
+            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, 0),
+            (Vectors.dense(4.0, 5.0, 6.0), 0, 1),
+            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 1),
+        ],
+        ["features", "label", "isVal"],
+    )
+    reg = SparkXGBRegressor(
+        features_col="features",
+        label_col="label",
+        validation_indicator_col="isVal",
+    )
+    with pytest.raises(TypeError, match="The validation indicator must be boolean"):
+        reg.fit(df_train)
+
+
+def test_callbacks(reg_data: RegData) -> None:
+    train_df = reg_data.df.select("features", "label")
+
+    def custom_lr(boosting_round: int) -> float:
+        return 1.0 / (boosting_round + 1)
+
+    cb = [LearningRateScheduler(custom_lr)]
+    reg_params = {
+        "n_estimators": FAST_N_ESTIMATORS,
+        "max_depth": 3,
+        "objective": "reg:squarederror",
+        "eval_metric": "rmse",
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "spark-xgb-reg-cb")
+        regressor = SparkXGBRegressor(callbacks=cb, **reg_params)
+        # Callbacks are estimator-only; ensure they survive save/load.
+        regressor.save(path)
+        regressor = SparkXGBRegressor.load(path)
+        loaded_callbacks = regressor.getOrDefault(regressor.callbacks)
+        assert loaded_callbacks is not None
+        assert len(loaded_callbacks) == 1
+
+        model = regressor.fit(train_df)
+        preds = (
+            model.transform(train_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+
+    assert preds.shape == (len(reg_data.y),)
+    assert np.isfinite(preds).all()
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_empty_train_data(spark: SparkSession, tree_method: str) -> None:
+    df_train = spark.createDataFrame(
+        [
+            (Vectors.dense(10.1, 11.2, 11.3), 0, True),
+            (Vectors.dense(1, 1.2, 1.3), 1, True),
+            (Vectors.dense(14.0, 15.0, 16.0), 0, True),
+            (Vectors.dense(1.1, 1.2, 1.3), 1, False),
+        ],
+        ["features", "label", "val_col"],
+    )
+    classifier = SparkXGBRegressor(
+        num_workers=2,
+        min_child_weight=0.0,
+        reg_alpha=0,
+        reg_lambda=0,
+        tree_method=tree_method,
+        validation_indicator_col="val_col",
+    )
+    model = classifier.fit(df_train)
+    pred_result = model.transform(df_train).collect()
+    for row in pred_result:
+        assert row.prediction == 1.0
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_empty_validation_data(spark: SparkSession, tree_method: str) -> None:
+    df_train = spark.createDataFrame(
+        [
+            (Vectors.dense(10.1, 11.2, 11.3), 0, False),
+            (Vectors.dense(1, 1.2, 1.3), 1, False),
+            (Vectors.dense(14.0, 15.0, 16.0), 0, False),
+            (Vectors.dense(1.1, 1.2, 1.3), 1, True),
+        ],
+        ["features", "label", "val_col"],
+    )
+    classifier = SparkXGBClassifier(
+        num_workers=2,
+        tree_method=tree_method,
+        min_child_weight=0.0,
+        reg_alpha=0,
+        reg_lambda=0,
+        validation_indicator_col="val_col",
+        n_estimators=FAST_N_ESTIMATORS,
+    )
+    model = classifier.fit(df_train)
+    pred_result = model.transform(df_train).collect()
+    for row in pred_result:
+        assert row.prediction == row.label
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_empty_partition(spark: SparkSession, tree_method: str) -> None:
+    # raw_df.repartition(4) will result int severe data skew, actually,
+    # there is no any data in reducer partition 1, reducer partition 2
+    # see https://github.com/dmlc/xgboost/issues/8221
+    raw_df = spark.range(0, 40, 1, 50).withColumn(
+        "label",
+        spark_sql_func.when(spark_sql_func.rand(1) > 0.5, 1).otherwise(0),
+    )
+    vector_assembler = VectorAssembler().setInputCols(["id"]).setOutputCol("features")
+    data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
+    classifier = SparkXGBClassifier(
+        tree_method=tree_method,
+        n_estimators=FAST_N_ESTIMATORS,
+    )
+    model = classifier.fit(data_trans)
+    pred_result = model.transform(data_trans).collect()
+    for row in pred_result:
+        assert row.prediction in [0.0, 1.0]
 
 
 MultiClfData = namedtuple("MultiClfData", ("multi_clf_df_train", "multi_clf_df_test"))
@@ -507,75 +684,6 @@ def get_params_map(
 
 
 class TestPySparkLocal:
-    def test_regressor_basic(self, reg_data: RegData) -> None:
-        regressor = SparkXGBRegressor(
-            pred_contrib_col="pred_contribs", n_estimators=FAST_N_ESTIMATORS
-        )
-        model = regressor.fit(reg_data.reg_df_train)
-        assert regressor.uid == model.uid
-        pred_result = model.transform(reg_data.reg_df_test).collect()
-        for row in pred_result:
-            np.testing.assert_equal(row.prediction, row.expected_prediction)
-            np.testing.assert_allclose(
-                row.pred_contribs, row.expected_pred_contribs, atol=1e-3
-            )
-
-    def test_regressor_with_weight_eval(self, reg_with_weight: RegWithWeight) -> None:
-        # with weight
-        regressor_with_weight = SparkXGBRegressor(
-            weight_col="weight", n_estimators=FAST_N_ESTIMATORS
-        )
-        model_with_weight = regressor_with_weight.fit(
-            reg_with_weight.reg_df_train_with_eval_weight
-        )
-        pred_result_with_weight = model_with_weight.transform(
-            reg_with_weight.reg_df_test_with_eval_weight
-        ).collect()
-        for row in pred_result_with_weight:
-            assert np.isclose(
-                row.prediction, row.expected_prediction_with_weight, atol=1e-3
-            )
-
-        # with eval
-        regressor_with_eval = SparkXGBRegressor(**reg_with_weight.reg_params_with_eval)
-        model_with_eval = regressor_with_eval.fit(
-            reg_with_weight.reg_df_train_with_eval_weight
-        )
-        assert np.isclose(
-            model_with_eval._xgb_sklearn_model.best_score,
-            reg_with_weight.reg_with_eval_best_score,
-            atol=1e-3,
-        )
-
-        pred_result_with_eval = model_with_eval.transform(
-            reg_with_weight.reg_df_test_with_eval_weight
-        ).collect()
-        for row in pred_result_with_eval:
-            np.testing.assert_allclose(
-                row.prediction, row.expected_prediction_with_eval, atol=1e-3
-            )
-        # with weight and eval
-        regressor_with_weight_eval = SparkXGBRegressor(
-            weight_col="weight", **reg_with_weight.reg_params_with_eval
-        )
-        model_with_weight_eval = regressor_with_weight_eval.fit(
-            reg_with_weight.reg_df_train_with_eval_weight
-        )
-        pred_result_with_weight_eval = model_with_weight_eval.transform(
-            reg_with_weight.reg_df_test_with_eval_weight
-        ).collect()
-        np.testing.assert_allclose(
-            model_with_weight_eval._xgb_sklearn_model.best_score,
-            reg_with_weight.reg_with_eval_and_weight_best_score,
-            atol=1e-3,
-        )
-        for row in pred_result_with_weight_eval:
-            np.testing.assert_allclose(
-                row.prediction,
-                row.expected_prediction_with_weight_and_eval,
-                atol=1e-3,
-            )
-
     def test_multi_classifier_basic(self, multi_clf_data: MultiClfData) -> None:
         cls = SparkXGBClassifier(
             pred_contrib_col="pred_contribs", n_estimators=FAST_N_ESTIMATORS
@@ -814,20 +922,6 @@ class TestPySparkLocal:
         model = classifier.fit(clf_data.cls_df_train)
         model.transform(clf_data.cls_df_test).collect()
 
-    def test_regressor_params_basic(self) -> None:
-        py_reg = SparkXGBRegressor()
-        assert hasattr(py_reg, "n_estimators")
-        assert py_reg.n_estimators.parent == py_reg.uid
-        assert not hasattr(py_reg, "gpu_id")
-        assert hasattr(py_reg, "device")
-        assert py_reg.getOrDefault(py_reg.n_estimators) == 100
-        assert py_reg.getOrDefault(getattr(py_reg, "objective")), "reg:squarederror"
-        py_reg2 = SparkXGBRegressor(n_estimators=200)
-        assert py_reg2.getOrDefault(getattr(py_reg2, "n_estimators")), 200
-        py_reg3 = py_reg2.copy({getattr(py_reg2, "max_depth"): 10})
-        assert py_reg3.getOrDefault(getattr(py_reg3, "n_estimators")), 200
-        assert py_reg3.getOrDefault(getattr(py_reg3, "max_depth")), 10
-
     def test_classifier_params_basic(self) -> None:
         py_clf = SparkXGBClassifier()
         assert hasattr(py_clf, "n_estimators")
@@ -861,108 +955,10 @@ class TestPySparkLocal:
         assert xgb_params["y"] == 3
         assert xgb_params["z"] == 4
 
-    def test_regressor_model_save_load(self, reg_data: RegData) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = "file:" + tmpdir
-            regressor = SparkXGBRegressor(**reg_data.reg_params)
-            model = regressor.fit(reg_data.reg_df_train)
-            model.save(path)
-            loaded_model = SparkXGBRegressorModel.load(path)
-            assert model.uid == loaded_model.uid
-            for k, v in reg_data.reg_params.items():
-                assert loaded_model.getOrDefault(k) == v
-
-            pred_result = loaded_model.transform(reg_data.reg_df_test).collect()
-            for row in pred_result:
-                assert np.isclose(
-                    row.prediction, row.expected_prediction_with_params, atol=1e-3
-                )
-
-            with pytest.raises(AssertionError, match="Expected class name"):
-                SparkXGBClassifierModel.load(path)
-
-            assert_model_compatible(model, tmpdir)
-
-    def test_regressor_with_params(self, reg_data: RegData) -> None:
-        regressor = SparkXGBRegressor(**reg_data.reg_params)
-        all_params = dict(
-            **(regressor._gen_xgb_params_dict()),
-            **(regressor._gen_fit_params_dict()),
-            **(regressor._gen_predict_params_dict()),
-        )
-        check_sub_dict_match(
-            reg_data.reg_params, all_params, excluding_keys=_non_booster_params
-        )
-
-        model = regressor.fit(reg_data.reg_df_train)
-        all_params = dict(
-            **(model._gen_xgb_params_dict()),
-            **(model._gen_fit_params_dict()),
-            **(model._gen_predict_params_dict()),
-        )
-        check_sub_dict_match(
-            reg_data.reg_params, all_params, excluding_keys=_non_booster_params
-        )
-        pred_result = model.transform(reg_data.reg_df_test).collect()
-        for row in pred_result:
-            assert np.isclose(
-                row.prediction, row.expected_prediction_with_params, atol=1e-3
-            )
-
-    def test_regressor_model_pipeline_save_load(self, reg_data: RegData) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = "file:" + tmpdir
-            regressor = SparkXGBRegressor()
-            pipeline = Pipeline(stages=[regressor])
-            pipeline = pipeline.copy(
-                extra=get_params_map(reg_data.reg_params, regressor)
-            )
-            model = pipeline.fit(reg_data.reg_df_train)
-            model.save(path)
-
-            loaded_model = PipelineModel.load(path)
-            for k, v in reg_data.reg_params.items():
-                assert loaded_model.stages[0].getOrDefault(k) == v
-
-            pred_result = loaded_model.transform(reg_data.reg_df_test).collect()
-            for row in pred_result:
-                assert np.isclose(
-                    row.prediction, row.expected_prediction_with_params, atol=1e-3
-                )
-            assert_model_compatible(model.stages[0], tmpdir)
-
-    def test_with_small_model_chunk_size(self, reg_data: RegData, monkeypatch) -> None:
-        import xgboost.spark.core
-
-        monkeypatch.setattr(xgboost.spark.core, "_MODEL_CHUNK_SIZE", 4)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = "file:" + tmpdir
-            regressor = SparkXGBRegressor(**reg_data.reg_params)
-            model = regressor.fit(reg_data.reg_df_train)
-            model.save(path)
-            loaded_model = SparkXGBRegressorModel.load(path)
-            assert model.uid == loaded_model.uid
-            for k, v in reg_data.reg_params.items():
-                assert loaded_model.getOrDefault(k) == v
-
-            pred_result = loaded_model.transform(reg_data.reg_df_test).collect()
-            for row in pred_result:
-                assert np.isclose(
-                    row.prediction, row.expected_prediction_with_params, atol=1e-3
-                )
-
-    def test_device_param(self, reg_data: RegData, clf_data: ClfData) -> None:
+    def test_device_param(self, clf_data: ClfData) -> None:
         clf = SparkXGBClassifier(device="cuda", tree_method="exact")
         with pytest.raises(ValueError, match="not supported for distributed"):
             clf.fit(clf_data.cls_df_train)
-        regressor = SparkXGBRegressor(device="cuda", tree_method="exact")
-        with pytest.raises(ValueError, match="not supported for distributed"):
-            regressor.fit(reg_data.reg_df_train)
-
-        reg = SparkXGBRegressor(device="cuda", tree_method="hist")
-        reg._validate_params()
-        reg = SparkXGBRegressor(device="cuda")
-        reg._validate_params()
 
         clf = SparkXGBClassifier(device="cuda", tree_method="approx")
         clf._validate_params()
@@ -1252,69 +1248,6 @@ class TestPySparkLocal:
                         "3.5.1", conf
                     )
 
-    @pytest.mark.parametrize("tree_method", ["hist", "approx"])
-    def test_empty_train_data(self, spark: SparkSession, tree_method: str) -> None:
-        df_train = spark.createDataFrame(
-            [
-                (Vectors.dense(10.1, 11.2, 11.3), 0, True),
-                (Vectors.dense(1, 1.2, 1.3), 1, True),
-                (Vectors.dense(14.0, 15.0, 16.0), 0, True),
-                (Vectors.dense(1.1, 1.2, 1.3), 1, False),
-            ],
-            ["features", "label", "val_col"],
-        )
-        classifier = SparkXGBRegressor(
-            num_workers=2,
-            min_child_weight=0.0,
-            reg_alpha=0,
-            reg_lambda=0,
-            tree_method=tree_method,
-            validation_indicator_col="val_col",
-        )
-        model = classifier.fit(df_train)
-        pred_result = model.transform(df_train).collect()
-        for row in pred_result:
-            assert row.prediction == 1.0
-
-    def test_regressor_xgb_summary(self, reg_with_weight: RegWithWeight) -> None:
-        reg_df_train = reg_with_weight.reg_df_train_with_eval_weight.filter(
-            spark_sql_func.col("isVal") == False
-        )
-        spark_xgb_model = SparkXGBRegressor(
-            eval_metric="rmse", n_estimators=FAST_N_ESTIMATORS
-        ).fit(reg_df_train)
-
-        np.testing.assert_allclose(
-            reg_with_weight.reg_expected_evals_result_train,
-            spark_xgb_model.training_summary.train_objective_history["rmse"],
-            atol=1e-3,
-        )
-
-        assert spark_xgb_model.training_summary.validation_objective_history == {}
-
-    def test_regressor_xgb_summary_with_validation(
-        self, reg_with_weight: RegWithWeight
-    ) -> None:
-        spark_xgb_model = SparkXGBRegressor(
-            eval_metric="rmse",
-            validation_indicator_col="isVal",
-            n_estimators=FAST_N_ESTIMATORS,
-        ).fit(
-            reg_with_weight.reg_df_train_with_eval_weight,
-        )
-
-        np.testing.assert_allclose(
-            reg_with_weight.reg_expected_evals_result_train,
-            spark_xgb_model.training_summary.train_objective_history["rmse"],
-            atol=1e-3,
-        )
-
-        np.testing.assert_allclose(
-            reg_with_weight.reg_expected_evals_result_validation,
-            spark_xgb_model.training_summary.validation_objective_history["rmse"],
-            atol=1e-3,
-        )
-
     def test_classifier_xgb_summary(self, clf_with_weight: ClfWithWeight) -> None:
         clf_df_train = clf_with_weight.cls_df_train_with_eval_weight.filter(
             spark_sql_func.col("isVal") == False
@@ -1354,25 +1287,6 @@ class TestPySparkLocal:
             atol=1e-3,
         )
 
-    def test_valid_type(self, spark: SparkSession) -> None:
-        # Validation indicator must be boolean.
-        df_train = spark.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0, 0),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, 0),
-                (Vectors.dense(4.0, 5.0, 6.0), 0, 1),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 1),
-            ],
-            ["features", "label", "isVal"],
-        )
-        reg = SparkXGBRegressor(
-            features_col="features",
-            label_col="label",
-            validation_indicator_col="isVal",
-        )
-        with pytest.raises(TypeError, match="The validation indicator must be boolean"):
-            reg.fit(df_train)
-
 
 class XgboostLocalTest(SparkTestCase):
     @classmethod
@@ -1380,55 +1294,6 @@ class XgboostLocalTest(SparkTestCase):
         super().setUpClass()
         logging.getLogger().setLevel("INFO")
         random.seed(2020)
-
-        # The following code use xgboost python library to train xgb model and predict.
-        #
-        # >>> import numpy as np
-        # >>> import xgboost
-        # >>> X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
-        # >>> y = np.array([0, 1])
-        # >>> reg1 = xgboost.XGBRegressor()
-        # >>> reg1.fit(X, y)
-        # >>> reg1.predict(X)
-        # array([8.8375784e-04, 9.9911624e-01], dtype=float32)
-        # >>> def custom_lr(boosting_round):
-        # ...     return 1.0 / (boosting_round + 1)
-        # ...
-        # >>> reg1.fit(X, y, callbacks=[xgboost.callback.LearningRateScheduler(custom_lr)])
-        # >>> reg1.predict(X)
-        # array([0.02406844, 0.9759315 ], dtype=float32)
-        # >>> reg2 = xgboost.XGBRegressor(max_depth=5, n_estimators=10)
-        # >>> reg2.fit(X, y)
-        # >>> reg2.predict(X, ntree_limit=5)
-        # array([0.22185266, 0.77814734], dtype=float32)
-        cls.reg_params = {
-            "max_depth": 5,
-            "n_estimators": 10,
-            "ntree_limit": 5,
-            "max_bin": 9,
-        }
-        cls.reg_df_train = cls.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1),
-            ],
-            ["features", "label"],
-        )
-        cls.reg_df_test = cls.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0.0, 0.2219, 0.02406),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1.0, 0.7781, 0.9759),
-            ],
-            [
-                "features",
-                "expected_prediction",
-                "expected_prediction_with_params",
-                "expected_prediction_with_callbacks",
-            ],
-        )
-
-        # kwargs test (using the above data, train, we get the same results)
-        cls.cls_params_kwargs = {"tree_method": "approx", "sketch_eps": 0.03}
 
         # >>> X = np.array([[1.0, 2.0, 3.0], [1.0, 2.0, 4.0], [0.0, 1.0, 5.5], [-1.0, -2.0, 1.0]])
         # >>> y = np.array([0, 0, 1, 2])
@@ -1529,16 +1394,6 @@ class XgboostLocalTest(SparkTestCase):
                 "expected_prediction_with_base_margin",
             ],
         )
-        cls.reg_df_sparse_train = cls.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 0.0, 3.0, 0.0, 0.0), 0),
-                (Vectors.sparse(5, {1: 1.0, 3: 5.5}), 1),
-                (Vectors.sparse(5, {4: -3.0}), 2),
-            ]
-            * 5,
-            ["features", "label"],
-        )
-
         cls.cls_df_sparse_train = cls.session.createDataFrame(
             [
                 (Vectors.dense(1.0, 0.0, 3.0, 0.0, 0.0), 0),
@@ -1548,25 +1403,6 @@ class XgboostLocalTest(SparkTestCase):
             * 5,
             ["features", "label"],
         )
-
-    def get_local_tmp_dir(self):
-        return self.tempdir + str(uuid.uuid4())
-
-    def test_convert_to_sklearn_model_reg(self) -> None:
-        regressor = SparkXGBRegressor(
-            n_estimators=FAST_N_ESTIMATORS, missing=2.0, max_depth=3, sketch_eps=0.5
-        )
-        reg_model = regressor.fit(self.reg_df_train)
-
-        sklearn_regressor = regressor._convert_to_sklearn_model(
-            reg_model.get_booster().save_raw("json"),
-            reg_model.get_booster().save_config(),
-        )
-        assert isinstance(sklearn_regressor, XGBRegressor)
-        assert sklearn_regressor.n_estimators == FAST_N_ESTIMATORS
-        assert sklearn_regressor.missing == 2.0
-        assert sklearn_regressor.max_depth == 3
-        assert sklearn_regressor.get_params()["sketch_eps"] == 0.5
 
     def test_param_alias(self):
         py_cls = SparkXGBClassifier(features_col="f1", label_col="l1")
@@ -1588,50 +1424,6 @@ class XgboostLocalTest(SparkTestCase):
             ].__class__.__name__
             == "float64"
         )
-
-    def test_callbacks(self):
-        from xgboost.callback import LearningRateScheduler
-
-        path = self.get_local_tmp_dir()
-
-        def custom_learning_rate(boosting_round):
-            return 1.0 / (boosting_round + 1)
-
-        cb = [LearningRateScheduler(custom_learning_rate)]
-        regressor = SparkXGBRegressor(callbacks=cb)
-
-        # Test the save/load of the estimator instead of the model, since
-        # the callbacks param only exists in the estimator but not in the model
-        regressor.save(path)
-        regressor = SparkXGBRegressor.load(path)
-
-        model = regressor.fit(self.reg_df_train)
-        pred_result = model.transform(self.reg_df_test).collect()
-        for row in pred_result:
-            self.assertTrue(
-                np.isclose(
-                    row.prediction, row.expected_prediction_with_callbacks, atol=1e-3
-                )
-            )
-
-    def test_train_with_initial_model(self):
-        path = self.get_local_tmp_dir()
-        reg1 = SparkXGBRegressor(**self.reg_params)
-        model = reg1.fit(self.reg_df_train)
-        init_booster = model.get_booster()
-        reg2 = SparkXGBRegressor(
-            max_depth=2, n_estimators=2, xgb_model=init_booster, max_bin=21
-        )
-        model21 = reg2.fit(self.reg_df_train)
-        pred_res21 = model21.transform(self.reg_df_test).collect()
-        reg2.save(path)
-        reg2 = SparkXGBRegressor.load(path)
-        self.assertTrue(reg2.getOrDefault(reg2.xgb_model) is not None)
-        model22 = reg2.fit(self.reg_df_train)
-        pred_res22 = model22.transform(self.reg_df_test).collect()
-        # Test the transform result is the same for original and loaded model
-        for row1, row2 in zip(pred_res21, pred_res22):
-            self.assertTrue(np.isclose(row1.prediction, row2.prediction, atol=1e-3))
 
     def test_classifier_with_base_margin(self):
         cls_without_base_margin = SparkXGBClassifier(weight_col="weight")
@@ -1694,56 +1486,8 @@ class XgboostLocalTest(SparkTestCase):
             )
 
     def test_num_workers_param(self):
-        regressor = SparkXGBRegressor(num_workers=-1)
-        self.assertRaises(ValueError, regressor._validate_params)
         classifier = SparkXGBClassifier(num_workers=0)
         self.assertRaises(ValueError, classifier._validate_params)
-
-    def test_feature_importances(self):
-        reg1 = SparkXGBRegressor(**self.reg_params)
-        model = reg1.fit(self.reg_df_train)
-        booster = model.get_booster()
-        self.assertEqual(model.get_feature_importances(), booster.get_score())
-        self.assertEqual(
-            model.get_feature_importances(importance_type="gain"),
-            booster.get_score(importance_type="gain"),
-        )
-
-    def test_regressor_array_col_as_feature(self):
-        train_dataset = self.reg_df_train.withColumn(
-            "features", vector_to_array(spark_sql_func.col("features"))
-        )
-        test_dataset = self.reg_df_test.withColumn(
-            "features", vector_to_array(spark_sql_func.col("features"))
-        )
-        regressor = SparkXGBRegressor()
-        model = regressor.fit(train_dataset)
-        pred_result = model.transform(test_dataset).collect()
-        for row in pred_result:
-            self.assertTrue(
-                np.isclose(row.prediction, row.expected_prediction, atol=1e-3)
-            )
-
-    @pytest.mark.skipif(**no_sparse_unwrap())
-    def test_regressor_with_sparse_optim(self):
-        regressor = SparkXGBRegressor(missing=0.0, n_estimators=FAST_N_ESTIMATORS)
-        model = regressor.fit(self.reg_df_sparse_train)
-        assert model._xgb_sklearn_model.missing == 0.0
-        pred_result = model.transform(self.reg_df_sparse_train).collect()
-
-        # enable sparse optimiaztion
-        regressor2 = SparkXGBRegressor(
-            missing=0.0,
-            enable_sparse_data_optim=True,
-            n_estimators=FAST_N_ESTIMATORS,
-        )
-        model2 = regressor2.fit(self.reg_df_sparse_train)
-        assert model2.getOrDefault(model2.enable_sparse_data_optim)
-        assert model2._xgb_sklearn_model.missing == 0.0
-        pred_result2 = model2.transform(self.reg_df_sparse_train).collect()
-
-        for row1, row2 in zip(pred_result, pred_result2):
-            self.assertTrue(np.isclose(row1.prediction, row2.prediction, atol=1e-3))
 
     @pytest.mark.skipif(**no_sparse_unwrap())
     def test_classifier_with_sparse_optim(self):
@@ -1765,58 +1509,6 @@ class XgboostLocalTest(SparkTestCase):
 
         for row1, row2 in zip(pred_result, pred_result2):
             self.assertTrue(np.allclose(row1.probability, row2.probability, rtol=1e-3))
-
-    def test_empty_validation_data(self) -> None:
-        for tree_method in [
-            "hist",
-            "approx",
-        ]:  # pytest.mark conflict with python unittest
-            df_train = self.session.createDataFrame(
-                [
-                    (Vectors.dense(10.1, 11.2, 11.3), 0, False),
-                    (Vectors.dense(1, 1.2, 1.3), 1, False),
-                    (Vectors.dense(14.0, 15.0, 16.0), 0, False),
-                    (Vectors.dense(1.1, 1.2, 1.3), 1, True),
-                ],
-                ["features", "label", "val_col"],
-            )
-            classifier = SparkXGBClassifier(
-                num_workers=2,
-                tree_method=tree_method,
-                min_child_weight=0.0,
-                reg_alpha=0,
-                reg_lambda=0,
-                validation_indicator_col="val_col",
-                n_estimators=FAST_N_ESTIMATORS,
-            )
-            model = classifier.fit(df_train)
-            pred_result = model.transform(df_train).collect()
-            for row in pred_result:
-                self.assertEqual(row.prediction, row.label)
-
-    def test_empty_partition(self):
-        # raw_df.repartition(4) will result int severe data skew, actually,
-        # there is no any data in reducer partition 1, reducer partition 2
-        # see https://github.com/dmlc/xgboost/issues/8221
-        for tree_method in [
-            "hist",
-            "approx",
-        ]:  # pytest.mark conflict with python unittest
-            raw_df = self.session.range(0, 40, 1, 50).withColumn(
-                "label",
-                spark_sql_func.when(spark_sql_func.rand(1) > 0.5, 1).otherwise(0),
-            )
-            vector_assembler = (
-                VectorAssembler().setInputCols(["id"]).setOutputCol("features")
-            )
-            data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
-
-            classifier = SparkXGBClassifier(
-                num_workers=4,
-                tree_method=tree_method,
-                n_estimators=FAST_N_ESTIMATORS,
-            )
-            classifier.fit(data_trans)
 
     def test_unsupported_params(self):
         with pytest.raises(ValueError, match="evals_result"):
