@@ -1,11 +1,13 @@
 /**
- * Copyright 2024-2025, XGBoost contributors
+ * Copyright 2024-2026, XGBoost contributors
  */
 #pragma once
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
+#include <string>   // for string
 
-#include "cuda_stream.h"  // for StreamRef
+#include "cuda_stream.h"   // for StreamRef
+#include "xgboost/span.h"  // for Span
 
 namespace xgboost::curt {
 std::int32_t AllVisibleGPUs();
@@ -41,6 +43,12 @@ void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor);
 [[nodiscard]] std::int32_t GetMpCnt(std::int32_t device);
 
 [[nodiscard]] bool MemoryPoolsSupported(std::int32_t device);
+
+inline constexpr std::size_t kUuidLength = 16;
+
+void GetUuid(common::Span<unsigned char> uuid, std::int32_t device);
+
+[[nodiscard]] std::string PrintUuid(common::Span<unsigned char const, kUuidLength> uuid);
 
 // cudaMemcpyAsync
 void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream);
