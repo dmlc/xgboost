@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025, XGBoost contributors
+ * Copyright 2024-2026, XGBoost contributors
  */
 #if defined(XGBOOST_USE_CUDA)
 #include "cuda_dr_utils.h"
@@ -210,9 +210,14 @@ namespace detail {
     return -1;
   }
 
+  std::array<unsigned char, curt::kUuidLength> uuid;
+  // Select the current GPU to query.
+  curt::GetUuid(common::Span{uuid.data(), uuid.size()}, curt::CurrentDevice());
+  auto str_uuid = curt::PrintUuid(common::Span{uuid.data(), uuid.size()});
   // See test for example output from smi.
-  auto cmd = "nvidia-smi c2c -s -i 0";  // Select the first GPU to query.
+  auto cmd = "nvidia-smi c2c -s -i " + str_uuid;
   auto out = common::CmdOutput(StringView{cmd});
+  LOG(DEBUG) << "c2c:\n" << out << "\n";
   auto cnt = detail::GetC2cLinkCountFromSmiImpl(out);
   return cnt;
 }

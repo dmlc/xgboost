@@ -1,15 +1,17 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  */
 #include "cuda_rt_utils.h"
 
-#include "cuda_stream.h"  // for StreamRef
+#include "cuda_stream.h"   // for StreamRef
+#include "xgboost/span.h"  // for Span
 
 #if defined(XGBOOST_USE_CUDA)
 #include <cuda_runtime_api.h>
 
 #include <algorithm>  // for max
-#endif                // defined(XGBOOST_USE_CUDA)
+
+#endif  // defined(XGBOOST_USE_CUDA)
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
@@ -112,6 +114,33 @@ void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   std::int32_t res = 0;
   dh::safe_cuda(cudaDeviceGetAttribute(&res, cudaDevAttrMemoryPoolsSupported, device));
   return !!res;
+}
+
+static_assert(kUuidLength == sizeof(std::declval<cudaDeviceProp>().uuid));
+
+void GetUuid(xgboost::common::Span<unsigned char> uuid, std::int32_t device) {
+  cudaDeviceProp prob{};
+  dh::safe_cuda(cudaGetDeviceProperties(&prob, device));
+  std::memcpy(uuid.data(), static_cast<void*>(&(prob.uuid)), kUuidLength);
+}
+
+[[nodiscard]] std::string PrintUuid(common::Span<unsigned char const, kUuidLength> uuid) {
+  std::set<std::size_t> dash_pos{0, 4, 6, 8, 10};
+  std::stringstream ss;
+  ss << "GPU";
+  for (std::size_t i = 0; i < kUuidLength; ++i) {
+    if (dash_pos.find(i) != dash_pos.cend()) {
+      ss << "-";
+    }
+    std::stringstream byte_ss;
+    byte_ss << std::hex << (0xFF & std::uint32_t{uuid[i]});
+    auto byte_str = byte_ss.str();
+    if (byte_str.length() == 1) {
+      byte_str = "0" + byte_str;
+    };
+    ss << byte_str;
+  }
+  return ss.str();
 }
 
 void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream) {

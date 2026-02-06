@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2025, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <algorithm>  // for sort
@@ -11,8 +11,7 @@
 #include <vector>     // for vector
 
 #include "../common/cuda_context.cuh"    // for CUDAContext
-#include "../common/cuda_rt_utils.h"     // for SetDevice
-#include "../common/device_helpers.cuh"  // for DefaultStream
+#include "../common/cuda_rt_utils.h"     // for SetDevice, GetUuid, PrintUuid
 #include "../common/type.h"              // for EraseType
 #include "comm.cuh"                      // for NCCLComm
 #include "comm.h"                        // for Comm
@@ -38,23 +37,6 @@ Result GetUniqueId(Comm const& comm, std::shared_ptr<NcclStub> stub, std::shared
   *pid = id;
   return Success();
 }
-
-inline constexpr std::size_t kUuidLength =
-    sizeof(std::declval<cudaDeviceProp>().uuid) / sizeof(std::uint64_t);
-
-void GetCudaUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid, DeviceOrd device) {
-  cudaDeviceProp prob{};
-  dh::safe_cuda(cudaGetDeviceProperties(&prob, device.ordinal));
-  std::memcpy(uuid.data(), static_cast<void*>(&(prob.uuid)), sizeof(prob.uuid));
-}
-
-std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid) {
-  std::stringstream ss;
-  for (auto v : uuid) {
-    ss << std::hex << v;
-  }
-  return ss.str();
-}
 }  // namespace
 
 Comm* RabitComm::MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const {
@@ -76,18 +58,18 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   curt::SetDevice(ctx->Ordinal());
   stub_ = std::make_shared<NcclStub>(nccl_path);
 
-  std::vector<std::uint64_t> uuids(root.World() * kUuidLength, 0);
-  auto s_uuid = xgboost::common::Span<std::uint64_t>{uuids.data(), uuids.size()};
-  auto s_this_uuid = s_uuid.subspan(root.Rank() * kUuidLength, kUuidLength);
-  GetCudaUUID(s_this_uuid, ctx->Device());
+  std::vector<unsigned char> uuids(root.World() * curt::kUuidLength, 0);
+  auto s_uuid = common::Span{uuids.data(), uuids.size()};
+  auto s_this_uuid = s_uuid.subspan(root.Rank() * curt::kUuidLength, curt::kUuidLength);
+  curt::GetUuid(s_this_uuid, ctx->Ordinal());
 
   auto rc = pimpl->Allgather(root, common::EraseType(s_uuid));
   SafeColl(rc);
 
-  std::vector<xgboost::common::Span<std::uint64_t, kUuidLength>> converted(root.World());
+  std::vector<common::Span<unsigned char>> converted(root.World());
   std::size_t j = 0;
-  for (size_t i = 0; i < uuids.size(); i += kUuidLength) {
-    converted[j] = s_uuid.subspan(i, kUuidLength);
+  for (size_t i = 0; i < uuids.size(); i += curt::kUuidLength) {
+    converted[j] = s_uuid.subspan(i, curt::kUuidLength);
     j++;
   }
 
@@ -97,7 +79,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
 
   CHECK_EQ(n_uniques, root.World())
       << "Multiple processes within communication group running on same CUDA "
-      << "device is not supported. " << PrintUUID(s_this_uuid) << "\n";
+      << "device is not supported. " << curt::PrintUuid(s_this_uuid) << "\n";
 
   rc = std::move(rc) << [&] {
     return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);

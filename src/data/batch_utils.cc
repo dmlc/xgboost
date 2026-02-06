@@ -51,16 +51,6 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
   using xgboost::cuda_impl::CachePageRatio;
 
   auto lc = cudr::GetC2cLinkCountFromSmiGlobal();
-  if (lc >= 10) {
-    // >= 10, life is easy.
-    if (CachePageBytesIsAuto(min_cache_page_bytes)) {
-      min_cache_page_bytes = n_d_bytes * CachePageRatio();
-    }
-    if (HostRatioIsAuto(cache_host_ratio)) {
-      cache_host_ratio = 1.0;
-    }
-    return {cache_host_ratio, min_cache_page_bytes};
-  }
 
   /**
    * Configure the min_cache_page_bytes
