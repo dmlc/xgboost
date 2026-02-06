@@ -5,6 +5,7 @@
 #include "cuda_dr_utils.h"
 
 #include <algorithm>  // for max
+#include <array>      // for array
 #include <charconv>   // for from_chars
 #include <cstdint>    // for int32_t
 #include <cstring>    // for memset

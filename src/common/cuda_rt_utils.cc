@@ -123,9 +123,9 @@ void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor) {
 static_assert(kUuidLength == sizeof(std::declval<cudaDeviceProp>().uuid));
 
 void GetUuid(xgboost::common::Span<unsigned char> uuid, std::int32_t device) {
-  cudaDeviceProp prob{};
-  dh::safe_cuda(cudaGetDeviceProperties(&prob, device));
-  std::memcpy(uuid.data(), static_cast<void*>(&(prob.uuid)), kUuidLength);
+  cudaDeviceProp prop{};
+  dh::safe_cuda(cudaGetDeviceProperties(&prop, device));
+  std::memcpy(uuid.data(), static_cast<void*>(&(prop.uuid)), kUuidLength);
 }
 
 [[nodiscard]] std::string PrintUuid(common::Span<unsigned char const, kUuidLength> uuid) {

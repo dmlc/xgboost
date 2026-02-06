@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>    // for array
 #include <cstdint>  // for int32_t
 #include <set>      // for set
 
