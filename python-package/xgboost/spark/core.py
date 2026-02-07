@@ -1609,7 +1609,7 @@ class _SparkXGBSharedReadWrite:
     def saveMetadata(
         instance: Union[_SparkXGBEstimator, _SparkXGBModel],
         path: str,
-        session: SparkSession,
+        spark_session: SparkSession,
         logger: logging.Logger,
         extraMetadata: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -1648,7 +1648,7 @@ class _SparkXGBSharedReadWrite:
         DefaultParamsWriter.saveMetadata(
             instance,
             path,
-            session if _is_connect(session) else session.sparkContext,
+            spark_session if _is_connect(spark_session) else spark_session.sparkContext,
             extraMetadata=extraMetadata,
             paramMap=jsonParams,
         )
@@ -1663,7 +1663,7 @@ class _SparkXGBSharedReadWrite:
     def loadMetadataAndInstance(
         pyspark_xgb_cls: Union[Type[_SparkXGBEstimator], Type[_SparkXGBModel]],
         path: str,
-        session: SparkSession,
+        spark_session: SparkSession,
         logger: logging.Logger,
     ) -> Tuple[Dict[str, Any], Union[_SparkXGBEstimator, _SparkXGBModel]]:
         """
@@ -1674,7 +1674,7 @@ class _SparkXGBSharedReadWrite:
         """
         metadata = DefaultParamsReader.loadMetadata(
             path,
-            session if _is_connect(session) else session.sparkContext,
+            spark_session if _is_connect(spark_session) else spark_session.sparkContext,
             expectedClassName=get_class_name(pyspark_xgb_cls),
         )
         pyspark_xgb = pyspark_xgb_cls()
