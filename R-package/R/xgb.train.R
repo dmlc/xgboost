@@ -448,6 +448,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' - `"reg:quantileerror"`: Quantile loss, also known as "pinball loss". See later sections for its parameter and [Quantile Regression](https://xgboost.readthedocs.io/en/latest/python/examples/quantile_regression.html#sphx-glr-python-examples-quantile-regression-py) for a worked example.
 #'
 #'   Version added: 2.0.0
+#' - `"reg:expectileerror"`: Expectile loss. See later sections for its parameter.
 #' - `"binary:logistic"`: logistic regression for binary classification, output probability
 #' - `"binary:logitraw"`: logistic regression for binary classification, output score before logistic transformation
 #' - `"binary:hinge"`: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
@@ -745,6 +746,8 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' A scalar or a list of targeted quantiles (passed as a numeric vector).
 #'
 #' Version added: 2.0.0
+#' @param expectile_alpha (for using Expectile Loss (`"reg:expectileerror"`))
+#' A scalar or a list of targeted expectiles (passed as a numeric vector).
 #' @param aft_loss_distribution (when using AFT Survival Loss (`"survival:aft"`) and Negative Log Likelihood of AFT metric (`"aft-nloglik"`))
 #' Probability Density Function, `"normal"`, `"logistic"`, or `"extreme"`.
 #' @param aft_loss_distribution_scale (when using AFT Survival Loss (`"survival:aft"`) and Negative Log Likelihood of AFT metric (`"aft-nloglik"`))
@@ -835,6 +838,7 @@ xgb.params <- function(
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,
+  expectile_alpha = NULL,
   aft_loss_distribution = NULL,
   aft_loss_distribution_scale = NULL,
   lambdarank_pair_method = NULL,

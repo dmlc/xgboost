@@ -53,7 +53,8 @@ NVL <- function(x, val) {
 .REGRESSION_OBJECTIVES <- function() {
   return(c(
     "reg:squarederror", "reg:squaredlogerror", "reg:logistic", "reg:pseudohubererror",
-    "reg:absoluteerror", "reg:quantileerror", "count:poisson", "reg:gamma", "reg:tweedie"
+    "reg:absoluteerror", "reg:quantileerror", "reg:expectileerror", "count:poisson",
+    "reg:gamma", "reg:tweedie"
   ))
 }
 

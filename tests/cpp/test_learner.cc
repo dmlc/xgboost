@@ -640,6 +640,9 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     if (objective.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
     }
+    if (objective.find("expectile") != std::string::npos) {
+      learner->SetParam("expectile_alpha", "0.5");
+    }
     if (objective.find("multi") != std::string::npos) {
       learner->SetParam("num_class", "3");
     }
@@ -664,6 +667,9 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     learner->SetParam("objective", objective);
     if (objective.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
+    }
+    if (objective.find("expectile") != std::string::npos) {
+      learner->SetParam("expectile_alpha", "0.5");
     }
     if (objective.find("multi") != std::string::npos) {
       learner->SetParam("num_class", "3");

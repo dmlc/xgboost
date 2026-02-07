@@ -25,6 +25,21 @@ TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
   TestPseudoHuber(&ctx);
 }
 
+TEST(Objective, DeclareUnifiedTest(ExpectileRegressionGPair)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestExpectileRegressionGPair(&ctx);
+}
+
+TEST(Objective, DeclareUnifiedTest(ExpectileRegressionMultiAlpha)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestExpectileRegressionMultiAlpha(&ctx);
+}
+
+TEST(Objective, DeclareUnifiedTest(ExpectileRegressionInitEstimation)) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestExpectileRegressionInitEstimation(&ctx);
+}
+
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
   Context ctx = MakeCUDACtx(GPUIDX);
   TestLogisticRegressionGPair(&ctx);

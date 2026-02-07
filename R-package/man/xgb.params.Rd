@@ -57,6 +57,7 @@ xgb.params(
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,
+  expectile_alpha = NULL,
   aft_loss_distribution = NULL,
   aft_loss_distribution_scale = NULL,
   lambdarank_pair_method = NULL,
@@ -88,6 +89,7 @@ Version added: 1.7.0
 \item \code{"reg:quantileerror"}: Quantile loss, also known as "pinball loss". See later sections for its parameter and \href{https://xgboost.readthedocs.io/en/latest/python/examples/quantile_regression.html#sphx-glr-python-examples-quantile-regression-py}{Quantile Regression} for a worked example.
 
 Version added: 2.0.0
+\item \code{"reg:expectileerror"}: Expectile loss. See later sections for its parameter.
 \item \code{"binary:logistic"}: logistic regression for binary classification, output probability
 \item \code{"binary:logitraw"}: logistic regression for binary classification, output score before logistic transformation
 \item \code{"binary:hinge"}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
@@ -480,6 +482,9 @@ A parameter used for Pseudo-Huber loss to define the \eqn{\delta} term.}
 A scalar or a list of targeted quantiles (passed as a numeric vector).
 
 Version added: 2.0.0}
+
+\item{expectile_alpha}{(for using Expectile Loss (\code{"reg:expectileerror"}))
+A scalar or a list of targeted expectiles (passed as a numeric vector).}
 
 \item{aft_loss_distribution}{(when using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
 Probability Density Function, \code{"normal"}, \code{"logistic"}, or \code{"extreme"}.}

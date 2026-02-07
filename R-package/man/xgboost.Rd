@@ -61,6 +61,7 @@ xgboost(
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,
+  expectile_alpha = NULL,
   aft_loss_distribution = NULL,
   ...
 )
@@ -138,6 +139,7 @@ Supported values are:
 \item \code{"reg:pseudohubererror"}: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
 \item \code{"reg:absoluteerror"}: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
 \item \code{"reg:quantileerror"}: Quantile loss, also known as "pinball loss". See later sections for its parameter and \href{https://xgboost.readthedocs.io/en/latest/python/examples/quantile_regression.html#sphx-glr-python-examples-quantile-regression-py}{Quantile Regression} for a worked example.
+\item \code{"reg:expectileerror"}: Expectile loss. See later sections for its parameter.
 \item \code{"binary:logistic"}: logistic regression for binary classification, output probability
 \item \code{"binary:hinge"}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
 \item \code{"count:poisson"}: Poisson regression for count data, output mean of Poisson distribution.
@@ -598,6 +600,9 @@ A parameter used for Pseudo-Huber loss to define the \eqn{\delta} term.}
 A scalar or a list of targeted quantiles (passed as a numeric vector).
 
 Version added: 2.0.0}
+
+\item{expectile_alpha}{(for using Expectile Loss (\code{"reg:expectileerror"}))
+A scalar or a list of targeted expectiles (passed as a numeric vector).}
 
 \item{aft_loss_distribution}{(when using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
 Probability Density Function, \code{"normal"}, \code{"logistic"}, or \code{"extreme"}.}

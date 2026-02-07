@@ -324,6 +324,8 @@ process.y.margin.and.objective <- function(
     n_targets <- 1L
     if (objective == "reg:quantileerror" && NROW(params$quantile_alpha) > 1) {
       n_targets <- NROW(params$quantile_alpha)
+    } else if (objective == "reg:expectileerror" && NROW(params$expectile_alpha) > 1) {
+      n_targets <- NROW(params$expectile_alpha)
     }
 
     if (!is.null(base_margin)) {
@@ -925,6 +927,7 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' - `"reg:pseudohubererror"`: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
 #' - `"reg:absoluteerror"`: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
 #' - `"reg:quantileerror"`: Quantile loss, also known as "pinball loss". See later sections for its parameter and [Quantile Regression](https://xgboost.readthedocs.io/en/latest/python/examples/quantile_regression.html#sphx-glr-python-examples-quantile-regression-py) for a worked example.
+#' - `"reg:expectileerror"`: Expectile loss. See later sections for its parameter.
 #' - `"binary:logistic"`: logistic regression for binary classification, output probability
 #' - `"binary:hinge"`: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
 #' - `"count:poisson"`: Poisson regression for count data, output mean of Poisson distribution.
@@ -1165,6 +1168,7 @@ xgboost <- function(
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,
+  expectile_alpha = NULL,
   aft_loss_distribution = NULL,
   ...
 ) {
@@ -1450,6 +1454,12 @@ predict.xgboost <- function(
         warning("Cannot add quantile names to output due to clashes in their character conversions")
         names_use <- NULL
       }
+    } else if (NROW(attributes(object)$params$expectile_alpha) > 1L) {
+      names_use <- paste0("e", attributes(object)$params$expectile_alpha)
+      if (anyDuplicated(names_use)) {
+        warning("Cannot add expectile names to output due to clashes in their character conversions")
+        names_use <- NULL
+      }
     }
     if (NROW(names_use)) {
       dimnames_out <- dimnames(out)
@@ -1502,6 +1512,15 @@ print.xgboost <- function(x, ...) {
       ifelse(length(attributes(x)$params$quantile_alpha) > 1L, "s", ""),
       ": ",
       printable_head(attributes(x)$params$quantile_alpha),
+      "\n",
+      sep = ""
+    )
+  } else if (NROW(attributes(x)$params$expectile_alpha)) {
+    cat(
+      "Prediction expectile",
+      ifelse(length(attributes(x)$params$expectile_alpha) > 1L, "s", ""),
+      ": ",
+      printable_head(attributes(x)$params$expectile_alpha),
       "\n",
       sep = ""
     )

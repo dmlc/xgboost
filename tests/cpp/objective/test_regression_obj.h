@@ -42,6 +42,12 @@ void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, b
 
 void TestPseudoHuber(const Context* ctx);
 
+void TestExpectileRegressionGPair(const Context* ctx);
+
+void TestExpectileRegressionMultiAlpha(const Context* ctx);
+
+void TestExpectileRegressionInitEstimation(const Context* ctx);
+
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_REGRESSION_OBJ_H_
