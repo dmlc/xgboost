@@ -7,11 +7,19 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>                // for DMatrix
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/json.h>                // for Json
 #include <xgboost/learner.h>             // for Learner
+#include <xgboost/linalg.h>              // for Vector
+#include <xgboost/objective.h>           // for ObjFunction
 
+#include <algorithm>
 #include <memory>  // for unique_ptr
+#include <sstream>
 #include <string>  // for to_string
 
+#include "../../../src/common/param_array.h"
+#include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/interpretability/shap.h"
 #include "../helpers.h"
 
 namespace xgboost {
@@ -41,6 +49,58 @@ Args BaseParams(Context const* ctx, std::string objective, std::string max_depth
               {"subsample", "1"},
               {"colsample_bytree", "1"},
               {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}};
+}
+
+gbm::GBTreeModel LoadGBTreeModel(Learner* learner, Context const* ctx, Args const& model_args,
+                                 LearnerModelParam* out_param) {
+  Json model{Object{}};
+  learner->SaveModel(&model);
+
+  auto const& model_obj = get<Object const>(model);
+  auto const& learner_obj = get<Object const>(model_obj.at("learner"));
+  auto const& lmp = get<Object const>(learner_obj.at("learner_model_param"));
+
+  auto get_or = [&](char const* key, std::string dft) {
+    auto it = lmp.find(key);
+    return it == lmp.cend() ? dft : get<String const>(it->second);
+  };
+  auto const& num_feature = get_or("num_feature", "0");
+  auto const& num_class = get_or("num_class", "0");
+  auto const& num_target = get_or("num_target", "1");
+  auto const& base_score_str = get_or("base_score", "0");
+
+  common::ParamArray<float> base_score_arr{"base_score"};
+  std::stringstream ss;
+  ss << base_score_str;
+  ss >> base_score_arr;
+
+  std::size_t shape[1]{base_score_arr.size()};
+  linalg::Vector<float> base_score_vec{shape, ctx->Device()};
+  auto& h_base = base_score_vec.Data()->HostVector();
+  h_base.assign(base_score_arr.cbegin(), base_score_arr.cend());
+
+  std::string objective{"reg:squarederror"};
+  for (auto const& kv : model_args) {
+    if (kv.first == "objective") {
+      objective = kv.second;
+      break;
+    }
+  }
+  auto obj = std::unique_ptr<ObjFunction>(ObjFunction::Create(objective, ctx));
+  obj->Configure(model_args);
+  obj->ProbToMargin(&base_score_vec);
+
+  auto n_features = static_cast<bst_feature_t>(std::stol(num_feature));
+  auto n_classes = static_cast<bst_target_t>(std::stol(num_class));
+  auto n_targets = static_cast<bst_target_t>(std::stol(num_target));
+  auto n_groups = static_cast<uint32_t>(std::max(n_classes, n_targets));
+  *out_param = LearnerModelParam{n_features, std::move(base_score_vec), n_groups, n_targets,
+                                 MultiStrategy::kOneOutputPerTree};
+
+  gbm::GBTreeModel gbtree{out_param, ctx};
+  auto const& gbm_obj = get<Object const>(learner_obj.at("gradient_booster"));
+  gbtree.LoadModel(gbm_obj.at("model"));
+  return gbtree;
 }
 }  // namespace
 
@@ -99,10 +159,8 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
   {
     // multi-class dense training DMatrix, medium depth
     bst_target_t n_classes{3};
-    auto dmat = RandomDataGenerator(256, 8, 0.0)
-                    .Classes(n_classes)
-                    .Device(device)
-                    .GenerateDMatrix(true);
+    auto dmat =
+        RandomDataGenerator(256, 8, 0.0).Classes(n_classes).Device(device).GenerateDMatrix(true);
     SetLabels(dmat.get(), n_classes);
     auto args = BaseParams(ctx, "multi:softprob", "4");
     args.emplace_back("num_class", std::to_string(n_classes));
@@ -135,15 +193,18 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   learner->Predict(p_dmat, true, &margin_predt, 0, 0, false, false, false, false, false);
   size_t const n_outputs = margin_predt.HostVector().size() / kRows;
 
+  LearnerModelParam mparam;
+  auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), model_args, &mparam);
+
   HostDeviceVector<float> shap_values;
-  learner->Predict(p_dmat, false, &shap_values, 0, 0, false, false, true, false, false);
+  interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &shap_values, gbtree, 0, nullptr, 0, 0);
   ASSERT_EQ(shap_values.HostVector().size(), kRows * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_values, margin_predt);
 
   HostDeviceVector<float> shap_interactions;
-  learner->Predict(p_dmat, false, &shap_interactions, 0, 0, false, false, false, false, true);
-  ASSERT_EQ(shap_interactions.HostVector().size(),
-            kRows * (kCols + 1) * (kCols + 1) * n_outputs);
+  interpretability::ShapInteractionValues(dmat->Ctx(), p_dmat.get(), &shap_interactions, gbtree, 0,
+                                          nullptr, false);
+  ASSERT_EQ(shap_interactions.HostVector().size(), kRows * (kCols + 1) * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_interactions, margin_predt);
 }
 
@@ -207,8 +268,12 @@ TEST(Predictor, ApproxContribsBasic) {
   HostDeviceVector<float> margin_predt;
   learner->Predict(dmat, true, &margin_predt, 0, 0, false, false, false, false, false);
 
+  LearnerModelParam mparam;
+  auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), args, &mparam);
+
   HostDeviceVector<float> approx_contribs;
-  learner->Predict(dmat, false, &approx_contribs, 0, 0, false, false, true, true, false);
+  interpretability::ApproxFeatureImportance(dmat->Ctx(), dmat.get(), &approx_contribs, gbtree, 0,
+                                            nullptr);
 
   auto const& h_margin = margin_predt.ConstHostVector();
   auto const& h_contribs = approx_contribs.ConstHostVector();
