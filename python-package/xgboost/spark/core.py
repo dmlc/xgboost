@@ -46,8 +46,11 @@ from pyspark.ml.util import (
     MLWritable,
     MLWriter,
 )
-from pyspark.resource import ResourceProfile
-from pyspark.resource import ResourceProfileBuilder, TaskResourceRequests
+from pyspark.resource import (
+    ResourceProfile,
+    ResourceProfileBuilder,
+    TaskResourceRequests,
+)
 from pyspark.sql import Column, DataFrame, SparkSession
 from pyspark.sql.conf import RuntimeConfig
 from pyspark.sql.functions import col, countDistinct, pandas_udf, rand, struct
@@ -94,6 +97,7 @@ from .utils import (
     _get_max_num_concurrent_tasks,
     _get_rabit_args,
     _get_spark_session,
+    _is_connect,
     _is_local,
     _is_standalone_or_localcluster,
     deserialize_booster,
@@ -969,7 +973,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         # CPU training doesn't require stage-level scheduling
         return True
 
-    def _try_stage_level_scheduling(self) -> Optional[ResourceProfile]:
+    def _get_resource_profile_for_stage_level_scheduling(self) -> Optional[ResourceProfile]:
         """Try to enable stage-level scheduling"""
         ss = _get_spark_session()
         conf = ss.conf
@@ -1023,9 +1027,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 assert isinstance(conf, Config)
 
             if conf.tracker_host_ip is None:
-                conf.tracker_host_ip = (
-                    _get_spark_session().conf.get("spark.driver.host")
-                )
+                conf.tracker_host_ip = _get_spark_session().conf.get("spark.driver.host")
             num_workers = self.getOrDefault(self.num_workers)
             rabit_args.update(_get_rabit_args(conf, num_workers))
         else:
@@ -1165,7 +1167,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 _train_booster,  # type: ignore
                 schema="data string",
                 barrier=True,
-                profile=self._try_stage_level_scheduling(),
+                profile=self._get_resource_profile_for_stage_level_scheduling(),
             )
             ret = df.collect()
             data = [row.data for row in ret]
@@ -1643,13 +1645,13 @@ class _SparkXGBSharedReadWrite:
             if conf is not None:
                 extraMetadata["coll_cfg"] = asdict(conf)
 
-        # Re-implementation of DefaultParamsWriter.saveMetadata using session
-        metadataPath = os.path.join(path, "metadata")
-        metadataJson = DefaultParamsWriter._get_metadata_to_save(
-            instance, extraMetadata=extraMetadata, paramMap=jsonParams
+        DefaultParamsWriter.saveMetadata(
+            instance,
+            path,
+            session if _is_connect(session) else session.sparkContext,
+            extraMetadata=extraMetadata,
+            paramMap=jsonParams,
         )
-        session.createDataFrame([(metadataJson,)], ["metadata"]).write.text(metadataPath)
-
         if init_booster is not None:
             ser_init_booster = serialize_booster(init_booster)
             save_path = os.path.join(path, _INIT_BOOSTER_SAVE_PATH)
@@ -1670,17 +1672,11 @@ class _SparkXGBSharedReadWrite:
 
         :return: a tuple of (metadata, instance)
         """
-        # Re-implementation of DefaultParamsReader.loadMetadata using session
-        metadataPath = os.path.join(path, "metadata")
-        metadataStr = session.read.text(metadataPath).first()[0]
-        metadata = json.loads(metadataStr)
-        
-        # Check class name
-        className = get_class_name(pyspark_xgb_cls)
-        if className != metadata["class"]:
-             # Warning or error? DefaultParamsReader raises warning.
-             pass
-
+        metadata = DefaultParamsReader.loadMetadata(
+            path,
+            session if _is_connect(session) else session.sparkContext,
+            expectedClassName=get_class_name(pyspark_xgb_cls),
+        )
         pyspark_xgb = pyspark_xgb_cls()
         DefaultParamsReader.getAndSetParams(pyspark_xgb, metadata)
 

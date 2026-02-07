@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 import tempfile
+import uuid
 from threading import Thread
 from typing import Any, Callable, Dict, Optional, Set, Type, Union
 
@@ -123,10 +124,27 @@ def get_logger_level(name: str) -> Optional[int]:
 
 def _get_max_num_concurrent_tasks(spark_session: SparkSession) -> int:
     """Gets the current max number of concurrent tasks."""
+
     # In Spark Connect, we cannot easily get the max number of concurrent tasks
     # from the client side without accessing internal APIs or executing a task.
     # For now, we return a large number to skip the check.
-    return sys.maxsize
+    if _is_connect(spark_session):
+        return sys.maxsize
+
+    # pylint: disable=protected-access
+    # spark 3.1 and above has a different API for fetching max concurrent tasks
+    if spark_context._jsc.sc().version() >= "3.1":
+        return spark_context._jsc.sc().maxNumConcurrentTasks(
+            spark_context._jsc.sc().resourceProfileManager().resourceProfileFromId(0)
+        )
+    return spark_context._jsc.sc().maxNumConcurrentTasks()
+
+
+def _is_connect(spark_session: SparkSession) -> bool:
+    try:
+        return isinstance(spark_session, pyspark.sql.connect.session.SparkSession)
+    except AttributeError:
+        return False
 
 
 def _is_local(spark_session: SparkSession) -> bool:
@@ -178,16 +196,11 @@ def serialize_booster(booster: Booster) -> str:
     booster:
         an xgboost.core.Booster instance
     """
-    # Use tempfile instead of SparkFiles for driver-side serialization
-    with tempfile.NamedTemporaryFile(mode="w+b", delete=False) as tf:
-        tmp_file_name = tf.name
-    try:
-        booster.save_model(tmp_file_name)
-        with open(tmp_file_name, encoding="utf-8") as f:
-            ser_model_string = f.read()
-    finally:
-        if os.path.exists(tmp_file_name):
-            os.remove(tmp_file_name)
+    # TODO: change to use string io
+    tmp_file_name = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.json")
+    booster.save_model(tmp_file_name)
+    with open(tmp_file_name, encoding="utf-8") as f:
+        ser_model_string = f.read()
     return ser_model_string
 
 
@@ -196,15 +209,11 @@ def deserialize_booster(model: str) -> Booster:
     Deserialize an xgboost.core.Booster from the input ser_model_string.
     """
     booster = Booster()
-    # Use tempfile instead of SparkFiles for driver-side deserialization
-    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as tf:
-        tf.write(model)
-        tmp_file_name = tf.name
-    try:
-        booster.load_model(tmp_file_name)
-    finally:
-        if os.path.exists(tmp_file_name):
-            os.remove(tmp_file_name)
+    # TODO: change to use string io
+    tmp_file_name = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.json")
+    with open(tmp_file_name, "w", encoding="utf-8") as f:
+        f.write(model)
+    booster.load_model(tmp_file_name)
     return booster
 
 
