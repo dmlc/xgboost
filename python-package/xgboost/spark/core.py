@@ -626,7 +626,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             feature_types=None,
             feature_weights=None,
             arbitrary_params_dict={},
-            launch_tracker_on_driver=True,
+            launch_tracker_on_driver=not _is_connect(_get_spark_session()),
         )
 
         self.logger = get_logger(self.__class__.__name__)
