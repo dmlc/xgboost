@@ -36,7 +36,7 @@ def breast_cancer() -> BreastCancer:
 
 
 def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
-    # No custom objective, recieve transformed output
+    # No custom objective, receive transformed output
     return tm.eval_error_metric(predt, dtrain, rev_link=False)
 
 
