@@ -5,9 +5,10 @@ import random
 import tempfile
 import uuid
 from collections import namedtuple
-from typing import Generator, Iterable, List, Sequence
+from typing import Generator, Iterable, Iterator, List, Sequence
 
 import numpy as np
+import pandas as pd
 import pytest
 import xgboost as xgb
 from pyspark import SparkConf
@@ -52,9 +53,11 @@ def no_sparse_unwrap() -> tm.PytestSkip:
     return {"reason": "PySpark<3.4", "condition": False}
 
 
-@pytest.fixture(scope="module")
-def spark() -> Generator[SparkSession, None, None]:
+@pytest.fixture(scope="module", params=["classic", "connect"])
+def spark(request) -> Generator[SparkSession, None, None]:
+    mode = request.param
     os.environ["XGBOOST_PYSPARK_SHARED_SESSION"] = "1"
+
     config = {
         "spark.master": "local[4]",
         "spark.python.worker.reuse": "true",
@@ -65,6 +68,9 @@ def spark() -> Generator[SparkSession, None, None]:
         "spark.sql.pyspark.jvmStacktrace.enabled": "true",
         "spark.ui.enabled": "false",
     }
+
+    if mode == "connect":
+        config["spark.api.mode"] = "connect"
 
     builder = SparkSession.builder.appName("XGBoost PySpark Python API Tests")
     for k, v in config.items():
@@ -984,14 +990,19 @@ class TestPySparkLocal:
         clf = SparkXGBClassifier(device="cuda", tree_method="approx")
         assert clf._run_on_gpu()
 
-    def test_gpu_transform(self, clf_data: ClfData) -> None:
+    def test_gpu_transform(self, clf_data: ClfData, spark: SparkSession) -> None:
         """local mode"""
         classifier = SparkXGBClassifier(device="cpu", n_estimators=FAST_N_ESTIMATORS)
         model: SparkXGBClassifierModel = classifier.fit(clf_data.cls_df_train)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = "file:" + tmpdir
-            model.write().overwrite().save(path)
+            # PySpark ML does not support overwrite - this is a bug in Spark:
+            # https://github.com/apache/spark/blob/v4.1.1/python/pyspark/ml/util.py#L574-L579
+            if "pyspark.sql.connect" in type(spark).__module__:
+                model.write().save(path)
+            else:
+                model.write().overwrite().save(path)
 
             # The model trained with CPU, transform defaults to cpu
             assert not model._run_on_gpu()
@@ -2047,14 +2058,37 @@ class TestPySparkLocalLETOR:
         ranker = SparkXGBRanker(qid_col="qid", num_workers=4, force_repartition=True)
         df, _ = ranker._prepare_input(ltr_data.df_train_1)
 
-        def f(iterator: Iterable) -> List[int]:
-            yield list(set(iterator))
+        # 1. Refactor f to accept and return Pandas DataFrames
+        def f_pandas(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.DataFrame]:
+            # Use a set to track unique values across all chunks in this partition
+            unique_qids = set()
 
-        rows = df.select("qid").rdd.mapPartitions(f).collect()
+            for pdf in iterator:
+                # pdf is a chunk of the partition as a Pandas DataFrame
+                # Add the unique values from this chunk to our set
+                unique_qids.update(pdf["qid"].unique())
+
+            # 2. Yield a single DataFrame row containing the list
+            # We wrap the list in brackets [] because the DataFrame expects a list of rows
+            yield pd.DataFrame({"partition_values": [list(unique_qids)]})
+
+        # 3. Apply mapInPandas
+        # You must specify the output schema. Assuming 'qid' is an Integer:
+
+        # 4. Collect and unpack
+        result_df = (
+            df.select("qid")
+            .mapInPandas(f_pandas, schema="partition_values array<int>")
+            .collect()
+        )
+
+        # Convert from List[Row] back to List[List[int]] to match original output format
+        rows = [row.partition_values for row in result_df]
+
         assert len(rows) == 4
         for row in rows:
             assert len(row) == 1
-            assert row[0].qid in [6, 7, 8, 9]
+            assert row[0] in [6, 7, 8, 9]
 
     def test_ranker_xgb_summary(self, ltr_data: LTRData) -> None:
         spark_xgb_model = SparkXGBRanker(

@@ -710,15 +710,16 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         partitions."""
         if self.getOrDefault(self.force_repartition):
             return True
-        if hasattr(dataset, "rdd"):
-            num_workers = self.getOrDefault(self.num_workers)
-            num_partitions = dataset.rdd.getNumPartitions()
-            return not num_workers == num_partitions
 
         # In Spark Connect, we cannot easily get the number of partitions.
         # For now, since we cannot call rdd.getNumPartitions(), we just return
         # True to ensure correct partitioning.
-        return True
+        if _is_connect(dataset.sparkSession):
+            return True
+
+        num_workers = self.getOrDefault(self.num_workers)
+        num_partitions = dataset.rdd.getNumPartitions()
+        return not num_workers == num_partitions
 
     def _get_distributed_train_params(self, dataset: DataFrame) -> Dict[str, Any]:
         """
