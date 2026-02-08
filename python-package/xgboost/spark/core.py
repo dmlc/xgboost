@@ -614,6 +614,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         self._set_xgb_params_default()
         self._set_fit_params_default()
         self._set_predict_params_default()
+        ss = _get_spark_session()
         # Note: The default value for arbitrary_params_dict must always be empty dict.
         #  For additional settings added into "arbitrary_params_dict" by default,
         #  they are added in `setParams`.
@@ -626,7 +627,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             feature_types=None,
             feature_weights=None,
             arbitrary_params_dict={},
-            launch_tracker_on_driver=not _is_connect(_get_spark_session()),
+            launch_tracker_on_driver=_is_local(ss) or not _is_connect(ss),
         )
 
         self.logger = get_logger(self.__class__.__name__)
@@ -1721,7 +1722,7 @@ class SparkXGBWriter(MLWriter):
         """
         save model.
         """
-        _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.session, self.logger)
+        _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sparkSession, self.logger)
 
 
 class SparkXGBReader(MLReader):
@@ -1739,7 +1740,7 @@ class SparkXGBReader(MLReader):
         load model.
         """
         _, pyspark_xgb = _SparkXGBSharedReadWrite.loadMetadataAndInstance(
-            self.cls, path, self.session, self.logger
+            self.cls, path, self.sparkSession, self.logger
         )
         return cast("_SparkXGBEstimator", pyspark_xgb)
 
@@ -1762,7 +1763,7 @@ class SparkXGBModelWriter(MLWriter):
         """
         xgb_model = self.instance._xgb_sklearn_model
         assert xgb_model is not None
-        _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.session, self.logger)
+        _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sparkSession, self.logger)
         model_save_path = os.path.join(path, "model")
         booster = xgb_model.get_booster().save_raw("json").decode("utf-8")
         booster_chunks = []
@@ -1792,7 +1793,7 @@ class SparkXGBModelReader(MLReader):
         :return: SparkXGBRegressorModel or SparkXGBClassifierModel instance
         """
         _, py_model = _SparkXGBSharedReadWrite.loadMetadataAndInstance(
-            self.cls, path, self.session, self.logger
+            self.cls, path, self.sparkSession, self.logger
         )
         py_model = cast("_SparkXGBModel", py_model)
 

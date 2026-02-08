@@ -75,7 +75,6 @@ def spark() -> Generator[SparkSession, None, None]:
         yield sess
     finally:
         sess.stop()
-        sess.sparkContext.stop()
         os.environ.pop("XGBOOST_PYSPARK_SHARED_SESSION", None)
 
 

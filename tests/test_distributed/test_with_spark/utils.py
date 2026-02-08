@@ -84,19 +84,15 @@ class TestSparkContext(object):
         spark = builder.getOrCreate()
         logging.getLogger("pyspark").setLevel(logging.INFO)
 
-        cls.sc = spark.sparkContext
         cls.session = spark
 
     @classmethod
     def tear_down_env(cls):
         if os.environ.get("XGBOOST_PYSPARK_SHARED_SESSION") == "1":
             cls.session = None
-            cls.sc = None
             return
         cls.session.stop()
         cls.session = None
-        cls.sc.stop()
-        cls.sc = None
 
 
 class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
@@ -142,10 +138,8 @@ class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase
         )
         cls.make_tempdir()
         # We run a dummy job so that we block until the workers have connected to the master
-        num_slots = cls.sc.defaultParallelism
-        cls.sc.parallelize(range(num_slots), num_slots).barrier().mapPartitions(
-            lambda _: []
-        ).collect()
+        num_slots = int(spark.conf.get("spark.default.parallelism", None))
+        cls.session.range(num_slots).repartition(num_slots).foreach(lambda _: None)
 
     @classmethod
     def tearDownClass(cls):

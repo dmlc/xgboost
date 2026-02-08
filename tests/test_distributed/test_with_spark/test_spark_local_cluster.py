@@ -54,7 +54,6 @@ def spark() -> Generator[SparkSession, None, None]:
         yield sess
     finally:
         sess.stop()
-        sess.sparkContext.stop()
         os.environ.pop("XGBOOST_PYSPARK_SHARED_SESSION", None)
 
 
@@ -149,7 +148,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         super().setUpClass()
         random.seed(2020)
 
-        cls.n_workers = _get_max_num_concurrent_tasks(cls.session.sparkContext)
+        cls.n_workers = _get_max_num_concurrent_tasks(cls.session)
 
         # Distributed section
         # Binary classification
