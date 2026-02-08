@@ -68,7 +68,6 @@ def spark(request) -> Generator[SparkSession, None, None]:
         "spark.sql.pyspark.jvmStacktrace.enabled": "true",
         "spark.ui.enabled": "false",
     }
-
     if mode == "connect":
         config["spark.api.mode"] = "connect"
 
@@ -2058,37 +2057,17 @@ class TestPySparkLocalLETOR:
         ranker = SparkXGBRanker(qid_col="qid", num_workers=4, force_repartition=True)
         df, _ = ranker._prepare_input(ltr_data.df_train_1)
 
-        # 1. Refactor f to accept and return Pandas DataFrames
-        def f_pandas(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.DataFrame]:
-            # Use a set to track unique values across all chunks in this partition
+        def f(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.DataFrame]:
             unique_qids = set()
-
             for pdf in iterator:
-                # pdf is a chunk of the partition as a Pandas DataFrame
-                # Add the unique values from this chunk to our set
                 unique_qids.update(pdf["qid"].unique())
+            yield pd.DataFrame({"qids": [list(unique_qids)]})
 
-            # 2. Yield a single DataFrame row containing the list
-            # We wrap the list in brackets [] because the DataFrame expects a list of rows
-            yield pd.DataFrame({"partition_values": [list(unique_qids)]})
-
-        # 3. Apply mapInPandas
-        # You must specify the output schema. Assuming 'qid' is an Integer:
-
-        # 4. Collect and unpack
-        result_df = (
-            df.select("qid")
-            .mapInPandas(f_pandas, schema="partition_values array<int>")
-            .collect()
-        )
-
-        # Convert from List[Row] back to List[List[int]] to match original output format
-        rows = [row.partition_values for row in result_df]
-
+        rows = df.select("qid").mapInPandas(f, schema="qids array<int>").collect()
         assert len(rows) == 4
         for row in rows:
-            assert len(row) == 1
-            assert row[0] in [6, 7, 8, 9]
+            assert len(row.qids) == 1
+            assert row.qids[0] in [6, 7, 8, 9]
 
     def test_ranker_xgb_summary(self, ltr_data: LTRData) -> None:
         spark_xgb_model = SparkXGBRanker(
