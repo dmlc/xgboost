@@ -135,7 +135,9 @@ def _get_max_num_concurrent_tasks(spark_session: SparkSession) -> int:
     # spark 3.1 and above has a different API for fetching max concurrent tasks
     if spark_session.sparkContext._jsc.sc().version() >= "3.1":
         return spark_session.sparkContext._jsc.sc().maxNumConcurrentTasks(
-            spark_session.sparkContext._jsc.sc().resourceProfileManager().resourceProfileFromId(0)
+            spark_session.sparkContext._jsc.sc()
+            .resourceProfileManager()
+            .resourceProfileFromId(0)
         )
     return spark_session.sparkContext._jsc.sc().maxNumConcurrentTasks()
 

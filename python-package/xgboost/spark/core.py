@@ -883,9 +883,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
         )
-        cpu_per_task = int(
-            _get_spark_session().conf.get("spark.task.cpus", "1")
-        )
+        cpu_per_task = int(_get_spark_session().conf.get("spark.task.cpus", "1"))
 
         dmatrix_kwargs = {
             "nthread": cpu_per_task,
@@ -907,7 +905,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         return booster_params, train_call_kwargs_params, dmatrix_kwargs
 
-    def _skip_stage_level_scheduling(self, spark_version: str, conf: RuntimeConfig) -> bool:
+    def _skip_stage_level_scheduling(
+        self, spark_version: str, conf: RuntimeConfig
+    ) -> bool:
         # pylint: disable=too-many-return-statements
         """Check if stage-level scheduling is not needed,
         return true to skip stage-level scheduling"""
@@ -974,7 +974,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         # CPU training doesn't require stage-level scheduling
         return True
 
-    def _get_resource_profile_for_stage_level_scheduling(self) -> Optional[ResourceProfile]:
+    def _get_resource_profile_for_stage_level_scheduling(
+        self,
+    ) -> Optional[ResourceProfile]:
         """Try to enable stage-level scheduling"""
         ss = _get_spark_session()
         conf = ss.conf
@@ -1028,7 +1030,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 assert isinstance(conf, Config)
 
             if conf.tracker_host_ip is None:
-                conf.tracker_host_ip = _get_spark_session().conf.get("spark.driver.host")
+                conf.tracker_host_ip = _get_spark_session().conf.get(
+                    "spark.driver.host"
+                )
             num_workers = self.getOrDefault(self.num_workers)
             rabit_args.update(_get_rabit_args(conf, num_workers))
         else:
@@ -1128,9 +1132,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 _rabit_args = json.loads(messages[0])["rabit_msg"]
 
             evals_result: Dict[str, Any] = {}
-            with config_context(
-                verbosity=verbosity, use_rmm=use_rmm
-            ), CommunicatorContext(context, **_rabit_args):
+            with (
+                config_context(verbosity=verbosity, use_rmm=use_rmm),
+                CommunicatorContext(context, **_rabit_args),
+            ):
                 dtrain, dvalid = create_dmatrix_from_partitions(
                     iterator=pandas_df_iter,
                     feature_cols=feature_prop.features_cols_names,
@@ -1383,17 +1388,15 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             # if it's local model, no need to check the spark configurations
             return use_gpu_by_params
 
-        gpu_per_task = (
-            _get_spark_session()
-            .conf.get("spark.task.resource.gpu.amount", None)
+        gpu_per_task = _get_spark_session().conf.get(
+            "spark.task.resource.gpu.amount", None
         )
 
         # User don't set gpu configurations, just use cpu
         if gpu_per_task is None:
             if use_gpu_by_params:
                 get_logger(_LOG_TAG).warning(
-                    "Do the prediction on the CPUs since "
-                    "no gpu configurations are set"
+                    "Do the prediction on the CPUs since no gpu configurations are set"
                 )
             return False
 
@@ -1722,7 +1725,9 @@ class SparkXGBWriter(MLWriter):
         """
         save model.
         """
-        _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sparkSession, self.logger)
+        _SparkXGBSharedReadWrite.saveMetadata(
+            self.instance, path, self.sparkSession, self.logger
+        )
 
 
 class SparkXGBReader(MLReader):
@@ -1763,7 +1768,9 @@ class SparkXGBModelWriter(MLWriter):
         """
         xgb_model = self.instance._xgb_sklearn_model
         assert xgb_model is not None
-        _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sparkSession, self.logger)
+        _SparkXGBSharedReadWrite.saveMetadata(
+            self.instance, path, self.sparkSession, self.logger
+        )
         model_save_path = os.path.join(path, "model")
         booster = xgb_model.get_booster().save_raw("json").decode("utf-8")
         booster_chunks = []
@@ -1771,8 +1778,8 @@ class SparkXGBModelWriter(MLWriter):
         for offset in range(0, len(booster), _MODEL_CHUNK_SIZE):
             booster_chunks.append(booster[offset : offset + _MODEL_CHUNK_SIZE])
 
-        _get_spark_session().createDataFrame(
-            [(c,) for c in booster_chunks], ["data"]
+        _get_spark_session().createDataFrame([[c] for c in booster_chunks]).repartition(
+            1
         ).write.text(model_save_path)
 
 

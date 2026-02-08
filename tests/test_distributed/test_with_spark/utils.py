@@ -138,7 +138,7 @@ class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase
         )
         cls.make_tempdir()
         # We run a dummy job so that we block until the workers have connected to the master
-        num_slots = int(spark.conf.get("spark.default.parallelism", None))
+        num_slots = int(cls.session.conf.get("spark.default.parallelism", "8"))
         cls.session.range(num_slots).repartition(num_slots).foreach(lambda _: None)
 
     @classmethod

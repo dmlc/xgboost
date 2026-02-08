@@ -483,7 +483,7 @@ def clf_data(spark: SparkSession) -> Generator[ClfData, None, None]:
 
 def assert_model_compatible(model: XGBModel, model_path: str) -> None:
     bst = xgb.Booster()
-    path = glob.glob(f"{model_path}/**/model/part-00000", recursive=True)[0]
+    path = glob.glob(f"{model_path}/**/model/part-00000-*.txt", recursive=True)[0]
     bst.load_model(path)
     np.testing.assert_equal(
         np.array(model.get_booster().save_raw("json")), np.array(bst.save_raw("json"))
