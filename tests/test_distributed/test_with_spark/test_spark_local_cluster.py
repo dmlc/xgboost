@@ -148,11 +148,12 @@ class TestPySparkLocalCluster:
 
 class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
     @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
+    def setUpClass(cls, mode = "classic"):
+        super().setUpClass(mode)
+        cls.mode = mode
         random.seed(2020)
 
-        cls.n_workers = _get_max_num_concurrent_tasks(cls.session)
+        cls.n_workers = 2 if mode == "connect" else _get_max_num_concurrent_tasks(cls.session)
 
         # Distributed section
         # Binary classification
@@ -603,11 +604,19 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
         classifier = SparkXGBClassifier(num_workers=self.n_workers)
         basic = self.cls_df_train_distributed
-        self.assertTrue(not classifier._repartition_needed(basic))
+        # In Spark Connect we always re-partition
+        if self.mode == "connect":
+            self.assertTrue(classifier._repartition_needed(basic))
+        else:
+            self.assertFalse(classifier._repartition_needed(basic))
         bad_repartitioned = basic.repartition(self.n_workers + 1)
         self.assertTrue(classifier._repartition_needed(bad_repartitioned))
         good_repartitioned = basic.repartition(self.n_workers)
-        self.assertFalse(classifier._repartition_needed(good_repartitioned))
+        # In Spark Connect we always re-partition
+        if self.mode == "connect":
+            self.assertTrue(classifier._repartition_needed(good_repartitioned))
+        else:
+            self.assertFalse(classifier._repartition_needed(good_repartitioned))
 
         # Now testing if force_repartition returns True regardless of whether the data is well partitioned
         classifier = SparkXGBClassifier(
@@ -615,3 +624,9 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         )
         good_repartitioned = basic.repartition(self.n_workers)
         self.assertTrue(classifier._repartition_needed(good_repartitioned))
+
+
+class XgboostLocalClusterConnectTestCase(XgboostLocalClusterTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass("connect")
