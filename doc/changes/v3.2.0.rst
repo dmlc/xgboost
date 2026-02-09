@@ -18,9 +18,11 @@ moment. (:pr:`11706`, :pr:`11715`, :pr:`11718`, :pr:`11931`, :pr:`11865`, :pr:`1
 :pr:`11962`)
 
 The adaptive cache is now used for all device types, including devices with full C2C
-bandwidth, like GH200 and DGX station. XGBoost now supports devices with mixed GPU models
-for configuring the host cache (:pr:`11998`). As part of the work for improved NUMA system
-support, we co-developed the ``pyhwloc`` project (:pr:`11992`).
+bandwidth, like GH200 and DGX station. Users can continue to specify the
+``cache_host_ratio`` parameter in case of memory fragmentation. XGBoost now supports
+devices with mixed GPU models for configuring the host cache (:pr:`11998`). As part of the
+work for improved NUMA system support, we co-developed the ``pyhwloc`` project
+(:pr:`11992`).
 
 Lastly, the old page-concat option for GPU external memory has been removed. XGBoost will
 use the full dataset for training. (:pr:`11882`, :pr:`11897`)
