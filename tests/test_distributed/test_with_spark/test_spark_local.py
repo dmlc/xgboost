@@ -997,7 +997,7 @@ class DoNotTestPySparkLocal:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = "file:" + tmpdir
             # PySpark Connect ML does not support overwrite - this is a bug in Spark:
-            # https://github.com/apache/spark/blob/v4.1.1/python/pyspark/ml/util.py#L574-L579
+            # https://issues.apache.org/jira/browse/SPARK-55452
             if "pyspark.sql.connect" in type(spark).__module__:
                 model.write().save(path)
             else:
@@ -1878,7 +1878,7 @@ class XgboostLocalTest(SparkTestCase):
             check_conf(classifier.getOrDefault(classifier.coll_cfg))
 
             # PySpark Connect ML does not support overwrite - this is a bug in Spark:
-            # https://github.com/apache/spark/blob/v4.1.1/python/pyspark/ml/util.py#L574-L579
+            # https://issues.apache.org/jira/browse/SPARK-55452
             if self.mode == "connect":
                 classifier.write().save(path)
             else:
@@ -1891,10 +1891,10 @@ class XgboostLocalTest(SparkTestCase):
             check_conf(model.getOrDefault(model.coll_cfg))
 
             # PySpark ML Connect does not support overwrite - this is a bug in Spark:
-            # https://github.com/apache/spark/blob/v4.1.1/python/pyspark/ml/util.py#L574-L579
+            # https://issues.apache.org/jira/browse/SPARK-55452
             if self.mode == "connect":
-                import shutil
-                shutil.rmtree(tmpdir + "/metadata")
+                # import shutil
+                # shutil.rmtree(tmpdir + "/metadata")
                 model.write().save(path)
             else:
                 model.write().overwrite().save(path)
