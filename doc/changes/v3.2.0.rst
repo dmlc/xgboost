@@ -29,7 +29,7 @@ Multi-Target/Class
 ******************
 
 This release brings substantial progress on the vector-leaf-based multi-target tree model,
-building on the multi-target intercept work from 3.1. The vector-leaf tree stores a vector
+building on the multi-target intercept work from 3.1. The vector leaf tree stores a vector
 of weights in each leaf node, enabling the model to capture correlations across targets
 during tree construction. In 3.2, we expanded the feature set to cover most of the
 commonly used training configurations.
@@ -73,7 +73,7 @@ Currently missing features for the ``hist`` tree method with vector leaf:
 Features
 ********
 
-- As part of the vector-leaf work, CPU `hist` now supports gradient-based sampling.
+- As part of the vector leaf work, CPU `hist` now supports gradient-based sampling.
 - The deprecated CLI (command line interface) has been removed. It was deprecated in
   2.1. (#11720)
 - Expose the categories container to the C API, allowing C users to access category
