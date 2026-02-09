@@ -43,16 +43,15 @@ New features for the multi-target tree include:
 - Reduced gradient (sketch boost) for the hist tree method, which avoids using the full
   gradient matrix to find tree structures for improving scalability with the number of
   targets. Users can use a custom objective to define the tree split gradient in addition
-  to the full leaf gradient.
+  to the full leaf gradient. Built-in objectives are not yet supported.
 - Support for all regression objectives, including MAE and the quantile loss.
 - GPU ``hist`` tree method implementation has features on par with the CPU one.
-- Regularization parameters including L1/L2, ``min_split_loss``, and
-  ``max_delta_step``.
+- Regularization parameters including L1/L2, ``min_split_loss``, and ``max_delta_step``.
 - Row subsampling with both uniform sampling and gradient-based sampling.
 - Column sampling (feature selection), including feature weights.
 - Feature importance variants (gain and coverage).
 - Model dump support for all formats (JSON, text, graphviz).
-- External memory support.
+- External memory.
 
 In addition, intercept initialization for the multinomial logistic objective now adheres
 to GLM semantics.
