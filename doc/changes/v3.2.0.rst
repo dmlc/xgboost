@@ -1,5 +1,5 @@
 ###################
-3.2.0 (2026 Feb 08)
+3.2.0 (2026 Feb 09)
 ###################
 
 We are excited to announce the XGBoost 3.2 release. This release features significant
@@ -16,8 +16,13 @@ can opt in to enable asynchronous memory management for efficient external memor
 training. Prior to 3.2, the RMM plugin was required. The feature is Linux-only at the
 moment. (#11706, #11715, #11718, #11931, #11865, #11959, #11962)
 
-In addition, the old page-concat option for GPU external memory has been removed. XGBoost
-will use the full dataset for training. (#11882, #11897)
+The adaptive cache is now used for all device types, including devices with full C2C
+bandwidth, like GH200 and DGX station. XGBoost now supports devices with mixed GPU models
+for configuring the host cache (#11998). As part of the work for improved NUMA system
+support, we co-developed the `pyhwloc` project (#11992).
+
+Lastly, the old page-concat option for GPU external memory has been removed. XGBoost will
+use the full dataset for training. (#11882, #11897)
 
 ******************
 Multi-Target/Class
@@ -75,10 +80,10 @@ Features
 - Expose the categories container to the C API, allowing C users to access category
   information from the trained model. (#11794)
 - Upgrade to CUDA 12.9. (#11972, #11968)
-- Compatibility fixes for the latest RMM (25.12 and 26.02) and CCCL (thrust 3.3). (#11930,
-  #11834, #11871, #11861, #11785) A nightly CI pipeline was added to test XGBoost with the
-  latest CCCL and RMM. (#11863)
-- Fix SYCL build. (#11844)
+- Support oneapi 2026 release. (#11994)
+- Compatibility fixes for the latest, nvcomp, RMM, and CCCL. (#11930, #11834, #11871,
+  #11995, #11861, #11785, #11997). A nightly CI pipeline was added to test XGBoost with
+  the latest CCCL and RMM. (#11863)
 
 *************
 Optimizations
@@ -101,6 +106,7 @@ Fixes
 
 - Fix logistic regression with constant labels. (#11973)
 - Fix OpenMP configuration for macOS. (#11976)
+- Fix SYCL build. (#11844)
 
 **************
 Python Package
@@ -145,13 +151,13 @@ Documents
 CI and Maintenance
 ******************
 
-- Support pre-commit for various linting and formatting tasks. ``clang-format`` is now
-  required by the CI. (#11984, #11978, #11980, #11958, #11953, #11946)
+- Support ``pre-commit`` for various linting and formatting tasks. ``clang-format`` is now
+  required by the CI. (#11984, #11978, #11980, #11958, #11953, #11946, #11993)
 - We added sccache integration to XGBoost's CI workflows, which brings significant
   speedup since a majority of the time is spent on compiling variants of XGBoost. In addition,
   most of the workflows now use GHA container support. (#11956, #11952, #11949, #11937,
-  #11934, #11927, #11932, #11924)
+  #11934, #11927, #11932, #11924, #11979)
 - Plenty of optimizations for tests. (#11990, #11975, #11964)
 - Various dependency updates, fixes, test refactoring, and cleanups. (#11955, #11957,
   #11963, #11945, #11912, #11909, #11888, #11898, #11925, #11877, #11824, #11748, #11721,
-  #11705, #11699, #11832, #11796, #11828, #11852, #11800)
+  #11705, #11699, #11832, #11796, #11828, #11852, #11800, #11999, #11991)
