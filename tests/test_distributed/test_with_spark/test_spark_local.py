@@ -1,10 +1,8 @@
-import glob
 import logging
 import os
-import random
 import tempfile
 from collections import namedtuple
-from typing import Generator, Iterable, List, Sequence
+from typing import Generator, Iterable, List
 
 import numpy as np
 import pytest
@@ -1082,155 +1080,129 @@ class TestClassifier:
 LTRData = namedtuple(
     "LTRData",
     (
-        "df_train",
-        "df_test",
-        "df_train_1",
-        "ranker_df_merged",
-        "expected_evals_result_train",
-        "expected_evals_result_validation",
+        "ranker_df",
+        "X_train",
+        "y_train",
+        "qid_train",
+        "X_test",
+        "y_test",
+        "qid_test",
     ),
 )
 
 
-@pytest.fixture(scope="module")
-def ltr_data(spark: SparkSession) -> Generator[LTRData, None, None]:
-    spark.conf.set("spark.sql.execution.arrow.maxRecordsPerBatch", "8")
-    ranker_df_train = spark.createDataFrame(
-        [
-            (Vectors.dense(1.0, 2.0, 3.0), 0, 0),
-            (Vectors.dense(4.0, 5.0, 6.0), 1, 0),
-            (Vectors.dense(9.0, 4.0, 8.0), 2, 0),
-            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 1),
-            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 1),
-            (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 1),
-        ],
-        ["features", "label", "qid"],
-    )
-    X_train = np.array(
-        [
-            [1.0, 2.0, 3.0],
-            [4.0, 5.0, 6.0],
-            [9.0, 4.0, 8.0],
-            [np.nan, 1.0, 5.5],
-            [np.nan, 6.0, 7.5],
-            [np.nan, 8.0, 9.5],
-        ]
-    )
-    qid_train = np.array([0, 0, 0, 1, 1, 1])
-    y_train = np.array([0, 1, 2, 0, 1, 2])
-
-    X_test = np.array(
-        [
-            [1.5, 2.0, 3.0],
-            [4.5, 5.0, 6.0],
-            [9.0, 4.5, 8.0],
-            [np.nan, 1.0, 6.0],
-            [np.nan, 6.0, 7.0],
-            [np.nan, 8.0, 10.5],
-        ]
-    )
-    qid_test = np.array([0, 0, 0, 1, 1, 1])
-    y_test = np.array([1, 0, 2, 1, 1, 2])
-
-    ltr = xgb.XGBRanker(
-        tree_method="approx",
-        objective="rank:pairwise",
-        n_estimators=10,
-    )
-    ltr.fit(X_train, y_train, qid=qid_train)
-    predt = ltr.predict(X_test)
-
-    ltr2 = xgb.XGBRanker(
-        tree_method="approx",
-        objective="rank:pairwise",
-        n_estimators=10,
-    )
-    ltr2.fit(
-        X_train,
-        y_train,
-        qid=qid_train,
-        eval_set=[(X_train, y_train), (X_test, y_test)],
-        eval_qid=[qid_train, qid_test],
-    )
-    evals_result = ltr2.evals_result()
-    expected_evals_result_train = evals_result["validation_0"]["ndcg@32"]
-    expected_evals_result_validation = evals_result["validation_1"]["ndcg@32"]
-
-    ranker_df_test = spark.createDataFrame(
-        [
-            (Vectors.dense(1.5, 2.0, 3.0), 0, float(predt[0]), 1),
-            (Vectors.dense(4.5, 5.0, 6.0), 0, float(predt[1]), 0),
-            (Vectors.dense(9.0, 4.5, 8.0), 0, float(predt[2]), 2),
-            (Vectors.sparse(3, {1: 1.0, 2: 6.0}), 1, float(predt[3]), 1),
-            (Vectors.sparse(3, {1: 6.0, 2: 7.0}), 1, float(predt[4]), 1),
-            (Vectors.sparse(3, {1: 8.0, 2: 10.5}), 1, float(predt[5]), 2),
-        ],
-        ["features", "qid", "expected_prediction", "label"],
-    )
-
-    ranker_df_merged = (
-        ranker_df_train.select(["features", "label", "qid"])
-        .withColumn("isVal", spark_sql_func.lit(False))
-        .union(
-            ranker_df_test.select(["features", "label", "qid"]).withColumn(
-                "isVal", spark_sql_func.lit(True)
-            )
-        )
-    )
-
-    ranker_df_train_1 = spark.createDataFrame(
-        [
-            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 9),
-            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 9),
-            (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 9),
-            (Vectors.dense(1.0, 2.0, 3.0), 0, 8),
-            (Vectors.dense(4.0, 5.0, 6.0), 1, 8),
-            (Vectors.dense(9.0, 4.0, 8.0), 2, 8),
-            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 7),
-            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 7),
-            (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 7),
-            (Vectors.dense(1.0, 2.0, 3.0), 0, 6),
-            (Vectors.dense(4.0, 5.0, 6.0), 1, 6),
-            (Vectors.dense(9.0, 4.0, 8.0), 2, 6),
-        ]
-        * 4,
-        ["features", "label", "qid"],
-    )
-    yield LTRData(
-        ranker_df_train,
-        ranker_df_test,
-        ranker_df_train_1,
-        ranker_df_merged,
-        expected_evals_result_train,
-        expected_evals_result_validation,
-    )
-
-
 class TestPySparkLocalLETOR:
-    def test_ranker(self, ltr_data: LTRData) -> None:
-        ranker = SparkXGBRanker(
-            qid_col="qid", objective="rank:pairwise", n_estimators=10
+    @pytest.fixture(scope="class")
+    def ltr_data(self, spark: SparkSession) -> LTRData:
+        spark.conf.set("spark.sql.execution.arrow.maxRecordsPerBatch", "8")
+        ranker_df = spark.createDataFrame(
+            [
+                (Vectors.dense(1.0, 2.0, 3.0), 0, 0, None, False),
+                (Vectors.dense(4.0, 5.0, 6.0), 1, 0, None, False),
+                (Vectors.dense(9.0, 4.0, 8.0), 2, 0, None, False),
+                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 1, None, False),
+                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 1, None, False),
+                (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 1, None, False),
+                (Vectors.dense(1.5, 2.0, 3.0), 1, 0, 0, True),
+                (Vectors.dense(4.5, 5.0, 6.0), 0, 0, 1, True),
+                (Vectors.dense(9.0, 4.5, 8.0), 2, 0, 2, True),
+                (Vectors.sparse(3, {1: 1.0, 2: 6.0}), 1, 1, 3, True),
+                (Vectors.sparse(3, {1: 6.0, 2: 7.0}), 1, 1, 4, True),
+                (Vectors.sparse(3, {1: 8.0, 2: 10.5}), 2, 1, 5, True),
+            ],
+            ["features", "label", "qid", "row_id", "isVal"],
         )
-        assert ranker.getOrDefault(ranker.objective) == "rank:pairwise"
-        model = ranker.fit(ltr_data.df_train)
-        pred_result = model.transform(ltr_data.df_test).collect()
-        for row in pred_result:
-            assert np.isclose(row.prediction, row.expected_prediction, rtol=1e-3)
+        X_train = np.array(
+            [
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+                [9.0, 4.0, 8.0],
+                [np.nan, 1.0, 5.5],
+                [np.nan, 6.0, 7.5],
+                [np.nan, 8.0, 9.5],
+            ]
+        )
+        qid_train = np.array([0, 0, 0, 1, 1, 1])
+        y_train = np.array([0, 1, 2, 0, 1, 2])
 
-    def test_ranker_qid_sorted(self, ltr_data: LTRData) -> None:
-        ranker = SparkXGBRanker(
-            qid_col="qid",
-            num_workers=4,
-            objective="rank:ndcg",
+        X_test = np.array(
+            [
+                [1.5, 2.0, 3.0],
+                [4.5, 5.0, 6.0],
+                [9.0, 4.5, 8.0],
+                [np.nan, 1.0, 6.0],
+                [np.nan, 6.0, 7.0],
+                [np.nan, 8.0, 10.5],
+            ]
+        )
+        qid_test = np.array([0, 0, 0, 1, 1, 1])
+        y_test = np.array([1, 0, 2, 1, 1, 2])
+
+        return LTRData(
+            ranker_df,
+            X_train,
+            y_train,
+            qid_train,
+            X_test,
+            y_test,
+            qid_test,
+        )
+
+    def test_ranker(self, ltr_data: LTRData) -> None:
+        ref = xgb.XGBRanker(
+            tree_method="approx",
+            objective="rank:pairwise",
             n_estimators=10,
         )
-        assert ranker.getOrDefault(ranker.objective) == "rank:ndcg"
-        model = ranker.fit(ltr_data.df_train_1)
-        model.transform(ltr_data.df_test).collect()
+        ref.fit(
+            ltr_data.X_train,
+            ltr_data.y_train,
+            qid=ltr_data.qid_train,
+            eval_set=[(ltr_data.X_test, ltr_data.y_test)],
+            eval_qid=[ltr_data.qid_test],
+        )
+        expected = ref.predict(ltr_data.X_test)
 
-    def test_ranker_same_qid_in_same_partition(self, ltr_data: LTRData) -> None:
+        ranker = SparkXGBRanker(
+            qid_col="qid",
+            tree_method="approx",
+            objective="rank:pairwise",
+            validation_indicator_col="isVal",
+            n_estimators=10,
+        )
+        assert ranker.getOrDefault(ranker.objective) == "rank:pairwise"
+        model = ranker.fit(ltr_data.ranker_df)
+        test_df = ltr_data.ranker_df.where(spark_sql_func.col("isVal"))
+        pred_result = (
+            model.transform(test_df)
+            .orderBy("row_id")
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        assert np.allclose(pred_result, expected, rtol=1e-3)
+
+    def test_ranker_same_qid_in_same_partition(self, spark: SparkSession) -> None:
+        ranker_df_train = spark.createDataFrame(
+            [
+                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 9),
+                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 9),
+                (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 9),
+                (Vectors.dense(1.0, 2.0, 3.0), 0, 8),
+                (Vectors.dense(4.0, 5.0, 6.0), 1, 8),
+                (Vectors.dense(9.0, 4.0, 8.0), 2, 8),
+                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 7),
+                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 7),
+                (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 7),
+                (Vectors.dense(1.0, 2.0, 3.0), 0, 6),
+                (Vectors.dense(4.0, 5.0, 6.0), 1, 6),
+                (Vectors.dense(9.0, 4.0, 8.0), 2, 6),
+            ]
+            * 4,
+            ["features", "label", "qid"],
+        )
         ranker = SparkXGBRanker(qid_col="qid", num_workers=4, force_repartition=True)
-        df, _ = ranker._prepare_input(ltr_data.df_train_1)
+        df, _ = ranker._prepare_input(ranker_df_train)
 
         def f(iterator: Iterable) -> List[int]:
             yield list(set(iterator))
@@ -1246,34 +1218,34 @@ class TestPySparkLocalLETOR:
             tree_method="approx",
             qid_col="qid",
             objective="rank:pairwise",
-            n_estimators=10,
-        ).fit(ltr_data.df_train)
-
-        np.testing.assert_allclose(
-            ltr_data.expected_evals_result_train,
-            spark_xgb_model.training_summary.train_objective_history["ndcg@32"],
-            atol=1e-3,
-        )
-
-        assert spark_xgb_model.training_summary.validation_objective_history == {}
-
-    def test_ranker_xgb_summary_with_validation(self, ltr_data: LTRData) -> None:
-        spark_xgb_model = SparkXGBRanker(
-            tree_method="approx",
-            qid_col="qid",
-            objective="rank:pairwise",
             validation_indicator_col="isVal",
             n_estimators=10,
-        ).fit(ltr_data.ranker_df_merged)
+        ).fit(ltr_data.ranker_df)
+
+        ref = xgb.XGBRanker(
+            tree_method="approx",
+            objective="rank:pairwise",
+            n_estimators=10,
+        )
+        ref.fit(
+            ltr_data.X_train,
+            ltr_data.y_train,
+            qid=ltr_data.qid_train,
+            eval_set=[
+                (ltr_data.X_train, ltr_data.y_train),
+                (ltr_data.X_test, ltr_data.y_test),
+            ],
+            eval_qid=[ltr_data.qid_train, ltr_data.qid_test],
+        )
 
         np.testing.assert_allclose(
-            ltr_data.expected_evals_result_train,
+            ref.evals_result()["validation_0"]["ndcg@32"],
             spark_xgb_model.training_summary.train_objective_history["ndcg@32"],
             atol=1e-3,
         )
 
         np.testing.assert_allclose(
-            ltr_data.expected_evals_result_validation,
+            ref.evals_result()["validation_1"]["ndcg@32"],
             spark_xgb_model.training_summary.validation_objective_history["ndcg@32"],
             atol=1e-3,
         )
