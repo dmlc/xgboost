@@ -632,6 +632,7 @@ class TestClassifier:
         assert sklearn_classifier.n_estimators == 10
         assert sklearn_classifier.missing == 2.0
         assert sklearn_classifier.max_depth == 3
+        assert sklearn_classifier.get_params()["sketch_eps"] == 0.5
 
     def test_classifier_array_col_as_feature(self, clf_data: ClfData) -> None:
         train_dataset = clf_data.df.select("features", "label").withColumn(
