@@ -224,12 +224,12 @@ void ReduceGradImpl(Context const* ctx, linalg::MatrixView<GPair const> gpairs, 
   auto s = ctx->CUDACtx()->Stream();
   std::size_t n_bytes = 0;
   dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, in_it, dh::tbegin(reg_abs_grad),
-                                                /*num_segments=*/n_samples,
+                                                /*num_segments=*/n_segments,
                                                 /*segment_size=*/n_targets, s));
   dh::TemporaryArray<char> alloc(n_bytes);
   dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(alloc.data().get(), n_bytes, /*d_in=*/in_it,
                                                 /*d_out=*/dh::tbegin(reg_abs_grad),
-                                                /*num_segments=*/n_samples,
+                                                /*num_segments=*/n_segments,
                                                 /*segment_size=*/n_targets, s));
 #else
   auto key_it =

@@ -10,8 +10,8 @@
 #include <cstdint>  // for uint8_t, uint32_t, int32_t
 #include <memory>   // for shared_ptr
 
+#include "cuda_stream.h"  // for StreamRef
 #include "device_compression.cuh"
-#include "cuda_stream.h"        // for StreamRef
 #include "device_helpers.cuh"  // for MemcpyBatchAsync
 #include "xgboost/span.h"      // for Span
 
@@ -277,11 +277,17 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
     // Fallback to nvcomp. This is only used during tests where we don't have access to DE
     // but still want the test coverage.
     CHECK(allow_fallback);
-    CheckAlign(nvcompBatchedSnappyDecompressRequiredAlignments);
+    nvcompAlignmentRequirements_t decompression_alignment_reqs;
+    SafeNvComp(nvcompBatchedSnappyDecompressGetRequiredAlignments(
+        nvcompBatchedSnappyDecompressDefaultOpts, &decompression_alignment_reqs));
+    CheckAlign(decompression_alignment_reqs);
     auto n_chunks = mgr_impl->Chunks();
     // Get sketch space
     std::size_t n_tmp_bytes = 0;
-    SafeNvComp(nvcompBatchedSnappyDecompressGetTempSize(n_chunks, /*unused*/ 0, &n_tmp_bytes));
+    SafeNvComp(nvcompBatchedSnappyDecompressGetTempSizeAsync(
+        n_chunks, /*max_uncompressed_chunk_bytes=*/0, nvcompBatchedSnappyDecompressDefaultOpts,
+        &n_tmp_bytes,
+        /*max_total_uncompressed_bytes=*/0));
     dh::device_vector<char> tmp(n_tmp_bytes, 0);
 
     dh::device_vector<nvcompStatus_t> status(n_chunks, nvcompSuccess);
@@ -297,7 +303,8 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
     SafeNvComp(nvcompBatchedSnappyDecompressAsync(
         mgr_impl->d_in_chunk_ptrs.data().get(), mgr_impl->d_in_chunk_sizes.data().get(),
         mgr_impl->d_out_chunk_sizes.data().get(), mgr_impl->act_nbytes.data().get(), n_chunks,
-        tmp.data().get(), n_tmp_bytes, d_out_ptrs.data().get(), status.data().get(), stream));
+        tmp.data().get(), n_tmp_bytes, d_out_ptrs.data().get(),
+        nvcompBatchedSnappyDecompressDefaultOpts, status.data().get(), stream));
   }
 }
 
@@ -307,7 +314,7 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
                                          std::size_t chunk_size) {
   CHECK_GT(chunk_size, 0);
   auto cuctx = ctx->CUDACtx();
-  auto nvcomp_batched_snappy_opts = nvcompBatchedSnappyDefaultOpts;
+  auto nvcomp_batched_snappy_opts = nvcompBatchedSnappyCompressDefaultOpts;
 
   nvcompAlignmentRequirements_t compression_alignment_reqs;
   SafeNvComp(nvcompBatchedSnappyCompressGetRequiredAlignments(nvcomp_batched_snappy_opts,
@@ -352,8 +359,9 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
    * Outputs
    */
   std::size_t comp_temp_bytes;
-  SafeNvComp(nvcompBatchedSnappyCompressGetTempSize(n_chunks, chunk_size,
-                                                    nvcomp_batched_snappy_opts, &comp_temp_bytes));
+  SafeNvComp(nvcompBatchedSnappyCompressGetTempSizeAsync(
+      n_chunks, chunk_size, nvcomp_batched_snappy_opts, &comp_temp_bytes,
+      /*max_total_uncompressed_bytes=*/in.size()));
   CHECK_EQ(comp_temp_bytes, 0);
   dh::DeviceUVector<char> comp_tmp(comp_temp_bytes);
 
@@ -381,7 +389,8 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
    */
   SafeNvComp(nvcompBatchedSnappyCompressAsync(
       in_ptrs.data(), in_sizes.data(), max_in_nbytes, n_chunks, comp_tmp.data(), comp_temp_bytes,
-      out_ptrs.data(), out_sizes.data(), nvcomp_batched_snappy_opts, cuctx->Stream()));
+      out_ptrs.data(), out_sizes.data(), nvcomp_batched_snappy_opts, /*device_statuses=*/nullptr,
+      cuctx->Stream()));
   auto n_bytes = thrust::reduce(cuctx->CTP(), out_sizes.cbegin(), out_sizes.cend());
   auto n_total_bytes = p_out->size();
   auto ratio = static_cast<double>(n_total_bytes) / in.size_bytes();
@@ -410,9 +419,8 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
 }
 
 [[nodiscard]] common::RefResourceView<std::uint8_t> CoalesceCompressedBuffersToHost(
-    curt::StreamRef stream, std::shared_ptr<HostPinnedMemPool> pool,
-    CuMemParams const& in_params, dh::DeviceUVector<std::uint8_t> const& in_buf,
-    CuMemParams* p_out) {
+    curt::StreamRef stream, std::shared_ptr<HostPinnedMemPool> pool, CuMemParams const& in_params,
+    dh::DeviceUVector<std::uint8_t> const& in_buf, CuMemParams* p_out) {
   std::size_t n_total_act_bytes = in_params.TotalSrcActBytes();
   std::size_t n_total_bytes = in_params.TotalSrcBytes();
   if (n_total_bytes == 0) {

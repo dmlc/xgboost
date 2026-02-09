@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file updater_refresh.cc
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
@@ -41,58 +41,50 @@ class TreeRefresher : public TreeUpdater {
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     const std::vector<GradientPair> &gpair_h = gpair->Data()->ConstHostVector();
     // Thread local variables.
-    std::vector<std::vector<GradStats> > stemp;
+    std::vector<std::vector<GradStats>> stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
     const int nthread = ctx_->Threads();
     fvec_temp.resize(nthread, RegTree::FVec());
     stemp.resize(nthread, std::vector<GradStats>());
-    dmlc::OMPException exc;
-#pragma omp parallel num_threads(nthread)
-    {
-      exc.Run([&]() {
-        int tid = omp_get_thread_num();
-        int num_nodes = 0;
+
+    bst_node_t num_nodes = 0;
+    for (auto tree : trees) {
+      num_nodes += tree->NumNodes();
+    }
+    common::ParallelFor(nthread, nthread, [&](auto tid) {
+      stemp[tid].resize(num_nodes);
+      std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats{});
+      fvec_temp[tid].Init(trees.front()->NumFeatures());
+    });
+
+    const MetaInfo &info = p_fmat->Info();
+    // start accumulating statistics
+    for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+      auto page = batch.GetView();
+      CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
+      common::ParallelFor(batch.Size(), ctx_->Threads(), [&](auto i) {
+        SparsePage::Inst inst = page[i];
+        const int tid = omp_get_thread_num();
+        const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
+        RegTree::FVec &feats = fvec_temp[tid];
+        feats.Fill(inst);
+        int offset = 0;
         for (auto tree : trees) {
-          num_nodes += tree->NumNodes();
+          AddStats(*tree, feats, gpair_h, info, ridx, dmlc::BeginPtr(stemp[tid]) + offset);
+          offset += tree->NumNodes();
         }
-        stemp[tid].resize(num_nodes, GradStats());
-        std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats());
-        fvec_temp[tid].Init(trees[0]->NumFeatures());
+        feats.Drop();
       });
     }
-    exc.Rethrow();
 
-    auto get_stats = [&]() {
-      const MetaInfo &info = p_fmat->Info();
-      // start accumulating statistics
-      for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-        auto page = batch.GetView();
-        CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
-        const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
-        common::ParallelFor(nbatch, ctx_->Threads(), [&](bst_omp_uint i) {
-          SparsePage::Inst inst = page[i];
-          const int tid = omp_get_thread_num();
-          const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
-          RegTree::FVec &feats = fvec_temp[tid];
-          feats.Fill(inst);
-          int offset = 0;
-          for (auto tree : trees) {
-            AddStats(*tree, feats, gpair_h, info, ridx, dmlc::BeginPtr(stemp[tid]) + offset);
-            offset += tree->NumNodes();
-          }
-          feats.Drop();
-        });
+    // aggregate the statistics
+    common::ParallelFor(num_nodes, ctx_->Threads(), [&](int nid) {
+      for (int tid = 1; tid < nthread; ++tid) {
+        stemp[0][nid].Add(stemp[tid][nid]);
       }
-      // aggregate the statistics
-      auto num_nodes = static_cast<int>(stemp[0].size());
-      common::ParallelFor(num_nodes, ctx_->Threads(), [&](int nid) {
-        for (int tid = 1; tid < nthread; ++tid) {
-          stemp[0][nid].Add(stemp[tid][nid]);
-        }
-      });
-    };
-    get_stats();
+    });
+
     // Synchronize the aggregated result.
     auto &sum_grad = stemp[0];
     // x2 for gradient and hessian.
@@ -125,8 +117,7 @@ class TreeRefresher : public TreeUpdater {
   }
   void Refresh(TrainParam const *param, const GradStats *gstats, int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
-    tree.Stat(nid).base_weight =
-        static_cast<bst_float>(CalcWeight(*param, gstats[nid]));
+    tree.Stat(nid).base_weight = static_cast<bst_float>(CalcWeight(*param, gstats[nid]));
     tree.Stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     if (tree[nid].IsLeaf()) {
       if (param->refresh_leaf) {
