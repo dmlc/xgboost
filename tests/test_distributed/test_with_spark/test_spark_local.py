@@ -279,12 +279,12 @@ class TestRegressor:
         assert not hasattr(py_reg, "gpu_id")
         assert hasattr(py_reg, "device")
         assert py_reg.getOrDefault(py_reg.n_estimators) == 100
-        assert py_reg.getOrDefault(getattr(py_reg, "objective")), "reg:squarederror"
+        assert py_reg.getOrDefault(getattr(py_reg, "objective")) == "reg:squarederror"
         py_reg2 = SparkXGBRegressor(n_estimators=200)
-        assert py_reg2.getOrDefault(getattr(py_reg2, "n_estimators")), 200
+        assert py_reg2.getOrDefault(getattr(py_reg2, "n_estimators")) == 200
         py_reg3 = py_reg2.copy({getattr(py_reg2, "max_depth"): 10})
-        assert py_reg3.getOrDefault(getattr(py_reg3, "n_estimators")), 200
-        assert py_reg3.getOrDefault(getattr(py_reg3, "max_depth")), 10
+        assert py_reg3.getOrDefault(getattr(py_reg3, "n_estimators")) == 200
+        assert py_reg3.getOrDefault(getattr(py_reg3, "max_depth")) == 10
         with pytest.raises(ValueError, match="Number of workers"):
             SparkXGBRegressor(num_workers=-1)._validate_params()
         with pytest.raises(ValueError, match="Number of workers"):
@@ -533,7 +533,7 @@ class TestClassifier:
         assert py_clf2.getOrDefault(getattr(py_clf2, "n_estimators")) == 200
         py_clf3 = py_clf2.copy({getattr(py_clf2, "max_depth"): 10})
         assert py_clf3.getOrDefault(getattr(py_clf3, "n_estimators")) == 200
-        assert py_clf3.getOrDefault(getattr(py_clf3, "max_depth")), 10
+        assert py_clf3.getOrDefault(getattr(py_clf3, "max_depth")) == 10
         with pytest.raises(ValueError, match="custom 'objective'"):
             SparkXGBClassifier(objective="binary:logistic")._validate_params()
         assert hasattr(py_clf, "arbitrary_params_dict")
@@ -635,18 +635,43 @@ class TestClassifier:
         assert sklearn_classifier.get_params()["sketch_eps"] == 0.5
 
     def test_classifier_array_col_as_feature(self, clf_data: ClfData) -> None:
-        train_dataset = clf_data.df.select("features", "label").withColumn(
+        vector_train = clf_data.df.select("row_id", "features", "label")
+        vector_test = clf_data.df.select("row_id", "features")
+        train_dataset = vector_train.withColumn(
             "features", vector_to_array(spark_sql_func.col("features"))
         )
-        test_dataset = clf_data.df.select("features").withColumn(
+        test_dataset = vector_test.withColumn(
             "features", vector_to_array(spark_sql_func.col("features"))
         )
-        classifier = SparkXGBClassifier(n_estimators=10)
-        model = classifier.fit(train_dataset)
+        params = {"n_estimators": 10, "max_depth": 3}
+        vector_model = SparkXGBClassifier(**params).fit(vector_train)
+        array_model = SparkXGBClassifier(**params).fit(train_dataset)
 
-        pred_result = model.transform(test_dataset).collect()
-        for row in pred_result:
-            assert row.probability is not None
+        vector_pred = (
+            vector_model.transform(vector_test)
+            .orderBy("row_id")
+            .select("prediction", "probability")
+            .toPandas()
+        )
+        array_pred = (
+            array_model.transform(test_dataset)
+            .orderBy("row_id")
+            .select("prediction", "probability")
+            .toPandas()
+        )
+        vector_proba = np.array(vector_pred["probability"].tolist())
+        array_proba = np.array(array_pred["probability"].tolist())
+        array_label = array_pred["prediction"].to_numpy()
+
+        assert np.allclose(
+            array_pred["prediction"].to_numpy(), vector_pred["prediction"].to_numpy()
+        )
+        assert np.allclose(array_proba, vector_proba, rtol=1e-3)
+        assert np.allclose(
+            array_proba.sum(axis=1), np.ones(array_proba.shape[0]), atol=1e-6
+        )
+        assert np.all((array_proba >= 0.0) & (array_proba <= 1.0))
+        assert np.allclose(array_label, np.argmax(array_proba, axis=1))
 
     def test_classifier_with_feature_names_types(self, clf_data: ClfData) -> None:
         n_features = clf_data.X.shape[1]
@@ -710,7 +735,7 @@ class TestClassifier:
 
     def test_param_value_converter(self) -> None:
         py_cls = SparkXGBClassifier(missing=np.float64(1.0), sketch_eps=np.float64(0.3))
-        # don't check by isintance(v, float) because for numpy scalar it will also return True
+        # don't check by isinstance(v, float) because for numpy scalar it will also return True
         assert py_cls.getOrDefault(py_cls.missing).__class__.__name__ == "float"
         assert (
             py_cls.getOrDefault(py_cls.arbitrary_params_dict)[
