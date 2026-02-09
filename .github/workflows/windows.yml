@@ -1,4 +1,4 @@
-name: XGBoost CI (Windows)
+name: Windows
 
 on: [push, pull_request]
 
@@ -28,7 +28,10 @@ jobs:
       - uses: actions/checkout@v6.0.1
         with:
           submodules: "true"
-      - run: powershell ops/pipeline/build-win64-gpu.ps1
+      - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - run: ops/pipeline/build-win64.ps1 -variant gpu
+      - run: sccache --show-stats
       - name: Stash files
         shell: powershell
         run: |
@@ -51,7 +54,7 @@ jobs:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
       - uses: dmlc/xgboost-devops/actions/sccache@main
-      - run: powershell ops/pipeline/build-win64-cpu.ps1
+      - run: ops/pipeline/build-win64.ps1 -variant cpu
       - run: sccache --show-stats
 
   test-win64-gpu:

@@ -8,36 +8,41 @@ from collections import namedtuple
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.callback import LearningRateScheduler
 
 pytestmark = pytest.mark.skipif(**tm.no_spark())
 
+FAST_N_ESTIMATORS = 20
+DATA_MULTIPLIER = 20
+LOWER_N_ESTIMATORS = 10
+
 from typing import Generator
 
 from pyspark.ml.linalg import Vectors
 from pyspark.sql import SparkSession
-
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 from xgboost.spark.utils import _get_max_num_concurrent_tasks
 
 from .utils import SparkLocalClusterTestCase
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def spark() -> Generator[SparkSession, None, None]:
+    os.environ["XGBOOST_PYSPARK_SHARED_SESSION"] = "1"
     config = {
-        "spark.master": "local-cluster[2, 2, 1024]",
-        "spark.python.worker.reuse": "false",
+        "spark.master": "local-cluster[2, 1, 1024]",
+        "spark.python.worker.reuse": "true",
         "spark.driver.host": "127.0.0.1",
         "spark.task.maxFailures": "1",
+        "spark.sql.shuffle.partitions": "4",
         "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
         "spark.sql.pyspark.jvmStacktrace.enabled": "true",
-        "spark.cores.max": "4",
+        "spark.cores.max": "2",
         "spark.task.cpus": "1",
-        "spark.executor.cores": "2",
+        "spark.executor.cores": "1",
+        "spark.ui.enabled": "false",
     }
 
     builder = SparkSession.builder.appName("XGBoost PySpark Python API Tests")
@@ -45,16 +50,18 @@ def spark() -> Generator[SparkSession, None, None]:
         builder.config(k, v)
     logging.getLogger("pyspark").setLevel(logging.INFO)
     sess = builder.getOrCreate()
-    yield sess
-
-    sess.stop()
-    sess.sparkContext.stop()
+    try:
+        yield sess
+    finally:
+        sess.stop()
+        sess.sparkContext.stop()
+        os.environ.pop("XGBOOST_PYSPARK_SHARED_SESSION", None)
 
 
 RegData = namedtuple("RegData", ("reg_df_train", "reg_df_test", "reg_params"))
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def reg_data(spark: SparkSession) -> Generator[RegData, None, None]:
     reg_params = {"max_depth": 5, "n_estimators": 10, "iteration_range": (0, 5)}
 
@@ -64,7 +71,9 @@ def reg_data(spark: SparkSession) -> Generator[RegData, None, None]:
     def custom_lr(boosting_round):
         return 1.0 / (boosting_round + 1)
 
-    reg1 = xgb.XGBRegressor(callbacks=[LearningRateScheduler(custom_lr)])
+    reg1 = xgb.XGBRegressor(
+        n_estimators=FAST_N_ESTIMATORS, callbacks=[LearningRateScheduler(custom_lr)]
+    )
     reg1.fit(X, y)
     predt1 = reg1.predict(X)
     # array([0.02406833, 0.97593164], dtype=float32)
@@ -119,7 +128,7 @@ class TestPySparkLocalCluster:
                 return 1.0 / (boosting_round + 1)
 
             cb = [LearningRateScheduler(custom_lr)]
-            regressor = SparkXGBRegressor(callbacks=cb)
+            regressor = SparkXGBRegressor(callbacks=cb, n_estimators=FAST_N_ESTIMATORS)
 
             # Test the save/load of the estimator instead of the model, since
             # the callbacks param only exists in the estimator but not in the model
@@ -135,117 +144,204 @@ class TestPySparkLocalCluster:
 
 
 class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
         random.seed(2020)
 
-        self.n_workers = _get_max_num_concurrent_tasks(self.session.sparkContext)
+        cls.n_workers = _get_max_num_concurrent_tasks(cls.session.sparkContext)
 
         # Distributed section
         # Binary classification
-        self.cls_df_train_distributed = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1),
-                (Vectors.dense(4.0, 5.0, 6.0), 0),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1),
-            ]
-            * 100,
+        base_cls_rows = [
+            (Vectors.dense(1.0, 2.0, 3.0), np.array([1.0, 2.0, 3.0]), 0),
+            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), np.array([0.0, 1.0, 5.5]), 1),
+            (Vectors.dense(4.0, 5.0, 6.0), np.array([4.0, 5.0, 6.0]), 0),
+            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), np.array([0.0, 6.0, 7.5]), 1),
+        ]
+        cls_features = np.stack([row[1] for row in base_cls_rows], axis=0)
+        cls_labels = np.array([row[2] for row in base_cls_rows])
+
+        cls_train_features = np.tile(cls_features, (DATA_MULTIPLIER, 1))
+        cls_train_labels = np.tile(cls_labels, DATA_MULTIPLIER)
+
+        cls.cls_df_train_distributed = cls.session.createDataFrame(
+            [(row[0], row[2]) for row in base_cls_rows] * DATA_MULTIPLIER,
             ["features", "label"],
         )
-        self.cls_df_test_distributed = self.session.createDataFrame(
+
+        clf = xgb.XGBClassifier(n_estimators=FAST_N_ESTIMATORS)
+        clf.fit(cls_train_features, cls_train_labels)
+        cls_prob = clf.predict_proba(cls_features)
+        cls.cls_df_test_distributed = cls.session.createDataFrame(
             [
-                (Vectors.dense(1.0, 2.0, 3.0), 0, [0.9949826, 0.0050174]),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, [0.0050174, 0.9949826]),
-                (Vectors.dense(4.0, 5.0, 6.0), 0, [0.9949826, 0.0050174]),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, [0.0050174, 0.9949826]),
+                (base_cls_rows[i][0], int(cls_labels[i]), cls_prob[i].tolist())
+                for i in range(len(base_cls_rows))
             ],
             ["features", "expected_label", "expected_probability"],
         )
+
         # Binary classification with different num_estimators
-        self.cls_df_test_distributed_lower_estimators = self.session.createDataFrame(
+        clf_low = xgb.XGBClassifier(n_estimators=LOWER_N_ESTIMATORS)
+        clf_low.fit(cls_train_features, cls_train_labels)
+        cls_prob_low = clf_low.predict_proba(cls_features)
+        cls.cls_df_test_distributed_lower_estimators = cls.session.createDataFrame(
             [
-                (Vectors.dense(1.0, 2.0, 3.0), 0, [0.9735, 0.0265]),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, [0.0265, 0.9735]),
-                (Vectors.dense(4.0, 5.0, 6.0), 0, [0.9735, 0.0265]),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, [0.0265, 0.9735]),
+                (base_cls_rows[i][0], int(cls_labels[i]), cls_prob_low[i].tolist())
+                for i in range(len(base_cls_rows))
             ],
             ["features", "expected_label", "expected_probability"],
         )
 
         # Multiclass classification
-        self.cls_df_train_distributed_multiclass = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1),
-                (Vectors.dense(4.0, 5.0, 6.0), 0),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 2),
-            ]
-            * 100,
+        base_multi_rows = [
+            (Vectors.dense(1.0, 2.0, 3.0), np.array([1.0, 2.0, 3.0]), 0),
+            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), np.array([0.0, 1.0, 5.5]), 1),
+            (Vectors.dense(4.0, 5.0, 6.0), np.array([4.0, 5.0, 6.0]), 0),
+            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), np.array([0.0, 6.0, 7.5]), 2),
+        ]
+        multi_features = np.stack([row[1] for row in base_multi_rows], axis=0)
+        multi_labels = np.array([row[2] for row in base_multi_rows])
+
+        multi_train_features = np.tile(multi_features, (DATA_MULTIPLIER, 1))
+        multi_train_labels = np.tile(multi_labels, DATA_MULTIPLIER)
+
+        cls.cls_df_train_distributed_multiclass = cls.session.createDataFrame(
+            [(row[0], row[2]) for row in base_multi_rows] * DATA_MULTIPLIER,
             ["features", "label"],
         )
-        self.cls_df_test_distributed_multiclass = self.session.createDataFrame(
+
+        multi_clf = xgb.XGBClassifier(n_estimators=FAST_N_ESTIMATORS, base_score=0.5)
+        multi_clf.fit(multi_train_features, multi_train_labels)
+        multi_margins = multi_clf.predict(multi_features, output_margin=True)
+        cls.cls_df_test_distributed_multiclass = cls.session.createDataFrame(
             [
-                (Vectors.dense(1.0, 2.0, 3.0), 0, [4.294563, -2.449409, -2.449409]),
                 (
-                    Vectors.sparse(3, {1: 1.0, 2: 5.5}),
-                    1,
-                    [-2.3796105, 3.669014, -2.449409],
-                ),
-                (Vectors.dense(4.0, 5.0, 6.0), 0, [4.294563, -2.449409, -2.449409]),
-                (
-                    Vectors.sparse(3, {1: 6.0, 2: 7.5}),
-                    2,
-                    [-2.3796105, -2.449409, 3.669014],
-                ),
+                    base_multi_rows[i][0],
+                    int(multi_labels[i]),
+                    multi_margins[i].tolist(),
+                )
+                for i in range(len(base_multi_rows))
             ],
             ["features", "expected_label", "expected_margins"],
         )
 
         # Regression
-        self.reg_df_train_distributed = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1),
-                (Vectors.dense(4.0, 5.0, 6.0), 0),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 2),
-            ]
-            * 100,
+        base_reg_rows = [
+            (Vectors.dense(1.0, 2.0, 3.0), np.array([1.0, 2.0, 3.0]), 0),
+            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), np.array([0.0, 1.0, 5.5]), 1),
+            (Vectors.dense(4.0, 5.0, 6.0), np.array([4.0, 5.0, 6.0]), 0),
+            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), np.array([0.0, 6.0, 7.5]), 2),
+        ]
+        reg_features = np.stack([row[1] for row in base_reg_rows], axis=0)
+        reg_labels = np.array([row[2] for row in base_reg_rows], dtype=float)
+
+        reg_train_features = np.tile(reg_features, (DATA_MULTIPLIER, 1))
+        reg_train_labels = np.tile(reg_labels, DATA_MULTIPLIER)
+
+        cls.reg_df_train_distributed = cls.session.createDataFrame(
+            [(row[0], row[2]) for row in base_reg_rows] * DATA_MULTIPLIER,
             ["features", "label"],
         )
-        self.reg_df_test_distributed = self.session.createDataFrame(
+
+        reg = xgb.XGBRegressor(n_estimators=FAST_N_ESTIMATORS)
+        reg.fit(reg_train_features, reg_train_labels)
+        reg_pred = reg.predict(reg_features)
+        cls.reg_df_test_distributed = cls.session.createDataFrame(
             [
-                (Vectors.dense(1.0, 2.0, 3.0), 1.533e-04),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 9.999e-01),
-                (Vectors.dense(4.0, 5.0, 6.0), 1.533e-04),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1.999e00),
+                (base_reg_rows[i][0], float(reg_pred[i]))
+                for i in range(len(base_reg_rows))
             ],
             ["features", "expected_label"],
         )
 
         # Adding weight and validation
-        self.clf_params_with_eval_dist = {
+        cls.clf_params_with_eval_dist = {
             "validation_indicator_col": "isVal",
             "early_stopping_rounds": 1,
             "eval_metric": "logloss",
+            "n_estimators": FAST_N_ESTIMATORS,
         }
-        self.clf_params_with_weight_dist = {"weight_col": "weight"}
-        self.cls_df_train_distributed_with_eval_weight = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
-                (Vectors.dense(4.0, 5.0, 6.0), 0, True, 1.0),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, True, 2.0),
-            ]
-            * 100,
+        cls.clf_params_with_weight_dist = {"weight_col": "weight"}
+        base_eval_rows = [
+            (Vectors.dense(1.0, 2.0, 3.0), np.array([1.0, 2.0, 3.0]), 0, False, 1.0),
+            (
+                Vectors.sparse(3, {1: 1.0, 2: 5.5}),
+                np.array([0.0, 1.0, 5.5]),
+                1,
+                False,
+                2.0,
+            ),
+            (Vectors.dense(4.0, 5.0, 6.0), np.array([4.0, 5.0, 6.0]), 0, True, 1.0),
+            (
+                Vectors.sparse(3, {1: 6.0, 2: 7.5}),
+                np.array([0.0, 6.0, 7.5]),
+                1,
+                True,
+                2.0,
+            ),
+        ]
+        eval_features = np.stack([row[1] for row in base_eval_rows], axis=0)
+        eval_labels = np.array([row[2] for row in base_eval_rows], dtype=float)
+        eval_is_val = np.array([row[3] for row in base_eval_rows], dtype=bool)
+        eval_weights = np.array([row[4] for row in base_eval_rows], dtype=float)
+
+        eval_train_features = np.tile(eval_features, (DATA_MULTIPLIER, 1))
+        eval_train_labels = np.tile(eval_labels, DATA_MULTIPLIER)
+        eval_train_is_val = np.tile(eval_is_val, DATA_MULTIPLIER)
+        eval_train_weights = np.tile(eval_weights, DATA_MULTIPLIER)
+
+        train_mask = ~eval_train_is_val
+        X_train = eval_train_features[train_mask]
+        y_train = eval_train_labels[train_mask]
+        w_train = eval_train_weights[train_mask]
+        X_val = eval_train_features[eval_train_is_val]
+        y_val = eval_train_labels[eval_train_is_val]
+        w_val = eval_train_weights[eval_train_is_val]
+
+        cls.cls_df_train_distributed_with_eval_weight = cls.session.createDataFrame(
+            [(row[0], row[2], row[3], row[4]) for row in base_eval_rows]
+            * DATA_MULTIPLIER,
             ["features", "label", "isVal", "weight"],
         )
-        self.cls_df_test_distributed_with_eval_weight = self.session.createDataFrame(
+
+        clf_weight = xgb.XGBClassifier(n_estimators=FAST_N_ESTIMATORS)
+        clf_weight.fit(
+            eval_train_features, eval_train_labels, sample_weight=eval_train_weights
+        )
+        prob_with_weight = clf_weight.predict_proba(eval_features[:1])[0].tolist()
+
+        clf_eval = xgb.XGBClassifier(
+            n_estimators=FAST_N_ESTIMATORS,
+            early_stopping_rounds=1,
+            eval_metric="logloss",
+        )
+        clf_eval.fit(X_train, y_train, eval_set=[(X_val, y_val)])
+        prob_with_eval = clf_eval.predict_proba(eval_features[:1])[0].tolist()
+
+        clf_weight_eval = xgb.XGBClassifier(
+            n_estimators=FAST_N_ESTIMATORS,
+            early_stopping_rounds=1,
+            eval_metric="logloss",
+        )
+        clf_weight_eval.fit(
+            X_train,
+            y_train,
+            sample_weight=w_train,
+            eval_set=[(X_val, y_val)],
+            sample_weight_eval_set=[w_val],
+        )
+        prob_with_weight_and_eval = clf_weight_eval.predict_proba(eval_features[:1])[
+            0
+        ].tolist()
+
+        cls.cls_df_test_distributed_with_eval_weight = cls.session.createDataFrame(
             [
                 (
-                    Vectors.dense(1.0, 2.0, 3.0),
-                    [0.9955, 0.0044],
-                    [0.9904, 0.0096],
-                    [0.9903, 0.0097],
+                    base_eval_rows[0][0],
+                    prob_with_weight,
+                    prob_with_eval,
+                    prob_with_weight_and_eval,
                 ),
             ],
             [
@@ -255,33 +351,59 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                 "expected_prob_with_weight_and_eval",
             ],
         )
-        self.clf_best_score_eval = 0.009677
-        self.clf_best_score_weight_and_eval = 0.006626
+        cls.clf_best_score_eval = clf_eval.best_score
+        cls.clf_best_score_weight_and_eval = clf_weight_eval.best_score
 
-        self.reg_params_with_eval_dist = {
+        cls.reg_params_with_eval_dist = {
             "validation_indicator_col": "isVal",
             "early_stopping_rounds": 1,
             "eval_metric": "rmse",
+            "n_estimators": FAST_N_ESTIMATORS,
         }
-        self.reg_params_with_weight_dist = {"weight_col": "weight"}
-        self.reg_df_train_distributed_with_eval_weight = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
-                (Vectors.dense(4.0, 5.0, 6.0), 0, True, 1.0),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, True, 2.0),
-            ]
-            * 100,
+        cls.reg_params_with_weight_dist = {"weight_col": "weight"}
+        cls.reg_df_train_distributed_with_eval_weight = cls.session.createDataFrame(
+            [(row[0], row[2], row[3], row[4]) for row in base_eval_rows]
+            * DATA_MULTIPLIER,
             ["features", "label", "isVal", "weight"],
         )
-        self.reg_df_test_distributed_with_eval_weight = self.session.createDataFrame(
+
+        reg_weight = xgb.XGBRegressor(n_estimators=FAST_N_ESTIMATORS)
+        reg_weight.fit(
+            eval_train_features, eval_train_labels, sample_weight=eval_train_weights
+        )
+        pred_with_weight = reg_weight.predict(eval_features[:2])
+
+        reg_eval = xgb.XGBRegressor(
+            n_estimators=FAST_N_ESTIMATORS, early_stopping_rounds=1, eval_metric="rmse"
+        )
+        reg_eval.fit(X_train, y_train, eval_set=[(X_val, y_val)])
+        pred_with_eval = reg_eval.predict(eval_features[:2])
+
+        reg_weight_eval = xgb.XGBRegressor(
+            n_estimators=FAST_N_ESTIMATORS, early_stopping_rounds=1, eval_metric="rmse"
+        )
+        reg_weight_eval.fit(
+            X_train,
+            y_train,
+            sample_weight=w_train,
+            eval_set=[(X_val, y_val)],
+            sample_weight_eval_set=[w_val],
+        )
+        pred_with_weight_and_eval = reg_weight_eval.predict(eval_features[:2])
+
+        cls.reg_df_test_distributed_with_eval_weight = cls.session.createDataFrame(
             [
-                (Vectors.dense(1.0, 2.0, 3.0), 4.583e-05, 5.239e-05, 6.03e-05),
                 (
-                    Vectors.sparse(3, {1: 1.0, 2: 5.5}),
-                    9.9997e-01,
-                    9.99947e-01,
-                    9.9995e-01,
+                    base_eval_rows[0][0],
+                    float(pred_with_weight[0]),
+                    float(pred_with_eval[0]),
+                    float(pred_with_weight_and_eval[0]),
+                ),
+                (
+                    base_eval_rows[1][0],
+                    float(pred_with_weight[1]),
+                    float(pred_with_eval[1]),
+                    float(pred_with_weight_and_eval[1]),
                 ),
             ],
             [
@@ -291,11 +413,13 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                 "expected_prediction_with_weight_and_eval",
             ],
         )
-        self.reg_best_score_eval = 5.239e-05
-        self.reg_best_score_weight_and_eval = 4.850e-05
+        cls.reg_best_score_eval = reg_eval.best_score
+        cls.reg_best_score_weight_and_eval = reg_weight_eval.best_score
 
     def test_classifier_distributed_basic(self):
-        classifier = SparkXGBClassifier(num_workers=self.n_workers, n_estimators=100)
+        classifier = SparkXGBClassifier(
+            num_workers=self.n_workers, n_estimators=FAST_N_ESTIMATORS
+        )
         model = classifier.fit(self.cls_df_train_distributed)
         pred_result = model.transform(self.cls_df_test_distributed).collect()
         for row in pred_result:
@@ -307,7 +431,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
     def test_classifier_distributed_multiclass(self):
         # There is no built-in multiclass option for external storage
         classifier = SparkXGBClassifier(
-            num_workers=self.n_workers, n_estimators=100, base_score=0.5
+            num_workers=self.n_workers, n_estimators=FAST_N_ESTIMATORS, base_score=0.5
         )
         model = classifier.fit(self.cls_df_train_distributed_multiclass)
         pred_result = model.transform(self.cls_df_test_distributed_multiclass).collect()
@@ -318,7 +442,9 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             )
 
     def test_regressor_distributed_basic(self):
-        regressor = SparkXGBRegressor(num_workers=self.n_workers, n_estimators=100)
+        regressor = SparkXGBRegressor(
+            num_workers=self.n_workers, n_estimators=FAST_N_ESTIMATORS
+        )
         model = regressor.fit(self.reg_df_train_distributed)
         pred_result = model.transform(self.reg_df_test_distributed).collect()
         for row in pred_result:
@@ -328,8 +454,8 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         # with weight
         classifier = SparkXGBClassifier(
             num_workers=self.n_workers,
-            n_estimators=100,
-            **self.clf_params_with_weight_dist
+            n_estimators=FAST_N_ESTIMATORS,
+            **self.clf_params_with_weight_dist,
         )
         model = classifier.fit(self.cls_df_train_distributed_with_eval_weight)
         pred_result = model.transform(
@@ -342,9 +468,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
         # with eval only
         classifier = SparkXGBClassifier(
-            num_workers=self.n_workers,
-            n_estimators=100,
-            **self.clf_params_with_eval_dist
+            num_workers=self.n_workers, **self.clf_params_with_eval_dist
         )
         model = classifier.fit(self.cls_df_train_distributed_with_eval_weight)
         pred_result = model.transform(
@@ -363,9 +487,8 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         # with both weight and eval
         classifier = SparkXGBClassifier(
             num_workers=self.n_workers,
-            n_estimators=100,
             **self.clf_params_with_eval_dist,
-            **self.clf_params_with_weight_dist
+            **self.clf_params_with_weight_dist,
         )
         model = classifier.fit(self.cls_df_train_distributed_with_eval_weight)
         pred_result = model.transform(
@@ -387,8 +510,8 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         # with weight
         regressor = SparkXGBRegressor(
             num_workers=self.n_workers,
-            n_estimators=100,
-            **self.reg_params_with_weight_dist
+            n_estimators=FAST_N_ESTIMATORS,
+            **self.reg_params_with_weight_dist,
         )
         model = regressor.fit(self.reg_df_train_distributed_with_eval_weight)
         pred_result = model.transform(
@@ -402,9 +525,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             )
         # with eval only
         regressor = SparkXGBRegressor(
-            num_workers=self.n_workers,
-            n_estimators=100,
-            **self.reg_params_with_eval_dist
+            num_workers=self.n_workers, **self.reg_params_with_eval_dist
         )
         model = regressor.fit(self.reg_df_train_distributed_with_eval_weight)
         pred_result = model.transform(
@@ -422,10 +543,9 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         # with both weight and eval
         regressor = SparkXGBRegressor(
             num_workers=self.n_workers,
-            n_estimators=100,
             use_external_storage=False,
             **self.reg_params_with_eval_dist,
-            **self.reg_params_with_weight_dist
+            **self.reg_params_with_weight_dist,
         )
         model = regressor.fit(self.reg_df_train_distributed_with_eval_weight)
         pred_result = model.transform(
@@ -446,7 +566,9 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         )
 
     def test_num_estimators(self):
-        classifier = SparkXGBClassifier(num_workers=self.n_workers, n_estimators=10)
+        classifier = SparkXGBClassifier(
+            num_workers=self.n_workers, n_estimators=LOWER_N_ESTIMATORS
+        )
         model = classifier.fit(self.cls_df_train_distributed)
         pred_result = model.transform(
             self.cls_df_test_distributed_lower_estimators
@@ -458,7 +580,9 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             )
 
     def test_distributed_params(self):
-        classifier = SparkXGBClassifier(num_workers=self.n_workers, max_depth=7)
+        classifier = SparkXGBClassifier(
+            num_workers=self.n_workers, max_depth=7, n_estimators=FAST_N_ESTIMATORS
+        )
         model = classifier.fit(self.cls_df_train_distributed)
         self.assertTrue(hasattr(classifier, "max_depth"))
         self.assertEqual(classifier.getOrDefault(classifier.max_depth), 7)
