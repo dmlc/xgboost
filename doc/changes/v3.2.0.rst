@@ -75,7 +75,7 @@ Currently missing features for the ``hist`` tree method with vector leaf:
 Features
 ********
 
-- As part of the vector leaf work, CPU `hist` now supports gradient-based sampling.
+- As part of the vector leaf work, CPU ```hist`` now supports gradient-based sampling.
 - The deprecated CLI (command line interface) has been removed. It was deprecated in
   2.1. (:pr:`11720`)
 - Expose the categories container to the C API, allowing C users to access category
