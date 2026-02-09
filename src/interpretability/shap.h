@@ -14,34 +14,34 @@ struct GBTreeModel;
 }  // namespace xgboost::gbm
 
 namespace xgboost::interpretability {
-void ShapValuesCPU(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
-                   gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                   std::vector<float> const *tree_weights, int condition,
-                   unsigned condition_feature);
+namespace cpu_impl {
+void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
+                gbm::GBTreeModel const &model, bst_tree_t tree_end,
+                std::vector<float> const *tree_weights, int condition, unsigned condition_feature);
 
-void ApproxFeatureImportanceCPU(Context const *ctx, DMatrix *p_fmat,
-                                HostDeviceVector<float> *out_contribs,
-                                gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                                std::vector<float> const *tree_weights);
+void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
+                             HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
+                             bst_tree_t tree_end, std::vector<float> const *tree_weights);
 
-void ShapInteractionValuesCPU(Context const *ctx, DMatrix *p_fmat,
-                              HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                              bst_tree_t tree_end, std::vector<float> const *tree_weights,
-                              bool approximate);
+void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
+                           HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
+                           bst_tree_t tree_end, std::vector<float> const *tree_weights,
+                           bool approximate);
+}  // namespace cpu_impl
 
 #if defined(XGBOOST_USE_CUDA)
-void ShapValuesCUDA(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
-                    gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                    std::vector<float> const *tree_weights, int condition,
-                    unsigned condition_feature);
-void ApproxFeatureImportanceCUDA(Context const *ctx, DMatrix *p_fmat,
-                                 HostDeviceVector<float> *out_contribs,
-                                 gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                                 std::vector<float> const *tree_weights);
-void ShapInteractionValuesCUDA(Context const *ctx, DMatrix *p_fmat,
-                               HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                               bst_tree_t tree_end, std::vector<float> const *tree_weights,
-                               bool approximate);
+namespace cuda_impl {
+void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
+                gbm::GBTreeModel const &model, bst_tree_t tree_end,
+                std::vector<float> const *tree_weights, int condition, unsigned condition_feature);
+void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
+                             HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
+                             bst_tree_t tree_end, std::vector<float> const *tree_weights);
+void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
+                           HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
+                           bst_tree_t tree_end, std::vector<float> const *tree_weights,
+                           bool approximate);
+}  // namespace cuda_impl
 #endif  // defined(XGBOOST_USE_CUDA)
 
 inline void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
@@ -50,13 +50,13 @@ inline void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<flo
                        unsigned condition_feature) {
 #if defined(XGBOOST_USE_CUDA)
   if (ctx->IsCUDA()) {
-    ShapValuesCUDA(ctx, p_fmat, out_contribs, model, tree_end, tree_weights, condition,
-                   condition_feature);
+    cuda_impl::ShapValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights, condition,
+                          condition_feature);
     return;
   }
 #endif  // defined(XGBOOST_USE_CUDA)
-  ShapValuesCPU(ctx, p_fmat, out_contribs, model, tree_end, tree_weights, condition,
-                condition_feature);
+  cpu_impl::ShapValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights, condition,
+                       condition_feature);
 }
 
 inline void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
@@ -65,11 +65,11 @@ inline void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
                                     std::vector<float> const *tree_weights) {
 #if defined(XGBOOST_USE_CUDA)
   if (ctx->IsCUDA()) {
-    ApproxFeatureImportanceCUDA(ctx, p_fmat, out_contribs, model, tree_end, tree_weights);
+    cuda_impl::ApproxFeatureImportance(ctx, p_fmat, out_contribs, model, tree_end, tree_weights);
     return;
   }
 #endif  // defined(XGBOOST_USE_CUDA)
-  ApproxFeatureImportanceCPU(ctx, p_fmat, out_contribs, model, tree_end, tree_weights);
+  cpu_impl::ApproxFeatureImportance(ctx, p_fmat, out_contribs, model, tree_end, tree_weights);
 }
 
 inline void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
@@ -78,11 +78,12 @@ inline void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                                   std::vector<float> const *tree_weights, bool approximate) {
 #if defined(XGBOOST_USE_CUDA)
   if (ctx->IsCUDA()) {
-    ShapInteractionValuesCUDA(ctx, p_fmat, out_contribs, model, tree_end, tree_weights,
-                              approximate);
+    cuda_impl::ShapInteractionValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights,
+                                     approximate);
     return;
   }
 #endif  // defined(XGBOOST_USE_CUDA)
-  ShapInteractionValuesCPU(ctx, p_fmat, out_contribs, model, tree_end, tree_weights, approximate);
+  cpu_impl::ShapInteractionValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights,
+                                  approximate);
 }
 }  // namespace xgboost::interpretability

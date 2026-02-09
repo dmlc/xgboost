@@ -5,8 +5,8 @@
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/extrema.h>
 #include <thrust/fill.h>
-#include <thrust/max_element.h>
 #include <thrust/scan.h>
 
 #include <algorithm>
@@ -44,8 +44,8 @@
 
 namespace xgboost::interpretability::cuda_impl {
 namespace {
-using cuda_impl::StaticBatch;
 using predictor::GBTreeModelView;
+using ::xgboost::cuda_impl::StaticBatch;
 
 struct SparsePageView {
   common::Span<const Entry> d_data;
@@ -115,31 +115,29 @@ struct EllpackLoader {
  public:
   using SupportShmemLoad = std::false_type;
 
- private:
-  EncAccessor acc_;
-  Accessor data_;
-
- public:
-  bool use_shared{false};
-  bst_feature_t num_features;
-  bst_idx_t num_rows;
-  float missing;
+  Accessor matrix;
+  EncAccessor acc;
 
   XGBOOST_DEVICE EllpackLoader(Accessor m, bool /*use_shared*/, bst_feature_t n_features,
                                bst_idx_t num_rows, float missing, EncAccessor&& acc)
-      : acc_{std::forward<EncAccessor>(acc)},
-        data_{m},
-        num_features{n_features},
-        num_rows{num_rows},
-        missing{missing} {}
+      : matrix{std::move(m)}, acc{std::forward<EncAccessor>(acc)} {}
 
   template <typename Fidx>
   [[nodiscard]] __device__ float GetElement(bst_idx_t ridx, Fidx fidx) const {
-    auto value = data_.GetElement(ridx, fidx);
-    return acc_(value, fidx);
+    auto gidx = matrix.template GetBinIndex<false>(ridx, fidx);
+    if (gidx == -1) {
+      return std::numeric_limits<float>::quiet_NaN();
+    }
+    if (common::IsCat(matrix.feature_types, fidx)) {
+      return this->acc(matrix.gidx_fvalue_map[gidx], fidx);
+    }
+    if (gidx == matrix.feature_segments[fidx]) {
+      return matrix.min_fvalue[fidx];
+    }
+    return matrix.gidx_fvalue_map[gidx - 1];
   }
-  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return num_rows; }
-  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return num_features; }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return matrix.n_rows; }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return matrix.NumFeatures(); }
 };
 
 using TreeViewVar = cuda::std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
@@ -358,20 +356,20 @@ void ExtractPaths(Context const* ctx,
   });
 }
 
-template <typename IsDense, typename EncAccessorT>
+template <typename IsDense, typename EncAccessor>
 class LaunchConfig {
  public:
-  using EncAccessorT = EncAccessorT;
+  using EncAccessorT = EncAccessor;
 
   explicit LaunchConfig(Context const* ctx, bst_feature_t n_features)
       : ctx_{ctx}, n_features_{n_features} {}
 
   template <typename Fn>
-  void ForEachBatch(DMatrix* p_fmat, EncAccessorT&& acc, Fn&& fn) {
+  void ForEachBatch(DMatrix* p_fmat, EncAccessor&& acc, Fn&& fn) {
     if (p_fmat->PageExists<SparsePage>()) {
       for (auto& page : p_fmat->GetBatches<SparsePage>()) {
         SparsePageView batch{ctx_, page, n_features_};
-        auto loader = ShapSparsePageLoader<EncAccessorT>{batch, acc};
+        auto loader = ShapSparsePageLoader<EncAccessor>{batch, acc};
         fn(std::move(loader), page.base_rowid);
       }
     } else {
@@ -386,7 +384,7 @@ class LaunchConfig {
                                       this->n_features_,
                                       batch.NumRows(),
                                       std::numeric_limits<float>::quiet_NaN(),
-                                      std::forward<EncAccessorT>(acc)};
+                                      std::forward<EncAccessor>(acc)};
           fn(std::move(loader), batch.base_rowid);
         });
       }
@@ -402,7 +400,7 @@ template <typename Kernel>
 void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc,
                 gbm::GBTreeModel const& model, Kernel&& launch) {
   if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
-    auto [acc, mapping] = cuda_impl::MakeCatAccessor(ctx, new_enc, model.Cats());
+    auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, new_enc, model.Cats());
     auto cfg =
         LaunchConfig<std::true_type, decltype(acc)>{ctx, model.learner_model_param->num_feature};
     launch(std::move(cfg), std::move(acc));
@@ -414,9 +412,9 @@ void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc,
 }
 }  // namespace
 
-void ShapValuesCUDA(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                    gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                    std::vector<float> const* tree_weights, int, unsigned) {
+void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
+                gbm::GBTreeModel const& model, bst_tree_t tree_end,
+                std::vector<float> const* tree_weights, int, unsigned) {
   xgboost_NVTX_FN_RANGE();
   StringView not_implemented{
       "contribution is not implemented in the GPU predictor, use CPU instead."};
@@ -469,10 +467,10 @@ void ShapValuesCUDA(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>
   });
 }
 
-void ShapInteractionValuesCUDA(Context const* ctx, DMatrix* p_fmat,
-                               HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
-                               bst_tree_t tree_end, std::vector<float> const* tree_weights,
-                               bool approximate) {
+void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
+                           HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
+                           bst_tree_t tree_end, std::vector<float> const* tree_weights,
+                           bool approximate) {
   xgboost_NVTX_FN_RANGE();
   std::string not_implemented{"contribution is not implemented in GPU predictor, use cpu instead."};
   if (approximate) {
@@ -528,8 +526,8 @@ void ShapInteractionValuesCUDA(Context const* ctx, DMatrix* p_fmat,
   });
 }
 
-void ApproxFeatureImportanceCUDA(Context const* ctx, DMatrix*, HostDeviceVector<float>*,
-                                 gbm::GBTreeModel const&, bst_tree_t, std::vector<float> const*) {
+void ApproxFeatureImportance(Context const* ctx, DMatrix*, HostDeviceVector<float>*,
+                             gbm::GBTreeModel const&, bst_tree_t, std::vector<float> const*) {
   StringView not_implemented{
       "contribution is not implemented in the GPU predictor, use CPU instead."};
   LOG(FATAL) << "Approximated " << not_implemented;

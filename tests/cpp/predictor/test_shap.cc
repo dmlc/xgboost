@@ -89,13 +89,19 @@ gbm::GBTreeModel LoadGBTreeModel(Learner* learner, Context const* ctx, Args cons
   auto obj = std::unique_ptr<ObjFunction>(ObjFunction::Create(objective, ctx));
   obj->Configure(model_args);
   obj->ProbToMargin(&base_score_vec);
+  // Keep both host/device views readable, matching LearnerModelParam invariants.
+  std::as_const(base_score_vec).HostView();
+  if (!ctx->Device().IsCPU()) {
+    std::as_const(base_score_vec).View(ctx->Device());
+  }
 
   auto n_features = static_cast<bst_feature_t>(std::stol(num_feature));
   auto n_classes = static_cast<bst_target_t>(std::stol(num_class));
   auto n_targets = static_cast<bst_target_t>(std::stol(num_target));
   auto n_groups = static_cast<uint32_t>(std::max(n_classes, n_targets));
-  *out_param = LearnerModelParam{n_features, std::move(base_score_vec), n_groups, n_targets,
-                                 MultiStrategy::kOneOutputPerTree};
+  LearnerModelParam tmp{n_features, std::move(base_score_vec), n_groups, n_targets,
+                        MultiStrategy::kOneOutputPerTree};
+  out_param->Copy(tmp);
 
   gbm::GBTreeModel gbtree{out_param, ctx};
   auto const& gbm_obj = get<Object const>(learner_obj.at("gradient_booster"));
