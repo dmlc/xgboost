@@ -250,7 +250,6 @@ class TestEvalMetrics:
             "subsample": 1.0,
             "colsample_bytree": 1.0,
             "eta": 0.2,
-            "verbosity": 0,
         }
         num_boost_round = 200
         atol = 1e-2
