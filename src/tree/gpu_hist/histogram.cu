@@ -80,7 +80,8 @@ GradientQuantiser::GradientQuantiser(Context const* ctx,
   using T = typename GradientSumT::ValueT;
 
   auto beg = thrust::make_transform_iterator(linalg::tcbegin(gpair), Clip());
-  Pair p = dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + gpair.Size(), Pair{}, thrust::plus<Pair>{});
+  Pair p =
+      dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + gpair.Size(), Pair{}, cuda::std::plus<Pair>{});
   // Treat pair as array of 4 primitive types to allreduce
   using ReduceT = typename decltype(p.first)::ValueT;
   static_assert(sizeof(Pair) == sizeof(ReduceT) * 4, "Expected to reduce four elements.");

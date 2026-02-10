@@ -1,8 +1,10 @@
+"""Tests for the CUDA implementation of multi-target."""
+
+# pylint: disable=too-many-positional-arguments,missing-function-docstring
 from typing import Any, Callable, Dict, Optional
 
 import pytest
 from hypothesis import given, note, settings, strategies
-
 from xgboost import config_context
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
@@ -12,12 +14,14 @@ from xgboost.testing.multi_target import (
     run_deterministic,
     run_eta,
     run_feature_importance_strategy_compare,
+    run_gradient_based_sampling_accuracy,
     run_grow_policy,
     run_mixed_strategy,
     run_multiclass,
     run_multilabel,
     run_quantile_loss,
     run_reduced_grad,
+    run_subsample,
     run_with_iter,
 )
 from xgboost.testing.params import hist_parameter_strategy
@@ -99,3 +103,12 @@ def test_hist(param: Dict[str, Any], num_rounds: int, dataset: tm.TestDataset) -
 @pytest.mark.parametrize("obj_fn", all_reg_objectives())
 def test_reg_objective(obj_fn: Callable[[Device], None]) -> None:
     obj_fn("cuda")
+
+
+@pytest.mark.parametrize("sampling_method", ["uniform", "gradient_based"])
+def test_subsample(sampling_method: str) -> None:
+    run_subsample("cuda", sampling_method)
+
+
+def test_gradient_based_sampling_accuracy() -> None:
+    run_gradient_based_sampling_accuracy("cuda")

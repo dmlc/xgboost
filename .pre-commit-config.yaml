@@ -12,6 +12,18 @@ repos:
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
       - id: mixed-line-ending
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.14
+    hooks:
+      - id: ruff-check
+        args:
+          - --fix
+          - --select=I
+        files: \.py$
+        exclude: (dmlc-core|gputreeshap)
+      - id: ruff-format
+        files: \.py$
+        exclude: (dmlc-core|gputreeshap)
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v21.1.8
     hooks:
@@ -39,35 +51,13 @@ repos:
         exclude: (dmlc-core|gputreeshap)
         additional_dependencies:
           - cmakelint
-      - id: black
-        name: Python format (black)
-        entry: black -q
-        language: python
-        types: [file]
-        files: \.py$
-        exclude: (dmlc-core|gputreeshap)
-        additional_dependencies:
-          - black
-      - id: isort
-        name: Python format (isort)
-        entry: isort
-        language: python
-        types: [file]
-        files: \.py$
-        exclude: (dmlc-core|gputreeshap)
-        args:
-          - --settings-path
-          - python-package
-          - --src=python-package
-        additional_dependencies:
-          - isort
       - id: pylint
         name: Python lint (pylint)
         entry: pylint
         language: python
         types: [file]
         files: \.py$
-        exclude: (dmlc-core|gputreeshap|^ops/)
+        exclude: (dmlc-core|gputreeshap|^ops/|^tests/)
         args:
           - --rcfile=python-package/pyproject.toml
         additional_dependencies:

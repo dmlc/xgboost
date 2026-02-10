@@ -43,8 +43,7 @@ class MultiHistTest
     this->page = MakeEllpackForTest(&ctx, n_samples, n_features, n_bins);
     this->cuts = page->CutsShared();
 
-    this->p_fg =
-        std::make_unique<FeatureGroups>(*cuts, true, DftMtHistShmemBytes(ctx.Ordinal()));
+    this->p_fg = std::make_unique<FeatureGroups>(*cuts, true, DftMtHistShmemBytes(ctx.Ordinal()));
 
     this->gpairs = linalg::Constant(&ctx, GradientPair{1.0f, 1.0f}, n_samples, n_targets);
     this->quantizers = MakeDummyQuantizers(n_targets);

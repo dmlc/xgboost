@@ -1,0 +1,167 @@
+###################
+3.2.0 (2026 Feb 09)
+###################
+
+We are excited to announce the XGBoost 3.2 release. This release features significant
+progress on multi-target tree support with vector leaf, enhanced GPU external memory
+training, various optimizations, and the removal of the deprecated CLI.
+
+***************
+External Memory
+***************
+
+The latest XGBoost release features enhanced support for external memory training with
+GPUs. XGBoost has experimental support for using the CUDA async memory pool, which users
+can opt in to enable asynchronous memory management for efficient external memory
+training. Prior to 3.2, the RMM plugin was required. The feature is Linux-only at the
+moment. (:pr:`11706`, :pr:`11715`, :pr:`11718`, :pr:`11931`, :pr:`11865`, :pr:`11959`,
+:pr:`11962`)
+
+The adaptive cache is now used for all device types, including devices with full C2C
+bandwidth, like GH200 and DGX station. Users can continue to specify the
+``cache_host_ratio`` parameter in case of memory fragmentation. XGBoost now supports
+devices with mixed GPU models for configuring the host cache (:pr:`11998`). As part of the
+work for improved NUMA system support, we co-developed the ``pyhwloc`` project
+(:pr:`11992`).
+
+Lastly, the old page-concat option for GPU external memory has been removed. XGBoost will
+use the full dataset for training. (:pr:`11882`, :pr:`11897`)
+
+******************
+Multi-Target/Class
+******************
+
+This release brings substantial progress on the vector-leaf-based multi-target tree model,
+building on the multi-target intercept work from 3.1. The vector leaf tree stores a vector
+of weights in each leaf node, enabling the model to capture correlations across targets
+during tree construction. In 3.2, we expanded the feature set to cover most of the
+commonly used training configurations.
+
+.. warning::
+
+   The vector leaf is still a work in progress. Feedback is welcome.
+
+New features for the multi-target tree include:
+
+- Reduced gradient (sketch boost) for the hist tree method, which avoids using the full
+  gradient matrix to find tree structures for improving scalability with the number of
+  targets. Users can use a custom objective to define the tree split gradient in addition
+  to the full leaf gradient. Built-in objectives are not yet supported.
+- Support for all regression objectives, including MAE and the quantile loss.
+- GPU ``hist`` tree method implementation has features on par with the CPU one.
+- Regularization parameters including L1/L2, ``min_split_loss``, and ``max_delta_step``.
+- Row subsampling with both uniform sampling and gradient-based sampling.
+- Column sampling (feature selection), including feature weights.
+- Feature importance variants (gain and coverage).
+- Model dump support for all formats (JSON, text, graphviz).
+- External memory.
+
+In addition, intercept initialization for the multinomial logistic objective now adheres
+to GLM semantics.
+
+Related PRs: :pr:`11950`, :pr:`11914`, :pr:`11913`, :pr:`11965`, :pr:`11941`, :pr:`11967`,
+:pr:`11940`, :pr:`11896`, :pr:`11894`, :pr:`11889`, :pr:`11917`, :pr:`11883`, :pr:`11786`,
+:pr:`11881`, :pr:`11862`, :pr:`11855`, :pr:`11829`, :pr:`11825`, :pr:`11820`, :pr:`11814`,
+:pr:`11729`, :pr:`11724`, :pr:`11747`, :pr:`11798`, :pr:`11791`, :pr:`11789`, :pr:`11781`,
+:pr:`11778`, :pr:`11777`, :pr:`11744`, :pr:`11922`, :pr:`11920`
+
+Currently missing features for the ``hist`` tree method with vector leaf:
+
+- Distributed training
+- Categorical features
+- Feature interaction constraints
+- Monotone constraints, which are not defined when the output is a vector.
+- Shapley values
+
+********
+Features
+********
+
+- As part of the vector leaf work, CPU ```hist`` now supports gradient-based sampling.
+- The deprecated CLI (command line interface) has been removed. It was deprecated in
+  2.1. (:pr:`11720`)
+- Expose the categories container to the C API, allowing C users to access category
+  information from the trained model. (:pr:`11794`)
+- Upgrade to CUDA 12.9. (:pr:`11972`, :pr:`11968`)
+- Support oneapi 2026 release. (:pr:`11994`)
+- Compatibility fixes for the latest versions of nvcomp, RMM, and CCCL. (:pr:`11930`,
+  :pr:`11834`, :pr:`11871`, :pr:`11995`, :pr:`11861`, :pr:`11785`, :pr:`11997`). A nightly
+  CI pipeline was added to test XGBoost with the latest versions of CCCL and
+  RMM. (:pr:`11863`)
+
+*************
+Optimizations
+*************
+
+- Various optimizations for the GPU hist tree method, some of which were done as part of
+  the vector leaf work. (:pr:`11895`)
+- Enable multi-threaded data initialization for CPU. (:pr:`11974`)
+- Make the ``block_size`` of the CPU histogram building kernel adaptive based on model
+  parameters and CPU cache size, demonstrating up to 2x speedup for certain
+  workloads. (:pr:`11808`)
+- Small optimizations for some GPU kernels to use TMA. (:pr:`11841`, :pr:`11802`)
+- We now use device memory for storing the tree model, which eliminates data copies
+  between host and device during training and inference. (:pr:`11759`, :pr:`11735`, :pr:`11750`, :pr:`11741`,
+  :pr:`11752`)
+
+*****
+Fixes
+*****
+
+- Fix logistic regression with constant labels. (:pr:`11973`)
+- Fix OpenMP configuration for macOS. (:pr:`11976`)
+- Fix SYCL build. (:pr:`11844`)
+
+**************
+Python Package
+**************
+
+- Fix memory leak with Python DataFrame inputs where temporary buffers were stored as
+  class variables instead of instance variables. (:pr:`11961`)
+- Pandas 3.0 support. (:pr:`11975`)
+- Add Python type hints for tests and demos, various type hint fixes. (:pr:`11795`, :pr:`11797`)
+- Add Python 3.14 classifier. (:pr:`11793`)
+- Maintenance (:pr:`11717`, :pr:`11783`)
+
+*********
+R Package
+*********
+
+- Fix RCHK warnings and memory safety issues. (:pr:`11938`, :pr:`11935`, :pr:`11847`)
+- Error out on factors passed to ``DMatrix`` with an informative message. (:pr:`11810`)
+- Remove calls to R's global RNG that are no longer needed. (:pr:`11848`, :pr:`11887`)
+- Various documentation fixes and updates. (:pr:`11773`, :pr:`11890`, :pr:`11732`, :pr:`11846`, :pr:`11981`, :pr:`11842`)
+
+************
+JVM Packages
+************
+
+- Remove ``synchronized`` from predict, as internal prediction is already thread-safe,
+  with a concurrency test added to verify. (:pr:`11746`)
+- Set GPU device ID explicitly at the beginning of training and avoid CUDA API guard for
+  the tracker process, allowing Spark executors to run in exclusive mode. (:pr:`11939`, :pr:`11929`)
+- Use ``inferBatchSizeParameter`` instead of a hardcoded value. (:pr:`11745`)
+- Documentation updates, maintenance. (:pr:`11691`, :pr:`11915`, :pr:`11743`)
+
+*********
+Documents
+*********
+
+- Update references from XGBoost Operator to Kubeflow Trainer. (:pr:`11710`)
+- Document the categories container and add notes for handling unseen categories. (:pr:`11788`, :pr:`11868`, :pr:`11774`)
+- Add Intel as sponsor. (:pr:`11850`)
+
+******************
+CI and Maintenance
+******************
+
+- Support ``pre-commit`` for various linting and formatting tasks. ``clang-format`` is now
+  required by the CI. (:pr:`11984`, :pr:`11978`, :pr:`11980`, :pr:`11958`, :pr:`11953`, :pr:`11946`, :pr:`11993`)
+- We added sccache integration to XGBoost's CI workflows, which brings significant
+  speedup since a majority of the time is spent on compiling variants of XGBoost. In addition,
+  most of the workflows now use GHA container support. (:pr:`11956`, :pr:`11952`, :pr:`11949`, :pr:`11937`,
+  :pr:`11934`, :pr:`11927`, :pr:`11932`, :pr:`11924`, :pr:`11979`)
+- Plenty of optimizations for tests. (:pr:`11990`, :pr:`11975`, :pr:`11964`)
+- Various dependency updates, fixes, test refactoring, and cleanups. (:pr:`11955`, :pr:`11957`,
+  :pr:`11963`, :pr:`11945`, :pr:`11912`, :pr:`11909`, :pr:`11888`, :pr:`11898`, :pr:`11925`, :pr:`11877`, :pr:`11824`, :pr:`11748`, :pr:`11721`,
+  :pr:`11705`, :pr:`11699`, :pr:`11832`, :pr:`11796`, :pr:`11828`, :pr:`11852`, :pr:`11800`, :pr:`11999`, :pr:`11991`)

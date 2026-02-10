@@ -38,7 +38,8 @@
 
 namespace xgboost::tree {
 namespace {
-void InitRowPartitionForTest(common::RowSetCollection *row_set, size_t n_samples, size_t base_rowid = 0) {
+void InitRowPartitionForTest(common::RowSetCollection *row_set, size_t n_samples,
+                             size_t base_rowid = 0) {
   auto &row_indices = *row_set->Data();
   row_indices.resize(n_samples);
   std::iota(row_indices.begin(), row_indices.end(), base_rowid);
@@ -80,7 +81,6 @@ void TestAddHistRows(bool is_distributed) {
     ASSERT_TRUE(histogram_builder.Histogram().HistogramExists(nidx));
   }
 }
-
 
 TEST(CPUHistogram, AddRows) {
   TestAddHistRows(true);
@@ -227,11 +227,11 @@ TEST(CPUHistogram, SyncHist) {
   TestSyncHist(false);
 }
 
-void TestBuildHistogram(Context const* ctx, bool is_distributed, bool force_read_by_column, bool is_col_split) {
+void TestBuildHistogram(Context const *ctx, bool is_distributed, bool force_read_by_column,
+                        bool is_col_split) {
   size_t constexpr kNRows = 8, kNCols = 16;
   int32_t constexpr kMaxBins = 4;
-  auto p_fmat =
-      RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
+  auto p_fmat = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
   if (is_col_split) {
     p_fmat = std::shared_ptr<DMatrix>{
         p_fmat->SliceCol(collective::GetWorldSize(), collective::GetRank())};
@@ -241,9 +241,9 @@ void TestBuildHistogram(Context const* ctx, bool is_distributed, bool force_read
   uint32_t total_bins = gmat.cut.Ptrs().back();
 
   static double constexpr kEps = 1e-6;
-  std::vector<GradientPair> gpair = {
-      {0.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {0.27f, 0.28f},
-      {0.27f, 0.29f}, {0.37f, 0.39f}, {0.47f, 0.49f}, {0.57f, 0.59f}};
+  std::vector<GradientPair> gpair = {{0.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f},
+                                     {0.27f, 0.28f}, {0.27f, 0.29f}, {0.37f, 0.39f},
+                                     {0.47f, 0.49f}, {0.57f, 0.59f}};
 
   bst_node_t nid = 0;
   HistogramBuilder histogram;
@@ -315,8 +315,7 @@ TEST(CPUHistogram, BuildHistColumnSplit) {
 
 namespace {
 template <typename GradientSumT>
-void ValidateCategoricalHistogram(size_t n_categories,
-                                  common::Span<GradientSumT> onehot,
+void ValidateCategoricalHistogram(size_t n_categories, common::Span<GradientSumT> onehot,
                                   common::Span<GradientSumT> cat) {
   auto cat_sum = std::accumulate(cat.cbegin(), cat.cend(), GradientPairPrecise{});
   for (size_t c = 0; c < n_categories; ++c) {
@@ -483,8 +482,8 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
     }
 
     auto cut = common::SketchOnDMatrix(ctx, m.get(), batch_param.max_bin, false, hess);
-    GHistIndexMatrix gmat(concat, {}, cut, batch_param.max_bin, false,
-                          std::numeric_limits<double>::quiet_NaN(), ctx->Threads());
+    GHistIndexMatrix gmat(ctx, concat, {}, cut, batch_param.max_bin, false,
+                          std::numeric_limits<double>::quiet_NaN());
 
     single_build.AddHistRows(tree.HostScView(), &nodes, &dummy_sub, false);
     single_build.BuildHist(0, space, gmat, row_set_collection, nodes,
