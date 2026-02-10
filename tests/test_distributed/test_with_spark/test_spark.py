@@ -27,11 +27,17 @@ from xgboost.spark import (
     SparkXGBRegressor,
     SparkXGBRegressorModel,
 )
+from xgboost.spark.utils import _get_max_num_concurrent_tasks
 from xgboost.testing.collective import get_avail_port
 
 logging.getLogger("py4j").setLevel(logging.INFO)
 
 pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
+
+DUAL_SPARK_MODES = [
+    pytest.param("local", id="local"),
+    pytest.param("local_cluster", id="local_cluster"),
+]
 
 RegData = namedtuple(
     "RegData",
@@ -76,7 +82,10 @@ def no_sparse_unwrap() -> tm.PytestSkip:
 
 
 @pytest.fixture(scope="module")
-def spark() -> Generator[SparkSession, None, None]:
+def spark(request: pytest.FixtureRequest) -> Generator[SparkSession, None, None]:
+    mode = getattr(request, "param", "local")
+    if mode not in {"local", "local_cluster"}:
+        raise ValueError(f"Unknown Spark test mode: {mode}")
     os.environ["XGBOOST_PYSPARK_SHARED_SESSION"] = "1"
     config = {
         "spark.master": "local[4]",
@@ -88,18 +97,41 @@ def spark() -> Generator[SparkSession, None, None]:
         "spark.sql.pyspark.jvmStacktrace.enabled": "true",
         "spark.ui.enabled": "false",
     }
+    if mode == "local_cluster":
+        config.update(
+            {
+                "spark.master": "local-cluster[2, 1, 1024]",
+                "spark.cores.max": "2",
+                "spark.task.cpus": "1",
+                "spark.executor.cores": "1",
+            }
+        )
 
     builder = SparkSession.builder.appName("XGBoost PySpark Python API Tests")
     for k, v in config.items():
         builder.config(k, v)
     logging.getLogger("pyspark").setLevel(logging.INFO)
     sess = builder.getOrCreate()
+    if mode == "local_cluster":
+        # Block until workers are connected.
+        num_slots = sess.sparkContext.defaultParallelism
+        (
+            sess.sparkContext.parallelize(range(num_slots), num_slots)
+            .barrier()
+            .mapPartitions(lambda _: [])
+            .collect()
+        )
     try:
         yield sess
     finally:
         sess.stop()
         sess.sparkContext.stop()
         os.environ.pop("XGBOOST_PYSPARK_SHARED_SESSION", None)
+
+
+@pytest.fixture(scope="module")
+def num_workers(spark: SparkSession) -> int:
+    return _get_max_num_concurrent_tasks(spark.sparkContext)
 
 
 class TestRegressor:
@@ -141,7 +173,10 @@ class TestRegressor:
             X_train, X_test, y_train, y_test, w, base_margin, is_val, X, y, df
         )
 
-    def test_regressor(self, reg_data: RegData) -> None:
+    @pytest.mark.parametrize("spark", DUAL_SPARK_MODES, indirect=True)
+    def test_regressor(
+        self, spark: SparkSession, reg_data: RegData, num_workers: int
+    ) -> None:
         train_rows = np.where(~reg_data.is_val)[0]
         validation_rows = np.where(reg_data.is_val)[0]
 
@@ -164,6 +199,7 @@ class TestRegressor:
             pred_contrib_col="pred_contribs",
             weight_col="weight",
             validation_indicator_col="is_val",
+            num_workers=num_workers,
             **reg_param,
         ).fit(reg_data.df)
         pred_result = spark_regressor.transform(reg_data.df)
@@ -178,6 +214,26 @@ class TestRegressor:
             .select("pred_contribs")
             .toPandas()["pred_contribs"]
             .tolist()
+        )
+        rounds = reg.get_booster().num_boosted_rounds()
+        iter_range = (0, max(1, min(5, rounds)))
+        iter_preds = (
+            SparkXGBRegressor(
+                weight_col="weight",
+                validation_indicator_col="is_val",
+                iteration_range=iter_range,
+                num_workers=num_workers,
+                **reg_param,
+            )
+            .fit(reg_data.df)
+            .transform(reg_data.df)
+            .orderBy("row_id")
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        assert np.allclose(
+            iter_preds, reg.predict(reg_data.X, iteration_range=iter_range), rtol=1e-3
         )
         assert np.allclose(preds, reg.predict(reg_data.X), rtol=1e-3)
         assert np.allclose(pred_contribs.sum(axis=1), preds, rtol=1e-3)
@@ -308,13 +364,13 @@ class TestRegressor:
         with pytest.raises(TypeError, match="The validation indicator must be boolean"):
             reg.fit(df_train)
 
-    def test_callbacks(self, reg_data: RegData) -> None:
-        train_df = reg_data.df.select("features", "label")
+    @pytest.mark.parametrize("spark", DUAL_SPARK_MODES, indirect=True)
+    def test_callbacks(self, spark: SparkSession, reg_data: RegData) -> None:
+        train_df = reg_data.df.select("row_id", "features", "label")
 
         def custom_lr(boosting_round: int) -> float:
             return 1.0 / (boosting_round + 1)
 
-        cb = [LearningRateScheduler(custom_lr)]
         reg_params = {
             "n_estimators": 10,
             "max_depth": 3,
@@ -324,7 +380,9 @@ class TestRegressor:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "spark-xgb-reg-cb")
-            regressor = SparkXGBRegressor(callbacks=cb, **reg_params)
+            regressor = SparkXGBRegressor(
+                callbacks=[LearningRateScheduler(custom_lr)], **reg_params
+            )
             regressor.save(path)
             regressor = SparkXGBRegressor.load(path)
             loaded_callbacks = regressor.getOrDefault(regressor.callbacks)
@@ -334,13 +392,16 @@ class TestRegressor:
             model = regressor.fit(train_df)
             preds = (
                 model.transform(train_df)
+                .orderBy("row_id")
                 .select("prediction")
                 .toPandas()["prediction"]
                 .to_numpy()
             )
 
-        assert preds.shape == (len(reg_data.y),)
-        assert np.isfinite(preds).all()
+        ref = XGBRegressor(
+            callbacks=[LearningRateScheduler(custom_lr)], **reg_params
+        ).fit(reg_data.X, reg_data.y)
+        assert np.allclose(preds, ref.predict(reg_data.X), rtol=1e-3)
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
     def test_empty_train_data(self, spark: SparkSession, tree_method: str) -> None:
@@ -405,7 +466,10 @@ class TestClassifier:
             X_train, X_test, y_train, y_test, w, base_margin, is_val, X, y, df
         )
 
-    def test_classifier(self, clf_data: ClfData) -> None:
+    @pytest.mark.parametrize("spark", DUAL_SPARK_MODES, indirect=True)
+    def test_classifier(
+        self, spark: SparkSession, clf_data: ClfData, num_workers: int
+    ) -> None:
         train_df = clf_data.df
         X = clf_data.X
         y = clf_data.y
@@ -432,6 +496,7 @@ class TestClassifier:
         spark_cls = SparkXGBClassifier(
             weight_col="weight",
             validation_indicator_col="is_val",
+            num_workers=num_workers,
             **cls_params,
         ).fit(train_df)
 
