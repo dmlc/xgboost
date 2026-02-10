@@ -77,34 +77,32 @@ class TestTempDir(object):
 
 class TestSparkContext(object):
     @classmethod
-    def setup_env(cls, spark_config):
+    def setup_env(cls, spark_config, mode):
         builder = SparkSession.builder.appName("xgboost spark python API Tests")
         for k, v in spark_config.items():
             builder.config(k, v)
+        # if mode == "connect":
+        #     builder.remote("local-cluster[2, 2, 1024]").config("spark.api.mode", "connect")
         spark = builder.getOrCreate()
         logging.getLogger("pyspark").setLevel(logging.INFO)
 
-        cls.sc = spark.sparkContext
         cls.session = spark
 
     @classmethod
     def tear_down_env(cls):
         if os.environ.get("XGBOOST_PYSPARK_SHARED_SESSION") == "1":
             cls.session = None
-            cls.sc = None
             return
         cls.session.stop()
         cls.session = None
-        cls.sc.stop()
-        cls.sc = None
 
 
 class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls, mode):
         cls.setup_env(
             {
-                "spark.master": "local[4]",
+                "spark.remote" if mode == "connect" else "spark.master": "local[4]",
                 "spark.python.worker.reuse": "true",
                 "spark.driver.host": "127.0.0.1",
                 "spark.task.maxFailures": "1",
@@ -112,7 +110,8 @@ class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
                 "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
                 "spark.sql.pyspark.jvmStacktrace.enabled": "true",
                 "spark.ui.enabled": "false",
-            }
+            },
+            mode,
         )
         cls.make_tempdir()
 
@@ -124,10 +123,10 @@ class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
 
 class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls, mode):
         cls.setup_env(
             {
-                "spark.master": "local-cluster[2, 1, 1024]",
+                "spark.remote" if mode == "connect" else "spark.master": "local-cluster[2, 1, 1024]",
                 "spark.python.worker.reuse": "true",
                 "spark.driver.host": "127.0.0.1",
                 "spark.task.maxFailures": "1",
@@ -138,14 +137,13 @@ class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase
                 "spark.task.cpus": "1",
                 "spark.executor.cores": "1",
                 "spark.ui.enabled": "false",
-            }
+            },
+            mode,
         )
         cls.make_tempdir()
         # We run a dummy job so that we block until the workers have connected to the master
-        num_slots = cls.sc.defaultParallelism
-        cls.sc.parallelize(range(num_slots), num_slots).barrier().mapPartitions(
-            lambda _: []
-        ).collect()
+        num_slots = int(cls.session.conf.get("spark.default.parallelism", "2"))
+        cls.session.range(num_slots).repartition(num_slots).foreach(lambda _: None)
 
     @classmethod
     def tearDownClass(cls):
