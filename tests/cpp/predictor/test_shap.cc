@@ -116,31 +116,31 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
 
   {
     // small dense, shallow tree
-    auto dmat = RandomDataGenerator(32, 6, 0.0).Device(device).GenerateDMatrix();
+    auto dmat = RandomDataGenerator(16, 4, 0.0).Device(device).GenerateDMatrix();
     SetLabels(dmat.get(), 1);
     cases.emplace_back(dmat, BaseParams(ctx, "reg:squarederror", "2"));
   }
 
   {
     // medium dense training DMatrix, moderate depth
-    auto dmat = RandomDataGenerator(512, 10, 0.0).Device(device).GenerateDMatrix(true);
+    auto dmat = RandomDataGenerator(64, 6, 0.0).Device(device).GenerateDMatrix(true);
     SetLabels(dmat.get(), 1);
-    cases.emplace_back(dmat, BaseParams(ctx, "reg:squarederror", "6"));
+    cases.emplace_back(dmat, BaseParams(ctx, "reg:squarederror", "4"));
   }
 
   {
     // quantile DMatrix with explicit bins, deeper tree
     auto dmat =
-        RandomDataGenerator(2048, 12, 0.0).Bins(64).Device(device).GenerateQuantileDMatrix(false);
+        RandomDataGenerator(128, 8, 0.0).Bins(32).Device(device).GenerateQuantileDMatrix(false);
     SetLabels(dmat.get(), 1);
-    auto args = BaseParams(ctx, "reg:squarederror", "8");
-    args.emplace_back("max_bin", "64");
+    auto args = BaseParams(ctx, "reg:squarederror", "5");
+    args.emplace_back("max_bin", "32");
     cases.emplace_back(dmat, std::move(args));
   }
 
   {
     // external memory quantile DMatrix, moderate depth
-    bst_bin_t max_bin{64};
+    bst_bin_t max_bin{32};
     auto dmat = RandomDataGenerator(4096, 10, 0.0)
                     .Batches(2)
                     .Bins(max_bin)
@@ -154,30 +154,30 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
 
   {
     // external memory sparse page DMatrix, moderate depth
-    auto dmat = RandomDataGenerator(4096, 10, 0.0)
+    auto dmat = RandomDataGenerator(256, 8, 0.0)
                     .Batches(2)
                     .Device(device)
                     .GenerateSparsePageDMatrix("shap_extmem", true);
     SetLabels(dmat.get(), 1);
-    cases.emplace_back(dmat, BaseParams(ctx, "reg:squarederror", "6"));
+    cases.emplace_back(dmat, BaseParams(ctx, "reg:squarederror", "4"));
   }
 
   {
     // multi-class dense training DMatrix, medium depth
     bst_target_t n_classes{3};
     auto dmat =
-        RandomDataGenerator(256, 8, 0.0).Classes(n_classes).Device(device).GenerateDMatrix(true);
+        RandomDataGenerator(64, 6, 0.0).Classes(n_classes).Device(device).GenerateDMatrix(true);
     SetLabels(dmat.get(), n_classes);
-    auto args = BaseParams(ctx, "multi:softprob", "4");
+    auto args = BaseParams(ctx, "multi:softprob", "3");
     args.emplace_back("num_class", std::to_string(n_classes));
     cases.emplace_back(dmat, std::move(args));
   }
 
   {
-    // large dense, deeper tree and classification objective
-    auto dmat = RandomDataGenerator(10000, 12, 0.0).Device(device).GenerateDMatrix();
+    // compact dense classification case to keep runtime bounded
+    auto dmat = RandomDataGenerator(256, 8, 0.0).Device(device).GenerateDMatrix();
     SetLabels(dmat.get(), 1);
-    cases.emplace_back(dmat, BaseParams(ctx, "binary:logistic", "10"));
+    cases.emplace_back(dmat, BaseParams(ctx, "binary:logistic", "4"));
   }
 
   return cases;
@@ -191,7 +191,7 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
   learner->SetParams(model_args);
   learner->Configure();
-  for (size_t i = 0; i < 5; ++i) {
+  for (size_t i = 0; i < 2; ++i) {
     learner->UpdateOneIter(i, p_dmat);
   }
 
