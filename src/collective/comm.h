@@ -127,16 +127,19 @@ class HostComm : public Comm {
 
 class RabitComm : public HostComm {
   std::string nccl_path_ = std::string{DefaultNcclName()};
+  // User-specified port for the worker listener socket. 0 means the OS picks an available
+  // port.
+  std::int32_t worker_port_{0};
 
   [[nodiscard]] Result Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
-                                 std::string task_id);
+                                 std::string task_id, std::int32_t worker_port);
 
  public:
   // bootstrapping construction.
   RabitComm() = default;
   RabitComm(std::string const& tracker_host, std::int32_t tracker_port,
             std::chrono::seconds timeout, std::int32_t retry, std::string task_id,
-            StringView nccl_path);
+            StringView nccl_path, std::int32_t worker_port);
   ~RabitComm() noexcept(false) override;
 
   [[nodiscard]] bool IsFederated() const override { return false; }

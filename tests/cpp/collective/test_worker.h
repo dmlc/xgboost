@@ -42,7 +42,7 @@ class WorkerForTest {
         tracker_port_{port},
         world_size_{world},
         task_id_{"t:" + std::to_string(rank)},
-        comm_{tracker_host_, tracker_port_, timeout, retry_, task_id_, DefaultNcclName()} {
+        comm_{tracker_host_, tracker_port_, timeout, retry_, task_id_, DefaultNcclName(), 0} {
     CHECK_EQ(world_size_, comm_.World());
   }
   virtual ~WorkerForTest() noexcept(false) { SafeColl(comm_.Shutdown()); }

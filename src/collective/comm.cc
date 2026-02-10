@@ -204,9 +204,10 @@ std::string InitLog(std::string task_id, std::int32_t rank) {
 
 RabitComm::RabitComm(std::string const& tracker_host, std::int32_t tracker_port,
                      std::chrono::seconds timeout, std::int32_t retry, std::string task_id,
-                     StringView nccl_path)
+                     StringView nccl_path, std::int32_t worker_port)
     : HostComm{tracker_host, tracker_port, timeout, retry, std::move(task_id)},
-      nccl_path_{std::move(nccl_path)} {
+      nccl_path_{std::move(nccl_path)},
+      worker_port_{worker_port} {
   if (this->TrackerInfo().host.empty()) {
     // Not in a distributed environment.
     LOG(CONSOLE) << InitLog(task_id_, rank_);
@@ -214,7 +215,7 @@ RabitComm::RabitComm(std::string const& tracker_host, std::int32_t tracker_port,
   }
 
   loop_.reset(new Loop{std::chrono::seconds{timeout_}});  // NOLINT
-  auto rc = this->Bootstrap(timeout_, retry_, task_id_);
+  auto rc = this->Bootstrap(timeout_, retry_, task_id_, worker_port_);
   if (!rc.OK()) {
     this->ResetState();
     SafeColl(Fail("Failed to bootstrap the communication group.", std::move(rc)));
@@ -230,7 +231,7 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 #endif  //  !defined(XGBOOST_USE_NCCL)
 
 [[nodiscard]] Result RabitComm::Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
-                                          std::string task_id) {
+                                          std::string task_id, std::int32_t worker_port) {
   TCPSocket tracker;
   std::int32_t world{-1};
   auto rc = ConnectTrackerImpl(this->TrackerInfo(), timeout, retry, task_id, &tracker, this->Rank(),
@@ -243,8 +244,14 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 
   // Start command
   TCPSocket listener = TCPSocket::Create(tracker.Domain());
-  std::int32_t lport{0};
+  std::int32_t lport{worker_port};
   rc = std::move(rc) << [&] {
+    if (lport > 0) {
+      // User-specified port, bind to INADDR_ANY with the given port.
+      auto addr = (tracker.Domain() == SockDomain::kV6) ? "::" : "0.0.0.0";
+      return listener.Bind(addr, &lport);
+    }
+    // Default: let the OS pick an available port.
     return listener.BindHost(&lport);
   } << [&] {
     return listener.Listen();
