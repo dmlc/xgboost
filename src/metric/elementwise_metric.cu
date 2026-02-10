@@ -588,6 +588,8 @@ class ExpectileError : public MetricNoCache {
       FromJson(it->second, &param_);
       auto const& name = get<String const>(in["name"]);
       CHECK_EQ(name, "expectile");
+      param_.Validate();
+      alpha_.HostVector() = param_.expectile_alpha.Get();
     }
   }
   void SaveConfig(Json* p_out) const override {

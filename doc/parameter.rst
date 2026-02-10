@@ -535,7 +535,7 @@ Parameter for using Expectile Loss (``reg:expectileerror``)
 * ``expectile_alpha``: A scalar or a list of targeted expectiles. Range: [0, 1]. Required for
   ``reg:expectileerror``.
 
-    .. versionadded:: 3.2.0
+    .. versionadded:: 3.3.0
 
     .. note:: Multi-target labels are not supported for expectile loss.
 

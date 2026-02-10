@@ -229,7 +229,7 @@ class TestEvalMetrics:
 
     def test_expectile_uniform_convergence(self) -> None:
         rng = np.random.default_rng(42)
-        n_samples = 50_000
+        n_samples = 1_000
         y = rng.random(n_samples)
         X = np.zeros((n_samples, 1))
         dtrain = xgb.DMatrix(X, label=y)
@@ -260,4 +260,4 @@ class TestEvalMetrics:
             booster = xgb.train(params, dtrain, num_boost_round=num_boost_round)
             pred = float(booster.predict(dtrain).mean())
             expected = uniform_expectile(alpha)
-        np.testing.assert_allclose(pred, expected, rtol=atol, atol=atol)
+            np.testing.assert_allclose(pred, expected, rtol=atol, atol=atol)

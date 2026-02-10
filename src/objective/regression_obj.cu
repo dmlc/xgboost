@@ -7,7 +7,6 @@
 #include <dmlc/omp.h>
 
 #include <algorithm>  // for all_of
-#include <array>      // for array
 #include <cmath>
 #include <cstdint>  // for int32_t
 #include <vector>   // for vector
