@@ -240,7 +240,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   auto handle_error = [&](WorkerProxy const& worker) {
     auto msg = worker.Msg();
     auto code = worker.Code();
-    LOG(WARNING) << "[tracker]: Recieved error from [" << worker.Host() << ":" << worker.Rank()
+    LOG(WARNING) << "[tracker]: Received error from [" << worker.Host() << ":" << worker.Rank()
                  << "]: " << msg << " code:" << code;
     auto host = worker.Host();
     // We signal all workers for the error, if they haven't aborted already.
