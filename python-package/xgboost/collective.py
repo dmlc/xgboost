@@ -46,6 +46,12 @@ class Config:
 
     tracker_timeout : See :py:class:`~xgboost.tracker.RabitTracker`.
 
+    worker_port :
+        The port each worker listens on for peer-to-peer connections. By default, workers
+        use an available port assigned by the OS. In restricted network environments where
+        only specific ports are open, this can be set to a fixed port. When workers run on
+        different hosts, they can all share the same port number.
+
     """
 
     retry: Optional[int] = None
@@ -55,12 +61,16 @@ class Config:
     tracker_port: Optional[int] = None
     tracker_timeout: Optional[int] = None
 
+    worker_port: Optional[int] = None
+
     def get_comm_config(self, args: _Conf) -> _Conf:
         """Update the arguments for the communicator."""
         if self.retry is not None:
             args["dmlc_retry"] = self.retry
         if self.timeout is not None:
             args["dmlc_timeout"] = self.timeout
+        if self.worker_port is not None:
+            args["dmlc_worker_port"] = self.worker_port
         return args
 
 
