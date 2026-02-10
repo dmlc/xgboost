@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import tempfile
 from collections import namedtuple
 from typing import Generator, Iterable, List
@@ -34,41 +35,53 @@ logging.getLogger("py4j").setLevel(logging.INFO)
 
 pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
 
-DUAL_SPARK_MODES = [
+
+def _to_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in {"1", "true", "on", "yes"}
+
+
+def _probe_gpu_addresses() -> List[str]:
+    if tm.no_spark()["condition"]:
+        return []
+
+    info = xgb.build_info()
+    use_cuda = _to_bool(info.get("USE_CUDA", False))
+    use_nccl = _to_bool(info.get("USE_NCCL", False)) or _to_bool(
+        info.get("USE_DLOPEN_NCCL", False)
+    )
+
+    if not (use_cuda and use_nccl):
+        return []
+
+    try:
+        completed = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return []
+
+    if completed.returncode != 0:
+        return []
+
+    addresses = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+    return addresses
+
+
+_GPU_ADDRESSES = _probe_gpu_addresses()
+_GPU_DISCOVERY_SCRIPT = os.path.join(os.path.dirname(__file__), "discover_gpu.sh")
+
+SPARK_MODES = [
     pytest.param("local", id="local"),
     pytest.param("local_cluster", id="local_cluster"),
 ]
 
-RegData = namedtuple(
-    "RegData",
-    (
-        "X_train",
-        "X_test",
-        "y_train",
-        "y_test",
-        "weights",
-        "base_margin",
-        "is_val",
-        "X",
-        "y",
-        "df",
-    ),
-)
-ClfData = namedtuple(
-    "ClfData",
-    (
-        "X_train",
-        "X_test",
-        "y_train",
-        "y_test",
-        "weights",
-        "base_margin",
-        "is_val",
-        "X",
-        "y",
-        "df",
-    ),
-)
+if _GPU_ADDRESSES:
+    SPARK_MODES.append(pytest.param("local_cluster_gpu", id="local_cluster_gpu"))
 
 
 def no_sparse_unwrap() -> tm.PytestSkip:
@@ -81,10 +94,20 @@ def no_sparse_unwrap() -> tm.PytestSkip:
     return {"reason": "PySpark<3.4", "condition": False}
 
 
+def _spark_test_mode(spark: SparkSession) -> str:
+    return spark.sparkContext.getConf().get("spark.xgboost.test.mode")
+
+
+def _spark_test_device(spark: SparkSession) -> str:
+    if _spark_test_mode(spark) == "local_cluster_gpu":
+        return "cuda"
+    return "cpu"
+
+
 @pytest.fixture(scope="module")
 def spark(request: pytest.FixtureRequest) -> Generator[SparkSession, None, None]:
     mode = getattr(request, "param", "local")
-    if mode not in {"local", "local_cluster"}:
+    if mode not in {"local", "local_cluster", "local_cluster_gpu"}:
         raise ValueError(f"Unknown Spark test mode: {mode}")
     os.environ["XGBOOST_PYSPARK_SHARED_SESSION"] = "1"
     config = {
@@ -96,6 +119,7 @@ def spark(request: pytest.FixtureRequest) -> Generator[SparkSession, None, None]
         "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
         "spark.sql.pyspark.jvmStacktrace.enabled": "true",
         "spark.ui.enabled": "false",
+        "spark.xgboost.test.mode": mode,
     }
     if mode == "local_cluster":
         config.update(
@@ -106,13 +130,29 @@ def spark(request: pytest.FixtureRequest) -> Generator[SparkSession, None, None]
                 "spark.executor.cores": "1",
             }
         )
+    elif mode == "local_cluster_gpu":
+        # Use 1 GPU worker so GPU mode can run without requiring multi-GPU collectives.
+        config.update(
+            {
+                "spark.master": "local-cluster[1, 1, 1024]",
+                "spark.python.worker.reuse": "false",
+                "spark.cores.max": "1",
+                "spark.task.cpus": "1",
+                "spark.executor.cores": "1",
+                "spark.default.parallelism": "1",
+                "spark.worker.resource.gpu.amount": "1",
+                "spark.task.resource.gpu.amount": "1",
+                "spark.executor.resource.gpu.amount": "1",
+                "spark.worker.resource.gpu.discoveryScript": _GPU_DISCOVERY_SCRIPT,
+            }
+        )
 
     builder = SparkSession.builder.appName("XGBoost PySpark Python API Tests")
     for k, v in config.items():
         builder.config(k, v)
     logging.getLogger("pyspark").setLevel(logging.INFO)
     sess = builder.getOrCreate()
-    if mode == "local_cluster":
+    if mode in {"local_cluster", "local_cluster_gpu"}:
         # Block until workers are connected.
         num_slots = sess.sparkContext.defaultParallelism
         (
@@ -131,7 +171,26 @@ def spark(request: pytest.FixtureRequest) -> Generator[SparkSession, None, None]
 
 @pytest.fixture(scope="module")
 def num_workers(spark: SparkSession) -> int:
+    if _spark_test_mode(spark) == "local_cluster_gpu":
+        return 1
     return _get_max_num_concurrent_tasks(spark.sparkContext)
+
+
+RegData = namedtuple(
+    "RegData",
+    (
+        "X_train",
+        "X_test",
+        "y_train",
+        "y_test",
+        "weights",
+        "base_margin",
+        "is_val",
+        "X",
+        "y",
+        "df",
+    ),
+)
 
 
 class TestRegressor:
@@ -173,12 +232,13 @@ class TestRegressor:
             X_train, X_test, y_train, y_test, w, base_margin, is_val, X, y, df
         )
 
-    @pytest.mark.parametrize("spark", DUAL_SPARK_MODES, indirect=True)
+    @pytest.mark.parametrize("spark", SPARK_MODES, indirect=True)
     def test_regressor(
         self, spark: SparkSession, reg_data: RegData, num_workers: int
     ) -> None:
         train_rows = np.where(~reg_data.is_val)[0]
         validation_rows = np.where(reg_data.is_val)[0]
+        device = _spark_test_device(spark)
 
         reg_param = {
             "n_estimators": 10,
@@ -187,6 +247,7 @@ class TestRegressor:
             "max_bin": 9,
             "eval_metric": "rmse",
             "early_stopping_rounds": 1,
+            "device": device,
         }
         reg = XGBRegressor(**reg_param).fit(
             reg_data.X_train,
@@ -217,34 +278,61 @@ class TestRegressor:
         )
         rounds = reg.get_booster().num_boosted_rounds()
         iter_range = (0, max(1, min(5, rounds)))
+        spark_iter_regressor = SparkXGBRegressor(
+            weight_col="weight",
+            validation_indicator_col="is_val",
+            iteration_range=iter_range,
+            num_workers=num_workers,
+            **reg_param,
+        ).fit(reg_data.df)
         iter_preds = (
-            SparkXGBRegressor(
-                weight_col="weight",
-                validation_indicator_col="is_val",
-                iteration_range=iter_range,
-                num_workers=num_workers,
-                **reg_param,
-            )
-            .fit(reg_data.df)
-            .transform(reg_data.df)
+            spark_iter_regressor.transform(reg_data.df)
             .orderBy("row_id")
             .select("prediction")
             .toPandas()["prediction"]
             .to_numpy()
         )
-        assert np.allclose(
-            iter_preds, reg.predict(reg_data.X, iteration_range=iter_range), rtol=1e-3
-        )
-        assert np.allclose(preds, reg.predict(reg_data.X), rtol=1e-3)
+
+        if device == "cuda":
+            assert np.allclose(
+                iter_preds,
+                spark_iter_regressor._xgb_sklearn_model.predict(
+                    reg_data.X, iteration_range=iter_range
+                ),
+                rtol=1e-3,
+            )
+            assert np.allclose(
+                preds, spark_regressor._xgb_sklearn_model.predict(reg_data.X), rtol=1e-3
+            )
+        else:
+            assert np.allclose(
+                iter_preds,
+                reg.predict(reg_data.X, iteration_range=iter_range),
+                rtol=1e-3,
+            )
+            assert np.allclose(preds, reg.predict(reg_data.X), rtol=1e-3)
+
         assert np.allclose(pred_contribs.sum(axis=1), preds, rtol=1e-3)
-        assert np.allclose(
-            reg.evals_result()["validation_0"]["rmse"],
-            spark_regressor.training_summary.validation_objective_history["rmse"],
-            atol=1e-6,
-        )
-        assert np.allclose(
-            reg.best_score, spark_regressor._xgb_sklearn_model.best_score, atol=1e-3
-        )
+        if device == "cuda":
+            validation_history = (
+                spark_regressor.training_summary.validation_objective_history["rmse"]
+            )
+            assert len(validation_history) > 0
+            assert np.isfinite(validation_history).all()
+            assert np.allclose(
+                spark_regressor._xgb_sklearn_model.best_score,
+                min(validation_history),
+                atol=1e-6,
+            )
+        else:
+            assert np.allclose(
+                reg.evals_result()["validation_0"]["rmse"],
+                spark_regressor.training_summary.validation_objective_history["rmse"],
+                atol=1e-6,
+            )
+            assert np.allclose(
+                reg.best_score, spark_regressor._xgb_sklearn_model.best_score, atol=1e-3
+            )
 
     def test_training_continuation(self, reg_data: RegData) -> None:
         params = {
@@ -364,9 +452,10 @@ class TestRegressor:
         with pytest.raises(TypeError, match="The validation indicator must be boolean"):
             reg.fit(df_train)
 
-    @pytest.mark.parametrize("spark", DUAL_SPARK_MODES, indirect=True)
+    @pytest.mark.parametrize("spark", SPARK_MODES, indirect=True)
     def test_callbacks(self, spark: SparkSession, reg_data: RegData) -> None:
         train_df = reg_data.df.select("row_id", "features", "label")
+        device = _spark_test_device(spark)
 
         def custom_lr(boosting_round: int) -> float:
             return 1.0 / (boosting_round + 1)
@@ -376,6 +465,7 @@ class TestRegressor:
             "max_depth": 3,
             "objective": "reg:squarederror",
             "eval_metric": "rmse",
+            "device": device,
         }
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -428,6 +518,23 @@ class TestRegressor:
             assert row.prediction == 1.0
 
 
+ClfData = namedtuple(
+    "ClfData",
+    (
+        "X_train",
+        "X_test",
+        "y_train",
+        "y_test",
+        "weights",
+        "base_margin",
+        "is_val",
+        "X",
+        "y",
+        "df",
+    ),
+)
+
+
 class TestClassifier:
     @pytest.fixture(scope="class")
     def clf_data(self, spark: SparkSession) -> ClfData:
@@ -466,7 +573,7 @@ class TestClassifier:
             X_train, X_test, y_train, y_test, w, base_margin, is_val, X, y, df
         )
 
-    @pytest.mark.parametrize("spark", DUAL_SPARK_MODES, indirect=True)
+    @pytest.mark.parametrize("spark", SPARK_MODES, indirect=True)
     def test_classifier(
         self, spark: SparkSession, clf_data: ClfData, num_workers: int
     ) -> None:
@@ -476,11 +583,13 @@ class TestClassifier:
         weights = clf_data.weights
         train_rows = np.where(~clf_data.is_val)[0]
         validation_rows = np.where(clf_data.is_val)[0]
+        device = _spark_test_device(spark)
 
         cls_params = {
             "n_estimators": 10,
             "max_depth": 5,
             "eval_metric": "logloss",
+            "device": device,
         }
         ref = XGBClassifier(**cls_params).fit(
             X[train_rows],
