@@ -1,7 +1,7 @@
-XGBoost Change Log
-==================
+Change Log (pre 2.1.0)
+======================
 
-**Starting from 2.1.0, release note is recorded in the documentation.**
+**Starting from 2.1.0, release note is recorded in separate files.**
 
 This file records the changes in xgboost library in reverse chronological order.
 
