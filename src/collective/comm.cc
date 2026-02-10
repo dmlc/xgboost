@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include "comm.h"
 
@@ -108,7 +108,9 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
 
   rc = std::move(rc) << [&] {
     return cpu_impl::RingAllgather(comm, s_buffer, HOST_NAME_MAX, 0, prev_ch, next_ch);
-  } << [&] { return block(); };
+  } << [&] {
+    return block();
+  };
   if (!rc.OK()) {
     return Fail("Failed to get host names from peers.", std::move(rc));
   }
@@ -119,7 +121,9 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     auto s_ports = common::Span{reinterpret_cast<std::int8_t*>(peers_port.data()),
                                 peers_port.size() * sizeof(ninfo.port)};
     return cpu_impl::RingAllgather(comm, s_ports, sizeof(ninfo.port), 0, prev_ch, next_ch);
-  } << [&] { return block(); };
+  } << [&] {
+    return block();
+  };
   if (!rc.OK()) {
     return Fail("Failed to get the port from peers.", std::move(rc));
   }
@@ -143,9 +147,11 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   for (std::int32_t r = (comm.Rank() + 1); r < comm.World(); ++r) {
     auto const& peer = peers[r];
     auto worker = std::make_shared<TCPSocket>();
-    rc = std::move(rc)
-         << [&] { return Connect(peer.host, peer.port, retry, timeout, worker.get()); }
-         << [&] { return worker->RecvTimeout(timeout); };
+    rc = std::move(rc) << [&] {
+      return Connect(peer.host, peer.port, retry, timeout, worker.get());
+    } << [&] {
+      return worker->RecvTimeout(timeout);
+    };
     if (!rc.OK()) {
       return rc;
     }
@@ -313,8 +319,11 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   error_worker_.detach();
 
   proto::Start start;
-  rc = std::move(rc) << [&] { return start.WorkerSend(lport, &tracker, eport); }
-                     << [&] { return start.WorkerRecv(&tracker, &world); };
+  rc = std::move(rc) << [&] {
+    return start.WorkerSend(lport, &tracker, eport);
+  } << [&] {
+    return start.WorkerRecv(&tracker, &world);
+  };
   if (!rc.OK()) {
     return rc;
   }
@@ -425,8 +434,11 @@ RabitComm::~RabitComm() noexcept(false) {
   }
   TCPSocket out;
   proto::Print print;
-  return Success() << [&] { return this->ConnectTracker(&out); }
-                   << [&] { return print.WorkerSend(&out, msg); };
+  return Success() << [&] {
+    return this->ConnectTracker(&out);
+  } << [&] {
+    return print.WorkerSend(&out, msg);
+  };
 }
 
 [[nodiscard]] Result RabitComm::SignalError(Result const& res) {
