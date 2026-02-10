@@ -1,11 +1,8 @@
-import contextlib
 import logging
 import os
 import shutil
-import sys
 import tempfile
 import unittest
-from io import StringIO
 
 import pytest
 from xgboost import testing as tm
@@ -35,31 +32,6 @@ class UtilsTest(unittest.TestCase):
         )
         for k, v in actual_default_params.items():
             self.assertEqual(expected_default_params[k], v)
-
-
-@contextlib.contextmanager
-def patch_stdout():
-    """patch stdout and give an output"""
-    sys_stdout = sys.stdout
-    io_out = StringIO()
-    sys.stdout = io_out
-    try:
-        yield io_out
-    finally:
-        sys.stdout = sys_stdout
-
-
-@contextlib.contextmanager
-def patch_logger(name):
-    """patch logger and give an output"""
-    io_out = StringIO()
-    log = logging.getLogger(name)
-    handler = logging.StreamHandler(io_out)
-    log.addHandler(handler)
-    try:
-        yield io_out
-    finally:
-        log.removeHandler(handler)
 
 
 class TestTempDir(object):
@@ -97,29 +69,6 @@ class TestSparkContext(object):
         cls.session = None
         cls.sc.stop()
         cls.sc = None
-
-
-class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.setup_env(
-            {
-                "spark.master": "local[4]",
-                "spark.python.worker.reuse": "true",
-                "spark.driver.host": "127.0.0.1",
-                "spark.task.maxFailures": "1",
-                "spark.sql.shuffle.partitions": "4",
-                "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
-                "spark.sql.pyspark.jvmStacktrace.enabled": "true",
-                "spark.ui.enabled": "false",
-            }
-        )
-        cls.make_tempdir()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.remove_tempdir()
-        cls.tear_down_env()
 
 
 class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
