@@ -1,10 +1,12 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
-#ifndef XGBOOST_TEST_REGRESSION_OBJ_H_
-#define XGBOOST_TEST_REGRESSION_OBJ_H_
+#pragma once
 
 #include <xgboost/context.h>  // for Context
+
+#include <string>  // for string
+#include <vector>  // for vector
 
 namespace xgboost {
 
@@ -49,5 +51,3 @@ void TestExpectileRegressionMultiAlpha(const Context* ctx);
 void TestExpectileRegressionInitEstimation(const Context* ctx);
 
 }  // namespace xgboost
-
-#endif  // XGBOOST_TEST_REGRESSION_OBJ_H_

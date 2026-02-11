@@ -1,12 +1,15 @@
 /**
- * Copyright 2018-2023 by XGBoost contributors
+ * Copyright 2018-2026, XGBoost contributors
  */
 #pragma once
 #include <xgboost/json.h>
 #include <xgboost/metric.h>
 
+#include <algorithm>   // for transform
+#include <functional>  // for plus
 #include <memory>
 #include <numeric>  // for iota
+#include <vector>   // for vector
 
 #include "../helpers.h"
 
@@ -19,7 +22,7 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
   size_t n_samples = 2048;
 
   auto p_fmat = EmptyDMatrix();
-  MetaInfo& info = p_fmat->Info();
+  MetaInfo &info = p_fmat->Info();
   info.labels.Reshape(n_samples, 1);
   info.num_row_ = n_samples;
   auto &h_labels = info.labels.Data()->HostVector();
@@ -44,27 +47,22 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
 
 inline void VerifyRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric * metric = xgboost::Metric::Create("rmse", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("rmse", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "rmse");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.6403f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      0.6403f, 0.001f);
   auto expected = 2.8284f;
   if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
     expected = sqrt(8.0f * collective::GetWorldSize());
   }
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
+                            data_split_mode),
               expected, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {},
+                            data_split_mode),
               0.6708f, 0.001f);
   delete metric;
 
@@ -73,27 +71,22 @@ inline void VerifyRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
 
 inline void VerifyRMSLE(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric * metric = xgboost::Metric::Create("rmsle", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("rmsle", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "rmsle");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
-                            {1.0f, 1.0f, 1.0f, 1.0f, 1.0f}, {}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f}, {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+                            {}, {}, data_split_mode),
               0.4063f, 1e-4);
   auto expected = 0.6212f;
   if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
     expected = sqrt(0.3859f * collective::GetWorldSize());
   }
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
-                            {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
-                            {   0,   -1,    1,    -9,   9}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f}, {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+                            {0, -1, 1, -9, 9}, {}, data_split_mode),
               expected, 1e-4);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
-                            {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
-                            {   0,    1,    2,    9,    8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f}, {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+                            {0, 1, 2, 9, 8}, {}, data_split_mode),
               0.2415f, 1e-4);
   delete metric;
 
@@ -102,27 +95,22 @@ inline void VerifyRMSLE(DataSplitMode data_split_mode, DeviceOrd device) {
 
 inline void VerifyMAE(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric * metric = xgboost::Metric::Create("mae", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("mae", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mae");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.5f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode), 0.5f,
+      0.001f);
   auto expected = 8.0f;
   if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
     expected *= collective::GetWorldSize();
   }
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
+                            data_split_mode),
               expected, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {},
+                            data_split_mode),
               0.54f, 0.001f);
   delete metric;
 
@@ -131,27 +119,22 @@ inline void VerifyMAE(DataSplitMode data_split_mode, DeviceOrd device) {
 
 inline void VerifyMAPE(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric * metric = xgboost::Metric::Create("mape", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("mape", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mape");
   EXPECT_NEAR(GetMetricEval(metric, {150, 300}, {100, 200}, {}, {}, data_split_mode), 0.5f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {50, 400, 500, 4000},
-                            {100, 200, 500, 1000}, {}, {}, data_split_mode),
-              1.125f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {50, 400, 500, 4000}, {100, 200, 500, 1000}, {}, {}, data_split_mode),
+      1.125f, 0.001f);
   auto expected = -26.5f;
   if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
     expected *= collective::GetWorldSize();
   }
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {50, 400, 500, 4000},
-                            {100, 200, 500, 1000},
-                            { -1,   1,   9,  -9}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {50, 400, 500, 4000}, {100, 200, 500, 1000}, {-1, 1, 9, -9}, {},
+                            data_split_mode),
               expected, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {50, 400, 500, 4000},
-                            {100, 200, 500, 1000},
-                            {  1,   2,   9,   8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {50, 400, 500, 4000}, {100, 200, 500, 1000}, {1, 2, 9, 8}, {},
+                            data_split_mode),
               1.3250f, 0.001f);
   delete metric;
 
@@ -164,62 +147,49 @@ inline void VerifyMPHE(DataSplitMode data_split_mode, DeviceOrd device) {
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mphe");
   EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric.get(),
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.1751f, 1e-4);
+  EXPECT_NEAR(
+      GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      0.1751f, 1e-4);
   auto expected = 3.40375f;
   if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
     expected *= collective::GetWorldSize();
   }
-  EXPECT_NEAR(GetMetricEval(metric.get(),
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9},
+                            {}, data_split_mode),
               expected, 1e-4);
-  EXPECT_NEAR(GetMetricEval(metric.get(),
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {},
+                            data_split_mode),
               0.1922f, 1e-4);
 
   CheckDeterministicMetricElementWise(StringView{"mphe"}, device.ordinal);
 
   metric->Configure({{"huber_slope", "0.1"}});
-  EXPECT_NEAR(GetMetricEval(metric.get(),
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {},
+                            data_split_mode),
               0.0461686f, 1e-4);
 }
 
 inline void VerifyLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric * metric = xgboost::Metric::Create("logloss", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("logloss", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "logloss");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.5f, 1e-17f, 1.0f+1e-17f, 0.9f},
-                            {   0,      0,           1,    1}, {}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.5f, 1e-17f, 1.0f + 1e-17f, 0.9f}, {0, 0, 1, 1}, {}, {},
+                            data_split_mode),
               0.1996f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              1.2039f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      1.2039f, 0.001f);
   auto expected = 21.9722f;
   if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
     expected *= collective::GetWorldSize();
   }
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
+                            data_split_mode),
               expected, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {},
+                            data_split_mode),
               1.3138f, 0.001f);
   delete metric;
 
@@ -228,27 +198,22 @@ inline void VerifyLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
 
 inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric * metric = xgboost::Metric::Create("error", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("error", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "error");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.5f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode), 0.5f,
+      0.001f);
   auto expected = 10.0f;
   if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
     expected *= collective::GetWorldSize();
   }
-  EXPECT_NEAR(GetMetricEval(metric,
-                           {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
+                            data_split_mode),
               expected, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {},
+                            data_split_mode),
               0.55f, 0.001f);
 
   EXPECT_ANY_THROW(xgboost::Metric::Create("error@abc", &ctx));
@@ -265,23 +230,18 @@ inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
   ASSERT_STREQ(metric->Name(), "error@0.1");
   EXPECT_STREQ(metric->Name(), "error@0.1");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {-0.1f, -0.9f, 0.1f, 0.9f},
-                            {   0,    0,   1,   1}, {}, {}, data_split_mode),
-              0.25f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {-0.1f, -0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      0.25f, 0.001f);
   expected = 9.0f;
   if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
     expected *= collective::GetWorldSize();
   }
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {-0.1f, -0.9f, 0.1f, 0.9f},
-                            {   0,    0,   1,   1},
-                            { -1,   1,   9,  -9}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {-0.1f, -0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
+                            data_split_mode),
               expected, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {-0.1f, -0.9f, 0.1f, 0.9f},
-                            {   0,    0,   1,   1},
-                            {  1,   2,   9,   8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {-0.1f, -0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {},
+                            data_split_mode),
               0.45f, 0.001f);
   delete metric;
 
@@ -290,31 +250,25 @@ inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
 
 inline void VerifyPoissonNegLogLik(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric * metric = xgboost::Metric::Create("poisson-nloglik", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("poisson-nloglik", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "poisson-nloglik");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0.5f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.5f, 1e-17f, 1.0f+1e-17f, 0.9f},
-                            {   0,      0,           1,    1}, {}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.5f, 1e-17f, 1.0f + 1e-17f, 0.9f}, {0, 0, 1, 1}, {}, {},
+                            data_split_mode),
               0.6263f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              1.1019f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      1.1019f, 0.001f);
   auto expected = 13.3750f;
   if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
     expected *= collective::GetWorldSize();
   }
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            { -1,   1,   9,  -9}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
+                            data_split_mode),
               expected, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1},
-                            {  1,   2,   9,   8}, {}, data_split_mode),
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {1, 2, 9, 8}, {},
+                            data_split_mode),
               1.5783f, 0.001f);
   delete metric;
 
@@ -349,10 +303,8 @@ inline void VerifyQuantile(DataSplitMode data_split_mode, DeviceOrd device) {
 
   HostDeviceVector<float> predts{0.1f, 0.9f, 0.1f, 0.9f};
   HostDeviceVector<float> predts_2{0.2f, 0.6f, 0.4f, 0.6f, 0.5f, 1.2f, 0.0f, 0.4f};
-  HostDeviceVector<float> predts_3{0.2f, 0.4f, 0.6f,
-                                   0.4f, 0.5f, 0.6f,
-                                   0.5f, 0.8f, 1.2f,
-                                   0.0f, 0.3f, 0.4f};
+  HostDeviceVector<float> predts_3{0.2f, 0.4f, 0.6f, 0.4f, 0.5f, 0.6f,
+                                   0.5f, 0.8f, 1.2f, 0.0f, 0.3f, 0.4f};
   std::vector<float> labels{0.5f, 0.5f, 0.9f, 0.1f};
   std::vector<float> weights{0.2f, 0.4f, 0.6f, 0.8f};
 
@@ -397,10 +349,8 @@ inline void VerifyExpectile(DataSplitMode data_split_mode, DeviceOrd device) {
 
   HostDeviceVector<float> predts{0.1f, 0.9f, 0.1f, 0.9f};
   HostDeviceVector<float> predts_2{0.2f, 0.6f, 0.4f, 0.6f, 0.5f, 1.2f, 0.0f, 0.4f};
-  HostDeviceVector<float> predts_3{0.2f, 0.4f, 0.6f,
-                                   0.4f, 0.5f, 0.6f,
-                                   0.5f, 0.8f, 1.2f,
-                                   0.0f, 0.3f, 0.4f};
+  HostDeviceVector<float> predts_3{0.2f, 0.4f, 0.6f, 0.4f, 0.5f, 0.6f,
+                                   0.5f, 0.8f, 1.2f, 0.0f, 0.3f, 0.4f};
   std::vector<float> labels{0.5f, 0.5f, 0.9f, 0.1f};
   std::vector<float> weights{0.2f, 0.4f, 0.6f, 0.8f};
 
