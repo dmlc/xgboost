@@ -4,10 +4,10 @@
  * @brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
  */
-#include <cuda/std/tuple>    // for make_tuple, get
-
 #include <thrust/logical.h>  // thrust::any_of
 #include <thrust/sort.h>     // thrust::stable_sort
+
+#include <cuda/std/tuple>  // for make_tuple, get
 
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/device_helpers.cuh"

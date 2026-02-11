@@ -1,14 +1,13 @@
 /**
  * Copyright 2021-2026, XGBoost Contributors
  */
-#include <cuda/std/tuple>    // for tuple, get, tie
-#include <cuda/std/utility>  // for pair
-
 #include <thrust/copy.h>     // for copy
 #include <thrust/logical.h>  // for any_of
 #include <thrust/scan.h>
 
 #include <cassert>
+#include <cuda/std/tuple>    // for tuple, get, tie
+#include <cuda/std/utility>  // for pair
 #include <functional>        // for equal_to
 #include <limits>
 #include <memory>
@@ -70,7 +69,7 @@ struct DeviceAUCCache {
 
 template <bool is_multi>
 void InitCacheOnce(common::Span<float const> predts, std::shared_ptr<DeviceAUCCache> *p_cache) {
-  auto& cache = *p_cache;
+  auto &cache = *p_cache;
   if (!cache) {
     cache.reset(new DeviceAUCCache);
   }
@@ -103,7 +102,7 @@ std::tuple<double, double, double> GPUBinaryAUC(Context const *ctx,
    * Linear scan
    */
   auto get_weight = common::OptionalWeights{weights};
-  auto get_fp_tp = [=]XGBOOST_DEVICE(size_t i) {
+  auto get_fp_tp = [=] XGBOOST_DEVICE(size_t i) {
     size_t idx = d_sorted_idx[i];
 
     float label = labels(idx);
@@ -191,8 +190,7 @@ std::tuple<double, double, double> GPUBinaryROCAUC(Context const *ctx,
       cache);
 }
 
-void Transpose(common::Span<float const> in, common::Span<float> out, size_t m,
-               size_t n) {
+void Transpose(common::Span<float const> in, common::Span<float> out, size_t m, size_t n) {
   CHECK_EQ(in.size(), out.size());
   CHECK_EQ(in.size(), m * n);
   dh::LaunchN(in.size(), [=] XGBOOST_DEVICE(size_t i) {
@@ -281,11 +279,11 @@ void SegmentedReduceAUC(Context const *ctx, common::Span<size_t const> d_unique_
                         common::Span<double> d_auc) {
   auto d_fptp = dh::ToSpan(cache->fptp);
   auto d_neg_pos = dh::ToSpan(cache->neg_pos);
-  auto key_in = dh::MakeTransformIterator<uint32_t>(
-      thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
-        size_t class_id = segment_id(d_unique_idx[i]);
-        return class_id;
-      });
+  auto key_in = dh::MakeTransformIterator<uint32_t>(thrust::make_counting_iterator(0),
+                                                    [=] XGBOOST_DEVICE(size_t i) {
+                                                      size_t class_id = segment_id(d_unique_idx[i]);
+                                                      return class_id;
+                                                    });
   auto val_in = dh::MakeTransformIterator<double>(
       thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
         size_t class_id = segment_id(d_unique_idx[i]);
@@ -344,7 +342,7 @@ double GPUMultiClassAUCOVR(Context const *ctx, MetaInfo const &info,
   dh::caching_device_vector<double> d_auc(n_classes, 0);
   auto get_weight = common::OptionalWeights{weights};
   auto d_fptp = dh::ToSpan(cache->fptp);
-  auto get_fp_tp = [=]XGBOOST_DEVICE(size_t i) {
+  auto get_fp_tp = [=] XGBOOST_DEVICE(size_t i) {
     size_t idx = d_sorted_idx[i];
 
     size_t class_id = i / n_samples;
@@ -356,8 +354,7 @@ double GPUMultiClassAUCOVR(Context const *ctx, MetaInfo const &info,
     float tp = label * w;
     return cuda::std::make_pair(fp, tp);
   };  // NOLINT
-  dh::LaunchN(d_sorted_idx.size(),
-              [=] XGBOOST_DEVICE(size_t i) { d_fptp[i] = get_fp_tp(i); });
+  dh::LaunchN(d_sorted_idx.size(), [=] XGBOOST_DEVICE(size_t i) { d_fptp[i] = get_fp_tp(i); });
 
   /**
    *  Handle duplicated predictions
@@ -380,7 +377,9 @@ double GPUMultiClassAUCOVR(Context const *ctx, MetaInfo const &info,
       dh::tbegin(d_unique_idx), std::equal_to<cuda::std::pair<uint32_t, float>>{});
   d_unique_idx = d_unique_idx.subspan(0, n_uniques);
 
-  auto get_class_id = [=] XGBOOST_DEVICE(size_t idx) { return idx / n_samples; };
+  auto get_class_id = [=] XGBOOST_DEVICE(size_t idx) {
+    return idx / n_samples;
+  };
   SegmentedFPTP(ctx, d_fptp, get_class_id);
 
   // scatter unique FP_PREV/TP_PREV values
@@ -390,7 +389,7 @@ double GPUMultiClassAUCOVR(Context const *ctx, MetaInfo const &info,
   dh::LaunchN(d_unique_idx.size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(size_t i) {
     if (d_unique_idx[i] % n_samples == 0) {  // first unique index is 0
       assert(d_unique_idx[i] % n_samples == 0);
-      d_neg_pos[d_unique_idx[i]] = {0, 0};   // class_id * n_samples = i
+      d_neg_pos[d_unique_idx[i]] = {0, 0};  // class_id * n_samples = i
       return;
     }
     uint32_t class_id = d_unique_idx[i] / n_samples;
@@ -454,7 +453,7 @@ void MultiClassSortedIdx(Context const *ctx, common::Span<float const> predts,
 double GPUMultiClassROCAUC(Context const *ctx, common::Span<float const> predts,
                            MetaInfo const &info, std::shared_ptr<DeviceAUCCache> *p_cache,
                            std::size_t n_classes) {
-  auto& cache = *p_cache;
+  auto &cache = *p_cache;
   InitCacheOnce<true>(predts, p_cache);
 
   /**
@@ -482,7 +481,7 @@ struct RankScanItem {
 std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<float const> predts,
                                                MetaInfo const &info,
                                                std::shared_ptr<DeviceAUCCache> *p_cache) {
-  auto& cache = *p_cache;
+  auto &cache = *p_cache;
   InitCacheOnce<false>(predts, p_cache);
 
   dh::caching_device_vector<bst_group_t> group_ptr(info.group_ptr_);
@@ -521,7 +520,7 @@ std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<
                                                      std::numeric_limits<std::size_t>::max());
   CHECK_LT(n_threads, std::numeric_limits<int32_t>::max());
   // get the coordinate in nested summation
-  auto get_i_j = [=]XGBOOST_DEVICE(size_t idx, size_t query_group_idx) {
+  auto get_i_j = [=] XGBOOST_DEVICE(size_t idx, size_t query_group_idx) {
     auto data_group_begin = d_group_ptr[query_group_idx];
     size_t n_samples = d_group_ptr[query_group_idx + 1] - data_group_begin;
     auto thread_group_begin = d_threads_group_ptr[query_group_idx];
@@ -601,7 +600,7 @@ std::tuple<double, double, double> GPUBinaryPRAUC(Context const *ctx,
                                                   common::Span<float const> predts,
                                                   MetaInfo const &info,
                                                   std::shared_ptr<DeviceAUCCache> *p_cache) {
-  auto& cache = *p_cache;
+  auto &cache = *p_cache;
   InitCacheOnce<false>(predts, p_cache);
 
   /**
@@ -613,22 +612,20 @@ std::tuple<double, double, double> GPUBinaryPRAUC(Context const *ctx,
   auto labels = info.labels.View(ctx->Device());
   auto d_weights = info.weights_.ConstDeviceSpan();
   auto get_weight = common::OptionalWeights{d_weights};
-  auto it = dh::MakeTransformIterator<Pair>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
-        auto w = get_weight[d_sorted_idx[i]];
-        return cuda::std::make_pair(labels(d_sorted_idx[i]) * w,
-                                 (1.0f - labels(d_sorted_idx[i])) * w);
-      });
+  auto it = dh::MakeTransformIterator<Pair>(thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(
+                                                                                     size_t i) {
+    auto w = get_weight[d_sorted_idx[i]];
+    return cuda::std::make_pair(labels(d_sorted_idx[i]) * w, (1.0f - labels(d_sorted_idx[i])) * w);
+  });
   double total_pos, total_neg;
-  cuda::std::tie(total_pos, total_neg) = thrust::reduce(ctx->CUDACtx()->CTP(), it, it + labels.Size(),
-                                                        Pair{0.0, 0.0}, PairPlus<double, double>{});
+  cuda::std::tie(total_pos, total_neg) = thrust::reduce(
+      ctx->CUDACtx()->CTP(), it, it + labels.Size(), Pair{0.0, 0.0}, PairPlus<double, double>{});
 
   if (total_pos <= 0.0 || total_neg <= 0.0) {
     return {0.0f, 0.0f, 0.0f};
   }
 
-  auto fn = [total_pos] XGBOOST_DEVICE(double fp_prev, double fp, double tp_prev,
-                                       double tp) {
+  auto fn = [total_pos] XGBOOST_DEVICE(double fp_prev, double fp, double tp_prev, double tp) {
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, total_pos);
   };
   double fp, tp, auc;
@@ -639,7 +636,7 @@ std::tuple<double, double, double> GPUBinaryPRAUC(Context const *ctx,
 double GPUMultiClassPRAUC(Context const *ctx, common::Span<float const> predts,
                           MetaInfo const &info, std::shared_ptr<DeviceAUCCache> *p_cache,
                           std::size_t n_classes) {
-  auto& cache = *p_cache;
+  auto &cache = *p_cache;
   InitCacheOnce<true>(predts, p_cache);
 
   /**
@@ -658,11 +655,10 @@ double GPUMultiClassPRAUC(Context const *ctx, common::Span<float const> predts,
   auto labels = info.labels.View(ctx->Device());
   auto n_samples = info.num_row_;
   dh::caching_device_vector<Pair> totals(n_classes);
-  auto key_it =
-      dh::MakeTransformIterator<size_t>(thrust::make_counting_iterator(0ul),
-                                        [n_samples] XGBOOST_DEVICE(size_t i) {
-                                          return i / n_samples;  // class id
-                                        });
+  auto key_it = dh::MakeTransformIterator<size_t>(thrust::make_counting_iterator(0ul),
+                                                  [n_samples] XGBOOST_DEVICE(size_t i) {
+                                                    return i / n_samples;  // class id
+                                                  });
   auto get_weight = common::OptionalWeights{d_weights};
   auto val_it = dh::MakeTransformIterator<cuda::std::pair<double, double>>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
@@ -680,11 +676,10 @@ double GPUMultiClassPRAUC(Context const *ctx, common::Span<float const> predts,
    * Calculate AUC
    */
   auto d_totals = dh::ToSpan(totals);
-  auto fn = [d_totals] XGBOOST_DEVICE(double fp_prev, double fp, double tp_prev,
-                                      double tp, size_t class_id) {
+  auto fn = [d_totals] XGBOOST_DEVICE(double fp_prev, double fp, double tp_prev, double tp,
+                                      size_t class_id) {
     auto total_pos = d_totals[class_id].first;
-    return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp,
-                                  d_totals[class_id].first);
+    return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, d_totals[class_id].first);
   };
   return GPUMultiClassAUCOVR<false>(ctx, info, d_class_ptr, n_classes, cache, fn);
 }
@@ -756,8 +751,7 @@ std::pair<double, uint32_t> GPURankingPRAUCImpl(Context const *ctx,
   // scatter unique FP_PREV/TP_PREV values
   auto d_neg_pos = dh::ToSpan(cache->neg_pos);
   dh::LaunchN(d_unique_idx.size(), [=] XGBOOST_DEVICE(size_t i) {
-    if (thrust::binary_search(thrust::seq, d_unique_class_ptr.cbegin(),
-                              d_unique_class_ptr.cend(),
+    if (thrust::binary_search(thrust::seq, d_unique_class_ptr.cbegin(), d_unique_class_ptr.cend(),
                               i)) {  // first unique index is 0
       d_neg_pos[d_unique_idx[i]] = {0, 0};
       return;
@@ -840,17 +834,18 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
   auto key_it = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(size_t i) { return dh::SegmentId(d_group_ptr, i); });
-  auto val_it = dh::MakeTransformIterator<Pair>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
-        float w = 1.0f;
-        if (!d_weights.empty()) {
-          // Avoid a binary search if the groups are not weighted.
-          auto g = dh::SegmentId(d_group_ptr, i);
-          w = d_weights[g];
-        }
-        auto y = labels(i);
-        return cuda::std::make_pair(y * w, (1.0 - y) * w);
-      });
+  auto val_it = dh::MakeTransformIterator<Pair>(thrust::make_counting_iterator(0ul),
+                                                [=] XGBOOST_DEVICE(size_t i) {
+                                                  float w = 1.0f;
+                                                  // Avoid a binary search if the groups
+                                                  // are not weighted.
+                                                  if (!d_weights.empty()) {
+                                                    auto g = dh::SegmentId(d_group_ptr, i);
+                                                    w = d_weights[g];
+                                                  }
+                                                  auto y = labels(i);
+                                                  return cuda::std::make_pair(y * w, (1.0 - y) * w);
+                                                });
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + predts.size(), val_it,
                         thrust::make_discard_iterator(), totals.begin(), std::equal_to<size_t>{},
                         PairPlus<double, double>{});  // NOLINT
@@ -859,11 +854,10 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
    * Calculate AUC
    */
   auto d_totals = dh::ToSpan(totals);
-  auto fn = [d_totals] XGBOOST_DEVICE(double fp_prev, double fp, double tp_prev,
-                                      double tp, size_t group_id) {
+  auto fn = [d_totals] XGBOOST_DEVICE(double fp_prev, double fp, double tp_prev, double tp,
+                                      size_t group_id) {
     auto total_pos = d_totals[group_id].first;
-    return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp,
-                                  d_totals[group_id].first);
+    return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, d_totals[group_id].first);
   };
   return GPURankingPRAUCImpl(ctx, predts, info, d_group_ptr, cache, fn);
 }

@@ -3,7 +3,6 @@
  *
  * \brief CUDA implementation of lambdarank.
  */
-#include <cuda/std/tuple>                       // for make_tuple, tuple, get
 #include <dmlc/registry.h>                      // for DMLC_REGISTRY_FILE_TAG
 #include <thrust/fill.h>                        // for fill_n
 #include <thrust/for_each.h>                    // for for_each_n
@@ -11,12 +10,13 @@
 #include <thrust/iterator/zip_iterator.h>       // for make_zip_iterator
 #include <thrust/tuple.h>                       // for make_tuple (zip_iterator)
 
-#include <algorithm>  // for min
-#include <cassert>    // for assert
-#include <cmath>      // for abs, log2, isinf
-#include <cstddef>    // for size_t
-#include <cstdint>    // for int32_t
-#include <memory>     // for shared_ptr
+#include <algorithm>       // for min
+#include <cassert>         // for assert
+#include <cmath>           // for abs, log2, isinf
+#include <cstddef>         // for size_t
+#include <cstdint>         // for int32_t
+#include <cuda/std/tuple>  // for make_tuple, tuple, get
+#include <memory>          // for shared_ptr
 #include <utility>
 
 #include "../common/algorithm.cuh"       // for SegmentedArgSort
