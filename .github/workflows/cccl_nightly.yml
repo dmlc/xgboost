@@ -1,9 +1,10 @@
 name: Test XGBoost with latest CCCL and RMM
 
-on:
-  workflow_dispatch:  # Can be manually triggered
-  schedule:
-    - cron: "0 7 * * *"  # Run once daily
+# on:
+#   workflow_dispatch:  # Can be manually triggered
+#   schedule:
+#     - cron: "0 7 * * *"  # Run once daily
+on: [push, pull_request]
 
 permissions:
   contents: read
