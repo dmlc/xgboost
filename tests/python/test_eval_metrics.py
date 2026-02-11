@@ -1,5 +1,7 @@
 import numpy as np
 import pytest
+import xgboost as xgb
+from xgboost import testing as tm
 from xgboost.testing.metrics import (
     check_expectile_error,
     check_precision_score,
@@ -10,9 +12,6 @@ from xgboost.testing.metrics import (
     run_roc_auc_binary,
     run_roc_auc_multi,
 )
-
-import xgboost as xgb
-from xgboost import testing as tm
 
 rng = np.random.RandomState(1337)
 
