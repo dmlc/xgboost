@@ -1,10 +1,11 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
+#include <cuda/std/utility>                     // for pair
+
 #include <thrust/functional.h>                  // for maximum
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 #include <thrust/logical.h>                     // for none_of, all_of
-#include <thrust/pair.h>                        // for pair, make_pair
 #include <thrust/reduce.h>                      // for reduce
 #include <thrust/scan.h>                        // for inclusive_scan
 
@@ -30,10 +31,10 @@ void CalcQueriesDCG(Context const* ctx, linalg::VectorView<float const> d_labels
                     common::Span<bst_group_t const> d_group_ptr, std::size_t k,
                     linalg::VectorView<double> out_dcg) {
   CHECK_EQ(d_group_ptr.size() - 1, out_dcg.Size());
-  using IdxGroup = thrust::pair<std::size_t, std::size_t>;
+  using IdxGroup = cuda::std::pair<std::size_t, std::size_t>;
   auto group_it = dh::MakeTransformIterator<IdxGroup>(
       thrust::make_counting_iterator(0ull), [=] XGBOOST_DEVICE(std::size_t idx) {
-        return thrust::make_pair(idx, dh::SegmentId(d_group_ptr, idx));  // NOLINT
+        return cuda::std::make_pair(idx, dh::SegmentId(d_group_ptr, idx));
       });
   auto value_it = dh::MakeTransformIterator<double>(
       group_it,

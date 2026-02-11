@@ -1,12 +1,14 @@
 /**
- * Copyright 2021-2025, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
+#include <cuda/std/tuple>    // for tuple, get, tie
+#include <cuda/std/utility>  // for pair
+
 #include <thrust/copy.h>     // for copy
 #include <thrust/logical.h>  // for any_of
 #include <thrust/scan.h>
 
 #include <cassert>
-#include <cuda/std/utility>  // for pair
 #include <functional>        // for equal_to
 #include <limits>
 #include <memory>
@@ -154,11 +156,11 @@ std::tuple<double, double, double> GPUBinaryAUC(Context const *ctx,
         double fp_prev, tp_prev;
         if (i == 0) {
           // handle the last element
-          thrust::tie(fp, tp) = d_fptp.back();
-          thrust::tie(fp_prev, tp_prev) = d_neg_pos[d_unique_idx.back()];
+          cuda::std::tie(fp, tp) = d_fptp.back();
+          cuda::std::tie(fp_prev, tp_prev) = d_neg_pos[d_unique_idx.back()];
         } else {
-          thrust::tie(fp, tp) = d_fptp[d_unique_idx[i] - 1];
-          thrust::tie(fp_prev, tp_prev) = d_neg_pos[d_unique_idx[i - 1]];
+          cuda::std::tie(fp, tp) = d_fptp[d_unique_idx[i] - 1];
+          cuda::std::tie(fp_prev, tp_prev) = d_neg_pos[d_unique_idx[i - 1]];
         }
         return area_fn(fp_prev, fp, tp_prev, tp);
       });
@@ -222,7 +224,7 @@ double ScaleClasses(Context const *ctx, bool is_column_split, common::Span<doubl
 
   double tp_sum;
   double auc_sum;
-  thrust::tie(auc_sum, tp_sum) =
+  cuda::std::tie(auc_sum, tp_sum) =
       thrust::reduce(ctx->CUDACtx()->CTP(), reduce_in, reduce_in + n_classes, Pair{0.0, 0.0},
                      PairPlus<double, double>{});
   if (tp_sum != 0 && !std::isnan(auc_sum)) {
@@ -239,31 +241,31 @@ double ScaleClasses(Context const *ctx, bool is_column_split, common::Span<doubl
  */
 template <typename Fn>
 void SegmentedFPTP(Context const *ctx, common::Span<Pair> d_fptp, Fn segment_id) {
-  using Triple = thrust::tuple<uint32_t, double, double>;
+  using Triple = cuda::std::tuple<uint32_t, double, double>;
   // expand to tuple to include idx
   auto fptp_it_in = dh::MakeTransformIterator<Triple>(
       thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
-        return thrust::make_tuple(i, d_fptp[i].first, d_fptp[i].second);
+        return cuda::std::make_tuple(i, d_fptp[i].first, d_fptp[i].second);
       });
   // shrink down to pair
   auto fptp_it_out = thrust::make_transform_output_iterator(
       dh::TypedDiscard<Triple>{}, [d_fptp] XGBOOST_DEVICE(Triple const &t) {
-        d_fptp[thrust::get<0>(t)] =
-            cuda::std::make_pair(thrust::get<1>(t), thrust::get<2>(t));
+        d_fptp[cuda::std::get<0>(t)] =
+            cuda::std::make_pair(cuda::std::get<1>(t), cuda::std::get<2>(t));
         return t;
       });
   common::InclusiveScan(
       ctx, fptp_it_in, fptp_it_out,
       [=] XGBOOST_DEVICE(Triple const &l, Triple const &r) {
-        uint32_t l_gid = segment_id(thrust::get<0>(l));
-        uint32_t r_gid = segment_id(thrust::get<0>(r));
+        uint32_t l_gid = segment_id(cuda::std::get<0>(l));
+        uint32_t r_gid = segment_id(cuda::std::get<0>(r));
         if (l_gid != r_gid) {
           return r;
         }
 
-        return Triple(thrust::get<0>(r),
-                      thrust::get<1>(l) + thrust::get<1>(r),   // fp
-                      thrust::get<2>(l) + thrust::get<2>(r));  // tp
+        return Triple(cuda::std::get<0>(r),
+                      cuda::std::get<1>(l) + cuda::std::get<1>(r),   // fp
+                      cuda::std::get<2>(l) + cuda::std::get<2>(r));  // tp
       },
       d_fptp.size());
 }
@@ -291,12 +293,12 @@ void SegmentedReduceAUC(Context const *ctx, common::Span<size_t const> d_unique_
         double fp, tp, fp_prev, tp_prev;
         if (i == d_unique_class_ptr[class_id]) {
           // first item is ignored, we use this thread to calculate the last item
-          thrust::tie(fp, tp) = d_fptp[common::LastOf(class_id, d_class_ptr)];
-          thrust::tie(fp_prev, tp_prev) =
+          cuda::std::tie(fp, tp) = d_fptp[common::LastOf(class_id, d_class_ptr)];
+          cuda::std::tie(fp_prev, tp_prev) =
               d_neg_pos[d_unique_idx[common::LastOf(class_id, d_unique_class_ptr)]];
         } else {
-          thrust::tie(fp, tp) = d_fptp[d_unique_idx[i] - 1];
-          thrust::tie(fp_prev, tp_prev) = d_neg_pos[d_unique_idx[i - 1]];
+          cuda::std::tie(fp, tp) = d_fptp[d_unique_idx[i] - 1];
+          cuda::std::tie(fp_prev, tp_prev) = d_neg_pos[d_unique_idx[i - 1]];
         }
         double auc = area_fn(fp_prev, fp, tp_prev, tp, class_id);
         return auc;
@@ -544,7 +546,7 @@ std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<
         }
 
         size_t i, j;
-        thrust::tie(i, j) = get_i_j(idx, query_group_idx);
+        cuda::std::tie(i, j) = get_i_j(idx, query_group_idx);
 
         float predt = predts[d_sorted_idx[i]] - predts[d_sorted_idx[j]];
         float w = common::Sqr(d_weights.empty() ? 1.0f : d_weights[query_group_idx]);
@@ -618,8 +620,8 @@ std::tuple<double, double, double> GPUBinaryPRAUC(Context const *ctx,
                                  (1.0f - labels(d_sorted_idx[i])) * w);
       });
   double total_pos, total_neg;
-  thrust::tie(total_pos, total_neg) = thrust::reduce(ctx->CUDACtx()->CTP(), it, it + labels.Size(),
-                                                     Pair{0.0, 0.0}, PairPlus<double, double>{});
+  cuda::std::tie(total_pos, total_neg) = thrust::reduce(ctx->CUDACtx()->CTP(), it, it + labels.Size(),
+                                                        Pair{0.0, 0.0}, PairPlus<double, double>{});
 
   if (total_pos <= 0.0 || total_neg <= 0.0) {
     return {0.0f, 0.0f, 0.0f};
@@ -786,7 +788,7 @@ std::pair<double, uint32_t> GPURankingPRAUCImpl(Context const *ctx,
     auto it = dh::MakeTransformIterator<cuda::std::pair<double, uint32_t>>(
         thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t g) {
           double fp, tp;
-          thrust::tie(fp, tp) = d_fptp[common::LastOf(g, d_group_ptr)];
+          cuda::std::tie(fp, tp) = d_fptp[common::LastOf(g, d_group_ptr)];
           double area = fp * tp;
           auto n_documents = d_group_ptr[g + 1] - d_group_ptr[g];
           if (area > 0 && n_documents >= 2) {
@@ -794,7 +796,7 @@ std::pair<double, uint32_t> GPURankingPRAUCImpl(Context const *ctx,
           }
           return cuda::std::make_pair(0.0, static_cast<uint32_t>(1));
         });
-    thrust::tie(auc, invalid_groups) =
+    cuda::std::tie(auc, invalid_groups) =
         thrust::reduce(ctx->CUDACtx()->CTP(), it, it + n_groups,
                        cuda::std::pair<double, uint32_t>(0.0, 0), PairPlus<double, uint32_t>{});
   }

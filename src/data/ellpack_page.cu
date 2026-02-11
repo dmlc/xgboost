@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <thrust/binary_search.h>                       // for lower_bound,  upper_bound
 #include <thrust/extrema.h>                             // for max_element

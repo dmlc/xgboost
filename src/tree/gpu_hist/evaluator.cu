@@ -4,6 +4,8 @@
  * @brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
  */
+#include <cuda/std/tuple>    // for make_tuple, get
+
 #include <thrust/logical.h>  // thrust::any_of
 #include <thrust/sort.h>     // thrust::stable_sort
 
@@ -84,9 +86,9 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
                         auto grad =
                             shared_inputs.rounding.ToFloatingPoint(input.gradient_histogram[j]);
                         auto lw = evaluator.CalcWeightCat(shared_inputs.param, grad);
-                        return thrust::make_tuple(i, lw);
+                        return cuda::std::make_tuple(i, lw);
                       }
-                      return thrust::make_tuple(i, 0.0f);
+                      return cuda::std::make_tuple(i, 0.0f);
                     });
   // Sort an array segmented according to
   // - nodes
@@ -95,8 +97,8 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
   thrust::stable_sort_by_key(ctx->CUDACtx()->CTP(), dh::tbegin(data), dh::tend(data),
                              dh::tbegin(sorted_idx),
                              [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
-                               auto li = thrust::get<0>(l);
-                               auto ri = thrust::get<0>(r);
+                               auto li = cuda::std::get<0>(l);
+                               auto ri = cuda::std::get<0>(r);
 
                                auto l_node = li / total_bins;
                                auto r_node = ri / total_bins;
@@ -116,8 +118,8 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
                                }
 
                                if (common::IsCat(shared_inputs.feature_types, lfidx)) {
-                                 auto lw = thrust::get<1>(l);
-                                 auto rw = thrust::get<1>(r);
+                                 auto lw = cuda::std::get<1>(l);
+                                 auto rw = cuda::std::get<1>(r);
                                  return lw < rw;
                                }
                                return li < ri;
