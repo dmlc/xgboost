@@ -50,6 +50,6 @@ TEST(SyclQuantileHistMaker, JsonIO) {
     auto single_precision_histogram = atoi(get<String const>(new_config["sycl_hist_train_param"]["single_precision_histogram"]).c_str());
     ASSERT_EQ(single_precision_histogram, 1);
   }
-  
+
 }
 }  // namespace xgboost::sycl::tree

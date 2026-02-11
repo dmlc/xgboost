@@ -2,7 +2,6 @@ import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-
 import xgboost as xgb
 
 

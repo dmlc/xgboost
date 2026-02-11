@@ -595,10 +595,12 @@ def xgboost_model_doc(
         return __doc[item]
 
     def adddoc(cls: TDoc) -> TDoc:
-        doc = ["""
+        doc = [
+            """
 Parameters
 ----------
-"""]
+"""
+        ]
         if extra_parameters:
             doc.append(extra_parameters)
         doc.extend([get_doc(i) for i in items])

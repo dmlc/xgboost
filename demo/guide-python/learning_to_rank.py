@@ -25,9 +25,8 @@ import pickle as pkl
 
 import numpy as np
 import pandas as pd
-from sklearn.datasets import load_svmlight_file
-
 import xgboost as xgb
+from sklearn.datasets import load_svmlight_file
 from xgboost.testing.data import RelDataCV, simulate_clicks, sort_ltr_samples
 
 

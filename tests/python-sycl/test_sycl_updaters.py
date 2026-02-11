@@ -1,11 +1,11 @@
-import numpy as np
 import gc
+import os
+import sys
+
+import numpy as np
 import pytest
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note
-
-import sys
-import os
+from hypothesis import assume, given, note, settings, strategies
 
 # sys.path.append("tests/python")
 # import testing as tm

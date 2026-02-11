@@ -22,9 +22,8 @@ from typing import Dict, List, Optional, Tuple
 
 import matplotlib
 import numpy as np
-from matplotlib import pyplot as plt
-
 import xgboost as xgb
+from matplotlib import pyplot as plt
 
 
 def plot_predt(

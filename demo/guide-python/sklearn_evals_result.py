@@ -4,9 +4,8 @@ Demo for accessing the xgboost eval metrics by using sklearn interface
 """
 
 import numpy as np
-from sklearn.datasets import make_hastie_10_2
-
 import xgboost as xgb
+from sklearn.datasets import make_hastie_10_2
 
 X, y = make_hastie_10_2(n_samples=2000, random_state=42)
 

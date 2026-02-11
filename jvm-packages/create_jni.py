@@ -129,14 +129,17 @@ def native_build(cli_args: argparse.Namespace) -> None:
                         run("cmake .. " + " ".join(args + [generator]))
                         break
                     except subprocess.CalledProcessError as e:
-                        print(f"Failed to build with generator: {generator}", e, flush=True)
+                        print(
+                            f"Failed to build with generator: {generator}",
+                            e,
+                            flush=True,
+                        )
                         with cd(os.path.pardir):
                             shutil.rmtree(build_dir)
                             maybe_makedirs(build_dir)
             else:
                 run("cmake .. " + " ".join(args))
             run("cmake --build . --config Release" + maybe_parallel_build)
-
 
     print("copying native library", flush=True)
     library_name, os_folder = {
@@ -181,7 +184,10 @@ def native_build(cli_args: argparse.Namespace) -> None:
         maybe_makedirs("xgboost4j-spark-gpu/src/test/resources")
         for file in glob.glob("../demo/data/veterans_lung_cancer.csv"):
             cp(file, "xgboost4j-spark-gpu/src/test/resources")
-        cp("xgboost4j-spark/src/test/resources/rank.train.csv", "xgboost4j-spark-gpu/src/test/resources")
+        cp(
+            "xgboost4j-spark/src/test/resources/rank.train.csv",
+            "xgboost4j-spark-gpu/src/test/resources",
+        )
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@ import re
 
 import numpy as np
 import scipy.special
-
 import xgboost as xgb
 from xgboost import testing as tm
 

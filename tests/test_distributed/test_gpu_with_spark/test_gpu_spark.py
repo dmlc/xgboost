@@ -5,7 +5,6 @@ import subprocess
 import numpy as np
 import pytest
 import sklearn
-
 from xgboost import testing as tm
 
 pytestmark = [
@@ -16,7 +15,6 @@ pytestmark = [
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
-
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor, SparkXGBRegressorModel
 
 gpu_discovery_script_path = "tests/test_distributed/test_gpu_with_spark/discover_gpu.sh"

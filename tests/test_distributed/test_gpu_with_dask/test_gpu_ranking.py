@@ -3,7 +3,6 @@
 import dask
 import pytest
 from distributed import Client
-
 from xgboost import testing as tm
 from xgboost.testing import dask as dtm
 

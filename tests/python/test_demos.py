@@ -4,7 +4,6 @@ import sys
 import tempfile
 
 import pytest
-
 import xgboost
 from xgboost import testing as tm
 

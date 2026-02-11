@@ -1,5 +1,4 @@
 import pytest
-
 from xgboost import testing as tm
 
 

@@ -68,7 +68,7 @@ TEST(HistUtil, SketchBatchNumElements) {
   auto shape = detail::SketchShape{rows, kCols, rows * kCols};
   auto batch = detail::SketchBatchNumElements(detail::UnknownSketchNumElements(), shape, device,
                                               256, false, 0);
-  ASSERT_EQ(batch, avail_elem);
+  ASSERT_EQ(batch, std::min(avail_elem, kIntMax));
 }
 
 TEST(HistUtil, DeviceSketchMemory) {

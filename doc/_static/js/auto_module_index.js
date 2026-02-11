@@ -22,4 +22,3 @@ function auto_index(module) {
     li_node.append(html);
   });
 }
-

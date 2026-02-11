@@ -3,7 +3,6 @@ from typing import Any, Dict, Type
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import run_base_margin_info

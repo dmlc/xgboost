@@ -2,7 +2,6 @@ from typing import Type
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.monotone_constraints import training_dset, x, y
@@ -48,7 +47,6 @@ def is_correctly_constrained(learner, feature_names=None):
 
 class TestMonotoneConstraints:
     def test_monotone_constraints_for_exact_tree_method(self) -> None:
-
         # first check monotonicity for the 'exact' tree method
         params_for_constrained_exact_method = {
             "tree_method": "exact",
@@ -85,7 +83,6 @@ class TestMonotoneConstraints:
 
     @pytest.mark.parametrize("format", [dict, list])
     def test_monotone_constraints_feature_names(self, format: Type) -> None:
-
         # next check monotonicity when initializing monotone_constraints by feature names
         params = {
             "tree_method": "hist",
