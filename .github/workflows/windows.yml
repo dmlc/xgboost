@@ -30,7 +30,8 @@ jobs:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
       - uses: dmlc/xgboost-devops/actions/sccache@main
-        version: 'v0.13.0-rapids.8'
+        with:
+          version: 'v0.13.0-rapids.8'
       - run: ops/pipeline/build-win64.ps1 -variant gpu
       - run: sccache --show-stats
       - name: Stash files
