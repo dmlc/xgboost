@@ -1,6 +1,6 @@
 """Tests for evaluation metrics."""
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pytest
@@ -104,6 +104,88 @@ def check_quantile_error(tree_method: str, device: Device) -> None:
         [mean_pinball_loss(y, predt[:, i], alpha=alpha[i]) for i in range(3)]
     )
     np.testing.assert_allclose(evals_result["Train"]["quantile"][-1], loss)
+
+
+def _expectile_loss(
+    y: np.ndarray, predt: np.ndarray, alpha: float, weight: Optional[np.ndarray]
+) -> float:
+    diff = predt - y
+    weight_scale = np.where(diff >= 0.0, 1.0 - alpha, alpha)
+    loss = weight_scale * diff * diff
+    if weight is None:
+        return float(np.mean(loss))
+    return float(np.sum(loss * weight) / np.sum(weight))
+
+
+def _expectile_loss_multi(
+    y: np.ndarray, predt: np.ndarray, alpha: np.ndarray, weight: Optional[np.ndarray]
+) -> float:
+    diff = predt - y[:, None]
+    weight_scale = np.where(diff >= 0.0, 1.0 - alpha, alpha)
+    loss = weight_scale * diff * diff
+    if weight is None:
+        return float(np.mean(loss))
+    return float(np.sum(loss * weight[:, None]) / (np.sum(weight) * alpha.size))
+
+
+def check_expectile_error(tree_method: str, device: Device) -> None:
+    """Test for the `expectile` loss."""
+    from sklearn.datasets import make_regression
+
+    rng = np.random.RandomState(23)
+    X, y = make_regression(128, 3, random_state=rng)
+    Xy = DMatrix(X, y)
+    evals_result: Dict[str, Dict] = {}
+    booster = train(
+        {
+            "tree_method": tree_method,
+            "eval_metric": "expectile",
+            "expectile_alpha": 0.3,
+            "device": device,
+        },
+        Xy,
+        evals=[(Xy, "Train")],
+        evals_result=evals_result,
+    )
+    predt = booster.inplace_predict(X)
+    loss = _expectile_loss(y, predt, 0.3, None)
+    np.testing.assert_allclose(evals_result["Train"]["expectile"][-1], loss)
+
+    alpha = np.array([0.25, 0.5, 0.75])
+    booster = train(
+        {
+            "tree_method": tree_method,
+            "eval_metric": "expectile",
+            "expectile_alpha": alpha,
+            "objective": "reg:expectileerror",
+            "device": device,
+        },
+        Xy,
+        evals=[(Xy, "Train")],
+        evals_result=evals_result,
+    )
+    predt = booster.inplace_predict(X)
+    loss = _expectile_loss_multi(y, predt, alpha, None)
+    np.testing.assert_allclose(evals_result["Train"]["expectile"][-1], loss)
+
+    weights = rng.uniform(0.1, 1.0, size=y.shape[0])
+    Xy_w = DMatrix(X, y, weight=weights)
+    evals_result_w: Dict[str, Dict] = {}
+    booster = train(
+        {
+            "tree_method": tree_method,
+            "eval_metric": "expectile",
+            "expectile_alpha": alpha,
+            "objective": "reg:expectileerror",
+            "device": device,
+        },
+        Xy_w,
+        evals=[(Xy_w, "Train")],
+        evals_result=evals_result_w,
+    )
+    predt = booster.inplace_predict(X)
+    loss = _expectile_loss_multi(y, predt, alpha, weights)
+    np.testing.assert_allclose(evals_result_w["Train"]["expectile"][-1], loss)
 
 
 def run_roc_auc_binary(tree_method: str, n_samples: int, device: Device) -> None:
