@@ -1000,8 +1000,8 @@ class CPUPredictor : public Predictor {
 
   void PredictContribution(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                            const gbm::GBTreeModel &model, bst_tree_t ntree_limit,
-                           std::vector<bst_float> const *tree_weights, bool approximate,
-                           int condition, unsigned condition_feature) const override {
+                           common::Span<float const> tree_weights, bool approximate, int condition,
+                           unsigned condition_feature) const override {
     if (approximate) {
       interpretability::ApproxFeatureImportance(this->ctx_, p_fmat, out_contribs, model,
                                                 ntree_limit, tree_weights);
@@ -1013,7 +1013,7 @@ class CPUPredictor : public Predictor {
 
   void PredictInteractionContributions(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                                        gbm::GBTreeModel const &model, bst_tree_t ntree_limit,
-                                       std::vector<float> const *tree_weights,
+                                       common::Span<float const> tree_weights,
                                        bool approximate) const override {
     interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
                                             tree_weights, approximate);

@@ -12,6 +12,7 @@
 #include <xgboost/context.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/span.h>
 
 #include <functional>  // for function
 #include <memory>      // for shared_ptr
@@ -156,14 +157,14 @@ class Predictor {
 
   virtual void PredictContribution(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
                                    gbm::GBTreeModel const& model, bst_tree_t tree_end = 0,
-                                   std::vector<float> const* tree_weights = nullptr,
+                                   common::Span<float const> tree_weights = {},
                                    bool approximate = false, int condition = 0,
                                    unsigned condition_feature = 0) const = 0;
 
   virtual void PredictInteractionContributions(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
                                                gbm::GBTreeModel const& model,
                                                bst_tree_t tree_end = 0,
-                                               std::vector<float> const* tree_weights = nullptr,
+                                               common::Span<float const> tree_weights = {},
                                                bool approximate = false) const = 0;
 
   /**
@@ -181,8 +182,7 @@ class Predictor {
 struct PredictorReg
     : public dmlc::FunctionRegEntryBase<PredictorReg, std::function<Predictor*(Context const*)>> {};
 
-#define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)      \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& \
-      __make_##PredictorReg##_##UniqueId##__ =          \
-          ::dmlc::Registry<::xgboost::PredictorReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)                                               \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& __make_##PredictorReg##_##UniqueId##__ = \
+      ::dmlc::Registry<::xgboost::PredictorReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost

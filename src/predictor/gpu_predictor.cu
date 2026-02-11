@@ -815,7 +815,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                            const gbm::GBTreeModel& model, bst_tree_t tree_end,
-                           std::vector<float> const* tree_weights, bool approximate, int,
+                           common::Span<float const> tree_weights, bool approximate, int,
                            unsigned) const override {
     xgboost_NVTX_FN_RANGE();
     if (approximate) {
@@ -827,7 +827,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                                        gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                                       std::vector<float> const* tree_weights,
+                                       common::Span<float const> tree_weights,
                                        bool approximate) const override {
     xgboost_NVTX_FN_RANGE();
     if (approximate) {

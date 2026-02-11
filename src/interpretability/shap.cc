@@ -25,6 +25,13 @@
 
 namespace xgboost::interpretability {
 namespace {
+void ValidateTreeWeights(common::Span<float const> tree_weights, bst_tree_t tree_end) {
+  if (tree_weights.empty()) {
+    return;
+  }
+  CHECK_GE(tree_weights.size(), static_cast<std::size_t>(tree_end));
+}
+
 float FillNodeMeanValues(tree::ScalarTreeView const &tree, bst_node_t nidx,
                          std::vector<float> *mean_values) {
   float result;
@@ -139,13 +146,14 @@ class GHistIndexMatrixView {
 namespace cpu_impl {
 void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                 gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                std::vector<float> const *tree_weights, int condition, unsigned condition_feature) {
+                common::Span<float const> tree_weights, int condition, unsigned condition_feature) {
   CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
   MetaInfo const &info = p_fmat->Info();
   // number of valid trees
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
+  ValidateTreeWeights(tree_weights, tree_end);
   size_t const ncolumns = model.learner_model_param->num_feature + 1;
   // allocate space for (number of features + bias) times the number of rows
   std::vector<bst_float> &contribs = out_contribs->HostVector();
@@ -193,7 +201,7 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
                                    condition, condition_feature);
             for (size_t ci = 0; ci < ncolumns; ++ci) {
               p_contribs[ci] +=
-                  this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+                  this_tree_contribs[ci] * (tree_weights.empty() ? 1 : tree_weights[j]);
             }
           }
           if (base_margin.Size() != 0) {
@@ -232,7 +240,7 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
                                    condition, condition_feature);
             for (size_t ci = 0; ci < ncolumns; ++ci) {
               p_contribs[ci] +=
-                  this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+                  this_tree_contribs[ci] * (tree_weights.empty() ? 1 : tree_weights[j]);
             }
           }
           if (base_margin.Size() != 0) {
@@ -250,12 +258,13 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
 
 void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
                              HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                             bst_tree_t tree_end, std::vector<float> const *tree_weights) {
+                             bst_tree_t tree_end, common::Span<float const> tree_weights) {
   CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
   MetaInfo const &info = p_fmat->Info();
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
+  ValidateTreeWeights(tree_weights, tree_end);
   size_t const ncolumns = model.learner_model_param->num_feature + 1;
   std::vector<bst_float> &contribs = out_contribs->HostVector();
   contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
@@ -299,7 +308,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
             CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
             for (size_t ci = 0; ci < ncolumns; ++ci) {
               p_contribs[ci] +=
-                  this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+                  this_tree_contribs[ci] * (tree_weights.empty() ? 1 : tree_weights[j]);
             }
           }
           if (base_margin.Size() != 0) {
@@ -337,7 +346,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
             CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
             for (size_t ci = 0; ci < ncolumns; ++ci) {
               p_contribs[ci] +=
-                  this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+                  this_tree_contribs[ci] * (tree_weights.empty() ? 1 : tree_weights[j]);
             }
           }
           if (base_margin.Size() != 0) {
@@ -355,7 +364,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
 
 void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                            HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                           bst_tree_t tree_end, std::vector<float> const *tree_weights,
+                           bst_tree_t tree_end, common::Span<float const> tree_weights,
                            bool approximate) {
   CHECK(!model.learner_model_param->IsVectorLeaf())
       << "Predict interaction contribution" << MTNotImplemented();

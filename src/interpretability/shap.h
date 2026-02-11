@@ -8,6 +8,7 @@
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for DMatrix, MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/span.h"                // for Span
 
 namespace xgboost::gbm {
 struct GBTreeModel;
@@ -17,15 +18,15 @@ namespace xgboost::interpretability {
 namespace cpu_impl {
 void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                 gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                std::vector<float> const *tree_weights, int condition, unsigned condition_feature);
+                common::Span<float const> tree_weights, int condition, unsigned condition_feature);
 
 void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
                              HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                             bst_tree_t tree_end, std::vector<float> const *tree_weights);
+                             bst_tree_t tree_end, common::Span<float const> tree_weights);
 
 void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                            HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                           bst_tree_t tree_end, std::vector<float> const *tree_weights,
+                           bst_tree_t tree_end, common::Span<float const> tree_weights,
                            bool approximate);
 }  // namespace cpu_impl
 
@@ -33,20 +34,20 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 namespace cuda_impl {
 void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                 gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                std::vector<float> const *tree_weights, int condition, unsigned condition_feature);
+                common::Span<float const> tree_weights, int condition, unsigned condition_feature);
 void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
                              HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                             bst_tree_t tree_end, std::vector<float> const *tree_weights);
+                             bst_tree_t tree_end, common::Span<float const> tree_weights);
 void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                            HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                           bst_tree_t tree_end, std::vector<float> const *tree_weights,
+                           bst_tree_t tree_end, common::Span<float const> tree_weights,
                            bool approximate);
 }  // namespace cuda_impl
 #endif  // defined(XGBOOST_USE_CUDA)
 
 inline void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                        gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                       std::vector<float> const *tree_weights, int condition,
+                       common::Span<float const> tree_weights, int condition,
                        unsigned condition_feature) {
 #if defined(XGBOOST_USE_CUDA)
   if (ctx->IsCUDA()) {
@@ -62,7 +63,7 @@ inline void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<flo
 inline void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
                                     HostDeviceVector<float> *out_contribs,
                                     gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                                    std::vector<float> const *tree_weights) {
+                                    common::Span<float const> tree_weights) {
 #if defined(XGBOOST_USE_CUDA)
   if (ctx->IsCUDA()) {
     cuda_impl::ApproxFeatureImportance(ctx, p_fmat, out_contribs, model, tree_end, tree_weights);
@@ -75,7 +76,7 @@ inline void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
 inline void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                                   HostDeviceVector<float> *out_contribs,
                                   gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                                  std::vector<float> const *tree_weights, bool approximate) {
+                                  common::Span<float const> tree_weights, bool approximate) {
 #if defined(XGBOOST_USE_CUDA)
   if (ctx->IsCUDA()) {
     cuda_impl::ShapInteractionValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights,

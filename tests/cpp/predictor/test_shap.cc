@@ -203,13 +203,13 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), model_args, &mparam);
 
   HostDeviceVector<float> shap_values;
-  interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &shap_values, gbtree, 0, nullptr, 0, 0);
+  interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &shap_values, gbtree, 0, {}, 0, 0);
   ASSERT_EQ(shap_values.HostVector().size(), kRows * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_values, margin_predt);
 
   HostDeviceVector<float> shap_interactions;
   interpretability::ShapInteractionValues(dmat->Ctx(), p_dmat.get(), &shap_interactions, gbtree, 0,
-                                          nullptr, false);
+                                          {}, false);
   ASSERT_EQ(shap_interactions.HostVector().size(), kRows * (kCols + 1) * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_interactions, margin_predt);
 }
@@ -279,7 +279,7 @@ TEST(Predictor, ApproxContribsBasic) {
 
   HostDeviceVector<float> approx_contribs;
   interpretability::ApproxFeatureImportance(dmat->Ctx(), dmat.get(), &approx_contribs, gbtree, 0,
-                                            nullptr);
+                                            {});
 
   auto const& h_margin = margin_predt.ConstHostVector();
   auto const& h_contribs = approx_contribs.ConstHostVector();

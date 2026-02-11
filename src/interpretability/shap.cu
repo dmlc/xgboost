@@ -414,11 +414,11 @@ void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc,
 
 void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                std::vector<float> const* tree_weights, int, unsigned) {
+                common::Span<float const> tree_weights, int, unsigned) {
   xgboost_NVTX_FN_RANGE();
   StringView not_implemented{
       "contribution is not implemented in the GPU predictor, use CPU instead."};
-  if (tree_weights != nullptr) {
+  if (!tree_weights.empty()) {
     LOG(FATAL) << "Dart booster feature " << not_implemented;
   }
   CHECK(!p_fmat->Info().IsColumnSplit())
@@ -469,14 +469,14 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
 
 void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
                            HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
-                           bst_tree_t tree_end, std::vector<float> const* tree_weights,
+                           bst_tree_t tree_end, common::Span<float const> tree_weights,
                            bool approximate) {
   xgboost_NVTX_FN_RANGE();
   std::string not_implemented{"contribution is not implemented in GPU predictor, use cpu instead."};
   if (approximate) {
     LOG(FATAL) << "Approximated " << not_implemented;
   }
-  if (tree_weights != nullptr) {
+  if (!tree_weights.empty()) {
     LOG(FATAL) << "Dart booster feature " << not_implemented;
   }
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
@@ -527,7 +527,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
 }
 
 void ApproxFeatureImportance(Context const* ctx, DMatrix*, HostDeviceVector<float>*,
-                             gbm::GBTreeModel const&, bst_tree_t, std::vector<float> const*) {
+                             gbm::GBTreeModel const&, bst_tree_t, common::Span<float const>) {
   StringView not_implemented{
       "contribution is not implemented in the GPU predictor, use CPU instead."};
   LOG(FATAL) << "Approximated " << not_implemented;
