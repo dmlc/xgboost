@@ -3,6 +3,7 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.metrics import (
+    check_expectile_error,
     check_precision_score,
     check_quantile_error,
     run_pr_auc_binary,
@@ -220,3 +221,41 @@ class TestEvalMetrics:
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_quantile_error(self) -> None:
         check_quantile_error("hist", "cpu")
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_expectile_error(self) -> None:
+        check_expectile_error("hist", "cpu")
+
+    def test_expectile_uniform_convergence(self) -> None:
+        rng = np.random.default_rng(42)
+        n_samples = 1_000
+        y = rng.random(n_samples)
+        X = np.zeros((n_samples, 1))
+        dtrain = xgb.DMatrix(X, label=y)
+
+        def uniform_expectile(alpha: float) -> float:
+            sqrt_alpha = np.sqrt(alpha)
+            sqrt_one_minus = np.sqrt(1.0 - alpha)
+            return sqrt_alpha / (sqrt_alpha + sqrt_one_minus)
+
+        params = {
+            "tree_method": "hist",
+            "objective": "reg:expectileerror",
+            "max_depth": 1,
+            "min_child_weight": 0.0,
+            "gamma": 0.0,
+            "lambda": 0.0,
+            "alpha": 0.0,
+            "subsample": 1.0,
+            "colsample_bytree": 1.0,
+            "eta": 0.2,
+        }
+        num_boost_round = 200
+        atol = 1e-2
+
+        for alpha in [0.1, 0.5, 0.9]:
+            params["expectile_alpha"] = alpha
+            booster = xgb.train(params, dtrain, num_boost_round=num_boost_round)
+            pred = float(booster.predict(dtrain).mean())
+            expected = uniform_expectile(alpha)
+            np.testing.assert_allclose(pred, expected, rtol=atol, atol=atol)

@@ -408,6 +408,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
     .. versionadded:: 2.0.0
 
+  - ``reg:expectileerror``: Expectile loss (asymmetric squared error). See later sections for its parameter.
+
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
@@ -454,6 +456,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``mae``: `mean absolute error <https://en.wikipedia.org/wiki/Mean_absolute_error>`_
     - ``mape``: `mean absolute percentage error <https://en.wikipedia.org/wiki/Mean_absolute_percentage_error>`_
     - ``mphe``: `mean Pseudo Huber error <https://en.wikipedia.org/wiki/Huber_loss>`_. Default metric of ``reg:pseudohubererror`` objective.
+    - ``expectile``: Expectile regression error (asymmetric squared error). Default metric of ``reg:expectileerror`` objective.
     - ``logloss``: `negative log-likelihood <https://en.wikipedia.org/wiki/Log-likelihood>`_
     - ``error``: Binary classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
     - ``error@t``: a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
@@ -525,6 +528,16 @@ Parameter for using Quantile Loss (``reg:quantileerror``)
 * ``quantile_alpha``: A scalar or a list of targeted quantiles.
 
     .. versionadded:: 2.0.0
+
+Parameter for using Expectile Loss (``reg:expectileerror``)
+===========================================================
+
+* ``expectile_alpha``: A scalar or a list of targeted expectiles. Range: [0, 1]. Required for
+  ``reg:expectileerror``.
+
+    .. versionadded:: 3.3.0
+
+    .. note:: Multi-target labels are not supported for expectile loss.
 
 Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likelihood of AFT metric (``aft-nloglik``)
 ====================================================================================================================
