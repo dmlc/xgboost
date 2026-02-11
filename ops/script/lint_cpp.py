@@ -60,7 +60,6 @@ class Lint:
         self.cpp_header_map: dict[str, dict[str, int]] = {}
         self.cpp_src_map: dict[str, dict[str, int]] = {}
 
-        self.pylint_cats = set(["error", "warning", "convention", "refactor"])
         # setup cpp lint
         cpplint_args = ["--quiet", "--extensions=" + (",".join(CXX_SUFFIX)), "."]
         _ = cpplint.ParseArguments(cpplint_args)
@@ -70,7 +69,6 @@ class Lint:
                     "-build/c++11",
                     "-build/include,",
                     "+build/namespaces",
-                    "+build/include_what_you_use",
                 ]
             )
         )
