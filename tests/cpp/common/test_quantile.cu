@@ -1,7 +1,10 @@
 /**
- * Copyright 2020-2024, XGBoost contributors
+ * Copyright 2020-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
+#include <thrust/iterator/zip_iterator.h>  // for make_zip_iterator
+
+#include <cuda/std/tuple>  // for make_tuple, tuple
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"
@@ -266,17 +269,16 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
                                     .Seed(seed)
                                     .GenerateArrayInterface(&storage_1);
   auto data_1 = storage_1.DeviceSpan();
-  auto tuple_it = thrust::make_tuple(
-      thrust::make_counting_iterator<size_t>(0ul), data_1.data());
-  using Tuple = thrust::tuple<size_t, float>;
+  auto tuple_it = cuda::std::make_tuple(thrust::make_counting_iterator<size_t>(0ul), data_1.data());
+  using Tuple = cuda::std::tuple<size_t, float>;
   auto it = thrust::make_zip_iterator(tuple_it);
-  thrust::transform(thrust::device, it, it + data_1.size(), data_1.data(),
+  thrust::transform(ctx.CUDACtx()->CTP(), it, it + data_1.size(), data_1.data(),
                     [=] XGBOOST_DEVICE(Tuple const& tuple) {
-                      auto i = thrust::get<0>(tuple);
+                      auto i = cuda::std::get<0>(tuple);
                       if (i % 2 == 0) {
                         return 0.0f;
                       } else {
-                        return thrust::get<1>(tuple);
+                        return cuda::std::get<1>(tuple);
                       }
                     });
   data::CupyAdapter adapter_1(interface_str_1);
