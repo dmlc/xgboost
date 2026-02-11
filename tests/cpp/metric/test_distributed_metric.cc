@@ -150,6 +150,7 @@ auto MakeParamsForTest() {
   REFLECT_NAME(PoissonNegLogLik);
   REFLECT_NAME(MultiRMSE);
   REFLECT_NAME(Quantile);
+  REFLECT_NAME(Expectile);
   // Multi-Class
   REFLECT_NAME(MultiClassError);
   REFLECT_NAME(MultiClassLogLoss);
