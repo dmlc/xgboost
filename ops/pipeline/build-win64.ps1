@@ -41,7 +41,8 @@ if ($variant -eq "gpu") {
   $cmake_args += @(
     "-DUSE_CUDA=ON",
     "-DGOOGLE_TEST=ON",
-    "-DUSE_DMLC_GTEST=ON"
+    "-DUSE_DMLC_GTEST=ON",
+    "-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache"
   )
 
   # Only build SM75 for non-release branches (faster CI)
