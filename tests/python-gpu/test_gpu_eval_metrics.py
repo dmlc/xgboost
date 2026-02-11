@@ -1,7 +1,6 @@
 import json
 
 import pytest
-
 import xgboost
 from xgboost import testing as tm
 from xgboost.testing.metrics import (

@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import pytest
-
 import xgboost as xgb
 from xgboost.testing.interaction_constraints import (
     run_interaction_constraints,

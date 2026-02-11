@@ -1120,9 +1120,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 _rabit_args = json.loads(messages[0])["rabit_msg"]
 
             evals_result: Dict[str, Any] = {}
-            with config_context(
-                verbosity=verbosity, use_rmm=use_rmm
-            ), CommunicatorContext(context, **_rabit_args):
+            with (
+                config_context(verbosity=verbosity, use_rmm=use_rmm),
+                CommunicatorContext(context, **_rabit_args),
+            ):
                 dtrain, dvalid = create_dmatrix_from_partitions(
                     iterator=pandas_df_iter,
                     feature_cols=feature_prop.features_cols_names,
@@ -1388,8 +1389,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         if gpu_per_task is None:
             if use_gpu_by_params:
                 get_logger(_LOG_TAG).warning(
-                    "Do the prediction on the CPUs since "
-                    "no gpu configurations are set"
+                    "Do the prediction on the CPUs since no gpu configurations are set"
                 )
             return False
 

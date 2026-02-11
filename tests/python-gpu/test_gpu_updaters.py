@@ -2,9 +2,8 @@ from typing import Any, Dict
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, note, settings, strategies
-
 import xgboost as xgb
+from hypothesis import assume, given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.params import (
     cat_parameter_strategy,

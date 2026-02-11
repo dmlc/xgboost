@@ -9,7 +9,6 @@ from dask.distributed import Client
 
 # It's recommended to use dask_cuda for GPU assignment
 from dask_cuda import LocalCUDACluster
-
 from xgboost import dask as dxgb
 
 

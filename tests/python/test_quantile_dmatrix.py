@@ -2,10 +2,9 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import given, settings, strategies
 from scipy import sparse
-
-import xgboost as xgb
 from xgboost.testing import (
     IteratorForTest,
     make_batches,

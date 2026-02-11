@@ -28,10 +28,9 @@ from tempfile import TemporaryDirectory
 from time import time
 
 import pandas as pd
+import xgboost as xgb
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
-
-import xgboost as xgb
 
 
 def load_cat_in_the_dat() -> tuple[pd.DataFrame, pd.Series]:

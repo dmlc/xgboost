@@ -7,9 +7,8 @@ import os
 import pickle
 import tempfile
 
-from sklearn.datasets import load_breast_cancer
-
 import xgboost
+from sklearn.datasets import load_breast_cancer
 
 
 def training_continuation(tmpdir: str, use_pickle: bool) -> None:

@@ -3,7 +3,6 @@
 import pytest
 from distributed import Client, Scheduler, Worker
 from distributed.utils_test import gen_cluster
-
 from xgboost import testing as tm
 from xgboost.testing.dask import check_external_memory, get_rabit_args
 

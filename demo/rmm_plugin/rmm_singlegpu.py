@@ -4,9 +4,8 @@ Using rmm on a single node device
 """
 
 import rmm
-from sklearn.datasets import make_classification
-
 import xgboost as xgb
+from sklearn.datasets import make_classification
 
 # Initialize RMM pool allocator
 rmm.reinitialize(pool_allocator=True)

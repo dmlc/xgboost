@@ -1,5 +1,4 @@
 import pytest
-
 from xgboost import testing as tm
 from xgboost.testing.interaction_constraints import (
     run_interaction_constraints,

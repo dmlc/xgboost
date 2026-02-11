@@ -1,5 +1,4 @@
 import pytest
-
 from xgboost import testing as tm
 from xgboost.testing.ordinal import (
     run_cat_container,

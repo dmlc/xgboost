@@ -2,7 +2,6 @@ import os
 import subprocess
 
 import pytest
-
 from xgboost import testing as tm
 
 pytestmark = [

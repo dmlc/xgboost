@@ -8,9 +8,8 @@ Demo for using feature weight to change column sampling
 import argparse
 
 import numpy as np
-from matplotlib import pyplot as plt
-
 import xgboost
+from matplotlib import pyplot as plt
 
 
 def main(args: argparse.Namespace) -> None:

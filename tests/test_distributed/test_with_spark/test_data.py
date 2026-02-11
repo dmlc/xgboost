@@ -3,7 +3,6 @@ from typing import List
 import numpy as np
 import pandas as pd
 import pytest
-
 from xgboost import testing as tm
 
 pytestmark = [pytest.mark.skipif(**tm.no_spark())]

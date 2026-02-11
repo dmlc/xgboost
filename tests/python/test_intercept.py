@@ -1,7 +1,6 @@
 from itertools import product
 
 import pytest
-
 from xgboost.testing.intercept import (
     run_adaptive,
     run_exp_family,

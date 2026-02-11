@@ -2,8 +2,8 @@
 
 import argparse
 import os
-import tomllib
 
+import tomllib
 from packaging.version import Version
 from test_utils import PY_PACKAGE
 

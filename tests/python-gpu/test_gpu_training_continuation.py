@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from xgboost.testing.continuation import run_training_continuation_model_output
 
 rng = np.random.RandomState(1994)

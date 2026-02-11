@@ -237,7 +237,7 @@ class ClangTidy:
                     passed = False
                     print(
                         BAR,
-                        "\n" "Command args:",
+                        "\nCommand args:",
                         " ".join(args),
                         ", ",
                         "Process return code:",

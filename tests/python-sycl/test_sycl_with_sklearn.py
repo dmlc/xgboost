@@ -1,8 +1,8 @@
-import xgboost as xgb
-import pytest
 import sys
-import numpy as np
 
+import numpy as np
+import pytest
+import xgboost as xgb
 from xgboost import testing as tm
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())

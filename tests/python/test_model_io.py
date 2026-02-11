@@ -8,7 +8,6 @@ from typing import List
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 
@@ -149,9 +148,9 @@ class TestBoosterIO:
         def dump_assertions(dump: List[str]) -> None:
             """Assertions for the expected dump from Booster"""
             assert len(dump) == 1, "Exepcted only 1 tree to be dumped."
-            assert (
-                len(dump[0].splitlines()) == 3
-            ), "Expected 1 root and 2 leaves - 3 lines."
+            assert len(dump[0].splitlines()) == 3, (
+                "Expected 1 root and 2 leaves - 3 lines."
+            )
 
         # load the model again using Path
         bst2 = xgb.Booster(model_file=save_path)

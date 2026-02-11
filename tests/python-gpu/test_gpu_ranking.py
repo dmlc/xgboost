@@ -2,7 +2,6 @@ from typing import Dict
 
 import numpy as np
 import pytest
-
 import xgboost
 from xgboost import testing as tm
 from xgboost.testing.ranking import run_normalization, run_score_normalization

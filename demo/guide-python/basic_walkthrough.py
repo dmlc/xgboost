@@ -9,13 +9,13 @@ interfaces in the Python package like scikit-learn interface and Dask interface.
 See :doc:`/python/python_intro` and :doc:`/tutorials/index` for other references.
 
 """
+
 import os
 import pickle
 
 import numpy as np
-from sklearn.datasets import load_svmlight_file
-
 import xgboost as xgb
+from sklearn.datasets import load_svmlight_file
 
 # Make sure the demo knows where to load the data.
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))

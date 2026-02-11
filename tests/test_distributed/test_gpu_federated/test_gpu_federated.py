@@ -1,5 +1,4 @@
 import pytest
-
 from xgboost.testing.federated import run_federated_learning
 
 

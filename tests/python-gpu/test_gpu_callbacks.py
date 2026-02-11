@@ -1,5 +1,4 @@
 import pytest
-
 from xgboost import testing as tm
 from xgboost.testing.callbacks import (
     run_eta_decay,

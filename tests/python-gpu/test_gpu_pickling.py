@@ -7,7 +7,6 @@ from typing import Any, Dict, Tuple, Union
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import XGBClassifier
 from xgboost import testing as tm
@@ -102,7 +101,7 @@ class TestPickling:
         env.update(cuda_environment)
         args = self.args_template.copy()
         args.append(
-            "./tests/python-gpu/" "load_pickle.py::TestLoadPickle::test_wrap_gpu_id"
+            "./tests/python-gpu/load_pickle.py::TestLoadPickle::test_wrap_gpu_id"
         )
         status = subprocess.call(args, env=env)
         assert status == 0

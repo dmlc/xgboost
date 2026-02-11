@@ -121,7 +121,7 @@ void TestHistUpdaterSampling(const xgboost::tree::TrainParam& param) {
   GenerateRandomGPairs(qu, gpair.DevicePointer(), num_rows, true);
 
   updater.TestInitSampling(gpair, &row_indices_0);
-  
+
   size_t n_samples = row_indices_0.Size();
   // Half of gpairs have neg hess
   ASSERT_LT(n_samples, num_rows * 0.5 * param.subsample * 1.2);
