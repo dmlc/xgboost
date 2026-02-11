@@ -6,6 +6,7 @@
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/transform_scan.h>
+#include <thrust/tuple.h>  // for make_tuple
 #include <thrust/unique.h>
 
 #include <limits>       // for numeric_limits
