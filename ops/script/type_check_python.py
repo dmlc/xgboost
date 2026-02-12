@@ -28,7 +28,6 @@ class TypeCheckPaths:
         "tests/test_distributed/test_gpu_federated/",
         "tests/test_distributed/test_with_dask/",
         "tests/test_distributed/test_with_spark/test_data.py",
-        "tests/test_distributed/test_gpu_with_spark/test_data.py",
         "tests/test_distributed/test_gpu_with_dask/",
         # demo
         "demo/dask/",

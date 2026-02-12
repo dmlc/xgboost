@@ -3,7 +3,6 @@ from typing import List
 import numpy as np
 import pandas as pd
 import pytest
-
 from xgboost import testing as tm
 
 pytestmark = [pytest.mark.skipif(**tm.no_spark())]
@@ -121,6 +120,16 @@ def run_dmatrix_ctor(is_feature_cols: bool, is_qdm: bool, on_gpu: bool) -> None:
 )
 def test_dmatrix_ctor(is_feature_cols: bool, is_qdm: bool) -> None:
     run_dmatrix_ctor(is_feature_cols, is_qdm, on_gpu=False)
+
+
+@pytest.mark.skipif(**tm.no_cudf())
+@tm.timeout(120)
+@pytest.mark.parametrize(
+    "is_feature_cols,is_qdm",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+def test_dmatrix_ctor_gpu(is_feature_cols: bool, is_qdm: bool) -> None:
+    run_dmatrix_ctor(is_feature_cols, is_qdm, on_gpu=True)
 
 
 def test_read_csr_matrix_from_unwrapped_spark_vec() -> None:
