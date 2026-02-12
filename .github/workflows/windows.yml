@@ -26,7 +26,7 @@ jobs:
       - tag=windows-build-win64-gpu
     env:
       SCCACHE_SERVER_LOG: "sccache=trace"
-      SCCACHE_ERROR_LOG: "sccache.log"
+      SCCACHE_ERROR_LOG: "${{ github.workspace }}/sccache.log"
     steps:
       - uses: actions/checkout@v6.0.1
         with:
@@ -51,7 +51,7 @@ jobs:
         uses: actions/upload-artifact@v6.0.0
         with:
           name: sccache-log-win64-gpu
-          path: sccache.log
+          path: ${{ github.workspace }}/sccache.log
 
   build-win64-cpu:
     name: Build XGBoost for Windows (minimal)
