@@ -24,6 +24,9 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=windows-cpu
       - tag=windows-build-win64-gpu
+    env:
+      SCCACHE_SERVER_LOG: "sccache=trace"
+      SCCACHE_ERROR_LOG: "sccache.log"
     steps:
       - uses: actions/checkout@v6.0.1
         with:
@@ -31,7 +34,7 @@ jobs:
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
       - uses: dmlc/xgboost-devops/actions/sccache@main
         with:
-          version: 'v0.13.0-rapids.8'
+          version: 'v0.13.0-rapids.9'
       - run: ops/pipeline/build-win64.ps1 -variant gpu
       - run: sccache --show-stats
       - name: Stash files
@@ -43,6 +46,12 @@ jobs:
             --prefix cache/${{ github.run_id }}/build-win64-gpu `
             build/testxgboost.exe `
             (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
+      - name: Upload sccache log
+        if: always()
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: sccache-log-win64-gpu
+          path: sccache.log
 
   build-win64-cpu:
     name: Build XGBoost for Windows (minimal)
