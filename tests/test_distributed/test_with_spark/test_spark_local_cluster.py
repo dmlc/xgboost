@@ -34,7 +34,7 @@ def spark(request) -> Generator[SparkSession, None, None]:
     os.environ["XGBOOST_PYSPARK_SHARED_SESSION"] = "1"
 
     config = {
-        "spark.master": "local-cluster[2, 1, 1024]",
+        "spark.remote" if mode == "connect" else "spark.master": "local-cluster[2, 1, 1024]",
         "spark.python.worker.reuse": "true",
         "spark.driver.host": "127.0.0.1",
         "spark.task.maxFailures": "1",
@@ -46,8 +46,6 @@ def spark(request) -> Generator[SparkSession, None, None]:
         "spark.executor.cores": "1",
         "spark.ui.enabled": "false",
     }
-    if mode == "connect":
-        config["spark.api.mode"] = "connect"
 
     builder = SparkSession.builder.appName("XGBoost PySpark Python API Tests")
     for k, v in config.items():

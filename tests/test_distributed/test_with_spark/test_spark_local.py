@@ -59,7 +59,7 @@ def spark(request) -> Generator[SparkSession, None, None]:
     os.environ["XGBOOST_PYSPARK_SHARED_SESSION"] = "1"
 
     config = {
-        "spark.master": "local[4]",
+        "spark.remote" if mode == "connect" else "spark.master": "local[4]",
         "spark.python.worker.reuse": "true",
         "spark.driver.host": "127.0.0.1",
         "spark.task.maxFailures": "1",
@@ -68,8 +68,6 @@ def spark(request) -> Generator[SparkSession, None, None]:
         "spark.sql.pyspark.jvmStacktrace.enabled": "true",
         "spark.ui.enabled": "false",
     }
-    if mode == "connect":
-        config["spark.api.mode"] = "connect"
 
     builder = SparkSession.builder.appName("XGBoost PySpark Python API Tests")
     for k, v in config.items():
