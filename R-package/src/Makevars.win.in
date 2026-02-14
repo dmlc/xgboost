@@ -140,6 +140,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/threading_utils.o \
     $(PKGROOT)/src/common/ranking_utils.o \
     $(PKGROOT)/src/common/param_array.o \
+    $(PKGROOT)/src/common/expectile_loss_utils.o \
     $(PKGROOT)/src/common/quantile_loss_utils.o \
     $(PKGROOT)/src/common/timer.o \
     $(PKGROOT)/src/common/version.o \

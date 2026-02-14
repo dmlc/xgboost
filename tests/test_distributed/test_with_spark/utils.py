@@ -1,18 +1,10 @@
-import contextlib
-import logging
-import os
-import shutil
-import sys
-import tempfile
 import unittest
-from io import StringIO
 
 import pytest
 from xgboost import testing as tm
 
 pytestmark = [pytest.mark.skipif(**tm.no_spark())]
 
-from pyspark.sql import SparkSession
 from xgboost.spark.utils import _get_default_params_from_func
 
 
@@ -35,117 +27,3 @@ class UtilsTest(unittest.TestCase):
         )
         for k, v in actual_default_params.items():
             self.assertEqual(expected_default_params[k], v)
-
-
-@contextlib.contextmanager
-def patch_stdout():
-    """patch stdout and give an output"""
-    sys_stdout = sys.stdout
-    io_out = StringIO()
-    sys.stdout = io_out
-    try:
-        yield io_out
-    finally:
-        sys.stdout = sys_stdout
-
-
-@contextlib.contextmanager
-def patch_logger(name):
-    """patch logger and give an output"""
-    io_out = StringIO()
-    log = logging.getLogger(name)
-    handler = logging.StreamHandler(io_out)
-    log.addHandler(handler)
-    try:
-        yield io_out
-    finally:
-        log.removeHandler(handler)
-
-
-class TestTempDir(object):
-    @classmethod
-    def make_tempdir(cls):
-        """
-        :param dir: Root directory in which to create the temp directory
-        """
-        cls.tempdir = tempfile.mkdtemp(prefix="sparkdl_tests")
-
-    @classmethod
-    def remove_tempdir(cls):
-        shutil.rmtree(cls.tempdir)
-
-
-class TestSparkContext(object):
-    @classmethod
-    def setup_env(cls, spark_config, mode):
-        builder = SparkSession.builder.appName("xgboost spark python API Tests")
-        for k, v in spark_config.items():
-            builder.config(k, v)
-        # if mode == "connect":
-        #     builder.remote("local-cluster[2, 2, 1024]").config("spark.api.mode", "connect")
-        spark = builder.getOrCreate()
-        logging.getLogger("pyspark").setLevel(logging.INFO)
-
-        cls.session = spark
-
-    @classmethod
-    def tear_down_env(cls):
-        if os.environ.get("XGBOOST_PYSPARK_SHARED_SESSION") == "1":
-            cls.session = None
-            return
-        cls.session.stop()
-        cls.session = None
-
-
-class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
-    @classmethod
-    def setUpClass(cls, mode):
-        cls.setup_env(
-            {
-                "spark.remote" if mode == "connect" else "spark.master": "local[4]",
-                "spark.python.worker.reuse": "true",
-                "spark.driver.host": "127.0.0.1",
-                "spark.task.maxFailures": "1",
-                "spark.sql.shuffle.partitions": "4",
-                "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
-                "spark.sql.pyspark.jvmStacktrace.enabled": "true",
-                "spark.ui.enabled": "false",
-            },
-            mode,
-        )
-        cls.make_tempdir()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.remove_tempdir()
-        cls.tear_down_env()
-
-
-class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
-    @classmethod
-    def setUpClass(cls, mode):
-        cls.setup_env(
-            {
-                "spark.remote" if mode == "connect" else "spark.master": "local-cluster[2, 1, 1024]",
-                "spark.python.worker.reuse": "true",
-                "spark.driver.host": "127.0.0.1",
-                "spark.task.maxFailures": "1",
-                "spark.sql.shuffle.partitions": "4",
-                "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
-                "spark.sql.pyspark.jvmStacktrace.enabled": "true",
-                "spark.cores.max": "2",
-                "spark.task.cpus": "1",
-                "spark.executor.cores": "1",
-                "spark.ui.enabled": "false",
-            },
-            mode,
-        )
-        cls.make_tempdir()
-        # We run a dummy job so that we block until the workers have connected to the master
-        num_slots = int(cls.session.conf.get("spark.default.parallelism", "2"))
-        cls.session.range(num_slots).repartition(num_slots).foreach(lambda _: None)
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.remove_tempdir()
-        cls.tear_down_env()
