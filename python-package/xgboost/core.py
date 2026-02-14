@@ -804,9 +804,9 @@ def _get_categories(
         values = from_array_interface(jvalues)
         pa_offsets = pa.array(offsets).buffers()
         pa_values = pa.array(values).buffers()
-        assert (
-            pa_offsets[0] is None and pa_values[0] is None
-        ), "Should not have null mask."
+        assert pa_offsets[0] is None and pa_values[0] is None, (
+            "Should not have null mask."
+        )
         pa_dict = pa.StringArray.from_buffers(
             len(offsets) - 1, pa_offsets[1], pa_values[1]
         )

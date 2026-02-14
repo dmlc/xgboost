@@ -4,9 +4,6 @@ from typing import Type
 
 import numpy as np
 import pytest
-
-import xgboost as xgb
-from xgboost import testing as tm
 from xgboost.testing.data import make_categorical
 from xgboost.testing.ordinal import (
     run_basic_predict,
@@ -25,6 +22,9 @@ from xgboost.testing.ordinal import (
     run_update,
     run_validation,
 )
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_arrow(), tm.no_cudf()))
 

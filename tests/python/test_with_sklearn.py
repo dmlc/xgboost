@@ -9,9 +9,6 @@ from typing import Optional
 import numpy as np
 import pytest
 from sklearn.utils.estimator_checks import parametrize_with_checks
-
-import xgboost as xgb
-from xgboost import testing as tm
 from xgboost.testing.data import get_california_housing
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
@@ -24,6 +21,9 @@ from xgboost.testing.with_skl import (
     run_recoding,
 )
 
+import xgboost as xgb
+from xgboost import testing as tm
+
 rng = np.random.RandomState(1994)
 pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), tm.timeout(30)]
 
@@ -33,17 +33,18 @@ def test_binary_classification():
     from sklearn.model_selection import KFold
 
     digits = load_digits(n_class=2)
-    y = digits['target']
-    X = digits['data']
+    y = digits["target"]
+    X = digits["data"]
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
         for train_index, test_index in kf.split(X, y):
-            clf = cls(random_state=42, eval_metric=['auc', 'logloss'])
+            clf = cls(random_state=42, eval_metric=["auc", "logloss"])
             xgb_model = clf.fit(X[train_index], y[train_index])
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]
-            err = sum(1 for i in range(len(preds))
-                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+            err = sum(
+                1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+            ) / float(len(preds))
             assert err < 0.1
 
 
@@ -232,13 +233,12 @@ def test_stacking_regression():
 
     X, y = load_diabetes(return_X_y=True)
     estimators = [
-        ('gbm', xgb.sklearn.XGBRegressor(objective='reg:squarederror')),
-        ('lr', RidgeCV())
+        ("gbm", xgb.sklearn.XGBRegressor(objective="reg:squarederror")),
+        ("lr", RidgeCV()),
     ]
     reg = StackingRegressor(
         estimators=estimators,
-        final_estimator=RandomForestRegressor(n_estimators=10,
-                                              random_state=42)
+        final_estimator=RandomForestRegressor(n_estimators=10, random_state=42),
     )
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
@@ -256,9 +256,8 @@ def test_stacking_classification():
 
     X, y = load_iris(return_X_y=True)
     estimators = [
-        ('gbm', xgb.sklearn.XGBClassifier()),
-        ('svr', make_pipeline(StandardScaler(),
-                              LinearSVC(random_state=42)))
+        ("gbm", xgb.sklearn.XGBClassifier()),
+        ("svr", make_pipeline(StandardScaler(), LinearSVC(random_state=42))),
     ]
     clf = StackingClassifier(
         estimators=estimators, final_estimator=LogisticRegression()
@@ -312,7 +311,7 @@ def test_feature_importances_weight():
         tree_method="exact",
         learning_rate=0.1,
         importance_type="weight",
-        base_score=.5,
+        base_score=0.5,
     ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
@@ -400,9 +399,10 @@ def test_feature_importances_gain():
 def test_select_feature():
     from sklearn.datasets import load_digits
     from sklearn.feature_selection import SelectFromModel
+
     digits = load_digits(n_class=2)
-    y = digits['target']
-    X = digits['data']
+    y = digits["target"]
+    X = digits["data"]
     cls = xgb.XGBClassifier()
     cls.fit(X, y)
     selector = SelectFromModel(cls, prefit=True, max_features=1)
@@ -551,11 +551,7 @@ def test_classification_with_custom_objective():
         raise XGBCustomObjectiveException()
 
     xgb_model = xgb.XGBClassifier(objective=dummy_objective)
-    np.testing.assert_raises(
-        XGBCustomObjectiveException,
-        xgb_model.fit,
-        X, y
-    )
+    np.testing.assert_raises(XGBCustomObjectiveException, xgb_model.fit, X, y)
 
     cls = xgb.XGBClassifier(n_estimators=1)
     cls.fit(X, y)
@@ -578,8 +574,9 @@ def run_sklearn_api(booster, error, n_est):
     from sklearn.model_selection import train_test_split
 
     iris = load_iris()
-    tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target,
-                                              train_size=120, test_size=0.2)
+    tr_d, te_d, tr_l, te_l = train_test_split(
+        iris.data, iris.target, train_size=120, test_size=0.2
+    )
 
     classifier = xgb.XGBClassifier(booster=booster, n_estimators=n_est)
     classifier.fit(tr_d, tr_l)
@@ -606,16 +603,17 @@ def test_sklearn_plotting():
     classifier.fit(iris.data, iris.target)
 
     import matplotlib
-    matplotlib.use('Agg')
+
+    matplotlib.use("Agg")
 
     from graphviz import Source
     from matplotlib.axes import Axes
 
     ax = xgb.plot_importance(classifier)
     assert isinstance(ax, Axes)
-    assert ax.get_title() == 'Feature importance'
-    assert ax.get_xlabel() == 'Importance score'
-    assert ax.get_ylabel() == 'Features'
+    assert ax.get_title() == "Feature importance"
+    assert ax.get_xlabel() == "Importance score"
+    assert ax.get_ylabel() == "Features"
     assert len(ax.patches) == 4
 
     g = xgb.to_graphviz(classifier, num_trees=0)
@@ -631,29 +629,43 @@ def test_sklearn_nfolds_cv():
     from sklearn.model_selection import StratifiedKFold
 
     digits = load_digits(n_class=3)
-    X = digits['data']
-    y = digits['target']
+    X = digits["data"]
+    y = digits["target"]
     dm = xgb.DMatrix(X, label=y)
 
     params = {
-        'max_depth': 2,
-        'eta': 1,
-        'verbosity': 0,
-        'objective':
-        'multi:softprob',
-        'num_class': 3
+        "max_depth": 2,
+        "eta": 1,
+        "verbosity": 0,
+        "objective": "multi:softprob",
+        "num_class": 3,
     }
 
     seed = 2016
     nfolds = 5
     skf = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=seed)
 
-    cv1 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
-                 seed=seed, as_pandas=True)
-    cv2 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
-                 folds=skf, seed=seed, as_pandas=True)
-    cv3 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
-                 stratified=True, seed=seed, as_pandas=True)
+    cv1 = xgb.cv(
+        params, dm, num_boost_round=10, nfold=nfolds, seed=seed, as_pandas=True
+    )
+    cv2 = xgb.cv(
+        params,
+        dm,
+        num_boost_round=10,
+        nfold=nfolds,
+        folds=skf,
+        seed=seed,
+        as_pandas=True,
+    )
+    cv3 = xgb.cv(
+        params,
+        dm,
+        num_boost_round=10,
+        nfold=nfolds,
+        stratified=True,
+        seed=seed,
+        as_pandas=True,
+    )
     assert cv1.shape[0] == cv2.shape[0] and cv2.shape[0] == cv3.shape[0]
     assert cv2.iloc[-1, 0] == cv3.iloc[-1, 0]
 
@@ -687,26 +699,26 @@ def test_split_value_histograms():
 
 def test_sklearn_random_state():
     clf = xgb.XGBClassifier(random_state=402)
-    assert clf.get_xgb_params()['random_state'] == 402
+    assert clf.get_xgb_params()["random_state"] == 402
 
     clf = xgb.XGBClassifier(random_state=401)
-    assert clf.get_xgb_params()['random_state'] == 401
+    assert clf.get_xgb_params()["random_state"] == 401
 
     random_state = np.random.RandomState(seed=403)
     clf = xgb.XGBClassifier(random_state=random_state)
-    assert isinstance(clf.get_xgb_params()['random_state'], int)
+    assert isinstance(clf.get_xgb_params()["random_state"], int)
 
     random_state = np.random.default_rng(seed=404)
     clf = xgb.XGBClassifier(random_state=random_state)
-    assert isinstance(clf.get_xgb_params()['random_state'], int)
+    assert isinstance(clf.get_xgb_params()["random_state"], int)
 
 
 def test_sklearn_n_jobs():
     clf = xgb.XGBClassifier(n_jobs=1)
-    assert clf.get_xgb_params()['n_jobs'] == 1
+    assert clf.get_xgb_params()["n_jobs"] == 1
 
     clf = xgb.XGBClassifier(n_jobs=2)
-    assert clf.get_xgb_params()['n_jobs'] == 2
+    assert clf.get_xgb_params()["n_jobs"] == 2
 
 
 def test_parameters_access():
@@ -806,7 +818,7 @@ def test_get_params_works_as_expected():
 
 
 def test_kwargs_error():
-    params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
+    params = {"updater": "grow_gpu_hist", "subsample": 0.5, "n_jobs": -1}
     with pytest.raises(TypeError):
         clf = xgb.XGBClassifier(n_jobs=1000, **params)
         assert isinstance(clf, xgb.XGBClassifier)
@@ -935,42 +947,54 @@ def test_RFECV():
 
     # Regression
     X, y = load_diabetes(return_X_y=True)
-    bst = xgb.XGBRegressor(booster='gblinear', learning_rate=0.1,
-                           n_estimators=10,
-                           objective='reg:squarederror',
-                           random_state=0, verbosity=0)
-    rfecv = RFECV(
-        estimator=bst, step=1, cv=3, scoring='neg_mean_squared_error')
+    bst = xgb.XGBRegressor(
+        booster="gblinear",
+        learning_rate=0.1,
+        n_estimators=10,
+        objective="reg:squarederror",
+        random_state=0,
+        verbosity=0,
+    )
+    rfecv = RFECV(estimator=bst, step=1, cv=3, scoring="neg_mean_squared_error")
     rfecv.fit(X, y)
 
     # Binary classification
     X, y = load_breast_cancer(return_X_y=True)
-    bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
-                            n_estimators=10,
-                            objective='binary:logistic',
-                            random_state=0, verbosity=0)
-    rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring='roc_auc')
+    bst = xgb.XGBClassifier(
+        booster="gblinear",
+        learning_rate=0.1,
+        n_estimators=10,
+        objective="binary:logistic",
+        random_state=0,
+        verbosity=0,
+    )
+    rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring="roc_auc")
     rfecv.fit(X, y)
 
     # Multi-class classification
     X, y = load_iris(return_X_y=True)
-    bst = xgb.XGBClassifier(base_score=0.4, booster='gblinear',
-                            learning_rate=0.1,
-                            n_estimators=10,
-                            objective='multi:softprob',
-                            random_state=0, reg_alpha=0.001, reg_lambda=0.01,
-                            scale_pos_weight=0.5, verbosity=0)
-    rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring='neg_log_loss')
+    bst = xgb.XGBClassifier(
+        base_score=0.4,
+        booster="gblinear",
+        learning_rate=0.1,
+        n_estimators=10,
+        objective="multi:softprob",
+        random_state=0,
+        reg_alpha=0.001,
+        reg_lambda=0.01,
+        scale_pos_weight=0.5,
+        verbosity=0,
+    )
+    rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring="neg_log_loss")
     rfecv.fit(X, y)
 
-    X[0:4, :] = np.nan          # verify scikit_learn doesn't throw with nan
+    X[0:4, :] = np.nan  # verify scikit_learn doesn't throw with nan
     reg = xgb.XGBRegressor()
     rfecv = RFECV(estimator=reg)
     rfecv.fit(X, y)
 
     cls = xgb.XGBClassifier()
-    rfecv = RFECV(estimator=cls, step=0.5, cv=3,
-                  scoring='neg_mean_squared_error')
+    rfecv = RFECV(estimator=cls, step=0.5, cv=3, scoring="neg_mean_squared_error")
     rfecv.fit(X, y)
 
 
@@ -979,13 +1003,12 @@ def test_XGBClassifier_resume():
     from sklearn.metrics import log_loss
 
     with tempfile.TemporaryDirectory() as tempdir:
-        model1_path = os.path.join(tempdir, 'test_XGBClassifier.model')
-        model1_booster_path = os.path.join(tempdir, 'test_XGBClassifier.booster')
+        model1_path = os.path.join(tempdir, "test_XGBClassifier.model")
+        model1_booster_path = os.path.join(tempdir, "test_XGBClassifier.booster")
 
         X, Y = load_breast_cancer(return_X_y=True)
 
-        model1 = xgb.XGBClassifier(
-            learning_rate=0.3, random_state=0, n_estimators=8)
+        model1 = xgb.XGBClassifier(learning_rate=0.3, random_state=0, n_estimators=8)
         model1.fit(X, Y)
 
         pred1 = model1.predict(X)
@@ -1049,6 +1072,7 @@ def test_parameter_validation():
 
 def test_deprecate_position_arg():
     from sklearn.datasets import load_digits
+
     X, y = load_digits(return_X_y=True, n_class=2)
     w = np.random.default_rng(0).uniform(size=y.size)
     with pytest.warns(FutureWarning):
@@ -1064,7 +1088,7 @@ def test_deprecate_position_arg():
         model.fit(X, y, w)
 
     with pytest.warns(FutureWarning):
-        xgb.XGBRanker('rank:ndcg', learning_rate=0.1)
+        xgb.XGBRanker("rank:ndcg", learning_rate=0.1)
     model = xgb.XGBRanker(n_estimators=1)
     group = np.repeat(1, X.shape[0])
     with pytest.warns(FutureWarning):
@@ -1167,9 +1191,9 @@ def test_feature_weights(tree_method):
     assert poly_increasing[0] > 0.08
     assert poly_decreasing[0] < -0.08
 
-    reg = xgb.XGBRegressor(feature_weights=np.ones((kCols, )))
+    reg = xgb.XGBRegressor(feature_weights=np.ones((kCols,)))
     with pytest.raises(ValueError, match="Use the one in"):
-        reg.fit(X, y, feature_weights=np.ones((kCols, )))
+        reg.fit(X, y, feature_weights=np.ones((kCols,)))
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
@@ -1319,7 +1343,7 @@ def test_evaluation_metric():
             n_estimators=n_estimators,
         )
         reg.fit(X, y, eval_set=[(X, y)])
-        lines = out.getvalue().strip().split('\n')
+        lines = out.getvalue().strip().split("\n")
 
     assert len(lines) == n_estimators
     for line in lines:
@@ -1338,7 +1362,7 @@ def test_evaluation_metric():
         tree_method="hist",
         eval_metric=merror,
         n_estimators=16,
-        objective="multi:softmax"
+        objective="multi:softmax",
     )
     clf.fit(X, y, eval_set=[(X, y)])
     custom = clf.evals_result()
@@ -1347,19 +1371,18 @@ def test_evaluation_metric():
         tree_method="hist",
         eval_metric="merror",
         n_estimators=16,
-        objective="multi:softmax"
+        objective="multi:softmax",
     )
     clf.fit(X, y, eval_set=[(X, y)])
     internal = clf.evals_result()
 
     np.testing.assert_allclose(
-        custom["validation_0"]["merror"],
-        internal["validation_0"]["merror"],
-        atol=1e-6
+        custom["validation_0"]["merror"], internal["validation_0"]["merror"], atol=1e-6
     )
 
     clf = xgb.XGBRFClassifier(
-        tree_method="hist", n_estimators=16,
+        tree_method="hist",
+        n_estimators=16,
         objective=tm.softprob_obj(10),
         eval_metric=merror,
     )
@@ -1410,24 +1433,34 @@ def test_weighted_evaluation_metric():
         n_estimators=16,
         objective="binary:logistic",
     )
-    clf.fit(X_train, y_train, sample_weight=weights_train, eval_set=[(X_test, y_test)],
-            sample_weight_eval_set=[weights_eval_set])
+    clf.fit(
+        X_train,
+        y_train,
+        sample_weight=weights_train,
+        eval_set=[(X_test, y_test)],
+        sample_weight_eval_set=[weights_eval_set],
+    )
     custom = clf.evals_result()
 
     clf = xgb.XGBClassifier(
         tree_method="hist",
         eval_metric="logloss",
         n_estimators=16,
-        objective="binary:logistic"
+        objective="binary:logistic",
     )
-    clf.fit(X_train, y_train, sample_weight=weights_train, eval_set=[(X_test, y_test)],
-            sample_weight_eval_set=[weights_eval_set])
+    clf.fit(
+        X_train,
+        y_train,
+        sample_weight=weights_train,
+        eval_set=[(X_test, y_test)],
+        sample_weight_eval_set=[weights_eval_set],
+    )
     internal = clf.evals_result()
 
     np.testing.assert_allclose(
         custom["validation_0"]["log_loss"],
         internal["validation_0"]["logloss"],
-        atol=1e-6
+        atol=1e-6,
     )
 
 
@@ -1467,7 +1500,6 @@ def test_tags() -> None:
 # the try-excepts in this test should be removed once xgboost's
 # minimum supported scikit-learn version is at least 1.6
 def test_sklearn_tags():
-
     def _assert_has_xgbmodel_tags(tags):
         # values set by XGBModel.__sklearn_tags__()
         assert tags.non_deterministic is False
@@ -1505,7 +1537,9 @@ def test_sklearn_tags():
             # only the exact error we expected to be raised should be raised
             assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))
 
-    for rnk in [xgb.XGBRanker(),]:
+    for rnk in [
+        xgb.XGBRanker(),
+    ]:
         try:
             # if no AttributeError was thrown, we must be using scikit-learn>=1.6,
             # and so the actual effects of __sklearn_tags__() should be tested

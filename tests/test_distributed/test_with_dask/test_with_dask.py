@@ -20,16 +20,12 @@ import numpy as np
 import pytest
 import scipy
 import sklearn
-import xgboost as xgb
 from distributed import Client, LocalCluster, Nanny, Worker
 from distributed.scheduler import KilledWorker, Scheduler
 from distributed.utils_test import async_poll_for, gen_cluster
 from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 from sklearn.model_selection import train_test_split
-from xgboost import collective as coll
-from xgboost import dask as dxgb
-from xgboost import testing as tm
 from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import (
@@ -47,6 +43,11 @@ from xgboost.testing.shared import (
     validate_leaf_output,
 )
 from xgboost.testing.updater import get_basescore
+
+import xgboost as xgb
+from xgboost import collective as coll
+from xgboost import dask as dxgb
+from xgboost import testing as tm
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 

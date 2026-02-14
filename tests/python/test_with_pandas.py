@@ -2,13 +2,13 @@ from typing import Type
 
 import numpy as np
 import pytest
-
-import xgboost as xgb
-from xgboost import testing as tm
 from xgboost.compat import is_dataframe
 from xgboost.core import DataSplitMode
 from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes, run_base_margin_info
 from xgboost.testing.utils import predictor_equal
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 try:
     import pandas as pd

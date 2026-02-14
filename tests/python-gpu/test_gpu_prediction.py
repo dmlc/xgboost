@@ -6,10 +6,10 @@ import numpy as np
 import pytest
 from hypothesis import assume, given, settings, strategies
 from hypothesis.extra.pandas import column, data_frames, range_indexes
+from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 sys.path.append("tests/python")
 

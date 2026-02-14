@@ -7,9 +7,6 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pytest
-
-import xgboost as xgb
-from xgboost import testing as tm
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.with_skl import (
     run_boost_from_prediction_binary,
@@ -18,6 +15,9 @@ from xgboost.testing.with_skl import (
     run_intercept,
     run_recoding,
 )
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
@@ -119,9 +119,7 @@ def test_categorical() -> None:
             np.testing.assert_allclose(categories_sizes, 1)
 
     def check_predt(X: Any, y: List[float]) -> None:
-        reg = xgb.XGBRegressor(
-            tree_method="hist", n_estimators=64, device="cuda"
-        )
+        reg = xgb.XGBRegressor(tree_method="hist", n_estimators=64, device="cuda")
         reg.fit(X, y)
         predts = reg.predict(X)
         booster = reg.get_booster()

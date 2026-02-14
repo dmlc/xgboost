@@ -7,11 +7,11 @@ import numpy as np
 import pandas as pd
 import pytest
 from scipy import sparse
+from xgboost.testing.data import get_california_housing, np_dtypes, pd_dtypes
+from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.data import get_california_housing, np_dtypes, pd_dtypes
-from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 
 def run_threaded_predict(X, rows, predict_func):

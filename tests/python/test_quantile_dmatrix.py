@@ -4,8 +4,6 @@ import numpy as np
 import pytest
 from hypothesis import given, settings, strategies
 from scipy import sparse
-
-import xgboost as xgb
 from xgboost.testing import (
     IteratorForTest,
     make_batches,
@@ -21,6 +19,8 @@ from xgboost.testing.quantile_dmatrix import (
     check_ref_quantile_cut,
 )
 from xgboost.testing.utils import predictor_equal
+
+import xgboost as xgb
 
 
 class TestQuantileDMatrix:

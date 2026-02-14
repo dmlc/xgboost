@@ -7,10 +7,6 @@ import numpy as np
 import pytest
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix
-
-import xgboost as xgb
-from xgboost import testing as tm
-from xgboost.data import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
 from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
 from xgboost.testing.updater import (
@@ -19,6 +15,10 @@ from xgboost.testing.updater import (
     check_extmem_qdm,
     check_quantile_loss_extmem,
 )
+
+import xgboost as xgb
+from xgboost import testing as tm
+from xgboost.data import SingleBatchInternalIter as SingleBatch
 
 pytestmark = tm.timeout(30)
 

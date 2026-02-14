@@ -7,9 +7,9 @@ from typing import Type, Union
 
 import numpy as np
 import pytest
+from xgboost.compat import is_dataframe
 
 import xgboost as xgb
-from xgboost.compat import is_dataframe
 
 pl = pytest.importorskip("polars")
 
