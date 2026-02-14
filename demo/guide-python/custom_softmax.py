@@ -12,9 +12,10 @@ detailed tutorial and notes.
 """
 
 import argparse
-from typing import Dict, Tuple
+from typing import Dict, Tuple, cast
 
 import numpy as np
+from matplotlib.axes import Axes
 from matplotlib import pyplot as plt
 
 import xgboost as xgb
@@ -126,10 +127,11 @@ def merror(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
 def plot_history(
     custom_results: Dict[str, Dict], native_results: Dict[str, Dict]
 ) -> None:
-    axs: np.ndarray
-    fig, axs = plt.subplots(2, 1)  # type: ignore
-    ax0 = axs[0]
-    ax1 = axs[1]
+    _, axes = plt.subplots(2, 1)
+    if not isinstance(axes, np.ndarray):
+        raise TypeError("Expected matplotlib to return an array of axes.")
+    ax0 = cast(Axes, axes[0])
+    ax1 = cast(Axes, axes[1])
 
     pymerror = custom_results["train"]["PyMError"]
     merror = native_results["train"]["merror"]
