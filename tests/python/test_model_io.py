@@ -2,7 +2,6 @@ import json
 import locale
 import os
 import pickle
-import tempfile
 from pathlib import Path
 from typing import List
 
@@ -102,28 +101,27 @@ class TestBoosterIO:
         parameters = {"booster": "dart", "tree_method": "hist"}
         self.run_model_json_io(parameters, ext)
 
-    def test_categorical_model_io(self) -> None:
+    def test_categorical_model_io(self, tmp_path: Path) -> None:
         X, y = tm.make_categorical(256, 16, 71, onehot=False)
         Xy = xgb.DMatrix(X, y)
         booster = xgb.train({"tree_method": "approx"}, Xy, num_boost_round=16)
         predt_0 = booster.predict(Xy)
 
-        with tempfile.TemporaryDirectory() as tempdir:
-            path = os.path.join(tempdir, "model.json")
-            booster.save_model(path)
-            booster = xgb.Booster(model_file=path)
-            predt_1 = booster.predict(Xy)
-            np.testing.assert_allclose(predt_0, predt_1)
+        path = tmp_path / "model.json"
+        booster.save_model(path)
+        booster = xgb.Booster(model_file=path)
+        predt_1 = booster.predict(Xy)
+        np.testing.assert_allclose(predt_0, predt_1)
 
-            path = os.path.join(tempdir, "model.ubj")
-            booster.save_model(path)
-            booster = xgb.Booster(model_file=path)
-            predt_1 = booster.predict(Xy)
-            np.testing.assert_allclose(predt_0, predt_1)
+        path = tmp_path / "model.ubj"
+        booster.save_model(path)
+        booster = xgb.Booster(model_file=path)
+        predt_1 = booster.predict(Xy)
+        np.testing.assert_allclose(predt_0, predt_1)
 
-    def test_with_pathlib(self) -> None:
+    def test_with_pathlib(self, tmp_path: Path) -> None:
         """Saving and loading model files from paths."""
-        save_path = Path("model.ubj")
+        save_path = tmp_path / "model.ubj"
 
         rng = np.random.default_rng(1994)
 
@@ -163,10 +161,7 @@ class TestBoosterIO:
         dump3 = bst3.get_dump()
         dump_assertions(dump3)
 
-        # remove file
-        Path.unlink(save_path)
-
-    def test_invalid_postfix(self) -> None:
+    def test_invalid_postfix(self, tmp_path: Path) -> None:
         """Test mis-specified model format, no special hanlding is expected, the
         JSON/UBJ parser can emit parsing errors.
 
@@ -174,54 +169,52 @@ class TestBoosterIO:
         X, y, w = tm.make_regression(64, 16, False)
         booster = xgb.train({}, xgb.QuantileDMatrix(X, y, weight=w), num_boost_round=3)
 
-        def rename(src: str, dst: str) -> None:
-            if os.path.exists(dst):
+        def rename(src: Path, dst: Path) -> None:
+            if dst.exists():
                 # Windows cannot overwrite an existing file.
-                os.remove(dst)
-            os.rename(src, dst)
+                dst.unlink()
+            src.rename(dst)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path_ubj = os.path.join(tmpdir, "model.ubj")
-            path_json = os.path.join(tmpdir, "model.json")
+        path_ubj = tmp_path / "model.ubj"
+        path_json = tmp_path / "model.json"
 
-            booster.save_model(path_ubj)
-            rename(path_ubj, path_json)
+        booster.save_model(path_ubj)
+        rename(path_ubj, path_json)
 
-            with pytest.raises(ValueError, match="{"):
-                xgb.Booster(model_file=path_json)
+        with pytest.raises(ValueError, match="{"):
+            xgb.Booster(model_file=path_json)
 
-            booster.save_model(path_json)
-            rename(path_json, path_ubj)
+        booster.save_model(path_json)
+        rename(path_json, path_ubj)
 
-            with pytest.raises(ValueError, match="{"):
-                xgb.Booster(model_file=path_ubj)
+        with pytest.raises(ValueError, match="{"):
+            xgb.Booster(model_file=path_ubj)
 
-            # save model without file extension
-            path_no = os.path.join(tmpdir, "model")
-            with pytest.warns(UserWarning, match="UBJSON"):
-                booster.save_model(path_no)
+        # save model without file extension
+        path_no = tmp_path / "model"
+        with pytest.warns(UserWarning, match="UBJSON"):
+            booster.save_model(path_no)
 
-            with pytest.warns(UserWarning, match="Using UBJSON"):
-                booster_1 = xgb.Booster(model_file=path_no)
-            r0 = booster.save_raw(raw_format="json")
-            r1 = booster_1.save_raw(raw_format="json")
-            assert r0 == r1
+        with pytest.warns(UserWarning, match="Using UBJSON"):
+            booster_1 = xgb.Booster(model_file=path_no)
+        r0 = booster.save_raw(raw_format="json")
+        r1 = booster_1.save_raw(raw_format="json")
+        assert r0 == r1
 
-            booster.save_model(path_json)
-            rename(path_json, path_no)
-            with pytest.warns(UserWarning, match="Using JSON"):
-                xgb.Booster(model_file=path_no)
+        booster.save_model(path_json)
+        rename(path_json, path_no)
+        with pytest.warns(UserWarning, match="Using JSON"):
+            xgb.Booster(model_file=path_no)
 
-    def test_invalid_format(self) -> None:
+    def test_invalid_format(self, tmp_path: Path) -> None:
         X, y, w = tm.make_regression(64, 16, False)
         booster = xgb.train({}, xgb.QuantileDMatrix(X, y, weight=w), num_boost_round=3)
         with pytest.raises(ValueError, match="Unknown model format"):
             booster.save_raw(raw_format="deprecated")
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "model.deprecated")
-            with pytest.warns(UserWarning, match="Saving model in the UBJSON format"):
-                booster.save_model(path)
+        path = tmp_path / "model.deprecated"
+        with pytest.warns(UserWarning, match="Saving model in the UBJSON format"):
+            booster.save_model(path)
 
 
 def save_load_model(model_path: str) -> None:
@@ -285,69 +278,67 @@ def save_load_model(model_path: str) -> None:
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_sklearn_model() -> None:
+def test_sklearn_model(tmp_path: Path) -> None:
     from sklearn.datasets import load_digits
     from sklearn.model_selection import train_test_split
 
-    with tempfile.TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, "digits.model.json")
-        save_load_model(model_path)
+    model_path = tmp_path / "digits.model.json"
+    save_load_model(str(model_path))
 
-    with tempfile.TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, "digits.model.ubj")
-        digits = load_digits(n_class=2)
-        y = digits["target"]
-        X = digits["data"]
-        booster = xgb.train(
-            {"tree_method": "hist", "objective": "binary:logistic"},
-            dtrain=xgb.DMatrix(X, y),
-            num_boost_round=4,
-        )
-        predt_0 = booster.predict(xgb.DMatrix(X))
-        booster.save_model(model_path)
-        cls = xgb.XGBClassifier()
-        cls.load_model(model_path)
+    model_path = tmp_path / "digits.model.ubj"
+    digits = load_digits(n_class=2)
+    y = digits["target"]
+    X = digits["data"]
+    booster = xgb.train(
+        {"tree_method": "hist", "objective": "binary:logistic"},
+        dtrain=xgb.DMatrix(X, y),
+        num_boost_round=4,
+    )
+    predt_0 = booster.predict(xgb.DMatrix(X))
+    booster.save_model(model_path)
+    cls = xgb.XGBClassifier()
+    cls.load_model(model_path)
 
-        proba = cls.predict_proba(X)
-        assert proba.shape[0] == X.shape[0]
-        assert proba.shape[1] == 2  # binary
+    proba = cls.predict_proba(X)
+    assert proba.shape[0] == X.shape[0]
+    assert proba.shape[1] == 2  # binary
 
-        predt_1 = cls.predict_proba(X)[:, 1]
-        assert np.allclose(predt_0, predt_1)
+    predt_1 = cls.predict_proba(X)[:, 1]
+    assert np.allclose(predt_0, predt_1)
 
-        cls = xgb.XGBModel()
-        cls.load_model(model_path)
-        predt_1 = cls.predict(X)
-        assert np.allclose(predt_0, predt_1)
+    cls = xgb.XGBModel()
+    cls.load_model(model_path)
+    predt_1 = cls.predict(X)
+    assert np.allclose(predt_0, predt_1)
 
-        # mclass
-        X, y = load_digits(n_class=10, return_X_y=True)
-        # small test_size to force early stop
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.01, random_state=1
-        )
-        clf = xgb.XGBClassifier(
-            n_estimators=64, tree_method="hist", early_stopping_rounds=2
-        )
-        clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
-        score = clf.best_score
-        intercept = clf.intercept_
-        clf.save_model(model_path)
+    # mclass
+    X, y = load_digits(n_class=10, return_X_y=True)
+    # small test_size to force early stop
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.01, random_state=1
+    )
+    clf = xgb.XGBClassifier(
+        n_estimators=64, tree_method="hist", early_stopping_rounds=2
+    )
+    clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
+    score = clf.best_score
+    intercept = clf.intercept_
+    clf.save_model(model_path)
 
-        clf = xgb.XGBClassifier()
-        clf.load_model(model_path)
-        assert clf.classes_.size == 10
-        assert clf.objective == "multi:softprob"
-        np.testing.assert_allclose(intercept, clf.intercept_)
+    clf = xgb.XGBClassifier()
+    clf.load_model(model_path)
+    assert clf.classes_.size == 10
+    assert clf.objective == "multi:softprob"
+    np.testing.assert_allclose(intercept, clf.intercept_)
 
-        np.testing.assert_equal(clf.classes_, np.arange(10))
-        assert clf.n_classes_ == 10
+    np.testing.assert_equal(clf.classes_, np.arange(10))
+    assert clf.n_classes_ == 10
 
-        assert clf.best_score == score
+    assert clf.best_score == score
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_with_sklearn_obj_metric() -> None:
+def test_with_sklearn_obj_metric(tmp_path: Path) -> None:
     from sklearn.metrics import mean_squared_error
 
     X, y = tm.datasets.make_regression()
@@ -359,12 +350,11 @@ def test_with_sklearn_obj_metric() -> None:
     assert callable(reg_1.objective)
     assert callable(reg_1.eval_metric)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "model.json")
-        reg.save_model(path)
+    path = tmp_path / "model.json"
+    reg.save_model(path)
 
-        reg_2 = xgb.XGBRegressor()
-        reg_2.load_model(path)
+    reg_2 = xgb.XGBRegressor()
+    reg_2.load_model(path)
 
     assert not callable(reg_2.objective)
     assert not callable(reg_2.eval_metric)
@@ -372,7 +362,7 @@ def test_with_sklearn_obj_metric() -> None:
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_attributes() -> None:
+def test_attributes(tmp_path: Path) -> None:
     from sklearn.datasets import load_iris
 
     X, y = load_iris(return_X_y=True)
@@ -388,14 +378,13 @@ def test_attributes() -> None:
 
     clf.get_booster().set_attr(foo="bar")
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "clf.json")
-        clf.save_model(path)
+    path = tmp_path / "clf.json"
+    clf.save_model(path)
 
-        clf = xgb.XGBClassifier(n_estimators=2)
-        clf.load_model(path)
-        assert clf.n_estimators is not None
-        assert clf.get_booster().best_iteration == clf.n_estimators - 1
-        assert clf.best_iteration == clf.get_booster().best_iteration
+    clf = xgb.XGBClassifier(n_estimators=2)
+    clf.load_model(path)
+    assert clf.n_estimators is not None
+    assert clf.get_booster().best_iteration == clf.n_estimators - 1
+    assert clf.best_iteration == clf.get_booster().best_iteration
 
-        assert clf.get_booster().attributes()["foo"] == "bar"
+    assert clf.get_booster().attributes()["foo"] == "bar"

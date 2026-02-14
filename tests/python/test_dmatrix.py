@@ -1,15 +1,14 @@
 import csv
 import os
-import tempfile
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pytest
 import scipy.sparse
+import xgboost as xgb
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
-
-import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import DataSplitMode
 from xgboost.testing.data import np_dtypes, run_base_margin_info
@@ -196,18 +195,17 @@ class TestDMatrix:
                 bst.predict(dm)
 
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_save_binary(self):
+    def test_save_binary(self, tmp_path: Path) -> None:
         import pandas as pd
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "m.dmatrix")
-            data = pd.DataFrame({"a": [0, 1], "b": [2, 3], "c": [4, 5]})
-            m0 = xgb.DMatrix(data.loc[:, ["a", "b"]], data["c"])
-            assert m0.feature_names == ["a", "b"]
-            m0.save_binary(path)
-            m1 = xgb.DMatrix(path)
-            assert m0.feature_names == m1.feature_names
-            assert m0.feature_types == m1.feature_types
+        path = tmp_path / "m.dmatrix"
+        data = pd.DataFrame({"a": [0, 1], "b": [2, 3], "c": [4, 5]})
+        m0 = xgb.DMatrix(data.loc[:, ["a", "b"]], data["c"])
+        assert m0.feature_names == ["a", "b"]
+        m0.save_binary(path)
+        m1 = xgb.DMatrix(path)
+        assert m0.feature_names == m1.feature_names
+        assert m0.feature_types == m1.feature_types
 
     def test_get_info(self):
         dtrain, _ = tm.load_agaricus(__file__)
@@ -252,7 +250,7 @@ class TestDMatrix:
         with pytest.raises(ValueError):
             m.set_info(feature_weights=fw)
 
-    def test_sparse_dmatrix_csr(self):
+    def test_sparse_dmatrix_csr(self, tmp_path: Path) -> None:
         nrow = 100
         ncol = 1000
         x = rand(nrow, ncol, density=0.0005, format="csr", random_state=rng)
@@ -272,23 +270,23 @@ class TestDMatrix:
         di32 = xgb.DMatrix(i32)
         df32 = xgb.DMatrix(f32)
         dense = xgb.DMatrix(f32.toarray(), missing=0)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "f32.dmatrix")
-            df32.save_binary(path)
-            with open(path, "rb") as fd:
-                df32_buffer = np.array(fd.read())
-            path = os.path.join(tmpdir, "f32.dmatrix")
-            di32.save_binary(path)
-            with open(path, "rb") as fd:
-                di32_buffer = np.array(fd.read())
 
-            path = os.path.join(tmpdir, "dense.dmatrix")
-            dense.save_binary(path)
-            with open(path, "rb") as fd:
-                dense_buffer = np.array(fd.read())
+        path = tmp_path / "f32.dmatrix"
+        df32.save_binary(path)
+        with open(path, "rb") as fd:
+            df32_buffer = np.array(fd.read())
+        path = tmp_path / "i32.dmatrix"
+        di32.save_binary(path)
+        with open(path, "rb") as fd:
+            di32_buffer = np.array(fd.read())
 
-            np.testing.assert_equal(df32_buffer, di32_buffer)
-            np.testing.assert_equal(df32_buffer, dense_buffer)
+        path = tmp_path / "dense.dmatrix"
+        dense.save_binary(path)
+        with open(path, "rb") as fd:
+            dense_buffer = np.array(fd.read())
+
+        np.testing.assert_equal(df32_buffer, di32_buffer)
+        np.testing.assert_equal(df32_buffer, dense_buffer)
 
     def test_sparse_dmatrix_csc(self):
         nrow = 1000
@@ -470,22 +468,21 @@ class TestDMatrixColumnSplit:
 
         tm.run_with_rabit(world_size=3, test_fn=verify_coo)
 
-    def test_uri(self):
+    def test_uri(self, tmp_path: Path) -> None:
         def verify_uri():
             rank = xgb.collective.get_rank()
-            with tempfile.TemporaryDirectory() as tmpdir:
-                filename = os.path.join(tmpdir, f"test_data_{rank}.csv")
+            filename = tmp_path / f"test_data_{rank}.csv"
 
-                data = np.random.rand(5, 5)
-                with open(filename, mode="w", newline="") as file:
-                    writer = csv.writer(file)
-                    for row in data:
-                        writer.writerow(row)
-                dtrain = xgb.DMatrix(
-                    f"{filename}?format=csv", data_split_mode=DataSplitMode.COL
-                )
-                assert dtrain.num_row() == 5
-                assert dtrain.num_col() == 5 * xgb.collective.get_world_size()
+            data = np.random.rand(5, 5)
+            with open(filename, mode="w", newline="") as file:
+                writer = csv.writer(file)
+                for row in data:
+                    writer.writerow(row)
+            dtrain = xgb.DMatrix(
+                f"{filename}?format=csv", data_split_mode=DataSplitMode.COL
+            )
+            assert dtrain.num_row() == 5
+            assert dtrain.num_col() == 5 * xgb.collective.get_world_size()
 
         tm.run_with_rabit(world_size=3, test_fn=verify_uri)
 
