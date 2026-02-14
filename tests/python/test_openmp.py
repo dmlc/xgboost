@@ -1,6 +1,6 @@
 import os
 import subprocess
-import tempfile
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -81,29 +81,28 @@ class TestOMP:
 
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.timeout(30)
-    def test_with_omp_thread_limit(self):
+    def test_with_omp_thread_limit(self, tmp_path: Path) -> None:
         args = [
             "python", os.path.join(
                 os.path.dirname(tm.normpath(__file__)), "with_omp_limit.py"
             )
         ]
         results = []
-        with tempfile.TemporaryDirectory() as tmpdir:
-            for i in (1, 2, 16):
-                path = os.path.join(tmpdir, str(i))
-                with open(path, "w") as fd:
-                    fd.write("\n")
-                cp = args.copy()
-                cp.append(path)
+        for i in (1, 2, 16):
+            path = tmp_path / str(i)
+            with open(path, "w") as fd:
+                fd.write("\n")
+            cp = args.copy()
+            cp.append(str(path))
 
-                env = os.environ.copy()
-                env["OMP_THREAD_LIMIT"] = str(i)
+            env = os.environ.copy()
+            env["OMP_THREAD_LIMIT"] = str(i)
 
-                status = subprocess.call(cp, env=env)
-                assert status == 0
+            status = subprocess.call(cp, env=env)
+            assert status == 0
 
-                with open(path, "r") as fd:
-                    results.append(float(fd.read()))
+            with open(path, "r") as fd:
+                results.append(float(fd.read()))
 
         for auc in results:
             np.testing.assert_allclose(auc, results[0])
