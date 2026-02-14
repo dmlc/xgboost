@@ -4,10 +4,9 @@ from typing import Any, Dict, Type
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import assume, given, settings, strategies
 from hypothesis.extra.pandas import column, data_frames, range_indexes
-
-import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
@@ -406,7 +405,7 @@ class TestGPUPredict:
 
     def test_shap_categorical(self) -> None:
         X, y = tm.make_categorical(100, 20, 7, onehot=False)
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        Xy = xgb.DMatrix(X, y)
         booster = xgb.train(
             {"tree_method": "hist", "device": "gpu:0"}, Xy, num_boost_round=10
         )
@@ -499,7 +498,7 @@ class TestGPUPredict:
         df = df.astype("category")
         x0, x1 = df["x0"].to_numpy(), df["x1"].to_numpy()
         y = (x0 * 10 - 20) + (x1 - 2)
-        dtrain = xgb.DMatrix(df, label=y, enable_categorical=True)
+        dtrain = xgb.DMatrix(df, label=y)
 
         params = {
             "tree_method": "hist",

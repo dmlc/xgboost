@@ -8,11 +8,10 @@ from typing import Any, Dict, List, Type, TypeVar
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
 from packaging.version import parse as parse_version
-
-import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
 from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
@@ -20,9 +19,6 @@ from xgboost.testing.params import hist_parameter_strategy
 
 from ..test_with_dask.test_with_dask import (
     generate_array,
-)
-from ..test_with_dask.test_with_dask import kCols as random_cols
-from ..test_with_dask.test_with_dask import (
     run_auc,
     run_boost_from_prediction,
     run_boost_from_prediction_multi_class,
@@ -34,6 +30,7 @@ from ..test_with_dask.test_with_dask import (
     run_tree_stats,
     suppress,
 )
+from ..test_with_dask.test_with_dask import kCols as random_cols
 
 pytestmark = [
     pytest.mark.skipif(**tm.no_dask()),
@@ -48,7 +45,6 @@ from dask import __version__ as dask_version
 from dask import array as da
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
-
 from xgboost import dask as dxgb
 from xgboost.testing.dask import check_init_estimation, check_uneven_nan
 
@@ -302,10 +298,8 @@ class TestDistributedGPU:
         X, y = make_categorical(client, 1, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
 
-        Xy = dxgb.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
-        Xy_valid = dxgb.DaskQuantileDMatrix(
-            client, X_valid, y_valid, ref=Xy, enable_categorical=True
-        )
+        Xy = dxgb.DaskQuantileDMatrix(client, X, y)
+        Xy_valid = dxgb.DaskQuantileDMatrix(client, X_valid, y_valid, ref=Xy)
         # The error is from a worker. Dask cannot prioritize which worker's error to
         # propagate, it could be the emtpy DMatrix error or the collective communication
         # error. As a result, the test doesn't match the error message.

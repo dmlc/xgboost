@@ -804,9 +804,9 @@ def _get_categories(
         values = from_array_interface(jvalues)
         pa_offsets = pa.array(offsets).buffers()
         pa_values = pa.array(values).buffers()
-        assert (
-            pa_offsets[0] is None and pa_values[0] is None
-        ), "Should not have null mask."
+        assert pa_offsets[0] is None and pa_values[0] is None, (
+            "Should not have null mask."
+        )
         pa_dict = pa.StringArray.from_buffers(
             len(offsets) - 1, pa_offsets[1], pa_values[1]
         )
@@ -850,7 +850,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         label_lower_bound: Optional[ArrayLike] = None,
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
         """Parameters
@@ -1677,7 +1677,7 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         label_lower_bound: Optional[ArrayLike] = None,
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         max_quantile_batches: Optional[int] = None,
         data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
@@ -1812,7 +1812,7 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
         nthread: Optional[int] = None,
         max_bin: Optional[int] = None,
         ref: Optional[DMatrix] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         max_quantile_batches: Optional[int] = None,
         cache_host_ratio: Optional[float] = None,
     ) -> None:
