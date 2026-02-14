@@ -7,6 +7,8 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pytest
+import xgboost as xgb
+from xgboost import testing as tm
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.with_skl import (
     run_boost_from_prediction_binary,
@@ -15,9 +17,6 @@ from xgboost.testing.with_skl import (
     run_intercept,
     run_recoding,
 )
-
-import xgboost as xgb
-from xgboost import testing as tm
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 

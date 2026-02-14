@@ -8,7 +8,9 @@ from typing import Optional
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from sklearn.utils.estimator_checks import parametrize_with_checks
+from xgboost import testing as tm
 from xgboost.testing.data import get_california_housing
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
@@ -20,9 +22,6 @@ from xgboost.testing.with_skl import (
     run_intercept,
     run_recoding,
 )
-
-import xgboost as xgb
-from xgboost import testing as tm
 
 rng = np.random.RandomState(1994)
 pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), tm.timeout(30)]

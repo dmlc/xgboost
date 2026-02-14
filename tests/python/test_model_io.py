@@ -8,7 +8,6 @@ from typing import List
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 

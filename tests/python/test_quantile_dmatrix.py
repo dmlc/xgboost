@@ -2,6 +2,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import given, settings, strategies
 from scipy import sparse
 from xgboost.testing import (
@@ -19,8 +20,6 @@ from xgboost.testing.quantile_dmatrix import (
     check_ref_quantile_cut,
 )
 from xgboost.testing.utils import predictor_equal
-
-import xgboost as xgb
 
 
 class TestQuantileDMatrix:

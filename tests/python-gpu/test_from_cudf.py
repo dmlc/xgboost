@@ -3,12 +3,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Type
 
 import numpy as np
 import pytest
+import xgboost as xgb
+from xgboost import testing as tm
 from xgboost.compat import is_dataframe
 from xgboost.testing.data import run_base_margin_info
 from xgboost.testing.utils import assert_allclose
-
-import xgboost as xgb
-from xgboost import testing as tm
 
 if TYPE_CHECKING:
     import cudf

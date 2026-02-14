@@ -8,15 +8,14 @@ from typing import Any, Dict, List, Type, TypeVar
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
 from packaging.version import parse as parse_version
+from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
 from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
 from xgboost.testing.params import hist_parameter_strategy
-
-import xgboost as xgb
-from xgboost import testing as tm
 
 from ..test_with_dask.test_with_dask import (
     generate_array,
@@ -46,9 +45,8 @@ from dask import __version__ as dask_version
 from dask import array as da
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
-from xgboost.testing.dask import check_init_estimation, check_uneven_nan
-
 from xgboost import dask as dxgb
+from xgboost.testing.dask import check_init_estimation, check_uneven_nan
 
 dask_version_ge110 = dask_version and parse_version(dask_version) >= parse_version(
     "2024.11.0"
