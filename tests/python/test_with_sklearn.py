@@ -282,7 +282,7 @@ def test_feature_importances_weight():
         importance_type="weight",
         base_score=0.5,
     ).fit(X, y)
-
+    # fmt: off
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
                     0., 0., 0., 0.00833333, 0.25833333, 0., 0., 0., 0.,
@@ -290,19 +290,20 @@ def test_feature_importances_weight():
                     0.05, 0.06666667, 0., 0., 0., 0., 0., 0., 0., 0.04166667,
                     0., 0., 0., 0., 0., 0., 0., 0.00833333, 0., 0., 0., 0.,
                     0.], dtype=np.float32)
-
+    # fmt: on
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     # numeric columns
     import pandas as pd
-    y = pd.Series(digits['target'])
-    X = pd.DataFrame(digits['data'])
+
+    y = pd.Series(digits["target"])
+    X = pd.DataFrame(digits["data"])
     xgb_model = xgb.XGBClassifier(
         random_state=0,
         tree_method="exact",
         learning_rate=0.1,
-        base_score=.5,
-        importance_type="weight"
+        base_score=0.5,
+        importance_type="weight",
     ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
@@ -348,15 +349,16 @@ def test_feature_importances_gain():
     from sklearn.datasets import load_digits
 
     digits = load_digits(n_class=2)
-    y = digits['target']
-    X = digits['data']
+    y = digits["target"]
+    X = digits["data"]
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact",
+        random_state=0,
+        tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
         base_score=0.5,
     ).fit(X, y)
-
+    # fmt: off
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00326159, 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00297238, 0.00988034, 0., 0., 0., 0., 0., 0.,
@@ -365,13 +367,14 @@ def test_feature_importances_gain():
                     0., 0.00616747, 0.01237546, 0., 0., 0., 0., 0.,
                     0., 0., 0.08240705, 0., 0., 0., 0., 0., 0., 0.,
                     0.00100649, 0., 0., 0., 0., 0.], dtype=np.float32)
-
+    # fmt: on
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     # numeric columns
     import pandas as pd
-    y = pd.Series(digits['target'])
-    X = pd.DataFrame(digits['data'])
+
+    y = pd.Series(digits["target"])
+    X = pd.DataFrame(digits["data"])
     xgb_model = xgb.XGBClassifier(
         random_state=0,
         tree_method="exact",
