@@ -26,7 +26,7 @@ dependencies:
 - llvmlite
 - loky>=3.5.1
 - pyarrow
-- pyspark>=3.4.0
+- pyspark>=4.0.0
 - cloudpickle
 - pip:
   - awscli
