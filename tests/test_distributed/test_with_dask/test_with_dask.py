@@ -260,7 +260,7 @@ def run_categorical(
     check_model_output(reg.get_booster())
 
     reg = dxgb.DaskXGBRegressor(n_estimators=10, tree_method="exact")
-    with pytest.raises(ValueError, match="categorical data"):
+    with pytest.raises(ValueError, match="distributed training"):
         reg.fit(X, y)
     # check partition based
     reg = dxgb.DaskXGBRegressor(
