@@ -206,7 +206,7 @@ def run_categorical(
         "max_cat_to_onehot": 9999,
     }
     rounds = 10
-    m = dxgb.DaskDMatrix(client, X_onehot, y, enable_categorical=True)
+    m = dxgb.DaskDMatrix(client, X_onehot, y)
     by_etl_results = dxgb.train(
         client,
         parameters,
@@ -215,7 +215,7 @@ def run_categorical(
         evals=[(m, "Train")],
     )["history"]
 
-    m = dxgb.DaskDMatrix(client, X, y, enable_categorical=True)
+    m = dxgb.DaskDMatrix(client, X, y)
     output = dxgb.train(
         client,
         parameters,
@@ -249,7 +249,6 @@ def run_categorical(
 
     check_model_output(output["booster"])
     reg = dxgb.DaskXGBRegressor(
-        enable_categorical=True,
         n_estimators=10,
         tree_method=tree_method,
         device=device,
@@ -260,14 +259,11 @@ def run_categorical(
 
     check_model_output(reg.get_booster())
 
-    reg = dxgb.DaskXGBRegressor(
-        enable_categorical=True, n_estimators=10, tree_method="exact"
-    )
+    reg = dxgb.DaskXGBRegressor(n_estimators=10, tree_method="exact")
     with pytest.raises(ValueError, match="categorical data"):
         reg.fit(X, y)
     # check partition based
     reg = dxgb.DaskXGBRegressor(
-        enable_categorical=True,
         n_estimators=10,
         tree_method=tree_method,
         device=device,
@@ -294,9 +290,7 @@ def test_categorical(client: "Client") -> None:
     run_categorical(client, "hist", "cpu", X, X_onehot, y)
 
     ft = ["c"] * X.shape[1]
-    reg = dxgb.DaskXGBRegressor(
-        tree_method="hist", feature_types=ft, enable_categorical=True
-    )
+    reg = dxgb.DaskXGBRegressor(tree_method="hist", feature_types=ft)
     reg.fit(X, y)
     assert reg.get_booster().feature_types == ft
 
@@ -1283,7 +1277,7 @@ class TestWithDask:
             with dxgb.CommunicatorContext(**rabit_args):
                 rank = xgb.collective.get_rank()
                 X, y = tm.make_categorical(100, 4, 4, onehot=False)
-                Xy = xgb.DMatrix(X, y, enable_categorical=True)
+                Xy = xgb.DMatrix(X, y)
                 path = os.path.join(tmpdir, f"{rank}.bin")
                 Xy.save_binary(path)
 
@@ -1450,8 +1444,8 @@ class TestWithDask:
     def test_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 3000, 30, 13)
 
-        Xy = dxgb.DaskDMatrix(client, X, y, enable_categorical=True)
-        valid_Xy = dxgb.DaskDMatrix(client, X, y, enable_categorical=True)
+        Xy = dxgb.DaskDMatrix(client, X, y)
+        valid_Xy = dxgb.DaskDMatrix(client, X, y)
 
         output = dxgb.train(
             client,
@@ -1462,10 +1456,8 @@ class TestWithDask:
         )
         dmatrix_hist = output["history"]
 
-        Xy = dxgb.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
-        valid_Xy = dxgb.DaskQuantileDMatrix(
-            client, X, y, enable_categorical=True, ref=Xy
-        )
+        Xy = dxgb.DaskQuantileDMatrix(client, X, y)
+        valid_Xy = dxgb.DaskQuantileDMatrix(client, X, y, ref=Xy)
 
         output = dxgb.train(
             client,
@@ -1487,10 +1479,8 @@ class TestWithDask:
         X, y = make_categorical(client, 1, 16, 4, onehot=True)
         X_valid, y_valid = make_categorical(client, 2000, 16, 4, onehot=True)
 
-        Xy = dxgb.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
-        Xy_valid = dxgb.DaskQuantileDMatrix(
-            client, X_valid, y_valid, ref=Xy, enable_categorical=True
-        )
+        Xy = dxgb.DaskQuantileDMatrix(client, X, y)
+        Xy_valid = dxgb.DaskQuantileDMatrix(client, X_valid, y_valid, ref=Xy)
         result = dxgb.train(
             client,
             {"tree_method": "hist"},

@@ -213,7 +213,7 @@ class TestInplacePredict:
             if isinstance(orig, pd.DataFrame) and is_bool_dtype(dtypes.iloc[0]):
                 continue
             y = np.arange(x.shape[0])
-            Xy = xgb.DMatrix(orig, y, enable_categorical=True)
+            Xy = xgb.DMatrix(orig, y)
             booster = xgb.train({"tree_method": "hist"}, Xy, num_boost_round=1)
             predt_orig = booster.inplace_predict(orig)
             predt = booster.inplace_predict(x)

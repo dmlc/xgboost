@@ -41,7 +41,7 @@ def generate_regression_model() -> None:
         n_samples=kRows, n_features=kCols, n_categories=16, onehot=False, cat_ratio=0.5
     )
     w = np.random.default_rng(2025).uniform(size=X.shape[0])
-    data = xgboost.DMatrix(X, label=y, weight=w, enable_categorical=True)
+    data = xgboost.DMatrix(X, label=y, weight=w)
     booster = xgboost.train(
         {
             "tree_method": "hist",
@@ -61,7 +61,6 @@ def generate_regression_model() -> None:
         max_depth=kMaxDepth,
         n_estimators=kRounds,
         base_score=0.5,
-        enable_categorical=True,
     )
     reg.fit(X, y, sample_weight=w)
     reg.save_model(skl_ubj("reg"))
@@ -185,7 +184,7 @@ def generate_aft_survival_models() -> None:
     w = np.random.default_rng(2025).uniform(size=X.shape[0])
     y_upper = y_lower + np.mean(y_lower) + w
     data = xgboost.QuantileDMatrix(
-        X, label_lower_bound=y_lower, label_upper_bound=y_upper, enable_categorical=True
+        X, label_lower_bound=y_lower, label_upper_bound=y_upper
     )
     params = {
         "num_parallel_tree": kForests,

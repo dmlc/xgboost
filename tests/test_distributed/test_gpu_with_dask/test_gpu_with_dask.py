@@ -302,10 +302,8 @@ class TestDistributedGPU:
         X, y = make_categorical(client, 1, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
 
-        Xy = dxgb.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
-        Xy_valid = dxgb.DaskQuantileDMatrix(
-            client, X_valid, y_valid, ref=Xy, enable_categorical=True
-        )
+        Xy = dxgb.DaskQuantileDMatrix(client, X, y)
+        Xy_valid = dxgb.DaskQuantileDMatrix(client, X_valid, y_valid, ref=Xy)
         # The error is from a worker. Dask cannot prioritize which worker's error to
         # propagate, it could be the emtpy DMatrix error or the collective communication
         # error. As a result, the test doesn't match the error message.

@@ -1249,7 +1249,7 @@ def test_data_initialization() -> None:
     validate_data_initialization(xgb.QuantileDMatrix, xgb.XGBClassifier, X, y)
 
 
-@parametrize_with_checks([xgb.XGBRegressor(enable_categorical=True)])
+@parametrize_with_checks([xgb.XGBRegressor()])
 def test_estimator_reg(estimator, check):
     if os.environ["PYTEST_CURRENT_TEST"].find("check_supervised_y_no_nan") != -1:
         # The test uses float64 and requires the error message to contain:
@@ -1280,7 +1280,6 @@ def test_categorical():
     reg = xgb.XGBRegressor(
         feature_types=ft,
         max_cat_to_onehot=1,
-        enable_categorical=True,
     )
     reg.fit(X.values, y, eval_set=[(X.values, y)])
     from_cat = reg.evals_result()["validation_0"]["rmse"]
@@ -1540,7 +1539,7 @@ def test_apply_method() -> None:
     )  # <- categorical column
     y = np.arange(len(df))
 
-    model = xgb.XGBClassifier(enable_categorical=True)
+    model = xgb.XGBClassifier()
     model.fit(df, y)
 
     model.apply(df)  # this must not raise
