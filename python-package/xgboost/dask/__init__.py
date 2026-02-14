@@ -309,7 +309,7 @@ class DaskDMatrix:
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
     ) -> None:
         client = _get_client(client)
 
@@ -606,7 +606,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         max_quantile_batches: Optional[int] = None,
     ) -> None:
         super().__init__(
