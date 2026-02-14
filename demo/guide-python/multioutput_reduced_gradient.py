@@ -15,7 +15,7 @@ See :doc:`/tutorials/multioutput` for more information.
 """
 
 import argparse
-from typing import Tuple
+from typing import Protocol, Tuple, cast
 
 import numpy as np
 from sklearn.base import BaseEstimator
@@ -23,6 +23,12 @@ from sklearn.datasets import make_regression
 
 import xgboost as xgb
 from xgboost.objective import TreeObjective
+
+
+class SupportsGet(Protocol):
+    """Array-like object exposing a NumPy conversion via `get`."""
+
+    def get(self) -> np.ndarray: ...
 
 
 class LsObjMean(TreeObjective):
@@ -50,12 +56,13 @@ class LsObjMean(TreeObjective):
         self, iteration: int, grad: np.ndarray, hess: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         if self.device == "cpu":
-            from numpy import mean
+            sgrad = np.mean(grad, axis=1)
+            shess = np.mean(hess, axis=1)
         else:
-            from cupy import mean  # type: ignore[no-redef]
+            import cupy as cp
 
-        sgrad = mean(grad, axis=1)
-        shess = mean(hess, axis=1)
+            sgrad = cp.mean(grad, axis=1)
+            shess = cp.mean(hess, axis=1)
         return sgrad, shess
 
 
@@ -79,8 +86,8 @@ class LsObjSvd(LsObjMean):
     ) -> Tuple[np.ndarray, np.ndarray]:
         svd = svd_class(self.device)
         if self.device == "cuda":
-            grad = grad.get()   # type: ignore
-            hess = hess.get()   # type: ignore
+            grad = cast(SupportsGet, grad).get()
+            hess = cast(SupportsGet, hess).get()
 
         svd.fit(grad)
         grad = svd.transform(grad)
