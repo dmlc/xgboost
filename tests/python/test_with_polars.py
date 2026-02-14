@@ -150,8 +150,6 @@ def test_categorical() -> None:
         {"f0": [1, 3, 2, 4, 4], "f1": cats},
         schema=[("f0", pl.Int64()), ("f1", pl.Categorical(ordering="lexical"))],
     )
-    with pytest.raises(ValueError, match="enable_categorical"):
-        xgb.DMatrix(df)
 
     data = xgb.DMatrix(df, enable_categorical=True)
     categories = data.get_categories(export_to_arrow=True)

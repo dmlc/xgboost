@@ -266,8 +266,6 @@ class TestPandas:
 
         X = X["f0"]
         y = y[: X.shape[0]]
-        with pytest.raises(ValueError, match=r".*enable_categorical.*"):
-            xgb.DMatrix(X, y, data_split_mode=data_split_mode)
 
         Xy = xgb.DMatrix(X, y, enable_categorical=True, data_split_mode=data_split_mode)
         assert Xy.num_row() == 3

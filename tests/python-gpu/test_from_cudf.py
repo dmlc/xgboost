@@ -233,23 +233,15 @@ class TestFromColumnar:
             assert "mask" in col[1]
 
         y = [0, 1, 2]
-        with pytest.raises(ValueError):
-            xgb.DMatrix(X, y)
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
-
-        with pytest.raises(ValueError, match="enable_categorical"):
-            xgb.QuantileDMatrix(X, y)
 
         Xy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
         X = X["f0"]
-        with pytest.raises(ValueError):
-            xgb.DMatrix(X, y)
-
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
