@@ -1,6 +1,5 @@
 import json
-import os
-import tempfile
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -33,7 +32,7 @@ class TestModels:
         ) / float(len(preds))
         assert err < 0.2
 
-    def test_dart(self):
+    def test_dart(self, tmp_path: Path) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
         param = {
             "max_depth": 5,
@@ -55,17 +54,15 @@ class TestModels:
         # error must be smaller than 10%
         assert err < 0.1
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            dtest_path = os.path.join(tmpdir, "dtest.dmatrix")
-            model_path = os.path.join(tmpdir, "xgboost.model.dart.ubj")
-            # save dmatrix into binary buffer
-            dtest.save_binary(dtest_path)
-            model_path = model_path
-            # save model
-            bst.save_model(model_path)
-            # load model and data in
-            bst2 = xgb.Booster(params=param, model_file=model_path)
-            dtest2 = xgb.DMatrix(dtest_path)
+        dtest_path = tmp_path / "dtest.dmatrix"
+        model_path = tmp_path / "xgboost.model.dart.ubj"
+        # save dmatrix into binary buffer
+        dtest.save_binary(dtest_path)
+        # save model
+        bst.save_model(model_path)
+        # load model and data in
+        bst2 = xgb.Booster(params=param, model_file=model_path)
+        dtest2 = xgb.DMatrix(dtest_path)
 
         preds2 = bst2.predict(dtest2, iteration_range=(0, num_round))
 
