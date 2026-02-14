@@ -1891,8 +1891,8 @@ class XgboostLocalTest(SparkTestCase):
             # PySpark ML Connect does not support overwrite - this is a bug in Spark:
             # https://issues.apache.org/jira/browse/SPARK-55452
             if self.mode == "connect":
-                # import shutil
-                # shutil.rmtree(tmpdir + "/metadata")
+                import shutil
+                shutil.rmtree(tmpdir + "/metadata")
                 model.write().save(path)
             else:
                 model.write().overwrite().save(path)
