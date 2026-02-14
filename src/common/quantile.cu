@@ -1,11 +1,12 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/transform_scan.h>
+#include <thrust/tuple.h>  // for make_tuple
 #include <thrust/unique.h>
 
 #include <limits>       // for numeric_limits
@@ -46,13 +47,10 @@ __device__ SketchEntry BinarySearchQuery(EntryIter beg, EntryIter end, float ran
   }
 
   auto search_begin = dh::MakeTransformIterator<float>(
-      beg, [=] __device__(SketchEntry const &entry) {
-        return entry.rmin + entry.rmax;
-      });
+      beg, [=] __device__(SketchEntry const &entry) { return entry.rmin + entry.rmax; });
   auto search_end = search_begin + (end - beg);
   auto i =
-      thrust::upper_bound(thrust::seq, search_begin + 1, search_end - 1, rank) -
-      search_begin - 1;
+      thrust::upper_bound(thrust::seq, search_begin + 1, search_end - 1, rank) - search_begin - 1;
   if (rank < (*(beg + i)).RMinNext() + (*(beg + i + 1)).RMaxPrev()) {
     return *(beg + i);
   } else {
@@ -68,11 +66,10 @@ void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
                ToSketchEntry to_sketch_entry) {
   dh::LaunchN(out_cuts.size(), [=] __device__(size_t idx) {
     size_t column_id = dh::SegmentId(cuts_ptr, idx);
-    auto out_column = out_cuts.subspan(
-        cuts_ptr[column_id], cuts_ptr[column_id + 1] - cuts_ptr[column_id]);
+    auto out_column =
+        out_cuts.subspan(cuts_ptr[column_id], cuts_ptr[column_id + 1] - cuts_ptr[column_id]);
     auto in_column = sorted_data.subspan(columns_ptr_in[column_id],
-                                         columns_ptr_in[column_id + 1] -
-                                             columns_ptr_in[column_id]);
+                                         columns_ptr_in[column_id + 1] - columns_ptr_in[column_id]);
     auto to = cuts_ptr[column_id + 1] - cuts_ptr[column_id];
     idx -= cuts_ptr[column_id];
     auto front = to_sketch_entry(0ul, in_column, column_id);
@@ -112,27 +109,24 @@ template <typename T, typename U>
 void CopyTo(Span<T> out, Span<U> src) {
   CHECK_EQ(out.size(), src.size());
   static_assert(std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<T>>);
-  dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(),
-                                out.size_bytes(),
-                                cudaMemcpyDefault));
+  dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(), out.size_bytes(), cudaMemcpyDefault));
 }
 
 // Compute the merge path.
 common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
-    Context const* ctx,
-    Span<SketchEntry const> const &d_x, Span<bst_idx_t const> const &x_ptr,
-    Span<SketchEntry const> const &d_y, Span<bst_idx_t const> const &y_ptr,
-    Span<SketchEntry> out, Span<bst_idx_t> out_ptr) {
-  auto x_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
-      dh::MakeTransformIterator<bst_idx_t>(
-          thrust::make_counting_iterator(0ul),
-          [=] __device__(size_t idx) { return dh::SegmentId(x_ptr, idx); }),
-      d_x.data()));
-  auto y_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
-      dh::MakeTransformIterator<bst_idx_t>(
-          thrust::make_counting_iterator(0ul),
-          [=] __device__(size_t idx) { return dh::SegmentId(y_ptr, idx); }),
-      d_y.data()));
+    Context const *ctx, Span<SketchEntry const> const &d_x, Span<bst_idx_t const> const &x_ptr,
+    Span<SketchEntry const> const &d_y, Span<bst_idx_t const> const &y_ptr, Span<SketchEntry> out,
+    Span<bst_idx_t> out_ptr) {
+  auto x_merge_key_it = thrust::make_zip_iterator(
+      thrust::make_tuple(dh::MakeTransformIterator<bst_idx_t>(
+                             thrust::make_counting_iterator(0ul),
+                             [=] __device__(size_t idx) { return dh::SegmentId(x_ptr, idx); }),
+                         d_x.data()));
+  auto y_merge_key_it = thrust::make_zip_iterator(
+      thrust::make_tuple(dh::MakeTransformIterator<bst_idx_t>(
+                             thrust::make_counting_iterator(0ul),
+                             [=] __device__(size_t idx) { return dh::SegmentId(y_ptr, idx); }),
+                         d_y.data()));
 
   using Tuple = thrust::tuple<uint64_t, uint64_t>;
 
@@ -140,40 +134,42 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
   thrust::constant_iterator<uint64_t> b_ind_iter(1ul);
 
   auto place_holder = thrust::make_constant_iterator<uint64_t>(0u);
-  auto x_merge_val_it =
-      thrust::make_zip_iterator(thrust::make_tuple(a_ind_iter, place_holder));
-  auto y_merge_val_it =
-      thrust::make_zip_iterator(thrust::make_tuple(b_ind_iter, place_holder));
+  auto x_merge_val_it = thrust::make_zip_iterator(thrust::make_tuple(a_ind_iter, place_holder));
+  auto y_merge_val_it = thrust::make_zip_iterator(thrust::make_tuple(b_ind_iter, place_holder));
 
   static_assert(sizeof(Tuple) == sizeof(SketchEntry));
   // We reuse the memory for storing merge path.
   common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out.data()), out.size()};
   // Determine the merge path, 0 if element is from x, 1 if it's from y.
-  thrust::merge_by_key(
-      ctx->CUDACtx()->CTP(), x_merge_key_it, x_merge_key_it + d_x.size(),
-      y_merge_key_it, y_merge_key_it + d_y.size(), x_merge_val_it,
-      y_merge_val_it, thrust::make_discard_iterator(), merge_path.data(),
-      [=] __device__(auto const &l, auto const &r) -> bool {
-        auto l_column_id = thrust::get<0>(l);
-        auto r_column_id = thrust::get<0>(r);
-        if (l_column_id == r_column_id) {
-          return thrust::get<1>(l).value < thrust::get<1>(r).value;
-        }
-        return l_column_id < r_column_id;
-      });
+  thrust::merge_by_key(ctx->CUDACtx()->CTP(), x_merge_key_it, x_merge_key_it + d_x.size(),
+                       y_merge_key_it, y_merge_key_it + d_y.size(), x_merge_val_it, y_merge_val_it,
+                       thrust::make_discard_iterator(), merge_path.data(),
+                       [=] __device__(auto const &l, auto const &r) -> bool {
+                         auto l_column_id = thrust::get<0>(l);
+                         auto r_column_id = thrust::get<0>(r);
+                         if (l_column_id == r_column_id) {
+                           return thrust::get<1>(l).value < thrust::get<1>(r).value;
+                         }
+                         return l_column_id < r_column_id;
+                       });
 
   // Compute output ptr
-  auto transform_it =
-      thrust::make_zip_iterator(thrust::make_tuple(x_ptr.data(), y_ptr.data()));
+  auto transform_it = thrust::make_zip_iterator(thrust::make_tuple(x_ptr.data(), y_ptr.data()));
   thrust::transform(ctx->CUDACtx()->CTP(), transform_it, transform_it + x_ptr.size(),
                     out_ptr.data(),
                     [] __device__(auto const &t) { return thrust::get<0>(t) + thrust::get<1>(t); });
 
   // 0^th is the indicator, 1^th is placeholder
-  auto get_ind = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<0>(t); };
+  auto get_ind = [] XGBOOST_DEVICE(Tuple const &t) {
+    return thrust::get<0>(t);
+  };
   // 0^th is the counter for x, 1^th for y.
-  auto get_x =   []XGBOOST_DEVICE(Tuple const &t) { return thrust::get<0>(t); };
-  auto get_y =   []XGBOOST_DEVICE(Tuple const &t) { return thrust::get<1>(t); };
+  auto get_x = [] XGBOOST_DEVICE(Tuple const &t) {
+    return thrust::get<0>(t);
+  };
+  auto get_y = [] XGBOOST_DEVICE(Tuple const &t) {
+    return thrust::get<1>(t);
+  };
 
   auto scan_key_it = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),
@@ -195,11 +191,9 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
   // is landed into output as the first element in merge result.  The scan result is the
   // subscript of x and y.
   thrust::exclusive_scan_by_key(
-      ctx->CUDACtx()->CTP(), scan_key_it, scan_key_it + merge_path.size(),
-      scan_val_it, merge_path.data(),
-      thrust::make_tuple<uint64_t, uint64_t>(0ul, 0ul),
-      thrust::equal_to<size_t>{},
-      [=] __device__(Tuple const &l, Tuple const &r) -> Tuple {
+      ctx->CUDACtx()->CTP(), scan_key_it, scan_key_it + merge_path.size(), scan_val_it,
+      merge_path.data(), thrust::make_tuple<uint64_t, uint64_t>(0ul, 0ul),
+      thrust::equal_to<size_t>{}, [=] __device__(Tuple const &l, Tuple const &r) -> Tuple {
         return thrust::make_tuple(get_x(l) + get_x(r), get_y(l) + get_y(r));
       });
 
@@ -224,14 +218,12 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
     auto column_id = dh::SegmentId(out_ptr, idx);
     idx -= out_ptr[column_id];
 
-    auto d_x_column =
-        d_x.subspan(x_ptr[column_id], x_ptr[column_id + 1] - x_ptr[column_id]);
-    auto d_y_column =
-        d_y.subspan(y_ptr[column_id], y_ptr[column_id + 1] - y_ptr[column_id]);
-    auto d_out_column = d_out.subspan(
-        out_ptr[column_id], out_ptr[column_id + 1] - out_ptr[column_id]);
-    auto d_path_column = d_merge_path.subspan(
-        out_ptr[column_id], out_ptr[column_id + 1] - out_ptr[column_id]);
+    auto d_x_column = d_x.subspan(x_ptr[column_id], x_ptr[column_id + 1] - x_ptr[column_id]);
+    auto d_y_column = d_y.subspan(y_ptr[column_id], y_ptr[column_id + 1] - y_ptr[column_id]);
+    auto d_out_column =
+        d_out.subspan(out_ptr[column_id], out_ptr[column_id + 1] - out_ptr[column_id]);
+    auto d_path_column =
+        d_merge_path.subspan(out_ptr[column_id], out_ptr[column_id + 1] - out_ptr[column_id]);
 
     uint64_t a_ind, b_ind;
     thrust::tie(a_ind, b_ind) = d_path_column[idx];
@@ -253,17 +245,17 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
     if (a_ind == d_x_column.size()) {
       // Trailing elements are from y because there's no more x to land.
       auto y_elem = d_y_column[b_ind];
-      d_out_column[idx] = SketchEntry(y_elem.rmin + d_x_column.back().RMinNext(),
-                                      y_elem.rmax + d_x_column.back().rmax,
-                                      y_elem.wmin, y_elem.value);
+      d_out_column[idx] =
+          SketchEntry(y_elem.rmin + d_x_column.back().RMinNext(),
+                      y_elem.rmax + d_x_column.back().rmax, y_elem.wmin, y_elem.value);
       return;
     }
     auto x_elem = d_x_column[a_ind];
     assert(b_ind <= d_y_column.size());
     if (b_ind == d_y_column.size()) {
-      d_out_column[idx] = SketchEntry(x_elem.rmin + d_y_column.back().RMinNext(),
-                                      x_elem.rmax + d_y_column.back().rmax,
-                                      x_elem.wmin, x_elem.value);
+      d_out_column[idx] =
+          SketchEntry(x_elem.rmin + d_y_column.back().RMinNext(),
+                      x_elem.rmax + d_y_column.back().rmax, x_elem.wmin, x_elem.value);
       return;
     }
     auto y_elem = d_y_column[b_ind];
@@ -284,9 +276,8 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
     */
     assert(idx < d_out_column.size());
     if (x_elem.value == y_elem.value) {
-      d_out_column[idx] =
-          SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
-                      x_elem.wmin + y_elem.wmin, x_elem.value};
+      d_out_column[idx] = SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
+                                      x_elem.wmin + y_elem.wmin, x_elem.value};
     } else if (x_elem.value < y_elem.value) {
       // elem from x is landed. yprev_min is the element in D_2 that's 1 rank less than
       // x_elem if we put x_elem in D_2.
@@ -294,15 +285,13 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
       // rmin should be equal to x_elem.rmin + x_elem.wmin + yprev_min.  But for
       // implementation, the weight is stored in a separated field and we compute the
       // extended definition on the fly when needed.
-      d_out_column[idx] =
-          SketchEntry{x_elem.rmin + yprev_min, x_elem.rmax + y_elem.RMaxPrev(),
-                      x_elem.wmin, x_elem.value};
+      d_out_column[idx] = SketchEntry{x_elem.rmin + yprev_min, x_elem.rmax + y_elem.RMaxPrev(),
+                                      x_elem.wmin, x_elem.value};
     } else {
       // elem from y is landed.
       float xprev_min = a_ind == 0 ? 0.0f : d_x_column[a_ind - 1].RMinNext();
-      d_out_column[idx] =
-          SketchEntry{xprev_min + y_elem.rmin, x_elem.RMaxPrev() + y_elem.rmax,
-                      y_elem.wmin, y_elem.value};
+      d_out_column[idx] = SketchEntry{xprev_min + y_elem.rmin, x_elem.RMaxPrev() + y_elem.rmax,
+                                      y_elem.wmin, y_elem.value};
     }
   });
 }
@@ -322,19 +311,17 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
   }
   auto ft = this->feature_types_.ConstDeviceSpan();
   if (weights.empty()) {
-    auto to_sketch_entry = [] __device__(size_t sample_idx,
-                                         Span<Entry const> const &column,
+    auto to_sketch_entry = [] __device__(size_t sample_idx, Span<Entry const> const &column,
                                          size_t) {
       float rmin = sample_idx;
       float rmax = sample_idx + 1;
       return SketchEntry{rmin, rmax, 1, column[sample_idx].fvalue};
-    }; // NOLINT
+    };  // NOLINT
     PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
   } else {
-    auto to_sketch_entry = [weights, columns_ptr] __device__(
-                               size_t sample_idx,
-                               Span<Entry const> const &column,
-                               size_t column_id) {
+    auto to_sketch_entry = [weights, columns_ptr] __device__(size_t sample_idx,
+                                                             Span<Entry const> const &column,
+                                                             size_t column_id) {
       Span<float const> column_weights_scan =
           weights.subspan(columns_ptr[column_id], column.size());
       float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
@@ -342,7 +329,7 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
       float wmin = rmax - rmin;
       wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
       return SketchEntry{rmin, rmax, wmin, column[sample_idx].fvalue};
-    }; // NOLINT
+    };  // NOLINT
     PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
   }
   auto n_uniques = this->ScanInput(ctx, out, cuts_ptr);
@@ -374,24 +361,20 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
 
   auto key_it = dh::MakeTransformIterator<size_t>(
       thrust::make_reverse_iterator(thrust::make_counting_iterator(entries.size())),
-      [=] __device__(size_t idx) {
-        return dh::SegmentId(d_columns_ptr_in, idx);
-      });
+      [=] __device__(size_t idx) { return dh::SegmentId(d_columns_ptr_in, idx); });
   // Reverse scan to accumulate weights into first duplicated element on left.
   auto val_it = thrust::make_reverse_iterator(dh::tend(entries));
-  thrust::inclusive_scan_by_key(
-      ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(),
-      val_it, val_it,
-      thrust::equal_to<size_t>{},
-      [] __device__(SketchEntry const &r, SketchEntry const &l) {
-        // Only accumulate for the first type of duplication.
-        if (l.value - r.value == 0 && l.rmin - r.rmin != 0) {
-          auto w = l.wmin + r.wmin;
-          SketchEntry v{l.rmin, l.rmin + w, w, l.value};
-          return v;
-        }
-        return l;
-      });
+  thrust::inclusive_scan_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + entries.size(), val_it,
+                                val_it, thrust::equal_to<size_t>{},
+                                [] __device__(SketchEntry const &r, SketchEntry const &l) {
+                                  // Only accumulate for the first type of duplication.
+                                  if (l.value - r.value == 0 && l.rmin - r.rmin != 0) {
+                                    auto w = l.wmin + r.wmin;
+                                    SketchEntry v{l.rmin, l.rmin + w, w, l.value};
+                                    return v;
+                                  }
+                                  return l;
+                                });
 
   auto d_columns_ptr_out = columns_ptr_b_.DeviceSpan();
   // thrust unique_by_key preserves the first element.
@@ -406,14 +389,14 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
   return n_uniques;
 }
 
-void SketchContainer::Prune(Context const* ctx, std::size_t to) {
+void SketchContainer::Prune(Context const *ctx, std::size_t to) {
   timer_.Start(__func__);
   curt::SetDevice(ctx->Ordinal());
 
   OffsetT to_total = 0;
-  auto& h_columns_ptr = columns_ptr_b_.HostVector();
+  auto &h_columns_ptr = columns_ptr_b_.HostVector();
   h_columns_ptr[0] = to_total;
-  auto const& h_feature_types = feature_types_.ConstHostSpan();
+  auto const &h_feature_types = feature_types_.ConstHostSpan();
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
     size_t length = this->Column(i).size();
     length = std::min(length, to);
@@ -421,7 +404,7 @@ void SketchContainer::Prune(Context const* ctx, std::size_t to) {
       length = this->Column(i).size();
     }
     to_total += length;
-    h_columns_ptr[i+1] = to_total;
+    h_columns_ptr[i + 1] = to_total;
   }
   this->Other().resize(to_total);
 
@@ -429,9 +412,9 @@ void SketchContainer::Prune(Context const* ctx, std::size_t to) {
   auto d_columns_ptr_out = columns_ptr_b_.ConstDeviceSpan();
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
-  auto no_op = [] __device__(size_t sample_idx,
-                             Span<SketchEntry const> const &entries,
-                             size_t) { return entries[sample_idx]; }; // NOLINT
+  auto no_op = [] __device__(size_t sample_idx, Span<SketchEntry const> const &entries, size_t) {
+    return entries[sample_idx];
+  };  // NOLINT
   auto ft = this->feature_types_.ConstDeviceSpan();
   PruneImpl<SketchEntry>(d_columns_ptr_out, in, d_columns_ptr_in, ft, out, no_op);
   this->columns_ptr_.Copy(columns_ptr_b_);
@@ -497,14 +480,13 @@ void SketchContainer::FixError() {
   dh::LaunchN(in.size(), [=] __device__(size_t idx) {
     auto column_id = dh::SegmentId(d_columns_ptr, idx);
     auto in_column = in.subspan(d_columns_ptr[column_id],
-                                d_columns_ptr[column_id + 1] -
-                                    d_columns_ptr[column_id]);
+                                d_columns_ptr[column_id + 1] - d_columns_ptr[column_id]);
     idx -= d_columns_ptr[column_id];
-    float prev_rmin = idx == 0 ? 0.0f : in_column[idx-1].rmin;
+    float prev_rmin = idx == 0 ? 0.0f : in_column[idx - 1].rmin;
     if (in_column[idx].rmin < prev_rmin) {
       in_column[idx].rmin = prev_rmin;
     }
-    float prev_rmax = idx == 0 ? 0.0f : in_column[idx-1].rmax;
+    float prev_rmax = idx == 0 ? 0.0f : in_column[idx - 1].rmax;
     if (in_column[idx].rmax < prev_rmax) {
       in_column[idx].rmax = prev_rmax;
     }
@@ -515,7 +497,7 @@ void SketchContainer::FixError() {
   });
 }
 
-void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
+void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   curt::SetDevice(ctx->Ordinal());
   auto world = collective::GetWorldSize();
   if (world == 1 || is_column_split) {
@@ -604,7 +586,7 @@ struct InvalidCatOp {
 };
 }  // anonymous namespace
 
-void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool is_column_split) {
+void SketchContainer::MakeCuts(Context const *ctx, HistogramCuts *p_cuts, bool is_column_split) {
   curt::SetDevice(ctx->Ordinal());
   p_cuts->min_vals_.Resize(num_columns_);
 
@@ -625,10 +607,10 @@ void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool i
 
   // Set up output ptr
   p_cuts->cut_ptrs_.SetDevice(ctx->Device());
-  auto& h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
+  auto &h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
   h_out_columns_ptr.clear();
   h_out_columns_ptr.push_back(0);
-  auto const& h_feature_types = this->feature_types_.ConstHostSpan();
+  auto const &h_feature_types = this->feature_types_.ConstHostSpan();
 
   auto d_ft = feature_types_.ConstDeviceSpan();
 
@@ -708,12 +690,11 @@ void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool i
 
   dh::LaunchN(total_bins, [=] __device__(size_t idx) {
     auto column_id = dh::SegmentId(d_out_columns_ptr, idx);
-    auto in_column = in_cut_values.subspan(d_in_columns_ptr[column_id],
-                                           d_in_columns_ptr[column_id + 1] -
-                                               d_in_columns_ptr[column_id]);
-    auto out_column = out_cut_values.subspan(d_out_columns_ptr[column_id],
-                                             d_out_columns_ptr[column_id + 1] -
-                                                 d_out_columns_ptr[column_id]);
+    auto in_column = in_cut_values.subspan(
+        d_in_columns_ptr[column_id], d_in_columns_ptr[column_id + 1] - d_in_columns_ptr[column_id]);
+    auto out_column =
+        out_cut_values.subspan(d_out_columns_ptr[column_id],
+                               d_out_columns_ptr[column_id + 1] - d_out_columns_ptr[column_id]);
     idx -= d_out_columns_ptr[column_id];
     if (in_column.size() == 0) {
       // If the column is empty, we push a dummy value.  It won't affect training as the
@@ -745,8 +726,8 @@ void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool i
       out_column[idx] = last;
       return;
     }
-    assert(idx+1 < in_column.size());
-    out_column[idx] = in_column[idx+1].value;
+    assert(idx + 1 < in_column.size());
+    out_column[idx] = in_column[idx + 1].value;
   });
 
   p_cuts->SetCategorical(this->has_categorical_, max_cat);

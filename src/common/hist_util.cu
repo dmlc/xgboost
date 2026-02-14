@@ -10,6 +10,7 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/sort.h>
+#include <thrust/tuple.h>  // for tuple
 #include <xgboost/logging.h>
 
 #include <cstddef>  // for size_t
@@ -44,8 +45,8 @@ size_t RequiredSampleCuts(bst_idx_t num_rows, bst_feature_t num_columns, size_t 
   return result;
 }
 
-size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz,
-                      size_t num_bins, bool with_weights) {
+size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz, size_t num_bins,
+                      bool with_weights) {
   size_t peak = 0;
   // 0. Allocate cut pointer in quantile container by increasing: n_columns + 1
   size_t total = (num_columns + 1) * sizeof(SketchContainer::OffsetT);
@@ -71,12 +72,13 @@ size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz,
   // 9. Allocate final cut values, min values, cut ptrs: std::min(rows, bins + 1) *
   //    n_columns + n_columns + n_columns + 1
   total += std::min(num_rows, num_bins) * num_columns * sizeof(float);
-  total += num_columns *
-           sizeof(std::remove_reference_t<decltype(
-                      std::declval<HistogramCuts>().MinValues())>::value_type);
-  total += (num_columns + 1) *
-           sizeof(std::remove_reference_t<decltype(
-                      std::declval<HistogramCuts>().Ptrs())>::value_type);
+  total +=
+      num_columns *
+      sizeof(
+          std::remove_reference_t<decltype(std::declval<HistogramCuts>().MinValues())>::value_type);
+  total +=
+      (num_columns + 1) *
+      sizeof(std::remove_reference_t<decltype(std::declval<HistogramCuts>().Ptrs())>::value_type);
   peak = std::max(peak, total);
 
   return peak;
