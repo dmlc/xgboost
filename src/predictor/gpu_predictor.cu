@@ -26,6 +26,7 @@
 #include "../data/proxy_dmatrix.cuh"  // for DispatchAny
 #include "../data/proxy_dmatrix.h"
 #include "../gbm/gbtree_model.h"
+#include "../interpretability/shap.h"
 #include "../tree/tree_view.h"
 #include "gbtree_view.h"  // for GBTreeModelView
 #include "predict_fn.h"
@@ -724,18 +725,23 @@ class ColumnSplitHelper {
       SparsePageView data{ctx_, batch, num_features};
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
       auto d_tree_groups = d_model.tree_groups;
-      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
+      // clang-format off
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes,
+                        ctx_->CUDACtx()->Stream()}(
+          // clang-format on
           MaskBitVectorKernel, data, d_model.Trees(), decision_bits, missing_bits,
           d_model.tree_begin, d_model.tree_end, num_features, num_nodes, use_shared,
           std::numeric_limits<float>::quiet_NaN());
 
       AllReduceBitVectors(&decision_storage, &missing_storage);
 
-      dh::LaunchKernel {grid, kBlockThreads, 0, ctx_->CUDACtx()->Stream()}(
+      // clang-format off
+      dh::LaunchKernel {grid, kBlockThreads, 0,
+                        ctx_->CUDACtx()->Stream()}(
+          // clang-format on
           PredictByBitVectorKernel<predict_leaf>, d_model.Trees(),
-          out_preds->DeviceSpan().subspan(batch_offset), d_tree_groups,
-          decision_bits, missing_bits, d_model.tree_begin, d_model.tree_end, num_rows, num_nodes,
-          num_group);
+          out_preds->DeviceSpan().subspan(batch_offset), d_tree_groups, decision_bits, missing_bits,
+          d_model.tree_begin, d_model.tree_end, num_rows, num_nodes, num_group);
 
       batch_offset += batch.Size() * num_group;
     }
@@ -858,8 +864,7 @@ class LaunchConfig {
   }
 
  public:
-  LaunchConfig(Context const* ctx, bst_feature_t n_features)
-      : ctx_{ctx}, n_features_{n_features} {}
+  LaunchConfig(Context const* ctx, bst_feature_t n_features) : ctx_{ctx}, n_features_{n_features} {}
 
   template <typename Fn>
   void ForEachBatch(DMatrix* p_fmat, Fn&& fn) {
@@ -1055,18 +1060,16 @@ class GPUPredictor : public xgboost::Predictor {
       }
     }
 
-    LaunchPredict(this->ctx_, false, enc::DeviceColumnsView{}, model,
-                  [&](auto&& cfg, auto&& acc) {
-                    using EncAccessor = std::remove_reference_t<decltype(acc)>;
-                    CHECK((std::is_same_v<EncAccessor, NoOpAccessor>));
-                    using LoaderImpl = DeviceAdapterLoader<BatchT, EncAccessor>;
-                    using Loader =
-                        typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl,
-                                                                                       128>;
-                    cfg.template AllocShmem<Loader>();
-                    cfg.template LaunchPredictKernel<Loader>(
-                        m->Value(), missing, n_features, d_model, acc, 0, &out_preds->predictions);
-                  });
+    LaunchPredict(this->ctx_, false, enc::DeviceColumnsView{}, model, [&](auto&& cfg, auto&& acc) {
+      using EncAccessor = std::remove_reference_t<decltype(acc)>;
+      CHECK((std::is_same_v<EncAccessor, NoOpAccessor>));
+      using LoaderImpl = DeviceAdapterLoader<BatchT, EncAccessor>;
+      using Loader =
+          typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
+      cfg.template AllocShmem<Loader>();
+      cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
+                                               &out_preds->predictions);
+    });
   }
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,
@@ -1091,62 +1094,11 @@ class GPUPredictor : public xgboost::Predictor {
                            std::vector<float> const* tree_weights, bool approximate, int,
                            unsigned) const override {
     xgboost_NVTX_FN_RANGE();
-    StringView not_implemented{
-        "contribution is not implemented in the GPU predictor, use CPU instead."};
     if (approximate) {
-      LOG(FATAL) << "Approximated " << not_implemented;
+      LOG(FATAL) << "Approximated contribution is not implemented in the GPU predictor, use CPU "
+                    "instead.";
     }
-    if (tree_weights != nullptr) {
-      LOG(FATAL) << "Dart booster feature " << not_implemented;
-    }
-    CHECK(!p_fmat->Info().IsColumnSplit())
-        << "Predict contribution support for column-wise data split is not yet implemented.";
-    dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
-    out_contribs->SetDevice(ctx_->Device());
-    tree_end = GetTreeLimit(model.trees, tree_end);
-
-    const int ngroup = model.learner_model_param->num_output_group;
-    CHECK_NE(ngroup, 0);
-    // allocate space for (number of features + bias) times the number of rows
-    size_t contributions_columns = model.learner_model_param->num_feature + 1;  // +1 for bias
-    auto dim_size = contributions_columns * model.learner_model_param->num_output_group;
-    // Output shape: [n_samples, n_classes, n_features + 1]
-    out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
-    out_contribs->Fill(0.0f);
-    auto phis = out_contribs->DeviceSpan();
-
-    dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model{this->ctx_->Device(), model, true, 0, tree_end, &this->model_mu_,
-                        CopyViews{this->ctx_}};
-
-    auto new_enc =
-        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
-
-    dh::device_vector<uint32_t> categories;
-    ExtractPaths(ctx_, &device_paths, model, d_model, &categories);
-
-    LaunchShap(this->ctx_, new_enc, model, [&](auto&& cfg, auto&& acc) {
-      using Config = common::GetValueT<decltype(cfg)>;
-      using EncAccessor = typename Config::EncAccessorT;
-
-      cfg.ForEachBatch(
-          p_fmat, std::forward<EncAccessor>(acc), [&](auto&& loader, bst_idx_t base_rowid) {
-            auto begin = dh::tbegin(phis) + base_rowid * dim_size;
-            gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
-                loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
-          });
-    });
-
-    // Add the base margin term to last column
-    p_fmat->Info().base_margin_.SetDevice(ctx_->Device());
-    const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-
-    auto base_score = model.learner_model_param->BaseScore(ctx_);
-    bst_idx_t n_samples = p_fmat->Info().num_row_;
-    dh::LaunchN(n_samples * ngroup, ctx_->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
-      auto [_, gid] = linalg::UnravelIndex(idx, n_samples, ngroup);
-      phis[(idx + 1) * contributions_columns - 1] += margin.empty() ? base_score(gid) : margin[idx];
-    });
+    interpretability::ShapValues(ctx_, p_fmat, out_contribs, model, tree_end, tree_weights, 0, 0);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -1154,62 +1106,12 @@ class GPUPredictor : public xgboost::Predictor {
                                        std::vector<float> const* tree_weights,
                                        bool approximate) const override {
     xgboost_NVTX_FN_RANGE();
-    std::string not_implemented{
-        "contribution is not implemented in GPU predictor, use cpu instead."};
     if (approximate) {
-      LOG(FATAL) << "Approximated " << not_implemented;
+      LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use cpu "
+                    "instead.";
     }
-    if (tree_weights != nullptr) {
-      LOG(FATAL) << "Dart booster feature " << not_implemented;
-    }
-    dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
-    out_contribs->SetDevice(ctx_->Device());
-    tree_end = GetTreeLimit(model.trees, tree_end);
-
-    const int ngroup = model.learner_model_param->num_output_group;
-    CHECK_NE(ngroup, 0);
-    // allocate space for (number of features + bias) times the number of rows
-    size_t contributions_columns = model.learner_model_param->num_feature + 1;  // +1 for bias
-    auto dim_size =
-        contributions_columns * contributions_columns * model.learner_model_param->num_output_group;
-    out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
-    out_contribs->Fill(0.0f);
-    auto phis = out_contribs->DeviceSpan();
-
-    dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-    DeviceModel d_model{this->ctx_->Device(), model, true, 0, tree_end, &this->model_mu_,
-                        CopyViews{this->ctx_}};
-
-    dh::device_vector<uint32_t> categories;
-    ExtractPaths(ctx_, &device_paths, model, d_model, &categories);
-    auto new_enc =
-        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
-
-    LaunchShap(this->ctx_, new_enc, model, [&](auto&& cfg, auto&& acc) {
-      using Config = common::GetValueT<decltype(cfg)>;
-      using EncAccessor = typename Config::EncAccessorT;
-
-      cfg.ForEachBatch(
-          p_fmat, std::forward<EncAccessor>(acc), [&](auto&& loader, bst_idx_t base_rowid) {
-            auto begin = dh::tbegin(phis) + base_rowid * dim_size;
-            gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
-                loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
-          });
-    });
-
-    // Add the base margin term to last column
-    p_fmat->Info().base_margin_.SetDevice(ctx_->Device());
-    const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-
-    auto base_score = model.learner_model_param->BaseScore(ctx_);
-    size_t n_features = model.learner_model_param->num_feature;
-    bst_idx_t n_samples = p_fmat->Info().num_row_;
-    dh::LaunchN(n_samples * ngroup, ctx_->CUDACtx()->Stream(), [=] __device__(size_t idx) {
-      auto [ridx, gidx] = linalg::UnravelIndex(idx, n_samples, ngroup);
-      phis[gpu_treeshap::IndexPhiInteractions(ridx, ngroup, gidx, n_features, n_features,
-                                              n_features)] +=
-          margin.empty() ? base_score(gidx) : margin[idx];
-    });
+    interpretability::ShapInteractionValues(ctx_, p_fmat, out_contribs, model, tree_end,
+                                            tree_weights, approximate);
   }
 
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<float>* predictions,

@@ -20,11 +20,11 @@
 #include "../data/gradient_index.h"           // for GHistIndexMatrix
 #include "../data/proxy_dmatrix.h"            // for DMatrixProxy
 #include "../gbm/gbtree_model.h"              // for GBTreeModel, GBTreeModelParam
+#include "../interpretability/shap.h"         // for PredictContribution
 #include "array_tree_layout.h"                // for ProcessArrayTree
 #include "dmlc/registry.h"                    // for DMLC_REGISTRY_FILE_TAG
 #include "gbtree_view.h"                      // for GBTreeModelView
 #include "predict_fn.h"                       // for GetNextNode, GetNextNodeMulti
-#include "treeshap.h"                         // for CalculateContributions
 #include "utils.h"                            // for CheckProxyDMatrix
 #include "xgboost/base.h"                     // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
 #include "xgboost/context.h"                  // for Context
@@ -572,31 +572,6 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
   });
 }
 
-float FillNodeMeanValues(tree::ScalarTreeView const &tree, bst_node_t nidx,
-                         std::vector<float> *mean_values) {
-  float result;
-  auto &node_mean_values = *mean_values;
-  if (tree.IsLeaf(nidx)) {
-    result = tree.LeafValue(nidx);
-  } else {
-    result = FillNodeMeanValues(tree, tree.LeftChild(nidx), mean_values) *
-             tree.Stat(tree.LeftChild(nidx)).sum_hess;
-    result += FillNodeMeanValues(tree, tree.RightChild(nidx), mean_values) *
-              tree.Stat(tree.RightChild(nidx)).sum_hess;
-    result /= tree.Stat(nidx).sum_hess;
-  }
-  node_mean_values[nidx] = result;
-  return result;
-}
-
-void FillNodeMeanValues(tree::ScalarTreeView const &tree, std::vector<float> *mean_values) {
-  auto n_nodes = tree.Size();
-  if (static_cast<decltype(n_nodes)>(mean_values->size()) == n_nodes) {
-    return;
-  }
-  mean_values->resize(n_nodes);
-  FillNodeMeanValues(tree, 0, mean_values);
-}
 }  // anonymous namespace
 
 /**
@@ -916,65 +891,6 @@ class CPUPredictor : public Predictor {
     });
   }
 
-  template <typename DataView>
-  void PredictContributionKernel(DataView batch, const MetaInfo &info, HostModel const &h_model,
-                                 linalg::VectorView<float const> base_score,
-                                 std::vector<bst_float> const *tree_weights,
-                                 std::vector<std::vector<float>> *mean_values,
-                                 ThreadTmp<1> *feat_vecs, std::vector<bst_float> *contribs,
-                                 bool approximate, int condition,
-                                 unsigned condition_feature) const {
-    const int num_feature = h_model.n_features;
-    const auto n_groups = h_model.n_groups;
-    CHECK_NE(n_groups, 0);
-    size_t const ncolumns = num_feature + 1;
-    CHECK_NE(ncolumns, 0);
-    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
-    auto base_margin = info.base_margin_.View(device);
-
-    // parallel over local batch
-    common::ParallelFor(batch.Size(), this->ctx_->Threads(), [&](auto i) {
-      auto row_idx = batch.base_rowid + i;
-      RegTree::FVec &feats = feat_vecs->ThreadBuffer(1).front();
-      if (feats.Size() == 0) {
-        feats.Init(num_feature);
-      }
-      std::vector<bst_float> this_tree_contribs(ncolumns);
-      // loop over all classes
-      for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-        float *p_contribs = &(*contribs)[(row_idx * n_groups + gid) * ncolumns];
-        batch.Fill(i, &feats);
-        // calculate contributions
-        for (bst_tree_t j = 0; j < h_model.tree_end; ++j) {
-          auto *tree_mean_values = &mean_values->at(j);
-          std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
-          if (h_model.tree_groups[j] != gid) {
-            continue;
-          }
-          auto sc_tree = std::get<tree::ScalarTreeView>(h_model.Trees()[j]);
-          if (!approximate) {
-            CalculateContributions(sc_tree, feats, tree_mean_values, &this_tree_contribs[0],
-                                   condition, condition_feature);
-          } else {
-            CalculateContributionsApprox(sc_tree, feats, tree_mean_values, &this_tree_contribs[0]);
-          }
-          for (size_t ci = 0; ci < ncolumns; ++ci) {
-            p_contribs[ci] +=
-                this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
-          }
-        }
-        feats.Drop();
-        // add base margin to BIAS
-        if (base_margin.Size() != 0) {
-          CHECK_EQ(base_margin.Shape(1), n_groups);
-          p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
-        } else {
-          p_contribs[ncolumns - 1] += base_score(gid);
-        }
-      }
-    });
-  }
-
  public:
   explicit CPUPredictor(Context const *ctx) : Predictor::Predictor{ctx} {}
 
@@ -1086,94 +1002,21 @@ class CPUPredictor : public Predictor {
                            const gbm::GBTreeModel &model, bst_tree_t ntree_limit,
                            std::vector<bst_float> const *tree_weights, bool approximate,
                            int condition, unsigned condition_feature) const override {
-    CHECK(!model.learner_model_param->IsVectorLeaf())
-        << "Predict contribution" << MTNotImplemented();
-    CHECK(!p_fmat->Info().IsColumnSplit())
-        << "Predict contribution support for column-wise data split is not yet implemented.";
-    auto const n_threads = this->ctx_->Threads();
-    ThreadTmp<1> feat_vecs{n_threads};
-    const MetaInfo &info = p_fmat->Info();
-    // number of valid trees
-    ntree_limit = GetTreeLimit(model.trees, ntree_limit);
-    size_t const ncolumns = model.learner_model_param->num_feature + 1;
-    // allocate space for (number of features + bias) times the number of rows
-    std::vector<bst_float> &contribs = out_contribs->HostVector();
-    contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
-    // make sure contributions is zeroed, we could be reusing a previously
-    // allocated one
-    std::fill(contribs.begin(), contribs.end(), 0);
-    // initialize tree node mean values
-    std::vector<std::vector<float>> mean_values(ntree_limit);
-    common::ParallelFor(ntree_limit, n_threads, [&](bst_omp_uint i) {
-      FillNodeMeanValues(model.trees[i]->HostScView(), &(mean_values[i]));
-    });
-
-    auto const h_model =
-        HostModel{DeviceOrd::CPU(), model, true, 0, ntree_limit, &this->mu_, CopyViews{}};
-    LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
-      policy.ForEachBatch([&](auto &&batch) {
-        PredictContributionKernel(batch, info, h_model,
-                                  model.learner_model_param->BaseScore(DeviceOrd::CPU()),
-                                  tree_weights, &mean_values, &feat_vecs, &contribs, approximate,
-                                  condition, condition_feature);
-      });
-    });
+    if (approximate) {
+      interpretability::ApproxFeatureImportance(this->ctx_, p_fmat, out_contribs, model,
+                                                ntree_limit, tree_weights);
+    } else {
+      interpretability::ShapValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
+                                   tree_weights, condition, condition_feature);
+    }
   }
 
   void PredictInteractionContributions(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                                        gbm::GBTreeModel const &model, bst_tree_t ntree_limit,
                                        std::vector<float> const *tree_weights,
                                        bool approximate) const override {
-    CHECK(!model.learner_model_param->IsVectorLeaf())
-        << "Predict interaction contribution" << MTNotImplemented();
-    CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
-                                              "column-wise data split is not yet implemented.";
-    const MetaInfo &info = p_fmat->Info();
-    auto const ngroup = model.learner_model_param->num_output_group;
-    auto const ncolumns = model.learner_model_param->num_feature;
-    const unsigned row_chunk = ngroup * (ncolumns + 1) * (ncolumns + 1);
-    const unsigned mrow_chunk = (ncolumns + 1) * (ncolumns + 1);
-    const unsigned crow_chunk = ngroup * (ncolumns + 1);
-
-    // allocate space for (number of features^2) times the number of rows and tmp off/on contribs
-    std::vector<bst_float> &contribs = out_contribs->HostVector();
-    contribs.resize(info.num_row_ * ngroup * (ncolumns + 1) * (ncolumns + 1));
-    HostDeviceVector<bst_float> contribs_off_hdv(info.num_row_ * ngroup * (ncolumns + 1));
-    auto &contribs_off = contribs_off_hdv.HostVector();
-    HostDeviceVector<bst_float> contribs_on_hdv(info.num_row_ * ngroup * (ncolumns + 1));
-    auto &contribs_on = contribs_on_hdv.HostVector();
-    HostDeviceVector<bst_float> contribs_diag_hdv(info.num_row_ * ngroup * (ncolumns + 1));
-    auto &contribs_diag = contribs_diag_hdv.HostVector();
-
-    // Compute the difference in effects when conditioning on each of the features on and off
-    // see: Axiomatic characterizations of probabilistic and
-    //      cardinal-probabilistic interaction indices
-    PredictContribution(p_fmat, &contribs_diag_hdv, model, ntree_limit, tree_weights, approximate,
-                        0, 0);
-    for (size_t i = 0; i < ncolumns + 1; ++i) {
-      PredictContribution(p_fmat, &contribs_off_hdv, model, ntree_limit, tree_weights, approximate,
-                          -1, i);
-      PredictContribution(p_fmat, &contribs_on_hdv, model, ntree_limit, tree_weights, approximate,
-                          1, i);
-
-      for (size_t j = 0; j < info.num_row_; ++j) {
-        for (std::remove_const_t<decltype(ngroup)> l = 0; l < ngroup; ++l) {
-          const unsigned o_offset = j * row_chunk + l * mrow_chunk + i * (ncolumns + 1);
-          const unsigned c_offset = j * crow_chunk + l * (ncolumns + 1);
-          contribs[o_offset + i] = 0;
-          for (size_t k = 0; k < ncolumns + 1; ++k) {
-            // fill in the diagonal with additive effects, and off-diagonal with the interactions
-            if (k == i) {
-              contribs[o_offset + i] += contribs_diag[c_offset + k];
-            } else {
-              contribs[o_offset + k] =
-                  (contribs_on[c_offset + k] - contribs_off[c_offset + k]) / 2.0;
-              contribs[o_offset + i] -= contribs[o_offset + k];
-            }
-          }
-        }
-      }
-    }
+    interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
+                                            tree_weights, approximate);
   }
 
  private:
