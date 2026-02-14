@@ -1,6 +1,5 @@
-import os
-import tempfile
 import weakref
+from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 import numpy as np
@@ -251,7 +250,7 @@ def test_data_cache() -> None:
     xgb.data._proxy_transform = transform
 
 
-def test_cat_check() -> None:
+def test_cat_check(tmp_path: Path) -> None:
     n_batches = 3
     n_features = 2
     n_samples_per_batch = 16
@@ -278,13 +277,12 @@ def test_cat_check() -> None:
     with pytest.raises(ValueError, match="categorical features"):
         xgb.train({"tree_method": "exact"}, Xy)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = os.path.join(tmpdir, "cache")
+    cache_path = tmp_path / "cache"
 
-        it = tm.IteratorForTest(X, y, None, cache=cache_path, on_host=False)
-        Xy = xgb.DMatrix(it, enable_categorical=True)
-        with pytest.raises(ValueError, match="categorical features"):
-            xgb.train({"booster": "gblinear"}, Xy)
+    it = tm.IteratorForTest(X, y, None, cache=str(cache_path), on_host=False)
+    Xy = xgb.DMatrix(it, enable_categorical=True)
+    with pytest.raises(ValueError, match="categorical features"):
+        xgb.train({"booster": "gblinear"}, Xy)
 
 
 @given(
