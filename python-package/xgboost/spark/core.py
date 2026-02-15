@@ -381,13 +381,13 @@ class _SparkXGBParams(
                     self.getOrDefault(self.num_workers),
                 )
             else:
-                executor_gpus = conf.get("spark.executor.resource.gpu.amount", None)
+                executor_gpus = conf.get("spark.executor.resource.gpu.amount")
                 if executor_gpus is None:
                     raise ValueError(
                         "The `spark.executor.resource.gpu.amount` is required for training"
                         " on GPU."
                     )
-                gpu_per_task = conf.get("spark.task.resource.gpu.amount", None)
+                gpu_per_task = conf.get("spark.task.resource.gpu.amount")
                 if gpu_per_task is not None and float(gpu_per_task) > 1.0:
                     get_logger(self.__class__.__name__).warning(
                         "The configuration assigns %s GPUs to each Spark task, but each "
@@ -931,8 +931,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
                 return True
 
-            executor_cores = conf.get("spark.executor.cores", None)
-            executor_gpus = conf.get("spark.executor.resource.gpu.amount", None)
+            executor_cores = conf.get("spark.executor.cores")
+            executor_gpus = conf.get("spark.executor.resource.gpu.amount")
             if executor_cores is None or executor_gpus is None:
                 self.logger.info(
                     "Stage-level scheduling in xgboost requires spark.executor.cores, "
@@ -957,7 +957,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
                 return True
 
-            task_gpu_amount = conf.get("spark.task.resource.gpu.amount", None)
+            task_gpu_amount = conf.get("spark.task.resource.gpu.amount")
 
             if task_gpu_amount is None:
                 # The ETL tasks will not grab a gpu when spark.task.resource.gpu.amount is not set,
@@ -985,7 +985,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             return None
 
         # executor_cores will not be None
-        executor_cores = conf.get("spark.executor.cores", None)
+        executor_cores = conf.get("spark.executor.cores")
         assert executor_cores is not None
 
         # Spark-rapids is a project to leverage GPUs to accelerate spark SQL.
@@ -1389,9 +1389,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             # if it's local model, no need to check the spark configurations
             return use_gpu_by_params
 
-        gpu_per_task = _get_spark_session().conf.get(
-            "spark.task.resource.gpu.amount", None
-        )
+        gpu_per_task = _get_spark_session().conf.get("spark.task.resource.gpu.amount")
 
         # User don't set gpu configurations, just use cpu
         if gpu_per_task is None:
