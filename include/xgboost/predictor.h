@@ -12,7 +12,6 @@
 #include <xgboost/context.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
-#include <xgboost/span.h>
 
 #include <functional>  // for function
 #include <memory>      // for shared_ptr
@@ -157,14 +156,14 @@ class Predictor {
 
   virtual void PredictContribution(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
                                    gbm::GBTreeModel const& model, bst_tree_t tree_end = 0,
-                                   common::Span<float const> tree_weights = {},
+                                   std::vector<float> const* tree_weights = nullptr,
                                    bool approximate = false, int condition = 0,
                                    unsigned condition_feature = 0) const = 0;
 
   virtual void PredictInteractionContributions(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
                                                gbm::GBTreeModel const& model,
                                                bst_tree_t tree_end = 0,
-                                               common::Span<float const> tree_weights = {},
+                                               std::vector<float> const* tree_weights = nullptr,
                                                bool approximate = false) const = 0;
 
   /**
