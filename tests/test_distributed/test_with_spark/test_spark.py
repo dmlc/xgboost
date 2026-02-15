@@ -1235,19 +1235,16 @@ class TestClassifier:
         ):
             classifier._get_tracker_args()
 
-        avail_tracker_port = get_avail_port()
         classifier = SparkXGBClassifier(
             launch_tracker_on_driver=True,
-            coll_cfg=Config(
-                tracker_host_ip="127.0.0.1", tracker_port=avail_tracker_port
-            ),
+            coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=58893),
             num_workers=2,
         )
         launch_tracker_on_driver, rabit_envs = classifier._get_tracker_args()
         assert launch_tracker_on_driver is True
         assert rabit_envs["n_workers"] == 2
         assert rabit_envs["dmlc_tracker_uri"] == "127.0.0.1"
-        assert rabit_envs["dmlc_tracker_port"] == avail_tracker_port
+        assert rabit_envs["dmlc_tracker_port"] == 58893
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = "file:" + tmpdir
@@ -1288,9 +1285,6 @@ class TestClassifier:
             # PySpark ML Connect does not support overwrite - this is a bug in Spark:
             # https://issues.apache.org/jira/browse/SPARK-55452
             if _spark_test_mode(spark) == "local_cluster_connect":
-                import shutil
-
-                shutil.rmtree(tmpdir + "/metadata")
                 model.write().save(path)
             else:
                 model.write().overwrite().save(path)
