@@ -19,7 +19,7 @@
 
 #include "../../../src/common/param_array.h"
 #include "../../../src/gbm/gbtree_model.h"
-#include "../../../src/interpretability/shap.h"
+#include "../../../src/predictor/interpretability/shap.h"
 #include "../helpers.h"
 
 namespace xgboost {

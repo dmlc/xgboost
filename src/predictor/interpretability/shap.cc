@@ -4,20 +4,15 @@
 #include "shap.h"
 
 #include <algorithm>    // for fill
-#include <limits>       // for numeric_limits
 #include <type_traits>  // for remove_const_t
 #include <vector>       // for vector
 
-#include "../common/categorical.h"            // for IsCat
-#include "../common/column_matrix.h"          // for ColumnMatrix
-#include "../common/hist_util.h"              // for DispatchBinType, HistogramCuts
-#include "../common/math.h"                   // for CheckNAN
-#include "../common/threading_utils.h"        // for ParallelFor
-#include "../data/gradient_index.h"           // for GHistIndexMatrix
-#include "../gbm/gbtree_model.h"              // for GBTreeModel
-#include "../predictor/predict_fn.h"          // for GetTreeLimit
-#include "../predictor/treeshap.h"            // for CalculateContributions
-#include "../tree/tree_view.h"                // for ScalarTreeView
+#include "../../common/threading_utils.h"     // for ParallelFor
+#include "../../gbm/gbtree_model.h"           // for GBTreeModel
+#include "../../tree/tree_view.h"             // for ScalarTreeView
+#include "../data_accessor.h"                 // for GHistIndexMatrixView
+#include "../predict_fn.h"                    // for GetTreeLimit
+#include "../treeshap.h"                      // for CalculateContributions
 #include "dmlc/omp.h"                         // for omp_get_thread_num
 #include "xgboost/base.h"                     // for bst_omp_uint
 #include "xgboost/logging.h"                  // for CHECK
@@ -64,83 +59,6 @@ void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVe
   CHECK_EQ(out_contribs->size(), feats.Size() + 1);
   CalculateContributionsApprox(tree, feats, mean_values, out_contribs->data());
 }
-
-class GHistIndexMatrixView {
- private:
-  GHistIndexMatrix const &page_;
-  common::Span<FeatureType const> ft_;
-
-  std::vector<std::uint32_t> const &ptrs_;
-  std::vector<float> const &mins_;
-  std::vector<float> const &values_;
-  common::ColumnMatrix const &columns_;
-
- public:
-  bst_idx_t const base_rowid;
-
- public:
-  GHistIndexMatrixView(GHistIndexMatrix const &page, common::Span<FeatureType const> ft)
-      : page_{page},
-        ft_{ft},
-        ptrs_{page.cut.Ptrs()},
-        mins_{page.cut.MinValues()},
-        values_{page.cut.Values()},
-        columns_{page.Transpose()},
-        base_rowid{page.base_rowid} {}
-
-  [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float *out) const {
-    auto gridx = ridx + this->base_rowid;
-    auto n_features = page_.Features();
-
-    bst_idx_t n_non_missings = 0;
-    if (page_.IsDense()) {
-      common::DispatchBinType(page_.index.GetBinTypeSize(), [&](auto t) {
-        using T = decltype(t);
-        auto ptr = this->page_.index.template data<T>();
-        auto rbeg = this->page_.row_ptr[ridx];
-        for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
-          bst_bin_t bin_idx;
-          float fvalue;
-          if (common::IsCat(ft_, fidx)) {
-            bin_idx = page_.GetGindex(gridx, fidx);
-            fvalue = this->values_[bin_idx];
-          } else {
-            bin_idx = ptr[rbeg + fidx] + page_.index.Offset()[fidx];
-            fvalue =
-                common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx, bin_idx);
-          }
-          out[fidx] = fvalue;
-        }
-      });
-      n_non_missings += n_features;
-    } else {
-      for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
-        float fvalue = std::numeric_limits<float>::quiet_NaN();
-        bool is_cat = common::IsCat(ft_, fidx);
-        if (columns_.GetColumnType(fidx) == common::kSparseColumn) {
-          auto bin_idx = page_.GetGindex(gridx, fidx);
-          if (bin_idx != -1) {
-            if (is_cat) {
-              fvalue = values_[bin_idx];
-            } else {
-              fvalue = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx,
-                                                              bin_idx);
-            }
-          }
-        } else {
-          fvalue = page_.GetFvalue(ptrs_, values_, mins_, gridx, fidx, is_cat);
-        }
-        if (!common::CheckNAN(fvalue)) {
-          out[fidx] = fvalue;
-          n_non_missings++;
-        }
-      }
-    }
-    return n_non_missings;
-  }
-
-  [[nodiscard]] bst_idx_t Size() const { return page_.Size(); }
-};
 }  // namespace
 
 namespace cpu_impl {
@@ -217,7 +135,7 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
   } else {
     auto ft = p_fmat->Info().feature_types.ConstHostVector();
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx, {})) {
-      GHistIndexMatrixView view{page, ft};
+      predictor::GHistIndexMatrixView<NoOpAccessor> view{page, NoOpAccessor{}, ft};
       common::ParallelFor(view.Size(), n_threads, [&](auto i) {
         auto tid = omp_get_thread_num();
         auto &feats = feats_tloc[tid];
@@ -324,7 +242,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   } else {
     auto ft = p_fmat->Info().feature_types.ConstHostVector();
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx, {})) {
-      GHistIndexMatrixView view{page, ft};
+      predictor::GHistIndexMatrixView<NoOpAccessor> view{page, NoOpAccessor{}, ft};
       common::ParallelFor(view.Size(), n_threads, [&](auto i) {
         auto tid = omp_get_thread_num();
         auto &feats = feats_tloc[tid];
