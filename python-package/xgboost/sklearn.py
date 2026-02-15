@@ -836,7 +836,7 @@ class XGBModel(XGBModelBase):
         importance_type: Optional[str] = None,
         device: Optional[str] = None,
         validate_parameters: Optional[bool] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         feature_types: Optional[FeatureTypes] = None,
         feature_weights: Optional[ArrayLike] = None,
         max_cat_to_onehot: Optional[int] = None,

@@ -805,6 +805,12 @@ def test_get_params_works_as_expected():
     assert params["colsample_bynode"] == 0.8
 
 
+def test_enable_categorical_defaults_to_true():
+    assert xgb.XGBModel().enable_categorical is True
+    assert xgb.XGBClassifier().enable_categorical is True
+    assert xgb.XGBRegressor().enable_categorical is True
+
+
 def test_kwargs_error():
     params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
     with pytest.raises(TypeError):
