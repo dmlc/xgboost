@@ -72,6 +72,8 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
   // number of valid trees
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
   ValidateTreeWeights(tree_weights, tree_end);
+  CHECK_GE(tree_end, 0);
+  auto const n_trees = static_cast<bst_omp_uint>(tree_end);
   size_t const ncolumns = model.learner_model_param->num_feature + 1;
   // allocate space for (number of features + bias) times the number of rows
   std::vector<bst_float> &contribs = out_contribs->HostVector();
@@ -79,8 +81,8 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
   // make sure contributions is zeroed, we could be reusing a previously allocated one
   std::fill(contribs.begin(), contribs.end(), 0);
   // initialize tree node mean values
-  std::vector<std::vector<float>> mean_values(tree_end);
-  for (bst_omp_uint i = 0; i < tree_end; ++i) {
+  std::vector<std::vector<float>> mean_values(n_trees);
+  for (bst_omp_uint i = 0; i < n_trees; ++i) {
     FillNodeMeanValues(model.trees[i]->HostScView(), &(mean_values[i]));
   }
 
@@ -183,12 +185,14 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   MetaInfo const &info = p_fmat->Info();
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
   ValidateTreeWeights(tree_weights, tree_end);
+  CHECK_GE(tree_end, 0);
+  auto const n_trees = static_cast<bst_omp_uint>(tree_end);
   size_t const ncolumns = model.learner_model_param->num_feature + 1;
   std::vector<bst_float> &contribs = out_contribs->HostVector();
   contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
   std::fill(contribs.begin(), contribs.end(), 0);
-  std::vector<std::vector<float>> mean_values(tree_end);
-  for (bst_omp_uint i = 0; i < tree_end; ++i) {
+  std::vector<std::vector<float>> mean_values(n_trees);
+  for (bst_omp_uint i = 0; i < n_trees; ++i) {
     FillNodeMeanValues(model.trees[i]->HostScView(), &(mean_values[i]));
   }
 
