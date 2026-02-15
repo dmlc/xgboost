@@ -1,4 +1,4 @@
-"""Copyright 2019-2025, XGBoost contributors"""
+"""Copyright 2019-2026, XGBoost contributors"""
 
 import asyncio
 import json
@@ -1687,7 +1687,7 @@ class TestWithDask:
             X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
         )
         results_custom = reg.evals_result()
-            tm.non_increasing(results_custom["validation_0"]["rmse"])
+        tm.non_increasing(results_custom["validation_0"]["rmse"])
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_custom_metrics(self, client: "Client") -> None:
