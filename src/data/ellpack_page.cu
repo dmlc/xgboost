@@ -1,10 +1,11 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <thrust/binary_search.h>                       // for lower_bound,  upper_bound
 #include <thrust/extrema.h>                             // for max_element
 #include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for transform_output_iterator
+#include <thrust/tuple.h>                               // for tuple
 
 #include <algorithm>          // for copy
 #include <cuda/std/iterator>  // for distance
@@ -360,7 +361,7 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
 void WriteNullValues(Context const* ctx, EllpackPageImpl* dst,
                      common::Span<size_t const> row_counts) {
   // Write the null values
-  auto null = dst->NullValue();;
+  auto null = dst->NullValue();
   common::CompressedBufferWriter writer(dst->NumSymbols());
   auto d_compressed_buffer = dst->gidx_buffer.data();
   auto row_stride = dst->info.row_stride;
