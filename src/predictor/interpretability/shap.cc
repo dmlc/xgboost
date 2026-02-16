@@ -96,83 +96,94 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
 
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
   auto base_margin = info.base_margin_.View(device);
+  auto ft = p_fmat->Info().feature_types.ConstHostVector();
 
-  if (p_fmat->PageExists<SparsePage>()) {
-    for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-      auto view = page.GetView();
-      common::ParallelFor(view.Size(), n_threads, [&](auto i) {
-        auto tid = omp_get_thread_num();
-        auto &feats = feats_tloc[tid];
-        if (feats.Size() == 0) {
-          feats.Init(model.learner_model_param->num_feature);
-        }
-        auto &this_tree_contribs = contribs_tloc[tid];
-        auto row_idx = page.base_rowid + i;
-        feats.Fill(view[i]);
-        for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-          float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
-          for (bst_tree_t j = 0; j < tree_end; ++j) {
-            if (h_tree_groups[j] != gid) {
-              continue;
+  auto process_batches = [&](auto acc) {
+    if (p_fmat->PageExists<SparsePage>()) {
+      for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
+        predictor::SparsePageView view{page.GetView(), page.base_rowid, acc};
+        common::ParallelFor(view.Size(), n_threads, [&](auto i) {
+          auto tid = omp_get_thread_num();
+          auto &feats = feats_tloc[tid];
+          if (feats.Size() == 0) {
+            feats.Init(model.learner_model_param->num_feature);
+          }
+          auto &this_tree_contribs = contribs_tloc[tid];
+          auto row_idx = view.base_rowid + i;
+          auto n_valid = view.DoFill(i, feats.Data().data());
+          feats.HasMissing(n_valid != feats.Size());
+          for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+            float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
+            for (bst_tree_t j = 0; j < tree_end; ++j) {
+              if (h_tree_groups[j] != gid) {
+                continue;
+              }
+              std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
+              auto const sc_tree = model.trees[j]->HostScView();
+              CalculateContributions(sc_tree, feats, &mean_values[j], this_tree_contribs.data(),
+                                     condition, condition_feature);
+              for (size_t ci = 0; ci < ncolumns; ++ci) {
+                p_contribs[ci] +=
+                    this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+              }
             }
-            std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
-            auto const sc_tree = model.trees[j]->HostScView();
-            CalculateContributions(sc_tree, feats, &mean_values[j], this_tree_contribs.data(),
-                                   condition, condition_feature);
-            for (size_t ci = 0; ci < ncolumns; ++ci) {
-              p_contribs[ci] +=
-                  this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+            if (base_margin.Size() != 0) {
+              CHECK_EQ(base_margin.Shape(1), n_groups);
+              p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
+            } else {
+              p_contribs[ncolumns - 1] += base_score(gid);
             }
           }
-          if (base_margin.Size() != 0) {
-            CHECK_EQ(base_margin.Shape(1), n_groups);
-            p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
-          } else {
-            p_contribs[ncolumns - 1] += base_score(gid);
+          feats.Drop();
+        });
+      }
+    } else {
+      for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx, {})) {
+        predictor::GHistIndexMatrixView view{page, acc, ft};
+        common::ParallelFor(view.Size(), n_threads, [&](auto i) {
+          auto tid = omp_get_thread_num();
+          auto &feats = feats_tloc[tid];
+          if (feats.Size() == 0) {
+            feats.Init(model.learner_model_param->num_feature);
           }
-        }
-        feats.Drop();
-      });
+          auto &this_tree_contribs = contribs_tloc[tid];
+          auto row_idx = view.base_rowid + i;
+          auto n_valid = view.DoFill(i, feats.Data().data());
+          feats.HasMissing(n_valid != feats.Size());
+          for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+            float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
+            for (bst_tree_t j = 0; j < tree_end; ++j) {
+              if (h_tree_groups[j] != gid) {
+                continue;
+              }
+              std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
+              auto const sc_tree = model.trees[j]->HostScView();
+              CalculateContributions(sc_tree, feats, &mean_values[j], this_tree_contribs.data(),
+                                     condition, condition_feature);
+              for (size_t ci = 0; ci < ncolumns; ++ci) {
+                p_contribs[ci] +=
+                    this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+              }
+            }
+            if (base_margin.Size() != 0) {
+              CHECK_EQ(base_margin.Shape(1), n_groups);
+              p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
+            } else {
+              p_contribs[ncolumns - 1] += base_score(gid);
+            }
+          }
+          feats.Drop();
+        });
+      }
     }
+  };
+
+  if (model.Cats()->HasCategorical() && p_fmat->Cats()->NeedRecode()) {
+    auto new_enc = p_fmat->Cats()->HostView();
+    auto [acc, mapping] = ::xgboost::cpu_impl::MakeCatAccessor(ctx, new_enc, model.Cats());
+    process_batches(acc);
   } else {
-    auto ft = p_fmat->Info().feature_types.ConstHostVector();
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx, {})) {
-      predictor::GHistIndexMatrixView<NoOpAccessor> view{page, NoOpAccessor{}, ft};
-      common::ParallelFor(view.Size(), n_threads, [&](auto i) {
-        auto tid = omp_get_thread_num();
-        auto &feats = feats_tloc[tid];
-        if (feats.Size() == 0) {
-          feats.Init(model.learner_model_param->num_feature);
-        }
-        auto &this_tree_contribs = contribs_tloc[tid];
-        auto row_idx = view.base_rowid + i;
-        auto n_valid = view.DoFill(i, feats.Data().data());
-        feats.HasMissing(n_valid != feats.Size());
-        for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-          float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
-          for (bst_tree_t j = 0; j < tree_end; ++j) {
-            if (h_tree_groups[j] != gid) {
-              continue;
-            }
-            std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
-            auto const sc_tree = model.trees[j]->HostScView();
-            CalculateContributions(sc_tree, feats, &mean_values[j], this_tree_contribs.data(),
-                                   condition, condition_feature);
-            for (size_t ci = 0; ci < ncolumns; ++ci) {
-              p_contribs[ci] +=
-                  this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
-            }
-          }
-          if (base_margin.Size() != 0) {
-            CHECK_EQ(base_margin.Shape(1), n_groups);
-            p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
-          } else {
-            p_contribs[ncolumns - 1] += base_score(gid);
-          }
-        }
-        feats.Drop();
-      });
-    }
+    process_batches(NoOpAccessor{});
   }
 }
 
@@ -206,81 +217,92 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
 
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
   auto base_margin = info.base_margin_.View(device);
+  auto ft = p_fmat->Info().feature_types.ConstHostVector();
 
-  if (p_fmat->PageExists<SparsePage>()) {
-    for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-      auto view = page.GetView();
-      common::ParallelFor(view.Size(), n_threads, [&](auto i) {
-        auto tid = omp_get_thread_num();
-        auto &feats = feats_tloc[tid];
-        if (feats.Size() == 0) {
-          feats.Init(model.learner_model_param->num_feature);
-        }
-        auto &this_tree_contribs = contribs_tloc[tid];
-        auto row_idx = page.base_rowid + i;
-        feats.Fill(view[i]);
-        for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-          float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
-          for (bst_tree_t j = 0; j < tree_end; ++j) {
-            if (h_tree_groups[j] != gid) {
-              continue;
+  auto process_batches = [&](auto acc) {
+    if (p_fmat->PageExists<SparsePage>()) {
+      for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
+        predictor::SparsePageView view{page.GetView(), page.base_rowid, acc};
+        common::ParallelFor(view.Size(), n_threads, [&](auto i) {
+          auto tid = omp_get_thread_num();
+          auto &feats = feats_tloc[tid];
+          if (feats.Size() == 0) {
+            feats.Init(model.learner_model_param->num_feature);
+          }
+          auto &this_tree_contribs = contribs_tloc[tid];
+          auto row_idx = view.base_rowid + i;
+          auto n_valid = view.DoFill(i, feats.Data().data());
+          feats.HasMissing(n_valid != feats.Size());
+          for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+            float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
+            for (bst_tree_t j = 0; j < tree_end; ++j) {
+              if (h_tree_groups[j] != gid) {
+                continue;
+              }
+              std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
+              auto const sc_tree = model.trees[j]->HostScView();
+              CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
+              for (size_t ci = 0; ci < ncolumns; ++ci) {
+                p_contribs[ci] +=
+                    this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+              }
             }
-            std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
-            auto const sc_tree = model.trees[j]->HostScView();
-            CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
-            for (size_t ci = 0; ci < ncolumns; ++ci) {
-              p_contribs[ci] +=
-                  this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+            if (base_margin.Size() != 0) {
+              CHECK_EQ(base_margin.Shape(1), n_groups);
+              p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
+            } else {
+              p_contribs[ncolumns - 1] += base_score(gid);
             }
           }
-          if (base_margin.Size() != 0) {
-            CHECK_EQ(base_margin.Shape(1), n_groups);
-            p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
-          } else {
-            p_contribs[ncolumns - 1] += base_score(gid);
+          feats.Drop();
+        });
+      }
+    } else {
+      for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx, {})) {
+        predictor::GHistIndexMatrixView view{page, acc, ft};
+        common::ParallelFor(view.Size(), n_threads, [&](auto i) {
+          auto tid = omp_get_thread_num();
+          auto &feats = feats_tloc[tid];
+          if (feats.Size() == 0) {
+            feats.Init(model.learner_model_param->num_feature);
           }
-        }
-        feats.Drop();
-      });
+          auto &this_tree_contribs = contribs_tloc[tid];
+          auto row_idx = view.base_rowid + i;
+          auto n_valid = view.DoFill(i, feats.Data().data());
+          feats.HasMissing(n_valid != feats.Size());
+          for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+            float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
+            for (bst_tree_t j = 0; j < tree_end; ++j) {
+              if (h_tree_groups[j] != gid) {
+                continue;
+              }
+              std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
+              auto const sc_tree = model.trees[j]->HostScView();
+              CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
+              for (size_t ci = 0; ci < ncolumns; ++ci) {
+                p_contribs[ci] +=
+                    this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
+              }
+            }
+            if (base_margin.Size() != 0) {
+              CHECK_EQ(base_margin.Shape(1), n_groups);
+              p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
+            } else {
+              p_contribs[ncolumns - 1] += base_score(gid);
+            }
+          }
+          feats.Drop();
+        });
+      }
     }
+  };
+
+  if (model.Cats()->HasCategorical() && p_fmat->Cats()->NeedRecode()) {
+    auto new_enc = p_fmat->Cats()->HostView();
+    auto [acc, mapping] = ::xgboost::cpu_impl::MakeCatAccessor(ctx, new_enc, model.Cats());
+    process_batches(acc);
   } else {
-    auto ft = p_fmat->Info().feature_types.ConstHostVector();
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx, {})) {
-      predictor::GHistIndexMatrixView<NoOpAccessor> view{page, NoOpAccessor{}, ft};
-      common::ParallelFor(view.Size(), n_threads, [&](auto i) {
-        auto tid = omp_get_thread_num();
-        auto &feats = feats_tloc[tid];
-        if (feats.Size() == 0) {
-          feats.Init(model.learner_model_param->num_feature);
-        }
-        auto &this_tree_contribs = contribs_tloc[tid];
-        auto row_idx = view.base_rowid + i;
-        auto n_valid = view.DoFill(i, feats.Data().data());
-        feats.HasMissing(n_valid != feats.Size());
-        for (bst_target_t gid = 0; gid < n_groups; ++gid) {
-          float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
-          for (bst_tree_t j = 0; j < tree_end; ++j) {
-            if (h_tree_groups[j] != gid) {
-              continue;
-            }
-            std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
-            auto const sc_tree = model.trees[j]->HostScView();
-            CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
-            for (size_t ci = 0; ci < ncolumns; ++ci) {
-              p_contribs[ci] +=
-                  this_tree_contribs[ci] * (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
-            }
-          }
-          if (base_margin.Size() != 0) {
-            CHECK_EQ(base_margin.Shape(1), n_groups);
-            p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
-          } else {
-            p_contribs[ncolumns - 1] += base_score(gid);
-          }
-        }
-        feats.Drop();
-      });
-    }
+    process_batches(NoOpAccessor{});
   }
 }
 
