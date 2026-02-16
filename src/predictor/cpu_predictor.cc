@@ -8,28 +8,28 @@
 #include <memory>     // for unique_ptr, shared_ptr
 #include <vector>     // for vector
 
-#include "../collective/allreduce.h"          // for Allreduce
-#include "../collective/communicator-inl.h"   // for IsDistributed
-#include "../common/bitfield.h"               // for RBitField8
-#include "../common/column_matrix.h"          // for ColumnMatrix
-#include "../common/error_msg.h"              // for InplacePredictProxy
-#include "../common/math.h"                   // for CheckNAN
-#include "../common/threading_utils.h"        // for ParallelFor
-#include "../data/adapter.h"                  // for ArrayAdapter, CSRAdapter, CSRArrayAdapter
-#include "../data/cat_container.h"            // for CatContainer
-#include "../data/gradient_index.h"           // for GHistIndexMatrix
-#include "../data/proxy_dmatrix.h"            // for DMatrixProxy
-#include "../gbm/gbtree_model.h"              // for GBTreeModel, GBTreeModelParam
-#include "array_tree_layout.h"                // for ProcessArrayTree
-#include "data_accessor.h"                    // for GHistIndexMatrixView, SparsePageView
-#include "dmlc/registry.h"                    // for DMLC_REGISTRY_FILE_TAG
-#include "gbtree_view.h"                      // for GBTreeModelView
-#include "interpretability/shap.h"            // for PredictContribution
-#include "predict_fn.h"                       // for GetNextNode, GetNextNodeMulti
-#include "utils.h"                            // for CheckProxyDMatrix
-#include "xgboost/base.h"                     // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
-#include "xgboost/context.h"                  // for Context
-#include "xgboost/data.h"                     // for Entry, DMatrix, MetaInfo, SparsePage, Batch...
+#include "../collective/allreduce.h"         // for Allreduce
+#include "../collective/communicator-inl.h"  // for IsDistributed
+#include "../common/bitfield.h"              // for RBitField8
+#include "../common/column_matrix.h"         // for ColumnMatrix
+#include "../common/error_msg.h"             // for InplacePredictProxy
+#include "../common/math.h"                  // for CheckNAN
+#include "../common/threading_utils.h"       // for ParallelFor
+#include "../data/adapter.h"                 // for ArrayAdapter, CSRAdapter, CSRArrayAdapter
+#include "../data/cat_container.h"           // for CatContainer
+#include "../data/gradient_index.h"          // for GHistIndexMatrix
+#include "../data/proxy_dmatrix.h"           // for DMatrixProxy
+#include "../gbm/gbtree_model.h"             // for GBTreeModel, GBTreeModelParam
+#include "array_tree_layout.h"               // for ProcessArrayTree
+#include "data_accessor.h"                   // for GHistIndexMatrixView, SparsePageView
+#include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
+#include "gbtree_view.h"                     // for GBTreeModelView
+#include "interpretability/shap.h"  // for ShapValues, ApproxFeatureImportance, ShapInteractionValues
+#include "predict_fn.h"             // for GetNextNode, GetNextNodeMulti
+#include "utils.h"                  // for CheckProxyDMatrix
+#include "xgboost/base.h"           // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
+#include "xgboost/context.h"        // for Context
+#include "xgboost/data.h"           // for Entry, DMatrix, MetaInfo, SparsePage, Batch...
 #include "xgboost/host_device_vector.h"       // for HostDeviceVector
 #include "xgboost/learner.h"                  // for LearnerModelParam
 #include "xgboost/linalg.h"                   // for TensorView, All, VectorView, Tensor

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cuda/functional>   // for proclaim_return_type
 #include <cuda/std/utility>  // for swap
+#include <cuda/std/variant>  // for variant
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -106,8 +107,11 @@ struct ShapSplitCondition {
     if (l.Capacity() > r.Capacity()) {
       cuda::std::swap(l, r);
     }
-    for (size_t i = 0; i < r.Bits().size(); ++i) {
-      l.Bits()[i] &= r.Bits()[i];
+    auto l_bits = l.Bits();
+    auto r_bits = r.Bits();
+    auto n_bits = l_bits.size() < r_bits.size() ? l_bits.size() : r_bits.size();
+    for (size_t i = 0; i < n_bits; ++i) {
+      l_bits[i] &= r_bits[i];
     }
     return l;
   }
@@ -186,8 +190,9 @@ void ExtractPaths(Context const* ctx,
       info.begin(), cuda::proclaim_return_type<LenT>(
                         [=] __device__(PathInfo const& info) { return info.length; }));
   dh::caching_device_vector<size_t> path_segments(info.size() + 1);
-  thrust::exclusive_scan(ctx->CUDACtx()->CTP(), length_iterator, length_iterator + info.size() + 1,
-                         path_segments.begin());
+  thrust::fill_n(ctx->CUDACtx()->CTP(), path_segments.begin(), 1, std::size_t{0});
+  thrust::inclusive_scan(ctx->CUDACtx()->CTP(), length_iterator, length_iterator + info.size(),
+                         path_segments.begin() + 1);
 
   paths->resize(path_segments.back());
 
