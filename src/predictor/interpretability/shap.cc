@@ -99,9 +99,10 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
   auto ft = p_fmat->Info().feature_types.ConstHostVector();
 
   auto process_batches = [&](auto acc) {
+    using AccT = std::decay_t<decltype(acc)>;
     if (p_fmat->PageExists<SparsePage>()) {
       for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-        predictor::SparsePageView view{page.GetView(), page.base_rowid, acc};
+        predictor::SparsePageView<AccT> view{page.GetView(), page.base_rowid, acc};
         common::ParallelFor(view.Size(), n_threads, [&](auto i) {
           auto tid = omp_get_thread_num();
           auto &feats = feats_tloc[tid];
@@ -139,7 +140,7 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
       }
     } else {
       for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx, {})) {
-        predictor::GHistIndexMatrixView view{page, acc, ft};
+        predictor::GHistIndexMatrixView<AccT> view{page, acc, ft};
         common::ParallelFor(view.Size(), n_threads, [&](auto i) {
           auto tid = omp_get_thread_num();
           auto &feats = feats_tloc[tid];
@@ -220,9 +221,10 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   auto ft = p_fmat->Info().feature_types.ConstHostVector();
 
   auto process_batches = [&](auto acc) {
+    using AccT = std::decay_t<decltype(acc)>;
     if (p_fmat->PageExists<SparsePage>()) {
       for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-        predictor::SparsePageView view{page.GetView(), page.base_rowid, acc};
+        predictor::SparsePageView<AccT> view{page.GetView(), page.base_rowid, acc};
         common::ParallelFor(view.Size(), n_threads, [&](auto i) {
           auto tid = omp_get_thread_num();
           auto &feats = feats_tloc[tid];
@@ -259,7 +261,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
       }
     } else {
       for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx, {})) {
-        predictor::GHistIndexMatrixView view{page, acc, ft};
+        predictor::GHistIndexMatrixView<AccT> view{page, acc, ft};
         common::ParallelFor(view.Size(), n_threads, [&](auto i) {
           auto tid = omp_get_thread_num();
           auto &feats = feats_tloc[tid];
