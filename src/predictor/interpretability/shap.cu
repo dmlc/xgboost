@@ -15,7 +15,6 @@
 #include <cuda/std/variant>  // for variant
 #include <limits>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -68,7 +67,6 @@ struct CopyViews {
 };
 
 using DeviceModel = GBTreeModelView<dh::DeviceUVector, TreeViewVar, CopyViews>;
-std::mutex s_model_mu;
 
 struct ShapSplitCondition {
   ShapSplitCondition() = default;
@@ -352,7 +350,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   auto phis = out_contribs->DeviceSpan();
 
   dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-  DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, &s_model_mu, CopyViews{ctx}};
+  DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, CopyViews{ctx}};
 
   auto new_enc =
       p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
@@ -409,7 +407,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto phis = out_contribs->DeviceSpan();
 
   dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
-  DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, &s_model_mu, CopyViews{ctx}};
+  DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, CopyViews{ctx}};
 
   dh::device_vector<uint32_t> categories;
   ExtractPaths(ctx, &device_paths, model, d_model, &categories);
