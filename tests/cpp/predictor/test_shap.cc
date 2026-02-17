@@ -51,8 +51,9 @@ Args BaseParams(Context const* ctx, std::string objective, std::string max_depth
               {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}};
 }
 
-gbm::GBTreeModel LoadGBTreeModel(Learner* learner, Context const* ctx, Args const& model_args,
-                                 LearnerModelParam* out_param) {
+std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context const* ctx,
+                                                  Args const& model_args,
+                                                  LearnerModelParam* out_param) {
   Json model{Object{}};
   learner->SaveModel(&model);
 
@@ -103,9 +104,9 @@ gbm::GBTreeModel LoadGBTreeModel(Learner* learner, Context const* ctx, Args cons
                         MultiStrategy::kOneOutputPerTree};
   out_param->Copy(tmp);
 
-  gbm::GBTreeModel gbtree{out_param, ctx};
+  auto gbtree = std::make_unique<gbm::GBTreeModel>(out_param, ctx);
   auto const& gbm_obj = get<Object const>(learner_obj.at("gradient_booster"));
-  gbtree.LoadModel(gbm_obj.at("model"));
+  gbtree->LoadModel(gbm_obj.at("model"));
   return gbtree;
 }
 }  // namespace
@@ -203,12 +204,12 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), model_args, &mparam);
 
   HostDeviceVector<float> shap_values;
-  interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &shap_values, gbtree, 0, {}, 0, 0);
+  interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &shap_values, *gbtree, 0, {}, 0, 0);
   ASSERT_EQ(shap_values.HostVector().size(), kRows * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_values, margin_predt);
 
   HostDeviceVector<float> shap_interactions;
-  interpretability::ShapInteractionValues(dmat->Ctx(), p_dmat.get(), &shap_interactions, gbtree, 0,
+  interpretability::ShapInteractionValues(dmat->Ctx(), p_dmat.get(), &shap_interactions, *gbtree, 0,
                                           {}, false);
   ASSERT_EQ(shap_interactions.HostVector().size(), kRows * (kCols + 1) * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_interactions, margin_predt);
@@ -278,7 +279,7 @@ TEST(Predictor, ApproxContribsBasic) {
   auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), args, &mparam);
 
   HostDeviceVector<float> approx_contribs;
-  interpretability::ApproxFeatureImportance(dmat->Ctx(), dmat.get(), &approx_contribs, gbtree, 0,
+  interpretability::ApproxFeatureImportance(dmat->Ctx(), dmat.get(), &approx_contribs, *gbtree, 0,
                                             {});
 
   auto const& h_margin = margin_predt.ConstHostVector();
