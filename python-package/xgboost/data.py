@@ -82,6 +82,8 @@ if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
     from pandas import Series as PdSeries
 
+    from .core import DMatrix, _ProxyDMatrix
+
 
 DispatchedDataBackendReturnType: TypeAlias = Tuple[
     ctypes.c_void_p, Optional[FeatureNames], Optional[FeatureTypes]
@@ -1544,7 +1546,7 @@ def _meta_from_cupy_array(data: DataType, field: str, handle: ctypes.c_void_p) -
 
 
 def dispatch_meta_backend(
-    matrix: Any, data: DataType, name: str, dtype: Optional[NumpyDType] = None
+    matrix: "DMatrix", data: DataType, name: str, dtype: Optional[NumpyDType] = None
 ) -> None:
     """Dispatch for meta info."""
     handle = matrix.handle
@@ -1675,7 +1677,7 @@ def is_on_cuda(data: Any) -> bool:
 
 
 def dispatch_proxy_set_data(
-    proxy: Any,
+    proxy: "_ProxyDMatrix",
     data: DataType,
 ) -> None:
     """Dispatch for QuantileDMatrix."""

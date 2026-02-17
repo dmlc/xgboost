@@ -38,14 +38,14 @@ import scipy.sparse
 
 from ._c_api import (
     _LIB,
-    XGBoostError,
     _check_call,
-    _parse_version,
-    _py_version,
     c_str,
     from_cstr_to_pystr,
     from_pystr_to_cstr,
     make_jcargs,
+)
+from ._c_api import (
+    XGBoostError as _XGBoostError,
 )
 from ._data_utils import (
     Categories,
@@ -92,8 +92,7 @@ from .objective import Objective, TreeObjective, _grad_arrinf
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
 
-# Re-export selected low-level symbols for backward compatibility.
-_C_API_EXPORTS = (XGBoostError, _parse_version, _py_version)
+XGBoostError = _XGBoostError
 
 
 def _parse_eval_str(result: str) -> List[Tuple[str, float]]:
