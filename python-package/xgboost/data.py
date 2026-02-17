@@ -23,6 +23,7 @@ from typing import (
 
 import numpy as np
 
+from ._c_api import _LIB, _check_call, c_str, make_jcargs
 from ._data_utils import (
     AifType,
     Categories,
@@ -45,6 +46,7 @@ from ._data_utils import (
 )
 from ._typing import (
     CupyT,
+    DataSplitMode,
     DataType,
     FeatureNames,
     FeatureTypes,
@@ -73,16 +75,6 @@ from .compat import (
     import_pyarrow,
     is_pyarrow_available,
     lazy_isinstance,
-)
-from .core import (
-    _LIB,
-    DataIter,
-    DataSplitMode,
-    DMatrix,
-    _check_call,
-    _ProxyDMatrix,
-    c_str,
-    make_jcargs,
 )
 
 if TYPE_CHECKING:
@@ -1279,10 +1271,6 @@ def _from_tuple(
     )
 
 
-def _is_iter(data: DataType) -> TypeGuard[DataIter]:
-    return isinstance(data, DataIter)
-
-
 def _has_array_protocol(data: DataType) -> bool:
     return hasattr(data, "__array__")
 
@@ -1556,7 +1544,7 @@ def _meta_from_cupy_array(data: DataType, field: str, handle: ctypes.c_void_p) -
 
 
 def dispatch_meta_backend(
-    matrix: DMatrix, data: DataType, name: str, dtype: Optional[NumpyDType] = None
+    matrix: Any, data: DataType, name: str, dtype: Optional[NumpyDType] = None
 ) -> None:
     """Dispatch for meta info."""
     handle = matrix.handle
@@ -1617,33 +1605,6 @@ def dispatch_meta_backend(
         _meta_from_numpy(array, name, dtype, handle)
         return
     raise TypeError("Unsupported type for " + name, str(type(data)))
-
-
-class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
-    """An iterator for single batch data to help creating device DMatrix.
-    Transforming input directly to histogram with normal single batch data API
-    can not access weight for sketching.  So this iterator acts as a staging
-    area for meta info.
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        self.kwargs = kwargs
-        self.it = 0
-
-        # This does not necessarily increase memory usage as the data transformation
-        # might use memory.
-        super().__init__(release_data=False)
-
-    def next(self, input_data: Callable) -> bool:
-        if self.it == 1:
-            return False
-        self.it += 1
-        input_data(**self.kwargs)
-        return True
-
-    def reset(self) -> None:
-        self.it = 0
 
 
 def _proxy_transform(
@@ -1714,7 +1675,7 @@ def is_on_cuda(data: Any) -> bool:
 
 
 def dispatch_proxy_set_data(
-    proxy: _ProxyDMatrix,
+    proxy: Any,
     data: DataType,
 ) -> None:
     """Dispatch for QuantileDMatrix."""

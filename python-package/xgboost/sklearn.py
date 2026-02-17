@@ -1,4 +1,5 @@
 # pylint: disable=too-many-arguments, too-many-locals, fixme, too-many-lines
+# pylint: disable=duplicate-code
 """Scikit-Learn Wrapper interface for XGBoost."""
 
 import collections
@@ -595,10 +596,12 @@ def xgboost_model_doc(
         return __doc[item]
 
     def adddoc(cls: TDoc) -> TDoc:
-        doc = ["""
+        doc = [
+            """
 Parameters
 ----------
-"""]
+"""
+        ]
         if extra_parameters:
             doc.append(extra_parameters)
         doc.extend([get_doc(i) for i in items])
