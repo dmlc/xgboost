@@ -3,7 +3,7 @@
 
 import ctypes
 import os
-from enum import IntEnum
+from enum import IntEnum, unique
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -126,6 +126,7 @@ _ScoreList = Union[List[float], List[Tuple[float, float]]]
 EvalsLog: TypeAlias = Dict[str, Dict[str, _ScoreList]]
 
 
+@unique
 class DataSplitMode(IntEnum):
     """Supported data split mode for DMatrix."""
 
