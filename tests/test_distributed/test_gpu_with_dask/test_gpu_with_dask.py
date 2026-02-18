@@ -658,7 +658,7 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
     # nccl is loaded
     def run(wid: int) -> None:
         # FIXME(jiamingy): https://github.com/dmlc/xgboost/issues/9147
-        from xgboost.core import _LIB, _register_log_callback
+        from xgboost._c_api import _LIB, _register_log_callback
 
         _register_log_callback(_LIB)
 

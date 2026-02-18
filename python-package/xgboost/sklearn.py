@@ -1,4 +1,5 @@
 # pylint: disable=too-many-arguments, too-many-locals, fixme, too-many-lines
+# pylint: disable=duplicate-code
 """Scikit-Learn Wrapper interface for XGBoost."""
 
 import collections
@@ -27,6 +28,7 @@ from typing import (
 import numpy as np
 from scipy.special import softmax
 
+from ._c_api import _parse_version, _py_version
 from ._data_utils import Categories
 from ._typing import (
     ArrayLike,
@@ -60,8 +62,6 @@ from .core import (
     XGBoostError,
     _deprecate_positional_args,
     _parse_eval_str,
-    _parse_version,
-    _py_version,
 )
 from .data import (
     CAT_T,
