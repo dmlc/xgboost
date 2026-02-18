@@ -8,11 +8,10 @@ from typing import Any, Dict, List, Type, TypeVar
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
 from packaging.version import parse as parse_version
-
-import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
 from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
@@ -20,9 +19,6 @@ from xgboost.testing.params import hist_parameter_strategy
 
 from ..test_with_dask.test_with_dask import (
     generate_array,
-)
-from ..test_with_dask.test_with_dask import kCols as random_cols
-from ..test_with_dask.test_with_dask import (
     run_auc,
     run_boost_from_prediction,
     run_boost_from_prediction_multi_class,
@@ -34,6 +30,7 @@ from ..test_with_dask.test_with_dask import (
     run_tree_stats,
     suppress,
 )
+from ..test_with_dask.test_with_dask import kCols as random_cols
 
 pytestmark = [
     pytest.mark.skipif(**tm.no_dask()),
@@ -48,7 +45,6 @@ from dask import __version__ as dask_version
 from dask import array as da
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
-
 from xgboost import dask as dxgb
 from xgboost.testing.dask import check_init_estimation, check_uneven_nan
 
@@ -664,7 +660,7 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
     # nccl is loaded
     def run(wid: int) -> None:
         # FIXME(jiamingy): https://github.com/dmlc/xgboost/issues/9147
-        from xgboost.core import _LIB, _register_log_callback
+        from xgboost._c_api import _LIB, _register_log_callback
 
         _register_log_callback(_LIB)
 
