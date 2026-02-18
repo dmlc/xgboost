@@ -884,7 +884,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
         )
-        cpu_per_task = int(_get_spark_session().conf.get("spark.task.cpus", "1"))
+        cpu_per_task = int(_get_spark_session().conf.get("spark.task.cpus") or "1")
 
         dmatrix_kwargs = {
             "nthread": cpu_per_task,
