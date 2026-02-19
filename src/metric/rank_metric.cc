@@ -1,39 +1,38 @@
 /**
- * Copyright 2020-2025, XGBoost contributors
+ * Copyright 2020-2026, XGBoost contributors
  */
 #include "rank_metric.h"
 
 #include <dmlc/omp.h>
 #include <dmlc/registry.h>
 
-#include <algorithm>                         // for stable_sort, copy, fill_n, min, max
-#include <array>                             // for array
-#include <cmath>                             // for log, sqrt
-#include <functional>                        // for less, greater
-#include <map>                               // for operator!=, _Rb_tree_const_iterator
-#include <memory>                            // for allocator, unique_ptr, shared_ptr, __shared_...
-#include <numeric>                           // for accumulate
-#include <ostream>                           // for operator<<, basic_ostream, ostringstream
-#include <string>                            // for char_traits, operator<, basic_string, to_string
-#include <utility>                           // for pair, make_pair
-#include <vector>                            // for vector
+#include <algorithm>   // for stable_sort, copy, fill_n, min, max
+#include <array>       // for array
+#include <cmath>       // for log, sqrt
+#include <functional>  // for less, greater
+#include <map>         // for operator!=, _Rb_tree_const_iterator
+#include <memory>      // for allocator, unique_ptr, shared_ptr, __shared_...
+#include <numeric>     // for accumulate
+#include <ostream>     // for operator<<, basic_ostream, ostringstream
+#include <string>      // for char_traits, operator<, basic_string, to_string
+#include <utility>     // for pair, make_pair
+#include <vector>      // for vector
 
-#include "../collective/aggregator.h"        // for ApplyWithLabels
-#include "../common/algorithm.h"             // for ArgSort, Sort
-#include "../common/linalg_op.h"             // for cbegin, cend
-#include "../common/optional_weight.h"       // for OptionalWeights, MakeOptionalWeights
-#include "dmlc/common.h"                     // for OMPException
-#include "metric_common.h"                   // for MetricNoCache, GPUMetric, PackedReduceResult
-#include "xgboost/base.h"                    // for bst_float, bst_omp_uint, bst_group_t, Args
-#include "xgboost/cache.h"                   // for DMatrixCache
-#include "xgboost/context.h"                 // for Context
-#include "xgboost/data.h"                    // for MetaInfo, DMatrix
-#include "xgboost/host_device_vector.h"      // for HostDeviceVector
-#include "xgboost/json.h"                    // for Json, FromJson, IsA, ToJson, get, Null, Object
-#include "xgboost/linalg.h"                  // for Tensor, TensorView, Range, VectorView, MakeT...
-#include "xgboost/logging.h"                 // for CHECK, ConsoleLogger, LOG_INFO, CHECK_EQ
-#include "xgboost/metric.h"                  // for MetricReg, XGBOOST_REGISTER_METRIC, Metric
-#include "xgboost/string_view.h"             // for StringView
+#include "../collective/aggregator.h"    // for ApplyWithLabels
+#include "../common/algorithm.h"         // for ArgSort, Sort
+#include "../common/linalg_op.h"         // for cbegin, cend
+#include "../common/optional_weight.h"   // for OptionalWeights, MakeOptionalWeights
+#include "metric_common.h"               // for MetricNoCache, GPUMetric, PackedReduceResult
+#include "xgboost/base.h"                // for bst_float, bst_omp_uint, bst_group_t, Args
+#include "xgboost/cache.h"               // for DMatrixCache
+#include "xgboost/context.h"             // for Context
+#include "xgboost/data.h"                // for MetaInfo, DMatrix
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/json.h"                // for Json, FromJson, IsA, ToJson, get, Null, Object
+#include "xgboost/linalg.h"              // for Tensor, TensorView, Range, VectorView, MakeT...
+#include "xgboost/logging.h"             // for CHECK, ConsoleLogger, LOG_INFO, CHECK_EQ
+#include "xgboost/metric.h"              // for MetricReg, XGBOOST_REGISTER_METRIC, Metric
+#include "xgboost/string_view.h"         // for StringView
 
 namespace {
 using PredIndPair = std::pair<xgboost::bst_float, xgboost::ltr::rel_degree_t>;
@@ -63,7 +62,7 @@ struct EvalAMS : public MetricNoCache {
     const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
     PredIndPairContainer rec(ndata);
 
-    const auto &h_preds = preds.ConstHostVector();
+    const auto& h_preds = preds.ConstHostVector();
     common::ParallelFor(ndata, ctx_->Threads(),
                         [&](bst_omp_uint i) { rec[i] = std::make_pair(h_preds[i], i); });
     common::Sort(ctx_, rec.begin(), rec.end(),
@@ -74,7 +73,7 @@ struct EvalAMS : public MetricNoCache {
     unsigned thresindex = 0;
     double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
     const auto& labels = info.labels.View(DeviceOrd::CPU());
-    for (unsigned i = 0; i < static_cast<unsigned>(ndata-1) && i < ntop; ++i) {
+    for (unsigned i = 0; i < static_cast<unsigned>(ndata - 1) && i < ntop; ++i) {
       const unsigned ridx = rec[i].second;
       const bst_float wt = info.GetWeight(ridx);
       if (labels(ridx) > 0.5f) {
@@ -95,13 +94,11 @@ struct EvalAMS : public MetricNoCache {
       return static_cast<bst_float>(tams);
     } else {
       return static_cast<bst_float>(
-          sqrt(2 * ((s_tp + b_fp + br) * log(1.0 + s_tp/(b_fp + br)) - s_tp)));
+          sqrt(2 * ((s_tp + b_fp + br) * log(1.0 + s_tp / (b_fp + br)) - s_tp)));
     }
   }
 
-  [[nodiscard]] const char* Name() const override {
-    return name_.c_str();
-  }
+  [[nodiscard]] const char* Name() const override { return name_.c_str(); }
 
  private:
   std::string name_;
@@ -112,13 +109,12 @@ struct EvalAMS : public MetricNoCache {
 struct EvalRank : public MetricNoCache, public EvalRankConfig {
  public:
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
-    CHECK_EQ(preds.Size(), info.labels.Size())
-        << "label size predict size not match";
+    CHECK_EQ(preds.Size(), info.labels.Size()) << "label size predict size not match";
 
     // quick consistency when group is not available
     std::vector<unsigned> tgptr(2, 0);
     tgptr[1] = static_cast<unsigned>(preds.Size());
-    const auto &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
+    const auto& gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
 
     CHECK_NE(gptr.size(), 0U) << "must specify group when constructing rank file";
     CHECK_EQ(gptr.back(), preds.Size())
@@ -126,50 +122,32 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
 
     const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
     // sum statistics
-    double sum_metric = 0.0f;
+    const auto& h_labels = info.labels.HostView();
+    CHECK_LE(h_labels.Shape(1), 1);
+    const auto& h_preds = preds.ConstHostVector();
 
-    CHECK(ctx_);
     std::vector<double> sum_tloc(ctx_->Threads(), 0.0);
-
-    {
-      const auto& labels = info.labels.HostView();
-      const auto &h_preds = preds.ConstHostVector();
-
-      dmlc::OMPException exc;
-#pragma omp parallel num_threads(ctx_->Threads())
-      {
-        exc.Run([&]() {
-          // each thread takes a local rec
-          PredIndPairContainer rec;
-#pragma omp for schedule(static)
-          for (bst_omp_uint k = 0; k < ngroups; ++k) {
-            exc.Run([&]() {
-              rec.clear();
-              for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-                rec.emplace_back(h_preds[j], static_cast<int>(labels(j)));
-              }
-              sum_tloc[omp_get_thread_num()] += this->EvalGroup(&rec);
-            });
-          }
-        });
+    common::ParallelForBlock(ngroups, ctx_->Threads(), [&](auto&& blk) {
+      for (auto group_idx = blk.begin(); group_idx < blk.end(); ++group_idx) {
+        PredIndPairContainer rec;
+        for (unsigned j = gptr[group_idx]; j < gptr[group_idx + 1]; ++j) {
+          rec.emplace_back(h_preds[j], static_cast<int>(h_labels(j)));
+        }
+        sum_tloc[omp_get_thread_num()] += this->EvalGroup(&rec);
       }
-      sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
-      exc.Rethrow();
-    }
-
+    });
+    double sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
     return collective::GlobalRatio(ctx_, info, sum_metric, static_cast<double>(ngroups));
   }
 
-  [[nodiscard]] const char* Name() const override {
-    return name.c_str();
-  }
+  [[nodiscard]] const char* Name() const override { return name.c_str(); }
 
  protected:
   explicit EvalRank(const char* name, const char* param) {
     this->name = ltr::ParseMetricName(name, param, &topn, &minus);
   }
 
-  virtual double EvalGroup(PredIndPairContainer *recptr) const = 0;
+  virtual double EvalGroup(PredIndPairContainer* recptr) const = 0;
 };
 
 /*! \brief Cox: Partial likelihood of the Cox proportional hazards model */
@@ -181,12 +159,12 @@ struct EvalCox : public MetricNoCache {
     using namespace std;  // NOLINT(*)
 
     const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
-    const auto &label_order = info.LabelAbsSort(ctx_);
+    const auto& label_order = info.LabelAbsSort(ctx_);
 
     // pre-compute a sum for the denominator
     double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
 
-    const auto &h_preds = preds.ConstHostVector();
+    const auto& h_preds = preds.ConstHostVector();
     for (omp_ulong i = 0; i < ndata; ++i) {
       exp_p_sum += h_preds[i];
     }
@@ -211,21 +189,19 @@ struct EvalCox : public MetricNoCache {
       }
     }
 
-    return out/num_events;  // normalize by the number of events
+    return out / num_events;  // normalize by the number of events
   }
 
-  [[nodiscard]] const char* Name() const override {
-    return "cox-nloglik";
-  }
+  [[nodiscard]] const char* Name() const override { return "cox-nloglik"; }
 };
 
 XGBOOST_REGISTER_METRIC(AMS, "ams")
-.describe("AMS metric for higgs.")
-.set_body([](const char* param) { return new EvalAMS(param); });
+    .describe("AMS metric for higgs.")
+    .set_body([](const char* param) { return new EvalAMS(param); });
 
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
-.describe("Negative log partial likelihood of Cox proportional hazards model.")
-.set_body([](const char*) { return new EvalCox(); });
+    .describe("Negative log partial likelihood of Cox proportional hazards model.")
+    .set_body([](const char*) { return new EvalCox(); });
 
 // ranking metrics that requires cache
 template <typename Cache>
@@ -484,13 +460,9 @@ XGBOOST_REGISTER_METRIC(Precision, "pre")
 
 XGBOOST_REGISTER_METRIC(EvalMAP, "map")
     .describe("map@k for ranking.")
-    .set_body([](char const* param) {
-      return new EvalMAPScore{"map", param};
-    });
+    .set_body([](char const* param) { return new EvalMAPScore{"map", param}; });
 
 XGBOOST_REGISTER_METRIC(EvalNDCG, "ndcg")
     .describe("ndcg@k for ranking.")
-    .set_body([](char const* param) {
-      return new EvalNDCG{"ndcg", param};
-    });
+    .set_body([](char const* param) { return new EvalNDCG{"ndcg", param}; });
 }  // namespace xgboost::metric

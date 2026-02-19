@@ -1,3 +1,7 @@
+..
+  IMPORTANT: When adding new entries to this file (e.g. a new parameter),
+  the parameter should also be added under file 'R-package/R/xgb.train.R'.
+
 ##################
 XGBoost Parameters
 ##################
@@ -51,6 +55,10 @@ General Parameters
 * ``booster`` [default= ``gbtree``]
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
+
+  .. deprecated:: 3.3.0
+
+    ``booster=gblinear`` is deprecated and support will be removed in a future release.
 
 * ``device`` [default= ``cpu``]
 
@@ -121,14 +129,25 @@ Parameters for Tree Booster
 
 * ``sampling_method`` [default= ``uniform``]
 
+.. versionchanged:: 3.2.0
+
+    XGBoost supports both CPU and GPU for gradient-based sampling.
+
   - The method to use to sample the training instances.
   - ``uniform``: each training instance has an equal probability of being selected. Typically set
     ``subsample`` >= 0.5 for good results.
   - ``gradient_based``: the selection probability for each training instance is proportional to the
     *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
     ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
-    sampling method is only supported when ``tree_method`` is set to ``hist`` and the device is ``cuda``; other tree
+    sampling method is only supported when ``tree_method`` is set to ``hist``; other tree
     methods only support ``uniform`` sampling.
+
+  .. note::
+
+     When working with reduced gradient for multi-target models, the accuracy of
+     gradient-based sampling might be sub-optimal. The sampling is performed using the
+     split gradient, which may not be optimal with the full gradient. Use uniform sampling
+     as an alternative.
 
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
 
@@ -340,6 +359,10 @@ Additional parameters for Dart Booster (``booster=dart``)
 
 Parameters for Linear Booster (``booster=gblinear``)
 ====================================================
+.. deprecated:: 3.3.0
+
+  ``booster=gblinear`` is deprecated and support will be removed in a future release.
+
 * ``lambda`` [default=0, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative. Normalised to number of training examples.
@@ -393,6 +416,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
     .. versionadded:: 2.0.0
 
+  - ``reg:expectileerror``: Expectile loss (asymmetric squared error). See later sections for its parameter.
+
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
@@ -439,6 +464,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``mae``: `mean absolute error <https://en.wikipedia.org/wiki/Mean_absolute_error>`_
     - ``mape``: `mean absolute percentage error <https://en.wikipedia.org/wiki/Mean_absolute_percentage_error>`_
     - ``mphe``: `mean Pseudo Huber error <https://en.wikipedia.org/wiki/Huber_loss>`_. Default metric of ``reg:pseudohubererror`` objective.
+    - ``expectile``: Expectile regression error (asymmetric squared error). Default metric of ``reg:expectileerror`` objective.
     - ``logloss``: `negative log-likelihood <https://en.wikipedia.org/wiki/Log-likelihood>`_
     - ``error``: Binary classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
     - ``error@t``: a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
@@ -510,6 +536,16 @@ Parameter for using Quantile Loss (``reg:quantileerror``)
 * ``quantile_alpha``: A scalar or a list of targeted quantiles.
 
     .. versionadded:: 2.0.0
+
+Parameter for using Expectile Loss (``reg:expectileerror``)
+===========================================================
+
+* ``expectile_alpha``: A scalar or a list of targeted expectiles. Range: [0, 1]. Required for
+  ``reg:expectileerror``.
+
+    .. versionadded:: 3.3.0
+
+    .. note:: Multi-target labels are not supported for expectile loss.
 
 Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likelihood of AFT metric (``aft-nloglik``)
 ====================================================================================================================

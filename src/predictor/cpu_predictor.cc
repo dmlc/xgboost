@@ -904,7 +904,7 @@ class CPUPredictor : public Predictor {
     auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
     bool any_missing = !(p_fmat->IsDense());
     auto const h_model =
-        HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, &this->mu_, CopyViews{}};
+        HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
 
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       using Policy = common::GetValueT<decltype(policy)>;
@@ -1004,7 +1004,7 @@ class CPUPredictor : public Predictor {
     ThreadTmp<BlockPolicy::kBlockOfRowsSize> feat_vecs{n_threads};
     bst_idx_t n_groups = model.learner_model_param->OutputLength();
     auto const h_model =
-        HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, &this->mu_, CopyViews{}};
+        HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
 
     auto kernel = [&](auto &&view) {
       auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_groups);
@@ -1058,8 +1058,7 @@ class CPUPredictor : public Predictor {
     auto n_features = model.learner_model_param->num_feature;
     ThreadTmp<1> feat_vecs{n_threads};
 
-    auto const h_model =
-        HostModel{DeviceOrd::CPU(), model, false, 0, ntree_limit, &this->mu_, CopyViews{}};
+    auto const h_model = HostModel{DeviceOrd::CPU(), model, false, 0, ntree_limit, CopyViews{}};
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       policy.ForEachBatch([&](auto &&batch) {
         common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {
@@ -1108,8 +1107,7 @@ class CPUPredictor : public Predictor {
       FillNodeMeanValues(model.trees[i]->HostScView(), &(mean_values[i]));
     });
 
-    auto const h_model =
-        HostModel{DeviceOrd::CPU(), model, true, 0, ntree_limit, &this->mu_, CopyViews{}};
+    auto const h_model = HostModel{DeviceOrd::CPU(), model, true, 0, ntree_limit, CopyViews{}};
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       policy.ForEachBatch([&](auto &&batch) {
         PredictContributionKernel(batch, info, h_model,
@@ -1175,9 +1173,6 @@ class CPUPredictor : public Predictor {
       }
     }
   }
-
- private:
-  mutable std::mutex mu_;
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")

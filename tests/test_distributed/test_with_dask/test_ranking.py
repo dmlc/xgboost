@@ -1,33 +1,13 @@
 """Copyright 2019-2024, XGBoost contributors"""
 
-import os
-from typing import Generator
-
 import numpy as np
 import pytest
 import scipy.sparse
 from dask import dataframe as dd
-from distributed import Client, LocalCluster
-
+from distributed import Client
 from xgboost import dask as dxgb
 from xgboost import testing as tm
 from xgboost.testing import dask as dtm
-
-
-@pytest.fixture(scope="module")
-def cluster() -> Generator:
-    n_threads = os.cpu_count()
-    assert n_threads is not None
-    with LocalCluster(
-        n_workers=2, threads_per_worker=n_threads // 2, dashboard_address=":0"
-    ) as dask_cluster:
-        yield dask_cluster
-
-
-@pytest.fixture
-def client(cluster: LocalCluster) -> Generator:
-    with Client(cluster) as dask_client:
-        yield dask_client
 
 
 def test_dask_ranking(client: Client) -> None:
@@ -60,9 +40,10 @@ def test_dask_ranking(client: Client) -> None:
     qid_test = qid_test.astype(np.uint32)
 
     rank = dxgb.DaskXGBRanker(
+        learning_rate=0.5,
         n_estimators=2500,
         eval_metric=["ndcg"],
-        early_stopping_rounds=10,
+        early_stopping_rounds=5,
         allow_group_split=True,
     )
     rank.fit(

@@ -3,17 +3,16 @@
  */
 #include "test_quantile_obj.h"
 
-#include <xgboost/base.h>        // for Args
-#include <xgboost/context.h>     // for Context
-#include <xgboost/data.h>        // for MetaInfo
-#include <xgboost/objective.h>   // for ObjFunction
-#include <xgboost/span.h>        // for Span
-#include <xgboost/tree_model.h>  // for RegTree
+#include <xgboost/base.h>       // for Args
+#include <xgboost/context.h>    // for Context
+#include <xgboost/data.h>       // for MetaInfo
+#include <xgboost/objective.h>  // for ObjFunction
+#include <xgboost/span.h>       // for Span
 
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector
 
-#include "../helpers.h"                   // CheckConfigReload,MakeCUDACtx,DeclareUnifiedTest
+#include "../helpers.h"  // CheckConfigReload,MakeCUDACtx,DeclareUnifiedTest
 
 namespace xgboost {
 void TestQuantile(Context const* ctx) {

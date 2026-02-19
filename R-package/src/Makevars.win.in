@@ -100,6 +100,7 @@ OBJECTS= \
     $(PKGROOT)/src/tree/updater_sync.o \
     $(PKGROOT)/src/tree/hist/hist_param.o \
     $(PKGROOT)/src/tree/hist/histogram.o \
+    $(PKGROOT)/src/tree/hist/sampler.o \
     $(PKGROOT)/src/linear/linear_updater.o \
     $(PKGROOT)/src/linear/updater_coordinate.o \
     $(PKGROOT)/src/linear/updater_shotgun.o \
@@ -139,6 +140,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/threading_utils.o \
     $(PKGROOT)/src/common/ranking_utils.o \
     $(PKGROOT)/src/common/param_array.o \
+    $(PKGROOT)/src/common/expectile_loss_utils.o \
     $(PKGROOT)/src/common/quantile_loss_utils.o \
     $(PKGROOT)/src/common/timer.o \
     $(PKGROOT)/src/common/version.o \
