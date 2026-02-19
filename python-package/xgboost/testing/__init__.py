@@ -71,9 +71,10 @@ def has_ipv6() -> bool:
 
     if socket.has_ipv6:
         try:
-            with socket.socket(
-                socket.AF_INET6, socket.SOCK_STREAM
-            ) as server, socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as client:
+            with (
+                socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as server,
+                socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as client,
+            ):
                 server.bind(("::1", 0))
                 port = server.getsockname()[1]
                 server.listen()
@@ -183,6 +184,11 @@ def no_cupy() -> PytestSkip:
         # Cupy might run into issue on Windows due to missing compiler
         try:
             cp.array([1, 2, 3]).sum()
+            # Some Windows environments have a broken CuPy runtime where random
+            # initialization fails due to module import hooks (for example,
+            # `cupy_backends.cuda.libs.__wrapped__` lookup).  Treat this as
+            # unavailable CuPy for GPU tests.
+            cp.random.RandomState(np.uint64(1994))
         except Exception:  # pylint: disable=broad-except
             skip_cupy["condition"] = True
     return skip_cupy
