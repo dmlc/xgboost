@@ -282,6 +282,7 @@ def test_feature_importances_weight(tmp_path: Path) -> None:
         base_score=0.5,
     ).fit(X, y)
 
+    # fmt: off
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
                     0., 0., 0., 0.00833333, 0.25833333, 0., 0., 0., 0.,
@@ -289,6 +290,7 @@ def test_feature_importances_weight(tmp_path: Path) -> None:
                     0.05, 0.06666667, 0., 0., 0., 0., 0., 0., 0., 0.04166667,
                     0., 0., 0., 0., 0., 0., 0., 0.00833333, 0., 0., 0., 0.,
                     0.], dtype=np.float32)
+    # fmt: on
 
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
@@ -355,6 +357,7 @@ def test_feature_importances_gain():
         base_score=0.5,
     ).fit(X, y)
 
+    # fmt: off
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00326159, 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00297238, 0.00988034, 0., 0., 0., 0., 0., 0.,
@@ -363,6 +366,7 @@ def test_feature_importances_gain():
                     0., 0.00616747, 0.01237546, 0., 0., 0., 0., 0.,
                     0., 0., 0.08240705, 0., 0., 0., 0., 0., 0., 0.,
                     0.00100649, 0., 0., 0., 0., 0.], dtype=np.float32)
+    # fmt: on
 
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
