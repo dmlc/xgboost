@@ -274,6 +274,10 @@ __model_doc = f"""
 
         Specify which booster to use: ``gbtree``, ``gblinear`` or ``dart``.
 
+        .. deprecated:: 3.3.0
+
+            ``gblinear`` is deprecated and support will be removed in a future release.
+
     tree_method : {Optional[str]}
 
         Specify which tree method to use.  Default to auto.  If this parameter is set to
