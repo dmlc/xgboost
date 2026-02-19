@@ -38,14 +38,13 @@ class GBTreeModelView {
 
  public:
   explicit GBTreeModelView(DeviceOrd device, gbm::GBTreeModel const& model, bool need_stat,
-                           bst_tree_t tree_begin, bst_tree_t tree_end, std::mutex* p_mu,
-                           CopyViews&& copy)
+                           bst_tree_t tree_begin, bst_tree_t tree_end, CopyViews&& copy)
       : tree_begin{tree_begin},
         tree_end{tree_end},
         n_groups{model.learner_model_param->OutputLength()},
         n_features{model.learner_model_param->num_feature} {
     // Make sure the trees are pulled to target device without race.
-    std::lock_guard guard{*p_mu};
+    std::lock_guard guard{model.Mutex()};
     // Create tree views.
     std::vector<TreeViewVar> trees;
     for (bst_tree_t tree_idx = this->tree_begin; tree_idx < this->tree_end; ++tree_idx) {
