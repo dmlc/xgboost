@@ -273,6 +273,8 @@ __model_doc = f"""
     booster: {Optional[str]}
 
         Specify which booster to use: ``gbtree``, ``gblinear`` or ``dart``.
+        ``dart`` is deprecated; use ``gbtree`` and set DART parameters like
+        ``rate_drop``/``one_drop``/``skip_drop`` instead.
 
     tree_method : {Optional[str]}
 

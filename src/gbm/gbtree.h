@@ -307,9 +307,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    auto p_weight_drop = this->IsDart() ? &weight_drop_ : nullptr;
     this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end,
-                                                   p_weight_drop, approximate);
+                                                   &weight_drop_, approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -318,9 +317,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    auto p_weight_drop = this->IsDart() ? &weight_drop_ : nullptr;
     this->GetPredictor(false)->PredictInteractionContributions(
-        p_fmat, out_contribs, model_, tree_end, p_weight_drop, approximate);
+        p_fmat, out_contribs, model_, tree_end, &weight_drop_, approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
@@ -341,12 +339,12 @@ class GBTree : public GradientBooster {
       bool is_training, HostDeviceVector<float> const* out_pred = nullptr,
       DMatrix* f_dmat = nullptr) const;
 
-  void PredictDartBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
-                            bst_layer_t layer_begin, bst_layer_t layer_end) const;
+  void PredictWeightedBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
+                                bst_layer_t layer_begin, bst_layer_t layer_end) const;
 
-  void InplacePredictDart(std::shared_ptr<DMatrix> p_fmat, float missing,
-                          PredictionCacheEntry* p_out_preds, bst_layer_t layer_begin,
-                          bst_layer_t layer_end) const;
+  void InplacePredictWeighted(std::shared_ptr<DMatrix> p_fmat, float missing,
+                              PredictionCacheEntry* p_out_preds, bst_layer_t layer_begin,
+                              bst_layer_t layer_end) const;
 
   void DropTrees(bool is_training);
   std::size_t NormalizeTrees(std::size_t size_new_trees);

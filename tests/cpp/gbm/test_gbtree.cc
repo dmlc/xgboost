@@ -311,6 +311,8 @@ TEST(GBTree, JsonIO) {
   ASSERT_EQ(get<Array>(gbtree_model["trees"]).size(), 1ul);
   ASSERT_EQ(get<Integer>(get<Object>(get<Array>(gbtree_model["trees"]).front()).at("id")), 0);
   ASSERT_EQ(get<Array>(gbtree_model["tree_info"]).size(), 1ul);
+  ASSERT_EQ(get<Array>(j_model["weight_drop"]).size(), 1ul);
+  ASSERT_EQ(get<Number const>(get<Array const>(j_model["weight_drop"]).front()), 1.0f);
   auto j_train_param = j_config["gbtree_model_param"];
   ASSERT_EQ(get<String>(j_train_param["num_parallel_tree"]), "1");
 
@@ -331,6 +333,29 @@ TEST(GBTree, JsonIO) {
   Json j_config_rt{Object{}};
   loaded->SaveConfig(&j_config_rt);
   check_config(j_config_rt["updater"]);
+}
+
+TEST(GBTree, DartCoreParams) {
+  size_t constexpr kCols = 16;
+  Context ctx;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+
+  std::unique_ptr<GradientBooster> gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
+  gbm->Configure({{"rate_drop", "0.5"}, {"one_drop", "1"}});
+
+  Json config{Object{}};
+  gbm->SaveConfig(&config);
+  ASSERT_TRUE(IsA<Object>(config["dart_train_param"]));
+  ASSERT_EQ(get<String>(config["dart_train_param"]["rate_drop"]), "0.5");
+  ASSERT_EQ(get<String>(config["dart_train_param"]["one_drop"]), "1");
+
+  std::unique_ptr<GradientBooster> loaded{GradientBooster::Create("gbtree", &ctx, &mparam)};
+  loaded->LoadConfig(config);
+  Json config_rt{Object{}};
+  loaded->SaveConfig(&config_rt);
+
+  ASSERT_EQ(get<String>(config_rt["dart_train_param"]["rate_drop"]), "0.5");
+  ASSERT_EQ(get<String>(config_rt["dart_train_param"]["one_drop"]), "1");
 }
 
 TEST(Dart, JsonIO) {

@@ -82,14 +82,53 @@ bool UpdatersMatched(std::vector<std::string> updater_seq,
                       return name == up->Name();
                     });
 }
+
+void SaveWeightDrop(std::vector<bst_float> const& weight_drop, Json* out) {
+  std::vector<Json> j_weight_drop(weight_drop.size());
+  for (size_t i = 0; i < weight_drop.size(); ++i) {
+    j_weight_drop[i] = Number(weight_drop[i]);
+  }
+  (*out)["weight_drop"] = Array(std::move(j_weight_drop));
+}
+
+void LoadWeightDrop(Json const& in, Json const& gbtree, std::vector<bst_float>* p_weight_drop,
+                    std::size_t n_trees) {
+  Json const* p_j_weight_drop{nullptr};
+  // Legacy DART format takes precedence.
+  // TODO(4.0): Remove this compatibility path after the next major release.
+  auto const& in_obj = get<Object const>(in);
+  auto in_it = in_obj.find("weight_drop");
+  if (in_it != in_obj.cend()) {
+    p_j_weight_drop = &in_it->second;
+  } else {
+    // New format: weight is always under gbtree.
+    auto const& gbtree_obj = get<Object const>(gbtree);
+    auto gbtree_it = gbtree_obj.find("weight_drop");
+    p_j_weight_drop = gbtree_it == gbtree_obj.cend() ? nullptr : &gbtree_it->second;
+  }
+
+  auto& weight_drop = *p_weight_drop;
+  if (!p_j_weight_drop) {
+    weight_drop.assign(n_trees, 1.0f);
+    return;
+  }
+
+  auto const& j_weight_drop = get<Array const>(*p_j_weight_drop);
+  weight_drop.resize(j_weight_drop.size());
+  for (size_t i = 0; i < weight_drop.size(); ++i) {
+    weight_drop[i] = get<Number const>(j_weight_drop[i]);
+  }
+}
+
+bool IsUniformWeightDrop(std::vector<bst_float> const& weight_drop) {
+  return std::all_of(weight_drop.cbegin(), weight_drop.cend(), [](auto w) { return w == 1.0f; });
+}
 }  // namespace
 
 void GBTree::Configure(Args const& cfg) {
   tparam_.UpdateAllowUnknown(cfg);
   tree_param_.UpdateAllowUnknown(cfg);
-  if (this->IsDart()) {
-    dparam_.UpdateAllowUnknown(cfg);
-  }
+  dparam_.UpdateAllowUnknown(cfg);
 
   model_.Configure(cfg);
 
@@ -365,8 +404,8 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
 void GBTree::CommitModel(TreesOneIter&& new_trees) {
   monitor_.Start("CommitModel");
   auto n_new_trees = model_.CommitModel(std::forward<TreesOneIter>(new_trees));
+  size_t num_drop = NormalizeTrees(n_new_trees);
   if (this->IsDart()) {
-    size_t num_drop = NormalizeTrees(n_new_trees);
     LOG(INFO) << "drop " << num_drop << " trees, "
               << "weight = " << weight_drop_.back();
   }
@@ -378,12 +417,22 @@ void GBTree::LoadConfig(Json const& in) {
   if (this->IsDart()) {
     CHECK_EQ(get<String>(in["name"]), "dart");
     p_gbtree = &in["gbtree"];
-    FromJson(in["dart_train_param"], &dparam_);
   }
   auto const& gbtree = *p_gbtree;
   CHECK_EQ(get<String>(gbtree["name"]), "gbtree");
   FromJson(gbtree["gbtree_train_param"], &tparam_);
   FromJson(gbtree["tree_train_param"], &tree_param_);
+  auto const& in_obj = get<Object const>(in);
+  auto const& gbtree_obj = get<Object const>(gbtree);
+  auto in_it = in_obj.find("dart_train_param");
+  auto gbtree_it = gbtree_obj.find("dart_train_param");
+  if (in_it != in_obj.cend()) {
+    // Legacy DART layout.
+    FromJson(in_it->second, &dparam_);
+  } else if (gbtree_it != gbtree_obj.cend()) {
+    // Unified layout for tree boosters.
+    FromJson(gbtree_it->second, &dparam_);
+  }
 
   // Process type cannot be kUpdate from loaded model
   // This would cause all trees to be pushed to trees_to_update
@@ -455,7 +504,9 @@ void GBTree::SaveConfig(Json* p_out) const {
     j_updaters.emplace_back(up_config);
   }
   gbtree["specified_updater"] = Boolean{specified_updater_};
+  gbtree["dart_train_param"] = ToJson(dparam_);
   if (this->IsDart()) {
+    // Legacy DART layout.
     out["dart_train_param"] = ToJson(dparam_);
   }
 }
@@ -465,15 +516,11 @@ void GBTree::LoadModel(Json const& in) {
   if (this->IsDart()) {
     CHECK_EQ(get<String>(in["name"]), "dart");
     p_gbtree = &in["gbtree"];
-    auto const& j_weight_drop = get<Array>(in["weight_drop"]);
-    weight_drop_.resize(j_weight_drop.size());
-    for (size_t i = 0; i < weight_drop_.size(); ++i) {
-      weight_drop_[i] = get<Number const>(j_weight_drop[i]);
-    }
   }
   auto const& gbtree = *p_gbtree;
   CHECK_EQ(get<String>(gbtree["name"]), "gbtree");
   model_.LoadModel(gbtree["model"]);
+  LoadWeightDrop(in, gbtree, &weight_drop_, model_.trees.size());
 }
 
 void GBTree::SaveModel(Json* p_out) const {
@@ -489,13 +536,10 @@ void GBTree::SaveModel(Json* p_out) const {
   gbtree["model"] = Object();
   auto& model = gbtree["model"];
   model_.SaveModel(&model);
-
+  SaveWeightDrop(weight_drop_, &gbtree);
   if (this->IsDart()) {
-    std::vector<Json> j_weight_drop(weight_drop_.size());
-    for (size_t i = 0; i < weight_drop_.size(); ++i) {
-      j_weight_drop[i] = Number(weight_drop_[i]);
-    }
-    out["weight_drop"] = Array(std::move(j_weight_drop));
+    // Keep legacy field for external consumers during transition.
+    SaveWeightDrop(weight_drop_, &out);
   }
 }
 
@@ -552,12 +596,10 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
   out_model.param.num_trees = out_model.trees.size();
   out_model.param.num_parallel_tree = model_.param.num_parallel_tree;
 
-  if (this->IsDart()) {
-    CHECK(p_gbtree->weight_drop_.empty());
-    detail::SliceTrees(begin, end, step, model_, [&](auto const& in_it, auto const&) {
-      p_gbtree->weight_drop_.push_back(this->weight_drop_.at(in_it));
-    });
-  }
+  CHECK(p_gbtree->weight_drop_.empty());
+  detail::SliceTrees(begin, end, step, model_, [&](auto const& in_it, auto const&) {
+    p_gbtree->weight_drop_.push_back(this->weight_drop_.at(in_it));
+  });
 }
 
 void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
@@ -602,9 +644,10 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
 
 void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                           bst_layer_t layer_begin, bst_layer_t layer_end) {
-  if (this->IsDart()) {
-    this->DropTrees(is_training);
-    this->PredictDartBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end);
+  this->DropTrees(is_training);
+  auto weighted_prediction = !this->idx_drop_.empty() || !IsUniformWeightDrop(weight_drop_);
+  if (weighted_prediction) {
+    this->PredictWeightedBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end);
     return;
   }
   // dispatch to const function.
@@ -614,8 +657,8 @@ void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
                             PredictionCacheEntry* out_preds, bst_layer_t layer_begin,
                             bst_layer_t layer_end) const {
-  if (this->IsDart()) {
-    this->InplacePredictDart(p_m, missing, out_preds, layer_begin, layer_end);
+  if (!IsUniformWeightDrop(weight_drop_)) {
+    this->InplacePredictWeighted(p_m, missing, out_preds, layer_begin, layer_end);
     return;
   }
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
@@ -743,9 +786,10 @@ void GPUDartInplacePredictInc(common::Span<float> /*out_predts*/, common::Span<f
 }
 #endif
 
-void GBTree::PredictDartBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
-                                  bst_layer_t layer_begin, bst_layer_t layer_end) const {
-  CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
+void GBTree::PredictWeightedBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds,
+                                      bool training, bst_layer_t layer_begin,
+                                      bst_layer_t layer_end) const {
+  CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << MTNotImplemented();
   auto& predictor = this->GetPredictor(training, &p_out_preds->predictions, p_fmat);
   CHECK(predictor);
   predictor->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions, model_);
@@ -795,10 +839,10 @@ void GBTree::PredictDartBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* p_out_p
   }
 }
 
-void GBTree::InplacePredictDart(std::shared_ptr<DMatrix> p_fmat, float missing,
-                                PredictionCacheEntry* p_out_preds, bst_layer_t layer_begin,
-                                bst_layer_t layer_end) const {
-  CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
+void GBTree::InplacePredictWeighted(std::shared_ptr<DMatrix> p_fmat, float missing,
+                                    PredictionCacheEntry* p_out_preds, bst_layer_t layer_begin,
+                                    bst_layer_t layer_end) const {
+  CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << MTNotImplemented();
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   auto n_groups = model_.learner_model_param->num_output_group;
 
@@ -807,7 +851,7 @@ void GBTree::InplacePredictDart(std::shared_ptr<DMatrix> p_fmat, float missing,
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_fmat);
     CHECK(proxy) << error::InplacePredictProxy();
     auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
-    this->PredictDartBatchImpl(p_fmat.get(), p_out_preds, false, layer_begin, layer_end);
+    this->PredictWeightedBatchImpl(p_fmat.get(), p_out_preds, false, layer_begin, layer_end);
     return;
   }
 
