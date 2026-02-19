@@ -8,6 +8,7 @@ import xgboost as xgb
 from hypothesis import assume, given, settings, strategies
 from hypothesis.extra.pandas import column, data_frames, range_indexes
 from xgboost import testing as tm
+from xgboost.compat import import_cupy
 from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 sys.path.append("tests/python")
@@ -154,10 +155,10 @@ class TestGPUPredict:
 
         """
         import cudf
-        import cupy as cp
         import pandas as pd
         from scipy.sparse import csr_matrix
 
+        cp = import_cupy()
         reg = xgb.XGBRegressor(tree_method="hist", device=device)
         n_samples = 4096
         n_features = 13
@@ -192,7 +193,7 @@ class TestGPUPredict:
         X: Any,
         base_margin: Any,
     ) -> None:
-        import cupy as cp
+        cp = import_cupy()
 
         booster.set_param({"device": f"cuda:{device}"})
         dtrain.set_info(base_margin=base_margin)
@@ -216,7 +217,7 @@ class TestGPUPredict:
         cp.testing.assert_allclose(from_inplace, from_dmatrix, rtol=1e-6)
 
     def run_inplace_predict_cupy(self, device: int) -> None:
-        import cupy as cp
+        cp = import_cupy()
 
         cp.cuda.runtime.setDevice(device)
         rows = 1000
@@ -287,7 +288,7 @@ class TestGPUPredict:
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.mgpu
     def test_inplace_predict_cupy_specified_device(self) -> None:
-        import cupy as cp
+        cp = import_cupy()
 
         n_devices = cp.cuda.runtime.getDeviceCount()
         for d in range(n_devices):
@@ -297,9 +298,9 @@ class TestGPUPredict:
     @pytest.mark.skipif(**tm.no_cudf())
     def test_inplace_predict_cudf(self) -> None:
         import cudf
-        import cupy as cp
         import pandas as pd
 
+        cp = import_cupy()
         rows = 1000
         cols = 10
         rng = np.random.RandomState(1994)
@@ -528,9 +529,9 @@ class TestGPUPredict:
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize("n_classes", [2, 3])
     def test_predict_dart(self, n_classes: int) -> None:
-        import cupy as cp
         from sklearn.datasets import make_classification
 
+        cp = import_cupy()
         n_samples = 1000
         X_, y_ = make_classification(
             n_samples=n_samples, n_informative=5, n_classes=n_classes
@@ -582,13 +583,14 @@ class TestGPUPredict:
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dtypes(self) -> None:
-        import cupy as cp
+        cp = import_cupy()
 
         rows = 1000
         cols = 10
-        rng = cp.random.RandomState(np.uint64(1994))
-        orig = rng.randint(low=0, high=127, size=rows * cols).reshape(rows, cols)
-        y = rng.randint(low=0, high=127, size=rows)
+
+        rng = cp.random.default_rng(1994)
+        orig = rng.integers(low=0, high=127, size=rows * cols).reshape(rows, cols)
+        y = rng.integers(low=0, high=127, size=rows)
         dtrain = xgb.DMatrix(orig, label=y)
         booster = xgb.train({"tree_method": "hist", "device": "cuda:0"}, dtrain)
 
