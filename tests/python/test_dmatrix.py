@@ -1,14 +1,14 @@
 import csv
+import os
 import warnings
 from pathlib import Path
 
 import numpy as np
 import pytest
 import scipy.sparse
+import xgboost as xgb
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
-
-import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import DataSplitMode
 from xgboost.testing.data import np_dtypes, run_base_margin_info

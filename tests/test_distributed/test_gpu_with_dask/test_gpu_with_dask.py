@@ -4,15 +4,15 @@ import asyncio
 import json
 from collections import OrderedDict
 from inspect import signature
+from pathlib import Path
 from typing import Any, Dict, List, Type, TypeVar
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
 from packaging.version import parse as parse_version
-
-import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
 from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
@@ -20,9 +20,6 @@ from xgboost.testing.params import hist_parameter_strategy
 
 from ..test_with_dask.test_with_dask import (
     generate_array,
-)
-from ..test_with_dask.test_with_dask import kCols as random_cols
-from ..test_with_dask.test_with_dask import (
     run_auc,
     run_boost_from_prediction,
     run_boost_from_prediction_multi_class,
@@ -34,6 +31,7 @@ from ..test_with_dask.test_with_dask import (
     run_tree_stats,
     suppress,
 )
+from ..test_with_dask.test_with_dask import kCols as random_cols
 
 pytestmark = [
     pytest.mark.skipif(**tm.no_dask()),
@@ -48,7 +46,6 @@ from dask import __version__ as dask_version
 from dask import array as da
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
-
 from xgboost import dask as dxgb
 from xgboost.testing.dask import check_init_estimation, check_uneven_nan
 
@@ -585,13 +582,13 @@ class TestDistributedGPU:
 
 
 @pytest.mark.skipif(**tm.no_dask_cudf())
-def test_categorical(local_cuda_client: Client) -> None:
+def test_categorical(tmp_path: Path, local_cuda_client: Client) -> None:
     X, y = make_categorical(local_cuda_client, 10000, 30, 13)
     X = X.to_backend("cudf")
 
     X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, onehot=True)
     X_onehot = X_onehot.to_backend("cudf")
-    run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y)
+    run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y, tmp_path)
 
 
 @pytest.mark.skipif(**tm.no_dask_cudf())
