@@ -11,7 +11,7 @@ dependencies:
 - pytest
 - boto3
 - hypothesis
-- cupy>=13.2
+- cupy>=13.2,<14
 - python-graphviz
 - pip
 - py-ubjson

@@ -82,6 +82,20 @@ TEST(Learner, ParameterValidation) {
   ASSERT_THAT([&] { learner->Configure(); }, GMockThrow(R"("tree method" contains whitespace)"));
 }
 
+TEST(Learner, DeprecatedGblinearBooster) {
+  auto p_mat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
+
+  std::unique_ptr<Learner> learner{Learner::Create({p_mat})};
+  learner->SetParam("booster", "gblinear");
+  learner->SetParam("verbosity", "2");
+
+  testing::internal::CaptureStderr();
+  learner->Configure();
+  auto output = testing::internal::GetCapturedStderr();
+
+  ASSERT_NE(output.find("`booster=gblinear` is deprecated"), std::string::npos);
+}
+
 TEST(Learner, CheckGroup) {
   using Arg = std::pair<std::string, std::string>;
   size_t constexpr kNumGroups = 4;
