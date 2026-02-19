@@ -22,7 +22,7 @@
 
 namespace xgboost::common {
 class HistogramCuts;
-using WQSketch = WQuantileSketch<bst_float, bst_float>;
+using WQSketch = WQuantileSketch;
 using SketchEntry = WQSketch::Entry;
 
 namespace detail {
