@@ -629,7 +629,9 @@ class TestClassifier:
             atol=1e-6,
         )
 
-    def test_classifier_model_save_load(self, clf_data: ClfData, tmp_path: Path) -> None:
+    def test_classifier_model_save_load(
+        self, clf_data: ClfData, tmp_path: Path
+    ) -> None:
         train_df = clf_data.df.select("features", "label")
         test_df = clf_data.df.select("features")
         path = str(tmp_path / "spark-xgb-clf-model")

@@ -4,7 +4,6 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.callbacks import (
@@ -331,8 +330,7 @@ class TestCallbacks:
         )
         for i in range(1, 10):
             assert (
-                tmp_path
-                / f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}"
+                tmp_path / f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}"
             ).exists()
 
         check_point = xgb.callback.TrainingCheckPoint(

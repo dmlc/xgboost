@@ -1683,9 +1683,7 @@ class TestWithDask:
         )
         rng = da.random.RandomState(1994)
         w = rng.uniform(low=0.0, high=1.0, size=y.shape[0])
-        reg.fit(
-            X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
-        )
+        reg.fit(X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w])
         results_custom = reg.evals_result()
         tm.non_increasing(results_custom["validation_0"]["rmse"])
 

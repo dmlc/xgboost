@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 import xgboost
 from xgboost import testing as tm
 
