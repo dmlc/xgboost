@@ -296,14 +296,15 @@ def test_feature_importances_weight(tmp_path: Path) -> None:
 
     # numeric columns
     import pandas as pd
-    y = pd.Series(digits['target'])
-    X = pd.DataFrame(digits['data'])
+
+    y = pd.Series(digits["target"])
+    X = pd.DataFrame(digits["data"])
     xgb_model = xgb.XGBClassifier(
         random_state=0,
         tree_method="exact",
         learning_rate=0.1,
-        base_score=.5,
-        importance_type="weight"
+        base_score=0.5,
+        importance_type="weight",
     ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
@@ -348,10 +349,11 @@ def test_feature_importances_gain():
     from sklearn.datasets import load_digits
 
     digits = load_digits(n_class=2)
-    y = digits['target']
-    X = digits['data']
+    y = digits["target"]
+    X = digits["data"]
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact",
+        random_state=0,
+        tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
         base_score=0.5,
@@ -372,8 +374,9 @@ def test_feature_importances_gain():
 
     # numeric columns
     import pandas as pd
-    y = pd.Series(digits['target'])
-    X = pd.DataFrame(digits['data'])
+
+    y = pd.Series(digits["target"])
+    X = pd.DataFrame(digits["data"])
     xgb_model = xgb.XGBClassifier(
         random_state=0,
         tree_method="exact",
