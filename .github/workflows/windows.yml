@@ -25,7 +25,7 @@ jobs:
       - runner=windows-cpu
       - tag=windows-build-win64-gpu
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
@@ -49,7 +49,7 @@ jobs:
       - runner=windows-cpu
       - tag=windows-build-win64-cpu
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
@@ -65,7 +65,7 @@ jobs:
       - runner=windows-gpu
       - tag=windows-test-win64-gpu
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       - name: Unstash files
