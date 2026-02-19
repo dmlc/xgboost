@@ -176,7 +176,7 @@ class GBTree : public GradientBooster {
       : GBTree{booster_config, ctx, Type::kGBTree} {}
 
   explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx, Type booster_type)
-      : GradientBooster{ctx}, model_(booster_config, ctx_), booster_type_{booster_type} {
+      : GradientBooster{ctx}, booster_type_{booster_type}, model_(booster_config, ctx_) {
     monitor_.Init(__func__);
   }
 
