@@ -26,7 +26,7 @@ jobs:
     outputs:
       cccl_version: ${{ steps.query_version_step.outputs.cccl_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: query_version_step
         name: Query version
         run: |
@@ -41,7 +41,7 @@ jobs:
       - tag=nightly-cccl
     needs: get-latest-cccl-version
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -56,7 +56,7 @@ jobs:
     outputs:
       rmm_version: ${{ steps.query_version_step.outputs.rmm_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: query_version_step
         name: Query version
         run: |
@@ -72,7 +72,7 @@ jobs:
       - tag=nightly-rmm
     needs: get-latest-rmm-version
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)

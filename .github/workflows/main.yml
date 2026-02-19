@@ -27,7 +27,7 @@ jobs:
         with:
           mask-password: 'false'
           registries: '492475357299'
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
       - name: Get image tag
         id: get-image-tag
         run: |
@@ -68,7 +68,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
       options: ${{ matrix.container_options }}
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       # Remove default build config to ensure CMake-configured header is used
@@ -134,7 +134,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -188,7 +188,7 @@ jobs:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
       - name: Pick Python
         run: |
           export PATH=/opt/python/cp310-cp310/bin/:$PATH
@@ -227,7 +227,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -262,7 +262,7 @@ jobs:
           arch: x86_64
           runner: linux-amd64-cpu
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -289,7 +289,7 @@ jobs:
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -380,7 +380,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
       - name: Unstash gtest
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -452,7 +452,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -515,7 +515,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -541,7 +541,7 @@ jobs:
         - os: macos-14
           platform_id: macosx_arm64
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
         with:
           submodules: 'true'
       - name: Set up homebrew
@@ -590,7 +590,7 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: macos_test
