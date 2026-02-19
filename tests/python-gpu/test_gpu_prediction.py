@@ -217,7 +217,7 @@ class TestGPUPredict:
         cp.testing.assert_allclose(from_inplace, from_dmatrix, rtol=1e-6)
 
     def run_inplace_predict_cupy(self, device: int) -> None:
-        cp = import_cupy()
+        import cupy as cp
 
         cp.cuda.runtime.setDevice(device)
         rows = 1000
