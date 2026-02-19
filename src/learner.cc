@@ -808,6 +808,10 @@ class LearnerConfiguration : public Intercept {
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
+    if (tparam_.booster == "gblinear") {
+      LOG(WARNING) << "`booster=gblinear` is deprecated and support will be removed in a future "
+                      "release.";
+    }
     if (gbm_ == nullptr || old.booster != tparam_.booster) {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     }
