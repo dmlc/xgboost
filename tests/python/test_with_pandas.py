@@ -2,7 +2,6 @@ from typing import Type
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import is_dataframe
@@ -244,7 +243,7 @@ class TestPandas:
         X = pd.Series(X, dtype="category")
         X = pd.DataFrame({"f0": X})
         y = rng.randn(rows)
-        m = xgb.DMatrix(X, y, enable_categorical=True, data_split_mode=data_split_mode)
+        m = xgb.DMatrix(X, y, data_split_mode=data_split_mode)
         assert m.feature_types[0] == "c"
 
         X_0 = ["f", "o", "o"]
@@ -266,10 +265,8 @@ class TestPandas:
 
         X = X["f0"]
         y = y[: X.shape[0]]
-        with pytest.raises(ValueError, match=r".*enable_categorical.*"):
-            xgb.DMatrix(X, y, data_split_mode=data_split_mode)
 
-        Xy = xgb.DMatrix(X, y, enable_categorical=True, data_split_mode=data_split_mode)
+        Xy = xgb.DMatrix(X, y, data_split_mode=data_split_mode)
         assert Xy.num_row() == 3
         if data_split_mode == DataSplitMode.ROW:
             assert Xy.num_col() == 1
@@ -518,8 +515,8 @@ class TestPandas:
                 y_orig = f0_orig.fillna(0, inplace=False)
                 y = f0.fillna(0, inplace=False)
 
-            m_orig = DMatrixT(orig, enable_categorical=True, label=y_orig)
-            m_etype = DMatrixT(df, enable_categorical=True, label=y)
+            m_orig = DMatrixT(orig, label=y_orig)
+            m_etype = DMatrixT(df, label=y)
 
             assert predictor_equal(m_orig, m_etype)
             if y is not None:

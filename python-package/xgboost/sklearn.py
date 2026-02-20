@@ -276,6 +276,10 @@ __model_doc = f"""
         ``dart`` is deprecated; use ``gbtree`` and set DART parameters like
         ``rate_drop``/``one_drop``/``skip_drop`` instead.
 
+        .. deprecated:: 3.3.0
+
+            ``gblinear`` is deprecated and support will be removed in a future release.
+
     tree_method : {Optional[str]}
 
         Specify which tree method to use.  Default to auto.  If this parameter is set to
@@ -840,7 +844,7 @@ class XGBModel(XGBModelBase):
         importance_type: Optional[str] = None,
         device: Optional[str] = None,
         validate_parameters: Optional[bool] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         feature_types: Optional[FeatureTypes] = None,
         feature_weights: Optional[ArrayLike] = None,
         max_cat_to_onehot: Optional[int] = None,
@@ -1245,13 +1249,6 @@ class XGBModel(XGBModelBase):
             if self.feature_weights is not None
             else feature_weights
         )
-
-        tree_method = params.get("tree_method", None)
-        if self.enable_categorical and tree_method == "exact":
-            raise ValueError(
-                "Experimental support for categorical data is not implemented for"
-                " current tree method yet."
-            )
         return model, metric, params, feature_weights
 
     def _create_dmatrix(self, ref: Optional[DMatrix], **kwargs: Any) -> DMatrix:
