@@ -197,15 +197,17 @@ void SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &i
   auto cursor{worker_sketch.begin()};
   for (size_t fidx = 0; fidx < reduced.size(); ++fidx) {
     auto const &sketch = reduced[fidx];
-    if (IsCat(feature_types_, fidx)) {
+    if (IsCat(feature_types_, fidx) || sketch.size == 0) {
       // nothing to do if it's categorical feature, size is 0 so no need to change cursor
       continue;
-    } else {
-      cursor = std::copy(sketch.data, sketch.data + sketch.size, cursor);
     }
+    cursor = std::copy(sketch.data, sketch.data + sketch.size, cursor);
   }
 
   static_assert(sizeof(WQSketch::Entry) / 4 == sizeof(float), "Unexpected size of sketch entry.");
+  if (global_sketches.empty()) {
+    return;
+  }
   rc = collective::GlobalSum(
       ctx, info,
       linalg::MakeVec(reinterpret_cast<float *>(global_sketches.data()),

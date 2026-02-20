@@ -316,6 +316,7 @@ struct Queue {
     qtail = 0;
   }
 
+  // push element to the queue, return false if the queue is full and need to be flushed
   inline bool Push(DType x, RType w) {
     if (qtail == 0 || queue[qtail - 1].value != x) {
       if (qtail == queue.size() && queue.size() == 1) {
@@ -407,6 +408,16 @@ class WQuantileSketch {
    * \param eps accuracy level of summary
    */
   inline void Init(size_t maxn, double eps) {
+    if (maxn == 0) {
+      // Empty columns can appear in distributed column-split settings.
+      // Keep internals in a valid state while preserving an empty summary.
+      nlevel = 1;
+      limit_size = 1;
+      inqueue = Queue<>(1);
+      data.clear();
+      level.clear();
+      return;
+    }
     LimitSizeLevel(maxn, eps, &nlevel, &limit_size);
     inqueue = Queue<>(limit_size * 2);
     data.clear();
