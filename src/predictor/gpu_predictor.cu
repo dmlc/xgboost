@@ -435,7 +435,8 @@ auto MakeTreeSegments(Context const* ctx, bst_tree_t tree_begin, bst_tree_t tree
 void ExtractPaths(Context const* ctx,
                   dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>>* paths,
                   gbm::GBTreeModel const& h_model, DeviceModel const& d_model,
-                  dh::device_vector<uint32_t>* path_categories) {
+                  dh::device_vector<uint32_t>* path_categories,
+                  common::Span<float const> tree_weights) {
   curt::SetDevice(ctx->Ordinal());
 
   // Path length and tree index for all leaf nodes
@@ -482,6 +483,8 @@ void ExtractPaths(Context const* ctx,
   auto d_info = info.data().get();
   auto d_tree_groups = d_model.tree_groups;
   auto d_path_segments = path_segments.data().get();
+  auto d_tree_weights = tree_weights;
+  CHECK(d_tree_weights.empty() || d_tree_weights.size() == d_trees.size());
 
   std::size_t max_cat = 0;
   if (std::any_of(h_model.trees.cbegin(), h_model.trees.cend(),
@@ -514,7 +517,8 @@ void ExtractPaths(Context const* ctx,
     std::int32_t group = d_tree_groups[path_info.tree_idx];
     auto child_nidx = path_info.nidx;
 
-    float v = tree.LeafValue(child_nidx);
+    float tree_weight = d_tree_weights.empty() ? 1.0f : d_tree_weights[path_info.tree_idx];
+    float v = tree.LeafValue(child_nidx) * tree_weight;
     const float inf = std::numeric_limits<float>::infinity();
     size_t output_position = d_path_segments[idx + 1] - 1;
 
@@ -1093,9 +1097,6 @@ class GPUPredictor : public xgboost::Predictor {
     if (approximate) {
       LOG(FATAL) << "Approximated " << not_implemented;
     }
-    if (tree_weights != nullptr) {
-      LOG(FATAL) << "Dart booster feature " << not_implemented;
-    }
     CHECK(!p_fmat->Info().IsColumnSplit())
         << "Predict contribution support for column-wise data split is not yet implemented.";
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
@@ -1114,12 +1115,20 @@ class GPUPredictor : public xgboost::Predictor {
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
     DeviceModel d_model{this->ctx_->Device(), model, true, 0, tree_end, CopyViews{this->ctx_}};
+    dh::device_vector<float> d_tree_weights;
+    common::Span<float const> tree_weights_d;
+    if (tree_weights != nullptr) {
+      CHECK_GE(tree_weights->size(), static_cast<std::size_t>(d_model.tree_end));
+      d_tree_weights.assign(tree_weights->cbegin() + d_model.tree_begin,
+                            tree_weights->cbegin() + d_model.tree_end);
+      tree_weights_d = dh::ToSpan(d_tree_weights);
+    }
 
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
     dh::device_vector<uint32_t> categories;
-    ExtractPaths(ctx_, &device_paths, model, d_model, &categories);
+    ExtractPaths(ctx_, &device_paths, model, d_model, &categories, tree_weights_d);
 
     LaunchShap(this->ctx_, new_enc, model, [&](auto&& cfg, auto&& acc) {
       using Config = common::GetValueT<decltype(cfg)>;
@@ -1155,9 +1164,6 @@ class GPUPredictor : public xgboost::Predictor {
     if (approximate) {
       LOG(FATAL) << "Approximated " << not_implemented;
     }
-    if (tree_weights != nullptr) {
-      LOG(FATAL) << "Dart booster feature " << not_implemented;
-    }
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     out_contribs->SetDevice(ctx_->Device());
     tree_end = GetTreeLimit(model.trees, tree_end);
@@ -1174,9 +1180,17 @@ class GPUPredictor : public xgboost::Predictor {
 
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
     DeviceModel d_model{this->ctx_->Device(), model, true, 0, tree_end, CopyViews{this->ctx_}};
+    dh::device_vector<float> d_tree_weights;
+    common::Span<float const> tree_weights_d;
+    if (tree_weights != nullptr) {
+      CHECK_GE(tree_weights->size(), static_cast<std::size_t>(d_model.tree_end));
+      d_tree_weights.assign(tree_weights->cbegin() + d_model.tree_begin,
+                            tree_weights->cbegin() + d_model.tree_end);
+      tree_weights_d = dh::ToSpan(d_tree_weights);
+    }
 
     dh::device_vector<uint32_t> categories;
-    ExtractPaths(ctx_, &device_paths, model, d_model, &categories);
+    ExtractPaths(ctx_, &device_paths, model, d_model, &categories, tree_weights_d);
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
