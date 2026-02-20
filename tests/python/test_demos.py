@@ -1,7 +1,7 @@
 import os
 import subprocess
 import sys
-import tempfile
+from pathlib import Path
 
 import pytest
 import xgboost
@@ -17,11 +17,10 @@ CLI_DEMO_DIR = os.path.join(DEMO_DIR, "CLI")
 PYTHON = sys.executable
 
 
-def test_basic_walkthrough() -> None:
+def test_basic_walkthrough(tmp_path: Path) -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "basic_walkthrough.py")
     cmd = [PYTHON, script]
-    with tempfile.TemporaryDirectory() as tmpdir:
-        subprocess.check_call(cmd, cwd=tmpdir)
+    subprocess.check_call(cmd, cwd=tmp_path)
 
 
 @pytest.mark.skipif(**tm.no_pandas())
@@ -60,12 +59,11 @@ def test_feature_weights_demo() -> None:
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_sklearn_demo() -> None:
+def test_sklearn_demo(tmp_path: Path) -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "sklearn_examples.py")
     cmd = [PYTHON, script]
-    subprocess.check_call(cmd)
-    assert os.path.exists("best_calif.pkl")
-    os.remove("best_calif.pkl")
+    subprocess.check_call(cmd, cwd=tmp_path)
+    assert (tmp_path / "best_calif.pkl").exists()
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
@@ -139,12 +137,11 @@ def test_evals_result_demo() -> None:
 
 @pytest.mark.skipif(**tm.no_sklearn())
 @pytest.mark.skipif(**tm.no_pandas())
-def test_aft_demo() -> None:
+def test_aft_demo(tmp_path: Path) -> None:
     script = os.path.join(DEMO_DIR, "aft_survival", "aft_survival_demo.py")
     cmd = [PYTHON, script]
-    subprocess.check_call(cmd)
-    assert os.path.exists("aft_model.json")
-    os.remove("aft_model.json")
+    subprocess.check_call(cmd, cwd=tmp_path)
+    assert (tmp_path / "aft_model.json").exists()
 
 
 @pytest.mark.skipif(**tm.no_matplotlib())
@@ -176,26 +173,25 @@ def test_quantile_reg() -> None:
 
 
 @pytest.mark.skipif(**tm.no_ubjson())
-def test_json_model() -> None:
+def test_json_model(tmp_path: Path) -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "model_parser.py")
 
-    def run_test(reg: xgboost.XGBRegressor) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "reg.json")
-            reg.save_model(path)
-            cmd = [PYTHON, script, f"--model={path}"]
-            subprocess.check_call(cmd)
+    def run_test(reg: xgboost.XGBRegressor, suffix: str) -> None:
+        path = tmp_path / f"reg_{suffix}.json"
+        reg.save_model(path)
+        cmd = [PYTHON, script, f"--model={path}"]
+        subprocess.check_call(cmd)
 
-            path = os.path.join(tmpdir, "reg.ubj")
-            reg.save_model(path)
-            cmd = [PYTHON, script, f"--model={path}"]
-            subprocess.check_call(cmd)
+        path = tmp_path / f"reg_{suffix}.ubj"
+        reg.save_model(path)
+        cmd = [PYTHON, script, f"--model={path}"]
+        subprocess.check_call(cmd)
 
     # numerical
     X, y = tm.make_sparse_regression(100, 10, 0.5, False)
     reg = xgboost.XGBRegressor(n_estimators=2, tree_method="hist")
     reg.fit(X, y)
-    run_test(reg)
+    run_test(reg, "numerical")
 
     # categorical
     X, y = tm.make_categorical(
@@ -209,7 +205,7 @@ def test_json_model() -> None:
     )
     reg = xgboost.XGBRegressor(n_estimators=2, tree_method="hist")
     reg.fit(X, y)
-    run_test(reg)
+    run_test(reg, "categorical")
 
 
 # - gpu_acceleration is not tested due to covertype dataset is being too huge.

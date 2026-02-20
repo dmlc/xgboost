@@ -1,6 +1,5 @@
-import os
-import tempfile
 from collections import namedtuple
+from pathlib import Path
 from typing import Optional, Tuple, Union
 
 import numpy as np
@@ -256,7 +255,9 @@ class TestCallbacks:
             callbacks=[early_stop],
         ).fit(X, y, eval_set=[(X, y)])
 
-    def test_early_stopping_continuation(self, breast_cancer: BreastCancer) -> None:
+    def test_early_stopping_continuation(
+        self, breast_cancer: BreastCancer, tmp_path: Path
+    ) -> None:
         X, y = breast_cancer.full
 
         early_stopping_rounds = 5
@@ -271,23 +272,22 @@ class TestCallbacks:
         booster = cls.get_booster()
         assert booster.num_boosted_rounds() == booster.best_iteration + 1
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "model.json")
-            cls.save_model(path)
-            cls = xgb.XGBClassifier()
-            cls.load_model(path)
-            assert cls._Booster is not None
-            early_stopping_rounds = 3
-            cls.set_params(
-                eval_metric=tm.eval_error_metric_skl,
-                early_stopping_rounds=early_stopping_rounds,
-            )
-            cls.fit(X, y, eval_set=[(X, y)])
-            booster = cls.get_booster()
-            assert (
-                booster.num_boosted_rounds()
-                == booster.best_iteration + early_stopping_rounds + 1
-            )
+        path = tmp_path / "model.json"
+        cls.save_model(path)
+        cls = xgb.XGBClassifier()
+        cls.load_model(path)
+        assert cls._Booster is not None
+        early_stopping_rounds = 3
+        cls.set_params(
+            eval_metric=tm.eval_error_metric_skl,
+            early_stopping_rounds=early_stopping_rounds,
+        )
+        cls.fit(X, y, eval_set=[(X, y)])
+        booster = cls.get_booster()
+        assert (
+            booster.num_boosted_rounds()
+            == booster.best_iteration + early_stopping_rounds + 1
+        )
 
     def test_early_stopping_multiple_metrics(self):
         from sklearn.datasets import make_classification
@@ -315,40 +315,36 @@ class TestCallbacks:
         dtrain, dtest = tm.load_agaricus(__file__)
         run_eta_decay_leaf_output(tree_method, objective, dtrain, dtest, "cpu")
 
-    def test_check_point(self, breast_cancer: BreastCancer) -> None:
+    def test_check_point(self, breast_cancer: BreastCancer, tmp_path: Path) -> None:
         X, y = breast_cancer.full
         m = xgb.DMatrix(X, y)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            check_point = xgb.callback.TrainingCheckPoint(
-                directory=tmpdir, interval=1, name="model"
-            )
-            xgb.train(
-                {"objective": "binary:logistic"},
-                m,
-                num_boost_round=10,
-                verbose_eval=False,
-                callbacks=[check_point],
-            )
-            for i in range(1, 10):
-                assert os.path.exists(
-                    os.path.join(
-                        tmpdir,
-                        f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}",
-                    )
-                )
+        check_point = xgb.callback.TrainingCheckPoint(
+            directory=tmp_path, interval=1, name="model"
+        )
+        xgb.train(
+            {"objective": "binary:logistic"},
+            m,
+            num_boost_round=10,
+            verbose_eval=False,
+            callbacks=[check_point],
+        )
+        for i in range(1, 10):
+            assert (
+                tmp_path / f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}"
+            ).exists()
 
-            check_point = xgb.callback.TrainingCheckPoint(
-                directory=tmpdir, interval=1, as_pickle=True, name="model"
-            )
-            xgb.train(
-                {"objective": "binary:logistic"},
-                m,
-                num_boost_round=10,
-                verbose_eval=False,
-                callbacks=[check_point],
-            )
-            for i in range(1, 10):
-                assert os.path.exists(os.path.join(tmpdir, "model_" + str(i) + ".pkl"))
+        check_point = xgb.callback.TrainingCheckPoint(
+            directory=tmp_path, interval=1, as_pickle=True, name="model"
+        )
+        xgb.train(
+            {"objective": "binary:logistic"},
+            m,
+            num_boost_round=10,
+            verbose_eval=False,
+            callbacks=[check_point],
+        )
+        for i in range(1, 10):
+            assert (tmp_path / f"model_{i}.pkl").exists()
 
     def test_callback_list(self) -> None:
         X, y = tm.data.get_california_housing()
