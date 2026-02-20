@@ -1163,6 +1163,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     _train_booster,  # type: ignore
                     schema="data string",
                 )
+                # TODO: In spark connect, use `dataframe.mapInPandas(..., barrier=True)`
+                #  and remove `rdd.barrier().mapPartitions(lambda x: x)`
+                #  and for stage scheduling, similarly, use
+                #  `dataframe.mapInPandas(..., profile=...)` to set resource profile.
                 .rdd.barrier()
                 .mapPartitions(lambda x: x)
             )
@@ -1376,6 +1380,8 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
 
         use_gpu_by_params = super()._run_on_gpu()
 
+        # TODO: To support spark connect, we can't use any SparkContext APIs,
+        #  and we can't read any spark configurations. Remove them
         if _is_local(_get_spark_session().sparkContext):
             # if it's local model, no need to check the spark configurations
             return use_gpu_by_params
