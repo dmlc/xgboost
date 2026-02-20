@@ -203,9 +203,7 @@ def test_json_model(tmp_path: Path) -> None:
         cat_ratio=0.5,
         shuffle=True,
     )
-    reg = xgboost.XGBRegressor(
-        n_estimators=2, tree_method="hist", enable_categorical=True
-    )
+    reg = xgboost.XGBRegressor(n_estimators=2, tree_method="hist")
     reg.fit(X, y)
     run_test(reg, "categorical")
 

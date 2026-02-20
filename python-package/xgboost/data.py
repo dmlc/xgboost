@@ -1093,7 +1093,7 @@ def _transform_cudf_df(
         # unlike pandas, cuDF uses NA for missing data.
         if is_categorical_dtype(data.dtype) and enable_categorical:
             result.append(data.cat)
-        elif enable_categorical:
+        elif is_categorical_dtype(data.dtype) and not enable_categorical:
             raise ValueError(_ENABLE_CAT_ERR)
         else:
             result.append(data)

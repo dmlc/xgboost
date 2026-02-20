@@ -147,10 +147,8 @@ def test_categorical() -> None:
         {"f0": [1, 3, 2, 4, 4], "f1": cats},
         schema=[("f0", pl.Int64()), ("f1", pl.Categorical(ordering="lexical"))],
     )
-    with pytest.raises(ValueError, match="enable_categorical"):
-        xgb.DMatrix(df)
 
-    data = xgb.DMatrix(df, enable_categorical=True)
+    data = xgb.DMatrix(df)
     categories = data.get_categories(export_to_arrow=True)
     assert dict(categories.to_arrow())["f0"] is None
     f1 = dict(categories.to_arrow())["f1"]
@@ -161,7 +159,7 @@ def test_categorical() -> None:
         {"f0": [1, 3, 2, 4, 4], "f1": cats},
         schema=[("f0", pl.Int64()), ("f1", pl.Enum(cats[:4]))],
     )
-    data = xgb.DMatrix(df, enable_categorical=True)
+    data = xgb.DMatrix(df)
     categories = data.get_categories(export_to_arrow=True)
     assert dict(categories.to_arrow())["f0"] is None
     f1 = dict(categories.to_arrow())["f1"]
@@ -170,7 +168,7 @@ def test_categorical() -> None:
 
     rng = np.random.default_rng(2025)
     y = rng.normal(size=(df.shape[0]))
-    Xy = xgb.QuantileDMatrix(df, y, enable_categorical=True)
+    Xy = xgb.QuantileDMatrix(df, y)
     booster = xgb.train({}, Xy, num_boost_round=8)
     predt_0 = booster.inplace_predict(df)
 

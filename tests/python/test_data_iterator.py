@@ -63,10 +63,10 @@ def test_with_cat_single() -> None:
     X, y = tm.make_categorical(
         n_samples=128, n_features=3, n_categories=6, onehot=False
     )
-    Xy = xgb.DMatrix(SingleBatch(data=X, label=y), enable_categorical=True)
+    Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
     from_it = xgb.train({}, Xy, num_boost_round=3)
 
-    Xy = xgb.DMatrix(X, y, enable_categorical=True)
+    Xy = xgb.DMatrix(X, y)
     from_Xy = xgb.train({}, Xy, num_boost_round=3)
 
     jit = from_it.save_raw(raw_format="json")
@@ -267,21 +267,28 @@ def test_cat_check(tmp_path: Path) -> None:
 
     X, y = list(zip(*batches))
     it = tm.IteratorForTest(X, y, None, cache=None, on_host=False)
-    Xy: xgb.DMatrix = xgb.QuantileDMatrix(it, enable_categorical=True)
+    Xy: xgb.DMatrix = xgb.QuantileDMatrix(it)
 
     with pytest.raises(ValueError, match="categorical features"):
         xgb.train({"tree_method": "exact"}, Xy)
 
-    Xy = xgb.DMatrix(X[0], y[0], enable_categorical=True)
+    Xy = xgb.DMatrix(X[0], y[0])
     with pytest.raises(ValueError, match="categorical features"):
         xgb.train({"tree_method": "exact"}, Xy)
 
     cache_path = tmp_path / "cache"
 
+<<<<<<< pytest-tmp-path
     it = tm.IteratorForTest(X, y, None, cache=str(cache_path), on_host=False)
     Xy = xgb.DMatrix(it, enable_categorical=True)
     with pytest.raises(ValueError, match="categorical features"):
         xgb.train({"booster": "gblinear"}, Xy)
+=======
+        it = tm.IteratorForTest(X, y, None, cache=cache_path, on_host=False)
+        Xy = xgb.DMatrix(it)
+        with pytest.raises(ValueError, match="categorical features"):
+            xgb.train({"booster": "gblinear"}, Xy)
+>>>>>>> master
 
 
 @given(

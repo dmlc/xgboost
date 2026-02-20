@@ -96,7 +96,6 @@ def test_categorical(tmp_path: Path) -> None:
     clf = xgb.XGBClassifier(
         tree_method="hist",
         device="cuda",
-        enable_categorical=True,
         n_estimators=10,
     )
     X = pd.DataFrame(X.todense()).astype("category")
@@ -118,9 +117,7 @@ def test_categorical(tmp_path: Path) -> None:
         np.testing.assert_allclose(categories_sizes, 1)
 
     def check_predt(X: Any, y: List[float]) -> None:
-        reg = xgb.XGBRegressor(
-            tree_method="hist", enable_categorical=True, n_estimators=64, device="cuda"
-        )
+        reg = xgb.XGBRegressor(tree_method="hist", n_estimators=64, device="cuda")
         reg.fit(X, y)
         predts = reg.predict(X)
         booster = reg.get_booster()

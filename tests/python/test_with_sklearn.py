@@ -281,7 +281,10 @@ def test_feature_importances_weight(tmp_path: Path) -> None:
         importance_type="weight",
         base_score=0.5,
     ).fit(X, y)
+<<<<<<< pytest-tmp-path
 
+=======
+>>>>>>> master
     # fmt: off
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
@@ -291,7 +294,10 @@ def test_feature_importances_weight(tmp_path: Path) -> None:
                     0., 0., 0., 0., 0., 0., 0., 0.00833333, 0., 0., 0., 0.,
                     0.], dtype=np.float32)
     # fmt: on
+<<<<<<< pytest-tmp-path
 
+=======
+>>>>>>> master
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     # numeric columns
@@ -358,7 +364,10 @@ def test_feature_importances_gain():
         importance_type="gain",
         base_score=0.5,
     ).fit(X, y)
+<<<<<<< pytest-tmp-path
 
+=======
+>>>>>>> master
     # fmt: off
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00326159, 0., 0., 0., 0., 0., 0., 0., 0.,
@@ -369,7 +378,10 @@ def test_feature_importances_gain():
                     0., 0., 0.08240705, 0., 0., 0., 0., 0., 0., 0.,
                     0.00100649, 0., 0., 0., 0., 0.], dtype=np.float32)
     # fmt: on
+<<<<<<< pytest-tmp-path
 
+=======
+>>>>>>> master
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     # numeric columns
@@ -1009,13 +1021,24 @@ def test_XGBClassifier_resume(tmp_path: Path) -> None:
     from sklearn.datasets import load_breast_cancer
     from sklearn.metrics import log_loss
 
+<<<<<<< pytest-tmp-path
     model1_path = tmp_path / "test_XGBClassifier.model"
     model1_booster_path = tmp_path / "test_XGBClassifier.booster"
+=======
+    with tempfile.TemporaryDirectory() as tempdir:
+        model1_path = os.path.join(tempdir, "test_XGBClassifier.model")
+        model1_booster_path = os.path.join(tempdir, "test_XGBClassifier.booster")
+>>>>>>> master
 
     X, Y = load_breast_cancer(return_X_y=True)
 
+<<<<<<< pytest-tmp-path
     model1 = xgb.XGBClassifier(learning_rate=0.3, random_state=0, n_estimators=8)
     model1.fit(X, Y)
+=======
+        model1 = xgb.XGBClassifier(learning_rate=0.3, random_state=0, n_estimators=8)
+        model1.fit(X, Y)
+>>>>>>> master
 
     pred1 = model1.predict(X)
     log_loss1 = log_loss(pred1, Y)
@@ -1278,7 +1301,7 @@ def test_data_initialization() -> None:
     validate_data_initialization(xgb.QuantileDMatrix, xgb.XGBClassifier, X, y)
 
 
-@parametrize_with_checks([xgb.XGBRegressor(enable_categorical=True)])
+@parametrize_with_checks([xgb.XGBRegressor()])
 def test_estimator_reg(estimator, check):
     if os.environ["PYTEST_CURRENT_TEST"].find("check_supervised_y_no_nan") != -1:
         # The test uses float64 and requires the error message to contain:
@@ -1309,7 +1332,6 @@ def test_categorical(tmp_path: Path) -> None:
     reg = xgb.XGBRegressor(
         feature_types=ft,
         max_cat_to_onehot=1,
-        enable_categorical=True,
     )
     reg.fit(X.values, y, eval_set=[(X.values, y)])
     from_cat = reg.evals_result()["validation_0"]["rmse"]
@@ -1542,7 +1564,13 @@ def test_sklearn_tags():
             # only the exact error we expected to be raised should be raised
             assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))
 
+<<<<<<< pytest-tmp-path
     for rnk in [xgb.XGBRanker()]:
+=======
+    for rnk in [
+        xgb.XGBRanker(),
+    ]:
+>>>>>>> master
         try:
             # if no AttributeError was thrown, we must be using scikit-learn>=1.6,
             # and so the actual effects of __sklearn_tags__() should be tested
@@ -1576,7 +1604,7 @@ def test_apply_method() -> None:
     )  # <- categorical column
     y = np.arange(len(df))
 
-    model = xgb.XGBClassifier(enable_categorical=True)
+    model = xgb.XGBClassifier()
     model.fit(df, y)
 
     model.apply(df)  # this must not raise
