@@ -7,7 +7,6 @@ from typing import Any, List, Tuple
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
@@ -97,7 +96,6 @@ def test_categorical() -> None:
     clf = xgb.XGBClassifier(
         tree_method="hist",
         device="cuda",
-        enable_categorical=True,
         n_estimators=10,
     )
     X = pd.DataFrame(X.todense()).astype("category")
@@ -120,9 +118,7 @@ def test_categorical() -> None:
             np.testing.assert_allclose(categories_sizes, 1)
 
     def check_predt(X: Any, y: List[float]) -> None:
-        reg = xgb.XGBRegressor(
-            tree_method="hist", enable_categorical=True, n_estimators=64, device="cuda"
-        )
+        reg = xgb.XGBRegressor(tree_method="hist", n_estimators=64, device="cuda")
         reg.fit(X, y)
         predts = reg.predict(X)
         booster = reg.get_booster()

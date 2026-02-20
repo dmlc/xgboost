@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Type
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import is_dataframe
@@ -201,12 +200,12 @@ class TestFromColumnar:
         X = cudf.from_pandas(_X)
         y = cudf.from_pandas(_y)
 
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        Xy = xgb.DMatrix(X, y)
         assert Xy.feature_types is not None
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
 
-        Xy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
+        Xy = xgb.QuantileDMatrix(X, y)
         assert Xy.feature_types is not None
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
@@ -233,24 +232,16 @@ class TestFromColumnar:
             assert "mask" in col[1]
 
         y = [0, 1, 2]
-        with pytest.raises(ValueError):
-            xgb.DMatrix(X, y)
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        Xy = xgb.DMatrix(X, y)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
-        with pytest.raises(ValueError, match="enable_categorical"):
-            xgb.QuantileDMatrix(X, y)
-
-        Xy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
+        Xy = xgb.QuantileDMatrix(X, y)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
         X = X["f0"]
-        with pytest.raises(ValueError):
-            xgb.DMatrix(X, y)
-
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        Xy = xgb.DMatrix(X, y)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
