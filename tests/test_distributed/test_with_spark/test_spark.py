@@ -3,9 +3,10 @@ import os
 import subprocess
 import tempfile
 from collections import namedtuple
-from typing import Generator, Iterable, List
+from typing import Generator, Iterable, Iterator, List
 
 import numpy as np
+import pandas as pd
 import pytest
 import xgboost as xgb
 from pyspark import SparkConf
@@ -79,6 +80,7 @@ _GPU_SKIP_REASON = (
 SPARK_MODES = [
     pytest.param("local", id="local"),
     pytest.param("local_cluster", id="local_cluster"),
+    pytest.param("local_cluster_connect", id="local_cluster_connect"),
     pytest.param(
         "local_cluster_gpu",
         id="local_cluster_gpu",
@@ -101,7 +103,7 @@ def no_sparse_unwrap() -> tm.PytestSkip:
 
 
 def _spark_test_mode(spark: SparkSession) -> str:
-    return spark.sparkContext.getConf().get("spark.xgboost.test.mode")
+    return spark.conf.get("spark.xgboost.test.mode")
 
 
 def _spark_test_device(spark: SparkSession) -> str:
@@ -113,7 +115,12 @@ def _spark_test_device(spark: SparkSession) -> str:
 @pytest.fixture(scope="module")
 def spark(request: pytest.FixtureRequest) -> Generator[SparkSession, None, None]:
     mode = getattr(request, "param", "local")
-    if mode not in {"local", "local_cluster", "local_cluster_gpu"}:
+    if mode not in {
+        "local",
+        "local_cluster",
+        "local_cluster_connect",
+        "local_cluster_gpu",
+    }:
         raise ValueError(f"Unknown Spark test mode: {mode}")
     os.environ["XGBOOST_PYSPARK_SHARED_SESSION"] = "1"
     config = {
@@ -131,6 +138,16 @@ def spark(request: pytest.FixtureRequest) -> Generator[SparkSession, None, None]
         config.update(
             {
                 "spark.master": "local-cluster[2, 1, 1024]",
+                "spark.cores.max": "2",
+                "spark.task.cpus": "1",
+                "spark.executor.cores": "1",
+            }
+        )
+    elif mode == "local_cluster_connect":
+        del config["spark.master"]
+        config.update(
+            {
+                "spark.remote": "local-cluster[2, 1, 1024]",
                 "spark.cores.max": "2",
                 "spark.task.cpus": "1",
                 "spark.executor.cores": "1",
@@ -158,28 +175,24 @@ def spark(request: pytest.FixtureRequest) -> Generator[SparkSession, None, None]
         builder.config(k, v)
     logging.getLogger("pyspark").setLevel(logging.INFO)
     sess = builder.getOrCreate()
-    if mode in {"local_cluster", "local_cluster_gpu"}:
+    if mode in {"local_cluster", "local_cluster_connect", "local_cluster_gpu"}:
         # Block until workers are connected.
-        num_slots = sess.sparkContext.defaultParallelism
-        (
-            sess.sparkContext.parallelize(range(num_slots), num_slots)
-            .barrier()
-            .mapPartitions(lambda _: [])
-            .collect()
-        )
+        num_slots = int(sess.conf.get("spark.cores.max", "2"))
+        sess.range(num_slots).repartition(num_slots).foreach(lambda _: None)
     try:
         yield sess
     finally:
         sess.stop()
-        sess.sparkContext.stop()
         os.environ.pop("XGBOOST_PYSPARK_SHARED_SESSION", None)
 
 
 @pytest.fixture(scope="module")
 def num_workers(spark: SparkSession) -> int:
+    if _spark_test_mode(spark) == "local_cluster_connect":
+        return int(spark.conf.get("spark.cores.max"))
     if _spark_test_mode(spark) == "local_cluster_gpu":
         return _NUM_GPUS
-    return _get_max_num_concurrent_tasks(spark.sparkContext)
+    return _get_max_num_concurrent_tasks(spark)
 
 
 RegData = namedtuple(
@@ -1248,7 +1261,12 @@ class TestClassifier:
                 assert conf.tracker_port == port
 
             check_conf(classifier.getOrDefault(classifier.coll_cfg))
-            classifier.write().overwrite().save(path)
+            # PySpark Connect ML does not support overwrite - this is a bug in Spark:
+            # https://issues.apache.org/jira/browse/SPARK-55452
+            if _spark_test_mode(spark) == "local_cluster_connect":
+                classifier.write().save(path)
+            else:
+                classifier.write().overwrite().save(path)
 
             loaded_classifier = SparkXGBClassifier.load(path)
             check_conf(loaded_classifier.getOrDefault(loaded_classifier.coll_cfg))
@@ -1264,8 +1282,12 @@ class TestClassifier:
             )
             model = classifier.fit(sparse_train)
             check_conf(model.getOrDefault(model.coll_cfg))
-
-            model.write().overwrite().save(path)
+            # PySpark ML Connect does not support overwrite - this is a bug in Spark:
+            # https://issues.apache.org/jira/browse/SPARK-55452
+            if _spark_test_mode(spark) == "local_cluster_connect":
+                model.write().save(path)
+            else:
+                model.write().overwrite().save(path)
             loaded_model = SparkXGBClassifierModel.load(path)
             check_conf(loaded_model.getOrDefault(loaded_model.coll_cfg))
 
@@ -1397,14 +1419,17 @@ class TestPySparkLocalLETOR:
         ranker = SparkXGBRanker(qid_col="qid", num_workers=4, force_repartition=True)
         df, _ = ranker._prepare_input(ranker_df_train)
 
-        def f(iterator: Iterable) -> List[int]:
-            yield list(set(iterator))
+        def f(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.DataFrame]:
+            unique_qids = set()
+            for pdf in iterator:
+                unique_qids.update(pdf["qid"].unique())
+            yield pd.DataFrame({"qids": [list(unique_qids)]})
 
-        rows = df.select("qid").rdd.mapPartitions(f).collect()
+        rows = df.select("qid").mapInPandas(f, schema="qids array<int>").collect()
         assert len(rows) == 4
         for row in rows:
-            assert len(row) == 1
-            assert row[0].qid in [6, 7, 8, 9]
+            assert len(row.qids) == 1
+            assert row.qids[0] in [6, 7, 8, 9]
 
     def test_ranker_xgb_summary(self, ltr_data: LTRData) -> None:
         spark_xgb_model = SparkXGBRanker(
