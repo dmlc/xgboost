@@ -2772,6 +2772,70 @@ class Booster:
             "Data type:" + str(type(data)) + " not supported by inplace prediction."
         )
 
+    def compute_leaf_similarity(
+        self,
+        data: DMatrix,
+        reference: DMatrix,
+        weight_type: str = "gain",
+    ) -> np.ndarray:
+        """Compute similarity between observations based on leaf node co-occurrence.
+
+        Two samples are similar if they land in the same leaf nodes across trees.
+        This is similar to Random Forest proximity matrices.
+
+        Parameters
+        ----------
+        data :
+            Query dataset (m samples).
+        reference :
+            Reference dataset (n samples).
+        weight_type :
+            How to weight trees: "gain" (by loss improvement) or "cover"
+            (by hessian sum, approximately sample count for regression).
+
+        Returns
+        -------
+        similarity : ndarray of shape (m, n)
+            Similarity scores in [0, 1].
+        """
+        if weight_type not in ("gain", "cover"):
+            raise ValueError(
+                f"weight_type must be 'gain' or 'cover', got '{weight_type}'"
+            )
+
+        query_leaves = self.predict(data, pred_leaf=True)
+        ref_leaves = self.predict(reference, pred_leaf=True)
+
+        if query_leaves.ndim == 1:
+            query_leaves = query_leaves.reshape(-1, 1)
+        if ref_leaves.ndim == 1:
+            ref_leaves = ref_leaves.reshape(-1, 1)
+
+        n_trees = query_leaves.shape[1]
+
+        trees_df = self.trees_to_dataframe()
+        split_nodes = trees_df[trees_df["Feature"] != "Leaf"]
+        col = "Gain" if weight_type == "gain" else "Cover"
+        tree_weights = split_nodes.groupby("Tree")[col].sum()
+
+        weights = np.zeros(n_trees, dtype=np.float32)
+        for tree_id, w in tree_weights.items():
+            if tree_id < n_trees:
+                weights[int(tree_id)] = w
+
+        if weights.sum() == 0:
+            weights = np.ones(n_trees, dtype=np.float32)
+
+        total_weight = weights.sum()
+        m, n = len(query_leaves), len(ref_leaves)
+
+        similarity = np.zeros((m, n), dtype=np.float32)
+        for i in range(m):
+            matches_i = query_leaves[i] == ref_leaves
+            similarity[i] = (matches_i * weights).sum(axis=1) / total_weight
+
+        return similarity
+
     def save_model(self, fname: PathLike) -> None:
         """Save the model to a file.
 
