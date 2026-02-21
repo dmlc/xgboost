@@ -929,6 +929,14 @@ class LearnerIO : public LearnerConfiguration {
                      [](Json const& fn) { return get<String const>(fn); });
     }
 
+    // Load RNG state if present (fixes issue #11982 - checkpoint accuracy drops)
+    it = learner.find("rng_state");
+    if (it != learner.cend()) {
+      auto const& rng_state_str = get<String const>(it->second);
+      std::istringstream iss(rng_state_str);
+      iss >> common::GlobalRandom();
+    }
+
     this->need_configuration_ = true;
     this->ClearCaches();
   }
@@ -967,6 +975,13 @@ class LearnerIO : public LearnerConfiguration {
     for (auto const& type : feature_types_) {
       feature_types.emplace_back(type);
     }
+
+    // Save RNG state for checkpoint consistency (fixes issue #11982)
+    // This ensures that subsample operations resume with the exact same
+    // random state, preventing accuracy drops in distributed training
+    std::ostringstream oss;
+    oss << common::GlobalRandom();
+    learner["rng_state"] = String(oss.str());
   }
 
   void Save(dmlc::Stream* fo) const override {
