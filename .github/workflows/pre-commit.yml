@@ -1,6 +1,11 @@
 name: XGBoost CI (Pre-commit)
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+      - 'release_*'
+  pull_request:
 
 permissions:
   contents: read
