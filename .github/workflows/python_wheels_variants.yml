@@ -1,6 +1,11 @@
 name: Build Python wheels using Wheel Variant prototype (WheelNext)
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+      - 'release_*'
+  pull_request:
 
 permissions:
   contents: read  # to fetch code (actions/checkout)

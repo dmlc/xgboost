@@ -1,6 +1,11 @@
 name: R Tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+      - 'release_*'
+  pull_request:
 
 env:
   GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
