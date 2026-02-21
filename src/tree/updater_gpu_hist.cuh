@@ -117,8 +117,8 @@ class MultiTargetHistMaker {
   std::shared_ptr<common::HistogramCuts const> const cuts_;
   std::unique_ptr<FeatureGroups> feature_groups_;
   DeviceHistogramBuilder histogram_;
-  std::unique_ptr<MultiGradientQuantiser> split_quantizer_;
-  std::unique_ptr<MultiGradientQuantiser> value_quantizer_;
+  std::unique_ptr<GradientQuantiserGroup> split_quantizer_;
+  std::unique_ptr<GradientQuantiserGroup> value_quantizer_;
 
   MultiHistEvaluator evaluator_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
@@ -175,7 +175,7 @@ class MultiTargetHistMaker {
   }
 
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {
-    common::Span<GradientQuantiser const> d_roundings = this->split_quantizer_->Quantizers();
+    common::Span<GradientQuantiser const> d_roundings = this->split_quantizer_->DeviceSpan();
     GPUTrainingParam d_param{this->param_};
     return MultiEvaluateSplitSharedInputs{d_roundings,
                                           this->cuts_->cut_ptrs_.ConstDeviceSpan(),
@@ -204,15 +204,15 @@ class MultiTargetHistMaker {
     CHECK(in_gpair.CContiguous());
 
     this->split_quantizer_ =
-        std::make_unique<MultiGradientQuantiser>(this->ctx_, in_gpair, p_fmat->Info());
-    CalcQuantizedGpairs(this->ctx_, in_gpair, this->split_quantizer_->Quantizers(),
+        std::make_unique<GradientQuantiserGroup>(this->ctx_, in_gpair, p_fmat->Info());
+    CalcQuantizedGpairs(this->ctx_, in_gpair, this->split_quantizer_->DeviceSpan(),
                         &this->split_gpair_);
 
     // Sampling
     this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_->Device()),
-                          this->split_quantizer_->Quantizers());
+                          this->split_quantizer_->DeviceSpan());
     if (!this->value_gpair_.Empty()) {
-      this->value_quantizer_ = std::make_unique<MultiGradientQuantiser>(
+      this->value_quantizer_ = std::make_unique<GradientQuantiserGroup>(
           this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
       this->sampler_.ApplySampling(this->ctx_, this->split_gpair_, &this->value_gpair_);
     }
@@ -309,7 +309,7 @@ class MultiTargetHistMaker {
     auto d_out_sum = out_sum.View(this->ctx_->Device());
 
     auto d_full_grad = this->value_gpair_.View(this->ctx_->Device());
-    auto d_roundings = this->value_quantizer_->Quantizers();
+    auto d_roundings = this->value_quantizer_->DeviceSpan();
     // Node indices for all leaves
     std::vector<bst_node_t> leaves_idx(n_leaves);
 
@@ -340,7 +340,7 @@ class MultiTargetHistMaker {
     auto param = GPUTrainingParam{this->param_};
     auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
     // Use full value gradient for leaf values.
-    LeafWeight(this->ctx_, param, this->value_quantizer_->Quantizers(),
+    LeafWeight(this->ctx_, param, this->value_quantizer_->DeviceSpan(),
                out_sum.View(this->ctx_->Device()), out_weight.View(this->ctx_->Device()));
 
     p_tree->SetLeaves(leaves_idx, out_weight.Data()->ConstHostSpan());
@@ -602,7 +602,7 @@ class MultiTargetHistMaker {
       LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
     }
     if (collective::IsDistributed()) {
-      LOG(FATAL) << "Distributed training" << MTNotImplemented();
+      CHECK(!gpair->HasValueGrad()) << "Distributed training with vector leaf" << MTNotImplemented();
     }
     if (this->cuts_->HasCategorical()) {
       LOG(FATAL) << "Categorical features" << MTNotImplemented();

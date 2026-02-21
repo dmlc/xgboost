@@ -27,7 +27,7 @@ inline auto MakeDummyQuantizers(bst_target_t n_targets) {
 
 struct QuantizedGradients {
   linalg::Matrix<GradientPairInt64> gpair;
-  MultiGradientQuantiser quantizer;
+  GradientQuantiserGroup quantizer;
 };
 
 // Returns both quantized gradients and quantizers.
@@ -38,12 +38,11 @@ inline auto GenerateGradientsFixedPoint(Context const* ctx, bst_idx_t n_samples,
   gpairs.SetDevice(ctx->Device());
   auto d_gpair = linalg::MakeTensorView(ctx, gpairs.ConstDeviceSpan(), n_samples, n_targets);
 
-  // Create a quantizer per target
-  MultiGradientQuantiser multi_quantizer{ctx, d_gpair, MetaInfo{}};
+  GradientQuantiserGroup quantizer_group{ctx, d_gpair, MetaInfo{}};
 
   linalg::Matrix<GradientPairInt64> gpairs_i64;
-  CalcQuantizedGpairs(ctx, d_gpair, multi_quantizer.Quantizers(), &gpairs_i64);
+  CalcQuantizedGpairs(ctx, d_gpair, quantizer_group.DeviceSpan(), &gpairs_i64);
 
-  return QuantizedGradients{std::move(gpairs_i64), std::move(multi_quantizer)};
+  return QuantizedGradients{std::move(gpairs_i64), std::move(quantizer_group)};
 }
 }  // namespace xgboost::tree

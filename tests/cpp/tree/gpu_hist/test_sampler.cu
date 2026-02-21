@@ -40,7 +40,7 @@ void VerifySampling(float subsample, int sampling_method, bst_target_t n_targets
 
   // Copy quantizers to host for summing
   std::vector<GradientQuantiser> h_quantizers(n_targets, MakeDummyQuantizer());
-  dh::safe_cuda(cudaMemcpy(h_quantizers.data(), quantizer.Quantizers().data(),
+  dh::safe_cuda(cudaMemcpy(h_quantizers.data(), quantizer.DeviceSpan().data(),
                            n_targets * sizeof(GradientQuantiser), cudaMemcpyDeviceToHost));
 
   auto sum_gradients = [&](linalg::MatrixView<GradientPair const> gpair) {
@@ -54,7 +54,7 @@ void VerifySampling(float subsample, int sampling_method, bst_target_t n_targets
   auto sum_gpair = sum_gradients(gpair.HostView());
   // sample
   Sampler sampler{kRows, subsample, sampling_method};
-  sampler.Sample(&ctx, gpair_i64.View(ctx.Device()), quantizer.Quantizers());
+  sampler.Sample(&ctx, gpair_i64.View(ctx.Device()), quantizer.DeviceSpan());
   // Refresh float gradient after sampling
   CalcFloatGrad(gpair_i64.HostView(), common::Span{h_quantizers}, &gpair);
   auto sum_sampled_gpair = sum_gradients(gpair.HostView());
@@ -94,8 +94,8 @@ TEST(GpuSampler, ApplySampling) {
   // Generate and sample the split gradient
   auto [split_gpair, quantizer] = GenerateGradientsFixedPoint(&ctx, n_samples, n_split_targets);
   Sampler sampler{n_samples, kSubsample, kSamplingMethod};
-  sampler.Sample(&ctx, split_gpair.View(ctx.Device()), quantizer.Quantizers());
-  auto d_roundings = quantizer.Quantizers();
+  sampler.Sample(&ctx, split_gpair.View(ctx.Device()), quantizer.DeviceSpan());
+  auto d_roundings = quantizer.DeviceSpan();
   std::vector<GradientQuantiser> h_roundings(d_roundings.size(), MakeDummyQuantizer());
   thrust::copy(dh::tcbegin(d_roundings), dh::tcend(d_roundings), h_roundings.begin());
 
