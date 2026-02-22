@@ -32,7 +32,7 @@ jobs:
         with:
           mask-password: 'false'
           registries: '492475357299'
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
       - name: Get image tag
         id: get-image-tag
         run: |
@@ -52,7 +52,7 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -71,7 +71,7 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -89,7 +89,7 @@ jobs:
       - runner=linux-amd64-cpu
       - tag=misc-build-i386
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -110,7 +110,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -139,7 +139,7 @@ jobs:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -161,6 +161,6 @@ jobs:
       - runner=linux-amd64-cpu
       - tag=misc-trigger-rtd-build
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
       - name: Trigger RTD
         run: bash ops/pipeline/trigger-rtd.sh

@@ -27,7 +27,7 @@ jobs:
     name: Build wheel for Windows ARM64
     runs-on: windows-11-arm
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: 'true'
 
