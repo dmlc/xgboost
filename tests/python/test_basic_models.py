@@ -1,10 +1,8 @@
 import json
-import os
-import tempfile
+from pathlib import Path
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import Integer
@@ -33,7 +31,7 @@ class TestModels:
         ) / float(len(preds))
         assert err < 0.2
 
-    def test_dart(self):
+    def test_dart(self, tmp_path: Path) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
         param = {
             "max_depth": 5,
@@ -55,17 +53,15 @@ class TestModels:
         # error must be smaller than 10%
         assert err < 0.1
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            dtest_path = os.path.join(tmpdir, "dtest.dmatrix")
-            model_path = os.path.join(tmpdir, "xgboost.model.dart.ubj")
-            # save dmatrix into binary buffer
-            dtest.save_binary(dtest_path)
-            model_path = model_path
-            # save model
-            bst.save_model(model_path)
-            # load model and data in
-            bst2 = xgb.Booster(params=param, model_file=model_path)
-            dtest2 = xgb.DMatrix(dtest_path)
+        dtest_path = tmp_path / "dtest.dmatrix"
+        model_path = tmp_path / "xgboost.model.dart.ubj"
+        # save dmatrix into binary buffer
+        dtest.save_binary(dtest_path)
+        # save model
+        bst.save_model(model_path)
+        # load model and data in
+        bst2 = xgb.Booster(params=param, model_file=model_path)
+        dtest2 = xgb.DMatrix(dtest_path)
 
         preds2 = bst2.predict(dtest2, iteration_range=(0, num_round))
 
@@ -208,26 +204,25 @@ class TestModels:
             show_stdv=False,
         )
 
-    def test_prediction_cache(self) -> None:
+    def test_prediction_cache(self, tmp_path: Path) -> None:
         X, y = tm.make_sparse_regression(512, 4, 0.5, as_dense=False)
         Xy = xgb.DMatrix(X, y)
         param = {"max_depth": 8}
         booster = xgb.train(param, Xy, num_boost_round=1)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "model.json")
-            booster.save_model(path)
+        path = tmp_path / "model.json"
+        booster.save_model(path)
 
-            predt_0 = booster.predict(Xy)
+        predt_0 = booster.predict(Xy)
 
-            param["max_depth"] = 2
+        param["max_depth"] = 2
 
-            booster = xgb.train(param, Xy, num_boost_round=1)
-            predt_1 = booster.predict(Xy)
-            assert not np.isclose(predt_0, predt_1).all()
+        booster = xgb.train(param, Xy, num_boost_round=1)
+        predt_1 = booster.predict(Xy)
+        assert not np.isclose(predt_0, predt_1).all()
 
-            booster.load_model(path)
-            predt_2 = booster.predict(Xy)
-            np.testing.assert_allclose(predt_0, predt_2)
+        booster.load_model(path)
+        predt_2 = booster.predict(Xy)
+        np.testing.assert_allclose(predt_0, predt_2)
 
     def test_feature_names_validation(self):
         X = np.random.random((10, 3))
@@ -416,7 +411,7 @@ class TestModels:
 
     @pytest.mark.skipif(**tm.no_pandas())
     @pytest.mark.parametrize("ext", ["json", "ubj"])
-    def test_feature_info(self, ext: str) -> None:
+    def test_feature_info(self, ext: str, tmp_path: Path) -> None:
         import pandas as pd
 
         # make data
@@ -440,14 +435,13 @@ class TestModels:
         assert booster.feature_names == feature_names
         assert booster.feature_types == Xy.feature_types
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = tmpdir + f"model.{ext}"
-            booster.save_model(path)
-            booster = xgb.Booster()
-            booster.load_model(path)
+        path = tmp_path / f"model.{ext}"
+        booster.save_model(path)
+        booster = xgb.Booster()
+        booster.load_model(path)
 
-            assert booster.feature_names == Xy.feature_names
-            assert booster.feature_types == Xy.feature_types
+        assert booster.feature_names == Xy.feature_names
+        assert booster.feature_types == Xy.feature_types
 
         # Test with numpy, no feature info is set
         Xy = xgb.DMatrix(X, y)
@@ -464,9 +458,8 @@ class TestModels:
 
         assert booster.feature_names == fns
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, f"model.{ext}")
-            booster.save_model(path)
+        path = tmp_path / f"model2.{ext}"
+        booster.save_model(path)
 
-            booster = xgb.Booster(model_file=path)
-            assert booster.feature_names == fns
+        booster = xgb.Booster(model_file=path)
+        assert booster.feature_names == fns

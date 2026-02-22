@@ -1,8 +1,8 @@
 import logging
 import os
 import subprocess
-import tempfile
 from collections import namedtuple
+from pathlib import Path
 from typing import Generator, Iterable, List
 
 import numpy as np
@@ -386,7 +386,7 @@ class TestRegressor:
 
         assert np.allclose(preds, expected, rtol=1e-3)
 
-    def test_regressor_save_load(self, reg_data: RegData) -> None:
+    def test_regressor_save_load(self, reg_data: RegData, tmp_path: Path) -> None:
         train_df = reg_data.df.select("features", "label")
         model = SparkXGBRegressor(n_estimators=5, max_depth=3).fit(train_df)
         preds_before = (
@@ -396,16 +396,15 @@ class TestRegressor:
             .to_numpy()
         )
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "spark-xgb-reg-model")
-            model.save(path)
-            loaded = SparkXGBRegressorModel.load(path)
-            preds_after = (
-                loaded.transform(train_df)
-                .select("prediction")
-                .toPandas()["prediction"]
-                .to_numpy()
-            )
+        path = str(tmp_path / "spark-xgb-reg-model")
+        model.save(path)
+        loaded = SparkXGBRegressorModel.load(path)
+        preds_after = (
+            loaded.transform(train_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
 
         assert np.allclose(preds_before, preds_after, rtol=1e-6)
 
@@ -446,7 +445,9 @@ class TestRegressor:
             reg.fit(df_train)
 
     @pytest.mark.parametrize("spark", SPARK_MODES, indirect=True)
-    def test_callbacks(self, spark: SparkSession, reg_data: RegData) -> None:
+    def test_callbacks(
+        self, spark: SparkSession, reg_data: RegData, tmp_path: Path
+    ) -> None:
         train_df = reg_data.df.select("row_id", "features", "label")
         device = _spark_test_device(spark)
 
@@ -461,25 +462,24 @@ class TestRegressor:
             "device": device,
         }
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "spark-xgb-reg-cb")
-            regressor = SparkXGBRegressor(
-                callbacks=[LearningRateScheduler(custom_lr)], **reg_params
-            )
-            regressor.save(path)
-            regressor = SparkXGBRegressor.load(path)
-            loaded_callbacks = regressor.getOrDefault(regressor.callbacks)
-            assert loaded_callbacks is not None
-            assert len(loaded_callbacks) == 1
+        path = str(tmp_path / "spark-xgb-reg-cb")
+        regressor = SparkXGBRegressor(
+            callbacks=[LearningRateScheduler(custom_lr)], **reg_params
+        )
+        regressor.save(path)
+        regressor = SparkXGBRegressor.load(path)
+        loaded_callbacks = regressor.getOrDefault(regressor.callbacks)
+        assert loaded_callbacks is not None
+        assert len(loaded_callbacks) == 1
 
-            model = regressor.fit(train_df)
-            preds = (
-                model.transform(train_df)
-                .orderBy("row_id")
-                .select("prediction")
-                .toPandas()["prediction"]
-                .to_numpy()
-            )
+        model = regressor.fit(train_df)
+        preds = (
+            model.transform(train_df)
+            .orderBy("row_id")
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
 
         ref = XGBRegressor(
             callbacks=[LearningRateScheduler(custom_lr)], **reg_params
@@ -629,63 +629,65 @@ class TestClassifier:
             atol=1e-6,
         )
 
-    def test_classifier_model_save_load(self, clf_data: ClfData) -> None:
+    def test_classifier_model_save_load(
+        self, clf_data: ClfData, tmp_path: Path
+    ) -> None:
         train_df = clf_data.df.select("features", "label")
         test_df = clf_data.df.select("features")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "spark-xgb-clf-model")
-            clf = SparkXGBClassifier(n_estimators=5, max_depth=3)
-            model = clf.fit(train_df)
-            model.save(path)
-            loaded_model = SparkXGBClassifierModel.load(path)
-            assert model.uid == loaded_model.uid
-            pred_before = (
-                model.transform(test_df)
-                .select("prediction")
-                .toPandas()["prediction"]
-                .to_numpy()
-            )
-            pred_after = (
-                loaded_model.transform(test_df)
-                .select("prediction")
-                .toPandas()["prediction"]
-                .to_numpy()
-            )
-            assert np.allclose(pred_before, pred_after, rtol=1e-6)
+        path = str(tmp_path / "spark-xgb-clf-model")
+        clf = SparkXGBClassifier(n_estimators=5, max_depth=3)
+        model = clf.fit(train_df)
+        model.save(path)
+        loaded_model = SparkXGBClassifierModel.load(path)
+        assert model.uid == loaded_model.uid
+        pred_before = (
+            model.transform(test_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        pred_after = (
+            loaded_model.transform(test_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        assert np.allclose(pred_before, pred_after, rtol=1e-6)
 
-            with pytest.raises(AssertionError, match="Expected class name"):
-                SparkXGBRegressorModel.load(path)
+        with pytest.raises(AssertionError, match="Expected class name"):
+            SparkXGBRegressorModel.load(path)
 
-    def test_classifier_model_pipeline_save_load(self, clf_data: ClfData) -> None:
+    def test_classifier_model_pipeline_save_load(
+        self, clf_data: ClfData, tmp_path: Path
+    ) -> None:
         train_df = clf_data.df.select("features", "label")
         test_df = clf_data.df.select("features")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "spark-xgb-clf-pipeline")
-            classifier = SparkXGBClassifier()
-            pipeline = Pipeline(stages=[classifier])
-            pipeline = pipeline.copy(
-                extra={
-                    getattr(classifier, k): v
-                    for k, v in {"max_depth": 5, "n_estimators": 10}.items()
-                }
-            )
-            model = pipeline.fit(train_df)
-            model.save(path)
+        path = str(tmp_path / "spark-xgb-clf-pipeline")
+        classifier = SparkXGBClassifier()
+        pipeline = Pipeline(stages=[classifier])
+        pipeline = pipeline.copy(
+            extra={
+                getattr(classifier, k): v
+                for k, v in {"max_depth": 5, "n_estimators": 10}.items()
+            }
+        )
+        model = pipeline.fit(train_df)
+        model.save(path)
 
-            loaded_model = PipelineModel.load(path)
-            pred_before = (
-                model.transform(test_df)
-                .select("prediction")
-                .toPandas()["prediction"]
-                .to_numpy()
-            )
-            pred_after = (
-                loaded_model.transform(test_df)
-                .select("prediction")
-                .toPandas()["prediction"]
-                .to_numpy()
-            )
-            assert np.allclose(pred_before, pred_after, rtol=1e-6)
+        loaded_model = PipelineModel.load(path)
+        pred_before = (
+            model.transform(test_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        pred_after = (
+            loaded_model.transform(test_df)
+            .select("prediction")
+            .toPandas()["prediction"]
+            .to_numpy()
+        )
+        assert np.allclose(pred_before, pred_after, rtol=1e-6)
 
     def test_classifier_params(self) -> None:
         py_clf = SparkXGBClassifier()
@@ -936,35 +938,34 @@ class TestClassifier:
         clf = SparkXGBClassifier(device="cuda", tree_method="approx")
         assert clf._run_on_gpu()
 
-    def test_gpu_transform(self, clf_data: ClfData) -> None:
+    def test_gpu_transform(self, clf_data: ClfData, tmp_path: Path) -> None:
         """local mode"""
         classifier = SparkXGBClassifier(device="cpu", n_estimators=10)
         model: SparkXGBClassifierModel = classifier.fit(
             clf_data.df.select("features", "label")
         )
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = "file:" + tmpdir
-            model.write().overwrite().save(path)
+        path = "file:" + str(tmp_path)
+        model.write().overwrite().save(path)
 
-            # The model trained with CPU, transform defaults to cpu
-            assert not model._run_on_gpu()
+        # The model trained with CPU, transform defaults to cpu
+        assert not model._run_on_gpu()
 
-            # without error
-            model.transform(clf_data.df.select("features")).collect()
+        # without error
+        model.transform(clf_data.df.select("features")).collect()
 
-            model.set_device("cuda")
-            assert model._run_on_gpu()
+        model.set_device("cuda")
+        assert model._run_on_gpu()
 
-            model_loaded = SparkXGBClassifierModel.load(path)
+        model_loaded = SparkXGBClassifierModel.load(path)
 
-            # The model trained with CPU, transform defaults to cpu
-            assert not model_loaded._run_on_gpu()
-            # without error
-            model_loaded.transform(clf_data.df.select("features")).collect()
+        # The model trained with CPU, transform defaults to cpu
+        assert not model_loaded._run_on_gpu()
+        # without error
+        model_loaded.transform(clf_data.df.select("features")).collect()
 
-            model_loaded.set_device("cuda")
-            assert model_loaded._run_on_gpu()
+        model_loaded.set_device("cuda")
+        assert model_loaded._run_on_gpu()
 
     def test_validate_gpu_params(self) -> None:
         # Standalone
@@ -1205,7 +1206,7 @@ class TestClassifier:
                         "3.5.1", conf
                     )
 
-    def test_collective_conf(self, spark: SparkSession) -> None:
+    def test_collective_conf(self, spark: SparkSession, tmp_path: Path) -> None:
         classifier = SparkXGBClassifier(
             launch_tracker_on_driver=True,
             coll_cfg=Config(tracker_host_ip="192.168.1.32", tracker_port=59981),
@@ -1233,41 +1234,40 @@ class TestClassifier:
         assert rabit_envs["dmlc_tracker_uri"] == "127.0.0.1"
         assert rabit_envs["dmlc_tracker_port"] == 58893
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = "file:" + tmpdir
-            port = get_avail_port()
-            classifier = SparkXGBClassifier(
-                launch_tracker_on_driver=True,
-                coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=port),
-                num_workers=1,
-                n_estimators=1,
-            )
+        path = "file:" + str(tmp_path)
+        port = get_avail_port()
+        classifier = SparkXGBClassifier(
+            launch_tracker_on_driver=True,
+            coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=port),
+            num_workers=1,
+            n_estimators=1,
+        )
 
-            def check_conf(conf: Config) -> None:
-                assert conf.tracker_host_ip == "127.0.0.1"
-                assert conf.tracker_port == port
+        def check_conf(conf: Config) -> None:
+            assert conf.tracker_host_ip == "127.0.0.1"
+            assert conf.tracker_port == port
 
-            check_conf(classifier.getOrDefault(classifier.coll_cfg))
-            classifier.write().overwrite().save(path)
+        check_conf(classifier.getOrDefault(classifier.coll_cfg))
+        classifier.write().overwrite().save(path)
 
-            loaded_classifier = SparkXGBClassifier.load(path)
-            check_conf(loaded_classifier.getOrDefault(loaded_classifier.coll_cfg))
+        loaded_classifier = SparkXGBClassifier.load(path)
+        check_conf(loaded_classifier.getOrDefault(loaded_classifier.coll_cfg))
 
-            sparse_train = spark.createDataFrame(
-                [
-                    (Vectors.dense(1.0, 0.0, 3.0, 0.0, 0.0), 0),
-                    (Vectors.sparse(5, {1: 1.0, 3: 5.5}), 1),
-                    (Vectors.sparse(5, {4: -3.0}), 0),
-                ]
-                * 5,
-                ["features", "label"],
-            )
-            model = classifier.fit(sparse_train)
-            check_conf(model.getOrDefault(model.coll_cfg))
+        sparse_train = spark.createDataFrame(
+            [
+                (Vectors.dense(1.0, 0.0, 3.0, 0.0, 0.0), 0),
+                (Vectors.sparse(5, {1: 1.0, 3: 5.5}), 1),
+                (Vectors.sparse(5, {4: -3.0}), 0),
+            ]
+            * 5,
+            ["features", "label"],
+        )
+        model = classifier.fit(sparse_train)
+        check_conf(model.getOrDefault(model.coll_cfg))
 
-            model.write().overwrite().save(path)
-            loaded_model = SparkXGBClassifierModel.load(path)
-            check_conf(loaded_model.getOrDefault(loaded_model.coll_cfg))
+        model.write().overwrite().save(path)
+        loaded_model = SparkXGBClassifierModel.load(path)
+        check_conf(loaded_model.getOrDefault(loaded_model.coll_cfg))
 
 
 LTRData = namedtuple(

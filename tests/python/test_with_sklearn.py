@@ -2,8 +2,8 @@ import json
 import os
 import pickle
 import re
-import tempfile
 import warnings
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -267,7 +267,7 @@ def test_stacking_classification():
 
 
 @pytest.mark.skipif(**tm.no_pandas())
-def test_feature_importances_weight():
+def test_feature_importances_weight(tmp_path: Path) -> None:
     from sklearn.datasets import load_digits
 
     digits = load_digits(n_class=2)
@@ -325,11 +325,10 @@ def test_feature_importances_weight():
     cls.fit(X, y)
     assert cls.feature_importances_.shape[0] == X.shape[1]
     assert cls.feature_importances_.shape[1] == 3
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "model.json")
-        cls.save_model(path)
-        with open(path, "r") as fd:
-            model = json.load(fd)
+    path = tmp_path / "model.json"
+    cls.save_model(path)
+    with open(path, "r") as fd:
+        model = json.load(fd)
     weights = np.array(
         model["learner"]["gradient_booster"]["model"]["weights"]
     ).reshape((cls.n_features_in_ + 1, 3))
@@ -723,7 +722,7 @@ def test_sklearn_n_jobs():
     assert clf.get_xgb_params()["n_jobs"] == 2
 
 
-def test_parameters_access():
+def test_parameters_access(tmp_path: Path) -> None:
     from sklearn import datasets
 
     params = {"updater": "grow_gpu_hist", "subsample": 0.5, "n_jobs": -1}
@@ -753,19 +752,21 @@ def test_parameters_access():
     clf.fit(X, y)
     assert clf.get_params()["tree_method"] is None
 
+    save_load_counter = [0]
+
     def save_load(clf: xgb.XGBClassifier) -> xgb.XGBClassifier:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "model.json")
-            clf.save_model(path)
-            clf = xgb.XGBClassifier()
-            clf.load_model(path)
+        path = tmp_path / f"model_{save_load_counter[0]}.json"
+        save_load_counter[0] += 1
+        clf.save_model(path)
+        clf = xgb.XGBClassifier()
+        clf.load_model(path)
         return clf
 
     def get_tm(clf: xgb.XGBClassifier) -> str:
-        tm = json.loads(clf.get_booster().save_config())["learner"]["gradient_booster"][
-            "gbtree_train_param"
-        ]["tree_method"]
-        return tm
+        tm_val = json.loads(clf.get_booster().save_config())["learner"][
+            "gradient_booster"
+        ]["gbtree_train_param"]["tree_method"]
+        return tm_val
 
     assert get_tm(clf) == "auto"  # Kept as auto, immutable since 2.0
 
@@ -1000,43 +1001,42 @@ def test_RFECV():
     rfecv.fit(X, y)
 
 
-def test_XGBClassifier_resume():
+def test_XGBClassifier_resume(tmp_path: Path) -> None:
     from sklearn.datasets import load_breast_cancer
     from sklearn.metrics import log_loss
 
-    with tempfile.TemporaryDirectory() as tempdir:
-        model1_path = os.path.join(tempdir, "test_XGBClassifier.model")
-        model1_booster_path = os.path.join(tempdir, "test_XGBClassifier.booster")
+    model1_path = tmp_path / "test_XGBClassifier.model"
+    model1_booster_path = tmp_path / "test_XGBClassifier.booster"
 
-        X, Y = load_breast_cancer(return_X_y=True)
+    X, Y = load_breast_cancer(return_X_y=True)
 
-        model1 = xgb.XGBClassifier(learning_rate=0.3, random_state=0, n_estimators=8)
-        model1.fit(X, Y)
+    model1 = xgb.XGBClassifier(learning_rate=0.3, random_state=0, n_estimators=8)
+    model1.fit(X, Y)
 
-        pred1 = model1.predict(X)
-        log_loss1 = log_loss(pred1, Y)
+    pred1 = model1.predict(X)
+    log_loss1 = log_loss(pred1, Y)
 
-        # file name of stored xgb model
-        model1.save_model(model1_path)
-        model2 = xgb.XGBClassifier(learning_rate=0.3, random_state=0, n_estimators=8)
-        model2.fit(X, Y, xgb_model=model1_path)
+    # file name of stored xgb model
+    model1.save_model(model1_path)
+    model2 = xgb.XGBClassifier(learning_rate=0.3, random_state=0, n_estimators=8)
+    model2.fit(X, Y, xgb_model=model1_path)
 
-        pred2 = model2.predict(X)
-        log_loss2 = log_loss(pred2, Y)
+    pred2 = model2.predict(X)
+    log_loss2 = log_loss(pred2, Y)
 
-        assert np.any(pred1 != pred2)
-        assert log_loss1 > log_loss2
+    assert np.any(pred1 != pred2)
+    assert log_loss1 > log_loss2
 
-        # file name of 'Booster' instance Xgb model
-        model1.get_booster().save_model(model1_booster_path)
-        model2 = xgb.XGBClassifier(learning_rate=0.3, random_state=0, n_estimators=8)
-        model2.fit(X, Y, xgb_model=model1_booster_path)
+    # file name of 'Booster' instance Xgb model
+    model1.get_booster().save_model(model1_booster_path)
+    model2 = xgb.XGBClassifier(learning_rate=0.3, random_state=0, n_estimators=8)
+    model2.fit(X, Y, xgb_model=model1_booster_path)
 
-        pred2 = model2.predict(X)
-        log_loss2 = log_loss(pred2, Y)
+    pred2 = model2.predict(X)
+    log_loss2 = log_loss(pred2, Y)
 
-        assert np.any(pred1 != pred2)
-        assert log_loss1 > log_loss2
+    assert np.any(pred1 != pred2)
+    assert log_loss1 > log_loss2
 
 
 def test_constraint_parameters():
@@ -1223,7 +1223,7 @@ def test_boost_from_prediction(tree_method: str) -> None:
     )
 
 
-def test_estimator_type():
+def test_estimator_type(tmp_path: Path) -> None:
     assert xgb.XGBClassifier()._get_type() == "classifier"
     assert xgb.XGBRFClassifier()._get_type() == "classifier"
     assert xgb.XGBRegressor()._get_type() == "regressor"
@@ -1234,16 +1234,15 @@ def test_estimator_type():
 
     X, y = load_digits(n_class=2, return_X_y=True)
     cls = xgb.XGBClassifier(n_estimators=2).fit(X, y)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "cls.json")
-        cls.save_model(path)
+    path = tmp_path / "cls.json"
+    cls.save_model(path)
 
-        reg = xgb.XGBRegressor()
-        with pytest.raises(TypeError):
-            reg.load_model(path)
+    reg = xgb.XGBRegressor()
+    with pytest.raises(TypeError):
+        reg.load_model(path)
 
-        cls = xgb.XGBClassifier()
-        cls.load_model(path)  # no error
+    cls = xgb.XGBClassifier()
+    cls.load_model(path)  # no error
 
 
 def test_multilabel_classification() -> None:
@@ -1300,7 +1299,7 @@ def test_estimator_reg(estimator, check):
         check(estimator)
 
 
-def test_categorical():
+def test_categorical(tmp_path: Path) -> None:
     X, y = tm.make_categorical(n_samples=32, n_features=2, n_categories=3, onehot=False)
     ft = ["c"] * X.shape[1]
     reg = xgb.XGBRegressor(
@@ -1311,13 +1310,12 @@ def test_categorical():
     from_cat = reg.evals_result()["validation_0"]["rmse"]
     predt_cat = reg.predict(X.values)
     assert reg.get_booster().feature_types == ft
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "model.json")
-        reg.save_model(path)
-        reg = xgb.XGBRegressor()
-        reg.load_model(path)
-        assert reg.feature_types == ft
-        assert reg.enable_categorical is True
+    path = tmp_path / "model.json"
+    reg.save_model(path)
+    reg = xgb.XGBRegressor()
+    reg.load_model(path)
+    assert reg.feature_types == ft
+    assert reg.enable_categorical is True
 
     onehot, y = tm.make_categorical(
         n_samples=32, n_features=2, n_categories=3, onehot=True
@@ -1539,9 +1537,7 @@ def test_sklearn_tags():
             # only the exact error we expected to be raised should be raised
             assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))
 
-    for rnk in [
-        xgb.XGBRanker(),
-    ]:
+    for rnk in [xgb.XGBRanker()]:
         try:
             # if no AttributeError was thrown, we must be using scikit-learn>=1.6,
             # and so the actual effects of __sklearn_tags__() should be tested

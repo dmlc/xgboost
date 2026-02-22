@@ -1,9 +1,10 @@
-"""Copyright 2019-2024, XGBoost contributors"""
+"""Copyright 2019-2026, XGBoost contributors"""
 
 import asyncio
 import json
 from collections import OrderedDict
 from inspect import signature
+from pathlib import Path
 from typing import Any, Dict, List, Type, TypeVar
 
 import numpy as np
@@ -579,13 +580,13 @@ class TestDistributedGPU:
 
 
 @pytest.mark.skipif(**tm.no_dask_cudf())
-def test_categorical(local_cuda_client: Client) -> None:
+def test_categorical(tmp_path: Path, local_cuda_client: Client) -> None:
     X, y = make_categorical(local_cuda_client, 10000, 30, 13)
     X = X.to_backend("cudf")
 
     X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, onehot=True)
     X_onehot = X_onehot.to_backend("cudf")
-    run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y)
+    run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y, tmp_path)
 
 
 @pytest.mark.skipif(**tm.no_dask_cudf())

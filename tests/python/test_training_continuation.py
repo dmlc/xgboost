@@ -1,9 +1,7 @@
-import os
-import tempfile
+from pathlib import Path
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.continuation import run_training_continuation_model_output
@@ -32,7 +30,9 @@ class TestTrainingContinuation:
 
         return [xgb_params_01_binary, xgb_params_02_binary, xgb_params_03_binary]
 
-    def run_training_continuation(self, xgb_params_01, xgb_params_02, xgb_params_03):
+    def run_training_continuation(
+        self, xgb_params_01, xgb_params_02, xgb_params_03, tmp_path: Path
+    ):
         from sklearn.datasets import load_digits
         from sklearn.metrics import mean_squared_error
 
@@ -52,14 +52,15 @@ class TestTrainingContinuation:
         ntrees_01 = len(gbdt_01.get_dump())
         assert ntrees_01 == 10
 
+        model_path = tmp_path / "xgb_tc.json"
         gbdt_02 = xgb.train(xgb_params_01, dtrain_2class, num_boost_round=0)
-        gbdt_02.save_model("xgb_tc.json")
+        gbdt_02.save_model(model_path)
 
         gbdt_02a = xgb.train(
             xgb_params_01, dtrain_2class, num_boost_round=10, xgb_model=gbdt_02
         )
         gbdt_02b = xgb.train(
-            xgb_params_01, dtrain_2class, num_boost_round=10, xgb_model="xgb_tc.json"
+            xgb_params_01, dtrain_2class, num_boost_round=10, xgb_model=model_path
         )
         ntrees_02a = len(gbdt_02a.get_dump())
         ntrees_02b = len(gbdt_02b.get_dump())
@@ -75,20 +76,18 @@ class TestTrainingContinuation:
         assert res1 == res2
 
         gbdt_03 = xgb.train(xgb_params_01, dtrain_2class, num_boost_round=3)
-        gbdt_03.save_model("xgb_tc.json")
+        gbdt_03.save_model(model_path)
 
         gbdt_03a = xgb.train(
             xgb_params_01, dtrain_2class, num_boost_round=7, xgb_model=gbdt_03
         )
         gbdt_03b = xgb.train(
-            xgb_params_01, dtrain_2class, num_boost_round=7, xgb_model="xgb_tc.json"
+            xgb_params_01, dtrain_2class, num_boost_round=7, xgb_model=model_path
         )
         ntrees_03a = len(gbdt_03a.get_dump())
         ntrees_03b = len(gbdt_03b.get_dump())
         assert ntrees_03a == 10
         assert ntrees_03b == 10
-
-        os.remove("xgb_tc.json")
 
         res1 = mean_squared_error(y_2class, gbdt_03a.predict(dtrain_2class))
         res2 = mean_squared_error(y_2class, gbdt_03b.predict(dtrain_2class))
@@ -128,21 +127,21 @@ class TestTrainingContinuation:
         np.testing.assert_almost_equal(res1, res2)
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_training_continuation_json(self):
+    def test_training_continuation_json(self, tmp_path: Path) -> None:
         params = self.generate_parameters()
-        self.run_training_continuation(params[0], params[1], params[2])
+        self.run_training_continuation(params[0], params[1], params[2], tmp_path)
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_training_continuation_updaters_json(self):
+    def test_training_continuation_updaters_json(self, tmp_path: Path) -> None:
         # Picked up from R tests.
         updaters = "grow_colmaker,prune,refresh"
         params = self.generate_parameters()
         for p in params:
             p["updater"] = updaters
-        self.run_training_continuation(params[0], params[1], params[2])
+        self.run_training_continuation(params[0], params[1], params[2], tmp_path)
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_changed_parameter(self):
+    def test_changed_parameter(self, tmp_path: Path) -> None:
         from sklearn.datasets import load_breast_cancer
 
         X, y = load_breast_cancer(return_X_y=True)
@@ -150,10 +149,9 @@ class TestTrainingContinuation:
         clf.fit(X, y, eval_set=[(X, y)])
         assert tm.non_increasing(clf.evals_result()["validation_0"]["logloss"])
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            clf.save_model(os.path.join(tmpdir, "clf.json"))
-            loaded = xgb.XGBClassifier()
-            loaded.load_model(os.path.join(tmpdir, "clf.json"))
+        clf.save_model(tmp_path / "clf.json")
+        loaded = xgb.XGBClassifier()
+        loaded.load_model(tmp_path / "clf.json")
 
         clf = xgb.XGBClassifier(n_estimators=2)
         # change metric to error

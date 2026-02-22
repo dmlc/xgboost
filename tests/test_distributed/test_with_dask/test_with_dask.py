@@ -1,11 +1,10 @@
-"""Copyright 2019-2025, XGBoost contributors"""
+"""Copyright 2019-2026, XGBoost contributors"""
 
 import asyncio
 import json
 import os
 import pickle
 import socket
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
@@ -198,6 +197,7 @@ def run_categorical(
     X: dd.DataFrame,
     X_onehot: dd.DataFrame,
     y: dd.Series,
+    tmp_path: Path,
 ) -> None:
     # Force onehot
     parameters = {
@@ -232,20 +232,22 @@ def run_categorical(
     )
     assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
 
-    def check_model_output(model: dxgb.Booster) -> None:
-        with tempfile.TemporaryDirectory() as tempdir:
-            path = os.path.join(tempdir, "model.json")
-            model.save_model(path)
-            with open(path, "r") as fd:
-                categorical = json.load(fd)
+    check_model_counter = [0]
 
-            categories_sizes = np.array(
-                categorical["learner"]["gradient_booster"]["model"]["trees"][-1][
-                    "categories_sizes"
-                ]
-            )
-            assert categories_sizes.shape[0] != 0
-            np.testing.assert_allclose(categories_sizes, 1)
+    def check_model_output(model: dxgb.Booster) -> None:
+        path = tmp_path / f"model_{check_model_counter[0]}.json"
+        check_model_counter[0] += 1
+        model.save_model(path)
+        with open(path, "r") as fd:
+            categorical = json.load(fd)
+
+        categories_sizes = np.array(
+            categorical["learner"]["gradient_booster"]["model"]["trees"][-1][
+                "categories_sizes"
+            ]
+        )
+        assert categories_sizes.shape[0] != 0
+        np.testing.assert_allclose(categories_sizes, 1)
 
     check_model_output(output["booster"])
     reg = dxgb.DaskXGBRegressor(
@@ -283,11 +285,11 @@ def run_categorical(
     np.testing.assert_allclose(predt, inpredt)
 
 
-def test_categorical(client: "Client") -> None:
+def test_categorical(client: "Client", tmp_path: Path) -> None:
     X, y = make_categorical(client, 3000, 30, 13)
     X_onehot, _ = make_categorical(client, 3000, 30, 13, onehot=True)
-    run_categorical(client, "approx", "cpu", X, X_onehot, y)
-    run_categorical(client, "hist", "cpu", X, X_onehot, y)
+    run_categorical(client, "approx", "cpu", X, X_onehot, y, tmp_path)
+    run_categorical(client, "hist", "cpu", X, X_onehot, y, tmp_path)
 
     ft = ["c"] * X.shape[1]
     reg = dxgb.DaskXGBRegressor(tree_method="hist", feature_types=ft)
@@ -1272,7 +1274,7 @@ def test_invalid_config(client: "Client") -> None:
 
 
 class TestWithDask:
-    def test_dmatrix_binary(self, client: "Client") -> None:
+    def test_dmatrix_binary(self, client: "Client", tmp_path: Path) -> None:
         def save_dmatrix(rabit_args: Dict[str, Union[int, str]], tmpdir: str) -> None:
             with dxgb.CommunicatorContext(**rabit_args):
                 rank = xgb.collective.get_rank()
@@ -1289,28 +1291,27 @@ class TestWithDask:
                 assert Xy.num_row() == 100
                 assert Xy.num_col() == 4
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            workers = tm.dask.get_client_workers(client)
-            rabit_args = get_rabit_args(client, len(workers))
-            futures = []
-            for w in workers:
-                # same argument for each worker, must set pure to False otherwise dask
-                # will try to reuse the result from the first worker and hang waiting
-                # for it.
-                f = client.submit(
-                    save_dmatrix, rabit_args, tmpdir, workers=[w], pure=False
-                )
-                futures.append(f)
-            client.gather(futures)
+        workers = tm.dask.get_client_workers(client)
+        rabit_args = get_rabit_args(client, len(workers))
+        futures = []
+        for w in workers:
+            # same argument for each worker, must set pure to False otherwise dask
+            # will try to reuse the result from the first worker and hang waiting
+            # for it.
+            f = client.submit(
+                save_dmatrix, rabit_args, str(tmp_path), workers=[w], pure=False
+            )
+            futures.append(f)
+        client.gather(futures)
 
-            rabit_args = get_rabit_args(client, len(workers))
-            futures = []
-            for w in workers:
-                f = client.submit(
-                    load_dmatrix, rabit_args, tmpdir, workers=[w], pure=False
-                )
-                futures.append(f)
-            client.gather(futures)
+        rabit_args = get_rabit_args(client, len(workers))
+        futures = []
+        for w in workers:
+            f = client.submit(
+                load_dmatrix, rabit_args, str(tmp_path), workers=[w], pure=False
+            )
+            futures.append(f)
+        client.gather(futures)
 
     @pytest.mark.parametrize(
         "config_key,config_value", [("verbosity", 0), ("use_rmm", True)]
@@ -1627,57 +1628,54 @@ class TestWithDask:
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_custom_objective(self, client: "Client") -> None:
+    def test_custom_objective(self, client: "Client", tmp_path: Path) -> None:
         X, y = get_california_housing()
         X, y = da.from_array(X), da.from_array(y)
         rounds = 20
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "log")
+        path = tmp_path / "log"
 
-            def sqr(
-                labels: np.ndarray, predts: np.ndarray
-            ) -> Tuple[np.ndarray, np.ndarray]:
-                with open(path, "a") as fd:
-                    print("Running sqr", file=fd)
-                grad = predts - labels
-                hess = np.ones(shape=labels.shape[0])
-                return grad, hess
+        def sqr(
+            labels: np.ndarray, predts: np.ndarray
+        ) -> Tuple[np.ndarray, np.ndarray]:
+            with open(path, "a") as fd:
+                print("Running sqr", file=fd)
+            grad = predts - labels
+            hess = np.ones(shape=labels.shape[0])
+            return grad, hess
 
-            reg = dxgb.DaskXGBRegressor(
-                n_estimators=rounds, objective=sqr, tree_method="hist"
-            )
-            reg.fit(X, y, eval_set=[(X, y)])
+        reg = dxgb.DaskXGBRegressor(
+            n_estimators=rounds, objective=sqr, tree_method="hist"
+        )
+        reg.fit(X, y, eval_set=[(X, y)])
 
-            # Check the obj is ran for rounds.
-            with open(path, "r") as fd:
-                out = fd.readlines()
-                assert len(out) == rounds
+        # Check the obj is ran for rounds.
+        with open(path, "r") as fd:
+            out = fd.readlines()
+            assert len(out) == rounds
 
-            results_custom = reg.evals_result()
+        results_custom = reg.evals_result()
 
-            reg = dxgb.DaskXGBRegressor(
-                n_estimators=rounds, tree_method="hist", base_score=0.5
-            )
-            reg.fit(X, y, eval_set=[(X, y)])
-            results_native = reg.evals_result()
+        reg = dxgb.DaskXGBRegressor(
+            n_estimators=rounds, tree_method="hist", base_score=0.5
+        )
+        reg.fit(X, y, eval_set=[(X, y)])
+        results_native = reg.evals_result()
 
-            np.testing.assert_allclose(
-                results_custom["validation_0"]["rmse"],
-                results_native["validation_0"]["rmse"],
-            )
-            tm.non_increasing(results_native["validation_0"]["rmse"])
+        np.testing.assert_allclose(
+            results_custom["validation_0"]["rmse"],
+            results_native["validation_0"]["rmse"],
+        )
+        tm.non_increasing(results_native["validation_0"]["rmse"])
 
-            reg = dxgb.DaskXGBRegressor(
-                n_estimators=rounds, objective=tm.ls_obj, tree_method="hist"
-            )
-            rng = da.random.RandomState(1994)
-            w = rng.uniform(low=0.0, high=1.0, size=y.shape[0])
-            reg.fit(
-                X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
-            )
-            results_custom = reg.evals_result()
-            tm.non_increasing(results_custom["validation_0"]["rmse"])
+        reg = dxgb.DaskXGBRegressor(
+            n_estimators=rounds, objective=tm.ls_obj, tree_method="hist"
+        )
+        rng = da.random.RandomState(1994)
+        w = rng.uniform(low=0.0, high=1.0, size=y.shape[0])
+        reg.fit(X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w])
+        results_custom = reg.evals_result()
+        tm.non_increasing(results_custom["validation_0"]["rmse"])
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_custom_metrics(self, client: "Client") -> None:
@@ -1885,7 +1883,7 @@ class TestWithDask:
         self.run_shap_interactions(X, y, params, client)
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_sklearn_io(self, client: "Client") -> None:
+    def test_sklearn_io(self, client: "Client", tmp_path: Path) -> None:
         from sklearn.datasets import load_digits
 
         X_, y_ = load_digits(return_X_y=True)
@@ -1896,39 +1894,38 @@ class TestWithDask:
         predt_0 = cls.predict(X)
         proba_0 = cls.predict_proba(X)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "model.pkl")
-            with open(path, "wb") as fd:
-                pickle.dump(cls, fd)
+        path = tmp_path / "model.pkl"
+        with open(path, "wb") as fd:
+            pickle.dump(cls, fd)
 
-            with open(path, "rb") as fd:
-                cls = pickle.load(fd)
-            predt_1 = cls.predict(X)
-            proba_1 = cls.predict_proba(X)
-            np.testing.assert_allclose(predt_0.compute(), predt_1.compute())
-            np.testing.assert_allclose(proba_0.compute(), proba_1.compute())
+        with open(path, "rb") as fd:
+            cls = pickle.load(fd)
+        predt_1 = cls.predict(X)
+        proba_1 = cls.predict_proba(X)
+        np.testing.assert_allclose(predt_0.compute(), predt_1.compute())
+        np.testing.assert_allclose(proba_0.compute(), proba_1.compute())
 
-            path = os.path.join(tmpdir, "cls.json")
-            cls.save_model(path)
+        path = tmp_path / "cls.json"
+        cls.save_model(path)
 
-            cls = dxgb.DaskXGBClassifier()
-            cls.load_model(path)
-            assert cls.n_classes_ == 10
-            predt_2 = cls.predict(X)
-            proba_2 = cls.predict_proba(X)
+        cls = dxgb.DaskXGBClassifier()
+        cls.load_model(path)
+        assert cls.n_classes_ == 10
+        predt_2 = cls.predict(X)
+        proba_2 = cls.predict_proba(X)
 
-            np.testing.assert_allclose(predt_0.compute(), predt_2.compute())
-            np.testing.assert_allclose(proba_0.compute(), proba_2.compute())
+        np.testing.assert_allclose(predt_0.compute(), predt_2.compute())
+        np.testing.assert_allclose(proba_0.compute(), proba_2.compute())
 
-            # Use single node to load
-            cls = xgb.XGBClassifier()
-            cls.load_model(path)
-            assert cls.n_classes_ == 10
-            predt_3 = cls.predict(X_)
-            proba_3 = cls.predict_proba(X_)
+        # Use single node to load
+        cls = xgb.XGBClassifier()
+        cls.load_model(path)
+        assert cls.n_classes_ == 10
+        predt_3 = cls.predict(X_)
+        proba_3 = cls.predict_proba(X_)
 
-            np.testing.assert_allclose(predt_0.compute(), predt_3)
-            np.testing.assert_allclose(proba_0.compute(), proba_3)
+        np.testing.assert_allclose(predt_0.compute(), predt_3)
+        np.testing.assert_allclose(proba_0.compute(), proba_3)
 
 
 def test_dask_unsupported_features(client: "Client") -> None:
@@ -2201,35 +2198,31 @@ class TestDaskCallbacks:
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_callback(self, client: "Client") -> None:
+    def test_callback(self, client: "Client", tmp_path: Path) -> None:
         from sklearn.datasets import load_breast_cancer
 
         X, y = load_breast_cancer(return_X_y=True)
         X, y = da.from_array(X), da.from_array(y)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cls = dxgb.DaskXGBClassifier(
-                objective="binary:logistic",
-                tree_method="hist",
-                n_estimators=10,
-                callbacks=[
-                    xgb.callback.TrainingCheckPoint(
-                        directory=Path(tmpdir), interval=1, name="model"
-                    )
-                ],
-            )
-            cls.client = client
-            cls.fit(
-                X,
-                y,
-            )
-            for i in range(1, 10):
-                assert os.path.exists(
-                    os.path.join(
-                        tmpdir,
-                        f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}",
-                    )
+        cls = dxgb.DaskXGBClassifier(
+            objective="binary:logistic",
+            tree_method="hist",
+            n_estimators=10,
+            callbacks=[
+                xgb.callback.TrainingCheckPoint(
+                    directory=tmp_path, interval=1, name="model"
                 )
+            ],
+        )
+        cls.client = client
+        cls.fit(
+            X,
+            y,
+        )
+        for i in range(1, 10):
+            assert (
+                tmp_path / f"model_{i}.{xgb.callback.TrainingCheckPoint.default_format}"
+            ).exists()
 
 
 @gen_cluster(

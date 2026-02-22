@@ -1,8 +1,8 @@
 import itertools
 import json
 import os
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Any, List, Tuple
 
 import numpy as np
@@ -83,7 +83,7 @@ def test_num_parallel_tree() -> None:
 @pytest.mark.skipif(**tm.no_pandas())
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_categorical() -> None:
+def test_categorical(tmp_path: Path) -> None:
     import cudf
     import cupy as cp
     import pandas as pd
@@ -103,19 +103,18 @@ def test_categorical() -> None:
         X[c] = X[c].cat.rename_categories(int)
     clf.fit(X, y)
 
-    with tempfile.TemporaryDirectory() as tempdir:
-        model = os.path.join(tempdir, "categorial.json")
-        clf.save_model(model)
+    model = tmp_path / "categorial.json"
+    clf.save_model(model)
 
-        with open(model) as fd:
-            categorical = json.load(fd)
-            categories_sizes = np.array(
-                categorical["learner"]["gradient_booster"]["model"]["trees"][0][
-                    "categories_sizes"
-                ]
-            )
-            assert categories_sizes.shape[0] != 0
-            np.testing.assert_allclose(categories_sizes, 1)
+    with open(model) as fd:
+        categorical = json.load(fd)
+        categories_sizes = np.array(
+            categorical["learner"]["gradient_booster"]["model"]["trees"][0][
+                "categories_sizes"
+            ]
+        )
+        assert categories_sizes.shape[0] != 0
+        np.testing.assert_allclose(categories_sizes, 1)
 
     def check_predt(X: Any, y: List[float]) -> None:
         reg = xgb.XGBRegressor(tree_method="hist", n_estimators=64, device="cuda")
