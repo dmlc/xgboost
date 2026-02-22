@@ -270,58 +270,44 @@ void ExtractPaths(Context const* ctx,
   });
 }
 
-template <typename IsDense, typename EncAccessor>
-class LaunchConfig {
- public:
-  using EncAccessorT = EncAccessor;
+template <typename EncAccessor, typename Fn>
+void DispatchByBatchLoader(Context const* ctx, DMatrix* p_fmat, bst_feature_t n_features,
+                           EncAccessor acc, Fn&& fn) {
+  using AccT = std::decay_t<EncAccessor>;
+  if (p_fmat->PageExists<SparsePage>()) {
+    for (auto& page : p_fmat->GetBatches<SparsePage>()) {
+      SparsePageView batch{ctx, page, n_features};
+      auto loader = SparsePageLoaderNoShared<AccT>{batch, acc};
+      fn(std::move(loader), page.base_rowid);
+    }
+  } else {
+    p_fmat->Info().feature_types.SetDevice(ctx->Device());
+    auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
 
-  explicit LaunchConfig(Context const* ctx, bst_feature_t n_features)
-      : ctx_{ctx}, n_features_{n_features} {}
-
-  template <typename Fn>
-  void ForEachBatch(DMatrix* p_fmat, EncAccessor&& acc, Fn&& fn) {
-    if (p_fmat->PageExists<SparsePage>()) {
-      for (auto& page : p_fmat->GetBatches<SparsePage>()) {
-        SparsePageView batch{ctx_, page, n_features_};
-        auto loader = SparsePageLoaderNoShared<EncAccessor>{batch, acc};
-        fn(std::move(loader), page.base_rowid);
-      }
-    } else {
-      p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
-
-      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
-          using Acc = std::remove_reference_t<decltype(batch)>;
-          auto loader = EllpackLoader{batch,
-                                      /*use_shared=*/false,
-                                      this->n_features_,
-                                      batch.NumRows(),
-                                      std::numeric_limits<float>::quiet_NaN(),
-                                      std::forward<EncAccessor>(acc)};
-          fn(std::move(loader), batch.base_rowid);
-        });
-      }
+    for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx, StaticBatch(true))) {
+      page.Impl()->Visit(ctx, feature_types, [&](auto&& batch) {
+        using BatchT = std::remove_reference_t<decltype(batch)>;
+        auto loader = EllpackLoader<BatchT, AccT>{batch,
+                                                  /*use_shared=*/false,
+                                                  n_features,
+                                                  batch.NumRows(),
+                                                  std::numeric_limits<float>::quiet_NaN(),
+                                                  AccT{acc}};
+        fn(std::move(loader), batch.base_rowid);
+      });
     }
   }
+}
 
- private:
-  Context const* ctx_;
-  bst_feature_t n_features_;
-};
-
-template <typename Kernel>
-void LaunchShap(Context const* ctx, enc::DeviceColumnsView const& new_enc,
-                gbm::GBTreeModel const& model, Kernel&& launch) {
+template <typename Fn>
+void LaunchShap(Context const* ctx, DMatrix* p_fmat, enc::DeviceColumnsView const& new_enc,
+                gbm::GBTreeModel const& model, Fn&& fn) {
+  auto n_features = model.learner_model_param->num_feature;
   if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
     auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, new_enc, model.Cats());
-    auto cfg =
-        LaunchConfig<std::true_type, decltype(acc)>{ctx, model.learner_model_param->num_feature};
-    launch(std::move(cfg), std::move(acc));
+    DispatchByBatchLoader(ctx, p_fmat, n_features, std::move(acc), fn);
   } else {
-    auto cfg =
-        LaunchConfig<std::true_type, NoOpAccessor>{ctx, model.learner_model_param->num_feature};
-    launch(std::move(cfg), NoOpAccessor{});
+    DispatchByBatchLoader(ctx, p_fmat, n_features, NoOpAccessor{}, fn);
   }
 }
 }  // namespace
@@ -358,16 +344,10 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   dh::device_vector<uint32_t> categories;
   ExtractPaths(ctx, &device_paths, model, d_model, &categories);
 
-  LaunchShap(ctx, new_enc, model, [&](auto&& cfg, auto&& acc) {
-    using Config = common::GetValueT<decltype(cfg)>;
-    using EncAccessor = typename Config::EncAccessorT;
-
-    cfg.ForEachBatch(
-        p_fmat, std::forward<EncAccessor>(acc), [&](auto&& loader, bst_idx_t base_rowid) {
-          auto begin = dh::tbegin(phis) + base_rowid * dim_size;
-          gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
-              loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
-        });
+  LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
+    auto begin = dh::tbegin(phis) + base_rowid * dim_size;
+    gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
+        loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
   });
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
@@ -414,16 +394,10 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto new_enc =
       p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
 
-  LaunchShap(ctx, new_enc, model, [&](auto&& cfg, auto&& acc) {
-    using Config = common::GetValueT<decltype(cfg)>;
-    using EncAccessor = typename Config::EncAccessorT;
-
-    cfg.ForEachBatch(
-        p_fmat, std::forward<EncAccessor>(acc), [&](auto&& loader, bst_idx_t base_rowid) {
-          auto begin = dh::tbegin(phis) + base_rowid * dim_size;
-          gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
-              loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
-        });
+  LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
+    auto begin = dh::tbegin(phis) + base_rowid * dim_size;
+    gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
+        loader, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
   });
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
