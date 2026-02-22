@@ -30,4 +30,37 @@ void CalculateContributionsApprox(tree::ScalarTreeView const& tree, const RegTre
 void CalculateContributions(tree::ScalarTreeView const& tree, const RegTree::FVec& feat,
                             std::vector<float>* mean_values, float* out_contribs, int condition,
                             unsigned condition_feature);
+
+
+struct PreprocessedLeaf{
+ int tree_idx;
+ bst_node_t node_id;
+ std::uint64_t leaf_path;
+ float null_coalition_weight;
+ float leaf_weight;
+ std::vector<int> features;
+ std::map<int, std::vector<double>> S;
+ std::vector<std::pair<float, float>> feature_ranges; // if feature_ranges[i].first <= x[i] < feature_ranges[i].second the instance follows this path
+ std::vector<double> probabilities; // Probability of passing each feature in the path
+ std::int64_t GetPath(const RegTree::FVec& feat) const {
+    std::int64_t path = 0;
+    for(int i = 0; i < features.size(); ++i){
+      auto feature = features[i];
+      auto range = feature_ranges[i];
+      path <<= 1;
+      if(range.first <= feat.GetFvalue(feature) && feat.GetFvalue(feature) < range.second){
+        path |= 1;
+      }
+    }
+    // Path as binary
+    return path;
+ }
+};
+
+
+std::uint64_t ExtractBinaryPath(tree::ScalarTreeView const& tree, const RegTree::FVec& feat, 
+                                                       std::uint64_t leaf_path);
+
+std::vector<PreprocessedLeaf> PreprocessTree(int tree_idx, tree::ScalarTreeView const& tree);
+
 }  // namespace xgboost
