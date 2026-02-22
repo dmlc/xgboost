@@ -27,7 +27,7 @@ jobs:
     name: Test Google C++ unittest (CPU SYCL)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6.0.2
       with:
         submodules: 'true'
     - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
