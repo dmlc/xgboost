@@ -763,7 +763,7 @@ struct SortedQuantile {
   /*! \brief statistics used in the sketch */
   double rmin, wmin;
   /*! \brief last seen feature value */
-  bst_float last_fvalue;
+  bst_float last_fvalue{0.0f};
   /*! \brief current size of sketch */
   double next_goal;
   // pointer to the sketch to put things in
