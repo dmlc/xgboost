@@ -36,7 +36,7 @@ TEST(Quantile, InitWithEmptyColumn) {
 
   WQuantileSketch::SummaryContainer out;
   sketch.GetSummary(&out);
-  ASSERT_EQ(out.data.size(), 0);
+  ASSERT_EQ(out.size, 0);
 }
 
 namespace {
