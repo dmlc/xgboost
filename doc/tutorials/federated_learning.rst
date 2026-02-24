@@ -2,18 +2,10 @@
 Federated Learning with XGBoost
 ##############################
 
-Federated learning is a machine learning approach that enables training models across
-multiple parties without sharing raw data. XGBoost's federated learning implementation
-provides:
-
-* **Privacy Preservation**: Train models without exposing raw data to other parties
-* **Secure Aggregation**: Encrypted gradient and histogram synchronization using homomorphic encryption (CKKS, Paillier)
-* **Horizontal and Vertical Modes**: Support for data split by rows or by features, following the SecureBoost pattern
-* **GPU Acceleration**: CUDA-enabled training for improved performance
-* **Plugin Architecture**: Extensible encryption plugin system for custom security schemes
-
-This guide covers how to set up and use federated learning in XGBoost, including security
-features, encryption schemes, threat models, and the plugin architecture.
+Federated learning enables model training across multiple parties without sharing raw
+data. This tutorial starts with basic (non-homomorphic) federated training for both
+horizontal and vertical settings, then explains security risks, and finally covers
+secure solutions and plugin internals.
 
 **Contents**
 
@@ -25,1108 +17,824 @@ features, encryption schemes, threat models, and the plugin architecture.
 Overview
 ********
 
-Federated Learning Modes
-=========================
-
 XGBoost supports two federated learning paradigms:
 
 **Horizontal Federated Learning**
-  Data is partitioned by samples (rows). Each party has the same features but different
+  Data is partitioned by rows. Each party has the same feature schema but different
   samples.
-
-  Example: Multiple hospitals training on patient data, each with the same medical
-  measurements but different patients.
 
 **Vertical Federated Learning**
-  Data is partitioned by features (columns). Each party has different features for the same
-  samples.
+  Data is partitioned by columns. Parties share sample identity (for example, aligned
+  IDs after PSI) but hold different feature subsets.
 
-  Example: A bank and an e-commerce company training together, with shared customer IDs but
-  different feature sets (financial vs. shopping behavior).
-
-Architecture
-============
-
-A federated learning setup consists of:
-
-1. **Federated Server**: Coordinates training and aggregates encrypted gradients/histograms
-2. **Workers (Clients)**: Individual parties that train on their local data
-3. **Optional Plugin**: Third-party encryption plugin for secure aggregation
+A typical deployment has one federated server and multiple workers:
 
 .. code-block:: none
 
-                    ┌─────────────────┐
-                    │ Federated Server│
-                    └────────┬────────┘
-                             │
-            ┌────────────────┼────────────────┐
-            │                │                │
-      ┌─────▼─────┐    ┌────▼────┐    ┌─────▼─────┐
-      │ Worker 0  │    │ Worker 1│    │ Worker 2  │
-      │ (Party A) │    │ (Party B)│    │ (Party C) │
-      └───────────┘    └─────────┘    └───────────┘
+                    +------------------+
+                    | Federated Server |
+                    +--------+---------+
+                             |
+            +----------------+----------------+
+            |                |                |
+      +-----v-----+    +-----v-----+    +-----v-----+
+      | Worker 0  |    | Worker 1  |    | Worker 2  |
+      +-----------+    +-----------+    +-----------+
+
+From XGBoost's perspective, the federated server is purely an orchestration component —
+it coordinates collective communication operations (allgather, broadcast, etc.) between
+workers but does not perform any training computation itself. All tree building, gradient
+computation, and histogram construction happen on the workers.
+
+In **horizontal FL** (row-split), the training loop proceeds as follows:
+
+1. **Sketch synchronization** (once, before training): each worker builds a local weighted
+   quantile sketch from its rows. All local sketches are gathered via
+   ``collective::AllgatherV`` and merged into a single global sketch. The resulting
+   histogram bin boundaries (cut points) are identical on every worker for the whole training process.
+2. **Local histogram construction** (each boosting round): each worker computes G/H
+   (gradient/Hessian) values for its local rows and accumulates them into per-node
+   histograms using the shared bin boundaries.
+3. **Histogram allreduce** (each boosting round): local histograms are summed across
+   workers via ``collective::Allreduce(Op::kSum)``. After this step every worker holds the
+   same aggregated histogram.
+4. **Split finding**: every worker evaluates splits on the aggregated histogram
+   independently — because the histograms and bins are identical, all workers arrive at the
+   same best split.
+5. **Row partition update**: each worker partitions its local rows according to the agreed
+   split and proceeds to the next tree node.
+
+In **vertical FL** (column-split), each worker holds all rows but only a subset of
+features:
+
+1. **Sketch construction** (once, before training): each worker builds sketches only for
+   its own features. No cross-worker sketch merge is needed because features are disjoint.
+2. **Gradient broadcast** (each boosting round): the active party (rank 0) computes
+   gradients from the labels it owns, then sends them to all passive parties via
+   ``collective::Broadcast`` so every worker can build histograms for its features.
+3. **Local histogram construction** (each boosting round): each worker builds histograms
+   for its own features over all rows. Because every worker has all rows, these histograms
+   are already complete — no histogram allreduce is needed.
+4. **Split finding + allgather**: each worker evaluates splits on its own features using
+   the plaintext histograms and finds its local best candidate. ``collective::Allgather``
+   then exchanges all candidates so that every worker receives every other worker's best
+   candidate; each worker locally reduces the full list to select the globally best split.
+5. **Tree structure update**: all workers apply the chosen global best split to update their row
+   partitions.
+
+Even though raw data is never shared, intermediate values such as gradients and histograms
+exchanged between workers via the server can potentially leak information about the
+underlying data. To address this, XGBoost supports homomorphic encryption (HE) through a
+plugin mechanism.
+
+Homomorphic encryption is a class of cryptographic schemes that allow
+computation on encrypted data without decrypting it first. For vertical FL, Paillier
+encryption protects gradient and histogram exchanges; for horizontal FL, CKKS encryption
+secures histogram aggregation. Security concerns, threat models, and the HE solutions
+are discussed in detail in later sections.
 
 ***********
 Quick Start
 ***********
 
-Basic Federated Training (CPU, No SSL)
-=======================================
+This section covers baseline federated training without homomorphic encryption. It is
+useful for validating data preparation, orchestration, and convergence before adding
+secure aggregation.
 
-This example demonstrates a simple horizontal federated learning setup with 2 workers.
+Common Requirements
+===================
 
-**Step 1: Start the Federated Server**
+* XGBoost built with federated communication support (``dmlc_communicator='federated'``)
+* Reachable server address and matching ``federated_world_size`` / ``federated_rank``
+* DMatrix's ``data_split_mode``: set to ``0`` (default) for horizontal FL (row-split) or ``1`` for
+  vertical FL (column-split)
+* Consistent feature schema across parties for horizontal FL, or aligned sample IDs
+  (e.g. via PSI) for vertical FL
+* For vertical FL, rank 0 is the label owner (active party); other ranks load features
+  only
+
+Preparing Sample Data
+=====================
+
+The following snippet generates a synthetic binary classification dataset and writes it
+to disk in the layout expected by the horizontal and vertical examples below. Run this
+once before starting the server and workers.
+
+.. code-block:: python
+
+    import os
+    import numpy as np
+    import pandas as pd
+    from sklearn.datasets import make_classification
+    from sklearn.model_selection import train_test_split
+
+    WORLD_SIZE = 3
+    BASE = "/tmp/xgboost/federated"
+    SEED = 42
+
+    X, y = make_classification(
+        n_samples=1000, n_features=20, n_informative=10,
+        n_classes=2, random_state=SEED,
+    )
+    X_train, X_valid, y_train, y_valid = train_test_split(
+        X, y, test_size=0.2, random_state=SEED,
+    )
+
+    # --- Horizontal split (row-split) ---
+    # Each site gets a disjoint subset of training rows with all columns.
+    # The validation set is kept identical across all sites for easy comparison.
+    # Column 0 is the label.
+    train_idx = np.array_split(np.arange(len(X_train)), WORLD_SIZE)
+    df_valid = pd.DataFrame(np.column_stack([y_valid, X_valid]))
+
+    for i in range(WORLD_SIZE):
+        site_dir = os.path.join(BASE, "horizontal", f"site-{i + 1}")
+        os.makedirs(site_dir, exist_ok=True)
+
+        df_train = pd.DataFrame(
+            np.column_stack([y_train[train_idx[i]], X_train[train_idx[i]]])
+        )
+        df_train.to_csv(os.path.join(site_dir, "train.csv"), index=False, header=False)
+        df_valid.to_csv(os.path.join(site_dir, "valid.csv"), index=False, header=False)
+
+    # --- Vertical split (column-split) ---
+    # Each site gets all rows but a disjoint subset of feature columns.
+    # Site-1 (rank 0) also gets the label as column 0.
+    feature_splits = np.array_split(np.arange(X_train.shape[1]), WORLD_SIZE)
+
+    for i in range(WORLD_SIZE):
+        site_dir = os.path.join(BASE, "vertical", f"site-{i + 1}")
+        os.makedirs(site_dir, exist_ok=True)
+
+        cols_train = X_train[:, feature_splits[i]]
+        cols_valid = X_valid[:, feature_splits[i]]
+
+        if i == 0:
+            cols_train = np.column_stack([y_train, cols_train])
+            cols_valid = np.column_stack([y_valid, cols_valid])
+
+        pd.DataFrame(cols_train).to_csv(
+            os.path.join(site_dir, "train.csv"), index=False, header=False,
+        )
+        pd.DataFrame(cols_valid).to_csv(
+            os.path.join(site_dir, "valid.csv"), index=False, header=False,
+        )
+
+    # --- Centralized (non-federated) baseline ---
+    # Full training and validation sets for comparison.
+    central_dir = os.path.join(BASE, "centralized")
+    os.makedirs(central_dir, exist_ok=True)
+    pd.DataFrame(np.column_stack([y_train, X_train])).to_csv(
+        os.path.join(central_dir, "train.csv"), index=False, header=False,
+    )
+    df_valid.to_csv(
+        os.path.join(central_dir, "valid.csv"), index=False, header=False,
+    )
+
+    print(f"Data written to {BASE}/horizontal/, {BASE}/vertical/, and {BASE}/centralized/")
+
+Horizontal FL (No Homomorphic Encryption)
+=========================================
+
+In horizontal FL, each worker trains on local rows while participating in collective
+communication. Every party owns the label column for its samples (``data_split_mode=0``
+is the default for row-split).
+
+**Server:**
 
 .. code-block:: python
 
     import xgboost.federated
 
-    # Start server (blocking mode)
     xgboost.federated.run_federated_server(
-        n_workers=2,
-        port=9091
+        n_workers=3,
+        port=9091,
     )
 
-**Step 2: Start Workers (in separate processes/machines)**
+**Worker (run once per party):**
 
 .. code-block:: python
 
     import xgboost as xgb
 
-    # Worker configuration
+    rank = 0  # 0, 1, ..., world_size - 1
+
     communicator_env = {
-        'dmlc_communicator': 'federated',
-        'federated_server_address': 'localhost:9091',
-        'federated_world_size': 2,
-        'federated_rank': 0,  # Change to 1 for second worker
+        "dmlc_communicator": "federated",
+        "federated_server_address": "localhost:9091",
+        "federated_world_size": 3,
+        "federated_rank": rank,
     }
 
-    # Initialize communicator context
     with xgb.collective.CommunicatorContext(**communicator_env):
-        # Load local data
-        dtrain = xgb.DMatrix('worker0_train.txt')
-        dtest = xgb.DMatrix('worker0_test.txt')
+        train_path = f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/train.csv"
+        valid_path = f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/valid.csv"
 
-        # Standard XGBoost training
+        # In horizontal FL every party has labels.
+        dtrain = xgb.DMatrix(train_path + "?format=csv&label_column=0")
+        dvalid = xgb.DMatrix(valid_path + "?format=csv&label_column=0")
+
         params = {
-            'max_depth': 3,
-            'eta': 0.3,
-            'objective': 'binary:logistic',
-            'tree_method': 'hist',  # Required for federated learning
+            "objective": "binary:logistic",
+            "eval_metric": "auc",
+            "tree_method": "hist",
+            "max_depth": 3,
+            "eta": 0.1,
+            "nthread": 1,
         }
 
         bst = xgb.train(
-            params,
-            dtrain,
-            num_boost_round=10,
-            evals=[(dtest, 'test')]
+            params, dtrain, num_boost_round=3,
+            evals=[(dvalid, "eval"), (dtrain, "train")],
         )
 
-        # Save model (only on rank 0)
+        # In horizontal FL all ranks produce the same model;
+        # saving on rank 0 is sufficient.
         if xgb.collective.get_rank() == 0:
-            bst.save_model('federated_model.json')
+            bst.save_model("/tmp/xgboost/federated/horizontal_fed_model.json")
 
-**Step 3: Run Everything**
+Vertical FL (No Homomorphic Encryption)
+=======================================
 
-You'll need to:
-
-1. Start the server script
-2. Start worker scripts (one for each party)
-3. Wait for training to complete
+In vertical FL, parties hold different feature columns for the same aligned samples.
+Baseline vertical training can run without homomorphic encryption, but intermediate
+statistics are not cryptographically protected.
 
 .. note::
-   The tree_method must be set to ``hist`` for federated learning. Other tree methods are
-   not supported.
+   Before vertical training, sample alignment (for example via PSI) must be completed
+   outside this API so all parties operate on the same sample ordering.
 
-***************************
-Secure Federated Learning
-***************************
+In vertical FL, **rank 0 is the label owner (active party)** and all other ranks are
+feature-only owners (passive parties). When loading data, rank 0 includes the label
+column while other ranks load only their feature columns. The ``data_split_mode=1``
+flag tells XGBoost the data is column-split.
 
-For production use, enable SSL/TLS encryption to secure communication between server and
-workers.
-
-Generate SSL Certificates
-==========================
-
-For testing, generate self-signed certificates:
-
-.. code-block:: bash
-
-    # Generate server certificate
-    openssl req -x509 -newkey rsa:2048 -days 365 -nodes \
-        -keyout server-key.pem -out server-cert.pem \
-        -subj "/C=US/CN=localhost"
-
-    # Generate client certificate
-    openssl req -x509 -newkey rsa:2048 -days 365 -nodes \
-        -keyout client-key.pem -out client-cert.pem \
-        -subj "/C=US/CN=localhost"
-
-.. warning::
-   For production environments, use properly signed certificates from a trusted Certificate
-   Authority (CA).
-
-Server with SSL
-===============
+**Server:**
 
 .. code-block:: python
 
     import xgboost.federated
 
     xgboost.federated.run_federated_server(
-        n_workers=2,
+        n_workers=3,
         port=9091,
-        server_key_path='server-key.pem',
-        server_cert_path='server-cert.pem',
-        client_cert_path='client-cert.pem',
     )
 
-Worker with SSL
-===============
+**Worker (run once per party):**
 
 .. code-block:: python
 
     import xgboost as xgb
 
+    rank = 1  # 0 for label owner, 1..N-1 for feature owners
+
     communicator_env = {
-        'dmlc_communicator': 'federated',
-        'federated_server_address': 'localhost:9091',
-        'federated_world_size': 2,
-        'federated_rank': 0,
-        # SSL configuration
-        'federated_server_cert_path': 'server-cert.pem',
-        'federated_client_key_path': 'client-key.pem',
-        'federated_client_cert_path': 'client-cert.pem',
+        "dmlc_communicator": "federated",
+        "federated_server_address": "localhost:9091",
+        "federated_world_size": 3,
+        "federated_rank": rank,
     }
 
     with xgb.collective.CommunicatorContext(**communicator_env):
-        # Training code same as before
-        dtrain = xgb.DMatrix('data.txt')
-        bst = xgb.train({'tree_method': 'hist'}, dtrain, num_boost_round=10)
+        train_path = f"/tmp/xgboost/federated/vertical/site-{rank + 1}/train.csv"
+        valid_path = f"/tmp/xgboost/federated/vertical/site-{rank + 1}/valid.csv"
 
-************************************
-GPU-Accelerated Federated Learning
-************************************
+        # Rank 0 (active party) owns the label column;
+        # other ranks load feature columns only.
+        if rank == 0:
+            label = "&label_column=0"
+        else:
+            label = ""
 
-Enable GPU acceleration for faster training on large datasets.
-
-.. code-block:: python
-
-    import xgboost as xgb
-
-    communicator_env = {
-        'dmlc_communicator': 'federated',
-        'federated_server_address': 'localhost:9091',
-        'federated_world_size': 2,
-        'federated_rank': 0,
-    }
-
-    with xgb.collective.CommunicatorContext(**communicator_env):
-        dtrain = xgb.DMatrix('data.txt')
-
-        params = {
-            'tree_method': 'hist',
-            'device': 'cuda:0',  # Use GPU 0
-            'max_depth': 5,
-            'eta': 0.3,
-        }
-
-        bst = xgb.train(params, dtrain, num_boost_round=100)
-
-**Multi-GPU Setup**
-
-For workers with multiple GPUs, assign different devices:
-
-.. code-block:: python
-
-    # Worker 0 uses GPU 0
-    device = f'cuda:{rank}'  # If rank=0, device='cuda:0'
-
-    params = {
-        'tree_method': 'hist',
-        'device': device,
-        # ... other params
-    }
-
-****************
-Complete Example
-****************
-
-Here's a complete, production-ready example using multiprocessing:
-
-.. code-block:: python
-
-    import multiprocessing
-    import time
-    import xgboost as xgb
-    import xgboost.federated
-
-
-    def run_server(n_workers, port):
-        """Run federated server."""
-        xgboost.federated.run_federated_server(
-            n_workers=n_workers,
-            port=port,
-            server_key_path='server-key.pem',
-            server_cert_path='server-cert.pem',
-            client_cert_path='client-cert.pem',
+        dtrain = xgb.DMatrix(
+            train_path + f"?format=csv{label}", data_split_mode=1
+        )
+        dvalid = xgb.DMatrix(
+            valid_path + f"?format=csv{label}", data_split_mode=1
         )
 
-
-    def run_worker(rank, world_size, port):
-        """Run federated worker."""
-        communicator_env = {
-            'dmlc_communicator': 'federated',
-            'federated_server_address': f'localhost:{port}',
-            'federated_world_size': world_size,
-            'federated_rank': rank,
-            'federated_server_cert_path': 'server-cert.pem',
-            'federated_client_key_path': 'client-key.pem',
-            'federated_client_cert_path': 'client-cert.pem',
+        params = {
+            "objective": "binary:logistic",
+            "eval_metric": "auc",
+            "tree_method": "hist",
+            "max_depth": 3,
+            "eta": 0.1,
+            "nthread": 1,
         }
 
-        with xgb.collective.CommunicatorContext(**communicator_env):
-            # Load worker-specific data
-            dtrain = xgb.DMatrix(f'worker_{rank}_train.txt')
-            dtest = xgb.DMatrix(f'worker_{rank}_test.txt')
+        bst = xgb.train(
+            params, dtrain, num_boost_round=3,
+            evals=[(dvalid, "eval"), (dtrain, "train")],
+        )
 
-            params = {
-                'max_depth': 5,
-                'eta': 0.3,
-                'objective': 'binary:logistic',
-                'tree_method': 'hist',
-                'eval_metric': 'logloss',
-            }
+        # Each rank saves its own model slice (split values
+        # for features it does not own are stored as NaN).
+        bst.save_model(f"/tmp/xgboost/federated/vertical_model.{rank}.json")
 
-            results = {}
-            bst = xgb.train(
-                params,
-                dtrain,
-                num_boost_round=50,
-                evals=[(dtrain, 'train'), (dtest, 'test')],
-                evals_result=results,
-                verbose_eval=True,
-            )
+Comparing Against Centralized Training
+=======================================
 
-            # Only rank 0 saves the model
-            if xgb.collective.get_rank() == 0:
-                bst.save_model('federated_model.json')
-                print(f"Model saved. Final test logloss: {results['test']['logloss'][-1]:.4f}")
-
-
-    def main():
-        """Main orchestration function."""
-        world_size = 3
-        port = 9091
-
-        # Start server
-        server = multiprocessing.Process(target=run_server, args=(world_size, port))
-        server.start()
-        time.sleep(2)  # Give server time to start
-
-        # Start workers
-        workers = []
-        for rank in range(world_size):
-            worker = multiprocessing.Process(target=run_worker, args=(rank, world_size, port))
-            workers.append(worker)
-            worker.start()
-
-        # Wait for completion
-        for worker in workers:
-            worker.join()
-
-        server.terminate()
-        print("Federated training completed successfully!")
-
-
-    if __name__ == '__main__':
-        main()
-
-**************
-Security Model
-**************
-
-XGBoost's secure federated learning implementation protects data privacy during distributed
-training across multiple parties. The security model is based on research proposals
-documented in:
-
-- `RFC #9987: Secure Vertical Federated Learning <https://github.com/dmlc/xgboost/issues/9987>`_
-- `RFC #10170: Secure Horizontal Federated Learning <https://github.com/dmlc/xgboost/issues/10170>`_
-
-Threat Model
-=============
-
-Trust Assumptions
------------------
-
-The secure federated learning implementation assumes:
-
-* **Trusted Partners**: A few trusted partners jointly train a model
-* **Honest-but-Curious Parties**: Participants follow the protocol but may attempt to learn information from received data
-* **Pre-Established Relationships**: Private Set Intersection (PSI) is completed before training
-* **Network Security**: Fast, secure network connectivity between participants and central server
-* **No Participant Dropout**: All parties remain available throughout training (dropout support is a non-goal)
-
-Security Boundaries
--------------------
-
-**What is Protected:**
-
-* **Label Information**: Server/active party labels are protected from passive clients (vertical FL)
-* **Feature Values**: Individual feature values not leaked between parties
-* **Histograms**: Local gradient/Hessian histograms encrypted before transmission
-* **Gradients**: Local gradients encrypted to prevent information leakage
-
-**What is NOT Protected:**
-
-* **Model Structure**: The final tree structure is shared among all parties
-* **Aggregated Statistics**: Final aggregated histograms are revealed (in decrypted form)
-* **Participation Patterns**: Which parties participate in training is observable
-
-SecureBoost Pattern (Vertical Federated Learning)
-==================================================
-
-The vertical federated learning implementation follows a variation of the
-`SecureBoost algorithm <https://arxiv.org/abs/1901.08755>`_:
-
-* **Active Party (Server)**: Owns labels and coordinates tree construction
-* **Passive Parties (Clients)**: Own feature subsets, perform gradient collection only
-* **Label Protection**: Passive parties never see labels, preventing label leakage
-* **Distributed Model**: Split values stored distributively to protect feature cut values
-
-Key Architectural Change
-------------------------
-
-**Traditional Vertical FL:**
-
-.. code-block:: none
-
-    Client: [Data] → [Gradient Computation] → [Histogram] → [Tree Construction]
-    Server: [Labels] → [Loss Computation]
-
-**SecureBoost Pattern:**
-
-.. code-block:: none
-
-    Client (Passive): [Features] → [Gradient Collection Only]
-    Server (Active): [Labels + Features] → [Full Tree Construction]
-
-This architectural change:
-
-* Moves tree construction to the server (active party)
-* Clients only perform gradient collection
-* Server performs histogram synchronization and split finding
-* Protects label information from passive clients
-
-Secure Inference
-----------------
-
-Model storage is distributed to protect feature cut values:
-
-* **Feature-Owning Party**: Stores actual split values for their features
-* **Other Parties**: Store ``NaN`` for splits they don't own
-* **Prediction Time**: Parties collaborate, each evaluating splits for their features only
-
-This prevents feature value leakage even after model deployment.
-
-**Example:**
+To verify that federated training produces equivalent results, train a centralized
+(non-federated) baseline on the full dataset and compare validation metrics. The data
+prep above already writes the unsplit data to ``/tmp/xgboost/federated/centralized/``.
 
 .. code-block:: python
 
-    # Party A's view of the model (owns features 0-5)
-    Split: feature_0 < 0.5  → [actual value stored]
-    Split: feature_8 < 1.2  → [NaN stored, Party B owns this]
+    import xgboost as xgb
 
-    # Party B's view of the model (owns features 6-10)
-    Split: feature_0 < 0.5  → [NaN stored, Party A owns this]
-    Split: feature_8 < 1.2  → [actual value stored]
+    dtrain = xgb.DMatrix(
+        "/tmp/xgboost/federated/centralized/train.csv?format=csv&label_column=0"
+    )
+    dvalid = xgb.DMatrix(
+        "/tmp/xgboost/federated/centralized/valid.csv?format=csv&label_column=0"
+    )
 
-Homomorphic Encryption (Horizontal Federated Learning)
-=======================================================
+    params = {
+        "objective": "binary:logistic",
+        "eval_metric": "auc",
+        "tree_method": "hist",
+        "max_depth": 3,
+        "eta": 0.1,
+        "nthread": 1,
+    }
 
-The horizontal federated learning implementation uses homomorphic encryption to protect
-histogram data.
+    bst = xgb.train(
+        params, dtrain, num_boost_round=3,
+        evals=[(dvalid, "eval"), (dtrain, "train")],
+    )
 
-CKKS Encryption Scheme
+    bst.save_model("/tmp/xgboost/federated/centralized_model.json")
+
+Vertical federated training should produce a model that is exactly identical to the
+centralized baseline, because every party holds all samples and the histogram
+aggregation across column-split parties yields the same splits as centralized histogram
+construction.
+
+Horizontal federated training also synchronizes histogram bin boundaries before
+training begins: each worker builds a local weighted quantile sketch, then all sketches
+are gathered and merged into a single global sketch via collective allreduce. The
+resulting cut points are identical on every worker. During each boosting round, local
+G/H histograms are summed across workers, so all parties see the same aggregated
+histograms and make the same split decisions. In practice the horizontal federated
+model should be very close to the centralized baseline. The only potential source of
+minor numerical difference is the quantile sketch approximation — merging N local
+sketches is not always bit-identical to building one sketch on all data at once.
+
+To confirm, compare the saved model JSON files:
+
+.. code-block:: python
+
+    import json
+
+    def load_model_json(path):
+        with open(path) as f:
+            return json.load(f)
+
+    centralized = load_model_json("/tmp/xgboost/federated/centralized_model.json")
+
+    # Vertical: rank 0 holds the complete tree structure (other ranks
+    # store NaN for features they do not own, so rank 0 is the one to compare).
+    vertical = load_model_json("/tmp/xgboost/federated/vertical_model.0.json")
+
+    horizontal = load_model_json("/tmp/xgboost/federated/horizontal_fed_model.json")
+
+    # The vertical model from rank 0 should be identical to centralized.
+    print("vertical == centralized:", centralized == vertical)
+
+    # The horizontal model should be very close; tree structures and
+    # split values may differ only due to sketch approximation.
+    print("horizontal == centralized:", centralized == horizontal)
+
+*********************************************************
+Secure Federated Learning with Homomorphic Encryption
+*********************************************************
+
+The non-secure pipelines above exchange gradients, histograms, and split candidates in
+plaintext. Even though raw data is never shared, these intermediate values can leak
+information about the underlying data. XGBoost addresses this through homomorphic
+encryption (HE) via a plugin mechanism.
+
+Threat Model and Solutions
+=================================
+
+This tutorial assumes an **honest-but-curious** setting: parties follow the protocol but
+may inspect received data to infer private information.
+
+The table below lists the key risks in each FL mode and how HE addresses them. All
+branches in the code are gated by ``collective::IsEncrypted()``.
+
+**Horizontal FL risks**
+
+* Per-party histograms summed via ``collective::Allreduce`` are visible in plaintext at
+  each worker and at the aggregation endpoint. *Solution*: each worker encrypts its
+  histogram (``BuildEncryptedHistHori``) before the allgather; decryption
+  (``SyncEncryptedHistHori``) happens locally after aggregation.
+
+**Vertical FL risks**
+
+* Plaintext gradients broadcast from the active party allow passive parties to
+  reconstruct label information. *Solution*: gradients are encrypted before
+  ``collective::Broadcast``; passive parties only see ciphertext.
+* Plaintext histograms gathered via ``collective::Allgather`` expose per-feature
+  split-gain information to all parties. *Solution*: passive parties build encrypted
+  histograms (``BuildEncryptedHistVert``); only the active party decrypts
+  (``SyncEncryptedHistVert``) and evaluates splits.
+* The tree structure (feature indices, tree depth, split ordering) is shared with all
+  parties, which can reveal information about feature importance and data distribution.
+  *Mitigation*: only the feature-owning party recovers the real split threshold; other
+  parties store ``NaN`` for that split condition. This prevents non-owners from learning
+  the actual split values, while the tree topology and which feature is used at each node
+  remain visible. As a consequence, each party's saved model is incomplete for standalone
+  inference — collaborative inference across all parties is required (row partitioning
+  during training uses ``collective::Allreduce(kBitwiseOR)`` on per-row decision bit
+  vectors so that only the feature-owning worker needs the actual split value).
+
+**Security boundary**: HE protects intermediate values in transit and during aggregation.
+It does not make the final model universally private — model structure, outputs, and some
+aggregated statistics may still reveal information depending on deployment.
+
+Plugin System
+=============
+
+To support multiple encryption schemes, XGBoost keeps encryption logic outside the
+training core by using a plugin interface. This allows secure schemes to evolve
+independently.
+
+Architecture
+------------
+
+.. code-block:: none
+
+    +-----------------------------+
+    |        XGBoost Core         |
+    | histograms / tree building  |
+    +--------------+--------------+
+                   |
+                   v
+    +-----------------------------+
+    | Federated Processor API     |
+    | serialize / invoke plugin   |
+    +--------------+--------------+
+                   |
+                   v
+    +-----------------------------+
+    | Encryption Handler/Plugin   |
+    | Paillier / CKKS / key mgmt  |
+    +-----------------------------+
+
+Core Plugin API Surface
 -----------------------
 
-**Selected Approach:** CKKS (Cheon-Kim-Kim-Song) homomorphic encryption
+The plugin interface is defined in ``plugin/federated/federated_plugin.h``.
 
-**Why CKKS:**
-
-* Horizontal FL requires light vector additions across parties
-* CKKS supports addition and multiplication on encrypted data
-* Efficient for approximate arithmetic on real numbers
-* Well-suited for histogram aggregation (sum of G/H values)
-
-**Alternatives Considered:**
-
-* **Paillier**: Supports only addition, but simpler
-* **BFV/BGV**: Integer-based, less suitable for floating-point histograms
-
-**Limitations:**
-
-* Cannot support division or argmax operations in encrypted space
-* Tree construction must occur in plaintext (on aggregated histograms)
-
-Encryption Data Flow
---------------------
-
-**Horizontal Federated Learning with CKKS:**
-
-.. code-block:: none
-
-    1. Local Computation (Each Party):
-       Data → Histogram (G/H pairs) → [PLAINTEXT]
-
-    2. Encryption (Each Party):
-       Histogram → Encrypt(CKKS) → [CIPHERTEXT]
-
-    3. Transmission:
-       Party → Server: [CIPHERTEXT only]
-
-    4. Aggregation (Server):
-       Sum([CIPHERTEXT₁, CIPHERTEXT₂, ...]) → [AGGREGATED_CIPHERTEXT]
-
-    5. Decryption (Distributed or Server):
-       [AGGREGATED_CIPHERTEXT] → Decrypt → [PLAINTEXT_AGGREGATED]
-
-    6. Tree Construction:
-       [PLAINTEXT_AGGREGATED] → Find Best Split → Update Tree
-
-**Key Security Property:** Individual party histograms never leave their local environment
-in plaintext form.
-
-Security Guarantees
-====================
-
-Vertical Federated Learning
-----------------------------
-
-**What is Protected:**
-
-1. **Label Privacy**: Passive parties cannot access labels
-
-   * Labels remain on active party (server)
-   * Only encrypted gradients shared
-
-2. **Feature Value Privacy**: Feature cut values are distributed
-
-   * Each party stores only their own feature splits
-   * Other splits stored as NaN
-   * Collaborative inference required
-
-3. **Histogram Privacy**: Local histograms encrypted before sharing
-
-   * Cumulative histogram exposure minimized
-   * Only aggregated histogram revealed after decryption
-
-**Attack Resistance:**
-
-* **Gradient Inversion Attacks**: Gradients encrypted, cannot be directly inverted
-* **Feature Reconstruction**: Distributed split storage prevents feature value leakage
-* **Model Stealing**: Partial model at each party, full model not recoverable by any single party
-
-Horizontal Federated Learning
--------------------------------
-
-**What is Protected:**
-
-1. **Histogram Privacy**: Local G/H histograms never transmitted in plaintext
-
-   * Encrypted with CKKS before leaving local environment
-   * Server sees only aggregated ciphertext
-
-2. **Sample-Level Privacy**: Individual sample contributions hidden
-
-   * Aggregation in ciphertext prevents isolation of individual contributions
-   * Server cannot decrypt individual party histograms
-
-3. **Gradient Privacy**: Similar protections apply to gradients
-
-**Attack Resistance:**
-
-* **Histogram Leakage**: All transmission in encrypted form
-* **Membership Inference**: Aggregation masks individual contributions
-* **Byzantine Attacks**: Honest-but-curious model assumed (malicious parties not defended against)
-
-**Known Limitations:**
-
-* **Aggregated Information Leakage**: Final aggregated histogram is revealed
-* **Collusion**: Multiple colluding parties could potentially reconstruct more information
-* **Malicious Parties**: Current design does not defend against actively malicious participants
-
-*******************
-Plugin Architecture
-*******************
-
-Processor Interface Pattern
-============================
-
-The security implementation uses a **processor interface** to decouple encryption from
-XGBoost core:
-
-.. code-block:: none
-
-    ┌─────────────────────────────────────────────────────┐
-    │                   XGBoost Core                      │
-    │  (Histogram Computation, Tree Construction)         │
-    └────────────────┬────────────────────────────────────┘
-                     │
-                     ▼
-    ┌─────────────────────────────────────────────────────┐
-    │            Processor Interface (Plugin)             │
-    │  - Serialize histogram data                         │
-    │  - Call encryption handler                          │
-    │  - Deserialize encrypted/decrypted data             │
-    └────────────────┬────────────────────────────────────┘
-                     │
-                     ▼
-    ┌─────────────────────────────────────────────────────┐
-    │         gRPC Handler (External Process)             │
-    │  - Paillier encryption (Python/C++ library)         │
-    │  - CKKS encryption (SEAL, TenSEAL, etc.)           │
-    │  - Key management                                   │
-    └─────────────────────────────────────────────────────┘
-
-**Benefits:**
-
-* XGBoost remains dependency-free (no encryption library dependencies)
-* Flexible encryption scheme selection
-* Easy to swap encryption implementations
-* External security audit of encryption components
-
-Plugin Interface API
-=====================
-
-The plugin interface is defined in ``plugin/federated/federated_plugin.h``:
-
-Gradient Encryption (Vertical FL)
-----------------------------------
+**Gradient Encryption (vertical)**
 
 .. code-block:: cpp
 
-    // Encrypt gradients on active party
     EncryptGradient(float const* in_gpair, size_t n_in,
                     uint8_t** out_gpair, size_t* n_out)
 
-    // Synchronize encrypted gradients after broadcast
     SyncEncryptedGradient(uint8_t const* in_gpair, size_t n_bytes,
                           uint8_t** out_gpair, size_t* n_out)
 
-Histogram Encryption (Vertical FL)
------------------------------------
+**Histogram Encryption (vertical)**
 
 .. code-block:: cpp
 
-    // Set context for vertical histogram building
     ResetHistContext(uint32_t const* cutptrs, size_t cutptr_len,
                      int32_t const* bin_idx, size_t n_idx)
 
-    // Build encrypted histogram for local features
     BuildEncryptedHistVert(uint64_t const** ridx, size_t const* sizes,
                            int32_t const* nidx, size_t len,
                            uint8_t** out_hist, size_t* out_len)
 
-    // Synchronize and decrypt aggregated histogram
     SyncEncryptedHistVert(uint8_t* in_hist, size_t len,
                           double** out_hist, size_t* out_len)
 
-Histogram Encryption (Horizontal FL)
--------------------------------------
+**Histogram Encryption (horizontal)**
 
 .. code-block:: cpp
 
-    // Encrypt local histogram
     BuildEncryptedHistHori(double const* in_hist, size_t len,
                            uint8_t** out_hist, size_t* out_len)
 
-    // Aggregate and decrypt histograms
     SyncEncryptedHistHori(uint8_t const* in_hist, size_t len,
                           double** out_hist, size_t* out_len)
 
-Two-Tiered Encryption Approaches
-=================================
+In this way:
 
-The architecture supports two implementation strategies:
+* Encryption library and key handling stay in a separate runtime component.
+* XGBoost binary remains lightweight and dependency-minimal.
+* Cryptographic backends are easier to rotate or replace.
 
-Option 1: Handler-Side Encryption (Recommended)
-------------------------------------------------
+Implementation Details
+======================
 
-* gRPC local handler performs encryption/decryption
-* Uses external Python/C++ encryption libraries (e.g., ``tenseal``, ``python-paillier``)
-* XGBoost communicates via processor interface
-* No encryption dependencies in XGBoost binary
+With the plugin system, in **secure horizontal FL**, the training loop proceeds as follows:
 
-**Advantages:**
+1. **Sketch synchronization** (once, before training): unchanged —
+   ``collective::AllgatherV`` on plaintext sketches (sketches reveal bin boundaries, not
+   individual data points).
+2. **Local histogram construction** (each boosting round): unchanged — each worker builds
+   its local G/H histogram in plaintext using the shared bin boundaries.
+3. **Encrypted histogram allreduce** (each boosting round, replaces the plaintext
+   ``collective::Allreduce``):
 
-* Keeps XGBoost dependency-free
-* Easy to update encryption libraries
-* Multiple encryption schemes supported without rebuilding XGBoost
-* Separate security audit scope
+   a. Each worker encrypts its local histogram via the plugin's
+      ``BuildEncryptedHistHori``.
+   b. Encrypted histograms are sent to the federated server via
+      ``collective::AllgatherV``. The server performs homomorphic addition on the
+      ciphertexts and returns the aggregated histogram in ciphertext to each worker.
+   c. Each worker calls the plugin's ``SyncEncryptedHistHori`` to decrypt the
+      aggregated ciphertext, obtaining the global histogram in plaintext.
 
-Option 2: XGBoost-Side Encryption
-----------------------------------
+   In the code this replaces ``AllReduceHist`` with ``AllReduceHistEncrypted``
+   (``updater_gpu_hist.cu``), gated by
+   ``collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()``.
+4. **Split finding**: unchanged — every worker evaluates splits on the (now-decrypted)
+   aggregated histogram independently and arrives at the same best split.
+5. **Row partition update**: unchanged — each worker partitions its local rows according
+   to the agreed split and proceeds to the next tree node.
 
-* Direct C++ encryption integration (e.g., Microsoft SEAL for CKKS)
-* Encryption built into XGBoost binary
-* Plugin loaded via ``dlopen`` at runtime
+In **secure vertical FL**, the training loop proceeds as follows:
 
-**Advantages:**
+1. **Sketch construction** — unchanged: each worker builds sketches for its own features
+   locally.
+2. **Encrypted gradient broadcast** (replaces plaintext ``collective::Broadcast``): the
+   active party (rank 0) computes gradients, encrypts them via the plugin's
+   ``EncryptGradient``, then broadcasts ciphertext to all passive parties via
+   ``collective::Broadcast``.
+3. **Encrypted histogram construction** (replaces plaintext histogram building on passive
+   parties): each passive party calls the plugin's ``BuildEncryptedHistVert`` to build
+   histograms from the encrypted gradients. Summing encrypted G/H values into histogram
+   bins produces valid encrypted bin totals. The active party builds its histogram from
+   plaintext gradients as usual.
+4. **Gather + decrypt at active party** (replaces ``collective::Allgather`` of split
+   candidates): all encrypted histograms are gathered to rank 0 via
+   ``collective::AllgatherV``. Rank 0 calls the plugin's ``SyncEncryptedHistVert`` to
+   decrypt the aggregated global histogram.
+5. **Split finding** (changed — rank 0 only): only the active party evaluates splits on
+   the decrypted histogram — passive parties skip split evaluation entirely
+   (``is_passive_party = is_col_split_ && is_secure_ && rank != 0``). The best split is
+   distributed to all workers via ``collective::Broadcast``.
+6. **Split value recovery** (new step): Rank 0 records a bin index rather than an actual
+   feature value. Each worker recovers the split value from its own cut-point array —
+   only the feature-owning party obtains the real threshold; other parties store ``NaN``.
+7. **Tree structure update** — unchanged: all workers apply the chosen split to update
+   their row partitions.
 
-* More efficient (no IPC overhead)
-* Tighter integration
-* Better performance for encryption-heavy operations
 
-**Disadvantages:**
 
-* Larger binary size
-* Build complexity
-* Harder to update encryption schemes
+***************
+Secure Examples
+***************
 
-**Configuration Example:**
+XGBoost ships with a built-in **mock plugin** (``{"name": "mock"}``) that exercises the
+full secure code path — encrypted gradient broadcast, encrypted histogram construction,
+gather/decrypt, rank-0-only split evaluation — without performing real encryption (data is
+copied as-is). This is useful for validating the pipeline and for testing.
+
+Real Paillier and CKKS implementations are provided by **external libraries** (e.g.,
+`NVFlare <https://github.com/NVIDIA/NVFlare>`_) and loaded at runtime via the plugin
+system's ``dlopen`` bridge. To use an external plugin, pass ``"path":
+"/path/to/plugin.so"`` along with scheme-specific parameters in the ``federated_plugin``
+dict.
+
+The examples below use the mock plugin. To enable encryption, pass a ``federated_plugin``
+dict. The horizontal data-loading pattern is unchanged from the non-HE Quick Start (all
+parties own labels, ``data_split_mode=0`` by default):
 
 .. code-block:: python
+
+    import xgboost as xgb
+
+    rank = 0
 
     communicator_env = {
-        'dmlc_communicator': 'federated',
-        'federated_server_address': 'localhost:9091',
-        'federated_world_size': 3,
-        'federated_rank': 0,
-        # Load encryption plugin
-        'federated_plugin_path': '/usr/lib/xgboost/libckks_plugin.so',
-        'federated_plugin_config': '{"scheme": "ckks", "poly_modulus": 8192}'
+        "dmlc_communicator": "federated",
+        "federated_server_address": "localhost:9091",
+        "federated_world_size": 3,
+        "federated_rank": rank,
+        "federated_plugin": {
+            "name": "mock",
+        },
     }
 
-**********************
-Advanced Configuration
-**********************
+    with xgb.collective.CommunicatorContext(**communicator_env):
+        dtrain = xgb.DMatrix(
+            f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/train.csv?format=csv&label_column=0"
+        )
+        dvalid = xgb.DMatrix(
+            f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/valid.csv?format=csv&label_column=0"
+        )
 
-Federated Plugin for Custom Encryption
-=======================================
+        params = {
+            "objective": "binary:logistic",
+            "eval_metric": "auc",
+            "tree_method": "hist",
+            "max_depth": 3,
+            "eta": 0.1,
+            "nthread": 1,
+        }
 
-For advanced security requirements, XGBoost supports third-party encryption plugins
-implementing homomorphic encryption schemes.
+        bst = xgb.train(
+            params, dtrain, num_boost_round=3,
+            evals=[(dvalid, "eval"), (dtrain, "train")],
+        )
 
-Supported Encryption Schemes
------------------------------
+        if xgb.collective.get_rank() == 0:
+            bst.save_model("/tmp/xgboost/federated/horizontal_secure_model.json")
 
-The plugin architecture supports multiple encryption schemes:
 
-* **CKKS (Recommended for Horizontal FL)**: Approximate homomorphic encryption for real numbers
-
-  - Supports addition and multiplication on encrypted data
-  - Efficient for histogram aggregation across parties
-  - Implementations: Microsoft SEAL, TenSEAL
-
-* **Paillier (Suitable for Vertical FL)**: Additive homomorphic encryption
-
-  - Supports only addition on encrypted data
-  - Simpler than CKKS, but limited operations
-  - Implementations: python-paillier, libpaillier
-
-* **BFV/BGV**: Integer-based homomorphic encryption
-
-  - Alternative to CKKS for integer arithmetic
-  - Less suitable for floating-point histograms
-
-Plugin Configuration
---------------------
-
-**Example with Custom Encryption Plugin:**
+For vertical FL, the data-loading pattern is unchanged from the non-HE Quick Start
+(rank 0 owns labels, ``data_split_mode=1``):
 
 .. code-block:: python
+
+    import xgboost as xgb
+
+    rank = 0
 
     communicator_env = {
-        'dmlc_communicator': 'federated',
-        'federated_server_address': 'localhost:9091',
-        'federated_world_size': 2,
-        'federated_rank': 0,
-        # Plugin configuration
-        'federated_plugin': {
-            'path': '/path/to/ckks_plugin.so',
-            'config': {
-                'scheme': 'ckks',
-                'poly_modulus_degree': 8192,
-                'coeff_mod_bit_sizes': [60, 40, 40, 60],
-                'scale': 2**40
-            }
-        }
+        "dmlc_communicator": "federated",
+        "federated_server_address": "localhost:9091",
+        "federated_world_size": 3,
+        "federated_rank": rank,
+        "federated_plugin": {
+            "name": "mock",
+        },
     }
 
-**Security-Performance Trade-off:**
+    with xgb.collective.CommunicatorContext(**communicator_env):
+        if rank == 0:
+            label = "&label_column=0"
+        else:
+            label = ""
 
-Higher security parameters (larger polynomial modulus, more coefficient moduli) provide
-stronger security but:
+        dtrain = xgb.DMatrix(
+            f"/tmp/xgboost/federated/vertical/site-{rank + 1}/train.csv?format=csv{label}",
+            data_split_mode=1,
+        )
+        dvalid = xgb.DMatrix(
+            f"/tmp/xgboost/federated/vertical/site-{rank + 1}/valid.csv?format=csv{label}",
+            data_split_mode=1,
+        )
 
-* Increase computation time (encryption/decryption)
-* Increase ciphertext size (network bandwidth)
-* Increase memory usage
-
-Consult with cryptography experts to select appropriate parameters for your use case.
-
-NVFlare Integration
-====================
-
-NVIDIA FLARE (Federated Learning Application Runtime Environment) provides the recommended
-framework for production secure federated learning deployments. NVFlare automatically
-manages encryption via the processor interface:
-
-.. code-block:: python
-
-    # NVFlare server configuration
-    from nvflare.app_common.xgb import FedXGBHistogramController
-
-    controller = FedXGBHistogramController(
-        num_rounds=100,
-        early_stopping_rounds=10,
-        processor_class=XGBHomomorphicEncryptionProcessor,
-        processor_args={
-            'scheme': 'ckks',
-            'poly_modulus_degree': 8192,
-            'coeff_mod_bit_sizes': [60, 40, 40, 60]
+        params = {
+            "objective": "binary:logistic",
+            "eval_metric": "auc",
+            "tree_method": "hist",
+            "max_depth": 3,
+            "eta": 0.1,
+            "nthread": 1,
         }
-    )
 
-    # NVFlare client configuration
-    from nvflare.app_common.xgb import FedXGBHistogramExecutor
+        bst = xgb.train(
+            params, dtrain, num_boost_round=3,
+            evals=[(dvalid, "eval"), (dtrain, "train")],
+        )
 
-    executor = FedXGBHistogramExecutor(
-        data_loader_id="data_loader",
-        world_size=5,
-        rank=0
-    )
+        bst.save_model(f"/tmp/xgboost/federated/vertical_secure_model.{rank}.json")
 
-See `NVFlare XGBoost Documentation <https://nvflare.readthedocs.io/en/main/examples/xgboost.html>`_
-for complete examples.
+Comparing Secure Models
+========================
 
-Timeout Configuration
-=====================
+With the mock plugin (no real encryption), the secure pipeline produces the same
+mathematical result as the non-secure pipeline — the mock plugin copies data as-is, so
+gradients and histograms are identical. This means the secure horizontal model should
+match the non-secure horizontal model, and the secure vertical model from rank 0 should
+match the centralized baseline.
 
-Adjust connection timeout if workers need more time to connect:
-
-.. code-block:: python
-
-    xgboost.federated.run_federated_server(
-        n_workers=10,
-        port=9091,
-        timeout=600,  # 10 minutes
-    )
-
-Non-Blocking Server Mode
-=========================
-
-For custom orchestration, run the server in non-blocking mode:
+The key difference is in what each party's saved model contains. In secure vertical FL,
+only the feature-owning party stores the real split threshold; other parties store
+``NaN``. Compare the model JSON files to see this:
 
 .. code-block:: python
 
-    # Returns worker arguments immediately
-    worker_args = xgboost.federated.run_federated_server(
-        n_workers=2,
-        port=9091,
-        blocking=False,
-    )
+    import json
 
-    # Use worker_args to configure workers programmatically
-    # The server runs in a background thread
+    def load_model_json(path):
+        with open(path) as f:
+            return json.load(f)
+
+    def get_split_conditions(model_json):
+        """Extract split_conditions from all trees."""
+        conditions = []
+        for tree in model_json["learner"]["gradient_booster"]["model"]["trees"]:
+            conditions.append(tree["split_conditions"])
+        return conditions
+
+    centralized      = load_model_json("/tmp/xgboost/federated/centralized_model.json")
+    horiz_secure     = load_model_json("/tmp/xgboost/federated/horizontal_secure_model.json")
+    vert_secure_0    = load_model_json("/tmp/xgboost/federated/vertical_secure_model.0.json")
+    vert_secure_1    = load_model_json("/tmp/xgboost/federated/vertical_secure_model.1.json")
+    vert_secure_2    = load_model_json("/tmp/xgboost/federated/vertical_secure_model.2.json")
+
+    # Compare model for horizontal FL
+    print("\n--- Horizontal FL ---")
+    print(f"  secure == centralized : {horiz_secure == centralized}")
+
+    # Compare model for vertical FL
+    # Split conditions should align when combining all models.
+    print("\n--- Vertical FL ---")
+    print("Centralized  :", get_split_conditions(centralized)[0])
+    print("Secure rank 0:", get_split_conditions(vert_secure_0)[0])
+    print("Secure rank 1:", get_split_conditions(vert_secure_1)[0])
+    print("Secure rank 2:", get_split_conditions(vert_secure_2)[0])
+
+    # Combine split conditions across all ranks: for each node, take the
+    # non-NaN value (only one rank owns each split feature and stores a real value).
+    import math
+
+    all_rank_conds = [
+        get_split_conditions(vert_secure_0),
+        get_split_conditions(vert_secure_1),
+        get_split_conditions(vert_secure_2),
+    ]
+    combined_conds = []
+    for tree_idx in range(len(all_rank_conds[0])):
+        merged = []
+        for node_idx in range(len(all_rank_conds[0][tree_idx])):
+            val = next(
+                v for rank_conds in all_rank_conds
+                if not math.isnan(v := rank_conds[tree_idx][node_idx])
+            )
+            merged.append(val)
+        combined_conds.append(merged)
+
+    print("\nCombined    :", combined_conds[0])
+    print("\n--- Combined == Centralized:", combined_conds == get_split_conditions(centralized))
+
+Each party's model has the correct split conditions only for splits on its own features.
+For splits on other parties' features, the split condition is ``NaN``. No single party
+can perform standalone inference — all parties must collaborate, combining their local
+split knowledge to route each sample through the tree. Combining all models will result in the same
+model as centralized training.
 
 **************************
 Performance Considerations
 **************************
 
-Encryption Overhead
-===================
+* Homomorphic encryption can dominate runtime cost.
+* Ciphertext payloads are significantly larger than plaintext histograms.
+* Throughput depends on encryption parameters, network bandwidth, and batching strategy.
 
-**Typical Overhead:**
+Typical tuning levers:
 
-* **CKKS Encryption**: 10-100x slower than plaintext operations (depends on security parameters)
-* **Paillier Encryption**: 100-1000x slower (depends on key size)
-* **Network**: Encrypted data is larger (ciphertext expansion)
-
-**Optimization Strategies:**
-
-* Use GPU acceleration for encryption/decryption
-* Batch encryption operations
-* Optimize security parameters (polynomial modulus, key size) for use case
-* Use efficient serialization formats
-
-Communication Costs
-===================
-
-**Plaintext vs Ciphertext:**
-
-* **Plaintext Histogram**: 2 × n_bins × sizeof(double) bytes per histogram
-* **CKKS Ciphertext**: ~10-50x larger (depends on parameters)
-* **Network Bandwidth**: Can become bottleneck with many parties
-
-**Mitigation:**
-
-* Compression of ciphertext
-* Efficient allgather implementations
-* Network topology optimization
+* Reduce communication overhead with batching/compression where supported.
+* Use GPU acceleration where encryption backend supports it.
+* Calibrate cryptographic parameters with security experts for production targets.
 
 **************
 Best Practices
 **************
 
-Security Configuration
-======================
-
-1. **Always Use SSL/TLS**: Even with encryption, use SSL/TLS for transport security
-2. **Key Management**: Use proper key generation and storage
-
-   * Generate fresh keys per training session
-   * Use hardware security modules (HSM) for production
-   * Implement key rotation policies
-
-3. **Parameter Selection**: Choose encryption parameters carefully
-
-   * Higher security = more computation + larger ciphertext
-   * Balance security needs with performance
-   * Consult cryptography experts for production deployments
-
-4. **Audit Encryption Plugins**: Independently audit third-party encryption plugins
-5. **Monitor for Anomalies**: Log and monitor federated training for unusual patterns
-
-Training Best Practices
-=======================
-
-1. **Use ``tree_method='hist'``** - it's required for federated learning
-2. **Test locally first** with multiple processes before deploying to multiple machines
-3. **Monitor training metrics** on all workers to detect data quality issues
-4. **Save models only on rank 0** to avoid race conditions
-5. **Start with CPU** for debugging, then enable GPU after verifying correctness
-6. **Use proper certificate management** - don't commit certificates to version control
-
-Privacy Risk Assessment
-=======================
-
-Before deploying secure federated learning:
-
-1. **Threat Modeling**: Identify your specific adversaries and threats
-2. **Data Sensitivity**: Assess sensitivity of labels, features, and aggregates
-3. **Regulatory Compliance**: Ensure compliance with GDPR, HIPAA, etc.
-4. **Differential Privacy**: Consider adding differential privacy for stronger guarantees
-5. **Secure Computation Limitations**: Understand what is and isn't protected
+1. Validate end-to-end training first in non-HE mode.
+2. Enable TLS before enabling homomorphic encryption.
+3. Introduce Paillier (vertical) or CKKS (horizontal) in staged tests.
+4. Keep strict key lifecycle controls: generation, storage, rotation, revocation.
+5. Monitor convergence and latency together; security knobs can affect both.
+6. For horizontal FL, saving the model on rank 0 is sufficient (all ranks produce the
+   same model). For vertical FL, every rank must save its own model slice because each
+   rank stores only the split values for the features it owns.
 
 ***************
 Troubleshooting
 ***************
 
-Connection Issues
-=================
+Workers Cannot Connect
+======================
 
-**Problem:** Workers can't connect to server
-
-**Solutions:**
-
-* Verify server is running before starting workers
-* Check firewall rules allow connections on the specified port
-* Ensure ``federated_server_address`` is correct (use actual hostname/IP, not ``localhost``, for multi-machine setups)
-* Increase timeout value if workers are slow to start
-
-SSL Certificate Errors
-=======================
-
-**Problem:** SSL handshake failures
-
-**Solutions:**
-
-* Ensure all certificate files are in the correct PEM format
-* Verify certificate paths are correct and readable
-* Check that server and client certificates match
-* For multi-machine setups, update certificate CN (Common Name) to match server hostname
+* Confirm server is up before workers start.
+* Check host/port and firewall routing.
+* Verify every party uses identical ``federated_world_size``.
 
 Training Hangs
 ==============
 
-**Problem:** Training starts but never completes
+* Ensure all ranks joined the communicator context.
+* Check data loading path consistency.
 
-**Solutions:**
+TLS Errors
+==========
 
-* Ensure all workers have connected (check server logs)
-* Verify ``world_size`` matches actual number of workers
-* Check that all workers are using ``tree_method='hist'``
-* Look for errors in worker logs
+* Validate certificate format (PEM) and file permissions.
+* Confirm server cert and client trust chain alignment.
+* Use proper CN/SAN values for multi-host deployments.
 
-GPU Out of Memory
-=================
+HE Plugin Errors
+================
 
-**Problem:** CUDA out of memory errors
-
-**Solutions:**
-
-* Reduce ``max_bin`` parameter to use less memory
-* Decrease ``max_depth``
-* Use smaller batch sizes if training incrementally
-* Assign workers to different GPUs to distribute memory load
+* Confirm the ``federated_plugin`` dict contains a valid ``name`` field.
+* Validate that all plugin-specific keys (e.g. ``key_bits``, ``poly_modulus_degree``) have
+  correct types and values.
+* Check backend library dependencies and key availability.
+* Use ``{"name": "mock"}`` to isolate whether the issue is in the plugin or elsewhere.
 
 ***********
 Limitations
 ***********
 
-Security Limitations
-====================
-
-* **Honest-but-Curious Model**: Assumes parties follow protocol but may observe data
-* **No Byzantine Fault Tolerance**: Does not protect against actively malicious parties
-* **Aggregated Information Leakage**: Final aggregated histograms are revealed in plaintext
-* **No Differential Privacy**: Does not provide formal differential privacy guarantees (can be added separately)
-* **Collusion Risk**: Multiple colluding parties could potentially reconstruct more information
-
-Functional Limitations
-======================
-
-* Only ``hist`` tree method is supported (not ``approx`` or ``exact``)
-
-  - Homomorphic encryption schemes don't support division/argmax operations
-  - Tree construction must occur on plaintext aggregated histograms
-
-* All workers must use the same XGBoost version
-* Data schema (number and order of features) must match across workers for horizontal learning
-* Sample IDs must match across workers for vertical learning
-* Network latency affects training speed - federated learning is slower than centralized training
-* No support for participant dropout during training
-
-********************
-Implementation Phases
-********************
-
-The secure federated learning feature was developed in phases:
-
-Phase 1: Vertical Pipeline Foundation
-======================================
-
-* Alternative vertical pipeline with histogram synchronization
-* Basic infrastructure for column-split data
-* PR: `#10037 <https://github.com/dmlc/xgboost/pull/10037>`_
-
-Phase 2: Processor Interface
-=============================
-
-* Plugin architecture for encryption
-* Processor interface definition
-* Integration with NVFlare
-* PRs: `#10124 <https://github.com/dmlc/xgboost/pull/10124>`_, `#10231 <https://github.com/dmlc/xgboost/pull/10231>`_
-
-Phase 3: Secure Evaluation
-===========================
-
-* Distributed model storage
-* Secure inference without feature leakage
-* Validation/evaluation with privacy preservation
-* PR: `#10079 <https://github.com/dmlc/xgboost/pull/10079>`_
-
-Phase 4: GPU Acceleration
-==========================
-
-* CUDA-accelerated vertical federated scheme
-* GPU histogram computation
-* GPU-based encryption/decryption
-* PR: `#10652 <https://github.com/dmlc/xgboost/pull/10652>`_
-
-Phase 5: Horizontal Federated Learning
-=======================================
-
-* CKKS-based horizontal FL
-* Secure histogram aggregation
-* CPU and GPU support
-* PR: `#10601 <https://github.com/dmlc/xgboost/pull/10601>`_
-
-***********************
-Testing Security Features
-***********************
-
-Unit Tests
-==========
-
-Security features include comprehensive tests:
-
-* **C++ Tests**: ``tests/cpp/plugin/federated/test_federated_plugin.cc``
-* **Python Tests**: ``tests/test_distributed/test_federated/``
-* **GPU Tests**: ``tests/test_distributed/test_gpu_federated/``
-
-Running Security Tests
-======================
-
-.. code-block:: bash
-
-    # Test federated plugin interface
-    cd build
-    ./testxgboost --gtest_filter="*Federated*"
-
-    # Test Python federated learning
-    export PYTHONPATH=./python-package
-    pytest -v tests/test_distributed/test_federated/
-
-    # Test with encryption (requires plugin)
-    export FEDERATED_PLUGIN_PATH=/path/to/encryption_plugin.so
-    pytest -v tests/test_distributed/test_federated/ --secure
-
-***
-FAQ
-***
-
-**Q: Is the model trained with secure FL identical to centralized training?**
-
-A: Yes, the final model is mathematically equivalent. The encryption only protects
-intermediate values (gradients, histograms) during transmission.
-
-**Q: Can I use secure FL without a framework like NVFlare?**
-
-A: Yes, but you'll need to implement the encryption plugin yourself following the interface
-in ``federated_plugin.h``.
-
-**Q: What encryption scheme should I use?**
-
-A: For horizontal FL, CKKS is recommended. For vertical FL, Paillier or CKKS both work.
-Consult a cryptography expert for production.
-
-**Q: Is secure FL slower than regular FL?**
-
-A: Yes, encryption adds overhead. Expect 2-10x slower depending on security parameters and
-hardware acceleration.
-
-**Q: Does secure FL protect against malicious parties?**
-
-A: No, the current design assumes honest-but-curious parties. Byzantine fault tolerance is
-a non-goal.
-
-**Q: Can I add differential privacy on top of secure FL?**
-
-A: Yes, differential privacy can be added independently to provide additional privacy
-guarantees.
-
-**********
-References
-**********
-
-Documentation
-=============
-
-* :doc:`/parameter` - Complete parameter reference
-* :doc:`/python/python_api` - Python API documentation
-* `Federated Plugin Interface <https://github.com/dmlc/xgboost/blob/master/plugin/federated/federated_plugin.h>`_ - C++ plugin specification
-
-RFCs and Design Documents
-==========================
-
-* `RFC #9987: Secure Vertical Federated Learning <https://github.com/dmlc/xgboost/issues/9987>`_ - SecureBoost pattern, processor interface
-* `RFC #10170: Secure Horizontal Federated Learning <https://github.com/dmlc/xgboost/issues/10170>`_ - CKKS encryption, threat model
-
-Academic Papers
-===============
-
-* `SecureBoost: A Lossless Federated Learning Framework <https://arxiv.org/abs/1901.08755>`_ - Vertical FL algorithm
-* `CKKS: Homomorphic Encryption for Arithmetic of Approximate Numbers <https://eprint.iacr.org/2016/421>`_ - CKKS scheme
-* `Practical Secure Aggregation for Privacy-Preserving Machine Learning <https://eprint.iacr.org/2017/281>`_ - Secure aggregation
-
-Libraries and Tools
-===================
-
-* `Microsoft SEAL <https://github.com/microsoft/SEAL>`_ - CKKS implementation
-* `TenSEAL <https://github.com/OpenMined/TenSEAL>`_ - Python SEAL wrapper
-* `python-paillier <https://github.com/data61/python-paillier>`_ - Paillier encryption
-* `NVIDIA FLARE <https://github.com/NVIDIA/NVFlare>`_ - Recommended framework for production deployments
-
-For questions and discussions, visit the `XGBoost Discussion Forum <https://discuss.xgboost.ai>`_.
+* Honest-but-curious assumption; no full Byzantine defense.
+* Secure aggregation protects intermediates, not all downstream leakage channels.
+* No participant dropout support in current design assumptions.
