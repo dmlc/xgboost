@@ -25,7 +25,6 @@
 #include "../../src/common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "../../src/common/io.h"                    // for LoadSequentialFile
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
-#include "../../src/common/random.h"                // for GlobalRandom
 #include "./collective/test_worker.h"               // for TestDistributedGlobal
 #include "dmlc/omp.h"                               // for omp_get_max_threads
 #include "filesystem.h"                             // for TemporaryDirectory
@@ -362,10 +361,10 @@ TEST(Learner, ConstantSeed) {
   std::unique_ptr<Learner> learner{Learner::Create({m})};
   // Use exact as it doesn't initialize column sampler at construction, which alters the rng.
   learner->SetParam("tree_method", "exact");
-  learner->Configure();  // seed the global random
+  learner->Configure();
 
   std::uniform_real_distribution<float> dist;
-  auto& rng = common::GlobalRandom();
+  auto& rng = learner->Ctx()->Rng();
   float v_0 = dist(rng);
 
   learner->SetParam("", "");

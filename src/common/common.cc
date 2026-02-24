@@ -3,27 +3,15 @@
  */
 #include "common.h"
 
-#include <dmlc/thread_local.h>  // for ThreadLocalStore
-
 #include <cmath>    // for pow
 #include <cstdint>  // for uint8_t
 #include <cstdio>   // for snprintf, size_t
 #include <string>   // for string
 #include <utility>  // for pair
 
-#include "./random.h"  // for GlobalRandomEngine, GlobalRandom
+#include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::common {
-/*! \brief thread local entry for random. */
-struct RandomThreadLocalEntry {
-  /*! \brief the random engine instance. */
-  GlobalRandomEngine engine;
-};
-
-using RandomThreadLocalStore = dmlc::ThreadLocalStore<RandomThreadLocalEntry>;
-
-GlobalRandomEngine &GlobalRandom() { return RandomThreadLocalStore::Get()->engine; }
-
 void EscapeU8(std::string const &string, std::string *p_buffer) {
   auto &buffer = *p_buffer;
   for (size_t i = 0; i < string.length(); i++) {

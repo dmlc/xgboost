@@ -23,7 +23,7 @@
 #include "../common/device_helpers.cuh"
 #include "../common/device_vector.cuh"  // for device_vector
 #include "../common/hist_util.h"        // for HistogramCuts
-#include "../common/random.h"           // for ColumnSampler, GlobalRandom
+#include "../common/random.h"           // for ColumnSampler
 #include "../common/timer.h"
 #include "../data/batch_utils.h"     // for StaticBatch
 #include "../data/ellpack_page.cuh"  // for EllpackPageImpl

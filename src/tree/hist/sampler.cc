@@ -11,15 +11,16 @@
 #include <vector>   // for vector
 
 #include "../../common/algorithm.h"  // for Sort
-#include "../../common/random.h"     // for GlobalRandom
+#include "../../common/random.h"     // for RandomEngine
 #include "xgboost/base.h"            // for GradientPair, GradientPairPrecise
 #include "xgboost/linalg.h"          // for MatrixView
 #include "xgboost/span.h"            // for Span
 
 namespace xgboost::tree::cpu_impl {
 template <typename Fn>
-void ParallelSampling(bst_idx_t n_samples, std::int32_t n_threads, Fn&& fn) {
-  auto& rnd = common::GlobalRandom();
+void ParallelSampling(Context const* ctx, bst_idx_t n_samples, Fn&& fn) {
+  auto& rnd = ctx->Rng();
+  auto n_threads = ctx->Threads();
   std::uint64_t initial_seed = rnd();
   std::size_t const discard_size = n_samples / n_threads;
   common::ParallelFor(n_threads, n_threads, [&](auto tid) {
@@ -56,7 +57,7 @@ void GradientBasedSampling(Context const* ctx, linalg::MatrixView<GradientPair> 
   std::uniform_real_distribution<float> dist{0.0f, 1.0f};
   auto n_samples = gpairs.Shape(0);
   auto n_targets = gpairs.Shape(1);
-  ParallelSampling(n_samples, ctx->Threads(), [&](std::size_t ibegin, std::size_t iend, auto& eng) {
+  ParallelSampling(ctx, n_samples, [&](std::size_t ibegin, std::size_t iend, auto& eng) {
     for (std::size_t i = ibegin; i < iend; ++i) {
       float p = SamplingProbability(threshold, reg_abs_grad[i]);
       // Skip rows with zero gradient (already zero)
@@ -156,7 +157,7 @@ void UniformSample(Context const* ctx, linalg::MatrixView<GradientPair> out, flo
   std::bernoulli_distribution coin_flip{subsample};
   CHECK_GE(n_targets, 1);
 
-  ParallelSampling(n_samples, ctx->Threads(), [&](std::size_t ibegin, std::size_t iend, auto& eng) {
+  ParallelSampling(ctx, n_samples, [&](std::size_t ibegin, std::size_t iend, auto& eng) {
     for (std::size_t i = ibegin; i < iend; ++i) {
       if (!coin_flip(eng)) {
         for (std::size_t j = 0; j < n_targets; ++j) {
