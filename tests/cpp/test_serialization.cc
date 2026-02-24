@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include "test_serialization.h"
 

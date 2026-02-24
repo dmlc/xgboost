@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include <thrust/shuffle.h>  // for shuffle
 

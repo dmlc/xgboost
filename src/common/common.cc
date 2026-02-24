@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  */
 #include "common.h"
 

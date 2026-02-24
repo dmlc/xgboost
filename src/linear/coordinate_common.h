@@ -1,11 +1,12 @@
 /**
- * Copyright 2018-2025, XGBoost Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  * \author Rory Mitchell
  */
 #pragma once
 #include <algorithm>
 #include <cmath>  // for fpclassify
 #include <limits>
+#include <numeric>  // for accumulate, iota
 #include <string>
 #include <utility>
 #include <vector>

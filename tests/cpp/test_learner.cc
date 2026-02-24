@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

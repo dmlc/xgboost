@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file context.h
  */
 #ifndef XGBOOST_CONTEXT_H_
