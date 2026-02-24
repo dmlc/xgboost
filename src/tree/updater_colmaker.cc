@@ -220,7 +220,7 @@ class ColMaker : public TreeUpdater {
         if (param_.subsample < 1.0f) {
           CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
               << "Only uniform sampling is supported, "
-              << "gradient-based sampling is only support by GPU Hist.";
+              << "gradient-based sampling is only support by the `hist` tree method.";
           std::bernoulli_distribution coin_flip(param_.subsample);
           auto &rnd = ctx_->Rng();
           for (size_t ridx = 0; ridx < position_.size(); ++ridx) {
