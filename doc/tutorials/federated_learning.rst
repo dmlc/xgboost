@@ -584,10 +584,9 @@ In **secure vertical FL**, the training loop proceeds as follows:
    their row partitions.
 
 
-
-***************
-Secure Examples
-***************
+**********************************
+Secure Federated Learning Examples
+**********************************
 
 XGBoost ships with a built-in **mock plugin** (``{"name": "mock"}``) that exercises the
 full secure code path — encrypted gradient broadcast, encrypted histogram construction,
@@ -601,7 +600,12 @@ system's ``dlopen`` bridge. To use an external plugin, pass ``"path":
 dict.
 
 The examples below use the mock plugin. To enable encryption, pass a ``federated_plugin``
-dict. The horizontal data-loading pattern is unchanged from the non-HE Quick Start (all
+dict.
+
+Horizontal FL (Homomorphic Encryption)
+======================================
+
+The horizontal data-loading pattern is unchanged from the non-HE Quick Start (all
 parties own labels, ``data_split_mode=0`` by default):
 
 .. code-block:: python
@@ -645,6 +649,8 @@ parties own labels, ``data_split_mode=0`` by default):
         if xgb.collective.get_rank() == 0:
             bst.save_model("/tmp/xgboost/federated/horizontal_secure_model.json")
 
+Vertical FL (Homomorphic Encryption)
+====================================
 
 For vertical FL, the data-loading pattern is unchanged from the non-HE Quick Start
 (rank 0 owns labels, ``data_split_mode=1``):
