@@ -51,6 +51,8 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::Vector<
 
   if (ctx->IsCUDA()) {
     cuda_impl::Mean(ctx, v, out->View(ctx->Device()));
+  } else if (ctx->IsSycl()) {
+    sycl_impl::Mean(ctx, v, out->View(ctx->Device()));
   } else {
     auto h_v = v;
     float n = v.Size();
