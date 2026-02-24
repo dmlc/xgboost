@@ -20,7 +20,7 @@ which can be enabled by providing the file name with ``.json`` (or ``.ubj`` for 
 JSON) as file extension when saving/loading model: ``booster.save_model('model.json')``.
 More details below.
 
-Before we get started, XGBoost is a gradient boosting library with focus on tree model,
+Before we get started, XGBoost is a gradient boosting library with focus on tree models,
 which means inside XGBoost, there are 2 distinct parts:
 
 1. The model consisting of trees and
@@ -107,23 +107,34 @@ not be accessible in later versions of XGBoost.**
 Custom objective and metric
 ***************************
 
-XGBoost accepts user provided objective and metric functions as an extension.  These
-functions are not saved in model file as they are language dependent features.  With
-Python, user can pickle the model to include these functions in saved binary.  One
-drawback is, the output from pickle is not a stable serialization format and doesn't work
-on different Python version nor XGBoost version, not to mention different language
-environments.  Another way to workaround this limitation is to provide these functions
-again after the model is loaded. If the customized function is useful, please consider
+XGBoost accepts user provided objective, metric, and callback functions as extensions.
+These functions are not saved in model file as they are language dependent features. With
+Python, user can pickle the model to include these functions in saved binary. One drawback
+is, the output from pickle is not a stable serialization format and doesn't work on
+different Python versions nor XGBoost versions, not to mention different language
+environments. Another way to workaround this limitation is to provide these functions
+again after the model is loaded by separating the serialization between the XGBoost
+built-in model and auxiliary methods. If the customized function is useful, please consider
 making a PR for implementing it inside XGBoost, this way we can have your functions
-working with different language bindings.
+working with different language bindings. See the next section for more about pickling.
 
-******************************************************
-Loading pickled file from different version of XGBoost
-******************************************************
+**********************************
+Loading pickled files or RDS files
+**********************************
 
-As noted, pickled model is neither portable nor stable, but in some cases the pickled
-models are valuable.  One way to restore it in the future is to load it back with that
-specific version of Python and XGBoost, export the model by calling `save_model`.
+- From a different XGBoost version
+
+  As noted, pickled model is neither portable nor stable, but in some cases the pickled
+  models are valuable.  One way to restore it in the future is to load it back with that
+  specific version of Python and XGBoost, export the model by calling
+  :py:meth:`xgboost.Booster.save_model` or :py:meth:`xgboost.XGBModel.save_model`.
+
+- Pickle is not secure
+
+  Only load pickled files from a trusted source. The ``pickle`` Python module is NOT
+  secure. And by extension, ``joblib``, ``cloudpickle`` are also not safe when loading
+  files from unknown sources. See https://docs.python.org/3/library/pickle.html for more
+  information.
 
 A similar procedure may be used to recover the model persisted in an old RDS file. In R,
 you are able to install an older version of XGBoost using the ``remotes`` package:
@@ -133,9 +144,10 @@ you are able to install an older version of XGBoost using the ``remotes`` packag
   library(remotes)
   remotes::install_version("xgboost", "0.90.0.1")  # Install version 0.90.0.1
 
-Once the desired version is installed, you can load the RDS file with ``readRDS`` and recover the
-``xgb.Booster`` object. Then call ``xgb.save`` to export the model using the stable representation.
-Now you should be able to use the model in the latest version of XGBoost.
+Once the desired version is installed, you can load the RDS file with ``readRDS`` and
+recover the ``xgb.Booster`` object. Then call ``xgb.save`` to export the model using the
+stable representation.  Now you should be able to use the model in the latest version of
+XGBoost.
 
 ********************************************************
 Saving and Loading the internal parameters configuration
