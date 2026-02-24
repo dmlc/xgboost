@@ -14,7 +14,6 @@
 #include <map>
 #include <memory>
 #include <numeric>
-#include <random>
 #include <vector>
 
 #include "../collective/broadcast.h"  // for Broadcast
@@ -24,11 +23,6 @@
 #include "xgboost/linalg.h"
 
 namespace xgboost::common {
-/*!
- * \brief Define mt19937 as default type Random Engine.
- */
-using RandomEngine = std::mt19937;
-
 /*
  * Original paper:
  * Weighted Random Sampling (2005; Efraimidis, Spirakis)

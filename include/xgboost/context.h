@@ -18,6 +18,10 @@
 namespace xgboost {
 
 struct CUDAContext;
+/**
+ * @brief Define mt19937 as default type Random Engine.
+ */
+using RandomEngine = std::mt19937;
 
 // symbolic names
 struct DeviceSym {
@@ -222,7 +226,7 @@ struct Context : public XGBoostParameter<Context> {
   /**
    * @brief Get the random engine.
    */
-  [[nodiscard]] std::mt19937& Rng() const { return rng_; }
+  [[nodiscard]] RandomEngine& Rng() const { return rng_; }
 
   /**
    * @brief Make a CUDA context based on the current context.
@@ -312,7 +316,7 @@ struct Context : public XGBoostParameter<Context> {
   // shared_ptr is used instead of unique_ptr as with unique_ptr it's difficult to define
   // p_impl while trying to hide CUDA code from the host compiler.
   mutable std::shared_ptr<CUDAContext> cuctx_;
-  mutable std::mt19937 rng_;
+  mutable RandomEngine rng_;
   // cached value for CFS CPU limit. (used in containerized env)
   std::int32_t cfs_cpu_count_;  // NOLINT
 };
