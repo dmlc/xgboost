@@ -40,10 +40,7 @@ enum class TreeMethod : int {
 };
 
 // boosting process types
-enum class TreeProcessType : int {
-  kDefault = 0,
-  kUpdate = 1
-};
+enum class TreeProcessType : int { kDefault = 0, kUpdate = 1 };
 
 // Sampling type for dart weights.
 enum class DartSampleType : std::int32_t {
@@ -72,15 +69,16 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
         .set_default(TreeProcessType::kDefault)
         .add_enum("default", TreeProcessType::kDefault)
         .add_enum("update", TreeProcessType::kUpdate)
-        .describe("Whether to run the normal boosting process that creates new trees,"\
-                  " or to update the trees in an existing model.");
+        .describe(
+            "Whether to run the normal boosting process that creates new trees,"
+            " or to update the trees in an existing model.");
     DMLC_DECLARE_ALIAS(updater_seq, updater);
     DMLC_DECLARE_FIELD(tree_method)
         .set_default(TreeMethod::kAuto)
-        .add_enum("auto",      TreeMethod::kAuto)
-        .add_enum("approx",    TreeMethod::kApprox)
-        .add_enum("exact",     TreeMethod::kExact)
-        .add_enum("hist",      TreeMethod::kHist)
+        .add_enum("auto", TreeMethod::kAuto)
+        .add_enum("approx", TreeMethod::kApprox)
+        .add_enum("exact", TreeMethod::kExact)
+        .add_enum("hist", TreeMethod::kHist)
         .describe("Choice of tree construction method.");
   }
 };
@@ -172,8 +170,13 @@ bool SliceTrees(bst_layer_t begin, bst_layer_t end, bst_layer_t step, GBTreeMode
 // gradient boosted trees
 class GBTree : public GradientBooster {
  public:
+  enum class Type : std::uint8_t { kGBTree = 0, kDart = 1 };
+
   explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx)
-      : GradientBooster{ctx}, model_(booster_config, ctx_) {
+      : GBTree{booster_config, ctx, Type::kGBTree} {}
+
+  explicit GBTree(LearnerModelParam const* booster_config, Context const* ctx, Type booster_type)
+      : GradientBooster{ctx}, booster_type_{booster_type}, model_(booster_config, ctx_) {
     monitor_.Init(__func__);
   }
 
@@ -268,10 +271,9 @@ class GBTree : public GradientBooster {
         }
       });
     } else {
-      LOG(FATAL)
-          << "Unknown feature importance type, expected one of: "
-          << R"({"weight", "total_gain", "total_cover", "gain", "cover"}, got: )"
-          << importance_type;
+      LOG(FATAL) << "Unknown feature importance type, expected one of: "
+                 << R"({"weight", "total_gain", "total_cover", "gain", "cover"}, got: )"
+                 << importance_type;
     }
     if (importance_type == "gain" || importance_type == "cover") {
       for (size_t i = 0; i < gain_map.size(); ++i) {
@@ -291,9 +293,8 @@ class GBTree : public GradientBooster {
 
   [[nodiscard]] CatContainer const* Cats() const override { return this->model_.Cats(); }
 
-  void PredictLeaf(DMatrix* p_fmat,
-                   HostDeviceVector<bst_float>* out_preds,
-                   uint32_t layer_begin, uint32_t layer_end) override {
+  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds, uint32_t layer_begin,
+                   uint32_t layer_end) override {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: [0, "
                                "n_iteration), use model slicing instead.";
@@ -306,8 +307,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end, nullptr,
-                                                   approximate);
+    this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end,
+                                                   &weight_drop_, approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -316,8 +317,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                               tree_end, nullptr, approximate);
+    this->GetPredictor(false)->PredictInteractionContributions(
+        p_fmat, out_contribs, model_, tree_end, &weight_drop_, approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
@@ -326,6 +327,8 @@ class GBTree : public GradientBooster {
   }
 
  protected:
+  [[nodiscard]] bool IsDart() const { return booster_type_ == Type::kDart; }
+
   void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
                      std::vector<std::unique_ptr<RegTree>>* ret);
@@ -336,16 +339,30 @@ class GBTree : public GradientBooster {
       bool is_training, HostDeviceVector<float> const* out_pred = nullptr,
       DMatrix* f_dmat = nullptr) const;
 
+  void PredictWeightedBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
+                                bst_layer_t layer_begin, bst_layer_t layer_end) const;
+
+  void InplacePredictWeighted(std::shared_ptr<DMatrix> p_fmat, float missing,
+                              PredictionCacheEntry* p_out_preds, bst_layer_t layer_begin,
+                              bst_layer_t layer_end) const;
+
+  void DropTrees(bool is_training);
+  std::size_t NormalizeTrees(std::size_t size_new_trees);
+
   // commit new trees all at once
   virtual void CommitModel(TreesOneIter&& new_trees);
 
   // --- data structure ---
+  Type booster_type_{Type::kGBTree};
   GBTreeModel model_;
   // training parameter
   GBTreeTrainParam tparam_;
+  DartTrainParam dparam_;
   // Tree training parameter
   tree::TrainParam tree_param_;
-  bool specified_updater_   {false};
+  std::vector<bst_float> weight_drop_;
+  std::vector<size_t> idx_drop_;
+  bool specified_updater_{false};
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
   // Predictors

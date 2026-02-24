@@ -99,10 +99,8 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
   {
     // multi-class dense training DMatrix, medium depth
     bst_target_t n_classes{3};
-    auto dmat = RandomDataGenerator(256, 8, 0.0)
-                    .Classes(n_classes)
-                    .Device(device)
-                    .GenerateDMatrix(true);
+    auto dmat =
+        RandomDataGenerator(256, 8, 0.0).Classes(n_classes).Device(device).GenerateDMatrix(true);
     SetLabels(dmat.get(), n_classes);
     auto args = BaseParams(ctx, "multi:softprob", "4");
     args.emplace_back("num_class", std::to_string(n_classes));
@@ -114,6 +112,16 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
     auto dmat = RandomDataGenerator(10000, 12, 0.0).Device(device).GenerateDMatrix();
     SetLabels(dmat.get(), 1);
     cases.emplace_back(dmat, BaseParams(ctx, "binary:logistic", "10"));
+  }
+
+  {
+    // DART-style tree weighting should be supported for SHAP.
+    auto dmat = RandomDataGenerator(1024, 10, 0.0).Device(device).GenerateDMatrix(true);
+    SetLabels(dmat.get(), 1);
+    auto args = BaseParams(ctx, "binary:logistic", "6");
+    args.emplace_back("rate_drop", "0.5");
+    args.emplace_back("one_drop", "1");
+    cases.emplace_back(dmat, std::move(args));
   }
 
   return cases;
@@ -142,8 +150,7 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
 
   HostDeviceVector<float> shap_interactions;
   learner->Predict(p_dmat, false, &shap_interactions, 0, 0, false, false, false, false, true);
-  ASSERT_EQ(shap_interactions.HostVector().size(),
-            kRows * (kCols + 1) * (kCols + 1) * n_outputs);
+  ASSERT_EQ(shap_interactions.HostVector().size(), kRows * (kCols + 1) * (kCols + 1) * n_outputs);
   CheckShapAdditivity(kRows, kCols, shap_interactions, margin_predt);
 }
 

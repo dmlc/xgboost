@@ -644,6 +644,10 @@ class LearnerConfiguration : public Intercept {
       if (std::find(metric_names_.cbegin(), metric_names_.cend(), value) == metric_names_.cend()) {
         metric_names_.emplace_back(value);
       }
+    } else if (key == "booster" && value == "dart") {
+      LOG(WARNING) << "`booster=dart` is deprecated. Use `booster=gbtree` and configure DART with "
+                      "its core parameters (for example `rate_drop`, `one_drop`, `skip_drop`).";
+      cfg_[key] = value;
     } else {
       cfg_[key] = value;
     }
