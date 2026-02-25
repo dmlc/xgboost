@@ -14,6 +14,8 @@
 #include <map>
 #include <memory>
 #include <numeric>
+#include <sstream>
+#include <string>
 #include <vector>
 
 #include "../collective/broadcast.h"  // for Broadcast
@@ -139,6 +141,17 @@ class ColumnSampler {
     feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
   }
 
+  [[nodiscard]] std::string SaveRngState() const {
+    std::stringstream ss;
+    ss << rng_;
+    return ss.str();
+  }
+
+  void LoadRngState(std::string const& state) {
+    std::stringstream ss{state};
+    ss >> rng_;
+  }
+
   /**
    * \brief Resets this object.
    */
@@ -180,10 +193,19 @@ class ColumnSampler {
   }
 };
 
-inline auto MakeColumnSampler(Context const* ctx) {
+/**
+ * @brief Create a column sampler, drawing a seed from the context RNG and broadcasting it
+ *        across workers.
+ *
+ * @param[out] p_seed If non-null, receives the seed used to create the sampler.
+ */
+inline auto MakeColumnSampler(Context const* ctx, std::uint32_t* p_seed = nullptr) {
   std::uint32_t seed = ctx->Rng()();
   auto rc = collective::Broadcast(ctx, linalg::MakeVec(&seed, 1), 0);
   collective::SafeColl(rc);
+  if (p_seed) {
+    *p_seed = seed;
+  }
   auto cs = std::make_shared<common::ColumnSampler>(seed);
   return cs;
 }
