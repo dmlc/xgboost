@@ -15,15 +15,14 @@
 #include <string>  // for string
 #include <vector>  // for vector
 
-#include "../../../src/common/random.h"  // for GlobalRandom
-#include "../../../src/tree/param.h"     // for TrainParam
-#include "../collective/test_worker.h"   // for BaseMGPUTest
+#include "../../../src/tree/param.h"    // for TrainParam
+#include "../collective/test_worker.h"  // for BaseMGPUTest
 #include "../helpers.h"
 
 namespace xgboost::tree {
 namespace {
-void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat,
-                RegTree* tree, HostDeviceVector<bst_float>* preds, float subsample,
+void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat, RegTree* tree,
+                HostDeviceVector<bst_float>* preds, float subsample,
                 const std::string& sampling_method, bst_bin_t max_bin) {
   Args args{
       {"max_depth", "2"},
@@ -53,8 +52,8 @@ TEST(GpuHist, UniformSampling) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
   constexpr float kSubsample = 0.9999;
-  common::GlobalRandom().seed(1994);
   auto ctx = MakeCUDACtx(0);
+  ctx.Rng().seed(1994);
 
   // Create an in-memory DMatrix.
   auto p_fmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
@@ -84,8 +83,8 @@ TEST(GpuHist, GradientBasedSampling) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
   constexpr float kSubsample = 0.9999;
-  common::GlobalRandom().seed(1994);
   auto ctx = MakeCUDACtx(0);
+  ctx.Rng().seed(1994);
 
   // Create an in-memory DMatrix.
   auto p_fmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
@@ -148,9 +147,8 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   constexpr size_t kRows = 4096, kCols = 2;
   constexpr float kSubsample = 0.5;
   const std::string kSamplingMethod = "gradient_based";
-  common::GlobalRandom().seed(0);
-
   auto ctx = MakeCUDACtx(0);
+  ctx.Rng().seed(0);
 
   // Create a single batch DMatrix.
   auto p_fmat = RandomDataGenerator{kRows, kCols, 0.0f}
@@ -169,14 +167,14 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   auto gpair = GenerateRandomGradients(&ctx, kRows, 1);
 
   // Build a tree using the in-memory DMatrix.
-  auto rng = common::GlobalRandom();
+  auto rng = ctx.Rng();
 
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, ctx.Device());
   UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, kSubsample, kSamplingMethod, kRows);
 
   // Build another tree using multiple ELLPACK pages.
-  common::GlobalRandom() = rng;
+  ctx.Rng() = rng;
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, ctx.Device());
   UpdateTree(&ctx, &gpair, p_fmat_ext.get(), &tree_ext, &preds_ext, kSubsample, kSamplingMethod,
@@ -217,13 +215,13 @@ TEST(GpuHist, MaxDepth) {
   learner->SetParam("max_depth", "32");
   learner->Configure();
 
-  ASSERT_THROW({learner->UpdateOneIter(0, p_mat);}, dmlc::Error);
+  ASSERT_THROW({ learner->UpdateOneIter(0, p_mat); }, dmlc::Error);
 }
 
 namespace {
 RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
   ObjInfo task{ObjInfo::kRegression};
-  std::unique_ptr<TreeUpdater> hist_maker {TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
+  std::unique_ptr<TreeUpdater> hist_maker{TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
   hist_maker->Configure(Args{});
 
   TrainParam param;

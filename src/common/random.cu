@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include <thrust/shuffle.h>  // for shuffle
 
@@ -19,7 +19,7 @@ void WeightedSamplingWithoutReplacement(Context const *ctx, common::Span<bst_fea
                                         common::Span<float const> weights,
                                         common::Span<bst_feature_t> results,
                                         HostDeviceVector<bst_feature_t> *sorted_idx,
-                                        GlobalRandomEngine *grng) {
+                                        RandomEngine *grng) {
   CUDAContext const *cuctx = ctx->CUDACtx();
   CHECK_EQ(array.size(), weights.size());
   // Sampling keys
@@ -61,7 +61,7 @@ void SampleFeature(Context const *ctx, bst_feature_t n_features,
                    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_new_features,
                    HostDeviceVector<float> const &feature_weights,
                    HostDeviceVector<float> *weight_buffer,
-                   HostDeviceVector<bst_feature_t> *idx_buffer, GlobalRandomEngine *grng) {
+                   HostDeviceVector<bst_feature_t> *idx_buffer, RandomEngine *grng) {
   CUDAContext const *cuctx = ctx->CUDACtx();
   auto &new_features = *p_new_features;
   new_features.SetDevice(ctx->Device());
