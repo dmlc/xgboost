@@ -110,7 +110,7 @@ Custom objective and metric
 XGBoost accepts user provided objective, metric, and callback functions as extensions.
 These functions are not saved in model file as they are language dependent features. With
 Python, user can pickle the model to include these functions in saved binary. One drawback
-is, the output from pickle is not a stable serialization format and doesn't work on
+is that the output from pickle is not a stable serialization format and doesn't work on
 different Python versions nor XGBoost versions, not to mention different language
 environments. Another way to workaround this limitation is to provide these functions
 again after the model is loaded by separating the serialization between the XGBoost
@@ -126,10 +126,10 @@ Loading pickled files or RDS files
 
   As noted, pickled model is neither portable nor stable, but in some cases the pickled
   models are valuable.  One way to restore it in the future is to load it back with that
-  specific version of Python and XGBoost, export the model by calling
+  specific version of Python and XGBoost, and then export the model by calling
   :py:meth:`xgboost.Booster.save_model` or :py:meth:`xgboost.XGBModel.save_model`.
 
-- Pickle is not secure
+.. note:: Pickle is not secure
 
   Only load pickled files from a trusted source. The ``pickle`` Python module is NOT
   secure. And by extension, ``joblib``, ``cloudpickle`` are also not safe when loading
