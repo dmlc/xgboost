@@ -51,14 +51,14 @@ struct WQSummary {
      * \brief debug function,  check Valid
      * \param eps the tolerate level for violating the relation
      */
-    inline void CheckValid(RType eps = 0) const {
+    void CheckValid(RType eps = 0) const {
       CHECK(rmin >= 0 && rmax >= 0 && wmin >= 0) << "nonneg constraint";
       CHECK(rmax - rmin - wmin > -eps) << "relation constraint: min/max";
     }
     /*! \return rmin estimation for v strictly bigger than value */
-    XGBOOST_DEVICE inline RType RMinNext() const { return rmin + wmin; }
+    XGBOOST_DEVICE RType RMinNext() const { return rmin + wmin; }
     /*! \return rmax estimation for v strictly smaller than value */
-    XGBOOST_DEVICE inline RType RMaxPrev() const { return rmax - wmin; }
+    XGBOOST_DEVICE RType RMaxPrev() const { return rmax - wmin; }
 
     friend std::ostream &operator<<(std::ostream &os, Entry const &e) {
       os << "rmin: " << e.rmin << ", "
@@ -77,7 +77,7 @@ struct WQSummary {
   /*!
    * \return the maximum error of the Summary
    */
-  inline RType MaxError() const {
+  RType MaxError() const {
     RType res = data[0].rmax - data[0].rmin - data[0].wmin;
     for (size_t i = 1; i < size; ++i) {
       res = std::max(data[i].RMaxPrev() - data[i - 1].RMinNext(), res);
@@ -90,7 +90,7 @@ struct WQSummary {
    * \param qvalue the value we query for
    * \param istart starting position
    */
-  inline Entry Query(DType qvalue, size_t &istart) const {  // NOLINT(*)
+  Entry Query(DType qvalue, size_t &istart) const {  // NOLINT(*)
     while (istart < size && qvalue > data[istart].value) {
       ++istart;
     }
@@ -109,12 +109,12 @@ struct WQSummary {
     }
   }
   /*! \return maximum rank in the summary */
-  inline RType MaxRank() const { return data[size - 1].rmax; }
+  RType MaxRank() const { return data[size - 1].rmax; }
   /*!
    * \brief copy content from src
    * \param src source sketch
    */
-  inline void CopyFrom(const WQSummary &src) {
+  void CopyFrom(const WQSummary &src) {
     if (!src.data) {
       CHECK_EQ(src.size, 0);
       size = 0;
@@ -128,7 +128,7 @@ struct WQSummary {
     size = src.size;
     std::memcpy(data, src.data, sizeof(Entry) * size);
   }
-  inline void MakeFromSorted(const Entry *entries, size_t n) {
+  void MakeFromSorted(const Entry *entries, size_t n) {
     size = 0;
     for (size_t i = 0; i < n;) {
       size_t j = i + 1;
@@ -145,7 +145,7 @@ struct WQSummary {
    * \param eps the tolerate error level, used when RType is floating point and
    *        some inconsistency could occur due to rounding error
    */
-  inline void CheckValid(RType eps) const {
+  void CheckValid(RType eps) const {
     for (size_t i = 0; i < size; ++i) {
       data[i].CheckValid(eps);
       if (i != 0) {
@@ -199,7 +199,7 @@ struct WQSummary {
    * \param sa first input summary to be merged
    * \param sb second input summary to be merged
    */
-  inline void SetCombine(const WQSummary &sa, const WQSummary &sb) {
+  void SetCombine(const WQSummary &sa, const WQSummary &sb) {
     if (sa.size == 0) {
       this->CopyFrom(sb);
       return;
@@ -261,7 +261,7 @@ struct WQSummary {
     CHECK(size <= sa.size + sb.size) << "bug in combine";
   }
   // helper function to print the current content of sketch
-  inline void Print() const {
+  void Print() const {
     for (size_t i = 0; i < this->size; ++i) {
       LOG(CONSOLE) << "[" << i << "] rmin=" << data[i].rmin << ", rmax=" << data[i].rmax
                    << ", wmin=" << data[i].wmin << ", v=" << data[i].value;
@@ -269,7 +269,7 @@ struct WQSummary {
   }
   // try to fix rounding error
   // and re-establish invariance
-  inline void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
+  void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
     *err_mingap = 0;
     *err_maxgap = 0;
     *err_wgap = 0;
@@ -302,7 +302,7 @@ struct Queue {
     RType weight;
     QEntry() = default;
     QEntry(DType value, RType weight) : value(value), weight(weight) {}
-    inline bool operator<(QEntry const &b) const { return value < b.value; }
+    bool operator<(QEntry const &b) const { return value < b.value; }
   };
 
   std::vector<QEntry> queue;
@@ -317,7 +317,7 @@ struct Queue {
   }
 
   // push element to the queue, return false if the queue is full and need to be flushed
-  inline bool Push(DType x, RType w) {
+  bool Push(DType x, RType w) {
     if (qtail == 0 || queue[qtail - 1].value != x) {
       if (qtail == queue.size() && queue.size() == 1) {
         queue.resize(max_size);
@@ -332,7 +332,7 @@ struct Queue {
     return true;
   }
 
-  inline void PopSummary(WQSummary<DType, RType> *out) {
+  void PopSummary(WQSummary<DType, RType> *out) {
     std::sort(queue.begin(), queue.begin() + qtail);
     out->size = 0;
     RType wsum = 0;
@@ -359,31 +359,31 @@ struct WQSummaryContainer : public WQSummary<> {
     this->data = dmlc::BeginPtr(this->space);
   }
   WQSummaryContainer() : WQSummary<>(nullptr, 0) {}
-  inline void Reserve(size_t size) {
+  void Reserve(size_t size) {
     if (size > space.size()) {
       space.resize(size);
       this->data = dmlc::BeginPtr(space);
     }
   }
-  inline void Reduce(WQSummary<> const &src, size_t max_nbyte) {
+  void Reduce(WQSummary<> const &src, size_t max_nbyte) {
     this->Reserve((max_nbyte - sizeof(this->size)) / sizeof(WQSummary<>::Entry));
     WQSummaryContainer temp;
     temp.Reserve(this->size + src.size);
     temp.SetCombine(*this, src);
     this->SetPrune(temp, space.size());
   }
-  inline static size_t CalcMemCost(size_t nentry) {
+  static size_t CalcMemCost(size_t nentry) {
     return sizeof(size_t) + sizeof(WQSummary<>::Entry) * nentry;
   }
   template <typename TStream>
-  inline void Save(TStream &fo) const {  // NOLINT(*)
+  void Save(TStream &fo) const {  // NOLINT(*)
     fo.Write(&(this->size), sizeof(this->size));
     if (this->size != 0) {
       fo.Write(this->data, this->size * sizeof(Entry));
     }
   }
   template <typename TStream>
-  inline void Load(TStream &fi) {  // NOLINT(*)
+  void Load(TStream &fi) {  // NOLINT(*)
     CHECK_EQ(fi.Read(&this->size, sizeof(this->size)), sizeof(this->size));
     this->Reserve(this->size);
     if (this->size != 0) {
@@ -407,7 +407,7 @@ class WQuantileSketch {
    * \param maxn maximum number of data points can be feed into sketch
    * \param eps accuracy level of summary
    */
-  inline void Init(size_t maxn, double eps) {
+  void Init(size_t maxn, double eps) {
     if (maxn == 0) {
       // Empty columns can appear in distributed column-split settings.
       // Keep internals in a valid state while preserving an empty summary.
@@ -424,8 +424,7 @@ class WQuantileSketch {
     level.clear();
   }
 
-  inline static void LimitSizeLevel(size_t maxn, double eps, size_t *out_nlevel,
-                                    size_t *out_limit_size) {
+  static void LimitSizeLevel(size_t maxn, double eps, size_t *out_nlevel, size_t *out_limit_size) {
     size_t &nlevel = *out_nlevel;
     size_t &limit_size = *out_limit_size;
     nlevel = 1;
@@ -448,7 +447,7 @@ class WQuantileSketch {
    * \param x The element added to the sketch
    * \param w The weight of the element.
    */
-  inline void Push(bst_float x, bst_float w = 1) {
+  void Push(bst_float x, bst_float w = 1) {
     if (w == static_cast<bst_float>(0)) return;
     if (!inqueue.Push(x, w)) {
       temp.Reserve(limit_size * 2);
@@ -458,14 +457,14 @@ class WQuantileSketch {
     }
   }
 
-  inline void PushSummary(WQSummary<> const &summary) {
+  void PushSummary(WQSummary<> const &summary) {
     temp.Reserve(limit_size * 2);
     temp.SetPrune(summary, limit_size * 2);
     PushTemp();
   }
 
   /*! \brief push up temp */
-  inline void PushTemp() {
+  void PushTemp() {
     temp.Reserve(limit_size * 2);
     for (size_t l = 1; true; ++l) {
       this->InitLevel(l + 1);
@@ -489,7 +488,7 @@ class WQuantileSketch {
     }
   }
   /*! \brief get the summary after finalize */
-  inline void GetSummary(WQSummaryContainer *out) {
+  void GetSummary(WQSummaryContainer *out) {
     if (level.size() != 0) {
       out->Reserve(limit_size * 2);
     } else {
@@ -517,13 +516,13 @@ class WQuantileSketch {
     }
   }
   // used for debug, check if the sketch is valid
-  inline void CheckValid(bst_float eps) const {
+  void CheckValid(bst_float eps) const {
     for (size_t l = 1; l < level.size(); ++l) {
       level[l].CheckValid(eps);
     }
   }
   // initialize level space to at least nlevel
-  inline void InitLevel(size_t nlevel) {
+  void InitLevel(size_t nlevel) {
     if (level.size() >= nlevel) return;
     data.resize(limit_size * nlevel);
     level.resize(nlevel, WQSummary<>(nullptr, 0));
@@ -781,7 +780,7 @@ struct SortedQuantile {
    * \param w weight
    * \param max_size
    */
-  inline void Push(bst_float fvalue, bst_float w, unsigned max_size) {
+  void Push(bst_float fvalue, bst_float w, unsigned max_size) {
     if (next_goal == -1.0f) {
       next_goal = 0.0f;
       last_fvalue = fvalue;
@@ -821,7 +820,7 @@ struct SortedQuantile {
   }
 
   /*! \brief push final unfinished value to the sketch */
-  inline void Finalize(unsigned max_size) {
+  void Finalize(unsigned max_size) {
     double rmax = rmin + wmin;
     if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size - 1].value) {
       CHECK_LE(sketch->temp.size, max_size)
