@@ -336,9 +336,10 @@ autoclass_content = "both"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-# Note: tmp/ contains pre-built HTML docs (R pkgdown, JVM javadocs/scaladocs, C++ doxygen)
-# that are copied via html_extra_path. We exclude them from Sphinx processing to avoid
-# "document isn't included in any toctree" warnings.
+
+# Note: tmp/ contains pre-built HTML docs (R pkgdown, JVM javadocs/scaladocs, C++
+# doxygen) that are copied via html_extra_path. We exclude them from Sphinx processing
+# to avoid the "document isn't included in any toctree" warnings.
 exclude_patterns = ["_build", "tmp"]
 html_extra_path = []
 if is_readthedocs_build():

@@ -36,16 +36,11 @@ import sys
 import tarfile
 from pathlib import Path
 
+from test_utils import ROOT
 
 # =============================================================================
 # Utilities
 # =============================================================================
-
-
-def get_project_root() -> Path:
-    """Get the XGBoost project root directory."""
-    script_path = Path(__file__).resolve()
-    return script_path.parent.parent.parent
 
 
 def check_command(cmd: str) -> bool:
@@ -67,46 +62,6 @@ def run_cmd(
     if cwd:
         print(f"    (in {cwd})")
     return subprocess.run(cmd, cwd=cwd, env=merged_env, check=check)
-
-
-def check_dependencies(components: set[str]) -> bool:
-    """Check for required dependencies."""
-    missing = []
-
-    if "cpp" in components:
-        for cmd, pkg in [
-            ("doxygen", "doxygen"),
-            ("dot", "graphviz"),
-            ("cmake", "cmake"),
-            ("ninja", "ninja-build"),
-        ]:
-            if not check_command(cmd):
-                missing.append(f"{cmd} (apt: {pkg})")
-        if not check_command("g++") and not check_command("clang++"):
-            missing.append("g++ or clang++")
-
-    if "jvm-lib" in components or "jvm" in components:
-        if not check_command("cmake"):
-            missing.append("cmake")
-        if not check_command("ninja"):
-            missing.append("ninja (apt: ninja-build)")
-
-    if "jvm" in components:
-        if not check_command("mvn"):
-            missing.append("mvn (apt: maven)")
-        if not check_command("java"):
-            missing.append("java (apt: openjdk-11-jdk)")
-
-    if "r" in components:
-        if not check_command("R"):
-            missing.append("R (apt: r-base)")
-
-    if missing:
-        print("ERROR: Missing dependencies:")
-        for dep in missing:
-            print(f"  - {dep}")
-        return False
-    return True
 
 
 # =============================================================================
@@ -138,10 +93,12 @@ def build_jvm_lib(
         cmake_args.append("-DUSE_OPENMP=ON")
 
     if sccache:
-        cmake_args.extend([
-            "-DCMAKE_C_COMPILER_LAUNCHER=sccache",
-            "-DCMAKE_CXX_COMPILER_LAUNCHER=sccache",
-        ])
+        cmake_args.extend(
+            [
+                "-DCMAKE_C_COMPILER_LAUNCHER=sccache",
+                "-DCMAKE_CXX_COMPILER_LAUNCHER=sccache",
+            ]
+        )
         if cuda:
             cmake_args.append("-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache")
 
@@ -179,7 +136,10 @@ def build_jvm_docs(
     shutil.copy(lib_path, res_dir / "libxgboost4j.so")
 
     # Build with Maven
-    run_cmd(["mvn", "--no-transfer-progress", "install", "-Pdocs", "-DskipTests"], cwd=jvm_dir)
+    run_cmd(
+        ["mvn", "--no-transfer-progress", "install", "-Pdocs", "-DskipTests"],
+        cwd=jvm_dir,
+    )
     run_cmd(["mvn", "--no-transfer-progress", "scala:doc", "-Pdocs"], cwd=jvm_dir)
     run_cmd(["mvn", "--no-transfer-progress", "javadoc:javadoc", "-Pdocs"], cwd=jvm_dir)
 
@@ -197,7 +157,12 @@ def build_jvm_docs(
     if apidocs.exists():
         shutil.copytree(apidocs, tmp_dir / "javadocs")
 
-    for pkg in ["xgboost4j", "xgboost4j-spark", "xgboost4j-spark-gpu", "xgboost4j-flink"]:
+    for pkg in [
+        "xgboost4j",
+        "xgboost4j-spark",
+        "xgboost4j-spark-gpu",
+        "xgboost4j-flink",
+    ]:
         src = jvm_dir / pkg / "target/site/scaladocs"
         if src.exists():
             shutil.copytree(src, tmp_dir / "scaladocs" / pkg)
@@ -236,8 +201,12 @@ def build_r_docs(
     env = {"R_LIBS_USER": str(r_libs), "MAKEFLAGS": f"-j{os.cpu_count()}"}
 
     # Build R docs
-    run_cmd(["Rscript", "./tests/helper_scripts/install_deps.R"], cwd=r_pkg_dir, env=env)
-    run_cmd(["Rscript", "-e", "pkgdown::build_site(examples=FALSE)"], cwd=r_pkg_dir, env=env)
+    run_cmd(
+        ["Rscript", "./tests/helper_scripts/install_deps.R"], cwd=r_pkg_dir, env=env
+    )
+    run_cmd(
+        ["Rscript", "-e", "pkgdown::build_site(examples=FALSE)"], cwd=r_pkg_dir, env=env
+    )
     run_cmd(["R", "CMD", "INSTALL", "."], cwd=r_pkg_dir, env=env)
     run_cmd(["make", f"-j{os.cpu_count()}", "all"], cwd=r_doc_dir, env=env)
 
@@ -351,38 +320,37 @@ def main():
     parser.add_argument("--reuse", action="store_true", help="Reuse existing tarballs")
 
     args = parser.parse_args()
-    project_root = get_project_root()
+    project_root = ROOT
 
     # --- Handle subcommands ---
     if args.command == "jvm-lib":
-        if not check_dependencies({"jvm-lib"}):
-            sys.exit(1)
         if not build_jvm_lib(project_root, args.cuda, args.sccache, args.gpu_arch):
             sys.exit(1)
 
     elif args.command == "jvm":
-        if not check_dependencies({"jvm"}):
-            sys.exit(1)
         if not build_jvm_docs(project_root, args.branch_name, not args.no_tarball):
             sys.exit(1)
 
     elif args.command == "r":
-        if not check_dependencies({"r"}):
-            sys.exit(1)
-        if not build_r_docs(project_root, args.branch_name, not args.no_tarball, args.r_libs_user):
+        if not build_r_docs(
+            project_root, args.branch_name, not args.no_tarball, args.r_libs_user
+        ):
             sys.exit(1)
 
     elif args.command == "sphinx":
         components = set()
         if not args.skip_cpp:
             components.add("cpp")
-        if not check_dependencies(components):
-            sys.exit(1)
         r_docs = Path(args.r_docs) if args.r_docs else None
         jvm_docs = Path(args.jvm_docs) if args.jvm_docs else None
         build_sphinx_docs(
-            project_root, r_docs, jvm_docs,
-            args.skip_r, args.skip_jvm, args.skip_cpp, args.skip_deps
+            project_root,
+            r_docs,
+            jvm_docs,
+            args.skip_r,
+            args.skip_jvm,
+            args.skip_cpp,
+            args.skip_deps,
         )
 
     else:
@@ -392,8 +360,6 @@ def main():
             components.add("r")
         if not args.skip_jvm:
             components.update({"jvm", "jvm-lib"})
-        if not check_dependencies(components):
-            sys.exit(1)
 
         r_tarball = None
         jvm_tarball = None
@@ -425,8 +391,13 @@ def main():
 
         # Build Sphinx docs
         build_sphinx_docs(
-            project_root, r_tarball, jvm_tarball,
-            args.skip_r, args.skip_jvm, args.skip_cpp, args.skip_deps
+            project_root,
+            r_tarball,
+            jvm_tarball,
+            args.skip_r,
+            args.skip_jvm,
+            args.skip_cpp,
+            args.skip_deps,
         )
 
 
