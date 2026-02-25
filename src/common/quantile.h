@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <iostream>
 #include <set>
 #include <vector>
 
@@ -47,26 +46,10 @@ struct WQSummary {
     // constructor
     XGBOOST_DEVICE Entry(RType rmin, RType rmax, RType wmin, DType value)
         : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}
-    /*!
-     * \brief debug function,  check Valid
-     * \param eps the tolerate level for violating the relation
-     */
-    void CheckValid(RType eps = 0) const {
-      CHECK(rmin >= 0 && rmax >= 0 && wmin >= 0) << "nonneg constraint";
-      CHECK(rmax - rmin - wmin > -eps) << "relation constraint: min/max";
-    }
     /*! \return rmin estimation for v strictly bigger than value */
     XGBOOST_DEVICE RType RMinNext() const { return rmin + wmin; }
     /*! \return rmax estimation for v strictly smaller than value */
     XGBOOST_DEVICE RType RMaxPrev() const { return rmax - wmin; }
-
-    friend std::ostream &operator<<(std::ostream &os, Entry const &e) {
-      os << "rmin: " << e.rmin << ", "
-         << "rmax: " << e.rmax << ", "
-         << "wmin: " << e.wmin << ", "
-         << "value: " << e.value;
-      return os;
-    }
   };
   /*! \brief data field */
   Entry *data;
@@ -74,42 +57,6 @@ struct WQSummary {
   size_t size;
   // constructor
   WQSummary(Entry *data, size_t size) : data(data), size(size) {}
-  /*!
-   * \return the maximum error of the Summary
-   */
-  RType MaxError() const {
-    RType res = data[0].rmax - data[0].rmin - data[0].wmin;
-    for (size_t i = 1; i < size; ++i) {
-      res = std::max(data[i].RMaxPrev() - data[i - 1].RMinNext(), res);
-      res = std::max(data[i].rmax - data[i].rmin - data[i].wmin, res);
-    }
-    return res;
-  }
-  /*!
-   * \brief query qvalue, start from istart
-   * \param qvalue the value we query for
-   * \param istart starting position
-   */
-  Entry Query(DType qvalue, size_t &istart) const {  // NOLINT(*)
-    while (istart < size && qvalue > data[istart].value) {
-      ++istart;
-    }
-    if (istart == size) {
-      RType rmax = data[size - 1].rmax;
-      return Entry(rmax, rmax, 0.0f, qvalue);
-    }
-    if (qvalue == data[istart].value) {
-      return data[istart];
-    } else {
-      if (istart == 0) {
-        return Entry(0.0f, 0.0f, 0.0f, qvalue);
-      } else {
-        return Entry(data[istart - 1].RMinNext(), data[istart].RMaxPrev(), 0.0f, qvalue);
-      }
-    }
-  }
-  /*! \return maximum rank in the summary */
-  RType MaxRank() const { return data[size - 1].rmax; }
   /*!
    * \brief copy content from src
    * \param src source sketch
@@ -128,33 +75,6 @@ struct WQSummary {
     size = src.size;
     std::memcpy(data, src.data, sizeof(Entry) * size);
   }
-  void MakeFromSorted(const Entry *entries, size_t n) {
-    size = 0;
-    for (size_t i = 0; i < n;) {
-      size_t j = i + 1;
-      // ignore repeated values
-      for (; j < n && entries[j].value == entries[i].value; ++j) {
-      }
-      data[size++] = Entry(entries[i].rmin, entries[i].rmax, entries[i].wmin, entries[i].value);
-      i = j;
-    }
-  }
-  /*!
-   * \brief debug function, validate whether the summary
-   *  run consistency check to check if it is a valid summary
-   * \param eps the tolerate error level, used when RType is floating point and
-   *        some inconsistency could occur due to rounding error
-   */
-  void CheckValid(RType eps) const {
-    for (size_t i = 0; i < size; ++i) {
-      data[i].CheckValid(eps);
-      if (i != 0) {
-        CHECK(data[i].rmin >= data[i - 1].rmin + data[i - 1].wmin) << "rmin range constraint";
-        CHECK(data[i].rmax >= data[i - 1].rmax + data[i].wmin) << "rmax range constraint";
-      }
-    }
-  }
-
   /*!
    * \brief set current summary to be pruned summary of src
    *        assume data field is already allocated to be at least maxsize
@@ -260,13 +180,6 @@ struct WQSummary {
     }
     CHECK(size <= sa.size + sb.size) << "bug in combine";
   }
-  // helper function to print the current content of sketch
-  void Print() const {
-    for (size_t i = 0; i < this->size; ++i) {
-      LOG(CONSOLE) << "[" << i << "] rmin=" << data[i].rmin << ", rmax=" << data[i].rmax
-                   << ", wmin=" << data[i].wmin << ", v=" << data[i].value;
-    }
-  }
   // try to fix rounding error
   // and re-establish invariance
   void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
@@ -319,6 +232,7 @@ struct Queue {
   // push element to the queue, return false if the queue is full and need to be flushed
   bool Push(DType x, RType w) {
     if (qtail == 0 || queue[qtail - 1].value != x) {
+      // Try to keep the queue at size 1 and lazily resizes it if necessary.
       if (qtail == queue.size() && queue.size() == 1) {
         queue.resize(max_size);
       }
@@ -374,21 +288,6 @@ struct WQSummaryContainer : public WQSummary<> {
   }
   static size_t CalcMemCost(size_t nentry) {
     return sizeof(size_t) + sizeof(WQSummary<>::Entry) * nentry;
-  }
-  template <typename TStream>
-  void Save(TStream &fo) const {  // NOLINT(*)
-    fo.Write(&(this->size), sizeof(this->size));
-    if (this->size != 0) {
-      fo.Write(this->data, this->size * sizeof(Entry));
-    }
-  }
-  template <typename TStream>
-  void Load(TStream &fi) {  // NOLINT(*)
-    CHECK_EQ(fi.Read(&this->size, sizeof(this->size)), sizeof(this->size));
-    this->Reserve(this->size);
-    if (this->size != 0) {
-      CHECK_EQ(fi.Read(this->data, this->size * sizeof(Entry)), this->size * sizeof(Entry));
-    }
   }
 };
 
@@ -457,12 +356,6 @@ class WQuantileSketch {
     }
   }
 
-  void PushSummary(WQSummary<> const &summary) {
-    temp.Reserve(limit_size * 2);
-    temp.SetPrune(summary, limit_size * 2);
-    PushTemp();
-  }
-
   /*! \brief push up temp */
   void PushTemp() {
     temp.Reserve(limit_size * 2);
@@ -513,12 +406,6 @@ class WQuantileSketch {
         temp.SetPrune(*out, limit_size);
         out->CopyFrom(temp);
       }
-    }
-  }
-  // used for debug, check if the sketch is valid
-  void CheckValid(bst_float eps) const {
-    for (size_t l = 1; l < level.size(); ++l) {
-      level[l].CheckValid(eps);
     }
   }
   // initialize level space to at least nlevel
