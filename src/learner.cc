@@ -604,7 +604,7 @@ class LearnerConfiguration : public Intercept {
       }
     }
 
-    FromJson(learner_parameters.at("generic_param"), &ctx_);
+    ctx_.FromJson(learner_parameters.at("generic_param"));
 
     this->need_configuration_ = true;
   }
@@ -634,7 +634,7 @@ class LearnerConfiguration : public Intercept {
     }
     learner_parameters["metrics"] = Array(std::move(metrics));
 
-    learner_parameters["generic_param"] = ToJson(ctx_);
+    learner_parameters["generic_param"] = ctx_.ToJson();
   }
 
   void SetParam(const std::string& key, const std::string& value) override {

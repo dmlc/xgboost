@@ -57,3 +57,75 @@ def run_training_continuation_model_output(device: str, tree_method: str) -> Non
         obj_0 = json.loads(lhs)
         obj_1 = json.loads(dump_1[i])
         recursive_compare(obj_0, obj_1)
+
+
+def run_training_continuation_determinism(
+    device: str,
+    booster: str,
+    subsample: float,
+    sampling_method: str,
+    colsample_bytree: float,
+    colsample_bylevel: float,
+    colsample_bynode: float,
+    num_class: int,
+) -> None:
+    """Check that 2-session training (4+4 iters) equals single-session (8 iters)."""
+    datasets = pytest.importorskip("sklearn.datasets")
+
+    n_samples = 128
+    n_features = 16
+    total_rounds = 8
+    split_at = 4
+
+    if num_class > 1:
+        X, y = datasets.make_classification(
+            n_samples=n_samples,
+            n_features=n_features,
+            n_informative=6,
+            n_classes=num_class,
+            random_state=42,
+        )
+        objective = "multi:softprob"
+    else:
+        X, y = datasets.make_regression(
+            n_samples=n_samples, n_features=n_features, random_state=42
+        )
+        objective = "reg:squarederror"
+
+    dtrain = xgb.DMatrix(X, y)
+
+    params: Dict[str, Any] = {
+        "device": device,
+        "tree_method": "hist",
+        "max_depth": 4,
+        "objective": objective,
+        "nthread": 1,
+        "subsample": subsample,
+        "sampling_method": sampling_method,
+        "colsample_bytree": colsample_bytree,
+        "colsample_bylevel": colsample_bylevel,
+        "colsample_bynode": colsample_bynode,
+        "booster": booster,
+    }
+    if num_class > 1:
+        params["num_class"] = num_class
+    if booster == "dart":
+        params["rate_drop"] = 0.1
+
+    bst_single = xgb.train(params, dtrain, num_boost_round=total_rounds)
+
+    bst_first = xgb.train(params, dtrain, num_boost_round=split_at)
+    bst_continued = xgb.train(
+        params, dtrain, num_boost_round=total_rounds - split_at, xgb_model=bst_first
+    )
+
+    config_single = json.loads(bst_single.save_config())
+    config_cont = json.loads(bst_continued.save_config())
+
+    rng_single = config_single["learner"]["generic_param"]["rng_state"]
+    rng_cont = config_cont["learner"]["generic_param"]["rng_state"]
+    assert rng_single == rng_cont, "RNG states diverged between single and continued."
+
+    pred_single = bst_single.predict(dtrain)
+    pred_cont = bst_continued.predict(dtrain)
+    np.testing.assert_allclose(pred_single, pred_cont)
