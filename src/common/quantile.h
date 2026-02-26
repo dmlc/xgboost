@@ -100,8 +100,9 @@ struct WQSummary {
     for (size_t k = 1; k < n; ++k) {
       RType dx2 = 2 * ((k * range) / n + begin);
       // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2
-      while (i < src.current_elements - 1 && dx2 >= src_data[i + 1].rmax + src_data[i + 1].rmin)
+      while (i < src.current_elements - 1 && dx2 >= src_data[i + 1].rmax + src_data[i + 1].rmin) {
         ++i;
+      }
       if (i == src.current_elements - 1) break;
       if (dx2 < src_data[i].RMinNext() + src_data[i + 1].RMaxPrev()) {
         if (i != lastidx) {
@@ -426,7 +427,7 @@ class WQuantileSketch {
     level.clear();
     level.reserve(nlevel);
     for (size_t l = 0; l < nlevel; ++l) {
-      level.push_back(WQSummary<>(Span<Entry>{data.data() + l * limit_size, limit_size}, 0));
+      level.emplace_back(Span<Entry>{data.data() + l * limit_size, limit_size}, 0);
     }
   }
   // input data queue
