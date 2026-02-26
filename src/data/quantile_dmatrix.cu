@@ -87,8 +87,7 @@ void MakeSketches(Context const* ctx,
         common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing, sketch.get());
       });
       sketch->Prune(p_ctx, n_cuts_per_feat);
-      LOG(DEBUG) << "Total capacity:"
-                 << common::HumanMemUnit(sketch ? sketch->MemCapacityBytes() : 0);
+      LOG(DEBUG) << "Total capacity:" << common::HumanMemUnit(sketch->MemCapacityBytes());
     }
 
     /**

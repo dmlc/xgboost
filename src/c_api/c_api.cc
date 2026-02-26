@@ -370,7 +370,8 @@ std::shared_ptr<DMatrix> GetRefDMatrix(DataIterHandle ref) {
 
 void WarnDeprecatedMaxQuantileBlocks(Json const &config) {
   auto const &obj = get<Object const>(config);
-  if (obj.find("max_quantile_blocks") != obj.cend()) {
+  auto it = obj.find("max_quantile_blocks");
+  if (it != obj.cend() && !IsA<Null>(it->second)) {
     LOG(WARNING) << "`max_quantile_blocks` is deprecated and has no effect. "
                     "The parameter will be removed in a future release.";
   }

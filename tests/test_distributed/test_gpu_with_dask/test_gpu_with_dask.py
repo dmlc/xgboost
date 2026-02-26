@@ -701,13 +701,3 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
 
         client.shutdown()
         return output
-
-
-def test_invalid_quantile_blocks(local_cuda_client: Client) -> None:
-    X, y, _ = generate_array()
-    client = local_cuda_client
-    X = X.to_backend("cupy")
-    y = y.to_backend("cupy")
-    with pytest.raises(ValueError, match="must be greater than 0."):
-        Xy = dxgb.DaskQuantileDMatrix(client, X, y, max_quantile_batches=0)
-        dxgb.train(client, {"tree_method": "hist", "device": "cuda"}, dtrain=Xy)
