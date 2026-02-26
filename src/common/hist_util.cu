@@ -10,6 +10,7 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/sort.h>
+#include <thrust/tuple.h>  // for tuple
 #include <xgboost/logging.h>
 
 #include <cstddef>  // for size_t
