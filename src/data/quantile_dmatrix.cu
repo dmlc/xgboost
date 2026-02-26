@@ -30,7 +30,7 @@ void MakeSketches(Context const* ctx,
                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>* iter,
                   DMatrixProxy* proxy, std::shared_ptr<DMatrix> ref, BatchParam const& p,
                   float missing, std::shared_ptr<common::HistogramCuts> cuts, MetaInfo const& info,
-                  std::int64_t max_quantile_blocks, ExternalDataInfo* p_ext_info) {
+                  ExternalDataInfo* p_ext_info) {
   xgboost_NVTX_FN_RANGE();
   // Lazy because we need the `n_features`.
   std::unique_ptr<common::SketchContainer> sketch;
@@ -77,8 +77,6 @@ void MakeSketches(Context const* ctx,
      * Handle sketching.
      */
     if (!ref) {
-      CHECK_LE(max_quantile_blocks, std::numeric_limits<bst_idx_t>::max());
-      CHECK_GT(max_quantile_blocks, 0) << "`max_quantile_blocks` must be greater than 0.";
       if (!sketch) {
         sketch = std::make_unique<common::SketchContainer>(
             proxy->Info().feature_types, p.max_bin, ext_info.n_features, data::BatchSamples(proxy),
@@ -120,8 +118,9 @@ void MakeSketches(Context const* ctx,
       sketch = std::make_unique<common::SketchContainer>(
           proxy->Info().feature_types, p.max_bin, ext_info.n_features, ext_info.accumulated_rows,
           dh::GetDevice(ctx));
+    } else {
+      sketch->SetNumRows(ext_info.accumulated_rows);
     }
-    sketch->SetNumRows(ext_info.accumulated_rows);
     sketch->MakeCuts(ctx, cuts.get(), info.IsColumnSplit());
     sketch.reset();
   } else {

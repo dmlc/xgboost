@@ -9,11 +9,11 @@
 #include <memory>   // for shared_ptr
 #include <utility>  // for move
 
-#include "quantile_dmatrix.h"     // for QuantileDMatrix
-#include "xgboost/base.h"         // for bst_bin_t
-#include "xgboost/c_api.h"        // for DataIterHandle, DMatrixHandle
-#include "xgboost/context.h"      // for Context
-#include "xgboost/data.h"         // for BatchSet
+#include "quantile_dmatrix.h"  // for QuantileDMatrix
+#include "xgboost/base.h"      // for bst_bin_t
+#include "xgboost/c_api.h"     // for DataIterHandle, DMatrixHandle
+#include "xgboost/context.h"   // for Context
+#include "xgboost/data.h"      // for BatchSet
 
 namespace xgboost {
 namespace common {
@@ -38,7 +38,7 @@ class IterativeDMatrix : public QuantileDMatrix {
 
   DMatrixHandle proxy_;
 
-  void InitFromCUDA(Context const *ctx, BatchParam const &p, std::int64_t max_quantile_blocks,
+  void InitFromCUDA(Context const *ctx, BatchParam const &p,
                     DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> &&iter,
                     float missing, std::shared_ptr<DMatrix> ref);
   void InitFromCPU(Context const *ctx, BatchParam const &p,
@@ -53,7 +53,7 @@ class IterativeDMatrix : public QuantileDMatrix {
   explicit IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                             std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
                             XGDMatrixCallbackNext *next, float missing, int nthread,
-                            bst_bin_t max_bin, std::int64_t max_quantile_blocks);
+                            bst_bin_t max_bin);
 
   ~IterativeDMatrix() override = default;
 

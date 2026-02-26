@@ -367,6 +367,14 @@ std::shared_ptr<DMatrix> GetRefDMatrix(DataIterHandle ref) {
   }
   return _ref;
 }
+
+void WarnDeprecatedMaxQuantileBlocks(Json const &config) {
+  auto const &obj = get<Object const>(config);
+  if (obj.find("max_quantile_blocks") != obj.cend()) {
+    LOG(WARNING) << "`max_quantile_blocks` is deprecated and has no effect. "
+                    "The parameter will be removed in a future release.";
+  }
+}
 }  // namespace
 
 XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
@@ -378,18 +386,17 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
 
   xgboost_CHECK_C_ARG_PTR(config);
   auto jconfig = Json::Load(StringView{config});
+  WarnDeprecatedMaxQuantileBlocks(jconfig);
   auto missing = GetMissing(jconfig);
   auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", 0);
   auto max_bin = OptionalArg<Integer, int64_t>(jconfig, "max_bin", 256);
-  auto max_quantile_blocks = OptionalArg<Integer, std::int64_t>(
-      jconfig, "max_quantile_blocks", std::numeric_limits<std::int64_t>::max());
 
   xgboost_CHECK_C_ARG_PTR(next);
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
-  *out = new std::shared_ptr<xgboost::DMatrix>{xgboost::DMatrix::Create(
-      iter, proxy, p_ref, reset, next, missing, n_threads, max_bin, max_quantile_blocks)};
+  *out = new std::shared_ptr<xgboost::DMatrix>{
+      xgboost::DMatrix::Create(iter, proxy, p_ref, reset, next, missing, n_threads, max_bin)};
   API_END();
 }
 
@@ -403,6 +410,7 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
 
   xgboost_CHECK_C_ARG_PTR(config);
   auto jconfig = Json::Load(StringView{config});
+  WarnDeprecatedMaxQuantileBlocks(jconfig);
   auto missing = GetMissing(jconfig);
   std::int32_t n_threads = OptionalArg<Integer, std::int64_t>(jconfig, "nthread", 0);
   auto max_bin = OptionalArg<Integer, std::int64_t>(jconfig, "max_bin", 256);
@@ -410,8 +418,6 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
   std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
   auto min_cache_page_bytes = OptionalArg<Integer, std::int64_t>(jconfig, "min_cache_page_bytes",
                                                                  cuda_impl::AutoCachePageBytes());
-  auto max_quantile_blocks = OptionalArg<Integer, std::int64_t>(
-      jconfig, "max_quantile_blocks", std::numeric_limits<std::int64_t>::max());
   auto cache_host_ratio =
       OptionalArg<Number, float>(jconfig, "cache_host_ratio", cuda_impl::AutoHostRatio());
 
@@ -421,8 +427,8 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
 
   auto config =
       ExtMemConfig{cache, on_host, cache_host_ratio, min_cache_page_bytes, missing, n_threads};
-  *out = new std::shared_ptr<xgboost::DMatrix>{xgboost::DMatrix::Create(
-      iter, proxy, p_ref, reset, next, max_bin, max_quantile_blocks, config)};
+  *out = new std::shared_ptr<xgboost::DMatrix>{
+      xgboost::DMatrix::Create(iter, proxy, p_ref, reset, next, max_bin, config)};
   API_END();
 }
 
