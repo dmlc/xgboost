@@ -56,8 +56,8 @@ struct WQSummary {
   /*! \brief number of elements in the summary */
   size_t current_elements;
   // constructor
-  WQSummary(Entry *data, size_t current_elements)
-      : data(data, current_elements), current_elements(current_elements) {}
+  WQSummary(Span<Entry> data, size_t current_elements)
+      : data{data}, current_elements{current_elements} {}
   /*!
    * \brief copy content from src
    * \param src source sketch
@@ -278,12 +278,12 @@ struct Queue {
 
 struct WQSummaryContainer : public WQSummary<> {
   std::vector<WQSummary<>::Entry> space;
-  WQSummaryContainer(WQSummaryContainer const &src) : WQSummary<>(nullptr, 0) {
+  WQSummaryContainer(WQSummaryContainer const &src) : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {
     this->space = src.space;
     this->data = {dmlc::BeginPtr(this->space), this->space.size()};
     this->current_elements = src.current_elements;
   }
-  WQSummaryContainer() : WQSummary<>(nullptr, 0) {}
+  WQSummaryContainer() : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {}
   void Reserve(size_t size) {
     if (size > space.size()) {
       space.resize(size);
@@ -426,7 +426,7 @@ class WQuantileSketch {
     level.clear();
     level.reserve(nlevel);
     for (size_t l = 0; l < nlevel; ++l) {
-      level.push_back(WQSummary<>(data.data() + l * limit_size, limit_size));
+      level.push_back(WQSummary<>(Span<Entry>{data.data() + l * limit_size, limit_size}, 0));
     }
   }
   // input data queue

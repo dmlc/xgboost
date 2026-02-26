@@ -357,7 +357,7 @@ void SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
       // 1 feature of 1 worker
       auto worker_feature = allreduce_result.Values(r, fidx);
       CHECK(worker_feature.data());
-      WQSketch::Summary summary(worker_feature.data(), worker_feature.size());
+      WQSketch::Summary summary(worker_feature, worker_feature.size());
       auto &out = final_sketches.at(fidx);
       out.Reduce(summary, nbytes);
     }
