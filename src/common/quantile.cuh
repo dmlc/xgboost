@@ -199,6 +199,7 @@ class SketchContainer {
   HostDeviceVector<FeatureType> const& FeatureTypes() const { return feature_types_; }
 
   Span<OffsetT const> ColumnsPtr() const { return this->columns_ptr_.ConstDeviceSpan(); }
+  void SetNumRows(bst_idx_t n_rows) { this->num_rows_ = n_rows; }
 
   SketchContainer(SketchContainer&&) = default;
   SketchContainer& operator=(SketchContainer&&) = default;
