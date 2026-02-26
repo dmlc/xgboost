@@ -425,9 +425,8 @@ class WQuantileSketch {
     data.resize(limit_size * nlevel);
     level.clear();
     level.reserve(nlevel);
-    for (size_t l = 0; l < level.size(); ++l) {
-      level[l].data = {dmlc::BeginPtr(data) + l * limit_size, limit_size};
-      level.push
+    for (size_t l = 0; l < nlevel; ++l) {
+      level.push_back(WQSummary<>(data.data() + l * limit_size, limit_size));
     }
   }
   // input data queue
