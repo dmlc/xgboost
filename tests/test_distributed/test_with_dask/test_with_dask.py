@@ -1273,6 +1273,17 @@ def test_invalid_config(client: "Client") -> None:
         dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
 
 
+def test_worker_port(client_one_worker: "Client") -> None:
+    from xgboost.testing.collective import get_avail_port
+
+    X, y, _ = generate_array()
+    dtrain = DaskDMatrix(client_one_worker, X, y)
+
+    port = get_avail_port()
+    cfg = CollConfig(worker_port=port)
+    dxgb.train(client_one_worker, {}, dtrain, num_boost_round=4, coll_cfg=cfg)
+
+
 class TestWithDask:
     def test_dmatrix_binary(self, client: "Client", tmp_path: Path) -> None:
         def save_dmatrix(rabit_args: Dict[str, Union[int, str]], tmpdir: str) -> None:
