@@ -52,28 +52,29 @@ struct WQSummary {
     XGBOOST_DEVICE RType RMaxPrev() const { return rmax - wmin; }
   };
   /*! \brief data field */
-  Entry *data;
+  Span<Entry> data;
   /*! \brief number of elements in the summary */
-  size_t size;
+  size_t current_elements;
   // constructor
-  WQSummary(Entry *data, size_t size) : data(data), size(size) {}
+  WQSummary(Span<Entry> data, size_t current_elements)
+      : data{data}, current_elements{current_elements} {}
   /*!
    * \brief copy content from src
    * \param src source sketch
    */
   void CopyFrom(const WQSummary &src) {
-    if (!src.data) {
-      CHECK_EQ(src.size, 0);
-      size = 0;
+    if (!src.data.data()) {
+      CHECK_EQ(src.current_elements, 0);
+      current_elements = 0;
       return;
     }
-    if (!data) {
-      CHECK_EQ(this->size, 0);
-      CHECK_EQ(src.size, 0);
+    if (!data.data()) {
+      CHECK_EQ(this->current_elements, 0);
+      CHECK_EQ(src.current_elements, 0);
       return;
     }
-    size = src.size;
-    std::memcpy(data, src.data, sizeof(Entry) * size);
+    current_elements = src.current_elements;
+    std::memcpy(data.data(), src.data.data(), sizeof(Entry) * current_elements);
   }
   /*!
    * \brief set current summary to be pruned summary of src
@@ -82,36 +83,41 @@ struct WQSummary {
    * \param maxsize size we can afford in the pruned sketch
    */
   void SetPrune(const WQSummary &src, size_t maxsize) {
-    if (src.size <= maxsize) {
+    if (src.current_elements <= maxsize) {
       this->CopyFrom(src);
       return;
     }
-    const RType begin = src.data[0].rmax;
-    const RType range = src.data[src.size - 1].rmin - src.data[0].rmax;
+    // Use raw pointers in this hot loop to avoid per-access Span bounds checks.
+    auto const *src_data = src.data.data();
+    auto *dst_data = data.data();
+    const RType begin = src_data[0].rmax;
+    const RType range = src_data[src.current_elements - 1].rmin - src_data[0].rmax;
     const size_t n = maxsize - 1;
-    data[0] = src.data[0];
-    this->size = 1;
+    dst_data[0] = src_data[0];
+    this->current_elements = 1;
     // lastidx is used to avoid duplicated records
     size_t i = 1, lastidx = 0;
     for (size_t k = 1; k < n; ++k) {
       RType dx2 = 2 * ((k * range) / n + begin);
       // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2
-      while (i < src.size - 1 && dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
-      if (i == src.size - 1) break;
-      if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
+      while (i < src.current_elements - 1 && dx2 >= src_data[i + 1].rmax + src_data[i + 1].rmin) {
+        ++i;
+      }
+      if (i == src.current_elements - 1) break;
+      if (dx2 < src_data[i].RMinNext() + src_data[i + 1].RMaxPrev()) {
         if (i != lastidx) {
-          data[size++] = src.data[i];
+          dst_data[current_elements++] = src_data[i];
           lastidx = i;
         }
       } else {
         if (i + 1 != lastidx) {
-          data[size++] = src.data[i + 1];
+          dst_data[current_elements++] = src_data[i + 1];
           lastidx = i + 1;
         }
       }
     }
-    if (lastidx != src.size - 1) {
-      data[size++] = src.data[src.size - 1];
+    if (lastidx != src.current_elements - 1) {
+      dst_data[current_elements++] = src_data[src.current_elements - 1];
     }
   }
   /*!
@@ -120,20 +126,21 @@ struct WQSummary {
    * \param sb second input summary to be merged
    */
   void SetCombine(const WQSummary &sa, const WQSummary &sb) {
-    if (sa.size == 0) {
+    if (sa.current_elements == 0) {
       this->CopyFrom(sb);
       return;
     }
-    if (sb.size == 0) {
+    if (sb.current_elements == 0) {
       this->CopyFrom(sa);
       return;
     }
-    CHECK(sa.size > 0 && sb.size > 0);
-    const Entry *a = sa.data, *a_end = sa.data + sa.size;
-    const Entry *b = sb.data, *b_end = sb.data + sb.size;
+    CHECK(sa.current_elements > 0 && sb.current_elements > 0);
+    // Merge with raw pointers to avoid Span bounds checks inside the tight loop.
+    const Entry *a = sa.data.data(), *a_end = sa.data.data() + sa.current_elements;
+    const Entry *b = sb.data.data(), *b_end = sb.data.data() + sb.current_elements;
     // extended rmin value
     RType aprev_rmin = 0, bprev_rmin = 0;
-    Entry *dst = this->data;
+    Entry *dst = this->data.data();
     while (a != a_end && b != b_end) {
       // duplicated value entry
       if (a->value == b->value) {
@@ -171,14 +178,14 @@ struct WQSummary {
         ++b;
       } while (b != b_end);
     }
-    this->size = dst - data;
+    this->current_elements = dst - data.data();
     const RType tol = 10;
     RType err_mingap, err_maxgap, err_wgap;
     this->FixError(&err_mingap, &err_maxgap, &err_wgap);
     if (err_mingap > tol || err_maxgap > tol || err_wgap > tol) {
       LOG(INFO) << "mingap=" << err_mingap << ", maxgap=" << err_maxgap << ", wgap=" << err_wgap;
     }
-    CHECK(size <= sa.size + sb.size) << "bug in combine";
+    CHECK(current_elements <= sa.current_elements + sb.current_elements) << "bug in combine";
   }
   // try to fix rounding error
   // and re-establish invariance
@@ -187,23 +194,25 @@ struct WQSummary {
     *err_maxgap = 0;
     *err_wgap = 0;
     RType prev_rmin = 0, prev_rmax = 0;
-    for (size_t i = 0; i < this->size; ++i) {
-      if (data[i].rmin < prev_rmin) {
-        data[i].rmin = prev_rmin;
-        *err_mingap = std::max(*err_mingap, prev_rmin - data[i].rmin);
+    // Use raw pointer for the correction pass to avoid Span bounds checks.
+    auto *entries = data.data();
+    for (size_t i = 0; i < this->current_elements; ++i) {
+      if (entries[i].rmin < prev_rmin) {
+        entries[i].rmin = prev_rmin;
+        *err_mingap = std::max(*err_mingap, prev_rmin - entries[i].rmin);
       } else {
-        prev_rmin = data[i].rmin;
+        prev_rmin = entries[i].rmin;
       }
-      if (data[i].rmax < prev_rmax) {
-        data[i].rmax = prev_rmax;
-        *err_maxgap = std::max(*err_maxgap, prev_rmax - data[i].rmax);
+      if (entries[i].rmax < prev_rmax) {
+        entries[i].rmax = prev_rmax;
+        *err_maxgap = std::max(*err_maxgap, prev_rmax - entries[i].rmax);
       }
-      RType rmin_next = data[i].RMinNext();
-      if (data[i].rmax < rmin_next) {
-        data[i].rmax = rmin_next;
-        *err_wgap = std::max(*err_wgap, data[i].rmax - rmin_next);
+      RType rmin_next = entries[i].RMinNext();
+      if (entries[i].rmax < rmin_next) {
+        entries[i].rmax = rmin_next;
+        *err_wgap = std::max(*err_wgap, entries[i].rmax - rmin_next);
       }
-      prev_rmax = data[i].rmax;
+      prev_rmax = entries[i].rmax;
     }
   }
 };
@@ -248,7 +257,9 @@ struct Queue {
 
   void PopSummary(WQSummary<DType, RType> *out) {
     std::sort(queue.begin(), queue.begin() + qtail);
-    out->size = 0;
+    out->current_elements = 0;
+    // Use raw pointer for output writes in this hot loop.
+    auto *out_data = out->data.data();
     RType wsum = 0;
     for (size_t i = 0; i < qtail;) {
       size_t j = i + 1;
@@ -257,7 +268,7 @@ struct Queue {
         w += queue[j].weight;
         ++j;
       }
-      out->data[out->size++] =
+      out_data[out->current_elements++] =
           typename WQSummary<DType, RType>::Entry(wsum, wsum + w, w, queue[i].value);
       wsum += w;
       i = j;
@@ -268,23 +279,24 @@ struct Queue {
 
 struct WQSummaryContainer : public WQSummary<> {
   std::vector<WQSummary<>::Entry> space;
-  WQSummaryContainer(WQSummaryContainer const &src) : WQSummary<>(nullptr, src.size) {
+  WQSummaryContainer(WQSummaryContainer const &src) : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {
     this->space = src.space;
-    this->data = dmlc::BeginPtr(this->space);
+    this->data = {dmlc::BeginPtr(this->space), this->space.size()};
+    this->current_elements = src.current_elements;
   }
-  WQSummaryContainer() : WQSummary<>(nullptr, 0) {}
+  WQSummaryContainer() : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {}
   void Reserve(size_t size) {
     if (size > space.size()) {
       space.resize(size);
-      this->data = dmlc::BeginPtr(space);
     }
+    this->data = {dmlc::BeginPtr(space), space.size()};
   }
   void Reduce(WQSummary<> const &src, size_t max_nbyte) {
-    this->Reserve((max_nbyte - sizeof(this->size)) / sizeof(WQSummary<>::Entry));
+    this->Reserve((max_nbyte - sizeof(this->current_elements)) / sizeof(WQSummary<>::Entry));
     WQSummaryContainer temp;
-    temp.Reserve(this->size + src.size);
+    temp.Reserve(this->current_elements + src.current_elements);
     temp.SetCombine(*this, src);
-    this->SetPrune(temp, space.size());
+    this->SetPrune(temp, this->data.size());
   }
   static size_t CalcMemCost(size_t nentry) {
     return sizeof(size_t) + sizeof(WQSummary<>::Entry) * nentry;
@@ -362,16 +374,16 @@ class WQuantileSketch {
     for (size_t l = 1; true; ++l) {
       this->InitLevel(l + 1);
       // check if level l is empty
-      if (level[l].size == 0) {
+      if (level[l].current_elements == 0) {
         level[l].SetPrune(temp, limit_size);
         break;
       } else {
         // level 0 is actually temp space
         level[0].SetPrune(temp, limit_size);
         temp.SetCombine(level[0], level[l]);
-        if (temp.size > limit_size) {
+        if (temp.current_elements > limit_size) {
           // try next level
-          level[l].size = 0;
+          level[l].current_elements = 0;
         } else {
           // if merged record is still smaller, no need to send to next level
           level[l].CopyFrom(temp);
@@ -391,8 +403,8 @@ class WQuantileSketch {
     if (level.size() != 0) {
       level[0].SetPrune(*out, limit_size);
       for (size_t l = 1; l < level.size(); ++l) {
-        if (level[l].size == 0) continue;
-        if (level[0].size == 0) {
+        if (level[l].current_elements == 0) continue;
+        if (level[0].current_elements == 0) {
           level[0].CopyFrom(level[l]);
         } else {
           out->SetCombine(level[0], level[l]);
@@ -401,7 +413,7 @@ class WQuantileSketch {
       }
       out->CopyFrom(level[0]);
     } else {
-      if (out->size > limit_size) {
+      if (out->current_elements > limit_size) {
         temp.Reserve(limit_size);
         temp.SetPrune(*out, limit_size);
         out->CopyFrom(temp);
@@ -412,9 +424,10 @@ class WQuantileSketch {
   void InitLevel(size_t nlevel) {
     if (level.size() >= nlevel) return;
     data.resize(limit_size * nlevel);
-    level.resize(nlevel, WQSummary<>(nullptr, 0));
-    for (size_t l = 0; l < level.size(); ++l) {
-      level[l].data = dmlc::BeginPtr(data) + l * limit_size;
+    level.clear();
+    level.reserve(nlevel);
+    for (size_t l = 0; l < nlevel; ++l) {
+      level.emplace_back(Span<Entry>{data.data() + l * limit_size, limit_size}, 0);
     }
   }
   // input data queue
@@ -659,7 +672,7 @@ struct SortedQuantile {
     next_goal = -1.0f;
     rmin = wmin = 0.0f;
     sketch->temp.Reserve(max_size + 1);
-    sketch->temp.size = 0;
+    sketch->temp.current_elements = 0;
   }
   /*!
    * \brief push a new element to sketch
@@ -668,6 +681,9 @@ struct SortedQuantile {
    * \param max_size
    */
   void Push(bst_float fvalue, bst_float w, unsigned max_size) {
+    // Use raw pointer for temp summary updates in this hot path.
+    auto *temp_data = sketch->temp.data.data();
+    auto &temp_size = sketch->temp.current_elements;
     if (next_goal == -1.0f) {
       next_goal = 0.0f;
       last_fvalue = fvalue;
@@ -676,26 +692,25 @@ struct SortedQuantile {
     }
     if (last_fvalue != fvalue) {
       double rmax = rmin + wmin;
-      if (rmax >= next_goal && sketch->temp.size != max_size) {
-        if (sketch->temp.size == 0 ||
-            last_fvalue > sketch->temp.data[sketch->temp.size - 1].value) {
+      if (rmax >= next_goal && temp_size != max_size) {
+        if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
           // push to sketch
-          sketch->temp.data[sketch->temp.size] = common::WQuantileSketch::Entry(
+          temp_data[temp_size] = common::WQuantileSketch::Entry(
               static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
               static_cast<bst_float>(wmin), last_fvalue);
-          CHECK_LT(sketch->temp.size, max_size) << "invalid maximum size max_size=" << max_size
-                                                << ", stemp.size" << sketch->temp.size;
-          ++sketch->temp.size;
+          CHECK_LT(temp_size, max_size) << "invalid maximum size max_size=" << max_size
+                                        << ", stemp.current_elements" << temp_size;
+          ++temp_size;
         }
-        if (sketch->temp.size == max_size) {
+        if (temp_size == max_size) {
           next_goal = sum_total * 2.0f + 1e-5f;
         } else {
-          next_goal = static_cast<bst_float>(sketch->temp.size * sum_total / max_size);
+          next_goal = static_cast<bst_float>(temp_size * sum_total / max_size);
         }
       } else {
         if (rmax >= next_goal) {
           LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
-                     << ", naxt_goal=" << next_goal << ", size=" << sketch->temp.size;
+                     << ", naxt_goal=" << next_goal << ", size=" << temp_size;
         }
       }
       rmin = rmax;
@@ -708,16 +723,18 @@ struct SortedQuantile {
 
   /*! \brief push final unfinished value to the sketch */
   void Finalize(unsigned max_size) {
+    // Use raw pointer for temp summary writes in this final hot step.
+    auto *temp_data = sketch->temp.data.data();
+    auto &temp_size = sketch->temp.current_elements;
     double rmax = rmin + wmin;
-    if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size - 1].value) {
-      CHECK_LE(sketch->temp.size, max_size)
-          << "Finalize: invalid maximum size, max_size=" << max_size
-          << ", stemp.size=" << sketch->temp.size;
+    if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
+      CHECK_LE(temp_size, max_size) << "Finalize: invalid maximum size, max_size=" << max_size
+                                    << ", stemp.current_elements=" << temp_size;
       // push to sketch
-      sketch->temp.data[sketch->temp.size] =
+      temp_data[temp_size] =
           common::WQuantileSketch::Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
                                          static_cast<bst_float>(wmin), last_fvalue);
-      ++sketch->temp.size;
+      ++temp_size;
     }
     sketch->PushTemp();
   }
