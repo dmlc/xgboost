@@ -164,7 +164,7 @@ void SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &i
     if (IsCat(feature_types_, i)) {
       sketch_size.push_back(0);
     } else {
-      sketch_size.push_back(reduced[i].size);
+      sketch_size.push_back(reduced[i].current_elements);
     }
   }
   // Turn the size into CSC indptr
@@ -197,11 +197,11 @@ void SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &i
   auto cursor{worker_sketch.begin()};
   for (size_t fidx = 0; fidx < reduced.size(); ++fidx) {
     auto const &sketch = reduced[fidx];
-    if (IsCat(feature_types_, fidx) || sketch.size == 0) {
+    if (IsCat(feature_types_, fidx) || sketch.current_elements == 0) {
       // nothing to do if it's categorical feature, size is 0 so no need to change cursor
       continue;
     }
-    cursor = std::copy(sketch.data, sketch.data + sketch.size, cursor);
+    cursor = std::copy_n(sketch.data.data(), sketch.current_elements, cursor);
   }
 
   static_assert(sizeof(WQSketch::Entry) / 4 == sizeof(float), "Unexpected size of sketch entry.");
@@ -323,7 +323,7 @@ void SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
       WQSketch::SummaryContainer out;
       sketches_[i].GetSummary(&out);
       reduced[i].Reserve(intermediate_num_cuts);
-      CHECK(reduced[i].data);
+      CHECK(reduced[i].data.data());
       reduced[i].SetPrune(out, intermediate_num_cuts);
     }
     num_cuts[i] = intermediate_num_cuts;
@@ -371,11 +371,13 @@ void SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
 template <typename SketchType>
 void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_bin,
                  HistogramCuts *cuts) {
-  size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+  size_t required_cuts = std::min(summary.current_elements, static_cast<size_t>(max_bin));
   auto &cut_values = cuts->cut_values_.HostVector();
+  // Use raw pointer in the cut extraction loop to avoid Span bounds checks.
+  auto const *summary_data = summary.data.data();
   // we use the min_value as the first (0th) element, hence starting from 1.
   for (size_t i = 1; i < required_cuts; ++i) {
-    bst_float cpt = summary.data[i].value;
+    bst_float cpt = summary_data[i].value;
     if (i == 1 || cpt > cut_values.back()) {
       cut_values.push_back(cpt);
     }
@@ -414,10 +416,10 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     WQSketch::SummaryContainer &a = final_summaries[fidx];
     size_t max_num_bins = std::min(num_cuts[fidx], max_bins_);
     a.Reserve(max_num_bins + 1);
-    CHECK(a.data);
+    CHECK(a.data.data());
     if (num_cuts[fidx] != 0) {
       a.SetPrune(reduced[fidx], max_num_bins + 1);
-      CHECK(a.data && reduced[fidx].data);
+      CHECK(a.data.data() && reduced[fidx].data.data());
       const bst_float mval = a.data[0].value;
       p_cuts->min_vals_.HostVector()[fidx] = mval - fabs(mval) - 1e-5f;
     } else {
@@ -436,8 +438,8 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     } else {
       AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
       // push a value that is greater than anything
-      const bst_float cpt =
-          (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
+      const bst_float cpt = (a.current_elements > 0) ? a.data[a.current_elements - 1].value
+                                                     : p_cuts->min_vals_.HostVector()[fid];
       // this must be bigger than last value in a scale
       const bst_float last = cpt + (fabs(cpt) + 1e-5f);
       p_cuts->cut_values_.HostVector().push_back(last);
