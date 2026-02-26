@@ -414,7 +414,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   });
 }
 
-void ApproxFeatureImportance(Context const* ctx, DMatrix*, HostDeviceVector<float>*,
+void ApproxFeatureImportance(Context const*, DMatrix*, HostDeviceVector<float>*,
                              gbm::GBTreeModel const&, bst_tree_t, std::vector<float> const*) {
   StringView not_implemented{
       "contribution is not implemented in the GPU predictor, use CPU instead."};
