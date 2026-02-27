@@ -215,6 +215,7 @@ is the default for row-split).
 
 .. code-block:: python
 
+    import pandas as pd
     import xgboost as xgb
 
     rank = 0  # 0, 1, ..., world_size - 1
@@ -230,9 +231,12 @@ is the default for row-split).
         train_path = f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/train.csv"
         valid_path = f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/valid.csv"
 
-        # In horizontal FL every party has labels.
-        dtrain = xgb.DMatrix(train_path + "?format=csv&label_column=0")
-        dvalid = xgb.DMatrix(valid_path + "?format=csv&label_column=0")
+        # In horizontal FL every party has labels (first column).
+        train_df = pd.read_csv(train_path, header=None)
+        valid_df = pd.read_csv(valid_path, header=None)
+
+        dtrain = xgb.DMatrix(train_df.iloc[:, 1:], label=train_df.iloc[:, 0])
+        dvalid = xgb.DMatrix(valid_df.iloc[:, 1:], label=valid_df.iloc[:, 0])
 
         params = {
             "objective": "binary:logistic",
@@ -284,6 +288,7 @@ flag tells XGBoost the data is column-split.
 
 .. code-block:: python
 
+    import pandas as pd
     import xgboost as xgb
 
     rank = 1  # 0 for label owner, 1..N-1 for feature owners
@@ -299,19 +304,21 @@ flag tells XGBoost the data is column-split.
         train_path = f"/tmp/xgboost/federated/vertical/site-{rank + 1}/train.csv"
         valid_path = f"/tmp/xgboost/federated/vertical/site-{rank + 1}/valid.csv"
 
-        # Rank 0 (active party) owns the label column;
+        train_df = pd.read_csv(train_path, header=None)
+        valid_df = pd.read_csv(valid_path, header=None)
+
+        # Rank 0 (active party) owns the label column (first column);
         # other ranks load feature columns only.
         if rank == 0:
-            label = "&label_column=0"
+            dtrain = xgb.DMatrix(
+                train_df.iloc[:, 1:], label=train_df.iloc[:, 0], data_split_mode=1
+            )
+            dvalid = xgb.DMatrix(
+                valid_df.iloc[:, 1:], label=valid_df.iloc[:, 0], data_split_mode=1
+            )
         else:
-            label = ""
-
-        dtrain = xgb.DMatrix(
-            train_path + f"?format=csv{label}", data_split_mode=1
-        )
-        dvalid = xgb.DMatrix(
-            valid_path + f"?format=csv{label}", data_split_mode=1
-        )
+            dtrain = xgb.DMatrix(train_df, data_split_mode=1)
+            dvalid = xgb.DMatrix(valid_df, data_split_mode=1)
 
         params = {
             "objective": "binary:logistic",
@@ -340,14 +347,14 @@ prep above already writes the unsplit data to ``/tmp/xgboost/federated/centraliz
 
 .. code-block:: python
 
+    import pandas as pd
     import xgboost as xgb
 
-    dtrain = xgb.DMatrix(
-        "/tmp/xgboost/federated/centralized/train.csv?format=csv&label_column=0"
-    )
-    dvalid = xgb.DMatrix(
-        "/tmp/xgboost/federated/centralized/valid.csv?format=csv&label_column=0"
-    )
+    train_df = pd.read_csv("/tmp/xgboost/federated/centralized/train.csv", header=None)
+    valid_df = pd.read_csv("/tmp/xgboost/federated/centralized/valid.csv", header=None)
+
+    dtrain = xgb.DMatrix(train_df.iloc[:, 1:], label=train_df.iloc[:, 0])
+    dvalid = xgb.DMatrix(valid_df.iloc[:, 1:], label=valid_df.iloc[:, 0])
 
     params = {
         "objective": "binary:logistic",
@@ -610,6 +617,7 @@ parties own labels, ``data_split_mode=0`` by default):
 
 .. code-block:: python
 
+    import pandas as pd
     import xgboost as xgb
 
     rank = 0
@@ -625,12 +633,14 @@ parties own labels, ``data_split_mode=0`` by default):
     }
 
     with xgb.collective.CommunicatorContext(**communicator_env):
-        dtrain = xgb.DMatrix(
-            f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/train.csv?format=csv&label_column=0"
-        )
-        dvalid = xgb.DMatrix(
-            f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/valid.csv?format=csv&label_column=0"
-        )
+        train_path = f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/train.csv"
+        valid_path = f"/tmp/xgboost/federated/horizontal/site-{rank + 1}/valid.csv"
+
+        train_df = pd.read_csv(train_path, header=None)
+        valid_df = pd.read_csv(valid_path, header=None)
+
+        dtrain = xgb.DMatrix(train_df.iloc[:, 1:], label=train_df.iloc[:, 0])
+        dvalid = xgb.DMatrix(valid_df.iloc[:, 1:], label=valid_df.iloc[:, 0])
 
         params = {
             "objective": "binary:logistic",
@@ -657,6 +667,7 @@ For vertical FL, the data-loading pattern is unchanged from the non-HE Quick Sta
 
 .. code-block:: python
 
+    import pandas as pd
     import xgboost as xgb
 
     rank = 0
@@ -672,19 +683,22 @@ For vertical FL, the data-loading pattern is unchanged from the non-HE Quick Sta
     }
 
     with xgb.collective.CommunicatorContext(**communicator_env):
-        if rank == 0:
-            label = "&label_column=0"
-        else:
-            label = ""
+        train_path = f"/tmp/xgboost/federated/vertical/site-{rank + 1}/train.csv"
+        valid_path = f"/tmp/xgboost/federated/vertical/site-{rank + 1}/valid.csv"
 
-        dtrain = xgb.DMatrix(
-            f"/tmp/xgboost/federated/vertical/site-{rank + 1}/train.csv?format=csv{label}",
-            data_split_mode=1,
-        )
-        dvalid = xgb.DMatrix(
-            f"/tmp/xgboost/federated/vertical/site-{rank + 1}/valid.csv?format=csv{label}",
-            data_split_mode=1,
-        )
+        train_df = pd.read_csv(train_path, header=None)
+        valid_df = pd.read_csv(valid_path, header=None)
+
+        if rank == 0:
+            dtrain = xgb.DMatrix(
+                train_df.iloc[:, 1:], label=train_df.iloc[:, 0], data_split_mode=1
+            )
+            dvalid = xgb.DMatrix(
+                valid_df.iloc[:, 1:], label=valid_df.iloc[:, 0], data_split_mode=1
+            )
+        else:
+            dtrain = xgb.DMatrix(train_df, data_split_mode=1)
+            dvalid = xgb.DMatrix(valid_df, data_split_mode=1)
 
         params = {
             "objective": "binary:logistic",
