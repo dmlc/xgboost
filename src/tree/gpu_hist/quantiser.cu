@@ -46,25 +46,19 @@ struct Clip {
  * In algorithm 5 (see common::CreateRoundingFactor) the bound is calculated as
  * $max(|v_i|) * n$.  Here we use the bound:
  *
- * \begin{equation}
+ * @begin{equation}
  *   max( fl(\sum^{V}_{v_i>0}{v_i}), fl(\sum^{V}_{v_i<0}|v_i|) )
- * \end{equation}
+ * @end{equation}
  *
  * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
  */
-GradientQuantiser MakeQuantiserForTarget(Context const* ctx,
-                                         linalg::VectorView<GradientPair const> gpair, Pair* p_out,
-                                         std::size_t* p_total_rows) {
-  using GradientSumT = GradientPairPrecise;
-  using T = typename GradientSumT::ValueT;
+Pair MakeQuantiserForTarget(Context const* ctx, linalg::VectorView<GradientPair const> gpair) {
+  using T = typename GradientPairPrecise::ValueT;
 
-  auto beg = thrust::make_transform_iterator(linalg::tcbegin(gpair), Clip());
+  auto beg = thrust::make_transform_iterator(linalg::tcbegin(gpair), Clip{});
   Pair p =
       dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + gpair.Size(), Pair{}, cuda::std::plus<Pair>{});
-
-  *p_out = p;
-  *p_total_rows = gpair.Size();
-  return {};  // placeholder, computed later
+  return p;
 }
 
 GradientQuantiser BuildQuantiserFromPair(Pair const& p, std::size_t total_rows) {
@@ -100,26 +94,19 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
   // Local reduction per target — these are fast device-local operations.
   using ReduceT = typename GradientPairPrecise::ValueT;
   std::vector<Pair> h_pairs(n_targets);
-  std::size_t total_rows = 0;
+  std::size_t total_rows = gpair.Shape(0);
   for (bst_target_t t = 0; t < n_targets; ++t) {
-    std::size_t rows_t = 0;
-    MakeQuantiserForTarget(ctx, gpair.Slice(linalg::All(), t), &h_pairs[t], &rows_t);
-    if (t == 0) {
-      total_rows = rows_t;
-    } else {
-      CHECK_EQ(total_rows, rows_t);
-    }
+    h_pairs[t] = MakeQuantiserForTarget(ctx, gpair.Slice(linalg::All(), t));
   }
 
-  // Batch GlobalSum for all targets' pairs: 4 doubles per target.
-  static_assert(sizeof(Pair) == sizeof(ReduceT) * 4);
-  auto rc = collective::GlobalSum(
-      ctx, info,
-      linalg::MakeVec(reinterpret_cast<ReduceT*>(h_pairs.data()), 4 * n_targets));
-  collective::SafeColl(rc);
-
-  // Single GlobalSum for total_rows (shared across targets).
-  rc = collective::GlobalSum(ctx, info, linalg::MakeVec(&total_rows, 1));
+  auto rc = collective::Success() << [&]() {
+    static_assert(sizeof(Pair) == sizeof(ReduceT) * 4);
+    auto casted = linalg::MakeVec(reinterpret_cast<ReduceT*>(h_pairs.data()), 4 * n_targets);
+    return collective::GlobalSum(ctx, info, casted);
+  } << [&] {
+    // Single GlobalSum for total_rows (shared across targets).
+    return collective::GlobalSum(ctx, info, linalg::MakeVec(&total_rows, 1));
+  };
   collective::SafeColl(rc);
 
   // Build quantisers on host from the reduced pairs.
@@ -141,13 +128,12 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
     : GradientQuantiserGroup(
           ctx, linalg::MakeTensorView(ctx, gpair.Values(), gpair.Size(), bst_target_t{1}), info) {}
 
-
 GradientQuantiserGroup::GradientQuantiserGroup(std::vector<GradientQuantiser> quantizers)
     : h_quantizers_{std::move(quantizers)} {
   d_quantizers_.resize(h_quantizers_.size());
   dh::safe_cuda(cudaMemcpy(d_quantizers_.data(), h_quantizers_.data(),
-                            h_quantizers_.size() * sizeof(GradientQuantiser),
-                            cudaMemcpyHostToDevice));
+                           h_quantizers_.size() * sizeof(GradientQuantiser),
+                           cudaMemcpyHostToDevice));
 }
 
 void CalcQuantizedGpairs(Context const* ctx, linalg::MatrixView<GradientPair const> gpairs,
