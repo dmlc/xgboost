@@ -164,7 +164,7 @@ void SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &i
     if (IsCat(feature_types_, i)) {
       sketch_size.push_back(0);
     } else {
-      sketch_size.push_back(reduced[i].current_elements);
+      sketch_size.push_back(reduced[i].Size());
     }
   }
   // Turn the size into CSC indptr
@@ -197,11 +197,11 @@ void SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &i
   auto cursor{worker_sketch.begin()};
   for (size_t fidx = 0; fidx < reduced.size(); ++fidx) {
     auto const &sketch = reduced[fidx];
-    if (IsCat(feature_types_, fidx) || sketch.current_elements == 0) {
+    if (IsCat(feature_types_, fidx) || sketch.Size() == 0) {
       // nothing to do if it's categorical feature, size is 0 so no need to change cursor
       continue;
     }
-    cursor = std::copy_n(sketch.data.data(), sketch.current_elements, cursor);
+    cursor = std::copy_n(sketch.data.data(), sketch.Size(), cursor);
   }
 
   static_assert(sizeof(WQSketch::Entry) / 4 == sizeof(float), "Unexpected size of sketch entry.");
@@ -371,7 +371,7 @@ void SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
 template <typename SketchType>
 void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_bin,
                  HistogramCuts *cuts) {
-  size_t required_cuts = std::min(summary.current_elements, static_cast<size_t>(max_bin));
+  size_t required_cuts = std::min(summary.Size(), static_cast<size_t>(max_bin));
   auto &cut_values = cuts->cut_values_.HostVector();
   // Use raw pointer in the cut extraction loop to avoid Span bounds checks.
   auto const *summary_data = summary.data.data();
@@ -438,8 +438,8 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     } else {
       AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
       // push a value that is greater than anything
-      const bst_float cpt = (a.current_elements > 0) ? a.data[a.current_elements - 1].value
-                                                     : p_cuts->min_vals_.HostVector()[fid];
+      const bst_float cpt =
+          (a.Size() > 0) ? a.data[a.Size() - 1].value : p_cuts->min_vals_.HostVector()[fid];
       // this must be bigger than last value in a scale
       const bst_float last = cpt + (fabs(cpt) + 1e-5f);
       p_cuts->cut_values_.HostVector().push_back(last);
