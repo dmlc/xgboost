@@ -94,7 +94,7 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
   // Local reduction per target — these are fast device-local operations.
   using ReduceT = typename GradientPairPrecise::ValueT;
   std::vector<Pair> h_pairs(n_targets);
-  std::size_t total_rows = gpair.Shape(0);
+  std::size_t n_samples = gpair.Shape(0);
   for (bst_target_t t = 0; t < n_targets; ++t) {
     h_pairs[t] = MakeQuantiserForTarget(ctx, gpair.Slice(linalg::All(), t));
   }
@@ -105,14 +105,14 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
     return collective::GlobalSum(ctx, info, casted);
   } << [&] {
     // Single GlobalSum for total_rows (shared across targets).
-    return collective::GlobalSum(ctx, info, linalg::MakeVec(&total_rows, 1));
+    return collective::GlobalSum(ctx, info, linalg::MakeVec(&n_samples, 1));
   };
   collective::SafeColl(rc);
 
   // Build quantisers on host from the reduced pairs.
   h_quantizers_.resize(n_targets);
   for (bst_target_t t = 0; t < n_targets; ++t) {
-    h_quantizers_[t] = BuildQuantiserFromPair(h_pairs[t], total_rows);
+    h_quantizers_[t] = BuildQuantiserFromPair(h_pairs[t], n_samples);
   }
 
   // Copy to device.
