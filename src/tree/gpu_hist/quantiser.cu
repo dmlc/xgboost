@@ -128,14 +128,6 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
     : GradientQuantiserGroup(
           ctx, linalg::MakeTensorView(ctx, gpair.Values(), gpair.Size(), bst_target_t{1}), info) {}
 
-GradientQuantiserGroup::GradientQuantiserGroup(std::vector<GradientQuantiser> quantizers)
-    : h_quantizers_{std::move(quantizers)} {
-  d_quantizers_.resize(h_quantizers_.size());
-  dh::safe_cuda(cudaMemcpy(d_quantizers_.data(), h_quantizers_.data(),
-                           h_quantizers_.size() * sizeof(GradientQuantiser),
-                           cudaMemcpyHostToDevice));
-}
-
 void CalcQuantizedGpairs(Context const* ctx, linalg::MatrixView<GradientPair const> gpairs,
                          common::Span<GradientQuantiser const> roundings,
                          linalg::Matrix<GradientPairInt64>* p_out) {

@@ -96,8 +96,6 @@ class GradientQuantiserGroup {
   /** @brief Convenience constructor from a vector (single-target). */
   GradientQuantiserGroup(Context const* ctx, linalg::VectorView<GradientPair const> gpair,
                          MetaInfo const& info);
-  /** @brief Construct from pre-built quantisers (for testing). */
-  explicit GradientQuantiserGroup(std::vector<GradientQuantiser> quantizers);
 
   [[nodiscard]] common::Span<GradientQuantiser const> DeviceSpan() const {
     return dh::ToSpan(this->d_quantizers_);
