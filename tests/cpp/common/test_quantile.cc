@@ -40,20 +40,11 @@ TEST(Quantile, InitWithEmptyColumn) {
 }
 
 namespace {
-template <bool use_column>
-using ContainerType = std::conditional_t<use_column, SortedSketchContainer, HostSketchContainer>;
-
-// Dispatch for push page.
-void PushPage(SortedSketchContainer* container, SparsePage const& page, MetaInfo const& info,
-              Span<float const> hessian) {
-  container->PushColPage(page, info, hessian);
-}
 void PushPage(HostSketchContainer* container, SparsePage const& page, MetaInfo const& info,
               Span<float const> hessian) {
   container->PushRowPage(page, info, hessian);
 }
 
-template <bool use_column>
 void DoTestDistributedQuantile(size_t rows, size_t cols) {
   Context ctx;
   auto const world = collective::GetWorldSize();
@@ -85,17 +76,11 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   std::vector<float> hessian(rows, 1.0);
   auto hess = Span<float const>{hessian};
 
-  ContainerType<use_column> sketch_distributed(
-      &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
+  HostSketchContainer sketch_distributed(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                         column_size, false);
 
-  if (use_column) {
-    for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-      PushPage(&sketch_distributed, page, m->Info(), hess);
-    }
-  } else {
-    for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-      PushPage(&sketch_distributed, page, m->Info(), hess);
-    }
+  for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+    PushPage(&sketch_distributed, page, m->Info(), hess);
   }
 
   HistogramCuts distributed_cuts;
@@ -107,8 +92,8 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   CHECK_EQ(collective::GetWorldSize(), 1);
   std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
   m->Info().num_row_ = world * rows;
-  ContainerType<use_column> sketch_on_single_node(
-      &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
+  HostSketchContainer sketch_on_single_node(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                            column_size, false);
   m->Info().num_row_ = rows;
 
   for (auto rank = 0; rank < world; ++rank) {
@@ -119,14 +104,8 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
                  .Lower(.0f)
                  .Upper(1.0f)
                  .GenerateDMatrix();
-    if (use_column) {
-      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    } else {
-      for (auto const& page : m->GetBatches<SparsePage>()) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
-      }
+    for (auto const& page : m->GetBatches<SparsePage>()) {
+      PushPage(&sketch_on_single_node, page, m->Info(), hess);
     }
   }
 
@@ -156,36 +135,24 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   }
 }
 
-template <bool use_column>
 void TestDistributedQuantile(size_t const rows, size_t const cols) {
   auto constexpr kWorkers = 4;
   collective::TestDistributedGlobal(
-      kWorkers, [=] { DoTestDistributedQuantile<use_column>(rows, cols); }, false);
+      kWorkers, [=] { DoTestDistributedQuantile(rows, cols); }, false);
 }
 }  // anonymous namespace
 
 TEST(Quantile, DistributedBasic) {
   constexpr size_t kRows = 10, kCols = 10;
-  TestDistributedQuantile<false>(kRows, kCols);
+  TestDistributedQuantile(kRows, kCols);
 }
 
 TEST(Quantile, Distributed) {
   constexpr size_t kRows = 4000, kCols = 200;
-  TestDistributedQuantile<false>(kRows, kCols);
-}
-
-TEST(Quantile, SortedDistributedBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestDistributedQuantile<true>(kRows, kCols);
-}
-
-TEST(Quantile, SortedDistributed) {
-  constexpr size_t kRows = 4000, kCols = 200;
-  TestDistributedQuantile<true>(kRows, kCols);
+  TestDistributedQuantile(kRows, kCols);
 }
 
 namespace {
-template <bool use_column>
 void DoTestColSplitQuantile(size_t rows, size_t cols) {
   Context ctx;
   auto const world = collective::GetWorldSize();
@@ -220,19 +187,13 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
   // Generate cuts for distributed environment.
   HistogramCuts distributed_cuts;
   {
-    ContainerType<use_column> sketch_distributed(
-        &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
+    HostSketchContainer sketch_distributed(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                           column_size, false);
 
     std::vector<float> hessian(rows, 1.0);
     auto hess = Span<float const>{hessian};
-    if (use_column) {
-      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage(&sketch_distributed, page, m->Info(), hess);
-      }
-    } else {
-      for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-        PushPage(&sketch_distributed, page, m->Info(), hess);
-      }
+    for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+      PushPage(&sketch_distributed, page, m->Info(), hess);
     }
 
     sketch_distributed.MakeCuts(&ctx, m->Info(), &distributed_cuts);
@@ -243,19 +204,13 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
   CHECK_EQ(collective::GetWorldSize(), 1);
   HistogramCuts single_node_cuts;
   {
-    ContainerType<use_column> sketch_on_single_node(
-        &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
+    HostSketchContainer sketch_on_single_node(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                              column_size, false);
 
     std::vector<float> hessian(rows, 1.0);
     auto hess = Span<float const>{hessian};
-    if (use_column) {
-      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    } else {
-      for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
-      }
+    for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+      PushPage(&sketch_on_single_node, page, m->Info(), hess);
     }
 
     sketch_on_single_node.MakeCuts(&ctx, m->Info(), &single_node_cuts);
@@ -284,32 +239,20 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
   }
 }
 
-template <bool use_column>
 void TestColSplitQuantile(size_t rows, size_t cols) {
   auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers,
-                                    [=] { DoTestColSplitQuantile<use_column>(rows, cols); });
+  collective::TestDistributedGlobal(kWorkers, [=] { DoTestColSplitQuantile(rows, cols); });
 }
 }  // anonymous namespace
 
 TEST(Quantile, ColumnSplitBasic) {
   constexpr size_t kRows = 10, kCols = 10;
-  TestColSplitQuantile<false>(kRows, kCols);
+  TestColSplitQuantile(kRows, kCols);
 }
 
 TEST(Quantile, ColumnSplit) {
   constexpr size_t kRows = 4000, kCols = 200;
-  TestColSplitQuantile<false>(kRows, kCols);
-}
-
-TEST(Quantile, ColumnSplitSortedBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestColSplitQuantile<true>(kRows, kCols);
-}
-
-TEST(Quantile, ColumnSplitSorted) {
-  constexpr size_t kRows = 4000, kCols = 200;
-  TestColSplitQuantile<true>(kRows, kCols);
+  TestColSplitQuantile(kRows, kCols);
 }
 
 namespace {

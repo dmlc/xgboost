@@ -2,17 +2,17 @@
  * Copyright 2021-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/data.h>                       // for BatchIterator, BatchSet, DMatrix, BatchParam
+#include <xgboost/data.h>  // for BatchIterator, BatchSet, DMatrix, BatchParam
 
-#include <algorithm>                            // for sort, unique
-#include <cmath>                                // for isnan
-#include <cstddef>                              // for size_t
-#include <limits>                               // for numeric_limits
-#include <memory>                               // for shared_ptr, __shared_ptr_access, unique_ptr
-#include <string>                               // for string
-#include <tuple>                                // for make_tuple, tie, tuple
-#include <utility>                              // for move
-#include <vector>                               // for vector
+#include <algorithm>  // for sort, unique
+#include <cmath>      // for isnan
+#include <cstddef>    // for size_t
+#include <limits>     // for numeric_limits
+#include <memory>     // for shared_ptr, __shared_ptr_access, unique_ptr
+#include <string>     // for string
+#include <tuple>      // for make_tuple, tie, tuple
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../../../src/common/categorical.h"    // for AsCat
 #include "../../../src/common/column_matrix.h"  // for ColumnMatrix
@@ -68,7 +68,7 @@ TEST(GradientIndex, FromCategoricalBasic) {
   h_ft.resize(kCols, FeatureType::kCategorical);
 
   BatchParam p(max_bins, 0.8);
-  GHistIndexMatrix gidx(&ctx, m.get(), max_bins, p.sparse_thresh, false, {});
+  GHistIndexMatrix gidx(&ctx, m.get(), max_bins, p.sparse_thresh, {});
 
   auto x_copy = x;
   std::sort(x_copy.begin(), x_copy.end());
@@ -102,7 +102,7 @@ TEST(GradientIndex, FromCategoricalLarge) {
 
   BatchParam p{max_bins, 0.8};
   {
-    GHistIndexMatrix gidx{&ctx, m.get(), max_bins, p.sparse_thresh, false, {}};
+    GHistIndexMatrix gidx{&ctx, m.get(), max_bins, p.sparse_thresh, {}};
     ASSERT_TRUE(gidx.index.GetBinTypeSize() == common::kUint16BinsTypeSize);
   }
   {
@@ -122,7 +122,7 @@ TEST(GradientIndex, PushBatch) {
 
   auto test = [&](float sparisty) {
     auto m = RandomDataGenerator{kRows, kCols, sparisty}.GenerateDMatrix(true);
-    auto cuts = common::SketchOnDMatrix(&ctx, m.get(), max_bins, false, {});
+    auto cuts = common::SketchOnDMatrix(&ctx, m.get(), max_bins);
     common::HistogramCuts copy_cuts = cuts;
 
     ASSERT_EQ(m->Info().num_row_, kRows);

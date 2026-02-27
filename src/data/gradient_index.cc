@@ -18,13 +18,10 @@ namespace xgboost {
 GHistIndexMatrix::GHistIndexMatrix() : columns_{std::make_unique<common::ColumnMatrix>()} {}
 
 GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
-                                   double sparse_thresh, bool sorted_sketch,
-                                   common::Span<float const> hess)
+                                   double sparse_thresh, common::Span<float const> hess)
     : max_numeric_bins_per_feat{max_bins_per_feat} {
   CHECK(p_fmat->SingleColBlock());
-  // We use sorted sketching for approx tree method since it's more efficient in
-  // computation time (but higher memory usage).
-  cut = common::SketchOnDMatrix(ctx, p_fmat, max_bins_per_feat, sorted_sketch, hess);
+  cut = common::SketchOnDMatrix(ctx, p_fmat, max_bins_per_feat, hess);
 
   const uint32_t nbins = cut.Ptrs().back();
   hit_count = common::MakeFixedVecWithMalloc(ctx, nbins, std::size_t{0});
@@ -48,8 +45,6 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, DMatrix *p_fmat, bst_bin_
 
   // hessian is empty when hist tree method is used or when dataset is empty
   if (hess.empty() && !std::isnan(sparse_thresh)) {
-    // hist
-    CHECK(!sorted_sketch);
     for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
       this->columns_->InitFromSparse(page, *this, sparse_thresh, ctx->Threads());
     }
