@@ -12,8 +12,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "categorical.h"
@@ -74,7 +74,7 @@ struct WQSummary {
       return;
     }
     current_elements = src.current_elements;
-    std::memcpy(data.data(), src.data.data(), sizeof(Entry) * current_elements);
+    std::copy(src.data.data(), src.data.data() + current_elements, data.data());
   }
   /*!
    * \brief set current summary to be pruned summary of src
@@ -219,61 +219,56 @@ struct WQSummary {
 
 template <typename DType = bst_float, typename RType = bst_float>
 struct Queue {
-  struct QEntry {
-    DType value;
-    RType weight;
-    QEntry() = default;
-    QEntry(DType value, RType weight) : value(value), weight(weight) {}
-    bool operator<(QEntry const &b) const { return value < b.value; }
-  };
+  using QEntry = std::pair<DType, RType>;  // value, weight
 
   std::vector<QEntry> queue;
-  size_t qtail{0};
   size_t max_size{1};
 
   explicit Queue(size_t max_size_in = 1) {
     CHECK_GE(max_size_in, 1);
     max_size = max_size_in;
-    queue.resize(1);
-    qtail = 0;
+    queue.reserve(1);
   }
+
+  auto Size() const { return queue.size(); }
 
   // push element to the queue, return false if the queue is full and need to be flushed
   bool Push(DType x, RType w) {
-    if (qtail == 0 || queue[qtail - 1].value != x) {
-      // Try to keep the queue at size 1 and lazily resizes it if necessary.
-      if (qtail == queue.size() && queue.size() == 1) {
-        queue.resize(max_size);
+    if (queue.empty() || queue.back().first != x) {
+      // Keep capacity at 1 for tiny queues, reserve max capacity lazily.
+      if (queue.size() == 1 && queue.capacity() == 1) {
+        queue.reserve(max_size);
       }
-      if (qtail == queue.size()) {
+      if (queue.size() == max_size) {
         return false;
       }
-      queue[qtail++] = QEntry(x, w);
+      queue.emplace_back(x, w);
       return true;
     }
-    queue[qtail - 1].weight += w;
+    queue.back().second += w;
     return true;
   }
 
   void PopSummary(WQSummary<DType, RType> *out) {
-    std::sort(queue.begin(), queue.begin() + qtail);
+    std::sort(queue.begin(), queue.end(),
+              [](QEntry const &l, QEntry const &r) { return l.first < r.first; });
     out->current_elements = 0;
     // Use raw pointer for output writes in this hot loop.
     auto *out_data = out->data.data();
     RType wsum = 0;
-    for (size_t i = 0; i < qtail;) {
+    for (size_t i = 0; i < queue.size();) {
       size_t j = i + 1;
-      RType w = queue[i].weight;
-      while (j < qtail && queue[j].value == queue[i].value) {
-        w += queue[j].weight;
+      RType w = queue[i].second;
+      while (j < queue.size() && queue[j].first == queue[i].first) {
+        w += queue[j].second;
         ++j;
       }
       out_data[out->current_elements++] =
-          typename WQSummary<DType, RType>::Entry(wsum, wsum + w, w, queue[i].value);
+          typename WQSummary<DType, RType>::Entry(wsum, wsum + w, w, queue[i].first);
       wsum += w;
       i = j;
     }
-    qtail = 0;
+    queue.clear();
   }
 };
 
@@ -397,7 +392,7 @@ class WQuantileSketch {
     if (level.size() != 0) {
       out->Reserve(limit_size * 2);
     } else {
-      out->Reserve(inqueue.queue.size());
+      out->Reserve(inqueue.Size());
     }
     inqueue.PopSummary(out);
     if (level.size() != 0) {
