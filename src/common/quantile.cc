@@ -485,27 +485,15 @@ void SortedSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &
   auto view = page.GetView();
   ParallelFor(view.Size(), n_threads_, [&](size_t fidx) {
     auto column = view[fidx];
-    auto sketch = SortedQuantile{&sketches_[fidx], static_cast<unsigned>(max_bins_)};
-    // first pass
-    sketch.sum_total = 0.0;
-    for (auto c : column) {
-      sketch.sum_total += weights[c.index];
-    }
-    // second pass
     if (IsCat(feature_types_, fidx)) {
       for (auto c : column) {
         categories_[fidx].emplace(c.fvalue);
       }
-    } else {
-      for (auto c : column) {
-        sketch.Push(c.fvalue, weights[c.index], max_bins_);
-      }
+      return;
     }
-
-    if (!IsCat(feature_types_, fidx) && !column.empty()) {
-      sketch.Finalize(max_bins_);
-    }
+    sketches_[fidx].PushSorted(column, weights, static_cast<size_t>(max_bins_));
   });
   monitor_.Stop(__func__);
 }
+
 }  // namespace xgboost::common

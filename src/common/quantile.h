@@ -212,6 +212,8 @@ struct WQSummary {
     }
     CHECK(current_elements <= sa.current_elements + sb.current_elements) << "bug in combine";
   }
+
+ private:
   // try to fix rounding error
   // and re-establish invariance
   void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
@@ -373,6 +375,89 @@ class WQuantileSketch {
     }
   }
 
+  /*!
+   * \brief Add sorted column entries into this sketch.
+   *
+   * \param column Sorted column entries in ascending order by feature value.
+   * \param weights Row weights.
+   * \param num_retained_items Target number of summary items to retain from sorted input.
+   */
+  void PushSorted(common::Span<::xgboost::Entry const> column, std::vector<float> const &weights,
+                  size_t num_retained_items) {
+    CHECK_GE(num_retained_items, 1);
+    auto const max_size = num_retained_items;
+    double sum_total{0.0};
+    double rmin{0.0};
+    double wmin{0.0};
+    bst_float last_fvalue{0.0f};
+    double next_goal{-1.0f};
+
+    this->temp.Reserve(max_size + 1);
+    this->temp.Clear();
+
+    // first pass
+    for (auto c : column) {
+      sum_total += weights[c.index];
+    }
+
+    // second pass
+    for (auto c : column) {
+      // Use raw pointer for temp summary updates in this hot path.
+      auto *temp_data = this->temp.data.data();
+      auto temp_size = this->temp.Size();
+      if (next_goal == -1.0f) {
+        next_goal = 0.0f;
+        last_fvalue = c.fvalue;
+        wmin = weights[c.index];
+        continue;
+      }
+      if (last_fvalue != c.fvalue) {
+        double rmax = rmin + wmin;
+        if (rmax >= next_goal && temp_size != max_size) {
+          if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
+            // push to sketch
+            temp_data[temp_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                         static_cast<bst_float>(wmin), last_fvalue);
+            CHECK_LT(temp_size, max_size) << "invalid maximum size max_size=" << max_size
+                                          << ", stemp.current_elements" << temp_size;
+            ++temp_size;
+          }
+          if (temp_size == max_size) {
+            next_goal = sum_total * 2.0f + 1e-5f;
+          } else {
+            next_goal = static_cast<bst_float>(temp_size * sum_total / max_size);
+          }
+        } else if (rmax >= next_goal) {
+          LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
+                     << ", naxt_goal=" << next_goal << ", size=" << temp_size;
+        }
+        rmin = rmax;
+        wmin = weights[c.index];
+        last_fvalue = c.fvalue;
+      } else {
+        wmin += weights[c.index];
+      }
+      this->temp.SetSize(temp_size);
+    }
+
+    if (!column.empty()) {
+      // Use raw pointer for temp summary writes in this final hot step.
+      auto *temp_data = this->temp.data.data();
+      auto temp_size = this->temp.Size();
+      double rmax = rmin + wmin;
+      if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
+        CHECK_LE(temp_size, max_size) << "Finalize: invalid maximum size, max_size=" << max_size
+                                      << ", stemp.current_elements=" << temp_size;
+        // push to sketch
+        temp_data[temp_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                     static_cast<bst_float>(wmin), last_fvalue);
+        ++temp_size;
+      }
+      this->temp.SetSize(temp_size);
+      this->PushTemp();
+    }
+  }
+
   /*! \brief push up temp */
   void PushTemp() {
     temp.Reserve(limit_size * 2);
@@ -397,6 +482,8 @@ class WQuantileSketch {
       }
     }
   }
+
+ public:
   /*! \brief get the summary after finalize */
   void GetSummary(WQSummaryContainer *out) {
     if (level.size() != 0) {
@@ -425,6 +512,8 @@ class WQuantileSketch {
       }
     }
   }
+
+ private:
   // initialize level space to at least nlevel
   void InitLevel(size_t nlevel) {
     if (level.size() >= nlevel) return;
@@ -584,6 +673,8 @@ class SketchContainerImpl {
                             group_ptr.cbegin() - 1;
     return group_ind;
   }
+
+ private:
   // Gather sketches from all workers.
   void GatherSketchInfo(Context const *ctx, MetaInfo const &info,
                         std::vector<WQSketch::SummaryContainer> const &reduced,
@@ -595,6 +686,7 @@ class SketchContainerImpl {
                  std::vector<WQSketch::SummaryContainer> *p_reduced,
                  std::vector<int32_t> *p_num_cuts);
 
+ protected:
   template <typename Batch, typename IsValid>
   void PushRowPageImpl(Batch const &batch, std::size_t base_rowid, OptionalWeights weights,
                        size_t nnz, size_t n_features, bool is_dense, IsValid is_valid) {
@@ -636,6 +728,7 @@ class SketchContainerImpl {
     });
   }
 
+ public:
   /* \brief Push a CSR matrix. */
   void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
 
@@ -656,95 +749,6 @@ class HostSketchContainer : public SketchContainerImpl {
 
   template <typename Batch>
   void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
-};
-
-/**
- * \brief Quantile structure accepts sorted data, extracted from histmaker.
- */
-struct SortedQuantile {
-  /*! \brief total sum of amount to be met */
-  double sum_total{0.0};
-  /*! \brief statistics used in the sketch */
-  double rmin, wmin;
-  /*! \brief last seen feature value */
-  bst_float last_fvalue{0.0f};
-  /*! \brief current size of sketch */
-  double next_goal;
-  // pointer to the sketch to put things in
-  common::WQuantileSketch *sketch;
-
-  explicit SortedQuantile(common::WQuantileSketch *sketch, unsigned max_size) : sketch{sketch} {
-    next_goal = -1.0f;
-    rmin = wmin = 0.0f;
-    sketch->temp.Reserve(max_size + 1);
-    sketch->temp.Clear();
-  }
-  /*!
-   * \brief push a new element to sketch
-   * \param fvalue feature value, comes in sorted ascending order
-   * \param w weight
-   * \param max_size
-   */
-  void Push(bst_float fvalue, bst_float w, unsigned max_size) {
-    // Use raw pointer for temp summary updates in this hot path.
-    auto *temp_data = sketch->temp.data.data();
-    auto temp_size = sketch->temp.Size();
-    if (next_goal == -1.0f) {
-      next_goal = 0.0f;
-      last_fvalue = fvalue;
-      wmin = w;
-      return;
-    }
-    if (last_fvalue != fvalue) {
-      double rmax = rmin + wmin;
-      if (rmax >= next_goal && temp_size != max_size) {
-        if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
-          // push to sketch
-          temp_data[temp_size] = common::WQuantileSketch::Entry(
-              static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
-              static_cast<bst_float>(wmin), last_fvalue);
-          CHECK_LT(temp_size, max_size) << "invalid maximum size max_size=" << max_size
-                                        << ", stemp.current_elements" << temp_size;
-          ++temp_size;
-        }
-        if (temp_size == max_size) {
-          next_goal = sum_total * 2.0f + 1e-5f;
-        } else {
-          next_goal = static_cast<bst_float>(temp_size * sum_total / max_size);
-        }
-      } else {
-        if (rmax >= next_goal) {
-          LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
-                     << ", naxt_goal=" << next_goal << ", size=" << temp_size;
-        }
-      }
-      rmin = rmax;
-      wmin = w;
-      last_fvalue = fvalue;
-    } else {
-      wmin += w;
-    }
-    sketch->temp.SetSize(temp_size);
-  }
-
-  /*! \brief push final unfinished value to the sketch */
-  void Finalize(unsigned max_size) {
-    // Use raw pointer for temp summary writes in this final hot step.
-    auto *temp_data = sketch->temp.data.data();
-    auto temp_size = sketch->temp.Size();
-    double rmax = rmin + wmin;
-    if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
-      CHECK_LE(temp_size, max_size) << "Finalize: invalid maximum size, max_size=" << max_size
-                                    << ", stemp.current_elements=" << temp_size;
-      // push to sketch
-      temp_data[temp_size] =
-          common::WQuantileSketch::Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
-                                         static_cast<bst_float>(wmin), last_fvalue);
-      ++temp_size;
-    }
-    sketch->temp.SetSize(temp_size);
-    sketch->PushTemp();
-  }
 };
 
 class SortedSketchContainer : public SketchContainerImpl {
