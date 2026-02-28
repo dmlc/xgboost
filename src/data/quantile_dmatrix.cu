@@ -78,9 +78,8 @@ void MakeSketches(Context const* ctx,
      */
     if (!ref) {
       if (!sketch) {
-        sketch = std::make_unique<common::SketchContainer>(
-            proxy->Info().feature_types, p.max_bin, ext_info.n_features, data::BatchSamples(proxy),
-            dh::GetDevice(ctx));
+        sketch = std::make_unique<common::SketchContainer>(proxy->Info().feature_types, p.max_bin,
+                                                           ext_info.n_features, dh::GetDevice(ctx));
       }
       proxy->Info().weights_.SetDevice(dh::GetDevice(ctx));
       DispatchAny(proxy, [&](auto const& value) {
@@ -114,11 +113,8 @@ void MakeSketches(Context const* ctx,
   if (!ref) {
     if (!sketch) {
       // Empty local input can happen in distributed settings.
-      sketch = std::make_unique<common::SketchContainer>(
-          proxy->Info().feature_types, p.max_bin, ext_info.n_features, ext_info.accumulated_rows,
-          dh::GetDevice(ctx));
-    } else {
-      sketch->SetNumRows(ext_info.accumulated_rows);
+      sketch = std::make_unique<common::SketchContainer>(proxy->Info().feature_types, p.max_bin,
+                                                         ext_info.n_features, dh::GetDevice(ctx));
     }
     sketch->MakeCuts(ctx, cuts.get(), info.IsColumnSplit());
     sketch.reset();

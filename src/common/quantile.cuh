@@ -46,7 +46,6 @@ class SketchContainer {
  private:
   Monitor timer_;
   HostDeviceVector<FeatureType> feature_types_;
-  bst_idx_t num_rows_;
   bst_feature_t num_columns_;
   int32_t num_bins_;
 
@@ -97,12 +96,11 @@ class SketchContainer {
    *
    * \param max_bin     Maximum number of bins per columns
    * \param num_columns Total number of columns in dataset.
-   * \param num_rows    Total number of rows in known dataset (typically the rows in current worker).
    * \param device      GPU ID.
    */
   SketchContainer(HostDeviceVector<FeatureType> const& feature_types, bst_bin_t max_bin,
-                  bst_feature_t num_columns, bst_idx_t num_rows, DeviceOrd device)
-      : num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin} {
+                  bst_feature_t num_columns, DeviceOrd device)
+      : num_columns_{num_columns}, num_bins_{max_bin} {
     CHECK(device.IsCUDA());
     // Initialize Sketches for this dmatrix
     this->columns_ptr_.SetDevice(device);
@@ -199,7 +197,6 @@ class SketchContainer {
   HostDeviceVector<FeatureType> const& FeatureTypes() const { return feature_types_; }
 
   Span<OffsetT const> ColumnsPtr() const { return this->columns_ptr_.ConstDeviceSpan(); }
-  void SetNumRows(bst_idx_t n_rows) { this->num_rows_ = n_rows; }
 
   SketchContainer(SketchContainer&&) = default;
   SketchContainer& operator=(SketchContainer&&) = default;

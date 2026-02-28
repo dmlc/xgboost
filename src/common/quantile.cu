@@ -505,18 +505,10 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   }
 
   timer_.Start(__func__);
-  // Reduce the overhead on syncing.
-  bst_idx_t global_sum_rows = num_rows_;
-  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&global_sum_rows, 1), collective::Op::kSum);
-  SafeColl(rc);
-  bst_idx_t intermediate_num_cuts =
-      std::min(global_sum_rows, static_cast<size_t>(num_bins_ * kFactor));
-  this->Prune(ctx, intermediate_num_cuts);
-
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
   size_t n = d_columns_ptr.size();
-  rc = collective::Allreduce(ctx, linalg::MakeVec(&n, 1), collective::Op::kMax);
+  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&n, 1), collective::Op::kMax);
   SafeColl(rc);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
@@ -560,8 +552,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   timer_.Stop(__func__);
 
   // Merge them into a new sketch.
-  SketchContainer new_sketch(this->feature_types_, num_bins_, this->num_columns_, global_sum_rows,
-                             ctx->Device());
+  SketchContainer new_sketch(this->feature_types_, num_bins_, this->num_columns_, ctx->Device());
   for (size_t i = 0; i < allworkers.size(); ++i) {
     auto worker = allworkers[i];
     auto worker_ptr =

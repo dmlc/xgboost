@@ -30,7 +30,7 @@ TEST(GPUQuantile, Basic) {
   auto ctx = MakeCUDACtx(0);
   constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch(ft, kBins, kCols, kRows, ctx.Device());
+  SketchContainer sketch(ft, kBins, kCols, ctx.Device());
   dh::caching_device_vector<Entry> entries;
   dh::device_vector<bst_idx_t> cuts_ptr(kCols + 1);
   thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
@@ -45,7 +45,7 @@ void TestSketchUnique(float sparsity) {
       kRows, [kRows, kCols, sparsity](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
         auto ctx = MakeCUDACtx(0);
         HostDeviceVector<FeatureType> ft;
-        SketchContainer sketch(ft, n_bins, kCols, kRows, ctx.Device());
+        SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
 
         HostDeviceVector<float> storage;
         std::string interface_str = RandomDataGenerator{kRows, kCols, sparsity}
@@ -130,7 +130,7 @@ TEST(GPUQuantile, Prune) {
   RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
     auto ctx = MakeCUDACtx(0);
     HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch(ft, n_bins, kCols, kRows, ctx.Device());
+    SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
 
     HostDeviceVector<float> storage;
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
@@ -161,7 +161,7 @@ TEST(GPUQuantile, MergeEmpty) {
   size_t n_bins = 10;
   auto ctx = MakeCUDACtx(0);
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_0(ft, n_bins, kCols, kRows, ctx.Device());
+  SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
   HostDeviceVector<float> storage_0;
   std::string interface_str_0 =
       RandomDataGenerator{kRows, kCols, 0}.Device(ctx.Device()).GenerateArrayInterface(&storage_0);
@@ -201,7 +201,7 @@ TEST(GPUQuantile, MergeBasic) {
   RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
     auto ctx = MakeCUDACtx(0);
     HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch_0(ft, n_bins, kCols, kRows, ctx.Device());
+    SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
     HostDeviceVector<float> storage_0;
     std::string interface_str_0 = RandomDataGenerator{kRows, kCols, 0}
                                       .Device(ctx.Device())
@@ -211,7 +211,7 @@ TEST(GPUQuantile, MergeBasic) {
     AdapterDeviceSketch(&ctx, adapter_0.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(), &sketch_0);
 
-    SketchContainer sketch_1(ft, n_bins, kCols, kRows * kRows, ctx.Device());
+    SketchContainer sketch_1(ft, n_bins, kCols, ctx.Device());
     HostDeviceVector<float> storage_1;
     std::string interface_str_1 = RandomDataGenerator{kRows, kCols, 0}
                                       .Device(ctx.Device())
@@ -248,7 +248,7 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
   MetaInfo info;
   int32_t seed = 0;
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_0(ft, n_bins, cols, rows, ctx.Device());
+  SketchContainer sketch_0(ft, n_bins, cols, ctx.Device());
   HostDeviceVector<float> storage_0;
   std::string interface_str_0 = RandomDataGenerator{rows, cols, 0}
                                     .Device(ctx.Device())
@@ -259,7 +259,7 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
                       std::numeric_limits<float>::quiet_NaN(), &sketch_0);
 
   size_t f_rows = rows * frac;
-  SketchContainer sketch_1(ft, n_bins, cols, f_rows, ctx.Device());
+  SketchContainer sketch_1(ft, n_bins, cols, ctx.Device());
   HostDeviceVector<float> storage_1;
   std::string interface_str_1 = RandomDataGenerator{f_rows, cols, 0}
                                     .Device(ctx.Device())
@@ -319,7 +319,7 @@ TEST(GPUQuantile, MultiMerge) {
     // Set up single node version
     HostDeviceVector<FeatureType> ft;
     auto ctx = MakeCUDACtx(0);
-    SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, ctx.Device());
+    SketchContainer sketch_on_single_node(ft, n_bins, kCols, ctx.Device());
 
     size_t intermediate_num_cuts =
         std::min(kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
@@ -332,7 +332,7 @@ TEST(GPUQuantile, MultiMerge) {
                                       .GenerateArrayInterface(&storage);
       data::CupyAdapter adapter(interface_str);
       HostDeviceVector<FeatureType> ft;
-      containers.emplace_back(ft, n_bins, kCols, kRows, ctx.Device());
+      containers.emplace_back(ft, n_bins, kCols, ctx.Device());
       AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
                           std::numeric_limits<float>::quiet_NaN(), &containers.back());
     }
@@ -387,7 +387,7 @@ void TestAllReduceBasic() {
      * Set up single node version.
      */
     HostDeviceVector<FeatureType> ft({}, device);
-    SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, device);
+    SketchContainer sketch_on_single_node(ft, n_bins, kCols, device);
 
     size_t intermediate_num_cuts =
         std::min(kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
@@ -400,7 +400,7 @@ void TestAllReduceBasic() {
                                       .GenerateArrayInterface(&storage);
       data::CupyAdapter adapter(interface_str);
       HostDeviceVector<FeatureType> ft({}, device);
-      containers.emplace_back(ft, n_bins, kCols, kRows, device);
+      containers.emplace_back(ft, n_bins, kCols, device);
       AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
                           std::numeric_limits<float>::quiet_NaN(), &containers.back());
     }
@@ -418,7 +418,7 @@ void TestAllReduceBasic() {
      * the exact same copy of data.
      */
     auto rank = collective::GetRank();
-    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, device);
+    SketchContainer sketch_distributed(ft, n_bins, kCols, device);
     HostDeviceVector<float> storage({}, device);
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
                                     .Device(device)
@@ -537,7 +537,7 @@ void TestSameOnAllWorkers() {
     auto const device = DeviceOrd::CUDA(GPUIDX);
     Context ctx = MakeCUDACtx(device.ordinal);
     HostDeviceVector<FeatureType> ft({}, device);
-    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, device);
+    SketchContainer sketch_distributed(ft, n_bins, kCols, device);
     HostDeviceVector<float> storage({}, device);
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
                                     .Device(device)
@@ -614,7 +614,7 @@ TEST(GPUQuantile, Push) {
   columns_ptr[1] = kRows;
 
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch(ft, n_bins, kCols, kRows, ctx.Device());
+  SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
   sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr), kRows,
               {});
 
@@ -655,7 +655,7 @@ TEST(GPUQuantile, MultiColPush) {
 
   int32_t n_bins = 16;
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch(ft, n_bins, kCols, kRows, ctx.Device());
+  SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
   dh::device_vector<Entry> d_entries{entries};
 
   dh::device_vector<size_t> columns_ptr(kCols + 1, 0);
