@@ -505,6 +505,10 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   }
 
   timer_.Start(__func__);
+  // Bound local sketch size before exchanging data across workers.
+  auto intermediate_num_cuts = static_cast<bst_idx_t>(num_bins_ * kFactor);
+  this->Prune(ctx, intermediate_num_cuts);
+
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
   size_t n = d_columns_ptr.size();
