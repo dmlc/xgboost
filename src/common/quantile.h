@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -60,6 +61,8 @@ struct WQSummary {
       : data{data}, current_elements{current_elements} {}
   /*! \brief Return the number of valid entries in this summary. */
   [[nodiscard]] size_t Size() const { return current_elements; }
+  /*! \brief Return a const span over valid entries [0, Size()). */
+  [[nodiscard]] Span<Entry const> Entries() const { return {data.data(), current_elements}; }
   /*! \brief Set the number of valid entries in this summary. */
   void SetSize(size_t n) {
     CHECK_LE(n, data.size());
@@ -99,6 +102,83 @@ struct WQSummary {
       data[current_elements++] = Entry{wsum, wsum + w, w, queue[i].first};
       wsum += w;
       i = j;
+    }
+  }
+
+  /*!
+   * \brief Set this summary from sorted column entries and prune by max_size.
+   *
+   * The input column must be sorted by feature value.
+   */
+  void SetPruneSorted(common::Span<::xgboost::Entry const> column,
+                      std::vector<float> const &weights, size_t max_size) {
+    CHECK_GE(max_size, 1);
+    CHECK_GE(data.size(), max_size + 1);
+
+    this->Clear();
+    auto const *col_data = column.data();
+    auto const col_size = column.size();
+    double sum_total{0.0};
+    double rmin{0.0};
+    double wmin{0.0};
+    bst_float last_fvalue{0.0f};
+    double next_goal{-1.0f};
+
+    // first pass
+    for (size_t i = 0; i < col_size; ++i) {
+      auto const &c = col_data[i];
+      sum_total += weights[c.index];
+    }
+
+    // second pass
+    for (size_t i = 0; i < col_size; ++i) {
+      auto const &c = col_data[i];
+      if (next_goal == -1.0f) {
+        next_goal = 0.0f;
+        last_fvalue = c.fvalue;
+        wmin = weights[c.index];
+        continue;
+      }
+      if (last_fvalue != c.fvalue) {
+        double rmax = rmin + wmin;
+        auto summary_size = this->Size();
+        if (rmax >= next_goal && summary_size != max_size) {
+          if (summary_size == 0 || last_fvalue > data[summary_size - 1].value) {
+            CHECK_LT(summary_size, max_size) << "invalid maximum size max_size=" << max_size
+                                             << ", stemp.current_elements" << summary_size;
+            data[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                       static_cast<bst_float>(wmin), last_fvalue);
+            ++summary_size;
+            this->SetSize(summary_size);
+          }
+          if (summary_size == max_size) {
+            next_goal = sum_total * 2.0f + 1e-5f;
+          } else {
+            next_goal = static_cast<bst_float>(summary_size * sum_total / max_size);
+          }
+        } else if (rmax >= next_goal) {
+          LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
+                     << ", naxt_goal=" << next_goal << ", size=" << summary_size;
+        }
+        rmin = rmax;
+        wmin = weights[c.index];
+        last_fvalue = c.fvalue;
+      } else {
+        wmin += weights[c.index];
+      }
+    }
+
+    if (col_size != 0) {
+      auto summary_size = this->Size();
+      double rmax = rmin + wmin;
+      if (summary_size == 0 || last_fvalue > data[summary_size - 1].value) {
+        CHECK_LE(summary_size, max_size) << "Finalize: invalid maximum size, max_size=" << max_size
+                                         << ", stemp.current_elements=" << summary_size;
+        data[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                   static_cast<bst_float>(wmin), last_fvalue);
+        ++summary_size;
+        this->SetSize(summary_size);
+      }
     }
   }
   /*!
@@ -386,74 +466,9 @@ class WQuantileSketch {
                   size_t num_retained_items) {
     CHECK_GE(num_retained_items, 1);
     auto const max_size = num_retained_items;
-    double sum_total{0.0};
-    double rmin{0.0};
-    double wmin{0.0};
-    bst_float last_fvalue{0.0f};
-    double next_goal{-1.0f};
-
     this->temp.Reserve(max_size + 1);
-    this->temp.Clear();
-
-    // first pass
-    for (auto c : column) {
-      sum_total += weights[c.index];
-    }
-
-    // second pass
-    for (auto c : column) {
-      // Use raw pointer for temp summary updates in this hot path.
-      auto *temp_data = this->temp.data.data();
-      auto temp_size = this->temp.Size();
-      if (next_goal == -1.0f) {
-        next_goal = 0.0f;
-        last_fvalue = c.fvalue;
-        wmin = weights[c.index];
-        continue;
-      }
-      if (last_fvalue != c.fvalue) {
-        double rmax = rmin + wmin;
-        if (rmax >= next_goal && temp_size != max_size) {
-          if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
-            // push to sketch
-            temp_data[temp_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
-                                         static_cast<bst_float>(wmin), last_fvalue);
-            CHECK_LT(temp_size, max_size) << "invalid maximum size max_size=" << max_size
-                                          << ", stemp.current_elements" << temp_size;
-            ++temp_size;
-          }
-          if (temp_size == max_size) {
-            next_goal = sum_total * 2.0f + 1e-5f;
-          } else {
-            next_goal = static_cast<bst_float>(temp_size * sum_total / max_size);
-          }
-        } else if (rmax >= next_goal) {
-          LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
-                     << ", naxt_goal=" << next_goal << ", size=" << temp_size;
-        }
-        rmin = rmax;
-        wmin = weights[c.index];
-        last_fvalue = c.fvalue;
-      } else {
-        wmin += weights[c.index];
-      }
-      this->temp.SetSize(temp_size);
-    }
-
+    this->temp.SetPruneSorted(column, weights, max_size);
     if (!column.empty()) {
-      // Use raw pointer for temp summary writes in this final hot step.
-      auto *temp_data = this->temp.data.data();
-      auto temp_size = this->temp.Size();
-      double rmax = rmin + wmin;
-      if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
-        CHECK_LE(temp_size, max_size) << "Finalize: invalid maximum size, max_size=" << max_size
-                                      << ", stemp.current_elements=" << temp_size;
-        // push to sketch
-        temp_data[temp_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
-                                     static_cast<bst_float>(wmin), last_fvalue);
-        ++temp_size;
-      }
-      this->temp.SetSize(temp_size);
       this->PushTemp();
     }
   }
@@ -676,11 +691,9 @@ class SketchContainerImpl {
 
  private:
   // Gather sketches from all workers.
-  void GatherSketchInfo(Context const *ctx, MetaInfo const &info,
-                        std::vector<WQSketch::SummaryContainer> const &reduced,
-                        std::vector<bst_idx_t> *p_worker_segments,
-                        std::vector<bst_idx_t> *p_sketches_scan,
-                        std::vector<WQSketch::Entry> *p_global_sketches);
+  [[nodiscard]] auto GatherSketchInfo(Context const *ctx, MetaInfo const &info,
+                                      std::vector<WQSketch::SummaryContainer> const &reduced)
+      -> std::tuple<std::vector<bst_idx_t>, std::vector<bst_idx_t>, std::vector<WQSketch::Entry>>;
   // Merge sketches from all workers.
   void AllReduce(Context const *ctx, MetaInfo const &info,
                  std::vector<WQSketch::SummaryContainer> *p_reduced,
