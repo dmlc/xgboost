@@ -37,9 +37,8 @@ TEST(CAPI, XGDMatrixCreateFromMatOmp) {
       data[i] = std::numeric_limits<float>::quiet_NaN();
     }
 
-    XGDMatrixCreateFromMat_omp(data.data(), row, num_cols,
-                               std::numeric_limits<float>::quiet_NaN(), &handle,
-                               0);
+    XGDMatrixCreateFromMat_omp(data.data(), row, num_cols, std::numeric_limits<float>::quiet_NaN(),
+                               &handle, 0);
 
     std::shared_ptr<xgboost::DMatrix> *dmat =
         static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
@@ -64,7 +63,7 @@ TEST(CAPI, XGDMatrixCreateFromMatOmp) {
 namespace xgboost {
 
 TEST(CAPI, Version) {
-  int patch {0};
+  int patch{0};
   XGBoostVersion(NULL, NULL, &patch);  // NOLINT
   ASSERT_EQ(patch, XGBOOST_VER_PATCH);
 }
@@ -108,7 +107,7 @@ TEST(CAPI, XGDMatrixCreateFromCSR) {
 TEST(CAPI, ConfigIO) {
   size_t constexpr kRows = 10;
   auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatrix();
-  std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
+  std::vector<std::shared_ptr<DMatrix>> mat{p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
     labels[i] = i;
@@ -116,21 +115,21 @@ TEST(CAPI, ConfigIO) {
   p_dmat->Info().labels.Data()->HostVector() = labels;
   p_dmat->Info().labels.Reshape(kRows);
 
-  std::shared_ptr<Learner> learner { Learner::Create(mat) };
+  std::shared_ptr<Learner> learner{Learner::Create(mat)};
 
   BoosterHandle handle = learner.get();
   learner->UpdateOneIter(0, p_dmat);
 
-  std::array<char const* , 1> out;
-  bst_ulong len {0};
+  std::array<char const *, 1> out;
+  bst_ulong len{0};
   XGBoosterSaveJsonConfig(handle, &len, out.data());
 
-  std::string config_str_0 { out[0] };
+  std::string config_str_0{out[0]};
   auto config_0 = Json::Load({config_str_0.c_str(), config_str_0.size()});
   XGBoosterLoadJsonConfig(handle, out[0]);
 
-  bst_ulong len_1 {0};
-  std::string config_str_1 { out[0] };
+  bst_ulong len_1{0};
+  std::string config_str_1{out[0]};
   XGBoosterSaveJsonConfig(handle, &len_1, out.data());
   auto config_1 = Json::Load({config_str_1.c_str(), config_str_1.size()});
 
@@ -143,7 +142,7 @@ TEST(CAPI, JsonModelIO) {
   auto tempdir = std::filesystem::temp_directory_path();
 
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-  std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
+  std::vector<std::shared_ptr<DMatrix>> mat{p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
     labels[i] = i;
@@ -151,7 +150,7 @@ TEST(CAPI, JsonModelIO) {
   p_dmat->Info().labels.Data()->HostVector() = labels;
   p_dmat->Info().labels.Reshape(kRows);
 
-  std::shared_ptr<Learner> learner { Learner::Create(mat) };
+  std::shared_ptr<Learner> learner{Learner::Create(mat)};
 
   learner->UpdateOneIter(0, p_dmat);
   BoosterHandle handle = learner.get();
@@ -160,7 +159,7 @@ TEST(CAPI, JsonModelIO) {
   XGBoosterSaveModel(handle, modelfile_0.u8string().c_str());
   XGBoosterLoadModel(handle, modelfile_0.u8string().c_str());
 
-  bst_ulong num_feature {0};
+  bst_ulong num_feature{0};
   ASSERT_EQ(XGBoosterGetNumFeature(handle, &num_feature), 0);
   ASSERT_EQ(num_feature, kCols);
 
@@ -204,7 +203,7 @@ TEST(CAPI, JsonModelIO) {
 TEST(CAPI, CatchDMLCError) {
   DMatrixHandle out;
   ASSERT_EQ(XGDMatrixCreateFromFile("foo", 0, &out), -1);
-  EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
+  EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); }, dmlc::Error);
 }
 
 TEST(CAPI, CatchDMLCErrorURI) {
@@ -215,7 +214,7 @@ TEST(CAPI, CatchDMLCErrorURI) {
   Json::Dump(config, &config_str);
   DMatrixHandle out;
   ASSERT_EQ(XGDMatrixCreateFromURI(config_str.c_str(), &out), -1);
-  EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
+  EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); }, dmlc::Error);
 }
 
 TEST(CAPI, DMatrixSetFeatureName) {
@@ -225,24 +224,21 @@ TEST(CAPI, DMatrixSetFeatureName) {
   DMatrixHandle handle;
   std::vector<float> data(kCols * kRows, 1.5);
 
-  XGDMatrixCreateFromMat_omp(data.data(), kRows, kCols,
-                             std::numeric_limits<float>::quiet_NaN(), &handle,
-                             0);
+  XGDMatrixCreateFromMat_omp(data.data(), kRows, kCols, std::numeric_limits<float>::quiet_NaN(),
+                             &handle, 0);
   std::vector<std::string> feature_names;
   for (bst_feature_t i = 0; i < kCols; ++i) {
     feature_names.emplace_back(std::to_string(i));
   }
-  std::vector<char const*> c_feature_names;
+  std::vector<char const *> c_feature_names;
   c_feature_names.resize(feature_names.size());
-  std::transform(feature_names.cbegin(), feature_names.cend(),
-                 c_feature_names.begin(),
+  std::transform(feature_names.cbegin(), feature_names.cend(), c_feature_names.begin(),
                  [](auto const &str) { return str.c_str(); });
   XGDMatrixSetStrFeatureInfo(handle, u8"feature_name", c_feature_names.data(),
                              c_feature_names.size());
   bst_ulong out_len = 0;
   char const **c_out_features;
-  XGDMatrixGetStrFeatureInfo(handle, u8"feature_name", &out_len,
-                             &c_out_features);
+  XGDMatrixGetStrFeatureInfo(handle, u8"feature_name", &out_len, &c_out_features);
 
   CHECK_EQ(out_len, kCols);
   std::vector<std::string> out_features;
@@ -254,8 +250,7 @@ TEST(CAPI, DMatrixSetFeatureName) {
   static_assert(sizeof(feat_types) / sizeof(feat_types[0]) == kCols);
   XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types.data(), kCols);
   char const **c_out_types;
-  XGDMatrixGetStrFeatureInfo(handle, u8"feature_type", &out_len,
-                             &c_out_types);
+  XGDMatrixGetStrFeatureInfo(handle, u8"feature_type", &out_len, &c_out_types);
   for (bst_ulong i = 0; i < out_len; ++i) {
     ASSERT_STREQ(feat_types[i], c_out_types[i]);
   }
@@ -270,7 +265,7 @@ int TestExceptionCatching() {
 }
 
 TEST(CAPI, Exception) {
-  ASSERT_NO_THROW({TestExceptionCatching();});
+  ASSERT_NO_THROW({ TestExceptionCatching(); });
   ASSERT_EQ(TestExceptionCatching(), -1);
   auto error = XGBGetLastError();
   // Not null
@@ -293,8 +288,7 @@ TEST(CAPI, XGBGlobalConfig) {
     ASSERT_EQ(ret, 0);
 
     std::string updated_config_str{updated_config_cstr};
-    auto updated_config =
-        Json::Load({updated_config_str.data(), updated_config_str.size()});
+    auto updated_config = Json::Load({updated_config_str.data(), updated_config_str.size()});
     ASSERT_EQ(get<Integer>(updated_config["verbosity"]), 0);
     ASSERT_EQ(get<Boolean>(updated_config["use_rmm"]), false);
   }
@@ -311,8 +305,7 @@ TEST(CAPI, XGBGlobalConfig) {
     ASSERT_EQ(ret, 0);
 
     std::string updated_config_str{updated_config_cstr};
-    auto updated_config =
-        Json::Load({updated_config_str.data(), updated_config_str.size()});
+    auto updated_config = Json::Load({updated_config_str.data(), updated_config_str.size()});
     ASSERT_EQ(get<Boolean>(updated_config["use_rmm"]), true);
   }
   {
@@ -322,7 +315,7 @@ TEST(CAPI, XGBGlobalConfig) {
     }
   )json";
     ret = XGBSetGlobalConfig(config_str);
-    ASSERT_EQ(ret , -1);
+    ASSERT_EQ(ret, -1);
     auto err = std::string{XGBGetLastError()};
     ASSERT_NE(err.find("foo"), std::string::npos);
   }
@@ -334,7 +327,7 @@ TEST(CAPI, XGBGlobalConfig) {
     }
   )json";
     ret = XGBSetGlobalConfig(config_str);
-    ASSERT_EQ(ret , -1);
+    ASSERT_EQ(ret, -1);
     auto err = std::string{XGBGetLastError()};
     ASSERT_NE(err.find("foo"), std::string::npos);
     ASSERT_EQ(err.find("verbosity"), std::string::npos);
@@ -342,7 +335,7 @@ TEST(CAPI, XGBGlobalConfig) {
 }
 
 TEST(CAPI, BuildInfo) {
-  char const* out;
+  char const *out;
   XGBuildInfo(&out);
   auto loaded = Json::Load(StringView{out});
   ASSERT_TRUE(get<Object const>(loaded).find("USE_OPENMP") != get<Object const>(loaded).cend());
@@ -451,9 +444,9 @@ auto MakeQDMForTest(Context const *ctx, bst_idx_t n_samples, bst_feature_t n_fea
   } else {
     iter_1 = std::make_unique<NumpyArrayIterForTest>(0.0f, n_samples, n_features, n_batches);
   }
-  auto Xy = std::make_shared<data::IterativeDMatrix>(
-      iter_1.get(), iter_1->Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(),
-      0, n_bins, std::numeric_limits<std::int64_t>::max());
+  auto Xy =
+      std::make_shared<data::IterativeDMatrix>(iter_1.get(), iter_1->Proxy(), nullptr, Reset, Next,
+                                               std::numeric_limits<float>::quiet_NaN(), 0, n_bins);
   return std::pair{p_fmat, Xy};
 }
 

@@ -27,7 +27,7 @@ namespace xgboost::data {
 IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                                    std::shared_ptr<DMatrix> ref, DataIterResetCallback* reset,
                                    XGDMatrixCallbackNext* next, float missing, int nthread,
-                                   bst_bin_t max_bin, std::int64_t max_quantile_blocks)
+                                   bst_bin_t max_bin)
     : proxy_{proxy} {
   // The external iterator, fetch the first batch
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset, next};
@@ -43,7 +43,7 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
 
   if (ctx.IsCUDA()) {
-    this->InitFromCUDA(&ctx, p, max_quantile_blocks, std::move(iter), missing, ref);
+    this->InitFromCUDA(&ctx, p, std::move(iter), missing, ref);
   } else {
     this->InitFromCPU(&ctx, p, std::move(iter), missing, ref);
   }
@@ -195,7 +195,7 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, std::int64_t,
+void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&,
                                     DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>&&,
                                     float, std::shared_ptr<DMatrix>) {
   // silent the warning about unused variables.

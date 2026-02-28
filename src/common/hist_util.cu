@@ -367,8 +367,7 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
   auto d_weight = UnifyWeight(cuctx, info, hessian, &weight);
 
   HistogramCuts cuts;
-  SketchContainer sketch_container(info.feature_types, max_bin, info.num_col_, info.num_row_,
-                                   ctx->Device());
+  SketchContainer sketch_container(info.feature_types, max_bin, info.num_col_, ctx->Device());
   CHECK_EQ(has_weight || !hessian.empty(), !d_weight.empty());
   for (const auto& page : p_fmat->GetBatches<SparsePage>()) {
     std::size_t page_nnz = page.data.Size();

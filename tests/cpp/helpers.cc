@@ -34,12 +34,12 @@
 
 // TODO(hcho3): Remove this guard once we require Rapids 25.12+
 #if (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-#include "rmm/mr/per_device_resource.hpp"
 #include "rmm/mr/cuda_memory_resource.hpp"
+#include "rmm/mr/per_device_resource.hpp"
 #include "rmm/mr/pool_memory_resource.hpp"
 #else  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
-#include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/cuda_memory_resource.hpp"
+#include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/pool_memory_resource.hpp"
 #endif  // (RMM_VERSION_MAJOR == 25 && RMM_VERSION_MINOR == 12) || RMM_VERSION_MAJOR >= 26
 
@@ -50,9 +50,7 @@ bool FileExists(const std::string& filename) {
   return stat(filename.c_str(), &st) == 0;
 }
 
-void CreateSimpleTestData(const std::string& filename) {
-  CreateBigTestData(filename, 6);
-}
+void CreateSimpleTestData(const std::string& filename) { CreateBigTestData(filename, 6); }
 
 void CreateBigTestData(const std::string& filename, size_t n_entries, bool zero_based) {
   std::ofstream fo(filename.c_str());
@@ -103,8 +101,7 @@ void CreateTestCSV(std::string const& path, size_t rows, size_t cols) {
 void CheckObjFunctionImpl(std::unique_ptr<xgboost::ObjFunction> const& obj,
                           std::vector<xgboost::bst_float> preds,
                           std::vector<xgboost::bst_float> labels,
-                          std::vector<xgboost::bst_float> weights,
-                          xgboost::MetaInfo const& info,
+                          std::vector<xgboost::bst_float> weights, xgboost::MetaInfo const& info,
                           std::vector<xgboost::bst_float> out_grad,
                           std::vector<xgboost::bst_float> out_hess) {
   xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
@@ -115,17 +112,16 @@ void CheckObjFunctionImpl(std::unique_ptr<xgboost::ObjFunction> const& obj,
   ASSERT_EQ(gpair.size(), in_preds.Size());
   for (int i = 0; i < static_cast<int>(gpair.size()); ++i) {
     EXPECT_NEAR(gpair[i].GetGrad(), out_grad[i], 0.01)
-      << "Unexpected grad for pred=" << preds[i] << " label=" << labels[i]
-      << " weight=" << weights[i];
+        << "Unexpected grad for pred=" << preds[i] << " label=" << labels[i]
+        << " weight=" << weights[i];
     EXPECT_NEAR(gpair[i].GetHess(), out_hess[i], 0.01)
-      << "Unexpected hess for pred=" << preds[i] << " label=" << labels[i]
-      << " weight=" << weights[i];
+        << "Unexpected hess for pred=" << preds[i] << " label=" << labels[i]
+        << " weight=" << weights[i];
   }
 }
 
 void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
-                      std::vector<xgboost::bst_float> preds,
-                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> preds, std::vector<xgboost::bst_float> labels,
                       std::vector<xgboost::bst_float> weights,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess) {
@@ -140,13 +136,12 @@ void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
   CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
 }
 
-xgboost::Json CheckConfigReloadImpl(xgboost::Configurable* const configurable,
-                                    std::string name) {
-  xgboost::Json config_0 { xgboost::Object() };
+xgboost::Json CheckConfigReloadImpl(xgboost::Configurable* const configurable, std::string name) {
+  xgboost::Json config_0{xgboost::Object()};
   configurable->SaveConfig(&config_0);
   configurable->LoadConfig(config_0);
 
-  xgboost::Json config_1 { xgboost::Object() };
+  xgboost::Json config_1{xgboost::Object()};
   configurable->SaveConfig(&config_1);
 
   std::string str_0, str_1;
@@ -240,8 +235,8 @@ RandomDataGenerator::RandomDataGenerator(bst_idx_t rows, std::size_t cols, float
       cache_host_ratio_{cuda_impl::AutoHostRatio()} {}
 
 void RandomDataGenerator::GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const {
-  RandomDataGenerator{static_cast<bst_idx_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}.GenerateDense(
-      p_fmat->Info().labels.Data());
+  RandomDataGenerator{static_cast<bst_idx_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}
+      .GenerateDense(p_fmat->Info().labels.Data());
   CHECK_EQ(p_fmat->Info().labels.Size(), this->rows_ * this->n_targets_);
   p_fmat->Info().labels.Reshape(this->rows_, this->n_targets_);
   if (device_.IsCUDA()) {
@@ -249,15 +244,15 @@ void RandomDataGenerator::GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const 
   }
 }
 
-void RandomDataGenerator::GenerateDense(HostDeviceVector<float> *out) const {
+void RandomDataGenerator::GenerateDense(HostDeviceVector<float>* out) const {
   xgboost::SimpleRealUniformDistribution<bst_float> dist(lower_, upper_);
   CHECK(out);
 
   SimpleLCG lcg{lcg_};
   out->Resize(rows_ * cols_, 0);
-  auto &h_data = out->HostVector();
+  auto& h_data = out->HostVector();
   float sparsity = sparsity_ * (upper_ - lower_) + lower_;
-  for (auto &v : h_data) {
+  for (auto& v : h_data) {
     auto g = dist(&lcg);
     if (g < sparsity) {
       v = std::numeric_limits<float>::quiet_NaN();
@@ -271,14 +266,13 @@ void RandomDataGenerator::GenerateDense(HostDeviceVector<float> *out) const {
   }
 }
 
-Json RandomDataGenerator::ArrayInterfaceImpl(HostDeviceVector<float> *storage,
-                                             size_t rows, size_t cols) const {
+Json RandomDataGenerator::ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows,
+                                             size_t cols) const {
   this->GenerateDense(storage);
   return GetArrayInterface(storage, rows, cols);
 }
 
-std::string RandomDataGenerator::GenerateArrayInterface(
-    HostDeviceVector<float> *storage) const {
+std::string RandomDataGenerator::GenerateArrayInterface(HostDeviceVector<float>* storage) const {
   auto array_interface = this->ArrayInterfaceImpl(storage, rows_, cols_);
   std::string out;
   Json::Dump(array_interface, &out);
@@ -343,11 +337,11 @@ std::pair<std::vector<std::string>, std::string> RandomDataGenerator::GenerateAr
 }
 
 std::string RandomDataGenerator::GenerateColumnarArrayInterface(
-    std::vector<HostDeviceVector<float>> *data) const {
+    std::vector<HostDeviceVector<float>>* data) const {
   CHECK(data);
   CHECK_EQ(data->size(), cols_);
   auto& storage = *data;
-  Json arr { Array() };
+  Json arr{Array()};
   for (size_t i = 0; i < cols_; ++i) {
     auto column = this->ArrayInterfaceImpl(&storage[i], rows_, 1);
     get<Array>(arr).emplace_back(column);
@@ -357,9 +351,9 @@ std::string RandomDataGenerator::GenerateColumnarArrayInterface(
   return out;
 }
 
-void RandomDataGenerator::GenerateCSR(
-    HostDeviceVector<float>* value, HostDeviceVector<std::size_t>* row_ptr,
-    HostDeviceVector<bst_feature_t>* columns) const {
+void RandomDataGenerator::GenerateCSR(HostDeviceVector<float>* value,
+                                      HostDeviceVector<std::size_t>* row_ptr,
+                                      HostDeviceVector<bst_feature_t>* columns) const {
   auto& h_value = value->HostVector();
   auto& h_rptr = row_ptr->HostVector();
   auto& h_cols = columns->HostVector();
@@ -554,9 +548,9 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
       }
           .SetParamsForTest(this->hw_decomp_ratio_, DecompAllowFallback());
 
-  std::shared_ptr<DMatrix> p_fmat{
-      DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), this->ref_, Reset,
-                      Next, this->bins_, std::numeric_limits<std::int64_t>::max(), config)};
+  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(static_cast<DataIterHandle>(iter.get()),
+                                                  iter->Proxy(), this->ref_, Reset, Next,
+                                                  this->bins_, config)};
 
   auto page_path = data::MakeId(prefix, p_fmat.get());
   page_path += device_.IsCPU() ? ".gradient_index.page" : ".ellpack.page";
@@ -575,14 +569,14 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix(bool with_
 
   if (this->device_.IsCPU()) {
     NumpyArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
-    p_fmat = std::make_shared<data::IterativeDMatrix>(
-        &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
-        bins_, std::numeric_limits<std::int64_t>::max());
+    p_fmat =
+        std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
+                                                 std::numeric_limits<float>::quiet_NaN(), 0, bins_);
   } else {
     CudaArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
-    p_fmat = std::make_shared<data::IterativeDMatrix>(
-        &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
-        bins_, std::numeric_limits<std::int64_t>::max());
+    p_fmat =
+        std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
+                                                 std::numeric_limits<float>::quiet_NaN(), 0, bins_);
   }
 
   if (with_label) {
@@ -713,18 +707,17 @@ ArrayIterForTest::ArrayIterForTest(Context const* ctx, HostDeviceVector<float> c
 
 ArrayIterForTest::~ArrayIterForTest() { XGDMatrixFree(proxy_); }
 
-void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,
-                  std::vector<size_t> *p_row_ptr,
-                  std::vector<bst_feature_t> *p_cids) {
-  auto &data = *p_data;
-  auto &row_ptr = *p_row_ptr;
-  auto &cids = *p_cids;
+void DMatrixToCSR(DMatrix* dmat, std::vector<float>* p_data, std::vector<size_t>* p_row_ptr,
+                  std::vector<bst_feature_t>* p_cids) {
+  auto& data = *p_data;
+  auto& row_ptr = *p_row_ptr;
+  auto& cids = *p_cids;
 
   data.resize(dmat->Info().num_nonzero_);
   cids.resize(data.size());
   row_ptr.resize(dmat->Info().num_row_ + 1);
   SparsePage page;
-  for (const auto &batch : dmat->GetBatches<SparsePage>()) {
+  for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     page.Push(batch);
   }
 
@@ -734,13 +727,11 @@ void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,
   CHECK_EQ(in_offset.size(), row_ptr.size());
   std::copy(in_offset.cbegin(), in_offset.cend(), row_ptr.begin());
   ASSERT_EQ(in_data.size(), data.size());
-  std::transform(in_data.cbegin(), in_data.cend(), data.begin(), [](Entry const& e) {
-    return e.fvalue;
-  });
+  std::transform(in_data.cbegin(), in_data.cend(), data.begin(),
+                 [](Entry const& e) { return e.fvalue; });
   ASSERT_EQ(in_data.size(), cids.size());
-  std::transform(in_data.cbegin(), in_data.cend(), cids.begin(), [](Entry const& e) {
-    return e.index;
-  });
+  std::transform(in_data.cbegin(), in_data.cend(), cids.begin(),
+                 [](Entry const& e) { return e.index; });
 }
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
@@ -765,9 +756,7 @@ class RMMAllocator {
   ~RMMAllocator() = default;
 };
 
-void DeleteRMMResource(RMMAllocator* r) {
-  delete r;
-}
+void DeleteRMMResource(RMMAllocator* r) { delete r; }
 
 RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
   bool use_rmm_pool = false;
@@ -787,7 +776,7 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
   GlobalConfigThreadLocalStore::Get()->UpdateAllowUnknown(Args{{"use_rmm", "true"}});
   return ptr;
 }
-#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#else   // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 class RMMAllocator {};
 
 void DeleteRMMResource(RMMAllocator*) {}
@@ -796,4 +785,4 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int, char**) { return {nullptr, Dele
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
 
 std::int32_t DistGpuIdx() { return curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank(); }
-} // namespace xgboost
+}  // namespace xgboost

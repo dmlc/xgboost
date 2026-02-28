@@ -4,7 +4,6 @@
 #include <algorithm>  // for max
 #include <limits>     // for numeric_limits
 #include <numeric>    // for partial_sum
-#include <utility>    // for pair
 #include <vector>     // for vector
 
 #include "../collective/allreduce.h"    // for Allreduce
@@ -31,33 +30,11 @@ void MakeSketches(Context const* ctx,
                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>* iter,
                   DMatrixProxy* proxy, std::shared_ptr<DMatrix> ref, BatchParam const& p,
                   float missing, std::shared_ptr<common::HistogramCuts> cuts, MetaInfo const& info,
-                  std::int64_t max_quantile_blocks, ExternalDataInfo* p_ext_info) {
+                  ExternalDataInfo* p_ext_info) {
   xgboost_NVTX_FN_RANGE();
-  /**
-   * A variant of: A Fast Algorithm for Approximate Quantiles in High Speed Data Streams
-   *
-   * The original algorithm was designed for CPU where input is a stream with individual
-   * elements. For GPU, we process the data in batches. As a result, the implementation
-   * here simply uses the user input batch as the basic unit of sketching blocks. The
-   * number of blocks per-level grows exponentially.
-   */
-  std::vector<std::pair<std::unique_ptr<common::SketchContainer>, bst_idx_t>> sketches;
+  // Lazy because we need the `n_features`.
+  std::unique_ptr<common::SketchContainer> sketch;
   auto& ext_info = *p_ext_info;
-
-  auto lazy_init_sketch = [&] {
-    // Lazy because we need the `n_features`.
-    sketches.emplace_back(std::make_unique<common::SketchContainer>(
-                              proxy->Info().feature_types, p.max_bin, ext_info.n_features,
-                              data::BatchSamples(proxy), dh::GetDevice(ctx)),
-                          0);
-  };
-  auto total_capacity = [&] {
-    bst_idx_t n_bytes = 0;
-    for (auto const& sk : sketches) {
-      n_bytes += sk.first->MemCapacityBytes();
-    }
-    return n_bytes;
-  };
 
   // Workaround empty input with CPU ctx.
   Context new_ctx;
@@ -92,35 +69,24 @@ void MakeSketches(Context const* ctx,
 
     auto batch_rows = data::BatchSamples(proxy);
     ext_info.accumulated_rows += batch_rows;
+    // Prune to this after each batch
+    auto n_cuts_per_feat =
+        common::detail::RequiredSampleCutsPerColumn(p.max_bin, ext_info.accumulated_rows);
 
     /**
      * Handle sketching.
      */
     if (!ref) {
-      CHECK_LE(max_quantile_blocks, std::numeric_limits<bst_idx_t>::max());
-      CHECK_GT(max_quantile_blocks, 0) << "`max_quantile_blocks` must be greater than 0.";
-      if (sketches.empty()) {
-        lazy_init_sketch();
-      }
-      if (sketches.back().second > (1ul << (sketches.size() - 1)) ||
-          sketches.back().second == static_cast<bst_idx_t>(max_quantile_blocks)) {
-        // Cut the sub-stream.
-        auto n_cuts_per_feat =
-            common::detail::RequiredSampleCutsPerColumn(p.max_bin, ext_info.accumulated_rows);
-        // Prune to a single block
-        sketches.back().first->Prune(p_ctx, n_cuts_per_feat);
-        sketches.back().first->ShrinkToFit();
-
-        sketches.back().second = 1;
-        lazy_init_sketch();  // Add a new level.
+      if (!sketch) {
+        sketch = std::make_unique<common::SketchContainer>(proxy->Info().feature_types, p.max_bin,
+                                                           ext_info.n_features, dh::GetDevice(ctx));
       }
       proxy->Info().weights_.SetDevice(dh::GetDevice(ctx));
       DispatchAny(proxy, [&](auto const& value) {
-        common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing,
-                                    sketches.back().first.get());
-        sketches.back().second++;
+        common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing, sketch.get());
       });
-      LOG(DEBUG) << "Total capacity:" << common::HumanMemUnit(total_capacity());
+      sketch->Prune(p_ctx, n_cuts_per_feat);
+      LOG(DEBUG) << "Total capacity:" << common::HumanMemUnit(sketch->MemCapacityBytes());
     }
 
     /**
@@ -145,28 +111,13 @@ void MakeSketches(Context const* ctx,
   // Get reference
   curt::SetDevice(dh::GetDevice(ctx).ordinal);
   if (!ref) {
-    HostDeviceVector<FeatureType> ft;
-    common::SketchContainer final_sketch(
-        sketches.empty() ? ft : sketches.front().first->FeatureTypes(), p.max_bin,
-        ext_info.n_features, ext_info.accumulated_rows, dh::GetDevice(ctx));
-    // Reverse order since the last container might contain summary that's not yet pruned.
-    for (auto it = sketches.crbegin(); it != sketches.crend(); ++it) {
-      auto& sketch = *it;
-
-      CHECK_GE(sketch.second, 1);
-      if (sketch.second > 1) {
-        sketch.first->Prune(p_ctx, common::detail::RequiredSampleCutsPerColumn(
-                                       p.max_bin, ext_info.accumulated_rows));
-        sketch.first->ShrinkToFit();
-      }
-      final_sketch.Merge(p_ctx, sketch.first->ColumnsPtr(), sketch.first->Data());
-      final_sketch.FixError();
+    if (!sketch) {
+      // Empty local input can happen in distributed settings.
+      sketch = std::make_unique<common::SketchContainer>(proxy->Info().feature_types, p.max_bin,
+                                                         ext_info.n_features, dh::GetDevice(ctx));
     }
-
-    sketches.clear();
-    sketches.shrink_to_fit();
-
-    final_sketch.MakeCuts(ctx, cuts.get(), info.IsColumnSplit());
+    sketch->MakeCuts(ctx, cuts.get(), info.IsColumnSplit());
+    sketch.reset();
   } else {
     GetCutsFromRef(ctx, ref, ext_info.n_features, p, cuts.get());
   }
