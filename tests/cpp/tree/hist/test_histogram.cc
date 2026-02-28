@@ -481,7 +481,7 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
       concat.Push(page);
     }
 
-    auto cut = common::SketchOnDMatrix(ctx, m.get(), batch_param.max_bin, hess);
+    auto cut = common::SketchOnDMatrix(ctx, m.get(), batch_param.max_bin, false, hess);
     GHistIndexMatrix gmat(ctx, concat, {}, cut, batch_param.max_bin, false,
                           std::numeric_limits<double>::quiet_NaN());
 

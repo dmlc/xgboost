@@ -169,7 +169,7 @@ class GHistIndexMatrix {
    * @brief Constrcutor for SimpleDMatrix.
    */
   GHistIndexMatrix(Context const* ctx, DMatrix* x, bst_bin_t max_bins_per_feat,
-                   double sparse_thresh, common::Span<float const> hess = {});
+                   double sparse_thresh, bool sorted_sketch, common::Span<float const> hess = {});
   /**
    * @brief Constructor for Quantile DMatrix. Initialize basic information and prepare
    *        for push batch.

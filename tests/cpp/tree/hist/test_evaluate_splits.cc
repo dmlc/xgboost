@@ -97,7 +97,7 @@ void TestPartitionBasedSplit::SetUp() {
 void TestEvaluateSplits(bool force_read_by_column) {
   Context ctx;
   ctx.nthread = 4;
-  static constexpr int kRows = 8, kCols = 16;
+  int static constexpr kRows = 8, kCols = 16;
   auto sampler = std::make_shared<common::ColumnSampler>(1u);
 
   TrainParam param;
@@ -107,13 +107,13 @@ void TestEvaluateSplits(bool force_read_by_column) {
 
   auto evaluator = HistEvaluator{&ctx, &param, dmat->Info(), sampler};
   BoundedHistCollection hist;
-  std::vector<GradientPair> row_gpairs = {{1.23f, 0.24f},  {0.24f, 0.25f}, {0.26f, 0.27f},
-                                          {2.27f, 0.28f},  {0.27f, 0.29f}, {0.37f, 0.39f},
-                                          {-0.47f, 0.49f}, {0.57f, 0.59f}};
+  std::vector<GradientPair> row_gpairs = {
+      {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f},  {2.27f, 0.28f},
+      {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f}};
 
   size_t constexpr kMaxBins = 4;
   // dense, no missing values
-  GHistIndexMatrix gmat(&ctx, dmat.get(), kMaxBins, 0.5);
+  GHistIndexMatrix gmat(&ctx, dmat.get(), kMaxBins, 0.5, false);
   common::RowSetCollection row_set_collection;
   std::vector<bst_idx_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);
@@ -141,19 +141,21 @@ void TestEvaluateSplits(bool force_read_by_column) {
   evaluator.InitRoot(GradStats{total_gpair});
   evaluator.EvaluateSplits(hist, gmat.cut, {}, tree, &entries);
 
-  auto best_loss_chg = evaluator.Evaluator().CalcSplitGain(
-                           param, 0, entries.front().split.SplitIndex(),
-                           entries.front().split.left_sum, entries.front().split.right_sum) -
-                       evaluator.Stats().front().root_gain;
+  auto best_loss_chg =
+      evaluator.Evaluator().CalcSplitGain(
+          param, 0, entries.front().split.SplitIndex(),
+          entries.front().split.left_sum, entries.front().split.right_sum) -
+      evaluator.Stats().front().root_gain;
   ASSERT_EQ(entries.front().split.loss_chg, best_loss_chg);
   ASSERT_GT(entries.front().split.loss_chg, 16.2f);
 
   // Assert that's the best split
   for (size_t i = 1; i < gmat.cut.Ptrs().size(); ++i) {
     GradStats left, right;
-    for (size_t j = gmat.cut.Ptrs()[i - 1]; j < gmat.cut.Ptrs()[i]; ++j) {
-      auto loss_chg = evaluator.Evaluator().CalcSplitGain(param, 0, i - 1, left, right) -
-                      evaluator.Stats().front().root_gain;
+    for (size_t j = gmat.cut.Ptrs()[i-1]; j < gmat.cut.Ptrs()[i]; ++j) {
+      auto loss_chg =
+          evaluator.Evaluator().CalcSplitGain(param, 0, i - 1, left, right) -
+          evaluator.Stats().front().root_gain;
       ASSERT_GE(best_loss_chg, loss_chg);
       left.Add(hist[0][j].GetGrad(), hist[0][j].GetHess());
       right.SetSubstract(GradStats{total_gpair}, left);
@@ -237,7 +239,7 @@ TEST(HistEvaluator, Apply) {
   Context ctx;
   ctx.nthread = 4;
   RegTree tree;
-  static constexpr int kNRows = 8, kNCols = 16;
+  int static constexpr kNRows = 8, kNCols = 16;
   TrainParam param;
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
@@ -281,7 +283,7 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
 namespace {
 auto CompareOneHotAndPartition(bool onehot) {
   Context ctx;
-  static constexpr int kRows = 128, kCols = 1;
+  int static constexpr kRows = 128, kCols = 1;
   std::vector<FeatureType> ft(kCols, FeatureType::kCategorical);
 
   TrainParam param;

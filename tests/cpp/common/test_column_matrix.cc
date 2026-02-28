@@ -30,7 +30,7 @@ TEST(ColumnMatrix, Basic) {
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatrix();
     auto sparse_thresh = 0.2;
-    GHistIndexMatrix gmat{&ctx, dmat.get(), max_num_bin, sparse_thresh};
+    GHistIndexMatrix gmat{&ctx, dmat.get(), max_num_bin, sparse_thresh, false};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.InitFromSparse(page, gmat, sparse_thresh, ctx.Threads());
@@ -77,7 +77,7 @@ TEST(ColumnMatrix, SparseColumn) {
   Context ctx;
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatrix();
-    GHistIndexMatrix gmat{&ctx, dmat.get(), max_num_bin, 0.5f};
+    GHistIndexMatrix gmat{&ctx, dmat.get(), max_num_bin, 0.5f, false};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.InitFromSparse(page, gmat, 1.0, ctx.Threads());
@@ -108,7 +108,7 @@ TEST(ColumnMatrix, DenseColumnWithMissing) {
   Context ctx;
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatrix();
-    GHistIndexMatrix gmat(&ctx, dmat.get(), max_num_bin, 0.2);
+    GHistIndexMatrix gmat(&ctx, dmat.get(), max_num_bin, 0.2, false);
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.InitFromSparse(page, gmat, 0.2, ctx.Threads());

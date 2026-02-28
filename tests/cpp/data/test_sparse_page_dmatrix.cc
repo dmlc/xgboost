@@ -116,7 +116,7 @@ class TestGradientIndexExt : public ::testing::TestWithParam<bool> {
         RandomDataGenerator{kRows, kCols, sparsity}.Batches(4).GenerateSparsePageDMatrix("temp",
                                                                                          true);
 
-    auto cuts = common::SketchOnDMatrix(&ctx, p_ext_fmat.get(), n_bins);
+    auto cuts = common::SketchOnDMatrix(&ctx, p_ext_fmat.get(), n_bins, false, {});
     std::vector<std::unique_ptr<GHistIndexMatrix>> pages;
     for (auto const &page : p_ext_fmat->GetBatches<SparsePage>()) {
       pages.emplace_back(std::make_unique<GHistIndexMatrix>(

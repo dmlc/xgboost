@@ -193,20 +193,22 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(Context const* ctx,
     // - IterativeDMatrix::InitFromCUDA: It asks for gidx only if it exists. It should not
     //   regen, otherwise it indicates a mismatched parameter like max_bin.
     CHECK_GE(param.max_bin, 2);
+    // Used only by approx.
+    auto sorted_sketch = param.regen;
     if (!ctx->IsCUDA()) {
       // The context passed in is on CPU, we pick it first since we prioritize the context
       // in Booster.
-      gradient_index_.reset(
-          new GHistIndexMatrix{ctx, this, param.max_bin, param.sparse_thresh, param.hess});
+      gradient_index_.reset(new GHistIndexMatrix{ctx, this, param.max_bin, param.sparse_thresh,
+                                                 sorted_sketch, param.hess});
     } else if (!fmat_ctx_.IsCUDA()) {
       // DMatrix was initialized on CPU, we use the context from initialization.
-      gradient_index_.reset(
-          new GHistIndexMatrix{&fmat_ctx_, this, param.max_bin, param.sparse_thresh, param.hess});
+      gradient_index_.reset(new GHistIndexMatrix{&fmat_ctx_, this, param.max_bin,
+                                                 param.sparse_thresh, sorted_sketch, param.hess});
     } else {
       // Mismatched parameter, user set a new max_bin during training.
       auto cpu_ctx = ctx->MakeCPU();
-      gradient_index_.reset(
-          new GHistIndexMatrix{&cpu_ctx, this, param.max_bin, param.sparse_thresh, param.hess});
+      gradient_index_.reset(new GHistIndexMatrix{&cpu_ctx, this, param.max_bin, param.sparse_thresh,
+                                                 sorted_sketch, param.hess});
     }
 
     batch_param_ = param.MakeCache();

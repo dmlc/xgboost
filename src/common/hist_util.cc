@@ -14,21 +14,21 @@
 #include "quantile.h"
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // for Context
-#include "xgboost/data.h"     // for SparsePage
+#include "xgboost/data.h"     // for SparsePage, SortedCSCPage
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
-#include <xmmintrin.h>
-#define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char *>(addr), _MM_HINT_T0)
+  #include <xmmintrin.h>
+  #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
 #elif defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
-#define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char *>(addr), 0, 3)
+  #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
 #else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
-#define PREFETCH_READ_T0(addr) \
-  do {                         \
-  } while (0)
+  #define PREFETCH_READ_T0(addr) do {} while (0)
 #endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
 
 namespace xgboost::common {
-HistogramCuts::HistogramCuts() { cut_ptrs_.HostVector().emplace_back(0); }
+HistogramCuts::HistogramCuts() {
+  cut_ptrs_.HostVector().emplace_back(0);
+}
 
 void HistogramCuts::Save(common::AlignedFileWriteStream *fo) const {
   auto const &ptrs = this->Ptrs();
@@ -51,7 +51,7 @@ void HistogramCuts::Save(common::AlignedFileWriteStream *fo) const {
   return p_cuts;
 }
 
-HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins,
+HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins, bool use_sorted,
                               Span<float const> hessian) {
   HistogramCuts out;
   auto const &info = m->Info();
@@ -67,12 +67,24 @@ HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins
     }
   }
 
-  HostSketchContainer container(ctx, max_bins, m->Info().feature_types.ConstHostSpan(), reduced,
-                                HostSketchContainer::UseGroup(info));
-  for (auto const &page : m->GetBatches<SparsePage>()) {
-    container.PushRowPage(page, info, hessian);
+  if (!use_sorted) {
+    HostSketchContainer container(ctx, max_bins, m->Info().feature_types.ConstHostSpan(), reduced,
+                                  HostSketchContainer::UseGroup(info));
+    for (auto const &page : m->GetBatches<SparsePage>()) {
+      container.PushRowPage(page, info, hessian);
+    }
+    container.MakeCuts(ctx, m->Info(), &out);
+  } else {
+    SortedSketchContainer container{ctx,
+                                    max_bins,
+                                    m->Info().feature_types.ConstHostSpan(),
+                                    reduced,
+                                    HostSketchContainer::UseGroup(info)};
+    for (auto const &page : m->GetBatches<SortedCSCPage>(ctx)) {
+      container.PushColPage(page, info, hessian);
+    }
+    container.MakeCuts(ctx, m->Info(), &out);
   }
-  container.MakeCuts(ctx, m->Info(), &out);
 
   return out;
 }
@@ -106,9 +118,9 @@ void CopyHist(GHistRow dst, const GHistRow src, size_t begin, size_t end) {
  */
 void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2, size_t begin,
                      size_t end) {
-  double *pdst = reinterpret_cast<double *>(dst.data());
-  const double *psrc1 = reinterpret_cast<const double *>(src1.data());
-  const double *psrc2 = reinterpret_cast<const double *>(src2.data());
+  double* pdst = reinterpret_cast<double*>(dst.data());
+  const double* psrc1 = reinterpret_cast<const double*>(src1.data());
+  const double* psrc2 = reinterpret_cast<const double*>(src2.data());
 
   for (size_t i = 2 * begin; i < 2 * end; ++i) {
     pdst[i] = psrc1[i] - psrc2[i];
@@ -122,10 +134,13 @@ struct Prefetch {
 
  private:
   static constexpr size_t kNoPrefetchSize =
-      kPrefetchOffset + kCacheLineSize / sizeof(decltype(GHistIndexMatrix::row_ptr)::value_type);
+      kPrefetchOffset + kCacheLineSize /
+      sizeof(decltype(GHistIndexMatrix::row_ptr)::value_type);
 
  public:
-  static size_t NoPrefetchSize(size_t rows) { return std::min(rows, kNoPrefetchSize); }
+  static size_t NoPrefetchSize(size_t rows) {
+    return std::min(rows, kNoPrefetchSize);
+  }
 
   template <typename T>
   static constexpr size_t GetPrefetchStep() {
@@ -141,7 +156,9 @@ struct RuntimeFlags {
   const BinTypeSize bin_type_size;
 };
 
-template <bool _any_missing, bool _first_page = false, bool _read_by_column = false,
+template <bool _any_missing,
+          bool _first_page = false,
+          bool _read_by_column = false,
           typename BinIdxTypeName = uint8_t>
 class GHistBuildingManager {
  public:
@@ -175,7 +192,7 @@ class GHistBuildingManager {
    *  and forward the call there.
    */
   template <typename Fn>
-  static void DispatchAndExecute(const RuntimeFlags &flags, Fn &&fn) {
+  static void DispatchAndExecute(const RuntimeFlags& flags, Fn&& fn) {
     if (flags.first_page != kFirstPage) {
       SetFirstPage<true>::Type::DispatchAndExecute(flags, std::forward<Fn>(fn));
     } else if (flags.read_by_column != kReadByColumn) {
@@ -230,19 +247,22 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
                           // to work with gradient pairs as a singe row FP array
 
   for (std::size_t i = 0; i < size; ++i) {
-    const size_t icol_start = kAnyMissing ? get_row_ptr(rid[i]) : get_rid(rid[i]) * n_features;
-    const size_t icol_end = kAnyMissing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
+    const size_t icol_start =
+        kAnyMissing ? get_row_ptr(rid[i]) : get_rid(rid[i]) * n_features;
+    const size_t icol_end =
+        kAnyMissing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
 
     const size_t row_size = icol_end - icol_start;
     const size_t idx_gh = two * rid[i];
 
     if (do_prefetch) {
       const size_t icol_start_prefetch =
-          kAnyMissing ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset])
-                      : get_rid(rid[i + Prefetch::kPrefetchOffset]) * n_features;
-      const size_t icol_end_prefetch = kAnyMissing
-                                           ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset] + 1)
-                                           : icol_start_prefetch + n_features;
+          kAnyMissing
+              ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset])
+              : get_rid(rid[i + Prefetch::kPrefetchOffset]) * n_features;
+      const size_t icol_end_prefetch =
+          kAnyMissing ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset] + 1)
+                      : icol_start_prefetch + n_features;
 
       PREFETCH_READ_T0(p_gpair + two * rid[i + Prefetch::kPrefetchOffset]);
       for (size_t j = icol_start_prefetch; j < icol_end_prefetch;
@@ -281,9 +301,7 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
   auto get_row_ptr = [&](bst_idx_t ridx) {
     return kFirstPage ? row_ptr[ridx] : row_ptr[ridx - base_rowid];
   };
-  auto get_rid = [&](bst_idx_t ridx) {
-    return kFirstPage ? ridx : (ridx - base_rowid);
-  };
+  auto get_rid = [&](bst_idx_t ridx) { return kFirstPage ? ridx : (ridx - base_rowid); };
 
   const size_t n_features = gmat.cut.Ptrs().size() - 1;
   const size_t n_columns = n_features;
@@ -296,8 +314,10 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
     const uint32_t offset = kAnyMissing ? 0 : offsets[cid];
     for (size_t i = 0; i < size; ++i) {
       const size_t row_id = rid[i];
-      const size_t icol_start = kAnyMissing ? get_row_ptr(row_id) : get_rid(row_id) * n_features;
-      const size_t icol_end = kAnyMissing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
+      const size_t icol_start =
+          kAnyMissing ? get_row_ptr(row_id) : get_rid(row_id) * n_features;
+      const size_t icol_end =
+        kAnyMissing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
 
       if (cid < icol_end - icol_start) {
         const BinIdxType *gr_index_local = gradient_index + icol_start;
@@ -307,7 +327,7 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
         const size_t idx_gh = two * row_id;
         // The trick with pgh_t buffer helps the compiler to generate faster binary.
         const float pgh_t[] = {pgh[idx_gh], pgh[idx_gh + 1]};
-        *(hist_local) += pgh_t[0];
+        *(hist_local)     += pgh_t[0];
         *(hist_local + 1) += pgh_t[1];
       }
     }
@@ -349,7 +369,7 @@ void BuildHistDispatch(Span<GradientPair const> gpair, Span<bst_idx_t const> row
 template <bool any_missing>
 void BuildHist(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
                const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column) {
-  bool first_page = gmat.base_rowid == 0;
+  bool first_page = gmat.base_rowid == 0;;
   auto bin_type_size = gmat.index.GetBinTypeSize();
 
   GHistBuildingManager<any_missing>::DispatchAndExecute(
@@ -360,8 +380,10 @@ void BuildHist(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices
 }
 
 template void BuildHist<true>(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-                              const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column);
+                              const GHistIndexMatrix &gmat, GHistRow hist,
+                              bool read_by_column);
 
 template void BuildHist<false>(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
-                               const GHistIndexMatrix &gmat, GHistRow hist, bool read_by_column);
+                               const GHistIndexMatrix &gmat, GHistRow hist,
+                               bool read_by_column);
 }  // namespace xgboost::common

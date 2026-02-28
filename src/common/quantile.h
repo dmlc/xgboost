@@ -657,5 +657,112 @@ class HostSketchContainer : public SketchContainerImpl {
   template <typename Batch>
   void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
 };
+
+/**
+ * \brief Quantile structure accepts sorted data, extracted from histmaker.
+ */
+struct SortedQuantile {
+  /*! \brief total sum of amount to be met */
+  double sum_total{0.0};
+  /*! \brief statistics used in the sketch */
+  double rmin, wmin;
+  /*! \brief last seen feature value */
+  bst_float last_fvalue{0.0f};
+  /*! \brief current size of sketch */
+  double next_goal;
+  // pointer to the sketch to put things in
+  common::WQuantileSketch *sketch;
+
+  explicit SortedQuantile(common::WQuantileSketch *sketch, unsigned max_size) : sketch{sketch} {
+    next_goal = -1.0f;
+    rmin = wmin = 0.0f;
+    sketch->temp.Reserve(max_size + 1);
+    sketch->temp.Clear();
+  }
+  /*!
+   * \brief push a new element to sketch
+   * \param fvalue feature value, comes in sorted ascending order
+   * \param w weight
+   * \param max_size
+   */
+  void Push(bst_float fvalue, bst_float w, unsigned max_size) {
+    // Use raw pointer for temp summary updates in this hot path.
+    auto *temp_data = sketch->temp.data.data();
+    auto temp_size = sketch->temp.Size();
+    if (next_goal == -1.0f) {
+      next_goal = 0.0f;
+      last_fvalue = fvalue;
+      wmin = w;
+      return;
+    }
+    if (last_fvalue != fvalue) {
+      double rmax = rmin + wmin;
+      if (rmax >= next_goal && temp_size != max_size) {
+        if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
+          // push to sketch
+          temp_data[temp_size] = common::WQuantileSketch::Entry(
+              static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+              static_cast<bst_float>(wmin), last_fvalue);
+          CHECK_LT(temp_size, max_size) << "invalid maximum size max_size=" << max_size
+                                        << ", stemp.current_elements" << temp_size;
+          ++temp_size;
+        }
+        if (temp_size == max_size) {
+          next_goal = sum_total * 2.0f + 1e-5f;
+        } else {
+          next_goal = static_cast<bst_float>(temp_size * sum_total / max_size);
+        }
+      } else {
+        if (rmax >= next_goal) {
+          LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
+                     << ", naxt_goal=" << next_goal << ", size=" << temp_size;
+        }
+      }
+      rmin = rmax;
+      wmin = w;
+      last_fvalue = fvalue;
+    } else {
+      wmin += w;
+    }
+    sketch->temp.SetSize(temp_size);
+  }
+
+  /*! \brief push final unfinished value to the sketch */
+  void Finalize(unsigned max_size) {
+    // Use raw pointer for temp summary writes in this final hot step.
+    auto *temp_data = sketch->temp.data.data();
+    auto temp_size = sketch->temp.Size();
+    double rmax = rmin + wmin;
+    if (temp_size == 0 || last_fvalue > temp_data[temp_size - 1].value) {
+      CHECK_LE(temp_size, max_size) << "Finalize: invalid maximum size, max_size=" << max_size
+                                    << ", stemp.current_elements=" << temp_size;
+      // push to sketch
+      temp_data[temp_size] =
+          common::WQuantileSketch::Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                         static_cast<bst_float>(wmin), last_fvalue);
+      ++temp_size;
+    }
+    sketch->temp.SetSize(temp_size);
+    sketch->PushTemp();
+  }
+};
+
+class SortedSketchContainer : public SketchContainerImpl {
+ public:
+  explicit SortedSketchContainer(Context const *ctx, int32_t max_bins,
+                                 common::Span<FeatureType const> ft,
+                                 std::vector<bst_idx_t> columns_size, bool use_group)
+      : SketchContainerImpl{ctx, columns_size, max_bins, ft, use_group} {
+    monitor_.Init(__func__);
+    for (size_t i = 0; i < sketches_.size(); ++i) {
+      auto eps = 2.0 / max_bins;
+      sketches_[i].Init(columns_size_[i], eps);
+    }
+  }
+  /**
+   * \brief Push a sorted CSC page.
+   */
+  void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
+};
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_QUANTILE_H_
