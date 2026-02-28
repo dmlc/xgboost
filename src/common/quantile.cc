@@ -291,9 +291,8 @@ void SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const
   });
 }
 
-void SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
-                                    std::vector<WQSketch::SummaryContainer> *p_reduced,
-                                    std::vector<int32_t> *p_num_cuts) {
+auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
+    -> std::tuple<std::vector<WQSketch::SummaryContainer>, std::vector<int32_t>> {
   monitor_.Start(__func__);
 
   bst_feature_t n_columns = sketches_.size();
@@ -303,11 +302,10 @@ void SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
 
   AllreduceCategories(ctx, info);
 
-  auto &num_cuts = *p_num_cuts;
-  CHECK_EQ(num_cuts.size(), 0);
+  std::vector<int32_t> num_cuts;
   num_cuts.resize(sketches_.size());
 
-  auto &reduced = *p_reduced;
+  std::vector<WQSketch::SummaryContainer> reduced;
   reduced.resize(sketches_.size());
 
   // Prune the intermediate num cuts for synchronization.
@@ -325,8 +323,7 @@ void SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
     if (IsCat(feature_types_, i)) {
       intermediate_num_cuts = categories_[i].size();
     } else {
-      WQSketch::SummaryContainer out;
-      sketches_[i].GetSummary(&out);
+      auto out = sketches_[i].GetSummary();
       reduced[i].Reserve(intermediate_num_cuts);
       CHECK(reduced[i].Entries().data());
       reduced[i].SetPrune(out, intermediate_num_cuts);
@@ -337,37 +334,39 @@ void SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
   auto world = collective::GetWorldSize();
   if (world == 1 || info.IsColumnSplit()) {
     monitor_.Stop(__func__);
-    return;
+    return {std::move(reduced), std::move(num_cuts)};
   }
 
   auto [worker_segments, sketches_scan, global_sketches] =
       this->GatherSketchInfo(ctx, info, reduced);
-
-  std::vector<WQSketch::SummaryContainer> final_sketches(n_columns);
 
   ParallelFor(n_columns, n_threads_, [&](auto fidx) {
     // gcc raises subobject-linkage warning if we put allreduce_result as lambda capture
     QuantileAllreduce<WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
                                                         sketches_scan, n_columns};
     int32_t intermediate_num_cuts = num_cuts[fidx];
-    auto nbytes = WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);
     if (IsCat(feature_types_, fidx)) {
       return;
     }
+
+    auto &out = reduced.at(fidx);
+    out.Clear();
+    out.Reserve(intermediate_num_cuts);
+    WQSketch::SummaryContainer tmp;
+    tmp.Reserve(static_cast<size_t>(intermediate_num_cuts) * 2);
 
     for (int32_t r = 0; r < world; ++r) {
       // 1 feature of 1 worker
       auto worker_feature = allreduce_result.Values(r, fidx);
       CHECK(worker_feature.data());
+      // Non-owning view over all-reduced entries for one feature on one worker.
       WQSketch::Summary summary(worker_feature, worker_feature.size());
-      auto &out = final_sketches.at(fidx);
-      out.Reduce(summary, nbytes);
+      tmp.SetCombine(out, summary);
+      out.SetPrune(tmp, intermediate_num_cuts);
     }
-
-    reduced.at(fidx).Reserve(intermediate_num_cuts);
-    reduced.at(fidx).SetPrune(final_sketches.at(fidx), intermediate_num_cuts);
   });
   monitor_.Stop(__func__);
+  return {std::move(reduced), std::move(num_cuts)};
 }
 
 template <typename SketchType>
@@ -405,9 +404,7 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
 void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
                                    HistogramCuts *p_cuts) {
   monitor_.Start(__func__);
-  std::vector<WQSketch::SummaryContainer> reduced;
-  std::vector<int32_t> num_cuts;
-  this->AllReduce(ctx, info, &reduced, &num_cuts);
+  auto [reduced, num_cuts] = this->AllReduce(ctx, info);
 
   p_cuts->min_vals_.HostVector().resize(sketches_.size(), 0.0f);
   std::vector<WQSketch::SummaryContainer> final_summaries(reduced.size());

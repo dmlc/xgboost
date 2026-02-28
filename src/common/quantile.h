@@ -378,16 +378,6 @@ struct WQSummaryContainer : public WQSummary<> {
     }
     this->data = {dmlc::BeginPtr(space), space.size()};
   }
-  void Reduce(WQSummary<> const &src, size_t max_nbyte) {
-    this->Reserve((max_nbyte - sizeof(size_t)) / sizeof(WQSummary<>::Entry));
-    WQSummaryContainer temp;
-    temp.Reserve(this->Size() + src.Size());
-    temp.SetCombine(*this, src);
-    this->SetPrune(temp, this->data.size());
-  }
-  static size_t CalcMemCost(size_t nentry) {
-    return sizeof(size_t) + sizeof(WQSummary<>::Entry) * nentry;
-  }
 };
 
 /*! \brief Weighted quantile sketch algorithm using merge/prune. */
@@ -500,32 +490,34 @@ class WQuantileSketch {
 
  public:
   /*! \brief get the summary after finalize */
-  void GetSummary(WQSummaryContainer *out) {
+  [[nodiscard]] WQSummaryContainer GetSummary() {
+    WQSummaryContainer out;
     if (level.size() != 0) {
-      out->Reserve(limit_size * 2);
+      out.Reserve(limit_size * 2);
     } else {
-      out->Reserve(inqueue.Size());
+      out.Reserve(inqueue.Size());
     }
-    inqueue.PopSummary(out);
+    inqueue.PopSummary(&out);
     if (level.size() != 0) {
-      level[0].SetPrune(*out, limit_size);
+      level[0].SetPrune(out, limit_size);
       for (size_t l = 1; l < level.size(); ++l) {
         if (level[l].Size() == 0) continue;
         if (level[0].Size() == 0) {
           level[0].CopyFrom(level[l]);
         } else {
-          out->SetCombine(level[0], level[l]);
-          level[0].SetPrune(*out, limit_size);
+          out.SetCombine(level[0], level[l]);
+          level[0].SetPrune(out, limit_size);
         }
       }
-      out->CopyFrom(level[0]);
+      out.CopyFrom(level[0]);
     } else {
-      if (out->Size() > limit_size) {
+      if (out.Size() > limit_size) {
         temp.Reserve(limit_size);
-        temp.SetPrune(*out, limit_size);
-        out->CopyFrom(temp);
+        temp.SetPrune(out, limit_size);
+        out.CopyFrom(temp);
       }
     }
+    return out;
   }
 
  private:
@@ -695,9 +687,8 @@ class SketchContainerImpl {
                                       std::vector<WQSketch::SummaryContainer> const &reduced)
       -> std::tuple<std::vector<bst_idx_t>, std::vector<bst_idx_t>, std::vector<WQSketch::Entry>>;
   // Merge sketches from all workers.
-  void AllReduce(Context const *ctx, MetaInfo const &info,
-                 std::vector<WQSketch::SummaryContainer> *p_reduced,
-                 std::vector<int32_t> *p_num_cuts);
+  [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info)
+      -> std::tuple<std::vector<WQSketch::SummaryContainer>, std::vector<int32_t>>;
 
  protected:
   template <typename Batch, typename IsValid>
