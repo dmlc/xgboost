@@ -302,39 +302,40 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
 
   AllreduceCategories(ctx, info);
 
-  std::vector<int32_t> num_cuts;
-  num_cuts.resize(sketches_.size());
+  std::vector<int32_t> retained_cuts;
+  retained_cuts.resize(sketches_.size());
 
   std::vector<WQSketch::SummaryContainer> reduced;
   reduced.resize(sketches_.size());
 
-  // Prune the intermediate num cuts for synchronization.
+  // Build per-feature cut targets for synchronization.
   std::vector<bst_idx_t> global_column_size(columns_size_);
   rc = collective::GlobalSum(ctx, info,
                              linalg::MakeVec(global_column_size.data(), global_column_size.size()));
   collective::SafeColl(rc);
 
   ParallelFor(sketches_.size(), n_threads_, [&](size_t i) {
-    int32_t intermediate_num_cuts = static_cast<int32_t>(
+    int32_t cut_target = static_cast<int32_t>(
         std::min(global_column_size[i], static_cast<bst_idx_t>(max_bins_ * WQSketch::kFactor)));
     if (global_column_size[i] == 0) {
       return;
     }
     if (IsCat(feature_types_, i)) {
-      intermediate_num_cuts = categories_[i].size();
+      cut_target = categories_[i].size();
+      retained_cuts[i] = cut_target;
     } else {
       auto out = sketches_[i].GetSummary();
-      reduced[i].Reserve(intermediate_num_cuts);
+      reduced[i].Reserve(cut_target);
       CHECK(reduced[i].Entries().data());
-      reduced[i].SetPrune(out, intermediate_num_cuts);
+      reduced[i].SetPrune(out, cut_target);
+      retained_cuts[i] = static_cast<int32_t>(reduced[i].Size());
     }
-    num_cuts[i] = intermediate_num_cuts;
   });
 
   auto world = collective::GetWorldSize();
   if (world == 1 || info.IsColumnSplit()) {
     monitor_.Stop(__func__);
-    return {std::move(reduced), std::move(num_cuts)};
+    return {std::move(reduced), std::move(retained_cuts)};
   }
 
   auto [worker_segments, sketches_scan, global_sketches] =
@@ -344,16 +345,16 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     // gcc raises subobject-linkage warning if we put allreduce_result as lambda capture
     QuantileAllreduce<WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
                                                         sketches_scan, n_columns};
-    int32_t intermediate_num_cuts = num_cuts[fidx];
+    int32_t cut_target = retained_cuts[fidx];
     if (IsCat(feature_types_, fidx)) {
       return;
     }
 
     auto &out = reduced.at(fidx);
     out.Clear();
-    out.Reserve(intermediate_num_cuts);
+    out.Reserve(cut_target);
     WQSketch::SummaryContainer tmp;
-    tmp.Reserve(static_cast<size_t>(intermediate_num_cuts) * 2);
+    tmp.Reserve(static_cast<size_t>(cut_target) * 2);
 
     for (int32_t r = 0; r < world; ++r) {
       // 1 feature of 1 worker
@@ -362,11 +363,12 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
       // Non-owning view over all-reduced entries for one feature on one worker.
       WQSketch::Summary summary(worker_feature, worker_feature.size());
       tmp.SetCombine(out, summary);
-      out.SetPrune(tmp, intermediate_num_cuts);
+      out.SetPrune(tmp, cut_target);
     }
+    retained_cuts[fidx] = static_cast<int32_t>(out.Size());
   });
   monitor_.Stop(__func__);
-  return {std::move(reduced), std::move(num_cuts)};
+  return {std::move(reduced), std::move(retained_cuts)};
 }
 
 template <typename SketchType>
@@ -404,7 +406,7 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
 void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
                                    HistogramCuts *p_cuts) {
   monitor_.Start(__func__);
-  auto [reduced, num_cuts] = this->AllReduce(ctx, info);
+  auto [reduced, retained_cuts] = this->AllReduce(ctx, info);
 
   p_cuts->min_vals_.HostVector().resize(sketches_.size(), 0.0f);
   std::vector<WQSketch::SummaryContainer> final_summaries(reduced.size());
@@ -414,10 +416,10 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
       return;
     }
     WQSketch::SummaryContainer &a = final_summaries[fidx];
-    size_t max_num_bins = std::min(num_cuts[fidx], max_bins_);
+    size_t max_num_bins = std::min(retained_cuts[fidx], max_bins_);
     a.Reserve(max_num_bins + 1);
     CHECK(a.Entries().data());
-    if (num_cuts[fidx] != 0) {
+    if (retained_cuts[fidx] != 0) {
       a.SetPrune(reduced[fidx], max_num_bins + 1);
       auto const a_entries = a.Entries();
       auto const reduced_entries = reduced[fidx].Entries();
@@ -434,7 +436,7 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
 
   float max_cat{-1.f};
   for (size_t fid = 0; fid < reduced.size(); ++fid) {
-    size_t max_num_bins = std::min(num_cuts[fid], max_bins_);
+    size_t max_num_bins = std::min(retained_cuts[fid], max_bins_);
     WQSketch::SummaryContainer const &a = final_summaries[fid];
     if (IsCat(feature_types_, fid)) {
       max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
