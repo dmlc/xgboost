@@ -297,6 +297,43 @@ struct WQSummary {
     CHECK(current_elements <= sa.current_elements + sb.current_elements) << "bug in combine";
   }
 
+  /*!
+   * \brief Combine `other` into `this`, then prune to `maxsize`.
+   *
+   * \param other Input summary to combine with `this`.
+   * \param maxsize Maximum retained summary size after prune.
+   * \param workspace Optional entry buffer for temporary merged entries.
+   */
+  void SetCombinePrune(const WQSummary &other, size_t maxsize,
+                       std::vector<Entry> *workspace = nullptr) {
+    if (maxsize == 0) {
+      this->current_elements = 0;
+      return;
+    }
+    if (this->current_elements == 0) {
+      this->SetPrune(other, maxsize);
+      return;
+    }
+    if (other.current_elements == 0) {
+      this->SetPrune(*this, maxsize);
+      return;
+    }
+    size_t const merged_size = this->current_elements + other.current_elements;
+
+    std::vector<Entry> owned_workspace;
+    std::vector<Entry> *entries = workspace;
+    if (entries == nullptr) {
+      owned_workspace.resize(merged_size);
+      entries = &owned_workspace;
+    } else if (entries->size() < merged_size) {
+      entries->resize(merged_size);
+    }
+
+    WQSummary<DType, RType> merged{Span<Entry>{entries->data(), merged_size}, 0};
+    merged.SetCombine(*this, other);
+    this->SetPrune(merged, maxsize);
+  }
+
  private:
   // try to fix rounding error
   // and re-establish invariance
