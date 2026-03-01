@@ -104,3 +104,4 @@ List of Contributors
 * [Haoda Fu](https://github.com/fuhaoda)
 * [Evan Kepner](https://github.com/EvanKepner)
   - Evan Kepner added support for os.PathLike file paths in Python
+* [Rasika Moon](https://github.com/rasikamoon)
