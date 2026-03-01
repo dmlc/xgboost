@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
 #include <tuple>
 #include <utility>
@@ -369,12 +370,42 @@ struct Queue {
 
 struct WQSummaryContainer : public WQSummary<> {
   std::vector<WQSummary<>::Entry> space;
+  WQSummaryContainer() : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {}
+
   WQSummaryContainer(WQSummaryContainer const &src) : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {
     this->space = src.space;
     this->data = {dmlc::BeginPtr(this->space), this->space.size()};
     this->CopyFrom(src);
   }
-  WQSummaryContainer() : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {}
+
+  WQSummaryContainer(WQSummaryContainer &&src) noexcept
+      : WQSummary<>(Span<WQSummary<>::Entry>{}, 0), space{std::move(src.space)} {
+    this->data = {dmlc::BeginPtr(this->space), this->space.size()};
+    this->current_elements = src.current_elements;
+    src.current_elements = 0;
+  }
+
+  WQSummaryContainer &operator=(WQSummaryContainer const &src) {
+    if (this == &src) {
+      return *this;
+    }
+    this->space = src.space;
+    this->data = {dmlc::BeginPtr(this->space), this->space.size()};
+    this->current_elements = src.current_elements;
+    return *this;
+  }
+
+  WQSummaryContainer &operator=(WQSummaryContainer &&src) noexcept {
+    if (this == &src) {
+      return *this;
+    }
+    this->space = std::move(src.space);
+    this->data = {dmlc::BeginPtr(this->space), this->space.size()};
+    this->current_elements = src.current_elements;
+    src.current_elements = 0;
+    return *this;
+  }
+
   void Reserve(size_t size) {
     if (size > space.size()) {
       space.resize(size);
@@ -493,7 +524,8 @@ class WQuantileSketch {
 
  public:
   /*! \brief get the summary after finalize */
-  [[nodiscard]] WQSummaryContainer GetSummary() {
+  [[nodiscard]] WQSummaryContainer GetSummary(
+      size_t max_size = std::numeric_limits<size_t>::max()) {
     WQSummaryContainer out;
     if (level.size() != 0) {
       out.Reserve(limit_size * 2);
@@ -519,6 +551,15 @@ class WQuantileSketch {
         temp.SetPrune(out, limit_size);
         out.CopyFrom(temp);
       }
+    }
+    if (max_size == 0) {
+      out.Clear();
+      return out;
+    }
+    if (out.Size() > max_size) {
+      temp.Reserve(max_size);
+      temp.SetPrune(out, max_size);
+      out.CopyFrom(temp);
     }
     return out;
   }

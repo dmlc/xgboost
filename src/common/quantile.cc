@@ -302,8 +302,9 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
 
   AllreduceCategories(ctx, info);
 
-  std::vector<int32_t> retained_cuts;
-  retained_cuts.resize(sketches_.size());
+  std::vector<int32_t> cut_targets(sketches_.size());
+
+  std::vector<int32_t> retained_cuts(sketches_.size());
 
   std::vector<WQSketch::SummaryContainer> reduced;
   reduced.resize(sketches_.size());
@@ -322,12 +323,11 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     }
     if (IsCat(feature_types_, i)) {
       cut_target = categories_[i].size();
+      cut_targets[i] = cut_target;
       retained_cuts[i] = cut_target;
     } else {
-      auto out = sketches_[i].GetSummary();
-      reduced[i].Reserve(cut_target);
-      CHECK(reduced[i].Entries().data());
-      reduced[i].SetPrune(out, cut_target);
+      cut_targets[i] = cut_target;
+      reduced[i] = sketches_[i].GetSummary(cut_target);
       retained_cuts[i] = static_cast<int32_t>(reduced[i].Size());
     }
   });
@@ -345,7 +345,7 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     // gcc raises subobject-linkage warning if we put allreduce_result as lambda capture
     QuantileAllreduce<WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
                                                         sketches_scan, n_columns};
-    int32_t cut_target = retained_cuts[fidx];
+    int32_t cut_target = cut_targets[fidx];
     if (IsCat(feature_types_, fidx)) {
       return;
     }
