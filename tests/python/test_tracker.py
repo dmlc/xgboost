@@ -6,9 +6,9 @@ from typing import Dict, Union
 import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies
-
 from xgboost import RabitTracker, collective
 from xgboost import testing as tm
+from xgboost.testing.collective import get_avail_port
 
 
 def test_rabit_tracker() -> None:
@@ -52,6 +52,32 @@ def test_socket_error() -> None:
             pass
     with pytest.raises(ValueError):
         tracker.free()
+
+
+@pytest.mark.skipif(**tm.no_loky())
+def test_worker_port() -> None:
+    from loky import get_reusable_executor
+
+    n_workers = 4
+
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=n_workers)
+    tracker.start()
+    args = tracker.worker_args()
+
+    def local_test(worker_id: int, rabit_args: dict) -> int:
+        rabit_args = rabit_args.copy()
+        rabit_args["dmlc_worker_port"] = get_avail_port()
+        with collective.CommunicatorContext(**rabit_args):
+            a = np.array([1])
+            result = collective.allreduce(a, collective.Op.SUM)
+            assert result[0] == n_workers
+
+            return 1
+
+    fn = update_wrapper(partial(local_test, rabit_args=args), local_test)
+    with get_reusable_executor(max_workers=n_workers) as pool:
+        results = pool.map(fn, range(n_workers))
+        assert sum(results) == n_workers
 
 
 def run_rabit_ops(pool, n_workers: int, address: str) -> None:
@@ -160,7 +186,6 @@ def test_broadcast():
 @pytest.mark.skipif(**tm.no_dask())
 def test_rank_assignment() -> None:
     from distributed import Client, LocalCluster
-
     from xgboost import dask as dxgb
     from xgboost.testing.dask import get_rabit_args
 
