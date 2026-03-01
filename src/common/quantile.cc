@@ -150,8 +150,7 @@ struct QuantileAllreduce {
 auto SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &info,
                                            std::vector<WQSketch::SummaryContainer> const &reduced)
     -> std::tuple<std::vector<bst_idx_t>, std::vector<bst_idx_t>, std::vector<WQSketch::Entry>> {
-  std::vector<bst_idx_t> worker_segments;
-  worker_segments.resize(1, 0);
+  std::vector<bst_idx_t> worker_segments(1, 0);
   auto world = collective::GetWorldSize();
   auto rank = collective::GetRank();
   bst_feature_t n_columns = sketches_.size();
@@ -169,8 +168,7 @@ auto SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &i
     ++fidx;
   }
   // Turn the size into CSC indptr
-  std::vector<bst_idx_t> sketches_scan;
-  sketches_scan.resize((n_columns + 1) * world, 0);
+  std::vector<bst_idx_t> sketches_scan((n_columns + 1) * world, 0);
   size_t beg_scan = rank * (n_columns + 1);  // starting storage for current worker.
   std::partial_sum(sketch_size.cbegin(), sketch_size.cend(), sketches_scan.begin() + beg_scan + 1);
 
@@ -191,8 +189,7 @@ auto SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &i
   CHECK_GE(worker_segments.size(), 1);
   auto total = worker_segments.back();
 
-  std::vector<WQSketch::Entry> global_sketches;
-  global_sketches.resize(total, WQSketch::Entry{0, 0, 0, 0});
+  std::vector<WQSketch::Entry> global_sketches(total, WQSketch::Entry{0, 0, 0, 0});
   auto worker_sketch = Span<WQSketch::Entry>{global_sketches}.subspan(
       worker_segments[rank], worker_segments[rank + 1] - worker_segments[rank]);
   auto cursor{worker_sketch.begin()};
@@ -302,11 +299,11 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
 
   AllreduceCategories(ctx, info);
 
-  std::vector<int32_t> retained_cuts;
-  retained_cuts.resize(sketches_.size());
+  std::vector<int32_t> cut_targets(sketches_.size());
 
-  std::vector<WQSketch::SummaryContainer> reduced;
-  reduced.resize(sketches_.size());
+  std::vector<int32_t> retained_cuts(sketches_.size());
+
+  std::vector<WQSketch::SummaryContainer> reduced(sketches_.size());
 
   // Build per-feature cut targets for synchronization.
   std::vector<bst_idx_t> global_column_size(columns_size_);
@@ -321,13 +318,14 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
       return;
     }
     if (IsCat(feature_types_, i)) {
-      cut_target = categories_[i].size();
-      retained_cuts[i] = cut_target;
+      cut_targets[i] = categories_[i].size();
+      retained_cuts[i] = categories_[i].size();
     } else {
       auto out = sketches_[i].GetSummary();
       reduced[i].Reserve(cut_target);
       CHECK(reduced[i].Entries().data());
       reduced[i].SetPrune(out, cut_target);
+      cut_targets[i] = cut_target;
       retained_cuts[i] = static_cast<int32_t>(reduced[i].Size());
     }
   });
@@ -345,7 +343,7 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     // gcc raises subobject-linkage warning if we put allreduce_result as lambda capture
     QuantileAllreduce<WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
                                                         sketches_scan, n_columns};
-    int32_t cut_target = retained_cuts[fidx];
+    int32_t cut_target = cut_targets[fidx];
     if (IsCat(feature_types_, fidx)) {
       return;
     }
