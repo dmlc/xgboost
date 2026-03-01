@@ -38,6 +38,44 @@ TEST(Quantile, InitWithEmptyColumn) {
   ASSERT_EQ(out.Size(), 0);
 }
 
+TEST(Quantile, SetPruneInplace) {
+  using Summary = WQSummary<>;
+  using Entry = Summary::Entry;
+
+  SimpleLCG lcg;
+  for (size_t trial = 0; trial < 256; ++trial) {
+    size_t n = (lcg() % 256) + 1;
+    size_t max_size = (lcg() % n) + 1;
+
+    std::vector<Entry> src_storage(n);
+    float running_rank = 0.0f;
+    for (size_t i = 0; i < n; ++i) {
+      float w = static_cast<float>((lcg() % 7) + 1);
+      float value = static_cast<float>(i);
+      src_storage[i] = Entry{running_rank, running_rank + w, w, value};
+      running_rank += w;
+    }
+
+    std::vector<Entry> ref_storage(n);
+    Summary src_ref{Span<Entry>{src_storage.data(), src_storage.size()}, n};
+    Summary out_ref{Span<Entry>{ref_storage.data(), ref_storage.size()}, 0};
+    out_ref.SetPrune(src_ref, max_size);
+
+    Summary in_place{Span<Entry>{src_storage.data(), src_storage.size()}, n};
+    in_place.SetPrune(in_place, max_size);
+
+    ASSERT_EQ(in_place.Size(), out_ref.Size()) << "trial=" << trial;
+    auto const in_entries = in_place.Entries();
+    auto const ref_entries = out_ref.Entries();
+    for (size_t i = 0; i < in_place.Size(); ++i) {
+      EXPECT_FLOAT_EQ(in_entries[i].rmin, ref_entries[i].rmin) << "trial=" << trial;
+      EXPECT_FLOAT_EQ(in_entries[i].rmax, ref_entries[i].rmax) << "trial=" << trial;
+      EXPECT_FLOAT_EQ(in_entries[i].wmin, ref_entries[i].wmin) << "trial=" << trial;
+      EXPECT_FLOAT_EQ(in_entries[i].value, ref_entries[i].value) << "trial=" << trial;
+    }
+  }
+}
+
 namespace {
 template <bool use_column>
 using ContainerType = std::conditional_t<use_column, SortedSketchContainer, HostSketchContainer>;

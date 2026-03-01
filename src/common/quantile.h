@@ -183,12 +183,15 @@ struct WQSummary {
   }
   /*!
    * \brief set current summary to be pruned summary of src
-   *        assume data field is already allocated to be at least maxsize
+   *        assume data field is already allocated to be at least maxsize.
+   *
+   * This method supports in-place pruning (`this == &src`).
    * \param src source summary
    * \param maxsize size we can afford in the pruned sketch
    */
   void SetPrune(const WQSummary &src, size_t maxsize) {
-    if (src.current_elements <= maxsize) {
+    auto const src_size = src.current_elements;
+    if (src_size <= maxsize) {
       this->CopyFrom(src);
       return;
     }
@@ -196,7 +199,7 @@ struct WQSummary {
     auto const *src_data = src.data.data();
     auto *dst_data = data.data();
     const RType begin = src_data[0].rmax;
-    const RType range = src_data[src.current_elements - 1].rmin - src_data[0].rmax;
+    const RType range = src_data[src_size - 1].rmin - src_data[0].rmax;
     const size_t n = maxsize - 1;
     dst_data[0] = src_data[0];
     this->current_elements = 1;
@@ -205,10 +208,10 @@ struct WQSummary {
     for (size_t k = 1; k < n; ++k) {
       RType dx2 = 2 * ((k * range) / n + begin);
       // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2
-      while (i < src.current_elements - 1 && dx2 >= src_data[i + 1].rmax + src_data[i + 1].rmin) {
+      while (i < src_size - 1 && dx2 >= src_data[i + 1].rmax + src_data[i + 1].rmin) {
         ++i;
       }
-      if (i == src.current_elements - 1) break;
+      if (i == src_size - 1) break;
       if (dx2 < src_data[i].RMinNext() + src_data[i + 1].RMaxPrev()) {
         if (i != lastidx) {
           dst_data[current_elements++] = src_data[i];
@@ -221,8 +224,8 @@ struct WQSummary {
         }
       }
     }
-    if (lastidx != src.current_elements - 1) {
-      dst_data[current_elements++] = src_data[src.current_elements - 1];
+    if (lastidx != src_size - 1) {
+      dst_data[current_elements++] = src_data[src_size - 1];
     }
   }
   /*!
