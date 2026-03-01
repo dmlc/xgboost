@@ -399,17 +399,17 @@ class WQuantileSketch {
     if (maxn == 0) {
       // Empty columns can appear in distributed column-split settings.
       // Keep internals in a valid state while preserving an empty summary.
-      nlevel = 1;
-      limit_size = 1;
-      inqueue = Queue<>(1);
-      data.clear();
-      level.clear();
+      nlevel_ = 1;
+      limit_size_ = 1;
+      inqueue_ = Queue<>(1);
+      data_.clear();
+      level_.clear();
       return;
     }
-    LimitSizeLevel(maxn, eps, &nlevel, &limit_size);
-    inqueue = Queue<>(limit_size * 2);
-    data.clear();
-    level.clear();
+    LimitSizeLevel(maxn, eps, &nlevel_, &limit_size_);
+    inqueue_ = Queue<>(limit_size_ * 2);
+    data_.clear();
+    level_.clear();
   }
 
   static void LimitSizeLevel(size_t maxn, double eps, size_t *out_nlevel, size_t *out_limit_size) {
@@ -437,11 +437,11 @@ class WQuantileSketch {
    */
   void Push(bst_float x, bst_float w = 1) {
     if (w == static_cast<bst_float>(0)) return;
-    if (!inqueue.Push(x, w)) {
-      temp.Reserve(limit_size * 2);
-      inqueue.PopSummary(&temp);
+    if (!inqueue_.Push(x, w)) {
+      temp_.Reserve(limit_size_ * 2);
+      inqueue_.PopSummary(&temp_);
       this->PushTemp();
-      inqueue.Push(x, w);
+      inqueue_.Push(x, w);
     }
   }
 
@@ -456,8 +456,8 @@ class WQuantileSketch {
                   size_t num_retained_items) {
     CHECK_GE(num_retained_items, 1);
     auto const max_size = num_retained_items;
-    this->temp.Reserve(max_size + 1);
-    this->temp.SetPruneSorted(column, weights, max_size);
+    this->temp_.Reserve(max_size + 1);
+    this->temp_.SetPruneSorted(column, weights, max_size);
     if (!column.empty()) {
       this->PushTemp();
     }
@@ -465,23 +465,23 @@ class WQuantileSketch {
 
   /*! \brief push up temp */
   void PushTemp() {
-    temp.Reserve(limit_size * 2);
+    temp_.Reserve(limit_size_ * 2);
     for (size_t l = 1; true; ++l) {
       this->InitLevel(l + 1);
       // check if level l is empty
-      if (level[l].Size() == 0) {
-        level[l].SetPrune(temp, limit_size);
+      if (level_[l].Size() == 0) {
+        level_[l].SetPrune(temp_, limit_size_);
         break;
       } else {
         // level 0 is actually temp space
-        level[0].SetPrune(temp, limit_size);
-        temp.SetCombine(level[0], level[l]);
-        if (temp.Size() > limit_size) {
+        level_[0].SetPrune(temp_, limit_size_);
+        temp_.SetCombine(level_[0], level_[l]);
+        if (temp_.Size() > limit_size_) {
           // try next level
-          level[l].Clear();
+          level_[l].Clear();
         } else {
           // if merged record is still smaller, no need to send to next level
-          level[l].CopyFrom(temp);
+          level_[l].CopyFrom(temp_);
           break;
         }
       }
@@ -492,29 +492,29 @@ class WQuantileSketch {
   /*! \brief get the summary after finalize */
   [[nodiscard]] WQSummaryContainer GetSummary() {
     WQSummaryContainer out;
-    if (level.size() != 0) {
-      out.Reserve(limit_size * 2);
+    if (level_.size() != 0) {
+      out.Reserve(limit_size_ * 2);
     } else {
-      out.Reserve(inqueue.Size());
+      out.Reserve(inqueue_.Size());
     }
-    inqueue.PopSummary(&out);
-    if (level.size() != 0) {
-      level[0].SetPrune(out, limit_size);
-      for (size_t l = 1; l < level.size(); ++l) {
-        if (level[l].Size() == 0) continue;
-        if (level[0].Size() == 0) {
-          level[0].CopyFrom(level[l]);
+    inqueue_.PopSummary(&out);
+    if (level_.size() != 0) {
+      level_[0].SetPrune(out, limit_size_);
+      for (size_t l = 1; l < level_.size(); ++l) {
+        if (level_[l].Size() == 0) continue;
+        if (level_[0].Size() == 0) {
+          level_[0].CopyFrom(level_[l]);
         } else {
-          out.SetCombine(level[0], level[l]);
-          level[0].SetPrune(out, limit_size);
+          out.SetCombine(level_[0], level_[l]);
+          level_[0].SetPrune(out, limit_size_);
         }
       }
-      out.CopyFrom(level[0]);
+      out.CopyFrom(level_[0]);
     } else {
-      if (out.Size() > limit_size) {
-        temp.Reserve(limit_size);
-        temp.SetPrune(out, limit_size);
-        out.CopyFrom(temp);
+      if (out.Size() > limit_size_) {
+        temp_.Reserve(limit_size_);
+        temp_.SetPrune(out, limit_size_);
+        out.CopyFrom(temp_);
       }
     }
     return out;
@@ -523,26 +523,26 @@ class WQuantileSketch {
  private:
   // initialize level space to at least nlevel
   void InitLevel(size_t nlevel) {
-    if (level.size() >= nlevel) return;
-    data.resize(limit_size * nlevel);
-    level.clear();
-    level.reserve(nlevel);
+    if (level_.size() >= nlevel) return;
+    data_.resize(limit_size_ * nlevel);
+    level_.clear();
+    level_.reserve(nlevel);
     for (size_t l = 0; l < nlevel; ++l) {
-      level.emplace_back(Span<Entry>{data.data() + l * limit_size, limit_size}, 0);
+      level_.emplace_back(Span<Entry>{data_.data() + l * limit_size_, limit_size_}, 0);
     }
   }
   // input data queue
-  Queue<> inqueue;
+  Queue<> inqueue_;
   // number of levels
-  size_t nlevel;
+  size_t nlevel_;
   // size of summary in each level
-  size_t limit_size;
+  size_t limit_size_;
   // the level of each summaries
-  std::vector<WQSummary<>> level;
+  std::vector<WQSummary<>> level_;
   // content of the summary
-  std::vector<WQSummary<>::Entry> data;
+  std::vector<WQSummary<>::Entry> data_;
   // temporal summary, used for temp-merge
-  WQSummaryContainer temp;
+  WQSummaryContainer temp_;
 };
 
 namespace detail {
