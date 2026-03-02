@@ -34,7 +34,7 @@ TEST(Quantile, InitWithEmptyColumn) {
   WQuantileSketch sketch;
   sketch.Init(0, 0.1);
 
-  auto out = sketch.GetSummary();
+  auto out = sketch.GetSummary(1);
   ASSERT_EQ(out.Size(), 0);
 }
 

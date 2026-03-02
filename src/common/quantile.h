@@ -193,6 +193,10 @@ struct WQSummary {
    * \param maxsize size we can afford in the pruned sketch
    */
   void SetPrune(const WQSummary &src, size_t maxsize) {
+    if (maxsize == 0) {
+      this->current_elements = 0;
+      return;
+    }
     auto const src_size = src.current_elements;
     if (src_size <= maxsize) {
       this->CopyFrom(src);
@@ -434,7 +438,10 @@ struct Queue {
     return true;
   }
 
-  void PopSummary(WQSummary<DType, RType> *out) {
+  template <typename Summary>
+  void PopSummary(Summary *out) {
+    CHECK(out);
+    out->Reserve(queue.size());
     std::sort(queue.begin(), queue.end(),
               [](QEntry const &l, QEntry const &r) { return l.first < r.first; });
     out->SetFromSorted(queue);
@@ -546,7 +553,6 @@ class WQuantileSketch {
   void Push(bst_float x, bst_float w = 1) {
     if (w == static_cast<bst_float>(0)) return;
     if (!inqueue.Push(x, w)) {
-      temp.Reserve(limit_size * 2);
       inqueue.PopSummary(&temp);
       this->PushSummary(&temp);
       inqueue.Push(x, w);
@@ -602,40 +608,18 @@ class WQuantileSketch {
 
  public:
   /*! \brief get the summary after finalize */
-  [[nodiscard]] WQSummaryContainer GetSummary(
-      size_t max_size = std::numeric_limits<size_t>::max()) {
+  [[nodiscard]] WQSummaryContainer GetSummary(size_t max_size) {
     WQSummaryContainer out;
-    if (level.size() != 0) {
-      out.Reserve(limit_size * 2);
-    } else {
-      out.Reserve(inqueue.Size());
-    }
-    inqueue.PopSummary(&out);
-    if (level.size() != 0) {
-      out.SetPrune(out, limit_size);
-      for (size_t l = 0; l < level.size(); ++l) {
-        if (level[l].Empty()) continue;
-        if (out.Empty()) {
-          out.CopyFrom(level[l]);
-        } else {
-          out.SetCombinePrune(level[l], limit_size, &combine_workspace);
-        }
-      }
-    } else {
-      if (out.Size() > limit_size) {
-        temp.Reserve(limit_size);
-        temp.SetPrune(out, limit_size);
-        out.CopyFrom(temp);
-      }
-    }
-    if (max_size == 0) {
-      out.Clear();
-      return out;
-    }
-    if (out.Size() > max_size) {
-      temp.Reserve(max_size);
-      temp.SetPrune(out, max_size);
-      out.CopyFrom(temp);
+    out.Reserve(max_size + limit_size);
+
+    // Flush pending queue into level summaries first.
+    inqueue.PopSummary(&temp);
+    this->PushSummary(&temp);
+
+    // Merge all levels into out.
+    for (auto &level_summary : level) {
+      out.SetCombine(level_summary, &combine_workspace);
+      out.SetPrune(out, max_size);
     }
     return out;
   }
