@@ -28,7 +28,7 @@ class MGPUQuantileTest : public collective::BaseMGPUTest {};
 
 TEST(GPUQuantile, Basic) {
   auto ctx = MakeCUDACtx(0);
-  constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
+  constexpr size_t kCols = 100, kBins = 256;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch(ft, kBins, kCols, ctx.Device());
   dh::caching_device_vector<Entry> entries;
