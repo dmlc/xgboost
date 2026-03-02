@@ -348,13 +348,14 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
 
     auto &out = reduced.at(fidx);
     out.Clear();
-    out.Reserve(cut_target);
+    out.Reserve(static_cast<size_t>(cut_target) * 2);
 
     for (int32_t r = 0; r < world; ++r) {
       auto worker_feature = allreduce_result.Values(r, fidx);
       CHECK(worker_feature.data());
       WQSketch::Summary summary(worker_feature, worker_feature.size());
-      out.SetCombinePrune(summary, cut_target);
+      out.SetCombine(summary);
+      out.SetPrune(cut_target);
     }
     retained_cuts[fidx] = static_cast<int32_t>(out.Size());
   });
@@ -408,10 +409,11 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     }
     WQSketch::SummaryContainer &a = final_summaries[fidx];
     size_t max_num_bins = std::min(retained_cuts[fidx], max_bins_);
-    a.Reserve(max_num_bins + 1);
+    a.Reserve(std::max(reduced[fidx].Size(), max_num_bins + 1));
     CHECK(a.Entries().data());
     if (retained_cuts[fidx] != 0) {
-      a.SetPrune(reduced[fidx], max_num_bins + 1);
+      a.CopyFrom(reduced[fidx]);
+      a.SetPrune(max_num_bins + 1);
       auto const a_entries = a.Entries();
       auto const reduced_entries = reduced[fidx].Entries();
       CHECK(a_entries.data() && reduced_entries.data());

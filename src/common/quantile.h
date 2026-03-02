@@ -185,26 +185,27 @@ struct WQSummary {
     }
   }
   /*!
-   * \brief set current summary to be pruned summary of src
-   *        assume data field is already allocated to be at least maxsize.
+   * \brief prune current summary in place.
    *
-   * This method supports in-place pruning (`this == &src`).
-   * \param src source summary
    * \param maxsize size we can afford in the pruned sketch
    */
-  void SetPrune(const WQSummary &src, size_t maxsize) {
+  void SetPrune(size_t maxsize) {
     if (maxsize == 0) {
       this->current_elements = 0;
       return;
     }
-    auto const src_size = src.current_elements;
+    auto const src_size = this->current_elements;
     if (src_size <= maxsize) {
-      this->CopyFrom(src);
       return;
     }
     // Use raw pointers in this hot loop to avoid per-access Span bounds checks.
-    auto const *src_data = src.data.data();
+    auto const *src_data = this->data.data();
     auto *dst_data = data.data();
+    if (maxsize == 1) {
+      dst_data[0] = src_data[0];
+      this->current_elements = 1;
+      return;
+    }
     const RType begin = src_data[0].rmax;
     const RType range = src_data[src_size - 1].rmin - src_data[0].rmax;
     const size_t n = maxsize - 1;
@@ -236,11 +237,44 @@ struct WQSummary {
     }
   }
   /*!
-   * \brief set current summary to be merged summary of sa and sb
-   * \param sa first input summary to be merged
-   * \param sb second input summary to be merged
+   * \brief combine `other` into `this`.
+   *
+   * \param other Input summary to combine with `this`.
+   * \param workspace Optional entry buffer for temporary merged entries.
    */
-  void SetCombine(const WQSummary &sa, const WQSummary &sb) {
+  void SetCombine(const WQSummary &other, std::vector<Entry> *workspace = nullptr) {
+    if (other.Empty()) {
+      return;
+    }
+    if (this->data.size() == 0) {
+      this->current_elements = 0;
+      return;
+    }
+    if (this->Empty()) {
+      CHECK_GE(this->data.size(), other.current_elements);
+      this->CopyFrom(other);
+      return;
+    }
+    size_t const merged_size = this->current_elements + other.current_elements;
+    CHECK_GE(this->data.size(), merged_size);
+
+    std::vector<Entry> owned_workspace;
+    if (workspace == nullptr) {
+      workspace = &owned_workspace;
+    }
+    if (workspace->size() < merged_size) {
+      workspace->resize(merged_size);
+    }
+
+    WQSummary<DType, RType> merged{Span<Entry>{workspace->data(), merged_size}, 0};
+    merged.SetCombineFromBoth(*this, other);
+    std::copy_n(merged.data.data(), merged.current_elements, this->data.data());
+    this->current_elements = merged.current_elements;
+  }
+
+ private:
+  // Set current summary to merged summary of `sa` and `sb`.
+  void SetCombineFromBoth(const WQSummary &sa, const WQSummary &sb) {
     size_t const merged_size = sa.current_elements + sb.current_elements;
     CHECK_GE(this->data.size(), merged_size);
     if (sa.Empty()) {
@@ -305,77 +339,6 @@ struct WQSummary {
     CHECK(current_elements <= sa.current_elements + sb.current_elements) << "bug in combine";
   }
 
-  /*!
-   * \brief combine `other` into `this`.
-   *
-   * \param other Input summary to combine with `this`.
-   * \param workspace Optional entry buffer for temporary merged entries.
-   */
-  void SetCombine(const WQSummary &other, std::vector<Entry> *workspace = nullptr) {
-    if (other.Empty()) {
-      return;
-    }
-    if (this->data.size() == 0) {
-      this->current_elements = 0;
-      return;
-    }
-    if (this->Empty()) {
-      CHECK_GE(this->data.size(), other.current_elements);
-      this->CopyFrom(other);
-      return;
-    }
-    size_t const merged_size = this->current_elements + other.current_elements;
-    CHECK_GE(this->data.size(), merged_size);
-
-    std::vector<Entry> owned_workspace;
-    if (workspace == nullptr) {
-      workspace = &owned_workspace;
-    }
-    if (workspace->size() < merged_size) {
-      workspace->resize(merged_size);
-    }
-
-    WQSummary<DType, RType> merged{Span<Entry>{workspace->data(), merged_size}, 0};
-    merged.SetCombine(*this, other);
-    std::copy_n(merged.data.data(), merged.current_elements, this->data.data());
-    this->current_elements = merged.current_elements;
-  }
-
-  /*!
-   * \brief Combine `other` into `this`, then prune to `maxsize`.
-   *
-   * \param other Input summary to combine with `this`.
-   * \param maxsize Maximum retained summary size after prune.
-   * \param workspace Optional entry buffer for temporary merged entries.
-   */
-  void SetCombinePrune(const WQSummary &other, size_t maxsize,
-                       std::vector<Entry> *workspace = nullptr) {
-    if (maxsize == 0) {
-      this->current_elements = 0;
-      return;
-    }
-    if (this->Empty()) {
-      this->SetPrune(other, maxsize);
-      return;
-    }
-    if (other.Empty()) {
-      this->SetPrune(*this, maxsize);
-      return;
-    }
-    std::vector<Entry> owned_workspace;
-    if (workspace == nullptr) {
-      workspace = &owned_workspace;
-    }
-    size_t const merged_size = this->current_elements + other.current_elements;
-    if (workspace->size() < merged_size) {
-      workspace->resize(merged_size);
-    }
-    WQSummary<DType, RType> merged{Span<Entry>{workspace->data(), merged_size}, 0};
-    merged.SetCombine(*this, other);
-    this->SetPrune(merged, maxsize);
-  }
-
- private:
   // try to fix rounding error
   // and re-establish invariance
   void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
@@ -590,7 +553,7 @@ class WQuantileSketch {
     while (true) {
       this->LazyInitLevel(l + 1);
       // Clamp the incoming summary to per-level capacity before combining.
-      summary->SetPrune(*summary, limit_size);
+      summary->SetPrune(limit_size);
       // Merge with the resident level summary.
       summary->SetCombine(level[l], &combine_workspace);
       // Level[l] is consumed into `summary`. Clear it before carry propagation.
@@ -619,7 +582,7 @@ class WQuantileSketch {
     // Merge all levels into out.
     for (auto &level_summary : level) {
       out.SetCombine(level_summary, &combine_workspace);
-      out.SetPrune(out, max_size);
+      out.SetPrune(max_size);
     }
     return out;
   }

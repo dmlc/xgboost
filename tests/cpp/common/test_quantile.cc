@@ -59,10 +59,11 @@ TEST(Quantile, SetPruneInplace) {
     std::vector<Entry> ref_storage(n);
     Summary src_ref{Span<Entry>{src_storage.data(), src_storage.size()}, n};
     Summary out_ref{Span<Entry>{ref_storage.data(), ref_storage.size()}, 0};
-    out_ref.SetPrune(src_ref, max_size);
+    out_ref.CopyFrom(src_ref);
+    out_ref.SetPrune(max_size);
 
     Summary in_place{Span<Entry>{src_storage.data(), src_storage.size()}, n};
-    in_place.SetPrune(in_place, max_size);
+    in_place.SetPrune(max_size);
 
     ASSERT_EQ(in_place.Size(), out_ref.Size()) << "trial=" << trial;
     auto const in_entries = in_place.Entries();
