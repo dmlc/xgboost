@@ -467,33 +467,21 @@ class WQuantileSketch {
   using Summary = WQSummary<>;
   using Entry = typename WQSummary<>::Entry;
   using SummaryContainer = WQSummaryContainer;
-
-  /*!
-   * \brief initialize the quantile sketch, given the performance specification
-   * \param maxn maximum number of data points can be feed into sketch
-   * \param eps accuracy level of summary
-   */
-  void Init(size_t maxn, double eps) {
-    if (maxn == 0) {
-      // Empty columns can appear in distributed column-split settings.
-      // Keep internals in a valid state while preserving an empty summary.
-      nlevel = 1;
-      limit_size = 1;
-      inqueue = Queue<>(1);
-      data.clear();
-      level.clear();
-      return;
-    }
-    LimitSizeLevel(maxn, eps, &nlevel, &limit_size);
+  WQuantileSketch() = default;
+  WQuantileSketch(size_t maxn, double eps) {
+    limit_size = LimitSizeLevel(maxn, eps);
     inqueue = Queue<>(limit_size * 2);
     data.clear();
     level.clear();
   }
 
-  static void LimitSizeLevel(size_t maxn, double eps, size_t *out_nlevel, size_t *out_limit_size) {
-    size_t &nlevel = *out_nlevel;
-    size_t &limit_size = *out_limit_size;
-    nlevel = 1;
+  static size_t LimitSizeLevel(size_t maxn, double eps) {
+    if (maxn == 0) {
+      // Empty columns can appear in distributed column-split settings.
+      return 1;
+    }
+    size_t nlevel = 1;
+    size_t limit_size = 1;
     while (true) {
       limit_size = static_cast<size_t>(ceil(nlevel / eps)) + 1;
       limit_size = std::min(maxn, limit_size);
@@ -506,6 +494,7 @@ class WQuantileSketch {
     CHECK(n * limit_size >= maxn) << "invalid init parameter";
     CHECK(nlevel <= std::max(static_cast<size_t>(1), static_cast<size_t>(limit_size * eps)))
         << "invalid init parameter";
+    return limit_size;
   }
 
   /*!
@@ -573,7 +562,7 @@ class WQuantileSketch {
   /*! \brief get the summary after finalize */
   [[nodiscard]] WQSummaryContainer GetSummary(size_t max_size) {
     WQSummaryContainer out;
-    out.Reserve(max_size + limit_size);
+    out.Reserve(std::max(max_size, limit_size) * 2);
 
     // Flush pending queue into level summaries first.
     inqueue.PopSummary(&temp);
@@ -582,8 +571,9 @@ class WQuantileSketch {
     // Merge all levels into out.
     for (auto &level_summary : level) {
       out.SetCombine(level_summary, &combine_workspace);
-      out.SetPrune(max_size);
+      out.SetPrune(std::max(max_size, limit_size));
     }
+    out.SetPrune(max_size);
     return out;
   }
 
@@ -599,11 +589,9 @@ class WQuantileSketch {
     }
   }
   // input data queue
-  Queue<> inqueue;
-  // number of levels
-  size_t nlevel;
+  Queue<> inqueue{1};
   // size of summary in each level
-  size_t limit_size;
+  size_t limit_size{1};
   // the level of each summaries
   std::vector<WQSummary<>> level;
   // content of the summary
@@ -833,7 +821,7 @@ class SortedSketchContainer : public SketchContainerImpl {
     monitor_.Init(__func__);
     for (size_t i = 0; i < sketches_.size(); ++i) {
       auto eps = 2.0 / max_bins;
-      sketches_[i].Init(columns_size_[i], eps);
+      sketches_[i] = WQSketch{columns_size_[i], eps};
     }
   }
   /**

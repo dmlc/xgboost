@@ -465,7 +465,7 @@ HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bins,
     n_bins = std::max(n_bins, static_cast<decltype(n_bins)>(1));
     auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
     if (!IsCat(this->feature_types_, i)) {
-      sketches_[i].Init(columns_size_[i], eps);
+      sketches_[i] = WQSketch{columns_size_[i], eps};
     }
   });
 }
