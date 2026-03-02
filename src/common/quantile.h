@@ -145,7 +145,7 @@ struct WQSummary {
         if (rmax >= next_goal && summary_size != max_size) {
           if (summary_size == 0 || last_fvalue > data[summary_size - 1].value) {
             CHECK_LT(summary_size, max_size) << "invalid maximum size max_size=" << max_size
-                                             << ", stemp.current_elements" << summary_size;
+                                             << ", stemp.current_elements=" << summary_size;
             data[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
                                        static_cast<bst_float>(wmin), last_fvalue);
             ++summary_size;
@@ -158,7 +158,7 @@ struct WQSummary {
           }
         } else if (rmax >= next_goal) {
           LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
-                     << ", naxt_goal=" << next_goal << ", size=" << summary_size;
+                     << ", next_goal=" << next_goal << ", size=" << summary_size;
         }
         rmin = rmax;
         wmin = weights[c.index];
@@ -369,7 +369,7 @@ struct WQSummaryContainer : public WQSummary<> {
   WQSummaryContainer(WQSummaryContainer const &src) : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {
     this->space = src.space;
     this->data = {dmlc::BeginPtr(this->space), this->space.size()};
-    this->CopyFrom(src);
+    this->current_elements = src.current_elements;
   }
   WQSummaryContainer() : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {}
   void Reserve(size_t size) {
