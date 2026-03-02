@@ -195,7 +195,7 @@ auto SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &i
   auto cursor{worker_sketch.begin()};
   for (size_t fidx = 0; fidx < reduced.size(); ++fidx) {
     auto const &sketch = reduced[fidx];
-    if (IsCat(feature_types_, fidx) || sketch.Size() == 0) {
+    if (IsCat(feature_types_, fidx) || sketch.Empty()) {
       // Nothing to copy for categorical features or empty sketches.
       continue;
     }
@@ -349,14 +349,12 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     auto &out = reduced.at(fidx);
     out.Clear();
     out.Reserve(cut_target);
-    std::vector<WQSketch::Entry> combine_workspace;
-    combine_workspace.reserve(static_cast<size_t>(cut_target) * 2);
 
     for (int32_t r = 0; r < world; ++r) {
       auto worker_feature = allreduce_result.Values(r, fidx);
       CHECK(worker_feature.data());
       WQSketch::Summary summary(worker_feature, worker_feature.size());
-      out.SetCombinePrune(summary, cut_target, &combine_workspace);
+      out.SetCombinePrune(summary, cut_target);
     }
     retained_cuts[fidx] = static_cast<int32_t>(out.Size());
   });

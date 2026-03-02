@@ -62,6 +62,8 @@ struct WQSummary {
       : data{data}, current_elements{current_elements} {}
   /*! \brief Return the number of valid entries in this summary. */
   [[nodiscard]] size_t Size() const { return current_elements; }
+  /*! \brief Return true if this summary has no valid entries. */
+  [[nodiscard]] bool Empty() const { return this->Size() == 0; }
   /*! \brief Return a const span over valid entries [0, Size()). */
   [[nodiscard]] Span<Entry const> Entries() const { return {data.data(), current_elements}; }
   /*! \brief Set the number of valid entries in this summary. */
@@ -235,15 +237,17 @@ struct WQSummary {
    * \param sb second input summary to be merged
    */
   void SetCombine(const WQSummary &sa, const WQSummary &sb) {
-    if (sa.current_elements == 0) {
+    size_t const merged_size = sa.current_elements + sb.current_elements;
+    CHECK_GE(this->data.size(), merged_size);
+    if (sa.Empty()) {
       this->CopyFrom(sb);
       return;
     }
-    if (sb.current_elements == 0) {
+    if (sb.Empty()) {
       this->CopyFrom(sa);
       return;
     }
-    CHECK(sa.current_elements > 0 && sb.current_elements > 0);
+    CHECK(!sa.Empty() && !sb.Empty());
     // Merge with raw pointers to avoid Span bounds checks inside the tight loop.
     const Entry *a = sa.data.data(), *a_end = sa.data.data() + sa.current_elements;
     const Entry *b = sb.data.data(), *b_end = sb.data.data() + sb.current_elements;
@@ -298,6 +302,42 @@ struct WQSummary {
   }
 
   /*!
+   * \brief combine `other` into `this`.
+   *
+   * \param other Input summary to combine with `this`.
+   * \param workspace Optional entry buffer for temporary merged entries.
+   */
+  void SetCombine(const WQSummary &other, std::vector<Entry> *workspace = nullptr) {
+    if (other.Empty()) {
+      return;
+    }
+    if (this->data.size() == 0) {
+      this->current_elements = 0;
+      return;
+    }
+    if (this->Empty()) {
+      CHECK_GE(this->data.size(), other.current_elements);
+      this->CopyFrom(other);
+      return;
+    }
+    size_t const merged_size = this->current_elements + other.current_elements;
+    CHECK_GE(this->data.size(), merged_size);
+
+    std::vector<Entry> owned_workspace;
+    if (workspace == nullptr) {
+      workspace = &owned_workspace;
+    }
+    if (workspace->size() < merged_size) {
+      workspace->resize(merged_size);
+    }
+
+    WQSummary<DType, RType> merged{Span<Entry>{workspace->data(), merged_size}, 0};
+    merged.SetCombine(*this, other);
+    std::copy_n(merged.data.data(), merged.current_elements, this->data.data());
+    this->current_elements = merged.current_elements;
+  }
+
+  /*!
    * \brief Combine `other` into `this`, then prune to `maxsize`.
    *
    * \param other Input summary to combine with `this`.
@@ -310,26 +350,23 @@ struct WQSummary {
       this->current_elements = 0;
       return;
     }
-    if (this->current_elements == 0) {
+    if (this->Empty()) {
       this->SetPrune(other, maxsize);
       return;
     }
-    if (other.current_elements == 0) {
+    if (other.Empty()) {
       this->SetPrune(*this, maxsize);
       return;
     }
-    size_t const merged_size = this->current_elements + other.current_elements;
-
     std::vector<Entry> owned_workspace;
-    std::vector<Entry> *entries = workspace;
-    if (entries == nullptr) {
-      owned_workspace.resize(merged_size);
-      entries = &owned_workspace;
-    } else if (entries->size() < merged_size) {
-      entries->resize(merged_size);
+    if (workspace == nullptr) {
+      workspace = &owned_workspace;
     }
-
-    WQSummary<DType, RType> merged{Span<Entry>{entries->data(), merged_size}, 0};
+    size_t const merged_size = this->current_elements + other.current_elements;
+    if (workspace->size() < merged_size) {
+      workspace->resize(merged_size);
+    }
+    WQSummary<DType, RType> merged{Span<Entry>{workspace->data(), merged_size}, 0};
     merged.SetCombine(*this, other);
     this->SetPrune(merged, maxsize);
   }
@@ -511,7 +548,7 @@ class WQuantileSketch {
     if (!inqueue.Push(x, w)) {
       temp.Reserve(limit_size * 2);
       inqueue.PopSummary(&temp);
-      this->PushTemp();
+      this->PushSummary(&temp);
       inqueue.Push(x, w);
     }
   }
@@ -530,33 +567,37 @@ class WQuantileSketch {
     this->temp.Reserve(max_size + 1);
     this->temp.SetPruneSorted(column, weights, max_size);
     if (!column.empty()) {
-      this->PushTemp();
+      this->PushSummary(&temp);
     }
   }
 
-  /*! \brief push up temp */
-  void PushTemp() {
-    temp.Reserve(limit_size * 2);
-    for (size_t l = 1; true; ++l) {
-      this->InitLevel(l + 1);
-      // check if level l is empty
-      if (level[l].Size() == 0) {
-        level[l].SetPrune(temp, limit_size);
+  /*! \brief push up a prepared summary */
+  void PushSummary(WQSummaryContainer *summary) {
+    CHECK(summary);
+    summary->Reserve(limit_size * 2);
+    size_t l = 0;
+    // Level-wise merge/prune with carry propagation.
+    //
+    // Reference:
+    //   Greenwald, M. and Khanna, S. "Space-efficient Online Computation of
+    //   Quantile Summaries", SIGMOD 2001.
+    while (true) {
+      this->LazyInitLevel(l + 1);
+      // Clamp the incoming summary to per-level capacity before combining.
+      summary->SetPrune(*summary, limit_size);
+      // Merge with the resident level summary.
+      summary->SetCombine(level[l], &combine_workspace);
+      // Level[l] is consumed into `summary`. Clear it before carry propagation.
+      level[l].Clear();
+      // If merged summary fits, store at this level. Otherwise carry upward.
+      if (summary->Size() <= limit_size) {
         break;
-      } else {
-        // level 0 is actually temp space
-        level[0].SetPrune(temp, limit_size);
-        temp.SetCombine(level[0], level[l]);
-        if (temp.Size() > limit_size) {
-          // try next level
-          level[l].Clear();
-        } else {
-          // if merged record is still smaller, no need to send to next level
-          level[l].CopyFrom(temp);
-          break;
-        }
       }
+      ++l;
     }
+
+    // First level where merged summary fits.
+    level[l].CopyFrom(*summary);
   }
 
  public:
@@ -571,17 +612,15 @@ class WQuantileSketch {
     }
     inqueue.PopSummary(&out);
     if (level.size() != 0) {
-      level[0].SetPrune(out, limit_size);
-      for (size_t l = 1; l < level.size(); ++l) {
-        if (level[l].Size() == 0) continue;
-        if (level[0].Size() == 0) {
-          level[0].CopyFrom(level[l]);
+      out.SetPrune(out, limit_size);
+      for (size_t l = 0; l < level.size(); ++l) {
+        if (level[l].Empty()) continue;
+        if (out.Empty()) {
+          out.CopyFrom(level[l]);
         } else {
-          out.SetCombine(level[0], level[l]);
-          level[0].SetPrune(out, limit_size);
+          out.SetCombinePrune(level[l], limit_size, &combine_workspace);
         }
       }
-      out.CopyFrom(level[0]);
     } else {
       if (out.Size() > limit_size) {
         temp.Reserve(limit_size);
@@ -603,7 +642,7 @@ class WQuantileSketch {
 
  private:
   // initialize level space to at least nlevel
-  void InitLevel(size_t nlevel) {
+  void LazyInitLevel(size_t nlevel) {
     if (level.size() >= nlevel) return;
     data.resize(limit_size * nlevel);
     level.clear();
@@ -624,6 +663,8 @@ class WQuantileSketch {
   std::vector<WQSummary<>::Entry> data;
   // temporal summary, used for temp-merge
   WQSummaryContainer temp;
+  // reusable workspace for combine-prune operations
+  std::vector<Entry> combine_workspace;
 };
 
 namespace detail {
