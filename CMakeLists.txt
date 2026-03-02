@@ -54,6 +54,7 @@ option(BUILD_STATIC_LIB "Build static library" OFF)
 option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
 option(BUILD_WITH_GIT_HASH "Add a short git hash to the build info." OFF)
+option(BUILD_WITH_DMLC_SYSTEM "Use system package for dmlc." OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -289,7 +290,12 @@ endif()
 
 # dmlc-core
 set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
-add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+if(BUILD_WTIH_DMLC_SYSTEM)
+  find_package(dmlc REQUIRED)
+else()
+  set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
+  add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+endif()
 
 if(MSVC)
   if(TARGET dmlc_unit_tests)
@@ -302,7 +308,12 @@ endif()
 
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
-target_link_libraries(objxgboost PUBLIC dmlc)
+# dmlc-core
+if(BUIILD_WTIH_DMLC_SYSTEM)
+   target_link_libraries(objxgboost PUBLIC ${dmlc-LIBRARIES})
+else()
+  target_link_libraries(objxgboost PUBLIC dmlc)
+endif()
 
 # Link -lstdc++fs for GCC 8.x
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
@@ -379,6 +390,9 @@ if(BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
 else()
   add_library(xgboost SHARED)
+  set_target_properties(xgboost PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR})
 endif()
 target_link_libraries(xgboost PRIVATE objxgboost)
 target_include_directories(xgboost
@@ -388,11 +402,16 @@ target_include_directories(xgboost
 #-- End shared library
 
 # Common setup for all targets
-foreach(target xgboost objxgboost dmlc)
+foreach(target xgboost objxgboost)
   xgboost_target_properties(${target})
   xgboost_target_link_libraries(${target})
   xgboost_target_defs(${target})
 endforeach()
+if(NOT BUILD_WTIH_DMLC_SYSTEM)
+  xgboost_target_properties(dmlc)
+  xgboost_target_link_libraries(dmlc)
+  xgboost_target_defs(dmlc)
+endif()
 
 if(JVM_BINDINGS)
   xgboost_target_properties(xgboost4j)
