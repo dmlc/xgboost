@@ -45,6 +45,12 @@ Core Data Structure
 
 .. autoclass:: xgboost.core.Categories
 
+Objective API
+-------------
+.. automodule:: xgboost.objective
+    :members:
+    :show-inheritance:
+
 Learning API
 ------------
 .. automodule:: xgboost.training

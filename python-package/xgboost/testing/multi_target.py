@@ -18,7 +18,7 @@ import xgboost.testing as tm
 from .._typing import ArrayLike
 from ..compat import import_cupy
 from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix, build_info
-from ..objective import Objective, TreeObjective
+from ..objective import Objective
 from ..sklearn import XGBClassifier
 from ..training import train
 from .data import IteratorForTest
@@ -144,7 +144,7 @@ def _array_impl(device: Device) -> ModuleType:
     return nda
 
 
-class LsObj0(TreeObjective):
+class LsObj0(Objective):
     """Split grad is the same as value grad."""
 
     def __init__(self, device: Device) -> None:

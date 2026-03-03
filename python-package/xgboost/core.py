@@ -87,7 +87,7 @@ from .compat import (
     is_pyarrow_available,
     py_str,
 )
-from .objective import Objective, TreeObjective, _grad_arrinf
+from .objective import Objective, _grad_arrinf
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -2280,21 +2280,14 @@ class Booster:
         vgrad: Optional[ArrayLike]
         vhess: Optional[ArrayLike]
 
-        if isinstance(fobj, TreeObjective):
-            # full gradient for leaf values
+        if isinstance(fobj, Objective):
             vgrad, vhess = fobj(iteration, y_pred, dtrain)
-            # Reduced gradient for split nodes
             split_grad = fobj.split_grad(iteration, vgrad, vhess)
-            # Switch the role of gradient if there's no split gradient but the tree
-            # objective is used.
             if split_grad is not None:
                 sgrad, shess = split_grad
             else:
                 sgrad, shess = vgrad, vhess
                 vgrad, vhess = None, None
-        elif isinstance(fobj, Objective):
-            sgrad, shess = fobj(iteration, y_pred, dtrain)
-            vgrad, vhess = None, None
         else:
             # Plain callable
             sgrad, shess = fobj(y_pred, dtrain)

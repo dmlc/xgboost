@@ -37,6 +37,7 @@ from .core import (
     _deprecate_positional_args,
     _RefMixIn,
 )
+from .objective import _BuiltInObjective
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -180,8 +181,17 @@ def train(
         ):
             raise ValueError(_RefError)
 
+    builtin_obj = None
+    if isinstance(obj, _BuiltInObjective):
+        builtin_obj = obj
+        obj = None
+
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
     start_iteration = 0
+
+    if builtin_obj is not None:
+        for key, value in builtin_obj.flat_params().items():
+            bst.set_param(key, value)
 
     if verbose_eval:
         verbose_eval = 1 if verbose_eval is True else verbose_eval
