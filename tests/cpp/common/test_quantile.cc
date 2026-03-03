@@ -34,9 +34,8 @@ TEST(Quantile, InitWithEmptyColumn) {
   WQuantileSketch sketch;
   sketch.Init(0, 0.1);
 
-  WQuantileSketch::SummaryContainer out;
-  sketch.GetSummary(&out);
-  ASSERT_EQ(out.current_elements, 0);
+  auto out = sketch.GetSummary();
+  ASSERT_EQ(out.Size(), 0);
 }
 
 namespace {
