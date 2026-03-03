@@ -89,6 +89,10 @@ class _ObjSpec:
 def _stringify(value: Any) -> str:
     if isinstance(value, bool):
         return str(int(value))
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    elif _is_cupy_alike(value) and hasattr(value, "get"):
+        value = value.get().tolist()
     if isinstance(value, (list, tuple)):
         return "[" + ",".join(str(v) for v in value) + "]"
     return str(value)
@@ -112,9 +116,9 @@ def _make_builtin_objective(spec: _ObjSpec) -> type:
 
     class _Cls(_BuiltInObjective):
         def __init__(self, **kwargs: Any) -> None:
+            self._params: Dict[str, Any] = {}
             for p in params:
-                value = kwargs.pop(p.py_name, None)
-                object.__setattr__(self, "_param_" + p.py_name, value)
+                self._params[p.py_name] = kwargs.pop(p.py_name, None)
             if kwargs:
                 raise TypeError(f"Unknown parameters for {obj_name}: {list(kwargs)}")
 
@@ -125,7 +129,7 @@ def _make_builtin_objective(spec: _ObjSpec) -> type:
         def flat_params(self) -> Dict[str, str]:
             result: Dict[str, str] = {"objective": obj_name}
             for p in params:
-                value = getattr(self, "_param_" + p.py_name)
+                value = self._params[p.py_name]
                 if value is not None:
                     result[p.cpp_name] = _stringify(value)
             return result

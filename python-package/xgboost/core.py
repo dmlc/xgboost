@@ -87,7 +87,7 @@ from .compat import (
     is_pyarrow_available,
     py_str,
 )
-from .objective import Objective, _grad_arrinf
+from .objective import Objective, _grad_arrinf, _stringify
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -2162,13 +2162,11 @@ class Booster:
         elif isinstance(params, str) and value is not None:
             params = [(params, value)]
         for key, val in cast(Iterable[Tuple[str, str]], params):
-            if isinstance(val, np.ndarray):
-                val = val.tolist()
-            elif hasattr(val, "__cuda_array_interface__") and hasattr(val, "tolist"):
-                val = val.tolist()
             if val is not None:
                 _check_call(
-                    _LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val)))
+                    _LIB.XGBoosterSetParam(
+                        self.handle, c_str(key), c_str(_stringify(val))
+                    )
                 )
 
     def update(
