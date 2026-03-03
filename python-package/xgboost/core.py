@@ -1465,19 +1465,12 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         applied to the validation/test data
 
     max_quantile_batches :
-        For GPU-based inputs from an iterator, XGBoost handles incoming batches with
-        multiple growing sub-streams. This parameter sets the maximum number of batches
-        before XGBoost can cut a sub-stream and create a new one. This can help bound
-        the memory usage. By default, XGBoost grows a sub-stream exponentially until
-        batches are exhausted. This option is only used for the training dataset and the
-        default is None (unbounded). Lastly, if the `data` is a single batch instead of
-        an iterator, this parameter has no effect.
+        Deprecated. This parameter no longer has any effect and will be removed in a
+        future release.
 
         .. versionadded:: 3.0.0
 
-        .. warning::
-
-            This is an experimental parameter and subject to change.
+        .. deprecated:: 3.3.0
 
     """
 
@@ -1642,7 +1635,7 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             A user-defined :py:class:`DataIter` for loading data.
 
         max_quantile_batches :
-            See :py:class:`QuantileDMatrix`.
+            Deprecated. See :py:class:`QuantileDMatrix`.
 
         cache_host_ratio :
 

@@ -334,8 +334,10 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     return {std::move(reduced), std::move(retained_cuts)};
   }
 
-  auto [worker_segments, sketches_scan, global_sketches] =
-      this->GatherSketchInfo(ctx, info, reduced);
+  auto gathered = this->GatherSketchInfo(ctx, info, reduced);
+  auto &worker_segments = std::get<0>(gathered);
+  auto &sketches_scan = std::get<1>(gathered);
+  auto &global_sketches = std::get<2>(gathered);
 
   ParallelFor(n_columns, n_threads_, [&](auto fidx) {
     // gcc raises subobject-linkage warning if we put allreduce_result as lambda capture
@@ -353,6 +355,7 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     for (int32_t r = 0; r < world; ++r) {
       auto worker_feature = allreduce_result.Values(r, fidx);
       CHECK(worker_feature.data());
+      // Non-owning view over all-reduced entries for one feature on one worker.
       WQSketch::Summary summary(worker_feature, worker_feature.size());
       out.SetCombine(summary);
       out.SetPrune(cut_target);
@@ -398,7 +401,9 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
 void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
                                    HistogramCuts *p_cuts) {
   monitor_.Start(__func__);
-  auto [reduced, retained_cuts] = this->AllReduce(ctx, info);
+  auto allreduce = this->AllReduce(ctx, info);
+  auto &reduced = std::get<0>(allreduce);
+  auto &retained_cuts = std::get<1>(allreduce);
 
   p_cuts->min_vals_.HostVector().resize(sketches_.size(), 0.0f);
   std::vector<WQSketch::SummaryContainer> final_summaries(reduced.size());
@@ -409,11 +414,10 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     }
     WQSketch::SummaryContainer &a = final_summaries[fidx];
     size_t max_num_bins = std::min(retained_cuts[fidx], max_bins_);
-    a.Reserve(std::max(reduced[fidx].Size(), max_num_bins + 1));
+    a.Reserve(max_num_bins + 1);
     CHECK(a.Entries().data());
     if (retained_cuts[fidx] != 0) {
-      a.CopyFrom(reduced[fidx]);
-      a.SetPrune(max_num_bins + 1);
+      a.SetPrune(reduced[fidx], max_num_bins + 1);
       auto const a_entries = a.Entries();
       auto const reduced_entries = reduced[fidx].Entries();
       CHECK(a_entries.data() && reduced_entries.data());

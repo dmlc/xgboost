@@ -83,8 +83,8 @@ TEST(HistUtil, DeviceSketchMemory) {
   ConsoleLogger::Configure({{"verbosity", "3"}});
   auto device_cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
 
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, false);
+  size_t bytes_required =
+      detail::RequiredMemory(num_rows, num_columns, num_rows * num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
   ConsoleLogger::Configure({{"verbosity", "0"}});
@@ -104,8 +104,8 @@ TEST(HistUtil, DeviceSketchWeightsMemory) {
   auto device_cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
   ConsoleLogger::Configure({{"verbosity", "0"}});
 
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, true);
+  size_t bytes_required =
+      detail::RequiredMemory(num_rows, num_columns, num_rows * num_columns, num_bins, true);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
@@ -118,7 +118,7 @@ TEST(HistUtil, DeviceSketchDeterminism) {
   auto x = GenerateRandom(num_rows, num_columns);
   auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
   auto reference_sketch = DeviceSketch(&ctx, dmat.get(), num_bins);
-  size_t constexpr kRounds{ 100 };
+  size_t constexpr kRounds{100};
   for (size_t r = 0; r < kRounds; ++r) {
     auto new_sketch = DeviceSketch(&ctx, dmat.get(), num_bins);
     ASSERT_EQ(reference_sketch.Values(), new_sketch.Values());
@@ -331,7 +331,7 @@ TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
   auto ctx = MakeCUDACtx(0);
   auto bin_sizes = {2, 16, 256, 512};
   auto sizes = {100, 1000, 1500};
-  int num_columns =5;
+  int num_columns = 5;
   for (auto num_rows : sizes) {
     HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
     common::TemporaryDirectory temp;
@@ -366,8 +366,7 @@ auto MakeUnweightedCutsForTest(Context const* ctx, Adapter adapter, int32_t num_
                                size_t batch_size = 0) {
   common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), adapter.NumRows(),
-                                   DeviceOrd::CUDA(0));
+  SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), DeviceOrd::CUDA(0));
   MetaInfo info;
   AdapterDeviceSketch(ctx, adapter.Value(), num_bins, info, missing, &sketch_container, batch_size);
   sketch_container.MakeCuts(ctx, &batched_cuts, info.IsColumnSplit());
@@ -375,7 +374,8 @@ auto MakeUnweightedCutsForTest(Context const* ctx, Adapter adapter, int32_t num_
 }
 
 template <typename Adapter>
-void ValidateBatchedCuts(Context const* ctx, Adapter adapter, int num_bins, DMatrix* dmat, size_t batch_size = 0) {
+void ValidateBatchedCuts(Context const* ctx, Adapter adapter, int num_bins, DMatrix* dmat,
+                         size_t batch_size = 0) {
   common::HistogramCuts batched_cuts = MakeUnweightedCutsForTest(
       ctx, adapter, num_bins, std::numeric_limits<float>::quiet_NaN(), batch_size);
   ValidateCuts(batched_cuts, dmat, num_bins);
@@ -386,10 +386,10 @@ TEST(HistUtil, AdapterDeviceSketch) {
   int rows = 5;
   int cols = 1;
   int num_bins = 4;
-  float missing =  - 1.0;
-  thrust::device_vector< float> data(rows*cols);
+  float missing = -1.0;
+  thrust::device_vector<float> data(rows * cols);
   auto json_array_interface = Generate2dArrayInterface(rows, cols, "<f4", &data);
-  data = std::vector<float >{ 1.0,2.0,3.0,4.0,5.0 };
+  data = std::vector<float>{1.0, 2.0, 3.0, 4.0, 5.0};
   std::string str;
   Json::Dump(json_array_interface, &str);
 
@@ -418,8 +418,8 @@ TEST(HistUtil, AdapterDeviceSketchMemory) {
   auto cuts =
       MakeUnweightedCutsForTest(&ctx, adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
   ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, false);
+  size_t bytes_required =
+      detail::RequiredMemory(num_rows, num_columns, num_rows * num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
 }
@@ -438,13 +438,13 @@ TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   ConsoleLogger::Configure({{"verbosity", "3"}});
   common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, DeviceOrd::CUDA(0));
+  SketchContainer sketch_container(ft, num_bins, num_columns, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &sketch_container);
   HistogramCuts cuts;
   sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, false);
+  size_t bytes_required =
+      detail::RequiredMemory(num_rows, num_columns, num_rows * num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
   ConsoleLogger::Configure({{"verbosity", "0"}});
@@ -467,21 +467,21 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   ConsoleLogger::Configure({{"verbosity", "3"}});
   common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, DeviceOrd::CUDA(0));
+  SketchContainer sketch_container(ft, num_bins, num_columns, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &sketch_container);
 
   HistogramCuts cuts;
   sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
   ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, true);
+  size_t bytes_required =
+      detail::RequiredMemory(num_rows, num_columns, num_rows * num_columns, num_bins, true);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
 
-void TestCategoricalSketchAdapter(size_t n, size_t num_categories,
-                                  int32_t num_bins, bool weighted) {
+void TestCategoricalSketchAdapter(size_t n, size_t num_categories, int32_t num_bins,
+                                  bool weighted) {
   auto ctx = MakeCUDACtx(0);
   auto h_x = GenerateRandomCategoricalSingleColumn(n, num_categories);
   thrust::device_vector<float> x(h_x);
@@ -502,7 +502,7 @@ void TestCategoricalSketchAdapter(size_t n, size_t num_categories,
   }
 
   ASSERT_EQ(info.feature_types.Size(), 1);
-  SketchContainer container(info.feature_types, num_bins, 1, n, DeviceOrd::CUDA(0));
+  SketchContainer container(info.feature_types, num_bins, 1, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &container);
   HistogramCuts cuts;
@@ -699,7 +699,7 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   ASSERT_EQ(cuts.Ptrs().size(), weighted_cuts.Ptrs().size());
 
   for (size_t i = 0; i < cuts.Values().size(); ++i) {
-    EXPECT_EQ(cuts.Values()[i], weighted_cuts.Values()[i]) << "i:"<< i;
+    EXPECT_EQ(cuts.Values()[i], weighted_cuts.Values()[i]) << "i:" << i;
   }
   for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
     ASSERT_EQ(cuts.MinValues()[i], weighted_cuts.MinValues()[i]);
@@ -742,7 +742,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
   data::CupyAdapter adapter(m);
   auto const& batch = adapter.Value();
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, kBins, kCols, kRows, DeviceOrd::CUDA(0));
+  SketchContainer sketch_container(ft, kBins, kCols, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
 
@@ -785,7 +785,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
       // https://github.com/dmlc/xgboost/issues/7946
       h_weights[i] = (i % 2 == 0 ? 1 : 2) / static_cast<float>(kGroups);
     }
-    SketchContainer sketch_container{ft, kBins, kCols, kRows, DeviceOrd::CUDA(0)};
+    SketchContainer sketch_container{ft, kBins, kCols, DeviceOrd::CUDA(0)};
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_container);
     sketch_container.MakeCuts(&ctx, &weighted, info.IsColumnSplit());
@@ -947,6 +947,6 @@ INSTANTIATE_TEST_SUITE_P(
       auto task = std::get<0>(info.param) ? "ltr" : "reg";
       auto n_samples = std::to_string(std::get<1>(info.param));
       auto n_bins = std::to_string(std::get<2>(info.param));
-      return std::string{task} + "_" + n_samples + "_" + n_bins;
+      return std::string(task) + "_" + n_samples + "_" + n_bins;
     });
 }  // namespace xgboost::common

@@ -148,7 +148,7 @@ struct WQSummary {
         if (rmax >= next_goal && summary_size != max_size) {
           if (summary_size == 0 || last_fvalue > data[summary_size - 1].value) {
             CHECK_LT(summary_size, max_size) << "invalid maximum size max_size=" << max_size
-                                             << ", stemp.current_elements" << summary_size;
+                                             << ", stemp.current_elements=" << summary_size;
             data[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
                                        static_cast<bst_float>(wmin), last_fvalue);
             ++summary_size;
@@ -161,7 +161,7 @@ struct WQSummary {
           }
         } else if (rmax >= next_goal) {
           LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
-                     << ", naxt_goal=" << next_goal << ", size=" << summary_size;
+                     << ", next_goal=" << next_goal << ", size=" << summary_size;
         }
         rmin = rmax;
         wmin = weights[c.index];
@@ -339,6 +339,7 @@ struct WQSummary {
     CHECK(current_elements <= sa.current_elements + sb.current_elements) << "bug in combine";
   }
 
+ private:
   // try to fix rounding error
   // and re-establish invariance
   void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
@@ -585,7 +586,7 @@ class WQuantileSketch {
     level.clear();
     level.reserve(nlevel);
     for (size_t l = 0; l < nlevel; ++l) {
-      level.emplace_back(Span<Entry>{data.data() + l * limit_size, limit_size}, 0);
+      level_.emplace_back(Span<Entry>{data_.data() + l * limit_size_, limit_size_}, 0);
     }
   }
   // input data queue
@@ -593,9 +594,9 @@ class WQuantileSketch {
   // size of summary in each level
   size_t limit_size{1};
   // the level of each summaries
-  std::vector<WQSummary<>> level;
+  std::vector<WQSummary<>> level_;
   // content of the summary
-  std::vector<WQSummary<>::Entry> data;
+  std::vector<WQSummary<>::Entry> data_;
   // temporal summary, used for temp-merge
   WQSummaryContainer temp;
   // reusable workspace for combine-prune operations

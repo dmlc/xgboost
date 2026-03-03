@@ -529,12 +529,8 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  *   - nthread (optional): Number of threads used for initializing DMatrix.
  *   - max_bin (optional): Maximum number of bins for building histogram. Must be consistent with
  *                         the corresponding booster training parameter.
- *   - max_quantile_blocks (optional): For GPU-based inputs, XGBoost handles incoming
- *       batches with multiple growing substreams. This parameter sets the maximum number
- *       of batches before XGBoost can cut the sub-stream and create a new one. This can
- *       help bound the memory usage. By default, XGBoost grows new sub-streams
- *       exponentially until batches are exhausted. Only used for the training dataset and
- *       the default is None (unbounded).
+ *   - max_quantile_blocks (optional, deprecated): This parameter no longer has any effect and
+ *       will be removed in a future release.
  * @param out      The created Quantile DMatrix.
  *
  * @return 0 when success, -1 when failure happens
@@ -570,12 +566,8 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
  *   - min_cache_page_bytes (optional): The minimum number of bytes for each internal GPU
  *      page. Set to 0 to disable page concatenation. Automatic configuration if the
  *      parameter is not provided or set to None.
- *   - max_quantile_blocks (optional): For GPU-based inputs, XGBoost handles incoming
- *       batches with multiple growing substreams. This parameter sets the maximum number
- *       of batches before XGBoost can cut the sub-stream and create a new one. This can
- *       help bound the memory usage. By default, XGBoost grows new sub-streams
- *       exponentially until batches are exhausted. Only used for the training dataset and
- *       the default is None (unbounded).
+ *   - max_quantile_blocks (optional, deprecated): This parameter no longer has any effect and
+ *       will be removed in a future release.
  * - cache_host_ratio (optioinal): For GPU-based inputs, XGBoost can split the cache into
  *      host and device portitions to reduce the data transfer overhead. This parameter
  *      specifies the size of host cache compared to the size of the entire cache:
