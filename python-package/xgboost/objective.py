@@ -59,18 +59,17 @@ class _BuiltInObjective(Objective):
     @property
     @abstractmethod
     def name(self) -> str:
-        """The C++ objective name string."""
+        """The objective name string."""
 
+    # pylint: disable=missing-function-docstring
     @abstractmethod
-    def flat_params(self) -> Dict[str, str]:
-        """Return flattened parameters as a string dictionary."""
+    def flat_params(self) -> Dict[str, str]: ...
 
     def __call__(
         self, iteration: int, y_pred: ArrayLike, dtrain: "DMatrix"
     ) -> Tuple[ArrayLike, ArrayLike]:
         raise RuntimeError(
-            f"The built-in objective '{self.name}' computes gradients in C++. "
-            "This method should not be called directly."
+            "This method should not be called directly for the built-in objective."
         )
 
 

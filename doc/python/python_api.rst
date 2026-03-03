@@ -49,7 +49,6 @@ Objective API
 -------------
 .. automodule:: xgboost.objective
     :members:
-    :show-inheritance:
 
 Learning API
 ------------

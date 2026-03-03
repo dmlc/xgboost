@@ -29,7 +29,7 @@ from ..objective import (
     SquaredLogError,
     Tweedie,
 )
-from ..sklearn import XGBClassifier, XGBRegressor
+from ..sklearn import XGBClassifier
 from ..training import train
 from . import make_ltr, make_regression
 from .data import get_cancer
