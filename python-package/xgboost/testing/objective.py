@@ -1,7 +1,7 @@
 """Tests for the built-in objective Python interface."""
 
 import json
-from typing import Dict
+from typing import TYPE_CHECKING, Dict
 
 import numpy as np
 import pytest
@@ -28,12 +28,16 @@ from ..objective import (
     RegTweedie,
     SurvivalAFT,
     SurvivalCox,
+    _BuiltInObjective,
 )
 from ..sklearn import XGBClassifier
 from ..training import train
 from . import make_ltr, make_regression
 from .data import get_cancer
 from .utils import Device
+
+if TYPE_CHECKING:
+    from pytest import Subtests
 
 
 def check_train_regression_objectives(device: Device) -> None:
@@ -114,7 +118,7 @@ def check_train_classification_objectives(device: Device) -> None:
     X_mc, y_mc = datasets.load_digits(n_class=3, return_X_y=True)
     dm_mc = DMatrix(X_mc, label=y_mc)
 
-    obj = MultiSoftmax(num_class=3)
+    obj: _BuiltInObjective = MultiSoftmax(num_class=3)
     bst = train({"device": device}, dm_mc, num_boost_round=5, obj=obj)
     cfg = json.loads(bst.save_config())
     assert cfg["learner"]["objective"]["name"] == "multi:softmax"
@@ -135,7 +139,9 @@ def check_train_survival_objectives(device: Device) -> None:
     y_upper = y_lower + 1.0
     dm = DMatrix(X)
     dm.set_info(label_lower_bound=y_lower, label_upper_bound=y_upper)
-    obj = SurvivalAFT(distribution="logistic", distribution_scale=2.0)
+    obj: _BuiltInObjective = SurvivalAFT(
+        distribution="logistic", distribution_scale=2.0
+    )
     bst = train({"device": device}, dm, num_boost_round=5, obj=obj)
     cfg = json.loads(bst.save_config())
     assert cfg["learner"]["objective"]["name"] == "survival:aft"
@@ -241,3 +247,19 @@ def check_sklearn_objectives(device: Device) -> None:
     clf.fit(X_bin, y_bin)
     pred = clf.predict(X_bin)
     assert set(pred).issubset({0, 1})
+
+
+def check_objectives(subtests: "Subtests", device: Device) -> None:
+    """Run all tests."""
+    for test in (
+        check_default_metrics,
+        check_equivalence,
+        check_sklearn_objectives,
+        check_train_classification_objectives,
+        check_train_positive_objectives,
+        check_train_ranking_objectives,
+        check_train_regression_objectives,
+        check_train_survival_objectives,
+    ):
+        with subtests.test(msg=test.__name__):
+            test(device)

@@ -1,3 +1,4 @@
+# pylint: disable=missing-class-docstring
 """Experimental support for a new objective interface with target dimension
 reduction.
 
@@ -76,6 +77,7 @@ class _BuiltInObjective(Objective):
         """The objective name string."""
         return self._name
 
+    # pylint: disable=missing-function-docstring
     def flat_params(self) -> Dict[str, str]:
         result: Dict[str, str] = {"objective": self._name}
         for py_name, cpp_name in self._KNOWN_PARAMS.items():
