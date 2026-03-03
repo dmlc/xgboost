@@ -470,10 +470,10 @@ class WQuantileSketch {
   using SummaryContainer = WQSummaryContainer;
   WQuantileSketch() = default;
   WQuantileSketch(size_t maxn, double eps) {
-    limit_size = LimitSizeLevel(maxn, eps);
-    inqueue = Queue<>(limit_size * 2);
-    data.clear();
-    level.clear();
+    limit_size_ = LimitSizeLevel(maxn, eps);
+    inqueue_ = Queue<>(limit_size_ * 2);
+    data_.clear();
+    level_.clear();
   }
 
   static size_t LimitSizeLevel(size_t maxn, double eps) {
@@ -505,10 +505,10 @@ class WQuantileSketch {
    */
   void Push(bst_float x, bst_float w = 1) {
     if (w == static_cast<bst_float>(0)) return;
-    if (!inqueue.Push(x, w)) {
-      inqueue.PopSummary(&temp);
-      this->PushSummary(&temp);
-      inqueue.Push(x, w);
+    if (!inqueue_.Push(x, w)) {
+      inqueue_.PopSummary(&temp_);
+      this->PushSummary(&temp_);
+      inqueue_.Push(x, w);
     }
   }
 
@@ -523,17 +523,17 @@ class WQuantileSketch {
                   size_t num_retained_items) {
     CHECK_GE(num_retained_items, 1);
     auto const max_size = num_retained_items;
-    this->temp.Reserve(max_size + 1);
-    this->temp.SetPruneSorted(column, weights, max_size);
+    this->temp_.Reserve(max_size + 1);
+    this->temp_.SetPruneSorted(column, weights, max_size);
     if (!column.empty()) {
-      this->PushSummary(&temp);
+      this->PushSummary(&temp_);
     }
   }
 
   /*! \brief push up a prepared summary */
   void PushSummary(WQSummaryContainer *summary) {
     CHECK(summary);
-    summary->Reserve(limit_size * 2);
+    summary->Reserve(limit_size_ * 2);
     size_t l = 0;
     // Level-wise merge/prune with carry propagation.
     //
@@ -543,36 +543,36 @@ class WQuantileSketch {
     while (true) {
       this->LazyInitLevel(l + 1);
       // Clamp the incoming summary to per-level capacity before combining.
-      summary->SetPrune(limit_size);
+      summary->SetPrune(limit_size_);
       // Merge with the resident level summary.
-      summary->SetCombine(level[l], &combine_workspace);
+      summary->SetCombine(level_[l], &combine_workspace_);
       // Level[l] is consumed into `summary`. Clear it before carry propagation.
-      level[l].Clear();
+      level_[l].Clear();
       // If merged summary fits, store at this level. Otherwise carry upward.
-      if (summary->Size() <= limit_size) {
+      if (summary->Size() <= limit_size_) {
         break;
       }
       ++l;
     }
 
     // First level where merged summary fits.
-    level[l].CopyFrom(*summary);
+    level_[l].CopyFrom(*summary);
   }
 
  public:
   /*! \brief get the summary after finalize */
   [[nodiscard]] WQSummaryContainer GetSummary(size_t max_size) {
     WQSummaryContainer out;
-    out.Reserve(std::max(max_size, limit_size) * 2);
+    out.Reserve(std::max(max_size, limit_size_) * 2);
 
     // Flush pending queue into level summaries first.
-    inqueue.PopSummary(&temp);
-    this->PushSummary(&temp);
+    inqueue_.PopSummary(&temp_);
+    this->PushSummary(&temp_);
 
     // Merge all levels into out.
-    for (auto &level_summary : level) {
-      out.SetCombine(level_summary, &combine_workspace);
-      out.SetPrune(std::max(max_size, limit_size));
+    for (auto &level_summary : level_) {
+      out.SetCombine(level_summary, &combine_workspace_);
+      out.SetPrune(std::max(max_size, limit_size_));
     }
     out.SetPrune(max_size);
     return out;
@@ -581,26 +581,26 @@ class WQuantileSketch {
  private:
   // initialize level space to at least nlevel
   void LazyInitLevel(size_t nlevel) {
-    if (level.size() >= nlevel) return;
-    data.resize(limit_size * nlevel);
-    level.clear();
-    level.reserve(nlevel);
+    if (level_.size() >= nlevel) return;
+    data_.resize(limit_size_ * nlevel);
+    level_.clear();
+    level_.reserve(nlevel);
     for (size_t l = 0; l < nlevel; ++l) {
       level_.emplace_back(Span<Entry>{data_.data() + l * limit_size_, limit_size_}, 0);
     }
   }
   // input data queue
-  Queue<> inqueue{1};
+  Queue<> inqueue_{1};
   // size of summary in each level
-  size_t limit_size{1};
+  size_t limit_size_{1};
   // the level of each summaries
   std::vector<WQSummary<>> level_;
   // content of the summary
   std::vector<WQSummary<>::Entry> data_;
   // temporal summary, used for temp-merge
-  WQSummaryContainer temp;
+  WQSummaryContainer temp_;
   // reusable workspace for combine-prune operations
-  std::vector<Entry> combine_workspace;
+  std::vector<Entry> combine_workspace_;
 };
 
 namespace detail {

@@ -414,10 +414,11 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     }
     WQSketch::SummaryContainer &a = final_summaries[fidx];
     size_t max_num_bins = std::min(retained_cuts[fidx], max_bins_);
-    a.Reserve(max_num_bins + 1);
+    a.Reserve(std::max(reduced[fidx].Size(), max_num_bins + 1));
     CHECK(a.Entries().data());
     if (retained_cuts[fidx] != 0) {
-      a.SetPrune(reduced[fidx], max_num_bins + 1);
+      a.CopyFrom(reduced[fidx]);
+      a.SetPrune(max_num_bins + 1);
       auto const a_entries = a.Entries();
       auto const reduced_entries = reduced[fidx].Entries();
       CHECK(a_entries.data() && reduced_entries.data());
