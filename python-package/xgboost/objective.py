@@ -1,6 +1,12 @@
 """Experimental support for a new objective interface with target dimension
 reduction.
 
+
+This module exposes built-in objectives like `reg:squarederror` into the Python
+interface, and enables users to specify parameters for more some objectives like
+`reg::quantileerror`. In addition, one can define a custom `split_grad` for training
+with vector-leaf models.
+
 .. warning::
 
   Do not use this module unless you want to participate in development.
