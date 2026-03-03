@@ -16,7 +16,7 @@
 #include "dmlc/omp.h"                         // for omp_get_thread_num
 #include "xgboost/base.h"                     // for bst_omp_uint
 #include "xgboost/logging.h"                  // for CHECK
-#include "xgboost/multi_target_tree_model.h"  // for MTNotImplemented
+#include "xgboost/tree_model.h"               // for MTNotImplemented
 
 namespace xgboost::interpretability {
 namespace {
