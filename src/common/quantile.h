@@ -267,31 +267,12 @@ struct WQSummary {
     }
 
     WQSummary<DType, RType> merged{Span<Entry>{workspace->data(), merged_size}, 0};
-    merged.SetCombineFromBoth(*this, other);
-    std::copy_n(merged.data.data(), merged.current_elements, this->data.data());
-    this->current_elements = merged.current_elements;
-  }
-
- private:
-  // Set current summary to merged summary of `sa` and `sb`.
-  void SetCombineFromBoth(const WQSummary &sa, const WQSummary &sb) {
-    size_t const merged_size = sa.current_elements + sb.current_elements;
-    CHECK_GE(this->data.size(), merged_size);
-    if (sa.Empty()) {
-      this->CopyFrom(sb);
-      return;
-    }
-    if (sb.Empty()) {
-      this->CopyFrom(sa);
-      return;
-    }
-    CHECK(!sa.Empty() && !sb.Empty());
     // Merge with raw pointers to avoid Span bounds checks inside the tight loop.
-    const Entry *a = sa.data.data(), *a_end = sa.data.data() + sa.current_elements;
-    const Entry *b = sb.data.data(), *b_end = sb.data.data() + sb.current_elements;
+    const Entry *a = this->data.data(), *a_end = this->data.data() + this->current_elements;
+    const Entry *b = other.data.data(), *b_end = other.data.data() + other.current_elements;
     // extended rmin value
     RType aprev_rmin = 0, bprev_rmin = 0;
-    Entry *dst = this->data.data();
+    Entry *dst = merged.data.data();
     while (a != a_end && b != b_end) {
       // duplicated value entry
       if (a->value == b->value) {
@@ -329,14 +310,19 @@ struct WQSummary {
         ++b;
       } while (b != b_end);
     }
-    this->current_elements = dst - data.data();
+    merged.current_elements = dst - merged.data.data();
+
     const RType tol = 10;
     RType err_mingap, err_maxgap, err_wgap;
-    this->FixError(&err_mingap, &err_maxgap, &err_wgap);
+    merged.FixError(&err_mingap, &err_maxgap, &err_wgap);
     if (err_mingap > tol || err_maxgap > tol || err_wgap > tol) {
       LOG(INFO) << "mingap=" << err_mingap << ", maxgap=" << err_maxgap << ", wgap=" << err_wgap;
     }
-    CHECK(current_elements <= sa.current_elements + sb.current_elements) << "bug in combine";
+    CHECK(merged.current_elements <= this->current_elements + other.current_elements)
+        << "bug in combine";
+
+    std::copy_n(merged.data.data(), merged.current_elements, this->data.data());
+    this->current_elements = merged.current_elements;
   }
 
  private:
