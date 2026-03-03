@@ -17,8 +17,7 @@ vector-leaf models.
 
 import warnings
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 import numpy as np
 
@@ -62,14 +61,28 @@ class Objective(ABC):
 class _BuiltInObjective(Objective):
     """Base class for Python wrappers of built-in C++ objective functions."""
 
+    _name: str = ""
+    _KNOWN_PARAMS: Dict[str, str] = {}
+
+    def __init__(self, **kwargs: Any) -> None:
+        self._params: Dict[str, Any] = {}
+        for py_name in self._KNOWN_PARAMS:
+            self._params[py_name] = kwargs.pop(py_name, None)
+        if kwargs:
+            raise TypeError(f"Unknown parameters for {self._name}: {list(kwargs)}")
+
     @property
-    @abstractmethod
     def name(self) -> str:
         """The objective name string."""
+        return self._name
 
-    # pylint: disable=missing-function-docstring
-    @abstractmethod
-    def flat_params(self) -> Dict[str, str]: ...
+    def flat_params(self) -> Dict[str, str]:
+        result: Dict[str, str] = {"objective": self._name}
+        for py_name, cpp_name in self._KNOWN_PARAMS.items():
+            value = self._params[py_name]
+            if value is not None:
+                result[cpp_name] = _stringify(value)
+        return result
 
     def __call__(
         self, iteration: int, y_pred: ArrayLike, dtrain: "DMatrix"
@@ -77,19 +90,6 @@ class _BuiltInObjective(Objective):
         raise RuntimeError(
             "This method should not be called directly for the built-in objective."
         )
-
-
-@dataclass(frozen=True)
-class _ParamSpec:
-    py_name: str
-    cpp_name: str
-    typ: type
-
-
-@dataclass(frozen=True)
-class _ObjSpec:
-    obj_name: str
-    params: List[_ParamSpec] = field(default_factory=list)
 
 
 def _stringify(value: Any) -> str:
@@ -104,307 +104,129 @@ def _stringify(value: Any) -> str:
     return str(value)
 
 
-def _make_builtin_objective(spec: _ObjSpec) -> type:
-    obj_name = spec.obj_name
-    params = spec.params
-
-    doc = f"""Interface for the ``{obj_name}`` objective.
-
-.. versionadded:: 3.3.0
-
-.. warning:: This interface is experimental and may subject to change without notice.
-
-"""
-    if params:
-        doc += "\nParameters\n----------\n\n"
-        for p in params:
-            doc += f"{p.py_name} : {p.typ.__name__}\n"
-
-    class _Cls(_BuiltInObjective):
-        def __init__(self, **kwargs: Any) -> None:
-            self._params: Dict[str, Any] = {}
-            for p in params:
-                self._params[p.py_name] = kwargs.pop(p.py_name, None)
-            if kwargs:
-                raise TypeError(f"Unknown parameters for {obj_name}: {list(kwargs)}")
-
-        @property
-        def name(self) -> str:
-            return obj_name
-
-        def flat_params(self) -> Dict[str, str]:
-            result: Dict[str, str] = {"objective": obj_name}
-            for p in params:
-                value = self._params[p.py_name]
-                if value is not None:
-                    result[p.cpp_name] = _stringify(value)
-            return result
-
-    _Cls.__doc__ = doc
-
-    return _Cls
-
-
-def _named(name: str, cls: type) -> type:
-    cls.__name__ = name
-    cls.__qualname__ = name
-    return cls
-
-
 # Regression objectives
-RegSquaredError = _named(
-    "RegSquaredError",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="reg:squarederror",
-            params=[
-                _ParamSpec(
-                    py_name="scale_pos_weight", cpp_name="scale_pos_weight", typ=float
-                )
-            ],
-        )
-    ),
-)
 
-RegSquaredLogError = _named(
-    "RegSquaredLogError",
-    _make_builtin_objective(_ObjSpec(obj_name="reg:squaredlogerror")),
-)
 
-RegAbsoluteError = _named(
-    "RegAbsoluteError",
-    _make_builtin_objective(_ObjSpec(obj_name="reg:absoluteerror")),
-)
+class RegSquaredError(_BuiltInObjective):
+    _name = "reg:squarederror"
+    _KNOWN_PARAMS = {"scale_pos_weight": "scale_pos_weight"}
 
-RegPseudoHuberError = _named(
-    "RegPseudoHuberError",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="reg:pseudohubererror",
-            params=[_ParamSpec(py_name="delta", cpp_name="huber_slope", typ=float)],
-        )
-    ),
-)
 
-RegQuantileError = _named(
-    "RegQuantileError",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="reg:quantileerror",
-            params=[_ParamSpec(py_name="alpha", cpp_name="quantile_alpha", typ=list)],
-        )
-    ),
-)
+class RegSquaredLogError(_BuiltInObjective):
+    _name = "reg:squaredlogerror"
 
-RegExpectileError = _named(
-    "RegExpectileError",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="reg:expectileerror",
-            params=[_ParamSpec(py_name="alpha", cpp_name="expectile_alpha", typ=list)],
-        )
-    ),
-)
 
-RegTweedie = _named(
-    "RegTweedie",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="reg:tweedie",
-            params=[
-                _ParamSpec(
-                    py_name="variance_power",
-                    cpp_name="tweedie_variance_power",
-                    typ=float,
-                )
-            ],
-        )
-    ),
-)
+class RegAbsoluteError(_BuiltInObjective):
+    _name = "reg:absoluteerror"
 
-CountPoisson = _named(
-    "CountPoisson",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="count:poisson",
-            params=[
-                _ParamSpec(
-                    py_name="max_delta_step", cpp_name="max_delta_step", typ=float
-                )
-            ],
-        )
-    ),
-)
+
+class RegPseudoHuberError(_BuiltInObjective):
+    _name = "reg:pseudohubererror"
+    _KNOWN_PARAMS = {"delta": "huber_slope"}
+
+
+class RegQuantileError(_BuiltInObjective):
+    _name = "reg:quantileerror"
+    _KNOWN_PARAMS = {"alpha": "quantile_alpha"}
+
+
+class RegExpectileError(_BuiltInObjective):
+    _name = "reg:expectileerror"
+    _KNOWN_PARAMS = {"alpha": "expectile_alpha"}
+
+
+class RegTweedie(_BuiltInObjective):
+    _name = "reg:tweedie"
+    _KNOWN_PARAMS = {"variance_power": "tweedie_variance_power"}
+
+
+class CountPoisson(_BuiltInObjective):
+    _name = "count:poisson"
+    _KNOWN_PARAMS = {"max_delta_step": "max_delta_step"}
+
 
 # Logistic / classification objectives
-RegLogistic = _named(
-    "RegLogistic",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="reg:logistic",
-            params=[
-                _ParamSpec(
-                    py_name="scale_pos_weight", cpp_name="scale_pos_weight", typ=float
-                )
-            ],
-        )
-    ),
-)
 
-BinaryLogistic = _named(
-    "BinaryLogistic",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="binary:logistic",
-            params=[
-                _ParamSpec(
-                    py_name="scale_pos_weight", cpp_name="scale_pos_weight", typ=float
-                )
-            ],
-        )
-    ),
-)
 
-RegGamma = _named(
-    "RegGamma",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="reg:gamma",
-            params=[
-                _ParamSpec(
-                    py_name="scale_pos_weight", cpp_name="scale_pos_weight", typ=float
-                )
-            ],
-        )
-    ),
-)
+class RegLogistic(_BuiltInObjective):
+    _name = "reg:logistic"
+    _KNOWN_PARAMS = {"scale_pos_weight": "scale_pos_weight"}
 
-BinaryLogitRaw = _named(
-    "BinaryLogitRaw",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="binary:logitraw",
-            params=[
-                _ParamSpec(
-                    py_name="scale_pos_weight", cpp_name="scale_pos_weight", typ=float
-                )
-            ],
-        )
-    ),
-)
 
-BinaryHinge = _named(
-    "BinaryHinge",
-    _make_builtin_objective(_ObjSpec(obj_name="binary:hinge")),
-)
+class BinaryLogistic(_BuiltInObjective):
+    _name = "binary:logistic"
+    _KNOWN_PARAMS = {"scale_pos_weight": "scale_pos_weight"}
+
+
+class RegGamma(_BuiltInObjective):
+    _name = "reg:gamma"
+    _KNOWN_PARAMS = {"scale_pos_weight": "scale_pos_weight"}
+
+
+class BinaryLogitRaw(_BuiltInObjective):
+    _name = "binary:logitraw"
+    _KNOWN_PARAMS = {"scale_pos_weight": "scale_pos_weight"}
+
+
+class BinaryHinge(_BuiltInObjective):
+    _name = "binary:hinge"
+
 
 # Multiclass objectives
-MultiSoftmax = _named(
-    "MultiSoftmax",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="multi:softmax",
-            params=[_ParamSpec(py_name="num_class", cpp_name="num_class", typ=int)],
-        )
-    ),
-)
 
-MultiSoftprob = _named(
-    "MultiSoftprob",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="multi:softprob",
-            params=[_ParamSpec(py_name="num_class", cpp_name="num_class", typ=int)],
-        )
-    ),
-)
+
+class MultiSoftmax(_BuiltInObjective):
+    _name = "multi:softmax"
+    _KNOWN_PARAMS = {"num_class": "num_class"}
+
+
+class MultiSoftprob(_BuiltInObjective):
+    _name = "multi:softprob"
+    _KNOWN_PARAMS = {"num_class": "num_class"}
+
 
 # Survival objectives
-SurvivalAFT = _named(
-    "SurvivalAFT",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="survival:aft",
-            params=[
-                _ParamSpec(
-                    py_name="distribution", cpp_name="aft_loss_distribution", typ=str
-                ),
-                _ParamSpec(
-                    py_name="distribution_scale",
-                    cpp_name="aft_loss_distribution_scale",
-                    typ=float,
-                ),
-            ],
-        )
-    ),
-)
 
-SurvivalCox = _named(
-    "SurvivalCox",
-    _make_builtin_objective(_ObjSpec(obj_name="survival:cox")),
-)
+
+class SurvivalAFT(_BuiltInObjective):
+    _name = "survival:aft"
+    _KNOWN_PARAMS = {
+        "distribution": "aft_loss_distribution",
+        "distribution_scale": "aft_loss_distribution_scale",
+    }
+
+
+class SurvivalCox(_BuiltInObjective):
+    _name = "survival:cox"
+
 
 # Ranking objectives
-RankNDCG = _named(
-    "RankNDCG",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="rank:ndcg",
-            params=[
-                _ParamSpec(
-                    py_name="pair_method", cpp_name="lambdarank_pair_method", typ=str
-                ),
-                _ParamSpec(
-                    py_name="num_pair_per_sample",
-                    cpp_name="lambdarank_num_pair_per_sample",
-                    typ=int,
-                ),
-                _ParamSpec(
-                    py_name="unbiased", cpp_name="lambdarank_unbiased", typ=bool
-                ),
-                _ParamSpec(py_name="exp_gain", cpp_name="ndcg_exp_gain", typ=bool),
-            ],
-        )
-    ),
-)
 
-RankPairwise = _named(
-    "RankPairwise",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="rank:pairwise",
-            params=[
-                _ParamSpec(
-                    py_name="pair_method", cpp_name="lambdarank_pair_method", typ=str
-                ),
-                _ParamSpec(
-                    py_name="num_pair_per_sample",
-                    cpp_name="lambdarank_num_pair_per_sample",
-                    typ=int,
-                ),
-            ],
-        )
-    ),
-)
 
-RankMAP = _named(
-    "RankMAP",
-    _make_builtin_objective(
-        _ObjSpec(
-            obj_name="rank:map",
-            params=[
-                _ParamSpec(
-                    py_name="pair_method", cpp_name="lambdarank_pair_method", typ=str
-                ),
-                _ParamSpec(
-                    py_name="num_pair_per_sample",
-                    cpp_name="lambdarank_num_pair_per_sample",
-                    typ=int,
-                ),
-            ],
-        )
-    ),
-)
+class RankNDCG(_BuiltInObjective):
+    _name = "rank:ndcg"
+    _KNOWN_PARAMS = {
+        "pair_method": "lambdarank_pair_method",
+        "num_pair_per_sample": "lambdarank_num_pair_per_sample",
+        "unbiased": "lambdarank_unbiased",
+        "exp_gain": "ndcg_exp_gain",
+    }
+
+
+class RankPairwise(_BuiltInObjective):
+    _name = "rank:pairwise"
+    _KNOWN_PARAMS = {
+        "pair_method": "lambdarank_pair_method",
+        "num_pair_per_sample": "lambdarank_num_pair_per_sample",
+    }
+
+
+class RankMAP(_BuiltInObjective):
+    _name = "rank:map"
+    _KNOWN_PARAMS = {
+        "pair_method": "lambdarank_pair_method",
+        "num_pair_per_sample": "lambdarank_num_pair_per_sample",
+    }
 
 
 def _grad_arrinf(array: NumpyOrCupy, n_samples: int) -> bytes:
