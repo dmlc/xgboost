@@ -414,6 +414,7 @@ struct WQSummaryContainer : public WQSummary<> {
     this->data = {dmlc::BeginPtr(this->space), this->space.size()};
     this->current_elements = src.current_elements;
     src.current_elements = 0;
+    src.data = Span<WQSummary<>::Entry>{};
   }
 
   WQSummaryContainer &operator=(WQSummaryContainer const &src) {
@@ -434,6 +435,7 @@ struct WQSummaryContainer : public WQSummary<> {
     this->data = {dmlc::BeginPtr(this->space), this->space.size()};
     this->current_elements = src.current_elements;
     src.current_elements = 0;
+    src.data = Span<WQSummary<>::Entry>{};
     return *this;
   }
 

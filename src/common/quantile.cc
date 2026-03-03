@@ -351,13 +351,15 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     auto &out = reduced.at(fidx);
     out.Clear();
     out.Reserve(static_cast<size_t>(cut_target) * 2);
+    std::vector<WQSketch::Entry> combine_workspace;
+    combine_workspace.reserve(static_cast<size_t>(cut_target) * 2);
 
     for (int32_t r = 0; r < world; ++r) {
       auto worker_feature = allreduce_result.Values(r, fidx);
       CHECK(worker_feature.data());
       // Non-owning view over all-reduced entries for one feature on one worker.
       WQSketch::Summary summary(worker_feature, worker_feature.size());
-      out.SetCombine(summary);
+      out.SetCombine(summary, &combine_workspace);
       out.SetPrune(cut_target);
     }
     retained_cuts[fidx] = static_cast<int32_t>(out.Size());
