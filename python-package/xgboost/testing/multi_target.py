@@ -18,7 +18,7 @@ import xgboost.testing as tm
 from .._typing import ArrayLike
 from ..compat import import_cupy
 from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix, build_info
-from ..objective import Objective, QuantileError
+from ..objective import Objective, RegQuantileError
 from ..sklearn import XGBClassifier
 from ..training import train
 from .data import IteratorForTest
@@ -722,7 +722,7 @@ def all_reg_objectives() -> List[Callable[[Device], None]]:
     return objs
 
 
-class _MedianQuantile(QuantileError):
+class _MedianQuantile(RegQuantileError):
     """Subclass of quantile regression using median gradient for splits."""
 
     def __init__(self, device: Device, **kwargs: Any) -> None:

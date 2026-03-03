@@ -21,10 +21,10 @@ import numpy as np
 import xgboost as xgb
 from sklearn.base import BaseEstimator
 from sklearn.datasets import make_regression
-from xgboost.objective import SquaredError
+from xgboost.objective import RegSquaredError
 
 
-class LsObjMean(SquaredError):
+class LsObjMean(RegSquaredError):
     """Built-in squared error with reduced gradient using mean value."""
 
     def __init__(self, device: str) -> None:

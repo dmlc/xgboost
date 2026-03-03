@@ -152,8 +152,8 @@ def _named(name: str, cls: type) -> type:
 
 
 # Regression objectives
-SquaredError = _named(
-    "SquaredError",
+RegSquaredError = _named(
+    "RegSquaredError",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="reg:squarederror",
@@ -166,18 +166,18 @@ SquaredError = _named(
     ),
 )
 
-SquaredLogError = _named(
-    "SquaredLogError",
+RegSquaredLogError = _named(
+    "RegSquaredLogError",
     _make_builtin_objective(_ObjSpec(obj_name="reg:squaredlogerror")),
 )
 
-AbsoluteError = _named(
-    "AbsoluteError",
+RegAbsoluteError = _named(
+    "RegAbsoluteError",
     _make_builtin_objective(_ObjSpec(obj_name="reg:absoluteerror")),
 )
 
-PseudoHuber = _named(
-    "PseudoHuber",
+RegPseudoHuberError = _named(
+    "RegPseudoHuberError",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="reg:pseudohubererror",
@@ -186,8 +186,8 @@ PseudoHuber = _named(
     ),
 )
 
-QuantileError = _named(
-    "QuantileError",
+RegQuantileError = _named(
+    "RegQuantileError",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="reg:quantileerror",
@@ -196,8 +196,8 @@ QuantileError = _named(
     ),
 )
 
-ExpectileError = _named(
-    "ExpectileError",
+RegExpectileError = _named(
+    "RegExpectileError",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="reg:expectileerror",
@@ -206,8 +206,8 @@ ExpectileError = _named(
     ),
 )
 
-Tweedie = _named(
-    "Tweedie",
+RegTweedie = _named(
+    "RegTweedie",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="reg:tweedie",
@@ -222,8 +222,8 @@ Tweedie = _named(
     ),
 )
 
-Poisson = _named(
-    "Poisson",
+CountPoisson = _named(
+    "CountPoisson",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="count:poisson",
@@ -237,8 +237,8 @@ Poisson = _named(
 )
 
 # Logistic / classification objectives
-Logistic = _named(
-    "Logistic",
+RegLogistic = _named(
+    "RegLogistic",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="reg:logistic",
@@ -265,8 +265,8 @@ BinaryLogistic = _named(
     ),
 )
 
-Gamma = _named(
-    "Gamma",
+RegGamma = _named(
+    "RegGamma",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="reg:gamma",
@@ -279,8 +279,8 @@ Gamma = _named(
     ),
 )
 
-LogitRaw = _named(
-    "LogitRaw",
+BinaryLogitRaw = _named(
+    "BinaryLogitRaw",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="binary:logitraw",
@@ -293,14 +293,14 @@ LogitRaw = _named(
     ),
 )
 
-Hinge = _named(
-    "Hinge",
+BinaryHinge = _named(
+    "BinaryHinge",
     _make_builtin_objective(_ObjSpec(obj_name="binary:hinge")),
 )
 
 # Multiclass objectives
-Softmax = _named(
-    "Softmax",
+MultiSoftmax = _named(
+    "MultiSoftmax",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="multi:softmax",
@@ -309,8 +309,8 @@ Softmax = _named(
     ),
 )
 
-Softprob = _named(
-    "Softprob",
+MultiSoftprob = _named(
+    "MultiSoftprob",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="multi:softprob",
@@ -320,8 +320,8 @@ Softprob = _named(
 )
 
 # Survival objectives
-AFT = _named(
-    "AFT",
+SurvivalAFT = _named(
+    "SurvivalAFT",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="survival:aft",
@@ -339,14 +339,14 @@ AFT = _named(
     ),
 )
 
-Cox = _named(
-    "Cox",
+SurvivalCox = _named(
+    "SurvivalCox",
     _make_builtin_objective(_ObjSpec(obj_name="survival:cox")),
 )
 
 # Ranking objectives
-NDCG = _named(
-    "NDCG",
+RankNDCG = _named(
+    "RankNDCG",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="rank:ndcg",
@@ -368,8 +368,8 @@ NDCG = _named(
     ),
 )
 
-Pairwise = _named(
-    "Pairwise",
+RankPairwise = _named(
+    "RankPairwise",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="rank:pairwise",
@@ -387,8 +387,8 @@ Pairwise = _named(
     ),
 )
 
-MAP = _named(
-    "MAP",
+RankMAP = _named(
+    "RankMAP",
     _make_builtin_objective(
         _ObjSpec(
             obj_name="rank:map",

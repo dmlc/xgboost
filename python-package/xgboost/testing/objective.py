@@ -8,26 +8,26 @@ import pytest
 
 from ..core import DMatrix
 from ..objective import (
-    AFT,
-    MAP,
-    NDCG,
-    AbsoluteError,
+    BinaryHinge,
     BinaryLogistic,
-    Cox,
-    ExpectileError,
-    Gamma,
-    Hinge,
-    Logistic,
-    LogitRaw,
-    Pairwise,
-    Poisson,
-    PseudoHuber,
-    QuantileError,
-    Softmax,
-    Softprob,
-    SquaredError,
-    SquaredLogError,
-    Tweedie,
+    BinaryLogitRaw,
+    CountPoisson,
+    MultiSoftmax,
+    MultiSoftprob,
+    RankMAP,
+    RankNDCG,
+    RankPairwise,
+    RegAbsoluteError,
+    RegExpectileError,
+    RegGamma,
+    RegLogistic,
+    RegPseudoHuberError,
+    RegQuantileError,
+    RegSquaredError,
+    RegSquaredLogError,
+    RegTweedie,
+    SurvivalAFT,
+    SurvivalCox,
 )
 from ..sklearn import XGBClassifier
 from ..training import train
@@ -42,9 +42,9 @@ def check_train_regression_objectives(device: Device) -> None:
     dm = DMatrix(X, label=y)
 
     for obj_inst, obj_name in [
-        (PseudoHuber(delta=5.0), "reg:pseudohubererror"),
-        (SquaredError(), "reg:squarederror"),
-        (AbsoluteError(), "reg:absoluteerror"),
+        (RegPseudoHuberError(delta=5.0), "reg:pseudohubererror"),
+        (RegSquaredError(), "reg:squarederror"),
+        (RegAbsoluteError(), "reg:absoluteerror"),
     ]:
         bst = train({"device": device}, dm, num_boost_round=5, obj=obj_inst)
         cfg = json.loads(bst.save_config())
@@ -55,21 +55,21 @@ def check_train_regression_objectives(device: Device) -> None:
         {"device": device},
         dm,
         num_boost_round=5,
-        obj=QuantileError(alpha=[0.1, 0.5, 0.9]),
+        obj=RegQuantileError(alpha=[0.1, 0.5, 0.9]),
     )
     pred = bst.predict(dm)
     assert pred.shape == (100, 3)
-    assert QuantileError().name == "reg:quantileerror"
+    assert RegQuantileError().name == "reg:quantileerror"
 
     bst = train(
         {"device": device},
         dm,
         num_boost_round=5,
-        obj=ExpectileError(alpha=[0.25, 0.75]),
+        obj=RegExpectileError(alpha=[0.25, 0.75]),
     )
     pred = bst.predict(dm)
     assert pred.shape == (100, 2)
-    assert ExpectileError().name == "reg:expectileerror"
+    assert RegExpectileError().name == "reg:expectileerror"
 
 
 def check_train_positive_objectives(device: Device) -> None:
@@ -83,10 +83,10 @@ def check_train_positive_objectives(device: Device) -> None:
     dm = DMatrix(X, label=y)
 
     for obj_inst, obj_name in [
-        (Tweedie(variance_power=1.8), "reg:tweedie"),
-        (Poisson(max_delta_step=0.5), "count:poisson"),
-        (Gamma(), "reg:gamma"),
-        (SquaredLogError(), "reg:squaredlogerror"),
+        (RegTweedie(variance_power=1.8), "reg:tweedie"),
+        (CountPoisson(max_delta_step=0.5), "count:poisson"),
+        (RegGamma(), "reg:gamma"),
+        (RegSquaredLogError(), "reg:squaredlogerror"),
     ]:
         bst = train({"device": device}, dm, num_boost_round=5, obj=obj_inst)
         cfg = json.loads(bst.save_config())
@@ -100,10 +100,10 @@ def check_train_classification_objectives(device: Device) -> None:
     dm = DMatrix(X, label=y)
 
     for obj_inst, obj_name in [
-        (Logistic(), "reg:logistic"),
+        (RegLogistic(), "reg:logistic"),
         (BinaryLogistic(scale_pos_weight=2.0), "binary:logistic"),
-        (LogitRaw(), "binary:logitraw"),
-        (Hinge(), "binary:hinge"),
+        (BinaryLogitRaw(), "binary:logitraw"),
+        (BinaryHinge(), "binary:hinge"),
     ]:
         bst = train({"device": device}, dm, num_boost_round=5, obj=obj_inst)
         cfg = json.loads(bst.save_config())
@@ -114,13 +114,13 @@ def check_train_classification_objectives(device: Device) -> None:
     X_mc, y_mc = datasets.load_digits(n_class=3, return_X_y=True)
     dm_mc = DMatrix(X_mc, label=y_mc)
 
-    obj = Softmax(num_class=3)
+    obj = MultiSoftmax(num_class=3)
     bst = train({"device": device}, dm_mc, num_boost_round=5, obj=obj)
     cfg = json.loads(bst.save_config())
     assert cfg["learner"]["objective"]["name"] == "multi:softmax"
     assert obj.name == "multi:softmax"
 
-    obj = Softprob(num_class=3)
+    obj = MultiSoftprob(num_class=3)
     bst = train({"device": device}, dm_mc, num_boost_round=5, obj=obj)
     pred = bst.predict(dm_mc)
     assert pred.shape[1] == 3
@@ -135,7 +135,7 @@ def check_train_survival_objectives(device: Device) -> None:
     y_upper = y_lower + 1.0
     dm = DMatrix(X)
     dm.set_info(label_lower_bound=y_lower, label_upper_bound=y_upper)
-    obj = AFT(distribution="logistic", distribution_scale=2.0)
+    obj = SurvivalAFT(distribution="logistic", distribution_scale=2.0)
     bst = train({"device": device}, dm, num_boost_round=5, obj=obj)
     cfg = json.loads(bst.save_config())
     assert cfg["learner"]["objective"]["name"] == "survival:aft"
@@ -144,7 +144,7 @@ def check_train_survival_objectives(device: Device) -> None:
     y_cox = np.abs(rng.randn(100)) + 0.1
     y_cox[:10] *= -1
     dm_cox = DMatrix(X, label=y_cox)
-    obj = Cox()
+    obj = SurvivalCox()
     bst = train({"device": device}, dm_cox, num_boost_round=5, obj=obj)
     cfg = json.loads(bst.save_config())
     assert cfg["learner"]["objective"]["name"] == "survival:cox"
@@ -157,9 +157,9 @@ def check_train_ranking_objectives(device: Device) -> None:
     dm = DMatrix(X, label=y, qid=qid)
 
     for obj_inst, obj_name in [
-        (NDCG(pair_method="mean", exp_gain=False), "rank:ndcg"),
-        (Pairwise(), "rank:pairwise"),
-        (MAP(), "rank:map"),
+        (RankNDCG(pair_method="mean", exp_gain=False), "rank:ndcg"),
+        (RankPairwise(), "rank:pairwise"),
+        (RankMAP(), "rank:map"),
     ]:
         bst = train({"device": device}, dm, num_boost_round=5, obj=obj_inst)
         cfg = json.loads(bst.save_config())
@@ -173,7 +173,7 @@ def check_equivalence(device: Device) -> None:
     dm = DMatrix(X, label=y)
 
     bst_cls = train(
-        {"device": device}, dm, num_boost_round=10, obj=PseudoHuber(delta=10.0)
+        {"device": device}, dm, num_boost_round=10, obj=RegPseudoHuberError(delta=10.0)
     )
     bst_str = train(
         {"objective": "reg:pseudohubererror", "huber_slope": 10.0, "device": device},
@@ -186,7 +186,7 @@ def check_equivalence(device: Device) -> None:
         {"device": device},
         dm,
         num_boost_round=10,
-        obj=QuantileError(alpha=[0.1, 0.5, 0.9]),
+        obj=RegQuantileError(alpha=[0.1, 0.5, 0.9]),
     )
     bst_str = train(
         {
@@ -212,7 +212,7 @@ def check_default_metrics(device: Device) -> None:
         num_boost_round=3,
         evals=[(dm, "train")],
         evals_result=result,
-        obj=PseudoHuber(delta=1.0),
+        obj=RegPseudoHuberError(delta=1.0),
         verbose_eval=False,
     )
     assert "mphe" in result["train"]
@@ -224,7 +224,7 @@ def check_default_metrics(device: Device) -> None:
         num_boost_round=3,
         evals=[(dm, "train")],
         evals_result=result,
-        obj=QuantileError(alpha=[0.5]),
+        obj=RegQuantileError(alpha=[0.5]),
         verbose_eval=False,
     )
     assert "quantile" in result["train"]
