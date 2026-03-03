@@ -98,6 +98,18 @@ def _make_builtin_objective(spec: _ObjSpec) -> type:
     obj_name = spec.obj_name
     params = spec.params
 
+    doc = f"""Interface for the ``{obj_name}`` objective.
+
+.. versionadded:: 3.3.0
+
+.. warning:: This interface is experimental and may subject to change without notice.
+
+"""
+    if params:
+        doc += "\nParameters\n----------\n\n"
+        for p in params:
+            doc += f"{p.py_name} : {p.typ.__name__}\n"
+
     class _Cls(_BuiltInObjective):
         def __init__(self, **kwargs: Any) -> None:
             for p in params:
@@ -117,6 +129,8 @@ def _make_builtin_objective(spec: _ObjSpec) -> type:
                 if value is not None:
                     result[p.cpp_name] = _stringify(value)
             return result
+
+    _Cls.__doc__ = doc
 
     return _Cls
 
