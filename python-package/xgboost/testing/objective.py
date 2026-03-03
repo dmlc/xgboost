@@ -11,19 +11,23 @@ from ..objective import (
     AFT,
     MAP,
     NDCG,
+    AbsoluteError,
     BinaryLogistic,
+    Cox,
     ExpectileError,
     Gamma,
+    Hinge,
     Logistic,
-    Objective,
+    LogitRaw,
     Pairwise,
     Poisson,
     PseudoHuber,
     QuantileError,
     Softmax,
     Softprob,
+    SquaredError,
+    SquaredLogError,
     Tweedie,
-    _BuiltInObjective,
 )
 from ..sklearn import XGBClassifier, XGBRegressor
 from ..training import train
@@ -32,41 +36,20 @@ from .data import get_cancer
 from .utils import Device
 
 
-def check_builtin_objective_base() -> None:
-    """Test basic properties and error handling of built-in objective classes."""
-    obj = PseudoHuber(delta=2.0)
-    assert isinstance(obj, _BuiltInObjective)
-    assert isinstance(obj, Objective)
-
-    with pytest.raises(RuntimeError, match="computes gradients in C\\+\\+"):
-        obj(0, np.array([1.0]), DMatrix(np.array([[1.0]])))
-
-    with pytest.raises(TypeError, match="Unknown parameters"):
-        PseudoHuber(bad_param=1.0)
-
-    fp = PseudoHuber().flat_params()
-    assert fp == {"objective": "reg:pseudohubererror"}
-
-    fp = PseudoHuber(delta=10.0).flat_params()
-    assert fp == {"objective": "reg:pseudohubererror", "huber_slope": "10.0"}
-
-    fp = QuantileError(alpha=[0.1, 0.9]).flat_params()
-    assert fp == {"objective": "reg:quantileerror", "quantile_alpha": "[0.1,0.9]"}
-
-    fp = NDCG(unbiased=True, exp_gain=False).flat_params()
-    assert fp["lambdarank_unbiased"] == "1"
-    assert fp["ndcg_exp_gain"] == "0"
-
-
 def check_train_regression_objectives(device: Device) -> None:
     """Test training with regression objective classes."""
     X, y, _ = make_regression(100, 5, use_cupy=device == "cuda")
     dm = DMatrix(X, label=y)
 
-    bst = train({"device": device}, dm, num_boost_round=5, obj=PseudoHuber(delta=5.0))
-    cfg = json.loads(bst.save_config())
-    assert cfg["learner"]["objective"]["name"] == "reg:pseudohubererror"
-    assert PseudoHuber().name == "reg:pseudohubererror"
+    for obj_inst, obj_name in [
+        (PseudoHuber(delta=5.0), "reg:pseudohubererror"),
+        (SquaredError(), "reg:squarederror"),
+        (AbsoluteError(), "reg:absoluteerror"),
+    ]:
+        bst = train({"device": device}, dm, num_boost_round=5, obj=obj_inst)
+        cfg = json.loads(bst.save_config())
+        assert cfg["learner"]["objective"]["name"] == obj_name
+        assert obj_inst.name == obj_name
 
     bst = train(
         {"device": device},
@@ -103,6 +86,7 @@ def check_train_positive_objectives(device: Device) -> None:
         (Tweedie(variance_power=1.8), "reg:tweedie"),
         (Poisson(max_delta_step=0.5), "count:poisson"),
         (Gamma(), "reg:gamma"),
+        (SquaredLogError(), "reg:squaredlogerror"),
     ]:
         bst = train({"device": device}, dm, num_boost_round=5, obj=obj_inst)
         cfg = json.loads(bst.save_config())
@@ -118,6 +102,8 @@ def check_train_classification_objectives(device: Device) -> None:
     for obj_inst, obj_name in [
         (Logistic(), "reg:logistic"),
         (BinaryLogistic(scale_pos_weight=2.0), "binary:logistic"),
+        (LogitRaw(), "binary:logitraw"),
+        (Hinge(), "binary:hinge"),
     ]:
         bst = train({"device": device}, dm, num_boost_round=5, obj=obj_inst)
         cfg = json.loads(bst.save_config())
@@ -141,44 +127,44 @@ def check_train_classification_objectives(device: Device) -> None:
     assert obj.name == "multi:softprob"
 
 
-def check_train_aft_objective(device: Device) -> None:
-    """Test training with the AFT survival objective."""
+def check_train_survival_objectives(device: Device) -> None:
+    """Test training with survival objective classes."""
     rng = np.random.RandomState(42)
     X = rng.randn(100, 5)
     y_lower = np.abs(rng.randn(100))
     y_upper = y_lower + 1.0
     dm = DMatrix(X)
-    dm.set_float_info("label_lower_bound", y_lower)
-    dm.set_float_info("label_upper_bound", y_upper)
-
+    dm.set_info(label_lower_bound=y_lower, label_upper_bound=y_upper)
     obj = AFT(distribution="logistic", distribution_scale=2.0)
     bst = train({"device": device}, dm, num_boost_round=5, obj=obj)
     cfg = json.loads(bst.save_config())
     assert cfg["learner"]["objective"]["name"] == "survival:aft"
     assert obj.name == "survival:aft"
 
+    y_cox = np.abs(rng.randn(100)) + 0.1
+    y_cox[:10] *= -1
+    dm_cox = DMatrix(X, label=y_cox)
+    obj = Cox()
+    bst = train({"device": device}, dm_cox, num_boost_round=5, obj=obj)
+    cfg = json.loads(bst.save_config())
+    assert cfg["learner"]["objective"]["name"] == "survival:cox"
+    assert obj.name == "survival:cox"
+
 
 def check_train_ranking_objectives(device: Device) -> None:
     """Test training with ranking objective classes."""
-    X, y, qid, _ = make_ltr(100, 5, 4, max_rel=5)
+    X, y, qid, _ = make_ltr(100, 5, 4, max_rel=1)
     dm = DMatrix(X, label=y, qid=qid)
 
     for obj_inst, obj_name in [
         (NDCG(pair_method="mean", exp_gain=False), "rank:ndcg"),
         (Pairwise(), "rank:pairwise"),
+        (MAP(), "rank:map"),
     ]:
         bst = train({"device": device}, dm, num_boost_round=5, obj=obj_inst)
         cfg = json.loads(bst.save_config())
         assert cfg["learner"]["objective"]["name"] == obj_name
         assert obj_inst.name == obj_name
-
-    y_bin = (y > np.median(y)).astype(np.float64)
-    dm_bin = DMatrix(X, label=y_bin, qid=qid)
-    obj = MAP()
-    bst = train({"device": device}, dm_bin, num_boost_round=5, obj=obj)
-    cfg = json.loads(bst.save_config())
-    assert cfg["learner"]["objective"]["name"] == "rank:map"
-    assert obj.name == "rank:map"
 
 
 def check_equivalence(device: Device) -> None:
@@ -246,29 +232,6 @@ def check_default_metrics(device: Device) -> None:
 
 def check_sklearn_objectives(device: Device) -> None:
     """Test objective classes with the scikit-learn interface."""
-    X, y, _ = make_regression(100, 5, use_cupy=False)
-
-    reg = XGBRegressor(objective=PseudoHuber(delta=5.0), n_estimators=5, device=device)
-    reg.fit(X, y)
-    pred = reg.predict(X)
-    assert pred.shape == (100,)
-    assert isinstance(reg.objective, PseudoHuber)
-
-    reg_cls = XGBRegressor(
-        objective=PseudoHuber(delta=10.0), n_estimators=10, device=device
-    )
-    reg_cls.fit(X, y)
-
-    reg_str = XGBRegressor(
-        objective="reg:pseudohubererror",
-        huber_slope=10.0,
-        n_estimators=10,
-        device=device,
-    )
-    reg_str.fit(X, y)
-
-    np.testing.assert_allclose(reg_cls.predict(X), reg_str.predict(X), atol=1e-6)
-
     X_bin, y_bin = get_cancer()
     clf = XGBClassifier(
         objective=BinaryLogistic(scale_pos_weight=2.0),

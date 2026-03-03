@@ -4,11 +4,11 @@ from xgboost.testing.objective import (
     check_default_metrics,
     check_equivalence,
     check_sklearn_objectives,
-    check_train_aft_objective,
     check_train_classification_objectives,
     check_train_positive_objectives,
     check_train_ranking_objectives,
     check_train_regression_objectives,
+    check_train_survival_objectives,
 )
 
 
@@ -24,8 +24,8 @@ def test_train_classification() -> None:
     check_train_classification_objectives("cuda")
 
 
-def test_train_aft() -> None:
-    check_train_aft_objective("cuda")
+def test_train_survival() -> None:
+    check_train_survival_objectives("cuda")
 
 
 def test_train_ranking() -> None:

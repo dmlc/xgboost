@@ -129,6 +129,30 @@ def _named(name: str, cls: type) -> type:
 
 
 # Regression objectives
+SquaredError = _named(
+    "SquaredError",
+    _make_builtin_objective(
+        _ObjSpec(
+            obj_name="reg:squarederror",
+            params=[
+                _ParamSpec(
+                    py_name="scale_pos_weight", cpp_name="scale_pos_weight", typ=float
+                )
+            ],
+        )
+    ),
+)
+
+SquaredLogError = _named(
+    "SquaredLogError",
+    _make_builtin_objective(_ObjSpec(obj_name="reg:squaredlogerror")),
+)
+
+AbsoluteError = _named(
+    "AbsoluteError",
+    _make_builtin_objective(_ObjSpec(obj_name="reg:absoluteerror")),
+)
+
 PseudoHuber = _named(
     "PseudoHuber",
     _make_builtin_objective(
@@ -232,6 +256,25 @@ Gamma = _named(
     ),
 )
 
+LogitRaw = _named(
+    "LogitRaw",
+    _make_builtin_objective(
+        _ObjSpec(
+            obj_name="binary:logitraw",
+            params=[
+                _ParamSpec(
+                    py_name="scale_pos_weight", cpp_name="scale_pos_weight", typ=float
+                )
+            ],
+        )
+    ),
+)
+
+Hinge = _named(
+    "Hinge",
+    _make_builtin_objective(_ObjSpec(obj_name="binary:hinge")),
+)
+
 # Multiclass objectives
 Softmax = _named(
     "Softmax",
@@ -271,6 +314,11 @@ AFT = _named(
             ],
         )
     ),
+)
+
+Cox = _named(
+    "Cox",
+    _make_builtin_objective(_ObjSpec(obj_name="survival:cox")),
 )
 
 # Ranking objectives
