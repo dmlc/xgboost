@@ -25,6 +25,7 @@ See `Awesome XGBoost <https://github.com/dmlc/xgboost/tree/master/demo>`_ for mo
   dask
   spark_estimator
   ray
+  federated_learning
   external_memory
   c_api_tutorial
   input_format

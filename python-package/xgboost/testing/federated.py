@@ -1,5 +1,28 @@
 # pylint: disable=unbalanced-tuple-unpacking, too-many-locals
-"""Tests for federated learning."""
+"""Testing utilities for federated learning.
+
+This module provides helper functions for testing federated learning
+functionality in XGBoost. It includes utilities for:
+
+- Starting federated servers and workers
+- Generating SSL certificates for secure testing
+- Running end-to-end federated training tests
+
+These utilities are primarily intended for internal testing but can be
+used as examples for setting up federated learning environments.
+
+Examples
+--------
+Basic federated learning test setup:
+
+>>> from xgboost.testing.federated import run_federated_learning
+>>> # Run with 2 workers without SSL
+>>> run_federated_learning(with_ssl=False, use_gpu=False, test_path=__file__)
+
+Secure federated learning with SSL:
+
+>>> run_federated_learning(with_ssl=True, use_gpu=False, test_path=__file__)
+"""
 
 import multiprocessing
 import os
@@ -23,7 +46,17 @@ CLIENT_CERT = "client-cert.pem"
 
 
 def run_server(port: int, world_size: int, with_ssl: bool) -> None:
-    """Run federated server for test."""
+    """Run federated server for testing.
+
+    Parameters
+    ----------
+    port : int
+        Port number for the server to listen on.
+    world_size : int
+        Total number of workers expected to connect.
+    with_ssl : bool
+        Whether to enable SSL/TLS encryption.
+    """
     if with_ssl:
         xgboost.federated.run_federated_server(
             world_size,
@@ -39,7 +72,21 @@ def run_server(port: int, world_size: int, with_ssl: bool) -> None:
 def run_worker(
     port: int, world_size: int, rank: int, with_ssl: bool, device: str
 ) -> None:
-    """Run federated client worker for test."""
+    """Run a federated client worker for testing.
+
+    Parameters
+    ----------
+    port : int
+        Port number to connect to on the server.
+    world_size : int
+        Total number of workers in the federated setup.
+    rank : int
+        Unique identifier for this worker (0 to world_size-1).
+    with_ssl : bool
+        Whether to use SSL/TLS encryption.
+    device : str
+        Device to use for training ('cpu' or 'cuda:N').
+    """
     communicator_env = {
         "dmlc_communicator": "federated",
         "federated_server_address": f"localhost:{port}",
@@ -98,7 +145,17 @@ def run_worker(
 
 
 def run_federated(world_size: int, with_ssl: bool, use_gpu: bool) -> None:
-    """Launcher for clients and the server."""
+    """Launch federated server and workers for testing.
+
+    Parameters
+    ----------
+    world_size : int
+        Number of worker processes to create.
+    with_ssl : bool
+        Whether to enable SSL/TLS encryption.
+    use_gpu : bool
+        Whether to use GPU acceleration.
+    """
     port = 9091
 
     server = multiprocessing.Process(
@@ -123,7 +180,25 @@ def run_federated(world_size: int, with_ssl: bool, use_gpu: bool) -> None:
 
 
 def run_federated_learning(with_ssl: bool, use_gpu: bool, test_path: str) -> None:
-    """Run federated learning tests."""
+    """Run complete federated learning test pipeline.
+
+    This function:
+    1. Generates SSL certificates (if with_ssl=True)
+    2. Splits training/test data across workers
+    3. Starts federated server
+    4. Launches worker processes
+    5. Runs distributed training
+    6. Validates results
+
+    Parameters
+    ----------
+    with_ssl : bool
+        Whether to use SSL/TLS encryption for secure communication.
+    use_gpu : bool
+        Whether to use GPU acceleration for training.
+    test_path : str
+        Path to the test file, used to locate test data directory.
+    """
     n_workers = 2
 
     if with_ssl:
