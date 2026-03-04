@@ -82,12 +82,14 @@ class AllreduceWorker : public WorkerForTest {
   }
 
   void VariableReduce() {
-    auto reduce_fn = [](auto lhs, std::vector<std::int32_t>* out) {
-      if (out->size() < lhs.size()) {
-        out->resize(lhs.size(), 0);
+    auto reduce_fn = [](auto a, auto b, std::vector<std::int32_t>* out) {
+      auto n = std::max(a.size(), b.size());
+      out->assign(n, 0);
+      for (std::size_t i = 0; i < a.size(); ++i) {
+        (*out)[i] += a[i];
       }
-      for (std::size_t i = 0; i < lhs.size(); ++i) {
-        (*out)[i] += lhs[i];
+      for (std::size_t i = 0; i < b.size(); ++i) {
+        (*out)[i] += b[i];
       }
     };
 
