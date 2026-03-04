@@ -63,7 +63,7 @@ def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
             objective=objective,
         )
         clf.fit(X, y, eval_set=[(X, y)])
-        assert clf.objective == objective
+        assert clf.objective == "binary:logistic"
         assert non_increasing(clf.evals_result()["validation_0"]["logloss"])
         if learning_rate is not None and abs(learning_rate - 1.0) < 1e-5:
             assert clf.evals_result()["validation_0"]["logloss"][-1] < 0.065
