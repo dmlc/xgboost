@@ -59,7 +59,7 @@ class Objective(ABC):
         return None
 
 
-class _BuiltInObjective(Objective):
+class _BuiltInObjective:
     """Base class for Python wrappers of built-in C++ objective functions."""
 
     _name: str = ""
@@ -85,13 +85,6 @@ class _BuiltInObjective(Objective):
             if value is not None:
                 result[cpp_name] = _stringify(value)
         return result
-
-    def __call__(
-        self, iteration: int, y_pred: ArrayLike, dtrain: "DMatrix"
-    ) -> Tuple[ArrayLike, ArrayLike]:
-        raise RuntimeError(
-            "This method should not be called directly for the built-in objective."
-        )
 
 
 def _stringify(value: Any) -> str:
