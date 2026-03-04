@@ -88,14 +88,10 @@ class _BuiltInObjective:
 
 
 def _stringify(value: Any) -> str:
-    if isinstance(value, bool):
-        return str(int(value))
     if isinstance(value, np.ndarray):
         value = value.tolist()
-    elif _is_cupy_alike(value) and hasattr(value, "get"):
-        value = value.get().tolist()
-    if isinstance(value, (list, tuple)):
-        return "[" + ",".join(str(v) for v in value) + "]"
+    elif hasattr(value, "__cuda_array_interface__") and hasattr(value, "tolist"):
+        value = value.tolist()
     return str(value)
 
 
