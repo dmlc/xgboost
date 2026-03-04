@@ -588,6 +588,10 @@ def cv(
 
     # setup callbacks
     callbacks = [] if callbacks is None else copy.copy(list(callbacks))
+    if isinstance(obj, _BuiltInObjective):
+        raise NotImplementedError(
+            "The objective interface is not supported by the CV function yet."
+        )
 
     if verbose_eval:
         verbose_eval = 1 if verbose_eval is True else verbose_eval
