@@ -62,7 +62,7 @@ def _check_obj(
 
     if hasattr(builtin_obj, "split_grad"):
         raise NotImplementedError(
-            "`split_grad` is not yet supported the built-in objectives."
+            "`split_grad` is not yet supported for the built-in objectives."
         )
 
     for key, value in builtin_obj.flat_params().items():
