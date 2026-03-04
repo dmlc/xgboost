@@ -57,9 +57,16 @@ def _check_obj(
     if isinstance(obj, _BuiltInObjective):
         builtin_obj = obj
         obj = None
-    if builtin_obj is not None:
-        for key, value in builtin_obj.flat_params().items():
-            booster.set_param(key, value)
+    if builtin_obj is None:
+        return obj
+
+    if hasattr(builtin_obj, "split_grad"):
+        raise NotImplementedError(
+            "`split_grad` is not yet supported the built-in objectives."
+        )
+
+    for key, value in builtin_obj.flat_params().items():
+        booster.set_param(key, value)
     return obj
 
 
