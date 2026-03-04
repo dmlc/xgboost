@@ -403,11 +403,7 @@ struct WQSummaryContainer : public WQSummary<> {
   std::vector<WQSummary<>::Entry> space;
   WQSummaryContainer() : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {}
 
-  WQSummaryContainer(WQSummaryContainer const &src) : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {
-    this->space = src.space;
-    this->data = {dmlc::BeginPtr(this->space), this->space.size()};
-    this->CopyFrom(src);
-  }
+  WQSummaryContainer(WQSummaryContainer const &src) = delete;
 
   WQSummaryContainer(WQSummaryContainer &&src) noexcept
       : WQSummary<>(Span<WQSummary<>::Entry>{}, 0), space{std::move(src.space)} {
@@ -417,15 +413,7 @@ struct WQSummaryContainer : public WQSummary<> {
     src.data = Span<WQSummary<>::Entry>{};
   }
 
-  WQSummaryContainer &operator=(WQSummaryContainer const &src) {
-    if (this == &src) {
-      return *this;
-    }
-    this->space = src.space;
-    this->data = {dmlc::BeginPtr(this->space), this->space.size()};
-    this->current_elements = src.current_elements;
-    return *this;
-  }
+  WQSummaryContainer &operator=(WQSummaryContainer const &src) = delete;
 
   WQSummaryContainer &operator=(WQSummaryContainer &&src) noexcept {
     if (this == &src) {
