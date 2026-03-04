@@ -195,7 +195,7 @@ auto SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &i
   auto cursor{worker_sketch.begin()};
   for (size_t fidx = 0; fidx < reduced.size(); ++fidx) {
     auto const &sketch = reduced[fidx];
-    if (IsCat(feature_types_, fidx) || sketch.Size() == 0) {
+    if (IsCat(feature_types_, fidx) || sketch.Empty()) {
       // Nothing to copy for categorical features or empty sketches.
       continue;
     }
@@ -318,14 +318,12 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
       return;
     }
     if (IsCat(feature_types_, i)) {
-      cut_targets[i] = categories_[i].size();
-      retained_cuts[i] = categories_[i].size();
-    } else {
-      auto out = sketches_[i].GetSummary();
-      reduced[i].Reserve(cut_target);
-      CHECK(reduced[i].Entries().data());
-      reduced[i].SetPrune(out, cut_target);
+      cut_target = categories_[i].size();
       cut_targets[i] = cut_target;
+      retained_cuts[i] = cut_target;
+    } else {
+      cut_targets[i] = cut_target;
+      reduced[i] = sketches_[i].GetSummary(cut_target);
       retained_cuts[i] = static_cast<int32_t>(reduced[i].Size());
     }
   });
@@ -352,18 +350,17 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
 
     auto &out = reduced.at(fidx);
     out.Clear();
-    out.Reserve(cut_target);
-    WQSketch::SummaryContainer tmp;
-    tmp.Reserve(static_cast<size_t>(cut_target) * 2);
+    out.Reserve(static_cast<size_t>(cut_target) * 2);
+    std::vector<WQSketch::Entry> combine_workspace;
+    combine_workspace.reserve(static_cast<size_t>(cut_target) * 2);
 
     for (int32_t r = 0; r < world; ++r) {
-      // 1 feature of 1 worker
       auto worker_feature = allreduce_result.Values(r, fidx);
       CHECK(worker_feature.data());
       // Non-owning view over all-reduced entries for one feature on one worker.
       WQSketch::Summary summary(worker_feature, worker_feature.size());
-      tmp.SetCombine(out, summary);
-      out.SetPrune(tmp, cut_target);
+      out.SetCombine(summary, &combine_workspace);
+      out.SetPrune(cut_target);
     }
     retained_cuts[fidx] = static_cast<int32_t>(out.Size());
   });
@@ -419,10 +416,11 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     }
     WQSketch::SummaryContainer &a = final_summaries[fidx];
     size_t max_num_bins = std::min(retained_cuts[fidx], max_bins_);
-    a.Reserve(max_num_bins + 1);
+    a.Reserve(std::max(reduced[fidx].Size(), max_num_bins + 1));
     CHECK(a.Entries().data());
     if (retained_cuts[fidx] != 0) {
-      a.SetPrune(reduced[fidx], max_num_bins + 1);
+      a.CopyFrom(reduced[fidx]);
+      a.SetPrune(max_num_bins + 1);
       auto const a_entries = a.Entries();
       auto const reduced_entries = reduced[fidx].Entries();
       CHECK(a_entries.data() && reduced_entries.data());
@@ -474,7 +472,7 @@ HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bins,
     n_bins = std::max(n_bins, static_cast<decltype(n_bins)>(1));
     auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
     if (!IsCat(this->feature_types_, i)) {
-      sketches_[i].Init(columns_size_[i], eps);
+      sketches_[i] = WQSketch{columns_size_[i], eps};
     }
   });
 }
