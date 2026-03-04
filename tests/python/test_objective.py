@@ -1,10 +1,10 @@
-from typing import TYPE_CHECKING
+from typing import Callable
 
-from xgboost.testing.objective import check_objectives
+import pytest
+from xgboost.testing.objective import all_objective_checks
+from xgboost.testing.utils import Device
 
-if TYPE_CHECKING:
-    from pytest import Subtests
 
-
-def test_objectives(subtests: "Subtests") -> None:
-    check_objectives(subtests, "cpu")
+@pytest.mark.parametrize("obj_chk", all_objective_checks())
+def test_objectives(obj_chk: Callable[[Device], None]) -> None:
+    obj_chk("cpu")

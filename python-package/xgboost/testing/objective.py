@@ -1,7 +1,10 @@
 """Tests for the built-in objective Python interface."""
 
 import json
-from typing import TYPE_CHECKING, Dict
+import os
+import pickle
+import tempfile
+from typing import Callable, Dict, List
 
 import numpy as np
 import pytest
@@ -35,9 +38,6 @@ from ..training import train
 from . import make_ltr, make_regression
 from .data import get_cancer
 from .utils import Device
-
-if TYPE_CHECKING:
-    from pytest import Subtests
 
 
 def check_train_regression_objectives(device: Device) -> None:
@@ -239,8 +239,9 @@ def check_default_metrics(device: Device) -> None:
 def check_sklearn_objectives(device: Device) -> None:
     """Test objective classes with the scikit-learn interface."""
     X_bin, y_bin = get_cancer()
+    spw = 2.0
     clf = XGBClassifier(
-        objective=BinaryLogistic(scale_pos_weight=2.0),
+        objective=BinaryLogistic(scale_pos_weight=spw),
         n_estimators=5,
         device=device,
     )
@@ -248,10 +249,26 @@ def check_sklearn_objectives(device: Device) -> None:
     pred = clf.predict(X_bin)
     assert set(pred).issubset({0, 1})
 
+    def chk_param(clf: XGBClassifier) -> None:
+        cfg = json.loads(clf.get_booster().save_config())
+        assert (
+            float(cfg["learner"]["objective"]["reg_loss_param"]["scale_pos_weight"])
+            == spw
+        )
 
-def check_objectives(subtests: "Subtests", device: Device) -> None:
-    """Run all tests."""
-    for test in (
+    clf_1 = pickle.loads(pickle.dumps(clf))
+    chk_param(clf_1)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "clf.json")
+        clf.save_model(path)
+        clf_2 = XGBClassifier()
+        clf_2.load_model(path)
+        chk_param(clf_2)
+
+
+def all_objective_checks() -> List[Callable[[Device], None]]:
+    """List of objective tests."""
+    return [
         check_default_metrics,
         check_equivalence,
         check_sklearn_objectives,
@@ -260,6 +277,4 @@ def check_objectives(subtests: "Subtests", device: Device) -> None:
         check_train_ranking_objectives,
         check_train_regression_objectives,
         check_train_survival_objectives,
-    ):
-        with subtests.test(msg=test.__name__):
-            test(device)
+    ]
