@@ -557,12 +557,8 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     auto n_entries = entries.size();
 
     auto &out = reduced[fidx];
-    out.Clear();
     out.Reserve(n_entries);
-    if (n_entries != 0) {
-      std::copy(entries.cbegin(), entries.cend(), out.data.data());
-      out.SetSize(n_entries);
-    }
+    out.CopyFrom(WQSketch::Summary{entries, n_entries});
     retained_cuts[fidx] = static_cast<int32_t>(n_entries);
   }
   monitor_.Stop(__func__);

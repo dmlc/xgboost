@@ -53,10 +53,6 @@ struct WQSummary {
     /*! \return rmax estimation for v strictly smaller than value */
     XGBOOST_DEVICE RType RMaxPrev() const { return rmax - wmin; }
   };
-  /*! \brief data field */
-  Span<Entry> data;
-  /*! \brief number of elements in the summary */
-  size_t current_elements;
   // constructor
   WQSummary(Span<Entry> data, size_t current_elements)
       : data{data}, current_elements{current_elements} {}
@@ -325,7 +321,27 @@ struct WQSummary {
     this->current_elements = merged.current_elements;
   }
 
+ protected:
+  /*!
+   * \brief Rebind underlying storage span while preserving current logical size.
+   */
+  void SetStorage(Span<Entry> storage) {
+    data = storage;
+    CHECK_LE(current_elements, data.size());
+  }
+  /*!
+   * \brief Reset storage binding and clear logical size.
+   */
+  void ResetStorage() {
+    data = Span<Entry>{};
+    current_elements = 0;
+  }
+
  private:
+  /*! \brief data field */
+  Span<Entry> data;
+  /*! \brief number of elements in the summary */
+  size_t current_elements;
   // try to fix rounding error
   // and re-establish invariance
   void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
@@ -407,10 +423,9 @@ struct WQSummaryContainer : public WQSummary<> {
 
   WQSummaryContainer(WQSummaryContainer &&src) noexcept
       : WQSummary<>(Span<WQSummary<>::Entry>{}, 0), space{std::move(src.space)} {
-    this->data = {dmlc::BeginPtr(this->space), this->space.size()};
-    this->current_elements = src.current_elements;
-    src.current_elements = 0;
-    src.data = Span<WQSummary<>::Entry>{};
+    this->SetStorage({dmlc::BeginPtr(this->space), this->space.size()});
+    this->SetSize(src.Size());
+    src.ResetStorage();
   }
 
   WQSummaryContainer &operator=(WQSummaryContainer const &src) = delete;
@@ -420,10 +435,9 @@ struct WQSummaryContainer : public WQSummary<> {
       return *this;
     }
     this->space = std::move(src.space);
-    this->data = {dmlc::BeginPtr(this->space), this->space.size()};
-    this->current_elements = src.current_elements;
-    src.current_elements = 0;
-    src.data = Span<WQSummary<>::Entry>{};
+    this->SetStorage({dmlc::BeginPtr(this->space), this->space.size()});
+    this->SetSize(src.Size());
+    src.ResetStorage();
     return *this;
   }
 
@@ -431,7 +445,7 @@ struct WQSummaryContainer : public WQSummary<> {
     if (size > space.size()) {
       space.resize(size);
     }
-    this->data = {dmlc::BeginPtr(space), space.size()};
+    this->SetStorage({dmlc::BeginPtr(space), space.size()});
   }
 };
 
