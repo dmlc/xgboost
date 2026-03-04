@@ -492,7 +492,6 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
   auto merged = SketchReducePayload::SerializeFromSummaries(
       Span<bst_feature_t const>{numeric_features}, reduced, retained_cuts);
   WQSketch::SummaryContainer tmp;
-  WQSketch::SummaryContainer pruned;
   auto const root = 0;
   auto reduce_rc = collective::ReduceV(
       ctx, &merged, root,
@@ -515,14 +514,15 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
           auto a_summary = a_payload.SummaryAt(i);
           auto b_summary = b_payload.SummaryAt(i);
           tmp.Reserve(a_summary.Size() + b_summary.Size());
-          tmp.SetCombine(a_summary, b_summary);
+          tmp.CopyFrom(a_summary);
+          tmp.SetCombine(b_summary);
 
           auto fidx = numeric_features[i];
           auto cut_target = static_cast<std::size_t>(cut_targets[fidx]);
-          pruned.Reserve(cut_target);
-          pruned.SetPrune(tmp, cut_target);
 
-          auto pruned_entries = pruned.Entries();
+          tmp.SetPrune(cut_target);
+
+          auto pruned_entries = tmp.Entries();
           out_counts[i] = pruned_entries.size();
           total_out_entries += pruned_entries.size();
           SketchReducePayload::AppendEntries(out, pruned_entries);
