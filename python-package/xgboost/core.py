@@ -87,7 +87,7 @@ from .compat import (
     is_pyarrow_available,
     py_str,
 )
-from .objective import Objective, _grad_arrinf, _stringify
+from .objective import Objective, _BuiltInObjective, _grad_arrinf, _stringify
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -2196,7 +2196,7 @@ class Booster:
             raise TypeError(f"Invalid training matrix: {type(dtrain).__name__}")
         self._assign_dmatrix_features(dtrain)
 
-        if fobj is None:
+        if fobj is None or isinstance(fobj, _BuiltInObjective):
             _check_call(
                 _LIB.XGBoosterUpdateOneIter(
                     self.handle, ctypes.c_int(iteration), dtrain.handle
