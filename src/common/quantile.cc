@@ -3,6 +3,8 @@
  */
 #include "quantile.h"
 
+#include <cstddef>  // for byte
+#include <cstdint>  // for uint64_t
 #include <limits>
 #include <numeric>  // for partial_sum
 #include <utility>
@@ -58,6 +60,140 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
   }
   return results;
 }
+
+struct SketchReducePayload {
+  using Entry = WQuantileSketch::Entry;
+  using SummaryContainer = WQuantileSketch::SummaryContainer;
+
+  [[nodiscard]] static std::vector<std::byte> SerializeFromSummaries(
+      Span<bst_feature_t const> numeric_features,
+      std::vector<WQuantileSketch::SummaryContainer> const &reduced,
+      std::vector<int32_t> const &retained_cuts) {
+    std::vector<std::size_t> counts;
+    counts.reserve(numeric_features.size());
+
+    std::size_t total_entries = 0;
+    for (auto fidx : numeric_features) {
+      auto n_entries = static_cast<std::size_t>(retained_cuts.at(fidx));
+      counts.push_back(n_entries);
+      total_entries += n_entries;
+    }
+
+    auto header_bytes = HeaderBytes(numeric_features.size());
+    std::vector<std::byte> bytes;
+    bytes.reserve(header_bytes + total_entries * sizeof(Entry));
+    bytes.resize(header_bytes);
+
+    for (std::size_t i = 0; i < numeric_features.size(); ++i) {
+      auto fidx = numeric_features[i];
+      auto out_entries = reduced.at(fidx).Entries();
+      CHECK_EQ(out_entries.size(), counts[i]);
+      AppendEntries(&bytes, out_entries);
+    }
+
+    WriteHeader(&bytes, Span<std::size_t const>{counts}, total_entries);
+    return bytes;
+  }
+
+  [[nodiscard]] static std::size_t HeaderBytes(std::size_t n_features) {
+    return 2 * sizeof(std::uint64_t) + n_features * sizeof(std::uint64_t);
+  }
+
+  static void AppendEntries(std::vector<std::byte> *bytes, Span<Entry const> entries) {
+    CHECK(bytes);
+    if (entries.empty()) {
+      return;
+    }
+    auto entries_bytes = entries.size() * sizeof(Entry);
+    auto const *src = reinterpret_cast<std::byte const *>(entries.data());
+    bytes->insert(bytes->end(), src, src + entries_bytes);
+  }
+
+  static void WriteHeader(std::vector<std::byte> *bytes, Span<std::size_t const> counts,
+                          std::size_t total_entries) {
+    CHECK(bytes);
+    auto const header_bytes = HeaderBytes(counts.size());
+    CHECK_GE(bytes->size(), header_bytes);
+    WritePODAt<std::uint64_t>(bytes, 0, static_cast<std::uint64_t>(counts.size()));
+    WritePODAt<std::uint64_t>(bytes, sizeof(std::uint64_t),
+                              static_cast<std::uint64_t>(total_entries));
+
+    std::size_t offset = 2 * sizeof(std::uint64_t);
+    for (auto n_entries : counts) {
+      WritePODAt<std::uint64_t>(bytes, offset, static_cast<std::uint64_t>(n_entries));
+      offset += sizeof(std::uint64_t);
+    }
+  }
+
+ private:
+  template <typename T>
+  static void WritePODAt(std::vector<std::byte> *out, std::size_t offset, T value) {
+    static_assert(std::is_trivially_copyable_v<T>);
+    CHECK(out);
+    CHECK_LE(offset + sizeof(T), out->size());
+    auto const *src = reinterpret_cast<std::byte const *>(&value);
+    std::copy_n(src, sizeof(T), out->begin() + static_cast<std::ptrdiff_t>(offset));
+  }
+};
+
+struct SketchReducePayloadView {
+  using Entry = WQuantileSketch::Entry;
+
+  [[nodiscard]] static SketchReducePayloadView Parse(Span<std::byte const> bytes) {
+    std::size_t cursor = 0;
+    auto n_features = ReadPOD<std::uint64_t>(bytes, &cursor);
+    auto n_entries = ReadPOD<std::uint64_t>(bytes, &cursor);
+
+    std::vector<std::size_t> counts(n_features);
+    std::vector<std::size_t> offsets(n_features + 1, 0);
+    for (std::size_t i = 0; i < n_features; ++i) {
+      counts[i] = static_cast<std::size_t>(ReadPOD<std::uint64_t>(bytes, &cursor));
+      offsets[i + 1] = offsets[i] + counts[i];
+    }
+    CHECK_EQ(offsets.back(), n_entries);
+
+    auto payload_bytes = static_cast<std::size_t>(n_entries) * sizeof(Entry);
+    CHECK_EQ(cursor + payload_bytes, bytes.size());
+
+    Entry const *entries = nullptr;
+    if (n_entries != 0) {
+      auto ptr = bytes.data() + cursor;
+      auto addr = reinterpret_cast<std::uintptr_t>(ptr);
+      CHECK_EQ(addr % alignof(Entry), 0);
+      entries = reinterpret_cast<Entry const *>(ptr);
+    }
+
+    return {std::move(counts), std::move(offsets), Span<Entry const>{entries, n_entries}};
+  }
+
+  [[nodiscard]] std::size_t NumFeatures() const { return counts_.size(); }
+  [[nodiscard]] std::size_t TotalEntries() const { return entries_.size(); }
+
+  [[nodiscard]] Span<Entry const> Entries(std::size_t idx) const {
+    return {entries_.data() + offsets_.at(idx), counts_.at(idx)};
+  }
+
+ private:
+  template <typename T>
+  [[nodiscard]] static T ReadPOD(Span<std::byte const> bytes, std::size_t *cursor) {
+    static_assert(std::is_trivially_copyable_v<T>);
+    CHECK(cursor);
+    CHECK_LE(*cursor + sizeof(T), bytes.size());
+    T value{};
+    auto *dst = reinterpret_cast<std::byte *>(&value);
+    std::copy_n(bytes.data() + *cursor, sizeof(T), dst);
+    *cursor += sizeof(T);
+    return value;
+  }
+
+  SketchReducePayloadView(std::vector<std::size_t> counts, std::vector<std::size_t> offsets,
+                          Span<Entry const> entries)
+      : counts_{std::move(counts)}, offsets_{std::move(offsets)}, entries_{entries} {}
+
+  std::vector<std::size_t> counts_;
+  std::vector<std::size_t> offsets_;
+  Span<Entry const> entries_;
+};
 }  // anonymous namespace
 
 void SketchContainerImpl::PushRowPage(SparsePage const &page, MetaInfo const &info,
@@ -334,36 +470,119 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
     return {std::move(reduced), std::move(retained_cuts)};
   }
 
-  auto gathered = this->GatherSketchInfo(ctx, info, reduced);
-  auto &worker_segments = std::get<0>(gathered);
-  auto &sketches_scan = std::get<1>(gathered);
-  auto &global_sketches = std::get<2>(gathered);
-
-  ParallelFor(n_columns, n_threads_, [&](auto fidx) {
-    // gcc raises subobject-linkage warning if we put allreduce_result as lambda capture
-    QuantileAllreduce<WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
-                                                        sketches_scan, n_columns};
-    int32_t cut_target = cut_targets[fidx];
-    if (IsCat(feature_types_, fidx)) {
-      return;
+  std::vector<bst_feature_t> numeric_features;
+  numeric_features.reserve(n_columns);
+  for (bst_feature_t fidx = 0; fidx < n_columns; ++fidx) {
+    if (!IsCat(feature_types_, fidx) && cut_targets[fidx] != 0) {
+      numeric_features.push_back(fidx);
     }
+  }
 
-    auto &out = reduced.at(fidx);
+  if (numeric_features.empty()) {
+    monitor_.Stop(__func__);
+    return {std::move(reduced), std::move(retained_cuts)};
+  }
+
+  std::size_t const chunk_size = numeric_features.size();
+  auto merged = SketchReducePayload::SerializeFromSummaries(
+      Span<bst_feature_t const>{numeric_features}, reduced, retained_cuts);
+  WQSketch::SummaryContainer tmp;
+  WQSketch::SummaryContainer pruned;
+  auto const root = 0;
+  auto reduce_rc = collective::ReduceV(
+      ctx, &merged, root,
+      [&](common::Span<std::byte const> acc, common::Span<std::byte const> incoming,
+          std::vector<std::byte> *out) {
+        auto acc_payload = SketchReducePayloadView::Parse(acc);
+        auto incoming_payload = SketchReducePayloadView::Parse(incoming);
+        CHECK_EQ(acc_payload.NumFeatures(), chunk_size);
+        CHECK_EQ(incoming_payload.NumFeatures(), chunk_size);
+
+        std::vector<std::size_t> out_counts(chunk_size);
+        auto const header_bytes = SketchReducePayload::HeaderBytes(chunk_size);
+        out->clear();
+        out->reserve(header_bytes + (acc_payload.TotalEntries() + incoming_payload.TotalEntries()) *
+                                        sizeof(WQSketch::Entry));
+        out->resize(header_bytes);
+        std::size_t total_out_entries = 0;
+
+        for (std::size_t i = 0; i < chunk_size; ++i) {
+          auto acc_entries = acc_payload.Entries(i);
+          auto incoming_entries = incoming_payload.Entries(i);
+          auto n_acc = acc_entries.size();
+          auto n_incoming = incoming_entries.size();
+
+          if (n_incoming == 0) {
+            out_counts[i] = n_acc;
+            total_out_entries += n_acc;
+            SketchReducePayload::AppendEntries(out, acc_entries);
+            continue;
+          }
+          if (n_acc == 0) {
+            out_counts[i] = n_incoming;
+            total_out_entries += n_incoming;
+            SketchReducePayload::AppendEntries(out, incoming_entries);
+            continue;
+          }
+
+          auto acc_view =
+              Span<WQSketch::Entry>{const_cast<WQSketch::Entry *>(acc_entries.data()), n_acc};
+          WQSketch::Summary acc_summary(acc_view, n_acc);
+          auto incoming_view = Span<WQSketch::Entry>{
+              const_cast<WQSketch::Entry *>(incoming_entries.data()), n_incoming};
+          WQSketch::Summary in_summary(incoming_view, n_incoming);
+
+          tmp.Reserve(n_acc + n_incoming);
+          tmp.SetCombine(acc_summary, in_summary);
+
+          auto fidx = numeric_features[i];
+          auto cut_target = static_cast<std::size_t>(cut_targets[fidx]);
+          pruned.Reserve(cut_target);
+          pruned.SetPrune(tmp, cut_target);
+
+          auto pruned_entries = pruned.Entries();
+          out_counts[i] = pruned_entries.size();
+          total_out_entries += pruned_entries.size();
+          SketchReducePayload::AppendEntries(out, pruned_entries);
+        }
+
+        SketchReducePayload::WriteHeader(out, Span<std::size_t const>{out_counts},
+                                         total_out_entries);
+      });
+  collective::SafeColl(reduce_rc);
+
+  auto const rank = collective::GetRank();
+  std::int64_t merged_size = rank == root ? static_cast<std::int64_t>(merged.size()) : 0;
+  rc = collective::Broadcast(ctx, linalg::MakeVec(&merged_size, std::size_t{1}), /*root=*/root);
+  collective::SafeColl(rc);
+
+  if (rank != root) {
+    merged.resize(static_cast<std::size_t>(merged_size));
+  }
+  if (merged_size != 0) {
+    rc = collective::Broadcast(ctx,
+                               linalg::MakeVec(reinterpret_cast<std::int8_t *>(merged.data()),
+                                               static_cast<std::size_t>(merged_size)),
+                               /*root=*/root);
+    collective::SafeColl(rc);
+  }
+
+  auto reduced_payload = SketchReducePayloadView::Parse(Span<std::byte const>{merged});
+  CHECK_EQ(reduced_payload.NumFeatures(), chunk_size);
+  for (std::size_t i = 0; i < chunk_size; ++i) {
+    auto fidx = numeric_features[i];
+    auto entries = reduced_payload.Entries(i);
+    auto n_entries = entries.size();
+
+    auto &out = reduced[fidx];
     out.Clear();
-    out.Reserve(static_cast<size_t>(cut_target) * 2);
-    std::vector<WQSketch::Entry> combine_workspace;
-    combine_workspace.reserve(static_cast<size_t>(cut_target) * 2);
-
-    for (int32_t r = 0; r < world; ++r) {
-      auto worker_feature = allreduce_result.Values(r, fidx);
-      CHECK(worker_feature.data());
-      // Non-owning view over all-reduced entries for one feature on one worker.
-      WQSketch::Summary summary(worker_feature, worker_feature.size());
-      out.SetCombine(summary, &combine_workspace);
-      out.SetPrune(cut_target);
+    out.Reserve(n_entries);
+    if (n_entries != 0) {
+      std::copy(entries.cbegin(), entries.cend(), out.data.data());
+      out.SetSize(n_entries);
     }
-    retained_cuts[fidx] = static_cast<int32_t>(out.Size());
-  });
+    retained_cuts[fidx] = static_cast<int32_t>(n_entries);
+  }
   monitor_.Stop(__func__);
   return {std::move(reduced), std::move(retained_cuts)};
 }

@@ -5,7 +5,10 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>   // for steady_clock
 #include <cstdint>  // for int64_t
+#include <cstdlib>  // for getenv
+#include <string>   // for string
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.h"
@@ -79,6 +82,22 @@ TEST(Quantile, SetPruneInplace) {
 namespace {
 template <bool use_column>
 using ContainerType = std::conditional_t<use_column, SortedSketchContainer, HostSketchContainer>;
+
+[[nodiscard]] std::int64_t GetEnvInt(char const* name, std::int64_t dft) {
+  auto* v = std::getenv(name);
+  if (v == nullptr) {
+    return dft;
+  }
+  return std::stoll(v);
+}
+
+[[nodiscard]] double GetEnvFloat(char const* name, double dft) {
+  auto* v = std::getenv(name);
+  if (v == nullptr) {
+    return dft;
+  }
+  return std::stod(v);
+}
 
 // Dispatch for push page.
 void PushPage(SortedSketchContainer* container, SparsePage const& page, MetaInfo const& info,
@@ -199,6 +218,81 @@ void TestDistributedQuantile(size_t const rows, size_t const cols) {
   collective::TestDistributedGlobal(
       kWorkers, [=] { DoTestDistributedQuantile<use_column>(rows, cols); }, false);
 }
+
+template <bool use_column>
+void DoBenchDistributedQuantile(size_t rows, size_t cols, float sparsity, bst_bin_t n_bins,
+                                std::int32_t n_workers) {
+  Context ctx;
+  collective::GetWorkerLocalThreads(n_workers, &ctx);
+  auto rank = collective::GetRank();
+
+  std::vector<FeatureType> ft(cols);
+  for (size_t i = 0; i < ft.size(); ++i) {
+    ft[i] = (i % 5 == 0) ? FeatureType::kCategorical : FeatureType::kNumerical;
+  }
+
+  auto m = RandomDataGenerator{rows, cols, sparsity}
+               .Seed(rank)
+               .Lower(.0f)
+               .Upper(1.0f)
+               .Type(ft)
+               .MaxCategory(63)
+               .GenerateDMatrix();
+
+  std::vector<bst_idx_t> column_size(cols, rows);
+  std::vector<float> hessian(rows, 1.0f);
+  auto hess = Span<float const>{hessian};
+  ContainerType<use_column> sketch(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                   column_size, false);
+
+  auto begin = std::chrono::steady_clock::now();
+  if (use_column) {
+    for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
+      PushPage(&sketch, page, m->Info(), hess);
+    }
+  } else {
+    for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+      PushPage(&sketch, page, m->Info(), hess);
+    }
+  }
+  HistogramCuts cuts;
+  sketch.MakeCuts(&ctx, m->Info(), &cuts);
+  auto end = std::chrono::steady_clock::now();
+
+  double elapsed = std::chrono::duration<double>(end - begin).count();
+  double elapsed_sum = elapsed;
+  double elapsed_max = elapsed;
+  std::uint64_t nnz = m->Info().num_nonzero_;
+  std::uint64_t nnz_sum = nnz;
+
+  auto rc = collective::Success() << [&] {
+    return collective::Allreduce(&ctx, &elapsed_sum, collective::Op::kSum);
+  } << [&] {
+    return collective::Allreduce(&ctx, &elapsed_max, collective::Op::kMax);
+  } << [&] {
+    return collective::Allreduce(&ctx, &nnz_sum, collective::Op::kSum);
+  };
+  collective::SafeColl(rc);
+
+  if (rank == 0) {
+    auto const avg = elapsed_sum / static_cast<double>(n_workers);
+    auto const throughput = static_cast<double>(nnz_sum) / elapsed_max;
+    LOG(CONSOLE) << "Quantile bench (" << (use_column ? "sorted" : "unsorted")
+                 << "): workers=" << n_workers << ", rows/worker=" << rows << ", cols=" << cols
+                 << ", sparsity=" << sparsity << ", bins=" << n_bins
+                 << ", max_time_s=" << elapsed_max << ", avg_time_s=" << avg
+                 << ", throughput_nnz_per_s=" << throughput;
+  }
+}
+
+template <bool use_column>
+void RunBenchDistributedQuantile(size_t rows, size_t cols, float sparsity, bst_bin_t n_bins,
+                                 std::int32_t n_workers) {
+  collective::TestDistributedGlobal(
+      n_workers,
+      [=] { DoBenchDistributedQuantile<use_column>(rows, cols, sparsity, n_bins, n_workers); },
+      true, std::chrono::seconds{600});
+}
 }  // anonymous namespace
 
 TEST(Quantile, DistributedBasic) {
@@ -219,6 +313,24 @@ TEST(Quantile, SortedDistributedBasic) {
 TEST(Quantile, SortedDistributed) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestDistributedQuantile<true>(kRows, kCols);
+}
+
+TEST(Quantile, BenchDistributedLargeSparse) {
+  auto workers = static_cast<std::int32_t>(GetEnvInt("XGBOOST_BENCH_WORKERS", 40));
+  auto rows = static_cast<size_t>(GetEnvInt("XGBOOST_BENCH_ROWS", 5000));
+  auto cols = static_cast<size_t>(GetEnvInt("XGBOOST_BENCH_COLS", 1000));
+  auto bins = static_cast<bst_bin_t>(GetEnvInt("XGBOOST_BENCH_BINS", 256));
+  auto sparsity = static_cast<float>(GetEnvFloat("XGBOOST_BENCH_SPARSITY", 0.95));
+  RunBenchDistributedQuantile<false>(rows, cols, sparsity, bins, workers);
+}
+
+TEST(Quantile, BenchSortedDistributedLargeSparse) {
+  auto workers = static_cast<std::int32_t>(GetEnvInt("XGBOOST_BENCH_WORKERS", 40));
+  auto rows = static_cast<size_t>(GetEnvInt("XGBOOST_BENCH_ROWS", 5000));
+  auto cols = static_cast<size_t>(GetEnvInt("XGBOOST_BENCH_COLS", 1000));
+  auto bins = static_cast<bst_bin_t>(GetEnvInt("XGBOOST_BENCH_BINS", 256));
+  auto sparsity = static_cast<float>(GetEnvFloat("XGBOOST_BENCH_SPARSITY", 0.95));
+  RunBenchDistributedQuantile<true>(rows, cols, sparsity, bins, workers);
 }
 
 namespace {

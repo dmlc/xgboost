@@ -75,4 +75,231 @@ template <typename T>
 Allreduce(Context const* ctx, T* data, Op op) {
   return Allreduce(ctx, linalg::MakeVec(data, 1), op);
 }
+
+/*!
+ * \brief Reduce variable-size data to root with user-defined associative op.
+ *
+ * `redop` is called on root only and should merge `lhs` into `out`.
+ */
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, common::Span<T const>, std::vector<T>*>, Result> ReduceV(
+    Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
+  static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
+                "ReduceV supports only standard-layout trivially-copyable types.");
+  CHECK(data);
+  if (!comm.IsDistributed() || comm.World() == 1) {
+    return Success();
+  }
+
+  auto const world = comm.World();
+  auto const rank = comm.Rank();
+  CHECK_GE(root, 0);
+  CHECK_LT(root, world);
+
+  auto shift_left = [world, root](std::int32_t r) {
+    return (r + world - root) % world;
+  };
+  auto shift_right = [world, root](std::int32_t r) {
+    return (r + root) % world;
+  };
+
+  auto send = [&](std::int32_t peer, std::vector<T> const& vec) {
+    std::int64_t n = static_cast<std::int64_t>(vec.size());
+    auto n_bytes =
+        common::Span<std::int8_t const>{reinterpret_cast<std::int8_t const*>(&n), sizeof(n)};
+    return Success() << [&] {
+      return comm.Chan(peer)->SendAll(n_bytes);
+    } << [&] {
+      if (n == 0) {
+        return Success();
+      }
+      auto payload_bytes = static_cast<std::size_t>(n) * sizeof(T);
+      auto bytes = common::Span<std::int8_t const>{reinterpret_cast<std::int8_t const*>(vec.data()),
+                                                   payload_bytes};
+      return comm.Chan(peer)->SendAll(bytes);
+    } << [&] {
+      return comm.Chan(peer)->Block();
+    };
+  };
+
+  auto recv = [&](std::int32_t peer, std::vector<T>* out) {
+    std::int64_t n = 0;
+    auto n_bytes = common::Span<std::int8_t>{reinterpret_cast<std::int8_t*>(&n), sizeof(n)};
+    auto rc = Success() << [&] {
+      return comm.Chan(peer)->RecvAll(n_bytes);
+    } << [&] {
+      return comm.Chan(peer)->Block();
+    };
+    if (!rc.OK()) {
+      return rc;
+    }
+    CHECK_GE(n, 0);
+    out->resize(static_cast<std::size_t>(n));
+    if (n == 0) {
+      return Success();
+    }
+    auto payload_bytes = static_cast<std::size_t>(n) * sizeof(T);
+    auto bytes =
+        common::Span<std::int8_t>{reinterpret_cast<std::int8_t*>(out->data()), payload_bytes};
+    return Success() << [&] {
+      return comm.Chan(peer)->RecvAll(bytes);
+    } << [&] {
+      return comm.Chan(peer)->Block();
+    };
+  };
+
+  auto shifted_rank = shift_left(rank);
+  std::vector<T> incoming;
+  for (std::int32_t step = 1; step < world; step <<= 1) {
+    if (shifted_rank % (step * 2) == step) {
+      auto parent = shift_right(shifted_rank - step);
+      auto rc = send(parent, *data);
+      if (!rc.OK()) {
+        return Fail("ReduceV failed to send data to parent.", std::move(rc));
+      }
+      return Success();
+    }
+    if (shifted_rank % (step * 2) == 0 && shifted_rank + step < world) {
+      auto child = shift_right(shifted_rank + step);
+      auto rc = recv(child, &incoming);
+      if (!rc.OK()) {
+        return Fail("ReduceV failed to receive data from child.", std::move(rc));
+      }
+      redop(common::Span<T const>{incoming.data(), incoming.size()}, data);
+    }
+  }
+
+  return Success();
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<
+    std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
+ReduceV(Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
+  static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
+                "ReduceV supports only standard-layout trivially-copyable types.");
+  CHECK(data);
+  if (!comm.IsDistributed() || comm.World() == 1) {
+    return Success();
+  }
+
+  auto const world = comm.World();
+  auto const rank = comm.Rank();
+  CHECK_GE(root, 0);
+  CHECK_LT(root, world);
+
+  auto shift_left = [world, root](std::int32_t r) {
+    return (r + world - root) % world;
+  };
+  auto shift_right = [world, root](std::int32_t r) {
+    return (r + root) % world;
+  };
+
+  auto send = [&](std::int32_t peer, std::vector<T> const& vec) {
+    std::int64_t n = static_cast<std::int64_t>(vec.size());
+    auto n_bytes =
+        common::Span<std::int8_t const>{reinterpret_cast<std::int8_t const*>(&n), sizeof(n)};
+    return Success() << [&] {
+      return comm.Chan(peer)->SendAll(n_bytes);
+    } << [&] {
+      if (n == 0) {
+        return Success();
+      }
+      auto payload_bytes = static_cast<std::size_t>(n) * sizeof(T);
+      auto bytes = common::Span<std::int8_t const>{reinterpret_cast<std::int8_t const*>(vec.data()),
+                                                   payload_bytes};
+      return comm.Chan(peer)->SendAll(bytes);
+    } << [&] {
+      return comm.Chan(peer)->Block();
+    };
+  };
+
+  auto recv = [&](std::int32_t peer, std::vector<T>* out) {
+    std::int64_t n = 0;
+    auto n_bytes = common::Span<std::int8_t>{reinterpret_cast<std::int8_t*>(&n), sizeof(n)};
+    auto rc = Success() << [&] {
+      return comm.Chan(peer)->RecvAll(n_bytes);
+    } << [&] {
+      return comm.Chan(peer)->Block();
+    };
+    if (!rc.OK()) {
+      return rc;
+    }
+    CHECK_GE(n, 0);
+    out->resize(static_cast<std::size_t>(n));
+    if (n == 0) {
+      return Success();
+    }
+    auto payload_bytes = static_cast<std::size_t>(n) * sizeof(T);
+    auto bytes =
+        common::Span<std::int8_t>{reinterpret_cast<std::int8_t*>(out->data()), payload_bytes};
+    return Success() << [&] {
+      return comm.Chan(peer)->RecvAll(bytes);
+    } << [&] {
+      return comm.Chan(peer)->Block();
+    };
+  };
+
+  auto shifted_rank = shift_left(rank);
+  std::vector<T> incoming;
+  std::vector<T> reduced;
+  for (std::int32_t step = 1; step < world; step <<= 1) {
+    if (shifted_rank % (step * 2) == step) {
+      auto parent = shift_right(shifted_rank - step);
+      auto rc = send(parent, *data);
+      if (!rc.OK()) {
+        return Fail("ReduceV failed to send data to parent.", std::move(rc));
+      }
+      return Success();
+    }
+    if (shifted_rank % (step * 2) == 0 && shifted_rank + step < world) {
+      auto child = shift_right(shifted_rank + step);
+      auto rc = recv(child, &incoming);
+      if (!rc.OK()) {
+        return Fail("ReduceV failed to receive data from child.", std::move(rc));
+      }
+      reduced.clear();
+      redop(common::Span<T const>{data->data(), data->size()},
+            common::Span<T const>{incoming.data(), incoming.size()}, &reduced);
+      data->swap(reduced);
+    }
+  }
+
+  return Success();
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, common::Span<T const>, std::vector<T>*>, Result> ReduceV(
+    Context const* ctx, CommGroup const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
+  auto const& cctx = comm.Ctx(ctx, DeviceOrd::CPU());
+  return ReduceV(cctx, data, root, redop);
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, common::Span<T const>, std::vector<T>*>, Result> ReduceV(
+    Context const* ctx, std::vector<T>* data, std::int32_t root, Fn redop) {
+  return ReduceV(ctx, *GlobalCommGroup(), data, root, redop);
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<
+    std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
+ReduceV(Context const* ctx, CommGroup const& comm, std::vector<T>* data, std::int32_t root,
+        Fn redop) {
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
+  auto const& cctx = comm.Ctx(ctx, DeviceOrd::CPU());
+  return ReduceV(cctx, data, root, redop);
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<
+    std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
+ReduceV(Context const* ctx, std::vector<T>* data, std::int32_t root, Fn redop) {
+  return ReduceV(ctx, *GlobalCommGroup(), data, root, redop);
+}
 }  // namespace xgboost::collective
