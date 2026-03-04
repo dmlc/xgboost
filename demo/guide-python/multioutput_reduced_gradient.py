@@ -21,15 +21,29 @@ import numpy as np
 import xgboost as xgb
 from sklearn.base import BaseEstimator
 from sklearn.datasets import make_regression
-from xgboost.objective import RegSquaredError
+from xgboost.objective import Objective
 
 
-class LsObjMean(RegSquaredError):
-    """Built-in squared error with reduced gradient using mean value."""
+class LsObjMean(Objective):
+    """Least squared error. Reduce the size of the gradient using mean value."""
 
     def __init__(self, device: str) -> None:
         self.device = device
-        super().__init__()
+
+    def __call__(
+        self, iteration: int, y_pred: np.ndarray, dtrain: xgb.DMatrix
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        y_true = dtrain.get_label()
+        grad = y_pred - y_true
+        if self.device == "cpu":
+            hess = np.ones(grad.shape)
+            return grad, hess
+        else:
+            import cupy as cp
+
+            hess = cp.ones(grad.shape)
+
+            return cp.array(grad), cp.array(hess)
 
     def split_grad(
         self, iteration: int, grad: np.ndarray, hess: np.ndarray
@@ -44,7 +58,7 @@ class LsObjMean(RegSquaredError):
         return sgrad, shess
 
 
-def svd_class() -> BaseEstimator:
+def svd_class(device: str) -> BaseEstimator:
     """One of the methods in the sketch boost paper."""
     from sklearn.decomposition import TruncatedSVD
 
@@ -62,7 +76,7 @@ class LsObjSvd(LsObjMean):
     def split_grad(
         self, iteration: int, grad: np.ndarray, hess: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
-        svd = svd_class()
+        svd = svd_class(self.device)
         if self.device == "cuda":
             grad = grad.get()  # type: ignore
             hess = hess.get()  # type: ignore
@@ -80,7 +94,6 @@ class LsObjSvd(LsObjMean):
 
 
 def main() -> None:
-    """Entry point for the multi-output reduced gradient demo."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     args = parser.parse_args()

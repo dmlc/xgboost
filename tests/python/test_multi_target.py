@@ -10,7 +10,6 @@ from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     all_reg_objectives,
     run_absolute_error,
-    run_builtin_obj_split_grad,
     run_column_sampling,
     run_eta,
     run_feature_importance_strategy_compare,
@@ -156,10 +155,6 @@ def test_feature_importance_strategy_compare() -> None:
 @pytest.mark.parametrize("obj_fn", all_reg_objectives())
 def test_reg_objective(obj_fn: Callable[[Device], None]) -> None:
     obj_fn("cpu")
-
-
-def test_builtin_obj_split_grad() -> None:
-    run_builtin_obj_split_grad("cpu")
 
 
 @pytest.mark.parametrize("sampling_method", ["uniform", "gradient_based"])

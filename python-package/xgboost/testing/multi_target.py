@@ -18,7 +18,7 @@ import xgboost.testing as tm
 from .._typing import ArrayLike
 from ..compat import import_cupy
 from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix, build_info
-from ..objective import Objective, RegQuantileError
+from ..objective import Objective
 from ..sklearn import XGBClassifier
 from ..training import train
 from .data import IteratorForTest
@@ -720,42 +720,6 @@ def all_reg_objectives() -> List[Callable[[Device], None]]:
         run_reg_tweedie,
     ]
     return objs
-
-
-class _MedianQuantile(RegQuantileError):
-    """Subclass of quantile regression using median gradient for splits."""
-
-    def __init__(self, device: Device, **kwargs: Any) -> None:
-        self.device = device
-        super().__init__(**kwargs)
-
-    def split_grad(
-        self, iteration: int, grad: ArrayLike, hess: ArrayLike
-    ) -> Tuple[ArrayLike, ArrayLike]:
-        nda = _array_impl(self.device)
-        return nda.median(grad, axis=1), nda.median(hess, axis=1)
-
-
-def run_builtin_obj_split_grad(device: Device) -> None:
-    """Test subclassing a built-in objective with custom split_grad."""
-    n_samples = 2048
-    X, y = make_regression(n_samples=n_samples, n_features=16, random_state=2026)
-    Xy = QuantileDMatrix(X, y)
-
-    obj = _MedianQuantile(device, alpha=[0.45, 0.5, 0.55])
-    evals_result: Dict[str, Dict] = {}
-    train(
-        {
-            "device": device,
-            "multi_strategy": "multi_output_tree",
-        },
-        Xy,
-        obj=obj,
-        evals=[(Xy, "Train")],
-        num_boost_round=10,
-        evals_result=evals_result,
-    )
-    assert non_increasing(evals_result["Train"]["quantile"])
 
 
 def _make_subsample_params(device: Device, sampling_method: str) -> dict:
