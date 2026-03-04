@@ -38,12 +38,12 @@ class LsObjMean(Objective):
         if self.device == "cpu":
             hess = np.ones(grad.shape)
             return grad, hess
-        else:
-            import cupy as cp
 
-            hess = cp.ones(grad.shape)
+        import cupy as cp
 
-            return cp.array(grad), cp.array(hess)
+        hess = cp.ones(grad.shape)
+
+        return cp.array(grad), cp.array(hess)
 
     def split_grad(
         self, iteration: int, grad: np.ndarray, hess: np.ndarray
@@ -58,7 +58,7 @@ class LsObjMean(Objective):
         return sgrad, shess
 
 
-def svd_class(device: str) -> BaseEstimator:
+def svd_class() -> BaseEstimator:
     """One of the methods in the sketch boost paper."""
     from sklearn.decomposition import TruncatedSVD
 
@@ -76,7 +76,7 @@ class LsObjSvd(LsObjMean):
     def split_grad(
         self, iteration: int, grad: np.ndarray, hess: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
-        svd = svd_class(self.device)
+        svd = svd_class()
         if self.device == "cuda":
             grad = grad.get()  # type: ignore
             hess = hess.get()  # type: ignore
@@ -94,6 +94,7 @@ class LsObjSvd(LsObjMean):
 
 
 def main() -> None:
+    """Entry point to the demo, use `--device` to choose between CPU and GPU."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     args = parser.parse_args()
