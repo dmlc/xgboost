@@ -5,8 +5,8 @@
 
 #include <cstddef>  // for byte
 #include <cstdint>  // for uint64_t
+#include <iterator>
 #include <limits>
-#include <numeric>  // for partial_sum
 #include <utility>
 
 #include "../collective/aggregator.h"
@@ -61,11 +61,26 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
   return results;
 }
 
-struct SketchReducePayload {
-  using Entry = WQuantileSketch::Entry;
-  using Summary = WQuantileSketch::Summary;
-  using SummaryContainer = WQuantileSketch::SummaryContainer;
+template <typename T>
+void WritePODAt(std::vector<std::byte> *out, std::size_t offset, T value) {
+  static_assert(std::is_trivially_copyable_v<T>);
+  auto const *src = reinterpret_cast<std::byte const *>(&value);
+  std::copy_n(src, sizeof(T), out->begin() + static_cast<std::ptrdiff_t>(offset));
+}
 
+template <typename T>
+[[nodiscard]] T ReadPOD(Span<std::byte const> bytes, std::size_t *cursor) {
+  static_assert(std::is_trivially_copyable_v<T>);
+  T value{};
+  auto *dst = reinterpret_cast<std::byte *>(&value);
+  std::copy_n(bytes.data() + *cursor, sizeof(T), dst);
+  *cursor += sizeof(T);
+  return value;
+}
+
+// Serialization payload for distributed numerical sketch merging over ReduceV.
+// Encodes per-feature entry counts plus contiguous sketch entries.
+struct SketchReducePayload {
   [[nodiscard]] static std::vector<std::byte> SerializeFromSummaries(
       Span<bst_feature_t const> numeric_features,
       std::vector<WQuantileSketch::SummaryContainer> const &reduced) {
@@ -83,7 +98,7 @@ struct SketchReducePayload {
       AppendEntries(&bytes, i, out_entries);
     }
     auto header_bytes = HeaderBytes(numeric_features.size());
-    CHECK_EQ((bytes.size() - header_bytes) / sizeof(Entry), total_entries);
+    CHECK_EQ((bytes.size() - header_bytes) / sizeof(WQuantileSketch::Entry), total_entries);
     return bytes;
   }
 
@@ -92,7 +107,7 @@ struct SketchReducePayload {
   }
 
   static void AppendEntries(std::vector<std::byte> *bytes, std::size_t i,
-                            Span<Entry const> entries) {
+                            Span<WQuantileSketch::Entry const> entries) {
     CHECK(bytes);
     auto count_offset = sizeof(std::uint64_t) + i * sizeof(std::uint64_t);
     CHECK_LE(count_offset + sizeof(std::uint64_t), bytes->size());
@@ -100,7 +115,7 @@ struct SketchReducePayload {
     if (entries.empty()) {
       return;
     }
-    auto entries_bytes = entries.size() * sizeof(Entry);
+    auto entries_bytes = entries.size() * sizeof(WQuantileSketch::Entry);
     auto const *src = reinterpret_cast<std::byte const *>(entries.data());
     bytes->insert(bytes->end(), src, src + entries_bytes);
   }
@@ -110,7 +125,7 @@ struct SketchReducePayload {
     CHECK(bytes);
     auto const header_bytes = HeaderBytes(n_features);
     bytes->clear();
-    bytes->reserve(header_bytes + max_entries * sizeof(Entry));
+    bytes->reserve(header_bytes + max_entries * sizeof(WQuantileSketch::Entry));
     bytes->resize(header_bytes);
     WritePODAt<std::uint64_t>(bytes, 0, static_cast<std::uint64_t>(n_features));
   }
@@ -126,65 +141,159 @@ struct SketchReducePayload {
     }
 
     auto n_entries = offsets.back();
-    auto payload_bytes = n_entries * sizeof(Entry);
+    auto payload_bytes = n_entries * sizeof(WQuantileSketch::Entry);
     CHECK_EQ(cursor + payload_bytes, bytes.size());
 
-    Entry *entries = nullptr;
+    WQuantileSketch::Entry *entries = nullptr;
     if (n_entries != 0) {
       auto ptr = bytes.data() + cursor;
       auto addr = reinterpret_cast<std::uintptr_t>(ptr);
-      CHECK_EQ(addr % alignof(Entry), 0);
-      entries = reinterpret_cast<Entry *>(const_cast<std::byte *>(ptr));
+      CHECK_EQ(addr % alignof(WQuantileSketch::Entry), 0);
+      entries = reinterpret_cast<WQuantileSketch::Entry *>(const_cast<std::byte *>(ptr));
     }
 
-    return {std::move(offsets), Span<Entry>{entries, n_entries}};
+    return {std::move(offsets), Span<WQuantileSketch::Entry>{entries, n_entries}};
   }
 
   [[nodiscard]] std::size_t NumFeatures() const { return offsets_.size() - 1; }
   [[nodiscard]] std::size_t TotalEntries() const { return entries_.size(); }
 
-  [[nodiscard]] Span<Entry> Entries(std::size_t idx) const {
+  [[nodiscard]] Span<WQuantileSketch::Entry> Entries(std::size_t idx) const {
     auto beg = offsets_.at(idx);
     auto end = offsets_.at(idx + 1);
     auto n = end - beg;
     if (n == 0) {
-      return Span<Entry>{};
+      return Span<WQuantileSketch::Entry>{};
     }
     return {entries_.data() + beg, n};
   }
 
-  [[nodiscard]] Summary SummaryAt(std::size_t idx) const {
+  [[nodiscard]] WQuantileSketch::Summary SummaryAt(std::size_t idx) const {
     auto entries = this->Entries(idx);
     return {entries, entries.size()};
   }
 
  private:
-  template <typename T>
-  static void WritePODAt(std::vector<std::byte> *out, std::size_t offset, T value) {
-    static_assert(std::is_trivially_copyable_v<T>);
-    CHECK(out);
-    CHECK_LE(offset + sizeof(T), out->size());
-    auto const *src = reinterpret_cast<std::byte const *>(&value);
-    std::copy_n(src, sizeof(T), out->begin() + static_cast<std::ptrdiff_t>(offset));
-  }
-
-  template <typename T>
-  [[nodiscard]] static T ReadPOD(Span<std::byte const> bytes, std::size_t *cursor) {
-    static_assert(std::is_trivially_copyable_v<T>);
-    CHECK(cursor);
-    CHECK_LE(*cursor + sizeof(T), bytes.size());
-    T value{};
-    auto *dst = reinterpret_cast<std::byte *>(&value);
-    std::copy_n(bytes.data() + *cursor, sizeof(T), dst);
-    *cursor += sizeof(T);
-    return value;
-  }
-
-  SketchReducePayload(std::vector<std::size_t> offsets, Span<Entry> entries)
+  SketchReducePayload(std::vector<std::size_t> offsets, Span<WQuantileSketch::Entry> entries)
       : offsets_{std::move(offsets)}, entries_{entries} {}
 
   std::vector<std::size_t> offsets_;
-  Span<Entry> entries_;
+  Span<WQuantileSketch::Entry> entries_;
+};
+
+// Serialization payload for distributed categorical value union over ReduceV.
+// Encodes per-feature value counts plus contiguous category values.
+struct CategoricalReducePayload {
+  [[nodiscard]] static std::vector<std::byte> SerializeFromCategories(
+      Span<bst_feature_t const> categorical_features,
+      std::vector<std::set<float>> const &categories) {
+    std::size_t total_values = 0;
+    for (auto fidx : categorical_features) {
+      total_values += categories.at(fidx).size();
+    }
+
+    std::vector<std::byte> bytes;
+    InitHeader(&bytes, categorical_features.size(), total_values);
+    for (std::size_t i = 0; i < categorical_features.size(); ++i) {
+      auto fidx = categorical_features[i];
+      AppendValues(&bytes, i, categories.at(fidx));
+    }
+
+    auto header_bytes = HeaderBytes(categorical_features.size());
+    CHECK_EQ((bytes.size() - header_bytes) / sizeof(float), total_values);
+    return bytes;
+  }
+
+  [[nodiscard]] static std::size_t HeaderBytes(std::size_t n_features) {
+    return sizeof(std::uint64_t) + n_features * sizeof(std::uint64_t);
+  }
+
+  static void AppendValues(std::vector<std::byte> *bytes, std::size_t i, Span<float const> values) {
+    CHECK(bytes);
+    auto count_offset = sizeof(std::uint64_t) + i * sizeof(std::uint64_t);
+    CHECK_LE(count_offset + sizeof(std::uint64_t), bytes->size());
+    WritePODAt<std::uint64_t>(bytes, count_offset, static_cast<std::uint64_t>(values.size()));
+    if (values.empty()) {
+      return;
+    }
+    auto values_bytes = values.size() * sizeof(float);
+    auto const *src = reinterpret_cast<std::byte const *>(values.data());
+    bytes->insert(bytes->end(), src, src + values_bytes);
+  }
+
+  static void AppendValues(std::vector<std::byte> *bytes, std::size_t i,
+                           std::set<float> const &values) {
+    CHECK(bytes);
+    auto count_offset = sizeof(std::uint64_t) + i * sizeof(std::uint64_t);
+    CHECK_LE(count_offset + sizeof(std::uint64_t), bytes->size());
+    WritePODAt<std::uint64_t>(bytes, count_offset, static_cast<std::uint64_t>(values.size()));
+    if (values.empty()) {
+      return;
+    }
+
+    auto offset = bytes->size();
+    bytes->resize(offset + values.size() * sizeof(float));
+    auto dst = bytes->begin() + static_cast<std::ptrdiff_t>(offset);
+    for (auto value : values) {
+      auto const *src = reinterpret_cast<std::byte const *>(&value);
+      dst = std::copy_n(src, sizeof(float), dst);
+    }
+  }
+
+  static void InitHeader(std::vector<std::byte> *bytes, std::size_t n_features,
+                         std::size_t max_values) {
+    CHECK(bytes);
+    auto const header_bytes = HeaderBytes(n_features);
+    bytes->clear();
+    bytes->reserve(header_bytes + max_values * sizeof(float));
+    bytes->resize(header_bytes);
+    WritePODAt<std::uint64_t>(bytes, 0, static_cast<std::uint64_t>(n_features));
+  }
+
+  [[nodiscard]] static CategoricalReducePayload Parse(Span<std::byte const> bytes) {
+    std::size_t cursor = 0;
+    auto n_features = ReadPOD<std::uint64_t>(bytes, &cursor);
+
+    std::vector<std::size_t> offsets(n_features + 1, 0);
+    for (std::size_t i = 0; i < n_features; ++i) {
+      auto n_i = static_cast<std::size_t>(ReadPOD<std::uint64_t>(bytes, &cursor));
+      offsets[i + 1] = offsets[i] + n_i;
+    }
+
+    auto n_values = offsets.back();
+    auto payload_bytes = n_values * sizeof(float);
+    CHECK_EQ(cursor + payload_bytes, bytes.size());
+
+    float const *values = nullptr;
+    if (n_values != 0) {
+      auto ptr = bytes.data() + cursor;
+      auto addr = reinterpret_cast<std::uintptr_t>(ptr);
+      CHECK_EQ(addr % alignof(float), 0);
+      values = reinterpret_cast<float const *>(ptr);
+    }
+
+    return {std::move(offsets), Span<float const>{values, n_values}};
+  }
+
+  [[nodiscard]] std::size_t NumFeatures() const { return offsets_.size() - 1; }
+  [[nodiscard]] std::size_t TotalValues() const { return values_.size(); }
+
+  [[nodiscard]] Span<float const> Values(std::size_t idx) const {
+    auto beg = offsets_.at(idx);
+    auto end = offsets_.at(idx + 1);
+    auto n = end - beg;
+    if (n == 0) {
+      return Span<float const>{};
+    }
+    return {values_.data() + beg, n};
+  }
+
+ private:
+  CategoricalReducePayload(std::vector<std::size_t> offsets, Span<float const> values)
+      : offsets_{std::move(offsets)}, values_{values} {}
+
+  std::vector<std::size_t> offsets_;
+  Span<float const> values_;
 };
 }  // anonymous namespace
 
@@ -245,175 +354,57 @@ INSTANTIATE(EncColumnarAdapterBatch)
 
 #undef INSTANTIATE
 
-namespace {
-/**
- * @brief A view over gathered sketch values.
- */
-template <typename T>
-struct QuantileAllreduce {
-  common::Span<T> global_values;
-  common::Span<bst_idx_t> worker_indptr;
-  common::Span<bst_idx_t> feature_indptr;
-  bst_feature_t n_features{0};
-  /**
-   * @brief Get sketch values of the a feature from a worker.
-   *
-   * @param rank rank of target worker
-   * @param fidx feature idx
-   */
-  [[nodiscard]] auto Values(int32_t rank, bst_feature_t fidx) const {
-    // get span for worker
-    auto wsize = worker_indptr[rank + 1] - worker_indptr[rank];
-    auto worker_values = global_values.subspan(worker_indptr[rank], wsize);
-    auto psize = n_features + 1;
-    auto worker_feat_indptr = feature_indptr.subspan(psize * rank, psize);
-    // get span for feature
-    auto feat_beg = worker_feat_indptr[fidx];
-    auto feat_size = worker_feat_indptr[fidx + 1] - feat_beg;
-    return worker_values.subspan(feat_beg, feat_size);
-  }
-};
-}  // anonymous namespace
-
-auto SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &info,
-                                           std::vector<WQSketch::SummaryContainer> const &reduced)
-    -> std::tuple<std::vector<bst_idx_t>, std::vector<bst_idx_t>, std::vector<WQSketch::Entry>> {
-  std::vector<bst_idx_t> worker_segments(1, 0);
-  auto world = collective::GetWorldSize();
-  auto rank = collective::GetRank();
-  bst_feature_t n_columns = sketches_.size();
-
-  // get the size of each feature.
-  std::vector<bst_idx_t> sketch_size;
-  sketch_size.reserve(reduced.size());
-  size_t fidx{0};
-  for (auto const &sketch : reduced) {
-    if (IsCat(feature_types_, fidx)) {
-      sketch_size.push_back(0);
-    } else {
-      sketch_size.push_back(sketch.Size());
-    }
-    ++fidx;
-  }
-  // Turn the size into CSC indptr
-  std::vector<bst_idx_t> sketches_scan((n_columns + 1) * world, 0);
-  size_t beg_scan = rank * (n_columns + 1);  // starting storage for current worker.
-  std::partial_sum(sketch_size.cbegin(), sketch_size.cend(), sketches_scan.begin() + beg_scan + 1);
-
-  // Gather all column pointers
-  auto rc =
-      collective::GlobalSum(ctx, info, linalg::MakeVec(sketches_scan.data(), sketches_scan.size()));
-  if (!rc.OK()) {
-    collective::SafeColl(collective::Fail("Failed to get sketch scan.", std::move(rc)));
-  }
-
-  for (int32_t i = 0; i < world; ++i) {
-    size_t back = (i + 1) * (n_columns + 1) - 1;
-    auto n_entries = sketches_scan.at(back);
-    worker_segments.push_back(n_entries);
-  }
-  // Offset of sketch from each worker.
-  std::partial_sum(worker_segments.begin(), worker_segments.end(), worker_segments.begin());
-  CHECK_GE(worker_segments.size(), 1);
-  auto total = worker_segments.back();
-
-  std::vector<WQSketch::Entry> global_sketches(total, WQSketch::Entry{0, 0, 0, 0});
-  auto worker_sketch = Span<WQSketch::Entry>{global_sketches}.subspan(
-      worker_segments[rank], worker_segments[rank + 1] - worker_segments[rank]);
-  auto cursor{worker_sketch.begin()};
-  for (size_t fidx = 0; fidx < reduced.size(); ++fidx) {
-    auto const &sketch = reduced[fidx];
-    if (IsCat(feature_types_, fidx) || sketch.Empty()) {
-      // Nothing to copy for categorical features or empty sketches.
-      continue;
-    }
-    auto entries = sketch.Entries();
-    cursor = std::copy(entries.cbegin(), entries.cend(), cursor);
-  }
-
-  static_assert(sizeof(WQSketch::Entry) / 4 == sizeof(float), "Unexpected size of sketch entry.");
-  if (global_sketches.empty()) {
-    return std::make_tuple(std::move(worker_segments), std::move(sketches_scan),
-                           std::move(global_sketches));
-  }
-  rc = collective::GlobalSum(
-      ctx, info,
-      linalg::MakeVec(reinterpret_cast<float *>(global_sketches.data()),
-                      global_sketches.size() * sizeof(WQSketch::Entry) / sizeof(float)));
-  if (!rc.OK()) {
-    collective::SafeColl(collective::Fail("Failed to get sketch.", std::move(rc)));
-  }
-  return std::make_tuple(std::move(worker_segments), std::move(sketches_scan),
-                         std::move(global_sketches));
-}
-
 void SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const &info) {
-  auto world_size = collective::GetWorldSize();
-  auto rank = collective::GetRank();
-  if (world_size == 1 || info.IsColumnSplit()) {
+  if (collective::GetWorldSize() == 1 || info.IsColumnSplit()) {
     return;
   }
 
-  // CSC indptr to each feature
-  std::vector<size_t> feature_ptr;
-  feature_ptr.reserve(categories_.size() + 1);
-  feature_ptr.push_back(0);
-  for (auto const &feat : categories_) {
-    feature_ptr.push_back(feature_ptr.back() + feat.size());
+  std::vector<bst_feature_t> categorical_features;
+  categorical_features.reserve(categories_.size());
+  for (bst_feature_t fidx = 0; fidx < categories_.size(); ++fidx) {
+    if (IsCat(feature_types_, fidx)) {
+      categorical_features.push_back(fidx);
+    }
   }
-  CHECK_EQ(feature_ptr.front(), 0);
-
-  // gather all feature ptrs from workers
-  std::vector<bst_idx_t> global_feat_ptrs(feature_ptr.size() * world_size, 0);
-  size_t feat_begin = rank * feature_ptr.size();  // pointer to current worker
-  std::copy(feature_ptr.begin(), feature_ptr.end(), global_feat_ptrs.begin() + feat_begin);
-  auto rc = collective::GlobalSum(
-      ctx, info, linalg::MakeVec(global_feat_ptrs.data(), global_feat_ptrs.size()));
-
-  // move all categories into a flatten vector to prepare for allreduce
-  size_t total = feature_ptr.back();
-  std::vector<float> flatten(total, 0);
-  auto cursor{flatten.begin()};
-  for (auto const &feat : categories_) {
-    cursor = std::copy(feat.cbegin(), feat.cend(), cursor);
+  if (categorical_features.empty()) {
+    return;
   }
 
-  // indptr for indexing workers
-  std::vector<bst_idx_t> global_worker_ptr(world_size + 1, 0);
-  global_worker_ptr[rank + 1] = total;  // shift 1 to right for constructing the indptr
-  rc = collective::GlobalSum(ctx, info,
-                             linalg::MakeVec(global_worker_ptr.data(), global_worker_ptr.size()));
-  std::partial_sum(global_worker_ptr.cbegin(), global_worker_ptr.cend(), global_worker_ptr.begin());
-  // total number of categories in all workers with all features
-  auto gtotal = global_worker_ptr.back();
+  auto merged = CategoricalReducePayload::SerializeFromCategories(
+      Span<bst_feature_t const>{categorical_features}, categories_);
+  std::vector<float> merge_workspace;
+  auto rc = collective::ReduceV(
+      ctx, &merged,
+      [&](common::Span<std::byte const> a, common::Span<std::byte const> b,
+          std::vector<std::byte> *out) {
+        auto a_payload = CategoricalReducePayload::Parse(a);
+        auto b_payload = CategoricalReducePayload::Parse(b);
+        CHECK_EQ(a_payload.NumFeatures(), categorical_features.size());
+        CHECK_EQ(b_payload.NumFeatures(), categorical_features.size());
 
-  // categories in all workers with all features.
-  std::vector<float> global_categories(gtotal, 0);
-  auto rank_begin = global_worker_ptr[rank];
-  auto rank_size = global_worker_ptr[rank + 1] - rank_begin;
-  CHECK_EQ(rank_size, total);
-  std::copy(flatten.cbegin(), flatten.cend(), global_categories.begin() + rank_begin);
-  // gather values from all workers.
-  rc = collective::GlobalSum(ctx, info,
-                             linalg::MakeVec(global_categories.data(), global_categories.size()));
-  QuantileAllreduce<float> allreduce_result{global_categories, global_worker_ptr, global_feat_ptrs,
-                                            static_cast<bst_feature_t>(categories_.size())};
-  ParallelFor(categories_.size(), n_threads_, [&](auto fidx) {
-    if (!IsCat(feature_types_, fidx)) {
-      return;
-    }
-    for (int32_t r = 0; r < world_size; ++r) {
-      if (r == rank) {
-        // continue if it's current worker.
-        continue;
-      }
-      // 1 feature of 1 worker
-      auto worker_feature = allreduce_result.Values(r, fidx);
-      for (auto c : worker_feature) {
-        categories_[fidx].emplace(c);
-      }
-    }
-  });
+        auto max_values = a_payload.TotalValues() + b_payload.TotalValues();
+        CategoricalReducePayload::InitHeader(out, categorical_features.size(), max_values);
+
+        for (std::size_t i = 0; i < categorical_features.size(); ++i) {
+          auto a_values = a_payload.Values(i);
+          auto b_values = b_payload.Values(i);
+          merge_workspace.clear();
+          merge_workspace.reserve(a_values.size() + b_values.size());
+          std::set_union(a_values.cbegin(), a_values.cend(), b_values.cbegin(), b_values.cend(),
+                         std::back_inserter(merge_workspace));
+          CategoricalReducePayload::AppendValues(out, i, Span<float const>{merge_workspace});
+        }
+      });
+  collective::SafeColl(rc);
+
+  auto reduced_payload = CategoricalReducePayload::Parse(Span<std::byte const>{merged});
+  CHECK_EQ(reduced_payload.NumFeatures(), categorical_features.size());
+  for (std::size_t i = 0; i < categorical_features.size(); ++i) {
+    auto fidx = categorical_features[i];
+    auto values = reduced_payload.Values(i);
+    categories_[fidx].clear();
+    categories_[fidx].insert(values.cbegin(), values.cend());
+  }
 }
 
 auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)

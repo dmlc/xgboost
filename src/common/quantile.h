@@ -745,10 +745,6 @@ class SketchContainerImpl {
   }
 
  private:
-  // Gather sketches from all workers.
-  [[nodiscard]] auto GatherSketchInfo(Context const *ctx, MetaInfo const &info,
-                                      std::vector<WQSketch::SummaryContainer> const &reduced)
-      -> std::tuple<std::vector<bst_idx_t>, std::vector<bst_idx_t>, std::vector<WQSketch::Entry>>;
   // Merge sketches from all workers and return retained cut counts per feature.
   [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info)
       -> std::vector<WQSketch::SummaryContainer>;
