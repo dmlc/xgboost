@@ -54,6 +54,7 @@ This can affect the training of XGBoost model, and there are two ways to improve
 * If you care only about the overall performance metric (AUC) of your prediction
 
   - Balance the positive and negative weights via ``scale_pos_weight``
+  - ``scale_pos_weight`` is usually preferred over naive oversampling when you only need ranking performance, since it preserves the original dataset while reweighting positive examples.
   - Use AUC for evaluation
 
 * If you care about predicting the right probability
