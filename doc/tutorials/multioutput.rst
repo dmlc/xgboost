@@ -106,17 +106,17 @@ function for leaf values. The `Sketch Boost` paper proposes using dimensionality
 on the gradient matrix. In practice, one can also define a different but related loss with
 a small gradient matrix for finding the tree structure.
 
-To access this feature, create a custom objective that inherits from ``TreeObjective`` and
+To access this feature, create a custom objective that inherits from ``Objective`` and
 implement the ``split_grad`` method.
 
 .. code-block:: python
 
-    from xgboost.objective import TreeObjective
+    from xgboost.objective import Objective
     from cuml.decomposition import TruncatedSVD
 
     import cupy as cp
 
-    class LsObj(TreeObjective):
+    class LsObj(Objective):
         def __call__(self, iteration: int, y_pred, dtrain):
             """Least squared error."""
             y_true = dtrain.get_label()
