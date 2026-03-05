@@ -80,8 +80,8 @@ Allreduce(Context const* ctx, T* data, Op op) {
 /**
  * @brief Reduce a variable-length vector over `comm` and broadcast the result to all ranks.
  *
- * The method performs a rooted tree reduction using `redop` and then performs a broadcast so every
- * rank ends with the same reduced payload in `data`.
+ * The method performs a tree reduction rooted at rank 0 using `redop`, then broadcasts
+ * the result so every rank ends with the same reduced payload in `data`.
  *
  * `redop` must have the signature
  * `void(Fn(const Span<T const>& lhs, const Span<T const>& rhs, std::vector<T>* out))` and must
@@ -90,7 +90,7 @@ Allreduce(Context const* ctx, T* data, Op op) {
 template <typename T, typename Fn>
 std::enable_if_t<
     std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
-ReduceV(Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
+ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
   static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
                 "ReduceV supports only standard-layout trivially-copyable types.");
   CHECK(data);
@@ -100,15 +100,7 @@ ReduceV(Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
 
   auto const world = comm.World();
   auto const rank = comm.Rank();
-  CHECK_GE(root, 0);
-  CHECK_LT(root, world);
-
-  auto shift_left = [world, root](std::int32_t r) {
-    return (r + world - root) % world;
-  };
-  auto shift_right = [world, root](std::int32_t r) {
-    return (r + root) % world;
-  };
+  auto constexpr root = 0;
 
   auto send = [&](std::int32_t peer, std::vector<T> const& vec) {
     std::int64_t n = static_cast<std::int64_t>(vec.size());
@@ -155,7 +147,7 @@ ReduceV(Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
     };
   };
 
-  auto shifted_rank = shift_left(rank);
+  auto shifted_rank = rank;
   std::vector<T> incoming;
   std::vector<T> out;
   bool continue_reduce = true;
@@ -164,7 +156,7 @@ ReduceV(Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
       continue;
     }
     if (shifted_rank % (step * 2) == step) {
-      auto parent = shift_right(shifted_rank - step);
+      auto parent = shifted_rank - step;
       auto rc = send(parent, *data);
       if (!rc.OK()) {
         return Fail("ReduceV failed to send data to parent.", std::move(rc));
@@ -173,7 +165,7 @@ ReduceV(Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
       continue;
     }
     if (shifted_rank % (step * 2) == 0 && shifted_rank + step < world) {
-      auto child = shift_right(shifted_rank + step);
+      auto child = shifted_rank + step;
       auto rc = recv(child, &incoming);
       if (!rc.OK()) {
         return Fail("ReduceV failed to receive data from child.", std::move(rc));
@@ -204,19 +196,18 @@ ReduceV(Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
 template <typename T, typename Fn>
 std::enable_if_t<
     std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
-ReduceV(Context const* ctx, CommGroup const& comm, std::vector<T>* data, std::int32_t root,
-        Fn redop) {
+ReduceV(Context const* ctx, CommGroup const& comm, std::vector<T>* data, Fn redop) {
   if (!comm.IsDistributed()) {
     return Success();
   }
   auto const& cctx = comm.Ctx(ctx, DeviceOrd::CPU());
-  return ReduceV(cctx, data, root, redop);
+  return ReduceV(cctx, data, redop);
 }
 
 template <typename T, typename Fn>
 std::enable_if_t<
     std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
-ReduceV(Context const* ctx, std::vector<T>* data, std::int32_t root, Fn redop) {
-  return ReduceV(ctx, *GlobalCommGroup(), data, root, redop);
+ReduceV(Context const* ctx, std::vector<T>* data, Fn redop) {
+  return ReduceV(ctx, *GlobalCommGroup(), data, redop);
 }
 }  // namespace xgboost::collective

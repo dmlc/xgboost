@@ -95,28 +95,23 @@ class AllreduceWorker : public WorkerForTest {
 
     {
       std::vector<std::int32_t> data(comm_.Rank() + 1, 1);
-      auto rc = ReduceV(comm_, &data, 0, reduce_fn);
+      auto rc = ReduceV(comm_, &data, reduce_fn);
       SafeColl(rc);
 
-      if (comm_.Rank() == 0) {
-        ASSERT_EQ(data.size(), static_cast<std::size_t>(comm_.World()));
-        for (std::size_t i = 0; i < data.size(); ++i) {
-          ASSERT_EQ(data[i], comm_.World() - static_cast<std::int32_t>(i));
-        }
+      ASSERT_EQ(data.size(), static_cast<std::size_t>(comm_.World()));
+      for (std::size_t i = 0; i < data.size(); ++i) {
+        ASSERT_EQ(data[i], comm_.World() - static_cast<std::int32_t>(i));
       }
     }
 
     {
-      auto root = comm_.World() / 2;
       std::vector<std::int32_t> data(comm_.Rank() + 1, 1);
-      auto rc = ReduceV(comm_, &data, root, reduce_fn);
+      auto rc = ReduceV(comm_, &data, reduce_fn);
       SafeColl(rc);
 
-      if (comm_.Rank() == root) {
-        ASSERT_EQ(data.size(), static_cast<std::size_t>(comm_.World()));
-        for (std::size_t i = 0; i < data.size(); ++i) {
-          ASSERT_EQ(data[i], comm_.World() - static_cast<std::int32_t>(i));
-        }
+      ASSERT_EQ(data.size(), static_cast<std::size_t>(comm_.World()));
+      for (std::size_t i = 0; i < data.size(); ++i) {
+        ASSERT_EQ(data[i], comm_.World() - static_cast<std::int32_t>(i));
       }
     }
   }
