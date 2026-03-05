@@ -173,36 +173,114 @@ def check_train_ranking_objectives(device: Device) -> None:
         assert obj_inst.name == obj_name
 
 
-def check_equivalence(device: Device) -> None:
-    """Test that class-based and string-based objectives produce identical results."""
+def _regression_dm() -> DMatrix:
     X, y, _ = make_regression(100, 5, use_cupy=False)
-    dm = DMatrix(X, label=y)
+    return DMatrix(X, label=y)
 
-    bst_cls = train(
-        {"device": device}, dm, num_boost_round=10, obj=RegPseudoHuberError(delta=10.0)
-    )
-    bst_str = train(
-        {"objective": "reg:pseudohubererror", "huber_slope": 10.0, "device": device},
-        dm,
-        num_boost_round=10,
-    )
-    np.testing.assert_allclose(bst_cls.predict(dm), bst_str.predict(dm), atol=1e-6)
 
-    bst_cls = train(
-        {"device": device},
-        dm,
-        num_boost_round=10,
-        obj=RegQuantileError(alpha=[0.1, 0.5, 0.9]),
-    )
-    bst_str = train(
-        {
-            "objective": "reg:quantileerror",
-            "quantile_alpha": "[0.1,0.5,0.9]",
-            "device": device,
-        },
-        dm,
-        num_boost_round=10,
-    )
+def _positive_dm() -> DMatrix:
+    X, y, _ = make_regression(100, 5, use_cupy=False)
+    return DMatrix(X, label=np.abs(y) + 0.1)
+
+
+def _binary_dm() -> DMatrix:
+    X, y = get_cancer()
+    return DMatrix(X, label=y)
+
+
+def _survival_dm() -> DMatrix:
+    rng = np.random.RandomState(42)
+    X = rng.randn(100, 5)
+    y_lower = np.abs(rng.randn(100))
+    y_upper = y_lower + 1.0
+    dm = DMatrix(X)
+    dm.set_info(label_lower_bound=y_lower, label_upper_bound=y_upper)
+    return dm
+
+
+def _ranking_dm() -> DMatrix:
+    X, y, qid, _ = make_ltr(100, 5, 4, max_rel=1)
+    return DMatrix(X, label=y, qid=qid)
+
+
+def equivalence_parameters() -> List:
+    """Return parametrized test cases."""
+    return [
+        # Regression
+        pytest.param(
+            RegPseudoHuberError(delta=10.0),
+            {"objective": "reg:pseudohubererror", "huber_slope": 10.0},
+            _regression_dm,
+            id="reg:pseudohubererror",
+        ),
+        pytest.param(
+            RegQuantileError(alpha=[0.1, 0.5, 0.9]),
+            {"objective": "reg:quantileerror", "quantile_alpha": "[0.1,0.5,0.9]"},
+            _regression_dm,
+            id="reg:quantileerror",
+        ),
+        pytest.param(
+            RegExpectileError(alpha=[0.25, 0.75]),
+            {"objective": "reg:expectileerror", "expectile_alpha": "[0.25,0.75]"},
+            _regression_dm,
+            id="reg:expectileerror",
+        ),
+        # Positive labels
+        pytest.param(
+            RegTweedie(variance_power=1.8),
+            {"objective": "reg:tweedie", "tweedie_variance_power": 1.8},
+            _positive_dm,
+            id="reg:tweedie",
+        ),
+        pytest.param(
+            CountPoisson(max_delta_step=0.5),
+            {"objective": "count:poisson", "max_delta_step": 0.5},
+            _positive_dm,
+            id="count:poisson",
+        ),
+        # Binary classification
+        pytest.param(
+            BinaryLogistic(scale_pos_weight=2.0),
+            {"objective": "binary:logistic", "scale_pos_weight": 2.0},
+            _binary_dm,
+            id="binary:logistic",
+        ),
+        # Survival
+        pytest.param(
+            SurvivalAFT(distribution="logistic", distribution_scale=2.0),
+            {
+                "objective": "survival:aft",
+                "aft_loss_distribution": "logistic",
+                "aft_loss_distribution_scale": 2.0,
+            },
+            _survival_dm,
+            id="survival:aft",
+        ),
+        # Ranking
+        pytest.param(
+            RankNDCG(pair_method="mean", exp_gain=False),
+            {
+                "objective": "rank:ndcg",
+                "lambdarank_pair_method": "mean",
+                "ndcg_exp_gain": False,
+            },
+            _ranking_dm,
+            id="rank:ndcg",
+        ),
+    ]
+
+
+def check_equivalence(
+    device: Device,
+    obj_inst: _BuiltInObjective,
+    str_params: dict,
+    dm_factory: Callable[[], DMatrix],
+) -> None:
+    """Test that class-based and string-based objectives produce identical results."""
+    dm = dm_factory()
+
+    bst_cls = train({"device": device}, dm, num_boost_round=10, obj=obj_inst)
+    bst_str = train({**str_params, "device": device}, dm, num_boost_round=10)
     np.testing.assert_allclose(bst_cls.predict(dm), bst_str.predict(dm), atol=1e-6)
 
 
@@ -270,7 +348,6 @@ def all_objective_checks() -> List[Callable[[Device], None]]:
     """List of objective tests."""
     return [
         check_default_metrics,
-        check_equivalence,
         check_sklearn_objectives,
         check_train_classification_objectives,
         check_train_positive_objectives,
