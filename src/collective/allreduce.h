@@ -9,6 +9,7 @@
 
 #include "../common/type.h"             // for EraseType, RestoreType
 #include "../data/array_interface.h"    // for ToDType, ArrayInterfaceHandler
+#include "broadcast.h"                  // for Broadcast
 #include "comm.h"                       // for Comm, RestoreType
 #include "comm_group.h"                 // for GlobalCommGroup
 #include "xgboost/collective/result.h"  // for Result
@@ -76,6 +77,16 @@ Allreduce(Context const* ctx, T* data, Op op) {
   return Allreduce(ctx, linalg::MakeVec(data, 1), op);
 }
 
+/**
+ * @brief Reduce a variable-length vector over `comm` and broadcast the result to all ranks.
+ *
+ * The method performs a rooted tree reduction using `redop` and then performs a broadcast so every
+ * rank ends with the same reduced payload in `data`.
+ *
+ * `redop` must have the signature
+ * `void(Fn(const Span<T const>& lhs, const Span<T const>& rhs, std::vector<T>* out))` and must
+ * write the combined result into `out`.
+ */
 template <typename T, typename Fn>
 std::enable_if_t<
     std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
@@ -147,14 +158,19 @@ ReduceV(Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
   auto shifted_rank = shift_left(rank);
   std::vector<T> incoming;
   std::vector<T> out;
+  bool continue_reduce = true;
   for (std::int32_t step = 1; step < world; step <<= 1) {
+    if (!continue_reduce) {
+      continue;
+    }
     if (shifted_rank % (step * 2) == step) {
       auto parent = shift_right(shifted_rank - step);
       auto rc = send(parent, *data);
       if (!rc.OK()) {
         return Fail("ReduceV failed to send data to parent.", std::move(rc));
       }
-      return Success();
+      continue_reduce = false;
+      continue;
     }
     if (shifted_rank % (step * 2) == 0 && shifted_rank + step < world) {
       auto child = shift_right(shifted_rank + step);
@@ -169,6 +185,19 @@ ReduceV(Comm const& comm, std::vector<T>* data, std::int32_t root, Fn redop) {
     }
   }
 
+  std::int64_t reduced_size = static_cast<std::int64_t>(rank == root ? data->size() : 0);
+  auto rc = Broadcast(comm, common::Span<std::int64_t>{&reduced_size, 1}, root);
+  if (!rc.OK()) {
+    return Fail("ReduceV failed to broadcast reduced size.", std::move(rc));
+  }
+  if (rank != root) {
+    data->resize(static_cast<std::size_t>(reduced_size));
+  }
+  auto reduced = common::Span<T>{data->data(), static_cast<std::size_t>(reduced_size)};
+  rc = Broadcast(comm, reduced, root);
+  if (!rc.OK()) {
+    return Fail("ReduceV failed to broadcast reduced payload.", std::move(rc));
+  }
   return Success();
 }
 

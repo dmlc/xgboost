@@ -552,17 +552,32 @@ class WQuantileSketch {
  public:
   /*! \brief get the summary after finalize */
   [[nodiscard]] WQSummaryContainer GetSummary(size_t max_size) {
-    WQSummaryContainer out;
-    out.Reserve(std::max(max_size, limit_size_) * 2);
-
     // Flush pending queue into level summaries first.
     inqueue_.PopSummary(&temp_);
     this->PushSummary(&temp_);
 
+    auto const prune_size = std::max(max_size, limit_size_);
+    // Reserve based on observed live storage after local merge.
+    // This keeps memory use small when the sketch has very few entries (e.g. sparse
+    // columns / few local instances) while still reserving enough for immediate merges.
+    std::size_t observed_level_entries = 0;
+    for (auto const &level_summary : level_) {
+      observed_level_entries += level_summary.Size();
+    }
+    auto initial_reserve = std::min<std::size_t>(observed_level_entries, prune_size + limit_size_);
+    WQSummaryContainer out;
+    if (initial_reserve > 0) {
+      out.Reserve(initial_reserve);
+    }
+
     // Merge all levels into out.
     for (auto &level_summary : level_) {
+      auto combine_needed = out.Size() + level_summary.Size();
+      if (combine_needed > out.space.size()) {
+        out.Reserve(combine_needed);
+      }
       out.SetCombine(level_summary, &combine_workspace_);
-      out.SetPrune(std::max(max_size, limit_size_));
+      out.SetPrune(prune_size);
     }
     out.SetPrune(max_size);
     return out;
@@ -736,7 +751,7 @@ class SketchContainerImpl {
       -> std::tuple<std::vector<bst_idx_t>, std::vector<bst_idx_t>, std::vector<WQSketch::Entry>>;
   // Merge sketches from all workers and return retained cut counts per feature.
   [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info)
-      -> std::tuple<std::vector<WQSketch::SummaryContainer>, std::vector<int32_t>>;
+      -> std::vector<WQSketch::SummaryContainer>;
 
  protected:
   template <typename Batch, typename IsValid>
