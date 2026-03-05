@@ -354,24 +354,23 @@ INSTANTIATE(EncColumnarAdapterBatch)
 
 #undef INSTANTIATE
 
-void SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const &info) {
-  if (collective::GetWorldSize() == 1 || info.IsColumnSplit()) {
-    return;
-  }
-
-  std::vector<bst_feature_t> categorical_features;
-  categorical_features.reserve(categories_.size());
-  for (bst_feature_t fidx = 0; fidx < categories_.size(); ++fidx) {
-    if (IsCat(feature_types_, fidx)) {
-      categorical_features.push_back(fidx);
-    }
-  }
+auto SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const &info,
+                                              Span<bst_feature_t const> categorical_features)
+    -> std::vector<std::set<float>> {
+  std::vector<std::set<float>> reduced_categories(categorical_features.size());
   if (categorical_features.empty()) {
-    return;
+    return reduced_categories;
   }
 
-  auto merged = CategoricalReducePayload::SerializeFromCategories(
-      Span<bst_feature_t const>{categorical_features}, categories_);
+  if (collective::GetWorldSize() == 1 || info.IsColumnSplit()) {
+    for (std::size_t i = 0; i < categorical_features.size(); ++i) {
+      reduced_categories[i] = categories_[categorical_features[i]];
+    }
+    return reduced_categories;
+  }
+
+  auto merged =
+      CategoricalReducePayload::SerializeFromCategories(categorical_features, categories_);
   std::vector<float> merge_workspace;
   auto rc = collective::ReduceV(
       ctx, &merged,
@@ -400,14 +399,14 @@ void SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const
   auto reduced_payload = CategoricalReducePayload::Parse(Span<std::byte const>{merged});
   CHECK_EQ(reduced_payload.NumFeatures(), categorical_features.size());
   for (std::size_t i = 0; i < categorical_features.size(); ++i) {
-    auto fidx = categorical_features[i];
     auto values = reduced_payload.Values(i);
-    categories_[fidx].clear();
-    categories_[fidx].insert(values.cbegin(), values.cend());
+    reduced_categories[i].insert(values.cbegin(), values.cend());
   }
+  return reduced_categories;
 }
 
-auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
+auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
+                                    Span<bst_feature_t const> numeric_features)
     -> std::vector<WQSketch::SummaryContainer> {
   monitor_.Start(__func__);
 
@@ -416,16 +415,6 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
   auto rc = collective::Allreduce(ctx, &n_columns, collective::Op::kMax);
   collective::SafeColl(rc);
   CHECK_EQ(n_columns, sketches_.size()) << "Number of columns differs across workers";
-
-  AllreduceCategories(ctx, info);
-
-  std::vector<bst_feature_t> numeric_features;
-  numeric_features.reserve(n_columns);
-  for (bst_feature_t fidx = 0; fidx < n_columns; ++fidx) {
-    if (!IsCat(feature_types_, fidx)) {
-      numeric_features.push_back(fidx);
-    }
-  }
 
   std::vector<WQSketch::SummaryContainer> reduced(sketches_.size());
 
@@ -522,27 +511,31 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
 void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
                                    HistogramCuts *p_cuts) {
   monitor_.Start(__func__);
-  auto reduced = this->AllReduce(ctx, info);
+
+  std::vector<bst_feature_t> numeric_features;
+  std::vector<bst_feature_t> categorical_features;
+  numeric_features.reserve(sketches_.size());
+  categorical_features.reserve(sketches_.size());
+  for (bst_feature_t fidx = 0; fidx < sketches_.size(); ++fidx) {
+    if (IsCat(feature_types_, fidx)) {
+      categorical_features.push_back(fidx);
+    } else {
+      numeric_features.push_back(fidx);
+    }
+  }
+
+  auto reduced_numerical = this->AllReduce(ctx, info, Span<bst_feature_t const>{numeric_features});
+  auto reduced_categories =
+      this->AllreduceCategories(ctx, info, Span<bst_feature_t const>{categorical_features});
 
   p_cuts->min_vals_.HostVector().resize(sketches_.size(), 0.0f);
-  std::vector<WQSketch::SummaryContainer> final_summaries(reduced.size());
-
-  ParallelFor(reduced.size(), n_threads_, Sched::Guided(), [&](size_t fidx) {
-    if (IsCat(feature_types_, fidx)) {
-      return;
-    }
-    WQSketch::SummaryContainer &a = final_summaries[fidx];
-    size_t max_num_bins = std::min(reduced[fidx].Size(), static_cast<size_t>(max_bins_));
-    a.Reserve(std::max(reduced[fidx].Size(), max_num_bins + 1));
-    CHECK(a.Entries().data());
-    if (!reduced[fidx].Empty()) {
-      a.CopyFrom(reduced[fidx]);
-      a.SetPrune(max_num_bins + 1);
-      auto const a_entries = a.Entries();
-      auto const reduced_entries = reduced[fidx].Entries();
-      CHECK(a_entries.data() && reduced_entries.data());
-      CHECK(!a_entries.empty());
-      const bst_float mval = a_entries.front().value;
+  // Prune size down to max_bins + 1 (reserve one extra for the max value)
+  // before extracting cut points.
+  ParallelFor(numeric_features.size(), n_threads_, Sched::Guided(), [&](size_t idx) {
+    auto fidx = numeric_features[idx];
+    reduced_numerical.at(fidx).SetPrune(max_bins_ + 1);  // reserve one extra for the max value
+    if (!reduced_numerical[fidx].Empty()) {
+      const bst_float mval = reduced_numerical[fidx].Entries().front().value;
       p_cuts->min_vals_.HostVector()[fidx] = mval - fabs(mval) - 1e-5f;
     } else {
       // Empty column.
@@ -552,15 +545,18 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
   });
 
   float max_cat{-1.f};
-  for (size_t fid = 0; fid < reduced.size(); ++fid) {
-    size_t max_num_bins = std::min(reduced[fid].Size(), static_cast<size_t>(max_bins_));
-    WQSketch::SummaryContainer const &a = final_summaries[fid];
+  std::size_t cat_idx{0};
+  for (size_t fid = 0; fid < reduced_numerical.size(); ++fid) {
+    size_t max_num_bins = std::min(reduced_numerical[fid].Size(), static_cast<size_t>(max_bins_));
     if (IsCat(feature_types_, fid)) {
-      max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
+      CHECK_LT(cat_idx, categorical_features.size());
+      CHECK_EQ(categorical_features[cat_idx], fid);
+      max_cat = std::max(max_cat, AddCategories(reduced_categories[cat_idx], p_cuts));
+      ++cat_idx;
     } else {
-      AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
+      AddCutPoint<WQSketch>(reduced_numerical[fid], max_num_bins, p_cuts);
       // push a value that is greater than anything
-      auto const a_entries = a.Entries();
+      auto const a_entries = reduced_numerical[fid].Entries();
       const bst_float cpt =
           !a_entries.empty() ? a_entries.back().value : p_cuts->min_vals_.HostVector()[fid];
       // this must be bigger than last value in a scale
@@ -574,6 +570,7 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     CHECK_GT(cut_size, p_cuts->cut_ptrs_.HostVector().back());
     p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
   }
+  CHECK_EQ(cat_idx, categorical_features.size());
 
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
   monitor_.Stop(__func__);

@@ -745,8 +745,9 @@ class SketchContainerImpl {
   }
 
  private:
-  // Merge sketches from all workers and return retained cut counts per feature.
-  [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info)
+  // Merge numeric sketches from all workers.
+  [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info,
+                               common::Span<bst_feature_t const> numeric_features)
       -> std::vector<WQSketch::SummaryContainer>;
 
  protected:
@@ -798,8 +799,10 @@ class SketchContainerImpl {
   void MakeCuts(Context const *ctx, MetaInfo const &info, HistogramCuts *cuts);
 
  private:
-  // Merge all categories from other workers.
-  void AllreduceCategories(Context const *ctx, MetaInfo const &info);
+  // Merge categorical values from all workers.
+  [[nodiscard]] auto AllreduceCategories(Context const *ctx, MetaInfo const &info,
+                                         common::Span<bst_feature_t const> categorical_features)
+      -> std::vector<std::set<float>>;
 };
 
 class HostSketchContainer : public SketchContainerImpl {
