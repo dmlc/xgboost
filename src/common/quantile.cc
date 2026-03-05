@@ -130,7 +130,7 @@ struct SketchReducePayload {
     WritePODAt<std::uint64_t>(bytes, 0, static_cast<std::uint64_t>(n_features));
   }
 
-  [[nodiscard]] static SketchReducePayload Parse(Span<std::byte const> bytes) {
+  [[nodiscard]] static SketchReducePayload Parse(Span<std::byte> bytes) {
     std::size_t cursor = 0;
     auto n_features = ReadPOD<std::uint64_t>(bytes, &cursor);
 
@@ -149,7 +149,7 @@ struct SketchReducePayload {
       auto ptr = bytes.data() + cursor;
       auto addr = reinterpret_cast<std::uintptr_t>(ptr);
       CHECK_EQ(addr % alignof(WQuantileSketch::Entry), 0);
-      entries = reinterpret_cast<WQuantileSketch::Entry *>(const_cast<std::byte *>(ptr));
+      entries = reinterpret_cast<WQuantileSketch::Entry *>(ptr);
     }
 
     return {std::move(offsets), Span<WQuantileSketch::Entry>{entries, n_entries}};
@@ -250,7 +250,7 @@ struct CategoricalReducePayload {
     WritePODAt<std::uint64_t>(bytes, 0, static_cast<std::uint64_t>(n_features));
   }
 
-  [[nodiscard]] static CategoricalReducePayload Parse(Span<std::byte const> bytes) {
+  [[nodiscard]] static CategoricalReducePayload Parse(Span<std::byte> bytes) {
     std::size_t cursor = 0;
     auto n_features = ReadPOD<std::uint64_t>(bytes, &cursor);
 
@@ -376,8 +376,10 @@ auto SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const
       ctx, &merged,
       [&](common::Span<std::byte const> a, common::Span<std::byte const> b,
           std::vector<std::byte> *out) {
-        auto a_payload = CategoricalReducePayload::Parse(a);
-        auto b_payload = CategoricalReducePayload::Parse(b);
+        auto a_payload = CategoricalReducePayload::Parse(
+            Span<std::byte>{const_cast<std::byte *>(a.data()), a.size()});
+        auto b_payload = CategoricalReducePayload::Parse(
+            Span<std::byte>{const_cast<std::byte *>(b.data()), b.size()});
         CHECK_EQ(a_payload.NumFeatures(), categorical_features.size());
         CHECK_EQ(b_payload.NumFeatures(), categorical_features.size());
 
@@ -396,7 +398,7 @@ auto SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const
       });
   collective::SafeColl(rc);
 
-  auto reduced_payload = CategoricalReducePayload::Parse(Span<std::byte const>{merged});
+  auto reduced_payload = CategoricalReducePayload::Parse(Span<std::byte>{merged});
   CHECK_EQ(reduced_payload.NumFeatures(), categorical_features.size());
   for (std::size_t i = 0; i < categorical_features.size(); ++i) {
     auto values = reduced_payload.Values(i);
@@ -428,7 +430,7 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
   // Early exit: no allreduce needed when one worker, column-split, or no numeric features.
   if (collective::GetWorldSize() == 1 || info.IsColumnSplit() || numeric_features.empty()) {
     monitor_.Stop(__func__);
-    return std::move(reduced);
+    return reduced;
   }
 
   // Serialize local sketches to a byte array for allreduce
@@ -440,8 +442,10 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
       ctx, &merged,
       [&](common::Span<std::byte const> a, common::Span<std::byte const> b,
           std::vector<std::byte> *out) {
-        auto a_payload = SketchReducePayload::Parse(a);
-        auto b_payload = SketchReducePayload::Parse(b);
+        auto a_payload = SketchReducePayload::Parse(
+            Span<std::byte>{const_cast<std::byte *>(a.data()), a.size()});
+        auto b_payload = SketchReducePayload::Parse(
+            Span<std::byte>{const_cast<std::byte *>(b.data()), b.size()});
 
         auto max_entries = a_payload.TotalEntries() + b_payload.TotalEntries();
         auto max_pruned_entries = max_cut_target * numeric_features.size();
@@ -462,7 +466,7 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
   collective::SafeColl(reduce_rc);
 
   // Deserialize the sketches back to summary containers.
-  auto reduced_payload = SketchReducePayload::Parse(Span<std::byte const>{merged});
+  auto reduced_payload = SketchReducePayload::Parse(Span<std::byte>{merged});
   CHECK_EQ(reduced_payload.NumFeatures(), numeric_features.size());
   for (std::size_t i = 0; i < numeric_features.size(); ++i) {
     auto fidx = numeric_features[i];
@@ -473,7 +477,7 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
     reduced[fidx].CopyFrom(WQSketch::Summary{entries, n_entries});
   }
   monitor_.Stop(__func__);
-  return std::move(reduced);
+  return reduced;
 }
 
 template <typename SketchType>

@@ -55,37 +55,37 @@ struct WQSummary {
   };
   // constructor
   WQSummary(Span<Entry> data, size_t current_elements)
-      : data{data}, current_elements{current_elements} {}
+      : data_{data}, current_elements_{current_elements} {}
   /*! \brief Return the number of valid entries in this summary. */
-  [[nodiscard]] size_t Size() const { return current_elements; }
+  [[nodiscard]] size_t Size() const { return current_elements_; }
   /*! \brief Return true if this summary has no valid entries. */
   [[nodiscard]] bool Empty() const { return this->Size() == 0; }
   /*! \brief Return a const span over valid entries [0, Size()). */
-  [[nodiscard]] Span<Entry const> Entries() const { return {data.data(), current_elements}; }
+  [[nodiscard]] Span<Entry const> Entries() const { return {data_.data(), current_elements_}; }
   /*! \brief Set the number of valid entries in this summary. */
   void SetSize(size_t n) {
-    CHECK_LE(n, data.size());
-    current_elements = n;
+    CHECK_LE(n, data_.size());
+    current_elements_ = n;
   }
   /*! \brief Clear summary contents while keeping allocated storage. */
-  void Clear() { current_elements = 0; }
+  void Clear() { current_elements_ = 0; }
   /*!
    * \brief copy content from src
    * \param src source sketch
    */
   void CopyFrom(const WQSummary &src) {
-    if (!src.data.data()) {
-      CHECK_EQ(src.current_elements, 0);
+    if (!src.data_.data()) {
+      CHECK_EQ(src.current_elements_, 0);
       this->Clear();
       return;
     }
-    if (!data.data()) {
-      CHECK_EQ(this->current_elements, 0);
-      CHECK_EQ(src.current_elements, 0);
+    if (!data_.data()) {
+      CHECK_EQ(this->current_elements_, 0);
+      CHECK_EQ(src.current_elements_, 0);
       return;
     }
-    current_elements = src.current_elements;
-    std::copy(src.data.data(), src.data.data() + current_elements, data.data());
+    current_elements_ = src.current_elements_;
+    std::copy(src.data_.data(), src.data_.data() + current_elements_, data_.data());
   }
 
   void SetFromSorted(std::vector<std::pair<DType, RType>> const &queue) {
@@ -98,7 +98,7 @@ struct WQSummary {
         w += queue[j].second;
         ++j;
       }
-      data[current_elements++] = Entry{wsum, wsum + w, w, queue[i].first};
+      data_[current_elements_++] = Entry{wsum, wsum + w, w, queue[i].first};
       wsum += w;
       i = j;
     }
@@ -112,7 +112,7 @@ struct WQSummary {
   void SetPruneSorted(common::Span<::xgboost::Entry const> column,
                       std::vector<float> const &weights, size_t max_size) {
     CHECK_GE(max_size, 1);
-    CHECK_GE(data.size(), max_size + 1);
+    CHECK_GE(data_.size(), max_size + 1);
 
     this->Clear();
     auto const *col_data = column.data();
@@ -142,11 +142,11 @@ struct WQSummary {
         double rmax = rmin + wmin;
         auto summary_size = this->Size();
         if (rmax >= next_goal && summary_size != max_size) {
-          if (summary_size == 0 || last_fvalue > data[summary_size - 1].value) {
+          if (summary_size == 0 || last_fvalue > data_[summary_size - 1].value) {
             CHECK_LT(summary_size, max_size) << "invalid maximum size max_size=" << max_size
                                              << ", stemp.current_elements=" << summary_size;
-            data[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
-                                       static_cast<bst_float>(wmin), last_fvalue);
+            data_[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                        static_cast<bst_float>(wmin), last_fvalue);
             ++summary_size;
             this->SetSize(summary_size);
           }
@@ -170,11 +170,11 @@ struct WQSummary {
     if (col_size != 0) {
       auto summary_size = this->Size();
       double rmax = rmin + wmin;
-      if (summary_size == 0 || last_fvalue > data[summary_size - 1].value) {
+      if (summary_size == 0 || last_fvalue > data_[summary_size - 1].value) {
         CHECK_LE(summary_size, max_size) << "Finalize: invalid maximum size, max_size=" << max_size
                                          << ", stemp.current_elements=" << summary_size;
-        data[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
-                                   static_cast<bst_float>(wmin), last_fvalue);
+        data_[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                    static_cast<bst_float>(wmin), last_fvalue);
         ++summary_size;
         this->SetSize(summary_size);
       }
@@ -187,26 +187,26 @@ struct WQSummary {
    */
   void SetPrune(size_t maxsize) {
     if (maxsize == 0) {
-      this->current_elements = 0;
+      this->current_elements_ = 0;
       return;
     }
-    auto const src_size = this->current_elements;
+    auto const src_size = this->current_elements_;
     if (src_size <= maxsize) {
       return;
     }
     // Use raw pointers in this hot loop to avoid per-access Span bounds checks.
-    auto const *src_data = this->data.data();
-    auto *dst_data = data.data();
+    auto const *src_data = this->data_.data();
+    auto *dst_data = data_.data();
     if (maxsize == 1) {
       dst_data[0] = src_data[0];
-      this->current_elements = 1;
+      this->current_elements_ = 1;
       return;
     }
     const RType begin = src_data[0].rmax;
     const RType range = src_data[src_size - 1].rmin - src_data[0].rmax;
     const size_t n = maxsize - 1;
     dst_data[0] = src_data[0];
-    this->current_elements = 1;
+    this->current_elements_ = 1;
     // lastidx is used to avoid duplicated records
     size_t i = 1, lastidx = 0;
     for (size_t k = 1; k < n; ++k) {
@@ -218,18 +218,18 @@ struct WQSummary {
       if (i == src_size - 1) break;
       if (dx2 < src_data[i].RMinNext() + src_data[i + 1].RMaxPrev()) {
         if (i != lastidx) {
-          dst_data[current_elements++] = src_data[i];
+          dst_data[current_elements_++] = src_data[i];
           lastidx = i;
         }
       } else {
         if (i + 1 != lastidx) {
-          dst_data[current_elements++] = src_data[i + 1];
+          dst_data[current_elements_++] = src_data[i + 1];
           lastidx = i + 1;
         }
       }
     }
     if (lastidx != src_size - 1) {
-      dst_data[current_elements++] = src_data[src_size - 1];
+      dst_data[current_elements_++] = src_data[src_size - 1];
     }
   }
   /*!
@@ -242,17 +242,17 @@ struct WQSummary {
     if (other.Empty()) {
       return;
     }
-    if (this->data.size() == 0) {
-      this->current_elements = 0;
+    if (this->data_.size() == 0) {
+      this->current_elements_ = 0;
       return;
     }
     if (this->Empty()) {
-      CHECK_GE(this->data.size(), other.current_elements);
+      CHECK_GE(this->data_.size(), other.current_elements_);
       this->CopyFrom(other);
       return;
     }
-    size_t const merged_size = this->current_elements + other.current_elements;
-    CHECK_GE(this->data.size(), merged_size);
+    size_t const merged_size = this->current_elements_ + other.current_elements_;
+    CHECK_GE(this->data_.size(), merged_size);
 
     std::vector<Entry> owned_workspace;
     if (workspace == nullptr) {
@@ -264,11 +264,11 @@ struct WQSummary {
 
     WQSummary<DType, RType> merged{Span<Entry>{workspace->data(), merged_size}, 0};
     // Merge with raw pointers to avoid Span bounds checks inside the tight loop.
-    const Entry *a = this->data.data(), *a_end = this->data.data() + this->current_elements;
-    const Entry *b = other.data.data(), *b_end = other.data.data() + other.current_elements;
+    const Entry *a = this->data_.data(), *a_end = this->data_.data() + this->current_elements_;
+    const Entry *b = other.data_.data(), *b_end = other.data_.data() + other.current_elements_;
     // extended rmin value
     RType aprev_rmin = 0, bprev_rmin = 0;
-    Entry *dst = merged.data.data();
+    Entry *dst = merged.data_.data();
     while (a != a_end && b != b_end) {
       // duplicated value entry
       if (a->value == b->value) {
@@ -306,7 +306,7 @@ struct WQSummary {
         ++b;
       } while (b != b_end);
     }
-    merged.current_elements = dst - merged.data.data();
+    merged.current_elements_ = dst - merged.data_.data();
 
     const RType tol = 10;
     RType err_mingap, err_maxgap, err_wgap;
@@ -314,11 +314,11 @@ struct WQSummary {
     if (err_mingap > tol || err_maxgap > tol || err_wgap > tol) {
       LOG(INFO) << "mingap=" << err_mingap << ", maxgap=" << err_maxgap << ", wgap=" << err_wgap;
     }
-    CHECK(merged.current_elements <= this->current_elements + other.current_elements)
+    CHECK(merged.current_elements_ <= this->current_elements_ + other.current_elements_)
         << "bug in combine";
 
-    std::copy_n(merged.data.data(), merged.current_elements, this->data.data());
-    this->current_elements = merged.current_elements;
+    std::copy_n(merged.data_.data(), merged.current_elements_, this->data_.data());
+    this->current_elements_ = merged.current_elements_;
   }
 
  protected:
@@ -326,22 +326,22 @@ struct WQSummary {
    * \brief Rebind underlying storage span while preserving current logical size.
    */
   void SetStorage(Span<Entry> storage) {
-    data = storage;
-    CHECK_LE(current_elements, data.size());
+    data_ = storage;
+    CHECK_LE(current_elements_, data_.size());
   }
   /*!
    * \brief Reset storage binding and clear logical size.
    */
   void ResetStorage() {
-    data = Span<Entry>{};
-    current_elements = 0;
+    data_ = Span<Entry>{};
+    current_elements_ = 0;
   }
 
  private:
   /*! \brief data field */
-  Span<Entry> data;
+  Span<Entry> data_;
   /*! \brief number of elements in the summary */
-  size_t current_elements;
+  size_t current_elements_;
   // try to fix rounding error
   // and re-establish invariance
   void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
@@ -350,8 +350,8 @@ struct WQSummary {
     *err_wgap = 0;
     RType prev_rmin = 0, prev_rmax = 0;
     // Use raw pointer for the correction pass to avoid Span bounds checks.
-    auto *entries = data.data();
-    for (size_t i = 0; i < this->current_elements; ++i) {
+    auto *entries = data_.data();
+    for (size_t i = 0; i < this->current_elements_; ++i) {
       if (entries[i].rmin < prev_rmin) {
         entries[i].rmin = prev_rmin;
         *err_mingap = std::max(*err_mingap, prev_rmin - entries[i].rmin);

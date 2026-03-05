@@ -100,7 +100,7 @@ ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
 
   auto const world = comm.World();
   auto const rank = comm.Rank();
-  auto constexpr root = 0;
+  auto constexpr kRoot = 0;
 
   auto send = [&](std::int32_t peer, std::vector<T> const& vec) {
     std::int64_t n = static_cast<std::int64_t>(vec.size());
@@ -177,16 +177,16 @@ ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
     }
   }
 
-  std::int64_t reduced_size = static_cast<std::int64_t>(rank == root ? data->size() : 0);
-  auto rc = Broadcast(comm, common::Span<std::int64_t>{&reduced_size, 1}, root);
+  std::int64_t reduced_size = static_cast<std::int64_t>(rank == kRoot ? data->size() : 0);
+  auto rc = Broadcast(comm, common::Span<std::int64_t>{&reduced_size, 1}, kRoot);
   if (!rc.OK()) {
     return Fail("ReduceV failed to broadcast reduced size.", std::move(rc));
   }
-  if (rank != root) {
+  if (rank != kRoot) {
     data->resize(static_cast<std::size_t>(reduced_size));
   }
   auto reduced = common::Span<T>{data->data(), static_cast<std::size_t>(reduced_size)};
-  rc = Broadcast(comm, reduced, root);
+  rc = Broadcast(comm, reduced, kRoot);
   if (!rc.OK()) {
     return Fail("ReduceV failed to broadcast reduced payload.", std::move(rc));
   }
