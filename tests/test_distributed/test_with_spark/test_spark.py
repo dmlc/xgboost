@@ -1236,16 +1236,19 @@ class TestClassifier:
         ):
             classifier._get_tracker_args()
 
+        avail_tracker_port = get_avail_port()
         classifier = SparkXGBClassifier(
             launch_tracker_on_driver=True,
-            coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=58893),
+            coll_cfg=Config(
+                tracker_host_ip="127.0.0.1", tracker_port=avail_tracker_port
+            ),
             num_workers=2,
         )
         launch_tracker_on_driver, rabit_envs = classifier._get_tracker_args()
         assert launch_tracker_on_driver is True
         assert rabit_envs["n_workers"] == 2
         assert rabit_envs["dmlc_tracker_uri"] == "127.0.0.1"
-        assert rabit_envs["dmlc_tracker_port"] == 58893
+        assert rabit_envs["dmlc_tracker_port"] == avail_tracker_port
 
         path = "file:" + str(tmp_path)
         port = get_avail_port()

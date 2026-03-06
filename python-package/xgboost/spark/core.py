@@ -382,13 +382,13 @@ class _SparkXGBParams(
                     self.getOrDefault(self.num_workers),
                 )
             else:
-                executor_gpus = conf.get("spark.executor.resource.gpu.amount")
+                executor_gpus = conf.get("spark.executor.resource.gpu.amount", None)
                 if executor_gpus is None:
                     raise ValueError(
                         "The `spark.executor.resource.gpu.amount` is required for training"
                         " on GPU."
                     )
-                gpu_per_task = conf.get("spark.task.resource.gpu.amount")
+                gpu_per_task = conf.get("spark.task.resource.gpu.amount", None)
                 if gpu_per_task is not None and float(gpu_per_task) > 1.0:
                     get_logger(self.__class__.__name__).warning(
                         "The configuration assigns %s GPUs to each Spark task, but each "
@@ -546,7 +546,7 @@ def _validate_and_convert_feature_col_as_array_col(
     else:
         raise ValueError(
             "feature column must be array type or `pyspark.ml.linalg.Vector` type, "
-            "if you want to use multiple numetric columns as features, please use "
+            "if you want to use multiple numeric columns as features, please use "
             "`pyspark.ml.transform.VectorAssembler` to assemble them into a vector "
             "type column first."
         )
@@ -885,7 +885,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
         )
-        cpu_per_task = int(_get_spark_session().conf.get("spark.task.cpus") or "1")
+        cpu_per_task = int(
+            _get_spark_session().conf.get("spark.task.cpus", None) or "1"
+        )
 
         dmatrix_kwargs = {
             "nthread": cpu_per_task,
@@ -932,8 +934,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
                 return True
 
-            executor_cores = conf.get("spark.executor.cores")
-            executor_gpus = conf.get("spark.executor.resource.gpu.amount")
+            executor_cores = conf.get("spark.executor.cores", None)
+            executor_gpus = conf.get("spark.executor.resource.gpu.amount", None)
             if executor_cores is None or executor_gpus is None:
                 self.logger.info(
                     "Stage-level scheduling in xgboost requires spark.executor.cores, "
@@ -958,7 +960,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
                 return True
 
-            task_gpu_amount = conf.get("spark.task.resource.gpu.amount")
+            task_gpu_amount = conf.get("spark.task.resource.gpu.amount", None)
 
             if task_gpu_amount is None:
                 # The ETL tasks will not grab a gpu when spark.task.resource.gpu.amount is not set,
@@ -986,7 +988,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             return None
 
         # executor_cores will not be None
-        executor_cores = conf.get("spark.executor.cores")
+        executor_cores = conf.get("spark.executor.cores", None)
         assert executor_cores is not None
 
         # Spark-rapids is a project to leverage GPUs to accelerate spark SQL.
@@ -1033,7 +1035,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             if conf.tracker_host_ip is None:
                 conf.tracker_host_ip = _get_spark_session().conf.get(
-                    "spark.driver.host"
+                    "spark.driver.host", None
                 )
             num_workers = self.getOrDefault(self.num_workers)
             rabit_args.update(_get_rabit_args(conf, num_workers))
@@ -1390,7 +1392,9 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             # if it's local model, no need to check the spark configurations
             return use_gpu_by_params
 
-        gpu_per_task = _get_spark_session().conf.get("spark.task.resource.gpu.amount")
+        gpu_per_task = _get_spark_session().conf.get(
+            "spark.task.resource.gpu.amount", None
+        )
 
         # User don't set gpu configurations, just use cpu
         if gpu_per_task is None:
