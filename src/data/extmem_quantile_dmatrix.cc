@@ -24,7 +24,6 @@ ExtMemQuantileDMatrix::ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrix
                                              std::shared_ptr<DMatrix> ref,
                                              DataIterResetCallback *reset,
                                              XGDMatrixCallbackNext *next, bst_bin_t max_bin,
-                                             std::int64_t max_quantile_blocks,
                                              ExtMemConfig const &config)
     : cache_prefix_{config.cache}, on_host_{config.on_host} {
   cache_prefix_ = MakeCachePrefix(cache_prefix_);
@@ -45,7 +44,7 @@ ExtMemQuantileDMatrix::ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrix
     this->InitFromCPU(&ctx, iter, proxy, p, config.missing, ref);
   } else {
     p.n_prefetch_batches = ::xgboost::cuda_impl::DftPrefetchBatches();
-    this->InitFromCUDA(&ctx, iter, proxy, p, ref, max_quantile_blocks, config);
+    this->InitFromCUDA(&ctx, iter, proxy, p, ref, config);
   }
   this->batch_ = p;
   this->fmat_ctx_ = ctx;
@@ -144,8 +143,7 @@ BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndex(Context const
 #if !defined(XGBOOST_USE_CUDA)
 void ExtMemQuantileDMatrix::InitFromCUDA(
     Context const *, std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>>,
-    DMatrixHandle, BatchParam const &, std::shared_ptr<DMatrix>, std::int64_t,
-    ExtMemConfig const &) {
+    DMatrixHandle, BatchParam const &, std::shared_ptr<DMatrix>, ExtMemConfig const &) {
   common::AssertGPUSupport();
 }
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025, XGBoost contributors
+ * Copyright 2015-2026, XGBoost contributors
  *
  * \brief CUDA implementation of lambdarank.
  */
@@ -8,14 +8,15 @@
 #include <thrust/for_each.h>                    // for for_each_n
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 #include <thrust/iterator/zip_iterator.h>       // for make_zip_iterator
-#include <thrust/tuple.h>                       // for make_tuple, tuple, tie, get
+#include <thrust/tuple.h>                       // for make_tuple (zip_iterator)
 
-#include <algorithm>  // for min
-#include <cassert>    // for assert
-#include <cmath>      // for abs, log2, isinf
-#include <cstddef>    // for size_t
-#include <cstdint>    // for int32_t
-#include <memory>     // for shared_ptr
+#include <algorithm>       // for min
+#include <cassert>         // for assert
+#include <cmath>           // for abs, log2, isinf
+#include <cstddef>         // for size_t
+#include <cstdint>         // for int32_t
+#include <cuda/std/tuple>  // for make_tuple, tuple, get
+#include <memory>          // for shared_ptr
 #include <utility>
 
 #include "../common/algorithm.cuh"       // for SegmentedArgSort
@@ -73,7 +74,7 @@ void MinBias(Context const* ctx, std::shared_ptr<ltr::RankingCache> p_cache,
 /**
  * \brief Type for gradient statistic. (Gradient, cost for unbiased LTR, normalization factor)
  */
-using GradCostNorm = thrust::tuple<GradientPair, double, double>;
+using GradCostNorm = cuda::std::tuple<GradientPair, double, double>;
 
 /**
  * \brief Obtain and update the gradient for one pair.
@@ -101,7 +102,7 @@ struct GetGradOp {
 
     std::size_t rank_high = i, rank_low = j;
     if (g_label(g_rank[i]) == g_label(g_rank[j])) {
-      return thrust::make_tuple(GradientPair{}, 0.0, 0.0);
+      return cuda::std::make_tuple(GradientPair{}, 0.0, 0.0);
     }
     if (g_label(g_rank[i]) < g_label(g_rank[j])) {
       thrust::swap(rank_high, rank_low);
@@ -156,8 +157,8 @@ struct GetGradOp {
       }
     }
 
-    return thrust::make_tuple(GradientPair{std::abs(pg.GetGrad()), std::abs(pg.GetHess())},
-                              std::abs(cost), -2.0 * static_cast<double>(pg.GetGrad()));
+    return cuda::std::make_tuple(GradientPair{std::abs(pg.GetGrad()), std::abs(pg.GetHess())},
+                                 std::abs(cost), -2.0 * static_cast<double>(pg.GetGrad()));
   }
 };
 
@@ -212,15 +213,15 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
   auto reduction_op = [] XGBOOST_DEVICE(GradCostNorm const& l,
                                         GradCostNorm const& r) -> GradCostNorm {
     // get maximum gradient for each group, along with cost and the normalization term
-    auto const& lg = thrust::get<0>(l);
-    auto const& rg = thrust::get<0>(r);
+    auto const& lg = cuda::std::get<0>(l);
+    auto const& rg = cuda::std::get<0>(r);
     auto grad = std::max(lg.GetGrad(), rg.GetGrad());
     auto hess = std::max(lg.GetHess(), rg.GetHess());
-    auto cost = std::max(thrust::get<1>(l), thrust::get<1>(r));
-    double sum_lambda = thrust::get<2>(l) + thrust::get<2>(r);
-    return thrust::make_tuple(GradientPair{grad, hess}, cost, sum_lambda);
+    auto cost = std::max(cuda::std::get<1>(l), cuda::std::get<1>(r));
+    double sum_lambda = cuda::std::get<2>(l) + cuda::std::get<2>(r);
+    return cuda::std::make_tuple(GradientPair{grad, hess}, cost, sum_lambda);
   };
-  auto init = thrust::make_tuple(GradientPair{0.0f, 0.0f}, 0.0, 0.0);
+  auto init = cuda::std::make_tuple(GradientPair{0.0f, 0.0f}, 0.0, 0.0);
   common::Span<GradCostNorm> d_max_lambdas = p_cache->MaxLambdas<GradCostNorm>(ctx, n_groups);
   CHECK_EQ(n_groups * sizeof(GradCostNorm), d_max_lambdas.size_bytes());
   // Reduce by group.
@@ -245,14 +246,14 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
   auto d_rounding = p_cache->CUDARounding(ctx);
   dh::LaunchN(n_groups, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t g) mutable {
     auto group_size = d_gptr[g + 1] - d_gptr[g];
-    auto const& max_grad = thrust::get<0>(d_max_lambdas[g]);
+    auto const& max_grad = cuda::std::get<0>(d_max_lambdas[g]);
     // float group size
     auto fgs = static_cast<float>(group_size);
     auto grad = common::CreateRoundingFactor(fgs * max_grad.GetGrad(), group_size);
     auto hess = common::CreateRoundingFactor(fgs * max_grad.GetHess(), group_size);
     d_rounding(g) = GradientPair{grad, hess};
 
-    auto cost = thrust::get<1>(d_max_lambdas[g]);
+    auto cost = cuda::std::get<1>(d_max_lambdas[g]);
     if (unbiased) {
       cost /= std::min(d_min_bias[0], d_min_bias[1]);
       d_cost_rounding[0] = common::CreateRoundingFactor(fgs * cost, group_size);
@@ -281,7 +282,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
                          double norm = 1.0;
                          if (has_truncation) {
                            // Normalize using gradient for top-k.
-                           auto sum_lambda = thrust::get<2>(d_max_lambdas[g]);
+                           auto sum_lambda = cuda::std::get<2>(d_max_lambdas[g]);
                            if (sum_lambda > 0.0) {
                              norm = std::log2(1.0 + sum_lambda) / sum_lambda;
                            }

@@ -1,15 +1,11 @@
 import json
-import os
-import pathlib
-import tempfile
 from pathlib import Path
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.core import _parse_version
+from xgboost._c_api import _parse_version
 
 dpath = "demo/data/"
 rng = np.random.RandomState(1994)
@@ -23,7 +19,7 @@ class TestBasic:
         assert lazy_isinstance(a, "numpy", "ndarray")
         assert not lazy_isinstance(a, "numpy", "dataframe")
 
-    def test_basic(self):
+    def test_basic(self, tmp_path: Path) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
         param = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
         # specify validations set to watch performance
@@ -47,21 +43,20 @@ class TestBasic:
         # error must be smaller than 10%
         assert err < 0.1
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            dtest_path = os.path.join(tmpdir, "dtest.dmatrix")
-            # save dmatrix into binary buffer
-            dtest.save_binary(dtest_path)
-            # save model
-            model_path = os.path.join(tmpdir, "model.ubj")
-            bst.save_model(model_path)
-            # load model and data in
-            bst2 = xgb.Booster(model_file=model_path)
-            dtest2 = xgb.DMatrix(dtest_path)
-            preds2 = bst2.predict(dtest2)
-            # assert they are the same
-            assert np.sum(np.abs(preds2 - preds)) == 0
+        dtest_path = tmp_path / "dtest.dmatrix"
+        # save dmatrix into binary buffer
+        dtest.save_binary(dtest_path)
+        # save model
+        model_path = tmp_path / "model.ubj"
+        bst.save_model(model_path)
+        # load model and data in
+        bst2 = xgb.Booster(model_file=model_path)
+        dtest2 = xgb.DMatrix(dtest_path)
+        preds2 = bst2.predict(dtest2)
+        # assert they are the same
+        assert np.sum(np.abs(preds2 - preds)) == 0
 
-    def test_metric_config(self):
+    def test_metric_config(self, tmp_path: Path) -> None:
         # Make sure that the metric configuration happens in booster so the string
         # `['error', 'auc']` doesn't get passed down to core.
         dtrain, dtest = tm.load_agaricus(__file__)
@@ -75,15 +70,14 @@ class TestBasic:
         num_round = 2
         booster = xgb.train(param, dtrain, num_round, evals=watchlist)
         predt_0 = booster.predict(dtrain)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "model.json")
-            booster.save_model(path)
+        path = tmp_path / "model.json"
+        booster.save_model(path)
 
-            booster = xgb.Booster(params=param, model_file=path)
-            predt_1 = booster.predict(dtrain)
-            np.testing.assert_allclose(predt_0, predt_1)
+        booster = xgb.Booster(params=param, model_file=path)
+        predt_1 = booster.predict(dtrain)
+        np.testing.assert_allclose(predt_0, predt_1)
 
-    def test_multiclass(self):
+    def test_multiclass(self, tmp_path: Path) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
         param = {"max_depth": 2, "eta": 1, "num_class": 2}
         # specify validations set to watch performance
@@ -99,19 +93,18 @@ class TestBasic:
         # error must be smaller than 10%
         assert err < 0.1
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            dtest_path = os.path.join(tmpdir, "dtest.buffer")
-            model_path = os.path.join(tmpdir, "model.ubj")
-            # save dmatrix into binary buffer
-            dtest.save_binary(dtest_path)
-            # save model
-            bst.save_model(model_path)
-            # load model and data in
-            bst2 = xgb.Booster(model_file=model_path)
-            dtest2 = xgb.DMatrix(dtest_path)
-            preds2 = bst2.predict(dtest2)
-            # assert they are the same
-            assert np.sum(np.abs(preds2 - preds)) == 0
+        dtest_path = tmp_path / "dtest.buffer"
+        model_path = tmp_path / "model.ubj"
+        # save dmatrix into binary buffer
+        dtest.save_binary(dtest_path)
+        # save model
+        bst.save_model(model_path)
+        # load model and data in
+        bst2 = xgb.Booster(model_file=model_path)
+        dtest2 = xgb.DMatrix(dtest_path)
+        preds2 = bst2.predict(dtest2)
+        # assert they are the same
+        assert np.sum(np.abs(preds2 - preds)) == 0
 
     def test_dump(self):
         data = np.random.randn(100, 2)
@@ -131,14 +124,14 @@ class TestBasic:
         # number of feature importances should == number of features
         dump1 = bst.get_dump()
         assert len(dump1) == 1, "Expected only 1 tree to be dumped."
-        len(
-            dump1[0].splitlines()
-        ) == 3, "Expected 1 root and 2 leaves - 3 lines in dump."
+        assert len(dump1[0].splitlines()) == 3, (
+            "Expected 1 root and 2 leaves - 3 lines in dump."
+        )
 
         dump2 = bst.get_dump(with_stats=True)
-        assert (
-            dump2[0].count("\n") == 3
-        ), "Expected 1 root and 2 leaves - 3 lines in dump."
+        assert dump2[0].count("\n") == 3, (
+            "Expected 1 root and 2 leaves - 3 lines in dump."
+        )
         msg = "Expected more info when with_stats=True is given."
         assert dump2[0].find("\n") > dump1[0].find("\n"), msg
 
@@ -185,8 +178,8 @@ class TestBasic:
     @pytest.mark.parametrize(
         "path", ["모델.ubj", "がうる・ぐら.json"], ids=["path-0", "path-1"]
     )
-    def test_unicode_path(self, tmpdir, path):
-        model_path = pathlib.Path(tmpdir) / path
+    def test_unicode_path(self, tmp_path: Path, path: str) -> None:
+        model_path = tmp_path / path
         dtrain, _ = tm.load_agaricus(__file__)
         param = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
         bst = xgb.train(param, dtrain, num_boost_round=2)
@@ -298,7 +291,7 @@ class TestBasicPathLike:
         assert dtrain.num_row() == 6513
         assert dtrain.num_col() == 127
 
-    def test_DMatrix_save_to_path(self):
+    def test_DMatrix_save_to_path(self, tmp_path: Path) -> None:
         """Saving to a binary file using pathlib from a DMatrix."""
         data = np.random.randn(100, 2)
         target = np.array([0, 1] * 50)
@@ -306,11 +299,9 @@ class TestBasicPathLike:
 
         dm = xgb.DMatrix(data, label=target, feature_names=features)
 
-        # save, assert exists, remove file
-        binary_path = Path("dtrain.bin")
+        binary_path = tmp_path / "dtrain.bin"
         dm.save_binary(binary_path)
         assert binary_path.exists()
-        Path.unlink(binary_path)
 
     def test_Booster_init_invalid_path(self):
         """An invalid model_file path should raise XGBoostError."""

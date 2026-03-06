@@ -26,8 +26,7 @@ TEST(IterativeDMatrix, IsDense) {
     NumpyArrayIterForTest iter(sparsity);
     auto n_threads = 0;
     IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
-                       std::numeric_limits<float>::quiet_NaN(), n_threads, n_bins,
-                       std::numeric_limits<std::int64_t>::max());
+                       std::numeric_limits<float>::quiet_NaN(), n_threads, n_bins);
     ASSERT_EQ(m.Ctx()->Threads(), AllThreadsForTest());
     if (sparsity == 0.0) {
       ASSERT_TRUE(m.IsDense());

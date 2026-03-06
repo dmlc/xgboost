@@ -14,12 +14,9 @@
 #include "hist_util.h"
 
 namespace xgboost::common {
-template <typename WQSketch>
-SketchContainerImpl<WQSketch>::SketchContainerImpl(Context const *ctx,
-                                                   std::vector<bst_idx_t> columns_size,
-                                                   bst_bin_t max_bin,
-                                                   Span<FeatureType const> feature_types,
-                                                   bool use_group)
+SketchContainerImpl::SketchContainerImpl(Context const *ctx, std::vector<bst_idx_t> columns_size,
+                                         bst_bin_t max_bin, Span<FeatureType const> feature_types,
+                                         bool use_group)
     : feature_types_(feature_types.cbegin(), feature_types.cend()),
       columns_size_{std::move(columns_size)},
       max_bins_{max_bin},
@@ -41,8 +38,10 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
   CHECK_EQ(hessian.size(), info.num_row_);
   std::vector<float> results(hessian.size());
   auto const &group_ptr = info.group_ptr_;
-  auto const& weights = info.weights_.HostVector();
-  auto get_weight = [&](size_t i) { return weights.empty() ? 1.0f : weights[i]; };
+  auto const &weights = info.weights_.HostVector();
+  auto get_weight = [&](size_t i) {
+    return weights.empty() ? 1.0f : weights[i];
+  };
   if (use_group) {
     CHECK_GE(group_ptr.size(), 2);
     CHECK_EQ(group_ptr.back(), hessian.size());
@@ -61,9 +60,8 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
 }
 }  // anonymous namespace
 
-template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::PushRowPage(SparsePage const &page, MetaInfo const &info,
-                                                Span<float const> hessian) {
+void SketchContainerImpl::PushRowPage(SparsePage const &page, MetaInfo const &info,
+                                      Span<float const> hessian) {
   monitor_.Start(__func__);
   bst_feature_t n_columns = info.num_col_;
   auto is_dense = info.num_nonzero_ == info.num_col_ * info.num_row_;
@@ -149,30 +147,28 @@ struct QuantileAllreduce {
 };
 }  // anonymous namespace
 
-template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::GatherSketchInfo(
-    Context const *ctx, MetaInfo const &info,
-    std::vector<typename WQSketch::SummaryContainer> const &reduced,
-    std::vector<bst_idx_t> *p_worker_segments, std::vector<bst_idx_t> *p_sketches_scan,
-    std::vector<typename WQSketch::Entry> *p_global_sketches) {
-  auto &worker_segments = *p_worker_segments;
-  worker_segments.resize(1, 0);
+auto SketchContainerImpl::GatherSketchInfo(Context const *ctx, MetaInfo const &info,
+                                           std::vector<WQSketch::SummaryContainer> const &reduced)
+    -> std::tuple<std::vector<bst_idx_t>, std::vector<bst_idx_t>, std::vector<WQSketch::Entry>> {
+  std::vector<bst_idx_t> worker_segments(1, 0);
   auto world = collective::GetWorldSize();
   auto rank = collective::GetRank();
   bst_feature_t n_columns = sketches_.size();
 
   // get the size of each feature.
   std::vector<bst_idx_t> sketch_size;
-  for (size_t i = 0; i < reduced.size(); ++i) {
-    if (IsCat(feature_types_, i)) {
+  sketch_size.reserve(reduced.size());
+  size_t fidx{0};
+  for (auto const &sketch : reduced) {
+    if (IsCat(feature_types_, fidx)) {
       sketch_size.push_back(0);
     } else {
-      sketch_size.push_back(reduced[i].size);
+      sketch_size.push_back(sketch.Size());
     }
+    ++fidx;
   }
   // Turn the size into CSC indptr
-  std::vector<bst_idx_t> &sketches_scan = *p_sketches_scan;
-  sketches_scan.resize((n_columns + 1) * world, 0);
+  std::vector<bst_idx_t> sketches_scan((n_columns + 1) * world, 0);
   size_t beg_scan = rank * (n_columns + 1);  // starting storage for current worker.
   std::partial_sum(sketch_size.cbegin(), sketch_size.cend(), sketches_scan.begin() + beg_scan + 1);
 
@@ -193,34 +189,37 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
   CHECK_GE(worker_segments.size(), 1);
   auto total = worker_segments.back();
 
-  auto &global_sketches = *p_global_sketches;
-  global_sketches.resize(total, typename WQSketch::Entry{0, 0, 0, 0});
-  auto worker_sketch = Span<typename WQSketch::Entry>{global_sketches}.subspan(
+  std::vector<WQSketch::Entry> global_sketches(total, WQSketch::Entry{0, 0, 0, 0});
+  auto worker_sketch = Span<WQSketch::Entry>{global_sketches}.subspan(
       worker_segments[rank], worker_segments[rank + 1] - worker_segments[rank]);
   auto cursor{worker_sketch.begin()};
   for (size_t fidx = 0; fidx < reduced.size(); ++fidx) {
     auto const &sketch = reduced[fidx];
-    if (IsCat(feature_types_, fidx)) {
-      // nothing to do if it's categorical feature, size is 0 so no need to change cursor
+    if (IsCat(feature_types_, fidx) || sketch.Empty()) {
+      // Nothing to copy for categorical features or empty sketches.
       continue;
-    } else {
-      cursor = std::copy(sketch.data, sketch.data + sketch.size, cursor);
     }
+    auto entries = sketch.Entries();
+    cursor = std::copy(entries.cbegin(), entries.cend(), cursor);
   }
 
-  static_assert(sizeof(typename WQSketch::Entry) / 4 == sizeof(float),
-                "Unexpected size of sketch entry.");
+  static_assert(sizeof(WQSketch::Entry) / 4 == sizeof(float), "Unexpected size of sketch entry.");
+  if (global_sketches.empty()) {
+    return std::make_tuple(std::move(worker_segments), std::move(sketches_scan),
+                           std::move(global_sketches));
+  }
   rc = collective::GlobalSum(
       ctx, info,
       linalg::MakeVec(reinterpret_cast<float *>(global_sketches.data()),
-                      global_sketches.size() * sizeof(typename WQSketch::Entry) / sizeof(float)));
+                      global_sketches.size() * sizeof(WQSketch::Entry) / sizeof(float)));
   if (!rc.OK()) {
     collective::SafeColl(collective::Fail("Failed to get sketch.", std::move(rc)));
   }
+  return std::make_tuple(std::move(worker_segments), std::move(sketches_scan),
+                         std::move(global_sketches));
 }
 
-template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const* ctx, MetaInfo const& info) {
+void SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const &info) {
   auto world_size = collective::GetWorldSize();
   auto rank = collective::GetRank();
   if (world_size == 1 || info.IsColumnSplit()) {
@@ -228,12 +227,12 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const* ctx, Meta
   }
 
   // CSC indptr to each feature
-  std::vector<size_t> feature_ptr(categories_.size() + 1, 0);
-  for (size_t i = 0; i < categories_.size(); ++i) {
-    auto const &feat = categories_[i];
-    feature_ptr[i + 1] = feat.size();
+  std::vector<size_t> feature_ptr;
+  feature_ptr.reserve(categories_.size() + 1);
+  feature_ptr.push_back(0);
+  for (auto const &feat : categories_) {
+    feature_ptr.push_back(feature_ptr.back() + feat.size());
   }
-  std::partial_sum(feature_ptr.begin(), feature_ptr.end(), feature_ptr.begin());
   CHECK_EQ(feature_ptr.front(), 0);
 
   // gather all feature ptrs from workers
@@ -289,10 +288,8 @@ void SketchContainerImpl<WQSketch>::AllreduceCategories(Context const* ctx, Meta
   });
 }
 
-template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::AllReduce(
-    Context const *ctx, MetaInfo const &info,
-    std::vector<typename WQSketch::SummaryContainer> *p_reduced, std::vector<int32_t> *p_num_cuts) {
+auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info)
+    -> std::tuple<std::vector<WQSketch::SummaryContainer>, std::vector<int32_t>> {
   monitor_.Start(__func__);
 
   bst_feature_t n_columns = sketches_.size();
@@ -302,84 +299,86 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
   AllreduceCategories(ctx, info);
 
-  auto& num_cuts = *p_num_cuts;
-  CHECK_EQ(num_cuts.size(), 0);
-  num_cuts.resize(sketches_.size());
+  std::vector<int32_t> cut_targets(sketches_.size());
 
-  auto &reduced = *p_reduced;
-  reduced.resize(sketches_.size());
+  std::vector<int32_t> retained_cuts(sketches_.size());
 
-  // Prune the intermediate num cuts for synchronization.
+  std::vector<WQSketch::SummaryContainer> reduced(sketches_.size());
+
+  // Build per-feature cut targets for synchronization.
   std::vector<bst_idx_t> global_column_size(columns_size_);
   rc = collective::GlobalSum(ctx, info,
                              linalg::MakeVec(global_column_size.data(), global_column_size.size()));
   collective::SafeColl(rc);
 
   ParallelFor(sketches_.size(), n_threads_, [&](size_t i) {
-    int32_t intermediate_num_cuts = static_cast<int32_t>(
+    int32_t cut_target = static_cast<int32_t>(
         std::min(global_column_size[i], static_cast<bst_idx_t>(max_bins_ * WQSketch::kFactor)));
     if (global_column_size[i] == 0) {
       return;
     }
     if (IsCat(feature_types_, i)) {
-      intermediate_num_cuts = categories_[i].size();
+      cut_target = categories_[i].size();
+      cut_targets[i] = cut_target;
+      retained_cuts[i] = cut_target;
     } else {
-      typename WQSketch::SummaryContainer out;
-      sketches_[i].GetSummary(&out);
-      reduced[i].Reserve(intermediate_num_cuts);
-      CHECK(reduced[i].data);
-      reduced[i].SetPrune(out, intermediate_num_cuts);
+      cut_targets[i] = cut_target;
+      reduced[i] = sketches_[i].GetSummary(cut_target);
+      retained_cuts[i] = static_cast<int32_t>(reduced[i].Size());
     }
-    num_cuts[i] = intermediate_num_cuts;
   });
 
   auto world = collective::GetWorldSize();
   if (world == 1 || info.IsColumnSplit()) {
     monitor_.Stop(__func__);
-    return;
+    return {std::move(reduced), std::move(retained_cuts)};
   }
 
-  std::vector<bst_idx_t> worker_segments(1, 0);  // CSC pointer to sketches.
-  std::vector<bst_idx_t> sketches_scan((n_columns + 1) * world, 0);
-
-  std::vector<typename WQSketch::Entry> global_sketches;
-  this->GatherSketchInfo(ctx, info, reduced, &worker_segments, &sketches_scan, &global_sketches);
-
-  std::vector<typename WQSketch::SummaryContainer> final_sketches(n_columns);
+  auto gathered = this->GatherSketchInfo(ctx, info, reduced);
+  auto &worker_segments = std::get<0>(gathered);
+  auto &sketches_scan = std::get<1>(gathered);
+  auto &global_sketches = std::get<2>(gathered);
 
   ParallelFor(n_columns, n_threads_, [&](auto fidx) {
     // gcc raises subobject-linkage warning if we put allreduce_result as lambda capture
-    QuantileAllreduce<typename WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
-                                                                 sketches_scan, n_columns};
-    int32_t intermediate_num_cuts = num_cuts[fidx];
-    auto nbytes = WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);
+    QuantileAllreduce<WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
+                                                        sketches_scan, n_columns};
+    int32_t cut_target = cut_targets[fidx];
     if (IsCat(feature_types_, fidx)) {
       return;
     }
 
+    auto &out = reduced.at(fidx);
+    out.Clear();
+    out.Reserve(static_cast<size_t>(cut_target) * 2);
+    std::vector<WQSketch::Entry> combine_workspace;
+    combine_workspace.reserve(static_cast<size_t>(cut_target) * 2);
+
     for (int32_t r = 0; r < world; ++r) {
-      // 1 feature of 1 worker
       auto worker_feature = allreduce_result.Values(r, fidx);
       CHECK(worker_feature.data());
-      typename WQSketch::Summary summary(worker_feature.data(), worker_feature.size());
-      auto &out = final_sketches.at(fidx);
-      out.Reduce(summary, nbytes);
+      // Non-owning view over all-reduced entries for one feature on one worker.
+      WQSketch::Summary summary(worker_feature, worker_feature.size());
+      out.SetCombine(summary, &combine_workspace);
+      out.SetPrune(cut_target);
     }
-
-    reduced.at(fidx).Reserve(intermediate_num_cuts);
-    reduced.at(fidx).SetPrune(final_sketches.at(fidx), intermediate_num_cuts);
+    retained_cuts[fidx] = static_cast<int32_t>(out.Size());
   });
   monitor_.Stop(__func__);
+  return {std::move(reduced), std::move(retained_cuts)};
 }
 
 template <typename SketchType>
 void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_bin,
                  HistogramCuts *cuts) {
-  size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+  size_t required_cuts = std::min(summary.Size(), static_cast<size_t>(max_bin));
   auto &cut_values = cuts->cut_values_.HostVector();
+  auto const entries = summary.Entries();
+  // Use raw pointer in the cut extraction loop to avoid per-access bounds checks.
+  auto const *summary_data = entries.data();
   // we use the min_value as the first (0th) element, hence starting from 1.
   for (size_t i = 1; i < required_cuts; ++i) {
-    bst_float cpt = summary.data[i].value;
+    bst_float cpt = summary_data[i].value;
     if (i == 1 || cpt > cut_values.back()) {
       cut_values.push_back(cpt);
     }
@@ -401,29 +400,32 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
   return max_cat;
 }
 
-template <typename WQSketch>
-void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const &info,
-                                             HistogramCuts *p_cuts) {
+void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
+                                   HistogramCuts *p_cuts) {
   monitor_.Start(__func__);
-  std::vector<typename WQSketch::SummaryContainer> reduced;
-  std::vector<int32_t> num_cuts;
-  this->AllReduce(ctx, info, &reduced, &num_cuts);
+  auto allreduce = this->AllReduce(ctx, info);
+  auto &reduced = std::get<0>(allreduce);
+  auto &retained_cuts = std::get<1>(allreduce);
 
   p_cuts->min_vals_.HostVector().resize(sketches_.size(), 0.0f);
-  std::vector<typename WQSketch::SummaryContainer> final_summaries(reduced.size());
+  std::vector<WQSketch::SummaryContainer> final_summaries(reduced.size());
 
   ParallelFor(reduced.size(), n_threads_, Sched::Guided(), [&](size_t fidx) {
     if (IsCat(feature_types_, fidx)) {
       return;
     }
-    typename WQSketch::SummaryContainer &a = final_summaries[fidx];
-    size_t max_num_bins = std::min(num_cuts[fidx], max_bins_);
-    a.Reserve(max_num_bins + 1);
-    CHECK(a.data);
-    if (num_cuts[fidx] != 0) {
-      a.SetPrune(reduced[fidx], max_num_bins + 1);
-      CHECK(a.data && reduced[fidx].data);
-      const bst_float mval = a.data[0].value;
+    WQSketch::SummaryContainer &a = final_summaries[fidx];
+    size_t max_num_bins = std::min(retained_cuts[fidx], max_bins_);
+    a.Reserve(std::max(reduced[fidx].Size(), max_num_bins + 1));
+    CHECK(a.Entries().data());
+    if (retained_cuts[fidx] != 0) {
+      a.CopyFrom(reduced[fidx]);
+      a.SetPrune(max_num_bins + 1);
+      auto const a_entries = a.Entries();
+      auto const reduced_entries = reduced[fidx].Entries();
+      CHECK(a_entries.data() && reduced_entries.data());
+      CHECK(!a_entries.empty());
+      const bst_float mval = a_entries.front().value;
       p_cuts->min_vals_.HostVector()[fidx] = mval - fabs(mval) - 1e-5f;
     } else {
       // Empty column.
@@ -434,15 +436,16 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
 
   float max_cat{-1.f};
   for (size_t fid = 0; fid < reduced.size(); ++fid) {
-    size_t max_num_bins = std::min(num_cuts[fid], max_bins_);
-    typename WQSketch::SummaryContainer const &a = final_summaries[fid];
+    size_t max_num_bins = std::min(retained_cuts[fid], max_bins_);
+    WQSketch::SummaryContainer const &a = final_summaries[fid];
     if (IsCat(feature_types_, fid)) {
       max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
     } else {
       AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
       // push a value that is greater than anything
+      auto const a_entries = a.Entries();
       const bst_float cpt =
-          (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
+          !a_entries.empty() ? a_entries.back().value : p_cuts->min_vals_.HostVector()[fid];
       // this must be bigger than last value in a scale
       const bst_float last = cpt + (fabs(cpt) + 1e-5f);
       p_cuts->cut_values_.HostVector().push_back(last);
@@ -459,9 +462,6 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
   monitor_.Stop(__func__);
 }
 
-template class SketchContainerImpl<WQuantileSketch<float, float>>;
-template class SketchContainerImpl<WXQuantileSketch<float, float>>;
-
 HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bins,
                                          common::Span<FeatureType const> ft,
                                          std::vector<bst_idx_t> columns_size, bool use_group)
@@ -472,8 +472,7 @@ HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bins,
     n_bins = std::max(n_bins, static_cast<decltype(n_bins)>(1));
     auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
     if (!IsCat(this->feature_types_, i)) {
-      sketches_[i].Init(columns_size_[i], eps);
-      sketches_[i].inqueue.queue.resize(sketches_[i].limit_size * 2);
+      sketches_[i] = WQSketch{columns_size_[i], eps};
     }
   });
 }
@@ -492,28 +491,15 @@ void SortedSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &
   auto view = page.GetView();
   ParallelFor(view.Size(), n_threads_, [&](size_t fidx) {
     auto column = view[fidx];
-    auto &sketch = sketches_[fidx];
-    sketch.Init(max_bins_);
-    // first pass
-    sketch.sum_total = 0.0;
-    for (auto c : column) {
-      sketch.sum_total += weights[c.index];
-    }
-    // second pass
     if (IsCat(feature_types_, fidx)) {
       for (auto c : column) {
         categories_[fidx].emplace(c.fvalue);
       }
-    } else {
-      for (auto c : column) {
-        sketch.Push(c.fvalue, weights[c.index], max_bins_);
-      }
+      return;
     }
-
-    if (!IsCat(feature_types_, fidx) && !column.empty()) {
-      sketch.Finalize(max_bins_);
-    }
+    sketches_[fidx].PushSorted(column, weights, static_cast<size_t>(max_bins_));
   });
   monitor_.Stop(__func__);
 }
+
 }  // namespace xgboost::common

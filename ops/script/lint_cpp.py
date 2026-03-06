@@ -70,7 +70,6 @@ class Lint:
                     "-build/c++11",
                     "-build/include,",
                     "+build/namespaces",
-                    "+build/include_what_you_use",
                 ]
             )
         )

@@ -21,7 +21,8 @@ auto ZeroParam() {
 GradientQuantiser DummyRoundingFactor(Context const* ctx) {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
-  return {ctx, linalg::MakeVec(ctx->Device(), dh::ToSpan(gpair)), MetaInfo()};
+  GradientQuantiserGroup group{ctx, linalg::MakeVec(ctx->Device(), dh::ToSpan(gpair)), MetaInfo()};
+  return group[0];
 }
 }  // anonymous namespace
 

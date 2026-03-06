@@ -20,7 +20,6 @@
 #include "../common/common.h"
 #include "../common/cuda_rt_utils.h"  // for AllVisibleGPUs
 #include "../common/error_msg.h"  // for UnknownDevice, WarnOldSerialization, InplacePredictProxy
-#include "../common/random.h"
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
 #include "../data/proxy_dmatrix.h"  // for DMatrixProxy, HostAdapterDispatch
@@ -112,8 +111,7 @@ void GBTree::Configure(Args const& cfg) {
 
 #if defined(XGBOOST_USE_SYCL)
   if (!sycl_predictor_) {
-    sycl_predictor_ =
-      std::unique_ptr<Predictor>(Predictor::Create("sycl_predictor", this->ctx_));
+    sycl_predictor_ = std::unique_ptr<Predictor>(Predictor::Create("sycl_predictor", this->ctx_));
   }
   sycl_predictor_->Configure(cfg);
 #endif  // defined(XGBOOST_USE_SYCL)
@@ -639,9 +637,9 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     return gpu_predictor_;
   } else {
 #if defined(XGBOOST_USE_SYCL)
-      common::AssertSYCLSupport();
-      CHECK(sycl_predictor_);
-      return sycl_predictor_;
+    common::AssertSYCLSupport();
+    CHECK(sycl_predictor_);
+    return sycl_predictor_;
 #endif  // defined(XGBOOST_USE_SYCL)
   }
 
@@ -676,7 +674,6 @@ void GPUDartInplacePredictInc(common::Span<float> /*out_predts*/, common::Span<f
 }
 #endif
 
-
 class Dart : public GBTree {
  public:
   explicit Dart(LearnerModelParam const* booster_config, Context const* ctx)
@@ -687,8 +684,8 @@ class Dart : public GBTree {
     dparam_.UpdateAllowUnknown(cfg);
   }
 
-  void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
-             GradientBooster *out, bool* out_of_bound) const final {
+  void Slice(int32_t layer_begin, int32_t layer_end, int32_t step, GradientBooster* out,
+             bool* out_of_bound) const final {
     GBTree::Slice(layer_begin, layer_end, step, out, out_of_bound);
     if (*out_of_bound) {
       return;
@@ -701,8 +698,8 @@ class Dart : public GBTree {
     });
   }
 
-  void SaveModel(Json *p_out) const override {
-    auto &out = *p_out;
+  void SaveModel(Json* p_out) const override {
+    auto& out = *p_out;
     out["name"] = String("dart");
     out["gbtree"] = Object();
     GBTree::SaveModel(&(out["gbtree"]));
@@ -746,8 +743,7 @@ class Dart : public GBTree {
     CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
     auto& predictor = this->GetPredictor(training, &p_out_preds->predictions, p_fmat);
     CHECK(predictor);
-    predictor->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
-                                  model_);
+    predictor->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions, model_);
     p_out_preds->version = 0;
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     auto n_groups = model_.learner_model_param->num_output_group;
@@ -784,8 +780,8 @@ class Dart : public GBTree {
         GPUDartPredictInc(p_out_preds->predictions.DeviceSpan(), predts.predictions.DeviceSpan(), w,
                           n_rows, n_groups, grp_idx);
       } else {
-        auto &h_out_predts = p_out_preds->predictions.HostVector();
-        auto &h_predts = predts.predictions.ConstHostVector();
+        auto& h_out_predts = p_out_preds->predictions.HostVector();
+        auto& h_predts = predts.predictions.ConstHostVector();
         common::ParallelFor(p_fmat->Info().num_row_, ctx_->Threads(), [&](auto ridx) {
           const size_t offset = ridx * n_groups + grp_idx;
           h_out_predts[offset] += (h_predts[offset] * w);
@@ -920,7 +916,7 @@ class Dart : public GBTree {
     idx_drop_.clear();
 
     std::uniform_real_distribution<> runif(0.0, 1.0);
-    auto& rnd = common::GlobalRandom();
+    auto& rnd = ctx_->Rng();
     bool skip = false;
     if (dparam_.skip_drop > 0.0) {
       skip = (runif(rnd) < dparam_.skip_drop);
@@ -942,10 +938,8 @@ class Dart : public GBTree {
           // size_t i = std::discrete_distribution<size_t>(weight_drop.begin(),
           //                                               weight_drop.end())(rnd);
           size_t i = std::discrete_distribution<size_t>(
-            weight_drop_.size(), 0., static_cast<double>(weight_drop_.size()),
-            [this](double x) -> double {
-              return weight_drop_[static_cast<size_t>(x)];
-            })(rnd);
+              weight_drop_.size(), 0., static_cast<double>(weight_drop_.size()),
+              [this](double x) -> double { return weight_drop_[static_cast<size_t>(x)]; })(rnd);
           idx_drop_.push_back(i);
         }
       } else {

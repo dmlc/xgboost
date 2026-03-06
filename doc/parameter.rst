@@ -56,6 +56,10 @@ General Parameters
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
 
+  .. deprecated:: 3.3.0
+
+    ``booster=gblinear`` is deprecated and support will be removed in a future release.
+
 * ``device`` [default= ``cpu``]
 
   .. versionadded:: 2.0.0
@@ -355,6 +359,10 @@ Additional parameters for Dart Booster (``booster=dart``)
 
 Parameters for Linear Booster (``booster=gblinear``)
 ====================================================
+.. deprecated:: 3.3.0
+
+  ``booster=gblinear`` is deprecated and support will be removed in a future release.
+
 * ``lambda`` [default=0, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative. Normalised to number of training examples.

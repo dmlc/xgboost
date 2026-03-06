@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023 by XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #ifndef XGBOOST_VERSION_CONFIG_H_
 #define XGBOOST_VERSION_CONFIG_H_

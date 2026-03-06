@@ -66,11 +66,12 @@ from pyspark.sql.types import (
 )
 from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
 
+from .._c_api import _py_version
 from .._typing import ArrayLike
 from ..collective import Config
 from ..compat import import_cupy, is_cudf_available, is_cupy_available
 from ..config import config_context, get_config
-from ..core import Booster, _check_distributed_params, _py_version
+from ..core import Booster, _check_distributed_params
 from ..sklearn import DEFAULT_N_ESTIMATORS, XGBClassifier, XGBModel, _can_use_qdm
 from ..training import train as worker_train
 from .data import (

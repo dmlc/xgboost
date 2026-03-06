@@ -181,8 +181,7 @@ class Predictor {
 struct PredictorReg
     : public dmlc::FunctionRegEntryBase<PredictorReg, std::function<Predictor*(Context const*)>> {};
 
-#define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)      \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& \
-      __make_##PredictorReg##_##UniqueId##__ =          \
-          ::dmlc::Registry<::xgboost::PredictorReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)                                               \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& __make_##PredictorReg##_##UniqueId##__ = \
+      ::dmlc::Registry<::xgboost::PredictorReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost

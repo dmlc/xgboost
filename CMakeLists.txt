@@ -336,21 +336,24 @@ if(PLUGIN_RMM)
   # Pick up patched CCCL from RMM
 elseif(USE_CUDA)
   # If using CUDA and not RMM, search for CCCL.
-  find_package(CCCL CONFIG)
+  # Use HINTS to prioritize CCCL from the same CUDA toolkit as nvcc (e.g., in conda environments).
+  # CUDAToolkit_TARGET_DIR points to the target-specific directory (e.g., targets/x86_64-linux).
+  find_package(CCCL CONFIG
+    HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
   if(CCCL_FOUND)
     message(STATUS "Standalone CCCL found.")
   else()
     message(STATUS "Standalone CCCL not found. Attempting to use CCCL from CUDA Toolkit...")
     find_package(CCCL CONFIG
-      HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+      HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
     if(NOT CCCL_FOUND)
       message(STATUS "Could not locate CCCL from CUDA Toolkit. Using Thrust and CUB from CUDA Toolkit...")
       find_package(libcudacxx CONFIG REQUIRED
-        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+        HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
       find_package(CUB CONFIG REQUIRED
-        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+        HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
       find_package(Thrust CONFIG REQUIRED
-        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+        HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
       thrust_create_target(Thrust HOST CPP DEVICE CUDA)
       add_library(CCCL::CCCL INTERFACE IMPORTED GLOBAL)
       target_link_libraries(CCCL::CCCL INTERFACE libcudacxx::libcudacxx CUB::CUB Thrust)

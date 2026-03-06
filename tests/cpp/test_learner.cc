@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -25,7 +25,6 @@
 #include "../../src/common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "../../src/common/io.h"                    // for LoadSequentialFile
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
-#include "../../src/common/random.h"                // for GlobalRandom
 #include "./collective/test_worker.h"               // for TestDistributedGlobal
 #include "dmlc/omp.h"                               // for omp_get_max_threads
 #include "filesystem.h"                             // for TemporaryDirectory
@@ -80,6 +79,20 @@ TEST(Learner, ParameterValidation) {
   // whitespace
   learner->SetParam("tree method", "exact");
   ASSERT_THAT([&] { learner->Configure(); }, GMockThrow(R"("tree method" contains whitespace)"));
+}
+
+TEST(Learner, DeprecatedGblinearBooster) {
+  auto p_mat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
+
+  std::unique_ptr<Learner> learner{Learner::Create({p_mat})};
+  learner->SetParam("booster", "gblinear");
+  learner->SetParam("verbosity", "2");
+
+  testing::internal::CaptureStderr();
+  learner->Configure();
+  auto output = testing::internal::GetCapturedStderr();
+
+  ASSERT_NE(output.find("`booster=gblinear` is deprecated"), std::string::npos);
 }
 
 TEST(Learner, CheckGroup) {
@@ -348,10 +361,10 @@ TEST(Learner, ConstantSeed) {
   std::unique_ptr<Learner> learner{Learner::Create({m})};
   // Use exact as it doesn't initialize column sampler at construction, which alters the rng.
   learner->SetParam("tree_method", "exact");
-  learner->Configure();  // seed the global random
+  learner->Configure();
 
   std::uniform_real_distribution<float> dist;
-  auto& rng = common::GlobalRandom();
+  auto& rng = learner->Ctx()->Rng();
   float v_0 = dist(rng);
 
   learner->SetParam("", "");

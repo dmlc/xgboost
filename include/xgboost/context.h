@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file context.h
  */
 #ifndef XGBOOST_CONTEXT_H_
@@ -11,12 +11,17 @@
 
 #include <cstdint>      // for int16_t, int32_t, int64_t
 #include <memory>       // for shared_ptr
+#include <random>       // for mt19937
 #include <string>       // for string, to_string
 #include <type_traits>  // for invoke_result_t, is_same_v, underlying_type_t
 
 namespace xgboost {
 
 struct CUDAContext;
+/**
+ * @brief Define mt19937 as default type Random Engine.
+ */
+using RandomEngine = std::mt19937;
 
 // symbolic names
 struct DeviceSym {
@@ -36,8 +41,13 @@ struct DeviceOrd {
   static bst_d_ordinal_t constexpr CPUOrdinal() { return -1; }
   static bst_d_ordinal_t constexpr InvalidOrdinal() { return -2; }
 
-  enum Type : std::int16_t { kCPU = 0, kCUDA = 1,
-                             kSyclDefault = 2, kSyclCPU = 3, kSyclGPU = 4} device{kCPU};
+  enum Type : std::int16_t {
+    kCPU = 0,
+    kCUDA = 1,
+    kSyclDefault = 2,
+    kSyclCPU = 3,
+    kSyclGPU = 4
+  } device{kCPU};
   // CUDA or Sycl device ordinal.
   bst_d_ordinal_t ordinal{CPUOrdinal()};
 
@@ -46,9 +56,7 @@ struct DeviceOrd {
   [[nodiscard]] bool IsSyclDefault() const { return device == kSyclDefault; }
   [[nodiscard]] bool IsSyclCPU() const { return device == kSyclCPU; }
   [[nodiscard]] bool IsSyclGPU() const { return device == kSyclGPU; }
-  [[nodiscard]] bool IsSycl() const { return (IsSyclDefault() ||
-                                              IsSyclCPU() ||
-                                              IsSyclGPU()); }
+  [[nodiscard]] bool IsSycl() const { return (IsSyclDefault() || IsSyclCPU() || IsSyclGPU()); }
 
   constexpr DeviceOrd() = default;
   constexpr DeviceOrd(Type type, bst_d_ordinal_t ord) : device{type}, ordinal{ord} {}
@@ -190,16 +198,14 @@ struct Context : public XGBoostParameter<Context> {
   /**
    * @brief Is XGBoost running on any SYCL device?
    */
-  [[nodiscard]] bool IsSycl() const { return IsSyclDefault()
-                                             || IsSyclCPU()
-                                             || IsSyclGPU(); }
+  [[nodiscard]] bool IsSycl() const { return IsSyclDefault() || IsSyclCPU() || IsSyclGPU(); }
 
   /**
    * @brief Get the current device and ordinal.
    */
   [[nodiscard]] DeviceOrd Device() const { return device_; }
 
-   /**
+  /**
    * @brief Get the current device and ordinal, if it supports fp64,
             otherwise returns default CPU
    */
@@ -217,6 +223,10 @@ struct Context : public XGBoostParameter<Context> {
    * @brief Get a CUDA device context for allocator and stream.
    */
   [[nodiscard]] CUDAContext const* CUDACtx() const;
+  /**
+   * @brief Get the random engine.
+   */
+  [[nodiscard]] RandomEngine& Rng() const { return rng_; }
 
   /**
    * @brief Make a CUDA context based on the current context.
@@ -306,6 +316,7 @@ struct Context : public XGBoostParameter<Context> {
   // shared_ptr is used instead of unique_ptr as with unique_ptr it's difficult to define
   // p_impl while trying to hide CUDA code from the host compiler.
   mutable std::shared_ptr<CUDAContext> cuctx_;
+  mutable RandomEngine rng_;
   // cached value for CFS CPU limit. (used in containerized env)
   std::int32_t cfs_cpu_count_;  // NOLINT
 };

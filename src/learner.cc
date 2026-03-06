@@ -38,7 +38,6 @@
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
 #include "common/param_array.h"           // for ParamArray
-#include "common/random.h"                // for GlobalRandom
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
 #include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
@@ -531,7 +530,7 @@ class LearnerConfiguration : public Intercept {
 
     // set seed only before the model is initialized
     if (!initialized || ctx_.seed != old_seed) {
-      common::GlobalRandom().seed(ctx_.seed);
+      ctx_.Rng().seed(ctx_.seed);
     }
 
     // must precede configure gbm since num_features is required for gbm
@@ -808,6 +807,10 @@ class LearnerConfiguration : public Intercept {
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
+    if (tparam_.booster == "gblinear") {
+      LOG(WARNING) << "`booster=gblinear` is deprecated and support will be removed in a future "
+                      "release.";
+    }
     if (gbm_ == nullptr || old.booster != tparam_.booster) {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     }
@@ -1094,7 +1097,7 @@ class LearnerImpl : public LearnerIO {
     this->FitIntercept(this->tparam_, train.get());
 
     if (ctx_.seed_per_iteration) {
-      common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
     this->ValidateDMatrix(train.get(), true);
@@ -1121,7 +1124,7 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
 
     if (ctx_.seed_per_iteration) {
-      common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
     this->ValidateDMatrix(train.get(), true);

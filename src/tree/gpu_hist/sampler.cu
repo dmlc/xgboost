@@ -162,7 +162,7 @@ void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair
   // Set gradient pair to 0 with p = 1 - subsample
   auto cuctx = ctx->CUDACtx();
   auto n_targets = gpair.Shape(1);
-  BernoulliTrial trial{common::GlobalRandom()(), subsample_};
+  BernoulliTrial trial{ctx->Rng()(), subsample_};
   thrust::replace_if(
       cuctx->CTP(), linalg::tbegin(gpair), linalg::tend(gpair), thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) {
@@ -300,7 +300,7 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<Gradie
   auto threshold_index = CalcThresholdIndex(ctx, dh::ToSpan(reg_abs_grad_), dh::ToSpan(thresholds_),
                                             dh::ToSpan(grad_csum_), sample_rows);
 
-  auto seed = common::GlobalRandom()();
+  auto seed = ctx->Rng()();
   // Perform sequential Poisson sampling in place.
   // Only the threshold_[threshold_index] is used. (that is the \mu in the paper)
   thrust::transform(cuctx->CTP(), linalg::tcbegin(gpair), linalg::tcend(gpair),

@@ -9,14 +9,11 @@
 #include <vector>
 
 #include "algorithm.h"        // for StableSort
+#include "common.h"           // AssertGPUSupport,AssertSYCLSupport
 #include "optional_weight.h"  // OptionalWeights
 #include "xgboost/context.h"  // Context
 #include "xgboost/linalg.h"   // TensorView,VectorView
 #include "xgboost/logging.h"  // CHECK_GE
-
-#if !defined(XGBOOST_USE_CUDA)
-#include "common.h"  // AssertGPUSupport
-#endif
 
 namespace xgboost {
 namespace common {
@@ -139,6 +136,17 @@ inline void WeightedSampleMean(Context const*, bool, linalg::MatrixView<float co
 
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
+
+namespace sycl_impl {
+void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorView<float> out);
+
+#if !defined(XGBOOST_USE_SYCL)
+inline void Mean(Context const*, linalg::VectorView<float const>, linalg::VectorView<float>) {
+  common::AssertSYCLSupport();
+}
+
+#endif  // !defined(XGBOOST_USE_SYCL)
+}  // namespace sycl_impl
 
 /**
  * @brief Calculate medians for each column of the input matrix.

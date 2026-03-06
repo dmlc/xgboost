@@ -1,6 +1,11 @@
 name: XGBoost CI (Lint)
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+      - 'release_*'
+  pull_request:
 
 permissions:
   contents: read  # to fetch code (actions/checkout)
@@ -21,7 +26,7 @@ jobs:
       - runner=linux-amd64-cpu
       - tag=lint-clang-tidy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -32,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Type checks for the Python package
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
