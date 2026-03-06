@@ -7,6 +7,7 @@
 #include <cstdint>  // for uint64_t
 #include <iterator>
 #include <limits>
+#include <type_traits>  // for is_trivially_copyable_v
 #include <utility>
 
 #include "../collective/aggregator.h"
@@ -72,6 +73,8 @@ template <typename T>
 [[nodiscard]] T ReadPOD(Span<std::byte const> bytes, std::size_t *cursor) {
   static_assert(std::is_trivially_copyable_v<T>);
   T value{};
+  CHECK_LE(*cursor, bytes.size());
+  CHECK_LE(sizeof(T), bytes.size() - *cursor);
   auto *dst = reinterpret_cast<std::byte *>(&value);
   std::copy_n(bytes.data() + *cursor, sizeof(T), dst);
   *cursor += sizeof(T);
@@ -446,6 +449,8 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
             Span<std::byte>{const_cast<std::byte *>(a.data()), a.size()});
         auto b_payload = SketchReducePayload::Parse(
             Span<std::byte>{const_cast<std::byte *>(b.data()), b.size()});
+        CHECK_EQ(a_payload.NumFeatures(), numeric_features.size());
+        CHECK_EQ(b_payload.NumFeatures(), numeric_features.size());
 
         auto max_entries = a_payload.TotalEntries() + b_payload.TotalEntries();
         auto max_pruned_entries = max_cut_target * numeric_features.size();

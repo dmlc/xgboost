@@ -35,7 +35,7 @@ def test_wait() -> None:
     with pytest.raises(ValueError, match="Timeout waiting for the tracker"):
         tracker.wait_for(1)
 
-    with pytest.raises(ValueError, match=r"Failed to (accept|call `getsockopt)"):
+    with pytest.raises(ValueError, match=r"Failed to (accept|call `getsockopt`)"):
         tracker.free()
 
 

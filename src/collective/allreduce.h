@@ -182,6 +182,10 @@ ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
   if (!rc.OK()) {
     return Fail("ReduceV failed to broadcast reduced size.", std::move(rc));
   }
+  if (reduced_size == 0) {
+    data->clear();
+    return Success();
+  }
   if (rank != kRoot) {
     data->resize(static_cast<std::size_t>(reduced_size));
   }

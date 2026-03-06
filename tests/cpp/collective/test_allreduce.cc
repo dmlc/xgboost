@@ -93,18 +93,7 @@ class AllreduceWorker : public WorkerForTest {
       }
     };
 
-    {
-      std::vector<std::int32_t> data(comm_.Rank() + 1, 1);
-      auto rc = ReduceV(comm_, &data, reduce_fn);
-      SafeColl(rc);
-
-      ASSERT_EQ(data.size(), static_cast<std::size_t>(comm_.World()));
-      for (std::size_t i = 0; i < data.size(); ++i) {
-        ASSERT_EQ(data[i], comm_.World() - static_cast<std::int32_t>(i));
-      }
-    }
-
-    {
+    for (std::size_t trial = 0; trial < 2; ++trial) {
       std::vector<std::int32_t> data(comm_.Rank() + 1, 1);
       auto rc = ReduceV(comm_, &data, reduce_fn);
       SafeColl(rc);
