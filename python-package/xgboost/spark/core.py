@@ -1784,12 +1784,14 @@ class SparkXGBModelWriter(MLWriter):
 
         # Write model preserving row ordering
         indexed_chunks = [[i, c] for i, c in enumerate(booster_chunks)]
-        (_get_spark_session()
+        (
+            _get_spark_session()
             .createDataFrame(indexed_chunks, ["idx", "value"])
             .repartition(1)
             .sortWithinPartitions("idx")
             .select("value")
-            .write.text(model_save_path))
+            .write.text(model_save_path)
+         )
 
 
 class SparkXGBModelReader(MLReader):
