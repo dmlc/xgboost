@@ -54,7 +54,7 @@ option(BUILD_STATIC_LIB "Build static library" OFF)
 option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
 option(BUILD_WITH_GIT_HASH "Add a short git hash to the build info." OFF)
-option(SYSTEM_DMLC "Use system package for dmlc." OFF)
+option(BUILD_WITH_SYSTEM_DMLC "Use system package for dmlc." OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -290,7 +290,7 @@ endif()
 
 # dmlc-core
 set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
-if(SYSTEM_DMLC)
+if(BUILD_WITH_SYSTEM_DMLC)
   find_package(dmlc REQUIRED)
 else()
   set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
@@ -309,7 +309,7 @@ endif()
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 # dmlc-core
-if(BUIILD_WTIH_DMLC_SYSTEM)
+if(BUIILD_WTIH_SYSTEM_DMLC)
    target_link_libraries(objxgboost PUBLIC ${dmlc-LIBRARIES})
 else()
   target_link_libraries(objxgboost PUBLIC dmlc)
@@ -389,6 +389,7 @@ endif()
 if(BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
 else()
+  # Provide versioned shared object
   add_library(xgboost SHARED)
   set_target_properties(xgboost PROPERTIES
     VERSION ${PROJECT_VERSION}
@@ -407,7 +408,7 @@ foreach(target xgboost objxgboost)
   xgboost_target_link_libraries(${target})
   xgboost_target_defs(${target})
 endforeach()
-if(NOT SYSTEM_DMLC)
+if(NOT BUILD_WITH_SYSTEM_DMLC)
   xgboost_target_properties(dmlc)
   xgboost_target_link_libraries(dmlc)
   xgboost_target_defs(dmlc)
