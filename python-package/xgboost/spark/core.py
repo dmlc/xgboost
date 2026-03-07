@@ -1782,9 +1782,14 @@ class SparkXGBModelWriter(MLWriter):
         for offset in range(0, len(booster), _MODEL_CHUNK_SIZE):
             booster_chunks.append(booster[offset : offset + _MODEL_CHUNK_SIZE])
 
-        _get_spark_session().createDataFrame([[c] for c in booster_chunks]).repartition(
-            1
-        ).write.text(model_save_path)
+        # Write model preserving row ordering
+        indexed_chunks = [[i, c] for i, c in enumerate(booster_chunks)]
+        (_get_spark_session()
+            .createDataFrame(indexed_chunks, ["idx", "value"])
+            .repartition(1)
+            .sortWithinPartitions("idx")
+            .select("value")
+            .write.text(model_save_path))
 
 
 class SparkXGBModelReader(MLReader):
