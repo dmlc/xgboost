@@ -154,7 +154,9 @@ def _is_local(spark_session: SparkSession) -> bool:
     # In Spark Connect, we check the spark.master configuration if available.
     # Note: This might not be accurate if spark.master is not set in RuntimeConfig.
     master = spark_session.conf.get("spark.master", None)
-    return master is not None and master.startswith("local")
+    return master is not None and (
+        master == "local" or master.startswith("local[")
+    )
 
 
 def _is_standalone_or_localcluster(conf: RuntimeConfig) -> bool:
