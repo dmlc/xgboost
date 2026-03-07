@@ -1791,7 +1791,7 @@ class SparkXGBModelWriter(MLWriter):
             .sortWithinPartitions("idx")
             .select("value")
             .write.text(model_save_path)
-         )
+        )
 
 
 class SparkXGBModelReader(MLReader):
