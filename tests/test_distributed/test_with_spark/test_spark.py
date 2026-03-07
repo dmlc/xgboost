@@ -178,7 +178,7 @@ def spark(request: pytest.FixtureRequest) -> Generator[SparkSession, None, None]
     if mode in {"local_cluster", "local_cluster_connect", "local_cluster_gpu"}:
         # Block until workers are connected.
         num_slots = int(sess.conf.get("spark.cores.max", "2"))
-        sess.range(num_slots).repartition(num_slots).foreach(lambda _: None)
+        sess.range(num_slots).repartition(num_slots).count()
     try:
         yield sess
     finally:
