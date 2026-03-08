@@ -78,7 +78,7 @@ Allreduce(Context const* ctx, T* data, Op op) {
 }
 
 /**
- * @brief Reduce a variable-length vector over `comm` and broadcast the result to all ranks.
+ * @brief Allreduce a variable-length vector over `comm`.
  *
  * The method performs a tree reduction rooted at rank 0 using `redop`, then broadcasts
  * the result so every rank ends with the same reduced payload in `data`.
@@ -90,9 +90,9 @@ Allreduce(Context const* ctx, T* data, Op op) {
 template <typename T, typename Fn>
 std::enable_if_t<
     std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
-ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
+AllreduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
   static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
-                "ReduceV supports only standard-layout trivially-copyable types.");
+                "AllreduceV supports only standard-layout trivially-copyable types.");
   CHECK(data);
   if (!comm.IsDistributed() || comm.World() == 1) {
     return Success();
@@ -159,7 +159,7 @@ ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
       auto parent = shifted_rank - step;
       auto rc = send(parent, *data);
       if (!rc.OK()) {
-        return Fail("ReduceV failed to send data to parent.", std::move(rc));
+        return Fail("AllreduceV failed to send data to parent.", std::move(rc));
       }
       continue_reduce = false;
       continue;
@@ -168,7 +168,7 @@ ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
       auto child = shifted_rank + step;
       auto rc = recv(child, &incoming);
       if (!rc.OK()) {
-        return Fail("ReduceV failed to receive data from child.", std::move(rc));
+        return Fail("AllreduceV failed to receive data from child.", std::move(rc));
       }
       out.clear();
       redop(common::Span<T const>{data->data(), data->size()},
@@ -180,7 +180,7 @@ ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
   std::int64_t reduced_size = static_cast<std::int64_t>(rank == kRoot ? data->size() : 0);
   auto rc = Broadcast(comm, common::Span<std::int64_t>{&reduced_size, 1}, kRoot);
   if (!rc.OK()) {
-    return Fail("ReduceV failed to broadcast reduced size.", std::move(rc));
+    return Fail("AllreduceV failed to broadcast reduced size.", std::move(rc));
   }
   if (reduced_size == 0) {
     data->clear();
@@ -192,7 +192,7 @@ ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
   auto reduced = common::Span<T>{data->data(), static_cast<std::size_t>(reduced_size)};
   rc = Broadcast(comm, reduced, kRoot);
   if (!rc.OK()) {
-    return Fail("ReduceV failed to broadcast reduced payload.", std::move(rc));
+    return Fail("AllreduceV failed to broadcast reduced payload.", std::move(rc));
   }
   return Success();
 }
@@ -200,18 +200,18 @@ ReduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
 template <typename T, typename Fn>
 std::enable_if_t<
     std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
-ReduceV(Context const* ctx, CommGroup const& comm, std::vector<T>* data, Fn redop) {
+AllreduceV(Context const* ctx, CommGroup const& comm, std::vector<T>* data, Fn redop) {
   if (!comm.IsDistributed()) {
     return Success();
   }
   auto const& cctx = comm.Ctx(ctx, DeviceOrd::CPU());
-  return ReduceV(cctx, data, redop);
+  return AllreduceV(cctx, data, redop);
 }
 
 template <typename T, typename Fn>
 std::enable_if_t<
     std::is_invocable_v<Fn, common::Span<T const>, common::Span<T const>, std::vector<T>*>, Result>
-ReduceV(Context const* ctx, std::vector<T>* data, Fn redop) {
-  return ReduceV(ctx, *GlobalCommGroup(), data, redop);
+AllreduceV(Context const* ctx, std::vector<T>* data, Fn redop) {
+  return AllreduceV(ctx, *GlobalCommGroup(), data, redop);
 }
 }  // namespace xgboost::collective

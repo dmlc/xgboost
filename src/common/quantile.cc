@@ -81,7 +81,7 @@ template <typename T>
   return value;
 }
 
-// Serialization payload for distributed numerical sketch merging over ReduceV.
+// Serialization payload for distributed numerical sketch merging over AllreduceV.
 // Encodes per-feature entry counts plus contiguous sketch entries.
 struct SketchReducePayload {
   [[nodiscard]] static std::vector<std::byte> SerializeFromSummaries(
@@ -184,7 +184,7 @@ struct SketchReducePayload {
   Span<WQuantileSketch::Entry> entries_;
 };
 
-// Serialization payload for distributed categorical value union over ReduceV.
+// Serialization payload for distributed categorical value union over AllreduceV.
 // Encodes per-feature value counts plus contiguous category values.
 struct CategoricalReducePayload {
   [[nodiscard]] static std::vector<std::byte> SerializeFromCategories(
@@ -375,7 +375,7 @@ auto SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const
   auto merged =
       CategoricalReducePayload::SerializeFromCategories(categorical_features, categories_);
   std::vector<float> merge_workspace;
-  auto rc = collective::ReduceV(
+  auto rc = collective::AllreduceV(
       ctx, &merged,
       [&](common::Span<std::byte const> a, common::Span<std::byte const> b,
           std::vector<std::byte> *out) {
@@ -441,7 +441,7 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
       Span<bst_feature_t const>{numeric_features}, reduced);
   WQSketch::SummaryContainer tmp;
   tmp.Reserve(max_cut_target * 2);  // workspace for merging sketches during allreduce
-  auto reduce_rc = collective::ReduceV(
+  auto reduce_rc = collective::AllreduceV(
       ctx, &merged,
       [&](common::Span<std::byte const> a, common::Span<std::byte const> b,
           std::vector<std::byte> *out) {

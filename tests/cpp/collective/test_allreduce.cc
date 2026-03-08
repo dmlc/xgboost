@@ -81,7 +81,7 @@ class AllreduceWorker : public WorkerForTest {
     }
   }
 
-  void VariableReduce() {
+  void VariableAllreduce() {
     auto reduce_fn = [](auto a, auto b, std::vector<std::int32_t>* out) {
       auto n = std::max(a.size(), b.size());
       out->assign(n, 0);
@@ -95,7 +95,7 @@ class AllreduceWorker : public WorkerForTest {
 
     for (std::size_t trial = 0; trial < 2; ++trial) {
       std::vector<std::int32_t> data(comm_.Rank() + 1, 1);
-      auto rc = ReduceV(comm_, &data, reduce_fn);
+      auto rc = AllreduceV(comm_, &data, reduce_fn);
       SafeColl(rc);
 
       ASSERT_EQ(data.size(), static_cast<std::size_t>(comm_.World()));
@@ -136,12 +136,12 @@ TEST_F(AllreduceTest, BitOr) {
   });
 }
 
-TEST_F(AllreduceTest, ReduceV) {
+TEST_F(AllreduceTest, AllreduceV) {
   std::int32_t n_workers = std::min(7u, std::thread::hardware_concurrency());
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     AllreduceWorker worker{host, port, timeout, n_workers, r};
-    worker.VariableReduce();
+    worker.VariableAllreduce();
   });
 }
 
