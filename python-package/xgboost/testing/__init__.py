@@ -752,7 +752,7 @@ def run_with_rabit(
 
     def run_worker(rabit_env: Dict[str, Union[str, int]]) -> None:
         try:
-            with xgb.collective.CommunicatorContext(**rabit_env, cfg=None):
+            with xgb.collective.CommunicatorContext(**rabit_env):
                 test_fn(*args, **kwargs)
         except Exception as e:  # pylint: disable=broad-except
             exception_queue.put(e)

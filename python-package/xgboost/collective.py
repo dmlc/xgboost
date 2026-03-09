@@ -53,7 +53,7 @@ class Config:
         port. When workers run on different hosts, they can all share the same port
         number.
 
-        This can be an integer for a fixed port shared by all workers, or a callback
+        This can be an integer for a fixed port used by all workers, or a callback
         function that takes no arguments and returns a port number. The callback is
         invoked per-worker at the worker side.
 
@@ -68,13 +68,15 @@ class Config:
 
     worker_port: Optional[Union[Callable[[], int], int]] = None
 
-    def resolve_worker_port(self) -> Optional[int]:
-        """Resolve the worker port for the current worker."""
+    def update_worker_args(self, args: _Conf) -> _Conf:
+        """Worker side arguments resolution."""
         if self.worker_port is None:
-            return None
+            return args
         if callable(self.worker_port):
-            return self.worker_port()
-        return self.worker_port
+            args["dmlc_worker_port"] = self.worker_port()
+        else:
+            args["dmlc_worker_port"] = self.worker_port
+        return args
 
     def get_comm_config(self, args: _Conf) -> _Conf:
         """Update the arguments for the communicator."""
@@ -352,8 +354,7 @@ def _find_nccl() -> Optional[str]:
 class CommunicatorContext:
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, *, cfg: Optional[Config] = None, **args: _ArgVals) -> None:
-        self.cfg: Optional[Config] = cfg
+    def __init__(self, **args: _ArgVals) -> None:
         self.args = args
         key = "dmlc_nccl_path"
         if args.get(key, None) is not None:
@@ -372,10 +373,6 @@ class CommunicatorContext:
             pass
 
     def __enter__(self) -> _Args:
-        if self.cfg is not None:
-            port = self.cfg.resolve_worker_port()
-            if port is not None:
-                self.args["dmlc_worker_port"] = port
         init(**self.args)
         assert is_distributed()
         LOGGER.debug("-------------- communicator say hello ------------------")

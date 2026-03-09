@@ -1120,10 +1120,13 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             if not launch_tracker_on_driver:
                 _rabit_args = json.loads(messages[0])["rabit_msg"]
 
+            if conf is not None:
+                _rabit_args = conf.update_worker_args(_rabit_args)
+
             evals_result: Dict[str, Any] = {}
             with (
                 config_context(verbosity=verbosity, use_rmm=use_rmm),
-                CommunicatorContext(context, coll_cfg=conf, **_rabit_args),
+                CommunicatorContext(context, **_rabit_args),
             ):
                 dtrain, dvalid = create_dmatrix_from_partitions(
                     iterator=pandas_df_iter,
