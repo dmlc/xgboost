@@ -85,6 +85,8 @@ CommGroup::CommGroup()
     auto tracker_port = get_param("dmlc_tracker_port", static_cast<std::int64_t>(0), Integer{});
     auto nccl = get_param("dmlc_nccl_path", std::string{DefaultNcclName()}, String{});
     auto worker_port = get_param("dmlc_worker_port", static_cast<std::int64_t>(0), Integer{});
+    CHECK_LE(worker_port, std::numeric_limits<in_port_t>::max());
+    CHECK_LE(tracker_port, std::numeric_limits<in_port_t>::max());
     auto ptr = new CommGroup{std::shared_ptr<RabitComm>{new RabitComm{
                                  // NOLINT
                                  tracker_host, static_cast<std::int32_t>(tracker_port),
