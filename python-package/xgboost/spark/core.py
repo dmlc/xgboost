@@ -1641,11 +1641,11 @@ class _SparkXGBSharedReadWrite:
         if instance.isDefined("coll_cfg"):
             conf: Config = instance.getOrDefault("coll_cfg")
             if conf is not None:
-                d = asdict(conf)
-                if callable(conf.worker_port):
-                    d.pop("worker_port", None)
-                    logger.warning("The `worker_port` is not serialized.")
-                extraMetadata["coll_cfg"] = d
+                extraMetadata["coll_cfg"] = {
+                    k: v for k, v in asdict(conf).items() if not callable(v)
+                }
+            if callable(conf.worker_port):
+                logger.warning("The `worker_port` is not serialized.")
 
         DefaultParamsWriter.saveMetadata(
             instance, path, sc, extraMetadata=extraMetadata, paramMap=jsonParams
