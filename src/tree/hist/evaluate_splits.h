@@ -280,9 +280,6 @@ class HistEvaluator {
     // bin boundaries
     CHECK_LE(cut_ptr[fidx], static_cast<uint32_t>(std::numeric_limits<bst_bin_t>::max()));
     CHECK_LE(cut_ptr[fidx + 1], static_cast<uint32_t>(std::numeric_limits<bst_bin_t>::max()));
-    // imin: index (offset) of the minimum value for feature fid need this for backward
-    //       enumeration
-    const auto imin = static_cast<bst_bin_t>(cut_ptr[fidx]);
     // ibegin, iend: smallest/largest cut points for feature fid use int to allow for
     // value -1
     bst_bin_t ibegin, iend;
@@ -530,8 +527,6 @@ class HistMultiEvaluator {
       ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
       iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
     }
-    const auto imin = static_cast<bst_bin_t>(cut_ptr[fidx]);
-
     auto n_targets = hist.size();
     auto weight = linalg::Empty<float>(ctx_, 2, n_targets);
     auto left_weight = weight.Slice(0, linalg::All());
