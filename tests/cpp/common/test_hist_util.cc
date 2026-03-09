@@ -167,7 +167,6 @@ TEST(HistUtil, DenseCutsCategorical) {
       auto dmat = GetDMatrixFromData(x, n, 1);
       HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
       auto cuts_from_sketch = cuts.Values();
-      EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
       EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
       EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
       EXPECT_EQ(cuts_from_sketch.size(), static_cast<size_t>(num_categories));
@@ -367,9 +366,6 @@ void TestSketchFromWeights(bool with_group) {
     HistogramCuts non_weighted = SketchOnDMatrix(&ctx, m.get(), kBins);
     for (size_t i = 0; i < cuts.Values().size(); ++i) {
       EXPECT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
-    }
-    for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
-      ASSERT_EQ(cuts.MinValues()[i], non_weighted.MinValues()[i]);
     }
     for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
       ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));

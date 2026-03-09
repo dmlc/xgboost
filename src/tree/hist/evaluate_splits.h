@@ -316,11 +316,7 @@ class HistEvaluator {
               static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
                                                          GradStats{left_sum}) -
                                  parent.root_gain);
-          if (i == imin) {
-            split_pt = cut.MinValues()[fidx];
-          } else {
-            split_pt = cut_val[i - 1];
-          }
+          split_pt = common::HistogramCuts::NumericBinLowerBound(cut_ptr, cut_val, fidx, i);
           best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
         }
       }
@@ -521,7 +517,6 @@ class HistMultiEvaluator {
                       SplitEntryContainer<std::vector<GradientPairPrecise>> *p_best) const {
     auto const &cut_ptr = cut.Ptrs();
     auto const &cut_val = cut.Values();
-    auto const &min_val = cut.MinValues();
 
     auto sum = linalg::Empty<GradientPairPrecise>(ctx_, 2, hist.size());
     auto left_sum = sum.Slice(0, linalg::All());
@@ -557,12 +552,7 @@ class HistMultiEvaluator {
             parent_gain;
         p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
       } else {
-        float split_pt;
-        if (i == imin) {
-          split_pt = min_val[fidx];
-        } else {
-          split_pt = cut_val[i - 1];
-        }
+        auto split_pt = common::HistogramCuts::NumericBinLowerBound(cut_ptr, cut_val, fidx, i);
         auto loss_chg =
             MultiCalcSplitGain(*param_, right_sum, left_sum, left_weight, right_weight) -
             parent_gain;

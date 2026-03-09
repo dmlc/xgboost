@@ -47,7 +47,6 @@ TEST(GHistIndexPageRawFormat, IO) {
   for (auto const &gidx : m->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
     auto const &loaded = gidx;
     ASSERT_EQ(loaded.cut.Ptrs(), page.cut.Ptrs());
-    ASSERT_EQ(loaded.cut.MinValues(), page.cut.MinValues());
     ASSERT_EQ(loaded.cut.Values(), page.cut.Values());
     ASSERT_EQ(loaded.base_rowid, page.base_rowid);
     ASSERT_EQ(loaded.row_ptr.size(), page.row_ptr.size());

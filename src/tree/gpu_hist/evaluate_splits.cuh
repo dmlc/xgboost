@@ -37,7 +37,6 @@ struct EvaluateSplitSharedInputs {
   common::Span<FeatureType const> feature_types;
   common::Span<const uint32_t> feature_segments;
   common::Span<const float> feature_values;
-  common::Span<const float> min_fvalue;
   bool is_dense;
   [[nodiscard]] XGBOOST_DEVICE auto Features() const { return feature_segments.size() - 1; }
   [[nodiscard]] __device__ std::uint32_t FeatureBins(bst_feature_t fidx) const {
@@ -224,8 +223,6 @@ struct MultiEvaluateSplitSharedInputs {
   common::Span<std::uint32_t const> feature_segments;
   // cut values
   float const *feature_values;
-  // min cut values
-  float const *min_values;
   // Number of bins for one feature and one target
   bst_bin_t n_bins_per_feat_tar;
   bst_feature_t max_active_feature;

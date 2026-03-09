@@ -172,8 +172,6 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   auto const& dptrs = distributed_cuts.Ptrs();
   auto const& svals = single_node_cuts.Values();
   auto const& dvals = distributed_cuts.Values();
-  auto const& smins = single_node_cuts.MinValues();
-  auto const& dmins = distributed_cuts.MinValues();
 
   ASSERT_EQ(sptrs.size(), dptrs.size());
   for (size_t i = 0; i < sptrs.size(); ++i) {
@@ -183,11 +181,6 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   ASSERT_EQ(svals.size(), dvals.size());
   for (size_t i = 0; i < svals.size(); ++i) {
     ASSERT_NEAR(svals[i], dvals[i], 2e-2f);
-  }
-
-  ASSERT_EQ(smins.size(), dmins.size());
-  for (size_t i = 0; i < smins.size(); ++i) {
-    ASSERT_FLOAT_EQ(smins[i], dmins[i]);
   }
 }
 
@@ -300,8 +293,6 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
   auto const& dptrs = distributed_cuts.Ptrs();
   auto const& svals = single_node_cuts.Values();
   auto const& dvals = distributed_cuts.Values();
-  auto const& smins = single_node_cuts.MinValues();
-  auto const& dmins = distributed_cuts.MinValues();
 
   EXPECT_EQ(sptrs.size(), dptrs.size());
   for (size_t i = 0; i < sptrs.size(); ++i) {
@@ -311,11 +302,6 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
   EXPECT_EQ(svals.size(), dvals.size());
   for (size_t i = 0; i < svals.size(); ++i) {
     EXPECT_NEAR(svals[i], dvals[i], 2e-2f) << "rank: " << rank << ", i: " << i;
-  }
-
-  EXPECT_EQ(smins.size(), dmins.size());
-  for (size_t i = 0; i < smins.size(); ++i) {
-    EXPECT_FLOAT_EQ(smins[i], dmins[i]) << "rank: " << rank << ", i: " << i;
   }
 }
 
@@ -371,40 +357,28 @@ void TestSameOnAllWorkers() {
     std::vector<float> cut_values(cuts.Values().size() * world, 0);
     std::vector<typename std::remove_reference_t<decltype(cuts.Ptrs())>::value_type> cut_ptrs(
         cuts.Ptrs().size() * world, 0);
-    std::vector<float> cut_min_values(cuts.MinValues().size() * world, 0);
 
     std::int64_t value_size = cuts.Values().size();
     std::int64_t ptr_size = cuts.Ptrs().size();
-    std::int64_t min_value_size = cuts.MinValues().size();
 
     auto rc = collective::Success() << [&] {
       return collective::Allreduce(&ctx, &value_size, collective::Op::kMax);
     } << [&] {
       return collective::Allreduce(&ctx, &ptr_size, collective::Op::kMax);
-    } << [&] {
-      return collective::Allreduce(&ctx, &min_value_size, collective::Op::kMax);
     };
     collective::SafeColl(rc);
     ASSERT_EQ(ptr_size, kCols + 1);
-    ASSERT_EQ(min_value_size, kCols);
 
     std::size_t value_offset = value_size * rank;
     std::copy(cuts.Values().begin(), cuts.Values().end(), cut_values.begin() + value_offset);
     std::size_t ptr_offset = ptr_size * rank;
     std::copy(cuts.Ptrs().cbegin(), cuts.Ptrs().cend(), cut_ptrs.begin() + ptr_offset);
-    std::size_t min_values_offset = min_value_size * rank;
-    std::copy(cuts.MinValues().cbegin(), cuts.MinValues().cend(),
-              cut_min_values.begin() + min_values_offset);
 
     rc = std::move(rc) << [&] {
       return collective::Allreduce(&ctx, linalg::MakeVec(cut_values.data(), cut_values.size()),
                                    collective::Op::kSum);
     } << [&] {
       return collective::Allreduce(&ctx, linalg::MakeVec(cut_ptrs.data(), cut_ptrs.size()),
-                                   collective::Op::kSum);
-    } << [&] {
-      return collective::Allreduce(&ctx,
-                                   linalg::MakeVec(cut_min_values.data(), cut_min_values.size()),
                                    collective::Op::kSum);
     };
     collective::SafeColl(rc);
@@ -418,11 +392,6 @@ void TestSameOnAllWorkers() {
       for (std::int64_t j = 0; j < ptr_size; ++j) {
         size_t idx = i * ptr_size + j;
         EXPECT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
-      }
-
-      for (std::int64_t j = 0; j < min_value_size; ++j) {
-        size_t idx = i * min_value_size + j;
-        ASSERT_EQ(cuts.MinValues().at(j), cut_min_values.at(idx));
       }
     }
   });

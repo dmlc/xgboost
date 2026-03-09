@@ -493,7 +493,7 @@ void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_b
   auto const entries = summary.Entries();
   // Use raw pointer in the cut extraction loop to avoid per-access bounds checks.
   auto const *summary_data = entries.data();
-  // we use the min_value as the first (0th) element, hence starting from 1.
+  // summary[0] is the observed minimum; the first bin lower bound is implicit.
   for (size_t i = 1; i < required_cuts; ++i) {
     bst_float cpt = summary_data[i].value;
     if (i == 1 || cpt > cut_values.back()) {
@@ -538,21 +538,12 @@ HistogramCuts SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &
   auto reduced_categories =
       this->AllreduceCategories(ctx, info, Span<bst_feature_t const>{categorical_features});
 
-  auto &h_min_vals = p_cuts->min_vals_.HostVector();
   auto &h_cut_ptrs = p_cuts->cut_ptrs_.HostVector();
   // Prune size down to max_bins + 1 (reserve one extra for the max value)
   // before extracting cut points.
   ParallelFor(numeric_features.size(), n_threads_, Sched::Guided(), [&](size_t idx) {
     auto fidx = numeric_features[idx];
     reduced_numerical.at(fidx).SetPrune(max_bins_ + 1);  // reserve one extra for the max value
-    if (!reduced_numerical[fidx].Empty()) {
-      const bst_float mval = reduced_numerical[fidx].Entries().front().value;
-      h_min_vals[fidx] = mval - fabs(mval) - 1e-5f;
-    } else {
-      // Empty column.
-      const float mval = 1e-5f;
-      h_min_vals[fidx] = mval;
-    }
   });
 
   float max_cat{-1.f};
@@ -568,7 +559,7 @@ HistogramCuts SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &
       AddCutPoint<WQSketch>(reduced_numerical[fid], max_num_bins, p_cuts);
       // push a value that is greater than anything
       auto const a_entries = reduced_numerical[fid].Entries();
-      const bst_float cpt = !a_entries.empty() ? a_entries.back().value : h_min_vals[fid];
+      const bst_float cpt = !a_entries.empty() ? a_entries.back().value : 1e-5f;
       // this must be bigger than last value in a scale
       const bst_float last = cpt + (fabs(cpt) + 1e-5f);
       p_cuts->cut_values_.HostVector().push_back(last);

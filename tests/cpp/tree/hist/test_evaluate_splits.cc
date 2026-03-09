@@ -214,7 +214,6 @@ TEST(HistMultiEvaluator, Evaluate) {
   common::HistogramCuts cuts{2};
   cuts.cut_ptrs_ = {0, 2, 4};
   cuts.cut_values_ = {0.5, 1.0, 2.0, 3.0};
-  cuts.min_vals_ = {-0.2, 1.8};
 
   std::vector<MultiExpandEntry> entries(1, {/*nidx=*/0, /*depth=*/0});
 

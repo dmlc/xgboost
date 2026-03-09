@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstddef>  // for size_t
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -50,7 +51,7 @@ void TestPartitioner(bst_target_t n_targets) {
     common::ColumnMatrix column_indices;
     column_indices.InitFromSparse(page, gmat, 0.5, ctx.Threads());
     {
-      auto min_value = gmat.cut.MinValues()[split_ind];
+      auto min_value = -std::numeric_limits<float>::infinity();
       RegTree tree{n_targets, n_features};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
       if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
@@ -201,7 +202,7 @@ void TestColumnSplitPartitioner(bst_target_t n_targets) {
     bst_feature_t const split_ind = 0;
     common::ColumnMatrix column_indices;
     column_indices.InitFromSparse(page, gmat, 0.5, ctx.Threads());
-    min_value = gmat.cut.MinValues()[split_ind];
+    min_value = -std::numeric_limits<float>::infinity();
 
     auto ptr = gmat.cut.Ptrs()[split_ind + 1];
     mid_value = gmat.cut.Values().at(ptr / 2);

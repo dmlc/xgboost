@@ -8,6 +8,7 @@
 #define XGBOOST_COMMON_HIST_UTIL_H_
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>  // for uint32_t
 #include <limits>
 #include <map>
@@ -43,7 +44,6 @@ class HistogramCuts {
   void Swap(HistogramCuts&& that) noexcept(true) {
     std::swap(cut_values_, that.cut_values_);
     std::swap(cut_ptrs_, that.cut_ptrs_);
-    std::swap(min_vals_, that.min_vals_);
 
     std::swap(has_categorical_, that.has_categorical_);
     std::swap(max_cat_, that.max_cat_);
@@ -52,10 +52,8 @@ class HistogramCuts {
   void Copy(HistogramCuts const& that) {
     cut_values_.Resize(that.cut_values_.Size());
     cut_ptrs_.Resize(that.cut_ptrs_.Size());
-    min_vals_.Resize(that.min_vals_.Size());
     cut_values_.Copy(that.cut_values_);
     cut_ptrs_.Copy(that.cut_ptrs_);
-    min_vals_.Copy(that.min_vals_);
     has_categorical_ = that.has_categorical_;
     max_cat_ = that.max_cat_;
   }
@@ -63,8 +61,6 @@ class HistogramCuts {
  public:
   HostDeviceVector<float> cut_values_;   // NOLINT
   HostDeviceVector<uint32_t> cut_ptrs_;  // NOLINT
-  // storing minimum value in a sketch set.
-  HostDeviceVector<float> min_vals_;  // NOLINT
 
   HistogramCuts() = delete;
   explicit HistogramCuts(bst_feature_t n_features);
@@ -91,7 +87,6 @@ class HistogramCuts {
 
   std::vector<uint32_t> const& Ptrs() const { return cut_ptrs_.ConstHostVector(); }
   std::vector<float> const& Values() const { return cut_values_.ConstHostVector(); }
-  std::vector<float> const& MinValues() const { return min_vals_.ConstHostVector(); }
 
   [[nodiscard]] bool HasCategorical() const { return has_categorical_; }
   [[nodiscard]] float MaxCategory() const { return max_cat_; }
@@ -157,27 +152,37 @@ class HistogramCuts {
   }
 
   /**
-   * \brief Return numerical bin value given bin index.
+   * \brief Return a representative numerical value for a bin.
    */
   static float NumericBinValue(std::vector<std::uint32_t> const& ptrs,
-                               std::vector<float> const& vals, std::vector<float> const& mins,
-                               bst_feature_t fidx, bst_bin_t bin_idx) {
+                               std::vector<float> const& vals, bst_feature_t fidx,
+                               bst_bin_t bin_idx) {
     auto lower = static_cast<bst_bin_t>(ptrs[fidx]);
     if (bin_idx == lower) {
-      return mins[fidx];
+      return std::nextafter(vals[lower], -std::numeric_limits<float>::infinity());
     }
     return vals[bin_idx - 1];
   }
 
-  void SetDevice(DeviceOrd d) {
+  /**
+   * \brief Return the lower bound of a numerical bin.
+   */
+  static float NumericBinLowerBound(std::vector<std::uint32_t> const& ptrs,
+                                    std::vector<float> const& vals, bst_feature_t fidx,
+                                    bst_bin_t bin_idx) {
+    auto lower = static_cast<bst_bin_t>(ptrs[fidx]);
+    if (bin_idx == lower) {
+      return -std::numeric_limits<float>::infinity();
+    }
+    return vals[bin_idx - 1];
+  }
+
+  void SetDevice(DeviceOrd d) const {
     this->cut_ptrs_.SetDevice(d);
     this->cut_ptrs_.ConstDevicePointer();
 
     this->cut_values_.SetDevice(d);
     this->cut_values_.ConstDevicePointer();
-
-    this->min_vals_.SetDevice(d);
-    this->min_vals_.ConstDevicePointer();
   }
 
   void Save(common::AlignedFileWriteStream* fo) const;

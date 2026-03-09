@@ -29,16 +29,13 @@
 
 namespace xgboost::common {
 HistogramCuts::HistogramCuts(bst_feature_t n_features)
-    : cut_ptrs_(static_cast<std::size_t>(n_features) + 1, 0),
-      min_vals_(static_cast<std::size_t>(n_features)) {}
+    : cut_ptrs_(static_cast<std::size_t>(n_features) + 1, 0) {}
 
 void HistogramCuts::Save(common::AlignedFileWriteStream *fo) const {
   auto const &ptrs = this->Ptrs();
   CHECK_LE(Span{ptrs}.size_bytes(), WriteVec(fo, ptrs));
   auto const &vals = this->Values();
   CHECK_LE(Span{vals}.size_bytes(), WriteVec(fo, vals));
-  auto const &mins = this->MinValues();
-  CHECK_LE(Span{mins}.size_bytes(), WriteVec(fo, mins));
   CHECK_GE(fo->Write(has_categorical_), sizeof(has_categorical_));
   CHECK_GE(fo->Write(max_cat_), sizeof(max_cat_));
 }
@@ -47,7 +44,6 @@ void HistogramCuts::Save(common::AlignedFileWriteStream *fo) const {
   auto p_cuts = new HistogramCuts{0};
   CHECK(ReadVec(fi, &p_cuts->cut_ptrs_.HostVector()));
   CHECK(ReadVec(fi, &p_cuts->cut_values_.HostVector()));
-  CHECK(ReadVec(fi, &p_cuts->min_vals_.HostVector()));
   CHECK(fi->Read(&p_cuts->has_categorical_));
   CHECK(fi->Read(&p_cuts->max_cat_));
   return p_cuts;

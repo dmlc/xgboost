@@ -51,10 +51,6 @@ void TestEquivalent(float sparsity) {
           for (size_t i = 0; i < from_iter.gidx_fvalue_map.size(); ++i) {
             EXPECT_NEAR(from_iter.gidx_fvalue_map[i], from_data.gidx_fvalue_map[i], kRtEps);
           }
-          ASSERT_EQ(from_iter.min_fvalue.size(), from_data.min_fvalue.size());
-          for (size_t i = 0; i < from_iter.min_fvalue.size(); ++i) {
-            ASSERT_NEAR(from_iter.min_fvalue[i], from_data.min_fvalue[i], kRtEps);
-          }
           ASSERT_EQ(from_iter.NumFeatures(), from_data.NumFeatures());
           for (size_t i = 0; i < from_iter.NumFeatures() + 1; ++i) {
             ASSERT_EQ(from_iter.feature_segments[i], from_data.feature_segments[i]);
@@ -219,7 +215,6 @@ TEST(IterativeDeviceDMatrix, IO) {
       auto new_cuts = new_page.Impl()->Cuts();
       ASSERT_EQ(orig_cuts.Ptrs(), new_cuts.Ptrs());
       ASSERT_EQ(orig_cuts.Values(), new_cuts.Values());
-      ASSERT_EQ(orig_cuts.MinValues(), new_cuts.MinValues());
     }
   }
 }

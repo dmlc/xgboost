@@ -180,7 +180,6 @@ class MultiTargetHistMaker {
     return MultiEvaluateSplitSharedInputs{d_roundings,
                                           this->cuts_->cut_ptrs_.ConstDeviceSpan(),
                                           this->cuts_->cut_values_.ConstDevicePointer(),
-                                          this->cuts_->min_vals_.ConstDevicePointer(),
                                           this->param_.max_bin,
                                           max_active_feature,
                                           d_param};

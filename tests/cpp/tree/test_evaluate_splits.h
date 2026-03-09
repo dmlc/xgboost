@@ -40,16 +40,14 @@ class TestPartitionBasedSplit : public ::testing::Test {
 };
 
 inline auto MakeCutsForTest(std::vector<float> values, std::vector<uint32_t> ptrs,
-                            std::vector<float> min_values, DeviceOrd device) {
-  common::HistogramCuts cuts{static_cast<bst_feature_t>(min_values.size())};
+                            DeviceOrd device) {
+  common::HistogramCuts cuts{static_cast<bst_feature_t>(ptrs.size() - 1)};
   cuts.cut_values_.HostVector() = values;
   cuts.cut_ptrs_.HostVector() = ptrs;
-  cuts.min_vals_.HostVector() = min_values;
 
   if (device.IsCUDA()) {
     cuts.cut_ptrs_.SetDevice(device);
     cuts.cut_values_.SetDevice(device);
-    cuts.min_vals_.SetDevice(device);
   }
 
   return cuts;
@@ -65,7 +63,7 @@ class TestCategoricalSplitWithMissing : public testing::Test {
   TrainParam param_;
 
   void SetUp() override {
-    cuts_ = MakeCutsForTest({0.0, 1.0, 2.0, 3.0}, {0, 4}, {0.0}, DeviceOrd::CPU());
+    cuts_ = MakeCutsForTest({0.0, 1.0, 2.0, 3.0}, {0, 4}, DeviceOrd::CPU());
     auto max_cat = *std::max_element(cuts_.cut_values_.HostVector().begin(),
                                      cuts_.cut_values_.HostVector().end());
     cuts_.SetCategorical(true, max_cat);

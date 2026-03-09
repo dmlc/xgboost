@@ -597,8 +597,6 @@ HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split
   // Set up inputs
   auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
 
-  p_cuts->min_vals_.SetDevice(ctx->Device());
-  auto d_min_values = p_cuts->min_vals_.DeviceSpan();
   auto const in_cut_values = dh::ToSpan(this->Current());
 
   // Set up output ptr
@@ -696,16 +694,10 @@ HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split
       // column is empty, trees cannot split on it.  This is just to be consistent with
       // rest of the library.
       if (idx == 0) {
-        d_min_values[column_id] = kRtEps;
         out_column[0] = kRtEps;
         assert(out_column.size() == 1);
       }
       return;
-    }
-
-    if (idx == 0 && !IsCat(d_ft, column_id)) {
-      auto mval = in_column[idx].value;
-      d_min_values[column_id] = mval - (fabs(mval) + 1e-5);
     }
 
     if (IsCat(d_ft, column_id)) {

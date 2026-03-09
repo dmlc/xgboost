@@ -84,7 +84,6 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
   common::Span<FeatureType const> ft_;
 
   std::vector<std::uint32_t> const& ptrs_;
-  std::vector<float> const& mins_;
   std::vector<float> const& values_;
   common::ColumnMatrix const& columns_;
 
@@ -98,7 +97,6 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
         acc_{std::move(acc)},
         ft_{ft},
         ptrs_{page.cut.Ptrs()},
-        mins_{page.cut.MinValues()},
         values_{page.cut.Values()},
         columns_{page.Transpose()},
         base_rowid{page.base_rowid} {}
@@ -121,8 +119,7 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
             fvalue = this->values_[bin_idx];
           } else {
             bin_idx = ptr[rbeg + fidx] + page_.index.Offset()[fidx];
-            fvalue =
-                common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx, bin_idx);
+            fvalue = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, fidx, bin_idx);
           }
           out[fidx] = acc_(fvalue, fidx);
         }
@@ -139,12 +136,11 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
             if (is_cat) {
               fvalue = values_[bin_idx];
             } else {
-              fvalue = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx,
-                                                              bin_idx);
+              fvalue = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, fidx, bin_idx);
             }
           }
         } else {
-          fvalue = page_.GetFvalue(ptrs_, values_, mins_, gridx, fidx, is_cat);
+          fvalue = page_.GetFvalue(ptrs_, values_, gridx, fidx, is_cat);
         }
         if (!common::CheckNAN(fvalue)) {
           out[fidx] = acc_(fvalue, fidx);
