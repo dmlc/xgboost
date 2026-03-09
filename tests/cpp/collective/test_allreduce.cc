@@ -7,8 +7,8 @@
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/collective/coll.h"  // for Coll
-#include "../../../src/common/type.h"  // for EraseType
-#include "test_worker.h"               // for WorkerForTest, TestDistributed
+#include "../../../src/common/type.h"      // for EraseType
+#include "test_worker.h"                   // for WorkerForTest, TestDistributed
 
 namespace xgboost::collective {
 namespace {
@@ -80,6 +80,30 @@ class AllreduceWorker : public WorkerForTest {
       ASSERT_EQ(v, ~std::uint32_t{0});
     }
   }
+
+  void VariableAllreduce() {
+    auto reduce_fn = [](auto a, auto b, std::vector<std::int32_t>* out) {
+      auto n = std::max(a.size(), b.size());
+      out->assign(n, 0);
+      for (std::size_t i = 0; i < a.size(); ++i) {
+        (*out)[i] += a[i];
+      }
+      for (std::size_t i = 0; i < b.size(); ++i) {
+        (*out)[i] += b[i];
+      }
+    };
+
+    for (std::size_t trial = 0; trial < 2; ++trial) {
+      std::vector<std::int32_t> data(comm_.Rank() + 1, 1);
+      auto rc = AllreduceV(comm_, &data, reduce_fn);
+      SafeColl(rc);
+
+      ASSERT_EQ(data.size(), static_cast<std::size_t>(comm_.World()));
+      for (std::size_t i = 0; i < data.size(); ++i) {
+        ASSERT_EQ(data[i], comm_.World() - static_cast<std::int32_t>(i));
+      }
+    }
+  }
 };
 
 class AllreduceTest : public SocketTest {};
@@ -109,6 +133,15 @@ TEST_F(AllreduceTest, BitOr) {
                                  std::int32_t r) {
     AllreduceWorker worker{host, port, timeout, n_workers, r};
     worker.BitOr();
+  });
+}
+
+TEST_F(AllreduceTest, AllreduceV) {
+  std::int32_t n_workers = std::min(7u, std::thread::hardware_concurrency());
+  TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
+                                 std::int32_t r) {
+    AllreduceWorker worker{host, port, timeout, n_workers, r};
+    worker.VariableAllreduce();
   });
 }
 
