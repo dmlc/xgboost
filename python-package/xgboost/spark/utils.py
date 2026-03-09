@@ -17,6 +17,7 @@ from pyspark.sql.session import SparkSession
 from ..collective import CommunicatorContext as CCtx
 from ..collective import Config
 from ..collective import _Args as CollArgs
+from ..collective import _ArgVals as CollArgsVals
 from ..core import Booster
 from ..sklearn import XGBModel
 from ..tracker import RabitTracker
@@ -49,7 +50,7 @@ def _get_default_params_from_func(
 class CommunicatorContext(CCtx):
     """Context with PySpark specific task ID."""
 
-    def __init__(self, context: BarrierTaskContext, **args: Any) -> None:
+    def __init__(self, context: BarrierTaskContext, **args: CollArgsVals) -> None:
         args["dmlc_task_id"] = str(context.partitionId())
         super().__init__(**args)
 

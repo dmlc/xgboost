@@ -235,7 +235,7 @@ def _start_tracker(
 class CommunicatorContext(collective.CommunicatorContext):
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, **args: Any) -> None:
+    def __init__(self, **args: CollArgsVals) -> None:
         super().__init__(**args)
 
         worker = distributed.get_worker()
