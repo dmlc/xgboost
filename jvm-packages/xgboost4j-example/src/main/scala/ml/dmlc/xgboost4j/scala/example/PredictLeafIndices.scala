@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2024 by Contributors
+ Copyright (c) 2014-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -41,14 +41,14 @@ object PredictLeafIndices {
 
     // predict using first 2 tree
     val leafIndex = booster.predictLeaf(testMat, 2)
-    for (leafs <- leafIndex) {
-      println(java.util.Arrays.toString(leafs))
+    if (leafIndex.length > 0 && leafIndex(0).length > 1) {
+      println(s"${leafIndex(0)(0)}, ${leafIndex(0)(1)}")
     }
 
     // predict all trees
     val leafIndex2 = booster.predictLeaf(testMat, 0)
-    for (leafs <- leafIndex2) {
-      println(java.util.Arrays.toString(leafs))
+    if (leafIndex2.length > 0 && leafIndex2(0).length > 1) {
+      println(s"${leafIndex2(0)(0)}, ${leafIndex2(0)(1)}")
     }
   }
 }
