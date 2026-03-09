@@ -1279,8 +1279,7 @@ def test_worker_port(client_one_worker: "Client") -> None:
     X, y, _ = generate_array()
     dtrain = DaskDMatrix(client_one_worker, X, y)
 
-    port = get_avail_port()
-    cfg = CollConfig(worker_port=port)
+    cfg = CollConfig(worker_port=get_avail_port)
     dxgb.train(client_one_worker, {}, dtrain, num_boost_round=4, coll_cfg=cfg)
 
 

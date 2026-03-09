@@ -1123,7 +1123,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             evals_result: Dict[str, Any] = {}
             with (
                 config_context(verbosity=verbosity, use_rmm=use_rmm),
-                CommunicatorContext(context, **_rabit_args),
+                CommunicatorContext(context, coll_cfg=conf, **_rabit_args),
             ):
                 dtrain, dvalid = create_dmatrix_from_partitions(
                     iterator=pandas_df_iter,
@@ -1641,7 +1641,11 @@ class _SparkXGBSharedReadWrite:
         if instance.isDefined("coll_cfg"):
             conf: Config = instance.getOrDefault("coll_cfg")
             if conf is not None:
-                extraMetadata["coll_cfg"] = asdict(conf)
+                d = asdict(conf)
+                if callable(conf.worker_port):
+                    d.pop("worker_port", None)
+                    logger.warning("The `worker_port` is not serialized.")
+                extraMetadata["coll_cfg"] = d
 
         DefaultParamsWriter.saveMetadata(
             instance, path, sc, extraMetadata=extraMetadata, paramMap=jsonParams

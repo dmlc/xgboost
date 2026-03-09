@@ -6,7 +6,7 @@ import os
 import pickle
 from dataclasses import dataclass
 from enum import IntEnum, unique
-from typing import Any, Dict, Optional, TypeAlias, Union
+from typing import Any, Callable, Dict, Optional, TypeAlias, Union
 
 import numpy as np
 
@@ -53,6 +53,10 @@ class Config:
         port. When workers run on different hosts, they can all share the same port
         number.
 
+        This can be an integer for a fixed port shared by all workers, or a callback
+        function that takes no arguments and returns a port number. The callback is
+        invoked per-worker at the worker side.
+
     """
 
     retry: Optional[int] = None
@@ -62,7 +66,15 @@ class Config:
     tracker_port: Optional[int] = None
     tracker_timeout: Optional[int] = None
 
-    worker_port: Optional[int] = None
+    worker_port: Optional[Union[Callable[[], int], int]] = None
+
+    def resolve_worker_port(self) -> Optional[int]:
+        """Resolve the worker port for the current worker."""
+        if self.worker_port is None:
+            return None
+        if callable(self.worker_port):
+            return self.worker_port()
+        return self.worker_port
 
     def get_comm_config(self, args: _Conf) -> _Conf:
         """Update the arguments for the communicator."""
@@ -70,8 +82,6 @@ class Config:
             args["dmlc_retry"] = self.retry
         if self.timeout is not None:
             args["dmlc_timeout"] = self.timeout
-        if self.worker_port is not None:
-            args["dmlc_worker_port"] = self.worker_port
         return args
 
 
@@ -342,8 +352,9 @@ def _find_nccl() -> Optional[str]:
 class CommunicatorContext:
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, **args: _ArgVals) -> None:
+    def __init__(self, coll_cfg: Optional[Config] = None, **args: _ArgVals) -> None:
         self.args = args
+        self.coll_cfg = coll_cfg
         key = "dmlc_nccl_path"
         if args.get(key, None) is not None:
             return
@@ -361,6 +372,10 @@ class CommunicatorContext:
             pass
 
     def __enter__(self) -> _Args:
+        if self.coll_cfg is not None:
+            port = self.coll_cfg.resolve_worker_port()
+            if port is not None:
+                self.args["dmlc_worker_port"] = port
         init(**self.args)
         assert is_distributed()
         LOGGER.debug("-------------- communicator say hello ------------------")

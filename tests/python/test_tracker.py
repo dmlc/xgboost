@@ -65,9 +65,8 @@ def test_worker_port() -> None:
     args = tracker.worker_args()
 
     def local_test(worker_id: int, rabit_args: dict) -> int:
-        rabit_args = rabit_args.copy()
-        rabit_args["dmlc_worker_port"] = get_avail_port()
-        with collective.CommunicatorContext(**rabit_args):
+        cfg = collective.Config(worker_port=get_avail_port)
+        with collective.CommunicatorContext(coll_cfg=cfg, **rabit_args):
             a = np.array([1])
             result = collective.allreduce(a, collective.Op.SUM)
             assert result[0] == n_workers
