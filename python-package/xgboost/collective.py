@@ -48,14 +48,17 @@ class Config:
 
     worker_port :
         The port each worker listens on for peer-to-peer connections. By default,
-        workers use an available port assigned by the OS. In restricted network
-        environments where only specific ports are open, this can be set to a fixed
-        port. When workers run on different hosts, they can all share the same port
-        number.
+        workers use an available port assigned by the OS. This option can be used in
+        restricted network environments where only specific ports are open.
 
         This can be an integer for a fixed port used by all workers, or a callback
         function that takes no arguments and returns a port number. The callback is
         invoked per-worker at the worker side.
+
+        .. note::
+
+            The option does not affect the NCCL communicator group, which must be
+            configured via NCCL's own environment variables.
 
     """
 
