@@ -10,6 +10,7 @@
 #include <xgboost/json.h>         // for Json
 #include <xgboost/learner.h>
 
+#include <cmath>
 #include <random>  // for mt19937
 #include <string>
 
@@ -18,6 +19,20 @@
 #include "helpers.h"
 
 namespace xgboost {
+template <typename T>
+void CompareFloat(T lhs, T rhs) {
+  if (std::isnan(lhs) || std::isnan(rhs)) {
+    ASSERT_TRUE(std::isnan(lhs));
+    ASSERT_TRUE(std::isnan(rhs));
+    return;
+  }
+  if (std::isinf(lhs) || std::isinf(rhs)) {
+    ASSERT_EQ(lhs, rhs);
+    return;
+  }
+  ASSERT_NEAR(lhs, rhs, kRtEps);
+}
+
 template <typename Array>
 void CompareIntArray(Json l, Json r) {
   auto const& l_arr = get<Array const>(l);
@@ -35,7 +50,7 @@ void CompareJSON(Json l, Json r) {
       break;
     }
     case Value::ValueKind::kNumber: {
-      ASSERT_NEAR(get<Number>(l), get<Number>(r), kRtEps);
+      CompareFloat(get<Number>(l), get<Number>(r));
       break;
     }
     case Value::ValueKind::kInteger: {
@@ -74,7 +89,7 @@ void CompareJSON(Json l, Json r) {
       auto const& r_arr = get<F32Array const>(r);
       ASSERT_EQ(l_arr.size(), r_arr.size());
       for (size_t i = 0; i < l_arr.size(); ++i) {
-        ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);
+        CompareFloat(l_arr[i], r_arr[i]);
       }
       break;
     }
@@ -83,7 +98,7 @@ void CompareJSON(Json l, Json r) {
       auto const& r_arr = get<F64Array const>(r);
       ASSERT_EQ(l_arr.size(), r_arr.size());
       for (size_t i = 0; i < l_arr.size(); ++i) {
-        ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);
+        CompareFloat(l_arr[i], r_arr[i]);
       }
       break;
     }
