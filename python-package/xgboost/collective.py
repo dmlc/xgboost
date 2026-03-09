@@ -352,9 +352,9 @@ def _find_nccl() -> Optional[str]:
 class CommunicatorContext:
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, coll_cfg: Optional[Config] = None, **args: _ArgVals) -> None:
+    def __init__(self, **args: Any) -> None:
+        self.coll_cfg: Optional[Config] = args.pop("coll_cfg", None)
         self.args = args
-        self.coll_cfg = coll_cfg
         key = "dmlc_nccl_path"
         if args.get(key, None) is not None:
             return
