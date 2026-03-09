@@ -480,17 +480,25 @@ void CheckResult(Context const *ctx, bst_feature_t n_features, std::shared_ptr<D
     auto const &cut = page.Cuts();
     auto const &ptrs = cut.Ptrs();
     auto const &vals = cut.Values();
+    auto ft = Xy->Info().feature_types.ConstHostSpan();
+    std::uint64_t n_numeric{0};
     for (bst_feature_t f = 0; f < Xy->Info().num_col_; ++f) {
-      ASSERT_EQ(ptrs[f], out_indptr[f]);
+      ASSERT_EQ(ptrs[f] + n_numeric, out_indptr[f]);
       auto beg = out_indptr[f];
       auto end = out_indptr[f + 1];
       auto val_beg = ptrs[f];
+      if (!common::IsCat(ft, f)) {
+        ASSERT_EQ(common::HistogramCuts::NumericBinLowerBound(ptrs, vals, f, ptrs[f]),
+                  out_data[beg]);
+        ++beg;
+        ++n_numeric;
+      }
       for (std::uint64_t i = beg, j = val_beg; i < end; ++i, ++j) {
         ASSERT_EQ(vals[j], out_data[i]);
       }
     }
 
-    ASSERT_EQ(ptrs[n_features], out_indptr[n_features]);
+    ASSERT_EQ(ptrs[n_features] + n_numeric, out_indptr[n_features]);
   }
 }
 

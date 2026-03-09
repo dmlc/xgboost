@@ -100,9 +100,8 @@ struct EllpackLoader {
     if (common::IsCat(matrix.feature_types, fidx)) {
       return this->acc(matrix.gidx_fvalue_map[gidx], fidx);
     }
-    // The first numerical bin has an implicit lower bound of negative infinity.
     if (gidx == matrix.feature_segments[fidx]) {
-      return std::nextafter(matrix.gidx_fvalue_map[gidx], -std::numeric_limits<float>::infinity());
+      return -std::numeric_limits<float>::infinity();
     }
     return matrix.gidx_fvalue_map[gidx - 1];
   }

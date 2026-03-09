@@ -119,7 +119,10 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
             fvalue = this->values_[bin_idx];
           } else {
             bin_idx = ptr[rbeg + fidx] + page_.index.Offset()[fidx];
-            fvalue = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, fidx, bin_idx);
+            // Route quantized prediction through the bin lower bound; the first numerical
+            // bin has an implicit lower bound of negative infinity.
+            fvalue =
+                common::HistogramCuts::NumericBinLowerBound(this->ptrs_, values_, fidx, bin_idx);
           }
           out[fidx] = acc_(fvalue, fidx);
         }
@@ -136,11 +139,19 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
             if (is_cat) {
               fvalue = values_[bin_idx];
             } else {
-              fvalue = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, fidx, bin_idx);
+              fvalue =
+                  common::HistogramCuts::NumericBinLowerBound(this->ptrs_, values_, fidx, bin_idx);
             }
           }
         } else {
-          fvalue = page_.GetFvalue(ptrs_, values_, gridx, fidx, is_cat);
+          if (is_cat) {
+            fvalue = page_.GetFvalue(ptrs_, values_, gridx, fidx, is_cat);
+          } else {
+            auto bin_idx = page_.GetGindex(gridx, fidx);
+            if (bin_idx != -1) {
+              fvalue = common::HistogramCuts::NumericBinLowerBound(ptrs_, values_, fidx, bin_idx);
+            }
+          }
         }
         if (!common::CheckNAN(fvalue)) {
           out[fidx] = acc_(fvalue, fidx);
