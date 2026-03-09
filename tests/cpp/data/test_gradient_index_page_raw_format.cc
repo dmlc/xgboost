@@ -23,7 +23,7 @@ TEST(GHistIndexPageRawFormat, IO) {
   std::string path = tmpdir.Str() + "/ghistindex.page";
   auto batch = BatchParam{256, 0.5};
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{0};
   for (auto const &index : m->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
     cuts = index.Cuts();
     break;

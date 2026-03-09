@@ -69,7 +69,7 @@ class GlobalApproxBuilder {
   common::Monitor *monitor_;
   size_t n_batches_{0};
   // Cache for histogram cuts.
-  common::HistogramCuts feature_values_;
+  common::HistogramCuts feature_values_{0};
 
  public:
   void InitData(DMatrix *p_fmat, RegTree const *p_tree, common::Span<float> hess) {

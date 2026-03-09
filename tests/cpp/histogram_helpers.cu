@@ -37,7 +37,7 @@ namespace xgboost {
   for (bst_feature_t f_idx = 0; f_idx < n_features; ++f_idx) {
     min_values.push_back(min_dist(rng));
   }
-  auto p_cuts = std::make_shared<common::HistogramCuts>();
+  auto p_cuts = std::make_shared<common::HistogramCuts>(n_features);
   p_cuts->cut_ptrs_.HostVector() = cut_indptr;
   p_cuts->cut_values_.HostVector() = cut_values;
   p_cuts->min_vals_.HostVector() = min_values;

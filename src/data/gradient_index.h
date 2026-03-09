@@ -154,7 +154,7 @@ class GHistIndexMatrix {
   /** @brief hit count of each index, used for constructing the ColumnMatrix */
   common::RefResourceView<std::size_t> hit_count;
   /** @brief The corresponding cuts */
-  common::HistogramCuts cut;
+  common::HistogramCuts cut{0};
   /** @brief max_bin for each feature. */
   bst_bin_t max_numeric_bins_per_feat;
   /** @brief base row index for current page (used by external memory) */

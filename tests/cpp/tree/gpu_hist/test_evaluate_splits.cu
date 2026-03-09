@@ -76,7 +76,7 @@ TEST(GpuHist, PartitionBasic) {
   tparam.max_cat_to_onehot = 0;
   GPUTrainingParam param{tparam};
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{1};
   cuts.cut_values_.HostVector() = std::vector<float>{0.0, 1.0, 2.0};
   cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 3};
   cuts.min_vals_.HostVector() = std::vector<float>{0.0};
@@ -191,7 +191,7 @@ TEST(GpuHist, PartitionTwoFeatures) {
   tparam.max_cat_to_onehot = 0;
   GPUTrainingParam param{tparam};
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{2};
   cuts.cut_values_.HostVector() = std::vector<float>{0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
   cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 3, 6};
   cuts.min_vals_.HostVector() = std::vector<float>{0.0, 0.0};
@@ -252,7 +252,7 @@ TEST(GpuHist, PartitionTwoNodes) {
   tparam.max_cat_to_onehot = 0;
   GPUTrainingParam param{tparam};
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{1};
   cuts.cut_values_.HostVector() = std::vector<float>{0.0, 1.0, 2.0};
   cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 3};
   cuts.min_vals_.HostVector() = std::vector<float>{0.0};

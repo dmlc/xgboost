@@ -581,9 +581,10 @@ struct InvalidCatOp {
 };
 }  // anonymous namespace
 
-void SketchContainer::MakeCuts(Context const *ctx, HistogramCuts *p_cuts, bool is_column_split) {
+HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split) {
   curt::SetDevice(ctx->Ordinal());
-  p_cuts->min_vals_.Resize(num_columns_);
+  HistogramCuts cuts{num_columns_};
+  auto *p_cuts = &cuts;
 
   // Sync between workers.
   this->AllReduce(ctx, is_column_split);
@@ -603,8 +604,7 @@ void SketchContainer::MakeCuts(Context const *ctx, HistogramCuts *p_cuts, bool i
   // Set up output ptr
   p_cuts->cut_ptrs_.SetDevice(ctx->Device());
   auto &h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
-  h_out_columns_ptr.clear();
-  h_out_columns_ptr.push_back(0);
+  h_out_columns_ptr.front() = 0;
   auto const &h_feature_types = this->feature_types_.ConstHostSpan();
 
   auto d_ft = feature_types_.ConstDeviceSpan();
@@ -669,10 +669,10 @@ void SketchContainer::MakeCuts(Context const *ctx, HistogramCuts *p_cuts, bool i
     if (IsCat(h_feature_types, i)) {
       // column_size is the number of unique values in that feature.
       CheckMaxCat(max_values[i].value, column_size);
-      h_out_columns_ptr.push_back(max_values[i].value + 1);  // includes both max_cat and 0.
+      h_out_columns_ptr[i + 1] = max_values[i].value + 1;  // includes both max_cat and 0.
     } else {
-      h_out_columns_ptr.push_back(
-          std::min(static_cast<size_t>(column_size), static_cast<size_t>(num_bins_)));
+      h_out_columns_ptr[i + 1] =
+          std::min(static_cast<size_t>(column_size), static_cast<size_t>(num_bins_));
     }
   }
   std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(), h_out_columns_ptr.begin());
@@ -727,5 +727,6 @@ void SketchContainer::MakeCuts(Context const *ctx, HistogramCuts *p_cuts, bool i
 
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
   timer_.Stop(__func__);
+  return cuts;
 }
 }  // namespace xgboost::common

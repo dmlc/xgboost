@@ -66,7 +66,8 @@ class HistogramCuts {
   // storing minimum value in a sketch set.
   HostDeviceVector<float> min_vals_;  // NOLINT
 
-  HistogramCuts();
+  HistogramCuts() = delete;
+  explicit HistogramCuts(bst_feature_t n_features);
   HistogramCuts(HistogramCuts const& that) { this->Copy(that); }
 
   HistogramCuts(HistogramCuts&& that) noexcept(true) {
@@ -88,9 +89,9 @@ class HistogramCuts {
   }
   [[nodiscard]] bst_feature_t NumFeatures() const { return this->cut_ptrs_.Size() - 1; }
 
-  std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_.ConstHostVector();   }
-  std::vector<float>    const& Values()    const { return cut_values_.ConstHostVector(); }
-  std::vector<float>    const& MinValues() const { return min_vals_.ConstHostVector();   }
+  std::vector<uint32_t> const& Ptrs() const { return cut_ptrs_.ConstHostVector(); }
+  std::vector<float> const& Values() const { return cut_values_.ConstHostVector(); }
+  std::vector<float> const& MinValues() const { return min_vals_.ConstHostVector(); }
 
   [[nodiscard]] bool HasCategorical() const { return has_categorical_; }
   [[nodiscard]] float MaxCategory() const { return max_cat_; }
@@ -491,7 +492,7 @@ class ParallelGHistBuilder {
 
     CHECK_EQ(nodes, targeted_hists.size());
 
-    nodes_    = nodes;
+    nodes_ = nodes;
     nthreads_ = nthreads;
 
     MatchThreadsToNodes(space);
@@ -556,11 +557,11 @@ class ParallelGHistBuilder {
 
     for (size_t tid = 0; tid < nthreads_; ++tid) {
       size_t begin = chunck_size * tid;
-      size_t end   = std::min(begin + chunck_size, space_size);
+      size_t end = std::min(begin + chunck_size, space_size);
 
       if (begin < space_size) {
         size_t nid_begin = space.GetFirstDimension(begin);
-        size_t nid_end   = space.GetFirstDimension(end-1);
+        size_t nid_end = space.GetFirstDimension(end - 1);
 
         for (size_t nid = nid_begin; nid <= nid_end; ++nid) {
           // true - means thread 'tid' will work to compute partial hist for node 'nid'

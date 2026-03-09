@@ -364,7 +364,6 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
   info.weights_.SetDevice(ctx->Device());
   auto d_weight = UnifyWeight(cuctx, info, hessian, &weight);
 
-  HistogramCuts cuts;
   SketchContainer sketch_container(info.feature_types, max_bin, info.num_col_, ctx->Device());
   CHECK_EQ(has_weight || !hessian.empty(), !d_weight.empty());
   for (const auto& page : p_fmat->GetBatches<SparsePage>()) {
@@ -377,7 +376,6 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
     }
   }
 
-  sketch_container.MakeCuts(ctx, &cuts, p_fmat->Info().IsColumnSplit());
-  return cuts;
+  return sketch_container.MakeCuts(ctx, p_fmat->Info().IsColumnSplit());
 }
 }  // namespace xgboost::common

@@ -517,9 +517,10 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
   return max_cat;
 }
 
-void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
-                                   HistogramCuts *p_cuts) {
+HistogramCuts SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info) {
   monitor_.Start(__func__);
+  HistogramCuts cuts{static_cast<bst_feature_t>(sketches_.size())};
+  auto *p_cuts = &cuts;
 
   std::vector<bst_feature_t> numeric_features;
   std::vector<bst_feature_t> categorical_features;
@@ -537,7 +538,8 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
   auto reduced_categories =
       this->AllreduceCategories(ctx, info, Span<bst_feature_t const>{categorical_features});
 
-  p_cuts->min_vals_.HostVector().resize(sketches_.size(), 0.0f);
+  auto &h_min_vals = p_cuts->min_vals_.HostVector();
+  auto &h_cut_ptrs = p_cuts->cut_ptrs_.HostVector();
   // Prune size down to max_bins + 1 (reserve one extra for the max value)
   // before extracting cut points.
   ParallelFor(numeric_features.size(), n_threads_, Sched::Guided(), [&](size_t idx) {
@@ -545,11 +547,11 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     reduced_numerical.at(fidx).SetPrune(max_bins_ + 1);  // reserve one extra for the max value
     if (!reduced_numerical[fidx].Empty()) {
       const bst_float mval = reduced_numerical[fidx].Entries().front().value;
-      p_cuts->min_vals_.HostVector()[fidx] = mval - fabs(mval) - 1e-5f;
+      h_min_vals[fidx] = mval - fabs(mval) - 1e-5f;
     } else {
       // Empty column.
       const float mval = 1e-5f;
-      p_cuts->min_vals_.HostVector()[fidx] = mval;
+      h_min_vals[fidx] = mval;
     }
   });
 
@@ -566,8 +568,7 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
       AddCutPoint<WQSketch>(reduced_numerical[fid], max_num_bins, p_cuts);
       // push a value that is greater than anything
       auto const a_entries = reduced_numerical[fid].Entries();
-      const bst_float cpt =
-          !a_entries.empty() ? a_entries.back().value : p_cuts->min_vals_.HostVector()[fid];
+      const bst_float cpt = !a_entries.empty() ? a_entries.back().value : h_min_vals[fid];
       // this must be bigger than last value in a scale
       const bst_float last = cpt + (fabs(cpt) + 1e-5f);
       p_cuts->cut_values_.HostVector().push_back(last);
@@ -576,13 +577,14 @@ void SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info,
     // Ensure that every feature gets at least one quantile point
     CHECK_LE(p_cuts->cut_values_.HostVector().size(), std::numeric_limits<uint32_t>::max());
     auto cut_size = static_cast<uint32_t>(p_cuts->cut_values_.HostVector().size());
-    CHECK_GT(cut_size, p_cuts->cut_ptrs_.HostVector().back());
-    p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
+    CHECK_GT(cut_size, h_cut_ptrs[fid]);
+    h_cut_ptrs[fid + 1] = cut_size;
   }
   CHECK_EQ(cat_idx, categorical_features.size());
 
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
   monitor_.Stop(__func__);
+  return cuts;
 }
 
 HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bins,

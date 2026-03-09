@@ -1,3 +1,6 @@
+#ifndef TESTS_CPP_TREE_TEST_EVALUATE_SPLITS_H_
+#define TESTS_CPP_TREE_TEST_EVALUATE_SPLITS_H_
+
 /**
  * Copyright 2022-2024, XGBoost Contributors
  */
@@ -29,7 +32,7 @@ class TestPartitionBasedSplit : public ::testing::Test {
   TrainParam param_;
   MetaInfo info_;
   float best_score_{-std::numeric_limits<float>::infinity()};
-  common::HistogramCuts cuts_;
+  common::HistogramCuts cuts_{0};
   BoundedHistCollection hist_;
   GradientPairPrecise total_gpair_;
 
@@ -38,7 +41,7 @@ class TestPartitionBasedSplit : public ::testing::Test {
 
 inline auto MakeCutsForTest(std::vector<float> values, std::vector<uint32_t> ptrs,
                             std::vector<float> min_values, DeviceOrd device) {
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{static_cast<bst_feature_t>(min_values.size())};
   cuts.cut_values_.HostVector() = values;
   cuts.cut_ptrs_.HostVector() = ptrs;
   cuts.min_vals_.HostVector() = min_values;
@@ -54,7 +57,7 @@ inline auto MakeCutsForTest(std::vector<float> values, std::vector<uint32_t> ptr
 
 class TestCategoricalSplitWithMissing : public testing::Test {
  protected:
-  common::HistogramCuts cuts_;
+  common::HistogramCuts cuts_{0};
   // Setup gradients and parent sum with missing values.
   GradientPairPrecise parent_sum_{1.0, 6.0};
   std::vector<GradientPairPrecise> feature_histogram_{
@@ -90,3 +93,5 @@ class TestCategoricalSplitWithMissing : public testing::Test {
   }
 };
 }  // namespace xgboost::tree
+
+#endif  // TESTS_CPP_TREE_TEST_EVALUATE_SPLITS_H_

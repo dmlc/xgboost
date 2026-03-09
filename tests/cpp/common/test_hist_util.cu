@@ -364,13 +364,11 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
 template <typename Adapter>
 auto MakeUnweightedCutsForTest(Context const* ctx, Adapter adapter, int32_t num_bins, float missing,
                                size_t batch_size = 0) {
-  common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), DeviceOrd::CUDA(0));
   MetaInfo info;
   AdapterDeviceSketch(ctx, adapter.Value(), num_bins, info, missing, &sketch_container, batch_size);
-  sketch_container.MakeCuts(ctx, &batched_cuts, info.IsColumnSplit());
-  return batched_cuts;
+  return sketch_container.MakeCuts(ctx, info.IsColumnSplit());
 }
 
 template <typename Adapter>
@@ -436,13 +434,11 @@ TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
 
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
-  common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, num_columns, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &sketch_container);
-  HistogramCuts cuts;
-  sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
+  [[maybe_unused]] auto cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
   size_t bytes_required =
       detail::RequiredMemory(num_rows, num_columns, num_rows * num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
@@ -465,14 +461,12 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
 
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
-  common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, num_columns, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &sketch_container);
 
-  HistogramCuts cuts;
-  sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
+  [[maybe_unused]] auto cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
   ConsoleLogger::Configure({{"verbosity", "0"}});
   size_t bytes_required =
       detail::RequiredMemory(num_rows, num_columns, num_rows * num_columns, num_bins, true);
@@ -505,8 +499,7 @@ void TestCategoricalSketchAdapter(size_t n, size_t num_categories, int32_t num_b
   SketchContainer container(info.feature_types, num_bins, 1, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &container);
-  HistogramCuts cuts;
-  container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
+  auto cuts = container.MakeCuts(&ctx, info.IsColumnSplit());
 
   thrust::sort(x.begin(), x.end());
   auto n_uniques = thrust::unique(x.begin(), x.end()) - x.begin();
@@ -746,8 +739,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
   AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
 
-  common::HistogramCuts cuts;
-  sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
+  auto cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
 
   auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
   if (with_group) {
@@ -775,7 +767,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
   }
 
   if (with_group) {
-    common::HistogramCuts weighted;
+    common::HistogramCuts weighted{0};
     auto& h_weights = info.weights_.HostVector();
     h_weights.resize(kGroups);
     // Generate different weight.
@@ -788,7 +780,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
     SketchContainer sketch_container{ft, kBins, kCols, DeviceOrd::CUDA(0)};
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_container);
-    sketch_container.MakeCuts(&ctx, &weighted, info.IsColumnSplit());
+    weighted = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
     ValidateCuts(weighted, dmat.get(), kBins);
   }
 }

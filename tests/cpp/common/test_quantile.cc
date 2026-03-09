@@ -135,8 +135,7 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
     }
   }
 
-  HistogramCuts distributed_cuts;
-  sketch_distributed.MakeCuts(&ctx, m->Info(), &distributed_cuts);
+  auto distributed_cuts = sketch_distributed.MakeCuts(&ctx, m->Info());
 
   // Generate cuts for single node environment
   collective::Finalize();
@@ -167,8 +166,7 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
     }
   }
 
-  HistogramCuts single_node_cuts;
-  sketch_on_single_node.MakeCuts(&ctx, m->Info(), &single_node_cuts);
+  auto single_node_cuts = sketch_on_single_node.MakeCuts(&ctx, m->Info());
 
   auto const& sptrs = single_node_cuts.Ptrs();
   auto const& dptrs = distributed_cuts.Ptrs();
@@ -255,7 +253,7 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
   auto const n_bins = 64;
 
   // Generate cuts for distributed environment.
-  HistogramCuts distributed_cuts;
+  HistogramCuts distributed_cuts{0};
   {
     ContainerType<use_column> sketch_distributed(
         &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
@@ -272,13 +270,13 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
       }
     }
 
-    sketch_distributed.MakeCuts(&ctx, m->Info(), &distributed_cuts);
+    distributed_cuts = sketch_distributed.MakeCuts(&ctx, m->Info());
   }
 
   // Generate cuts for single node environment
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
-  HistogramCuts single_node_cuts;
+  HistogramCuts single_node_cuts{0};
   {
     ContainerType<use_column> sketch_on_single_node(
         &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
@@ -295,7 +293,7 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
       }
     }
 
-    sketch_on_single_node.MakeCuts(&ctx, m->Info(), &single_node_cuts);
+    single_node_cuts = sketch_on_single_node.MakeCuts(&ctx, m->Info());
   }
 
   auto const& sptrs = single_node_cuts.Ptrs();
