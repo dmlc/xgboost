@@ -352,8 +352,8 @@ def _find_nccl() -> Optional[str]:
 class CommunicatorContext:
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, **args: Any) -> None:
-        self.coll_cfg: Optional[Config] = args.pop("coll_cfg", None)
+    def __init__(self, *, cfg: Optional[Config] = None, **args: _ArgVals) -> None:
+        self.cfg: Optional[Config] = cfg
         self.args = args
         key = "dmlc_nccl_path"
         if args.get(key, None) is not None:
@@ -372,8 +372,8 @@ class CommunicatorContext:
             pass
 
     def __enter__(self) -> _Args:
-        if self.coll_cfg is not None:
-            port = self.coll_cfg.resolve_worker_port()
+        if self.cfg is not None:
+            port = self.cfg.resolve_worker_port()
             if port is not None:
                 self.args["dmlc_worker_port"] = port
         init(**self.args)

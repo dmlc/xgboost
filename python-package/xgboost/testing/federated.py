@@ -58,7 +58,7 @@ def run_worker(
     n_threads = cpu_count // world_size
 
     # Always call this before using distributed module
-    with xgb.collective.CommunicatorContext(**comm_env):
+    with xgb.collective.CommunicatorContext(**comm_env, cfg=None):
         # Load file, file will not be sharded in federated mode.
         X, y = load_svmlight_file(f"agaricus.txt-{rank}.train")
         dtrain = xgb.DMatrix(X, y)
