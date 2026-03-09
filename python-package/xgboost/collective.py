@@ -47,7 +47,8 @@ class Config:
     tracker_timeout : See :py:class:`~xgboost.tracker.RabitTracker`.
 
     worker_port :
-        The port each worker listens on for peer-to-peer connections. By default,
+
+        The port each worker listens to for peer-to-peer connections. By default,
         workers use an available port assigned by the OS. This option can be used in
         restricted network environments where only specific ports are open.
 
