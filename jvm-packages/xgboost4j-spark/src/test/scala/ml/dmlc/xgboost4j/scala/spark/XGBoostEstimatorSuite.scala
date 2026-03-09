@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024 by Contributors
+ Copyright (c) 2024-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.util.Arrays
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.SparkException
+import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vectors}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.xgboost.SparkUtils
@@ -740,5 +741,36 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
 
     // No exception
     transformedDf.collect()
+  }
+
+  test("Pipeline with columnar input for Regressor and Ranker") {
+    val df = ss.createDataFrame(sc.parallelize(Seq(
+      (0.0, 1, 2, 1.0, 2.0, 3.0),
+      (1.0, 0, 5, 1.0, 2.0, 3.0),
+      (2.0, 2, 7, 1.0, 2.0, 3.0)
+    ))).toDF("label", "group", "weight", "c1", "c2", "c3")
+
+    // XGBoostRegressor with columnar features
+    val regressor = new XGBoostRegressor()
+      .setNumRound(1)
+      .setNumWorkers(1)
+      .setFeaturesCol(Array("c1", "c2", "c3"))
+
+    val regressorPipeline = new Pipeline().setStages(Array(regressor))
+    val regressorFit = regressorPipeline.fit(df)
+    val regressorPredictions = regressorFit.transform(df)
+    assert(regressorPredictions.count() === 3)
+
+    // XGBoostRanker with columnar features (requires group column)
+    val ranker = new XGBoostRanker()
+      .setNumRound(1)
+      .setNumWorkers(1)
+      .setGroupCol("group")
+      .setFeaturesCol(Array("c1", "c2", "c3"))
+
+    val rankerPipeline = new Pipeline().setStages(Array(ranker))
+    val rankerFit = rankerPipeline.fit(df)
+    val rankerPredictions = rankerFit.transform(df)
+    assert(rankerPredictions.count() === 3)
   }
 }
