@@ -6,7 +6,6 @@ from typing import Dict, Union
 import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies
-
 from xgboost import RabitTracker, collective
 from xgboost import testing as tm
 
@@ -36,7 +35,7 @@ def test_wait() -> None:
     with pytest.raises(ValueError, match="Timeout waiting for the tracker"):
         tracker.wait_for(1)
 
-    with pytest.raises(ValueError, match="Failed to accept"):
+    with pytest.raises(ValueError, match=r"Failed to (accept|call `getsockopt`)"):
         tracker.free()
 
 
@@ -160,7 +159,6 @@ def test_broadcast():
 @pytest.mark.skipif(**tm.no_dask())
 def test_rank_assignment() -> None:
     from distributed import Client, LocalCluster
-
     from xgboost import dask as dxgb
     from xgboost.testing.dask import get_rabit_args
 
