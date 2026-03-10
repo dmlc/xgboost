@@ -531,43 +531,54 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                               bst_layer_t layer_begin, bst_layer_t layer_end,
                               std::vector<float> const* tree_weights) const {
-  auto use_cache = tree_weights == nullptr;
+  // Unweighted prediction can reuse a cached prefix of the model output by tracking how many
+  // boosting iterations have already been accumulated in `out_preds->version`.
+  //
+  // Weighted prediction is used by DART and does not participate in this cache, since tree
+  // weights can change the accumulated output independently of the cached unweighted prefix.
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();
   }
-  if (use_cache && (layer_begin != 0 || layer_end < static_cast<bst_layer_t>(out_preds->version))) {
-    // cache is dropped.
+
+  auto cache_version = out_preds->version;
+  // We can preserve the cache only when:
+  // - prediction is unweighted
+  // - prediction starts from iteration 0, so a cached prefix is usable
+  // - the requested range does not move backwards past the cached version
+  auto preserve_cache = tree_weights == nullptr && layer_begin == 0 &&
+                        layer_end >= static_cast<bst_layer_t>(cache_version);
+  // Initialize output when:
+  // - the cache cannot be reused, or
+  // - the cache is valid but still empty
+  auto initialize_output = !preserve_cache || cache_version == 0;
+  auto prediction_begin = preserve_cache ? cache_version : layer_begin;
+
+  if (!preserve_cache) {
     out_preds->version = 0;
+    cache_version = 0;
   }
-  bool reset = false;
-  if (use_cache && layer_begin == 0) {
-    layer_begin = out_preds->version;
-  } else if (layer_begin != 0) {
-    // When begin layer is not 0, the cache is not useful.
-    reset = true;
-  }
+
   if (out_preds->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
     CHECK_EQ(out_preds->version, 0);
   }
 
   auto const& predictor = GetPredictor(is_training, &out_preds->predictions, p_fmat);
-  if (!use_cache || out_preds->version == 0) {
+  if (initialize_output) {
     // out_preds->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
     predictor->InitOutPredictions(p_fmat->Info(), &out_preds->predictions, model_);
-    out_preds->version = 0;
   }
 
-  auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
+  auto [tree_begin, tree_end] = detail::LayerToTree(model_, prediction_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
     predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end, tree_weights);
   }
-  if (!use_cache || reset) {
+
+  if (!preserve_cache) {
     out_preds->version = 0;
   } else {
-    std::uint32_t delta = layer_end - out_preds->version;
-    out_preds->Update(delta);
+    out_preds->Update(layer_end - cache_version);
   }
 }
 
