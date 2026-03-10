@@ -764,10 +764,7 @@ async def _train_async(
         if coll_cfg is not None:
             coll_args = coll_cfg.update_worker_args(coll_args)
 
-        with (
-            CommunicatorContext(**coll_args),
-            config.config_context(**global_config),
-        ):
+        with CommunicatorContext(**coll_args), config.config_context(**global_config):
             Xy, evals = _get_dmatrices(
                 train_ref,
                 train_id,
