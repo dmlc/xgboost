@@ -409,7 +409,8 @@ class ColumnSplitHelper {
                    DeviceModel const& d_model) const {
     CHECK(dmat->PageExists<SparsePage>()) << "Column split for external memory is not support.";
     PredictDMatrix<true>(dmat, out_preds, d_model, model.learner_model_param->num_feature,
-                         model.learner_model_param->num_output_group);
+                         model.learner_model_param->num_output_group,
+                         common::OptionalWeights{1.0f});
   }
 
  private:
