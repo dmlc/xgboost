@@ -543,17 +543,19 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
   auto cache_version = out_preds->version;
   // We can preserve the cache only when:
   // - prediction is unweighted
-  // - prediction starts from iteration 0, so a cached prefix is usable
+  // - prediction starts from iteration 0, so the result is a cacheable prefix
+  auto preserve_cache = tree_weights == nullptr && layer_begin == 0;
+  // We can reuse the existing cached prefix only when:
+  // - the result itself is cacheable
   // - the requested range does not move backwards past the cached version
-  auto preserve_cache = tree_weights == nullptr && layer_begin == 0 &&
-                        layer_end >= static_cast<bst_layer_t>(cache_version);
+  auto reuse_cache = preserve_cache && layer_end >= static_cast<bst_layer_t>(cache_version);
   // Initialize output when:
-  // - the cache cannot be reused, or
+  // - the cached prefix cannot be reused, or
   // - the cache is valid but still empty
-  auto initialize_output = !preserve_cache || cache_version == 0;
-  auto prediction_begin = preserve_cache ? cache_version : layer_begin;
+  auto initialize_output = !reuse_cache || cache_version == 0;
+  auto prediction_begin = reuse_cache ? cache_version : layer_begin;
 
-  if (!preserve_cache) {
+  if (!reuse_cache) {
     out_preds->version = 0;
     cache_version = 0;
   }
