@@ -678,13 +678,12 @@ class GPUPredictor : public xgboost::Predictor {
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
-    HostDeviceVector<float> weights;
     auto pred_weights = common::OptionalWeights{1.0f};
     if (tree_weights != nullptr) {
-      weights.SetDevice(ctx_->Device());
-      weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
-                                  tree_weights->cbegin() + tree_end);
-      pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
+      predts->temp_storage.SetDevice(ctx_->Device());
+      predts->temp_storage.HostVector().assign(tree_weights->cbegin() + tree_begin,
+                                               tree_weights->cbegin() + tree_end);
+      pred_weights = common::MakeOptionalWeights(ctx_->Device(), predts->temp_storage);
     }
     this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end, pred_weights);
   }

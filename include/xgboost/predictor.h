@@ -30,6 +30,8 @@ namespace xgboost {
 struct PredictionCacheEntry {
   // A storage for caching prediction values
   HostDeviceVector<float> predictions;
+  // Temporary storage for predictor-specific intermediates.
+  HostDeviceVector<float> temp_storage;
   // The version of current cache, corresponding number of layers of trees
   std::uint32_t version{0};
 

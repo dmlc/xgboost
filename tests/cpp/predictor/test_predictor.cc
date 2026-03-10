@@ -65,8 +65,22 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
   auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
 
   LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
-  auto model = CreateTestModel(&mparam, ctx);
-  std::vector<float> tree_weights{0.5f};
+  auto model = std::make_unique<gbm::GBTreeModel>(&mparam, ctx);
+  {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::make_unique<RegTree>());
+    (*trees.back())[0].SetLeaf(1.5f);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
+    model->CommitModelGroup(std::move(trees), 0);
+  }
+  {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::make_unique<RegTree>());
+    (*trees.back())[0].SetLeaf(2.0f);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
+    model->CommitModelGroup(std::move(trees), 0);
+  }
+  std::vector<float> tree_weights{0.5f, 2.0f};
 
   PredictionCacheEntry weighted_predictions;
   predictor->InitOutPredictions(dmat->Info(), &weighted_predictions.predictions, *model);
@@ -74,7 +88,16 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
 
   auto const &h_predt = weighted_predictions.predictions.ConstHostVector();
   for (auto v : h_predt) {
-    ASSERT_EQ(v, 0.75f);
+    ASSERT_EQ(v, 4.75f);
+  }
+
+  PredictionCacheEntry ranged_predictions;
+  predictor->InitOutPredictions(dmat->Info(), &ranged_predictions.predictions, *model);
+  predictor->PredictBatch(dmat.get(), &ranged_predictions, *model, 1, 2, &tree_weights);
+
+  auto const &h_ranged = ranged_predictions.predictions.ConstHostVector();
+  for (auto v : h_ranged) {
+    ASSERT_EQ(v, 4.0f);
   }
 }
 
