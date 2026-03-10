@@ -59,6 +59,25 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
   }
 }
 
+void TestBatchPredictionWithWeights(Context const *ctx) {
+  size_t constexpr kRows = 5, kCols = 5;
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+  auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
+
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
+  auto model = CreateTestModel(&mparam, ctx);
+  std::vector<float> tree_weights{0.5f};
+
+  PredictionCacheEntry weighted_predictions;
+  predictor->InitOutPredictions(dmat->Info(), &weighted_predictions.predictions, *model);
+  predictor->PredictBatch(dmat.get(), &weighted_predictions, *model, 0, 0, &tree_weights);
+
+  auto const &h_predt = weighted_predictions.predictions.ConstHostVector();
+  for (auto v : h_predt) {
+    ASSERT_EQ(v, 0.75f);
+  }
+}
+
 TEST(Predictor, PredictionCache) {
   size_t constexpr kRows = 16, kCols = 4;
 

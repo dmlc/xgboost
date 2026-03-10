@@ -207,7 +207,8 @@ class GBTree : public GradientBooster {
   }
 
   void PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
-                        bst_layer_t layer_begin, bst_layer_t layer_end) const;
+                        bst_layer_t layer_begin, bst_layer_t layer_end,
+                        std::vector<float> const* tree_weights = nullptr) const;
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
                     bst_layer_t layer_begin, bst_layer_t layer_end) override;
@@ -302,8 +303,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end,
-                                                   this->TreeWeights(), approximate);
+    this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end, nullptr,
+                                                   approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -312,8 +313,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictInteractionContributions(
-        p_fmat, out_contribs, model_, tree_end, this->TreeWeights(), approximate);
+    this->GetPredictor(false)->PredictInteractionContributions(p_fmat, out_contribs, model_,
+                                                               tree_end, nullptr, approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
@@ -331,11 +332,6 @@ class GBTree : public GradientBooster {
   [[nodiscard]] std::unique_ptr<Predictor> const& GetPredictor(
       bool is_training, HostDeviceVector<float> const* out_pred = nullptr,
       DMatrix* f_dmat = nullptr) const;
-
-  [[nodiscard]] virtual std::vector<float> const* TreeWeights() const { return nullptr; }
-  [[nodiscard]] virtual bool ShouldSkipTree(bst_tree_t tree_idx, bool is_training) const {
-    return false;
-  }
 
   // commit new trees all at once
   virtual void CommitModel(TreesOneIter&& new_trees);

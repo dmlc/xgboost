@@ -16,8 +16,9 @@
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs, SetDevice
 #include "../common/device_helpers.cuh"
-#include "../common/error_msg.h"      // for InplacePredictProxy
-#include "../common/nvtx_utils.h"     // for xgboost_NVTX_FN_RANGE
+#include "../common/error_msg.h"   // for InplacePredictProxy
+#include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
+#include "../common/optional_weight.h"
 #include "../data/batch_utils.h"      // for StaticBatch
 #include "../data/cat_container.cuh"  // for EncPolicy
 #include "../data/device_adapter.cuh"
@@ -206,8 +207,9 @@ template <typename Loader, typename Data, bool has_missing, typename EncAccessor
 __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees,
                               common::Span<float> d_out_predictions,
                               common::Span<bst_target_t const> d_tree_groups,
-                              bst_feature_t num_features, bool use_shared, bst_target_t n_groups,
-                              float missing, EncAccessor acc) {
+                              common::OptionalWeights tree_weights, bst_feature_t num_features,
+                              bool use_shared, bst_target_t n_groups, float missing,
+                              EncAccessor acc) {
   auto n_rows = data.NumRows();
   bst_idx_t global_idx = blockDim.x * blockIdx.x + threadIdx.x;
   Loader loader{std::move(data), use_shared, num_features, n_rows, missing, std::move(acc)};
@@ -217,10 +219,11 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
 
   if (n_groups == 1u) {
     float sum = 0;
-    for (auto const& d_tree : d_trees) {
+    for (bst_tree_t tree_idx = 0; tree_idx < d_trees.size(); ++tree_idx) {
+      auto const& d_tree = d_trees[tree_idx];
       auto const& sc_tree = cuda::std::get<tree::ScalarTreeView>(d_tree);
       float leaf = GetLeafWeight<has_missing>(global_idx, sc_tree, &loader);
-      sum += leaf;
+      sum += leaf * tree_weights[tree_idx];
     }
     d_out_predictions[global_idx] += sum;
   } else {
@@ -232,14 +235,15 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
           enc::Overloaded{[&](tree::ScalarTreeView const& tree) {
                             auto leaf = GetLeafWeight<has_missing>(global_idx, tree, &loader);
                             bst_idx_t out_prediction_idx = global_idx * n_groups + tree_group;
-                            d_out_predictions[out_prediction_idx] += leaf;
+                            d_out_predictions[out_prediction_idx] += leaf * tree_weights[tree_idx];
                           },
                           [&](tree::MultiTargetTreeView const& tree) {
                             // Tree group is 0.
                             auto leaf = GetLeafWeight<has_missing>(global_idx, tree, &loader);
                             for (std::size_t i = 0, n = leaf.Shape(0); i < n; ++i) {
                               bst_idx_t out_prediction_idx = global_idx * n_groups + i;
-                              d_out_predictions[out_prediction_idx] += leaf(i);
+                              d_out_predictions[out_prediction_idx] +=
+                                  leaf(i) * tree_weights[tree_idx];
                             }
                           }},
           d_tree);
@@ -344,13 +348,11 @@ __device__ float GetLeafWeightByBitVector(bst_idx_t ridx, TreeView const& tree,
 }
 
 template <bool predict_leaf>
-__global__ void PredictByBitVectorKernel(common::Span<TreeViewVar const> d_trees,
-                                         common::Span<float> d_out_predictions,
-                                         common::Span<bst_target_t const> d_tree_groups,
-                                         BitVector decision_bits, BitVector missing_bits,
-                                         bst_tree_t tree_begin, bst_tree_t tree_end,
-                                         std::size_t num_rows, std::size_t num_nodes,
-                                         std::uint32_t num_group) {
+__global__ void PredictByBitVectorKernel(
+    common::Span<TreeViewVar const> d_trees, common::Span<float> d_out_predictions,
+    common::Span<bst_target_t const> d_tree_groups, BitVector decision_bits, BitVector missing_bits,
+    bst_tree_t tree_begin, bst_tree_t tree_end, std::size_t num_rows, std::size_t num_nodes,
+    std::uint32_t num_group, common::OptionalWeights tree_weights) {
   auto const row_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (row_idx >= num_rows) {
     return;
@@ -371,7 +373,8 @@ __global__ void PredictByBitVectorKernel(common::Span<TreeViewVar const> d_trees
       for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
         auto const& d_tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx - tree_begin]);
         sum += GetLeafWeightByBitVector(row_idx, d_tree, decision_bits, missing_bits, num_nodes,
-                                        tree_offset);
+                                        tree_offset) *
+               tree_weights[tree_idx - tree_begin];
         tree_offset += d_tree.Size();
       }
       d_out_predictions[row_idx] += sum;
@@ -380,8 +383,10 @@ __global__ void PredictByBitVectorKernel(common::Span<TreeViewVar const> d_trees
         auto const tree_group = d_tree_groups[tree_idx - tree_begin];
         auto const& d_tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx - tree_begin]);
         bst_uint out_prediction_idx = row_idx * num_group + tree_group;
-        d_out_predictions[out_prediction_idx] += GetLeafWeightByBitVector(
-            row_idx, d_tree, decision_bits, missing_bits, num_nodes, tree_offset);
+        d_out_predictions[out_prediction_idx] +=
+            GetLeafWeightByBitVector(row_idx, d_tree, decision_bits, missing_bits, num_nodes,
+                                     tree_offset) *
+            tree_weights[tree_idx - tree_begin];
         tree_offset += d_tree.Size();
       }
     }
@@ -393,10 +398,11 @@ class ColumnSplitHelper {
   explicit ColumnSplitHelper(Context const* ctx) : ctx_{ctx} {}
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
-                    gbm::GBTreeModel const& model, DeviceModel const& d_model) const {
+                    gbm::GBTreeModel const& model, DeviceModel const& d_model,
+                    common::OptionalWeights tree_weights) const {
     CHECK(dmat->PageExists<SparsePage>()) << "Column split for external memory is not support.";
     PredictDMatrix<false>(dmat, out_preds, d_model, model.learner_model_param->num_feature,
-                          model.learner_model_param->num_output_group);
+                          model.learner_model_param->num_output_group, tree_weights);
   }
 
   void PredictLeaf(DMatrix* dmat, HostDeviceVector<float>* out_preds, gbm::GBTreeModel const& model,
@@ -411,7 +417,8 @@ class ColumnSplitHelper {
 
   template <bool predict_leaf>
   void PredictDMatrix(DMatrix* dmat, HostDeviceVector<float>* out_preds, DeviceModel const& d_model,
-                      bst_feature_t num_features, std::uint32_t num_group) const {
+                      bst_feature_t num_features, std::uint32_t num_group,
+                      common::OptionalWeights tree_weights) const {
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     dh::caching_device_vector<BitType> decision_storage{};
     dh::caching_device_vector<BitType> missing_storage{};
@@ -445,7 +452,7 @@ class ColumnSplitHelper {
                        ctx_->CUDACtx()->Stream()}(
           PredictByBitVectorKernel<predict_leaf>, d_model.Trees(),
           out_preds->DeviceSpan().subspan(batch_offset), d_tree_groups, decision_bits, missing_bits,
-          d_model.tree_begin, d_model.tree_end, num_rows, num_nodes, num_group);
+          d_model.tree_begin, d_model.tree_end, num_rows, num_nodes, num_group, tree_weights);
 
       batch_offset += batch.Size() * num_group;
     }
@@ -524,13 +531,14 @@ class LaunchConfig {
   template <typename Loader, typename Data>
   void LaunchPredictKernel(Data batch, float missing, bst_feature_t n_features,
                            DeviceModel const& d_model, EncAccessorT acc, bst_idx_t batch_offset,
-                           HostDeviceVector<float>* predictions) {
+                           HostDeviceVector<float>* predictions,
+                           common::OptionalWeights tree_weights) {
     auto kernel = PredictKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                 HasMissing(), EncAccessorT>;
     auto d_tree_groups = d_model.tree_groups;
-    this->Launch<Loader>(kernel, std::move(batch), d_model.Trees(),
-                         predictions->DeviceSpan().subspan(batch_offset), d_tree_groups, n_features,
-                         this->UseShared(), d_model.n_groups, missing, acc);
+    this->Launch<Loader>(
+        kernel, std::move(batch), d_model.Trees(), predictions->DeviceSpan().subspan(batch_offset),
+        d_tree_groups, tree_weights, n_features, this->UseShared(), d_model.n_groups, missing, acc);
   }
 
   [[nodiscard]] bool UseShared() const { return shared_memory_bytes_ != 0; }
@@ -615,8 +623,8 @@ void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView con
 class GPUPredictor : public xgboost::Predictor {
  private:
   void PredictDMatrix(DMatrix* p_fmat, HostDeviceVector<float>* out_preds,
-                      gbm::GBTreeModel const& model, bst_tree_t tree_begin,
-                      bst_tree_t tree_end) const {
+                      gbm::GBTreeModel const& model, bst_tree_t tree_begin, bst_tree_t tree_end,
+                      common::OptionalWeights tree_weights) const {
     if (tree_end - tree_begin == 0) {
       return;
     }
@@ -627,7 +635,7 @@ class GPUPredictor : public xgboost::Predictor {
                         tree_begin,           tree_end, CopyViews{this->ctx_}};
 
     if (info.IsColumnSplit()) {
-      column_split_helper_.PredictBatch(p_fmat, out_preds, model, d_model);
+      column_split_helper_.PredictBatch(p_fmat, out_preds, model, d_model, tree_weights);
       return;
     }
 
@@ -643,9 +651,9 @@ class GPUPredictor : public xgboost::Predictor {
       cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
         using Loader = typename common::GetValueT<decltype(loader_t)>;
         auto n_rows = batch.NumRows();
-        cfg.template LaunchPredictKernel<Loader>(std::move(batch),
-                                                 std::numeric_limits<float>::quiet_NaN(),
-                                                 n_features, d_model, acc, batch_offset, out_preds);
+        cfg.template LaunchPredictKernel<Loader>(
+            std::move(batch), std::numeric_limits<float>::quiet_NaN(), n_features, d_model, acc,
+            batch_offset, out_preds, tree_weights);
         batch_offset += n_rows * model.learner_model_param->OutputLength();
       });
     });
@@ -661,14 +669,23 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
   void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts, const gbm::GBTreeModel& model,
-                    bst_tree_t tree_begin, bst_tree_t tree_end = 0) const override {
+                    bst_tree_t tree_begin, bst_tree_t tree_end = 0,
+                    std::vector<float> const* tree_weights = nullptr) const override {
     xgboost_NVTX_FN_RANGE();
     CHECK(ctx_->Device().IsCUDA()) << "Set `device' to `cuda` for processing GPU data.";
     auto* out_preds = &predts->predictions;
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
-    this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end);
+    HostDeviceVector<float> weights;
+    auto pred_weights = common::OptionalWeights{1.0f};
+    if (tree_weights != nullptr) {
+      weights.SetDevice(ctx_->Device());
+      weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
+                                  tree_weights->cbegin() + tree_end);
+      pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
+    }
+    this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end, pred_weights);
   }
 
   template <typename Adapter>
@@ -698,7 +715,8 @@ class GPUPredictor : public xgboost::Predictor {
               typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
           cfg.template AllocShmem<Loader>();
           cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
-                                                   &out_preds->predictions);
+                                                   &out_preds->predictions,
+                                                   common::OptionalWeights{1.0f});
         });
         return;
       }
@@ -712,7 +730,8 @@ class GPUPredictor : public xgboost::Predictor {
           typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
       cfg.template AllocShmem<Loader>();
       cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
-                                               &out_preds->predictions);
+                                               &out_preds->predictions,
+                                               common::OptionalWeights{1.0f});
     });
   }
 

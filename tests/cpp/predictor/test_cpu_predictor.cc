@@ -7,10 +7,10 @@
 #include "../../../src/collective/communicator-inl.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
-#include "../../../src/predictor/array_tree_layout.h"
-#include "../../../src/tree/tree_view.h"
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/predictor/array_tree_layout.h"
+#include "../../../src/tree/tree_view.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_predictor.h"
@@ -23,6 +23,11 @@ TEST(CpuPredictor, Basic) {
   size_t constexpr kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   TestBasic(dmat.get(), &ctx);
+}
+
+TEST(CpuPredictor, BatchPredictionWithWeights) {
+  Context ctx;
+  TestBatchPredictionWithWeights(&ctx);
 }
 
 template <typename ArrayLayoutT>
@@ -234,9 +239,7 @@ TEST(CPUPredictor, GHistIndexTraining) {
   TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist);
 }
 
-TEST(CPUPredictor, CategoricalPrediction) {
-  TestCategoricalPrediction(false, false);
-}
+TEST(CPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(false, false); }
 
 TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
   auto constexpr kWorldSize = 2;

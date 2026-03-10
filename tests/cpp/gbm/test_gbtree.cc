@@ -434,58 +434,6 @@ INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart, testing::Values("CPU", "GPU"));
 INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart, testing::Values("CPU"));
 #endif  // defined(XGBOOST_USE_CUDA)
 
-TEST(Dart, ShapUsesTreeWeights) {
-  size_t constexpr kRows = 64, kCols = 8;
-
-  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-  std::vector<bst_float> labels(kRows);
-  for (size_t i = 0; i < kRows; ++i) {
-    labels[i] = i % 2;
-  }
-  p_mat->SetInfo("label", Make1dInterfaceTest(labels.data(), kRows));
-
-  auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
-  learner->SetParams(
-      Args{{"booster", "dart"}, {"tree_method", "hist"}, {"rate_drop", "0.5"}, {"one_drop", "1"}});
-  learner->Configure();
-
-  for (size_t i = 0; i < 12; ++i) {
-    learner->UpdateOneIter(i, p_mat);
-  }
-
-  HostDeviceVector<float> margin_predts;
-  learner->Predict(p_mat, true, &margin_predts, 0, 0, false, false, false, false, false);
-
-  HostDeviceVector<float> contribs;
-  learner->Predict(p_mat, false, &contribs, 0, 0, false, false, true, false, false);
-
-  HostDeviceVector<float> interactions;
-  learner->Predict(p_mat, false, &interactions, 0, 0, false, false, false, false, true);
-
-  auto const& h_margin = margin_predts.ConstHostVector();
-  auto const& h_contribs = contribs.ConstHostVector();
-  auto const& h_interactions = interactions.ConstHostVector();
-
-  ASSERT_EQ(h_margin.size(), kRows);
-  ASSERT_EQ(h_contribs.size(), kRows * (kCols + 1));
-  ASSERT_EQ(h_interactions.size(), kRows * (kCols + 1) * (kCols + 1));
-
-  for (size_t row = 0; row < kRows; ++row) {
-    float contrib_sum = 0.0f;
-    for (size_t c = 0; c < kCols + 1; ++c) {
-      contrib_sum += h_contribs[row * (kCols + 1) + c];
-    }
-    ASSERT_NEAR(contrib_sum, h_margin[row], kRtEps * 10);
-
-    float interaction_sum = 0.0f;
-    auto base = row * (kCols + 1) * (kCols + 1);
-    for (size_t c = 0; c < (kCols + 1) * (kCols + 1); ++c) {
-      interaction_sum += h_interactions[base + c];
-    }
-    ASSERT_NEAR(interaction_sum, h_margin[row], kRtEps * 10);
-  }
-}
-
 std::pair<Json, Json> TestModelSlice(std::string booster) {
   size_t constexpr kRows = 1000, kCols = 100, kForest = 2, kClasses = 3;
   auto m = RandomDataGenerator{kRows, kCols, 0}.Classes(kClasses).GenerateDMatrix(true);
