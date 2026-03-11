@@ -95,7 +95,7 @@ void TestPartitionBasedSplit::SetUp() {
 void TestEvaluateSplits(bool force_read_by_column) {
   Context ctx;
   ctx.nthread = 4;
-  static constexpr int kRows = 8, kCols = 16;
+  static constexpr bst_idx_t kRows = 8, kCols = 16;
   auto sampler = std::make_shared<common::ColumnSampler>(1u);
 
   TrainParam param;
@@ -221,7 +221,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   std::transform(histogram.cbegin(), histogram.cend(), std::back_inserter(ptrs),
                  [](auto const &h) { return std::addressof(h); });
 
-  evaluator.EvaluateSplits(tree, ptrs, cuts, &entries);
+  evaluator.EvaluateSplits(tree, ptrs, cuts, {}, &entries);
 
   ASSERT_EQ(entries.front().split.loss_chg, 12.5);
   ASSERT_EQ(entries.front().split.split_value, 0.5);
@@ -234,10 +234,10 @@ TEST(HistEvaluator, Apply) {
   Context ctx;
   ctx.nthread = 4;
   RegTree tree;
-  static constexpr int kNRows = 8, kNCols = 16;
+  static constexpr bst_idx_t kRows = 8, kCols = 16;
   TrainParam param;
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
-  auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).Seed(3).GenerateDMatrix();
   auto sampler = std::make_shared<common::ColumnSampler>(1u);
   auto evaluator_ = HistEvaluator{&ctx, &param, dmat->Info(), sampler};
 
@@ -278,7 +278,7 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
 namespace {
 auto CompareOneHotAndPartition(bool onehot) {
   Context ctx;
-  static constexpr int kRows = 128, kCols = 1;
+  static constexpr bst_idx_t kRows = 128, kCols = 1;
   std::vector<FeatureType> ft(kCols, FeatureType::kCategorical);
 
   TrainParam param;
@@ -360,5 +360,81 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
                     split.DefaultLeft(),
                     GradientPairPrecise{split.left_sum.GetGrad(), split.left_sum.GetHess()},
                     GradientPairPrecise{split.right_sum.GetGrad(), split.right_sum.GetHess()});
+}
+
+TEST(HistMultiEvaluator, CategoricalOneHot) {
+  Context ctx;
+  ctx.nthread = 1;
+
+  TrainParam param;
+  param.Init(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}, {"max_cat_to_onehot", "100"}});
+  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+
+  bst_feature_t n_features = 1;
+  bst_target_t n_targets = 2;
+  bst_bin_t n_cats = 3;
+
+  MetaInfo info;
+  info.num_col_ = n_features;
+  info.feature_types = {FeatureType::kCategorical};
+
+  HistMultiEvaluator evaluator{&ctx, info, &param, sampler};
+  HistMakerTrainParam hist_param;
+
+  // Per-target histograms with n_cats bins each.
+  std::vector<BoundedHistCollection> histogram(n_targets);
+  linalg::Vector<GradientPairPrecise> root_sum({n_targets}, DeviceOrd::CPU());
+  std::vector<std::vector<GradientPairPrecise>> hist_data = {
+      {{1.0, 0.5}, {-0.5, 0.5}, {0.5, 0.5}},   // t-0
+      {{0.5, 0.5}, {1.0, 0.5}, {-0.5, 0.5}}};  // t-1
+
+  for (bst_target_t t = 0; t < n_targets; ++t) {
+    auto &hist = histogram[t];
+    hist.Reset(n_cats * n_features, hist_param.MaxCachedHistNodes(ctx.Device()));
+    hist.AllocateHistograms({0});
+    auto node_hist = hist[0];
+    for (bst_bin_t b = 0; b < n_cats; ++b) {
+      node_hist[b] = hist_data[t][b];
+      root_sum(t) += node_hist[b];
+    }
+  }
+
+  common::HistogramCuts cuts{n_features};
+  cuts.cut_ptrs_ = {0, 3};
+  cuts.cut_values_ = {0.0, 1.0, 2.0};
+  cuts.SetCategorical(true, 2.0);
+
+  RegTree tree{n_targets, n_features};
+  auto weight = evaluator.InitRoot(root_sum.HostView());
+  float root_sum_hess = 0.0f;
+  for (bst_target_t t = 0; t < n_targets; ++t) {
+    root_sum_hess += static_cast<float>(root_sum.HostView()(t).GetHess());
+  }
+  tree.SetRoot(weight.HostView(), root_sum_hess);
+
+  std::vector<MultiExpandEntry> entries(1, {0, 0});
+  std::vector<BoundedHistCollection const *> ptrs;
+  for (auto &h : histogram) {
+    ptrs.push_back(&h);
+  }
+
+  std::vector<FeatureType> ft{FeatureType::kCategorical};
+  evaluator.EvaluateSplits(tree, ptrs, cuts, ft, &entries);
+
+  auto const &split = entries.front().split;
+  ASSERT_TRUE(split.is_cat);
+  ASSERT_FALSE(split.cat_bits.empty());
+  ASSERT_GT(split.loss_chg, 0.0f);
+
+  common::KCatBitField cat_bits{split.cat_bits};
+  auto chosen_cat = static_cast<bst_cat_t>(split.split_value);
+  ASSERT_TRUE(cat_bits.Check(chosen_cat));
+
+  // Verify ApplyTreeSplit works with categorical split.
+  evaluator.ApplyTreeSplit(entries.front(), &tree);
+  ASSERT_TRUE(tree.HasCategoricalSplit());
+  auto mt_view = tree.HostMtView();
+  ASSERT_EQ(mt_view.SplitType(0), FeatureType::kCategorical);
+  ASSERT_FALSE(mt_view.NodeCats(0).empty());
 }
 }  // namespace xgboost::tree

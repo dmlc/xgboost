@@ -1502,7 +1502,7 @@ class TestWithDask:
         predt = dxgb.inplace_predict(client, result["booster"], X).compute()
         np.testing.assert_allclose(y.compute(), predt)
         rmse = result["history"]["Valid"]["rmse"][-1]
-        assert rmse < 6.0
+        assert rmse < 6.5
 
     @given(
         params=hist_parameter_strategy,

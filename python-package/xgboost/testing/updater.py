@@ -452,9 +452,11 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     cats: int,
     device: str,
     tree_method: str,
-    extmem: bool,
+    extmem: bool = False,
+    multi_target: bool = False,
 ) -> None:
     "Test for one-hot encoding with categorical data."
+    pd = pytest.importorskip("pandas")
 
     by_etl_results: Dict[str, Dict[str, List[float]]] = {}
     by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
@@ -466,35 +468,51 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
         "device": device,
     }
 
-    Xy_onehot = _create_dmatrix(
-        rows,
-        cols,
-        n_cats=cats,
-        device=device,
-        sparsity=0.0,
-        onehot=True,
-        tree_method=tree_method,
-        extmem=extmem,
-        enable_categorical=False,
-    )
+    if multi_target:
+        n_targets = 3
+        parameters["multi_strategy"] = "multi_output_tree"
+
+        cat, label = make_categorical(
+            rows,
+            cols,
+            n_categories=cats,
+            onehot=False,
+            sparsity=0.0,
+            n_targets=n_targets,
+        )
+
+        Xy_onehot = DMatrix(pd.get_dummies(cat), label)
+        Xy_cat = DMatrix(cat, label, enable_categorical=True)
+    else:
+        Xy_onehot = _create_dmatrix(
+            rows,
+            cols,
+            n_cats=cats,
+            device=device,
+            sparsity=0.0,
+            onehot=True,
+            tree_method=tree_method,
+            extmem=extmem,
+            enable_categorical=False,
+        )
+        Xy_cat = _create_dmatrix(
+            rows,
+            cols,
+            n_cats=cats,
+            device=device,
+            sparsity=0.0,
+            tree_method=tree_method,
+            onehot=False,
+            extmem=extmem,
+            enable_categorical=True,
+        )
+
     train(
         parameters,
         Xy_onehot,
         num_boost_round=rounds,
         evals=[(Xy_onehot, "Train")],
         evals_result=by_etl_results,
-    )
-
-    Xy_cat = _create_dmatrix(
-        rows,
-        cols,
-        n_cats=cats,
-        device=device,
-        sparsity=0.0,
-        tree_method=tree_method,
-        onehot=False,
-        extmem=extmem,
-        enable_categorical=True,
     )
     train(
         parameters,
@@ -516,33 +534,34 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     )
     assert non_increasing(by_builtin_results["Train"]["rmse"])
 
-    by_grouping: Dict[str, Dict[str, List[float]]] = {}
-    # switch to partition-based splits
-    parameters["max_cat_to_onehot"] = USE_PART
-    parameters["reg_lambda"] = 0
-    train(
-        parameters,
-        Xy_cat,
-        num_boost_round=rounds,
-        evals=[(Xy_cat, "Train")],
-        evals_result=by_grouping,
-    )
-    rmse_oh = by_builtin_results["Train"]["rmse"]
-    rmse_group = by_grouping["Train"]["rmse"]
-    # always better or equal to onehot when there's no regularization.
-    for a, b in zip(rmse_oh, rmse_group):
-        assert a >= b
+    if not multi_target:
+        by_grouping: Dict[str, Dict[str, List[float]]] = {}
+        # switch to partition-based splits
+        parameters["max_cat_to_onehot"] = USE_PART
+        parameters["reg_lambda"] = 0
+        train(
+            parameters,
+            Xy_cat,
+            num_boost_round=rounds,
+            evals=[(Xy_cat, "Train")],
+            evals_result=by_grouping,
+        )
+        rmse_oh = by_builtin_results["Train"]["rmse"]
+        rmse_group = by_grouping["Train"]["rmse"]
+        # always better or equal to onehot when there's no regularization.
+        for a, b in zip(rmse_oh, rmse_group):
+            assert a >= b
 
-    parameters["reg_lambda"] = 1.0
-    by_grouping = {}
-    train(
-        parameters,
-        Xy_cat,
-        num_boost_round=32,
-        evals=[(Xy_cat, "Train")],
-        evals_result=by_grouping,
-    )
-    assert non_increasing(by_grouping["Train"]["rmse"]), by_grouping
+        parameters["reg_lambda"] = 1.0
+        by_grouping = {}
+        train(
+            parameters,
+            Xy_cat,
+            num_boost_round=32,
+            evals=[(Xy_cat, "Train")],
+            evals_result=by_grouping,
+        )
+        assert non_increasing(by_grouping["Train"]["rmse"]), by_grouping
 
 
 def check_categorical_missing(  # pylint: disable=too-many-arguments
