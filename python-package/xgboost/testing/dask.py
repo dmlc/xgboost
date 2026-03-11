@@ -276,6 +276,7 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     n_categories: int,
     *,
     onehot: bool = False,
+    n_targets: int = 1,
     cat_dtype: np.typing.DTypeLike = np.int64,
 ) -> Tuple[dd.DataFrame, dd.Series]:
     """Synthesize categorical data with dask."""
@@ -283,9 +284,17 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     n_workers = len(workers)
     dfs = []
 
+    label_cols = (
+        [f"label_{i}" for i in range(n_targets)] if n_targets > 1 else ["label"]
+    )
+
     def pack(**kwargs: Any) -> dd.DataFrame:
         X, y = make_cat_local(**kwargs)
-        X["label"] = y
+        if y.ndim == 2:
+            for i in range(y.shape[1]):
+                X[f"label_{i}"] = y[:, i]
+        else:
+            X["label"] = y
         return X
 
     meta = pack(
@@ -293,6 +302,7 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
         n_features=n_features,
         n_categories=n_categories,
         onehot=False,
+        n_targets=n_targets,
         cat_dtype=cat_dtype,
     )
 
@@ -308,6 +318,7 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
             n_samples=l_n_samples,
             n_features=n_features,
             n_categories=n_categories,
+            n_targets=n_targets,
             cat_dtype=cat_dtype,
             onehot=False,
             workers=[worker],
@@ -315,8 +326,10 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
         dfs.append(future)
 
     df: dd.DataFrame = cast(dd.DataFrame, dd.from_delayed(dfs, meta=meta))
-    y = df["label"]
-    X = df[df.columns.difference(["label"])]
+    y = df[label_cols]
+    if n_targets == 1:
+        y = y[label_cols[0]]
+    X = df[df.columns.difference(label_cols)]
 
     if onehot:
         return dd.get_dummies(X), y

@@ -200,9 +200,6 @@ class MultiTargetHistBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      if (page.cut.HasCategorical()) {
-        LOG(FATAL) << "Categorical features" << MTNotImplemented();
-      }
       if (page_idx < partitioner_.size()) {
         partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
                                      p_fmat->Info().IsColumnSplit());
@@ -263,8 +260,9 @@ class MultiTargetHistBuilder {
     for (bst_target_t t{0}; t < n_targets; ++t) {
       hists.push_back(&(*histogram_builder_).Histogram(t));
     }
+    auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, &nodes);
+      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, ft, &nodes);
       break;
     }
     monitor_->Stop(__func__);
@@ -290,8 +288,9 @@ class MultiTargetHistBuilder {
     for (bst_target_t t{0}; t < n_targets; ++t) {
       hists.push_back(&(*histogram_builder_).Histogram(t));
     }
+    auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, best_splits);
+      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, ft, best_splits);
       break;
     }
     monitor_->Stop(__func__);

@@ -1014,6 +1014,7 @@ def make_categorical(
     n_categories: int,
     *,
     onehot: bool,
+    n_targets: int = 1,
     sparsity: float = 0.0,
     cat_ratio: float = 1.0,
     shuffle: bool = False,
@@ -1029,6 +1030,9 @@ def make_categorical(
         Number of categories for categorical features.
     onehot:
         Should we apply one-hot encoding to the data?
+    n_targets:
+        Number of targets. When greater than 1, the label is a 2D array with shape
+        ``(n_samples, n_targets)``.
     sparsity:
         The ratio of the amount of missing values over the number of all entries.
     cat_ratio:
@@ -1068,13 +1072,18 @@ def make_categorical(
             num = row_rng.randint(low=0, high=n_categories, size=n_samples)
             df[str(i)] = pd.Series(num, dtype=num.dtype)
 
-    label = np.zeros(shape=(n_samples,))
+    target_rng = np.random.RandomState(random_state + 2)
+    label: np.ndarray = np.ones((n_samples, n_targets))
     for col in df.columns:
         if isinstance(df[col].dtype, pd.CategoricalDtype):
-            label += df[col].cat.codes
+            codes = df[col].cat.codes.values
+            effects = target_rng.normal(size=(len(df[col].cat.categories), n_targets))
+            label += effects[codes]
         else:
-            label += df[col]
-    label += 1
+            w = target_rng.uniform(low=0.5, high=1.5, size=n_targets)
+            label += np.outer(df[col].values, w)
+    if n_targets == 1:
+        label = label.squeeze(axis=1)
 
     if sparsity > 0.0:
         for i in range(n_features):
