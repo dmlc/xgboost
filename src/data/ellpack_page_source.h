@@ -187,10 +187,8 @@ class EllpackFormatPolicy {
  public:
   EllpackFormatPolicy() {
     StringView msg{" The overhead of iterating through external memory might be significant."};
-    if (!has_hmm_) {
+    if (!(has_hmm_ || curt::SupportsAts())) {
       LOG(WARNING) << "CUDA heterogeneous memory management is not available." << msg;
-    } else if (!curt::SupportsAts()) {
-      LOG(WARNING) << "CUDA address translation service is not available." << msg;
     }
     if (!(GlobalConfigThreadLocalStore::Get()->use_rmm ||
           GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool)) {
