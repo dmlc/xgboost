@@ -1,6 +1,6 @@
 """Tests for dask shared by different test modules."""
 
-from typing import Any, List, Literal, Tuple, Type, cast
+from typing import Any, List, Literal, Tuple, Type, Union, cast, overload
 
 import numpy as np
 import pandas as pd
@@ -269,6 +269,32 @@ def check_no_group_split(client: Client, device: str) -> None:
     np.testing.assert_allclose(ndcg[-1], 1.0, rtol=1e-2)
 
 
+@overload
+def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
+    client: Client,
+    n_samples: int,
+    n_features: int,
+    n_categories: int,
+    *,
+    onehot: bool = ...,
+    n_targets: Literal[1] = ...,
+    cat_dtype: np.typing.DTypeLike = ...,
+) -> Tuple[dd.DataFrame, dd.Series]: ...
+
+
+@overload
+def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
+    client: Client,
+    n_samples: int,
+    n_features: int,
+    n_categories: int,
+    *,
+    onehot: bool = ...,
+    n_targets: int,
+    cat_dtype: np.typing.DTypeLike = ...,
+) -> Tuple[dd.DataFrame, Union[dd.Series, dd.DataFrame]]: ...
+
+
 def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     client: Client,
     n_samples: int,
@@ -278,7 +304,7 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     onehot: bool = False,
     n_targets: int = 1,
     cat_dtype: np.typing.DTypeLike = np.int64,
-) -> Tuple[dd.DataFrame, dd.Series]:
+) -> Tuple[dd.DataFrame, Union[dd.Series, dd.DataFrame]]:
     """Synthesize categorical data with dask."""
     workers = get_client_workers(client)
     n_workers = len(workers)
