@@ -608,34 +608,6 @@ class WQuantileSketch {
   std::vector<Entry> combine_workspace_;
 };
 
-namespace detail {
-inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
-  std::vector<float> const &group_weights = info.weights_.HostVector();
-  if (group_weights.empty()) {
-    return group_weights;
-  }
-
-  auto const &group_ptr = info.group_ptr_;
-  CHECK_GE(group_ptr.size(), 2);
-
-  auto n_groups = group_ptr.size() - 1;
-  CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
-
-  bst_idx_t n_samples = info.num_row_;
-  std::vector<float> results(n_samples);
-  CHECK_EQ(group_ptr.back(), n_samples)
-      << error::GroupSize() << " the number of rows from the data.";
-  size_t cur_group = 0;
-  for (bst_idx_t i = 0; i < n_samples; ++i) {
-    results[i] = group_weights[cur_group];
-    if (i == group_ptr[cur_group + 1]) {
-      cur_group++;
-    }
-  }
-  return results;
-}
-}  // namespace detail
-
 class HistogramCuts;
 
 template <typename Batch, typename IsValid>
@@ -736,20 +708,18 @@ class HostSketchContainer {
     return use_group_ind;
   }
 
-  static uint32_t SearchGroupIndFromRow(std::vector<bst_uint> const &group_ptr,
-                                        size_t const base_rowid) {
-    CHECK_LT(base_rowid, group_ptr.back())
-        << "Row: " << base_rowid << " is not found in any group.";
-    bst_group_t group_ind = std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid) -
-                            group_ptr.cbegin() - 1;
-    return group_ind;
-  }
+  /* \brief Push a CSR matrix. */
+  void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
 
- private:
-  // Merge numeric sketches from all workers.
-  [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info,
-                               common::Span<bst_feature_t const> numeric_features)
-      -> std::vector<WQSketch::SummaryContainer>;
+  template <typename Batch>
+  void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
+
+  /**
+   * \brief Push a sorted CSC page.
+   */
+  void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
+
+  [[nodiscard]] HistogramCuts MakeCuts(Context const *ctx, MetaInfo const &info);
 
  protected:
   template <typename Batch, typename IsValid>
@@ -793,23 +763,16 @@ class HostSketchContainer {
     });
   }
 
- public:
-  /* \brief Push a CSR matrix. */
-  void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
-
-  [[nodiscard]] HistogramCuts MakeCuts(Context const *ctx, MetaInfo const &info);
-  template <typename Batch>
-  void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
-  /**
-   * \brief Push a sorted CSC page.
-   */
-  void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
-
  private:
   // Merge categorical values from all workers.
   [[nodiscard]] auto AllreduceCategories(Context const *ctx, MetaInfo const &info,
                                          common::Span<bst_feature_t const> categorical_features)
       -> std::vector<std::set<float>>;
+
+  // Merge numeric sketches from all workers.
+  [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info,
+                               common::Span<bst_feature_t const> numeric_features)
+      -> std::vector<WQSketch::SummaryContainer>;
 };
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_QUANTILE_H_

@@ -43,6 +43,32 @@ HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bin,
 }
 
 namespace {
+std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
+  std::vector<float> const &group_weights = info.weights_.HostVector();
+  if (group_weights.empty()) {
+    return group_weights;
+  }
+
+  auto const &group_ptr = info.group_ptr_;
+  CHECK_GE(group_ptr.size(), 2);
+
+  auto n_groups = group_ptr.size() - 1;
+  CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
+
+  bst_idx_t n_samples = info.num_row_;
+  std::vector<float> results(n_samples);
+  CHECK_EQ(group_ptr.back(), n_samples)
+      << error::GroupSize() << " the number of rows from the data.";
+  size_t cur_group = 0;
+  for (bst_idx_t i = 0; i < n_samples; ++i) {
+    results[i] = group_weights[cur_group];
+    if (i == group_ptr[cur_group + 1]) {
+      cur_group++;
+    }
+  }
+  return results;
+}
+
 // Function to merge hessian and sample weights
 std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian, bool use_group,
                                 int32_t n_threads) {
@@ -318,8 +344,8 @@ void HostSketchContainer::PushRowPage(SparsePage const &page, MetaInfo const &in
 
   // glue these conditions using ternary operator to avoid making data copies.
   auto const &weights =
-      hessian.empty() ? (use_group_ind_ ? detail::UnrollGroupWeights(info)  // use group weight
-                                        : info.weights_.HostVector())       // use sample weight
+      hessian.empty() ? (use_group_ind_ ? UnrollGroupWeights(info)     // use group weight
+                                        : info.weights_.HostVector())  // use sample weight
                       : MergeWeights(info, hessian, use_group_ind_,
                                      n_threads_);  // use hessian merged with group/sample weights
   if (!weights.empty()) {
@@ -335,8 +361,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page, MetaInfo const &in
 template <typename Batch>
 void HostSketchContainer::PushAdapterBatch(Batch const &batch, size_t base_rowid,
                                            MetaInfo const &info, float missing) {
-  auto const &h_weights =
-      (use_group_ind_ ? detail::UnrollGroupWeights(info) : info.weights_.HostVector());
+  auto const &h_weights = (use_group_ind_ ? UnrollGroupWeights(info) : info.weights_.HostVector());
   if (!use_group_ind_ && !h_weights.empty()) {
     CHECK_EQ(h_weights.size(), batch.Size()) << "Invalid size of sample weight.";
   }
@@ -586,8 +611,8 @@ void HostSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &in
   monitor_.Start(__func__);
   // glue these conditions using ternary operator to avoid making data copies.
   auto const &weights =
-      hessian.empty() ? (use_group_ind_ ? detail::UnrollGroupWeights(info)  // use group weight
-                                        : info.weights_.HostVector())       // use sample weight
+      hessian.empty() ? (use_group_ind_ ? UnrollGroupWeights(info)     // use group weight
+                                        : info.weights_.HostVector())  // use sample weight
                       : MergeWeights(info, hessian, use_group_ind_,
                                      n_threads_);  // use hessian merged with group/sample weights
   CHECK_EQ(weights.size(), info.num_row_);

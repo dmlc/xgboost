@@ -121,39 +121,6 @@ TEST(ParallelGHistBuilder, Reset) { ParallelGHistBuilderReset(); }
 
 TEST(ParallelGHistBuilder, ReduceHist) { ParallelGHistBuilderReduceHist(); }
 
-TEST(CutsBuilder, SearchGroupInd) {
-  size_t constexpr kNumGroups = 4;
-  size_t constexpr kRows = 17;
-  size_t constexpr kCols = 15;
-
-  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-
-  std::vector<bst_group_t> group(kNumGroups);
-  group[0] = 2;
-  group[1] = 3;
-  group[2] = 7;
-  group[3] = 5;
-
-  p_mat->SetInfo("group", Make1dInterfaceTest(group.data(), group.size()));
-
-  HistogramCuts hmat{0};
-
-  size_t group_ind = HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 0);
-  ASSERT_EQ(group_ind, 0ul);
-
-  group_ind = HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 5);
-  ASSERT_EQ(group_ind, 2ul);
-
-  EXPECT_ANY_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17));
-
-  p_mat->Info().Validate(DeviceOrd::CPU());
-  EXPECT_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17),
-               dmlc::Error);
-
-  std::vector<bst_uint> group_ptr{0, 1, 2};
-  CHECK_EQ(HostSketchContainer::SearchGroupIndFromRow(group_ptr, 1), 1);
-}
-
 TEST(HistUtil, DenseCutsCategorical) {
   Context ctx;
   int categorical_sizes[] = {2, 6, 8, 12};
