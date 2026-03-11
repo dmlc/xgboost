@@ -107,7 +107,8 @@ class Predictor {
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
                             gbm::GBTreeModel const& model, bst_tree_t tree_begin,
-                            bst_tree_t tree_end = 0) const = 0;
+                            bst_tree_t tree_end = 0,
+                            std::vector<float> const* tree_weights = nullptr) const = 0;
 
   /**
    * \brief Inplace prediction.
