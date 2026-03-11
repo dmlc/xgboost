@@ -6,11 +6,13 @@
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t, int64_t
 #include <memory>   // for shared_ptr
+#include <set>      // for set
 #include <string>   // for string
 #include <thread>   // for thread
 #include <utility>  // for move
 #include <vector>   // for vector
 
+#include "../common/bitfield.h"         // for TrailingZeroBits
 #include "loop.h"                       // for Loop
 #include "protocol.h"                   // for PeerInfo
 #include "xgboost/collective/result.h"  // for Result
@@ -32,6 +34,37 @@ inline std::int32_t BootstrapNext(std::int32_t r, std::int32_t world) {
 inline std::int32_t BootstrapPrev(std::int32_t r, std::int32_t world) {
   auto nrank = (r + world - 1) % world;
   return nrank;
+}
+
+/**
+ * @brief Compute the sparse peer set for a given rank: ring neighbors union binomial tree
+ *        neighbors (rooted at rank 0).
+ */
+inline std::vector<std::int32_t> SparsePeers(std::int32_t rank, std::int32_t world) {
+  if (world <= 1) {
+    return {};
+  }
+  std::set<std::int32_t> peers;
+
+  peers.insert(BootstrapNext(rank, world));
+  peers.insert(BootstrapPrev(rank, world));
+
+  if (rank > 0) {
+    auto k = TrailingZeroBits(static_cast<std::uint32_t>(rank));
+    peers.insert(rank - (1 << k));
+  }
+
+  for (std::int32_t k = 0; (1 << k) < world; ++k) {
+    if (rank % (1 << (k + 1)) == 0) {
+      auto child = rank + (1 << k);
+      if (child < world) {
+        peers.insert(child);
+      }
+    }
+  }
+
+  peers.erase(rank);
+  return {peers.begin(), peers.end()};
 }
 
 inline StringView DefaultNcclName() { return "libnccl.so.2"; }
@@ -98,8 +131,14 @@ class Comm : public std::enable_shared_from_this<Comm> {
   }
   [[nodiscard]] virtual Result Block() const { return loop_->Block(); }
 
+  [[nodiscard]] bool HasChan(std::int32_t rank) const {
+    return rank >= 0 && rank < static_cast<std::int32_t>(channels_.size()) &&
+           channels_[rank] != nullptr;
+  }
   [[nodiscard]] virtual std::shared_ptr<Channel> Chan(std::int32_t rank) const {
-    return channels_.at(rank);
+    CHECK(HasChan(rank)) << "No channel to rank " << rank << " from rank " << rank_
+                         << ". The topology does not include this peer.";
+    return channels_[rank];
   }
   [[nodiscard]] virtual bool IsFederated() const = 0;
   [[nodiscard]] virtual Result LogTracker(std::string msg) const = 0;
