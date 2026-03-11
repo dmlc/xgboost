@@ -195,10 +195,12 @@ class TestFromColumnar:
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_categorical(self) -> None:
+        import pandas as pd
+
         n_features = 30
         _X, _y = tm.make_categorical(100, n_features, 17, onehot=False)
         X = cudf.from_pandas(_X)
-        y = cudf.from_pandas(_y)
+        y = cudf.from_pandas(pd.DataFrame(_y))
 
         Xy = xgb.DMatrix(X, y)
         assert Xy.feature_types is not None
