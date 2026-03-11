@@ -199,18 +199,6 @@ void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, 
 }
 #endif
 
-void GPUDartInplacePredictInc(common::Span<float> /*out_predts*/, common::Span<float> /*predts*/,
-                              float /*tree_w*/, size_t /*n_rows*/,
-                              linalg::TensorView<float const, 1> /*base_score*/,
-                              bst_group_t /*n_groups*/, bst_group_t /*group*/)
-#if defined(XGBOOST_USE_CUDA)
-    ;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-}
-#endif
-
 void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
                             ObjFunction const* obj, std::int32_t group_idx,
                             std::vector<HostDeviceVector<bst_node_t>> const& node_position,
@@ -607,14 +595,17 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
 
   bool known_type = this->ctx_->DispatchDevice(
       [&, begin = tree_begin, end = tree_end] {
-        return this->cpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
+        return this->cpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end,
+                                                    nullptr);
       },
       [&, begin = tree_begin, end = tree_end] {
-        return this->gpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
+        return this->gpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end,
+                                                    nullptr);
 #if defined(XGBOOST_USE_SYCL)
       },
       [&, begin = tree_begin, end = tree_end] {
-        return this->sycl_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end);
+        return this->sycl_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end,
+                                                     nullptr);
 #endif  // defined(XGBOOST_USE_SYCL)
       });
   if (!known_type) {
@@ -773,7 +764,6 @@ class Dart : public GBTree {
                       bst_layer_t layer_end) const override {
     CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
-    auto n_groups = model_.learner_model_param->num_output_group;
 
     if (ctx_->Device() != p_fmat->Ctx()->Device()) {
       error::MismatchedDevices(ctx_, p_fmat->Ctx());
@@ -785,73 +775,25 @@ class Dart : public GBTree {
       return;
     }
 
-    StringView msg{"Unsupported data type for inplace predict."};
-    PredictionCacheEntry predts;
-    if (ctx_->IsCUDA()) {
-      predts.predictions.SetDevice(ctx_->Device());
-    }
-    predts.predictions.Resize(p_fmat->Info().num_row_ * n_groups, 0);
-
-    auto predict_impl = [&](size_t i) {
-      predts.predictions.Fill(0);
-      bool success = this->ctx_->DispatchDevice(
-          [&] {
-            return cpu_predictor_->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
-          },
-          [&] {
-            return gpu_predictor_->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
+    bool known_type = this->ctx_->DispatchDevice(
+        [&, begin = tree_begin, end = tree_end] {
+          return this->cpu_predictor_->InplacePredict(p_fmat, model_, missing, p_out_preds, begin,
+                                                      end, &weight_drop_);
+        },
+        [&, begin = tree_begin, end = tree_end] {
+          return this->gpu_predictor_->InplacePredict(p_fmat, model_, missing, p_out_preds, begin,
+                                                      end, &weight_drop_);
 #if defined(XGBOOST_USE_SYCL)
-          },
-          [&] {
-            return sycl_predictor_->InplacePredict(p_fmat, model_, missing, &predts, i, i + 1);
+        },
+        [&, begin = tree_begin, end = tree_end] {
+          return this->sycl_predictor_->InplacePredict(p_fmat, model_, missing, p_out_preds, begin,
+                                                       end, &weight_drop_);
 #endif  // defined(XGBOOST_USE_SYCL)
-          });
-      CHECK(success) << msg;
-    };
-
-    auto const& h_tree_info = this->model_.tree_info.ConstHostVector();
-    // Inplace predict is not used for training, so no need to drop tree.
-    for (bst_tree_t i = tree_begin; i < tree_end; ++i) {
-      predict_impl(i);
-      if (i == tree_begin) {
-        this->ctx_->DispatchDevice(
-            [&] {
-              this->cpu_predictor_->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
-                                                       model_);
-            },
-            [&] {
-              this->gpu_predictor_->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
-                                                       model_);
-#if defined(XGBOOST_USE_SYCL)
-            },
-            [&] {
-              this->sycl_predictor_->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
-                                                        model_);
-#endif  // defined(XGBOOST_USE_SYCL)
-            });
-      }
-      // Multiple the tree weight
-      auto w = this->weight_drop_.at(i);
-      auto group = h_tree_info.at(i);
-      CHECK_EQ(predts.predictions.Size(), p_out_preds->predictions.Size());
-
-      size_t n_rows = p_fmat->Info().num_row_;
-      if (predts.predictions.Device().IsCUDA()) {
-        p_out_preds->predictions.SetDevice(predts.predictions.Device());
-        auto base_score = model_.learner_model_param->BaseScore(predts.predictions.Device());
-        GPUDartInplacePredictInc(p_out_preds->predictions.DeviceSpan(),
-                                 predts.predictions.DeviceSpan(), w, n_rows, base_score, n_groups,
-                                 group);
-      } else {
-        auto base_score = model_.learner_model_param->BaseScore(DeviceOrd::CPU());
-        auto& h_predts = predts.predictions.HostVector();
-        auto& h_out_predts = p_out_preds->predictions.HostVector();
-        CHECK_EQ(base_score.Size(), n_groups);
-        common::ParallelFor(n_rows, ctx_->Threads(), [&](auto ridx) {
-          const size_t offset = ridx * n_groups + group;
-          h_out_predts[offset] += (h_predts[offset] - base_score(group)) * w;
         });
-      }
+    if (!known_type) {
+      auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_fmat);
+      CHECK(proxy) << error::InplacePredictProxy();
+      LOG(FATAL) << "Unknown data type for inplace prediction:" << proxy->Adapter().type().name();
     }
   }
 

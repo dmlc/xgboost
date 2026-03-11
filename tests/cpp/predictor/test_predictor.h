@@ -91,6 +91,7 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
 
 void TestBasic(DMatrix* dmat, Context const* ctx);
 void TestBatchPredictionWithWeights(Context const* ctx);
+void TestInplacePredictionWithWeights(Context const* ctx);
 
 // p_full and p_hist should come from the same data set.
 void TestTrainingPrediction(Context const* ctx, size_t rows, size_t bins,

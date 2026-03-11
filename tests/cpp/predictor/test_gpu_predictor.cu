@@ -62,6 +62,11 @@ TEST(GPUPredictor, BatchPredictionWithWeights) {
   TestBatchPredictionWithWeights(&ctx);
 }
 
+TEST(GPUPredictor, InplacePredictionWithWeights) {
+  auto ctx = MakeCUDACtx(0);
+  TestInplacePredictionWithWeights(&ctx);
+}
+
 namespace {
 void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_result) {
   auto const world_size = collective::GetWorldSize();

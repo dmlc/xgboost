@@ -763,6 +763,12 @@ class HostSketchContainer {
     });
   }
 
+ public:
+  /* \brief Push a CSR matrix. */
+  void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
+
+  [[nodiscard]] HistogramCuts MakeCuts(Context const *ctx, MetaInfo const &info);
+
  private:
   // Merge categorical values from all workers.
   [[nodiscard]] auto AllreduceCategories(Context const *ctx, MetaInfo const &info,

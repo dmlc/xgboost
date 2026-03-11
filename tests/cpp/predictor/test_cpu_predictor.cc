@@ -30,6 +30,11 @@ TEST(CpuPredictor, BatchPredictionWithWeights) {
   TestBatchPredictionWithWeights(&ctx);
 }
 
+TEST(CpuPredictor, InplacePredictionWithWeights) {
+  Context ctx;
+  TestInplacePredictionWithWeights(&ctx);
+}
+
 template <typename ArrayLayoutT>
 void CheckArrayLayout(const RegTree& tree, ArrayLayoutT buffer, int max_depth, int depth,
                       size_t nid, size_t nid_array) {

@@ -204,10 +204,11 @@ class Predictor : public xgboost::Predictor {
   }
 
   bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel& model, float missing,
-                      PredictionCacheEntry* out_preds, bst_tree_t tree_begin,
-                      bst_tree_t tree_end) const override {
+                      PredictionCacheEntry* out_preds, bst_tree_t tree_begin, bst_tree_t tree_end,
+                      std::vector<float> const* tree_weights = nullptr) const override {
     LOG(WARNING) << "InplacePredict is not yet implemented for SYCL. CPU Predictor is used.";
-    return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end);
+    return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end,
+                                         tree_weights);
   }
 
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds,

@@ -45,7 +45,6 @@ inline std::vector<float> UnrollGroupWeightsForTest(MetaInfo const& info) {
   }
   return out;
 }
-
 // Generate columns with different ranges
 inline std::vector<float> GenerateRandom(int num_rows, int num_columns) {
   std::vector<float> x(num_rows * num_columns);
