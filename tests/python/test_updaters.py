@@ -244,7 +244,6 @@ class TestTreeMethod:
             cats=cats,
             device="cpu",
             tree_method="approx",
-            extmem=False,
         )
         check_categorical_ohe(
             rows=rows,
@@ -253,20 +252,7 @@ class TestTreeMethod:
             cats=cats,
             device="cpu",
             tree_method="hist",
-            extmem=False,
         )
-
-    @given(
-        strategies.integers(10, 400),
-        strategies.integers(3, 8),
-        strategies.integers(1, 2),
-        strategies.integers(4, 7),
-    )
-    @settings(deadline=None, print_blob=True, max_examples=10)
-    @pytest.mark.skipif(**tm.no_pandas())
-    def test_categorical_ohe_mt(
-        self, rows: int, cols: int, rounds: int, cats: int
-    ) -> None:
         check_categorical_ohe(
             rows=rows,
             cols=cols,
