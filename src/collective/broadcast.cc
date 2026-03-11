@@ -24,8 +24,11 @@ Result BroadcastTree(Comm const& comm, common::Span<std::int8_t> data) {
   if (rank != 0) {
     auto k = TrailingZeroBits(static_cast<std::uint32_t>(rank));
     auto parent = rank - (1 << k);
-    auto rc = Success() << [&] { return comm.Chan(parent)->RecvAll(data); }
-                        << [&] { return comm.Chan(parent)->Block(); };
+    auto rc = Success() << [&] {
+      return comm.Chan(parent)->RecvAll(data);
+    } << [&] {
+      return comm.Chan(parent)->Block();
+    };
     if (!rc.OK()) {
       return Fail("broadcast failed.", std::move(rc));
     }
@@ -68,18 +71,22 @@ Result RelayToRoot(Comm const& comm, common::Span<std::int8_t> data, std::int32_
     auto parent = node - (1 << k);
 
     if (rank == node) {
-      auto rc = Success() << [&] { return comm.Chan(parent)->SendAll(data); }
-                          << [&] { return comm.Chan(parent)->Block(); };
+      auto rc = Success() << [&] {
+        return comm.Chan(parent)->SendAll(data);
+      } << [&] {
+        return comm.Chan(parent)->Block();
+      };
       if (!rc.OK()) {
-        return Fail("Relay broadcast: failed to send from " + std::to_string(node),
-                     std::move(rc));
+        return Fail("Relay broadcast: failed to send from " + std::to_string(node), std::move(rc));
       }
     } else if (rank == parent) {
-      auto rc = Success() << [&] { return comm.Chan(node)->RecvAll(data); }
-                          << [&] { return comm.Chan(node)->Block(); };
+      auto rc = Success() << [&] {
+        return comm.Chan(node)->RecvAll(data);
+      } << [&] {
+        return comm.Chan(node)->Block();
+      };
       if (!rc.OK()) {
-        return Fail("Relay broadcast: failed to recv at " + std::to_string(parent),
-                     std::move(rc));
+        return Fail("Relay broadcast: failed to recv at " + std::to_string(parent), std::move(rc));
       }
     }
   }
