@@ -215,6 +215,38 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   CheckShapAdditivity(kRows, kCols, shap_interactions, margin_predt);
 }
 
+void CheckDartShapOutput(Context const* ctx) {
+  size_t constexpr kRows = 64, kCols = 8;
+  auto dmat = RandomDataGenerator(kRows, kCols, 0.0).Device(ctx->Device()).GenerateDMatrix();
+  SetLabels(dmat.get(), 1);
+
+  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  learner->SetParams(Args{{"booster", "dart"},
+                          {"objective", "binary:logistic"},
+                          {"max_depth", "3"},
+                          {"rate_drop", "0.5"},
+                          {"sample_type", "uniform"},
+                          {"normalize_type", "tree"},
+                          {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
+  learner->Configure();
+  for (size_t i = 0; i < 4; ++i) {
+    learner->UpdateOneIter(i, dmat);
+  }
+
+  HostDeviceVector<float> margin_predt;
+  learner->Predict(dmat, true, &margin_predt, 0, 0, false, false, false, false, false);
+
+  HostDeviceVector<float> shap_values;
+  learner->Predict(dmat, false, &shap_values, 0, 0, false, false, true, false, false);
+  ASSERT_EQ(shap_values.Size(), kRows * (kCols + 1));
+  CheckShapAdditivity(kRows, kCols, shap_values, margin_predt);
+
+  HostDeviceVector<float> shap_interactions;
+  learner->Predict(dmat, false, &shap_interactions, 0, 0, false, false, false, false, true);
+  ASSERT_EQ(shap_interactions.Size(), kRows * (kCols + 1) * (kCols + 1));
+  CheckShapAdditivity(kRows, kCols, shap_interactions, margin_predt);
+}
+
 void CheckShapAdditivity(size_t rows, size_t cols, HostDeviceVector<float> const& shap_values,
                          HostDeviceVector<float> const& margin_predt) {
   auto const& h_shap = shap_values.ConstHostVector();
@@ -252,6 +284,11 @@ TEST(Predictor, ShapOutputCasesCPU) {
   for (auto const& [dmat, args] : cases) {
     CheckShapOutput(dmat.get(), args);
   }
+}
+
+TEST(Predictor, DartShapOutputCPU) {
+  Context ctx;
+  CheckDartShapOutput(&ctx);
 }
 
 TEST(Predictor, ApproxContribsBasic) {

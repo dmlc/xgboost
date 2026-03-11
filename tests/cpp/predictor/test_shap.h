@@ -19,6 +19,7 @@ class Learner;
 
 namespace xgboost {
 void CheckShapOutput(DMatrix* dmat, Args const& model_args);
+void CheckDartShapOutput(Context const* ctx);
 void CheckShapAdditivity(size_t rows, size_t cols, HostDeviceVector<float> const& shap_values,
                          HostDeviceVector<float> const& margin_predt);
 
