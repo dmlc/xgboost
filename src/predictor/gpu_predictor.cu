@@ -687,18 +687,13 @@ class GPUPredictor : public xgboost::Predictor {
       pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
     }
     this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end, pred_weights);
-    if (tree_weights != nullptr && tree_begin != tree_end) {
-      // PredictDMatrix launches CUDA work asynchronously. Synchronize before returning so the
-      // temporary `weights` buffer stays alive until the kernels finish reading it.
-      ctx_->CUDACtx()->Stream().Sync();
-    }
   }
 
   template <typename Adapter>
   void DispatchedInplacePredict(std::shared_ptr<Adapter> m, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel& model, float missing,
                                 PredictionCacheEntry* out_preds, bst_tree_t tree_begin,
-                                bst_tree_t tree_end) const {
+                                bst_tree_t tree_end, common::OptionalWeights tree_weights) const {
     CHECK_EQ(dh::CurrentDevice(), m->Device().ordinal)
         << "XGBoost is running on device: " << this->ctx_->Device().Name() << ", "
         << "but data is on: " << m->Device().Name();
@@ -721,8 +716,7 @@ class GPUPredictor : public xgboost::Predictor {
               typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
           cfg.template AllocShmem<Loader>();
           cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
-                                                   &out_preds->predictions,
-                                                   common::OptionalWeights{1.0f});
+                                                   &out_preds->predictions, tree_weights);
         });
         return;
       }
@@ -736,23 +730,35 @@ class GPUPredictor : public xgboost::Predictor {
           typename common::GetValueT<decltype(cfg)>::template LoaderType<LoaderImpl, 128>;
       cfg.template AllocShmem<Loader>();
       cfg.template LaunchPredictKernel<Loader>(m->Value(), missing, n_features, d_model, acc, 0,
-                                               &out_preds->predictions,
-                                               common::OptionalWeights{1.0f});
+                                               &out_preds->predictions, tree_weights);
     });
   }
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,
                                     float missing, PredictionCacheEntry* out_preds,
-                                    bst_tree_t tree_begin, bst_tree_t tree_end) const override {
+                                    bst_tree_t tree_begin, bst_tree_t tree_end,
+                                    std::vector<float> const* tree_weights) const override {
     xgboost_NVTX_FN_RANGE();
     auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
+    if (tree_end == 0) {
+      tree_end = model.trees.size();
+    }
+    HostDeviceVector<float> weights;
+    auto pred_weights = common::OptionalWeights{1.0f};
+    if (tree_weights != nullptr) {
+      weights.SetDevice(ctx_->Device());
+      weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
+                                  tree_weights->cbegin() + tree_end);
+      pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
+    }
     bool type_error = false;
     data::cuda_impl::DispatchAny<false>(
         proxy,
         [&](auto x) {
           CheckProxyDMatrix(x, proxy, model.learner_model_param);
-          this->DispatchedInplacePredict(x, p_m, model, missing, out_preds, tree_begin, tree_end);
+          this->DispatchedInplacePredict(x, p_m, model, missing, out_preds, tree_begin, tree_end,
+                                         pred_weights);
         },
         &type_error);
     return !type_error;
