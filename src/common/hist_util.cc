@@ -28,17 +28,10 @@
 #endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
 
 namespace xgboost::common {
-namespace {
-constexpr std::uint32_t kHistogramCutsMagic = 0xF1437543;
-constexpr std::uint32_t kHistogramCutsVersion = 1;
-}  // namespace
-
 HistogramCuts::HistogramCuts(bst_feature_t n_features)
     : cut_ptrs_(static_cast<std::size_t>(n_features) + 1, 0) {}
 
 void HistogramCuts::Save(common::AlignedFileWriteStream *fo) const {
-  CHECK_GE(fo->Write(kHistogramCutsMagic), sizeof(kHistogramCutsMagic));
-  CHECK_GE(fo->Write(kHistogramCutsVersion), sizeof(kHistogramCutsVersion));
   auto const &ptrs = this->Ptrs();
   CHECK_LE(Span{ptrs}.size_bytes(), WriteVec(fo, ptrs));
   auto const &vals = this->Values();
@@ -49,13 +42,6 @@ void HistogramCuts::Save(common::AlignedFileWriteStream *fo) const {
 
 [[nodiscard]] HistogramCuts *HistogramCuts::Load(common::AlignedResourceReadStream *fi) {
   auto p_cuts = new HistogramCuts{0};
-  std::uint32_t magic{0};
-  std::uint32_t version{0};
-  CHECK(fi->Read(&magic)) << "Invalid histogram cuts format.";
-  CHECK_EQ(magic, kHistogramCutsMagic) << "Incompatible histogram cuts cache format.";
-  CHECK(fi->Read(&version)) << "Invalid histogram cuts format.";
-  CHECK_EQ(version, kHistogramCutsVersion)
-      << "Unsupported histogram cuts cache version: " << version;
   CHECK(ReadVec(fi, &p_cuts->cut_ptrs_.HostVector()));
   CHECK(ReadVec(fi, &p_cuts->cut_values_.HostVector()));
   CHECK(fi->Read(&p_cuts->has_categorical_));
