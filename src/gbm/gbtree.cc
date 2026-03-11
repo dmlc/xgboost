@@ -183,6 +183,34 @@ void CopyGradient(Context const* ctx, linalg::Matrix<GradientPair> const* in_gpa
   }
 }
 
+/** Increment the prediction on GPU.
+ *
+ * \param out_predts Prediction for the whole model.
+ * \param predts     Prediction for current tree.
+ * \param tree_w     Tree weight.
+ */
+void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, bst_group_t,
+                       bst_group_t)
+#if defined(XGBOOST_USE_CUDA)
+    ;  // NOLINT
+#else
+{
+  common::AssertGPUSupport();
+}
+#endif
+
+void GPUDartInplacePredictInc(common::Span<float> /*out_predts*/, common::Span<float> /*predts*/,
+                              float /*tree_w*/, size_t /*n_rows*/,
+                              linalg::TensorView<float const, 1> /*base_score*/,
+                              bst_group_t /*n_groups*/, bst_group_t /*group*/)
+#if defined(XGBOOST_USE_CUDA)
+    ;  // NOLINT
+#else
+{
+  common::AssertGPUSupport();
+}
+#endif
+
 void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
                             ObjFunction const* obj, std::int32_t group_idx,
                             std::vector<HostDeviceVector<bst_node_t>> const& node_position,
@@ -501,49 +529,65 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 }
 
 void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
-                              bst_layer_t layer_begin, bst_layer_t layer_end) const {
+                              bst_layer_t layer_begin, bst_layer_t layer_end,
+                              std::vector<float> const* tree_weights) const {
+  // Unweighted prediction can reuse a cached prefix of the model output by tracking how many
+  // boosting iterations have already been accumulated in `out_preds->version`.
+  //
+  // Weighted prediction is used by DART and does not participate in this cache, since tree
+  // weights can change the accumulated output independently of the cached unweighted prefix.
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();
   }
-  if (layer_begin != 0 || layer_end < static_cast<bst_layer_t>(out_preds->version)) {
-    // cache is dropped.
+
+  auto cache_version = out_preds->version;
+  // We can preserve the cache only when:
+  // - prediction is unweighted
+  // - prediction starts from iteration 0, so the result is a cacheable prefix
+  auto preserve_cache = tree_weights == nullptr && layer_begin == 0;
+  // We can reuse the existing cached prefix only when:
+  // - the result itself is cacheable
+  // - the requested range does not move backwards past the cached version
+  auto reuse_cache = preserve_cache && layer_end >= static_cast<bst_layer_t>(cache_version);
+  // Initialize output when:
+  // - the cached prefix cannot be reused, or
+  // - the cache is valid but still empty
+  auto initialize_output = !reuse_cache || cache_version == 0;
+  auto prediction_begin = reuse_cache ? cache_version : layer_begin;
+
+  if (!reuse_cache) {
     out_preds->version = 0;
+    cache_version = 0;
   }
-  bool reset = false;
-  if (layer_begin == 0) {
-    layer_begin = out_preds->version;
-  } else {
-    // When begin layer is not 0, the cache is not useful.
-    reset = true;
-  }
+
   if (out_preds->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
     CHECK_EQ(out_preds->version, 0);
   }
 
   auto const& predictor = GetPredictor(is_training, &out_preds->predictions, p_fmat);
-  if (out_preds->version == 0) {
+  if (initialize_output) {
     // out_preds->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
     predictor->InitOutPredictions(p_fmat->Info(), &out_preds->predictions, model_);
   }
 
-  auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
+  auto [tree_begin, tree_end] = detail::LayerToTree(model_, prediction_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
-    predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end);
+    predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end, tree_weights);
   }
-  if (reset) {
+
+  if (!preserve_cache) {
     out_preds->version = 0;
   } else {
-    std::uint32_t delta = layer_end - out_preds->version;
-    out_preds->Update(delta);
+    out_preds->Update(layer_end - cache_version);
   }
 }
 
 void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                           bst_layer_t layer_begin, bst_layer_t layer_end) {
   // dispatch to const function.
-  this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end);
+  this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end, nullptr);
 }
 
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
@@ -646,34 +690,6 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
   return cpu_predictor_;
 }
 
-/** Increment the prediction on GPU.
- *
- * \param out_predts Prediction for the whole model.
- * \param predts     Prediction for current tree.
- * \param tree_w     Tree weight.
- */
-void GPUDartPredictInc(common::Span<float>, common::Span<float>, float, size_t, bst_group_t,
-                       bst_group_t)
-#if defined(XGBOOST_USE_CUDA)
-    ;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-}
-#endif
-
-void GPUDartInplacePredictInc(common::Span<float> /*out_predts*/, common::Span<float> /*predts*/,
-                              float /*tree_w*/, size_t /*n_rows*/,
-                              linalg::TensorView<float const, 1> /*base_score*/,
-                              bst_group_t /*n_groups*/, bst_group_t /*group*/)
-#if defined(XGBOOST_USE_CUDA)
-    ;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-}
-#endif
-
 class Dart : public GBTree {
  public:
   explicit Dart(LearnerModelParam const* booster_config, Context const* ctx)
@@ -737,63 +753,19 @@ class Dart : public GBTree {
     out["dart_train_param"] = ToJson(dparam_);
   }
 
-  // An independent const function to make sure it's thread safe.
-  void PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
-                        bst_layer_t layer_begin, bst_layer_t layer_end) const {
-    CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
-    auto& predictor = this->GetPredictor(training, &p_out_preds->predictions, p_fmat);
-    CHECK(predictor);
-    predictor->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions, model_);
-    p_out_preds->version = 0;
-    auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
-    auto n_groups = model_.learner_model_param->num_output_group;
-
-    PredictionCacheEntry predts;  // temporary storage for prediction
-    if (!ctx_->IsCPU()) {
-      predts.predictions.SetDevice(ctx_->Device());
-    }
-    predts.predictions.Resize(p_fmat->Info().num_row_ * n_groups, 0);
-    // multi-target is not yet supported.
-    auto layer_trees = [&]() {
-      return model_.param.num_parallel_tree * model_.learner_model_param->OutputLength();
-    };
-    auto const& h_tree_info = this->model_.tree_info.ConstHostVector();
-    for (bst_tree_t i = tree_begin; i < tree_end; i += 1) {
-      if (training && std::binary_search(idx_drop_.cbegin(), idx_drop_.cend(), i)) {
-        continue;
-      }
-
-      CHECK_GE(i, p_out_preds->version);
-      auto version = i / layer_trees();
-      p_out_preds->version = version;
-      predts.predictions.Fill(0);
-      predictor->PredictBatch(p_fmat, &predts, model_, i, i + 1);
-
-      // Multiple the weight to output prediction.
-      auto w = this->weight_drop_.at(i);
-      auto grp_idx = h_tree_info.at(i);
-      CHECK_EQ(p_out_preds->predictions.Size(), predts.predictions.Size());
-
-      size_t n_rows = p_fmat->Info().num_row_;
-      if (predts.predictions.Device().IsCUDA()) {
-        p_out_preds->predictions.SetDevice(predts.predictions.Device());
-        GPUDartPredictInc(p_out_preds->predictions.DeviceSpan(), predts.predictions.DeviceSpan(), w,
-                          n_rows, n_groups, grp_idx);
-      } else {
-        auto& h_out_predts = p_out_preds->predictions.HostVector();
-        auto& h_predts = predts.predictions.ConstHostVector();
-        common::ParallelFor(p_fmat->Info().num_row_, ctx_->Threads(), [&](auto ridx) {
-          const size_t offset = ridx * n_groups + grp_idx;
-          h_out_predts[offset] += (h_predts[offset] * w);
-        });
-      }
-    }
-  }
-
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
                     bst_layer_t layer_begin, bst_layer_t layer_end) override {
     DropTrees(training);
-    this->PredictBatchImpl(p_fmat, p_out_preds, training, layer_begin, layer_end);
+    auto const* tree_weights = &weight_drop_;
+    std::vector<float> dropped_weights;
+    if (training && !idx_drop_.empty()) {
+      dropped_weights = weight_drop_;
+      for (auto idx : idx_drop_) {
+        dropped_weights.at(idx) = 0.0f;
+      }
+      tree_weights = &dropped_weights;
+    }
+    this->PredictBatchImpl(p_fmat, p_out_preds, training, layer_begin, layer_end, tree_weights);
   }
 
   void InplacePredict(std::shared_ptr<DMatrix> p_fmat, float missing,
@@ -808,7 +780,8 @@ class Dart : public GBTree {
       auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_fmat);
       CHECK(proxy) << error::InplacePredictProxy();
       auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
-      this->PredictBatchImpl(p_fmat.get(), p_out_preds, false, layer_begin, layer_end);
+      this->PredictBatchImpl(p_fmat.get(), p_out_preds, false, layer_begin, layer_end,
+                             &weight_drop_);
       return;
     }
 

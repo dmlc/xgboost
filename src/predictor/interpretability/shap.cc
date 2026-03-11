@@ -7,16 +7,16 @@
 #include <type_traits>  // for remove_const_t
 #include <vector>       // for vector
 
-#include "../../common/threading_utils.h"     // for ParallelFor
-#include "../../gbm/gbtree_model.h"           // for GBTreeModel
-#include "../../tree/tree_view.h"             // for ScalarTreeView
-#include "../data_accessor.h"                 // for GHistIndexMatrixView
-#include "../predict_fn.h"                    // for GetTreeLimit
-#include "../treeshap.h"                      // for CalculateContributions
-#include "dmlc/omp.h"                         // for omp_get_thread_num
-#include "xgboost/base.h"                     // for bst_omp_uint
-#include "xgboost/logging.h"                  // for CHECK
-#include "xgboost/multi_target_tree_model.h"  // for MTNotImplemented
+#include "../../common/threading_utils.h"  // for ParallelFor
+#include "../../gbm/gbtree_model.h"        // for GBTreeModel
+#include "../../tree/tree_view.h"          // for ScalarTreeView
+#include "../data_accessor.h"              // for GHistIndexMatrixView
+#include "../predict_fn.h"                 // for GetTreeLimit
+#include "../treeshap.h"                   // for CalculateContributions
+#include "dmlc/omp.h"                      // for omp_get_thread_num
+#include "xgboost/base.h"                  // for bst_omp_uint
+#include "xgboost/logging.h"               // for CHECK
+#include "xgboost/tree_model.h"            // for MTNotImplemented
 
 namespace xgboost::interpretability {
 namespace {

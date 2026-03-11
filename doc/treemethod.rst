@@ -8,7 +8,7 @@ namely ``updater`` and ``tree_method``.  XGBoost has 3 builtin tree methods, nam
 free standing updaters including ``refresh``, ``prune`` and ``sync``.  The parameter
 ``updater`` is more primitive than ``tree_method`` as the latter is just a
 pre-configuration of the former.  The difference is mostly due to historical reasons that
-each updater requires some specific configurations and might has missing features.  As we
+each updater requires some specific configurations and might have missing features.  As we
 are moving forward, the gap between them is becoming more and more irrelevant.  We will
 collectively document them under tree methods.
 

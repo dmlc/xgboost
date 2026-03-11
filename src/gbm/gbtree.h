@@ -207,7 +207,8 @@ class GBTree : public GradientBooster {
   }
 
   void PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
-                        bst_layer_t layer_begin, bst_layer_t layer_end) const;
+                        bst_layer_t layer_begin, bst_layer_t layer_end,
+                        std::vector<float> const* tree_weights = nullptr) const;
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool training,
                     bst_layer_t layer_begin, bst_layer_t layer_end) override;
