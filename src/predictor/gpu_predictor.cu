@@ -687,11 +687,6 @@ class GPUPredictor : public xgboost::Predictor {
       pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
     }
     this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end, pred_weights);
-    if (tree_weights != nullptr && tree_begin != tree_end) {
-      // PredictDMatrix launches CUDA work asynchronously. Synchronize before returning so the
-      // temporary `weights` buffer stays alive until the kernels finish reading it.
-      ctx_->CUDACtx()->Stream().Sync();
-    }
   }
 
   template <typename Adapter>
@@ -766,11 +761,6 @@ class GPUPredictor : public xgboost::Predictor {
                                          pred_weights);
         },
         &type_error);
-    if (tree_weights != nullptr && tree_begin != tree_end) {
-      // DispatchedInplacePredict launches CUDA work asynchronously. Synchronize before returning
-      // so the temporary `weights` buffer stays alive until the kernels finish reading it.
-      ctx_->CUDACtx()->Stream().Sync();
-    }
     return !type_error;
   }
 
