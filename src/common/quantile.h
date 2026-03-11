@@ -796,7 +796,7 @@ class SketchContainerImpl {
   /* \brief Push a CSR matrix. */
   void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
 
-  void MakeCuts(Context const *ctx, MetaInfo const &info, HistogramCuts *cuts);
+  [[nodiscard]] HistogramCuts MakeCuts(Context const *ctx, MetaInfo const &info);
 
  private:
   // Merge categorical values from all workers.

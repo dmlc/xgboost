@@ -64,7 +64,7 @@ void IterativeDMatrix::InitFromCPU(
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{0};
   ExternalDataInfo ext_info;
   cpu_impl::GetDataShape(ctx, proxy, &iter, missing, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
@@ -169,7 +169,6 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
 
     auto& h_data = p_out->data.HostVector();
     auto const& vals = page.cut.Values();
-    auto const& mins = page.cut.MinValues();
     auto const& ptrs = page.cut.Ptrs();
     auto ft = Info().feature_types.ConstHostSpan();
 
@@ -178,7 +177,7 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
       if (common::IsCat(ft, fidx)) {
         v = vals[bin_idx];
       } else {
-        v = common::HistogramCuts::NumericBinValue(ptrs, vals, mins, fidx, bin_idx);
+        v = common::HistogramCuts::NumericBinValue(ptrs, vals, fidx, bin_idx);
       }
       h_data[idx] = Entry{fidx, v};
     });

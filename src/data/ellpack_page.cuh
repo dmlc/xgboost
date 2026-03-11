@@ -44,10 +44,10 @@ struct EllpackAccessorImpl {
   bst_idx_t base_rowid;
   /** @brief Number of rows in this batch. */
   bst_idx_t n_rows;
+  /** @brief Number of features in this page. */
+  bst_feature_t n_features;
   /** @brief Acessor for the gradient index. */
   IterType gidx_iter;
-  /** @brief Minimum value for each feature. Size equals to number of features. */
-  common::Span<const float> min_fvalue;
   /** @brief Histogram cut pointers. Size equals to (number of features + 1). */
   std::uint32_t const* feature_segments;
   /** @brief Histogram cut values. Size equals to (bins per feature * number of features). */
@@ -64,19 +64,15 @@ struct EllpackAccessorImpl {
         row_stride{row_stride},
         base_rowid{base_rowid},
         n_rows{n_rows},
+        n_features{cuts->NumFeatures()},
         gidx_iter{gidx_iter},
         feature_types{feature_types} {
     if (ctx->IsCUDA()) {
-      cuts->cut_values_.SetDevice(ctx->Device());
-      cuts->cut_ptrs_.SetDevice(ctx->Device());
-      cuts->min_vals_.SetDevice(ctx->Device());
       gidx_fvalue_map = cuts->cut_values_.ConstDeviceSpan();
       feature_segments = cuts->cut_ptrs_.ConstDevicePointer();
-      min_fvalue = cuts->min_vals_.ConstDeviceSpan();
     } else {
       gidx_fvalue_map = cuts->cut_values_.ConstHostSpan();
       feature_segments = cuts->cut_ptrs_.ConstHostPointer();
-      min_fvalue = cuts->min_vals_.ConstHostSpan();
     }
 
     if (is_dense) {
@@ -160,7 +156,7 @@ struct EllpackAccessorImpl {
   }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NumBins() const { return gidx_fvalue_map.size(); }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NumRows() const { return n_rows; }
-  [[nodiscard]] XGBOOST_HOST_DEV_INLINE size_t NumFeatures() const { return min_fvalue.size(); }
+  [[nodiscard]] XGBOOST_HOST_DEV_INLINE size_t NumFeatures() const { return n_features; }
 };
 
 using EllpackDeviceAccessor = EllpackAccessorImpl<common::CompressedIterator<std::uint32_t>>;

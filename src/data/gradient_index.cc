@@ -205,20 +205,19 @@ bst_bin_t GHistIndexMatrix::GetGindex(size_t ridx, size_t fidx) const {
 
 float GHistIndexMatrix::GetFvalue(size_t ridx, size_t fidx, bool is_cat) const {
   auto const &values = cut.Values();
-  auto const &mins = cut.MinValues();
   auto const &ptrs = cut.Ptrs();
-  return this->GetFvalue(ptrs, values, mins, ridx, fidx, is_cat);
+  return this->GetFvalue(ptrs, values, ridx, fidx, is_cat);
 }
 
 float GetFvalueImpl(std::vector<std::uint32_t> const &ptrs, std::vector<float> const &values,
-                    std::vector<float> const &mins, bst_idx_t ridx, bst_feature_t fidx,
-                    bst_idx_t base_rowid, std::unique_ptr<common::ColumnMatrix> const &columns_) {
+                    bst_idx_t ridx, bst_feature_t fidx, bst_idx_t base_rowid,
+                    std::unique_ptr<common::ColumnMatrix> const &columns_) {
   auto get_bin_val = [&](auto &column) {
     auto bin_idx = column[ridx - base_rowid];
     if (bin_idx == common::DenseColumnIter<uint8_t, true>::kMissingId) {
       return std::numeric_limits<float>::quiet_NaN();
     }
-    return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
+    return common::HistogramCuts::NumericBinValue(ptrs, values, fidx, bin_idx);
   };
   switch (columns_->GetColumnType(fidx)) {
     case common::kDenseColumn: {
@@ -231,7 +230,7 @@ float GetFvalueImpl(std::vector<std::uint32_t> const &ptrs, std::vector<float> c
         return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
           auto column = columns_->DenseColumn<decltype(dtype), false>(fidx);
           auto bin_idx = column[ridx - base_rowid];
-          return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
+          return common::HistogramCuts::NumericBinValue(ptrs, values, fidx, bin_idx);
         });
       }
     }

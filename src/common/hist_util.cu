@@ -67,13 +67,9 @@ size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz,
   total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
   // 8. Deallocate cut size scan.
   total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 9. Allocate final cut values, min values, cut ptrs: std::min(rows, bins + 1) *
-  //    n_columns + n_columns + n_columns + 1
+  // 9. Allocate final cut values and cut ptrs: std::min(rows, bins + 1) * n_columns +
+  //    n_columns + 1
   total += std::min(num_rows, num_bins) * num_columns * sizeof(float);
-  total +=
-      num_columns *
-      sizeof(
-          std::remove_reference_t<decltype(std::declval<HistogramCuts>().MinValues())>::value_type);
   total +=
       (num_columns + 1) *
       sizeof(std::remove_reference_t<decltype(std::declval<HistogramCuts>().Ptrs())>::value_type);
@@ -364,7 +360,6 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
   info.weights_.SetDevice(ctx->Device());
   auto d_weight = UnifyWeight(cuctx, info, hessian, &weight);
 
-  HistogramCuts cuts;
   SketchContainer sketch_container(info.feature_types, max_bin, info.num_col_, ctx->Device());
   CHECK_EQ(has_weight || !hessian.empty(), !d_weight.empty());
   for (const auto& page : p_fmat->GetBatches<SparsePage>()) {
@@ -377,7 +372,6 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
     }
   }
 
-  sketch_container.MakeCuts(ctx, &cuts, p_fmat->Info().IsColumnSplit());
-  return cuts;
+  return sketch_container.MakeCuts(ctx, p_fmat->Info().IsColumnSplit());
 }
 }  // namespace xgboost::common

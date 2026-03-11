@@ -4,11 +4,11 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
+#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
 #include "../../../src/data/ellpack_page.cuh"           // for EllpackPage, GetRowStride
 #include "../../../src/data/ellpack_page_raw_format.h"  // for EllpackPageRawFormat
 #include "../../../src/data/ellpack_page_source.h"      // for EllpackFormatStreamPolicy
 #include "../../../src/tree/param.h"                    // for TrainParam
-#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
 #include "../filesystem.h"                              // for TemporaryDirectory
 #include "../helpers.h"
 
@@ -76,7 +76,6 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
       auto loaded = page.Impl();
       auto orig = ellpack.Impl();
       ASSERT_EQ(loaded->Cuts().Ptrs(), orig->Cuts().Ptrs());
-      ASSERT_EQ(loaded->Cuts().MinValues(), orig->Cuts().MinValues());
       ASSERT_EQ(loaded->Cuts().Values(), orig->Cuts().Values());
       ASSERT_EQ(loaded->base_rowid, orig->base_rowid);
       ASSERT_EQ(loaded->info.row_stride, orig->info.row_stride);

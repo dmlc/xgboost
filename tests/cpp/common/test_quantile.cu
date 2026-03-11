@@ -483,8 +483,6 @@ void TestColumnSplit(DMatrix* dmat) {
   auto const& dptrs = distributed_cuts.Ptrs();
   auto const& svals = single_node_cuts.Values();
   auto const& dvals = distributed_cuts.Values();
-  auto const& smins = single_node_cuts.MinValues();
-  auto const& dmins = distributed_cuts.MinValues();
 
   EXPECT_EQ(sptrs.size(), dptrs.size());
   for (size_t i = 0; i < sptrs.size(); ++i) {
@@ -494,11 +492,6 @@ void TestColumnSplit(DMatrix* dmat) {
   EXPECT_EQ(svals.size(), dvals.size());
   for (size_t i = 0; i < svals.size(); ++i) {
     EXPECT_NEAR(svals[i], dvals[i], 2e-2f) << "rank: " << rank << ", i: " << i;
-  }
-
-  EXPECT_EQ(smins.size(), dmins.size());
-  for (size_t i = 0; i < smins.size(); ++i) {
-    EXPECT_FLOAT_EQ(smins[i], dmins[i]) << "rank: " << rank << ", i: " << i;
   }
 }
 }  // anonymous namespace

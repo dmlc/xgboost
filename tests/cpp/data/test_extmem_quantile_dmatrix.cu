@@ -20,7 +20,6 @@ auto AssertEllpackEq(Context const* ctx, EllpackPageImpl const* lhs, EllpackPage
   ASSERT_EQ(lhs->gidx_buffer.size(), rhs->gidx_buffer.size());
 
   ASSERT_EQ(lhs->Cuts().Values(), rhs->Cuts().Values());
-  ASSERT_EQ(lhs->Cuts().MinValues(), rhs->Cuts().MinValues());
   ASSERT_EQ(lhs->Cuts().Ptrs(), rhs->Cuts().Ptrs());
 
   std::vector<common::CompressedByteT> h_buf, d_buf;

@@ -116,7 +116,7 @@ void MakeSketches(Context const* ctx,
       sketch = std::make_unique<common::SketchContainer>(proxy->Info().feature_types, p.max_bin,
                                                          ext_info.n_features, dh::GetDevice(ctx));
     }
-    sketch->MakeCuts(ctx, cuts.get(), info.IsColumnSplit());
+    *cuts = sketch->MakeCuts(ctx, info.IsColumnSplit());
     sketch.reset();
   } else {
     GetCutsFromRef(ctx, ref, ext_info.n_features, p, cuts.get());

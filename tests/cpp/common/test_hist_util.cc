@@ -7,7 +7,7 @@
 #include <xgboost/data.h>                // for ExtMemConfig
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 
-#include <memory>      // for shared_ptr
+#include <memory>  // for shared_ptr
 #include <string>
 #include <vector>
 
@@ -27,19 +27,18 @@ void ParallelGHistBuilderReset() {
   HistCollection collection;
   collection.Init(kBins);
 
-  for(size_t inode = 0; inode < kNodesExtended; inode++) {
+  for (size_t inode = 0; inode < kNodesExtended; inode++) {
     collection.AddHistRow(inode);
     collection.AllocateData(inode);
   }
   ParallelGHistBuilder hist_builder;
   hist_builder.Init(kBins);
   std::vector<GHistRow> target_hist(kNodes);
-  for(size_t i = 0; i < target_hist.size(); ++i) {
+  for (size_t i = 0; i < target_hist.size(); ++i) {
     target_hist[i] = collection[i];
   }
 
-  common::BlockedSpace2d space(
-      kNodes, [&](size_t /* node*/) { return kTasksPerNode; }, 1);
+  common::BlockedSpace2d space(kNodes, [&](size_t /* node*/) { return kTasksPerNode; }, 1);
   hist_builder.Reset(nthreads, kNodes, space, target_hist);
 
   common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d) {
@@ -54,11 +53,10 @@ void ParallelGHistBuilderReset() {
 
   // reset and extend buffer
   target_hist.resize(kNodesExtended);
-  for(size_t i = 0; i < target_hist.size(); ++i) {
+  for (size_t i = 0; i < target_hist.size(); ++i) {
     target_hist[i] = collection[i];
   }
-  common::BlockedSpace2d space2(
-      kNodesExtended, [&](size_t /*node*/) { return kTasksPerNode; }, 1);
+  common::BlockedSpace2d space2(kNodesExtended, [&](size_t /*node*/) { return kTasksPerNode; }, 1);
   hist_builder.Reset(nthreads, kNodesExtended, space2, target_hist);
 
   common::ParallelFor2d(space2, nthreads, [&](size_t inode, common::Range1d) {
@@ -73,7 +71,7 @@ void ParallelGHistBuilderReset() {
   });
 }
 
-void ParallelGHistBuilderReduceHist(){
+void ParallelGHistBuilderReduceHist() {
   constexpr size_t kBins = 10;
   constexpr size_t kNodes = 5;
   constexpr size_t kTasksPerNode = 10;
@@ -83,19 +81,18 @@ void ParallelGHistBuilderReduceHist(){
   HistCollection collection;
   collection.Init(kBins);
 
-  for(size_t inode = 0; inode < kNodes; inode++) {
+  for (size_t inode = 0; inode < kNodes; inode++) {
     collection.AddHistRow(inode);
     collection.AllocateData(inode);
   }
   ParallelGHistBuilder hist_builder;
   hist_builder.Init(kBins);
   std::vector<GHistRow> target_hist(kNodes);
-  for(size_t i = 0; i < target_hist.size(); ++i) {
+  for (size_t i = 0; i < target_hist.size(); ++i) {
     target_hist[i] = collection[i];
   }
 
-  common::BlockedSpace2d space(
-      kNodes, [&](size_t /*node*/) { return kTasksPerNode; }, 1);
+  common::BlockedSpace2d space(kNodes, [&](size_t /*node*/) { return kTasksPerNode; }, 1);
   hist_builder.Reset(nthreads, kNodes, space, target_hist);
 
   // Simple analog of BuildHist function, works in parallel for both tree-nodes and data in node
@@ -103,17 +100,17 @@ void ParallelGHistBuilderReduceHist(){
     const size_t tid = omp_get_thread_num();
 
     GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
-    for(size_t i = 0; i < kBins; ++i) {
+    for (size_t i = 0; i < kBins; ++i) {
       hist[i].Add(kValue, kValue);
     }
   });
 
-  for(size_t inode = 0; inode < kNodes; inode++) {
+  for (size_t inode = 0; inode < kNodes; inode++) {
     hist_builder.ReduceHist(inode, 0, kBins);
 
     // We had kTasksPerNode tasks to add kValue to each bin for each node
     // So, after reducing we expect to have (kValue * kTasksPerNode) in each node
-    for(size_t i = 0; i < kBins; ++i) {
+    for (size_t i = 0; i < kBins; ++i) {
       ASSERT_EQ(kValue * kTasksPerNode, collection[inode][i].GetGrad());
       ASSERT_EQ(kValue * kTasksPerNode, collection[inode][i].GetHess());
     }
@@ -139,7 +136,7 @@ TEST(CutsBuilder, SearchGroupInd) {
 
   p_mat->SetInfo("group", Make1dInterfaceTest(group.data(), group.size()));
 
-  HistogramCuts hmat;
+  HistogramCuts hmat{0};
 
   size_t group_ind = HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 0);
   ASSERT_EQ(group_ind, 0ul);
@@ -153,7 +150,7 @@ TEST(CutsBuilder, SearchGroupInd) {
   EXPECT_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17),
                dmlc::Error);
 
-  std::vector<bst_uint> group_ptr {0, 1, 2};
+  std::vector<bst_uint> group_ptr{0, 1, 2};
   CHECK_EQ(HostSketchContainer::SearchGroupIndFromRow(group_ptr, 1), 1);
 }
 
@@ -170,7 +167,6 @@ TEST(HistUtil, DenseCutsCategorical) {
       auto dmat = GetDMatrixFromData(x, n, 1);
       HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
       auto cuts_from_sketch = cuts.Values();
-      EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
       EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
       EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
       EXPECT_EQ(cuts_from_sketch.size(), static_cast<size_t>(num_categories));
@@ -272,11 +268,10 @@ TEST(HistUtil, DenseCutsExternalMemory) {
 }
 
 TEST(HistUtil, IndexBinBound) {
-  uint64_t bin_sizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
-                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
-                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
-  BinTypeSize expected_bin_type_sizes[] = {kUint8BinsTypeSize,
-                                           kUint16BinsTypeSize,
+  uint64_t bin_sizes[] = {static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
+                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
+                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
+  BinTypeSize expected_bin_type_sizes[] = {kUint8BinsTypeSize, kUint16BinsTypeSize,
                                            kUint32BinsTypeSize};
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
@@ -286,7 +281,7 @@ TEST(HistUtil, IndexBinBound) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
     GHistIndexMatrix hmat(&ctx, p_fmat.get(), max_bin, 0.5, false);
-    EXPECT_EQ(hmat.index.Size(), kRows*kCols);
+    EXPECT_EQ(hmat.index.Size(), kRows * kCols);
     EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.GetBinTypeSize());
   }
 }
@@ -300,9 +295,10 @@ void CheckIndexData(T const* data_ptr, uint32_t const* offsets, const GHistIndex
 }
 
 TEST(HistUtil, IndexBinData) {
-  uint64_t constexpr kBinSizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
-                                     static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
-                                     static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
+  uint64_t constexpr kBinSizes[] = {
+      static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
+      static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
+      static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
   Context ctx;
@@ -311,19 +307,16 @@ TEST(HistUtil, IndexBinData) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
     GHistIndexMatrix hmat(&ctx, p_fmat.get(), max_bin, 0.5, false);
     uint32_t const* offsets = hmat.index.Offset();
-    EXPECT_EQ(hmat.index.Size(), kRows*kCols);
+    EXPECT_EQ(hmat.index.Size(), kRows * kCols);
     switch (max_bin) {
       case kBinSizes[0]:
-        CheckIndexData(hmat.index.data<uint8_t>(),
-                       offsets, hmat, kCols);
+        CheckIndexData(hmat.index.data<uint8_t>(), offsets, hmat, kCols);
         break;
       case kBinSizes[1]:
-        CheckIndexData(hmat.index.data<uint16_t>(),
-                       offsets, hmat, kCols);
+        CheckIndexData(hmat.index.data<uint16_t>(), offsets, hmat, kCols);
         break;
       case kBinSizes[2]:
-        CheckIndexData(hmat.index.data<uint32_t>(),
-                       offsets, hmat, kCols);
+        CheckIndexData(hmat.index.data<uint32_t>(), offsets, hmat, kCols);
         break;
     }
   }
@@ -373,9 +366,6 @@ void TestSketchFromWeights(bool with_group) {
     HistogramCuts non_weighted = SketchOnDMatrix(&ctx, m.get(), kBins);
     for (size_t i = 0; i < cuts.Values().size(); ++i) {
       EXPECT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
-    }
-    for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
-      ASSERT_EQ(cuts.MinValues()[i], non_weighted.MinValues()[i]);
     }
     for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
       ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));

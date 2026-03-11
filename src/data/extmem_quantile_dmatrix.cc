@@ -76,7 +76,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   auto proxy = MakeProxy(proxy_handle);
   CHECK(proxy);
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{0};
   ExternalDataInfo ext_info;
   cpu_impl::GetDataShape(ctx, proxy, iter.get(), missing, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);

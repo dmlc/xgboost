@@ -190,6 +190,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
+  this->cuts_->SetDevice(ctx->Device());
 
   this->InitCompressedData(ctx);
 }
@@ -204,6 +205,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
+  this->cuts_->SetDevice(ctx->Device());
 
   this->InitCompressedData(ctx);
   this->CreateHistIndices(ctx, page, feature_types);

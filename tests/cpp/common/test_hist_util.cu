@@ -52,7 +52,6 @@ TEST(HistUtil, DeviceSketch) {
 
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
-  EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
 TEST(HistUtil, SketchBatchNumElements) {
@@ -122,7 +121,6 @@ TEST(HistUtil, DeviceSketchDeterminism) {
   for (size_t r = 0; r < kRounds; ++r) {
     auto new_sketch = DeviceSketch(&ctx, dmat.get(), num_bins);
     ASSERT_EQ(reference_sketch.Values(), new_sketch.Values());
-    ASSERT_EQ(reference_sketch.MinValues(), new_sketch.MinValues());
   }
 }
 
@@ -290,7 +288,6 @@ TEST(HistUitl, DeviceSketchWeights) {
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
       auto wcuts = DeviceSketch(&ctx, weighted_dmat.get(), num_bins);
-      ASSERT_EQ(cuts.MinValues(), wcuts.MinValues());
       ASSERT_EQ(cuts.Ptrs(), wcuts.Ptrs());
       ASSERT_EQ(cuts.Values(), wcuts.Values());
       ValidateCuts(cuts, dmat.get(), num_bins);
@@ -364,13 +361,11 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
 template <typename Adapter>
 auto MakeUnweightedCutsForTest(Context const* ctx, Adapter adapter, int32_t num_bins, float missing,
                                size_t batch_size = 0) {
-  common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), DeviceOrd::CUDA(0));
   MetaInfo info;
   AdapterDeviceSketch(ctx, adapter.Value(), num_bins, info, missing, &sketch_container, batch_size);
-  sketch_container.MakeCuts(ctx, &batched_cuts, info.IsColumnSplit());
-  return batched_cuts;
+  return sketch_container.MakeCuts(ctx, info.IsColumnSplit());
 }
 
 template <typename Adapter>
@@ -401,7 +396,6 @@ TEST(HistUtil, AdapterDeviceSketch) {
 
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
-  EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
 TEST(HistUtil, AdapterDeviceSketchMemory) {
@@ -436,13 +430,11 @@ TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
 
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
-  common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, num_columns, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &sketch_container);
-  HistogramCuts cuts;
-  sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
+  [[maybe_unused]] auto cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
   size_t bytes_required =
       detail::RequiredMemory(num_rows, num_columns, num_rows * num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
@@ -465,14 +457,12 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
 
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
-  common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, num_columns, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &sketch_container);
 
-  HistogramCuts cuts;
-  sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
+  [[maybe_unused]] auto cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
   ConsoleLogger::Configure({{"verbosity", "0"}});
   size_t bytes_required =
       detail::RequiredMemory(num_rows, num_columns, num_rows * num_columns, num_bins, true);
@@ -505,8 +495,7 @@ void TestCategoricalSketchAdapter(size_t n, size_t num_categories, int32_t num_b
   SketchContainer container(info.feature_types, num_bins, 1, DeviceOrd::CUDA(0));
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &container);
-  HistogramCuts cuts;
-  container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
+  auto cuts = container.MakeCuts(&ctx, info.IsColumnSplit());
 
   thrust::sort(x.begin(), x.end());
   auto n_uniques = thrust::unique(x.begin(), x.end()) - x.begin();
@@ -666,7 +655,6 @@ TEST(HistUtil, SketchingEquivalent) {
           &ctx, adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
       EXPECT_EQ(dmat_cuts.Values(), adapter_cuts.Values());
       EXPECT_EQ(dmat_cuts.Ptrs(), adapter_cuts.Ptrs());
-      EXPECT_EQ(dmat_cuts.MinValues(), adapter_cuts.MinValues());
 
       ValidateBatchedCuts(&ctx, adapter, num_bins, dmat.get());
     }
@@ -695,14 +683,10 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   HistogramCuts cuts = DeviceSketch(&ctx, m.get(), kBins, 0);
 
   ASSERT_EQ(cuts.Values().size(), weighted_cuts.Values().size());
-  ASSERT_EQ(cuts.MinValues().size(), weighted_cuts.MinValues().size());
   ASSERT_EQ(cuts.Ptrs().size(), weighted_cuts.Ptrs().size());
 
   for (size_t i = 0; i < cuts.Values().size(); ++i) {
     EXPECT_EQ(cuts.Values()[i], weighted_cuts.Values()[i]) << "i:" << i;
-  }
-  for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
-    ASSERT_EQ(cuts.MinValues()[i], weighted_cuts.MinValues()[i]);
   }
   for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
     ASSERT_EQ(cuts.Ptrs().at(i), weighted_cuts.Ptrs().at(i));
@@ -746,8 +730,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
   AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
 
-  common::HistogramCuts cuts;
-  sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
+  auto cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
 
   auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
   if (with_group) {
@@ -766,16 +749,13 @@ void TestAdapterSketchFromWeights(bool with_group) {
     for (size_t i = 0; i < cuts.Values().size(); ++i) {
       ASSERT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
     }
-    for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
-      ASSERT_EQ(cuts.MinValues()[i], non_weighted.MinValues()[i]);
-    }
     for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
       ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
     }
   }
 
   if (with_group) {
-    common::HistogramCuts weighted;
+    common::HistogramCuts weighted{0};
     auto& h_weights = info.weights_.HostVector();
     h_weights.resize(kGroups);
     // Generate different weight.
@@ -788,7 +768,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
     SketchContainer sketch_container{ft, kBins, kCols, DeviceOrd::CUDA(0)};
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_container);
-    sketch_container.MakeCuts(&ctx, &weighted, info.IsColumnSplit());
+    weighted = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
     ValidateCuts(weighted, dmat.get(), kBins);
   }
 }

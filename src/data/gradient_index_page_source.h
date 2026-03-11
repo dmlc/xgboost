@@ -25,7 +25,7 @@ namespace xgboost::data {
 template <typename S>
 class GHistIndexFormatPolicy {
  protected:
-  common::HistogramCuts cuts_;
+  common::HistogramCuts cuts_{0};
 
  public:
   using FormatT = SparsePageFormat<GHistIndexMatrix>;

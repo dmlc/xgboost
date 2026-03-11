@@ -970,41 +970,25 @@ void GetCutImpl(Context const *ctx, std::shared_ptr<DMatrix> p_m,
   auto &data = *p_data;
   for (auto const &page : p_m->GetBatches<Page>(ctx, {})) {
     auto const &cut = page.Cuts();
-
     auto const &ptrs = cut.Ptrs();
-    indptr.resize(ptrs.size());
-
     auto const &vals = cut.Values();
-    auto const &mins = cut.MinValues();
-
-    bst_feature_t n_features = p_m->Info().num_col_;
     auto ft = p_m->Info().feature_types.ConstHostSpan();
-    std::size_t n_categories = std::count_if(ft.cbegin(), ft.cend(),
-                                             [](auto t) { return t == FeatureType::kCategorical; });
-    data.resize(vals.size() + n_features - n_categories);  // |vals| + |mins|
-    std::size_t i{0}, n_numeric{0};
-    for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
-      CHECK_LT(i, data.size());
-      bool is_numeric = !common::IsCat(ft, fidx);
-      if (is_numeric) {
-        data[i] = mins[fidx];
-        i++;
+
+    indptr.resize(ptrs.size());
+    data.clear();
+
+    for (bst_feature_t fidx = 0; fidx < p_m->Info().num_col_; ++fidx) {
+      indptr[fidx] = data.size();
+
+      if (!common::IsCat(ft, fidx)) {
+        data.push_back(common::HistogramCuts::NumericBinLowerBound(ptrs, vals, fidx, ptrs[fidx]));
       }
+
       auto beg = ptrs[fidx];
       auto end = ptrs[fidx + 1];
-      CHECK_LE(end, data.size());
-      std::copy(vals.cbegin() + beg, vals.cbegin() + end, data.begin() + i);
-      i += (end - beg);
-      // shift by min values.
-      indptr[fidx] = ptrs[fidx] + n_numeric;
-      if (is_numeric) {
-        n_numeric++;
-      }
+      data.insert(data.end(), vals.cbegin() + beg, vals.cbegin() + end);
     }
-    CHECK_EQ(n_numeric, n_features - n_categories);
-
     indptr.back() = data.size();
-    CHECK_EQ(indptr.back(), vals.size() + mins.size() - n_categories);
     break;
   }
 }
