@@ -763,9 +763,13 @@ class CPUPredictor : public Predictor {
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const &model,
                                     float missing, PredictionCacheEntry *out_preds,
-                                    bst_tree_t tree_begin, bst_tree_t tree_end) const override {
+                                    bst_tree_t tree_begin, bst_tree_t tree_end,
+                                    std::vector<float> const *tree_weights) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
+    if (tree_end == 0) {
+      tree_end = model.trees.size();
+    }
 
     this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
     auto &predictions = out_preds->predictions.HostVector();
@@ -777,12 +781,15 @@ class CPUPredictor : public Predictor {
     bst_idx_t n_groups = model.learner_model_param->OutputLength();
     auto const h_model =
         HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
+    auto weights = tree_weights == nullptr ? common::OptionalWeights{1.0f}
+                                           : common::OptionalWeights{common::Span<float const>{
+                                                 tree_weights->data() + tree_begin,
+                                                 static_cast<std::size_t>(tree_end - tree_begin)}};
 
     auto kernel = [&](auto &&view) {
       auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_groups);
       PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(view, h_model, &feat_vecs, n_threads,
-                                                               any_missing, out_predt,
-                                                               common::OptionalWeights{1.0f});
+                                                               any_missing, out_predt, weights);
     };
     auto dispatch = [&](auto x) {
       using AdapterT = typename decltype(x)::element_type;
