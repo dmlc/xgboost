@@ -65,10 +65,10 @@ Result RelayToRoot(Comm const& comm, common::Span<std::int8_t> data, std::int32_
   auto rank = comm.Rank();
   auto path = TreePathToRoot(root);
 
-  for (std::int32_t i = 0; i < static_cast<std::int32_t>(path.size()); ++i) {
-    auto node = path[i];
+  for (auto node : path) {
+    CHECK_GT(node, 0);
     auto k = TrailingZeroBits(static_cast<std::uint32_t>(node));
-    auto parent = node - (1 << k);
+    auto parent = node - (std::int32_t{1} << k);
 
     if (rank == node) {
       auto rc = Success() << [&] {
