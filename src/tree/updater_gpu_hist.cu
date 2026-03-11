@@ -224,7 +224,6 @@ struct GPUHistMakerDevice {
                                             p_fmat->Info().feature_types.ConstDeviceSpan(),
                                             cuts_->cut_ptrs_.ConstDeviceSpan(),
                                             cuts_->cut_values_.ConstDeviceSpan(),
-                                            cuts_->min_vals_.ConstDeviceSpan(),
                                             p_fmat->IsDense() && !collective::IsDistributed()};
     auto split = this->evaluator_.EvaluateSingleSplit(ctx_, inputs, shared_inputs);
     return split;
@@ -243,7 +242,6 @@ struct GPUHistMakerDevice {
     EvaluateSplitSharedInputs shared_inputs{
         GPUTrainingParam{param}, (*quantiser)[0], p_fmat->Info().feature_types.ConstDeviceSpan(),
         cuts_->cut_ptrs_.ConstDeviceSpan(), cuts_->cut_values_.ConstDeviceSpan(),
-        cuts_->min_vals_.ConstDeviceSpan(),
         // is_dense represents the local data
         p_fmat->IsDense() && !collective::IsDistributed()};
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());

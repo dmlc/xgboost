@@ -59,6 +59,102 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
   }
 }
 
+void TestBatchPredictionWithWeights(Context const *ctx) {
+  size_t constexpr kRows = 5, kCols = 5;
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+  auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
+
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
+  auto model = std::make_unique<gbm::GBTreeModel>(&mparam, ctx);
+  {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::make_unique<RegTree>());
+    (*trees.back())[0].SetLeaf(1.5f);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
+    model->CommitModelGroup(std::move(trees), 0);
+  }
+  {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::make_unique<RegTree>());
+    (*trees.back())[0].SetLeaf(2.0f);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
+    model->CommitModelGroup(std::move(trees), 0);
+  }
+  std::vector<float> tree_weights{0.5f, 2.0f};
+
+  PredictionCacheEntry weighted_predictions;
+  predictor->InitOutPredictions(dmat->Info(), &weighted_predictions.predictions, *model);
+  predictor->PredictBatch(dmat.get(), &weighted_predictions, *model, 0, 0, &tree_weights);
+
+  auto const &h_predt = weighted_predictions.predictions.ConstHostVector();
+  for (auto v : h_predt) {
+    ASSERT_EQ(v, 4.75f);
+  }
+
+  PredictionCacheEntry ranged_predictions;
+  predictor->InitOutPredictions(dmat->Info(), &ranged_predictions.predictions, *model);
+  predictor->PredictBatch(dmat.get(), &ranged_predictions, *model, 1, 2, &tree_weights);
+
+  auto const &h_ranged = ranged_predictions.predictions.ConstHostVector();
+  for (auto v : h_ranged) {
+    ASSERT_EQ(v, 4.0f);
+  }
+}
+
+void TestInplacePredictionWithWeights(Context const *ctx) {
+  size_t constexpr kRows = 5, kCols = 5;
+  HostDeviceVector<float> data(kRows * kCols);
+  auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
+
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1, ctx->Device())};
+  auto model = std::make_unique<gbm::GBTreeModel>(&mparam, ctx);
+  {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::make_unique<RegTree>());
+    (*trees.back())[0].SetLeaf(1.5f);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
+    model->CommitModelGroup(std::move(trees), 0);
+  }
+  {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::make_unique<RegTree>());
+    (*trees.back())[0].SetLeaf(2.0f);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
+    model->CommitModelGroup(std::move(trees), 0);
+  }
+  std::vector<float> tree_weights{0.5f, 2.0f};
+
+  if (ctx->IsCUDA()) {
+    data.SetDevice(ctx->Device());
+    data.ConstDeviceSpan();
+  }
+  auto array = GetArrayInterface(&data, kRows, kCols);
+  std::string array_str;
+  Json::Dump(array, &array_str);
+  auto proxy = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
+  if (ctx->IsCUDA()) {
+    dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetCudaArray(array_str.c_str());
+  } else {
+    dynamic_cast<data::DMatrixProxy *>(proxy.get())->SetArray(array_str.c_str());
+  }
+
+  PredictionCacheEntry weighted_predictions;
+  predictor->InplacePredict(proxy, *model, std::numeric_limits<float>::quiet_NaN(),
+                            &weighted_predictions, 0, 0, &tree_weights);
+  auto const &h_predt = weighted_predictions.predictions.ConstHostVector();
+  for (auto v : h_predt) {
+    ASSERT_EQ(v, 4.75f);
+  }
+
+  PredictionCacheEntry ranged_predictions;
+  predictor->InplacePredict(proxy, *model, std::numeric_limits<float>::quiet_NaN(),
+                            &ranged_predictions, 1, 2, &tree_weights);
+  auto const &h_ranged = ranged_predictions.predictions.ConstHostVector();
+  for (auto v : h_ranged) {
+    ASSERT_EQ(v, 4.0f);
+  }
+}
+
 TEST(Predictor, PredictionCache) {
   size_t constexpr kRows = 16, kCols = 4;
 

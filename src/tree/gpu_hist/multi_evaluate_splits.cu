@@ -8,7 +8,8 @@
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
 #include <cuda/ptx>                  // for get_sreg_laneid
 #include <cuda/std/functional>       // for identity
-#include <vector>                    // for vector
+#include <limits>
+#include <vector>  // for vector
 
 #include "../../common/cuda_context.cuh"
 #include "../tree_view.h"             // for MultiTargetTreeView
@@ -186,13 +187,12 @@ struct EvaluateSplitAgent {
         if (d_step == -1) {
           split_gidx = RevBinIdx(gidx_begin, gidx_end, bin_idx);
         }
-        float min_fvalue = shared.min_values[fidx];
         float fvalue;
         if (d_step == +1) {
           fvalue = shared.feature_values[split_gidx];
         } else {
           if (split_gidx == gidx_begin) {
-            fvalue = min_fvalue;
+            fvalue = -std::numeric_limits<float>::infinity();
           } else {
             fvalue = shared.feature_values[split_gidx - 1];
           }

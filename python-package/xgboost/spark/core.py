@@ -1135,6 +1135,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             if not launch_tracker_on_driver:
                 _rabit_args = json.loads(messages[0])["rabit_msg"]
 
+            if conf is not None:
+                _rabit_args = conf.update_worker_args(_rabit_args)
+
             evals_result: Dict[str, Any] = {}
             with (
                 config_context(verbosity=verbosity, use_rmm=use_rmm),
@@ -1651,7 +1654,11 @@ class _SparkXGBSharedReadWrite:
         if instance.isDefined("coll_cfg"):
             conf: Config = instance.getOrDefault("coll_cfg")
             if conf is not None:
-                extraMetadata["coll_cfg"] = asdict(conf)
+                extraMetadata["coll_cfg"] = {
+                    k: v for k, v in asdict(conf).items() if not callable(v)
+                }
+            if callable(conf.worker_port):
+                logger.warning("The `worker_port` is not serialized.")
 
         DefaultParamsWriter.saveMetadata(
             instance,

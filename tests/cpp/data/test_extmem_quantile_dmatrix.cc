@@ -22,7 +22,6 @@ class ExtMemQuantileDMatrixCpu : public ::testing::TestWithParam<float> {
       auto orig_cuts = orig.Cuts();
       auto sparse_cuts = sparse.Cuts();
       ASSERT_EQ(orig_cuts.Values(), sparse_cuts.Values());
-      ASSERT_EQ(orig_cuts.MinValues(), sparse_cuts.MinValues());
       ASSERT_EQ(orig_cuts.Ptrs(), sparse_cuts.Ptrs());
 
       auto orig_ptr = orig.data.data();

@@ -25,7 +25,6 @@
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/cuda_rt_utils.h"   // for SetDevice
 #include "../../common/device_helpers.cuh"
-#include "../../common/error_msg.h"
 #include "../../common/nvtx_utils.h"
 #include "../../data/batch_utils.h"      // for StaticBatch
 #include "../../data/cat_container.cuh"  // for EncPolicy, MakeCatAccessor

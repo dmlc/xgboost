@@ -3,6 +3,7 @@
  */
 #pragma once
 
+#include <cmath>
 #include <limits>
 #include <type_traits>
 #include <utility>
@@ -99,10 +100,8 @@ struct EllpackLoader {
     if (common::IsCat(matrix.feature_types, fidx)) {
       return this->acc(matrix.gidx_fvalue_map[gidx], fidx);
     }
-    // The gradient index needs to be shifted by one as min values are not included in the
-    // cuts.
     if (gidx == matrix.feature_segments[fidx]) {
-      return matrix.min_fvalue[fidx];
+      return -std::numeric_limits<float>::infinity();
     }
     return matrix.gidx_fvalue_map[gidx - 1];
   }

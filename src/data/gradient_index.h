@@ -31,8 +31,8 @@ class AlignedFileWriteStream;
 }  // namespace common
 
 float GetFvalueImpl(std::vector<std::uint32_t> const& ptrs, std::vector<float> const& values,
-                    std::vector<float> const& mins, bst_idx_t ridx, bst_feature_t fidx,
-                    bst_idx_t base_rowid, std::unique_ptr<common::ColumnMatrix> const& columns_);
+                    bst_idx_t ridx, bst_feature_t fidx, bst_idx_t base_rowid,
+                    std::unique_ptr<common::ColumnMatrix> const& columns_);
 
 /**
  * @brief preprocessed global index matrix, in CSR format.
@@ -154,7 +154,7 @@ class GHistIndexMatrix {
   /** @brief hit count of each index, used for constructing the ColumnMatrix */
   common::RefResourceView<std::size_t> hit_count;
   /** @brief The corresponding cuts */
-  common::HistogramCuts cut;
+  common::HistogramCuts cut{0};
   /** @brief max_bin for each feature. */
   bst_bin_t max_numeric_bins_per_feat;
   /** @brief base row index for current page (used by external memory) */
@@ -267,8 +267,8 @@ class GHistIndexMatrix {
 
   [[nodiscard]] float GetFvalue(size_t ridx, size_t fidx, bool is_cat) const;
   [[nodiscard]] float GetFvalue(std::vector<std::uint32_t> const& ptrs,
-                                std::vector<float> const& values, std::vector<float> const& mins,
-                                bst_idx_t ridx, bst_feature_t fidx, bool is_cat) const {
+                                std::vector<float> const& values, bst_idx_t ridx,
+                                bst_feature_t fidx, bool is_cat) const {
     if (is_cat) {
       auto gidx = GetGindex(ridx, fidx);
       if (gidx == -1) {
@@ -279,9 +279,9 @@ class GHistIndexMatrix {
     if (this->IsDense()) {
       auto begin = RowIdx(ridx);
       auto bin_idx = this->index[begin + fidx];
-      return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
+      return common::HistogramCuts::NumericBinValue(ptrs, values, fidx, bin_idx);
     }
-    return GetFvalueImpl(ptrs, values, mins, ridx, fidx, this->base_rowid, this->columns_);
+    return GetFvalueImpl(ptrs, values, ridx, fidx, this->base_rowid, this->columns_);
   }
 
   [[nodiscard]] common::HistogramCuts& Cuts() { return cut; }

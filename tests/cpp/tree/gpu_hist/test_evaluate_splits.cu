@@ -42,7 +42,6 @@ TEST_F(TestCategoricalSplitWithMissing, GPUHistEvaluator) {
   GPUTrainingParam param{param_};
   cuts_.cut_ptrs_.SetDevice(ctx.Device());
   cuts_.cut_values_.SetDevice(ctx.Device());
-  cuts_.min_vals_.SetDevice(ctx.Device());
   thrust::device_vector<GradientPairInt64> feature_histogram{
       ConvertToInteger(&ctx, feature_histogram_)};
 
@@ -56,7 +55,6 @@ TEST_F(TestCategoricalSplitWithMissing, GPUHistEvaluator) {
                                           d_feature_types,
                                           cuts_.cut_ptrs_.ConstDeviceSpan(),
                                           cuts_.cut_values_.ConstDeviceSpan(),
-                                          cuts_.min_vals_.ConstDeviceSpan(),
                                           false};
 
   GPUHistEvaluator evaluator{param_, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
@@ -76,13 +74,11 @@ TEST(GpuHist, PartitionBasic) {
   tparam.max_cat_to_onehot = 0;
   GPUTrainingParam param{tparam};
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{1};
   cuts.cut_values_.HostVector() = std::vector<float>{0.0, 1.0, 2.0};
   cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 3};
-  cuts.min_vals_.HostVector() = std::vector<float>{0.0};
   cuts.cut_ptrs_.SetDevice(ctx.Device());
   cuts.cut_values_.SetDevice(ctx.Device());
-  cuts.min_vals_.SetDevice(ctx.Device());
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0};
 
   thrust::device_vector<int> monotonic_constraints(feature_set.size(), 0);
@@ -99,7 +95,6 @@ TEST(GpuHist, PartitionBasic) {
       d_feature_types,
       cuts.cut_ptrs_.ConstDeviceSpan(),
       cuts.cut_values_.ConstDeviceSpan(),
-      cuts.min_vals_.ConstDeviceSpan(),
       false,
   };
 
@@ -191,13 +186,11 @@ TEST(GpuHist, PartitionTwoFeatures) {
   tparam.max_cat_to_onehot = 0;
   GPUTrainingParam param{tparam};
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{2};
   cuts.cut_values_.HostVector() = std::vector<float>{0.0, 1.0, 2.0, 0.0, 1.0, 2.0};
   cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 3, 6};
-  cuts.min_vals_.HostVector() = std::vector<float>{0.0, 0.0};
   cuts.cut_ptrs_.SetDevice(ctx.Device());
   cuts.cut_values_.SetDevice(ctx.Device());
-  cuts.min_vals_.SetDevice(ctx.Device());
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
 
   thrust::device_vector<int> monotonic_constraints(feature_set.size(), 0);
@@ -213,7 +206,6 @@ TEST(GpuHist, PartitionTwoFeatures) {
                                           d_feature_types,
                                           cuts.cut_ptrs_.ConstDeviceSpan(),
                                           cuts.cut_values_.ConstDeviceSpan(),
-                                          cuts.min_vals_.ConstDeviceSpan(),
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
@@ -252,13 +244,11 @@ TEST(GpuHist, PartitionTwoNodes) {
   tparam.max_cat_to_onehot = 0;
   GPUTrainingParam param{tparam};
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{1};
   cuts.cut_values_.HostVector() = std::vector<float>{0.0, 1.0, 2.0};
   cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 3};
-  cuts.min_vals_.HostVector() = std::vector<float>{0.0};
   cuts.cut_ptrs_.SetDevice(ctx.Device());
   cuts.cut_values_.SetDevice(ctx.Device());
-  cuts.min_vals_.SetDevice(ctx.Device());
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0};
 
   thrust::device_vector<int> monotonic_constraints(feature_set.size(), 0);
@@ -274,7 +264,6 @@ TEST(GpuHist, PartitionTwoNodes) {
                                           d_feature_types,
                                           cuts.cut_ptrs_.ConstDeviceSpan(),
                                           cuts.cut_values_.ConstDeviceSpan(),
-                                          cuts.min_vals_.ConstDeviceSpan(),
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
@@ -307,8 +296,7 @@ void TestEvaluateSingleSplit(bool is_categorical) {
   TrainParam tparam = ZeroParam();
   GPUTrainingParam param{tparam};
 
-  common::HistogramCuts cuts{
-      MakeCutsForTest({1.0, 2.0, 11.0, 12.0}, {0, 2, 4}, {0.0, 0.0}, ctx.Device())};
+  common::HistogramCuts cuts{MakeCutsForTest({1.0, 2.0, 11.0, 12.0}, {0, 2, 4}, ctx.Device())};
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
 
   // Setup gradients so that second feature gets higher gain
@@ -331,7 +319,6 @@ void TestEvaluateSingleSplit(bool is_categorical) {
                                           d_feature_types,
                                           cuts.cut_ptrs_.ConstDeviceSpan(),
                                           cuts.cut_values_.ConstDeviceSpan(),
-                                          cuts.min_vals_.ConstDeviceSpan(),
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
@@ -361,17 +348,11 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0};
   thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0};
-  thrust::device_vector<float> feature_min_values = std::vector<float>{0.0};
   auto feature_histogram = ConvertToInteger(&ctx, {{-0.5, 0.5}, {0.5, 0.5}});
   EvaluateSplitInputs input{1, 0, parent_sum, dh::ToSpan(feature_set),
                             dh::ToSpan(feature_histogram)};
-  EvaluateSplitSharedInputs shared_inputs{param,
-                                          quantiser,
-                                          {},
-                                          dh::ToSpan(feature_segments),
-                                          dh::ToSpan(feature_values),
-                                          dh::ToSpan(feature_min_values),
-                                          false};
+  EvaluateSplitSharedInputs shared_inputs{
+      param, quantiser, {}, dh::ToSpan(feature_segments), dh::ToSpan(feature_values), false};
 
   GPUHistEvaluator evaluator(tparam, feature_set.size(), FstCU());
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
@@ -392,7 +373,7 @@ TEST(GpuHist, EvaluateSingleSplitEmpty) {
           .EvaluateSingleSplit(
               &ctx, EvaluateSplitInputs{},
               EvaluateSplitSharedInputs{
-                  GPUTrainingParam(tparam), DummyRoundingFactor(&ctx), {}, {}, {}, {}, false})
+                  GPUTrainingParam(tparam), DummyRoundingFactor(&ctx), {}, {}, {}, false})
           .split;
   EXPECT_EQ(result.findex, -1);
   EXPECT_LT(result.loss_chg, 0.0f);
@@ -410,20 +391,14 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{1};
   thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2, 4};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 11.0, 12.0};
-  thrust::device_vector<float> feature_min_values = std::vector<float>{0.0, 10.0};
   auto feature_histogram =
       ConvertToInteger(&ctx, {{-10.0, 0.5}, {10.0, 0.5}, {-0.5, 0.5}, {0.5, 0.5}});
   EvaluateSplitInputs input{1, 0, parent_sum, dh::ToSpan(feature_set),
                             dh::ToSpan(feature_histogram)};
-  EvaluateSplitSharedInputs shared_inputs{param,
-                                          quantiser,
-                                          {},
-                                          dh::ToSpan(feature_segments),
-                                          dh::ToSpan(feature_values),
-                                          dh::ToSpan(feature_min_values),
-                                          false};
+  EvaluateSplitSharedInputs shared_inputs{
+      param, quantiser, {}, dh::ToSpan(feature_segments), dh::ToSpan(feature_values), false};
 
-  GPUHistEvaluator evaluator(tparam, feature_min_values.size(), FstCU());
+  GPUHistEvaluator evaluator(tparam, 2, FstCU());
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 1);
@@ -444,20 +419,14 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
   thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2, 4};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 11.0, 12.0};
-  thrust::device_vector<float> feature_min_values = std::vector<float>{0.0, 10.0};
   auto feature_histogram =
       ConvertToInteger(&ctx, {{-0.5, 0.5}, {0.5, 0.5}, {-0.5, 0.5}, {0.5, 0.5}});
   EvaluateSplitInputs input{1, 0, parent_sum, dh::ToSpan(feature_set),
                             dh::ToSpan(feature_histogram)};
-  EvaluateSplitSharedInputs shared_inputs{param,
-                                          quantiser,
-                                          {},
-                                          dh::ToSpan(feature_segments),
-                                          dh::ToSpan(feature_values),
-                                          dh::ToSpan(feature_min_values),
-                                          false};
+  EvaluateSplitSharedInputs shared_inputs{
+      param, quantiser, {}, dh::ToSpan(feature_segments), dh::ToSpan(feature_values), false};
 
-  GPUHistEvaluator evaluator(tparam, feature_min_values.size(), FstCU());
+  GPUHistEvaluator evaluator(tparam, 2, FstCU());
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 0);
@@ -476,7 +445,6 @@ TEST(GpuHist, EvaluateSplits) {
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
   thrust::device_vector<uint32_t> feature_segments = std::vector<bst_idx_t>{0, 2, 4};
   thrust::device_vector<float> feature_values = std::vector<float>{1.0, 2.0, 11.0, 12.0};
-  thrust::device_vector<float> feature_min_values = std::vector<float>{0.0, 0.0};
   auto feature_histogram_left =
       ConvertToInteger(&ctx, {{-0.5, 0.5}, {0.5, 0.5}, {-1.0, 0.5}, {1.0, 0.5}});
   auto feature_histogram_right =
@@ -485,16 +453,10 @@ TEST(GpuHist, EvaluateSplits) {
                                  dh::ToSpan(feature_histogram_left)};
   EvaluateSplitInputs input_right{2, 0, parent_sum, dh::ToSpan(feature_set),
                                   dh::ToSpan(feature_histogram_right)};
-  EvaluateSplitSharedInputs shared_inputs{param,
-                                          quantiser,
-                                          {},
-                                          dh::ToSpan(feature_segments),
-                                          dh::ToSpan(feature_values),
-                                          dh::ToSpan(feature_min_values),
-                                          false};
+  EvaluateSplitSharedInputs shared_inputs{
+      param, quantiser, {}, dh::ToSpan(feature_segments), dh::ToSpan(feature_values), false};
 
-  GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_min_values.size()),
-                             FstCU()};
+  GPUHistEvaluator evaluator{tparam, 2, FstCU()};
   dh::device_vector<EvaluateSplitInputs> inputs =
       std::vector<EvaluateSplitInputs>{input_left, input_right};
   evaluator.LaunchEvaluateSplits(&ctx, input_left.feature_set.size(), dh::ToSpan(inputs),
@@ -516,7 +478,6 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
 
   cuts_.cut_ptrs_.SetDevice(ctx.Device());
   cuts_.cut_values_.SetDevice(ctx.Device());
-  cuts_.min_vals_.SetDevice(ctx.Device());
 
   evaluator.Reset(&ctx, cuts_, dh::ToSpan(ft), info_.num_col_, param_, false);
 
@@ -536,7 +497,6 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
                                           dh::ToSpan(ft),
                                           cuts_.cut_ptrs_.ConstDeviceSpan(),
                                           cuts_.cut_values_.ConstDeviceSpan(),
-                                          cuts_.min_vals_.ConstDeviceSpan(),
                                           false};
   auto split = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-2);
@@ -553,9 +513,8 @@ void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
   TrainParam tparam = ZeroParam();
   GPUTrainingParam param{tparam};
 
-  common::HistogramCuts cuts{
-      rank == 0 ? MakeCutsForTest({1.0, 2.0}, {0, 2, 2}, {0.0, 0.0}, ctx.Device())
-                : MakeCutsForTest({11.0, 12.0}, {0, 0, 2}, {0.0, 0.0}, ctx.Device())};
+  common::HistogramCuts cuts{rank == 0 ? MakeCutsForTest({1.0, 2.0}, {0, 2, 2}, ctx.Device())
+                                       : MakeCutsForTest({11.0, 12.0}, {0, 0, 2}, ctx.Device())};
   thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
 
   // Setup gradients so that second feature gets higher gain
@@ -578,7 +537,6 @@ void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
                                           d_feature_types,
                                           cuts.cut_ptrs_.ConstDeviceSpan(),
                                           cuts.cut_values_.ConstDeviceSpan(),
-                                          cuts.min_vals_.ConstDeviceSpan(),
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};

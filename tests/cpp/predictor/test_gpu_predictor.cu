@@ -57,6 +57,16 @@ TEST(GPUPredictor, Basic) {
   }
 }
 
+TEST(GPUPredictor, BatchPredictionWithWeights) {
+  auto ctx = MakeCUDACtx(0);
+  TestBatchPredictionWithWeights(&ctx);
+}
+
+TEST(GPUPredictor, InplacePredictionWithWeights) {
+  auto ctx = MakeCUDACtx(0);
+  TestInplacePredictionWithWeights(&ctx);
+}
+
 namespace {
 void VerifyBasicColumnSplit(std::array<std::vector<float>, 32> const& expected_result) {
   auto const world_size = collective::GetWorldSize();
@@ -243,9 +253,7 @@ TEST_F(MGPUPredictorTest, IterationRangeColumnSplit) {
   TestIterationRangeColumnSplit(curt::AllVisibleGPUs(), true);
 }
 
-TEST(GPUPredictor, CategoricalPrediction) {
-  TestCategoricalPrediction(true, false);
-}
+TEST(GPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(true, false); }
 
 TEST_F(MGPUPredictorTest, CategoricalPredictionColumnSplit) {
   this->DoTest([] { TestCategoricalPrediction(true, true); }, true);

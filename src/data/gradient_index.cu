@@ -90,7 +90,6 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
   // pull to host early, prevent race condition
   this->cut.Ptrs();
   this->cut.Values();
-  this->cut.MinValues();
 
   this->ResizeIndex(ctx, info.num_nonzero_, page->IsDense());
   if (page->IsDense()) {
@@ -121,7 +120,6 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
   CHECK_EQ(this->Size(), info.num_row_);
   CHECK(this->cut.cut_ptrs_.HostCanRead());
   CHECK(this->cut.cut_values_.HostCanRead());
-  CHECK(this->cut.min_vals_.HostCanRead());
 
   this->columns_ = std::make_unique<common::ColumnMatrix>(*this, p.sparse_thresh);
   this->columns_->InitFromGHist(ctx, *this);

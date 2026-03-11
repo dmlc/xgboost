@@ -9,9 +9,9 @@
 #include "../collective/communicator-inl.h"  // for IsDistributed
 #include "../common/error_msg.h"             // for InconsistentCategories
 #include "../common/threading_utils.h"       // for ParallelFor
-#include "proxy_dmatrix.h"                   // for DispatchAny
 #include "cat_container.h"                   // for CatContainer
 #include "gradient_index.h"                  // for GHistIndexMatrix
+#include "proxy_dmatrix.h"                   // for DispatchAny
 #include "xgboost/collective/result.h"       // for SafeColl
 #include "xgboost/linalg.h"                  // for Tensor
 
@@ -179,7 +179,7 @@ void MakeSketches(Context const* ctx,
     CHECK_EQ(accumulated_rows, info.num_row_);
 
     CHECK(p_sketch);
-    p_sketch->MakeCuts(ctx, info, cuts);
+    *cuts = p_sketch->MakeCuts(ctx, info);
   }
 
   if (!h_ft.empty()) {

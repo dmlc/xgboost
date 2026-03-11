@@ -35,7 +35,7 @@ void IterativeDMatrix::InitFromCUDA(
   /**
    * Generate quantiles
    */
-  auto cuts = std::make_shared<common::HistogramCuts>();
+  auto cuts = std::make_shared<common::HistogramCuts>(0);
   ExternalDataInfo ext_info;
   cuda_impl::MakeSketches(ctx, &iter, proxy, ref, p, missing, cuts, this->info_, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
