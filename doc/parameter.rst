@@ -308,17 +308,6 @@ These parameters are only used for training with categorical data. See
 Additional dropout parameters for tree boosters
 ==============================================
 
-.. note:: Using ``predict()`` with dropout-enabled tree boosters
-
-  If dropout is enabled for the booster, ``predict()`` will perform dropouts, i.e. only
-  some of the trees will be evaluated. This will produce incorrect results if ``data`` is
-  not the training data. To obtain correct results on test sets, set ``iteration_range`` to
-  a nonzero value, e.g.
-
-  .. code-block:: python
-
-    preds = bst.predict(dtest, iteration_range=(0, num_round))
-
 * ``sample_type`` [default= ``uniform``]
 
   - Type of sampling algorithm.
