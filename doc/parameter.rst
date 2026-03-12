@@ -306,7 +306,7 @@ These parameters are only used for training with categorical data. See
     splits for preventing over-fitting.
 
 Additional dropout parameters for tree boosters
-==============================================
+================================================
 
 * ``sample_type`` [default= ``uniform``]
 

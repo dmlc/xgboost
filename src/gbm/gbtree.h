@@ -359,7 +359,7 @@ class GBTree : public GradientBooster {
 #if defined(XGBOOST_USE_SYCL)
   std::unique_ptr<Predictor> sycl_predictor_;
 #endif  // defined(XGBOOST_USE_SYCL)
-  /*! \brief prediction buffer */
+  /*! \brief per-tree dropout weights */
   std::vector<bst_float> weight_drop_;
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
