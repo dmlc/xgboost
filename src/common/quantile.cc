@@ -61,10 +61,10 @@ std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
       << error::GroupSize() << " the number of rows from the data.";
   size_t cur_group = 0;
   for (bst_idx_t i = 0; i < n_samples; ++i) {
-    results[i] = group_weights[cur_group];
-    if (i == group_ptr[cur_group + 1]) {
-      cur_group++;
+    while (cur_group + 1 < group_ptr.size() && i >= group_ptr[cur_group + 1]) {
+      ++cur_group;
     }
+    results[i] = group_weights[cur_group];
   }
   return results;
 }
@@ -84,10 +84,10 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
     CHECK_EQ(group_ptr.back(), hessian.size());
     size_t cur_group = 0;
     for (size_t i = 0; i < hessian.size(); ++i) {
-      results[i] = hessian[i] * get_weight(cur_group);
-      if (i == group_ptr[cur_group + 1]) {
-        cur_group++;
+      while (cur_group + 1 < group_ptr.size() && i >= group_ptr[cur_group + 1]) {
+        ++cur_group;
       }
+      results[i] = hessian[i] * get_weight(cur_group);
     }
   } else {
     ParallelFor(hessian.size(), n_threads, Sched::Auto(),

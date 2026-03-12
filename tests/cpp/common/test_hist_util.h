@@ -38,10 +38,10 @@ inline std::vector<float> UnrollGroupWeightsForTest(MetaInfo const& info) {
   std::vector<float> out(info.num_row_);
   size_t cur_group = 0;
   for (bst_idx_t i = 0; i < info.num_row_; ++i) {
-    out[i] = group_weights[cur_group];
-    if (i == group_ptr[cur_group + 1]) {
-      cur_group++;
+    while (cur_group + 1 < group_ptr.size() && i >= group_ptr[cur_group + 1]) {
+      ++cur_group;
     }
+    out[i] = group_weights[cur_group];
   }
   return out;
 }
@@ -203,7 +203,6 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat, int num_bins)
 
     std::vector<float> sorted_column(col.size());
     std::vector<float> sorted_weights(col.size(), 1.0);
-    const auto& w = dmat->Info().weights_.HostVector();
 
     for (auto j = 0ull; j < col.size(); j++) {
       sorted_column[j] = col[index[j]];
