@@ -55,7 +55,7 @@ General Parameters
 * ``booster`` [default= ``gbtree``]
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
-  - Dropout parameters like ``rate_drop`` can also be used directly with ``gbtree``. ``booster=dart`` remains supported for compatibility.
+  - Dropout parameters like ``rate_drop`` can be used directly with tree models. ``booster=dart`` remains supported for compatibility.
 
   .. deprecated:: 3.3.0
 
