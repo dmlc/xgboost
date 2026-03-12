@@ -409,9 +409,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   hints.ai_flags = AI_PASSIVE;
 
   std::int32_t errc{0};
-  std::unique_ptr<addrinfo*, std::function<void(addrinfo**)>> guard{&servinfo, [](addrinfo** ptr) {
-                                                                      freeaddrinfo(*ptr);
-                                                                    }};
+  std::unique_ptr<addrinfo*, std::function<void(addrinfo**)>> guard{
+      &servinfo, [](addrinfo** ptr) { freeaddrinfo(*ptr); }};
   if ((errc = getaddrinfo(nullptr, "0", &hints, &servinfo)) != 0) {
     return Fail("Failed to get address info:" + std::string{gai_strerror(errc)});
   }
