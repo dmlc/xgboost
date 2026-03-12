@@ -26,6 +26,7 @@
 #include "../../common/cuda_rt_utils.h"   // for SetDevice
 #include "../../common/device_helpers.cuh"
 #include "../../common/nvtx_utils.h"
+#include "../../common/optional_weight.h"
 #include "../../data/batch_utils.h"      // for StaticBatch
 #include "../../data/cat_container.cuh"  // for EncPolicy, MakeCatAccessor
 #include "../../data/cat_container.h"    // for NoOpAccessor
@@ -152,7 +153,8 @@ auto MakeTreeSegments(Context const* ctx, bst_tree_t tree_begin, bst_tree_t tree
 void ExtractPaths(Context const* ctx,
                   dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>>* paths,
                   gbm::GBTreeModel const& h_model, DeviceModel const& d_model,
-                  dh::device_vector<uint32_t>* path_categories) {
+                  dh::device_vector<uint32_t>* path_categories,
+                  common::OptionalWeights tree_weights) {
   curt::SetDevice(ctx->Ordinal());
 
   dh::caching_device_vector<PathInfo> info(d_model.n_nodes);
@@ -229,7 +231,9 @@ void ExtractPaths(Context const* ctx,
     std::int32_t group = d_tree_groups[path_info.tree_idx];
     auto child_nidx = path_info.nidx;
 
-    float v = tree.LeafValue(child_nidx);
+    // TreeSHAP is linear in the leaf outputs, so DART weights can be applied by
+    // scaling each tree's leaf value before it enters the path representation.
+    float v = tree.LeafValue(child_nidx) * tree_weights[path_info.tree_idx];
     const float inf = std::numeric_limits<float>::infinity();
     size_t output_position = d_path_segments[idx + 1] - 1;
 
@@ -317,9 +321,6 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   xgboost_NVTX_FN_RANGE();
   StringView not_implemented{
       "contribution is not implemented in the GPU predictor, use CPU instead."};
-  if (tree_weights != nullptr) {
-    LOG(FATAL) << "Dart booster feature " << not_implemented;
-  }
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
@@ -336,12 +337,21 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
 
   dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
   DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, CopyViews{ctx}};
+  dh::device_vector<float> d_tree_weights;
+  auto weights = common::OptionalWeights{1.0f};
+  if (tree_weights != nullptr) {
+    // GPU TreeSHAP consumes device-resident path data, so materialize the optional
+    // tree weights on device before extracting the weighted leaf outputs.
+    d_tree_weights.assign(tree_weights->cbegin(), tree_weights->cbegin() + tree_end);
+    weights = common::OptionalWeights{common::Span<float const>{
+        thrust::raw_pointer_cast(d_tree_weights.data()), d_tree_weights.size()}};
+  }
 
   auto new_enc =
       p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
 
   dh::device_vector<uint32_t> categories;
-  ExtractPaths(ctx, &device_paths, model, d_model, &categories);
+  ExtractPaths(ctx, &device_paths, model, d_model, &categories, weights);
 
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
     auto begin = dh::tbegin(phis) + base_rowid * dim_size;
@@ -369,9 +379,6 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   if (approximate) {
     LOG(FATAL) << "Approximated " << not_implemented;
   }
-  if (tree_weights != nullptr) {
-    LOG(FATAL) << "Dart booster feature " << not_implemented;
-  }
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   out_contribs->SetDevice(ctx->Device());
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
@@ -387,9 +394,18 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
 
   dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
   DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, CopyViews{ctx}};
+  dh::device_vector<float> d_tree_weights;
+  auto weights = common::OptionalWeights{1.0f};
+  if (tree_weights != nullptr) {
+    // GPU TreeSHAP consumes device-resident path data, so materialize the optional
+    // tree weights on device before extracting the weighted leaf outputs.
+    d_tree_weights.assign(tree_weights->cbegin(), tree_weights->cbegin() + tree_end);
+    weights = common::OptionalWeights{common::Span<float const>{
+        thrust::raw_pointer_cast(d_tree_weights.data()), d_tree_weights.size()}};
+  }
 
   dh::device_vector<uint32_t> categories;
-  ExtractPaths(ctx, &device_paths, model, d_model, &categories);
+  ExtractPaths(ctx, &device_paths, model, d_model, &categories, weights);
   auto new_enc =
       p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
 

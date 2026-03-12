@@ -303,8 +303,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end, nullptr,
-                                                   approximate);
+    this->GetPredictor(false)->PredictContribution(p_fmat, out_contribs, model_, tree_end,
+                                                   this->TreeWeights(), approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -313,8 +313,8 @@ class GBTree : public GradientBooster {
     auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict interaction contribution supports only iteration end: [0, "
                                "n_iteration), using model slicing instead.";
-    this->GetPredictor(false)->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                               tree_end, nullptr, approximate);
+    this->GetPredictor(false)->PredictInteractionContributions(
+        p_fmat, out_contribs, model_, tree_end, this->TreeWeights(), approximate);
   }
 
   [[nodiscard]] std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
@@ -323,6 +323,8 @@ class GBTree : public GradientBooster {
   }
 
  protected:
+  [[nodiscard]] virtual std::vector<float> const* TreeWeights() const { return nullptr; }
+
   void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
                      std::vector<std::unique_ptr<RegTree>>* ret);

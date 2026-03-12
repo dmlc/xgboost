@@ -84,4 +84,9 @@ TEST(GPUPredictor, ShapOutputCasesGPU) {
     CheckShapOutput(dmat.get(), args);
   }
 }
+
+TEST(GPUPredictor, DartShapOutputGPU) {
+  auto ctx = MakeCUDACtx(0);
+  CheckDartShapOutput(&ctx);
+}
 }  // namespace xgboost
