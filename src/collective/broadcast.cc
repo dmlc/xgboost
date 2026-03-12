@@ -100,10 +100,10 @@ Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t 
   }
 
   // For non-zero root, relay data up to rank 0 through the tree, then broadcast.
-  auto rc = RelayToRoot(comm, data, root);
-  if (!rc.OK()) {
-    return Fail("Relay broadcast failed.", std::move(rc));
-  }
-  return BroadcastTree(comm, data);
+  return Success() << [&] {
+    return RelayToRoot(comm, data, root);
+  } << [&] {
+    return BroadcastTree(comm, data);
+  };
 }
 }  // namespace xgboost::collective::cpu_impl
