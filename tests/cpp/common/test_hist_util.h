@@ -182,7 +182,6 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat, int num_bins)
 
     std::vector<float> sorted_column(col.size());
     std::vector<float> sorted_weights(col.size(), 1.0);
-    const auto& w = dmat->Info().weights_.HostVector();
 
     for (auto j = 0ull; j < col.size(); j++) {
       sorted_column[j] = col[index[j]];

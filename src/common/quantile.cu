@@ -29,7 +29,7 @@
 #include "xgboost/span.h"
 
 namespace xgboost::common {
-using WQSketch = HostSketchContainer::WQSketch;
+using WQSketch = WQuantileSketch;
 using SketchEntry = WQSketch::Entry;
 
 // Algorithm 4 in XGBoost's paper, using binary search to find i.

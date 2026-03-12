@@ -610,29 +610,26 @@ class WQuantileSketch {
 
 namespace detail {
 inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
-  std::vector<float> const &group_weights = info.weights_.HostVector();
+  auto const &group_weights = info.weights_.HostVector();
   if (group_weights.empty()) {
     return group_weights;
   }
 
   auto const &group_ptr = info.group_ptr_;
   CHECK_GE(group_ptr.size(), 2);
-
-  auto n_groups = group_ptr.size() - 1;
-  CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
-
-  bst_idx_t n_samples = info.num_row_;
-  std::vector<float> results(n_samples);
-  CHECK_EQ(group_ptr.back(), n_samples)
+  CHECK_EQ(group_weights.size(), group_ptr.size() - 1) << error::GroupWeight();
+  CHECK_EQ(group_ptr.back(), info.num_row_)
       << error::GroupSize() << " the number of rows from the data.";
+
+  std::vector<float> out(info.num_row_);
   size_t cur_group = 0;
-  for (bst_idx_t i = 0; i < n_samples; ++i) {
-    results[i] = group_weights[cur_group];
-    if (i == group_ptr[cur_group + 1]) {
-      cur_group++;
+  for (bst_idx_t i = 0; i < info.num_row_; ++i) {
+    while (cur_group + 1 < group_ptr.size() && i >= group_ptr[cur_group + 1]) {
+      ++cur_group;
     }
+    out[i] = group_weights[cur_group];
   }
-  return results;
+  return out;
 }
 }  // namespace detail
 
@@ -704,7 +701,7 @@ std::vector<bst_feature_t> LoadBalance(Batch const &batch, size_t nnz, bst_featu
 /*!
  * A sketch matrix storing sketches for each feature.
  */
-class SketchContainerImpl {
+class HostSketchContainer {
  protected:
   using WQSketch = WQuantileSketch;
   std::vector<WQSketch> sketches_;
@@ -725,8 +722,9 @@ class SketchContainerImpl {
    * \param max_bin maximum number of bins for each feature.
    * \param use_group whether is assigned to group to data instance.
    */
-  SketchContainerImpl(Context const *ctx, std::vector<bst_idx_t> columns_size, bst_bin_t max_bin,
-                      common::Span<FeatureType const> feature_types, bool use_group);
+  HostSketchContainer(Context const *ctx, bst_bin_t max_bin,
+                      common::Span<FeatureType const> feature_types,
+                      std::vector<bst_idx_t> columns_size, bool use_group);
 
   static bool UseGroup(MetaInfo const &info) {
     size_t const num_groups = info.group_ptr_.size() == 0 ? 0 : info.group_ptr_.size() - 1;
@@ -735,20 +733,18 @@ class SketchContainerImpl {
     return use_group_ind;
   }
 
-  static uint32_t SearchGroupIndFromRow(std::vector<bst_uint> const &group_ptr,
-                                        size_t const base_rowid) {
-    CHECK_LT(base_rowid, group_ptr.back())
-        << "Row: " << base_rowid << " is not found in any group.";
-    bst_group_t group_ind = std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid) -
-                            group_ptr.cbegin() - 1;
-    return group_ind;
-  }
+  /* \brief Push a CSR matrix. */
+  void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
 
- private:
-  // Merge numeric sketches from all workers.
-  [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info,
-                               common::Span<bst_feature_t const> numeric_features)
-      -> std::vector<WQSketch::SummaryContainer>;
+  template <typename Batch>
+  void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
+
+  /**
+   * \brief Push a sorted CSC page.
+   */
+  void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
+
+  [[nodiscard]] HistogramCuts MakeCuts(Context const *ctx, MetaInfo const &info);
 
  protected:
   template <typename Batch, typename IsValid>
@@ -792,47 +788,16 @@ class SketchContainerImpl {
     });
   }
 
- public:
-  /* \brief Push a CSR matrix. */
-  void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
-
-  [[nodiscard]] HistogramCuts MakeCuts(Context const *ctx, MetaInfo const &info);
-
  private:
   // Merge categorical values from all workers.
   [[nodiscard]] auto AllreduceCategories(Context const *ctx, MetaInfo const &info,
                                          common::Span<bst_feature_t const> categorical_features)
       -> std::vector<std::set<float>>;
-};
 
-class HostSketchContainer : public SketchContainerImpl {
- public:
-  using WQSketch = WQuantileSketch;
-
- public:
-  HostSketchContainer(Context const *ctx, bst_bin_t max_bins, common::Span<FeatureType const> ft,
-                      std::vector<bst_idx_t> columns_size, bool use_group);
-
-  template <typename Batch>
-  void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
-};
-
-class SortedSketchContainer : public SketchContainerImpl {
- public:
-  explicit SortedSketchContainer(Context const *ctx, int32_t max_bins,
-                                 common::Span<FeatureType const> ft,
-                                 std::vector<bst_idx_t> columns_size, bool use_group)
-      : SketchContainerImpl{ctx, columns_size, max_bins, ft, use_group} {
-    monitor_.Init(__func__);
-    for (size_t i = 0; i < sketches_.size(); ++i) {
-      auto eps = 2.0 / max_bins;
-      sketches_[i] = WQSketch{columns_size_[i], eps};
-    }
-  }
-  /**
-   * \brief Push a sorted CSC page.
-   */
-  void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
+  // Merge numeric sketches from all workers.
+  [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info,
+                               common::Span<bst_feature_t const> numeric_features)
+      -> std::vector<WQSketch::SummaryContainer>;
 };
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_QUANTILE_H_

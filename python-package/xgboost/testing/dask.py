@@ -210,7 +210,12 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
     def make(n: int, seed: int) -> pd.DataFrame:
         rng = np.random.default_rng(seed)
         X, y = make_classification(
-            n, n_features, n_informative=n_features, n_redundant=0, n_classes=max_rel
+            n,
+            n_features,
+            n_informative=n_features,
+            n_redundant=0,
+            n_classes=max_rel,
+            random_state=seed,
         )
         qid = rng.integers(size=(n,), low=0, high=n_query_groups)
         df = DF(X, columns=[f"f{i}" for i in range(n_features)])
