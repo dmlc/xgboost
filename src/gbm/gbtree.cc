@@ -581,6 +581,10 @@ void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
                             PredictionCacheEntry* out_preds, bst_layer_t layer_begin,
                             bst_layer_t layer_end) const {
+  auto const* tree_weights = this->TreeWeights();
+  if (tree_weights != nullptr) {
+    CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
+  }
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (p_m->Ctx()->Device() != this->ctx_->Device()) {
@@ -589,23 +593,23 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     CHECK(proxy) << error::InplacePredictProxy();
     auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
-    this->PredictBatchImpl(p_fmat.get(), out_preds, false, layer_begin, layer_end);
+    this->PredictBatchImpl(p_fmat.get(), out_preds, false, layer_begin, layer_end, tree_weights);
     return;
   }
 
   bool known_type = this->ctx_->DispatchDevice(
       [&, begin = tree_begin, end = tree_end] {
         return this->cpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end,
-                                                    nullptr);
+                                                    tree_weights);
       },
       [&, begin = tree_begin, end = tree_end] {
         return this->gpu_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end,
-                                                    nullptr);
+                                                    tree_weights);
 #if defined(XGBOOST_USE_SYCL)
       },
       [&, begin = tree_begin, end = tree_end] {
         return this->sycl_predictor_->InplacePredict(p_m, model_, missing, out_preds, begin, end,
-                                                     nullptr);
+                                                     tree_weights);
 #endif  // defined(XGBOOST_USE_SYCL)
       });
   if (!known_type) {
@@ -757,44 +761,6 @@ class Dart : public GBTree {
       tree_weights = &dropped_weights;
     }
     this->PredictBatchImpl(p_fmat, p_out_preds, training, layer_begin, layer_end, tree_weights);
-  }
-
-  void InplacePredict(std::shared_ptr<DMatrix> p_fmat, float missing,
-                      PredictionCacheEntry* p_out_preds, bst_layer_t layer_begin,
-                      bst_layer_t layer_end) const override {
-    CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
-    auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
-
-    if (ctx_->Device() != p_fmat->Ctx()->Device()) {
-      error::MismatchedDevices(ctx_, p_fmat->Ctx());
-      auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_fmat);
-      CHECK(proxy) << error::InplacePredictProxy();
-      auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
-      this->PredictBatchImpl(p_fmat.get(), p_out_preds, false, layer_begin, layer_end,
-                             &weight_drop_);
-      return;
-    }
-
-    bool known_type = this->ctx_->DispatchDevice(
-        [&, begin = tree_begin, end = tree_end] {
-          return this->cpu_predictor_->InplacePredict(p_fmat, model_, missing, p_out_preds, begin,
-                                                      end, &weight_drop_);
-        },
-        [&, begin = tree_begin, end = tree_end] {
-          return this->gpu_predictor_->InplacePredict(p_fmat, model_, missing, p_out_preds, begin,
-                                                      end, &weight_drop_);
-#if defined(XGBOOST_USE_SYCL)
-        },
-        [&, begin = tree_begin, end = tree_end] {
-          return this->sycl_predictor_->InplacePredict(p_fmat, model_, missing, p_out_preds, begin,
-                                                       end, &weight_drop_);
-#endif  // defined(XGBOOST_USE_SYCL)
-        });
-    if (!known_type) {
-      auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_fmat);
-      CHECK(proxy) << error::InplacePredictProxy();
-      LOG(FATAL) << "Unknown data type for inplace prediction:" << proxy->Adapter().type().name();
-    }
   }
 
  protected:
