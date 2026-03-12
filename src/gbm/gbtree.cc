@@ -575,7 +575,8 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
 void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                           bst_layer_t layer_begin, bst_layer_t layer_end) {
   // dispatch to const function.
-  this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end, nullptr);
+  this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end,
+                         this->TreeWeights());
 }
 
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
@@ -750,17 +751,22 @@ class Dart : public GBTree {
 
   void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* p_out_preds, bool training,
                     bst_layer_t layer_begin, bst_layer_t layer_end) override {
-    DropTrees(training);
-    auto const* tree_weights = &weight_drop_;
-    std::vector<float> dropped_weights;
-    if (training && !idx_drop_.empty()) {
-      dropped_weights = weight_drop_;
-      for (auto idx : idx_drop_) {
-        dropped_weights.at(idx) = 0.0f;
-      }
-      tree_weights = &dropped_weights;
+    if (!training) {
+      GBTree::PredictBatch(p_fmat, p_out_preds, training, layer_begin, layer_end);
+      return;
     }
-    this->PredictBatchImpl(p_fmat, p_out_preds, training, layer_begin, layer_end, tree_weights);
+
+    DropTrees(training);
+    if (idx_drop_.empty()) {
+      GBTree::PredictBatch(p_fmat, p_out_preds, training, layer_begin, layer_end);
+      return;
+    }
+
+    std::vector<float> dropped_weights = weight_drop_;
+    for (auto idx : idx_drop_) {
+      dropped_weights.at(idx) = 0.0f;
+    }
+    this->PredictBatchImpl(p_fmat, p_out_preds, training, layer_begin, layer_end, &dropped_weights);
   }
 
  protected:
