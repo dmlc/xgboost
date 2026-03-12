@@ -514,9 +514,9 @@ void GBTree::EnsureDartState() {
   CHECK_EQ(weight_drop_.size(), n_trees);
 }
 
-void GBTree::DropTrees(bool is_training) {
+std::vector<float> GBTree::DropTrees(bool is_training) {
   if (!is_training || !this->UseDartState()) {
-    return;
+    return {};
   }
   idx_drop_.clear();
 
@@ -527,7 +527,7 @@ void GBTree::DropTrees(bool is_training) {
     skip = (runif(rnd) < dparam_.skip_drop);
   }
   if (skip) {
-    return;
+    return {};
   }
 
   if (dparam_.sample_type == DartSampleType::kWeighted) {
@@ -557,6 +557,16 @@ void GBTree::DropTrees(bool is_training) {
       idx_drop_.push_back(i);
     }
   }
+
+  if (idx_drop_.empty()) {
+    return {};
+  }
+
+  auto dropped_weights = weight_drop_;
+  for (auto idx : idx_drop_) {
+    dropped_weights.at(idx) = 0.0f;
+  }
+  return dropped_weights;
 }
 
 std::size_t GBTree::NormalizeTrees(size_t size_new_trees) {
@@ -708,24 +718,12 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
 
 void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                           bst_layer_t layer_begin, bst_layer_t layer_end) {
-  if (!is_training || !this->UseDartState()) {
-    this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end,
-                           this->TreeWeights());
-    return;
+  auto const* tree_weights = this->TreeWeights();
+  auto dropped_weights = this->DropTrees(is_training);
+  if (!dropped_weights.empty()) {
+    tree_weights = &dropped_weights;
   }
-
-  this->DropTrees(is_training);
-  if (idx_drop_.empty()) {
-    this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end,
-                           this->TreeWeights());
-    return;
-  }
-
-  std::vector<float> dropped_weights = weight_drop_;
-  for (auto idx : idx_drop_) {
-    dropped_weights.at(idx) = 0.0f;
-  }
-  this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end, &dropped_weights);
+  this->PredictBatchImpl(p_fmat, out_preds, is_training, layer_begin, layer_end, tree_weights);
 }
 
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,

@@ -338,7 +338,7 @@ class GBTree : public GradientBooster {
   }
 
   void EnsureDartState();
-  void DropTrees(bool is_training);
+  [[nodiscard]] std::vector<float> DropTrees(bool is_training);
   std::size_t NormalizeTrees(std::size_t size_new_trees);
 
   void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
