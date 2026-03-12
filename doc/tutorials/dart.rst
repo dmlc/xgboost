@@ -6,7 +6,9 @@ In this situation, trees added early are significant and trees added late are un
 
 Vinayak and Gilad-Bachrach proposed a new method to add dropout techniques from the deep neural net community to boosted trees, and reported better results in some situations.
 
-This is a instruction of new tree booster ``dart``.
+This is a instruction of the dropout mode for tree boosters. It can be enabled with
+``booster=gbtree`` and dropout parameters like ``rate_drop``. ``booster=dart`` remains
+available for compatibility.
 
 **************
 Original paper
@@ -48,7 +50,8 @@ How it works
 Parameters
 **********
 
-The booster ``dart`` inherits ``gbtree`` booster, so it supports all parameters that ``gbtree`` does, such as ``eta``, ``gamma``, ``max_depth`` etc.
+Dropout inherits the ``gbtree`` parameters, so it supports all parameters that
+``gbtree`` does, such as ``eta``, ``gamma``, ``max_depth`` etc.
 
 Additional parameters are noted below:
 
@@ -99,7 +102,7 @@ Sample Script
   dtrain = xgb.DMatrix('demo/data/agaricus.txt.train?format=libsvm')
   dtest = xgb.DMatrix('demo/data/agaricus.txt.test?format=libsvm')
   # specify parameters via map
-  param = {'booster': 'dart',
+  param = {'booster': 'gbtree',
            'max_depth': 5, 'learning_rate': 0.1,
            'objective': 'binary:logistic',
            'sample_type': 'uniform',
