@@ -24,27 +24,6 @@
 // Some helper functions used to test both GPU and CPU algorithms
 //
 namespace xgboost::common {
-inline std::vector<float> UnrollGroupWeightsForTest(MetaInfo const& info) {
-  auto const& group_weights = info.weights_.HostVector();
-  if (group_weights.empty()) {
-    return group_weights;
-  }
-
-  auto const& group_ptr = info.group_ptr_;
-  CHECK_GE(group_ptr.size(), 2);
-  CHECK_EQ(group_weights.size(), group_ptr.size() - 1);
-  CHECK_EQ(group_ptr.back(), info.num_row_);
-
-  std::vector<float> out(info.num_row_);
-  size_t cur_group = 0;
-  for (bst_idx_t i = 0; i < info.num_row_; ++i) {
-    while (cur_group + 1 < group_ptr.size() && i >= group_ptr[cur_group + 1]) {
-      ++cur_group;
-    }
-    out[i] = group_weights[cur_group];
-  }
-  return out;
-}
 // Generate columns with different ranges
 inline std::vector<float> GenerateRandom(int num_rows, int num_columns) {
   std::vector<float> x(num_rows * num_columns);
@@ -192,7 +171,7 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat, int num_bins)
 
   // construct weights.
   std::vector<float> w = dmat->Info().group_ptr_.empty() ? dmat->Info().weights_.HostVector()
-                                                         : UnrollGroupWeightsForTest(dmat->Info());
+                                                         : detail::UnrollGroupWeights(dmat->Info());
 
   // Sort
   for (auto i = 0ull; i < columns.size(); i++) {

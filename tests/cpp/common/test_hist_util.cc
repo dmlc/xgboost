@@ -356,14 +356,14 @@ TEST(HistUtil, SketchFromWeights) {
   TestSketchFromWeights(false);
 }
 
-TEST(HistUtil, UnrollGroupWeightsForTest) {
+TEST(HistUtil, UnrollGroupWeights) {
   MetaInfo info;
   info.num_row_ = 6;
   info.group_ptr_ = {0, 2, 3, 6};
   info.weights_.HostVector() = {1.0f, 5.0f, 9.0f};
 
   std::vector<float> expected{1.0f, 1.0f, 5.0f, 9.0f, 9.0f, 9.0f};
-  ASSERT_EQ(UnrollGroupWeightsForTest(info), expected);
+  ASSERT_EQ(detail::UnrollGroupWeights(info), expected);
 }
 
 namespace {

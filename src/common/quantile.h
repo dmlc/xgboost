@@ -608,6 +608,31 @@ class WQuantileSketch {
   std::vector<Entry> combine_workspace_;
 };
 
+namespace detail {
+inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
+  auto const &group_weights = info.weights_.HostVector();
+  if (group_weights.empty()) {
+    return group_weights;
+  }
+
+  auto const &group_ptr = info.group_ptr_;
+  CHECK_GE(group_ptr.size(), 2);
+  CHECK_EQ(group_weights.size(), group_ptr.size() - 1) << error::GroupWeight();
+  CHECK_EQ(group_ptr.back(), info.num_row_)
+      << error::GroupSize() << " the number of rows from the data.";
+
+  std::vector<float> out(info.num_row_);
+  size_t cur_group = 0;
+  for (bst_idx_t i = 0; i < info.num_row_; ++i) {
+    while (cur_group + 1 < group_ptr.size() && i >= group_ptr[cur_group + 1]) {
+      ++cur_group;
+    }
+    out[i] = group_weights[cur_group];
+  }
+  return out;
+}
+}  // namespace detail
+
 class HistogramCuts;
 
 template <typename Batch, typename IsValid>
