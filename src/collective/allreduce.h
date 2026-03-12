@@ -12,6 +12,7 @@
 #include "broadcast.h"                  // for Broadcast
 #include "comm.h"                       // for Comm, RestoreType
 #include "comm_group.h"                 // for GlobalCommGroup
+#include "topo.h"                       // for ParentLevel, Parent, Child
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/context.h"            // for Context
 #include "xgboost/span.h"               // for Span

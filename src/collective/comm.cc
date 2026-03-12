@@ -14,6 +14,7 @@
 #if !defined(XGBOOST_USE_NCCL)
 #include "../common/common.h"           // for AssertNCCLSupport
 #endif                                  // !defined(XGBOOST_USE_NCCL)
+#include "topo.h"                       // for BootstrapNext, BootstrapPrev
 #include "allgather.h"                  // for RingAllgather
 #include "protocol.h"                   // for kMagic
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE

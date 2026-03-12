@@ -8,6 +8,7 @@
 #include <vector>   // for vector
 
 #include "comm.h"                       // for Comm, binomial_tree
+#include "topo.h"                       // for Parent, Child
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/span.h"               // for Span
 
