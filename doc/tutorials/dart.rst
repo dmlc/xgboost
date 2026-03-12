@@ -6,9 +6,8 @@ In this situation, trees added early are significant and trees added late are un
 
 Vinayak and Gilad-Bachrach proposed a new method to add dropout techniques from the deep neural net community to boosted trees, and reported better results in some situations.
 
-This is a instruction of the dropout mode for tree boosters. It can be enabled with
-``booster=gbtree`` and dropout parameters like ``rate_drop``. ``booster=dart`` remains
-available for compatibility.
+This is a instruction of the dropout mode for tree boosters. Dropout is controlled by
+parameters like ``rate_drop``. ``booster=dart`` remains available for compatibility.
 
 **************
 Original paper
