@@ -134,6 +134,7 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
   auto y_merge_val_it = thrust::make_constant_iterator(Tuple{0ul, 1ul});
 
   static_assert(sizeof(Tuple) == sizeof(SketchEntry));
+  static_assert(alignof(Tuple) == alignof(SketchEntry));
   // We reuse the memory for storing merge path.
   common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out.data()), out.size()};
   // Determine the merge path as the per-output scan step. x contributes (1, 0), y
@@ -161,12 +162,12 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
       [=] XGBOOST_DEVICE(size_t idx) { return dh::SegmentId(out_ptr, idx); });
 
   // Compute the index for both x and y (which of the element in a and b are used in each
-  // comparison) by scanning the binary merge path.  Take output [(x_0, y_0), (x_0, y_1),
-  // ...] as an example, the comparison between (x_0, y_0) adds 1 step in the merge path.
-  // Assuming y_0 is less than x_0 so this step is toward the end of y.  After the
-  // comparison, index of y is incremented by 1 from y_0 to y_1, and at the same time, y_0
-  // is landed into output as the first element in merge result.  The scan result is the
-  // subscript of x and y.
+  // comparison) by scanning the per-output merge steps. Take output
+  // [(x_0, y_0), (x_0, y_1), ...] as an example, the comparison between (x_0, y_0)
+  // contributes one scan step. Assuming y_0 is less than x_0 so this step advances y.
+  // After the comparison, index of y is incremented by 1 from y_0 to y_1, and at the
+  // same time, y_0 is landed into output as the first element in merge result. The scan
+  // result is the subscript of x and y.
   thrust::exclusive_scan_by_key(
       ctx->CUDACtx()->CTP(), scan_key_it, scan_key_it + merge_path.size(), merge_path.data(),
       merge_path.data(), thrust::make_tuple<uint64_t, uint64_t>(0ul, 0ul),
