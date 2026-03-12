@@ -323,21 +323,10 @@ class GBTree : public GradientBooster {
   }
 
  protected:
-  [[nodiscard]] bool HasDartModel() const {
-    return !weight_drop_.empty() || dparam_.sample_type != DartSampleType::kUniform ||
-           dparam_.normalize_type != 0 || dparam_.rate_drop != 0.0f || dparam_.one_drop ||
-           dparam_.skip_drop != 0.0f;
-  }
-
-  [[nodiscard]] virtual bool UseDartState() const {
-    return !weight_drop_.empty() || dparam_.rate_drop != 0.0f || dparam_.one_drop;
-  }
-
-  [[nodiscard]] virtual std::vector<float> const* TreeWeights() const {
+  [[nodiscard]] std::vector<float> const* TreeWeights() const {
     return weight_drop_.empty() ? nullptr : &weight_drop_;
   }
 
-  void EnsureDartState();
   [[nodiscard]] std::vector<float> DropTrees(bool is_training);
   std::size_t NormalizeTrees(std::size_t size_new_trees);
 

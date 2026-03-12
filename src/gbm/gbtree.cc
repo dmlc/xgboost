@@ -142,8 +142,6 @@ void GBTree::Configure(Args const& cfg) {
   for (auto& up : updaters_) {
     up->Configure(cfg);
   }
-
-  this->EnsureDartState();
 }
 
 void GBTreeModel::InitTreesToUpdate() {
@@ -380,11 +378,15 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
 void GBTree::CommitModel(TreesOneIter&& new_trees) {
   monitor_.Start("CommitModel");
   auto n_old_trees = model_.trees.size();
-  if (this->UseDartState() && weight_drop_.size() < n_old_trees) {
+  auto has_tree_weights = !weight_drop_.empty();
+  auto dropout_configured =
+      dparam_.rate_drop != 0.0f || dparam_.one_drop || dparam_.skip_drop != 0.0f;
+  auto track_tree_weights = has_tree_weights || dropout_configured;
+  if (track_tree_weights && weight_drop_.size() < n_old_trees) {
     weight_drop_.insert(weight_drop_.cend(), n_old_trees - weight_drop_.size(), 1.0f);
   }
   auto n_new_trees = model_.CommitModel(std::forward<TreesOneIter>(new_trees));
-  if (this->UseDartState()) {
+  if (track_tree_weights) {
     auto num_drop = this->NormalizeTrees(n_new_trees);
     LOG(INFO) << "drop " << num_drop << " trees, "
               << "weight = " << weight_drop_.back();
@@ -446,7 +448,9 @@ void GBTree::SaveConfig(Json* p_out) const {
   out["name"] = String("gbtree");
   out["gbtree_train_param"] = ToJson(tparam_);
   out["tree_train_param"] = ToJson(tree_param_);
-  if (this->HasDartModel()) {
+  if (!weight_drop_.empty() || dparam_.sample_type != DartSampleType::kUniform ||
+      dparam_.normalize_type != 0 || dparam_.rate_drop != 0.0f || dparam_.one_drop ||
+      dparam_.skip_drop != 0.0f) {
     out["dart_train_param"] = ToJson(dparam_);
   }
 
@@ -503,20 +507,17 @@ void GBTree::SaveModel(Json* p_out) const {
   }
 }
 
-void GBTree::EnsureDartState() {
-  if (!this->UseDartState()) {
-    return;
-  }
-  auto n_trees = model_.trees.size();
-  if (weight_drop_.size() < n_trees) {
-    weight_drop_.insert(weight_drop_.cend(), n_trees - weight_drop_.size(), 1.0f);
-  }
-  CHECK_EQ(weight_drop_.size(), n_trees);
-}
-
 std::vector<float> GBTree::DropTrees(bool is_training) {
-  if (!is_training || !this->UseDartState()) {
+  if (!is_training) {
     return {};
+  }
+  auto dropout_configured =
+      dparam_.rate_drop != 0.0f || dparam_.one_drop || dparam_.skip_drop != 0.0f;
+  if (weight_drop_.empty()) {
+    if (!dropout_configured || model_.trees.empty()) {
+      return {};
+    }
+    weight_drop_.resize(model_.trees.size(), 1.0f);
   }
   idx_drop_.clear();
 
@@ -879,8 +880,12 @@ class Dart : public GBTree {
     out["dart_train_param"] = ToJson(dparam_);
   }
 
- protected:
-  [[nodiscard]] bool UseDartState() const override { return true; }
+  void CommitModel(TreesOneIter&& new_trees) override {
+    GBTree::CommitModel(std::move(new_trees));
+    if (weight_drop_.empty() && !model_.trees.empty()) {
+      weight_drop_.resize(model_.trees.size(), 1.0f);
+    }
+  }
 };
 
 // register the objective functions
