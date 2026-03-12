@@ -130,17 +130,14 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
 
   using Tuple = thrust::tuple<uint64_t, uint64_t>;
 
-  thrust::constant_iterator<uint64_t> a_ind_iter(0ul);
-  thrust::constant_iterator<uint64_t> b_ind_iter(1ul);
-
-  auto place_holder = thrust::make_constant_iterator<uint64_t>(0u);
-  auto x_merge_val_it = thrust::make_zip_iterator(thrust::make_tuple(a_ind_iter, place_holder));
-  auto y_merge_val_it = thrust::make_zip_iterator(thrust::make_tuple(b_ind_iter, place_holder));
+  auto x_merge_val_it = thrust::make_constant_iterator(Tuple{1ul, 0ul});
+  auto y_merge_val_it = thrust::make_constant_iterator(Tuple{0ul, 1ul});
 
   static_assert(sizeof(Tuple) == sizeof(SketchEntry));
   // We reuse the memory for storing merge path.
   common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out.data()), out.size()};
-  // Determine the merge path, 0 if element is from x, 1 if it's from y.
+  // Determine the merge path as the per-output scan step. x contributes (1, 0), y
+  // contributes (0, 1).
   thrust::merge_by_key(ctx->CUDACtx()->CTP(), x_merge_key_it, x_merge_key_it + d_x.size(),
                        y_merge_key_it, y_merge_key_it + d_y.size(), x_merge_val_it, y_merge_val_it,
                        thrust::make_discard_iterator(), merge_path.data(),
@@ -159,29 +156,9 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
                     out_ptr.data(),
                     [] __device__(auto const &t) { return thrust::get<0>(t) + thrust::get<1>(t); });
 
-  // 0^th is the indicator, 1^th is placeholder
-  auto get_ind = [] XGBOOST_DEVICE(Tuple const &t) {
-    return thrust::get<0>(t);
-  };
-  // 0^th is the counter for x, 1^th for y.
-  auto get_x = [] XGBOOST_DEVICE(Tuple const &t) {
-    return thrust::get<0>(t);
-  };
-  auto get_y = [] XGBOOST_DEVICE(Tuple const &t) {
-    return thrust::get<1>(t);
-  };
-
   auto scan_key_it = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(size_t idx) { return dh::SegmentId(out_ptr, idx); });
-
-  auto scan_val_it = dh::MakeTransformIterator<Tuple>(
-      merge_path.data(), [=] XGBOOST_DEVICE(Tuple const &t) -> Tuple {
-        auto ind = get_ind(t);  // == 0 if element is from x
-        // x_counter, y_counter
-        return thrust::make_tuple(static_cast<std::uint64_t>(!ind),
-                                  static_cast<std::uint64_t>(ind));
-      });
 
   // Compute the index for both x and y (which of the element in a and b are used in each
   // comparison) by scanning the binary merge path.  Take output [(x_0, y_0), (x_0, y_1),
@@ -191,10 +168,11 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
   // is landed into output as the first element in merge result.  The scan result is the
   // subscript of x and y.
   thrust::exclusive_scan_by_key(
-      ctx->CUDACtx()->CTP(), scan_key_it, scan_key_it + merge_path.size(), scan_val_it,
+      ctx->CUDACtx()->CTP(), scan_key_it, scan_key_it + merge_path.size(), merge_path.data(),
       merge_path.data(), thrust::make_tuple<uint64_t, uint64_t>(0ul, 0ul),
       thrust::equal_to<size_t>{}, [=] __device__(Tuple const &l, Tuple const &r) -> Tuple {
-        return thrust::make_tuple(get_x(l) + get_x(r), get_y(l) + get_y(r));
+        return thrust::make_tuple(thrust::get<0>(l) + thrust::get<0>(r),
+                                  thrust::get<1>(l) + thrust::get<1>(r));
       });
 
   return merge_path;
