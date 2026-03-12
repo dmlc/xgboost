@@ -23,17 +23,6 @@ namespace xgboost::collective {
 inline constexpr std::int64_t DefaultTimeoutSec() { return 60 * 30; }  // 30min
 inline constexpr std::int32_t DefaultRetry() { return 3; }
 
-// indexing into the ring
-inline std::int32_t BootstrapNext(std::int32_t r, std::int32_t world) {
-  auto nrank = (r + world + 1) % world;
-  return nrank;
-}
-
-inline std::int32_t BootstrapPrev(std::int32_t r, std::int32_t world) {
-  auto nrank = (r + world - 1) % world;
-  return nrank;
-}
-
 inline StringView DefaultNcclName() { return "libnccl.so.2"; }
 
 class Channel;
@@ -98,8 +87,14 @@ class Comm : public std::enable_shared_from_this<Comm> {
   }
   [[nodiscard]] virtual Result Block() const { return loop_->Block(); }
 
+  [[nodiscard]] bool HasChan(std::int32_t rank) const {
+    return rank >= 0 && rank < static_cast<std::int32_t>(channels_.size()) &&
+           channels_[rank] != nullptr;
+  }
   [[nodiscard]] virtual std::shared_ptr<Channel> Chan(std::int32_t rank) const {
-    return channels_.at(rank);
+    CHECK(HasChan(rank)) << "No channel to rank " << rank << " from rank " << rank_
+                         << ". The topology does not include this peer.";
+    return channels_[rank];
   }
   [[nodiscard]] virtual bool IsFederated() const = 0;
   [[nodiscard]] virtual Result LogTracker(std::string msg) const = 0;

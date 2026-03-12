@@ -1,81 +1,40 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include "broadcast.h"
 
-#include <cmath>    // for ceil, log2
 #include <cstdint>  // for int32_t, int8_t
 #include <utility>  // for move
+#include <vector>   // for vector
 
-#include "../common/bitfield.h"         // for TrailingZeroBits, RBitField32
-#include "comm.h"                       // for Comm
+#include "comm.h"                       // for Comm, binomial_tree
+#include "topo.h"                       // for Parent, Child
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/span.h"               // for Span
 
 namespace xgboost::collective::cpu_impl {
 namespace {
-std::int32_t ShiftedParentRank(std::int32_t shifted_rank, std::int32_t depth) {
-  std::uint32_t mask{std::uint32_t{0} - 1};  // Oxff...
-  RBitField32 maskbits{common::Span<std::uint32_t>{&mask, 1}};
-  RBitField32 rankbits{
-      common::Span<std::uint32_t>{reinterpret_cast<std::uint32_t*>(&shifted_rank), 1}};
-  // prepare for counting trailing zeros.
-  for (std::int32_t i = 0; i < depth + 1; ++i) {
-    if (rankbits.Check(i)) {
-      maskbits.Set(i);
-    } else {
-      maskbits.Clear(i);
-    }
-  }
-
-  CHECK_NE(mask, 0);
-  auto k = TrailingZeroBits(mask);
-  auto shifted_parent = shifted_rank - (1 << k);
-  return shifted_parent;
-}
-
-// Shift the root node to rank 0
-std::int32_t ShiftLeft(std::int32_t rank, std::int32_t world, std::int32_t root) {
-  auto shifted_rank = (rank + world - root) % world;
-  return shifted_rank;
-}
-// shift back to the original rank
-std::int32_t ShiftRight(std::int32_t rank, std::int32_t world, std::int32_t root) {
-  auto orig = (rank + root) % world;
-  return orig;
-}
-}  // namespace
-
-Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t root) {
-  // Binomial tree broadcast
-  // * Wiki
-  // https://en.wikipedia.org/wiki/Broadcast_(parallel_pattern)#Binomial_Tree_Broadcast
-  // * Impl
-  // https://people.mpi-inf.mpg.de/~mehlhorn/ftp/NewToolbox/collective.pdf
-
+// Binomial tree broadcast using a fixed tree rooted at rank 0.
+Result BroadcastTree(Comm const& comm, common::Span<std::int8_t> data) {
   auto rank = comm.Rank();
   auto world = comm.World();
 
-  // shift root to rank 0
-  auto shifted_rank = ShiftLeft(rank, world, root);
-  std::int32_t depth = std::ceil(std::log2(static_cast<double>(world))) - 1;
-
-  if (shifted_rank != 0) {  // not root
-    auto parent = ShiftRight(ShiftedParentRank(shifted_rank, depth), world, root);
-    auto rc = Success() << [&] { return comm.Chan(parent)->RecvAll(data); }
-                        << [&] { return comm.Chan(parent)->Block(); };
+  if (rank != 0) {
+    auto parent = binomial_tree::Parent(rank);
+    auto rc = Success() << [&] {
+      return comm.Chan(parent)->RecvAll(data);
+    } << [&] {
+      return comm.Chan(parent)->Block();
+    };
     if (!rc.OK()) {
       return Fail("broadcast failed.", std::move(rc));
     }
   }
 
-  for (std::int32_t i = depth; i >= 0; --i) {
-    CHECK_GE((i + 1), 0);  // weird clang-tidy error that i might be negative
-    if (shifted_rank % (1 << (i + 1)) == 0 && shifted_rank + (1 << i) < world) {
-      auto sft_peer = shifted_rank + (1 << i);
-      auto peer = ShiftRight(sft_peer, world, root);
-      CHECK_NE(peer, root);
-      auto rc = comm.Chan(peer)->SendAll(data);
+  for (std::int32_t level = binomial_tree::Depth(world); level >= 0; --level) {
+    if (binomial_tree::HasChild(rank, level, world)) {
+      auto child = binomial_tree::Child(rank, level);
+      auto rc = comm.Chan(child)->SendAll(data);
       if (!rc.OK()) {
         return rc;
       }
@@ -83,5 +42,68 @@ Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t 
   }
 
   return comm.Block();
+}
+
+// Compute the path from `src` to rank 0 through the binomial tree (excluding 0).
+std::vector<std::int32_t> TreePathToRoot(std::int32_t node) {
+  std::vector<std::int32_t> path;
+  auto cursor = node;
+  while (cursor > 0) {
+    path.push_back(cursor);
+    cursor = binomial_tree::Parent(cursor);
+  }
+  return path;
+}
+
+// Relay data from `node` up to rank 0 through the binomial tree.
+// Only nodes on the path from `node` to 0 participate; all others skip.
+Result RelayToRoot(Comm const& comm, common::Span<std::int8_t> data, std::int32_t node) {
+  auto rank = comm.Rank();
+  auto path = TreePathToRoot(node);
+
+  for (auto node : path) {
+    CHECK_GT(node, 0);
+    auto parent = binomial_tree::Parent(node);
+
+    if (rank == node) {
+      auto rc = Success() << [&] {
+        return comm.Chan(parent)->SendAll(data);
+      } << [&] {
+        return comm.Chan(parent)->Block();
+      };
+      if (!rc.OK()) {
+        return Fail("Relay broadcast: failed to send from " + std::to_string(node), std::move(rc));
+      }
+    } else if (rank == parent) {
+      auto rc = Success() << [&] {
+        return comm.Chan(node)->RecvAll(data);
+      } << [&] {
+        return comm.Chan(node)->Block();
+      };
+      if (!rc.OK()) {
+        return Fail("Relay broadcast: failed to recv at " + std::to_string(parent), std::move(rc));
+      }
+    }
+  }
+  return Success();
+}
+}  // namespace
+
+Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t root) {
+  if (comm.World() <= 1) {
+    return Success();
+  }
+  CHECK(!data.empty());
+
+  if (root == 0) {
+    return BroadcastTree(comm, data);
+  }
+
+  // For non-zero root, relay data up to rank 0 through the tree, then broadcast.
+  return Success() << [&] {
+    return RelayToRoot(comm, data, root);
+  } << [&] {
+    return BroadcastTree(comm, data);
+  };
 }
 }  // namespace xgboost::collective::cpu_impl
