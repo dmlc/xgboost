@@ -217,6 +217,9 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     workers[prev_rank] = std::move(prev);
   }
 
+  // For each peer pair, the lower-ranked worker initiates (connect) and the higher-ranked
+  // worker accepts. Ring sockets are already in place, so only tree-only peers need new
+  // connections.
   for (auto r : my_peers) {
     if (r > comm.Rank() && !workers[r]) {
       rc = ConnectPeer(peers[r], comm.Rank(), timeout, retry, &workers[r]);
@@ -226,6 +229,9 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     }
   }
 
+  // Accept connections from lower-ranked tree peers that weren't already covered by the
+  // ring. The exact arrival order is unspecified, so we accept n_accept times and use the
+  // rank sent by each peer to place the socket in the right slot.
   std::int32_t n_accept = 0;
   for (auto r : my_peers) {
     if (r < comm.Rank() && !workers[r]) {

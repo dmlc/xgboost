@@ -3,13 +3,11 @@
  */
 #include "broadcast.h"
 
-#include <cmath>    // for ceil, log2
 #include <cstdint>  // for int32_t, int8_t
 #include <utility>  // for move
 #include <vector>   // for vector
 
-#include "../common/bitfield.h"         // for TrailingZeroBits, RBitField32
-#include "comm.h"                       // for Comm
+#include "comm.h"                       // for Comm, binomial_tree
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/span.h"               // for Span
 
@@ -19,11 +17,9 @@ namespace {
 Result BroadcastTree(Comm const& comm, common::Span<std::int8_t> data) {
   auto rank = comm.Rank();
   auto world = comm.World();
-  std::int32_t depth = std::ceil(std::log2(static_cast<double>(world))) - 1;
 
   if (rank != 0) {
-    auto k = TrailingZeroBits(static_cast<std::uint32_t>(rank));
-    auto parent = rank - (1 << k);
+    auto parent = binomial_tree::Parent(rank);
     auto rc = Success() << [&] {
       return comm.Chan(parent)->RecvAll(data);
     } << [&] {
@@ -34,9 +30,9 @@ Result BroadcastTree(Comm const& comm, common::Span<std::int8_t> data) {
     }
   }
 
-  for (std::int32_t i = depth; i >= 0; --i) {
-    if (rank % (1 << (i + 1)) == 0 && rank + (1 << i) < world) {
-      auto child = rank + (1 << i);
+  for (std::int32_t level = binomial_tree::Depth(world); level >= 0; --level) {
+    if (binomial_tree::HasChild(rank, level, world)) {
+      auto child = binomial_tree::Child(rank, level);
       auto rc = comm.Chan(child)->SendAll(data);
       if (!rc.OK()) {
         return rc;
@@ -48,27 +44,25 @@ Result BroadcastTree(Comm const& comm, common::Span<std::int8_t> data) {
 }
 
 // Compute the path from `src` to rank 0 through the binomial tree (excluding 0).
-std::vector<std::int32_t> TreePathToRoot(std::int32_t src) {
+std::vector<std::int32_t> TreePathToRoot(std::int32_t node) {
   std::vector<std::int32_t> path;
-  auto cursor = src;
+  auto cursor = node;
   while (cursor > 0) {
     path.push_back(cursor);
-    auto k = TrailingZeroBits(static_cast<std::uint32_t>(cursor));
-    cursor -= (1 << k);
+    cursor = binomial_tree::Parent(cursor);
   }
   return path;
 }
 
-// Relay data from `root` up to rank 0 through the binomial tree.
-// Only nodes on the path from root to 0 participate; all others skip.
-Result RelayToRoot(Comm const& comm, common::Span<std::int8_t> data, std::int32_t root) {
+// Relay data from `node` up to rank 0 through the binomial tree.
+// Only nodes on the path from `node` to 0 participate; all others skip.
+Result RelayToRoot(Comm const& comm, common::Span<std::int8_t> data, std::int32_t node) {
   auto rank = comm.Rank();
-  auto path = TreePathToRoot(root);
+  auto path = TreePathToRoot(node);
 
   for (auto node : path) {
     CHECK_GT(node, 0);
-    auto k = TrailingZeroBits(static_cast<std::uint32_t>(node));
-    auto parent = node - (std::int32_t{1} << k);
+    auto parent = binomial_tree::Parent(node);
 
     if (rank == node) {
       auto rc = Success() << [&] {

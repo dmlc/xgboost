@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #pragma once
 #include <cstdint>      // for int8_t
@@ -147,16 +147,15 @@ AllreduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
     };
   };
 
-  auto shifted_rank = rank;
   std::vector<T> incoming;
   std::vector<T> out;
   bool continue_reduce = true;
-  for (std::int32_t step = 1; step < world; step <<= 1) {
+  for (std::int32_t level = 0; (std::int32_t{1} << level) < world; ++level) {
     if (!continue_reduce) {
       continue;
     }
-    if (shifted_rank % (step * 2) == step) {
-      auto parent = shifted_rank - step;
+    if (rank > 0 && binomial_tree::ParentLevel(rank) == level) {
+      auto parent = binomial_tree::Parent(rank);
       auto rc = send(parent, *data);
       if (!rc.OK()) {
         return Fail("AllreduceV failed to send data to parent.", std::move(rc));
@@ -164,8 +163,8 @@ AllreduceV(Comm const& comm, std::vector<T>* data, Fn redop) {
       continue_reduce = false;
       continue;
     }
-    if (shifted_rank % (step * 2) == 0 && shifted_rank + step < world) {
-      auto child = shifted_rank + step;
+    if (binomial_tree::HasChild(rank, level, world)) {
+      auto child = binomial_tree::Child(rank, level);
       auto rc = recv(child, &incoming);
       if (!rc.OK()) {
         return Fail("AllreduceV failed to receive data from child.", std::move(rc));
