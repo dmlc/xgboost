@@ -93,6 +93,7 @@ Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t 
   if (comm.World() <= 1) {
     return Success();
   }
+  CHECK(!data.empty());
 
   if (root == 0) {
     return BroadcastTree(comm, data);

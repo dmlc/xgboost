@@ -246,7 +246,7 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     if (!rc.OK()) {
       return Fail("Failed to accept from peer.", std::move(rc));
     }
-    workers[peer_rank] = std::move(sock);
+    workers.at(peer_rank) = std::move(sock);
   }
 
   for (auto r : my_peers) {
