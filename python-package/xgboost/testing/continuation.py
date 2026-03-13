@@ -59,8 +59,9 @@ def run_training_continuation_model_output(device: str, tree_method: str) -> Non
         recursive_compare(obj_0, obj_1)
 
 
-# pylint: disable=too-many-arguments, too-many-positional-arguments
+# pylint: disable=too-many-arguments
 def run_training_continuation_determinism(
+    *,
     device: str,
     booster: str,
     subsample: float,
@@ -69,6 +70,7 @@ def run_training_continuation_determinism(
     colsample_bylevel: float,
     colsample_bynode: float,
     num_class: int,
+    seed_per_iteration: bool,
 ) -> None:
     """Check that 2-session training (4+4 iters) equals single-session (8 iters)."""
     datasets = pytest.importorskip("sklearn.datasets")
@@ -105,6 +107,7 @@ def run_training_continuation_determinism(
         "colsample_bytree": colsample_bytree,
         "colsample_bylevel": colsample_bylevel,
         "colsample_bynode": colsample_bynode,
+        "seed_per_iteration": seed_per_iteration,
         "booster": booster,
     }
     if num_class > 1:
