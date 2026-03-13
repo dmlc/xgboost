@@ -18,7 +18,7 @@ import xgboost.testing as tm
 from .._typing import ArrayLike
 from ..compat import import_cupy
 from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix, build_info
-from ..objective import Objective, TreeObjective
+from ..objective import BinaryLogistic, Objective
 from ..sklearn import XGBClassifier
 from ..training import train
 from .data import IteratorForTest
@@ -52,22 +52,24 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
 def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
     """Use vector leaf for multi-label classification models."""
     X, y = make_multilabel_classification(128, random_state=2025)
-    clf = XGBClassifier(
-        debug_synchronize=True,
-        multi_strategy="multi_output_tree",
-        callbacks=[ResetStrategy()],
-        n_estimators=10,
-        device=device,
-        learning_rate=learning_rate,
-    )
-    clf.fit(X, y, eval_set=[(X, y)])
-    assert clf.objective == "binary:logistic"
-    assert non_increasing(clf.evals_result()["validation_0"]["logloss"])
-    if learning_rate is not None and abs(learning_rate - 1.0) < 1e-5:
-        assert clf.evals_result()["validation_0"]["logloss"][-1] < 0.065
+    for objective in ("binary:logistic", BinaryLogistic()):
+        clf = XGBClassifier(
+            debug_synchronize=True,
+            multi_strategy="multi_output_tree",
+            callbacks=[ResetStrategy()],
+            n_estimators=10,
+            device=device,
+            learning_rate=learning_rate,
+            objective=objective,
+        )
+        clf.fit(X, y, eval_set=[(X, y)])
+        assert clf.objective == "binary:logistic"
+        assert non_increasing(clf.evals_result()["validation_0"]["logloss"])
+        if learning_rate is not None and abs(learning_rate - 1.0) < 1e-5:
+            assert clf.evals_result()["validation_0"]["logloss"][-1] < 0.065
 
-    proba = clf.predict_proba(X)
-    assert proba.shape == y.shape
+        proba = clf.predict_proba(X)
+        assert proba.shape == y.shape
 
 
 def run_quantile_loss(device: Device, weighted: bool) -> None:
@@ -144,7 +146,7 @@ def _array_impl(device: Device) -> ModuleType:
     return nda
 
 
-class LsObj0(TreeObjective):
+class LsObj0(Objective):
     """Split grad is the same as value grad."""
 
     def __init__(self, device: Device) -> None:
