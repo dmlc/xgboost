@@ -81,6 +81,7 @@ class ColumnSampler {
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
+  std::uint32_t seed_{0};
   RandomEngine rng_;
   Context const* ctx_;
 
@@ -91,11 +92,12 @@ class ColumnSampler {
  public:
   std::shared_ptr<HostDeviceVector<bst_feature_t>> ColSample(
       std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample);
+  ColumnSampler() = default;
   /**
    * @brief Column sampler constructor.
    * @note This constructor manually sets the rng seed
    */
-  explicit ColumnSampler(std::uint32_t seed) { rng_.seed(seed); }
+  explicit ColumnSampler(std::uint32_t seed) : seed_{seed} { rng_.seed(seed); }
 
   /**
    * @brief Initialise this object before use.
@@ -140,6 +142,15 @@ class ColumnSampler {
   }
 
   /**
+   * @brief Save the column sampler configuration (seed + RNG state) to a JSON object.
+   */
+  void SaveConfig(Json* p_out) const;
+  /**
+   * @brief Load the column sampler configuration (seed + RNG state) from a JSON object.
+   */
+  void LoadConfig(Json const& in);
+
+  /**
    * \brief Resets this object.
    */
   void Reset() {
@@ -180,6 +191,10 @@ class ColumnSampler {
   }
 };
 
+/**
+ * @brief Create a column sampler, drawing a seed from the context RNG and broadcasting it
+ *        across workers.
+ */
 inline auto MakeColumnSampler(Context const* ctx) {
   std::uint32_t seed = ctx->Rng()();
   auto rc = collective::Broadcast(ctx, linalg::MakeVec(&seed, 1), 0);

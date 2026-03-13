@@ -770,11 +770,21 @@ class GPUHistMaker : public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
+    auto it = config.find("column_sampler");
+    if (it != config.cend()) {
+      column_sampler_ = std::make_shared<common::ColumnSampler>();
+      column_sampler_->LoadConfig(it->second);
+    }
     initialised_ = false;
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["hist_train_param"] = ToJson(hist_maker_param_);
+    if (column_sampler_) {
+      Json cs{Object{}};
+      column_sampler_->SaveConfig(&cs);
+      out["column_sampler"] = std::move(cs);
+    }
   }
 
   ~GPUHistMaker() override { dh::GlobalMemoryLogger().Log(); }
@@ -804,8 +814,9 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Start(__func__);
     CHECK_GE(ctx_->Ordinal(), 0) << "Must have at least one device";
 
-    // Synchronise the column sampling seed
-    this->column_sampler_ = common::MakeColumnSampler(ctx_);
+    if (!column_sampler_) {
+      this->column_sampler_ = common::MakeColumnSampler(ctx_);
+    }
 
     curt::SetDevice(ctx_->Ordinal());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
@@ -906,11 +917,21 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
+    auto it = config.find("column_sampler");
+    if (it != config.cend()) {
+      column_sampler_ = std::make_shared<common::ColumnSampler>();
+      column_sampler_->LoadConfig(it->second);
+    }
     initialised_ = false;
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["hist_train_param"] = ToJson(hist_maker_param_);
+    if (column_sampler_) {
+      Json cs{Object{}};
+      column_sampler_->SaveConfig(&cs);
+      out["column_sampler"] = std::move(cs);
+    }
   }
   ~GPUGlobalApproxMaker() override { dh::GlobalMemoryLogger().Log(); }
 
@@ -960,7 +981,9 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     monitor_.Start(__func__);
     CHECK(ctx_->IsCUDA()) << error::InvalidCUDAOrdinal();
-    this->column_sampler_ = common::MakeColumnSampler(ctx_);
+    if (!column_sampler_) {
+      this->column_sampler_ = common::MakeColumnSampler(ctx_);
+    }
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;

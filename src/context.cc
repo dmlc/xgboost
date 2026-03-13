@@ -10,10 +10,12 @@
 #include <iterator>   // for distance
 #include <optional>   // for optional
 #include <regex>      // for regex_replace, regex_match
+#include <sstream>    // for stringstream
 
 #include "common/cuda_rt_utils.h"  // for AllVisibleGPUs
 #include "common/error_msg.h"      // WarnDeprecatedGPUId
 #include "common/threading_utils.h"
+#include "xgboost/json.h"  // for Json, Object, String, ToJson, FromJson
 #include "xgboost/string_view.h"
 
 #if !defined(XGBOOST_USE_CUDA)
@@ -108,7 +110,9 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
 - gpu
 - gpu:<device ordinal>   # e.g. gpu:0
 )"};
-  auto fatal = [&] { LOG(FATAL) << msg << "Got: `" << input << "`."; };
+  auto fatal = [&] {
+    LOG(FATAL) << msg << "Got: `" << input << "`.";
+  };
 
 #if defined(__MINGW32__)
   // mingw hangs on regex using rtools 430. Basic checks only.
@@ -140,9 +144,8 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
   auto split_it = std::find(s_device.cbegin(), s_device.cend(), ':');
 
   // For these cases we need to move iterator to the end, not to look for a ordinal.
-  if ((s_device == "sycl:cpu") ||
-      (s_device == "sycl:gpu")) {
-        split_it = s_device.cend();
+  if ((s_device == "sycl:cpu") || (s_device == "sycl:gpu")) {
+    split_it = s_device.cend();
   }
 
   // For s_device like "sycl:gpu:1"
@@ -268,11 +271,30 @@ std::int32_t Context::Threads() const {
 }
 
 DeviceOrd Context::DeviceFP64() const {
-  #if defined(XGBOOST_USE_SYCL)
-    return sycl::DeviceFP64(device_);
-  #else
-    return device_;
-  #endif  // defined(XGBOOST_USE_SYCL)
+#if defined(XGBOOST_USE_SYCL)
+  return sycl::DeviceFP64(device_);
+#else
+  return device_;
+#endif  // defined(XGBOOST_USE_SYCL)
+}
+
+[[nodiscard]] Json Context::ToJson() const {
+  auto obj = ::xgboost::ToJson(*this);
+  std::stringstream ss;
+  ss << std::hex << rng_;
+  obj["rng_state"] = String{ss.str()};
+
+  return Json{std::move(obj)};
+}
+
+void Context::FromJson(Json const& in) {
+  ::xgboost::FromJson(in, this);
+
+  auto const& obj = get<Object const>(in);
+  auto it = obj.find("rng_state");
+  CHECK(it != obj.cend());
+  std::stringstream ss{get<String const>(it->second)};
+  ss >> std::hex >> rng_;
 }
 
 #if !defined(XGBOOST_USE_CUDA)

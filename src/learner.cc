@@ -604,7 +604,7 @@ class LearnerConfiguration : public Intercept {
       }
     }
 
-    FromJson(learner_parameters.at("generic_param"), &ctx_);
+    ctx_.FromJson(learner_parameters.at("generic_param"));
 
     this->need_configuration_ = true;
   }
@@ -634,7 +634,7 @@ class LearnerConfiguration : public Intercept {
     }
     learner_parameters["metrics"] = Array(std::move(metrics));
 
-    learner_parameters["generic_param"] = ToJson(ctx_);
+    learner_parameters["generic_param"] = ctx_.ToJson();
   }
 
   void SetParam(const std::string& key, const std::string& value) override {
@@ -1097,7 +1097,7 @@ class LearnerImpl : public LearnerIO {
     this->FitIntercept(this->tparam_, train.get());
 
     if (ctx_.seed_per_iteration) {
-      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + this->BoostedRounds());
     }
 
     this->ValidateDMatrix(train.get(), true);
@@ -1118,13 +1118,13 @@ class LearnerImpl : public LearnerIO {
     monitor_.Stop("UpdateOneIter");
   }
 
-  void BoostOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train,
+  void BoostOneIter(std::int32_t, std::shared_ptr<DMatrix> train,
                     GradientContainer* in_gpair) override {
     this->monitor_.Start(__func__);
     this->Configure();
 
     if (ctx_.seed_per_iteration) {
-      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + this->BoostedRounds());
     }
 
     this->ValidateDMatrix(train.get(), true);

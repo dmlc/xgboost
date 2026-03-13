@@ -267,10 +267,20 @@ class GlobalApproxUpdater : public TreeUpdater {
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
+    auto it = config.find("column_sampler");
+    if (it != config.cend()) {
+      column_sampler_ = std::make_shared<common::ColumnSampler>();
+      column_sampler_->LoadConfig(it->second);
+    }
   }
   void SaveConfig(Json *p_out) const override {
     auto &out = *p_out;
     out["hist_train_param"] = ToJson(hist_param_);
+    if (column_sampler_) {
+      Json cs{Object{}};
+      column_sampler_->SaveConfig(&cs);
+      out["column_sampler"] = std::move(cs);
+    }
   }
 
   void InitData(TrainParam const &param, linalg::Matrix<GradientPair> const *gpair,

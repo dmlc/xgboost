@@ -381,7 +381,7 @@ class MultiTargetHistBuilder {
   }
 
  public:
-  explicit MultiTargetHistBuilder(Context const *ctx, MetaInfo const &info, TrainParam const *param,
+  explicit MultiTargetHistBuilder(Context const *ctx, TrainParam const *param,
                                   HistMakerTrainParam const *hist_param,
                                   std::shared_ptr<common::ColumnSampler> column_sampler,
                                   common::Monitor *monitor)
@@ -389,7 +389,6 @@ class MultiTargetHistBuilder {
         param_{param},
         hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{std::make_unique<HistMultiEvaluator>(ctx, info, param, col_sampler_)},
         ctx_{ctx} {
     monitor_->Init(__func__);
   }
@@ -438,7 +437,6 @@ class HistUpdater {
         param_{param},
         hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{std::make_unique<HistEvaluator>(ctx, param, fmat->Info(), col_sampler_)},
         p_last_fmat_(fmat),
         histogram_builder_{new MultiHistogramBuilder},
         ctx_{ctx} {
@@ -611,10 +609,20 @@ class QuantileHistMaker : public TreeUpdater {
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
+    auto it = config.find("column_sampler");
+    if (it != config.cend()) {
+      column_sampler_ = std::make_shared<common::ColumnSampler>();
+      column_sampler_->LoadConfig(it->second);
+    }
   }
   void SaveConfig(Json *p_out) const override {
     auto &out = *p_out;
     out["hist_train_param"] = ToJson(hist_param_);
+    if (column_sampler_) {
+      Json cs{Object{}};
+      column_sampler_->SaveConfig(&cs);
+      out["column_sampler"] = std::move(cs);
+    }
   }
 
   [[nodiscard]] char const *Name() const override { return "grow_quantile_histmaker"; }
@@ -635,8 +643,8 @@ class QuantileHistMaker : public TreeUpdater {
         LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
       }
       if (!p_mtimpl_) {
-        this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(
-            ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, &monitor_);
+        this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(ctx_, param, &hist_param_,
+                                                                   column_sampler_, &monitor_);
       }
     } else {
       CHECK(hist_param_.GetInitialised());
