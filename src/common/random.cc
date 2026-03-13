@@ -18,7 +18,7 @@ void ColumnSampler::SaveConfig(Json* p_out) const {
   auto& out = *p_out;
   out["seed"] = Integer{static_cast<std::int64_t>(seed_)};
   std::stringstream ss;
-  ss << rng_;
+  ss << std::hex << rng_;
   out["rng_state"] = String{ss.str()};
 }
 
@@ -26,11 +26,8 @@ void ColumnSampler::LoadConfig(Json const& in) {
   auto const& obj = get<Object const>(in);
   seed_ = static_cast<std::uint32_t>(get<Integer const>(obj.at("seed")));
   rng_.seed(seed_);
-  auto it = obj.find("rng_state");
-  if (it != obj.cend()) {
-    std::stringstream ss{get<String const>(it->second)};
-    ss >> rng_;
-  }
+  std::stringstream ss{get<String const>(obj.at("rng_state"))};
+  ss >> std::hex >> rng_;
 }
 
 std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
