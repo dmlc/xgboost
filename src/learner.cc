@@ -1097,7 +1097,7 @@ class LearnerImpl : public LearnerIO {
     this->FitIntercept(this->tparam_, train.get());
 
     if (ctx_.seed_per_iteration) {
-      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + this->BoostedRounds());
     }
 
     this->ValidateDMatrix(train.get(), true);
@@ -1124,7 +1124,7 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
 
     if (ctx_.seed_per_iteration) {
-      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + this->BoostedRounds());
     }
 
     this->ValidateDMatrix(train.get(), true);
