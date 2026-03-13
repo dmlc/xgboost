@@ -1133,7 +1133,7 @@ class LearnerImpl : public LearnerIO {
     monitor_.Stop("UpdateOneIter");
   }
 
-  void BoostOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train,
+  void BoostOneIter(std::int32_t, std::shared_ptr<DMatrix> train,
                     GradientContainer* in_gpair) override {
     this->monitor_.Start(__func__);
     this->Configure();
