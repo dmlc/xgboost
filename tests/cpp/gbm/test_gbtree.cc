@@ -357,10 +357,49 @@ TEST(Dart, JsonIO) {
 
   model = Json::Load({model_str.c_str(), model_str.size()});
 
-  ASSERT_EQ(get<String>(model["model"]["name"]), "dart") << model;
-  ASSERT_EQ(get<String>(model["config"]["name"]), "dart");
-  ASSERT_TRUE(IsA<Object>(model["model"]["gbtree"]));
-  ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0ul);
+  ASSERT_EQ(get<String>(model["model"]["name"]), "gbtree") << model;
+  ASSERT_EQ(get<String>(model["config"]["name"]), "gbtree");
+}
+
+TEST(GBTree, LoadLegacyDartJson) {
+  size_t constexpr kRows = 16, kCols = 16;
+
+  Context ctx;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+
+  std::unique_ptr<GradientBooster> gbm{
+      CreateTrainedGBM("gbtree", Args{{"rate_drop", "0.5"}}, kRows, kCols, &mparam, &ctx)};
+
+  Json model{Object{}};
+  Json config{Object{}};
+  gbm->SaveModel(&model);
+  gbm->SaveConfig(&config);
+
+  Json legacy_model{Object{}};
+  legacy_model["name"] = String{"dart"};
+  legacy_model["gbtree"] = model;
+  legacy_model["weight_drop"] = model["weight_drop"];
+  get<Object>(legacy_model["gbtree"]).erase("weight_drop");
+
+  Json legacy_config{Object{}};
+  legacy_config["name"] = String{"dart"};
+  legacy_config["gbtree"] = config;
+  legacy_config["dart_train_param"] = config["dart_train_param"];
+  get<Object>(legacy_config["gbtree"]).erase("dart_train_param");
+
+  std::unique_ptr<GradientBooster> loaded{GradientBooster::Create("dart", &ctx, &mparam)};
+  loaded->LoadModel(legacy_model);
+  loaded->LoadConfig(legacy_config);
+
+  Json canonical_model{Object{}};
+  Json canonical_config{Object{}};
+  loaded->SaveModel(&canonical_model);
+  loaded->SaveConfig(&canonical_config);
+
+  ASSERT_EQ(get<String>(canonical_model["name"]), "gbtree");
+  ASSERT_EQ(get<String>(canonical_config["name"]), "gbtree");
+  ASSERT_NE(get<Array>(canonical_model["weight_drop"]).size(), 0ul);
+  ASSERT_TRUE(IsA<Object>(canonical_config["dart_train_param"]));
 }
 
 TEST(GBTree, DropoutJsonIO) {
@@ -464,12 +503,16 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
 
   int32_t kIters = 10;
   std::unique_ptr<Learner> learner{Learner::Create({m})};
-  learner->SetParams(Args{{"booster", booster},
-                          {"tree_method", "hist"},
-                          {"num_parallel_tree", std::to_string(kForest)},
-                          {"num_class", std::to_string(kClasses)},
-                          {"subsample", "0.5"},
-                          {"max_depth", "2"}});
+  Args args{{"booster", booster},
+            {"tree_method", "hist"},
+            {"num_parallel_tree", std::to_string(kForest)},
+            {"num_class", std::to_string(kClasses)},
+            {"subsample", "0.5"},
+            {"max_depth", "2"}};
+  if (booster == "dart") {
+    args.emplace_back("rate_drop", "0.5");
+  }
+  learner->SetParams(args);
 
   for (auto i = 0; i < kIters; ++i) {
     learner->UpdateOneIter(i, m);
@@ -486,13 +529,29 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
   Json sliced_model{Object()};
   sliced->SaveModel(&sliced_model);
 
-  auto get_shape = [&](Json const& model) {
-    if (booster == "gbtree") {
-      return get<Object const>(model["learner"]["gradient_booster"]["model"]["gbtree_model_param"]);
-    } else {
-      return get<Object const>(
-          model["learner"]["gradient_booster"]["gbtree"]["model"]["gbtree_model_param"]);
+  auto get_gbtree = [](Json const& model) -> Json const& {
+    auto const& booster = model["learner"]["gradient_booster"];
+    auto const& obj = get<Object const>(booster);
+    auto it = obj.find("model");
+    if (it != obj.cend() && IsA<Object>(it->second)) {
+      return booster;
     }
+    return obj.at("gbtree");
+  };
+
+  auto get_gbtree_config = [](Json& model) -> Json& {
+    auto& booster = model["learner"]["gradient_booster"];
+    auto& obj = get<Object>(booster);
+    auto it = obj.find("gbtree_model_param");
+    if (it != obj.cend() && IsA<Object>(it->second)) {
+      return booster;
+    }
+    return obj.at("gbtree");
+  };
+
+  auto get_shape = [&](Json const& model) {
+    auto const& gbtree = get_gbtree(model);
+    return get<Object const>(gbtree["model"]["gbtree_model_param"]);
   };
 
   auto const& model_shape = get_shape(sliced_model);
@@ -501,28 +560,18 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
   Json sliced_config{Object()};
   sliced->SaveConfig(&sliced_config);
   // Only num trees is changed
-  if (booster == "gbtree") {
-    sliced_config["learner"]["gradient_booster"]["gbtree_model_param"]["num_trees"] = String("60");
-  } else {
-    sliced_config["learner"]["gradient_booster"]["gbtree"]["gbtree_model_param"]["num_trees"] =
-        String("60");
-  }
+  auto& gradient_booster = get_gbtree_config(sliced_config);
+  gradient_booster["gbtree_model_param"]["num_trees"] = String("60");
   CHECK_EQ(sliced_config, config);
 
   auto get_trees = [&](Json const& model) {
-    if (booster == "gbtree") {
-      return get<Array const>(model["learner"]["gradient_booster"]["model"]["trees"]);
-    } else {
-      return get<Array const>(model["learner"]["gradient_booster"]["gbtree"]["model"]["trees"]);
-    }
+    auto const& gbtree = get_gbtree(model);
+    return get<Array const>(gbtree["model"]["trees"]);
   };
 
   auto get_info = [&](Json const& model) {
-    if (booster == "gbtree") {
-      return get<Array const>(model["learner"]["gradient_booster"]["model"]["tree_info"]);
-    } else {
-      return get<Array const>(model["learner"]["gradient_booster"]["gbtree"]["model"]["tree_info"]);
-    }
+    auto const& gbtree = get_gbtree(model);
+    return get<Array const>(gbtree["model"]["tree_info"]);
   };
 
   auto const& sliced_trees = get_trees(sliced_model);
@@ -580,8 +629,7 @@ TEST(Dart, Slice) {
   Json model, sliced_model;
   std::tie(model, sliced_model) = TestModelSlice("dart");
   auto const& weights = get<Array const>(model["learner"]["gradient_booster"]["weight_drop"]);
-  auto const& trees =
-      get<Array const>(model["learner"]["gradient_booster"]["gbtree"]["model"]["trees"]);
+  auto const& trees = get<Array const>(model["learner"]["gradient_booster"]["model"]["trees"]);
   ASSERT_EQ(weights.size(), trees.size());
 }
 
