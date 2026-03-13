@@ -814,7 +814,6 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Start(__func__);
     CHECK_GE(ctx_->Ordinal(), 0) << "Must have at least one device";
 
-    // Synchronise the column sampling seed
     if (!column_sampler_) {
       this->column_sampler_ = common::MakeColumnSampler(ctx_);
     }

@@ -284,7 +284,7 @@ Json Context::ToJson() const {
   }
 
   std::stringstream ss;
-  ss << rng_;
+  ss << std::hex << rng_;
   obj["rng_state"] = String{ss.str()};
 
   return Json{std::move(obj)};
@@ -304,7 +304,7 @@ void Context::FromJson(Json const& in) {
   auto it = obj.find("rng_state");
   if (it != obj.cend()) {
     std::stringstream ss{get<String const>(it->second)};
-    ss >> rng_;
+    ss >> std::hex >> rng_;
   }
 }
 
