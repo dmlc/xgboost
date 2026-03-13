@@ -127,87 +127,6 @@ XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry
   return thrust::make_tuple(a_ind, k - a_ind);
 }
 
-XGBOOST_DEVICE float OtherRMin(Span<SketchEntry const> d_column, uint64_t ind) {
-  if (ind == 0) {
-    return 0.0f;
-  }
-  if (ind == d_column.size()) {
-    return d_column.back().RMinNext();
-  }
-  return d_column[ind - 1].RMinNext();
-}
-
-XGBOOST_DEVICE float OtherRMax(Span<SketchEntry const> d_column, uint64_t ind) {
-  if (ind == d_column.size()) {
-    return d_column.back().rmax;
-  }
-  return d_column[ind].RMaxPrev();
-}
-
-XGBOOST_DEVICE SketchEntry MergeFromX(Span<SketchEntry const> d_y_column, SketchEntry x_elem,
-                                      uint64_t y_ind) {
-  return SketchEntry{x_elem.rmin + OtherRMin(d_y_column, y_ind),
-                     x_elem.rmax + OtherRMax(d_y_column, y_ind), x_elem.wmin, x_elem.value};
-}
-
-XGBOOST_DEVICE SketchEntry MergeFromY(Span<SketchEntry const> d_x_column, SketchEntry y_elem,
-                                      uint64_t x_ind) {
-  return SketchEntry{OtherRMin(d_x_column, x_ind) + y_elem.rmin,
-                     OtherRMax(d_x_column, x_ind) + y_elem.rmax, y_elem.wmin, y_elem.value};
-}
-
-XGBOOST_DEVICE SketchEntry MergeEntryAt(Span<SketchEntry const> d_x_column,
-                                        Span<SketchEntry const> d_y_column, uint64_t idx) {
-  // Handle empty column. If both columns are empty, we should not get this column as
-  // result of binary search.
-  assert((d_x_column.size() != 0) || (d_y_column.size() != 0));
-  if (d_x_column.size() == 0) {
-    return d_y_column[idx];
-  }
-  if (d_y_column.size() == 0) {
-    return d_x_column[idx];
-  }
-
-  uint64_t a_ind, b_ind;
-  thrust::tie(a_ind, b_ind) = MergePartition(d_x_column, d_y_column, idx);
-
-  assert(b_ind <= d_y_column.size());
-  assert(a_ind <= d_x_column.size());
-
-  if (a_ind == d_x_column.size()) {
-    return MergeFromY(d_x_column, d_y_column[b_ind], a_ind);
-  }
-  auto x_elem = d_x_column[a_ind];
-  if (b_ind == d_y_column.size()) {
-    return MergeFromX(d_y_column, x_elem, b_ind);
-  }
-  auto y_elem = d_y_column[b_ind];
-
-  /* Merge procedure.  See A.3 merge operation eq (26) ~ (28).  The trick to interpret
-     it is rewriting the symbols on both side of equality.  Take eq (26) as an example:
-     Expand it according to definition of extended rank then rewrite it into:
-
-     If $k_i$ is the $i$ element in output and \textbf{comes from $D_1$}:
-
-       r_\bar{D}(k_i) = r_{\bar{D_1}}(k_i) + w_{\bar{{D_1}}}(k_i) +
-                                        [r_{\bar{D_2}}(x_i) + w_{\bar{D_2}}(x_i)]
-
-     Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
-     used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
-     similarly with $k_i$ comes from different $D$.  just use different symbol on
-     different source of summary.
-  */
-  if (x_elem.value == y_elem.value) {
-    return SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
-                       x_elem.wmin + y_elem.wmin, x_elem.value};
-  }
-  if (x_elem.value < y_elem.value) {
-    return MergeFromX(d_y_column, x_elem, b_ind);
-  }
-
-  return MergeFromY(d_x_column, y_elem, a_ind);
-}
-
 // Merge d_x and d_y into out.  Because the final output depends on predicate (which
 // summary does the output element come from) result by definition of merged rank.  So we
 // compute the partition for each output directly and customize the standard merge
@@ -223,6 +142,82 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
   dh::LaunchN(out_ptr.size(), ctx->CUDACtx()->Stream(),
               [=] __device__(size_t i) { out_ptr[i] = x_ptr[i] + y_ptr[i]; });
 
+  auto merge_entry_at = [=] __device__(Span<SketchEntry const> d_x_column,
+                                       Span<SketchEntry const> d_y_column, uint64_t idx) {
+    // Handle empty column. If both columns are empty, we should not get this column as
+    // result of binary search.
+    assert((d_x_column.size() != 0) || (d_y_column.size() != 0));
+    if (d_x_column.size() == 0) {
+      return d_y_column[idx];
+    }
+    if (d_y_column.size() == 0) {
+      return d_x_column[idx];
+    }
+
+    uint64_t a_ind, b_ind;
+    thrust::tie(a_ind, b_ind) = MergePartition(d_x_column, d_y_column, idx);
+
+    assert(b_ind <= d_y_column.size());
+    assert(a_ind <= d_x_column.size());
+
+    auto other_rmin = [] __device__(Span<SketchEntry const> d_column, uint64_t ind) {
+      if (ind == 0) {
+        return 0.0f;
+      }
+      if (ind == d_column.size()) {
+        return d_column.back().RMinNext();
+      }
+      return d_column[ind - 1].RMinNext();
+    };  // NOLINT
+    auto other_rmax = [] __device__(Span<SketchEntry const> d_column, uint64_t ind) {
+      if (ind == d_column.size()) {
+        return d_column.back().rmax;
+      }
+      return d_column[ind].RMaxPrev();
+    };  // NOLINT
+    auto merge_from_x = [=] __device__(SketchEntry x_elem, uint64_t y_ind) {
+      return SketchEntry{x_elem.rmin + other_rmin(d_y_column, y_ind),
+                         x_elem.rmax + other_rmax(d_y_column, y_ind), x_elem.wmin, x_elem.value};
+    };  // NOLINT
+    auto merge_from_y = [=] __device__(SketchEntry y_elem, uint64_t x_ind) {
+      return SketchEntry{other_rmin(d_x_column, x_ind) + y_elem.rmin,
+                         other_rmax(d_x_column, x_ind) + y_elem.rmax, y_elem.wmin, y_elem.value};
+    };  // NOLINT
+
+    if (a_ind == d_x_column.size()) {
+      return merge_from_y(d_y_column[b_ind], a_ind);
+    }
+    auto x_elem = d_x_column[a_ind];
+    if (b_ind == d_y_column.size()) {
+      return merge_from_x(x_elem, b_ind);
+    }
+    auto y_elem = d_y_column[b_ind];
+
+    /* Merge procedure.  See A.3 merge operation eq (26) ~ (28).  The trick to interpret
+       it is rewriting the symbols on both side of equality.  Take eq (26) as an example:
+       Expand it according to definition of extended rank then rewrite it into:
+
+       If $k_i$ is the $i$ element in output and \textbf{comes from $D_1$}:
+
+         r_\bar{D}(k_i) = r_{\bar{D_1}}(k_i) + w_{\bar{{D_1}}}(k_i) +
+                                          [r_{\bar{D_2}}(x_i) + w_{\bar{D_2}}(x_i)]
+
+       Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
+       used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
+       similarly with $k_i$ comes from different $D$.  just use different symbol on
+       different source of summary.
+    */
+    if (x_elem.value == y_elem.value) {
+      return SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
+                         x_elem.wmin + y_elem.wmin, x_elem.value};
+    }
+    if (x_elem.value < y_elem.value) {
+      return merge_from_x(x_elem, b_ind);
+    }
+
+    return merge_from_y(y_elem, a_ind);
+  };  // NOLINT
+
   dh::LaunchN(d_out.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
     auto column_id = dh::SegmentId(out_ptr, idx);
     auto out_begin = out_ptr[column_id];
@@ -230,7 +225,7 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
 
     auto d_x_column = d_x.subspan(x_ptr[column_id], x_ptr[column_id + 1] - x_ptr[column_id]);
     auto d_y_column = d_y.subspan(y_ptr[column_id], y_ptr[column_id + 1] - y_ptr[column_id]);
-    d_out[idx] = MergeEntryAt(d_x_column, d_y_column, out_idx);
+    d_out[idx] = merge_entry_at(d_x_column, d_y_column, out_idx);
   });
 }
 
