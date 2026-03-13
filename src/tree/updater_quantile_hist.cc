@@ -610,8 +610,10 @@ class QuantileHistMaker : public TreeUpdater {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
     auto it = config.find("column_sampler");
-    column_sampler_ = std::make_shared<common::ColumnSampler>();
-    column_sampler_->LoadConfig(it->second);
+    if (it != config.cend()) {
+      column_sampler_ = std::make_shared<common::ColumnSampler>();
+      column_sampler_->LoadConfig(it->second);
+    }
   }
   void SaveConfig(Json *p_out) const override {
     auto &out = *p_out;
