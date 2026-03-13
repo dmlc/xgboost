@@ -1,6 +1,7 @@
 sphinx
 mock
 sphinx_rtd_theme>=1.0.0
+sphinxcontrib-jquery
 breathe
 scikit-learn
 sh
