@@ -229,17 +229,7 @@ struct Context : public XGBoostParameter<Context> {
    */
   [[nodiscard]] RandomEngine& Rng() const { return rng_; }
 
-  /**
-   * @brief Serialize the context to a JSON object.
-   *
-   * Unlike the free function `ToJson`, this method also saves the random engine state.
-   */
   [[nodiscard]] Json ToJson() const;
-  /**
-   * @brief Load the context from a JSON object.
-   *
-   * Unlike the free function `FromJson`, this method also restores the random engine state.
-   */
   void FromJson(Json const& in);
 
   /**
