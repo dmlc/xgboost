@@ -49,38 +49,28 @@ class SketchContainer {
   bst_feature_t num_columns_;
   int32_t num_bins_;
 
-  // Double buffer as neither prune nor merge can be performed inplace.
-  dh::device_vector<SketchEntry> entries_a_;
-  dh::device_vector<SketchEntry> entries_b_;
-  bool current_buffer_ {true};
-  // The container is just a CSC matrix.
+  // The container is just a CSC matrix plus scratch storage for out-of-place transforms.
+  dh::device_vector<SketchEntry> entries_;
+  dh::device_vector<SketchEntry> entries_tmp_;
   HostDeviceVector<OffsetT> columns_ptr_;
-  HostDeviceVector<OffsetT> columns_ptr_b_;
+  HostDeviceVector<OffsetT> columns_ptr_tmp_;
 
   bool has_categorical_{false};
 
-  dh::device_vector<SketchEntry>& Current() {
-    if (current_buffer_) {
-      return entries_a_;
-    } else {
-      return entries_b_;
-    }
-  }
-  dh::device_vector<SketchEntry>& Other() {
-    if (!current_buffer_) {
-      return entries_a_;
-    } else {
-      return entries_b_;
-    }
-  }
-  dh::device_vector<SketchEntry> const& Current() const {
-    return const_cast<SketchContainer*>(this)->Current();
-  }
-  dh::device_vector<SketchEntry> const& Other() const {
-    return const_cast<SketchContainer*>(this)->Other();
-  }
-  void Alternate() {
-    current_buffer_ = !current_buffer_;
+  dh::device_vector<SketchEntry>& Current() { return entries_; }
+  dh::device_vector<SketchEntry>& Scratch() { return entries_tmp_; }
+  dh::device_vector<SketchEntry> const& Current() const { return entries_; }
+  dh::device_vector<SketchEntry> const& Scratch() const { return entries_tmp_; }
+  Span<OffsetT const> CurrentColumnsHost() const { return columns_ptr_.ConstHostSpan(); }
+  std::vector<OffsetT>& ScratchColumnsHost() { return columns_ptr_tmp_.HostVector(); }
+  Span<OffsetT const> CurrentColumns() const { return columns_ptr_.ConstDeviceSpan(); }
+  Span<OffsetT> ScratchColumns() { return columns_ptr_tmp_.DeviceSpan(); }
+  Span<OffsetT const> ScratchColumns() const { return columns_ptr_tmp_.ConstDeviceSpan(); }
+  void SetCurrentColumns(Span<OffsetT const> columns_ptr);
+  void CommitScratch(std::size_t n_entries) {
+    entries_.swap(entries_tmp_);
+    columns_ptr_.Copy(columns_ptr_tmp_);
+    entries_.resize(n_entries);
   }
 
   // Get the span of one column.
@@ -105,8 +95,8 @@ class SketchContainer {
     // Initialize Sketches for this dmatrix
     this->columns_ptr_.SetDevice(device);
     this->columns_ptr_.Resize(num_columns + 1, 0);
-    this->columns_ptr_b_.SetDevice(device);
-    this->columns_ptr_b_.Resize(num_columns + 1, 0);
+    this->columns_ptr_tmp_.SetDevice(device);
+    this->columns_ptr_tmp_.Resize(num_columns + 1, 0);
 
     this->feature_types_.Resize(feature_types.Size());
     this->feature_types_.Copy(feature_types);
@@ -127,17 +117,17 @@ class SketchContainer {
    * @brief Calculate the memory cost of the container.
    */
   [[nodiscard]] std::size_t MemCapacityBytes() const {
-    auto constexpr kE = sizeof(typename decltype(this->entries_a_)::value_type);
-    auto n_bytes = (this->entries_a_.capacity() + this->entries_b_.capacity()) * kE;
-    n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_b_.Size()) * sizeof(OffsetT);
+    auto constexpr kE = sizeof(typename decltype(this->entries_)::value_type);
+    auto n_bytes = (this->entries_.capacity() + this->entries_tmp_.capacity()) * kE;
+    n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_tmp_.Size()) * sizeof(OffsetT);
     n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
 
     return n_bytes;
   }
   [[nodiscard]] std::size_t MemCostBytes() const {
-    auto constexpr kE = sizeof(typename decltype(this->entries_a_)::value_type);
-    auto n_bytes = (this->entries_a_.size() + this->entries_b_.size()) * kE;
-    n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_b_.Size()) * sizeof(OffsetT);
+    auto constexpr kE = sizeof(typename decltype(this->entries_)::value_type);
+    auto n_bytes = (this->entries_.size() + this->entries_tmp_.size()) * kE;
+    n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_tmp_.Size()) * sizeof(OffsetT);
     n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
 
     return n_bytes;
@@ -181,8 +171,8 @@ class SketchContainer {
    */
   void ShrinkToFit() {
     this->Current().shrink_to_fit();
-    this->Other().clear();
-    this->Other().shrink_to_fit();
+    this->Scratch().clear();
+    this->Scratch().shrink_to_fit();
     LOG(DEBUG) << "Quantile memory cost:" << common::HumanMemUnit(this->MemCapacityBytes());
   }
 

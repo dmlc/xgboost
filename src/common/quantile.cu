@@ -183,6 +183,11 @@ XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry
   return thrust::make_tuple(a_ind, k - a_ind);
 }
 
+void SketchContainer::SetCurrentColumns(Span<OffsetT const> columns_ptr) {
+  columns_ptr_.Resize(columns_ptr.size());
+  CopyTo(columns_ptr_.DeviceSpan(), columns_ptr);
+}
+
 // Merge d_x and d_y into out.  Because the final output depends on predicate (which
 // summary does the output element come from) result by definition of merged rank.  So we
 // compute the partition for each output directly and customize the standard merge
@@ -373,7 +378,7 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
                                   return l;
                                 });
 
-  auto d_columns_ptr_out = columns_ptr_b_.DeviceSpan();
+  auto d_columns_ptr_out = this->ScratchColumns();
   // thrust unique_by_key preserves the first element.
   auto n_uniques =
       dh::SegmentedUnique(ctx->CUDACtx()->CTP(), d_columns_ptr_in.data(),
@@ -391,7 +396,7 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
   curt::SetDevice(ctx->Ordinal());
 
   OffsetT to_total = 0;
-  auto &h_columns_ptr = columns_ptr_b_.HostVector();
+  auto &h_columns_ptr = columns_ptr_tmp_.HostVector();
   h_columns_ptr[0] = to_total;
   auto const &h_feature_types = feature_types_.ConstHostSpan();
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
@@ -403,16 +408,16 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
     to_total += length;
     h_columns_ptr[i + 1] = to_total;
   }
-  this->Other().resize(to_total);
+  this->Scratch().resize(to_total);
 
   auto d_columns_ptr_in = this->columns_ptr_.ConstDeviceSpan();
-  auto d_columns_ptr_out = columns_ptr_b_.ConstDeviceSpan();
-  auto out = dh::ToSpan(this->Other());
+  auto d_columns_ptr_out = columns_ptr_tmp_.ConstDeviceSpan();
+  auto out = dh::ToSpan(this->Scratch());
   auto in = dh::ToSpan(this->Current());
   auto ft = this->feature_types_.ConstDeviceSpan();
   dh::device_vector<size_t> selected_idx(out.size());
   auto d_selected_idx = dh::ToSpan(selected_idx);
-  HostDeviceVector<OffsetT> selected_columns_ptr(columns_ptr_b_.Size());
+  HostDeviceVector<OffsetT> selected_columns_ptr(columns_ptr_tmp_.Size());
   selected_columns_ptr.SetDevice(ctx->Device());
   auto entry_from_index = [=] __device__(size_t abs_idx) {
     return in[abs_idx];
@@ -427,8 +432,8 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
       d_selected_idx.data(), thrust::equal_to<size_t>{});
   GatherPruneEntries(Span<size_t const>{d_selected_idx.data(), n_selected}, out, entry_from_index,
                      stream);
+  this->entries_.swap(this->entries_tmp_);
   this->columns_ptr_.Copy(selected_columns_ptr);
-  this->Alternate();
   this->Current().resize(n_selected);
   auto d_column_scan = this->columns_ptr_.DeviceSpan();
   HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
@@ -489,21 +494,20 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
 
   std::size_t new_size = this->Current().size() + that.size();
   try {
-    this->Other().resize(new_size);
+    this->Scratch().resize(new_size);
   } catch (dmlc::Error const &) {
     // Retry
-    this->Other().clear();
-    this->Other().shrink_to_fit();
-    this->Other().resize(new_size);
+    this->Scratch().clear();
+    this->Scratch().shrink_to_fit();
+    this->Scratch().resize(new_size);
   }
 
   CHECK_EQ(d_that_columns_ptr.size(), this->columns_ptr_.Size());
 
   MergeImpl(ctx, this->Data(), this->ColumnsPtr(), that, d_that_columns_ptr,
-            dh::ToSpan(this->Other()), columns_ptr_b_.DeviceSpan());
-  this->columns_ptr_.Copy(columns_ptr_b_);
+            dh::ToSpan(this->Scratch()), columns_ptr_tmp_.DeviceSpan());
+  this->CommitScratch(new_size);
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
-  this->Alternate();
   normalize_merged();
   timer_.Stop(__func__);
 }
