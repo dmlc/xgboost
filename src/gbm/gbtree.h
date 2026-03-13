@@ -323,7 +323,12 @@ class GBTree : public GradientBooster {
   }
 
  protected:
-  [[nodiscard]] virtual std::vector<float> const* TreeWeights() const { return nullptr; }
+  [[nodiscard]] std::vector<float> const* TreeWeights() const {
+    return weight_drop_.empty() ? nullptr : &weight_drop_;
+  }
+
+  [[nodiscard]] std::vector<float> DropTrees(bool is_training);
+  std::size_t NormalizeTrees(std::size_t size_new_trees);
 
   void BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_group,
                      std::vector<HostDeviceVector<bst_node_t>>* out_position,
@@ -342,6 +347,7 @@ class GBTree : public GradientBooster {
   GBTreeModel model_;
   // training parameter
   GBTreeTrainParam tparam_;
+  DartTrainParam dparam_{};
   // Tree training parameter
   tree::TrainParam tree_param_;
   bool specified_updater_{false};
@@ -353,6 +359,10 @@ class GBTree : public GradientBooster {
 #if defined(XGBOOST_USE_SYCL)
   std::unique_ptr<Predictor> sycl_predictor_;
 #endif  // defined(XGBOOST_USE_SYCL)
+  /*! \brief per-tree dropout weights */
+  std::vector<bst_float> weight_drop_;
+  // indexes of dropped trees
+  std::vector<size_t> idx_drop_;
   common::Monitor monitor_;
 };
 

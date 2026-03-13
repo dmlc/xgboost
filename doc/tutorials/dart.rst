@@ -1,12 +1,14 @@
-############
-DART booster
-############
+####
+DART
+####
 XGBoost mostly combines a huge number of regression trees with a small learning rate.
 In this situation, trees added early are significant and trees added late are unimportant.
 
 Vinayak and Gilad-Bachrach proposed a new method to add dropout techniques from the deep neural net community to boosted trees, and reported better results in some situations.
 
-This is a instruction of new tree booster ``dart``.
+This is a instruction of the dropout mode for tree models. Dropout is controlled by
+parameters like ``rate_drop``. The legacy ``dart`` booster name remains available for
+compatibility.
 
 **************
 Original paper
@@ -48,7 +50,8 @@ How it works
 Parameters
 **********
 
-The booster ``dart`` inherits ``gbtree`` booster, so it supports all parameters that ``gbtree`` does, such as ``eta``, ``gamma``, ``max_depth`` etc.
+Dropout uses the same tree parameters as ``gbtree``, such as ``eta``, ``gamma``,
+``max_depth``, and others.
 
 Additional parameters are noted below:
 
@@ -99,8 +102,7 @@ Sample Script
   dtrain = xgb.DMatrix('demo/data/agaricus.txt.train?format=libsvm')
   dtest = xgb.DMatrix('demo/data/agaricus.txt.test?format=libsvm')
   # specify parameters via map
-  param = {'booster': 'dart',
-           'max_depth': 5, 'learning_rate': 0.1,
+  param = {'max_depth': 5, 'learning_rate': 0.1,
            'objective': 'binary:logistic',
            'sample_type': 'uniform',
            'normalize_type': 'tree',

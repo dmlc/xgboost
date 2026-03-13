@@ -55,6 +55,7 @@ General Parameters
 * ``booster`` [default= ``gbtree``]
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
+  - Dropout parameters like ``rate_drop`` can be used directly with tree models. ``booster=dart`` remains supported for compatibility.
 
   .. deprecated:: 3.3.0
 
@@ -304,19 +305,8 @@ These parameters are only used for training with categorical data. See
   - Maximum number of categories considered for each split. Used only by partition-based
     splits for preventing over-fitting.
 
-Additional parameters for Dart Booster (``booster=dart``)
-=========================================================
-
-.. note:: Using ``predict()`` with DART booster
-
-  If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
-  some of the trees will be evaluated. This will produce incorrect results if ``data`` is
-  not the training data. To obtain correct results on test sets, set ``iteration_range`` to
-  a nonzero value, e.g.
-
-  .. code-block:: python
-
-    preds = bst.predict(dtest, iteration_range=(0, num_round))
+Additional dropout parameters for tree boosters
+================================================
 
 * ``sample_type`` [default= ``uniform``]
 

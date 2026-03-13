@@ -363,6 +363,30 @@ TEST(Dart, JsonIO) {
   ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0ul);
 }
 
+TEST(GBTree, DropoutJsonIO) {
+  size_t constexpr kRows = 16, kCols = 16;
+
+  Context ctx;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+
+  std::unique_ptr<GradientBooster> gbm{
+      CreateTrainedGBM("gbtree", Args{{"rate_drop", "0.5"}}, kRows, kCols, &mparam, &ctx)};
+
+  Json model{Object()};
+  model["model"] = Object();
+  auto& j_model = model["model"];
+  model["config"] = Object();
+  auto& j_param = model["config"];
+
+  gbm->SaveModel(&j_model);
+  gbm->SaveConfig(&j_param);
+
+  ASSERT_EQ(get<String>(model["model"]["name"]), "gbtree") << model;
+  ASSERT_EQ(get<String>(model["config"]["name"]), "gbtree");
+  ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0ul);
+  ASSERT_TRUE(IsA<Object>(model["config"]["dart_train_param"]));
+}
+
 namespace {
 class Dart : public testing::TestWithParam<char const*> {
  public:
