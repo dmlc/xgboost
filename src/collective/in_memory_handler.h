@@ -17,41 +17,41 @@ class AlignedByteBuffer {
   using StorageT = std::max_align_t;
 
  public:
-  [[nodiscard]] bool empty() const { return size_ == 0; }
-  [[nodiscard]] std::size_t size() const { return size_; }
+  [[nodiscard]] bool Empty() const { return size_ == 0; }
+  [[nodiscard]] std::size_t Size() const { return size_; }
 
-  [[nodiscard]] char* data() { return reinterpret_cast<char*>(storage_.data()); }
-  [[nodiscard]] char const* data() const { return reinterpret_cast<char const*>(storage_.data()); }
+  [[nodiscard]] char* Data() { return reinterpret_cast<char*>(storage_.data()); }
+  [[nodiscard]] char const* Data() const { return reinterpret_cast<char const*>(storage_.data()); }
 
-  void clear() {
+  void Clear() {
     storage_.clear();
     size_ = 0;
   }
 
-  void resize(std::size_t n_bytes) {
+  void Resize(std::size_t n_bytes) {
     storage_.resize((n_bytes + sizeof(StorageT) - 1) / sizeof(StorageT));
     size_ = n_bytes;
   }
 
-  void assign(char const* input, std::size_t n_bytes) {
-    this->resize(n_bytes);
+  void Assign(char const* input, std::size_t n_bytes) {
+    this->Resize(n_bytes);
     if (n_bytes != 0) {
-      std::memcpy(this->data(), input, n_bytes);
+      std::memcpy(this->Data(), input, n_bytes);
     }
   }
 
-  void replace(std::size_t pos, std::size_t n_bytes, char const* input) {
+  void Replace(std::size_t pos, std::size_t n_bytes, char const* input) {
     CHECK_LE(pos + n_bytes, size_);
     if (n_bytes != 0) {
-      std::memcpy(this->data() + pos, input, n_bytes);
+      std::memcpy(this->Data() + pos, input, n_bytes);
     }
   }
 
-  void append(std::string_view data) {
+  void Append(std::string_view data) {
     auto old_size = size_;
-    this->resize(size_ + data.size());
+    this->Resize(size_ + data.size());
     if (!data.empty()) {
-      std::memcpy(this->data() + old_size, data.data(), data.size());
+      std::memcpy(this->Data() + old_size, data.data(), data.size());
     }
   }
 
