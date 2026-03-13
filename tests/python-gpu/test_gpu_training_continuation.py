@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 from hypothesis import given, settings, strategies
-
 from xgboost import testing as tm
 from xgboost.testing.continuation import (
     run_training_continuation_determinism,

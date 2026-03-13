@@ -59,6 +59,7 @@ def run_training_continuation_model_output(device: str, tree_method: str) -> Non
         recursive_compare(obj_0, obj_1)
 
 
+# pylint: disable=too-many-arguments, too-many-positional-arguments
 def run_training_continuation_determinism(
     device: str,
     booster: str,
