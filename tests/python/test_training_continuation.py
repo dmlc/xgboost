@@ -2,14 +2,13 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import given, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.continuation import (
     run_training_continuation_determinism,
     run_training_continuation_model_output,
 )
-
-import xgboost as xgb
 
 rng = np.random.RandomState(1337)
 
