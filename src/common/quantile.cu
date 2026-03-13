@@ -3,9 +3,6 @@
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/iterator/discard_iterator.h>
-#include <thrust/transform_scan.h>
 #include <thrust/tuple.h>  // for make_tuple
 #include <thrust/unique.h>
 
@@ -112,163 +109,128 @@ void CopyTo(Span<T> out, Span<U> src) {
   dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(), out.size_bytes(), cudaMemcpyDefault));
 }
 
-// Compute the merge path.
-void MergePath(Context const *ctx, Span<SketchEntry const> const &d_x,
-               Span<bst_idx_t const> const &x_ptr, Span<SketchEntry const> const &d_y,
-               Span<bst_idx_t const> const &y_ptr,
-               common::Span<thrust::tuple<uint64_t, uint64_t>> merge_path,
-               Span<bst_idx_t> out_ptr) {
-  auto x_merge_key_it = thrust::make_zip_iterator(
-      thrust::make_tuple(dh::MakeTransformIterator<bst_idx_t>(
-                             thrust::make_counting_iterator(0ul),
-                             [=] __device__(size_t idx) { return dh::SegmentId(x_ptr, idx); }),
-                         d_x.data()));
-  auto y_merge_key_it = thrust::make_zip_iterator(
-      thrust::make_tuple(dh::MakeTransformIterator<bst_idx_t>(
-                             thrust::make_counting_iterator(0ul),
-                             [=] __device__(size_t idx) { return dh::SegmentId(y_ptr, idx); }),
-                         d_y.data()));
+XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
+                                                                Span<SketchEntry const> y,
+                                                                uint64_t k) {
+  auto m = static_cast<uint64_t>(x.size());
+  auto n = static_cast<uint64_t>(y.size());
+  auto low = k > n ? k - n : 0ul;
+  auto high = std::min(k, m);
+  auto candidate_it = thrust::make_counting_iterator<uint64_t>(low);
+  auto need_more_x = dh::MakeTransformIterator<bool>(candidate_it, [=] __device__(uint64_t i) {
+    auto j = k - i;
+    return j > 0 && i < m && y[j - 1].value >= x[i].value;
+  });
+  auto partition_it = thrust::lower_bound(thrust::seq, need_more_x, need_more_x + (high - low + 1),
+                                          false, thrust::greater<bool>{});
+  auto a_ind = low + (partition_it - need_more_x);
+  return thrust::make_tuple(a_ind, k - a_ind);
+}
 
-  using Tuple = thrust::tuple<uint64_t, uint64_t>;
+XGBOOST_DEVICE float OtherRMin(Span<SketchEntry const> d_column, uint64_t ind) {
+  if (ind == 0) {
+    return 0.0f;
+  }
+  if (ind == d_column.size()) {
+    return d_column.back().RMinNext();
+  }
+  return d_column[ind - 1].RMinNext();
+}
 
-  auto x_merge_val_it = thrust::make_constant_iterator(Tuple{1ul, 0ul});
-  auto y_merge_val_it = thrust::make_constant_iterator(Tuple{0ul, 1ul});
+XGBOOST_DEVICE float OtherRMax(Span<SketchEntry const> d_column, uint64_t ind) {
+  if (ind == d_column.size()) {
+    return d_column.back().rmax;
+  }
+  return d_column[ind].RMaxPrev();
+}
 
-  // Determine the merge path as the per-output scan step. x contributes (1, 0), y
-  // contributes (0, 1).
-  thrust::merge_by_key(ctx->CUDACtx()->CTP(), x_merge_key_it, x_merge_key_it + d_x.size(),
-                       y_merge_key_it, y_merge_key_it + d_y.size(), x_merge_val_it, y_merge_val_it,
-                       thrust::make_discard_iterator(), merge_path.data(),
-                       [=] __device__(auto const &l, auto const &r) -> bool {
-                         auto l_column_id = thrust::get<0>(l);
-                         auto r_column_id = thrust::get<0>(r);
-                         if (l_column_id == r_column_id) {
-                           return thrust::get<1>(l).value < thrust::get<1>(r).value;
-                         }
-                         return l_column_id < r_column_id;
-                       });
+XGBOOST_DEVICE SketchEntry MergeFromX(Span<SketchEntry const> d_y_column, SketchEntry x_elem,
+                                      uint64_t y_ind) {
+  return SketchEntry{x_elem.rmin + OtherRMin(d_y_column, y_ind),
+                     x_elem.rmax + OtherRMax(d_y_column, y_ind), x_elem.wmin, x_elem.value};
+}
 
-  // Compute output ptr
-  auto transform_it = thrust::make_zip_iterator(thrust::make_tuple(x_ptr.data(), y_ptr.data()));
-  thrust::transform(ctx->CUDACtx()->CTP(), transform_it, transform_it + x_ptr.size(),
-                    out_ptr.data(),
-                    [] __device__(auto const &t) { return thrust::get<0>(t) + thrust::get<1>(t); });
+XGBOOST_DEVICE SketchEntry MergeFromY(Span<SketchEntry const> d_x_column, SketchEntry y_elem,
+                                      uint64_t x_ind) {
+  return SketchEntry{OtherRMin(d_x_column, x_ind) + y_elem.rmin,
+                     OtherRMax(d_x_column, x_ind) + y_elem.rmax, y_elem.wmin, y_elem.value};
+}
 
-  auto scan_key_it = dh::MakeTransformIterator<size_t>(
-      thrust::make_counting_iterator(0ul),
-      [=] XGBOOST_DEVICE(size_t idx) { return dh::SegmentId(out_ptr, idx); });
+XGBOOST_DEVICE SketchEntry MergeEntryAt(Span<SketchEntry const> d_x_column,
+                                        Span<SketchEntry const> d_y_column, uint64_t idx) {
+  // Handle empty column. If both columns are empty, we should not get this column as
+  // result of binary search.
+  assert((d_x_column.size() != 0) || (d_y_column.size() != 0));
+  if (d_x_column.size() == 0) {
+    return d_y_column[idx];
+  }
+  if (d_y_column.size() == 0) {
+    return d_x_column[idx];
+  }
 
-  // Compute the index for both x and y (which of the element in a and b are used in each
-  // comparison) by scanning the per-output merge steps. Take output
-  // [(x_0, y_0), (x_0, y_1), ...] as an example, the comparison between (x_0, y_0)
-  // contributes one scan step. Assuming y_0 is less than x_0 so this step advances y.
-  // After the comparison, index of y is incremented by 1 from y_0 to y_1, and at the
-  // same time, y_0 is landed into output as the first element in merge result. The scan
-  // result is the subscript of x and y.
-  thrust::exclusive_scan_by_key(
-      ctx->CUDACtx()->CTP(), scan_key_it, scan_key_it + merge_path.size(), merge_path.data(),
-      merge_path.data(), thrust::make_tuple<uint64_t, uint64_t>(0ul, 0ul),
-      thrust::equal_to<size_t>{}, [=] __device__(Tuple const &l, Tuple const &r) -> Tuple {
-        return thrust::make_tuple(thrust::get<0>(l) + thrust::get<0>(r),
-                                  thrust::get<1>(l) + thrust::get<1>(r));
-      });
+  uint64_t a_ind, b_ind;
+  thrust::tie(a_ind, b_ind) = MergePartition(d_x_column, d_y_column, idx);
+
+  assert(b_ind <= d_y_column.size());
+  assert(a_ind <= d_x_column.size());
+
+  if (a_ind == d_x_column.size()) {
+    return MergeFromY(d_x_column, d_y_column[b_ind], a_ind);
+  }
+  auto x_elem = d_x_column[a_ind];
+  if (b_ind == d_y_column.size()) {
+    return MergeFromX(d_y_column, x_elem, b_ind);
+  }
+  auto y_elem = d_y_column[b_ind];
+
+  /* Merge procedure.  See A.3 merge operation eq (26) ~ (28).  The trick to interpret
+     it is rewriting the symbols on both side of equality.  Take eq (26) as an example:
+     Expand it according to definition of extended rank then rewrite it into:
+
+     If $k_i$ is the $i$ element in output and \textbf{comes from $D_1$}:
+
+       r_\bar{D}(k_i) = r_{\bar{D_1}}(k_i) + w_{\bar{{D_1}}}(k_i) +
+                                        [r_{\bar{D_2}}(x_i) + w_{\bar{D_2}}(x_i)]
+
+     Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
+     used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
+     similarly with $k_i$ comes from different $D$.  just use different symbol on
+     different source of summary.
+  */
+  if (x_elem.value == y_elem.value) {
+    return SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
+                       x_elem.wmin + y_elem.wmin, x_elem.value};
+  }
+  if (x_elem.value < y_elem.value) {
+    return MergeFromX(d_y_column, x_elem, b_ind);
+  }
+
+  return MergeFromY(d_x_column, y_elem, a_ind);
 }
 
 // Merge d_x and d_y into out.  Because the final output depends on predicate (which
 // summary does the output element come from) result by definition of merged rank.  So we
-// run it in 2 passes to obtain the merge path and then customize the standard merge
-// algorithm.
+// compute the partition for each output directly and customize the standard merge
+// algorithm without storing a merge path buffer.
 void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
                Span<bst_idx_t const> const &x_ptr, Span<SketchEntry const> const &d_y,
-               Span<bst_idx_t const> const &y_ptr, Span<SketchEntry> out, Span<bst_idx_t> out_ptr) {
-  CHECK_EQ(d_x.size() + d_y.size(), out.size());
+               Span<bst_idx_t const> const &y_ptr, Span<SketchEntry> d_out,
+               Span<bst_idx_t> out_ptr) {
+  CHECK_EQ(d_x.size() + d_y.size(), d_out.size());
   CHECK_EQ(x_ptr.size(), out_ptr.size());
   CHECK_EQ(y_ptr.size(), out_ptr.size());
 
-  dh::device_vector<thrust::tuple<uint64_t, uint64_t>> merge_path_storage(out.size());
-  auto d_merge_path = dh::ToSpan(merge_path_storage);
-  MergePath(ctx, d_x, x_ptr, d_y, y_ptr, d_merge_path, out_ptr);
-  auto d_out = out;
+  dh::LaunchN(out_ptr.size(), ctx->CUDACtx()->Stream(),
+              [=] __device__(size_t i) { out_ptr[i] = x_ptr[i] + y_ptr[i]; });
 
   dh::LaunchN(d_out.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
     auto column_id = dh::SegmentId(out_ptr, idx);
-    idx -= out_ptr[column_id];
+    auto out_begin = out_ptr[column_id];
+    auto out_idx = idx - out_begin;
 
     auto d_x_column = d_x.subspan(x_ptr[column_id], x_ptr[column_id + 1] - x_ptr[column_id]);
     auto d_y_column = d_y.subspan(y_ptr[column_id], y_ptr[column_id + 1] - y_ptr[column_id]);
-    auto d_out_column =
-        d_out.subspan(out_ptr[column_id], out_ptr[column_id + 1] - out_ptr[column_id]);
-    auto d_path_column =
-        d_merge_path.subspan(out_ptr[column_id], out_ptr[column_id + 1] - out_ptr[column_id]);
-
-    uint64_t a_ind, b_ind;
-    thrust::tie(a_ind, b_ind) = d_path_column[idx];
-
-    // Handle empty column.  If both columns are empty, we should not get this column_id
-    // as result of binary search.
-    assert((d_x_column.size() != 0) || (d_y_column.size() != 0));
-    if (d_x_column.size() == 0) {
-      d_out_column[idx] = d_y_column[b_ind];
-      return;
-    }
-    if (d_y_column.size() == 0) {
-      d_out_column[idx] = d_x_column[a_ind];
-      return;
-    }
-
-    // Handle trailing elements.
-    assert(a_ind <= d_x_column.size());
-    if (a_ind == d_x_column.size()) {
-      // Trailing elements are from y because there's no more x to land.
-      auto y_elem = d_y_column[b_ind];
-      d_out_column[idx] =
-          SketchEntry(y_elem.rmin + d_x_column.back().RMinNext(),
-                      y_elem.rmax + d_x_column.back().rmax, y_elem.wmin, y_elem.value);
-      return;
-    }
-    auto x_elem = d_x_column[a_ind];
-    assert(b_ind <= d_y_column.size());
-    if (b_ind == d_y_column.size()) {
-      d_out_column[idx] =
-          SketchEntry(x_elem.rmin + d_y_column.back().RMinNext(),
-                      x_elem.rmax + d_y_column.back().rmax, x_elem.wmin, x_elem.value);
-      return;
-    }
-    auto y_elem = d_y_column[b_ind];
-
-    /* Merge procedure.  See A.3 merge operation eq (26) ~ (28).  The trick to interpret
-       it is rewriting the symbols on both side of equality.  Take eq (26) as an example:
-       Expand it according to definition of extended rank then rewrite it into:
-
-       If $k_i$ is the $i$ element in output and \textbf{comes from $D_1$}:
-
-         r_\bar{D}(k_i) = r_{\bar{D_1}}(k_i) + w_{\bar{{D_1}}}(k_i) +
-                                          [r_{\bar{D_2}}(x_i) + w_{\bar{D_2}}(x_i)]
-
-       Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
-       used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
-       similarly with $k_i$ comes from different $D$.  just use different symbol on
-       different source of summary.
-    */
-    assert(idx < d_out_column.size());
-    if (x_elem.value == y_elem.value) {
-      d_out_column[idx] = SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
-                                      x_elem.wmin + y_elem.wmin, x_elem.value};
-    } else if (x_elem.value < y_elem.value) {
-      // elem from x is landed. yprev_min is the element in D_2 that's 1 rank less than
-      // x_elem if we put x_elem in D_2.
-      float yprev_min = b_ind == 0 ? 0.0f : d_y_column[b_ind - 1].RMinNext();
-      // rmin should be equal to x_elem.rmin + x_elem.wmin + yprev_min.  But for
-      // implementation, the weight is stored in a separated field and we compute the
-      // extended definition on the fly when needed.
-      d_out_column[idx] = SketchEntry{x_elem.rmin + yprev_min, x_elem.rmax + y_elem.RMaxPrev(),
-                                      x_elem.wmin, x_elem.value};
-    } else {
-      // elem from y is landed.
-      float xprev_min = a_ind == 0 ? 0.0f : d_x_column[a_ind - 1].RMinNext();
-      d_out_column[idx] = SketchEntry{xprev_min + y_elem.rmin, x_elem.RMaxPrev() + y_elem.rmax,
-                                      y_elem.wmin, y_elem.value};
-    }
+    d_out[idx] = MergeEntryAt(d_x_column, d_y_column, out_idx);
   });
 }
 
