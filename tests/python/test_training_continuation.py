@@ -173,6 +173,7 @@ class TestTrainingContinuation:
     colsample_bynode=strategies.floats(0.5, 1.0),
     booster=strategies.sampled_from(["gbtree", "dart"]),
     num_class=strategies.sampled_from([1, 3]),
+    seed_per_iteration=strategies.booleans(),
 )
 @settings(deadline=None, print_blob=True, max_examples=20)
 @pytest.mark.skipif(**tm.no_sklearn())
@@ -183,6 +184,7 @@ def test_continuation_determinism(
     colsample_bynode: float,
     booster: str,
     num_class: int,
+    seed_per_iteration: bool,
 ) -> None:
     run_training_continuation_determinism(
         device="cpu",
@@ -193,4 +195,5 @@ def test_continuation_determinism(
         colsample_bylevel=colsample_bylevel,
         colsample_bynode=colsample_bynode,
         num_class=num_class,
+        seed_per_iteration=seed_per_iteration,
     )
