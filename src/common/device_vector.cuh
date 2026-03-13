@@ -502,9 +502,13 @@ class DeviceUVectorImpl {
   void resize(std::size_t n) {  // NOLINT
     using ::xgboost::common::SizeBytes;
 
-    if (n <= this->Capacity()) {
+    if (n == 0) {
+      return this->clear();
+    }
+    // n is at the second half of the dynamic table, avoid re-allocation.
+    if (this->Capacity() / 2 <= n && n <= this->Capacity()) {
       this->size_ = n;
-      // early exit as no allocation is needed.
+      // Early exit
       return;
     }
     CHECK_LE(this->size(), this->Capacity());
@@ -519,10 +523,9 @@ class DeviceUVectorImpl {
     CHECK(new_ptr.get());
 
     auto s = ::xgboost::curt::DefaultStream();
-    safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), SizeBytes<T>(this->size()),
-                              cudaMemcpyDefault, s));
-    this->size_ = n;
-    this->capacity_ = n;
+    std::size_t n_bytes = std::min(SizeBytes<T>(this->size()), SizeBytes<T>(n));
+    safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), n_bytes, cudaMemcpyDefault, s));
+    this->capacity_ = this->size_ = n;
 
     this->data_ = std::move(new_ptr);
     // swap failed with CTK12.8
@@ -539,7 +542,8 @@ class DeviceUVectorImpl {
   }
 
   void clear() {  // NOLINT
-    this->resize(0);
+    this->data_.reset();
+    this->capacity_ = this->size_ = 0;
   }
 
   [[nodiscard]] std::size_t size() const { return this->size_; }  // NOLINT
