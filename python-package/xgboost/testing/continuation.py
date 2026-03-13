@@ -100,7 +100,6 @@ def run_training_continuation_determinism(
         "tree_method": "hist",
         "max_depth": 4,
         "objective": objective,
-        "nthread": 1,
         "subsample": subsample,
         "sampling_method": sampling_method,
         "colsample_bytree": colsample_bytree,
