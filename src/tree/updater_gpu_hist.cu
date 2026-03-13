@@ -770,14 +770,10 @@ class GPUHistMaker : public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
-    auto it = config.find("column_sampler_seed");
+    auto it = config.find("column_sampler");
     if (it != config.cend()) {
-      col_sampler_seed_ = static_cast<std::uint32_t>(get<Integer const>(it->second));
-      column_sampler_ = std::make_shared<common::ColumnSampler>(col_sampler_seed_);
-      auto rng_it = config.find("column_sampler_rng_state");
-      if (rng_it != config.cend()) {
-        column_sampler_->LoadRngState(get<String const>(rng_it->second));
-      }
+      column_sampler_ = std::make_shared<common::ColumnSampler>();
+      column_sampler_->LoadConfig(it->second);
     }
     initialised_ = false;
   }
@@ -785,8 +781,9 @@ class GPUHistMaker : public TreeUpdater {
     auto& out = *p_out;
     out["hist_train_param"] = ToJson(hist_maker_param_);
     if (column_sampler_) {
-      out["column_sampler_seed"] = Integer{static_cast<std::int64_t>(col_sampler_seed_)};
-      out["column_sampler_rng_state"] = String{column_sampler_->SaveRngState()};
+      Json cs{Object{}};
+      column_sampler_->SaveConfig(&cs);
+      out["column_sampler"] = std::move(cs);
     }
   }
 
@@ -819,7 +816,7 @@ class GPUHistMaker : public TreeUpdater {
 
     // Synchronise the column sampling seed
     if (!column_sampler_) {
-      this->column_sampler_ = common::MakeColumnSampler(ctx_, &col_sampler_seed_);
+      this->column_sampler_ = common::MakeColumnSampler(ctx_);
     }
 
     curt::SetDevice(ctx_->Ordinal());
@@ -899,7 +896,6 @@ class GPUHistMaker : public TreeUpdater {
 
   common::Monitor monitor_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
-  std::uint32_t col_sampler_seed_{0};
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
@@ -922,14 +918,10 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
-    auto it = config.find("column_sampler_seed");
+    auto it = config.find("column_sampler");
     if (it != config.cend()) {
-      col_sampler_seed_ = static_cast<std::uint32_t>(get<Integer const>(it->second));
-      column_sampler_ = std::make_shared<common::ColumnSampler>(col_sampler_seed_);
-      auto rng_it = config.find("column_sampler_rng_state");
-      if (rng_it != config.cend()) {
-        column_sampler_->LoadRngState(get<String const>(rng_it->second));
-      }
+      column_sampler_ = std::make_shared<common::ColumnSampler>();
+      column_sampler_->LoadConfig(it->second);
     }
     initialised_ = false;
   }
@@ -937,8 +929,9 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     auto& out = *p_out;
     out["hist_train_param"] = ToJson(hist_maker_param_);
     if (column_sampler_) {
-      out["column_sampler_seed"] = Integer{static_cast<std::int64_t>(col_sampler_seed_)};
-      out["column_sampler_rng_state"] = String{column_sampler_->SaveRngState()};
+      Json cs{Object{}};
+      column_sampler_->SaveConfig(&cs);
+      out["column_sampler"] = std::move(cs);
     }
   }
   ~GPUGlobalApproxMaker() override { dh::GlobalMemoryLogger().Log(); }
@@ -990,7 +983,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     monitor_.Start(__func__);
     CHECK(ctx_->IsCUDA()) << error::InvalidCUDAOrdinal();
     if (!column_sampler_) {
-      this->column_sampler_ = common::MakeColumnSampler(ctx_, &col_sampler_seed_);
+      this->column_sampler_ = common::MakeColumnSampler(ctx_);
     }
 
     p_last_fmat_ = p_fmat;
@@ -1038,7 +1031,6 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   HistMakerTrainParam hist_maker_param_;
   dh::device_vector<float> hess_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
-  std::uint32_t col_sampler_seed_{0};
   std::unique_ptr<GPUHistMakerDevice> maker_;
 
   DMatrix* p_last_fmat_{nullptr};

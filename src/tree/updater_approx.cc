@@ -254,7 +254,6 @@ class GlobalApproxUpdater : public TreeUpdater {
   // pointer to the last DMatrix, used for update prediction cache.
   DMatrix *cached_{nullptr};
   std::shared_ptr<common::ColumnSampler> column_sampler_;
-  std::uint32_t col_sampler_seed_{0};
   ObjInfo const *task_;
   HistMakerTrainParam hist_param_;
 
@@ -268,22 +267,19 @@ class GlobalApproxUpdater : public TreeUpdater {
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
-    auto it = config.find("column_sampler_seed");
+    auto it = config.find("column_sampler");
     if (it != config.cend()) {
-      col_sampler_seed_ = static_cast<std::uint32_t>(get<Integer const>(it->second));
-      column_sampler_ = std::make_shared<common::ColumnSampler>(col_sampler_seed_);
-      auto rng_it = config.find("column_sampler_rng_state");
-      if (rng_it != config.cend()) {
-        column_sampler_->LoadRngState(get<String const>(rng_it->second));
-      }
+      column_sampler_ = std::make_shared<common::ColumnSampler>();
+      column_sampler_->LoadConfig(it->second);
     }
   }
   void SaveConfig(Json *p_out) const override {
     auto &out = *p_out;
     out["hist_train_param"] = ToJson(hist_param_);
     if (column_sampler_) {
-      out["column_sampler_seed"] = Integer{static_cast<std::int64_t>(col_sampler_seed_)};
-      out["column_sampler_rng_state"] = String{column_sampler_->SaveRngState()};
+      Json cs{Object{}};
+      column_sampler_->SaveConfig(&cs);
+      out["column_sampler"] = std::move(cs);
     }
   }
 
@@ -303,7 +299,7 @@ class GlobalApproxUpdater : public TreeUpdater {
               const std::vector<RegTree *> &trees) override {
     CHECK(hist_param_.GetInitialised());
     if (!column_sampler_) {
-      column_sampler_ = common::MakeColumnSampler(ctx_, &col_sampler_seed_);
+      column_sampler_ = common::MakeColumnSampler(ctx_);
     }
     pimpl_ = std::make_unique<GlobalApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
                                                    column_sampler_, task_, &monitor_);
