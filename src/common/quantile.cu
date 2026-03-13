@@ -6,6 +6,7 @@
 #include <thrust/tuple.h>  // for make_tuple
 #include <thrust/unique.h>
 
+#include <cstdint>      // for uintptr_t
 #include <limits>       // for numeric_limits
 #include <numeric>      // for partial_sum
 #include <type_traits>  // for is_same_v
@@ -480,6 +481,10 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   for (int32_t i = 0; i < world; ++i) {
     size_t length_as_bytes = recv_lengths.at(i);
     auto raw = s_recvbuf.subspan(offset, length_as_bytes);
+    CHECK_EQ(length_as_bytes % sizeof(SketchEntry), 0)
+        << "Allgathered GPU sketch buffer has invalid size.";
+    auto ptr = reinterpret_cast<std::uintptr_t>(raw.data());
+    CHECK_EQ(ptr % alignof(SketchEntry), 0) << "Allgathered GPU sketch buffer is misaligned.";
     auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry *>(raw.data()),
                                     length_as_bytes / sizeof(SketchEntry));
     allworkers.emplace_back(sketch);
