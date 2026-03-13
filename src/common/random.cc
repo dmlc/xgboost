@@ -3,27 +3,27 @@
  */
 #include "random.h"
 
-#include <algorithm>   // for sort, max, copy
-#include <cstdint>     // for int64_t, uint32_t
-#include <memory>      // for shared_ptr
-#include <sstream>     // for stringstream
-#include <string>      // for string
+#include <algorithm>  // for sort, max, copy
+#include <cstdint>    // for int64_t, uint32_t
+#include <memory>     // for shared_ptr
+#include <sstream>    // for stringstream
+#include <string>     // for string
 
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
-#include "xgboost/json.h"               // for Json, Object, Integer, String, get
+#include "xgboost/json.h"                // for Json, Object, Integer, String, get
 
 namespace xgboost::common {
 
-void ColumnSampler::SaveConfig(Json* p_out) const {
-  auto& out = *p_out;
+void ColumnSampler::SaveConfig(Json *p_out) const {
+  auto &out = *p_out;
   out["seed"] = Integer{static_cast<std::int64_t>(seed_)};
   std::stringstream ss;
   ss << std::hex << rng_;
   out["rng_state"] = String{ss.str()};
 }
 
-void ColumnSampler::LoadConfig(Json const& in) {
-  auto const& obj = get<Object const>(in);
+void ColumnSampler::LoadConfig(Json const &in) {
+  auto const &obj = get<Object const>(in);
   seed_ = static_cast<std::uint32_t>(get<Integer const>(obj.at("seed")));
   rng_.seed(seed_);
   std::stringstream ss{get<String const>(obj.at("rng_state"))};
