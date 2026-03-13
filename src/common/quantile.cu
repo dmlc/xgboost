@@ -113,10 +113,11 @@ void CopyTo(Span<T> out, Span<U> src) {
 }
 
 // Compute the merge path.
-common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
-    Context const *ctx, Span<SketchEntry const> const &d_x, Span<bst_idx_t const> const &x_ptr,
-    Span<SketchEntry const> const &d_y, Span<bst_idx_t const> const &y_ptr, Span<SketchEntry> out,
-    Span<bst_idx_t> out_ptr) {
+void MergePath(Context const *ctx, Span<SketchEntry const> const &d_x,
+               Span<bst_idx_t const> const &x_ptr, Span<SketchEntry const> const &d_y,
+               Span<bst_idx_t const> const &y_ptr,
+               common::Span<thrust::tuple<uint64_t, uint64_t>> merge_path,
+               Span<bst_idx_t> out_ptr) {
   auto x_merge_key_it = thrust::make_zip_iterator(
       thrust::make_tuple(dh::MakeTransformIterator<bst_idx_t>(
                              thrust::make_counting_iterator(0ul),
@@ -133,10 +134,6 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
   auto x_merge_val_it = thrust::make_constant_iterator(Tuple{1ul, 0ul});
   auto y_merge_val_it = thrust::make_constant_iterator(Tuple{0ul, 1ul});
 
-  static_assert(sizeof(Tuple) == sizeof(SketchEntry));
-  static_assert(alignof(Tuple) == alignof(SketchEntry));
-  // We reuse the memory for storing merge path.
-  common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out.data()), out.size()};
   // Determine the merge path as the per-output scan step. x contributes (1, 0), y
   // contributes (0, 1).
   thrust::merge_by_key(ctx->CUDACtx()->CTP(), x_merge_key_it, x_merge_key_it + d_x.size(),
@@ -175,8 +172,6 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
         return thrust::make_tuple(thrust::get<0>(l) + thrust::get<0>(r),
                                   thrust::get<1>(l) + thrust::get<1>(r));
       });
-
-  return merge_path;
 }
 
 // Merge d_x and d_y into out.  Because the final output depends on predicate (which
@@ -190,7 +185,9 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
   CHECK_EQ(x_ptr.size(), out_ptr.size());
   CHECK_EQ(y_ptr.size(), out_ptr.size());
 
-  auto d_merge_path = MergePath(ctx, d_x, x_ptr, d_y, y_ptr, out, out_ptr);
+  dh::device_vector<thrust::tuple<uint64_t, uint64_t>> merge_path_storage(out.size());
+  auto d_merge_path = dh::ToSpan(merge_path_storage);
+  MergePath(ctx, d_x, x_ptr, d_y, y_ptr, d_merge_path, out_ptr);
   auto d_out = out;
 
   dh::LaunchN(d_out.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
