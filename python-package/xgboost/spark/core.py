@@ -615,7 +615,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         self._set_xgb_params_default()
         self._set_fit_params_default()
         self._set_predict_params_default()
-        ss = _get_spark_session()
         # Note: The default value for arbitrary_params_dict must always be empty dict.
         #  For additional settings added into "arbitrary_params_dict" by default,
         #  they are added in `setParams`.
@@ -628,7 +627,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             feature_types=None,
             feature_weights=None,
             arbitrary_params_dict={},
-            launch_tracker_on_driver=_is_local(ss) or not _is_connect(ss),
+            launch_tracker_on_driver=False,
         )
 
         self.logger = get_logger(self.__class__.__name__)
