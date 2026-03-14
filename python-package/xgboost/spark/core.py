@@ -363,11 +363,11 @@ class _SparkXGBParams(
                 predict_params[param.name] = self.getOrDefault(param)
         return predict_params
 
-    def _validate_gpu_params(self, ss: SparkSession) -> None:
+    def _validate_gpu_params(self, spark_session: SparkSession) -> None:
         """Validate the gpu parameters and gpu configurations"""
 
-        if self._run_on_gpu(ss):
-            if _is_local(ss):
+        if self._run_on_gpu(spark_session):
+            if _is_local(spark_session):
                 # Supporting GPU training in Spark local mode is just for debugging
                 # purposes, so it's okay for printing the below warning instead of
                 # checking the real gpu numbers and raising the exception.
@@ -377,13 +377,17 @@ class _SparkXGBParams(
                     self.getOrDefault(self.num_workers),
                 )
             else:
-                executor_gpus = ss.conf.get("spark.executor.resource.gpu.amount", None)
+                executor_gpus = spark_session.conf.get(
+                    "spark.executor.resource.gpu.amount", None
+                )
                 if executor_gpus is None:
                     raise ValueError(
                         "The `spark.executor.resource.gpu.amount` is required for training"
                         " on GPU."
                     )
-                gpu_per_task = ss.conf.get("spark.task.resource.gpu.amount", None)
+                gpu_per_task = spark_session.conf.get(
+                    "spark.task.resource.gpu.amount", None
+                )
                 if gpu_per_task is not None and float(gpu_per_task) > 1.0:
                     get_logger(self.__class__.__name__).warning(
                         "The configuration assigns %s GPUs to each Spark task, but each "
@@ -392,7 +396,7 @@ class _SparkXGBParams(
                         gpu_per_task,
                     )
 
-    def _validate_params(self, ss: SparkSession) -> None:
+    def _validate_params(self, spark_session: SparkSession) -> None:
         # pylint: disable=too-many-branches
         init_model = self.getOrDefault("xgb_model")
         if init_model is not None and not isinstance(init_model, Booster):
@@ -460,9 +464,9 @@ class _SparkXGBParams(
                     "`pyspark.ml.linalg.Vector` type."
                 )
 
-        self._validate_gpu_params(ss)
+        self._validate_gpu_params(spark_session)
 
-    def _run_on_gpu(self, ss: SparkSession) -> bool:
+    def _run_on_gpu(self, spark_session: SparkSession) -> bool:
         # pylint: disable=unused-argument
         """If train or transform on the gpu according to the parameters"""
 
@@ -793,8 +797,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         dataset = dataset.select(*select_cols)
 
         num_workers = self.getOrDefault(self.num_workers)
-        ss = dataset.sparkSession
-        max_concurrent_tasks = _get_max_num_concurrent_tasks(ss)
+        spark_session = dataset.sparkSession
+        max_concurrent_tasks = _get_max_num_concurrent_tasks(spark_session)
 
         if feature_prop.has_validation_col:
             dtype = dataset.schema[alias.valid].dataType
@@ -863,14 +867,16 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         return booster_params, train_call_kwargs_params, dmatrix_kwargs
 
-    def _skip_stage_level_scheduling(self, ss: SparkSession) -> bool:
+    def _skip_stage_level_scheduling(self, spark_session: SparkSession) -> bool:
         # pylint: disable=too-many-return-statements
         """Check if stage-level scheduling is not needed,
         return true to skip stage-level scheduling"""
 
-        if self._run_on_gpu(ss):
-            executor_cores = ss.conf.get("spark.executor.cores", None)
-            executor_gpus = ss.conf.get("spark.executor.resource.gpu.amount", None)
+        if self._run_on_gpu(spark_session):
+            executor_cores = spark_session.conf.get("spark.executor.cores", None)
+            executor_gpus = spark_session.conf.get(
+                "spark.executor.resource.gpu.amount", None
+            )
             if executor_cores is None or executor_gpus is None:
                 self.logger.info(
                     "Stage-level scheduling in xgboost requires spark.executor.cores, "
@@ -895,7 +901,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
                 return True
 
-            task_gpu_amount = ss.conf.get("spark.task.resource.gpu.amount", None)
+            task_gpu_amount = spark_session.conf.get(
+                "spark.task.resource.gpu.amount", None
+            )
 
             if task_gpu_amount is None:
                 # The ETL tasks will not grab a gpu when spark.task.resource.gpu.amount is not set,
@@ -914,11 +922,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         return True
 
     def _get_resource_profile_for_stage_level_scheduling(
-        self, ss: SparkSession
+        self, spark_session: SparkSession
     ) -> Optional[ResourceProfile]:
         """Try to enable stage-level scheduling"""
-        conf = ss.conf
-        if _is_local(ss) or self._skip_stage_level_scheduling(ss):
+        conf = spark_session.conf
+        if _is_local(spark_session) or self._skip_stage_level_scheduling(spark_session):
             return None
 
         # executor_cores will not be None
@@ -928,9 +936,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         # Spark-rapids is a project to leverage GPUs to accelerate spark SQL.
         # If spark-rapids is enabled, to avoid GPU OOM, we don't allow other
         # ETL gpu tasks running alongside training tasks.
-        spark_plugins = ss.conf.get("spark.plugins", " ")
+        spark_plugins = spark_session.conf.get("spark.plugins", " ")
         assert spark_plugins is not None
-        spark_rapids_sql_enabled = ss.conf.get("spark.rapids.sql.enabled", "true")
+        spark_rapids_sql_enabled = spark_session.conf.get(
+            "spark.rapids.sql.enabled", "true"
+        )
         assert spark_rapids_sql_enabled is not None
 
         task_cores = (
@@ -957,7 +967,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         )
         return rp
 
-    def _get_tracker_args(self, ss: SparkSession) -> Tuple[bool, Dict[str, Any]]:
+    def _get_tracker_args(
+        self, spark_session: SparkSession
+    ) -> Tuple[bool, Dict[str, Any]]:
         """Start the tracker and return the tracker envs on the driver side"""
         launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
         rabit_args = {}
@@ -968,7 +980,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 assert isinstance(conf, Config)
 
             if conf.tracker_host_ip is None:
-                conf.tracker_host_ip = ss.conf.get("spark.driver.host", None)
+                conf.tracker_host_ip = spark_session.conf.get("spark.driver.host", None)
             num_workers = self.getOrDefault(self.num_workers)
             rabit_args.update(_get_rabit_args(conf, num_workers))
         else:
@@ -1321,17 +1333,17 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             dataset = dataset.drop(pred_struct_col)
         return dataset
 
-    def _run_on_gpu(self, ss: SparkSession) -> bool:
+    def _run_on_gpu(self, spark_session: SparkSession) -> bool:
         """If gpu is used to do the prediction according to the parameters
         and spark configurations"""
 
-        use_gpu_by_params = super()._run_on_gpu(ss)
+        use_gpu_by_params = super()._run_on_gpu(spark_session)
 
-        if _is_local(ss):
+        if _is_local(spark_session):
             # if it's local model, no need to check the spark configurations
             return use_gpu_by_params
 
-        gpu_per_task = ss.conf.get("spark.task.resource.gpu.amount", None)
+        gpu_per_task = spark_session.conf.get("spark.task.resource.gpu.amount", None)
 
         # User don't set gpu configurations, just use cpu
         if gpu_per_task is None:
