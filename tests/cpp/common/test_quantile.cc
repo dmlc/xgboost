@@ -78,16 +78,13 @@ TEST(Quantile, SetPruneInplace) {
 
 namespace {
 template <bool use_column>
-using ContainerType = std::conditional_t<use_column, SortedSketchContainer, HostSketchContainer>;
-
-// Dispatch for push page.
-void PushPage(SortedSketchContainer* container, SparsePage const& page, MetaInfo const& info,
-              Span<float const> hessian) {
-  container->PushColPage(page, info, hessian);
-}
 void PushPage(HostSketchContainer* container, SparsePage const& page, MetaInfo const& info,
               Span<float const> hessian) {
-  container->PushRowPage(page, info, hessian);
+  if constexpr (use_column) {
+    container->PushColPage(page, info, hessian);
+  } else {
+    container->PushRowPage(page, info, hessian);
+  }
 }
 
 template <bool use_column>
@@ -122,16 +119,16 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   std::vector<float> hessian(rows, 1.0);
   auto hess = Span<float const>{hessian};
 
-  ContainerType<use_column> sketch_distributed(
-      &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
+  HostSketchContainer sketch_distributed(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                         column_size, false);
 
   if (use_column) {
     for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-      PushPage(&sketch_distributed, page, m->Info(), hess);
+      PushPage<use_column>(&sketch_distributed, page, m->Info(), hess);
     }
   } else {
     for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-      PushPage(&sketch_distributed, page, m->Info(), hess);
+      PushPage<use_column>(&sketch_distributed, page, m->Info(), hess);
     }
   }
 
@@ -143,8 +140,8 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
   CHECK_EQ(collective::GetWorldSize(), 1);
   std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
   m->Info().num_row_ = world * rows;
-  ContainerType<use_column> sketch_on_single_node(
-      &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
+  HostSketchContainer sketch_on_single_node(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                            column_size, false);
   m->Info().num_row_ = rows;
 
   for (auto rank = 0; rank < world; ++rank) {
@@ -157,11 +154,11 @@ void DoTestDistributedQuantile(size_t rows, size_t cols) {
                  .GenerateDMatrix();
     if (use_column) {
       for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
+        PushPage<use_column>(&sketch_on_single_node, page, m->Info(), hess);
       }
     } else {
       for (auto const& page : m->GetBatches<SparsePage>()) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
+        PushPage<use_column>(&sketch_on_single_node, page, m->Info(), hess);
       }
     }
   }
@@ -248,18 +245,18 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
   // Generate cuts for distributed environment.
   HistogramCuts distributed_cuts{0};
   {
-    ContainerType<use_column> sketch_distributed(
-        &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
+    HostSketchContainer sketch_distributed(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                           column_size, false);
 
     std::vector<float> hessian(rows, 1.0);
     auto hess = Span<float const>{hessian};
     if (use_column) {
       for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage(&sketch_distributed, page, m->Info(), hess);
+        PushPage<use_column>(&sketch_distributed, page, m->Info(), hess);
       }
     } else {
       for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-        PushPage(&sketch_distributed, page, m->Info(), hess);
+        PushPage<use_column>(&sketch_distributed, page, m->Info(), hess);
       }
     }
 
@@ -271,18 +268,18 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
   CHECK_EQ(collective::GetWorldSize(), 1);
   HistogramCuts single_node_cuts{0};
   {
-    ContainerType<use_column> sketch_on_single_node(
-        &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
+    HostSketchContainer sketch_on_single_node(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                              column_size, false);
 
     std::vector<float> hessian(rows, 1.0);
     auto hess = Span<float const>{hessian};
     if (use_column) {
       for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
+        PushPage<use_column>(&sketch_on_single_node, page, m->Info(), hess);
       }
     } else {
       for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
+        PushPage<use_column>(&sketch_on_single_node, page, m->Info(), hess);
       }
     }
 

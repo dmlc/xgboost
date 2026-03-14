@@ -17,9 +17,9 @@
 #include "hist_util.h"
 
 namespace xgboost::common {
-SketchContainerImpl::SketchContainerImpl(Context const *ctx, std::vector<bst_idx_t> columns_size,
-                                         bst_bin_t max_bin, Span<FeatureType const> feature_types,
-                                         bool use_group)
+HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bin,
+                                         Span<FeatureType const> feature_types,
+                                         std::vector<bst_idx_t> columns_size, bool use_group)
     : feature_types_(feature_types.cbegin(), feature_types.cend()),
       columns_size_{std::move(columns_size)},
       max_bins_{max_bin},
@@ -32,6 +32,14 @@ SketchContainerImpl::SketchContainerImpl(Context const *ctx, std::vector<bst_idx
   CHECK_GE(n_threads_, 1);
   categories_.resize(columns_size_.size());
   has_categorical_ = std::any_of(feature_types_.cbegin(), feature_types_.cend(), IsCatOp{});
+  ParallelFor(sketches_.size(), n_threads_, Sched::Auto(), [&](auto i) {
+    auto n_bins = std::min(static_cast<bst_idx_t>(max_bins_), columns_size_[i]);
+    n_bins = std::max(n_bins, static_cast<decltype(n_bins)>(1));
+    auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
+    if (!IsCat(this->feature_types_, i)) {
+      sketches_[i] = WQSketch{columns_size_[i], eps};
+    }
+  });
 }
 
 namespace {
@@ -50,10 +58,10 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
     CHECK_EQ(group_ptr.back(), hessian.size());
     size_t cur_group = 0;
     for (size_t i = 0; i < hessian.size(); ++i) {
-      results[i] = hessian[i] * get_weight(cur_group);
-      if (i == group_ptr[cur_group + 1]) {
-        cur_group++;
+      while (cur_group + 1 < group_ptr.size() && i >= group_ptr[cur_group + 1]) {
+        ++cur_group;
       }
+      results[i] = hessian[i] * get_weight(cur_group);
     }
   } else {
     ParallelFor(hessian.size(), n_threads, Sched::Auto(),
@@ -300,7 +308,7 @@ struct CategoricalReducePayload {
 };
 }  // anonymous namespace
 
-void SketchContainerImpl::PushRowPage(SparsePage const &page, MetaInfo const &info,
+void HostSketchContainer::PushRowPage(SparsePage const &page, MetaInfo const &info,
                                       Span<float const> hessian) {
   monitor_.Start(__func__);
   bst_feature_t n_columns = info.num_col_;
@@ -357,7 +365,7 @@ INSTANTIATE(EncColumnarAdapterBatch)
 
 #undef INSTANTIATE
 
-auto SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const &info,
+auto HostSketchContainer::AllreduceCategories(Context const *ctx, MetaInfo const &info,
                                               Span<bst_feature_t const> categorical_features)
     -> std::vector<std::set<float>> {
   std::vector<std::set<float>> reduced_categories(categorical_features.size());
@@ -410,7 +418,7 @@ auto SketchContainerImpl::AllreduceCategories(Context const *ctx, MetaInfo const
   return reduced_categories;
 }
 
-auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
+auto HostSketchContainer::AllReduce(Context const *ctx, MetaInfo const &info,
                                     Span<bst_feature_t const> numeric_features)
     -> std::vector<WQSketch::SummaryContainer> {
   monitor_.Start(__func__);
@@ -485,9 +493,7 @@ auto SketchContainerImpl::AllReduce(Context const *ctx, MetaInfo const &info,
   return reduced;
 }
 
-template <typename SketchType>
-void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_bin,
-                 HistogramCuts *cuts) {
+void AddCutPoints(WQSummaryContainer const &summary, size_t max_bin, HistogramCuts *cuts) {
   size_t required_cuts = std::min(summary.Size(), static_cast<size_t>(max_bin));
   auto &cut_values = cuts->cut_values_.HostVector();
   auto const entries = summary.Entries();
@@ -500,24 +506,28 @@ void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_b
       cut_values.push_back(cpt);
     }
   }
+  auto const cpt = !entries.empty() ? entries.back().value : 1e-5f;
+  // This must be bigger than the last observed cut value.
+  auto const last = cpt + (std::fabs(cpt) + 1e-5f);
+  cut_values.push_back(last);
 }
 
-auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
+void AddCategories(std::set<float> const &categories, float *max_cat, HistogramCuts *cuts) {
   if (std::any_of(categories.cbegin(), categories.cend(), InvalidCat)) {
     InvalidCategory();
   }
   auto &cut_values = cuts->cut_values_.HostVector();
   // With column-wise data split, the categories may be empty.
-  auto max_cat =
+  auto feature_max_cat =
       categories.empty() ? 0.0f : *std::max_element(categories.cbegin(), categories.cend());
-  CheckMaxCat(max_cat, categories.size());
-  for (bst_cat_t i = 0; i <= AsCat(max_cat); ++i) {
+  CheckMaxCat(feature_max_cat, categories.size());
+  *max_cat = std::max(*max_cat, feature_max_cat);
+  for (bst_cat_t i = 0; i <= AsCat(feature_max_cat); ++i) {
     cut_values.push_back(i);
   }
-  return max_cat;
 }
 
-HistogramCuts SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &info) {
+HistogramCuts HostSketchContainer::MakeCuts(Context const *ctx, MetaInfo const &info) {
   monitor_.Start(__func__);
   HistogramCuts cuts{static_cast<bst_feature_t>(sketches_.size())};
   auto *p_cuts = &cuts;
@@ -537,6 +547,10 @@ HistogramCuts SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &
   auto reduced_numerical = this->AllReduce(ctx, info, Span<bst_feature_t const>{numeric_features});
   auto reduced_categories =
       this->AllreduceCategories(ctx, info, Span<bst_feature_t const>{categorical_features});
+  std::vector<std::size_t> categorical_index(sketches_.size(), 0);
+  for (std::size_t i = 0; i < categorical_features.size(); ++i) {
+    categorical_index[categorical_features[i]] = i;
+  }
 
   auto &h_cut_ptrs = p_cuts->cut_ptrs_.HostVector();
   // Prune size down to max_bins + 1 (reserve one extra for the max value)
@@ -547,22 +561,12 @@ HistogramCuts SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &
   });
 
   float max_cat{-1.f};
-  std::size_t cat_idx{0};
   for (size_t fid = 0; fid < reduced_numerical.size(); ++fid) {
     size_t max_num_bins = std::min(reduced_numerical[fid].Size(), static_cast<size_t>(max_bins_));
     if (IsCat(feature_types_, fid)) {
-      CHECK_LT(cat_idx, categorical_features.size());
-      CHECK_EQ(categorical_features[cat_idx], fid);
-      max_cat = std::max(max_cat, AddCategories(reduced_categories[cat_idx], p_cuts));
-      ++cat_idx;
+      AddCategories(reduced_categories[categorical_index[fid]], &max_cat, p_cuts);
     } else {
-      AddCutPoint<WQSketch>(reduced_numerical[fid], max_num_bins, p_cuts);
-      // push a value that is greater than anything
-      auto const a_entries = reduced_numerical[fid].Entries();
-      const bst_float cpt = !a_entries.empty() ? a_entries.back().value : 1e-5f;
-      // this must be bigger than last value in a scale
-      const bst_float last = cpt + (fabs(cpt) + 1e-5f);
-      p_cuts->cut_values_.HostVector().push_back(last);
+      AddCutPoints(reduced_numerical[fid], max_num_bins, p_cuts);
     }
 
     // Ensure that every feature gets at least one quantile point
@@ -571,30 +575,14 @@ HistogramCuts SketchContainerImpl::MakeCuts(Context const *ctx, MetaInfo const &
     CHECK_GT(cut_size, h_cut_ptrs[fid]);
     h_cut_ptrs[fid + 1] = cut_size;
   }
-  CHECK_EQ(cat_idx, categorical_features.size());
 
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
   monitor_.Stop(__func__);
   return cuts;
 }
 
-HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bins,
-                                         common::Span<FeatureType const> ft,
-                                         std::vector<bst_idx_t> columns_size, bool use_group)
-    : SketchContainerImpl{ctx, columns_size, max_bins, ft, use_group} {
-  monitor_.Init(__func__);
-  ParallelFor(sketches_.size(), n_threads_, Sched::Auto(), [&](auto i) {
-    auto n_bins = std::min(static_cast<bst_idx_t>(max_bins_), columns_size_[i]);
-    n_bins = std::max(n_bins, static_cast<decltype(n_bins)>(1));
-    auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
-    if (!IsCat(this->feature_types_, i)) {
-      sketches_[i] = WQSketch{columns_size_[i], eps};
-    }
-  });
-}
-
-void SortedSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &info,
-                                        Span<float const> hessian) {
+void HostSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &info,
+                                      Span<float const> hessian) {
   monitor_.Start(__func__);
   // glue these conditions using ternary operator to avoid making data copies.
   auto const &weights =

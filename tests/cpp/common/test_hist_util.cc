@@ -121,39 +121,6 @@ TEST(ParallelGHistBuilder, Reset) { ParallelGHistBuilderReset(); }
 
 TEST(ParallelGHistBuilder, ReduceHist) { ParallelGHistBuilderReduceHist(); }
 
-TEST(CutsBuilder, SearchGroupInd) {
-  size_t constexpr kNumGroups = 4;
-  size_t constexpr kRows = 17;
-  size_t constexpr kCols = 15;
-
-  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-
-  std::vector<bst_group_t> group(kNumGroups);
-  group[0] = 2;
-  group[1] = 3;
-  group[2] = 7;
-  group[3] = 5;
-
-  p_mat->SetInfo("group", Make1dInterfaceTest(group.data(), group.size()));
-
-  HistogramCuts hmat{0};
-
-  size_t group_ind = HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 0);
-  ASSERT_EQ(group_ind, 0ul);
-
-  group_ind = HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 5);
-  ASSERT_EQ(group_ind, 2ul);
-
-  EXPECT_ANY_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17));
-
-  p_mat->Info().Validate(DeviceOrd::CPU());
-  EXPECT_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17),
-               dmlc::Error);
-
-  std::vector<bst_uint> group_ptr{0, 1, 2};
-  CHECK_EQ(HostSketchContainer::SearchGroupIndFromRow(group_ptr, 1), 1);
-}
-
 TEST(HistUtil, DenseCutsCategorical) {
   Context ctx;
   int categorical_sizes[] = {2, 6, 8, 12};
@@ -373,12 +340,12 @@ void TestSketchFromWeights(bool with_group) {
   }
 
   if (with_group) {
-    auto& h_weights = info.weights_.HostVector();
-    h_weights.resize(kGroups);
+    std::vector<float> group_weights(kGroups);
     // Generate different weight.
-    for (size_t i = 0; i < h_weights.size(); ++i) {
-      h_weights[i] = static_cast<float>(i + 1) / static_cast<float>(kGroups);
+    for (size_t i = 0; i < group_weights.size(); ++i) {
+      group_weights[i] = static_cast<float>(i + 1) / static_cast<float>(kGroups);
     }
+    m->SetInfo("weight", Make1dInterfaceTest(group_weights.data(), group_weights.size()));
     HistogramCuts weighted = SketchOnDMatrix(&ctx, m.get(), kBins);
     ValidateCuts(weighted, m.get(), kBins);
   }
@@ -387,6 +354,53 @@ void TestSketchFromWeights(bool with_group) {
 TEST(HistUtil, SketchFromWeights) {
   TestSketchFromWeights(true);
   TestSketchFromWeights(false);
+}
+
+TEST(HistUtil, UnrollGroupWeights) {
+  MetaInfo info;
+  info.num_row_ = 6;
+  info.group_ptr_ = {0, 2, 3, 6};
+  info.weights_.HostVector() = {1.0f, 5.0f, 9.0f};
+
+  std::vector<float> expected{1.0f, 1.0f, 5.0f, 9.0f, 9.0f, 9.0f};
+  ASSERT_EQ(detail::UnrollGroupWeights(info), expected);
+}
+
+namespace {
+void TestGroupWeightsEquivalentToRowWeights(bool use_sorted) {
+  Context ctx;
+  std::vector<float> x{
+      0.0f, 5.0f, 1.0f, 4.0f, 2.0f, 3.0f, 3.0f, 2.0f, 4.0f, 1.0f, 5.0f, 0.0f,
+  };
+  auto grouped = GetDMatrixFromData(x, 6, 2);
+  auto per_row = GetDMatrixFromData(x, 6, 2);
+
+  std::vector<bst_group_t> group_sizes{1, 1, 4};
+  std::vector<float> group_weights{1.0f, 1000.0f, 1.0f};
+  std::vector<float> row_weights{1.0f, 1000.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+
+  grouped->SetInfo("group", Make1dInterfaceTest(group_sizes.data(), group_sizes.size()));
+  grouped->SetInfo("weight", Make1dInterfaceTest(group_weights.data(), group_weights.size()));
+  per_row->SetInfo("weight", Make1dInterfaceTest(row_weights.data(), row_weights.size()));
+
+  auto grouped_cuts = SketchOnDMatrix(&ctx, grouped.get(), 2, use_sorted);
+  auto per_row_cuts = SketchOnDMatrix(&ctx, per_row.get(), 2, use_sorted);
+
+  ASSERT_EQ(grouped_cuts.Ptrs().size(), per_row_cuts.Ptrs().size());
+  for (size_t i = 0; i < grouped_cuts.Ptrs().size(); ++i) {
+    ASSERT_EQ(grouped_cuts.Ptrs()[i], per_row_cuts.Ptrs()[i]);
+  }
+
+  ASSERT_EQ(grouped_cuts.Values().size(), per_row_cuts.Values().size());
+  for (size_t i = 0; i < grouped_cuts.Values().size(); ++i) {
+    ASSERT_FLOAT_EQ(grouped_cuts.Values()[i], per_row_cuts.Values()[i]);
+  }
+}
+}  // anonymous namespace
+
+TEST(HistUtil, GroupWeightsEquivalentToRowWeights) {
+  TestGroupWeightsEquivalentToRowWeights(true);
+  TestGroupWeightsEquivalentToRowWeights(false);
 }
 
 TEST(HistUtil, SketchCategoricalFeatures) {
