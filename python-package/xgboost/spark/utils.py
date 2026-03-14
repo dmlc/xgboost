@@ -11,7 +11,6 @@ from typing import Any, Callable, Dict, Optional, Set, Type, Union
 import pyspark
 from pyspark import BarrierTaskContext, TaskContext
 from pyspark.sql import SparkSession
-from pyspark.sql.conf import RuntimeConfig
 
 from ..collective import CommunicatorContext as CCtx
 from ..collective import Config
@@ -116,14 +115,11 @@ def _get_max_num_concurrent_tasks(spark_session: SparkSession) -> int:
         return sys.maxsize
 
     # pylint: disable=protected-access
-    # spark 3.1 and above has a different API for fetching max concurrent tasks
-    if spark_session.sparkContext._jsc.sc().version() >= "3.1":
-        return spark_session.sparkContext._jsc.sc().maxNumConcurrentTasks(
-            spark_session.sparkContext._jsc.sc()
-            .resourceProfileManager()
-            .resourceProfileFromId(0)
-        )
-    return spark_session.sparkContext._jsc.sc().maxNumConcurrentTasks()
+    return spark_session.sparkContext._jsc.sc().maxNumConcurrentTasks(
+        spark_session.sparkContext._jsc.sc()
+        .resourceProfileManager()
+        .resourceProfileFromId(0)
+    )
 
 
 def _is_connect(spark_session: SparkSession) -> bool:
@@ -139,13 +135,6 @@ def _is_local(spark_session: SparkSession) -> bool:
     # Note: This might not be accurate if spark.master is not set in RuntimeConfig.
     master = spark_session.conf.get("spark.master", None)
     return master is not None and (master == "local" or master.startswith("local["))
-
-
-def _is_standalone_or_localcluster(conf: RuntimeConfig) -> bool:
-    master = conf.get("spark.master", None)
-    return master is not None and (
-        master.startswith("spark://") or master.startswith("local-cluster")
-    )
 
 
 def _get_gpu_id(task_context: TaskContext) -> int:

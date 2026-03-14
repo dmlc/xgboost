@@ -98,7 +98,6 @@ from .utils import (
     _get_rabit_args,
     _is_connect,
     _is_local,
-    _is_standalone_or_localcluster,
     deserialize_booster,
     deserialize_xgb_model,
     get_class_name,
@@ -392,33 +391,6 @@ class _SparkXGBParams(
                         "unnecessary GPU waste",
                         gpu_per_task,
                     )
-                # For 3.5.1+, Spark supports task stage-level scheduling for
-                #                          Yarn/K8s/Standalone/Local cluster
-                # From 3.4.0 ~ 3.5.0, Spark only supports task stage-level scheduling for
-                #                           Standalone/Local cluster
-                # For spark below 3.4.0, Task stage-level scheduling is not supported.
-                #
-                # With stage-level scheduling, spark.task.resource.gpu.amount is not required
-                # to be set explicitly. Or else, spark.task.resource.gpu.amount is a must-have and
-                # must be set to 1.0
-                if ss.version < "3.4.0" or (
-                    "3.4.0" <= ss.version < "3.5.1"
-                    and not _is_standalone_or_localcluster(ss.conf)
-                ):
-                    if gpu_per_task is not None:
-                        if float(gpu_per_task) < 1.0:
-                            raise ValueError(
-                                "XGBoost doesn't support GPU fractional configurations. Please set "
-                                "`spark.task.resource.gpu.amount=spark.executor.resource.gpu."
-                                "amount`. To enable GPU fractional configurations, you can try "
-                                "standalone/localcluster with spark 3.4.0+ and"
-                                "YARN/K8S with spark 3.5.1+"
-                            )
-                    else:
-                        raise ValueError(
-                            "The `spark.task.resource.gpu.amount` is required for training"
-                            " on GPU."
-                        )
 
     def _validate_params(self, ss: SparkSession) -> None:
         # pylint: disable=too-many-branches
@@ -550,22 +522,9 @@ def _validate_and_convert_feature_col_as_array_col(
 
 
 def _get_unwrap_udt_fn() -> Callable[[Union[Column, str]], Column]:
-    try:
-        from pyspark.sql.functions import unwrap_udt
+    from pyspark.sql.functions import unwrap_udt
 
-        return unwrap_udt
-    except ImportError:
-        pass
-
-    try:
-        from pyspark.databricks.sql.functions import unwrap_udt as databricks_unwrap_udt
-
-        return databricks_unwrap_udt
-    except ImportError as exc:
-        raise RuntimeError(
-            "Cannot import pyspark `unwrap_udt` function. Please install pyspark>=3.4 "
-            "or run on Databricks Runtime."
-        ) from exc
+    return unwrap_udt
 
 
 def _get_unwrapped_vec_cols(feature_col: Column) -> List[Column]:
@@ -910,22 +869,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         return true to skip stage-level scheduling"""
 
         if self._run_on_gpu(ss):
-            if ss.version < "3.4.0":
-                self.logger.info(
-                    "Stage-level scheduling in xgboost requires spark version 3.4.0+"
-                )
-                return True
-
-            if "3.4.0" <= ss.version < "3.5.1" and not _is_standalone_or_localcluster(
-                ss.conf
-            ):
-                self.logger.info(
-                    "For %s, Stage-level scheduling in xgboost requires spark standalone "
-                    "or local-cluster mode",
-                    ss.version,
-                )
-                return True
-
             executor_cores = ss.conf.get("spark.executor.cores", None)
             executor_gpus = ss.conf.get("spark.executor.resource.gpu.amount", None)
             if executor_cores is None or executor_gpus is None:
