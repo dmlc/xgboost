@@ -1669,7 +1669,7 @@ class _SparkXGBSharedReadWrite:
         if init_booster is not None:
             ser_init_booster = serialize_booster(init_booster)
             save_path = os.path.join(path, _INIT_BOOSTER_SAVE_PATH)
-            _get_spark_session().createDataFrame(
+            spark_session.createDataFrame(
                 [(ser_init_booster,)], ["init_booster"]
             ).write.parquet(save_path)
 
@@ -1712,7 +1712,7 @@ class _SparkXGBSharedReadWrite:
         if "init_booster" in metadata:
             load_path = os.path.join(path, metadata["init_booster"])
             ser_init_booster = (
-                _get_spark_session().read.parquet(load_path).collect()[0].init_booster
+                spark_session.read.parquet(load_path).collect()[0].init_booster
             )
             init_booster = deserialize_booster(ser_init_booster)
             pyspark_xgb.set(pyspark_xgb.xgb_model, init_booster)  # type: ignore
@@ -1791,7 +1791,7 @@ class SparkXGBModelWriter(MLWriter):
         # Write model preserving row ordering
         indexed_chunks = [[i, c] for i, c in enumerate(booster_chunks)]
         (
-            _get_spark_session()
+            self.sparkSession
             .createDataFrame(indexed_chunks, ["idx", "value"])
             .repartition(1)
             .sortWithinPartitions("idx")
@@ -1827,7 +1827,7 @@ class SparkXGBModelReader(MLReader):
         model_load_path = os.path.join(path, "model")
 
         ser_xgb_model = "".join(
-            [r[0] for r in _get_spark_session().read.text(model_load_path).collect()]
+            [r[0] for r in self.sparkSession.read.text(model_load_path).collect()]
         )
 
         def create_xgb_model() -> "XGBModel":
