@@ -198,12 +198,7 @@ def serialize_booster(booster: Booster) -> str:
     booster:
         an xgboost.core.Booster instance
     """
-    # TODO: change to use string io
-    tmp_file_name = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.json")
-    booster.save_model(tmp_file_name)
-    with open(tmp_file_name, encoding="utf-8") as f:
-        ser_model_string = f.read()
-    return ser_model_string
+    return booster.save_raw("json").decode("utf-8")
 
 
 def deserialize_booster(model: str) -> Booster:
@@ -211,11 +206,7 @@ def deserialize_booster(model: str) -> Booster:
     Deserialize an xgboost.core.Booster from the input ser_model_string.
     """
     booster = Booster()
-    # TODO: change to use string io
-    tmp_file_name = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.json")
-    with open(tmp_file_name, "w", encoding="utf-8") as f:
-        f.write(model)
-    booster.load_model(tmp_file_name)
+    booster.load_model(bytearray(model.encode("utf-8")))
     return booster
 
 
