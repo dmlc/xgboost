@@ -80,19 +80,6 @@ def _get_host_ip(context: BarrierTaskContext) -> str:
     return task_ip_list[0]
 
 
-def _get_spark_session() -> SparkSession:
-    """Get or create spark session. Note: This function can only be invoked from driver
-    side.
-
-    """
-    if pyspark.TaskContext.get() is not None:
-        # This is a safety check.
-        raise RuntimeError(
-            "_get_spark_session should not be invoked from executor side."
-        )
-    return SparkSession.builder.getOrCreate()
-
-
 def get_logger(name: str, level: Optional[Union[str, int]] = None) -> logging.Logger:
     """Gets a logger by name, or creates and configures it for the first time."""
     logger = logging.getLogger(name)

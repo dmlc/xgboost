@@ -9,6 +9,7 @@ import numpy as np
 from pyspark import keyword_only
 from pyspark.ml.param import Param, Params
 from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
+from pyspark.sql import SparkSession
 
 from ..collective import Config
 from ..sklearn import XGBClassifier, XGBRanker, XGBRegressor
@@ -222,8 +223,8 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     def _pyspark_model_cls(cls) -> Type["SparkXGBRegressorModel"]:
         return SparkXGBRegressorModel
 
-    def _validate_params(self) -> None:
-        super()._validate_params()
+    def _validate_params(self, ss: SparkSession) -> None:
+        super()._validate_params(ss)
         if self.isDefined(self.qid_col):
             raise ValueError(
                 "Spark Xgboost regressor estimator does not support `qid_col` param."
@@ -406,8 +407,8 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     def _pyspark_model_cls(cls) -> Type["SparkXGBClassifierModel"]:
         return SparkXGBClassifierModel
 
-    def _validate_params(self) -> None:
-        super()._validate_params()
+    def _validate_params(self, ss: SparkSession) -> None:
+        super()._validate_params(ss)
         if self.isDefined(self.qid_col):
             raise ValueError(
                 "Spark Xgboost classifier estimator does not support `qid_col` param."
@@ -589,8 +590,8 @@ class SparkXGBRanker(_SparkXGBEstimator):
     def _pyspark_model_cls(cls) -> Type["SparkXGBRankerModel"]:
         return SparkXGBRankerModel
 
-    def _validate_params(self) -> None:
-        super()._validate_params()
+    def _validate_params(self, ss: SparkSession) -> None:
+        super()._validate_params(ss)
         if not self.isDefined(self.qid_col):
             raise ValueError(
                 "Spark Xgboost ranker estimator requires setting `qid_col` param."
