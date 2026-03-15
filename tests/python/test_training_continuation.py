@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -158,6 +159,29 @@ class TestTrainingContinuation:
         clf.set_params(eval_metric="error")
         clf.fit(X, y, eval_set=[(X, y)], xgb_model=loaded)
         assert tm.non_increasing(clf.evals_result()["validation_0"]["error"])
+
+    def test_booster_type_mismatch_warning(self) -> None:
+        X = rng.randn(100, 10)
+        y = rng.randint(0, 2, size=100).astype(np.float32)
+        dtrain = xgb.DMatrix(X, label=y)
+
+        bst_tree = xgb.train({"booster": "gbtree"}, dtrain, num_boost_round=2)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            xgb.train(
+                {"booster": "gblinear"}, dtrain, num_boost_round=2, xgb_model=bst_tree
+            )
+            assert len(w) == 1
+            assert "Booster type mismatch" in str(w[0].message)
+
+        # No warning when booster types match.
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            xgb.train(
+                {"booster": "gbtree"}, dtrain, num_boost_round=2, xgb_model=bst_tree
+            )
+            assert len(w) == 0
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
     def test_model_output(self, tree_method: str) -> None:

@@ -3,7 +3,9 @@
 """Training Library containing training routines."""
 
 import copy
+import json
 import os
+import warnings
 import weakref
 from typing import (
     TYPE_CHECKING,
@@ -181,6 +183,20 @@ def train(
             raise ValueError(_RefError)
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
+
+    if xgb_model is not None:
+        config = json.loads(bst.save_config())
+        model_booster = config["learner"]["gradient_booster"]["name"]
+        configured_booster = params.get("booster", "gbtree")
+        if model_booster != configured_booster:
+            warnings.warn(
+                f"Booster type mismatch: `xgb_model` uses '{model_booster}' but "
+                f"training is configured with booster='{configured_booster}'. "
+                f"The trees from `xgb_model` will not be carried forward.",
+                UserWarning,
+                stacklevel=2,
+            )
+
     start_iteration = 0
 
     if verbose_eval:
