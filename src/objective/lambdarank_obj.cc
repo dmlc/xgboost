@@ -175,7 +175,7 @@ class LambdaRankObj : public FitIntercept {
     auto lj = GroupLoss(g, &lj_full_);
 
     // Normalization, first used by LightGBM.
-    // https://github.com/microsoft/LightGBM/pull/2331#issuecomment-523259298
+    // https://github.com/lightgbm-org/LightGBM/pull/2331#issuecomment-523259298
     double sum_lambda{0.0};
 
     auto delta_op = [&](auto const&... args) {
