@@ -15,7 +15,7 @@ if(ENABLE_ALL_WARNINGS)
 endif()
 
 if(MSVC)
-  # https://github.com/microsoft/LightGBM/pull/6061
+  # https://github.com/lightgbm-org/LightGBM/pull/6061
   # MSVC doesn't work with anonymous types in structs. (R complex)
   #
   # syntax error: missing ';' before identifier 'private_data_c'
