@@ -3158,7 +3158,12 @@ class Booster:
                         splits.append(float("NAN"))
                         categories.append(cats_split if cats_split else None)
                     else:
-                        raise ValueError("Failed to parse model text dump.")
+                        # indicator (boolean) feature: format is
+                        #   {nid}:[{fname}] yes={yes},no={no}
+                        # No split threshold or missing direction.
+                        parse = [fid[0]]
+                        splits.append(float("NAN"))
+                        categories.append(None)
                     stats = re.split("=|,", fid[1])
 
                     # append to lists
@@ -3168,9 +3173,15 @@ class Booster:
                     str_i = str(i)
                     y_directs.append(str_i + "-" + stats[1])
                     n_directs.append(str_i + "-" + stats[3])
-                    missings.append(str_i + "-" + stats[5])
-                    gains.append(float(stats[7]))
-                    covers.append(float(stats[9]))
+                    # Indicator nodes have no missing direction.
+                    if len(stats) > 5 and stats[4] == "missing":
+                        missings.append(str_i + "-" + stats[5])
+                        gains.append(float(stats[7]))
+                        covers.append(float(stats[9]))
+                    else:
+                        missings.append(float("NAN"))
+                        gains.append(float(stats[5]))
+                        covers.append(float(stats[7]))
 
         ids = [str(t_id) + "-" + str(n_id) for t_id, n_id in zip(tree_ids, node_ids)]
         df = DataFrame(
