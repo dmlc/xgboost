@@ -115,8 +115,8 @@ xgb.get.handle <- function(object) {
 #' @param predcontrib Whether to return feature contributions to individual predictions (see Details).
 #' @param approxcontrib Whether to use a fast approximation for feature contributions (see Details).
 #' @param predinteraction Whether to return contributions of feature interactions to individual predictions (see Details).
-#' @param training Whether the prediction result is used for training. For dart booster,
-#'   training predicting will perform dropout.
+#' @param training Whether the prediction result is used for training. When enabled,
+#'   XGBoost uses the training prediction path instead of inplace prediction.
 #' @param iterationrange Sequence of rounds/iterations from the model to use for prediction, specified by passing
 #'   a two-dimensional vector with the start and end numbers in the sequence (same format as R's `seq` - i.e.
 #'   base-1 indexing, and inclusive of both ends).
@@ -383,7 +383,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     inplace_predict_supported <- !predcontrib && !predinteraction && !predleaf
     if (inplace_predict_supported) {
       booster_type <- xgb.booster_type(object)
-      if (booster_type == "gblinear" || (booster_type == "dart" && training)) {
+      if (booster_type == "gblinear" || training) {
         inplace_predict_supported <- FALSE
       }
     }
