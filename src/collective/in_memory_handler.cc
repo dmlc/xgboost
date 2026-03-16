@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <functional>
+#include <stdexcept>
+
 #include "comm.h"
 
 namespace xgboost::collective {
@@ -18,14 +20,14 @@ class AllgatherFunctor {
   AllgatherFunctor(std::int32_t world_size, std::int32_t rank)
       : world_size_{world_size}, rank_{rank} {}
 
-  void operator()(char const* input, std::size_t bytes, std::string* buffer) const {
-    if (buffer->empty()) {
+  void operator()(char const* input, std::size_t bytes, AlignedByteBuffer* buffer) const {
+    if (buffer->Empty()) {
       // Resize the buffer if this is the first request.
-      buffer->resize(bytes * world_size_);
+      buffer->Resize(bytes * world_size_);
     }
 
     // Splice the input into the common buffer.
-    buffer->replace(rank_ * bytes, bytes, input, bytes);
+    buffer->Replace(rank_ * bytes, bytes, input);
   }
 
  private:
@@ -44,11 +46,11 @@ class AllgatherVFunctor {
                     std::map<std::size_t, std::string_view>* data)
       : world_size_{world_size}, rank_{rank}, data_{data} {}
 
-  void operator()(char const* input, std::size_t bytes, std::string* buffer) const {
+  void operator()(char const* input, std::size_t bytes, AlignedByteBuffer* buffer) const {
     data_->emplace(rank_, std::string_view{input, bytes});
     if (data_->size() == static_cast<std::size_t>(world_size_)) {
       for (auto const& kv : *data_) {
-        buffer->append(kv.second);
+        buffer->Append(kv.second);
       }
       data_->clear();
     }
@@ -70,14 +72,16 @@ class AllreduceFunctor {
   AllreduceFunctor(ArrayInterfaceHandler::Type dataType, Op operation)
       : data_type_{dataType}, operation_{operation} {}
 
-  void operator()(char const* input, std::size_t bytes, std::string* buffer) const {
-    if (buffer->empty()) {
+  void operator()(char const* input, std::size_t bytes, AlignedByteBuffer* buffer) const {
+    if (buffer->Empty()) {
       // Copy the input if this is the first request.
-      buffer->assign(input, bytes);
+      buffer->Assign(input, bytes);
     } else {
       auto n_bytes_type = DispatchDType(data_type_, [](auto t) { return sizeof(t); });
+      CHECK_EQ(bytes % n_bytes_type, 0) << "Input size is not a multiple of its element size.";
+      CHECK_EQ(buffer->Size(), bytes) << "Input size differs across allreduce calls.";
       // Apply the reduce_operation to the input and the buffer.
-      Accumulate(input, bytes / n_bytes_type, &buffer->front());
+      Accumulate(input, bytes, buffer);
     }
   }
 
@@ -128,39 +132,41 @@ class AllreduceFunctor {
     }
   }
 
-  void Accumulate(char const* input, std::size_t size, char* buffer) const {
+  void Accumulate(char const* input, std::size_t bytes, AlignedByteBuffer* buffer) const {
     using Type = ArrayInterfaceHandler::Type;
+    auto data = buffer->Data();
+    auto size = bytes / DispatchDType(data_type_, [](auto t) { return sizeof(t); });
     switch (data_type_) {
       case Type::kI1:
-        Accumulate(reinterpret_cast<std::int8_t*>(buffer),
+        Accumulate(reinterpret_cast<std::int8_t*>(data),
                    reinterpret_cast<std::int8_t const*>(input), size, operation_);
         break;
       case Type::kU1:
-        Accumulate(reinterpret_cast<std::uint8_t*>(buffer),
+        Accumulate(reinterpret_cast<std::uint8_t*>(data),
                    reinterpret_cast<std::uint8_t const*>(input), size, operation_);
         break;
       case Type::kI4:
-        Accumulate(reinterpret_cast<std::int32_t*>(buffer),
+        Accumulate(reinterpret_cast<std::int32_t*>(data),
                    reinterpret_cast<std::int32_t const*>(input), size, operation_);
         break;
       case Type::kU4:
-        Accumulate(reinterpret_cast<std::uint32_t*>(buffer),
+        Accumulate(reinterpret_cast<std::uint32_t*>(data),
                    reinterpret_cast<std::uint32_t const*>(input), size, operation_);
         break;
       case Type::kI8:
-        Accumulate(reinterpret_cast<std::int64_t*>(buffer),
+        Accumulate(reinterpret_cast<std::int64_t*>(data),
                    reinterpret_cast<std::int64_t const*>(input), size, operation_);
         break;
       case Type::kU8:
-        Accumulate(reinterpret_cast<std::uint64_t*>(buffer),
+        Accumulate(reinterpret_cast<std::uint64_t*>(data),
                    reinterpret_cast<std::uint64_t const*>(input), size, operation_);
         break;
       case Type::kF4:
-        Accumulate(reinterpret_cast<float*>(buffer), reinterpret_cast<float const*>(input), size,
+        Accumulate(reinterpret_cast<float*>(data), reinterpret_cast<float const*>(input), size,
                    operation_);
         break;
       case Type::kF8:
-        Accumulate(reinterpret_cast<double*>(buffer), reinterpret_cast<double const*>(input), size,
+        Accumulate(reinterpret_cast<double*>(data), reinterpret_cast<double const*>(input), size,
                    operation_);
         break;
       default:
@@ -182,10 +188,10 @@ class BroadcastFunctor {
 
   BroadcastFunctor(std::int32_t rank, std::int32_t root) : rank_{rank}, root_{root} {}
 
-  void operator()(char const* input, std::size_t bytes, std::string* buffer) const {
+  void operator()(char const* input, std::size_t bytes, AlignedByteBuffer* buffer) const {
     if (rank_ == root_) {
       // Copy the input if this is the root.
-      buffer->assign(input, bytes);
+      buffer->Assign(input, bytes);
     }
   }
 
@@ -246,9 +252,7 @@ void InMemoryHandler::Handle(char const* input, std::size_t bytes, std::string* 
                              HandlerFunctor const& functor) {
   // Pass through if there is only 1 client.
   if (world_size_ == 1) {
-    if (input != output->data()) {
-      output->assign(input, bytes);
-    }
+    output->assign(input, bytes);
     return;
   }
 
@@ -263,7 +267,7 @@ void InMemoryHandler::Handle(char const* input, std::size_t bytes, std::string* 
 
   if (received_ == world_size_) {
     LOG(DEBUG) << functor.name << " rank " << rank << ": all requests received";
-    output->assign(buffer_);
+    output->assign(buffer_.Data(), buffer_.Size());
     sent_++;
     lock.unlock();
     cv_.notify_all();
@@ -274,14 +278,14 @@ void InMemoryHandler::Handle(char const* input, std::size_t bytes, std::string* 
   cv_.wait(lock, [this] { return received_ == world_size_; });
 
   LOG(DEBUG) << functor.name << " rank " << rank << ": sending reply";
-  output->assign(buffer_);
+  output->assign(buffer_.Data(), buffer_.Size());
   sent_++;
 
   if (sent_ == world_size_) {
     LOG(DEBUG) << functor.name << " rank " << rank << ": all replies sent";
     sent_ = 0;
     received_ = 0;
-    buffer_.clear();
+    buffer_.Clear();
     sequence_number_++;
     lock.unlock();
     cv_.notify_all();
