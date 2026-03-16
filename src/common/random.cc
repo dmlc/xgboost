@@ -13,13 +13,22 @@
 #include "xgboost/json.h"                // for Json, Object, Integer, String, get
 
 namespace xgboost::common {
+void SaveRng(Json* p_out, RandomEngine const &rng) {
+  std::stringstream ss;
+  ss << std::hex << rng;
+  auto& out = *p_out;
+  out["rng_state"] = String{ss.str()};
+}
+
+void LoadRng(Json const &in, RandomEngine *rng) {
+  std::stringstream ss{get<String const>(in["rng_state"])};
+  ss >> std::hex >> *rng;
+}
 
 void ColumnSampler::SaveConfig(Json *p_out) const {
   auto &out = *p_out;
   out["seed"] = Integer{static_cast<std::int64_t>(seed_)};
-  std::stringstream ss;
-  ss << std::hex << rng_;
-  out["rng_state"] = String{ss.str()};
+  SaveRng(&out, this->rng_);
 }
 
 void ColumnSampler::LoadConfig(Json const &in) {

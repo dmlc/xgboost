@@ -141,13 +141,7 @@ class ColumnSampler {
     feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
   }
 
-  /**
-   * @brief Save the column sampler configuration (seed + RNG state) to a JSON object.
-   */
   void SaveConfig(Json* p_out) const;
-  /**
-   * @brief Load the column sampler configuration (seed + RNG state) from a JSON object.
-   */
   void LoadConfig(Json const& in);
 
   /**
@@ -202,5 +196,8 @@ inline auto MakeColumnSampler(Context const* ctx) {
   auto cs = std::make_shared<common::ColumnSampler>(seed);
   return cs;
 }
+
+void SaveRng(Json* p_out, RandomEngine const& rng);
+void LoadRng(Json const& in, RandomEngine* rng);
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_RANDOM_H_

@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  *
  * \brief Context object used for controlling runtime parameters.
  */
@@ -13,7 +13,7 @@
 #include <sstream>    // for stringstream
 
 #include "common/cuda_rt_utils.h"  // for AllVisibleGPUs
-#include "common/error_msg.h"      // WarnDeprecatedGPUId
+#include "common/random.h"
 #include "common/threading_utils.h"
 #include "xgboost/json.h"  // for Json, Object, String, ToJson, FromJson
 #include "xgboost/string_view.h"
@@ -279,22 +279,14 @@ DeviceOrd Context::DeviceFP64() const {
 }
 
 [[nodiscard]] Json Context::ToJson() const {
-  auto obj = ::xgboost::ToJson(*this);
-  std::stringstream ss;
-  ss << std::hex << rng_;
-  obj["rng_state"] = String{ss.str()};
-
-  return Json{std::move(obj)};
+  auto obj = Json{::xgboost::ToJson(*this)};
+  common::SaveRng(&obj, this->rng_);
+  return obj;
 }
 
 void Context::FromJson(Json const& in) {
   ::xgboost::FromJson(in, this);
-
-  auto const& obj = get<Object const>(in);
-  auto it = obj.find("rng_state");
-  CHECK(it != obj.cend());
-  std::stringstream ss{get<String const>(it->second)};
-  ss >> std::hex >> rng_;
+  common::LoadRng(in, &this->rng_);
 }
 
 #if !defined(XGBOOST_USE_CUDA)
