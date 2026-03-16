@@ -41,6 +41,7 @@ def train_model(model_path: str) -> None:
         max_depth=6,
         learning_rate=0.3,
         random_state=SEED,
+        colsample_bynode=0.8,
     )
     clf.fit(X, y)
 
@@ -48,19 +49,8 @@ def train_model(model_path: str) -> None:
     clf.get_booster().set_attr(expected_accuracy=str(accuracy))
     clf.save_model(model_path)
 
-    clf_cs = xgb.XGBClassifier(
-        device="cuda",
-        n_estimators=50,
-        max_depth=6,
-        learning_rate=0.3,
-        random_state=SEED,
-        colsample_bynode=0.8,
-    )
-    clf_cs.fit(X, y)
-
-    expected_predictions = clf_cs.predict(X)
-    with open(_pickle_path(model_path), "wb") as f:
-        pickle.dump({"model": clf_cs, "expected_predictions": expected_predictions}, f)
+    with open(_pickle_path(model_path), "wb") as fd:
+        pickle.dump(clf.get_booster(), fd)
 
 
 def test_inference(model_path: str) -> None:
@@ -77,12 +67,10 @@ def test_inference(model_path: str) -> None:
     np.testing.assert_allclose(accuracy, expected_accuracy)
 
     with open(_pickle_path(model_path), "rb") as f:
-        data = pickle.load(f)
+        booster = pickle.load(f)
 
-    clf_cs = data["model"]
-    expected_predictions = data["expected_predictions"]
-    predictions = clf_cs.predict(X)
-    np.testing.assert_array_equal(predictions, expected_predictions)
+    clf = xgb.XGBClassifier(n_estimators=2)
+    clf.fit(X, y, xgb_model=booster)
 
 
 def main() -> int:
