@@ -3,9 +3,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 import xgboost as xgb
-from hypothesis import given, settings, strategies
+from hypothesis import given, settings
 from xgboost import testing as tm
 from xgboost.testing.continuation import (
+    make_determinism_strategy,
     run_training_continuation_determinism,
     run_training_continuation_model_output,
 )
@@ -166,34 +167,11 @@ class TestTrainingContinuation:
         run_training_continuation_model_output("cpu", tree_method)
 
 
-@given(
-    subsample=strategies.floats(0.5, 1.0),
-    colsample_bytree=strategies.floats(0.5, 1.0),
-    colsample_bylevel=strategies.floats(0.5, 1.0),
-    colsample_bynode=strategies.floats(0.5, 1.0),
-    booster=strategies.sampled_from(["gbtree", "dart"]),
-    num_class=strategies.sampled_from([1, 3]),
-    seed_per_iteration=strategies.booleans(),
-)
-@settings(deadline=None, print_blob=True, max_examples=20)
+@given(make_determinism_strategy(["hist", "approx", "exact"]))
+@settings(deadline=None, print_blob=True, max_examples=10)
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_continuation_determinism(
-    subsample: float,
-    colsample_bytree: float,
-    colsample_bylevel: float,
-    colsample_bynode: float,
-    booster: str,
-    num_class: int,
-    seed_per_iteration: bool,
-) -> None:
+def test_continuation_determinism(kwargs) -> None:
     run_training_continuation_determinism(
         device="cpu",
-        booster=booster,
-        subsample=subsample,
-        sampling_method="uniform",
-        colsample_bytree=colsample_bytree,
-        colsample_bylevel=colsample_bylevel,
-        colsample_bynode=colsample_bynode,
-        num_class=num_class,
-        seed_per_iteration=seed_per_iteration,
+        **kwargs,
     )

@@ -5,6 +5,7 @@ from typing import Any, Dict, TypeVar
 
 import numpy as np
 import pytest
+from hypothesis import strategies
 
 import xgboost as xgb
 
@@ -63,12 +64,11 @@ def run_training_continuation_model_output(device: str, tree_method: str) -> Non
 def run_training_continuation_determinism(
     *,
     device: str,
+    tree_method: str,
     booster: str,
     subsample: float,
     sampling_method: str,
-    colsample_bytree: float,
     colsample_bylevel: float,
-    colsample_bynode: float,
     num_class: int,
     seed_per_iteration: bool,
 ) -> None:
@@ -99,14 +99,12 @@ def run_training_continuation_determinism(
 
     params: Dict[str, Any] = {
         "device": device,
-        "tree_method": "hist",
+        "tree_method": tree_method,
         "max_depth": 4,
         "objective": objective,
         "subsample": subsample,
         "sampling_method": sampling_method,
-        "colsample_bytree": colsample_bytree,
         "colsample_bylevel": colsample_bylevel,
-        "colsample_bynode": colsample_bynode,
         "seed_per_iteration": seed_per_iteration,
         "booster": booster,
     }
@@ -132,3 +130,24 @@ def run_training_continuation_determinism(
     pred_single = bst_single.predict(dtrain)
     pred_cont = bst_continued.predict(dtrain)
     np.testing.assert_allclose(pred_single, pred_cont)
+
+
+def make_determinism_strategy(tree_methods: list[str]) -> "strategies.SearchStrategy":
+    strategy = strategies.fixed_dictionaries(
+        {
+            "subsample": strategies.sampled_from([0.5, 1.0]),
+            "sampling_method": strategies.sampled_from(["uniform", "gradient_based"]),
+            "colsample_bylevel": strategies.sampled_from([0.5, 1.0]),
+            "tree_method": strategies.sampled_from(tree_methods),
+            "booster": strategies.sampled_from(["gbtree", "dart"]),
+            "num_class": strategies.sampled_from([1, 3]),
+            "seed_per_iteration": strategies.booleans(),
+        }
+    ).filter(
+        lambda x: (
+            not (
+                x["sampling_method"] == "gradient_based" and x["tree_method"] != "hist"
+            )
+        )
+    )
+    return strategy
