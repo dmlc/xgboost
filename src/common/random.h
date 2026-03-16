@@ -199,5 +199,19 @@ inline auto MakeColumnSampler(Context const* ctx) {
 
 void SaveRng(Json* p_out, RandomEngine const& rng);
 void LoadRng(Json const& in, RandomEngine* rng);
+
+// The utility function handles loading configuration before the model is fit. We don't
+// want to initialize the column sampler in a custructor, to avoid creating side effect in
+// constructors (altered random state). As a result, column sampler is not available
+// during early configuration.
+auto LoadColumnSamplerOptional(Json const& jconfig, std::shared_ptr<ColumnSampler> column_sampler) {
+  auto const& config = get<Object const>(jconfig);
+  auto it = config.find("column_sampler");
+  if (it != config.cend()) {
+    column_sampler = std::make_shared<common::ColumnSampler>();
+    column_sampler->LoadConfig(it->second);
+  }
+  return column_sampler;
+}
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_RANDOM_H_

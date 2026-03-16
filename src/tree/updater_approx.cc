@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2025, XGBoost contributors
+ * Copyright 2021-2026, XGBoost contributors
  *
  * \brief Implementation for the approx tree method.
  */
@@ -267,11 +267,7 @@ class GlobalApproxUpdater : public TreeUpdater {
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
-    auto it = config.find("column_sampler");
-    if (it != config.cend()) {
-      column_sampler_ = std::make_shared<common::ColumnSampler>();
-      column_sampler_->LoadConfig(it->second);
-    }
+    this->column_sampler_ = common::LoadColumnSamplerOptional(in, this->column_sampler_);
   }
   void SaveConfig(Json *p_out) const override {
     auto &out = *p_out;

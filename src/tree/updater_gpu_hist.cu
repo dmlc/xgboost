@@ -770,11 +770,7 @@ class GPUHistMaker : public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
-    auto it = config.find("column_sampler");
-    if (it != config.cend()) {
-      column_sampler_ = std::make_shared<common::ColumnSampler>();
-      column_sampler_->LoadConfig(it->second);
-    }
+    this->column_sampler_ = common::LoadColumnSamplerOptional(in, this->column_sampler_);
     initialised_ = false;
   }
   void SaveConfig(Json* p_out) const override {
@@ -917,11 +913,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
-    auto it = config.find("column_sampler");
-    if (it != config.cend()) {
-      column_sampler_ = std::make_shared<common::ColumnSampler>();
-      column_sampler_->LoadConfig(it->second);
-    }
+    this->column_sampler_ = common::LoadColumnSamplerOptional(in, this->column_sampler_);
     initialised_ = false;
   }
   void SaveConfig(Json* p_out) const override {
