@@ -396,7 +396,9 @@ void GBTree::CommitModel(TreesOneIter&& new_trees) {
 
 void GBTree::LoadConfig(Json const& in) {
   auto name = get<String const>(in["name"]);
-  CHECK(name == "gbtree" || name == "dart");
+  CHECK(name == "gbtree" || name == "dart")
+      << "Unknown booster name in model JSON: `" << name
+      << "`. Only `gbtree` or legacy `dart` boosters are accepted here.";
   auto const& config = name == "dart" ? in["gbtree"] : in;
   FromJson(config["gbtree_train_param"], &tparam_);
   FromJson(config["tree_train_param"], &tree_param_);
