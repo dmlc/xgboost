@@ -65,10 +65,16 @@ class ColMaker : public TreeUpdater {
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("colmaker_train_param"), &this->colmaker_param_);
+    this->column_sampler_ = common::LoadColumnSamplerOptional(in, this->column_sampler_);
   }
   void SaveConfig(Json *p_out) const override {
     auto &out = *p_out;
     out["colmaker_train_param"] = ToJson(colmaker_param_);
+    if (column_sampler_) {
+      Json cs{Object{}};
+      column_sampler_->SaveConfig(&cs);
+      out["column_sampler"] = std::move(cs);
+    }
   }
 
   char const *Name() const override { return "grow_colmaker"; }
@@ -109,6 +115,9 @@ class ColMaker : public TreeUpdater {
       LOG(FATAL) << "column sample by node is not yet supported by the exact tree method";
     }
     this->LazyGetColumnDensity(dmat);
+    if (!column_sampler_) {
+      column_sampler_ = common::MakeColumnSampler(ctx_);
+    }
     // rescale learning rate according to size of trees
     interaction_constraints_.Configure(*param, dmat->Info().num_row_);
     // build tree
@@ -116,15 +125,16 @@ class ColMaker : public TreeUpdater {
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     for (auto tree : trees) {
       CHECK(ctx_);
-      Builder builder(*param, colmaker_param_, interaction_constraints_, ctx_, column_densities_);
+      Builder builder(*param, colmaker_param_, interaction_constraints_, ctx_, column_densities_,
+                       column_sampler_);
       builder.Update(gpair->Data()->ConstHostVector(), dmat, tree);
     }
   }
 
  protected:
   ColMakerTrainParam colmaker_param_;
-  // SplitEvaluator that will be cloned for each Builder
   std::vector<float> column_densities_;
+  std::shared_ptr<common::ColumnSampler> column_sampler_;
 
   FeatureInteractionConstraintHost interaction_constraints_;
   // data structure
@@ -154,13 +164,14 @@ class ColMaker : public TreeUpdater {
   // actual builder that runs the algorithm
   class Builder {
    public:
-    // constructor
     explicit Builder(const TrainParam &param, const ColMakerTrainParam &colmaker_train_param,
                      FeatureInteractionConstraintHost _interaction_constraints, Context const *ctx,
-                     const std::vector<float> &column_densities)
+                     const std::vector<float> &column_densities,
+                     std::shared_ptr<common::ColumnSampler> column_sampler)
         : param_(param),
           colmaker_train_param_{colmaker_train_param},
           ctx_{ctx},
+          column_sampler_{std::move(column_sampler)},
           tree_evaluator_(param_, column_densities.size(), DeviceOrd::CPU()),
           interaction_constraints_{std::move(_interaction_constraints)},
           column_densities_(column_densities) {}
@@ -230,9 +241,6 @@ class ColMaker : public TreeUpdater {
         }
       }
       {
-        if (!column_sampler_) {
-          column_sampler_ = common::MakeColumnSampler(ctx_);
-        }
         column_sampler_->Init(ctx_, fmat.Info().num_col_, fmat.Info().feature_weights,
                               param_.colsample_bynode, param_.colsample_bylevel,
                               param_.colsample_bytree);
