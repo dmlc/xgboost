@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
 
+
 def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
     assert x is not None  # ctypes might return None
@@ -39,7 +40,6 @@ try:
     from sklearn.base import BaseEstimator as XGBModelBase
     from sklearn.base import ClassifierMixin as XGBClassifierBase
     from sklearn.base import RegressorMixin as XGBRegressorBase
-
     from sklearn.model_selection import StratifiedKFold as XGBStratifiedKFold
 
     # sklearn.utils Tags types can be imported unconditionally once
