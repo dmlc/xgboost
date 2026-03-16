@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.parse_tree import (
@@ -60,7 +59,9 @@ class TestTreesToDataFrame:
         n_samples = 200
         n_features = 5
         X = rng.randint(0, 2, size=(n_samples, n_features)).astype(np.float32)
-        y = (X[:, 0] ^ X[:, 1]).astype(np.float32)
+        y = (X[:, 0].astype(np.int32) ^ X[:, 1].astype(np.int32)).astype(
+            np.float32
+        )
         dtrain = xgb.DMatrix(X, label=y)
 
         # Create a feature map with indicator type 'i'
