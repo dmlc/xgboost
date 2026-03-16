@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -170,7 +171,7 @@ class TestTrainingContinuation:
 @given(make_determinism_strategy(["hist", "approx", "exact"]))
 @settings(deadline=None, print_blob=True, max_examples=10)
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_continuation_determinism(kwargs) -> None:
+def test_continuation_determinism(kwargs: Any) -> None:
     run_training_continuation_determinism(
         device="cpu",
         **kwargs,

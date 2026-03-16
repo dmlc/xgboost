@@ -133,6 +133,7 @@ def run_training_continuation_determinism(
 
 
 def make_determinism_strategy(tree_methods: list[str]) -> "strategies.SearchStrategy":
+    """Hypothesis strategy for testing training continuation with sampling."""
     strategy = strategies.fixed_dictionaries(
         {
             "subsample": strategies.sampled_from([0.5, 1.0]),

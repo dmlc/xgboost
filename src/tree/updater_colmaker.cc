@@ -126,7 +126,7 @@ class ColMaker : public TreeUpdater {
     for (auto tree : trees) {
       CHECK(ctx_);
       Builder builder(*param, colmaker_param_, interaction_constraints_, ctx_, column_densities_,
-                       column_sampler_);
+                      column_sampler_);
       builder.Update(gpair->Data()->ConstHostVector(), dmat, tree);
     }
   }
