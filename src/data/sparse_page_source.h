@@ -58,9 +58,7 @@ struct Cache {
     return name + format;
   }
 
-  [[nodiscard]] std::string ShardName() const {
-    return ShardName(this->name, this->format);
-  }
+  [[nodiscard]] std::string ShardName() const { return ShardName(this->name, this->format); }
   [[nodiscard]] bool OnHost() const { return on_host; }
   /**
    * @brief Record a page with size of n_bytes.
@@ -132,9 +130,7 @@ class TryLockGuard {
   explicit TryLockGuard(std::mutex& lock) : lock_{lock} {  // NOLINT
     CHECK(lock_.try_lock()) << "Multiple threads attempting to use Sparse DMatrix.";
   }
-  ~TryLockGuard() {
-    lock_.unlock();
-  }
+  ~TryLockGuard() { lock_.unlock(); }
 };
 
 // Similar to `dmlc::OMPException`, but doesn't need the threads to be joined before rethrow
@@ -262,7 +258,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   // Workers for fetching data from external memory.
   common::ThreadPool workers_;
 
-  bool at_end_ {false};
+  bool at_end_{false};
   float missing_;
   std::int32_t nthreads_;
   bst_feature_t n_features_;
@@ -382,7 +378,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     monitor_.Init(typeid(S).name());  // not pretty, but works for basic profiling
   }
 
-  SparsePageSourceImpl(SparsePageSourceImpl const &that) = delete;
+  SparsePageSourceImpl(SparsePageSourceImpl const& that) = delete;
 
   ~SparsePageSourceImpl() override {
     // Don't orphan the threads.
@@ -400,13 +396,9 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     return *page_;
   }
 
-  [[nodiscard]] std::shared_ptr<S const> Page() const override {
-    return page_;
-  }
+  [[nodiscard]] std::shared_ptr<S const> Page() const override { return page_; }
 
-  [[nodiscard]] bool AtEnd() const override {
-    return at_end_;
-  }
+  [[nodiscard]] bool AtEnd() const override { return at_end_; }
   // Call this at the last iteration (it == n_batches).
   virtual void EndIter() {
     this->cache_info_->Commit();
@@ -588,7 +580,7 @@ class CSCPageSource : public PageSourceIncMixIn<CSCPage> {
  protected:
   void Fetch() final {
     if (!this->ReadCache()) {
-      auto const &csr = source_->Page();
+      auto const& csr = source_->Page();
       this->page_.reset(new CSCPage{});
       // we might be able to optimize this by merging transpose and pushcsc
       this->page_->PushCSC(csr->GetTranspose(n_features_, nthreads_));
@@ -610,7 +602,7 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
  protected:
   void Fetch() final {
     if (!this->ReadCache()) {
-      auto const &csr = this->source_->Page();
+      auto const& csr = this->source_->Page();
       this->page_.reset(new SortedCSCPage{});
       // we might be able to optimize this by merging transpose and pushcsc
       this->page_->PushCSC(csr->GetTranspose(n_features_, nthreads_));
@@ -623,9 +615,8 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
   }
 
  public:
-  SortedCSCPageSource(float missing, int nthreads, bst_feature_t n_features,
-                      uint32_t n_batches, std::shared_ptr<Cache> cache,
-                      std::shared_ptr<SparsePageSource> source)
+  SortedCSCPageSource(float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
+                      std::shared_ptr<Cache> cache, std::shared_ptr<SparsePageSource> source)
       : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache, true) {
     this->source_ = source;
     this->Fetch();
