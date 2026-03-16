@@ -335,7 +335,15 @@ using LearnerAPIThreadLocalStore =
 
 namespace {
 std::string CanonicalizeBoosterName(std::string booster) {
-  return booster == "dart" ? "gbtree" : booster;
+  if (booster == "dart") {
+    static std::once_flag flag;
+    std::call_once(flag, [] {
+      LOG(WARNING) << "`booster=dart` is deprecated. Use the tree booster directly with "
+                      "dropout parameters like `rate_drop`, `skip_drop`, or `one_drop`.";
+    });
+    return "gbtree";
+  }
+  return booster;
 }
 
 /**
