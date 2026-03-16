@@ -1,7 +1,10 @@
 /**
- * Copyright 2018-2025, XGBoost Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #include "../../../src/common/random.h"
+
+#include "../../../src/collective/broadcast.h"  // for Broadcast
+#include "../collective/test_worker.h"          // for TestDistributedGlobal
 #include "../helpers.h"
 #include "gtest/gtest.h"
 #include "xgboost/context.h"  // for Context
@@ -10,7 +13,7 @@ namespace xgboost::common {
 namespace {
 void TestBasic(Context const* ctx) {
   int n = 128;
-  ColumnSampler cs{1u};
+  ColumnSampler cs;
   HostDeviceVector<float> feature_weights;
 
   // No node sampling
@@ -65,9 +68,10 @@ TEST(ColumnSampler, GPUTest) {
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
-// Test if different threads using the same seed produce the same result
+// Test if different threads using the same seed produce the same result.
+// Each thread gets its own Context (since ctx->Rng() is not thread-safe) with the same
+// seed. All threads should produce identical column samples.
 TEST(ColumnSampler, ThreadSynchronisation) {
-  Context ctx;
   // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores)
 #if defined(__linux__)
   std::int64_t const n_threads = std::thread::hardware_concurrency() * 128;
@@ -80,11 +84,13 @@ TEST(ColumnSampler, ThreadSynchronisation) {
   size_t levels = 5;
   std::vector<bst_feature_t> reference_result;
   HostDeviceVector<float> feature_weights;
-  bool success = true; // Cannot use google test asserts in multithreaded region
+  bool success = true;
 #pragma omp parallel num_threads(n_threads)
   {
     for (auto j = 0ull; j < iterations; j++) {
-      ColumnSampler cs(j);
+      Context ctx;
+      ctx.Init({{"seed", std::to_string(j)}});
+      ColumnSampler cs;
       cs.Init(&ctx, n, feature_weights, 0.5f, 0.5f, 0.5f);
       for (auto level = 0ull; level < levels; level++) {
         auto result = cs.GetFeatureSet(level)->ConstHostVector();
@@ -106,7 +112,7 @@ void TestWeightedSampling(Context const* ctx) {
     HostDeviceVector<float> feature_weights(2);
     feature_weights.HostVector()[0] = std::abs(first - 1.0f);
     feature_weights.HostVector()[1] = first - 0.0f;
-    ColumnSampler cs{0};
+    ColumnSampler cs;
     cs.Init(ctx, 2, feature_weights, 1.0, 1.0, 0.5);
     auto feature_sets = cs.GetFeatureSet(0);
     auto const& h_feat_set = feature_sets->HostVector();
@@ -123,7 +129,7 @@ void TestWeightedSampling(Context const* ctx) {
   SimpleRealUniformDistribution<float> dist(.0f, 12.0f);
   std::generate(feature_weights.HostVector().begin(), feature_weights.HostVector().end(),
                 [&]() { return dist(&rng); });
-  ColumnSampler cs{0};
+  ColumnSampler cs;
   cs.Init(ctx, kCols, feature_weights, 0.5f, 1.0f, 1.0f);
   std::vector<bst_feature_t> features(kCols);
   std::iota(features.begin(), features.end(), 0);
@@ -173,7 +179,7 @@ void TestWeightedMultiSampling(Context const* ctx) {
   for (size_t i = 0; i < h_feature_weights.size(); ++i) {
     h_feature_weights[i] = i;
   }
-  ColumnSampler cs{0};
+  ColumnSampler cs;
   float bytree{0.5}, bylevel{0.5}, bynode{0.5};
   cs.Init(ctx, h_feature_weights.size(), feature_weights, bytree, bylevel, bynode);
   auto feature_set = cs.GetFeatureSet(0);

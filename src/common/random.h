@@ -16,11 +16,9 @@
 #include <numeric>
 #include <vector>
 
-#include "../collective/broadcast.h"  // for Broadcast
 #include "algorithm.h"                // ArgSort
 #include "xgboost/context.h"          // Context
 #include "xgboost/host_device_vector.h"
-#include "xgboost/linalg.h"
 
 namespace xgboost::common {
 /*
@@ -31,13 +29,13 @@ namespace xgboost::common {
  * https://timvieira.github.io/blog/post/2019/09/16/algorithms-for-sampling-without-replacement/
 */
 template <typename T>
-std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, std::vector<T> const& array,
+std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, RandomEngine& rng,
+                                                  std::vector<T> const& array,
                                                   std::vector<float> const& weights, size_t n) {
   // ES sampling.
   CHECK_EQ(array.size(), weights.size());
   std::vector<float> keys(weights.size());
   std::uniform_real_distribution<float> dist;
-  auto& rng = ctx->Rng();
   for (size_t i = 0; i < array.size(); ++i) {
     auto w = std::max(weights.at(i), kRtEps);
     auto u = dist(rng);
@@ -81,9 +79,7 @@ class ColumnSampler {
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
-  std::uint32_t seed_{0};
-  RandomEngine rng_;
-  Context const* ctx_;
+  Context const* ctx_{nullptr};
 
   // Used for weighted sampling.
   HostDeviceVector<bst_feature_t> idx_buffer_;
@@ -93,11 +89,6 @@ class ColumnSampler {
   std::shared_ptr<HostDeviceVector<bst_feature_t>> ColSample(
       std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample);
   ColumnSampler() = default;
-  /**
-   * @brief Column sampler constructor.
-   * @note This constructor manually sets the rng seed
-   */
-  explicit ColumnSampler(std::uint32_t seed) : seed_{seed} { rng_.seed(seed); }
 
   /**
    * @brief Initialise this object before use.
@@ -141,9 +132,6 @@ class ColumnSampler {
     feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
   }
 
-  void SaveConfig(Json* p_out) const;
-  void LoadConfig(Json const& in);
-
   /**
    * \brief Resets this object.
    */
@@ -185,26 +173,7 @@ class ColumnSampler {
   }
 };
 
-/**
- * @brief Create a column sampler, drawing a seed from the context RNG and broadcasting it
- *        across workers.
- */
-inline auto MakeColumnSampler(Context const* ctx) {
-  std::uint32_t seed = ctx->Rng()();
-  auto rc = collective::Broadcast(ctx, linalg::MakeVec(&seed, 1), 0);
-  collective::SafeColl(rc);
-  auto cs = std::make_shared<common::ColumnSampler>(seed);
-  return cs;
-}
-
 void SaveRng(Json* p_out, RandomEngine const& rng);
 void LoadRng(Json const& in, RandomEngine* rng);
-
-// The utility function handles loading configuration before the model is fit. We don't
-// want to initialize the column sampler in a constructor, to avoid creating side effect in
-// constructors (altered random state). As a result, column sampler is not available
-// during early configuration.
-[[nodiscard]] std::shared_ptr<ColumnSampler> LoadColumnSamplerOptional(
-    Json const& jconfig, std::shared_ptr<ColumnSampler> column_sampler);
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_RANDOM_H_

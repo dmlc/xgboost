@@ -259,7 +259,7 @@ class GlobalApproxUpdater : public TreeUpdater {
 
  public:
   explicit GlobalApproxUpdater(Context const *ctx, ObjInfo const *task)
-      : TreeUpdater(ctx), task_{task} {
+      : TreeUpdater(ctx), column_sampler_{std::make_shared<common::ColumnSampler>()}, task_{task} {
     monitor_.Init(__func__);
   }
 
@@ -267,16 +267,10 @@ class GlobalApproxUpdater : public TreeUpdater {
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
-    this->column_sampler_ = common::LoadColumnSamplerOptional(in, this->column_sampler_);
   }
   void SaveConfig(Json *p_out) const override {
     auto &out = *p_out;
     out["hist_train_param"] = ToJson(hist_param_);
-    if (column_sampler_) {
-      Json cs{Object{}};
-      column_sampler_->SaveConfig(&cs);
-      out["column_sampler"] = std::move(cs);
-    }
   }
 
   void InitData(TrainParam const &param, linalg::Matrix<GradientPair> const *gpair,
@@ -294,9 +288,6 @@ class GlobalApproxUpdater : public TreeUpdater {
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     CHECK(hist_param_.GetInitialised());
-    if (!column_sampler_) {
-      column_sampler_ = common::MakeColumnSampler(ctx_);
-    }
     pimpl_ = std::make_unique<GlobalApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
                                                    column_sampler_, task_, &monitor_);
     auto gpair = in_gpair->FullGradOnly();

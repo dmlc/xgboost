@@ -59,22 +59,17 @@ DMLC_REGISTER_PARAMETER(ColMakerTrainParam);
 /*! \brief column-wise update to construct a tree */
 class ColMaker : public TreeUpdater {
  public:
-  explicit ColMaker(Context const *ctx) : TreeUpdater(ctx) {}
+  explicit ColMaker(Context const *ctx)
+      : TreeUpdater(ctx), column_sampler_{std::make_shared<common::ColumnSampler>()} {}
   void Configure(const Args &args) override { colmaker_param_.UpdateAllowUnknown(args); }
 
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("colmaker_train_param"), &this->colmaker_param_);
-    this->column_sampler_ = common::LoadColumnSamplerOptional(in, this->column_sampler_);
   }
   void SaveConfig(Json *p_out) const override {
     auto &out = *p_out;
     out["colmaker_train_param"] = ToJson(colmaker_param_);
-    if (column_sampler_) {
-      Json cs{Object{}};
-      column_sampler_->SaveConfig(&cs);
-      out["column_sampler"] = std::move(cs);
-    }
   }
 
   char const *Name() const override { return "grow_colmaker"; }
@@ -115,9 +110,6 @@ class ColMaker : public TreeUpdater {
       LOG(FATAL) << "column sample by node is not yet supported by the exact tree method";
     }
     this->LazyGetColumnDensity(dmat);
-    if (!column_sampler_) {
-      column_sampler_ = common::MakeColumnSampler(ctx_);
-    }
     // rescale learning rate according to size of trees
     interaction_constraints_.Configure(*param, dmat->Info().num_row_);
     // build tree

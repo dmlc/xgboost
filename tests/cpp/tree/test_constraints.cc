@@ -78,7 +78,7 @@ TEST(CPUMonoConstraint, Basic) {
   param.UpdateAllowUnknown(Args{{"monotone_constraints", str_mono}});
 
   auto Xy = RandomDataGenerator{kRows, kCols, 0.0}.GenerateDMatrix(true);
-  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+  auto sampler = std::make_shared<common::ColumnSampler>();
 
   HistEvaluator evalutor{&ctx, &param, Xy->Info(), sampler};
   evalutor.InitRoot(GradStats{2.0, 2.0});

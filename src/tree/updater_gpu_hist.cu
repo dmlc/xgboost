@@ -757,7 +757,9 @@ std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
 
 class GPUHistMaker : public TreeUpdater {
  public:
-  explicit GPUHistMaker(Context const* ctx, ObjInfo const* task) : TreeUpdater(ctx), task_{task} {};
+  explicit GPUHistMaker(Context const* ctx, ObjInfo const* task)
+      : TreeUpdater(ctx), task_{task},
+        column_sampler_{std::make_shared<common::ColumnSampler>()} {};
   void Configure(const Args& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Hist]: Configure";
@@ -770,17 +772,11 @@ class GPUHistMaker : public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
-    this->column_sampler_ = common::LoadColumnSamplerOptional(in, this->column_sampler_);
     initialised_ = false;
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["hist_train_param"] = ToJson(hist_maker_param_);
-    if (column_sampler_) {
-      Json cs{Object{}};
-      column_sampler_->SaveConfig(&cs);
-      out["column_sampler"] = std::move(cs);
-    }
   }
 
   ~GPUHistMaker() override { dh::GlobalMemoryLogger().Log(); }
@@ -809,10 +805,6 @@ class GPUHistMaker : public TreeUpdater {
   void InitDataOnce(TrainParam const* param, DMatrix* p_fmat) {
     monitor_.Start(__func__);
     CHECK_GE(ctx_->Ordinal(), 0) << "Must have at least one device";
-
-    if (!column_sampler_) {
-      this->column_sampler_ = common::MakeColumnSampler(ctx_);
-    }
 
     curt::SetDevice(ctx_->Ordinal());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
@@ -900,7 +892,8 @@ XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
 class GPUGlobalApproxMaker : public TreeUpdater {
  public:
   explicit GPUGlobalApproxMaker(Context const* ctx, ObjInfo const* task)
-      : TreeUpdater(ctx), task_{task} {};
+      : TreeUpdater(ctx), task_{task},
+        column_sampler_{std::make_shared<common::ColumnSampler>()} {};
   void Configure(Args const& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Approx]: Configure";
@@ -913,17 +906,11 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &this->hist_maker_param_);
-    this->column_sampler_ = common::LoadColumnSamplerOptional(in, this->column_sampler_);
     initialised_ = false;
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["hist_train_param"] = ToJson(hist_maker_param_);
-    if (column_sampler_) {
-      Json cs{Object{}};
-      column_sampler_->SaveConfig(&cs);
-      out["column_sampler"] = std::move(cs);
-    }
   }
   ~GPUGlobalApproxMaker() override { dh::GlobalMemoryLogger().Log(); }
 
@@ -973,9 +960,6 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     monitor_.Start(__func__);
     CHECK(ctx_->IsCUDA()) << error::InvalidCUDAOrdinal();
-    if (!column_sampler_) {
-      this->column_sampler_ = common::MakeColumnSampler(ctx_);
-    }
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;

@@ -59,6 +59,7 @@ class HistUpdater {
                        FeatureInteractionConstraintHost int_constraints_,
                        DMatrix const* fmat)
     : ctx_(ctx), qu_(qu), device_properties_(qu->get_device()), param_(param),
+      column_sampler_{std::make_shared<xgboost::common::ColumnSampler>()},
       tree_evaluator_(qu, param, fmat->Info().num_col_),
       interaction_constraints_{std::move(int_constraints_)},
       p_last_tree_(nullptr), p_last_fmat_(fmat) {

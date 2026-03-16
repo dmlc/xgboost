@@ -603,22 +603,17 @@ class QuantileHistMaker : public TreeUpdater {
   HistMakerTrainParam hist_param_;
 
  public:
-  explicit QuantileHistMaker(Context const *ctx, ObjInfo const *) : TreeUpdater{ctx} {}
+  explicit QuantileHistMaker(Context const *ctx, ObjInfo const *)
+      : TreeUpdater{ctx}, column_sampler_{std::make_shared<common::ColumnSampler>()} {}
 
   void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
   void LoadConfig(Json const &in) override {
     auto const &config = get<Object const>(in);
     FromJson(config.at("hist_train_param"), &hist_param_);
-    this->column_sampler_ = common::LoadColumnSamplerOptional(in, this->column_sampler_);
   }
   void SaveConfig(Json *p_out) const override {
     auto &out = *p_out;
     out["hist_train_param"] = ToJson(hist_param_);
-    if (column_sampler_) {
-      Json cs{Object{}};
-      column_sampler_->SaveConfig(&cs);
-      out["column_sampler"] = std::move(cs);
-    }
   }
 
   [[nodiscard]] char const *Name() const override { return "grow_quantile_histmaker"; }
@@ -626,10 +621,6 @@ class QuantileHistMaker : public TreeUpdater {
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
-    if (!column_sampler_) {
-      column_sampler_ = common::MakeColumnSampler(ctx_);
-    }
-
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
       if (!param->monotone_constraints.empty()) {

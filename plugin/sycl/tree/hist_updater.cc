@@ -489,10 +489,6 @@ void HistUpdater<GradientSumT>::InitData(
   builder_monitor_.Start("InitData");
   const auto& info = fmat.Info();
 
-  if (!column_sampler_) {
-    column_sampler_ = xgboost::common::MakeColumnSampler(ctx_);
-  }
-
   // initialize the row set
   {
     row_set_collection_.Clear();
