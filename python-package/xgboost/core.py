@@ -3161,7 +3161,18 @@ class Booster:
                         # indicator (boolean) feature: format is
                         #   {nid}:[{fname}] yes={yes},no={no}
                         # No split threshold or missing direction.
-                        parse = [fid[0]]
+                        bracket_expr = fid[0]
+                        remainder = fid[1] if len(fid) > 1 else ""
+                        if (
+                            "<" in bracket_expr
+                            or ":{" in bracket_expr
+                            or "yes=" not in remainder
+                            or "no=" not in remainder
+                        ):
+                            raise ValueError(
+                                f"Unrecognized split format: [{bracket_expr}]{remainder}"
+                            )
+                        parse = [bracket_expr]
                         splits.append(float("NAN"))
                         categories.append(None)
                     stats = re.split("=|,", fid[1])

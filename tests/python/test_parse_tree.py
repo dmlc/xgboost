@@ -58,13 +58,14 @@ class TestTreesToDataFrame:
         """Test trees_to_dataframe with indicator (boolean) features."""
         n_samples = 200
         n_features = 5
-        X = rng.randint(0, 2, size=(n_samples, n_features)).astype(np.float32)
-        y = (X[:, 0].astype(np.int32) ^ X[:, 1].astype(np.int32)).astype(np.float32)
+        X_int = rng.randint(0, 2, size=(n_samples, n_features))
+        y = np.logical_xor(X_int[:, 0], X_int[:, 1]).astype(np.float32)
+        X = X_int.astype(np.float32)
         dtrain = xgb.DMatrix(X, label=y)
 
         # Create a feature map with indicator type 'i'
         fmap_path = str(tmp_path / "fmap.txt")
-        with open(fmap_path, "w") as f:
+        with open(fmap_path, "w", encoding="utf-8") as f:
             for i in range(n_features):
                 f.write(f"{i}\tf{i}\ti\n")
 
