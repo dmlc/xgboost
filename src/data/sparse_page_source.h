@@ -1,5 +1,5 @@
 /**
- *  Copyright 2014-2024, XGBoost Contributors
+ *  Copyright 2014-2026, XGBoost Contributors
  * \file sparse_page_source.h
  */
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
@@ -388,7 +388,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     // Don't orphan the threads.
     for (auto& fu : *ring_) {
       if (fu.valid()) {
-        fu.get();
+        [[maybe_unused]] auto _ = fu.get();
       }
     }
   }
