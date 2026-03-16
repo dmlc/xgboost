@@ -476,6 +476,7 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
   this->columns_ptr_.Copy(selected_columns_ptr);
   this->Alternate();
   this->Current().resize(n_selected);
+  this->Unique(ctx);
   timer_.Stop(__func__);
 }
 
