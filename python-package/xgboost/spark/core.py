@@ -52,7 +52,14 @@ from pyspark.resource import (
     TaskResourceRequests,
 )
 from pyspark.sql import Column, DataFrame, SparkSession
-from pyspark.sql.functions import col, countDistinct, pandas_udf, rand, struct
+from pyspark.sql.functions import (
+    col,
+    countDistinct,
+    pandas_udf,
+    rand,
+    struct,
+    unwrap_udt,
+)
 from pyspark.sql.types import (
     ArrayType,
     BooleanType,
@@ -525,14 +532,7 @@ def _validate_and_convert_feature_col_as_array_col(
     return features_array_col
 
 
-def _get_unwrap_udt_fn() -> Callable[[Union[Column, str]], Column]:
-    from pyspark.sql.functions import unwrap_udt
-
-    return unwrap_udt
-
-
 def _get_unwrapped_vec_cols(feature_col: Column) -> List[Column]:
-    unwrap_udt = _get_unwrap_udt_fn()
     features_unwrapped_vec_col = unwrap_udt(feature_col)
 
     # After a `pyspark.ml.linalg.VectorUDT` type column being unwrapped, it becomes
