@@ -201,7 +201,7 @@ void SaveRng(Json* p_out, RandomEngine const& rng);
 void LoadRng(Json const& in, RandomEngine* rng);
 
 // The utility function handles loading configuration before the model is fit. We don't
-// want to initialize the column sampler in a custructor, to avoid creating side effect in
+// want to initialize the column sampler in a constructor, to avoid creating side effect in
 // constructors (altered random state). As a result, column sampler is not available
 // during early configuration.
 [[nodiscard]] std::shared_ptr<ColumnSampler> LoadColumnSamplerOptional(
