@@ -61,8 +61,9 @@ __device__ size_t BinarySearchQueryIndex(EntryIter beg, EntryIter end, float ran
 template <typename EntryFromIndex>
 // Select source indices for the pruned summary without materializing output entries.
 void SelectPruneIndices(common::Span<SketchContainer::OffsetT const> cuts_ptr,
-                        Span<size_t const> columns_ptr_in, Span<FeatureType const> feature_types,
-                        Span<size_t> selected_idx, EntryFromIndex entry_from_index) {
+                        Span<SketchContainer::OffsetT const> columns_ptr_in,
+                        Span<FeatureType const> feature_types, Span<size_t> selected_idx,
+                        EntryFromIndex entry_from_index) {
   dh::LaunchN(selected_idx.size(), [=] __device__(size_t idx) {
     size_t column_id = dh::SegmentId(cuts_ptr, idx);
     auto in_begin = columns_ptr_in[column_id];

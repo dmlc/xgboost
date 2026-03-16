@@ -186,7 +186,6 @@ TEST(GPUQuantile, PruneDuplicated) {
                                     .Seed(seed)
                                     .GenerateArrayInterface(&storage);
     auto d_data = storage.DeviceSpan();
-    using Tuple = cuda::std::tuple<size_t, float>;
     auto tuple_it =
         cuda::std::make_tuple(thrust::make_counting_iterator<size_t>(0ul), d_data.data());
     auto it = thrust::make_zip_iterator(tuple_it);
