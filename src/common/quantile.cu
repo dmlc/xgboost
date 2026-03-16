@@ -113,13 +113,22 @@ void CopyTo(Span<T> out, Span<U> src) {
 XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
                                                                 Span<SketchEntry const> y,
                                                                 uint64_t k) {
+  // Find the merge partition for the k-th output within one column.  The merged prefix of
+  // length k contains i entries from x and j entries from y, where k = i + j.
   auto m = static_cast<uint64_t>(x.size());
   auto n = static_cast<uint64_t>(y.size());
+  // Search for i inside the valid merge-partition range.  low/high clamp the partition so
+  // j = k - i always stays within [0, n].
   auto low = k > n ? k - n : 0ul;
   auto high = std::min(k, m);
   auto candidate_it = thrust::make_counting_iterator<uint64_t>(low);
   auto need_more_x = dh::MakeTransformIterator<bool>(candidate_it, [=] __device__(uint64_t i) {
+    // j is the number of elements taken from y when the partition takes i from x.
     auto j = k - i;
+    // Move the boundary right while the last candidate from y still sorts ahead of the
+    // next candidate from x.  The first false value is the first valid merge boundary.
+    // j > 0: there is a left-hand candidate in y.
+    // i < m: there is a right-hand candidate in x.
     return j > 0 && i < m && y[j - 1].value >= x[i].value;
   });
   auto partition_it = thrust::lower_bound(thrust::seq, need_more_x, need_more_x + (high - low + 1),
@@ -145,6 +154,7 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
 
   auto merge_entry_at = [=] __device__(Span<SketchEntry const> d_x_column,
                                        Span<SketchEntry const> d_y_column, uint64_t idx) {
+    // Materialize one merged entry for a single column and output position.
     // Handle empty column. If both columns are empty, we should not get this column as
     // result of binary search.
     assert((d_x_column.size() != 0) || (d_y_column.size() != 0));
@@ -161,6 +171,8 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
     assert(b_ind <= d_y_column.size());
     assert(a_ind <= d_x_column.size());
 
+    // Rank contribution from the opposite summary at the merge boundary.  `ind` is the
+    // insertion point of the current element into the other summary.
     auto other_rmin = [] __device__(Span<SketchEntry const> d_column, uint64_t ind) {
       if (ind == 0) {
         return 0.0f;
@@ -176,6 +188,7 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
       }
       return d_column[ind].RMaxPrev();
     };  // NOLINT
+    // Apply the merge equations when the output element comes from x or y.
     auto merge_from_x = [=] __device__(SketchEntry x_elem, uint64_t y_ind) {
       return SketchEntry{x_elem.rmin + other_rmin(d_y_column, y_ind),
                          x_elem.rmax + other_rmax(d_y_column, y_ind), x_elem.wmin, x_elem.value};
@@ -185,6 +198,8 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
                          other_rmax(d_x_column, x_ind) + y_elem.rmax, y_elem.wmin, y_elem.value};
     };  // NOLINT
 
+    // Once one side is exhausted, all remaining outputs come from the other side with
+    // boundary ranks taken at the end of the exhausted summary.
     if (a_ind == d_x_column.size()) {
       return merge_from_y(d_y_column[b_ind], a_ind);
     }
@@ -208,6 +223,8 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
        similarly with $k_i$ comes from different $D$.  just use different symbol on
        different source of summary.
     */
+    // General merge case: combine equal values, otherwise land the smaller value and add
+    // the rank contribution from the opposite summary at the partition boundary.
     if (x_elem.value == y_elem.value) {
       return SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
                          x_elem.wmin + y_elem.wmin, x_elem.value};
@@ -220,6 +237,7 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
   };  // NOLINT
 
   dh::LaunchN(d_out.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
+    // Merge one output element after locating its column segment and per-column partition.
     auto column_id = dh::SegmentId(out_ptr, idx);
     auto out_begin = out_ptr[column_id];
     auto out_idx = idx - out_begin;
