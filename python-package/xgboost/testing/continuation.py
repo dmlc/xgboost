@@ -136,7 +136,7 @@ def make_determinism_strategy(tree_methods: list[str]) -> "strategies.SearchStra
         {
             "subsample": strategies.sampled_from([0.5, 1.0]),
             "sampling_method": strategies.sampled_from(["uniform", "gradient_based"]),
-            "rate_drop": strategies.sampled_from([0.5, 1.0]),
+            "rate_drop": strategies.sampled_from([0.0, 0.5]),
             "colsample_bylevel": strategies.sampled_from([0.5, 1.0]),
             "tree_method": strategies.sampled_from(tree_methods),
             "num_class": strategies.sampled_from([1, 3]),
