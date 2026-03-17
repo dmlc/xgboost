@@ -137,6 +137,7 @@ class ObjFunction : public Configurable {
    * @param ctx  Pointer to the context.
    */
   static ObjFunction* Create(const std::string& name, Context const* ctx, Args const& args = {});
+  static ObjFunction* Create(Context const* ctx, Json const& config);
 };
 
 /*!

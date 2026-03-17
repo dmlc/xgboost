@@ -7,6 +7,7 @@
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
+#include <memory>
 #include <sstream>  // for stringstream
 #include <string>   // for string
 
@@ -29,6 +30,14 @@ ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx, Ar
   auto pobj = (e->body)(args);
   pobj->ctx_ = ctx;
   return pobj;
+}
+
+ObjFunction* ObjFunction::Create(Context const* ctx, Json const& config) {
+  auto const& obj = get<Object const>(config);
+  auto objective =
+      std::unique_ptr<ObjFunction>{ObjFunction::Create(get<String const>(obj.at("name")), ctx)};
+  objective->LoadConfig(config);
+  return objective.release();
 }
 
 void ObjFunction::InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const {

@@ -3,6 +3,7 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
+#include <xgboost/json.h>
 #include <xgboost/objective.h>
 
 #include "../helpers.h"
@@ -19,6 +20,19 @@ TEST(Objective, UnknownFunction) {
   if (obj) {
     delete obj;
   }
+}
+
+TEST(Objective, LoadConfigFactory) {
+  xgboost::Context ctx;
+  std::unique_ptr<xgboost::ObjFunction> obj{
+      xgboost::ObjFunction::Create("reg:quantileerror", &ctx, {{"quantile_alpha", "0.8"}})};
+  xgboost::Json config{xgboost::Object{}};
+  obj->SaveConfig(&config);
+
+  std::unique_ptr<xgboost::ObjFunction> loaded{xgboost::ObjFunction::Create(&ctx, config)};
+  xgboost::Json loaded_config{xgboost::Object{}};
+  loaded->SaveConfig(&loaded_config);
+  ASSERT_EQ(config, loaded_config);
 }
 
 namespace xgboost {

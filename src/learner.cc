@@ -587,9 +587,8 @@ class LearnerConfiguration : public Intercept {
     auto const& objective_fn = learner_parameters.at("objective");
     if (!obj_) {
       CHECK_EQ(get<String const>(objective_fn["name"]), tparam_.objective);
-      obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
-    obj_->LoadConfig(objective_fn);
+    obj_.reset(ObjFunction::Create(&ctx_, objective_fn));
     learner_model_param_.task = obj_->Task();
 
     tparam_.booster = CanonicalizeBoosterName(get<String>(gradient_booster["name"]));
@@ -911,8 +910,7 @@ class LearnerIO : public LearnerConfiguration {
 
     std::string name = get<String>(objective_fn["name"]);
     tparam_.UpdateAllowUnknown(Args{{"objective", name}});
-    obj_.reset(ObjFunction::Create(name, &ctx_));
-    obj_->LoadConfig(objective_fn);
+    obj_.reset(ObjFunction::Create(&ctx_, objective_fn));
 
     auto const& gradient_booster = learner.at("gradient_booster");
     name = get<String>(gradient_booster["name"]);
