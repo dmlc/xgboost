@@ -3158,7 +3158,23 @@ class Booster:
                         splits.append(float("NAN"))
                         categories.append(cats_split if cats_split else None)
                     else:
-                        raise ValueError("Failed to parse model text dump.")
+                        # indicator (boolean) feature: format is
+                        #   {nid}:[{fname}] yes={yes},no={no}
+                        # No split threshold or missing direction.
+                        bracket_expr = fid[0]
+                        remainder = fid[1] if len(fid) > 1 else ""
+                        if (
+                            "<" in bracket_expr
+                            or ":{" in bracket_expr
+                            or "yes=" not in remainder
+                            or "no=" not in remainder
+                        ):
+                            raise ValueError(
+                                f"Unrecognized split format: [{bracket_expr}]{remainder}"
+                            )
+                        parse = [bracket_expr]
+                        splits.append(float("NAN"))
+                        categories.append(None)
                     stats = re.split("=|,", fid[1])
 
                     # append to lists
@@ -3168,9 +3184,16 @@ class Booster:
                     str_i = str(i)
                     y_directs.append(str_i + "-" + stats[1])
                     n_directs.append(str_i + "-" + stats[3])
-                    missings.append(str_i + "-" + stats[5])
-                    gains.append(float(stats[7]))
-                    covers.append(float(stats[9]))
+                    # Indicator nodes have no explicit missing= field;
+                    # the default (missing) child is the "no" direction.
+                    if len(stats) > 5 and stats[4] == "missing":
+                        missings.append(str_i + "-" + stats[5])
+                        gains.append(float(stats[7]))
+                        covers.append(float(stats[9]))
+                    else:
+                        missings.append(str_i + "-" + stats[3])
+                        gains.append(float(stats[5]))
+                        covers.append(float(stats[7]))
 
         ids = [str(t_id) + "-" + str(n_id) for t_id, n_id in zip(tree_ids, node_ids)]
         df = DataFrame(
