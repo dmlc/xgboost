@@ -26,7 +26,7 @@ DMLC_REGISTRY_FILE_TAG(hinge_obj_gpu);
 
 class HingeObj : public FitIntercept {
  public:
-  HingeObj() = default;
+  explicit HingeObj(Args const &) {}
   explicit HingeObj(Json const &) {}
   ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -97,7 +97,7 @@ class HingeObj : public FitIntercept {
 // register the objective functions
 XGBOOST_REGISTER_OBJECTIVE(HingeObj, "binary:hinge")
     .describe("Hinge loss. Expects labels to be in [0,1f]")
-    .set_body([](Args const &) { return new HingeObj(); })
+    .set_body([](Args const &args) { return new HingeObj(args); })
     .set_body_json([](Json const &config) { return new HingeObj(config); });
 
 }  // namespace xgboost::obj

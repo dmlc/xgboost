@@ -135,7 +135,7 @@ class ObjFunction {
    * @param name Name of the objective.
    * @param ctx  Pointer to the context.
    */
-  static ObjFunction* Create(const std::string& name, Context const* ctx, Args const& args = {});
+  static ObjFunction* Create(const std::string& name, Context const* ctx, Args const& args);
   static ObjFunction* Create(Context const* ctx, Json const& config);
 };
 

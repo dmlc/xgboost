@@ -61,7 +61,6 @@ class QuantileRegression : public ObjFunction {
     FromJson(in["quantile_loss_param"], &param_);
     alpha_.HostVector() = param_.quantile_alpha.Get();
   }
-  QuantileRegression() = default;
 
   void GetGradient(HostDeviceVector<float> const& preds, const MetaInfo& info, std::int32_t iter,
                    linalg::Matrix<GradientPair>* out_gpair) override {

@@ -348,7 +348,7 @@ TEST(LambdaRank, MAPGPair) {
 }
 
 void TestPairWiseGPair(Context const* ctx) {
-  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:pairwise", ctx)};
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:pairwise", ctx, {})};
   obj.reset(xgboost::ObjFunction::Create("rank:pairwise", ctx, {{"lambdarank_unbiased", "true"}}));
 }
 

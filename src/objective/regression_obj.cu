@@ -285,7 +285,7 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
 class SquaredLogErrorRegression : public FitIntercept {
  public:
   static auto Name() { return SquaredLogError::Name(); }
-  SquaredLogErrorRegression() = default;
+  explicit SquaredLogErrorRegression(Args const&) {}
   explicit SquaredLogErrorRegression(Json const&) {}
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
@@ -328,7 +328,7 @@ class SquaredLogErrorRegression : public FitIntercept {
 
 XGBOOST_REGISTER_OBJECTIVE(SquaredLogErrorRegression, SquaredLogErrorRegression::Name())
     .describe("Root mean squared log error.")
-    .set_body([](Args const&) { return new SquaredLogErrorRegression(); })
+    .set_body([](Args const& args) { return new SquaredLogErrorRegression{args}; })
     .set_body_json([](Json const& config) { return new SquaredLogErrorRegression{config}; });
 
 class PseudoHuberRegression : public FitIntercept {
@@ -343,7 +343,6 @@ class PseudoHuberRegression : public FitIntercept {
       FromJson(it->second, &param_);
     }
   }
-  PseudoHuberRegression() = default;
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
@@ -436,7 +435,6 @@ class ExpectileRegression : public FitIntercept {
       alpha_.HostVector() = param_.expectile_alpha.Get();
     }
   }
-  ExpectileRegression() = default;
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -575,7 +573,6 @@ class PoissonRegression : public FitInterceptGlmLike {
  public:
   explicit PoissonRegression(Args const& args) { param_.UpdateAllowUnknown(args); }
   explicit PoissonRegression(Json const& in) { FromJson(in["poisson_regression_param"], &param_); }
-  PoissonRegression() = default;
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -646,7 +643,7 @@ XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
 // cox regression for survival data (negative values mean they are censored)
 class CoxRegression : public FitIntercept {
  public:
-  CoxRegression() = default;
+  explicit CoxRegression(Args const&) {}
   explicit CoxRegression(Json const&) {}
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -734,7 +731,7 @@ class CoxRegression : public FitIntercept {
 XGBOOST_REGISTER_OBJECTIVE(CoxRegression, "survival:cox")
     .describe(
         "Cox regression for censored survival data (negative labels are considered censored).")
-    .set_body([](Args const&) { return new CoxRegression(); })
+    .set_body([](Args const& args) { return new CoxRegression{args}; })
     .set_body_json([](Json const& config) { return new CoxRegression{config}; });
 
 // declare parameter
@@ -765,7 +762,6 @@ class TweedieRegression : public FitInterceptGlmLike {
     os << "tweedie-nloglik@" << param_.tweedie_variance_power;
     metric_ = os.str();
   }
-  TweedieRegression() = default;
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -837,7 +833,7 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 
 class MeanAbsoluteError : public ObjFunction {
  public:
-  MeanAbsoluteError() = default;
+  explicit MeanAbsoluteError(Args const&) {}
   explicit MeanAbsoluteError(Json const& in) {
     CHECK_EQ(StringView{get<String const>(in["name"])}, StringView{"reg:absoluteerror"});
   }
@@ -927,6 +923,6 @@ class MeanAbsoluteError : public ObjFunction {
 
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
     .describe("Mean absolute error.")
-    .set_body([](Args const&) { return new MeanAbsoluteError(); })
+    .set_body([](Args const& args) { return new MeanAbsoluteError{args}; })
     .set_body_json([](Json const& config) { return new MeanAbsoluteError{config}; });
 }  // namespace xgboost::obj

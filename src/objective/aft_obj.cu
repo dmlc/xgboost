@@ -33,7 +33,6 @@ class AFTObj : public ObjFunction {
  public:
   explicit AFTObj(Args const& args) { param_.UpdateAllowUnknown(args); }
   explicit AFTObj(Json const& in) { FromJson(in["aft_loss_param"], &param_); }
-  AFTObj() = default;
 
   ObjInfo Task() const override { return ObjInfo::kSurvival; }
 

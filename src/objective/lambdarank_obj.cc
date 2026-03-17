@@ -262,7 +262,6 @@ class LambdaRankObj : public FitIntercept {
       linalg::LoadVector(in["tj-"], &tj_minus_);
     }
   }
-  LambdaRankObj() = default;
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Loss::Name());

@@ -34,7 +34,6 @@ class MyLogistic : public ObjFunction {
  public:
   explicit MyLogistic(Args const& args) { param_.UpdateAllowUnknown(args); }
   explicit MyLogistic(Json const& in) { FromJson(in["my_logistic_param"], &param_); }
-  MyLogistic() = default;
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
