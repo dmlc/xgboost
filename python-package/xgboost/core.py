@@ -3184,13 +3184,14 @@ class Booster:
                     str_i = str(i)
                     y_directs.append(str_i + "-" + stats[1])
                     n_directs.append(str_i + "-" + stats[3])
-                    # Indicator nodes have no missing direction.
+                    # Indicator nodes have no explicit missing= field;
+                    # the default (missing) child is the "no" direction.
                     if len(stats) > 5 and stats[4] == "missing":
                         missings.append(str_i + "-" + stats[5])
                         gains.append(float(stats[7]))
                         covers.append(float(stats[9]))
                     else:
-                        missings.append(float("NAN"))
+                        missings.append(str_i + "-" + stats[3])
                         gains.append(float(stats[5]))
                         covers.append(float(stats[7]))
 

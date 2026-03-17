@@ -83,10 +83,11 @@ class TestTreesToDataFrame:
         assert "Cover" in df.columns
         assert len(df) > 0
 
-        # Indicator nodes should have NaN splits and NaN missing
+        # Indicator nodes should have NaN splits; missing defaults to no-direction
         non_leaf = df[df.Feature != "Leaf"]
+        assert len(non_leaf) > 0
         assert non_leaf["Split"].isna().all()
-        assert non_leaf["Missing"].isna().all()
+        assert (non_leaf["Missing"] == non_leaf["No"]).all()
 
     def test_split_value_histograms(self):
         run_split_value_histograms("approx", "cpu")
