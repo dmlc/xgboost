@@ -336,7 +336,6 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
     CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
     out = out.subspan(0, n_uniques);
     this->Merge(ctx, cuts_ptr, out);
-    this->FixError();
   } else {
     this->Current().resize(n_uniques);
     this->columns_ptr_.SetDevice(ctx->Device());
@@ -431,7 +430,16 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
   this->columns_ptr_.Copy(selected_columns_ptr);
   this->Alternate();
   this->Current().resize(n_selected);
-  this->Unique(ctx);
+  auto d_column_scan = this->columns_ptr_.DeviceSpan();
+  HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
+  scan_out.SetDevice(ctx->Device());
+  auto n_uniques = dh::SegmentedUnique(ctx->CUDACtx()->CTP(), d_column_scan.data(),
+                                       d_column_scan.data() + d_column_scan.size(), out.data(),
+                                       out.data() + n_selected, scan_out.DevicePointer(),
+                                       out.data(), detail::SketchUnique{});
+  this->columns_ptr_.Copy(scan_out);
+  CHECK(!this->columns_ptr_.HostCanRead());
+  this->Current().resize(n_uniques);
   timer_.Stop(__func__);
 }
 
@@ -477,11 +485,23 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
   this->Alternate();
 
   if (this->HasCategorical()) {
+    // Numerical summaries are normalized during prune.  Categorical features can still
+    // produce repeated category values, so compact those here before exposing the sketch.
     auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
-    this->Unique(ctx, [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
-      return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
-    });
+    auto d_column_scan = this->columns_ptr_.DeviceSpan();
+    auto entries = dh::ToSpan(this->Current());
+    HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
+    scan_out.SetDevice(ctx->Device());
+    auto n_uniques = dh::SegmentedUnique(
+        ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
+        entries.data(), entries.data() + entries.size(), scan_out.DevicePointer(), entries.data(),
+        detail::SketchUnique{}, [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
+          return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
+        });
+    this->columns_ptr_.Copy(scan_out);
+    this->Current().resize(n_uniques);
   }
+  this->FixError();
   timer_.Stop(__func__);
 }
 
@@ -577,7 +597,6 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
     auto worker_ptr =
         dh::ToSpan(gathered_ptrs).subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
     new_sketch.Merge(ctx, worker_ptr, worker);
-    new_sketch.FixError();
   }
 
   *this = std::move(new_sketch);
@@ -607,7 +626,6 @@ HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split
   timer_.Start(__func__);
   // Prune to final number of bins.
   this->Prune(ctx, num_bins_ + 1);
-  this->FixError();
 
   // Set up inputs
   auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
