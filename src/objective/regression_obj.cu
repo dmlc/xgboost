@@ -400,6 +400,12 @@ class ExpectileRegression : public FitIntercept {
   common::ExpectileLossParam param_;
   HostDeviceVector<float> alpha_;
 
+  void UpdateConfig(Args const& args) {
+    param_.UpdateAllowUnknown(args);
+    param_.Validate();
+    alpha_.HostVector() = param_.expectile_alpha.Get();
+  }
+
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     auto const& alpha = param_.expectile_alpha.Get();
     CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
@@ -415,16 +421,12 @@ class ExpectileRegression : public FitIntercept {
  public:
   explicit ExpectileRegression(Args const& args) {
     if (!args.empty()) {
-      this->Configure(args);
+      this->UpdateConfig(args);
     }
   }
   ExpectileRegression() = default;
 
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
-    param_.Validate();
-    alpha_.HostVector() = param_.expectile_alpha.Get();
-  }
+  void Configure(Args const& args) override { this->UpdateConfig(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -749,21 +751,19 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
 
 // tweedie regression
 class TweedieRegression : public FitInterceptGlmLike {
- public:
-  explicit TweedieRegression(Args const& args) {
-    if (!args.empty()) {
-      this->Configure(args);
-    }
-  }
-  TweedieRegression() = default;
-
-  // declare functions
-  void Configure(Args const& args) override {
+  void UpdateConfig(Args const& args) {
     param_.UpdateAllowUnknown(args);
     std::ostringstream os;
     os << "tweedie-nloglik@" << param_.tweedie_variance_power;
     metric_ = os.str();
   }
+
+ public:
+  explicit TweedieRegression(Args const& args) { this->UpdateConfig(args); }
+  TweedieRegression() = default;
+
+  // declare functions
+  void Configure(Args const& args) override { this->UpdateConfig(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -930,6 +930,6 @@ class MeanAbsoluteError : public ObjFunction {
 };
 
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
-    .describe("Mean absoluate error.")
+    .describe("Mean absolute error.")
     .set_body([](Args const&) { return new MeanAbsoluteError(); });
 }  // namespace xgboost::obj

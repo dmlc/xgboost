@@ -29,6 +29,12 @@ class QuantileRegression : public ObjFunction {
   common::QuantileLossParam param_;
   HostDeviceVector<float> alpha_;
 
+  void UpdateConfig(Args const& args) {
+    param_.UpdateAllowUnknown(args);
+    param_.Validate();
+    alpha_.HostVector() = param_.quantile_alpha.Get();
+  }
+
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     auto const& alpha = param_.quantile_alpha.Get();
     CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
@@ -47,7 +53,7 @@ class QuantileRegression : public ObjFunction {
  public:
   explicit QuantileRegression(Args const& args) {
     if (!args.empty()) {
-      this->Configure(args);
+      this->UpdateConfig(args);
     }
   }
   QuantileRegression() = default;
@@ -183,11 +189,7 @@ class QuantileRegression : public ObjFunction {
     }
   }
 
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
-    param_.Validate();
-    this->alpha_.HostVector() = param_.quantile_alpha.Get();
-  }
+  void Configure(Args const& args) override { this->UpdateConfig(args); }
   [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, true, true}; }
   static char const* Name() { return "reg:quantileerror"; }
 

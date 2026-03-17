@@ -32,6 +32,9 @@ DMLC_REGISTER_PARAMETER(MyLogisticParam);
 // Implement the interface.
 class MyLogistic : public ObjFunction {
  public:
+  explicit MyLogistic(Args const& args) { param_.UpdateAllowUnknown(args); }
+  MyLogistic() = default;
+
   void Configure(const Args& args) override { param_.UpdateAllowUnknown(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
@@ -87,6 +90,6 @@ class MyLogistic : public ObjFunction {
 // After it succeeds you can try use xgboost with objective=mylogistic
 XGBOOST_REGISTER_OBJECTIVE(MyLogistic, "mylogistic")
     .describe("User defined logistic regression plugin")
-    .set_body([](Args const&) { return new MyLogistic(); });
+    .set_body([](Args const& args) { return new MyLogistic{args}; });
 
 }  // namespace xgboost::obj
