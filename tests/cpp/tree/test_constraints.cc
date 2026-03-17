@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>

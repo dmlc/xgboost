@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2024 by Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  * \file hist_updater.cc
  */
 

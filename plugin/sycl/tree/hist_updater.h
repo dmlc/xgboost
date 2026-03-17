@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  * \file hist_updater.h
  */
 #ifndef PLUGIN_SYCL_TREE_HIST_UPDATER_H_
