@@ -758,7 +758,8 @@ std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
 class GPUHistMaker : public TreeUpdater {
  public:
   explicit GPUHistMaker(Context const* ctx, ObjInfo const* task)
-      : TreeUpdater(ctx), task_{task},
+      : TreeUpdater(ctx),
+        task_{task},
         column_sampler_{std::make_shared<common::ColumnSampler>()} {};
   void Configure(const Args& args) override {
     // Used in test to count how many configurations are performed
@@ -892,7 +893,8 @@ XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
 class GPUGlobalApproxMaker : public TreeUpdater {
  public:
   explicit GPUGlobalApproxMaker(Context const* ctx, ObjInfo const* task)
-      : TreeUpdater(ctx), task_{task},
+      : TreeUpdater(ctx),
+        task_{task},
         column_sampler_{std::make_shared<common::ColumnSampler>()} {};
   void Configure(Args const& args) override {
     // Used in test to count how many configurations are performed

@@ -16,8 +16,8 @@
 #include <numeric>
 #include <vector>
 
-#include "algorithm.h"                // ArgSort
-#include "xgboost/context.h"          // Context
+#include "algorithm.h"        // ArgSort
+#include "xgboost/context.h"  // Context
 #include "xgboost/host_device_vector.h"
 
 namespace xgboost::common {

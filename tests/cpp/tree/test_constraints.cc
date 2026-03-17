@@ -24,8 +24,9 @@ TEST(CPUFeatureInteractionConstraint, Empty) {
   // no-op
   constraints.Split(/*node_id=*/0, /*feature_id=*/2, /*left_id=*/1, /*right_id=*/2);
 
-  std::vector<bst_feature_t> h_input_feature_list {0, 1, 2, 3, 4, 5};
-  common::Span<bst_feature_t> s_input_feature_list = common::Span<bst_feature_t>{h_input_feature_list};
+  std::vector<bst_feature_t> h_input_feature_list{0, 1, 2, 3, 4, 5};
+  common::Span<bst_feature_t> s_input_feature_list =
+      common::Span<bst_feature_t>{h_input_feature_list};
 
   for (auto f : h_input_feature_list) {
     constraints.Query(f, 1);
@@ -39,7 +40,7 @@ TEST(CPUFeatureInteractionConstraint, Basic) {
   std::string const constraints_str = R"constraint([[1, 2], [2, 3, 4]])constraint";
 
   std::vector<std::pair<std::string, std::string>> args{
-    {"interaction_constraints", constraints_str}};
+      {"interaction_constraints", constraints_str}};
   TrainParam param;
   param.interaction_constraints = constraints_str;
   bst_feature_t constexpr kFeatures = 6;

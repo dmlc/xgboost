@@ -1,10 +1,9 @@
 /**
  * Copyright 2018-2026, XGBoost Contributors
  */
-#include "../../../src/common/random.h"
-
 #include "../../../src/collective/broadcast.h"  // for Broadcast
-#include "../collective/test_worker.h"          // for TestDistributedGlobal
+#include "../../../src/common/random.h"
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "gtest/gtest.h"
 #include "xgboost/context.h"  // for Context
@@ -95,7 +94,9 @@ TEST(ColumnSampler, ThreadSynchronisation) {
       for (auto level = 0ull; level < levels; level++) {
         auto result = cs.GetFeatureSet(level)->ConstHostVector();
 #pragma omp single
-        { reference_result = result; }
+        {
+          reference_result = result;
+        }
         if (result != reference_result) {
           success = false;
         }
