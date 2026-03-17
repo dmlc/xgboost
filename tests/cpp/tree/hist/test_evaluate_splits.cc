@@ -96,7 +96,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
   Context ctx;
   ctx.nthread = 4;
   static constexpr bst_idx_t kRows = 8, kCols = 16;
-  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+  auto sampler = std::make_shared<common::ColumnSampler>();
 
   TrainParam param;
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}});
@@ -170,7 +170,7 @@ TEST(HistMultiEvaluator, Evaluate) {
 
   TrainParam param;
   param.Init(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}});
-  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+  auto sampler = std::make_shared<common::ColumnSampler>();
 
   std::size_t n_samples = 3;
   bst_feature_t n_features = 2;
@@ -227,7 +227,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   ASSERT_EQ(entries.front().split.split_value, 0.5);
   ASSERT_EQ(entries.front().split.SplitIndex(), 0);
 
-  ASSERT_EQ(sampler->GetFeatureSet(0)->Size(), n_features);
+  ASSERT_EQ(sampler->GetFeatureSet(&ctx, 0)->Size(), n_features);
 }
 
 TEST(HistEvaluator, Apply) {
@@ -238,7 +238,7 @@ TEST(HistEvaluator, Apply) {
   TrainParam param;
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Seed(3).GenerateDMatrix();
-  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+  auto sampler = std::make_shared<common::ColumnSampler>();
   auto evaluator_ = HistEvaluator{&ctx, &param, dmat->Info(), sampler};
 
   CPUExpandEntry entry{0, 0};
@@ -266,7 +266,7 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   Context ctx;
   // check the evaluator is returning the optimal split
   std::vector<FeatureType> ft{FeatureType::kCategorical};
-  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+  auto sampler = std::make_shared<common::ColumnSampler>();
   HistEvaluator evaluator{&ctx, &param_, info_, sampler};
   evaluator.InitRoot(GradStats{total_gpair_});
   RegTree tree;
@@ -296,7 +296,7 @@ auto CompareOneHotAndPartition(bool onehot) {
   auto dmat =
       RandomDataGenerator(kRows, kCols, 0).Seed(3).Type(ft).MaxCategory(n_cats).GenerateDMatrix();
 
-  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+  auto sampler = std::make_shared<common::ColumnSampler>();
   auto evaluator = HistEvaluator{&ctx, &param, dmat->Info(), sampler};
   std::vector<CPUExpandEntry> entries(1);
   HistMakerTrainParam hist_param;
@@ -344,7 +344,7 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
   ASSERT_EQ(node_hist.size(), feature_histogram_.size());
   std::copy(feature_histogram_.cbegin(), feature_histogram_.cend(), node_hist.begin());
 
-  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+  auto sampler = std::make_shared<common::ColumnSampler>();
   MetaInfo info;
   info.num_col_ = 1;
   info.feature_types = {FeatureType::kCategorical};
@@ -368,7 +368,7 @@ TEST(HistMultiEvaluator, CategoricalOneHot) {
 
   TrainParam param;
   param.Init(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}, {"max_cat_to_onehot", "100"}});
-  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+  auto sampler = std::make_shared<common::ColumnSampler>();
 
   bst_feature_t n_features = 1;
   bst_target_t n_targets = 2;

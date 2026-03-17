@@ -3,13 +3,63 @@
  */
 #pragma once
 #include <condition_variable>
+#include <cstddef>
+#include <cstring>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "../data/array_interface.h"
 #include "comm.h"
 
 namespace xgboost::collective {
+class AlignedByteBuffer {
+  using StorageT = std::max_align_t;
+
+ public:
+  [[nodiscard]] bool Empty() const { return size_ == 0; }
+  [[nodiscard]] std::size_t Size() const { return size_; }
+
+  [[nodiscard]] char* Data() { return reinterpret_cast<char*>(storage_.data()); }
+  [[nodiscard]] char const* Data() const { return reinterpret_cast<char const*>(storage_.data()); }
+
+  void Clear() {
+    storage_.clear();
+    size_ = 0;
+  }
+
+  void Resize(std::size_t n_bytes) {
+    storage_.resize((n_bytes + sizeof(StorageT) - 1) / sizeof(StorageT));
+    size_ = n_bytes;
+  }
+
+  void Assign(char const* input, std::size_t n_bytes) {
+    this->Resize(n_bytes);
+    if (n_bytes != 0) {
+      std::memcpy(this->Data(), input, n_bytes);
+    }
+  }
+
+  void Replace(std::size_t pos, std::size_t n_bytes, char const* input) {
+    CHECK_LE(pos + n_bytes, size_);
+    if (n_bytes != 0) {
+      std::memcpy(this->Data() + pos, input, n_bytes);
+    }
+  }
+
+  void Append(std::string_view data) {
+    auto old_size = size_;
+    this->Resize(size_ + data.size());
+    if (!data.empty()) {
+      std::memcpy(this->Data() + old_size, data.data(), data.size());
+    }
+  }
+
+ private:
+  std::vector<StorageT> storage_{};
+  std::size_t size_{0};
+};
+
 /**
  * @brief Handles collective communication primitives in memory.
  *
@@ -116,10 +166,10 @@ class InMemoryHandler {
   void Handle(char const* input, std::size_t size, std::string* output, std::size_t sequence_number,
               std::int32_t rank, HandlerFunctor const& functor);
 
-  std::int32_t world_size_{};  /// Number of workers.
+  std::int32_t world_size_{};   /// Number of workers.
   std::int64_t received_{};     /// Number of calls received with the current sequence.
-  std::int64_t sent_{};        /// Number of calls completed with the current sequence.
-  std::string buffer_{};      /// A shared common buffer.
+  std::int64_t sent_{};         /// Number of calls completed with the current sequence.
+  AlignedByteBuffer buffer_{};  /// A shared common buffer.
   std::map<std::size_t, std::string_view> aux_{};  /// A shared auxiliary map.
   uint64_t sequence_number_{};                     /// Call sequence number.
   mutable std::mutex mutex_;                       /// Lock.

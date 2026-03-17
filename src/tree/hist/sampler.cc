@@ -11,7 +11,6 @@
 #include <vector>   // for vector
 
 #include "../../common/algorithm.h"  // for Sort
-#include "../../common/random.h"     // for RandomEngine
 #include "xgboost/base.h"            // for GradientPair, GradientPairPrecise
 #include "xgboost/linalg.h"          // for MatrixView
 #include "xgboost/span.h"            // for Span

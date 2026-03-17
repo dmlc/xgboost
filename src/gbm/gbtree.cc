@@ -395,13 +395,19 @@ void GBTree::CommitModel(TreesOneIter&& new_trees) {
 }
 
 void GBTree::LoadConfig(Json const& in) {
-  CHECK_EQ(get<String>(in["name"]), "gbtree");
-  FromJson(in["gbtree_train_param"], &tparam_);
-  FromJson(in["tree_train_param"], &tree_param_);
-  auto const& obj = get<Object const>(in);
+  auto name = get<String const>(in["name"]);
+  CHECK(name == "gbtree" || name == "dart")
+      << "Unknown booster name in model JSON: `" << name
+      << "`. Only `gbtree` or legacy `dart` boosters are accepted here.";
+  auto const& config = name == "dart" ? in["gbtree"] : in;
+  FromJson(config["gbtree_train_param"], &tparam_);
+  FromJson(config["tree_train_param"], &tree_param_);
+  auto const& obj = get<Object const>(config);
   auto it = obj.find("dart_train_param");
   if (it != obj.cend()) {
     FromJson(it->second, &dparam_);
+  } else if (name == "dart") {
+    FromJson(in["dart_train_param"], &dparam_);
   } else {
     dparam_ = {};
   }
@@ -413,10 +419,10 @@ void GBTree::LoadConfig(Json const& in) {
   std::int32_t const n_gpus = curt::AllVisibleGPUs();
 
   std::vector<Json> updater_seq;
-  if (IsA<Object>(in["updater"])) {
+  if (IsA<Object>(config["updater"])) {
     // before 2.0
     error::WarnOldSerialization();
-    for (auto const& kv : get<Object const>(in["updater"])) {
+    for (auto const& kv : get<Object const>(config["updater"])) {
       auto name = kv.first;
       auto config = kv.second;
       config["name"] = name;
@@ -424,7 +430,7 @@ void GBTree::LoadConfig(Json const& in) {
     }
   } else {
     // after 2.0
-    auto const& j_updaters = get<Array const>(in["updater"]);
+    auto const& j_updaters = get<Array const>(config["updater"]);
     updater_seq = j_updaters;
   }
 
@@ -440,7 +446,7 @@ void GBTree::LoadConfig(Json const& in) {
     updaters_.back()->LoadConfig(config);
   }
 
-  specified_updater_ = get<Boolean>(in["specified_updater"]);
+  specified_updater_ = get<Boolean>(config["specified_updater"]);
 }
 
 void GBTree::SaveConfig(Json* p_out) const {
@@ -448,11 +454,7 @@ void GBTree::SaveConfig(Json* p_out) const {
   out["name"] = String("gbtree");
   out["gbtree_train_param"] = ToJson(tparam_);
   out["tree_train_param"] = ToJson(tree_param_);
-  if (!weight_drop_.empty() || dparam_.sample_type != DartSampleType::kUniform ||
-      dparam_.normalize_type != 0 || dparam_.rate_drop != 0.0f || dparam_.one_drop ||
-      dparam_.skip_drop != 0.0f) {
-    out["dart_train_param"] = ToJson(dparam_);
-  }
+  out["dart_train_param"] = ToJson(dparam_);
 
   // Process type cannot be kUpdate from loaded model
   // This would cause all trees to be pushed to trees_to_update
@@ -477,9 +479,11 @@ void GBTree::SaveConfig(Json* p_out) const {
 }
 
 void GBTree::LoadModel(Json const& in) {
-  CHECK_EQ(get<String>(in["name"]), "gbtree");
-  model_.LoadModel(in["model"]);
-  auto const& obj = get<Object const>(in);
+  auto name = get<String const>(in["name"]);
+  CHECK(name == "gbtree" || name == "dart");
+  auto const& model = name == "dart" ? in["gbtree"] : in;
+  model_.LoadModel(model["model"]);
+  auto const& obj = get<Object const>(name == "dart" ? in : model);
   auto it = obj.find("weight_drop");
   if (it != obj.cend()) {
     auto const& j_weight_drop = get<Array const>(it->second);
@@ -834,60 +838,6 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
   return cpu_predictor_;
 }
 
-class Dart : public GBTree {
- public:
-  explicit Dart(LearnerModelParam const* booster_config, Context const* ctx)
-      : GBTree(booster_config, ctx) {}
-
-  void SaveModel(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String("dart");
-    out["gbtree"] = Object();
-    GBTree::SaveModel(&(out["gbtree"]));
-    get<Object>(out["gbtree"]).erase("weight_drop");
-
-    std::vector<Json> j_weight_drop(weight_drop_.size());
-    for (size_t i = 0; i < weight_drop_.size(); ++i) {
-      j_weight_drop[i] = Number(weight_drop_[i]);
-    }
-    out["weight_drop"] = Array(std::move(j_weight_drop));
-  }
-  void LoadModel(Json const& in) override {
-    CHECK_EQ(get<String>(in["name"]), "dart");
-    auto const& gbtree = in["gbtree"];
-    GBTree::LoadModel(gbtree);
-
-    auto const& j_weight_drop = get<Array>(in["weight_drop"]);
-    weight_drop_.resize(j_weight_drop.size());
-    for (size_t i = 0; i < weight_drop_.size(); ++i) {
-      weight_drop_[i] = get<Number const>(j_weight_drop[i]);
-    }
-  }
-
-  void LoadConfig(Json const& in) override {
-    CHECK_EQ(get<String>(in["name"]), "dart");
-    auto const& gbtree = in["gbtree"];
-    GBTree::LoadConfig(gbtree);
-    FromJson(in["dart_train_param"], &dparam_);
-  }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String("dart");
-    out["gbtree"] = Object();
-    auto& gbtree = out["gbtree"];
-    GBTree::SaveConfig(&gbtree);
-    get<Object>(gbtree).erase("dart_train_param");
-    out["dart_train_param"] = ToJson(dparam_);
-  }
-
-  void CommitModel(TreesOneIter&& new_trees) override {
-    GBTree::CommitModel(std::move(new_trees));
-    if (weight_drop_.empty() && !model_.trees.empty()) {
-      weight_drop_.resize(model_.trees.size(), 1.0f);
-    }
-  }
-};
-
 // register the objective functions
 DMLC_REGISTER_PARAMETER(GBTreeModelParam);
 DMLC_REGISTER_PARAMETER(GBTreeTrainParam);
@@ -897,12 +847,6 @@ XGBOOST_REGISTER_GBM(GBTree, "gbtree")
     .describe("Tree booster, gradient boosted trees.")
     .set_body([](LearnerModelParam const* booster_config, Context const* ctx) {
       auto* p = new GBTree{booster_config, ctx};
-      return p;
-    });
-XGBOOST_REGISTER_GBM(Dart, "dart")
-    .describe("Tree booster, dart.")
-    .set_body([](LearnerModelParam const* booster_config, Context const* ctx) {
-      GBTree* p = new Dart(booster_config, ctx);
       return p;
     });
 }  // namespace xgboost::gbm
