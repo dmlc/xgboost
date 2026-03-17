@@ -136,15 +136,14 @@ class ObjFunction : public Configurable {
    * @param name Name of the objective.
    * @param ctx  Pointer to the context.
    */
-  static ObjFunction* Create(const std::string& name, Context const* ctx);
+  static ObjFunction* Create(const std::string& name, Context const* ctx, Args const& args = {});
 };
 
 /*!
  * \brief Registry entry for objective factory functions.
  */
 struct ObjFunctionReg
-    : public dmlc::FunctionRegEntryBase<ObjFunctionReg,
-                                        std::function<ObjFunction* ()> > {
+    : public dmlc::FunctionRegEntryBase<ObjFunctionReg, std::function<ObjFunction*(Args const&)> > {
 };
 
 /*!
@@ -154,14 +153,14 @@ struct ObjFunctionReg
  * // example of registering a objective
  * XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:squarederror")
  * .describe("Linear regression objective")
- * .set_body([]() {
+ * .set_body([](Args const&) {
  *     return new RegLossObj(LossType::kLinearSquare);
  *   });
  * \endcode
  */
-#define XGBOOST_REGISTER_OBJECTIVE(UniqueId, Name)                      \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::ObjFunctionReg &              \
-  __make_ ## ObjFunctionReg ## _ ## UniqueId ## __ =                    \
-      ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_OBJECTIVE(UniqueId, Name)        \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::ObjFunctionReg& \
+      __make_##ObjFunctionReg##_##UniqueId##__ =          \
+          ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost
 #endif  // XGBOOST_OBJECTIVE_H_

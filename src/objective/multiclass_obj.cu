@@ -69,6 +69,11 @@ void ValidateLabel(Context const* ctx, MetaInfo const& info, std::int64_t n_clas
 class SoftmaxMultiClassObj : public ObjFunction {
  public:
   explicit SoftmaxMultiClassObj(bool output_prob) : output_prob_(output_prob) {}
+  SoftmaxMultiClassObj(bool output_prob, Args const& args) : output_prob_(output_prob) {
+    if (!args.empty()) {
+      param_.UpdateAllowUnknown(args);
+    }
+  }
 
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
 
@@ -233,9 +238,9 @@ DMLC_REGISTER_PARAMETER(SoftmaxMultiClassParam);
 
 XGBOOST_REGISTER_OBJECTIVE(SoftmaxMultiClass, "multi:softmax")
     .describe("Softmax for multi-class classification, output class index.")
-    .set_body([]() { return new SoftmaxMultiClassObj(false); });
+    .set_body([](Args const& args) { return new SoftmaxMultiClassObj(false, args); });
 
 XGBOOST_REGISTER_OBJECTIVE(SoftprobMultiClass, "multi:softprob")
     .describe("Softmax for multi-class classification, output probability distribution.")
-    .set_body([]() { return new SoftmaxMultiClassObj(true); });
+    .set_body([](Args const& args) { return new SoftmaxMultiClassObj(true, args); });
 }  // namespace xgboost::obj

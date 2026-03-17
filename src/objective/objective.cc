@@ -16,18 +16,17 @@ DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
 
 namespace xgboost {
 // implement factory functions
-ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx) {
+ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx, Args const& args) {
   std::string obj_name = name;
-  auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(obj_name);
+  auto* e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(obj_name);
   if (e == nullptr) {
     std::stringstream ss;
     for (const auto& entry : ::dmlc::Registry< ::xgboost::ObjFunctionReg>::List()) {
       ss << "Objective candidate: " << entry->name << "\n";
     }
-    LOG(FATAL) << "Unknown objective function: `" << name << "`\n"
-               << ss.str();
+    LOG(FATAL) << "Unknown objective function: `" << name << "`\n" << ss.str();
   }
-  auto pobj = (e->body)();
+  auto pobj = (e->body)(args);
   pobj->ctx_ = ctx;
   return pobj;
 }

@@ -250,6 +250,9 @@ class LambdaRankObj : public FitIntercept {
   }
 
  public:
+  explicit LambdaRankObj(Args const& args) { param_.UpdateAllowUnknown(args); }
+  LambdaRankObj() = default;
+
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
@@ -327,6 +330,8 @@ class LambdaRankObj : public FitIntercept {
 
 class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
  public:
+  using LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache>::LambdaRankObj;
+
   template <bool unbiased, bool exp_gain>
   void CalcLambdaForGroupNDCG(std::int32_t iter, common::Span<float const> g_predt,
                               linalg::VectorView<float const> g_label, float w,
@@ -474,6 +479,8 @@ void MAPStat(Context const* ctx, linalg::VectorView<float const> label,
 
 class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
  public:
+  using LambdaRankObj<LambdaRankMAP, ltr::MAPCache>::LambdaRankObj;
+
   void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     if (ctx_->IsCUDA()) {
@@ -574,6 +581,8 @@ void LambdaRankGetGradientMAP(Context const*, std::int32_t, HostDeviceVector<flo
  */
 class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::RankingCache> {
  public:
+  using LambdaRankObj<LambdaRankPairwise, ltr::RankingCache>::LambdaRankObj;
+
   void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
                        const MetaInfo& info, linalg::Matrix<GradientPair>* out_gpair) {
     if (ctx_->IsCUDA()) {
@@ -657,15 +666,15 @@ void LambdaRankGetGradientPairwise(Context const*, std::int32_t, HostDeviceVecto
 
 XGBOOST_REGISTER_OBJECTIVE(LambdaRankNDCG, LambdaRankNDCG::Name())
     .describe("LambdaRank with NDCG loss as objective")
-    .set_body([]() { return new LambdaRankNDCG{}; });
+    .set_body([](Args const& args) { return new LambdaRankNDCG{args}; });
 
 XGBOOST_REGISTER_OBJECTIVE(LambdaRankPairwise, LambdaRankPairwise::Name())
     .describe("LambdaRank with RankNet loss as objective")
-    .set_body([]() { return new LambdaRankPairwise{}; });
+    .set_body([](Args const& args) { return new LambdaRankPairwise{args}; });
 
 XGBOOST_REGISTER_OBJECTIVE(LambdaRankMAP, LambdaRankMAP::Name())
     .describe("LambdaRank with MAP loss as objective.")
-    .set_body([]() { return new LambdaRankMAP{}; });
+    .set_body([](Args const& args) { return new LambdaRankMAP{args}; });
 
 DMLC_REGISTRY_FILE_TAG(lambdarank_obj);
 }  // namespace xgboost::obj

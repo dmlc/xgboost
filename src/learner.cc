@@ -847,17 +847,17 @@ class LearnerConfiguration : public Intercept {
       // Rename one of them once binary IO is gone.
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
-    if (obj_ == nullptr || tparam_.objective != old.objective) {
-      obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
-    }
-
     bool has_nc{cfg_.find("num_class") != cfg_.cend()};
     // Inject num_class into configuration.
     // FIXME(jiamingy): Remove the duplicated parameter in softmax
     cfg_["num_class"] = std::to_string(mparam_.num_class);
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    obj_->Configure(args);
+    if (obj_ == nullptr || tparam_.objective != old.objective) {
+      obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_, args));
+    } else {
+      obj_->Configure(args);
+    }
     if (!has_nc) {
       cfg_.erase("num_class");
     }

@@ -131,6 +131,7 @@ class RegLossObj : public FitInterceptGlmLike {
  public:
   // 0 - scale_pos_weight, 1 - is_null_weight
   RegLossObj() : additional_input_(2) {}
+  explicit RegLossObj(Args const& args) : additional_input_(2) { param_.UpdateAllowUnknown(args); }
 
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
 
@@ -247,32 +248,32 @@ DMLC_REGISTER_PARAMETER(RegLossParam);
 
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression, LinearSquareLoss::Name())
     .describe("Regression with squared error.")
-    .set_body([]() { return new RegLossObj<LinearSquareLoss>(); });
+    .set_body([](Args const& args) { return new RegLossObj<LinearSquareLoss>{args}; });
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, LogisticRegression::Name())
     .describe("Logistic regression for probability regression task.")
-    .set_body([]() { return new RegLossObj<LogisticRegression>(); });
+    .set_body([](Args const& args) { return new RegLossObj<LogisticRegression>{args}; });
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticClassification, LogisticClassification::Name())
     .describe("Logistic regression for binary classification task.")
-    .set_body([]() { return new RegLossObj<LogisticClassification>(); });
+    .set_body([](Args const& args) { return new RegLossObj<LogisticClassification>{args}; });
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, LogisticRaw::Name())
     .describe(
         "Logistic regression for classification, output score "
         "before logistic transformation.")
-    .set_body([]() { return new RegLossObj<LogisticRaw>(); });
+    .set_body([](Args const& args) { return new RegLossObj<LogisticRaw>{args}; });
 
 XGBOOST_REGISTER_OBJECTIVE(GammaRegression, GammaDeviance::Name())
     .describe("Gamma regression using the gamma deviance loss with log link.")
-    .set_body([]() { return new RegLossObj<GammaDeviance>(); });
+    .set_body([](Args const& args) { return new RegLossObj<GammaDeviance>{args}; });
 
 // Deprecated functions
 XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
     .describe("Regression with squared error.")
-    .set_body([]() {
+    .set_body([](Args const& args) {
       LOG(WARNING) << "reg:linear is now deprecated in favor of reg:squarederror.";
-      return new RegLossObj<LinearSquareLoss>();
+      return new RegLossObj<LinearSquareLoss>{args};
     });
 // End deprecated
 
@@ -322,12 +323,15 @@ class SquaredLogErrorRegression : public FitIntercept {
 
 XGBOOST_REGISTER_OBJECTIVE(SquaredLogErrorRegression, SquaredLogErrorRegression::Name())
     .describe("Root mean squared log error.")
-    .set_body([]() { return new SquaredLogErrorRegression(); });
+    .set_body([](Args const&) { return new SquaredLogErrorRegression(); });
 
 class PseudoHuberRegression : public FitIntercept {
   PseudoHuberParam param_;
 
  public:
+  explicit PseudoHuberRegression(Args const& args) { param_.UpdateAllowUnknown(args); }
+  PseudoHuberRegression() = default;
+
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
@@ -390,7 +394,7 @@ class PseudoHuberRegression : public FitIntercept {
 
 XGBOOST_REGISTER_OBJECTIVE(PseudoHuberRegression, "reg:pseudohubererror")
     .describe("Regression Pseudo Huber error.")
-    .set_body([]() { return new PseudoHuberRegression(); });
+    .set_body([](Args const& args) { return new PseudoHuberRegression{args}; });
 
 class ExpectileRegression : public FitIntercept {
   common::ExpectileLossParam param_;
@@ -409,6 +413,13 @@ class ExpectileRegression : public FitIntercept {
   }
 
  public:
+  explicit ExpectileRegression(Args const& args) {
+    if (!args.empty()) {
+      this->Configure(args);
+    }
+  }
+  ExpectileRegression() = default;
+
   void Configure(Args const& args) override {
     param_.UpdateAllowUnknown(args);
     param_.Validate();
@@ -541,7 +552,7 @@ class ExpectileRegression : public FitIntercept {
 
 XGBOOST_REGISTER_OBJECTIVE(ExpectileRegression, "reg:expectileerror")
     .describe("Regression with expectile loss.")
-    .set_body([]() { return new ExpectileRegression(); });
+    .set_body([](Args const& args) { return new ExpectileRegression{args}; });
 
 // declare parameter
 struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {
@@ -559,6 +570,9 @@ struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> 
 // poisson regression for count
 class PoissonRegression : public FitInterceptGlmLike {
  public:
+  explicit PoissonRegression(Args const& args) { param_.UpdateAllowUnknown(args); }
+  PoissonRegression() = default;
+
   // declare functions
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
 
@@ -627,7 +641,7 @@ DMLC_REGISTER_PARAMETER(PoissonRegressionParam);
 
 XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
     .describe("Poisson regression for count data.")
-    .set_body([]() { return new PoissonRegression(); });
+    .set_body([](Args const& args) { return new PoissonRegression{args}; });
 
 // cox regression for survival data (negative values mean they are censored)
 class CoxRegression : public FitIntercept {
@@ -720,7 +734,7 @@ class CoxRegression : public FitIntercept {
 XGBOOST_REGISTER_OBJECTIVE(CoxRegression, "survival:cox")
     .describe(
         "Cox regression for censored survival data (negative labels are considered censored).")
-    .set_body([]() { return new CoxRegression(); });
+    .set_body([](Args const&) { return new CoxRegression(); });
 
 // declare parameter
 struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> {
@@ -736,6 +750,13 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
 // tweedie regression
 class TweedieRegression : public FitInterceptGlmLike {
  public:
+  explicit TweedieRegression(Args const& args) {
+    if (!args.empty()) {
+      this->Configure(args);
+    }
+  }
+  TweedieRegression() = default;
+
   // declare functions
   void Configure(Args const& args) override {
     param_.UpdateAllowUnknown(args);
@@ -798,7 +819,12 @@ class TweedieRegression : public FitInterceptGlmLike {
     out["name"] = String("reg:tweedie");
     out["tweedie_regression_param"] = ToJson(param_);
   }
-  void LoadConfig(Json const& in) override { FromJson(in["tweedie_regression_param"], &param_); }
+  void LoadConfig(Json const& in) override {
+    FromJson(in["tweedie_regression_param"], &param_);
+    std::ostringstream os;
+    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
+    metric_ = os.str();
+  }
 
  private:
   std::string metric_;
@@ -810,7 +836,7 @@ DMLC_REGISTER_PARAMETER(TweedieRegressionParam);
 
 XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
     .describe("Tweedie regression for insurance data.")
-    .set_body([]() { return new TweedieRegression(); });
+    .set_body([](Args const& args) { return new TweedieRegression{args}; });
 
 class MeanAbsoluteError : public ObjFunction {
  public:
@@ -905,5 +931,5 @@ class MeanAbsoluteError : public ObjFunction {
 
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
     .describe("Mean absoluate error.")
-    .set_body([]() { return new MeanAbsoluteError(); });
+    .set_body([](Args const&) { return new MeanAbsoluteError(); });
 }  // namespace xgboost::obj

@@ -99,6 +99,6 @@ class HingeObj : public FitIntercept {
 // register the objective functions
 XGBOOST_REGISTER_OBJECTIVE(HingeObj, "binary:hinge")
     .describe("Hinge loss. Expects labels to be in [0,1f]")
-    .set_body([]() { return new HingeObj(); });
+    .set_body([](Args const &) { return new HingeObj(); });
 
 }  // namespace xgboost::obj
