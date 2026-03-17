@@ -1,5 +1,5 @@
 /**
- *  Copyright 2014-2024, XGBoost Contributors
+ *  Copyright 2014-2026, XGBoost Contributors
  * \file sparse_page_source.h
  */
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
@@ -382,13 +382,13 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     monitor_.Init(typeid(S).name());  // not pretty, but works for basic profiling
   }
 
-  SparsePageSourceImpl(SparsePageSourceImpl const &that) = delete;
+  SparsePageSourceImpl(SparsePageSourceImpl const& that) = delete;
 
   ~SparsePageSourceImpl() override {
     // Don't orphan the threads.
     for (auto& fu : *ring_) {
       if (fu.valid()) {
-        fu.get();
+        [[maybe_unused]] auto _ = fu.get();
       }
     }
   }
