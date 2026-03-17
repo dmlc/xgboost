@@ -318,3 +318,11 @@ def test_parse_ver() -> None:
     assert post == "rc1"
     (major, minor, patch), post = _parse_version("2.1.0.post1")
     assert post == "post1"
+
+
+def test_import_under_python_OO() -> None:
+    """Regression test for https://github.com/dmlc/xgboost/issues/8537"""
+    import subprocess
+    import sys
+
+    subprocess.check_call([sys.executable, "-OO", "-c", "import xgboost"])
