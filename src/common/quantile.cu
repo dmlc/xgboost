@@ -63,8 +63,8 @@ template <typename EntryFromIndex>
 void SelectPruneIndices(common::Span<SketchContainer::OffsetT const> cuts_ptr,
                         Span<SketchContainer::OffsetT const> columns_ptr_in,
                         Span<FeatureType const> feature_types, Span<size_t> selected_idx,
-                        EntryFromIndex entry_from_index) {
-  dh::LaunchN(selected_idx.size(), [=] __device__(size_t idx) {
+                        EntryFromIndex entry_from_index, cudaStream_t stream) {
+  dh::LaunchN(selected_idx.size(), stream, [=] __device__(size_t idx) {
     size_t column_id = dh::SegmentId(cuts_ptr, idx);
     auto in_begin = columns_ptr_in[column_id];
     auto in_size = columns_ptr_in[column_id + 1] - columns_ptr_in[column_id];
@@ -99,8 +99,8 @@ void SelectPruneIndices(common::Span<SketchContainer::OffsetT const> cuts_ptr,
 
 template <typename EntryFromIndex>
 void GatherPruneEntries(Span<size_t const> selected_idx, Span<SketchEntry> out_cuts,
-                        EntryFromIndex entry_from_index) {
-  dh::LaunchN(selected_idx.size(),
+                        EntryFromIndex entry_from_index, cudaStream_t stream) {
+  dh::LaunchN(selected_idx.size(), stream,
               [=] __device__(size_t idx) { out_cuts[idx] = entry_from_index(selected_idx[idx]); });
 }
 
@@ -466,13 +466,16 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
   auto entry_from_index = [=] __device__(size_t abs_idx) {
     return in[abs_idx];
   };  // NOLINT
-  SelectPruneIndices(d_columns_ptr_out, d_columns_ptr_in, ft, d_selected_idx, entry_from_index);
+  auto stream = ctx->CUDACtx()->Stream();
+  SelectPruneIndices(d_columns_ptr_out, d_columns_ptr_in, ft, d_selected_idx, entry_from_index,
+                     stream);
   auto n_selected = dh::SegmentedUnique(
       ctx->CUDACtx()->CTP(), d_columns_ptr_out.data(),
       d_columns_ptr_out.data() + d_columns_ptr_out.size(), d_selected_idx.data(),
       d_selected_idx.data() + d_selected_idx.size(), selected_columns_ptr.DeviceSpan().data(),
       d_selected_idx.data(), thrust::equal_to<size_t>{});
-  GatherPruneEntries(Span<size_t const>{d_selected_idx.data(), n_selected}, out, entry_from_index);
+  GatherPruneEntries(Span<size_t const>{d_selected_idx.data(), n_selected}, out, entry_from_index,
+                     stream);
   this->columns_ptr_.Copy(selected_columns_ptr);
   this->Alternate();
   this->Current().resize(n_selected);
