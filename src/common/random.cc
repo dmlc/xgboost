@@ -61,7 +61,7 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
       weight[i] = h_feature_weight[h_features[i]];
     }
     new_features.HostVector() =
-        WeightedSamplingWithoutReplacement(ctx_, rng, p_features->HostVector(), weight, n);
+        WeightedSamplingWithoutReplacement(ctx_, &rng, p_features->HostVector(), weight, n);
   } else {
     new_features.Resize(features.size());
     std::copy(features.begin(), features.end(), new_features.HostVector().begin());

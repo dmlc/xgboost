@@ -29,9 +29,10 @@ namespace xgboost::common {
  * https://timvieira.github.io/blog/post/2019/09/16/algorithms-for-sampling-without-replacement/
 */
 template <typename T>
-std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, RandomEngine& rng,
+std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, RandomEngine* p_rng,
                                                   std::vector<T> const& array,
                                                   std::vector<float> const& weights, size_t n) {
+  auto& rng = *p_rng;
   // ES sampling.
   CHECK_EQ(array.size(), weights.size());
   std::vector<float> keys(weights.size());
