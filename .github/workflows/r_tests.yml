@@ -97,7 +97,7 @@ jobs:
         shell: bash -l {0}
         run: |
           python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --build-tool=autotools --task=check
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         # Run the document check if there are changes in the R package.
         id: changes
         with:
