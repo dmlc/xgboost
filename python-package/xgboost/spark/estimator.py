@@ -207,7 +207,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        launch_tracker_on_driver: bool = True,
+        launch_tracker_on_driver: Optional[bool] = None,
         coll_cfg: Optional[Config] = None,
         **kwargs: Any,
     ) -> None:
@@ -386,7 +386,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        launch_tracker_on_driver: bool = True,
+        launch_tracker_on_driver: Optional[bool] = None,
         coll_cfg: Optional[Config] = None,
         **kwargs: Any,
     ) -> None:
@@ -574,7 +574,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        launch_tracker_on_driver: bool = True,
+        launch_tracker_on_driver: Optional[bool] = None,
         coll_cfg: Optional[Config] = None,
         **kwargs: Any,
     ) -> None:

@@ -586,7 +586,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             feature_types=None,
             feature_weights=None,
             arbitrary_params_dict={},
-            launch_tracker_on_driver=False,
         )
 
         self.logger = get_logger(self.__class__.__name__)
@@ -971,7 +970,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         self, spark_session: SparkSession
     ) -> Tuple[bool, Dict[str, Any]]:
         """Start the tracker and return the tracker envs on the driver side"""
-        launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
+        if self.isSet(self.launch_tracker_on_driver):
+            launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
+        else:
+            launch_tracker_on_driver = not _is_connect(spark_session)
+
         rabit_args = {}
         if launch_tracker_on_driver:
             conf = Config()
