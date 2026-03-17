@@ -214,7 +214,7 @@ struct GPUHistMakerDevice {
   GPUExpandEntry EvaluateRootSplit(DMatrix const* p_fmat, GradientPairInt64 root_sum) {
     bst_node_t nidx = RegTree::kRoot;
     GPUTrainingParam gpu_param(param);
-    auto sampled_features = column_sampler_->GetFeatureSet(0);
+    auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
     sampled_features->SetDevice(ctx_->Device());
     common::Span<bst_feature_t const> feature_set =
         interaction_constraints.Query(sampled_features->ConstDeviceSpan(), nidx);
@@ -254,11 +254,11 @@ struct GPUHistMakerDevice {
       bst_node_t right_nidx = sc_tree.RightChild(candidate.nidx);
       nidx[i * 2] = left_nidx;
       nidx[i * 2 + 1] = right_nidx;
-      auto left_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(left_nidx));
+      auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(left_nidx));
       feature_sets.emplace_back(left_sampled_features);
       common::Span<bst_feature_t const> left_feature_set =
           interaction_constraints.Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
-      auto right_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(right_nidx));
+      auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(right_nidx));
       feature_sets.emplace_back(right_sampled_features);
       common::Span<bst_feature_t const> right_feature_set =
           interaction_constraints.Query(right_sampled_features->ConstDeviceSpan(), right_nidx);

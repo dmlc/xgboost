@@ -461,7 +461,7 @@ class ColMaker : public TreeUpdater {
                    std::vector<GradientPair> const &gpair, DMatrix *p_fmat, RegTree *p_tree) {
       auto evaluator = tree_evaluator_.GetEvaluator();
 
-      auto feat_set = column_sampler_->GetFeatureSet(depth);
+      auto feat_set = column_sampler_->GetFeatureSet(ctx_, depth);
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>(ctx_)) {
         this->UpdateSolution(batch, feat_set->HostVector(), gpair);
       }

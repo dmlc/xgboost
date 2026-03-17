@@ -67,9 +67,7 @@ void InitFeatureSet(Context const* ctx,
 }  // namespace cuda_impl
 
 /**
- * \class ColumnSampler
- *
- * \brief Handles selection of columns due to colsample_bytree, colsample_bylevel and
+ * @brief Handles selection of columns due to colsample_bytree, colsample_bylevel and
  * colsample_bynode parameters. Should be initialised before tree construction and to
  * reset when tree construction is completed.
  */
@@ -80,15 +78,16 @@ class ColumnSampler {
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
-  Context const* ctx_{nullptr};
 
   // Used for weighted sampling.
   HostDeviceVector<bst_feature_t> idx_buffer_;
   HostDeviceVector<float> weight_buffer_;
 
- public:
   std::shared_ptr<HostDeviceVector<bst_feature_t>> ColSample(
-      std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample);
+      Context const* ctx, std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features,
+      float colsample);
+
+ public:
   ColumnSampler() = default;
 
   /**
@@ -108,7 +107,6 @@ class ColumnSampler {
     colsample_bylevel_ = colsample_bylevel;
     colsample_bytree_ = colsample_bytree;
     colsample_bynode_ = colsample_bynode;
-    ctx_ = ctx;
 
     if (feature_set_tree_ == nullptr) {
       feature_set_tree_ = std::make_shared<HostDeviceVector<bst_feature_t>>();
@@ -130,11 +128,11 @@ class ColumnSampler {
       std::iota(feature_set_tree_->HostVector().begin(), feature_set_tree_->HostVector().end(), 0);
     }
 
-    feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
+    feature_set_tree_ = ColSample(ctx, feature_set_tree_, colsample_bytree_);
   }
 
   /**
-   * \brief Resets this object.
+   * @brief Resets this object.
    */
   void Reset() {
     feature_set_tree_->Resize(0);
@@ -142,34 +140,37 @@ class ColumnSampler {
   }
 
   /**
-   * \brief Samples a feature set.
+   * @brief Samples a feature set.
    *
-   * \param depth The tree depth of the node at which to sample.
-   * \return The sampled feature set.
-   * \note If colsample_bynode_ < 1.0, this method creates a new feature set each time it
+   * @param ctx  The runtime context.
+   * @param depth The tree depth of the node at which to sample.
+   * @return The sampled feature set.
+   *
+   * @note If colsample_bynode_ < 1.0, this method creates a new feature set each time it
    * is called. Therefore, it should be called only once per node.
-   * \note With distributed xgboost, this function must be called exactly once for the
+   *
+   * @note With distributed xgboost, this function must be called exactly once for the
    * construction of each tree node, and must be called the same number of times in each
    * process and with the same parameters to return the same feature set across processes.
    */
-  std::shared_ptr<HostDeviceVector<bst_feature_t>> GetFeatureSet(int depth) {
+  std::shared_ptr<HostDeviceVector<bst_feature_t>> GetFeatureSet(Context const* ctx, int depth) {
     if (colsample_bylevel_ == 1.0f && colsample_bynode_ == 1.0f) {
       return feature_set_tree_;
     }
 
     if (feature_set_level_.count(depth) == 0) {
       // Level sampling, level does not yet exist so generate it
-      feature_set_level_[depth] = ColSample(feature_set_tree_, colsample_bylevel_);
+      feature_set_level_[depth] = ColSample(ctx, feature_set_tree_, colsample_bylevel_);
     }
     if (colsample_bynode_ == 1.0f) {
       // Level sampling
       auto ptr = feature_set_level_[depth];
-      ptr->SetDevice(this->ctx_->Device());
+      ptr->SetDevice(ctx->Device());
       return ptr;
     }
     // Need to sample for the node individually
-    auto ptr = ColSample(feature_set_level_[depth], colsample_bynode_);
-    ptr->SetDevice(this->ctx_->Device());
+    auto ptr = ColSample(ctx, feature_set_level_[depth], colsample_bynode_);
+    ptr->SetDevice(ctx->Device());
     return ptr;
   }
 };

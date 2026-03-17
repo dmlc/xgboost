@@ -227,7 +227,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   ASSERT_EQ(entries.front().split.split_value, 0.5);
   ASSERT_EQ(entries.front().split.SplitIndex(), 0);
 
-  ASSERT_EQ(sampler->GetFeatureSet(0)->Size(), n_features);
+  ASSERT_EQ(sampler->GetFeatureSet(&ctx, 0)->Size(), n_features);
 }
 
 TEST(HistEvaluator, Apply) {

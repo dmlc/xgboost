@@ -15,41 +15,41 @@ void TestBasic(Context const* ctx) {
 
   // No node sampling
   cs.Init(ctx, n, feature_weights, 1.0f, 0.5f, 0.5f);
-  auto set0 = cs.GetFeatureSet(0);
+  auto set0 = cs.GetFeatureSet(ctx, 0);
   ASSERT_EQ(set0->Size(), 32);
 
-  auto set1 = cs.GetFeatureSet(0);
+  auto set1 = cs.GetFeatureSet(ctx, 0);
 
   ASSERT_EQ(set0->HostVector(), set1->HostVector());
 
-  auto set2 = cs.GetFeatureSet(1);
+  auto set2 = cs.GetFeatureSet(ctx, 1);
   ASSERT_NE(set1->HostVector(), set2->HostVector());
   ASSERT_EQ(set2->Size(), 32);
 
   // Node sampling
   cs.Init(ctx, n, feature_weights, 0.5f, 1.0f, 0.5f);
-  auto set3 = cs.GetFeatureSet(0);
+  auto set3 = cs.GetFeatureSet(ctx, 0);
   ASSERT_EQ(set3->Size(), 32);
 
-  auto set4 = cs.GetFeatureSet(0);
+  auto set4 = cs.GetFeatureSet(ctx, 0);
 
   ASSERT_NE(set3->HostVector(), set4->HostVector());
   ASSERT_EQ(set4->Size(), 32);
 
   // No level or node sampling, should be the same at different depth
   cs.Init(ctx, n, feature_weights, 1.0f, 1.0f, 0.5f);
-  ASSERT_EQ(cs.GetFeatureSet(0)->HostVector(), cs.GetFeatureSet(1)->HostVector());
+  ASSERT_EQ(cs.GetFeatureSet(ctx, 0)->HostVector(), cs.GetFeatureSet(ctx, 1)->HostVector());
 
   cs.Init(ctx, n, feature_weights, 1.0f, 1.0f, 1.0f);
-  auto set5 = cs.GetFeatureSet(0);
+  auto set5 = cs.GetFeatureSet(ctx, 0);
   ASSERT_EQ(set5->Size(), n);
   cs.Init(ctx, n, feature_weights, 1.0f, 1.0f, 1.0f);
-  auto set6 = cs.GetFeatureSet(0);
+  auto set6 = cs.GetFeatureSet(ctx, 0);
   ASSERT_EQ(set5->HostVector(), set6->HostVector());
 
   // Should always be a minimum of one feature
   cs.Init(ctx, n, feature_weights, 1e-16f, 1e-16f, 1e-16f);
-  ASSERT_EQ(cs.GetFeatureSet(0)->Size(), 1);
+  ASSERT_EQ(cs.GetFeatureSet(ctx, 0)->Size(), 1);
 }
 }  // namespace
 
@@ -90,7 +90,7 @@ TEST(ColumnSampler, ThreadSynchronisation) {
       ColumnSampler cs;
       cs.Init(&ctx, n, feature_weights, 0.5f, 0.5f, 0.5f);
       for (auto level = 0ull; level < levels; level++) {
-        auto result = cs.GetFeatureSet(level)->ConstHostVector();
+        auto result = cs.GetFeatureSet(&ctx, level)->ConstHostVector();
 #pragma omp single
         {
           reference_result = result;
@@ -113,7 +113,7 @@ void TestWeightedSampling(Context const* ctx) {
     feature_weights.HostVector()[1] = first - 0.0f;
     ColumnSampler cs;
     cs.Init(ctx, 2, feature_weights, 1.0, 1.0, 0.5);
-    auto feature_sets = cs.GetFeatureSet(0);
+    auto feature_sets = cs.GetFeatureSet(ctx, 0);
     auto const& h_feat_set = feature_sets->HostVector();
     ASSERT_EQ(h_feat_set.size(), 1);
     ASSERT_EQ(h_feat_set[0], first - 0);
@@ -134,7 +134,7 @@ void TestWeightedSampling(Context const* ctx) {
   std::iota(features.begin(), features.end(), 0);
   std::vector<float> freq(kCols, 0);
   for (size_t i = 0; i < 1024; ++i) {
-    auto fset = cs.GetFeatureSet(0);
+    auto fset = cs.GetFeatureSet(ctx, 0);
     ASSERT_EQ(kCols * 0.5, fset->Size());
     auto const& h_fset = fset->HostVector();
     for (auto f : h_fset) {
@@ -181,10 +181,10 @@ void TestWeightedMultiSampling(Context const* ctx) {
   ColumnSampler cs;
   float bytree{0.5}, bylevel{0.5}, bynode{0.5};
   cs.Init(ctx, h_feature_weights.size(), feature_weights, bytree, bylevel, bynode);
-  auto feature_set = cs.GetFeatureSet(0);
+  auto feature_set = cs.GetFeatureSet(ctx, 0);
   size_t n_sampled = kCols * bytree * bylevel * bynode;
   ASSERT_EQ(feature_set->Size(), n_sampled);
-  feature_set = cs.GetFeatureSet(1);
+  feature_set = cs.GetFeatureSet(ctx, 1);
   ASSERT_EQ(feature_set->Size(), n_sampled);
 }
 }  // namespace

@@ -719,7 +719,7 @@ void HistUpdater<GradientSumT>::EvaluateSplits(const std::vector<ExpandEntry>& n
   size_t pos = 0;
   for (size_t nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
     const bst_node_t nid = nodes_set[nid_in_set].nid;
-    FeatureSetType features_set = column_sampler_->GetFeatureSet(tree.GetDepth(nid));
+    FeatureSetType features_set = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(nid));
     for (size_t idx = 0; idx < features_set->Size(); idx++) {
       const size_t fid = features_set->ConstHostVector()[idx];
       if (interaction_constraints_.Query(nid, fid)) {

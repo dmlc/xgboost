@@ -251,7 +251,7 @@ class MultiTargetHistMaker {
 
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
-    auto sampled_features = column_sampler_->GetFeatureSet(0);
+    auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
     common::Span<bst_feature_t const> feature_set =
         interaction_constraints_->Query(sampled_features->ConstDeviceSpan(), RegTree::kRoot);
     MultiEvaluateSplitInputs input{RegTree::kRoot, p_tree->GetDepth(RegTree::kRoot), d_root_sum,
@@ -513,12 +513,12 @@ class MultiTargetHistMaker {
       bst_node_t left_nidx = mt_tree.LeftChild(candidate.nidx);
       bst_node_t right_nidx = mt_tree.RightChild(candidate.nidx);
 
-      auto left_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(left_nidx));
+      auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(left_nidx));
       feature_sets.emplace_back(left_sampled_features);
       common::Span<bst_feature_t const> left_feature_set =
           interaction_constraints_->Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
 
-      auto right_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(right_nidx));
+      auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(right_nidx));
       feature_sets.emplace_back(right_sampled_features);
       common::Span<bst_feature_t const> right_feature_set =
           interaction_constraints_->Query(right_sampled_features->ConstDeviceSpan(), right_nidx);

@@ -25,7 +25,8 @@ void LoadRng(Json const &in, RandomEngine *rng) {
 }
 
 std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
-    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample) {
+    Context const *ctx, std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features,
+    float colsample) {
   if (colsample == 1.0f) {
     return p_features;
   }
@@ -33,9 +34,9 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
   int n = std::max(1, static_cast<int>(colsample * p_features->Size()));
   auto p_new_features = std::make_shared<HostDeviceVector<bst_feature_t>>();
 
-  if (ctx_->IsCUDA()) {
+  if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
-    cuda_impl::SampleFeature(ctx_, n, p_features, p_new_features, this->feature_weights_,
+    cuda_impl::SampleFeature(ctx, n, p_features, p_new_features, this->feature_weights_,
                              &this->weight_buffer_, &this->idx_buffer_);
     return p_new_features;
 #else
@@ -44,7 +45,7 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  auto seed = ctx_->Rng()();
+  auto seed = ctx->Rng()();
   RandomEngine rng(seed);
   const auto &features = p_features->HostVector();
   CHECK_GT(features.size(), 0);
@@ -60,7 +61,7 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
       weight[i] = h_feature_weight[h_features[i]];
     }
     new_features.HostVector() =
-        WeightedSamplingWithoutReplacement(ctx_, &rng, p_features->HostVector(), weight, n);
+        WeightedSamplingWithoutReplacement(ctx, &rng, p_features->HostVector(), weight, n);
   } else {
     new_features.Resize(features.size());
     std::copy(features.begin(), features.end(), new_features.HostVector().begin());
