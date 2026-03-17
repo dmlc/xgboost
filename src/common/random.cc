@@ -30,16 +30,13 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
     return p_features;
   }
 
-  auto seed = ctx_->Rng()();
-  RandomEngine rng(seed);
-
   int n = std::max(1, static_cast<int>(colsample * p_features->Size()));
   auto p_new_features = std::make_shared<HostDeviceVector<bst_feature_t>>();
 
   if (ctx_->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
     cuda_impl::SampleFeature(ctx_, n, p_features, p_new_features, this->feature_weights_,
-                             &this->weight_buffer_, &this->idx_buffer_, &rng);
+                             &this->weight_buffer_, &this->idx_buffer_);
     return p_new_features;
 #else
     AssertGPUSupport();
@@ -47,6 +44,8 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
+  auto seed = ctx_->Rng()();
+  RandomEngine rng(seed);
   const auto &features = p_features->HostVector();
   CHECK_GT(features.size(), 0);
 

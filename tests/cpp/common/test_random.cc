@@ -1,9 +1,7 @@
 /**
  * Copyright 2018-2026, XGBoost Contributors
  */
-#include "../../../src/collective/broadcast.h"  // for Broadcast
 #include "../../../src/common/random.h"
-#include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "gtest/gtest.h"
 #include "xgboost/context.h"  // for Context
