@@ -25,7 +25,7 @@ class RegTree;
 struct Context;
 
 /** @brief The interface of objective function */
-class ObjFunction : public Configurable {
+class ObjFunction {
  protected:
   Context const* ctx_{nullptr};
 
@@ -33,13 +33,7 @@ class ObjFunction : public Configurable {
   static constexpr float DefaultBaseScore() { return 0.5f; }
 
  public:
-  ~ObjFunction() override = default;
-  /**
-   * @brief Configure the objective with the specified parameters.
-   *
-   * @param args arguments to the objective function.
-   */
-  virtual void Configure(Args const& args) = 0;
+  virtual ~ObjFunction() = default;
   /**
    * @brief Get gradient over each of predictions, given existing information.
    *
@@ -131,6 +125,11 @@ class ObjFunction : public Configurable {
                               HostDeviceVector<float> const& /*prediction*/,
                               bst_target_t /*group_idx*/, RegTree* /*p_tree*/) const {}
   /**
+   * @brief Save configuration to JSON object.
+   * @param out pointer to output JSON object.
+   */
+  virtual void SaveConfig(Json* out) const = 0;
+  /**
    * @brief Create an objective function according to the name.
    *
    * @param name Name of the objective.
@@ -144,7 +143,13 @@ class ObjFunction : public Configurable {
  * \brief Registry entry for objective factory functions.
  */
 struct ObjFunctionReg
-    : public dmlc::FunctionRegEntryBase<ObjFunctionReg, std::function<ObjFunction*(Args const&)> > {
+    : public dmlc::FunctionRegEntryBase<ObjFunctionReg, std::function<ObjFunction*(Args const&)>> {
+  std::function<ObjFunction*(Json const&)> json_body;
+
+  inline ObjFunctionReg& set_body_json(std::function<ObjFunction*(Json const&)> body) {
+    json_body = std::move(body);
+    return *this;
+  }
 };
 
 /*!
@@ -156,12 +161,15 @@ struct ObjFunctionReg
  * .describe("A custom objective")
  * .set_body([](Args const&) {
  *     return new MyObjective();
+ *   })
+ * .set_body_json([](Json const& config) {
+ *     return new MyObjective(config);
  *   });
  * \endcode
  */
 #define XGBOOST_REGISTER_OBJECTIVE(UniqueId, Name)        \
   static DMLC_ATTRIBUTE_UNUSED ::xgboost::ObjFunctionReg& \
       __make_##ObjFunctionReg##_##UniqueId##__ =          \
-          ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->__REGISTER__(Name)
+          ::dmlc::Registry<::xgboost::ObjFunctionReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost
 #endif  // XGBOOST_OBJECTIVE_H_

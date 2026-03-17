@@ -491,7 +491,7 @@ void TestPseudoHuber(const Context* ctx) {
                    {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mphe"});
 
-  obj->Configure({{"huber_slope", "0.1"}});
+  obj.reset(ObjFunction::Create("reg:pseudohubererror", ctx, {{"huber_slope", "0.1"}}));
   CheckConfigReload(obj, "reg:pseudohubererror");
   CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels

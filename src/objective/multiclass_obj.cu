@@ -74,8 +74,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
       param_.UpdateAllowUnknown(args);
     }
   }
-
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  SoftmaxMultiClassObj(bool output_prob, Json const& in) : output_prob_(output_prob) {
+    FromJson(in["softmax_multiclass_param"], &param_);
+  }
 
   ObjInfo Task() const override { return ObjInfo::kClassification; }
 
@@ -194,8 +195,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
     out["softmax_multiclass_param"] = ToJson(param_);
   }
 
-  void LoadConfig(Json const& in) override { FromJson(in["softmax_multiclass_param"], &param_); }
-
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
     std::int64_t n_classes = this->param_.num_class;
     ValidateLabel(this->ctx_, info, n_classes);
@@ -238,9 +237,11 @@ DMLC_REGISTER_PARAMETER(SoftmaxMultiClassParam);
 
 XGBOOST_REGISTER_OBJECTIVE(SoftmaxMultiClass, "multi:softmax")
     .describe("Softmax for multi-class classification, output class index.")
-    .set_body([](Args const& args) { return new SoftmaxMultiClassObj(false, args); });
+    .set_body([](Args const& args) { return new SoftmaxMultiClassObj(false, args); })
+    .set_body_json([](Json const& config) { return new SoftmaxMultiClassObj(false, config); });
 
 XGBOOST_REGISTER_OBJECTIVE(SoftprobMultiClass, "multi:softprob")
     .describe("Softmax for multi-class classification, output probability distribution.")
-    .set_body([](Args const& args) { return new SoftmaxMultiClassObj(true, args); });
+    .set_body([](Args const& args) { return new SoftmaxMultiClassObj(true, args); })
+    .set_body_json([](Json const& config) { return new SoftmaxMultiClassObj(true, config); });
 }  // namespace xgboost::obj

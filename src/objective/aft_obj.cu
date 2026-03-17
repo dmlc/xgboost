@@ -32,9 +32,8 @@ DMLC_REGISTRY_FILE_TAG(aft_obj_gpu);
 class AFTObj : public ObjFunction {
  public:
   explicit AFTObj(Args const& args) { param_.UpdateAllowUnknown(args); }
+  explicit AFTObj(Json const& in) { FromJson(in["aft_loss_param"], &param_); }
   AFTObj() = default;
-
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
 
   ObjInfo Task() const override { return ObjInfo::kSurvival; }
 
@@ -126,7 +125,6 @@ class AFTObj : public ObjFunction {
     out["aft_loss_param"] = ToJson(param_);
   }
 
-  void LoadConfig(Json const& in) override { FromJson(in["aft_loss_param"], &param_); }
   Json DefaultMetricConfig() const override {
     Json config{Object{}};
     config["name"] = String{this->DefaultEvalMetric()};
@@ -141,7 +139,8 @@ class AFTObj : public ObjFunction {
 // register the objective functions
 XGBOOST_REGISTER_OBJECTIVE(AFTObj, "survival:aft")
     .describe("AFT loss function")
-    .set_body([](Args const& args) { return new AFTObj{args}; });
+    .set_body([](Args const& args) { return new AFTObj{args}; })
+    .set_body_json([](Json const& config) { return new AFTObj{config}; });
 
 }  // namespace obj
 }  // namespace xgboost

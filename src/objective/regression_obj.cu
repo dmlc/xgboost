@@ -132,8 +132,13 @@ class RegLossObj : public FitInterceptGlmLike {
   // 0 - scale_pos_weight, 1 - is_null_weight
   RegLossObj() : additional_input_(2) {}
   explicit RegLossObj(Args const& args) : additional_input_(2) { param_.UpdateAllowUnknown(args); }
-
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  explicit RegLossObj(Json const& in) : additional_input_(2) {
+    auto obj = get<Object const>(in);
+    auto it = obj.find("reg_loss_param");
+    if (it != obj.cend()) {
+      FromJson(it->second, &param_);
+    }
+  }
 
   [[nodiscard]] ObjInfo Task() const override { return Loss::Info(); }
 
@@ -231,14 +236,6 @@ class RegLossObj : public FitInterceptGlmLike {
     out["reg_loss_param"] = ToJson(param_);
   }
 
-  void LoadConfig(Json const& in) override {
-    auto obj = get<Object const>(in);
-    auto it = obj.find("reg_loss_param");
-    if (it != obj.cend()) {
-      FromJson(it->second, &param_);
-    }
-  }
-
  protected:
   RegLossParam param_;
 };
@@ -248,25 +245,32 @@ DMLC_REGISTER_PARAMETER(RegLossParam);
 
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression, LinearSquareLoss::Name())
     .describe("Regression with squared error.")
-    .set_body([](Args const& args) { return new RegLossObj<LinearSquareLoss>{args}; });
+    .set_body([](Args const& args) { return new RegLossObj<LinearSquareLoss>{args}; })
+    .set_body_json([](Json const& config) { return new RegLossObj<LinearSquareLoss>{config}; });
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, LogisticRegression::Name())
     .describe("Logistic regression for probability regression task.")
-    .set_body([](Args const& args) { return new RegLossObj<LogisticRegression>{args}; });
+    .set_body([](Args const& args) { return new RegLossObj<LogisticRegression>{args}; })
+    .set_body_json([](Json const& config) { return new RegLossObj<LogisticRegression>{config}; });
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticClassification, LogisticClassification::Name())
     .describe("Logistic regression for binary classification task.")
-    .set_body([](Args const& args) { return new RegLossObj<LogisticClassification>{args}; });
+    .set_body([](Args const& args) { return new RegLossObj<LogisticClassification>{args}; })
+    .set_body_json([](Json const& config) {
+      return new RegLossObj<LogisticClassification>{config};
+    });
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, LogisticRaw::Name())
     .describe(
         "Logistic regression for classification, output score "
         "before logistic transformation.")
-    .set_body([](Args const& args) { return new RegLossObj<LogisticRaw>{args}; });
+    .set_body([](Args const& args) { return new RegLossObj<LogisticRaw>{args}; })
+    .set_body_json([](Json const& config) { return new RegLossObj<LogisticRaw>{config}; });
 
 XGBOOST_REGISTER_OBJECTIVE(GammaRegression, GammaDeviance::Name())
     .describe("Gamma regression using the gamma deviance loss with log link.")
-    .set_body([](Args const& args) { return new RegLossObj<GammaDeviance>{args}; });
+    .set_body([](Args const& args) { return new RegLossObj<GammaDeviance>{args}; })
+    .set_body_json([](Json const& config) { return new RegLossObj<GammaDeviance>{config}; });
 
 // Deprecated functions
 XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
@@ -274,14 +278,16 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
     .set_body([](Args const& args) {
       LOG(WARNING) << "reg:linear is now deprecated in favor of reg:squarederror.";
       return new RegLossObj<LinearSquareLoss>{args};
-    });
+    })
+    .set_body_json([](Json const& config) { return new RegLossObj<LinearSquareLoss>{config}; });
 // End deprecated
 
 class SquaredLogErrorRegression : public FitIntercept {
  public:
   static auto Name() { return SquaredLogError::Name(); }
+  SquaredLogErrorRegression() = default;
+  explicit SquaredLogErrorRegression(Json const&) {}
 
-  void Configure(Args const&) override {}
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
@@ -318,21 +324,26 @@ class SquaredLogErrorRegression : public FitIntercept {
     auto& out = *p_out;
     out["name"] = String(Name());
   }
-  void LoadConfig(Json const&) override {}
 };
 
 XGBOOST_REGISTER_OBJECTIVE(SquaredLogErrorRegression, SquaredLogErrorRegression::Name())
     .describe("Root mean squared log error.")
-    .set_body([](Args const&) { return new SquaredLogErrorRegression(); });
+    .set_body([](Args const&) { return new SquaredLogErrorRegression(); })
+    .set_body_json([](Json const& config) { return new SquaredLogErrorRegression{config}; });
 
 class PseudoHuberRegression : public FitIntercept {
   PseudoHuberParam param_;
 
  public:
   explicit PseudoHuberRegression(Args const& args) { param_.UpdateAllowUnknown(args); }
+  explicit PseudoHuberRegression(Json const& in) {
+    auto const& config = get<Object const>(in);
+    auto it = config.find("pseudo_huber_param");
+    if (it != config.cend()) {
+      FromJson(it->second, &param_);
+    }
+  }
   PseudoHuberRegression() = default;
-
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
@@ -375,14 +386,6 @@ class PseudoHuberRegression : public FitIntercept {
     out["pseudo_huber_param"] = ToJson(param_);
   }
 
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
-    if (config.find("pseudo_huber_param") == config.cend()) {
-      // The parameter is added in 1.6.
-      return;
-    }
-    FromJson(in["pseudo_huber_param"], &param_);
-  }
   [[nodiscard]] Json DefaultMetricConfig() const override {
     CHECK(param_.GetInitialised());
     Json config{Object{}};
@@ -394,7 +397,8 @@ class PseudoHuberRegression : public FitIntercept {
 
 XGBOOST_REGISTER_OBJECTIVE(PseudoHuberRegression, "reg:pseudohubererror")
     .describe("Regression Pseudo Huber error.")
-    .set_body([](Args const& args) { return new PseudoHuberRegression{args}; });
+    .set_body([](Args const& args) { return new PseudoHuberRegression{args}; })
+    .set_body_json([](Json const& config) { return new PseudoHuberRegression{config}; });
 
 class ExpectileRegression : public FitIntercept {
   common::ExpectileLossParam param_;
@@ -424,9 +428,15 @@ class ExpectileRegression : public FitIntercept {
       this->UpdateConfig(args);
     }
   }
+  explicit ExpectileRegression(Json const& in) {
+    auto const& obj = get<Object const>(in);
+    auto it = obj.find("expectile_loss_param");
+    if (it != obj.cend()) {
+      FromJson(it->second, &param_);
+      alpha_.HostVector() = param_.expectile_alpha.Get();
+    }
+  }
   ExpectileRegression() = default;
-
-  void Configure(Args const& args) override { this->UpdateConfig(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -540,21 +550,12 @@ class ExpectileRegression : public FitIntercept {
     out["name"] = String("reg:expectileerror");
     out["expectile_loss_param"] = ToJson(param_);
   }
-
-  void LoadConfig(Json const& in) override {
-    CHECK_EQ(get<String const>(in["name"]), "reg:expectileerror");
-    auto const& obj = get<Object const>(in);
-    auto it = obj.find("expectile_loss_param");
-    if (it != obj.cend()) {
-      FromJson(it->second, &param_);
-      alpha_.HostVector() = param_.expectile_alpha.Get();
-    }
-  }
 };
 
 XGBOOST_REGISTER_OBJECTIVE(ExpectileRegression, "reg:expectileerror")
     .describe("Regression with expectile loss.")
-    .set_body([](Args const& args) { return new ExpectileRegression{args}; });
+    .set_body([](Args const& args) { return new ExpectileRegression{args}; })
+    .set_body_json([](Json const& config) { return new ExpectileRegression{config}; });
 
 // declare parameter
 struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {
@@ -573,10 +574,8 @@ struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> 
 class PoissonRegression : public FitInterceptGlmLike {
  public:
   explicit PoissonRegression(Args const& args) { param_.UpdateAllowUnknown(args); }
+  explicit PoissonRegression(Json const& in) { FromJson(in["poisson_regression_param"], &param_); }
   PoissonRegression() = default;
-
-  // declare functions
-  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -632,8 +631,6 @@ class PoissonRegression : public FitInterceptGlmLike {
     out["poisson_regression_param"] = ToJson(param_);
   }
 
-  void LoadConfig(Json const& in) override { FromJson(in["poisson_regression_param"], &param_); }
-
  private:
   PoissonRegressionParam param_;
 };
@@ -643,12 +640,14 @@ DMLC_REGISTER_PARAMETER(PoissonRegressionParam);
 
 XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
     .describe("Poisson regression for count data.")
-    .set_body([](Args const& args) { return new PoissonRegression{args}; });
+    .set_body([](Args const& args) { return new PoissonRegression{args}; })
+    .set_body_json([](Json const& config) { return new PoissonRegression{config}; });
 
 // cox regression for survival data (negative values mean they are censored)
 class CoxRegression : public FitIntercept {
  public:
-  void Configure(Args const&) override {}
+  CoxRegression() = default;
+  explicit CoxRegression(Json const&) {}
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int,
@@ -729,14 +728,14 @@ class CoxRegression : public FitIntercept {
     auto& out = *p_out;
     out["name"] = String("survival:cox");
   }
-  void LoadConfig(Json const&) override {}
 };
 
 // register the objective function
 XGBOOST_REGISTER_OBJECTIVE(CoxRegression, "survival:cox")
     .describe(
         "Cox regression for censored survival data (negative labels are considered censored).")
-    .set_body([](Args const&) { return new CoxRegression(); });
+    .set_body([](Args const&) { return new CoxRegression(); })
+    .set_body_json([](Json const& config) { return new CoxRegression{config}; });
 
 // declare parameter
 struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> {
@@ -760,10 +759,13 @@ class TweedieRegression : public FitInterceptGlmLike {
 
  public:
   explicit TweedieRegression(Args const& args) { this->UpdateConfig(args); }
+  explicit TweedieRegression(Json const& in) {
+    FromJson(in["tweedie_regression_param"], &param_);
+    std::ostringstream os;
+    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
+    metric_ = os.str();
+  }
   TweedieRegression() = default;
-
-  // declare functions
-  void Configure(Args const& args) override { this->UpdateConfig(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -819,12 +821,6 @@ class TweedieRegression : public FitInterceptGlmLike {
     out["name"] = String("reg:tweedie");
     out["tweedie_regression_param"] = ToJson(param_);
   }
-  void LoadConfig(Json const& in) override {
-    FromJson(in["tweedie_regression_param"], &param_);
-    std::ostringstream os;
-    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
-    metric_ = os.str();
-  }
 
  private:
   std::string metric_;
@@ -836,11 +832,15 @@ DMLC_REGISTER_PARAMETER(TweedieRegressionParam);
 
 XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
     .describe("Tweedie regression for insurance data.")
-    .set_body([](Args const& args) { return new TweedieRegression{args}; });
+    .set_body([](Args const& args) { return new TweedieRegression{args}; })
+    .set_body_json([](Json const& config) { return new TweedieRegression{config}; });
 
 class MeanAbsoluteError : public ObjFunction {
  public:
-  void Configure(Args const&) override {}
+  MeanAbsoluteError() = default;
+  explicit MeanAbsoluteError(Json const& in) {
+    CHECK_EQ(StringView{get<String const>(in["name"])}, StringView{"reg:absoluteerror"});
+  }
   [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, true, true}; }
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
@@ -923,13 +923,10 @@ class MeanAbsoluteError : public ObjFunction {
     auto& out = *p_out;
     out["name"] = String("reg:absoluteerror");
   }
-
-  void LoadConfig(Json const& in) override {
-    CHECK_EQ(StringView{get<String const>(in["name"])}, StringView{"reg:absoluteerror"});
-  }
 };
 
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
     .describe("Mean absolute error.")
-    .set_body([](Args const&) { return new MeanAbsoluteError(); });
+    .set_body([](Args const&) { return new MeanAbsoluteError(); })
+    .set_body_json([](Json const& config) { return new MeanAbsoluteError{config}; });
 }  // namespace xgboost::obj

@@ -33,9 +33,8 @@ DMLC_REGISTER_PARAMETER(MyLogisticParam);
 class MyLogistic : public ObjFunction {
  public:
   explicit MyLogistic(Args const& args) { param_.UpdateAllowUnknown(args); }
+  explicit MyLogistic(Json const& in) { FromJson(in["my_logistic_param"], &param_); }
   MyLogistic() = default;
-
-  void Configure(const Args& args) override { param_.UpdateAllowUnknown(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -80,8 +79,6 @@ class MyLogistic : public ObjFunction {
     out["my_logistic_param"] = ToJson(param_);
   }
 
-  void LoadConfig(Json const& in) override { FromJson(in["my_logistic_param"], &param_); }
-
  private:
   MyLogisticParam param_;
 };
@@ -90,6 +87,7 @@ class MyLogistic : public ObjFunction {
 // After it succeeds you can try use xgboost with objective=mylogistic
 XGBOOST_REGISTER_OBJECTIVE(MyLogistic, "mylogistic")
     .describe("User defined logistic regression plugin")
-    .set_body([](Args const& args) { return new MyLogistic{args}; });
+    .set_body([](Args const& args) { return new MyLogistic{args}; })
+    .set_body_json([](Json const& config) { return new MyLogistic{config}; });
 
 }  // namespace xgboost::obj
