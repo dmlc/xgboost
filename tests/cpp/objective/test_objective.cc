@@ -29,16 +29,16 @@ TEST(Objective, PredTransform) {
   size_t n = 100;
 
   for (const auto& entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
-    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create(entry->name, &tparam)};
+    Args args;
     if (entry->name.find("multi") != std::string::npos) {
-      obj->Configure(Args{{"num_class", "2"}});
+      args = Args{{"num_class", "2"}};
+    } else if (entry->name.find("quantile") != std::string::npos) {
+      args = Args{{"quantile_alpha", "0.5"}};
+    } else if (entry->name.find("expectile") != std::string::npos) {
+      args = Args{{"expectile_alpha", "0.5"}};
     }
-    if (entry->name.find("quantile") != std::string::npos) {
-      obj->Configure(Args{{"quantile_alpha", "0.5"}});
-    }
-    if (entry->name.find("expectile") != std::string::npos) {
-      obj->Configure(Args{{"expectile_alpha", "0.5"}});
-    }
+    std::unique_ptr<xgboost::ObjFunction> obj{
+        xgboost::ObjFunction::Create(entry->name, &tparam, args)};
     HostDeviceVector<float> predts;
     predts.Resize(n, 3.14f);  // prediction is performed on host.
     ASSERT_FALSE(predts.DeviceCanRead());
@@ -55,21 +55,20 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
   void Run(std::string objective) {
     auto Xy = MakeFmatForObjTest(objective, 10, 10, 3);
     std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-    std::unique_ptr<ObjFunction> objfn{ObjFunction::Create(objective, &ctx_)};
+    Args args;
 
     learner->SetParam("objective", objective);
     if (objective.find("multi") != std::string::npos) {
       learner->SetParam("num_class", "3");
-      objfn->Configure(Args{{"num_class", "3"}});
+      args = Args{{"num_class", "3"}};
     } else if (objective.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
-      objfn->Configure(Args{{"quantile_alpha", "0.5"}});
+      args = Args{{"quantile_alpha", "0.5"}};
     } else if (objective.find("expectile") != std::string::npos) {
       learner->SetParam("expectile_alpha", "0.5");
-      objfn->Configure(Args{{"expectile_alpha", "0.5"}});
-    } else {
-      objfn->Configure(Args{});
+      args = Args{{"expectile_alpha", "0.5"}};
     }
+    std::unique_ptr<ObjFunction> objfn{ObjFunction::Create(objective, &ctx_, args)};
     learner->Configure();
     learner->UpdateOneIter(0, Xy);
     learner->EvalOneIter(0, {Xy}, {"train"});

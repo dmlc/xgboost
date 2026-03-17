@@ -38,9 +38,7 @@ void TestLinearRegressionGPair(const Context* ctx) {
   std::string obj_name = "reg:squarederror";
 
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
-
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx, args)};
   // clang-format off
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f,   1,    0,  0.1f, 0.9f,  1},
@@ -62,8 +60,7 @@ void TestSquaredLog(const Context* ctx) {
   std::string obj_name = "reg:squaredlogerror";
   std::vector<std::pair<std::string, std::string>> args;
 
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx, args)};
   CheckConfigReload(obj, obj_name);
   // clang-format off
   CheckObjFunction(obj,
@@ -85,9 +82,7 @@ void TestSquaredLog(const Context* ctx) {
 void TestLogisticRegressionGPair(const Context* ctx) {
   std::string obj_name = "reg:logistic";
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
-
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx, args)};
   CheckConfigReload(obj, obj_name);
   // clang-format off
   CheckObjFunction(obj,
@@ -102,9 +97,7 @@ void TestLogisticRegressionGPair(const Context* ctx) {
 void TestLogisticRegressionBasic(const Context* ctx) {
   std::string obj_name = "reg:logistic";
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
-
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx, args)};
   CheckConfigReload(obj, obj_name);
 
   // test label validation
@@ -130,8 +123,7 @@ void TestLogisticRegressionBasic(const Context* ctx) {
 void TestsLogisticRawGPair(const Context* ctx) {
   std::string obj_name = "binary:logitraw";
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx, args)};
   // clang-format off
   CheckObjFunction(obj,
                    {   0,  0.1f,  0.9f,    1,    0,   0.1f,   0.9f,     1},
@@ -144,10 +136,8 @@ void TestsLogisticRawGPair(const Context* ctx) {
 
 void TestPoissonRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx)};
-
   args.emplace_back("max_delta_step", "0.1f");
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx, args)};
   // clang-format off
   CheckObjFunction(obj,
                    {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
@@ -166,9 +156,7 @@ void TestPoissonRegressionGPair(const Context* ctx) {
 
 void TestPoissonRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx)};
-
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("count:poisson", ctx, args)};
   CheckConfigReload(obj, "count:poisson");
 
   // test label validation
@@ -192,9 +180,7 @@ void TestPoissonRegressionBasic(const Context* ctx) {
 
 void TestGammaRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", ctx)};
-
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", ctx, args)};
   // clang-format off
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
@@ -213,9 +199,7 @@ void TestGammaRegressionGPair(const Context* ctx) {
 
 void TestGammaRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", ctx)};
-
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", ctx, args)};
   CheckConfigReload(obj, "reg:gamma");
 
   // test label validation
@@ -241,10 +225,8 @@ void TestGammaRegressionBasic(const Context* ctx) {
 
 void TestTweedieRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", ctx)};
-
   args.emplace_back("tweedie_variance_power", "1.1f");
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", ctx, args)};
   // clang-format off
   CheckObjFunction(obj,
                    {   0,  0.1f,  0.9f,    1, 0,  0.1f,  0.9f,    1},
@@ -264,9 +246,7 @@ void TestTweedieRegressionGPair(const Context* ctx) {
 
 void TestTweedieRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", ctx)};
-
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", ctx, args)};
   CheckConfigReload(obj, "reg:tweedie");
 
   // test label validation
@@ -290,9 +270,7 @@ void TestTweedieRegressionBasic(const Context* ctx) {
 
 void TestCoxRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx)};
-
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx, args)};
   // clang-format off
   CheckObjFunction(obj,
                    { 0, 0.1f, 0.9f,       1,       0,    0.1f,   0.9f,       1},
@@ -304,8 +282,7 @@ void TestCoxRegressionGPair(const Context* ctx) {
 }
 
 void TestAbsoluteError(const Context* ctx) {
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx)};
-  obj->Configure({});
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx, Args{})};
   CheckConfigReload(obj, "reg:absoluteerror");
 
   MetaInfo info;
@@ -344,8 +321,7 @@ void TestAbsoluteError(const Context* ctx) {
 
 void TestAbsoluteErrorLeaf(const Context* ctx) {
   bst_target_t constexpr kTargets = 3, kRows = 16;
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx)};
-  obj->Configure({});
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx, Args{})};
 
   MetaInfo info;
   info.num_row_ = kRows;
@@ -401,8 +377,7 @@ void TestAbsoluteErrorLeaf(const Context* ctx) {
 void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, bst_idx_t n_samples,
                        bst_idx_t n_target_labels, std::vector<float> const& sol_left,
                        std::vector<float> const& sol_right) {
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(name, ctx)};
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(name, ctx, args)};
 
   bst_target_t n_targets = 3;
   auto tree = MakeMtTreeForTest(n_targets);
@@ -433,8 +408,7 @@ void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, b
 void TestExpectileRegressionGPair(const Context* ctx) {
   Args args{{"expectile_alpha", "0.8"}};
 
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:expectileerror", ctx)};
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:expectileerror", ctx, args)};
   CheckConfigReload(obj, "reg:expectileerror");
 
   std::vector<float> predts{1.0f, 2.0f, 3.0f};
@@ -451,8 +425,7 @@ void TestExpectileRegressionGPair(const Context* ctx) {
 void TestExpectileRegressionMultiAlpha(const Context* ctx) {
   Args args{{"expectile_alpha", "[0.2, 0.8]"}};
 
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:expectileerror", ctx)};
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:expectileerror", ctx, args)};
   CheckConfigReload(obj, "reg:expectileerror");
 
   std::vector<float> predts{0.0f, 0.0f, 0.0f, 0.0f};
@@ -464,8 +437,7 @@ void TestExpectileRegressionMultiAlpha(const Context* ctx) {
 
 void TestExpectileRegressionInitEstimation(const Context* ctx) {
   Args args{{"expectile_alpha", "[0.2, 0.8]"}};
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:expectileerror", ctx)};
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:expectileerror", ctx, args)};
 
   MetaInfo info;
   info.num_row_ = 10;
@@ -504,8 +476,7 @@ void TestExpectileRegressionInitEstimation(const Context* ctx) {
 void TestPseudoHuber(const Context* ctx) {
   Args args;
 
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:pseudohubererror", ctx)};
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:pseudohubererror", ctx, args)};
   CheckConfigReload(obj, "reg:pseudohubererror");
 
   CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
