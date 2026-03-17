@@ -483,7 +483,9 @@ jobs:
         uses: actions/upload-artifact@v7.0.0
         with:
           name: cross-platform-model
-          path: cross_platform_model.ubj
+          path: |
+            cross_platform_model.ubj
+            cross_platform_model.pkl
           retention-days: 1
 
   test-python-wheel-cpu:

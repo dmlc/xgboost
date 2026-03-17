@@ -16,11 +16,9 @@
 #include <numeric>
 #include <vector>
 
-#include "../collective/broadcast.h"  // for Broadcast
-#include "algorithm.h"                // ArgSort
-#include "xgboost/context.h"          // Context
+#include "algorithm.h"        // ArgSort
+#include "xgboost/context.h"  // Context
 #include "xgboost/host_device_vector.h"
-#include "xgboost/linalg.h"
 
 namespace xgboost::common {
 /*
@@ -31,13 +29,14 @@ namespace xgboost::common {
  * https://timvieira.github.io/blog/post/2019/09/16/algorithms-for-sampling-without-replacement/
 */
 template <typename T>
-std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, std::vector<T> const& array,
+std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, RandomEngine* p_rng,
+                                                  std::vector<T> const& array,
                                                   std::vector<float> const& weights, size_t n) {
+  auto& rng = *p_rng;
   // ES sampling.
   CHECK_EQ(array.size(), weights.size());
   std::vector<float> keys(weights.size());
   std::uniform_real_distribution<float> dist;
-  auto& rng = ctx->Rng();
   for (size_t i = 0; i < array.size(); ++i) {
     auto w = std::max(weights.at(i), kRtEps);
     auto u = dist(rng);
@@ -61,16 +60,14 @@ void SampleFeature(Context const* ctx, bst_feature_t n_features,
                    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_new_features,
                    HostDeviceVector<float> const& feature_weights,
                    HostDeviceVector<float>* weight_buffer,
-                   HostDeviceVector<bst_feature_t>* idx_buffer, RandomEngine* grng);
+                   HostDeviceVector<bst_feature_t>* idx_buffer);
 
 void InitFeatureSet(Context const* ctx,
                     std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features);
 }  // namespace cuda_impl
 
 /**
- * \class ColumnSampler
- *
- * \brief Handles selection of columns due to colsample_bytree, colsample_bylevel and
+ * @brief Handles selection of columns due to colsample_bytree, colsample_bylevel and
  * colsample_bynode parameters. Should be initialised before tree construction and to
  * reset when tree construction is completed.
  */
@@ -81,21 +78,17 @@ class ColumnSampler {
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
-  RandomEngine rng_;
-  Context const* ctx_;
 
   // Used for weighted sampling.
   HostDeviceVector<bst_feature_t> idx_buffer_;
   HostDeviceVector<float> weight_buffer_;
 
- public:
   std::shared_ptr<HostDeviceVector<bst_feature_t>> ColSample(
-      std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample);
-  /**
-   * @brief Column sampler constructor.
-   * @note This constructor manually sets the rng seed
-   */
-  explicit ColumnSampler(std::uint32_t seed) { rng_.seed(seed); }
+      Context const* ctx, std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features,
+      float colsample);
+
+ public:
+  ColumnSampler() = default;
 
   /**
    * @brief Initialise this object before use.
@@ -114,7 +107,6 @@ class ColumnSampler {
     colsample_bylevel_ = colsample_bylevel;
     colsample_bytree_ = colsample_bytree;
     colsample_bynode_ = colsample_bynode;
-    ctx_ = ctx;
 
     if (feature_set_tree_ == nullptr) {
       feature_set_tree_ = std::make_shared<HostDeviceVector<bst_feature_t>>();
@@ -136,11 +128,11 @@ class ColumnSampler {
       std::iota(feature_set_tree_->HostVector().begin(), feature_set_tree_->HostVector().end(), 0);
     }
 
-    feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
+    feature_set_tree_ = ColSample(ctx, feature_set_tree_, colsample_bytree_);
   }
 
   /**
-   * \brief Resets this object.
+   * @brief Resets this object.
    */
   void Reset() {
     feature_set_tree_->Resize(0);
@@ -148,44 +140,42 @@ class ColumnSampler {
   }
 
   /**
-   * \brief Samples a feature set.
+   * @brief Samples a feature set.
    *
-   * \param depth The tree depth of the node at which to sample.
-   * \return The sampled feature set.
-   * \note If colsample_bynode_ < 1.0, this method creates a new feature set each time it
+   * @param ctx  The runtime context.
+   * @param depth The tree depth of the node at which to sample.
+   * @return The sampled feature set.
+   *
+   * @note If colsample_bynode_ < 1.0, this method creates a new feature set each time it
    * is called. Therefore, it should be called only once per node.
-   * \note With distributed xgboost, this function must be called exactly once for the
+   *
+   * @note With distributed xgboost, this function must be called exactly once for the
    * construction of each tree node, and must be called the same number of times in each
    * process and with the same parameters to return the same feature set across processes.
    */
-  std::shared_ptr<HostDeviceVector<bst_feature_t>> GetFeatureSet(int depth) {
+  std::shared_ptr<HostDeviceVector<bst_feature_t>> GetFeatureSet(Context const* ctx, int depth) {
     if (colsample_bylevel_ == 1.0f && colsample_bynode_ == 1.0f) {
       return feature_set_tree_;
     }
 
     if (feature_set_level_.count(depth) == 0) {
       // Level sampling, level does not yet exist so generate it
-      feature_set_level_[depth] = ColSample(feature_set_tree_, colsample_bylevel_);
+      feature_set_level_[depth] = ColSample(ctx, feature_set_tree_, colsample_bylevel_);
     }
     if (colsample_bynode_ == 1.0f) {
       // Level sampling
       auto ptr = feature_set_level_[depth];
-      ptr->SetDevice(this->ctx_->Device());
+      ptr->SetDevice(ctx->Device());
       return ptr;
     }
     // Need to sample for the node individually
-    auto ptr = ColSample(feature_set_level_[depth], colsample_bynode_);
-    ptr->SetDevice(this->ctx_->Device());
+    auto ptr = ColSample(ctx, feature_set_level_[depth], colsample_bynode_);
+    ptr->SetDevice(ctx->Device());
     return ptr;
   }
 };
 
-inline auto MakeColumnSampler(Context const* ctx) {
-  std::uint32_t seed = ctx->Rng()();
-  auto rc = collective::Broadcast(ctx, linalg::MakeVec(&seed, 1), 0);
-  collective::SafeColl(rc);
-  auto cs = std::make_shared<common::ColumnSampler>(seed);
-  return cs;
-}
+void SaveRng(Json* p_out, RandomEngine const& rng);
+void LoadRng(Json const& in, RandomEngine* rng);
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_RANDOM_H_
