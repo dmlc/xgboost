@@ -204,31 +204,6 @@ class SketchContainer {
   SketchContainer(const SketchContainer&) = delete;
   SketchContainer& operator=(const SketchContainer&) = delete;
 
-  /* \brief Removes all the duplicated elements in quantile structure. */
-  template <typename KeyComp = std::equal_to<size_t>>
-  std::size_t Unique(Context const* ctx, KeyComp key_comp = std::equal_to<size_t>{}) {
-    timer_.Start(__func__);
-    curt::SetDevice(ctx->Ordinal());
-    this->columns_ptr_.SetDevice(ctx->Device());
-    Span<OffsetT> d_column_scan = this->columns_ptr_.DeviceSpan();
-    CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
-    Span<SketchEntry> entries = dh::ToSpan(this->Current());
-    HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
-    scan_out.SetDevice(ctx->Device());
-    auto d_scan_out = scan_out.DeviceSpan();
-
-    d_column_scan = this->columns_ptr_.DeviceSpan();
-    size_t n_uniques = dh::SegmentedUnique(
-        ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
-        entries.data(), entries.data() + entries.size(), scan_out.DevicePointer(), entries.data(),
-        detail::SketchUnique{}, key_comp);
-    this->columns_ptr_.Copy(scan_out);
-    CHECK(!this->columns_ptr_.HostCanRead());
-
-    this->Current().resize(n_uniques);
-    timer_.Stop(__func__);
-    return n_uniques;
-  }
 };
 }  // namespace xgboost::common
 
