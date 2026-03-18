@@ -333,7 +333,7 @@ class HistEvaluator {
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(entries.size());
     for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       auto nidx = entries[nidx_in_set].nid;
-      features[nidx_in_set] = column_sampler_->GetFeatureSet(tree.GetDepth(nidx));
+      features[nidx_in_set] = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(nidx));
     }
     CHECK(!features.empty());
     const size_t grain_size = std::max<size_t>(1, features.front()->Size() / n_threads);
@@ -639,7 +639,7 @@ class HistMultiEvaluator {
 
     for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       auto nidx = entries[nidx_in_set].nid;
-      features[nidx_in_set] = column_sampler_->GetFeatureSet(tree.GetDepth(nidx));
+      features[nidx_in_set] = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(nidx));
     }
     CHECK(!features.empty());
 

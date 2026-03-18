@@ -32,16 +32,16 @@ using SketchEntry = WQSketch::Entry;
 
 // Algorithm 4 in XGBoost's paper, using binary search to find i.
 template <typename EntryIter>
-__device__ SketchEntry BinarySearchQuery(EntryIter beg, EntryIter end, float rank) {
+__device__ size_t BinarySearchQueryIndex(EntryIter beg, EntryIter end, float rank) {
   assert(end - beg >= 2);
   rank *= 2;
   auto front = *beg;
   if (rank < front.rmin + front.rmax) {
-    return *beg;
+    return 0;
   }
   auto back = *(end - 1);
   if (rank >= back.rmin + back.rmax) {
-    return back;
+    return end - beg - 1;
   }
 
   auto search_begin = dh::MakeTransformIterator<float>(
@@ -50,10 +50,56 @@ __device__ SketchEntry BinarySearchQuery(EntryIter beg, EntryIter end, float ran
   auto i =
       thrust::upper_bound(thrust::seq, search_begin + 1, search_end - 1, rank) - search_begin - 1;
   if (rank < (*(beg + i)).RMinNext() + (*(beg + i + 1)).RMaxPrev()) {
-    return *(beg + i);
+    return i;
   } else {
-    return *(beg + i + 1);
+    return i + 1;
   }
+}
+
+template <typename EntryFromIndex>
+// Select source indices for the pruned summary without materializing output entries.
+void SelectPruneIndices(common::Span<SketchContainer::OffsetT const> cuts_ptr,
+                        Span<SketchContainer::OffsetT const> columns_ptr_in,
+                        Span<FeatureType const> feature_types, Span<size_t> selected_idx,
+                        EntryFromIndex entry_from_index, cudaStream_t stream) {
+  dh::LaunchN(selected_idx.size(), stream, [=] __device__(size_t idx) {
+    size_t column_id = dh::SegmentId(cuts_ptr, idx);
+    auto in_begin = columns_ptr_in[column_id];
+    auto in_size = columns_ptr_in[column_id + 1] - columns_ptr_in[column_id];
+    auto to = cuts_ptr[column_id + 1] - cuts_ptr[column_id];
+    idx -= cuts_ptr[column_id];
+
+    auto is_cat = IsCat(feature_types, column_id);
+    if (in_size <= to || is_cat) {
+      selected_idx[cuts_ptr[column_id] + idx] = in_begin + idx;
+      return;
+    }
+    if (idx == 0) {
+      selected_idx[cuts_ptr[column_id]] = in_begin;
+      return;
+    }
+    if (idx == to - 1) {
+      selected_idx[cuts_ptr[column_id] + idx] = in_begin + in_size - 1;
+      return;
+    }
+
+    auto front = entry_from_index(in_begin);
+    auto back = entry_from_index(in_begin + in_size - 1);
+    float w = back.rmin - front.rmax;
+    auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
+    auto it = dh::MakeTransformIterator<SketchEntry>(
+        thrust::make_counting_iterator(in_begin),
+        [=] __device__(size_t abs_idx) { return entry_from_index(abs_idx); });
+    selected_idx[cuts_ptr[column_id] + idx] =
+        in_begin + BinarySearchQueryIndex(it, it + in_size, q);
+  });
+}
+
+template <typename EntryFromIndex>
+void GatherPruneEntries(Span<size_t const> selected_idx, Span<SketchEntry> out_cuts,
+                        EntryFromIndex entry_from_index, cudaStream_t stream) {
+  dh::LaunchN(selected_idx.size(), stream,
+              [=] __device__(size_t idx) { out_cuts[idx] = entry_from_index(selected_idx[idx]); });
 }
 
 template <typename InEntry, typename ToSketchEntry>
@@ -99,7 +145,7 @@ void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
           auto e = to_sketch_entry(idx, in_column, column_id);
           return e;
         });
-    d_out[idx] = BinarySearchQuery(it, it + in_column.size(), q);
+    d_out[idx] = *(it + BinarySearchQueryIndex(it, it + in_column.size(), q));
   });
 }
 
@@ -364,14 +410,27 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
   auto d_columns_ptr_out = columns_ptr_b_.ConstDeviceSpan();
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
-  auto no_op = [] __device__(size_t sample_idx, Span<SketchEntry const> const &entries, size_t) {
-    return entries[sample_idx];
-  };  // NOLINT
   auto ft = this->feature_types_.ConstDeviceSpan();
-  PruneImpl<SketchEntry>(d_columns_ptr_out, in, d_columns_ptr_in, ft, out, no_op);
-  this->columns_ptr_.Copy(columns_ptr_b_);
+  dh::device_vector<size_t> selected_idx(out.size());
+  auto d_selected_idx = dh::ToSpan(selected_idx);
+  HostDeviceVector<OffsetT> selected_columns_ptr(columns_ptr_b_.Size());
+  selected_columns_ptr.SetDevice(ctx->Device());
+  auto entry_from_index = [=] __device__(size_t abs_idx) {
+    return in[abs_idx];
+  };  // NOLINT
+  auto stream = ctx->CUDACtx()->Stream();
+  SelectPruneIndices(d_columns_ptr_out, d_columns_ptr_in, ft, d_selected_idx, entry_from_index,
+                     stream);
+  auto n_selected = dh::SegmentedUnique(
+      ctx->CUDACtx()->CTP(), d_columns_ptr_out.data(),
+      d_columns_ptr_out.data() + d_columns_ptr_out.size(), d_selected_idx.data(),
+      d_selected_idx.data() + d_selected_idx.size(), selected_columns_ptr.DeviceSpan().data(),
+      d_selected_idx.data(), thrust::equal_to<size_t>{});
+  GatherPruneEntries(Span<size_t const>{d_selected_idx.data(), n_selected}, out, entry_from_index,
+                     stream);
+  this->columns_ptr_.Copy(selected_columns_ptr);
   this->Alternate();
-
+  this->Current().resize(n_selected);
   this->Unique(ctx);
   timer_.Stop(__func__);
 }

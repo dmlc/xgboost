@@ -21,6 +21,16 @@ struct IsSorted {
     return a.value < b.value;
   }
 };
+
+struct RepeatedValueOp {
+  std::size_t cols;
+
+  XGBOOST_DEVICE float operator()(cuda::std::tuple<size_t, float> const& tuple) const {
+    auto i = cuda::std::get<0>(tuple);
+    auto ridx = i / cols;
+    return static_cast<float>((ridx / 8) % 4);
+  }
+};
 }  // namespace
 
 namespace common {
@@ -147,11 +157,59 @@ TEST(GPUQuantile, Prune) {
 
     sketch.Prune(&ctx, n_bins);
     ASSERT_LE(sketch.Data().size(), kRows * kCols);
-    // This is not necessarily true for all inputs without calling unique after
-    // prune.
-    ASSERT_TRUE(thrust::is_sorted(thrust::device, sketch.Data().data(),
-                                  sketch.Data().data() + sketch.Data().size(),
-                                  detail::SketchUnique{}));
+    std::vector<bst_idx_t> h_columns_ptr(sketch.ColumnsPtr().size());
+    dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch.ColumnsPtr());
+    std::vector<SketchEntry> h_data(sketch.Data().size());
+    dh::CopyDeviceSpanToVector(&h_data, sketch.Data());
+    for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
+      auto begin = h_columns_ptr[i - 1];
+      auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);
+      ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
+                                     [](SketchEntry const& l, SketchEntry const& r) {
+                                       return l.value == r.value;
+                                     }) == column.end());
+    }
+    TestQuantileElemRank(ctx.Device(), sketch.Data(), sketch.ColumnsPtr());
+  });
+}
+
+TEST(GPUQuantile, PruneDuplicated) {
+  constexpr size_t kRows = 512, kCols = 8;
+  RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
+    auto ctx = MakeCUDACtx(0);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
+
+    HostDeviceVector<float> storage;
+    std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
+                                    .Device(ctx.Device())
+                                    .Seed(seed)
+                                    .GenerateArrayInterface(&storage);
+    auto d_data = storage.DeviceSpan();
+    auto tuple_it =
+        cuda::std::make_tuple(thrust::make_counting_iterator<size_t>(0ul), d_data.data());
+    auto it = thrust::make_zip_iterator(tuple_it);
+    thrust::transform(ctx.CUDACtx()->CTP(), it, it + d_data.size(), d_data.data(),
+                      RepeatedValueOp{kCols});
+
+    data::CupyAdapter adapter(interface_str);
+    AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
+                        std::numeric_limits<float>::quiet_NaN(), &sketch);
+
+    sketch.Prune(&ctx, n_bins);
+
+    std::vector<bst_idx_t> h_columns_ptr(sketch.ColumnsPtr().size());
+    dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch.ColumnsPtr());
+    std::vector<SketchEntry> h_data(sketch.Data().size());
+    dh::CopyDeviceSpanToVector(&h_data, sketch.Data());
+    for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
+      auto begin = h_columns_ptr[i - 1];
+      auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);
+      ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
+                                     [](SketchEntry const& l, SketchEntry const& r) {
+                                       return l.value == r.value;
+                                     }) == column.end());
+    }
     TestQuantileElemRank(ctx.Device(), sketch.Data(), sketch.ColumnsPtr());
   });
 }

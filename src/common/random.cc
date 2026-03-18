@@ -1,16 +1,32 @@
 /**
- * Copyright 2020-2023, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #include "random.h"
 
 #include <algorithm>  // for sort, max, copy
 #include <memory>     // for shared_ptr
+#include <sstream>    // for stringstream
+#include <string>     // for string
 
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/json.h"                // for Json, String, get
 
 namespace xgboost::common {
+void SaveRng(Json *p_out, RandomEngine const &rng) {
+  std::stringstream ss;
+  ss << std::hex << rng;
+  auto &out = *p_out;
+  out["rng_state"] = String{ss.str()};
+}
+
+void LoadRng(Json const &in, RandomEngine *rng) {
+  std::stringstream ss{get<String const>(in["rng_state"])};
+  ss >> std::hex >> *rng;
+}
+
 std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
-    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample) {
+    Context const *ctx, std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features,
+    float colsample) {
   if (colsample == 1.0f) {
     return p_features;
   }
@@ -18,10 +34,10 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
   int n = std::max(1, static_cast<int>(colsample * p_features->Size()));
   auto p_new_features = std::make_shared<HostDeviceVector<bst_feature_t>>();
 
-  if (ctx_->IsCUDA()) {
+  if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
-    cuda_impl::SampleFeature(ctx_, n, p_features, p_new_features, this->feature_weights_,
-                             &this->weight_buffer_, &this->idx_buffer_, &rng_);
+    cuda_impl::SampleFeature(ctx, n, p_features, p_new_features, this->feature_weights_,
+                             &this->weight_buffer_, &this->idx_buffer_);
     return p_new_features;
 #else
     AssertGPUSupport();
@@ -29,6 +45,8 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
+  auto seed = ctx->Rng()();
+  RandomEngine rng(seed);
   const auto &features = p_features->HostVector();
   CHECK_GT(features.size(), 0);
 
@@ -42,13 +60,12 @@ std::shared_ptr<HostDeviceVector<bst_feature_t>> ColumnSampler::ColSample(
     for (size_t i = 0; i < h_features.size(); ++i) {
       weight[i] = h_feature_weight[h_features[i]];
     }
-    CHECK(ctx_);
     new_features.HostVector() =
-        WeightedSamplingWithoutReplacement(ctx_, p_features->HostVector(), weight, n);
+        WeightedSamplingWithoutReplacement(ctx, &rng, p_features->HostVector(), weight, n);
   } else {
     new_features.Resize(features.size());
     std::copy(features.begin(), features.end(), new_features.HostVector().begin());
-    std::shuffle(new_features.HostVector().begin(), new_features.HostVector().end(), rng_);
+    std::shuffle(new_features.HostVector().begin(), new_features.HostVector().end(), rng);
     new_features.Resize(n);
   }
   std::sort(new_features.HostVector().begin(), new_features.HostVector().end());

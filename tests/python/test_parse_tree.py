@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.parse_tree import (
@@ -54,6 +53,41 @@ class TestTreesToDataFrame:
 
     def test_tree_to_df_categorical(self) -> None:
         run_tree_to_df_categorical("approx", "cpu")
+
+    def test_tree_to_df_indicator(self, tmp_path) -> None:
+        """Test trees_to_dataframe with indicator (boolean) features."""
+        n_samples = 200
+        n_features = 5
+        X_int = rng.randint(0, 2, size=(n_samples, n_features))
+        y = np.logical_xor(X_int[:, 0], X_int[:, 1]).astype(np.float32)
+        X = X_int.astype(np.float32)
+        dtrain = xgb.DMatrix(X, label=y)
+
+        # Create a feature map with indicator type 'i'
+        fmap_path = str(tmp_path / "fmap.txt")
+        with open(fmap_path, "w", encoding="utf-8") as f:
+            for i in range(n_features):
+                f.write(f"{i}\tf{i}\ti\n")
+
+        bst = xgb.train(
+            {"max_depth": 3, "objective": "binary:logistic", "verbosity": 0},
+            dtrain,
+            num_boost_round=5,
+        )
+        df = bst.trees_to_dataframe(fmap=fmap_path)
+
+        # Basic structure checks
+        assert "Tree" in df.columns
+        assert "Feature" in df.columns
+        assert "Gain" in df.columns
+        assert "Cover" in df.columns
+        assert len(df) > 0
+
+        # Indicator nodes should have NaN splits; missing defaults to no-direction
+        non_leaf = df[df.Feature != "Leaf"]
+        assert len(non_leaf) > 0
+        assert non_leaf["Split"].isna().all()
+        assert (non_leaf["Missing"] == non_leaf["No"]).all()
 
     def test_split_value_histograms(self):
         run_split_value_histograms("approx", "cpu")

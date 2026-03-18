@@ -1,12 +1,16 @@
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 import xgboost as xgb
+from hypothesis import given, settings
 from xgboost import testing as tm
-from xgboost.testing.continuation import run_training_continuation_model_output
-
-rng = np.random.RandomState(1337)
+from xgboost.testing.continuation import (
+    make_determinism_strategy,
+    run_training_continuation_determinism,
+    run_training_continuation_model_output,
+)
 
 
 class TestTrainingContinuation:
@@ -162,3 +166,13 @@ class TestTrainingContinuation:
     @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
     def test_model_output(self, tree_method: str) -> None:
         run_training_continuation_model_output("cpu", tree_method)
+
+
+@given(make_determinism_strategy(["hist", "approx", "exact"]))
+@settings(deadline=None, print_blob=True, max_examples=10)
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_continuation_determinism(kwargs: Any) -> None:
+    run_training_continuation_determinism(
+        device="cpu",
+        **kwargs,
+    )
