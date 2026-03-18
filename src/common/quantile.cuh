@@ -57,15 +57,6 @@ class SketchContainer {
 
   bool has_categorical_{false};
 
-  dh::device_vector<SketchEntry>& Current() { return entries_; }
-  dh::device_vector<SketchEntry>& Scratch() { return entries_tmp_; }
-  dh::device_vector<SketchEntry> const& Current() const { return entries_; }
-  dh::device_vector<SketchEntry> const& Scratch() const { return entries_tmp_; }
-  Span<OffsetT const> CurrentColumnsHost() const { return columns_ptr_.ConstHostSpan(); }
-  std::vector<OffsetT>& ScratchColumnsHost() { return columns_ptr_tmp_.HostVector(); }
-  Span<OffsetT const> CurrentColumns() const { return columns_ptr_.ConstDeviceSpan(); }
-  Span<OffsetT> ScratchColumns() { return columns_ptr_tmp_.DeviceSpan(); }
-  Span<OffsetT const> ScratchColumns() const { return columns_ptr_tmp_.ConstDeviceSpan(); }
   void SetCurrentColumns(Span<OffsetT const> columns_ptr);
   void CommitScratch(std::size_t n_entries) {
     entries_.swap(entries_tmp_);
@@ -75,7 +66,7 @@ class SketchContainer {
 
   // Get the span of one column.
   Span<SketchEntry> Column(bst_feature_t i) {
-    auto data = dh::ToSpan(this->Current());
+    auto data = dh::ToSpan(this->entries_);
     auto h_ptr = columns_ptr_.ConstHostSpan();
     auto c = data.subspan(h_ptr[i], h_ptr[i+1] - h_ptr[i]);
     return c;
@@ -170,9 +161,9 @@ class SketchContainer {
    *        prune.
    */
   void ShrinkToFit() {
-    this->Current().shrink_to_fit();
-    this->Scratch().clear();
-    this->Scratch().shrink_to_fit();
+    this->entries_.shrink_to_fit();
+    this->entries_tmp_.clear();
+    this->entries_tmp_.shrink_to_fit();
     LOG(DEBUG) << "Quantile memory cost:" << common::HumanMemUnit(this->MemCapacityBytes());
   }
 
@@ -181,12 +172,9 @@ class SketchContainer {
   /* \brief Create the final histogram cut values. */
   [[nodiscard]] HistogramCuts MakeCuts(Context const* ctx, bool is_column_split);
 
-  Span<SketchEntry const> Data() const {
-    return {this->Current().data().get(), this->Current().size()};
-  }
+  Span<SketchEntry const> Data() const { return {entries_.data().get(), entries_.size()}; }
   HostDeviceVector<FeatureType> const& FeatureTypes() const { return feature_types_; }
-
-  Span<OffsetT const> ColumnsPtr() const { return this->columns_ptr_.ConstDeviceSpan(); }
+  Span<OffsetT const> ColumnsPtr() const { return columns_ptr_.ConstDeviceSpan(); }
 
   SketchContainer(SketchContainer&&) = default;
   SketchContainer& operator=(SketchContainer&&) = default;
