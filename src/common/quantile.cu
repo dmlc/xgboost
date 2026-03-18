@@ -184,6 +184,8 @@ XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry
 }
 
 void SketchContainer::SetCurrentColumns(Span<OffsetT const> columns_ptr) {
+  CHECK_EQ(columns_ptr.size(), num_columns_ + 1);
+  CHECK_EQ(columns_ptr_tmp_.Size(), num_columns_ + 1);
   columns_ptr_.Resize(columns_ptr.size());
   CopyTo(columns_ptr_.DeviceSpan(), columns_ptr);
 }
