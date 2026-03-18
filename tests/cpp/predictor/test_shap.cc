@@ -291,6 +291,86 @@ TEST(Predictor, DartShapOutputCPU) {
   CheckDartShapOutput(&ctx);
 }
 
+TEST(Predictor, V6PrototypeMatchesTreeShapCPU) {
+  Context ctx;
+  size_t constexpr kRows = 256;
+  size_t constexpr kCols = 1;
+
+  auto dmat = RandomDataGenerator(kRows, kCols, 0.0).Device(ctx.Device()).GenerateDMatrix();
+  SetLabels(dmat.get(), 1);
+
+  auto args = BaseParams(&ctx, "binary:logistic", "6");
+  args.emplace_back("tree_method", "exact");
+
+  std::shared_ptr<DMatrix> p_dmat{dmat.get(), [](DMatrix*) {}};
+  std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+  learner->SetParams(args);
+  learner->Configure();
+  for (size_t i = 0; i < 3; ++i) {
+    learner->UpdateOneIter(i, p_dmat);
+  }
+
+  HostDeviceVector<float> margin_predt;
+  learner->Predict(p_dmat, true, &margin_predt, 0, 0, false, false, false, false, false);
+
+  LearnerModelParam mparam;
+  auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), args, &mparam);
+
+  HostDeviceVector<float> treeshap;
+  interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &treeshap, *gbtree, 0, nullptr, 0, 0);
+
+  HostDeviceVector<float> v6_shap;
+  interpretability::cpu_impl::V6ShapValues(dmat->Ctx(), p_dmat.get(), &v6_shap, *gbtree, 0,
+                                           nullptr);
+
+  auto const& h_treeshap = treeshap.ConstHostVector();
+  auto const& h_v6 = v6_shap.ConstHostVector();
+  ASSERT_EQ(h_treeshap.size(), h_v6.size());
+  for (size_t i = 0; i < h_treeshap.size(); ++i) {
+    EXPECT_NEAR(h_treeshap[i], h_v6[i], 1e-4f);
+  }
+
+  CheckShapAdditivity(kRows, kCols, v6_shap, margin_predt);
+}
+
+TEST(Predictor, V6SelectorMatchesTreeShapCPU) {
+  Context ctx;
+  size_t constexpr kRows = 256;
+  size_t constexpr kCols = 1;
+
+  auto dmat = RandomDataGenerator(kRows, kCols, 0.0).Device(ctx.Device()).GenerateDMatrix();
+  SetLabels(dmat.get(), 1);
+
+  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  learner->SetParams(BaseParams(&ctx, "binary:logistic", "6"));
+  learner->SetParam("tree_method", "exact");
+  learner->Configure();
+  for (size_t i = 0; i < 3; ++i) {
+    learner->UpdateOneIter(i, dmat);
+  }
+
+  HostDeviceVector<float> margin_predt;
+  learner->Predict(dmat, true, &margin_predt, 0, 0, false, false, false, false, false);
+
+  HostDeviceVector<float> treeshap;
+  learner->Predict(dmat, false, &treeshap, 0, 0, false, false, true, false, false);
+
+  learner->SetParam("shap_algorithm", "v6");
+  learner->Configure();
+
+  HostDeviceVector<float> v6_shap;
+  learner->Predict(dmat, false, &v6_shap, 0, 0, false, false, true, false, false);
+
+  auto const& h_treeshap = treeshap.ConstHostVector();
+  auto const& h_v6 = v6_shap.ConstHostVector();
+  ASSERT_EQ(h_treeshap.size(), h_v6.size());
+  for (size_t i = 0; i < h_treeshap.size(); ++i) {
+    EXPECT_NEAR(h_treeshap[i], h_v6[i], 1e-4f);
+  }
+
+  CheckShapAdditivity(kRows, kCols, v6_shap, margin_predt);
+}
+
 TEST(Predictor, ApproxContribsBasic) {
   Context ctx;
   size_t constexpr kRows = 64;

@@ -189,6 +189,14 @@ Parameters for Tree Booster
     - ``approx``: Approximate greedy algorithm using quantile sketch and gradient histogram.
     - ``hist``: Faster histogram optimized approximate greedy algorithm.
 
+* ``shap_algorithm`` string [default= ``treeshap``]
+
+  - CPU algorithm used for ``pred_contribs`` with tree boosters.
+  - Choices: ``treeshap``, ``v6``.
+
+    - ``treeshap``: Existing exact TreeSHAP implementation.
+    - ``v6``: Quadrature plus telescoping SHAP implementation for CPU prediction.
+
 * ``scale_pos_weight`` [default=1]
 
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: ``sum(negative instances) / sum(positive instances)``. See :doc:`Parameters Tuning </tutorials/param_tuning>` for more discussion. Also, see Higgs Kaggle competition demo for examples: `R <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R>`_, `py1 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-numpy.py>`_, `py2 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-cv.py>`_, `py3 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cross_validation.py>`_.

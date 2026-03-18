@@ -62,6 +62,8 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   TreeProcessType process_type;
   // tree construction method
   TreeMethod tree_method;
+  // CPU SHAP implementation used for pred_contribs.
+  std::string shap_algorithm;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
     DMLC_DECLARE_FIELD(updater_seq).describe("Tree updater sequence.").set_default("");
@@ -80,6 +82,9 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
         .add_enum("exact", TreeMethod::kExact)
         .add_enum("hist", TreeMethod::kHist)
         .describe("Choice of tree construction method.");
+    DMLC_DECLARE_FIELD(shap_algorithm)
+        .set_default("treeshap")
+        .describe("CPU algorithm used for SHAP feature contributions.");
   }
 };
 

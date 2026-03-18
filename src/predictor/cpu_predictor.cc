@@ -745,6 +745,16 @@ class CPUPredictor : public Predictor {
  public:
   explicit CPUPredictor(Context const *ctx) : Predictor::Predictor{ctx} {}
 
+  void Configure(Args const &cfg) override {
+    for (auto const &kv : cfg) {
+      if (kv.first == "shap_algorithm") {
+        CHECK(kv.second == "treeshap" || kv.second == "v6")
+            << "Unknown SHAP algorithm: " << kv.second;
+        shap_algorithm_ = kv.second;
+      }
+    }
+  }
+
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts, gbm::GBTreeModel const &model,
                     bst_tree_t tree_begin, bst_tree_t tree_end = 0,
                     std::vector<float> const *tree_weights = nullptr) const override {
@@ -868,6 +878,9 @@ class CPUPredictor : public Predictor {
     if (approximate) {
       interpretability::ApproxFeatureImportance(this->ctx_, p_fmat, out_contribs, model,
                                                 ntree_limit, tree_weights);
+    } else if (shap_algorithm_ == "v6" && condition == 0 && condition_feature == 0) {
+      interpretability::cpu_impl::V6ShapValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
+                                               tree_weights);
     } else {
       interpretability::ShapValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
                                    tree_weights, condition, condition_feature);
@@ -881,6 +894,9 @@ class CPUPredictor : public Predictor {
     interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
                                             tree_weights, approximate);
   }
+
+ private:
+  std::string shap_algorithm_{"treeshap"};
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")
