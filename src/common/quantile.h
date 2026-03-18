@@ -48,6 +48,21 @@ struct WQSummary {
     // constructor
     XGBOOST_DEVICE Entry(RType rmin, RType rmax, RType wmin, DType value)
         : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}
+    /*!
+     * \brief equality comparison for Thrust algorithms
+     * \note Required by CUDA 12.6+ CCCL when using pair<..., Entry>
+     */
+    XGBOOST_DEVICE bool operator==(const Entry& other) const {
+      return rmin == other.rmin && rmax == other.rmax &&
+             wmin == other.wmin && value == other.value;
+    }
+    /*!
+     * \brief inequality comparison for Thrust algorithms
+     * \note Required by CUDA 12.6+ CCCL when using pair<..., Entry>
+     */
+    XGBOOST_DEVICE bool operator!=(const Entry& other) const {
+      return !(*this == other);
+    }
     /*! \return rmin estimation for v strictly bigger than value */
     XGBOOST_DEVICE RType RMinNext() const { return rmin + wmin; }
     /*! \return rmax estimation for v strictly smaller than value */
