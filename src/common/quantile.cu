@@ -452,6 +452,26 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
              << "This capacity:" << HumanMemUnit(this->MemCapacityBytes()) << "." << std::endl;
 
   timer_.Start(__func__);
+  auto normalize_merged = [&] {
+    if (this->HasCategorical()) {
+      // Numerical summaries are normalized during prune.  Categorical features can still
+      // produce repeated category values, so compact those here before exposing the sketch.
+      auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
+      auto d_column_scan = this->columns_ptr_.DeviceSpan();
+      auto entries = dh::ToSpan(this->Current());
+      HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
+      scan_out.SetDevice(ctx->Device());
+      auto n_uniques = dh::SegmentedUnique(
+          ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
+          entries.data(), entries.data() + entries.size(), scan_out.DevicePointer(), entries.data(),
+          detail::SketchUnique{}, [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
+            return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
+          });
+      this->columns_ptr_.Copy(scan_out);
+      this->Current().resize(n_uniques);
+    }
+    this->FixError();
+  };
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
     CHECK_EQ(this->columns_ptr_.HostVector().size(), d_that_columns_ptr.size());
@@ -462,6 +482,7 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
     auto total = this->columns_ptr_.HostVector().back();
     this->Current().resize(total);
     CopyTo(dh::ToSpan(this->Current()), that);
+    normalize_merged();
     timer_.Stop(__func__);
     return;
   }
@@ -483,25 +504,7 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
   this->columns_ptr_.Copy(columns_ptr_b_);
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
   this->Alternate();
-
-  if (this->HasCategorical()) {
-    // Numerical summaries are normalized during prune.  Categorical features can still
-    // produce repeated category values, so compact those here before exposing the sketch.
-    auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
-    auto d_column_scan = this->columns_ptr_.DeviceSpan();
-    auto entries = dh::ToSpan(this->Current());
-    HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
-    scan_out.SetDevice(ctx->Device());
-    auto n_uniques = dh::SegmentedUnique(
-        ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
-        entries.data(), entries.data() + entries.size(), scan_out.DevicePointer(), entries.data(),
-        detail::SketchUnique{}, [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
-          return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
-        });
-    this->columns_ptr_.Copy(scan_out);
-    this->Current().resize(n_uniques);
-  }
-  this->FixError();
+  normalize_merged();
   timer_.Stop(__func__);
 }
 

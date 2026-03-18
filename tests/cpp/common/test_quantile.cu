@@ -309,6 +309,48 @@ TEST(GPUQuantile, MergeDuplicated) {
   }
 }
 
+TEST(GPUQuantile, MergeCategorical) {
+  auto ctx = MakeCUDACtx(0);
+  constexpr bst_feature_t kCols = 2;
+  bst_bin_t n_bins = 16;
+
+  HostDeviceVector<FeatureType> ft;
+  ft.HostVector() = {FeatureType::kCategorical, FeatureType::kNumerical};
+  SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
+  SketchContainer sketch_1(ft, n_bins, kCols, ctx.Device());
+
+  std::vector<Entry> entries_0{{0, 0.0f}, {0, 0.0f}, {0, 1.0f}, {0, 2.0f},
+                               {0, 2.0f}, {1, 0.1f}, {1, 0.2f}, {1, 0.4f}};
+  std::vector<Entry> entries_1{{0, 1.0f}, {0, 1.0f},  {0, 2.0f},  {0, 3.0f},
+                               {0, 3.0f}, {1, 0.15f}, {1, 0.25f}, {1, 0.5f}};
+
+  dh::device_vector<Entry> d_entries_0{entries_0};
+  dh::device_vector<Entry> d_entries_1{entries_1};
+  dh::device_vector<size_t> columns_ptr_0{0, 5, 8};
+  dh::device_vector<size_t> columns_ptr_1{0, 5, 8};
+  dh::device_vector<size_t> cuts_ptr_0{0, 5, 8};
+  dh::device_vector<size_t> cuts_ptr_1{0, 5, 8};
+
+  sketch_0.Push(&ctx, dh::ToSpan(d_entries_0), dh::ToSpan(columns_ptr_0), dh::ToSpan(cuts_ptr_0),
+                entries_0.size(), {});
+  sketch_1.Push(&ctx, dh::ToSpan(d_entries_1), dh::ToSpan(columns_ptr_1), dh::ToSpan(cuts_ptr_1),
+                entries_1.size(), {});
+
+  sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
+  TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr());
+
+  std::vector<bst_idx_t> h_columns_ptr(sketch_0.ColumnsPtr().size());
+  dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch_0.ColumnsPtr());
+  std::vector<SketchEntry> h_data(sketch_0.Data().size());
+  dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
+
+  auto cat_column = Span<SketchEntry>{h_data}.subspan(h_columns_ptr[0], h_columns_ptr[1]);
+  ASSERT_TRUE(std::adjacent_find(cat_column.begin(), cat_column.end(),
+                                 [](SketchEntry const& l, SketchEntry const& r) {
+                                   return l.value == r.value;
+                                 }) == cat_column.end());
+}
+
 TEST(GPUQuantile, MultiMerge) {
   constexpr size_t kRows = 20, kCols = 1;
   int32_t world = 2;
