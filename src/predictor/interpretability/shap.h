@@ -19,9 +19,9 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,
                 std::vector<float> const* tree_weights, int condition, unsigned condition_feature);
 
-void V6ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                  gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                  std::vector<float> const* tree_weights);
+void QuadratureShapValues(Context const* ctx, DMatrix* p_fmat,
+                          HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
+                          bst_tree_t tree_end, std::vector<float> const* tree_weights);
 
 void ApproxFeatureImportance(Context const* ctx, DMatrix* p_fmat,
                              HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,

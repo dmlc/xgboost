@@ -3,9 +3,10 @@
  */
 #include "shap.h"
 
-#include <algorithm>    // for fill
+#include <algorithm>    // for copy, fill
 #include <array>        // for array
 #include <cmath>        // for abs
+#include <cstdint>      // for uint32_t
 #include <limits>       // for numeric_limits
 #include <type_traits>  // for remove_const_t
 #include <vector>       // for vector
@@ -15,7 +16,6 @@
 #include "../../tree/tree_view.h"          // for ScalarTreeView
 #include "../data_accessor.h"              // for GHistIndexMatrixView
 #include "../predict_fn.h"                 // for GetTreeLimit
-#include "../treeshap.h"                   // for CalculateContributions
 #include "dmlc/omp.h"                      // for omp_get_thread_num
 #include "xgboost/base.h"                  // for bst_omp_uint
 #include "xgboost/logging.h"               // for CHECK
@@ -60,118 +60,289 @@ void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVe
                                   std::vector<float> *mean_values,
                                   std::vector<bst_float> *out_contribs) {
   CHECK_EQ(out_contribs->size(), feats.Size() + 1);
-  CalculateContributionsApprox(tree, feats, mean_values, out_contribs->data());
+  CHECK_GT(mean_values->size(), 0U);
+  bst_feature_t split_index = 0;
+  float node_value = (*mean_values)[0];
+  out_contribs->back() += node_value;
+  if (tree.IsLeaf(RegTree::kRoot)) {
+    return;
+  }
+
+  bst_node_t nidx = RegTree::kRoot;
+  auto const &cats = tree.GetCategoriesMatrix();
+  while (!tree.IsLeaf(nidx)) {
+    split_index = tree.SplitIndex(nidx);
+    nidx = predictor::GetNextNode<true, true>(tree, nidx, feats.GetFvalue(split_index),
+                                              feats.IsMissing(split_index), cats);
+    auto new_value = (*mean_values)[nidx];
+    (*out_contribs)[split_index] += new_value - node_value;
+    node_value = new_value;
+  }
+  (*out_contribs)[split_index] += tree.LeafValue(nidx) - node_value;
 }
 
-constexpr std::size_t kV6QuadraturePoints = 30;
-constexpr double kV6Qeps = 1e-15;
-constexpr double kV6Unseen = -999.0;
-using V6Quad = std::array<double, kV6QuadraturePoints>;
+struct PathElement {
+  int feature_index;
+  float zero_fraction;
+  float one_fraction;
+  float pweight;
+  PathElement() = default;
+  PathElement(int i, float z, float o, float w)
+      : feature_index(i), zero_fraction(z), one_fraction(o), pweight(w) {}
+};
 
-V6Quad const &V6Nodes() {
-  static constexpr V6Quad kNodes = {
-      1.55325796267524740557e-03, 8.16593836012641238753e-03, 1.99890675158462260974e-02,
-      3.68999762853628454629e-02, 5.87197321039736319648e-02, 8.52171188086158215569e-02,
-      1.16111283947586907406e-01, 1.51074752603342077339e-01, 1.89736908505378554235e-01,
-      2.31687925928990068325e-01, 2.76483115230955422970e-01, 3.23647637234560914266e-01,
-      3.72681536916055100583e-01, 4.23065043195708256896e-01, 4.74264078722341164696e-01,
-      5.25735921277658890816e-01, 5.76934956804291743104e-01, 6.27318463083944899417e-01,
-      6.76352362765439085734e-01, 7.23516884769044521519e-01, 7.68312074071009876164e-01,
-      8.10263091494621390254e-01, 8.48925247396657978172e-01, 8.83888716052413148105e-01,
-      9.14782881191384178443e-01, 9.41280267896026368035e-01, 9.63100023714637210048e-01,
-      9.80010932484153718391e-01, 9.91834061639873532101e-01, 9.98446742037324752594e-01};
+void ExtendPath(PathElement *unique_path, std::uint32_t unique_depth, float zero_fraction,
+                float one_fraction, int feature_index) {
+  unique_path[unique_depth].feature_index = feature_index;
+  unique_path[unique_depth].zero_fraction = zero_fraction;
+  unique_path[unique_depth].one_fraction = one_fraction;
+  unique_path[unique_depth].pweight = (unique_depth == 0 ? 1.0f : 0.0f);
+  for (int i = static_cast<int>(unique_depth) - 1; i >= 0; --i) {
+    unique_path[i + 1].pweight +=
+        one_fraction * unique_path[i].pweight * (i + 1) / static_cast<float>(unique_depth + 1);
+    unique_path[i].pweight = zero_fraction * unique_path[i].pweight * (unique_depth - i) /
+                             static_cast<float>(unique_depth + 1);
+  }
+}
+
+void UnwindPath(PathElement *unique_path, std::uint32_t unique_depth, std::uint32_t path_index) {
+  auto const one_fraction = unique_path[path_index].one_fraction;
+  auto const zero_fraction = unique_path[path_index].zero_fraction;
+  float next_one_portion = unique_path[unique_depth].pweight;
+
+  for (int i = static_cast<int>(unique_depth) - 1; i >= 0; --i) {
+    if (one_fraction != 0.0f) {
+      auto const tmp = unique_path[i].pweight;
+      unique_path[i].pweight =
+          next_one_portion * (unique_depth + 1) / static_cast<float>((i + 1) * one_fraction);
+      next_one_portion = tmp - unique_path[i].pweight * zero_fraction * (unique_depth - i) /
+                                   static_cast<float>(unique_depth + 1);
+    } else {
+      unique_path[i].pweight = unique_path[i].pweight * (unique_depth + 1) /
+                               static_cast<float>(zero_fraction * (unique_depth - i));
+    }
+  }
+
+  for (auto i = path_index; i < unique_depth; ++i) {
+    unique_path[i].feature_index = unique_path[i + 1].feature_index;
+    unique_path[i].zero_fraction = unique_path[i + 1].zero_fraction;
+    unique_path[i].one_fraction = unique_path[i + 1].one_fraction;
+  }
+}
+
+float UnwoundPathSum(PathElement const *unique_path, std::uint32_t unique_depth,
+                     std::uint32_t path_index) {
+  auto const one_fraction = unique_path[path_index].one_fraction;
+  auto const zero_fraction = unique_path[path_index].zero_fraction;
+  float next_one_portion = unique_path[unique_depth].pweight;
+  float total = 0.0f;
+  for (int i = static_cast<int>(unique_depth) - 1; i >= 0; --i) {
+    if (one_fraction != 0.0f) {
+      auto const tmp =
+          next_one_portion * (unique_depth + 1) / static_cast<float>((i + 1) * one_fraction);
+      total += tmp;
+      next_one_portion =
+          unique_path[i].pweight -
+          tmp * zero_fraction * ((unique_depth - i) / static_cast<float>(unique_depth + 1));
+    } else if (zero_fraction != 0.0f) {
+      total += (unique_path[i].pweight / zero_fraction) /
+               ((unique_depth - i) / static_cast<float>(unique_depth + 1));
+    } else {
+      CHECK_EQ(unique_path[i].pweight, 0.0f) << "Unique path " << i << " must have zero weight";
+    }
+  }
+  return total;
+}
+
+void TreeShap(tree::ScalarTreeView const &tree, RegTree::FVec const &feat, float *phi,
+              bst_node_t nidx, std::uint32_t unique_depth, PathElement *parent_unique_path,
+              float parent_zero_fraction, float parent_one_fraction, int parent_feature_index,
+              int condition, std::uint32_t condition_feature, float condition_fraction) {
+  if (condition_fraction == 0.0f) {
+    return;
+  }
+
+  PathElement *unique_path = parent_unique_path + unique_depth + 1;
+  std::copy(parent_unique_path, parent_unique_path + unique_depth + 1, unique_path);
+  if (condition == 0 || condition_feature != static_cast<std::uint32_t>(parent_feature_index)) {
+    ExtendPath(unique_path, unique_depth, parent_zero_fraction, parent_one_fraction,
+               parent_feature_index);
+  }
+
+  auto const split_index = tree.SplitIndex(nidx);
+  if (tree.IsLeaf(nidx)) {
+    for (std::uint32_t i = 1; i <= unique_depth; ++i) {
+      auto const w = UnwoundPathSum(unique_path, unique_depth, i);
+      auto const &el = unique_path[i];
+      phi[el.feature_index] +=
+          w * (el.one_fraction - el.zero_fraction) * tree.LeafValue(nidx) * condition_fraction;
+    }
+    return;
+  }
+
+  auto const &cats = tree.GetCategoriesMatrix();
+  auto hot_index = predictor::GetNextNode<true, true>(tree, nidx, feat.GetFvalue(split_index),
+                                                      feat.IsMissing(split_index), cats);
+  auto const cold_index =
+      (hot_index == tree.LeftChild(nidx) ? tree.RightChild(nidx) : tree.LeftChild(nidx));
+  auto const w = tree.Stat(nidx).sum_hess;
+  auto const hot_zero_fraction = tree.Stat(hot_index).sum_hess / w;
+  auto const cold_zero_fraction = tree.Stat(cold_index).sum_hess / w;
+  float incoming_zero_fraction = 1.0f;
+  float incoming_one_fraction = 1.0f;
+
+  std::uint32_t path_index = 0;
+  for (; path_index <= unique_depth; ++path_index) {
+    if (static_cast<std::uint32_t>(unique_path[path_index].feature_index) == split_index) {
+      break;
+    }
+  }
+  if (path_index != unique_depth + 1) {
+    incoming_zero_fraction = unique_path[path_index].zero_fraction;
+    incoming_one_fraction = unique_path[path_index].one_fraction;
+    UnwindPath(unique_path, unique_depth, path_index);
+    unique_depth -= 1;
+  }
+
+  float hot_condition_fraction = condition_fraction;
+  float cold_condition_fraction = condition_fraction;
+  if (condition > 0 && split_index == condition_feature) {
+    cold_condition_fraction = 0.0f;
+    unique_depth -= 1;
+  } else if (condition < 0 && split_index == condition_feature) {
+    hot_condition_fraction *= hot_zero_fraction;
+    cold_condition_fraction *= cold_zero_fraction;
+    unique_depth -= 1;
+  }
+
+  TreeShap(tree, feat, phi, hot_index, unique_depth + 1, unique_path,
+           hot_zero_fraction * incoming_zero_fraction, incoming_one_fraction, split_index,
+           condition, condition_feature, hot_condition_fraction);
+  TreeShap(tree, feat, phi, cold_index, unique_depth + 1, unique_path,
+           cold_zero_fraction * incoming_zero_fraction, 0.0f, split_index, condition,
+           condition_feature, cold_condition_fraction);
+}
+
+void CalculateContributions(tree::ScalarTreeView const &tree, RegTree::FVec const &feat,
+                            std::vector<float> *mean_values, float *out_contribs, int condition,
+                            std::uint32_t condition_feature) {
+  if (condition == 0) {
+    out_contribs[feat.Size()] += (*mean_values)[RegTree::kRoot];
+  }
+
+  auto const maxd = tree.MaxDepth() + 2;
+  std::vector<PathElement> unique_path_data((maxd * (maxd + 1)) / 2);
+  TreeShap(tree, feat, out_contribs, RegTree::kRoot, 0, unique_path_data.data(), 1.0f, 1.0f, -1,
+           condition, condition_feature, 1.0f);
+}
+
+constexpr std::size_t kQuadratureShapPoints = 16;
+constexpr double kQuadratureShapQeps = 1e-15;
+constexpr double kQuadratureShapUnseen = -999.0;
+using QuadratureRule = std::array<double, kQuadratureShapPoints>;
+
+QuadratureRule const &QuadratureNodes() {
+  static constexpr QuadratureRule kNodes = {
+      2.80850447628076738593e-05, 7.67982016833174672456e-04, 4.51374344293495755737e-03,
+      1.49567508630415318960e-02, 3.65046411479570120928e-02, 7.34364533252638285177e-02,
+      1.29023364563242204373e-01, 2.04750589337593075223e-01, 2.99763099175230585125e-01,
+      4.10626915342501119799e-01, 5.31453230982491087175e-01, 6.54380885550600810419e-01,
+      7.70361159218044599939e-01, 8.70144945830766847195e-01, 9.45343005090065746643e-01,
+      9.89429020036412754102e-01};
   return kNodes;
 }
 
-V6Quad const &V6Weights() {
-  static constexpr V6Quad kWeights = {
-      3.98409624808451681005e-03, 9.23323415554584518705e-03, 1.43923539416612698838e-02,
-      1.93995962848134140266e-02, 2.42013364152968944720e-02, 2.87465781088096158924e-02,
-      3.29871149410902175791e-02, 3.68779873688524495456e-02, 4.03779476147099816719e-02,
-      4.34498936005414254646e-02, 4.60612611188929710337e-02, 4.81843685873219601534e-02,
-      4.97967102933974670176e-02, 5.08811948742026384784e-02, 5.14263264467792954870e-02,
-      5.14263264467792954870e-02, 5.08811948742026384784e-02, 4.97967102933974670176e-02,
-      4.81843685873219601534e-02, 4.60612611188929710337e-02, 4.34498936005414254646e-02,
-      4.03779476147099816719e-02, 3.68779873688524495456e-02, 3.29871149410902175791e-02,
-      2.87465781088096158924e-02, 2.42013364152968944720e-02, 1.93995962848134140266e-02,
-      1.43923539416612698838e-02, 9.23323415554584518705e-03, 3.98409624808451681005e-03};
+QuadratureRule const &QuadratureWeights() {
+  static constexpr QuadratureRule kWeights = {
+      1.43895341220884505091e-04, 1.72520006395474869917e-03, 6.39316739866999800279e-03,
+      1.52418484801773411463e-02, 2.85820905344451973995e-02, 4.58399977309956255245e-02,
+      6.55908224919272003772e-02, 8.57252162327300087918e-02, 1.03725394222338646033e-01,
+      1.17012592552996438910e-01, 1.23316521664007014425e-01, 1.21013898282131507345e-01,
+      1.09387122775356740445e-01, 8.87653442838226142131e-02, 6.05283238746927090834e-02,
+      2.70085640705332932776e-02};
   return kWeights;
 }
 
-V6Quad Scale(V6Quad h_vals, double scale) {
-  for (auto &v : h_vals) {
+void ScaleInPlace(QuadratureRule *h_vals, double scale) {
+  for (auto &v : *h_vals) {
     v *= scale;
   }
-  return h_vals;
 }
 
-V6Quad Add(V6Quad lhs, V6Quad const &rhs) {
-  for (std::size_t i = 0; i < lhs.size(); ++i) {
-    lhs[i] += rhs[i];
+void AddInPlace(QuadratureRule *lhs, QuadratureRule const &rhs) {
+  for (std::size_t i = 0; i < lhs->size(); ++i) {
+    (*lhs)[i] += rhs[i];
   }
-  return lhs;
 }
 
-double ExtractTermV6(V6Quad const &h_vals, double p_value) {
-  if (p_value == kV6Unseen) {
+double ExtractQuadratureDelta(QuadratureRule const &h_vals, double p_enter, double p_exit) {
+  auto const alpha_enter = p_enter - 1.0;
+  auto const alpha_exit = p_exit - 1.0;
+  auto const has_enter =
+      (p_enter != kQuadratureShapUnseen) && (std::abs(alpha_enter) >= kQuadratureShapQeps);
+  auto const has_exit =
+      (p_exit != kQuadratureShapUnseen) && (std::abs(alpha_exit) >= kQuadratureShapQeps);
+  if (!has_enter && !has_exit) {
     return 0.0;
   }
-  auto alpha = p_value - 1.0;
-  if (std::abs(alpha) < kV6Qeps) {
-    return 0.0;
-  }
-  auto const &nodes = V6Nodes();
-  auto const &weights = V6Weights();
+  auto const &nodes = QuadratureNodes();
+  auto const &weights = QuadratureWeights();
   double acc = 0.0;
   for (std::size_t i = 0; i < h_vals.size(); ++i) {
-    acc += alpha * h_vals[i] / (1.0 + alpha * nodes[i]) * weights[i];
+    auto const weighted_h = h_vals[i] * weights[i];
+    if (has_enter) {
+      acc += alpha_enter * weighted_h / (1.0 + alpha_enter * nodes[i]);
+    }
+    if (has_exit) {
+      acc -= alpha_exit * weighted_h / (1.0 + alpha_exit * nodes[i]);
+    }
   }
   return acc;
 }
 
-bool GoesLeftV6(tree::ScalarTreeView const &tree, RegTree::FVec const &feat, bst_node_t nidx) {
+bool GoesLeftQuadrature(tree::ScalarTreeView const &tree, RegTree::FVec const &feat,
+                        bst_node_t nidx) {
   auto split_index = tree.SplitIndex(nidx);
-  auto fvalue = feat.GetFvalue(split_index);
-  auto missing = feat.IsMissing(split_index);
   auto const &cats = tree.GetCategoriesMatrix();
-  bst_node_t next = RegTree::kInvalidNodeId;
-  if (tree.HasCategoricalSplit()) {
-    next = missing ? predictor::GetNextNode<true, true>(tree, nidx, fvalue, true, cats)
-                   : predictor::GetNextNode<false, true>(tree, nidx, fvalue, false, cats);
-  } else {
-    next = missing ? predictor::GetNextNode<true, false>(tree, nidx, fvalue, true, cats)
-                   : predictor::GetNextNode<false, false>(tree, nidx, fvalue, false, cats);
-  }
+  auto next = predictor::GetNextNode<true, true>(tree, nidx, feat.GetFvalue(split_index),
+                                                 feat.IsMissing(split_index), cats);
   return next == tree.LeftChild(nidx);
 }
 
-double ChildWeightV6(tree::ScalarTreeView const &tree, bst_node_t parent, bst_node_t child) {
+double ChildWeightQuadrature(tree::ScalarTreeView const &tree, bst_node_t parent,
+                             bst_node_t child) {
   auto parent_cover = tree.Stat(parent).sum_hess;
   CHECK_GT(parent_cover, 0.0f);
   return tree.Stat(child).sum_hess / parent_cover;
 }
 
-V6Quad TreeShapV6(tree::ScalarTreeView const &tree, RegTree::FVec const &feat, bst_node_t nidx,
-                  V6Quad const &c_vals, double w_prod, std::vector<double> *p_vals, double *phi) {
+void TreeShapQuadrature(tree::ScalarTreeView const &tree, RegTree::FVec const &feat,
+                        bst_node_t nidx, QuadratureRule const &c_vals, double w_prod,
+                        std::vector<double> *p_vals, double *phi, QuadratureRule *out_h) {
   if (tree.IsLeaf(nidx)) {
-    return Scale(c_vals, w_prod * tree.LeafValue(nidx));
+    *out_h = c_vals;
+    ScaleInPlace(out_h, w_prod * tree.LeafValue(nidx));
+    return;
   }
 
   auto split_index = tree.SplitIndex(nidx);
   auto left = tree.LeftChild(nidx);
   auto right = tree.RightChild(nidx);
-  auto left_weight = ChildWeightV6(tree, nidx, left);
-  auto right_weight = ChildWeightV6(tree, nidx, right);
-  auto goes_left = GoesLeftV6(tree, feat, nidx);
+  auto left_weight = ChildWeightQuadrature(tree, nidx, left);
+  auto right_weight = ChildWeightQuadrature(tree, nidx, right);
+  auto goes_left = GoesLeftQuadrature(tree, feat, nidx);
   auto p_old = (*p_vals)[split_index];
+  auto const &nodes = QuadratureNodes();
+  QuadratureRule child_h;
 
-  auto visit_child = [&](bst_node_t child, double child_weight, bool satisfies) {
+  auto visit_child = [&](bst_node_t child, double child_weight, bool satisfies,
+                         QuadratureRule *out_child) {
     double p_e = 0.0;
     double p_up = 0.0;
-    if (p_old == kV6Unseen) {
+    if (p_old == kQuadratureShapUnseen) {
       p_e = satisfies ? 1.0 / child_weight : 0.0;
       p_up = 1.0;
-    } else if (std::abs(p_old) < kV6Qeps) {
+    } else if (std::abs(p_old) < kQuadratureShapQeps) {
       p_e = 0.0;
       p_up = 0.0;
     } else {
@@ -180,15 +351,14 @@ V6Quad TreeShapV6(tree::ScalarTreeView const &tree, RegTree::FVec const &feat, b
     }
 
     auto c_child = c_vals;
-    auto const &nodes = V6Nodes();
     auto alpha_e = p_e - 1.0;
     for (std::size_t i = 0; i < c_child.size(); ++i) {
       c_child[i] *= 1.0 + alpha_e * nodes[i];
     }
 
-    if (p_old != kV6Unseen) {
+    if (p_old != kQuadratureShapUnseen) {
       auto alpha_old = p_old - 1.0;
-      if (std::abs(alpha_old) >= kV6Qeps) {
+      if (std::abs(alpha_old) >= kQuadratureShapQeps) {
         for (std::size_t i = 0; i < c_child.size(); ++i) {
           c_child[i] /= 1.0 + alpha_old * nodes[i];
         }
@@ -196,30 +366,29 @@ V6Quad TreeShapV6(tree::ScalarTreeView const &tree, RegTree::FVec const &feat, b
     }
 
     (*p_vals)[split_index] = p_e;
-    auto h_child = TreeShapV6(tree, feat, child, c_child, w_prod * child_weight, p_vals, phi);
+    TreeShapQuadrature(tree, feat, child, c_child, w_prod * child_weight, p_vals, phi, out_child);
     (*p_vals)[split_index] = p_old;
-    phi[split_index] += ExtractTermV6(h_child, p_e);
-    phi[split_index] -= ExtractTermV6(h_child, p_up);
-    return h_child;
+    phi[split_index] += ExtractQuadratureDelta(*out_child, p_e, p_up);
   };
 
-  auto left_h = visit_child(left, left_weight, goes_left);
-  auto right_h = visit_child(right, right_weight, !goes_left);
-  return Add(std::move(left_h), right_h);
+  visit_child(left, left_weight, goes_left, out_h);
+  visit_child(right, right_weight, !goes_left, &child_h);
+  AddInPlace(out_h, child_h);
 }
 
-void CalculateContributionsV6(tree::ScalarTreeView const &tree, RegTree::FVec const &feat,
-                              std::vector<float> *mean_values, double *out_contribs) {
+void CalculateContributionsQuadrature(tree::ScalarTreeView const &tree, RegTree::FVec const &feat,
+                                      std::vector<float> *mean_values, double *out_contribs,
+                                      std::vector<double> *p_vals) {
   out_contribs[feat.Size()] += (*mean_values)[0];
 
   if (tree.IsLeaf(RegTree::kRoot)) {
     return;
   }
 
-  V6Quad c_init;
+  QuadratureRule c_init;
   c_init.fill(1.0);
-  std::vector<double> p_vals(feat.Size(), kV6Unseen);
-  TreeShapV6(tree, feat, RegTree::kRoot, c_init, 1.0, &p_vals, out_contribs);
+  QuadratureRule h_vals;
+  TreeShapQuadrature(tree, feat, RegTree::kRoot, c_init, 1.0, p_vals, out_contribs, &h_vals);
 }
 
 template <typename EncAccessor, typename Fn>
@@ -327,9 +496,9 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
   LaunchShap(ctx, p_fmat, model, process_view);
 }
 
-void V6ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
-                  gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                  std::vector<float> const *tree_weights) {
+void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
+                          HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
+                          bst_tree_t tree_end, std::vector<float> const *tree_weights) {
   CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
@@ -355,6 +524,9 @@ void V6ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<double>> contribs_tloc(n_threads, std::vector<double>(ncolumns));
+  std::vector<std::vector<double>> p_vals_tloc(
+      n_threads,
+      std::vector<double>(model.learner_model_param->num_feature, kQuadratureShapUnseen));
 
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
   auto base_margin = info.base_margin_.View(device);
@@ -367,6 +539,7 @@ void V6ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *
         feats.Init(model.learner_model_param->num_feature);
       }
       auto &this_tree_contribs = contribs_tloc[tid];
+      auto &p_vals = p_vals_tloc[tid];
       auto row_idx = view.base_rowid + i;
       auto n_valid = view.DoFill(i, feats.Data().data());
       feats.HasMissing(n_valid != feats.Size());
@@ -378,7 +551,8 @@ void V6ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *
           }
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0);
           auto const sc_tree = model.trees[j]->HostScView();
-          CalculateContributionsV6(sc_tree, feats, &mean_values[j], this_tree_contribs.data());
+          CalculateContributionsQuadrature(sc_tree, feats, &mean_values[j],
+                                           this_tree_contribs.data(), &p_vals);
           auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[j];
           for (size_t ci = 0; ci < ncolumns; ++ci) {
             p_contribs[ci] += static_cast<float>(this_tree_contribs[ci] * weight);

@@ -748,7 +748,7 @@ class CPUPredictor : public Predictor {
   void Configure(Args const &cfg) override {
     for (auto const &kv : cfg) {
       if (kv.first == "shap_algorithm") {
-        CHECK(kv.second == "treeshap" || kv.second == "v6")
+        CHECK(kv.second == "treeshap" || kv.second == "quadratureshap")
             << "Unknown SHAP algorithm: " << kv.second;
         shap_algorithm_ = kv.second;
       }
@@ -878,9 +878,9 @@ class CPUPredictor : public Predictor {
     if (approximate) {
       interpretability::ApproxFeatureImportance(this->ctx_, p_fmat, out_contribs, model,
                                                 ntree_limit, tree_weights);
-    } else if (shap_algorithm_ == "v6" && condition == 0 && condition_feature == 0) {
-      interpretability::cpu_impl::V6ShapValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
-                                               tree_weights);
+    } else if (shap_algorithm_ == "quadratureshap" && condition == 0 && condition_feature == 0) {
+      interpretability::cpu_impl::QuadratureShapValues(this->ctx_, p_fmat, out_contribs, model,
+                                                       ntree_limit, tree_weights);
     } else {
       interpretability::ShapValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
                                    tree_weights, condition, condition_feature);

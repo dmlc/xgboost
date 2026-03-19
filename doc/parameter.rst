@@ -192,10 +192,10 @@ Parameters for Tree Booster
 * ``shap_algorithm`` string [default= ``treeshap``]
 
   - CPU algorithm used for ``pred_contribs`` with tree boosters.
-  - Choices: ``treeshap``, ``v6``.
+  - Choices: ``treeshap``, ``quadratureshap``.
 
     - ``treeshap``: Existing exact TreeSHAP implementation.
-    - ``v6``: Quadrature plus telescoping SHAP implementation for CPU prediction.
+    - ``quadratureshap``: Quadrature plus telescoping SHAP implementation for CPU prediction.
 
 * ``scale_pos_weight`` [default=1]
 

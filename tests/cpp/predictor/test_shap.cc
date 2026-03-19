@@ -20,10 +20,58 @@
 #include "../../../src/common/param_array.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/predictor/interpretability/shap.h"
+#include "../../../src/tree/tree_view.h"
 #include "../helpers.h"
 
 namespace xgboost {
 namespace {
+struct CoverStats {
+  double min_child_weight{1.0};
+  double min_path_weight{1.0};
+  std::size_t internal_nodes{0};
+  std::size_t leaves{0};
+  std::size_t count_lt_1e2{0};
+  std::size_t count_lt_1e3{0};
+  std::size_t count_lt_1e4{0};
+  std::size_t count_lt_1e5{0};
+};
+
+void AccumulateCoverStats(tree::ScalarTreeView const& tree, bst_node_t nidx, double path_min_weight,
+                          CoverStats* stats) {
+  if (tree.IsLeaf(nidx)) {
+    ++stats->leaves;
+    stats->min_path_weight = std::min(stats->min_path_weight, path_min_weight);
+    return;
+  }
+
+  ++stats->internal_nodes;
+  auto left = tree.LeftChild(nidx);
+  auto right = tree.RightChild(nidx);
+  auto parent_cover = static_cast<double>(tree.Stat(nidx).sum_hess);
+  CHECK_GT(parent_cover, 0.0);
+
+  auto visit_child = [&](bst_node_t child) {
+    auto child_weight = static_cast<double>(tree.Stat(child).sum_hess) / parent_cover;
+    stats->min_child_weight = std::min(stats->min_child_weight, child_weight);
+    if (child_weight < 1e-2) {
+      ++stats->count_lt_1e2;
+    }
+    if (child_weight < 1e-3) {
+      ++stats->count_lt_1e3;
+    }
+    if (child_weight < 1e-4) {
+      ++stats->count_lt_1e4;
+    }
+    if (child_weight < 1e-5) {
+      ++stats->count_lt_1e5;
+    }
+    AccumulateCoverStats(tree, child, std::min(path_min_weight, child_weight), stats);
+  };
+
+  visit_child(left);
+  visit_child(right);
+}
+
 void SetLabels(DMatrix* dmat, bst_target_t n_classes) {
   size_t const rows = dmat->Info().num_row_;
   dmat->Info().labels.Reshape(rows, 1);
@@ -291,7 +339,7 @@ TEST(Predictor, DartShapOutputCPU) {
   CheckDartShapOutput(&ctx);
 }
 
-TEST(Predictor, V6PrototypeMatchesTreeShapCPU) {
+TEST(Predictor, QuadratureShapPrototypeMatchesTreeShapCPU) {
   Context ctx;
   size_t constexpr kRows = 256;
   size_t constexpr kCols = 1;
@@ -319,21 +367,21 @@ TEST(Predictor, V6PrototypeMatchesTreeShapCPU) {
   HostDeviceVector<float> treeshap;
   interpretability::ShapValues(dmat->Ctx(), p_dmat.get(), &treeshap, *gbtree, 0, nullptr, 0, 0);
 
-  HostDeviceVector<float> v6_shap;
-  interpretability::cpu_impl::V6ShapValues(dmat->Ctx(), p_dmat.get(), &v6_shap, *gbtree, 0,
-                                           nullptr);
+  HostDeviceVector<float> quadrature_shap;
+  interpretability::cpu_impl::QuadratureShapValues(dmat->Ctx(), p_dmat.get(), &quadrature_shap,
+                                                   *gbtree, 0, nullptr);
 
   auto const& h_treeshap = treeshap.ConstHostVector();
-  auto const& h_v6 = v6_shap.ConstHostVector();
-  ASSERT_EQ(h_treeshap.size(), h_v6.size());
+  auto const& h_quadrature = quadrature_shap.ConstHostVector();
+  ASSERT_EQ(h_treeshap.size(), h_quadrature.size());
   for (size_t i = 0; i < h_treeshap.size(); ++i) {
-    EXPECT_NEAR(h_treeshap[i], h_v6[i], 1e-4f);
+    EXPECT_NEAR(h_treeshap[i], h_quadrature[i], 1e-4f);
   }
 
-  CheckShapAdditivity(kRows, kCols, v6_shap, margin_predt);
+  CheckShapAdditivity(kRows, kCols, quadrature_shap, margin_predt);
 }
 
-TEST(Predictor, V6SelectorMatchesTreeShapCPU) {
+TEST(Predictor, QuadratureShapSelectorMatchesTreeShapCPU) {
   Context ctx;
   size_t constexpr kRows = 256;
   size_t constexpr kCols = 1;
@@ -355,20 +403,59 @@ TEST(Predictor, V6SelectorMatchesTreeShapCPU) {
   HostDeviceVector<float> treeshap;
   learner->Predict(dmat, false, &treeshap, 0, 0, false, false, true, false, false);
 
-  learner->SetParam("shap_algorithm", "v6");
+  learner->SetParam("shap_algorithm", "quadratureshap");
   learner->Configure();
 
-  HostDeviceVector<float> v6_shap;
-  learner->Predict(dmat, false, &v6_shap, 0, 0, false, false, true, false, false);
+  HostDeviceVector<float> quadrature_shap;
+  learner->Predict(dmat, false, &quadrature_shap, 0, 0, false, false, true, false, false);
 
   auto const& h_treeshap = treeshap.ConstHostVector();
-  auto const& h_v6 = v6_shap.ConstHostVector();
-  ASSERT_EQ(h_treeshap.size(), h_v6.size());
+  auto const& h_quadrature = quadrature_shap.ConstHostVector();
+  ASSERT_EQ(h_treeshap.size(), h_quadrature.size());
   for (size_t i = 0; i < h_treeshap.size(); ++i) {
-    EXPECT_NEAR(h_treeshap[i], h_v6[i], 1e-4f);
+    EXPECT_NEAR(h_treeshap[i], h_quadrature[i], 1e-4f);
   }
 
-  CheckShapAdditivity(kRows, kCols, v6_shap, margin_predt);
+  CheckShapAdditivity(kRows, kCols, quadrature_shap, margin_predt);
+}
+
+TEST(Predictor, QuadratureShapExactCoverStatsCPU) {
+  Context ctx;
+  size_t constexpr kRows = 256;
+  size_t constexpr kCols = 1;
+
+  auto dmat = RandomDataGenerator(kRows, kCols, 0.0).Device(ctx.Device()).GenerateDMatrix();
+  SetLabels(dmat.get(), 1);
+
+  auto args = BaseParams(&ctx, "binary:logistic", "6");
+  args.emplace_back("tree_method", "exact");
+
+  std::shared_ptr<DMatrix> p_dmat{dmat.get(), [](DMatrix*) {}};
+  std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+  learner->SetParams(args);
+  learner->Configure();
+  for (size_t i = 0; i < 3; ++i) {
+    learner->UpdateOneIter(i, p_dmat);
+  }
+
+  LearnerModelParam mparam;
+  auto gbtree = LoadGBTreeModel(learner.get(), dmat->Ctx(), args, &mparam);
+
+  CoverStats stats;
+  for (auto const& tree : gbtree->trees) {
+    AccumulateCoverStats(tree->HostScView(), RegTree::kRoot, 1.0, &stats);
+  }
+
+  std::cout << "QuadratureShap exact cover stats: internal_nodes=" << stats.internal_nodes
+            << " leaves=" << stats.leaves << " min_child_weight=" << stats.min_child_weight
+            << " max_first_occurrence_p=" << (1.0 / stats.min_child_weight)
+            << " min_path_weight=" << stats.min_path_weight
+            << " max_path_first_occurrence_p=" << (1.0 / stats.min_path_weight)
+            << " count_lt_1e-2=" << stats.count_lt_1e2 << " count_lt_1e-3=" << stats.count_lt_1e3
+            << " count_lt_1e-4=" << stats.count_lt_1e4 << " count_lt_1e-5=" << stats.count_lt_1e5
+            << std::endl;
+
+  EXPECT_GT(stats.internal_nodes, 0);
 }
 
 TEST(Predictor, ApproxContribsBasic) {
