@@ -17,6 +17,7 @@
 
 namespace xgboost {
 
+class Json;
 struct CUDAContext;
 /**
  * @brief Define mt19937 as default type Random Engine.
@@ -227,6 +228,9 @@ struct Context : public XGBoostParameter<Context> {
    * @brief Get the random engine.
    */
   [[nodiscard]] RandomEngine& Rng() const { return rng_; }
+
+  [[nodiscard]] Json ToJson() const;
+  void FromJson(Json const& in);
 
   /**
    * @brief Make a CUDA context based on the current context.

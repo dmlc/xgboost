@@ -454,11 +454,7 @@ void GBTree::SaveConfig(Json* p_out) const {
   out["name"] = String("gbtree");
   out["gbtree_train_param"] = ToJson(tparam_);
   out["tree_train_param"] = ToJson(tree_param_);
-  if (!weight_drop_.empty() || dparam_.sample_type != DartSampleType::kUniform ||
-      dparam_.normalize_type != 0 || dparam_.rate_drop != 0.0f || dparam_.one_drop ||
-      dparam_.skip_drop != 0.0f) {
-    out["dart_train_param"] = ToJson(dparam_);
-  }
+  out["dart_train_param"] = ToJson(dparam_);
 
   // Process type cannot be kUpdate from loaded model
   // This would cause all trees to be pushed to trees_to_update
