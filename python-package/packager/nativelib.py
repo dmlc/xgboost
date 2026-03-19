@@ -43,6 +43,19 @@ def build_libxgboost(
     logger.info(
         "Building %s from the C++ source files in %s...", _lib_name(), str(cpp_src_dir)
     )
+    if system() == "Darwin":
+        for var_name in [
+            "CC",
+            "CXX",
+            "CFLAGS",
+            "CXXFLAGS",
+            "CPPFLAGS",
+            "LDFLAGS",
+            "SDKROOT",
+            "DEVELOPER_DIR",
+            "MACOSX_DEPLOYMENT_TARGET",
+        ]:
+            logger.info("%s=%s", var_name, os.environ.get(var_name, ""))
 
     def _build(*, generator: str) -> None:
         cmake_cmd = [
@@ -63,7 +76,12 @@ def build_libxgboost(
         else:
             nproc = os.cpu_count()
             assert build_tool is not None
-            subprocess.check_call([build_tool, f"-j{nproc}"], cwd=build_dir)
+            build_cmd = [build_tool, f"-j{nproc}"]
+            if build_tool == "ninja":
+                build_cmd.append("-v")
+            else:
+                build_cmd.append("VERBOSE=1")
+            subprocess.check_call(build_cmd, cwd=build_dir)
 
     if system() == "Windows":
         supported_generators = (
@@ -103,7 +121,13 @@ def build_libxgboost(
             build_config.use_openmp = False
             _build(generator=generator)
 
-    return build_dir / "lib" / _lib_name()
+    libxgboost = build_dir / "lib" / _lib_name()
+    if system() == "Darwin":
+        for cmd in (["otool", "-L", str(libxgboost)], ["otool", "-l", str(libxgboost)]):
+            logger.info("Running command: %s", " ".join(cmd))
+            logger.info("%s", subprocess.check_output(cmd, text=True))
+
+    return libxgboost
 
 
 def locate_local_libxgboost(
