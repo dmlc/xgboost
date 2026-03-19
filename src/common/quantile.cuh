@@ -6,6 +6,7 @@
 
 #include <thrust/logical.h>  // for any_of
 
+#include <algorithm>
 #include <cstddef>     // for size_t
 #include <functional>  // for equal_to
 
@@ -56,12 +57,19 @@ class SketchContainer {
   HostDeviceVector<OffsetT> columns_ptr_tmp_;
 
   bool has_categorical_{false};
+  std::size_t rows_seen_{0};
 
   void SetCurrentColumns(Span<OffsetT const> columns_ptr);
   void CommitScratch(std::size_t n_entries) {
     entries_.swap(entries_tmp_);
     columns_ptr_.Copy(columns_ptr_tmp_);
     entries_.resize(n_entries);
+  }
+  [[nodiscard]] std::size_t IntermediateNumCuts() const {
+    auto const base = static_cast<std::size_t>(num_bins_) * kFactor;
+    auto const eps = 1.0 / static_cast<double>(base);
+    auto const per_feature = WQSketch::LimitSizeLevel(std::max<std::size_t>(1, rows_seen_), eps);
+    return per_feature * num_columns_;
   }
 
   // Get the span of one column.
@@ -140,7 +148,8 @@ class SketchContainer {
    * \param weights (optional) data weights.
    */
   void Push(Context const* ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
-            common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights = {});
+            common::Span<OffsetT> cuts_ptr, size_t total_cuts, bst_idx_t n_rows_in_batch,
+            Span<float> weights = {});
   /**
    * @brief Prune the quantile structure.
    *

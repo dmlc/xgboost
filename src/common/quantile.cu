@@ -302,10 +302,20 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
 }
 
 void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
-                           common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights) {
+                           common::Span<OffsetT> cuts_ptr, size_t total_cuts,
+                           bst_idx_t n_rows_in_batch, Span<float> weights) {
   curt::SetDevice(ctx->Ordinal());
-  dh::device_vector<SketchEntry> cuts(total_cuts);
-  auto out = dh::ToSpan(cuts);
+  rows_seen_ += n_rows_in_batch;
+  auto first_window = this->entries_.empty();
+  dh::device_vector<SketchEntry> cuts;
+  Span<SketchEntry> out;
+  if (first_window) {
+    this->entries_.resize(total_cuts);
+    out = dh::ToSpan(this->entries_);
+  } else {
+    cuts.resize(total_cuts);
+    out = dh::ToSpan(cuts);
+  }
   auto ft = this->feature_types_.ConstDeviceSpan();
   if (weights.empty()) {
     auto to_sketch_entry = [] __device__(size_t sample_idx, Span<Entry const> const &column,
@@ -331,9 +341,14 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
   }
   auto n_uniques = this->ScanInput(ctx, out, cuts_ptr);
   CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
-  this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
-  auto intermediate_num_cuts = static_cast<bst_idx_t>(num_bins_ * kFactor);
-  this->Prune(ctx, intermediate_num_cuts);
+  if (first_window) {
+    this->entries_.resize(n_uniques);
+    this->SetCurrentColumns(cuts_ptr);
+  } else {
+    this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
+    auto intermediate_num_cuts = static_cast<bst_idx_t>(this->IntermediateNumCuts());
+    this->Prune(ctx, intermediate_num_cuts);
+  }
 }
 
 size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,

@@ -269,8 +269,9 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
   CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
 
   // Add cuts into sketches
+  auto approx_n_samples = std::max<bst_idx_t>(1, (end - begin + info.num_col_ - 1) / info.num_col_);
   sketch_container->Push(ctx, dh::ToSpan(sorted_entries), dh::ToSpan(column_sizes_scan), d_cuts_ptr,
-                         h_cuts_ptr.back(), dh::ToSpan(entry_weight));
+                         h_cuts_ptr.back(), approx_n_samples, dh::ToSpan(entry_weight));
 
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
