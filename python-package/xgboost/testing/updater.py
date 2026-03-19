@@ -655,7 +655,7 @@ def run_invalid_category(tree_method: str, device: Device) -> None:
         train({"tree_method": tree_method, "device": device}, Xy)
 
     # mixed positive and negative values
-    X = rng.normal(loc=0, scale=1, size=1000).reshape(100, 10)  # type: ignore
+    X = rng.normal(loc=0, scale=1, size=1000).reshape(100, 10)  # type: ignore[union-attr]
     y = rng.normal(loc=0, scale=1, size=100)
 
     Xy = DMatrix(X, y, feature_types=["c"] * 10)
