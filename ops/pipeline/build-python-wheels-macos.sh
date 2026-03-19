@@ -36,13 +36,11 @@ else
     exit 2
 fi
 
-# Prefer Conda's OpenMP runtime for wheel builds on macOS. Pin llvm-openmp to a
-# build that is still compatible with the x86_64 wheel's 10.15 deployment target.
-conda install -y llvm-openmp=18.1.8
-export CMAKE_PREFIX_PATH="${CONDA_PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
-
 # Tell delocate-wheel to not vendor libomp.dylib into the wheel
 export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --exclude libomp.dylib"
+
+brew list --versions libomp llvm llvm@18 || true
+ls -l /usr/local/opt/libomp /usr/local/opt/llvm@18 /usr/local/Cellar/llvm@18 || true
 
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse
@@ -51,4 +49,5 @@ python -m cibuildwheel python-package --output-dir wheelhouse
 mkdir tmp
 unzip -j wheelhouse/xgboost-*.whl xgboost/lib/libxgboost.dylib -d tmp
 otool -L tmp/libxgboost.dylib
+otool -l tmp/libxgboost.dylib | grep -E 'cmd LC_(LOAD|REEXPORT|BUILD_VERSION|VERSION_MIN_MACOSX)' -A3 || true
 rm -rf tmp
