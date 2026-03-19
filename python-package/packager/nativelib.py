@@ -101,8 +101,6 @@ def build_libxgboost(
         except subprocess.CalledProcessError as e:
             logger.info("Failed to build with OpenMP. Exception: %s", str(e))
             build_config.use_openmp = False
-            shutil.rmtree(build_dir)
-            build_dir.mkdir()
             _build(generator=generator)
 
     return build_dir / "lib" / _lib_name()
