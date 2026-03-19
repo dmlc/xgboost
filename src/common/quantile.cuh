@@ -53,6 +53,7 @@ class SketchContainer {
   // The container is just a CSC matrix plus scratch storage for out-of-place transforms.
   dh::device_vector<SketchEntry> entries_;
   dh::device_vector<SketchEntry> entries_tmp_;
+  dh::device_vector<SketchEntry> prune_buffer_;
   HostDeviceVector<OffsetT> columns_ptr_;
   HostDeviceVector<OffsetT> columns_ptr_tmp_;
 
@@ -117,7 +118,9 @@ class SketchContainer {
    */
   [[nodiscard]] std::size_t MemCapacityBytes() const {
     auto constexpr kE = sizeof(typename decltype(this->entries_)::value_type);
-    auto n_bytes = (this->entries_.capacity() + this->entries_tmp_.capacity()) * kE;
+    auto n_bytes =
+        (this->entries_.capacity() + this->entries_tmp_.capacity() + this->prune_buffer_.capacity()) *
+        kE;
     n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_tmp_.Size()) * sizeof(OffsetT);
     n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
 
@@ -125,7 +128,8 @@ class SketchContainer {
   }
   [[nodiscard]] std::size_t MemCostBytes() const {
     auto constexpr kE = sizeof(typename decltype(this->entries_)::value_type);
-    auto n_bytes = (this->entries_.size() + this->entries_tmp_.size()) * kE;
+    auto n_bytes =
+        (this->entries_.size() + this->entries_tmp_.size() + this->prune_buffer_.size()) * kE;
     n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_tmp_.Size()) * sizeof(OffsetT);
     n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
 

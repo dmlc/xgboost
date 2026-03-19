@@ -301,21 +301,17 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
   });
 }
 
+// Convert one sorted batch into a temporary pruned summary in `prune_buffer_`, normalize
+// duplicated raw values in place, then merge that summary into the resident sketch in
+// `entries_`. Out-of-place merge/prune results use `entries_tmp_` as scratch before being
+// committed back into `entries_`.
 void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
                            common::Span<OffsetT> cuts_ptr, size_t total_cuts,
                            bst_idx_t n_rows_in_batch, Span<float> weights) {
   curt::SetDevice(ctx->Ordinal());
   rows_seen_ += n_rows_in_batch;
-  auto first_window = this->entries_.empty();
-  dh::device_vector<SketchEntry> cuts;
-  Span<SketchEntry> out;
-  if (first_window) {
-    this->entries_.resize(total_cuts);
-    out = dh::ToSpan(this->entries_);
-  } else {
-    cuts.resize(total_cuts);
-    out = dh::ToSpan(cuts);
-  }
+  this->prune_buffer_.resize(total_cuts);
+  auto out = dh::ToSpan(this->prune_buffer_);
   auto ft = this->feature_types_.ConstDeviceSpan();
   if (weights.empty()) {
     auto to_sketch_entry = [] __device__(size_t sample_idx, Span<Entry const> const &column,
@@ -341,14 +337,9 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
   }
   auto n_uniques = this->ScanInput(ctx, out, cuts_ptr);
   CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
-  if (first_window) {
-    this->entries_.resize(n_uniques);
-    this->SetCurrentColumns(cuts_ptr);
-  } else {
-    this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
-    auto intermediate_num_cuts = static_cast<bst_idx_t>(this->IntermediateNumCuts());
-    this->Prune(ctx, intermediate_num_cuts);
-  }
+  this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
+  auto intermediate_num_cuts = static_cast<bst_idx_t>(this->IntermediateNumCuts());
+  this->Prune(ctx, intermediate_num_cuts);
 }
 
 size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
