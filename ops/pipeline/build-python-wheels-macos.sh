@@ -36,10 +36,9 @@ else
     exit 2
 fi
 
-# Prefer Conda's OpenMP runtime for wheel builds on macOS. Homebrew's libomp can
-# pull in Homebrew LLVM's libunwind, which raises the effective deployment target
-# of the repaired wheel.
-conda install -y llvm-openmp
+# Prefer Conda's OpenMP runtime for wheel builds on macOS. Pin llvm-openmp to a
+# build that is still compatible with the x86_64 wheel's 10.15 deployment target.
+conda install -y llvm-openmp=18.1.8
 export CMAKE_PREFIX_PATH="${CONDA_PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
 
 # Tell delocate-wheel to not vendor libomp.dylib into the wheel
