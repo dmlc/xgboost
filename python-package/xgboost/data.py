@@ -978,12 +978,12 @@ def _lazy_load_cudf_is_cat() -> Callable[[Any], bool]:
 
     except ImportError:
         try:
-            from cudf.api.types import (
-                is_categorical_dtype,  # type: ignore[no-redef]
+            from cudf.api.types import (  # type: ignore[no-redef]
+                is_categorical_dtype,
             )
         except ImportError:
-            from cudf.utils.dtypes import (
-                is_categorical_dtype,  # type: ignore[no-redef]
+            from cudf.utils.dtypes import (  # type: ignore[no-redef]
+                is_categorical_dtype,
             )
 
     return is_categorical_dtype

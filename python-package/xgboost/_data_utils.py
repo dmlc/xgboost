@@ -375,7 +375,7 @@ def _arrow_array_inf(
             "mask": None,
         }
         if not mask.is_cpu:
-            jmask["stream"] = STREAM_PER_THREAD  # type: ignore[index]
+            jmask["stream"] = STREAM_PER_THREAD  # type: ignore[index, typeddict-unknown-key]
     else:
         jmask = None
 
