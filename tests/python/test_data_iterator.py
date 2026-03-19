@@ -189,19 +189,13 @@ def run_data_iterator(
         assert non_increasing(results_from_arrays["Train"]["rmse"])
 
     rtol = 1e-2
-    if device == "cuda" and tree_method == "hist":
-        indptr_it, cuts_it = Xy_it.get_quantile_cut()
-        indptr_arr, cuts_arr = Xy_arr.get_quantile_cut()
-        x_np = _to_numpy(X)
-        w_np = _to_numpy(w)
-        np.testing.assert_array_equal(indptr_it, indptr_arr)
-        _assert_cut_rank_error_within_tolerance(indptr_it, cuts_it, x_np, w_np)
-        _assert_cut_rank_error_within_tolerance(indptr_arr, cuts_arr, x_np, w_np)
-    else:
-        # CPU sketching is more memory efficient but less consistent due to small chunks.
-        it_predt = from_it.predict(Xy_arr)
-        arr_predt = from_arrays.predict(Xy_arr)
-        np.testing.assert_allclose(it_predt, arr_predt, rtol=rtol)
+    indptr_it, cuts_it = Xy_it.get_quantile_cut()
+    indptr_arr, cuts_arr = Xy_arr.get_quantile_cut()
+    x_np = _to_numpy(X)
+    w_np = _to_numpy(w)
+    np.testing.assert_array_equal(indptr_it, indptr_arr)
+    _assert_cut_rank_error_within_tolerance(indptr_it, cuts_it, x_np, w_np)
+    _assert_cut_rank_error_within_tolerance(indptr_arr, cuts_arr, x_np, w_np)
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],
