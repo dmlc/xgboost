@@ -21,6 +21,43 @@ from xgboost.testing.updater import (
 pytestmark = tm.timeout(30)
 
 
+def _to_numpy(data: Any) -> np.ndarray:
+    if hasattr(data, "get"):
+        return data.get()
+    return np.asarray(data)
+
+
+def _assert_cut_rank_error_within_tolerance(
+    indptr: np.ndarray, cuts: np.ndarray, x: np.ndarray, w: np.ndarray
+) -> None:
+    eps = 0.05
+    assert x.ndim == 2
+    total_weight = float(np.sum(w))
+    acceptable_error = max(2.9, total_weight * eps)
+
+    for fidx in range(x.shape[1]):
+        beg = int(indptr[fidx])
+        end = int(indptr[fidx + 1])
+        column_cuts = cuts[beg:end]
+        assert np.all(np.diff(column_cuts) >= 0.0)
+
+        # Ignore the last cut, matching the C++ TestRank helper.
+        sorted_idx = np.argsort(x[:, fidx], kind="stable")
+        sorted_x = x[sorted_idx, fidx]
+        sorted_w = w[sorted_idx]
+        sum_weight = 0.0
+        j = 0
+        for i in range(column_cuts.shape[0] - 1):
+            while j < sorted_x.shape[0] and column_cuts[i] > sorted_x[j]:
+                sum_weight += float(sorted_w[j])
+                j += 1
+            expected_rank = ((i + 1) * total_weight) / column_cuts.shape[0]
+            np.testing.assert_array_less(
+                np.array([abs(expected_rank - sum_weight)]),
+                np.array([acceptable_error + 1e-12]),
+            )
+
+
 def test_single_batch(tree_method: str = "approx", device: str = "cpu") -> None:
     from sklearn.datasets import load_breast_cancer
 
@@ -100,9 +137,9 @@ def run_data_iterator(
             Xy = xgb.DMatrix(it)
         return
 
-    Xy = xgb.DMatrix(it)
-    assert Xy.num_row() == n_samples_per_batch * n_batches
-    assert Xy.num_col() == n_features
+    Xy_it = xgb.DMatrix(it)
+    assert Xy_it.num_row() == n_samples_per_batch * n_batches
+    assert Xy_it.num_col() == n_features
 
     parameters = {
         "tree_method": tree_method,
@@ -118,9 +155,9 @@ def run_data_iterator(
     results_from_it: Dict[str, Dict[str, List[float]]] = {}
     from_it = xgb.train(
         parameters,
-        Xy,
+        Xy_it,
         num_boost_round=n_rounds,
-        evals=[(Xy, "Train")],
+        evals=[(Xy_it, "Train")],
         evals_result=results_from_it,
         verbose_eval=False,
     )
@@ -132,30 +169,39 @@ def run_data_iterator(
         _y = y.get()
     else:
         _y = y
-    np.testing.assert_allclose(Xy.get_label(), _y)
+    np.testing.assert_allclose(Xy_it.get_label(), _y)
 
-    Xy = xgb.DMatrix(X, y, weight=w)
-    assert Xy.num_row() == n_samples_per_batch * n_batches
-    assert Xy.num_col() == n_features
+    Xy_arr = xgb.DMatrix(X, y, weight=w)
+    assert Xy_arr.num_row() == n_samples_per_batch * n_batches
+    assert Xy_arr.num_col() == n_features
 
     results_from_arrays: Dict[str, Dict[str, List[float]]] = {}
     from_arrays = xgb.train(
         parameters,
-        Xy,
+        Xy_arr,
         num_boost_round=n_rounds,
-        evals=[(Xy, "Train")],
+        evals=[(Xy_arr, "Train")],
         evals_result=results_from_arrays,
         verbose_eval=False,
     )
-    arr_predt = from_arrays.predict(Xy)
+    arr_predt = from_arrays.predict(Xy_arr)
     if not subsample:
         assert non_increasing(results_from_arrays["Train"]["rmse"])
 
     rtol = 1e-2
-    # CPU sketching is more memory efficient but less consistent due to small chunks
-    it_predt = from_it.predict(Xy)
-    arr_predt = from_arrays.predict(Xy)
-    np.testing.assert_allclose(it_predt, arr_predt, rtol=rtol)
+    if device == "cuda" and tree_method == "hist":
+        indptr_it, cuts_it = Xy_it.get_quantile_cut()
+        indptr_arr, cuts_arr = Xy_arr.get_quantile_cut()
+        x_np = _to_numpy(X)
+        w_np = _to_numpy(w)
+        np.testing.assert_array_equal(indptr_it, indptr_arr)
+        _assert_cut_rank_error_within_tolerance(indptr_it, cuts_it, x_np, w_np)
+        _assert_cut_rank_error_within_tolerance(indptr_arr, cuts_arr, x_np, w_np)
+    else:
+        # CPU sketching is more memory efficient but less consistent due to small chunks.
+        it_predt = from_it.predict(Xy_arr)
+        arr_predt = from_arrays.predict(Xy_arr)
+        np.testing.assert_allclose(it_predt, arr_predt, rtol=rtol)
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],
