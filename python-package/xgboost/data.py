@@ -500,7 +500,7 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     # No copy, callstack:
     # pandas.core.internals.managers.SingleBlockManager.array_values()
     # pandas.core.internals.blocks.EABackedBlock.values
-    d_array: pd.arrays.ArrowExtensionArray = ser.array  # type: ignore[assignment]
+    d_array: pd.arrays.ArrowExtensionArray = ser.array  # type: ignore[name-defined]
     # no copy in __arrow_array__
     # ArrowExtensionArray._data is a chunked array
     aa: "pa.ChunkedArray" = d_array.__arrow_array__()
@@ -979,11 +979,11 @@ def _lazy_load_cudf_is_cat() -> Callable[[Any], bool]:
     except ImportError:
         try:
             from cudf.api.types import (
-                is_categorical_dtype,  # type: ignore[import-untyped]
+                is_categorical_dtype,  # type: ignore[no-redef]
             )
         except ImportError:
             from cudf.utils.dtypes import (
-                is_categorical_dtype,  # type: ignore[import-untyped]
+                is_categorical_dtype,  # type: ignore[no-redef]
             )
 
     return is_categorical_dtype

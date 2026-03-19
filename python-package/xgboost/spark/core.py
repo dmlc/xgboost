@@ -1685,7 +1685,7 @@ class _SparkXGBSharedReadWrite:
                 callbacks = cloudpickle.loads(
                     base64.decodebytes(serialized_callbacks.encode("ascii"))
                 )
-                pyspark_xgb.set(pyspark_xgb.callbacks, callbacks)  # type: ignore[arg-type]
+                pyspark_xgb.set(pyspark_xgb.callbacks, callbacks)  # type: ignore[union-attr]
             except Exception as e:  # pylint: disable=W0703
                 logger.warning(
                     f"Fails to load the callbacks param due to {e}. Please set the "
@@ -1700,7 +1700,7 @@ class _SparkXGBSharedReadWrite:
                 _get_spark_session().read.parquet(load_path).collect()[0].init_booster
             )
             init_booster = deserialize_booster(ser_init_booster)
-            pyspark_xgb.set(pyspark_xgb.xgb_model, init_booster)  # type: ignore[arg-type]
+            pyspark_xgb.set(pyspark_xgb.xgb_model, init_booster)  # type: ignore[union-attr]
 
         pyspark_xgb._resetUid(metadata["uid"])  # pylint: disable=protected-access
         return metadata, pyspark_xgb

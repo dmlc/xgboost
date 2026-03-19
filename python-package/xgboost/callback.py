@@ -439,10 +439,10 @@ class EarlyStopping(TrainingCallback):
             model.set_attr(best_score=str(get_s(score)), best_iteration=str(epoch))
         elif not improve_op(score, self.best_scores[name][metric][-1]):
             # Not improved
-            self.stopping_history[name][metric].append(score)  # type: ignore[union-attr]
+            self.stopping_history[name][metric].append(score)  # type: ignore[arg-type]
             self.current_rounds += 1
         else:  # Improved
-            self.stopping_history[name][metric].append(score)  # type: ignore[union-attr]
+            self.stopping_history[name][metric].append(score)  # type: ignore[arg-type]
             self.best_scores[name][metric].append(score)
             record = self.stopping_history[name][metric][-1]
             model.set_attr(best_score=str(get_s(record)), best_iteration=str(epoch))
