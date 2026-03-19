@@ -3,13 +3,15 @@
  */
 #include "shap.h"
 
-#include <algorithm>    // for copy, fill
-#include <array>        // for array
-#include <cmath>        // for abs
-#include <cstdint>      // for uint32_t
-#include <limits>       // for numeric_limits
-#include <type_traits>  // for remove_const_t
-#include <vector>       // for vector
+#include <algorithm>      // for copy, fill
+#include <array>          // for array
+#include <cmath>          // for abs
+#include <cstdint>        // for uint32_t
+#include <limits>         // for numeric_limits
+#include <mutex>          // for mutex
+#include <type_traits>    // for remove_const_t
+#include <unordered_map>  // for unordered_map
+#include <vector>         // for vector
 
 #include "../../common/threading_utils.h"  // for ParallelFor
 #include "../../gbm/gbtree_model.h"        // for GBTreeModel
@@ -236,46 +238,106 @@ void CalculateContributions(tree::ScalarTreeView const &tree, RegTree::FVec cons
            condition, condition_feature, 1.0f);
 }
 
-constexpr std::size_t kQuadratureShapPoints = 16;
+constexpr std::size_t kDefaultQuadratureShapPoints = 16;
+constexpr std::size_t kMaxQuadratureShapPoints = 64;
 constexpr double kQuadratureShapQeps = 1e-15;
 constexpr double kQuadratureShapUnseen = -999.0;
-using QuadratureRule = std::array<double, kQuadratureShapPoints>;
+struct QuadratureRule {
+  std::size_t points{0};
+  std::array<double, kMaxQuadratureShapPoints> nodes{};
+  std::array<double, kMaxQuadratureShapPoints> weights{};
+};
 
-QuadratureRule const &QuadratureNodes() {
-  static constexpr QuadratureRule kNodes = {
-      2.80850447628076738593e-05, 7.67982016833174672456e-04, 4.51374344293495755737e-03,
-      1.49567508630415318960e-02, 3.65046411479570120928e-02, 7.34364533252638285177e-02,
-      1.29023364563242204373e-01, 2.04750589337593075223e-01, 2.99763099175230585125e-01,
-      4.10626915342501119799e-01, 5.31453230982491087175e-01, 6.54380885550600810419e-01,
-      7.70361159218044599939e-01, 8.70144945830766847195e-01, 9.45343005090065746643e-01,
-      9.89429020036412754102e-01};
-  return kNodes;
+using QuadratureBuffer = std::array<double, kMaxQuadratureShapPoints>;
+
+double LegendrePolynomial(std::size_t n, double x) {
+  double p0 = 1.0;
+  if (n == 0) {
+    return p0;
+  }
+  double p1 = x;
+  if (n == 1) {
+    return p1;
+  }
+  for (std::size_t k = 2; k <= n; ++k) {
+    double pk =
+        ((2.0 * static_cast<double>(k) - 1.0) * x * p1 - (static_cast<double>(k) - 1.0) * p0) /
+        static_cast<double>(k);
+    p0 = p1;
+    p1 = pk;
+  }
+  return p1;
 }
 
-QuadratureRule const &QuadratureWeights() {
-  static constexpr QuadratureRule kWeights = {
-      1.43895341220884505091e-04, 1.72520006395474869917e-03, 6.39316739866999800279e-03,
-      1.52418484801773411463e-02, 2.85820905344451973995e-02, 4.58399977309956255245e-02,
-      6.55908224919272003772e-02, 8.57252162327300087918e-02, 1.03725394222338646033e-01,
-      1.17012592552996438910e-01, 1.23316521664007014425e-01, 1.21013898282131507345e-01,
-      1.09387122775356740445e-01, 8.87653442838226142131e-02, 6.05283238746927090834e-02,
-      2.70085640705332932776e-02};
-  return kWeights;
+double LegendreDerivative(std::size_t n, double x, double pn) {
+  auto n_d = static_cast<double>(n);
+  return n_d * (x * pn - LegendrePolynomial(n - 1, x)) / (x * x - 1.0);
 }
 
-void ScaleInPlace(QuadratureRule *h_vals, double scale) {
+QuadratureRule MakeEndpointQuadrature(std::size_t n) {
+  CHECK_GE(n, 2);
+  CHECK_LE(n, kMaxQuadratureShapPoints);
+
+  QuadratureRule rule;
+  rule.points = n;
+  std::vector<std::pair<double, double>> nodes_weights;
+  nodes_weights.reserve(n);
+
+  for (std::size_t i = 0; i < n; ++i) {
+    double theta = M_PI * (static_cast<double>(i) + 0.75) / (static_cast<double>(n) + 0.5);
+    double x = std::cos(theta);
+    for (std::size_t iter = 0; iter < 64; ++iter) {
+      auto pn = LegendrePolynomial(n, x);
+      auto dpn = LegendreDerivative(n, x, pn);
+      auto dx = pn / dpn;
+      x -= dx;
+      if (std::abs(dx) < kQuadratureShapQeps) {
+        break;
+      }
+    }
+
+    auto pn = LegendrePolynomial(n, x);
+    auto dpn = LegendreDerivative(n, x, pn);
+    auto w = 2.0 / ((1.0 - x * x) * dpn * dpn);
+    double s = 0.5 * (x + 1.0);
+    double ws = 0.5 * w;
+    nodes_weights.emplace_back(s * s, 2.0 * s * ws);
+  }
+
+  std::sort(nodes_weights.begin(), nodes_weights.end(),
+            [](auto const &l, auto const &r) { return l.first < r.first; });
+  for (std::size_t i = 0; i < n; ++i) {
+    rule.nodes[i] = nodes_weights[i].first;
+    rule.weights[i] = nodes_weights[i].second;
+  }
+  return rule;
+}
+
+QuadratureRule const &GetQuadratureRule(std::size_t n) {
+  static std::mutex cache_mutex;
+  static std::unordered_map<std::size_t, QuadratureRule> cache;
+  std::lock_guard<std::mutex> guard{cache_mutex};
+  auto it = cache.find(n);
+  if (it == cache.cend()) {
+    it = cache.emplace(n, MakeEndpointQuadrature(n)).first;
+  }
+  return it->second;
+}
+
+void ScaleInPlace(QuadratureBuffer *h_vals, double scale) {
   for (auto &v : *h_vals) {
     v *= scale;
   }
 }
 
-void AddInPlace(QuadratureRule *lhs, QuadratureRule const &rhs) {
-  for (std::size_t i = 0; i < lhs->size(); ++i) {
+void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs, std::size_t points) {
+  for (std::size_t i = 0; i < points; ++i) {
     (*lhs)[i] += rhs[i];
   }
 }
 
-double ExtractQuadratureDelta(QuadratureRule const &h_vals, double p_enter, double p_exit) {
+double ExtractQuadratureDelta(QuadratureRule const &rule, QuadratureBuffer const &h_vals,
+                              double p_enter, double p_exit) {
   auto const alpha_enter = p_enter - 1.0;
   auto const alpha_exit = p_exit - 1.0;
   auto const has_enter =
@@ -285,16 +347,14 @@ double ExtractQuadratureDelta(QuadratureRule const &h_vals, double p_enter, doub
   if (!has_enter && !has_exit) {
     return 0.0;
   }
-  auto const &nodes = QuadratureNodes();
-  auto const &weights = QuadratureWeights();
   double acc = 0.0;
-  for (std::size_t i = 0; i < h_vals.size(); ++i) {
-    auto const weighted_h = h_vals[i] * weights[i];
+  for (std::size_t i = 0; i < rule.points; ++i) {
+    auto const weighted_h = h_vals[i] * rule.weights[i];
     if (has_enter) {
-      acc += alpha_enter * weighted_h / (1.0 + alpha_enter * nodes[i]);
+      acc += alpha_enter * weighted_h / (1.0 + alpha_enter * rule.nodes[i]);
     }
     if (has_exit) {
-      acc -= alpha_exit * weighted_h / (1.0 + alpha_exit * nodes[i]);
+      acc -= alpha_exit * weighted_h / (1.0 + alpha_exit * rule.nodes[i]);
     }
   }
   return acc;
@@ -317,8 +377,9 @@ double ChildWeightQuadrature(tree::ScalarTreeView const &tree, bst_node_t parent
 }
 
 void TreeShapQuadrature(tree::ScalarTreeView const &tree, RegTree::FVec const &feat,
-                        bst_node_t nidx, QuadratureRule const &c_vals, double w_prod,
-                        std::vector<double> *p_vals, double *phi, QuadratureRule *out_h) {
+                        bst_node_t nidx, QuadratureRule const &rule, QuadratureBuffer const &c_vals,
+                        double w_prod, std::vector<double> *p_vals, double *phi,
+                        QuadratureBuffer *out_h) {
   if (tree.IsLeaf(nidx)) {
     *out_h = c_vals;
     ScaleInPlace(out_h, w_prod * tree.LeafValue(nidx));
@@ -332,11 +393,10 @@ void TreeShapQuadrature(tree::ScalarTreeView const &tree, RegTree::FVec const &f
   auto right_weight = ChildWeightQuadrature(tree, nidx, right);
   auto goes_left = GoesLeftQuadrature(tree, feat, nidx);
   auto p_old = (*p_vals)[split_index];
-  auto const &nodes = QuadratureNodes();
-  QuadratureRule child_h;
+  QuadratureBuffer child_h{};
 
   auto visit_child = [&](bst_node_t child, double child_weight, bool satisfies,
-                         QuadratureRule *out_child) {
+                         QuadratureBuffer *out_child) {
     double p_e = 0.0;
     double p_up = 0.0;
     if (p_old == kQuadratureShapUnseen) {
@@ -352,43 +412,44 @@ void TreeShapQuadrature(tree::ScalarTreeView const &tree, RegTree::FVec const &f
 
     auto c_child = c_vals;
     auto alpha_e = p_e - 1.0;
-    for (std::size_t i = 0; i < c_child.size(); ++i) {
-      c_child[i] *= 1.0 + alpha_e * nodes[i];
+    for (std::size_t i = 0; i < rule.points; ++i) {
+      c_child[i] *= 1.0 + alpha_e * rule.nodes[i];
     }
 
     if (p_old != kQuadratureShapUnseen) {
       auto alpha_old = p_old - 1.0;
       if (std::abs(alpha_old) >= kQuadratureShapQeps) {
-        for (std::size_t i = 0; i < c_child.size(); ++i) {
-          c_child[i] /= 1.0 + alpha_old * nodes[i];
+        for (std::size_t i = 0; i < rule.points; ++i) {
+          c_child[i] /= 1.0 + alpha_old * rule.nodes[i];
         }
       }
     }
 
     (*p_vals)[split_index] = p_e;
-    TreeShapQuadrature(tree, feat, child, c_child, w_prod * child_weight, p_vals, phi, out_child);
+    TreeShapQuadrature(tree, feat, child, rule, c_child, w_prod * child_weight, p_vals, phi,
+                       out_child);
     (*p_vals)[split_index] = p_old;
-    phi[split_index] += ExtractQuadratureDelta(*out_child, p_e, p_up);
+    phi[split_index] += ExtractQuadratureDelta(rule, *out_child, p_e, p_up);
   };
 
   visit_child(left, left_weight, goes_left, out_h);
   visit_child(right, right_weight, !goes_left, &child_h);
-  AddInPlace(out_h, child_h);
+  AddInPlace(out_h, child_h, rule.points);
 }
 
 void CalculateContributionsQuadrature(tree::ScalarTreeView const &tree, RegTree::FVec const &feat,
-                                      std::vector<float> *mean_values, double *out_contribs,
-                                      std::vector<double> *p_vals) {
+                                      QuadratureRule const &rule, std::vector<float> *mean_values,
+                                      double *out_contribs, std::vector<double> *p_vals) {
   out_contribs[feat.Size()] += (*mean_values)[0];
 
   if (tree.IsLeaf(RegTree::kRoot)) {
     return;
   }
 
-  QuadratureRule c_init;
-  c_init.fill(1.0);
-  QuadratureRule h_vals;
-  TreeShapQuadrature(tree, feat, RegTree::kRoot, c_init, 1.0, p_vals, out_contribs, &h_vals);
+  QuadratureBuffer c_init{};
+  std::fill_n(c_init.begin(), rule.points, 1.0);
+  QuadratureBuffer h_vals{};
+  TreeShapQuadrature(tree, feat, RegTree::kRoot, rule, c_init, 1.0, p_vals, out_contribs, &h_vals);
 }
 
 template <typename EncAccessor, typename Fn>
@@ -498,7 +559,8 @@ void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *ou
 
 void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
                           HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                          bst_tree_t tree_end, std::vector<float> const *tree_weights) {
+                          bst_tree_t tree_end, std::vector<float> const *tree_weights,
+                          std::size_t quadrature_points) {
   CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
@@ -520,6 +582,7 @@ void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
 
   auto const n_groups = model.learner_model_param->num_output_group;
   CHECK_NE(n_groups, 0);
+  auto const &rule = GetQuadratureRule(quadrature_points);
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   std::vector<RegTree::FVec> feats_tloc(n_threads);
@@ -551,7 +614,7 @@ void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
           }
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0);
           auto const sc_tree = model.trees[j]->HostScView();
-          CalculateContributionsQuadrature(sc_tree, feats, &mean_values[j],
+          CalculateContributionsQuadrature(sc_tree, feats, rule, &mean_values[j],
                                            this_tree_contribs.data(), &p_vals);
           auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[j];
           for (size_t ci = 0; ci < ncolumns; ++ci) {

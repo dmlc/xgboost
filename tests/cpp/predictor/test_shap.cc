@@ -369,7 +369,7 @@ TEST(Predictor, QuadratureShapPrototypeMatchesTreeShapCPU) {
 
   HostDeviceVector<float> quadrature_shap;
   interpretability::cpu_impl::QuadratureShapValues(dmat->Ctx(), p_dmat.get(), &quadrature_shap,
-                                                   *gbtree, 0, nullptr);
+                                                   *gbtree, 0, nullptr, 16);
 
   auto const& h_treeshap = treeshap.ConstHostVector();
   auto const& h_quadrature = quadrature_shap.ConstHostVector();
@@ -404,6 +404,7 @@ TEST(Predictor, QuadratureShapSelectorMatchesTreeShapCPU) {
   learner->Predict(dmat, false, &treeshap, 0, 0, false, false, true, false, false);
 
   learner->SetParam("shap_algorithm", "quadratureshap");
+  learner->SetParam("quadratureshap_points", "8");
   learner->Configure();
 
   HostDeviceVector<float> quadrature_shap;
