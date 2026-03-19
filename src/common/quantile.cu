@@ -337,6 +337,9 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
   }
   auto n_uniques = this->ScanInput(ctx, out, cuts_ptr);
   CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
+  if (n_uniques == 0) {
+    return;
+  }
   this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
   auto intermediate_num_cuts = static_cast<bst_idx_t>(this->IntermediateNumCuts());
   this->Prune(ctx, intermediate_num_cuts);
@@ -390,6 +393,11 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
   auto &columns_ptr = this->columns_ptr_;
   auto &columns_ptr_tmp = this->columns_ptr_tmp_;
   auto const &feature_types = this->feature_types_;
+
+  if (entries.size() <= to * num_columns_) {
+    timer_.Stop(__func__);
+    return;
+  }
 
   OffsetT to_total = 0;
   auto &h_columns_ptr = columns_ptr_tmp.HostVector();
