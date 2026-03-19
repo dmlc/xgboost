@@ -1,5 +1,5 @@
 # Find OpenMP library on MacOS
-# Automatically handle locating libomp from the Homebrew package manager
+# Prefer libomp from the active Conda environment and fall back to Homebrew.
 
 # lint_cmake: -package/consistency
 
@@ -7,7 +7,22 @@ macro(find_openmp_macos)
   if(NOT APPLE)
     message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() must only be used on MacOS")
   endif()
-  find_package(OpenMP)
+
+  if(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/lib/libomp.dylib")
+    set(CONDA_LIBOMP_PREFIX "$ENV{CONDA_PREFIX}")
+    set(OpenMP_C_FLAGS
+      "-Xpreprocessor -fopenmp -I${CONDA_LIBOMP_PREFIX}/include")
+    set(OpenMP_CXX_FLAGS
+      "-Xpreprocessor -fopenmp -I${CONDA_LIBOMP_PREFIX}/include")
+    set(OpenMP_C_LIB_NAMES omp)
+    set(OpenMP_CXX_LIB_NAMES omp)
+    set(OpenMP_omp_LIBRARY ${CONDA_LIBOMP_PREFIX}/lib/libomp.dylib)
+    find_package(OpenMP)
+  endif()
+
+  if(NOT OpenMP_FOUND)
+    find_package(OpenMP)
+  endif()
   if(NOT OpenMP_FOUND)
     # Try again with extra path info. This step is required for libomp 15+ from Homebrew,
     # as libomp 15.0+ from brew is keg-only
@@ -106,6 +121,7 @@ function(patch_openmp_path_macos target target_default_output_name)
   )
   # Add RPATH entries to ensure the loader looks in the following, in the following order:
   #
+  #   - $CONDA_PREFIX/lib             (when building inside a Conda environment)
   #   - /opt/homebrew/opt/libomp/lib  (where 'brew install' / 'brew link' puts libomp.dylib)
   #   - ${__OpenMP_LIBRARY_DIR}       (wherever find_package(OpenMP) found OpenMP at build time)
   #
@@ -114,11 +130,15 @@ function(patch_openmp_path_macos target target_default_output_name)
   execute_process(COMMAND brew --prefix libomp
                   OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
                   OUTPUT_STRIP_TRAILING_WHITESPACE)
+  set(__OPENMP_RPATHS "${HOMEBREW_LIBOMP_PREFIX}/lib;${__OpenMP_LIBRARY_DIR}")
+  if(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/lib/libomp.dylib")
+    set(__OPENMP_RPATHS "$ENV{CONDA_PREFIX}/lib;${__OPENMP_RPATHS}")
+  endif()
   set_target_properties(
     ${target}
     PROPERTIES
       BUILD_WITH_INSTALL_RPATH TRUE
-      INSTALL_RPATH "${HOMEBREW_LIBOMP_PREFIX}/lib;${__OpenMP_LIBRARY_DIR}"
+      INSTALL_RPATH "${__OPENMP_RPATHS}"
       INSTALL_RPATH_USE_LINK_PATH FALSE
   )
 endfunction()
