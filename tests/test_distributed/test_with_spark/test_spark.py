@@ -1245,6 +1245,38 @@ class TestClassifier:
         loaded_model = SparkXGBClassifierModel.load(path)
         check_conf(loaded_model.getOrDefault(loaded_model.coll_cfg))
 
+    def test_launch_tracker_on_driver_initialization(self, spark: SparkSession) -> None:
+        from unittest.mock import patch
+
+        from xgboost.spark.utils import _is_connect
+
+        with patch("xgboost.spark.core._get_rabit_args", return_value={}):
+            # 1. Not set explicitly, no default
+            clf1 = SparkXGBClassifier()
+            launch_tracker1, _ = clf1._get_tracker_args(spark)
+            assert launch_tracker1 is not _is_connect(spark)
+
+            # 2. Set explicitly to True
+            clf2 = SparkXGBClassifier(launch_tracker_on_driver=True)
+            launch_tracker2, _ = clf2._get_tracker_args(spark)
+            assert launch_tracker2 is True
+
+            # 3. Set explicitly to False
+            clf3 = SparkXGBClassifier(launch_tracker_on_driver=False)
+            launch_tracker3, _ = clf3._get_tracker_args(spark)
+            assert launch_tracker3 is False
+
+            # 4. Set via default
+            clf4 = SparkXGBClassifier()
+            clf4._setDefault(launch_tracker_on_driver=False)
+            launch_tracker4, _ = clf4._get_tracker_args(spark)
+            assert launch_tracker4 is False
+
+            clf5 = SparkXGBClassifier()
+            clf5._setDefault(launch_tracker_on_driver=True)
+            launch_tracker5, _ = clf5._get_tracker_args(spark)
+            assert launch_tracker5 is True
+
 
 LTRData = namedtuple(
     "LTRData",
