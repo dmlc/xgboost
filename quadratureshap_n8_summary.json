@@ -1,0 +1,92 @@
+[
+  {
+    "dataset": "breast_cancer",
+    "family": "real",
+    "depth": 30,
+    "points": 8,
+    "mean_nodes": 37.37,
+    "speedup": 0.4245682082044919,
+    "max_abs_diff": 4.76837158203125e-07
+  },
+  {
+    "dataset": "diabetes",
+    "family": "real",
+    "depth": 30,
+    "points": 8,
+    "mean_nodes": 191.01333333333332,
+    "speedup": 1.5975975642047238,
+    "max_abs_diff": 1.52587890625e-05
+  },
+  {
+    "dataset": "digits",
+    "family": "real",
+    "depth": 30,
+    "points": 8,
+    "mean_nodes": 46.516,
+    "speedup": 1.5759131851301158,
+    "max_abs_diff": 2.5033950805664062e-06
+  },
+  {
+    "dataset": "easy_linear",
+    "family": "synthetic",
+    "depth": 4,
+    "points": 8,
+    "mean_nodes": 30.61,
+    "speedup": 0.645007986369304,
+    "max_abs_diff": 1.9073486328125e-06
+  },
+  {
+    "dataset": "easy_linear",
+    "family": "synthetic",
+    "depth": 8,
+    "points": 8,
+    "mean_nodes": 370.47,
+    "speedup": 1.1889959234572578,
+    "max_abs_diff": 2.86102294921875e-06
+  },
+  {
+    "dataset": "easy_linear",
+    "family": "synthetic",
+    "depth": 16,
+    "points": 8,
+    "mean_nodes": 1467.43,
+    "speedup": 2.3738298777126716,
+    "max_abs_diff": 5.7220458984375e-06
+  },
+  {
+    "dataset": "easy_linear",
+    "family": "synthetic",
+    "depth": 30,
+    "points": 8,
+    "mean_nodes": 1928.48,
+    "speedup": 3.459982033859825,
+    "max_abs_diff": 0.0033998489379882812
+  },
+  {
+    "dataset": "random_labels",
+    "family": "synthetic",
+    "depth": 4,
+    "points": 8,
+    "mean_nodes": 30.54,
+    "speedup": 0.7424122662547481,
+    "max_abs_diff": 5.960464477539063e-08
+  },
+  {
+    "dataset": "random_labels",
+    "family": "synthetic",
+    "depth": 8,
+    "points": 8,
+    "mean_nodes": 321.22,
+    "speedup": 1.8998626925981703,
+    "max_abs_diff": 1.7881393432617188e-07
+  },
+  {
+    "dataset": "random_labels",
+    "family": "synthetic",
+    "depth": 16,
+    "points": 8,
+    "mean_nodes": 4273.45,
+    "speedup": 4.594703258820682,
+    "max_abs_diff": 2.8759241104125977e-06
+  }
+]
