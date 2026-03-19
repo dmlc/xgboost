@@ -48,6 +48,9 @@ which c++ || true
 xcode-select -p || true
 brew list --versions libomp llvm llvm@18 || true
 ls -l /usr/local/opt/libomp /usr/local/opt/llvm@18 /usr/local/Cellar/llvm@18 || true
+brew unlink llvm@18 || true
+brew list --versions libomp llvm llvm@18 || true
+ls -l /usr/local/opt/libomp /usr/local/opt/llvm@18 /usr/local/Cellar/llvm@18 || true
 
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse
