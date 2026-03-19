@@ -697,7 +697,7 @@ def _wrap_evaluation_matrices(
     create_dmatrix: Callable,
     enable_categorical: bool,
     feature_types: Optional[Union[FeatureTypes, Categories]],
-) -> Tuple[DMatrix, List[Tuple[DMatrix, str]]]:
+) -> Tuple[Any, List[Tuple[Any, str]]]:
     """Convert array_like evaluation matrices into DMatrix. Perform sanity checks on the
     way.
 
