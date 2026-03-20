@@ -28,7 +28,7 @@ Suggestion:
 The lack of sanitizing for inputs, including models
 ***************************************************
 
-If someone can manipulate XGBoost inputs, whether with an incorrect model or an altered numpy array, XGBoost will crash due to a memory read error (out-of-bounds access). The reports we received describe manipulating the JSON files to mislead XGBoost into reading out-of-bounds values or using conflicting tree indices. We acknowledge that we can add stronger sanitization to the JSON parser when loading from a file. But it’s impractical to check potential issue in the model file at the moment. We rely on mitigation provided by Modern OSs.
+If someone can manipulate XGBoost inputs, whether with an incorrect model or an altered numpy array, XGBoost will crash due to a memory read error (out-of-bounds access). The reports we received describe manipulating the JSON files to mislead XGBoost into reading out-of-bounds values or using conflicting tree indices. We acknowledge that we can add stronger sanitization to the JSON parser when loading from a file. However, it is currently impractical for us to comprehensively validate all potential issues in a supplied model file. Instead, deployments are expected to rely on standard operating-system–level protections,
 
 Suggestions:
 
