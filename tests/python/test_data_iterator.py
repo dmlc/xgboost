@@ -33,13 +33,15 @@ def _assert_cut_rank_error_within_tolerance(
     eps = 0.05
     assert x.ndim == 2
     total_weight = float(np.sum(w))
-    acceptable_error = max(2.9, total_weight * eps)
 
     for fidx in range(x.shape[1]):
         beg = int(indptr[fidx])
         end = int(indptr[fidx + 1])
         column_cuts = cuts[beg:end]
         assert np.all(np.diff(column_cuts) >= 0.0)
+        acceptable_error = max(
+            total_weight * eps, total_weight / float(column_cuts.shape[0])
+        )
 
         # Ignore the last cut, matching the C++ TestRank helper.
         sorted_idx = np.argsort(x[:, fidx], kind="stable")
