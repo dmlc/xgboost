@@ -8,7 +8,7 @@ Use of Python pickle
 
 We use ``pickle`` and ``cloudpickle`` in several places, including a convenient helper function for the ``broadcast`` collective operation to share a Python object. The method is not used internally during training but is here to assist with implementing custom metrics. Also, a distributed interface like PySpark might use pickle to load Python objects, like the callback functions. The security reports state the pickle is unsafe, which is true.
 
-However, from our perspective, if someone else can control your network environment tamper with the data sent between XGBoost workers or the Spark executors, XGBoost should not be the place to provide security mitigation. As for all Python pickles in general, read the warning in the `pickle document <https://docs.python.org/3/library/pickle.html>`__.
+However, from our perspective, if someone else can control your network environment and tamper with the data sent between XGBoost workers or the Spark executors, XGBoost should not be the place to provide security mitigation. As for all Python pickles in general, read the warning in the `pickle document <https://docs.python.org/3/library/pickle.html>`__.
 
 Suggestion:
 
@@ -28,7 +28,7 @@ Suggestion:
 The lack of sanitizing for inputs, including models
 ***************************************************
 
-If someone can manipulate XGBoost inputs, whether with an incorrect model or an altered numpy array, XGBoost will crash due to a memory read error (out-of-bounds access). The reports we received describe manipulating the JSON files to mislead XGBoost into reading overbound values or using conflicting tree indices. We acknowledge that we can add stronger sanitization to the JSON parser when loading from a file. But it’s impractical to check potential issue in the model file at the moment. We rely on mitigation provided by Modern OSs.
+If someone can manipulate XGBoost inputs, whether with an incorrect model or an altered numpy array, XGBoost will crash due to a memory read error (out-of-bounds access). The reports we received describe manipulating the JSON files to mislead XGBoost into reading out-of-bounds values or using conflicting tree indices. We acknowledge that we can add stronger sanitization to the JSON parser when loading from a file. But it’s impractical to check potential issue in the model file at the moment. We rely on mitigation provided by Modern OSs.
 
 Suggestions:
 
