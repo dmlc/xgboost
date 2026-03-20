@@ -1163,7 +1163,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         def _run_job() -> Tuple[str, str, str]:
             rdd = (
                 dataset.mapInPandas(
-                    _train_booster,  # type: ignore
+                    _train_booster,  # type: ignore[arg-type]
                     schema="data string",
                 )
                 .rdd.barrier()
@@ -1425,7 +1425,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
 
         log_level = get_logger_level(_LOG_TAG)
 
-        @pandas_udf(schema)  # type: ignore
+        @pandas_udf(schema)  # type: ignore[call-overload]
         def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
             assert xgb_sklearn_model is not None
             model = xgb_sklearn_model
@@ -1685,7 +1685,7 @@ class _SparkXGBSharedReadWrite:
                 callbacks = cloudpickle.loads(
                     base64.decodebytes(serialized_callbacks.encode("ascii"))
                 )
-                pyspark_xgb.set(pyspark_xgb.callbacks, callbacks)  # type: ignore
+                pyspark_xgb.set(pyspark_xgb.callbacks, callbacks)  # type: ignore[union-attr]
             except Exception as e:  # pylint: disable=W0703
                 logger.warning(
                     f"Fails to load the callbacks param due to {e}. Please set the "
@@ -1700,7 +1700,7 @@ class _SparkXGBSharedReadWrite:
                 _get_spark_session().read.parquet(load_path).collect()[0].init_booster
             )
             init_booster = deserialize_booster(ser_init_booster)
-            pyspark_xgb.set(pyspark_xgb.xgb_model, init_booster)  # type: ignore
+            pyspark_xgb.set(pyspark_xgb.xgb_model, init_booster)  # type: ignore[union-attr]
 
         pyspark_xgb._resetUid(metadata["uid"])  # pylint: disable=protected-access
         return metadata, pyspark_xgb

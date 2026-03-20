@@ -1427,7 +1427,7 @@ def _set_worker_client(
         model.client = client
         yield model
     finally:
-        model.client = None  # type: ignore
+        model.client = None  # type: ignore[assignment]
 
 
 class DaskScikitLearnBase(XGBModel):
