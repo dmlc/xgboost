@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
     assert x is not None  # ctypes might return None
-    return x.decode("utf-8")  # type: ignore
+    return x.decode("utf-8")  # type: ignore[union-attr]
 
 
 def lazy_isinstance(instance: Any, module: str, name: str) -> bool:

@@ -45,11 +45,7 @@ export CMAKE_PREFIX_PATH="${CONDA_PREFIX}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PA
 # Tell delocate-wheel to not vendor libomp.dylib into the wheel
 export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --exclude libomp.dylib"
 
+brew unlink llvm@18 || true
+
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse
-
-# List dependencies of libxgboost.dylib
-mkdir tmp
-unzip -j wheelhouse/xgboost-*.whl xgboost/lib/libxgboost.dylib -d tmp
-otool -L tmp/libxgboost.dylib
-rm -rf tmp
