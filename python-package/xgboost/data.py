@@ -451,7 +451,7 @@ def _lazy_load_pd_is_cat() -> Callable[[PandasDType], bool]:
                 return isinstance(dtype, CategoricalDtype)
 
             return pd_is_cat_210
-    from pandas.api.types import is_categorical_dtype  # type: ignore
+    from pandas.api.types import is_categorical_dtype  # type: ignore[attr-defined]
 
     return is_categorical_dtype
 
@@ -476,7 +476,7 @@ def _lazy_load_pd_is_sparse() -> Callable[[PandasDType], bool]:
 
             return pd_is_sparse_210
 
-    from pandas.api.types import is_sparse  # type: ignore
+    from pandas.api.types import is_sparse  # type: ignore[attr-defined]
 
     return is_sparse
 
@@ -500,7 +500,7 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     # No copy, callstack:
     # pandas.core.internals.managers.SingleBlockManager.array_values()
     # pandas.core.internals.blocks.EABackedBlock.values
-    d_array: pd.arrays.ArrowExtensionArray = ser.array  # type: ignore
+    d_array: pd.arrays.ArrowExtensionArray = ser.array  # type: ignore[name-defined]
     # no copy in __arrow_array__
     # ArrowExtensionArray._data is a chunked array
     aa: "pa.ChunkedArray" = d_array.__arrow_array__()
@@ -561,9 +561,9 @@ def pandas_transform_data(
             ser.dtype,
             (
                 # pylint: disable=no-member
-                np.dtypes.Float32DType,  # type: ignore
+                np.dtypes.Float32DType,  # type: ignore[attr-defined]
                 # pylint: disable=no-member
-                np.dtypes.Float64DType,  # type: ignore
+                np.dtypes.Float64DType,  # type: ignore[attr-defined]
             ),
         )
 
@@ -644,7 +644,7 @@ class PandasTransformed(TransformedDf):
             n_samples = self.columns[0].codes.shape[0]
         else:
             # Anything else, TypeGuard is ignored by mypy 1.15.0 for some reason
-            n_samples = self.columns[0].shape[0]  # type: ignore
+            n_samples = self.columns[0].shape[0]  # type: ignore[union-attr]
         return n_samples, len(self.columns)
 
 
@@ -726,7 +726,7 @@ def _meta_from_pandas_series(
         data = data.to_numpy(np.float32, na_value=np.nan)
 
     if is_pd_sparse_dtype(getattr(data, "dtype", data)):
-        data = data.to_dense()  # type: ignore
+        data = data.to_dense()  # type: ignore[union-attr]
     assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
     _meta_from_numpy(data, name, dtype, handle)
 
@@ -978,9 +978,13 @@ def _lazy_load_cudf_is_cat() -> Callable[[Any], bool]:
 
     except ImportError:
         try:
-            from cudf.api.types import is_categorical_dtype  # type: ignore
+            from cudf.api.types import (  # type: ignore[no-redef]
+                is_categorical_dtype,
+            )
         except ImportError:
-            from cudf.utils.dtypes import is_categorical_dtype  # type: ignore
+            from cudf.utils.dtypes import (  # type: ignore[no-redef]
+                is_categorical_dtype,
+            )
 
     return is_categorical_dtype
 
@@ -1033,7 +1037,7 @@ class CudfTransformed(TransformedDf):
         if _is_df_cat(self.columns[0]):
             n_samples = self.columns[0].codes.shape[0]
         else:
-            n_samples = self.columns[0].shape[0]  # type: ignore
+            n_samples = self.columns[0].shape[0]  # type: ignore[union-attr]
         return n_samples, len(self.columns)
 
 
