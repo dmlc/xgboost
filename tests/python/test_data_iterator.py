@@ -39,8 +39,10 @@ def _assert_cut_rank_error_within_tolerance(
         end = int(indptr[fidx + 1])
         column_cuts = cuts[beg:end]
         assert np.all(np.diff(column_cuts) >= 0.0)
+        # For tiny sketches, a purely relative tolerance or average bin-mass floor can
+        # be smaller than the rank mass of one observation.
         acceptable_error = max(
-            total_weight * eps, total_weight / float(column_cuts.shape[0])
+            total_weight * eps, total_weight / float(column_cuts.shape[0]), 1.0
         )
 
         # Ignore the last cut, matching the C++ TestRank helper.
