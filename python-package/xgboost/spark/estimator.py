@@ -13,7 +13,7 @@ from pyspark.sql import SparkSession
 
 from ..collective import Config
 from ..sklearn import XGBClassifier, XGBRanker, XGBRegressor
-from .core import (  # type: ignore
+from .core import (  # type: ignore[attr-defined]
     _ClassificationModel,
     _SparkXGBEstimator,
     _SparkXGBModel,
