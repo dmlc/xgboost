@@ -8,6 +8,7 @@
 #include <cuda/functional>   // for proclaim_return_type
 #include <cuda/std/utility>  // for swap
 #include <memory>
+#include <stdexcept>
 
 #include "../collective/allreduce.h"
 #include "../common/bitfield.h"
@@ -669,6 +670,28 @@ class GPUPredictor : public xgboost::Predictor {
     }
   }
 
+  void Configure(Args const& cfg) override {
+    for (auto const& kv : cfg) {
+      if (kv.first == "shap_algorithm") {
+        CHECK(kv.second == "treeshap" || kv.second == "quadratureshap")
+            << "Unknown SHAP algorithm: " << kv.second;
+        shap_algorithm_ = kv.second;
+      } else if (kv.first == "quadratureshap_points") {
+        std::size_t points{0};
+        try {
+          points = std::stoul(kv.second);
+        } catch (std::invalid_argument const&) {
+          LOG(FATAL) << "Invalid quadratureshap_points: " << kv.second;
+        } catch (std::out_of_range const&) {
+          LOG(FATAL) << "quadratureshap_points out of range: " << kv.second;
+        }
+        CHECK_GE(points, 2) << "quadratureshap_points must be >= 2";
+        CHECK_LE(points, 64) << "quadratureshap_points must be <= 64";
+        quadrature_shap_points_ = points;
+      }
+    }
+  }
+
   void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts, const gbm::GBTreeModel& model,
                     bst_tree_t tree_begin, bst_tree_t tree_end = 0,
                     std::vector<float> const* tree_weights = nullptr) const override {
@@ -766,14 +789,20 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                            const gbm::GBTreeModel& model, bst_tree_t tree_end,
-                           std::vector<float> const* tree_weights, bool approximate, int,
-                           unsigned) const override {
+                           std::vector<float> const* tree_weights, bool approximate, int condition,
+                           unsigned condition_feature) const override {
     xgboost_NVTX_FN_RANGE();
     if (approximate) {
       LOG(FATAL) << "Approximated contribution is not implemented in the GPU predictor, use CPU "
                     "instead.";
     }
-    interpretability::ShapValues(ctx_, p_fmat, out_contribs, model, tree_end, tree_weights, 0, 0);
+    if (shap_algorithm_ == "quadratureshap" && condition == 0 && condition_feature == 0) {
+      interpretability::cuda_impl::QuadratureShapValues(ctx_, p_fmat, out_contribs, model, tree_end,
+                                                        tree_weights, quadrature_shap_points_);
+    } else {
+      interpretability::ShapValues(ctx_, p_fmat, out_contribs, model, tree_end, tree_weights,
+                                   condition, condition_feature);
+    }
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
@@ -832,6 +861,8 @@ class GPUPredictor : public xgboost::Predictor {
 
  private:
   ColumnSplitHelper column_split_helper_;
+  std::string shap_algorithm_{"treeshap"};
+  std::size_t quadrature_shap_points_{16};
 };
 
 XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")

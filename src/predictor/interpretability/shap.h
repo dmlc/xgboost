@@ -39,6 +39,10 @@ namespace cuda_impl {
 void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,
                 std::vector<float> const* tree_weights, int condition, unsigned condition_feature);
+void QuadratureShapValues(Context const* ctx, DMatrix* p_fmat,
+                          HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
+                          bst_tree_t tree_end, std::vector<float> const* tree_weights,
+                          std::size_t quadrature_points);
 void ApproxFeatureImportance(Context const* ctx, DMatrix* p_fmat,
                              HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
                              bst_tree_t tree_end, std::vector<float> const* tree_weights);
