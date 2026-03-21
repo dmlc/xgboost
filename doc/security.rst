@@ -8,7 +8,7 @@ Use of Python pickle
 
 We use ``pickle`` and ``cloudpickle`` in several places, including a convenient helper function for the ``broadcast`` collective operation to share a Python object. The method is not used internally during training but is here to assist with implementing custom metrics. Also, a distributed interface like PySpark might use pickle to load Python objects, like the callback functions. The security reports state the pickle is unsafe, which is true.
 
-However, from our perspective, if someone else can control your network environment and tamper with the data sent between XGBoost workers or the Spark executors, XGBoost should not be the place to provide security mitigation. As for all Python pickles in general, read the warning in the `pickle document <https://docs.python.org/3/library/pickle.html>`__.
+XGBoost as a machine learning library is not designed to protect against pickle data from an untrusted source. Please use appropriate protection mechanisms to ensure that no one can control your network environment and tamper with the pickle data sent between XGBoost workers or the Spark executors. For example, cloud vendors provide managed solutions for running XGBoost in an isolated network environments. As for all Python pickles in general, read the warning in the `pickle document <https://docs.python.org/3/library/pickle.html>`__.
 
 Suggestion:
 
