@@ -3,7 +3,9 @@
 """Training Library containing training routines."""
 
 import copy
+import json
 import os
+import warnings
 import weakref
 from typing import (
     TYPE_CHECKING,
@@ -181,6 +183,25 @@ def train(
             raise ValueError(_RefError)
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
+
+    # Validate booster type consistency when continuing training (issue #11473)
+    if xgb_model is not None and params is not None:
+        # Get booster type from params
+        params_dict = dict(params) if isinstance(params, list) else params
+        new_booster_type = params_dict.get("booster", "gbtree")
+
+        # Get booster type from loaded model
+        model_config = json.loads(bst.save_config())
+        loaded_booster_type = model_config["learner"]["gradient_booster"]["name"]
+
+        if new_booster_type != loaded_booster_type:
+            warnings.warn(
+                f"Booster type mismatch: loaded model uses '{loaded_booster_type}' "
+                f"but params specify '{new_booster_type}'. "
+                f"The loaded model's booster type will be used.",
+                UserWarning,
+            )
+
     start_iteration = 0
 
     if verbose_eval:
