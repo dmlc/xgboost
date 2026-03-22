@@ -50,7 +50,7 @@ def _to_dmatrix(model: Model, data: Union[DMatrix, ArrayLike]) -> DMatrix:
 
 
 @_deprecate_positional_args
-def shap_values(
+def shap_values(  # pylint: disable=too-many-arguments
     model: Model,
     data: Union[DMatrix, ArrayLike],
     *,
@@ -103,7 +103,7 @@ def shap_values(
 
 
 @_deprecate_positional_args
-def shap_interactions(
+def shap_interactions(  # pylint: disable=too-many-arguments
     model: Model,
     data: Union[DMatrix, ArrayLike],
     *,
