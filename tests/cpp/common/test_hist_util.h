@@ -111,7 +111,11 @@ inline void TestRank(const std::vector<float>& column_cuts, const std::vector<fl
       j++;
     }
     double expected_rank = ((i + 1) * total_weight) / column_cuts.size();
-    double acceptable_error = std::max(2.9, total_weight * eps);
+    // For small sketches, a purely relative tolerance can be tighter than one bin's
+    // expected mass. Use the larger of the relative tolerance and the average per-cut
+    // mass instead of a hard-coded floor.
+    double acceptable_error =
+        std::max(total_weight * eps, total_weight / static_cast<double>(column_cuts.size()));
     EXPECT_LE(std::abs(expected_rank - sum_weight), acceptable_error);
   }
 }

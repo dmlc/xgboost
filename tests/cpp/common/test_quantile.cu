@@ -45,7 +45,7 @@ TEST(GPUQuantile, Basic) {
   dh::device_vector<bst_idx_t> cuts_ptr(kCols + 1);
   thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
   // Push empty
-  sketch.Push(&ctx, dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
+  sketch.Push(&ctx, dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0, 0);
   ASSERT_EQ(sketch.Data().size(), 0);
 }
 
@@ -332,9 +332,9 @@ TEST(GPUQuantile, MergeCategorical) {
   dh::device_vector<size_t> cuts_ptr_1{0, 5, 8};
 
   sketch_0.Push(&ctx, dh::ToSpan(d_entries_0), dh::ToSpan(columns_ptr_0), dh::ToSpan(cuts_ptr_0),
-                entries_0.size(), {});
+                entries_0.size(), 5, {});
   sketch_1.Push(&ctx, dh::ToSpan(d_entries_1), dh::ToSpan(columns_ptr_1), dh::ToSpan(cuts_ptr_1),
-                entries_1.size(), {});
+                entries_1.size(), 5, {});
 
   sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
   TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr());
@@ -639,7 +639,7 @@ TEST(GPUQuantile, Push) {
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
   sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr), kRows,
-              {});
+              kRows, {});
 
   auto sketch_data = sketch.Data();
 
@@ -690,7 +690,7 @@ TEST(GPUQuantile, MultiColPush) {
   dh::device_vector<size_t> cuts_ptr(columns_ptr);
 
   sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(cuts_ptr),
-              kRows * kCols, {});
+              kRows * kCols, kRows, {});
 
   auto sketch_data = sketch.Data();
   ASSERT_EQ(sketch_data.size(), kCols * 2);
