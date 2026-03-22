@@ -267,12 +267,13 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   auto d_outputs = dh::ToSpan(outputs);
   this->EvaluateSplits(ctx, dh::ToSpan(inputs), shared_inputs, input.nidx, d_outputs);
 
-  // The `EvaluateSplits` apply eta for leaf nodes only, we need to apply it for the base
-  // weight.
+  // `EvaluateSplits` applies depth-dependent learning rate for child leaves only, so we
+  // apply it for the root base weight here.
   auto n_targets = shared_inputs.Targets();
+  auto eta = shared_inputs.param.LearningRate(input.depth);
   dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t t) {
     auto weight = d_outputs[0].base_weight;
-    weight[t] *= shared_inputs.param.learning_rate;
+    weight[t] *= eta;
   });
 
   return outputs[0];
@@ -385,7 +386,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     bool l = true, r = true;
     float parent_gain = 0;
     double left_hess = 0, right_hess = 0;  // Sum of child hessians across all targets
-    auto eta = shared_inputs.param.learning_rate;
+    auto eta = shared_inputs.param.LearningRate(input.depth + 1);
 
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto quantizer = roundings[t];

@@ -617,8 +617,9 @@ struct GPUHistMakerDevice {
     }
 
     auto base_weight = candidate.base_weight;
-    auto left_weight = candidate.left_weight * param.learning_rate;
-    auto right_weight = candidate.right_weight * param.learning_rate;
+    auto child_lr = param.LearningRate(candidate.depth + 1);
+    auto left_weight = candidate.left_weight * child_lr;
+    auto right_weight = candidate.right_weight * child_lr;
     auto const& q = (*quantiser)[0];
     auto parent_hess =
         q.ToFloatingPoint(candidate.split.left_sum + candidate.split.right_sum).GetHess();
@@ -681,7 +682,7 @@ struct GPUHistMakerDevice {
     p_tree->Stat(kRootNIdx).sum_hess = root_sum.GetHess();
     auto weight = CalcWeight(param, root_sum);
     p_tree->Stat(kRootNIdx).base_weight = weight;
-    (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
+    (*p_tree)[kRootNIdx].SetLeaf(param.LearningRate(kRootNIdx) * weight);
 
     // Generate first split
     auto root_entry = this->EvaluateRootSplit(p_fmat, root_sum_quantised);

@@ -24,6 +24,7 @@ struct GPUTrainingParam {
   // default=0 means no constraint on weight delta
   float max_delta_step;
   float learning_rate;
+  float depth_decay;
   uint32_t max_cat_to_onehot;
   bst_bin_t max_cat_threshold;
 
@@ -35,8 +36,21 @@ struct GPUTrainingParam {
         reg_alpha(param.reg_alpha),
         max_delta_step(param.max_delta_step),
         learning_rate{param.learning_rate},
+        depth_decay{param.depth_decay},
         max_cat_to_onehot{param.max_cat_to_onehot},
         max_cat_threshold{param.max_cat_threshold} {}
+
+  [[nodiscard]] XGBOOST_DEVICE float DepthScale(bst_node_t depth) const {
+    float scale = 1.0f;
+    for (bst_node_t d = 0; d < depth; ++d) {
+      scale *= depth_decay;
+    }
+    return scale;
+  }
+
+  [[nodiscard]] XGBOOST_DEVICE float LearningRate(bst_node_t depth) const {
+    return learning_rate * this->DepthScale(depth);
+  }
 };
 
 /**

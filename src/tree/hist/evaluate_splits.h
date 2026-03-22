@@ -420,18 +420,18 @@ class HistEvaluator {
         evaluator.CalcWeight(candidate.nid, *param_, GradStats{candidate.split.left_sum});
     auto right_weight =
         evaluator.CalcWeight(candidate.nid, *param_, GradStats{candidate.split.right_sum});
+    auto child_lr = param_->LearningRate(candidate.depth + 1);
 
     if (candidate.split.is_cat) {
-      tree.ExpandCategorical(
-          candidate.nid, candidate.split.SplitIndex(), candidate.split.cat_bits,
-          candidate.split.DefaultLeft(), base_weight, left_weight * param_->learning_rate,
-          right_weight * param_->learning_rate, candidate.split.loss_chg, parent_sum.GetHess(),
-          candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
+      tree.ExpandCategorical(candidate.nid, candidate.split.SplitIndex(), candidate.split.cat_bits,
+                             candidate.split.DefaultLeft(), base_weight, left_weight * child_lr,
+                             right_weight * child_lr, candidate.split.loss_chg,
+                             parent_sum.GetHess(), candidate.split.left_sum.GetHess(),
+                             candidate.split.right_sum.GetHess());
     } else {
       tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-                      candidate.split.DefaultLeft(), base_weight,
-                      left_weight * param_->learning_rate, right_weight * param_->learning_rate,
-                      candidate.split.loss_chg, parent_sum.GetHess(),
+                      candidate.split.DefaultLeft(), base_weight, left_weight * child_lr,
+                      right_weight * child_lr, candidate.split.loss_chg, parent_sum.GetHess(),
                       candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
     }
 
@@ -733,12 +733,13 @@ class HistMultiEvaluator {
     auto left_weight = weight.Slice(1, linalg::All());
     auto left_sum =
         linalg::MakeVec(candidate.split.left_sum.data(), candidate.split.left_sum.size());
-    CalcWeight(*param_, left_sum, param_->learning_rate, left_weight);
+    auto child_lr = param_->LearningRate(candidate.depth + 1);
+    CalcWeight(*param_, left_sum, child_lr, left_weight);
 
     auto right_weight = weight.Slice(2, linalg::All());
     auto right_sum =
         linalg::MakeVec(candidate.split.right_sum.data(), candidate.split.right_sum.size());
-    CalcWeight(*param_, right_sum, param_->learning_rate, right_weight);
+    CalcWeight(*param_, right_sum, child_lr, right_weight);
 
     // Compute the loss_chg and sum hessians for parent and children
     float loss_chg = candidate.split.loss_chg;

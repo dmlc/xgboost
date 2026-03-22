@@ -342,7 +342,15 @@ class MultiTargetHistMaker {
     LeafWeight(this->ctx_, param, this->value_quantizer_->DeviceSpan(),
                out_sum.View(this->ctx_->Device()), out_weight.View(this->ctx_->Device()));
 
-    p_tree->SetLeaves(leaves_idx, out_weight.Data()->ConstHostSpan());
+    auto h_out_weight = out_weight.HostView();
+    for (std::size_t nidx_in_set = 0; nidx_in_set < leaves_idx.size(); ++nidx_in_set) {
+      auto depth_scale = this->param_.DepthScale(p_tree->GetDepth(leaves_idx[nidx_in_set]));
+      for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
+        h_out_weight(nidx_in_set, t) *= depth_scale;
+      }
+    }
+
+    p_tree->SetLeaves(leaves_idx, h_out_weight.Values());
   }
 
   struct NodeSplitData {

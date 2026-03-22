@@ -246,7 +246,7 @@ class MultiTargetHistBuilder {
     auto weight = evaluator_->InitRoot(h_root_sum);
     auto weight_t = weight.HostView();
     std::transform(linalg::cbegin(weight_t), linalg::cend(weight_t), linalg::begin(weight_t),
-                   [&](float w) { return w * param_->learning_rate; });
+                   [&](float w) { return w * param_->LearningRate(RegTree::kRoot); });
 
     // Compute root sum_hess by summing hessians across all targets
     float root_sum_hess = 0.0f;
@@ -368,11 +368,11 @@ class MultiTargetHistBuilder {
     // Calculate weights for each leaf
     linalg::Matrix<float> weights = linalg::Empty<float>(ctx_, n_leaves, n_targets);
     auto h_weights = weights.HostView();
-    auto eta = this->param_->learning_rate;
 
     common::ParallelFor(n_leaves, n_threads, [&](auto leaf_idx) {
       auto grad_sum = h_leaf_sums.Slice(leaf_idx, linalg::All());
       auto weight = h_weights.Slice(leaf_idx, linalg::All());
+      auto eta = this->param_->LearningRate(p_tree->GetDepth(leaves_idx[leaf_idx]));
       CalcWeight(*param_, grad_sum, eta, weight);
     });
 
@@ -542,7 +542,7 @@ class HistUpdater {
       auto weight = evaluator_->InitRoot(GradStats{grad_stat});
       p_tree->Stat(RegTree::kRoot).sum_hess = grad_stat.GetHess();
       p_tree->Stat(RegTree::kRoot).base_weight = weight;
-      (*p_tree)[RegTree::kRoot].SetLeaf(param_->learning_rate * weight);
+      (*p_tree)[RegTree::kRoot].SetLeaf(param_->LearningRate(RegTree::kRoot) * weight);
 
       std::vector<CPUExpandEntry> entries{node};
       monitor_->Start("EvaluateSplits");

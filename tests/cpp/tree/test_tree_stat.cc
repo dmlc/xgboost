@@ -205,6 +205,129 @@ TEST_F(TestSplitWithEta, GpuApprox) {
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
+class TestDepthDecay : public ::testing::Test {
+ protected:
+  static float CalcDepthScale(float depth_decay, bst_node_t depth) {
+    float scale = 1.0f;
+    for (bst_node_t d = 0; d < depth; ++d) {
+      scale *= depth_decay;
+    }
+    return scale;
+  }
+
+  static void CheckLeaf(float expected, float actual, float tol) {
+    if (tol == 0.0f) {
+      CHECK_EQ(expected, actual);
+    } else {
+      CHECK_NEAR(expected, actual, tol);
+    }
+  }
+
+  void Run(Context const* ctx, bst_target_t n_targets, std::string const& name) {
+    auto Xy = RandomDataGenerator{512, 64, 0.2}.Targets(n_targets).GenerateDMatrix(true);
+
+    auto gen_tree = [&](Args const& args) {
+      auto tree =
+          std::make_unique<RegTree>(n_targets, static_cast<bst_feature_t>(Xy->Info().num_col_));
+      auto grad = GenerateRandomGradients(ctx, Xy->Info().num_row_, n_targets);
+      CHECK_EQ(grad.gpair.Shape(1), n_targets);
+      BuildTree(ctx, Xy.get(), &grad, name, args, tree.get());
+
+      CHECK_EQ(tree->NumTargets(), n_targets);
+      if (n_targets > 1) {
+        CHECK(tree->IsMultiTarget());
+      }
+      return tree;
+    };
+
+    auto base_tree = gen_tree(Args{{"learning_rate", "0.1"}});
+    auto unit_decay_tree = gen_tree(Args{{"learning_rate", "0.1"}, {"depth_decay", "1.0"}});
+    constexpr float kDepthDecay = 0.5f;
+    auto decayed_tree =
+        gen_tree(Args{{"learning_rate", "0.1"}, {"depth_decay", std::to_string(kDepthDecay)}});
+    CHECK_GE(base_tree->NumExtraNodes(), 32);
+
+    auto compare = [&](RegTree const& lhs, RegTree const& rhs, float depth_decay, float tol) {
+      bst_node_t n_nodes{0};
+      tree::WalkTree(
+          lhs,
+          [&](auto const& lhs_tree, auto const& rhs_tree, bst_node_t nidx) {
+            if (lhs_tree.IsLeaf(nidx)) {
+              CHECK(rhs_tree.IsLeaf(nidx));
+              auto scale = CalcDepthScale(depth_decay, lhs.GetDepth(nidx));
+              if (lhs.IsMultiTarget()) {
+                auto lhs_leaf = lhs.GetMultiTargetTree()->LeafValue(nidx);
+                auto rhs_leaf = rhs.GetMultiTargetTree()->LeafValue(nidx);
+                CHECK_EQ(lhs_leaf.Size(), rhs_leaf.Size());
+                for (std::size_t i = 0; i < lhs_leaf.Size(); ++i) {
+                  CheckLeaf(lhs_leaf(i) * scale, rhs_leaf(i), tol);
+                }
+                CHECK_EQ(DftBadValue(), lhs_tree.SplitCond(nidx));
+                CHECK_EQ(DftBadValue(), rhs_tree.SplitCond(nidx));
+              } else {
+                // NON-mt tree reuses split cond for leaf value.
+                CheckLeaf(lhs_tree.SplitCond(nidx) * scale, rhs_tree.SplitCond(nidx), tol);
+              }
+            } else {
+              CHECK(!rhs_tree.IsLeaf(nidx));
+              CHECK_EQ(lhs_tree.SplitCond(nidx), rhs_tree.SplitCond(nidx));
+            }
+            n_nodes++;
+            return true;
+          },
+          rhs);
+      CHECK_EQ(n_nodes, lhs.NumExtraNodes() + 1);
+    };
+
+    compare(*base_tree, *unit_decay_tree, 1.0f, 0.0f);
+    compare(*unit_decay_tree, *decayed_tree, kDepthDecay, 1e-6f);
+  }
+};
+
+TEST_F(TestDepthDecay, MultiHist) {
+  Context ctx;
+  bst_target_t n_targets{3};
+  this->Run(&ctx, n_targets, "grow_quantile_histmaker");
+}
+
+TEST_F(TestDepthDecay, Hist) {
+  Context ctx;
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_quantile_histmaker");
+}
+
+TEST_F(TestDepthDecay, Approx) {
+  Context ctx;
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_histmaker");
+}
+
+TEST_F(TestDepthDecay, Exact) {
+  Context ctx;
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_colmaker");
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestDepthDecay, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_gpu_hist");
+}
+
+TEST_F(TestDepthDecay, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  bst_target_t n_targets{3};
+  this->Run(&ctx, n_targets, "grow_gpu_hist");
+}
+
+TEST_F(TestDepthDecay, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  bst_target_t n_targets{1};
+  this->Run(&ctx, n_targets, "grow_gpu_approx");
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
 class TestMinSplitLoss : public ::testing::Test {
   std::shared_ptr<DMatrix> p_fmat_;
   GradientContainer gpair_;
@@ -415,7 +538,8 @@ class TestMaxDeltaStep : public ::testing::Test {
 
     RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
                    static_cast<bst_target_t>(p_fmat->Info().num_col_)};
-    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}}, &tree_0);
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}},
+              &tree_0);
     ASSERT_EQ(tree_0.NumNodes(), 1);
   }
 };

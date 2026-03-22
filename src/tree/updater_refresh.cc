@@ -121,7 +121,7 @@ class TreeRefresher : public TreeUpdater {
     tree.Stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     if (tree[nid].IsLeaf()) {
       if (param->refresh_leaf) {
-        tree[nid].SetLeaf(tree.Stat(nid).base_weight * param->learning_rate);
+        tree[nid].SetLeaf(tree.Stat(nid).base_weight * param->LearningRate(tree.GetDepth(nid)));
       }
     } else {
       tree.Stat(nid).loss_chg =

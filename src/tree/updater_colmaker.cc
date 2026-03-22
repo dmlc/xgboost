@@ -195,8 +195,9 @@ class ColMaker : public TreeUpdater {
         if (qexpand_.size() == 0) break;
       }
       // set all the rest expanding nodes to leaf
+      auto sc_tree = p_tree->HostScView();
       for (const int nid : qexpand_) {
-        (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
+        (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.LearningRate(sc_tree.GetDepth(nid)));
       }
       // remember auxiliary statistics in the tree node
       for (int nid = 0; nid < p_tree->NumNodes(); ++nid) {
@@ -470,18 +471,19 @@ class ColMaker : public TreeUpdater {
       // get the best result, we can synchronize the solution
       for (int nid : qexpand) {
         NodeEntry const &e = snode_[nid];
+        auto child_lr = param_.LearningRate(p_tree->GetDepth(nid) + 1);
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > kRtEps) {
           bst_float left_leaf_weight =
-              evaluator.CalcWeight(nid, param_, e.best.left_sum) * param_.learning_rate;
+              evaluator.CalcWeight(nid, param_, e.best.left_sum) * child_lr;
           bst_float right_leaf_weight =
-              evaluator.CalcWeight(nid, param_, e.best.right_sum) * param_.learning_rate;
+              evaluator.CalcWeight(nid, param_, e.best.right_sum) * child_lr;
           p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft(),
                              e.weight, left_leaf_weight, right_leaf_weight, e.best.loss_chg,
                              e.stats.sum_hess, e.best.left_sum.GetHess(),
                              e.best.right_sum.GetHess(), 0);
         } else {
-          (*p_tree)[nid].SetLeaf(e.weight * param_.learning_rate);
+          (*p_tree)[nid].SetLeaf(e.weight * param_.LearningRate(p_tree->GetDepth(nid)));
         }
       }
     }
