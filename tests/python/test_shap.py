@@ -3,7 +3,6 @@ import re
 
 import numpy as np
 import scipy.special
-
 import xgboost as xgb
 from xgboost import testing as tm
 
@@ -282,3 +281,56 @@ class TestSHAP:
 
         X, y = make_classification()
         assert_same(X, y)
+
+
+class TestInterpret:
+    def test_shap_wrappers_for_booster(self) -> None:
+        rng = np.random.RandomState(1994)
+        X = rng.randn(64, 6)
+        y = rng.randn(64)
+
+        dtrain = xgb.DMatrix(X, label=y)
+        booster = xgb.train({"max_depth": 3, "eta": 0.3}, dtrain, num_boost_round=8)
+
+        contribs = booster.predict(dtrain, pred_contribs=True)
+        values = xgb.interpret.shap_values(booster, dtrain)
+        np.testing.assert_allclose(values, contribs[..., :-1])
+        values_from_array = xgb.interpret.shap_values(booster, X)
+        np.testing.assert_allclose(values_from_array, contribs[..., :-1])
+
+        values_w_bias, bias = xgb.interpret.shap_values(
+            booster, dtrain, return_bias=True
+        )
+        np.testing.assert_allclose(values_w_bias, contribs[..., :-1])
+        np.testing.assert_allclose(bias, contribs[..., -1])
+
+        interactions = booster.predict(dtrain, pred_interactions=True)
+        wrapped_interactions = xgb.interpret.shap_interactions(booster, dtrain)
+        np.testing.assert_allclose(wrapped_interactions, interactions[..., :-1, :-1])
+
+    def test_shap_values_for_sklearn_model(self) -> None:
+        from sklearn.datasets import make_regression
+
+        X, y = make_regression(n_samples=128, n_features=5, random_state=1994)
+        model = xgb.XGBRegressor(
+            n_estimators=12,
+            max_depth=3,
+            learning_rate=0.3,
+            random_state=1994,
+        )
+        model.fit(X, y)
+
+        expected_range = model._get_iteration_range(None)
+        expected = model.get_booster().predict(
+            xgb.DMatrix(
+                X,
+                missing=model.missing,
+                nthread=model.n_jobs,
+                feature_types=model.feature_types,
+                enable_categorical=model.enable_categorical,
+            ),
+            pred_contribs=True,
+            iteration_range=expected_range,
+        )
+        values = xgb.interpret.shap_values(model, X)
+        np.testing.assert_allclose(values, expected[..., :-1])
