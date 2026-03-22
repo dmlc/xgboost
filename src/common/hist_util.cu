@@ -43,86 +43,17 @@ size_t RequiredSampleCuts(bst_idx_t num_rows, bst_feature_t num_columns, size_t 
   return result;
 }
 
-size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz, size_t num_bins,
-                      bool with_weights) {
-  size_t peak = 0;
-  auto cuts_bytes = RequiredSampleCuts(num_rows, num_bins, num_bins, nnz) * sizeof(SketchEntry);
-  // 0. Allocate cut pointer in quantile container by increasing: n_columns + 1
-  size_t total = (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 1. Copy and sort: 2 * bytes_per_element * shape
-  total += BytesPerElement(with_weights) * num_rows * num_columns;
-  peak = std::max(peak, total);
-  // 2. Deallocate bytes_per_element * shape due to reusing memory in sort.
-  total -= BytesPerElement(with_weights) * num_rows * num_columns / 2;
-  // 3. Allocate colomn size scan by increasing: n_columns + 1
-  total += (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 4. Allocate cut pointer by increasing: n_columns + 1
-  total += (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 5. Allocate cuts: assuming rows is greater than bins: n_columns * limit_size
-  total += cuts_bytes;
-  // 6. Install the first batch summary into the resident sketch while the temporary pruned
-  // summary is still live.
-  total += cuts_bytes;
-  // 7. Deallocate copied entries by reducing: bytes_per_element * shape.
-  peak = std::max(peak, total);
-  total -= (BytesPerElement(with_weights) * num_rows * num_columns) / 2;
-  // 8. Deallocate the temporary pruned batch summary after merge/prune commit.
-  peak = std::max(peak, total);
-  total -= cuts_bytes;
-  // 9. Deallocate column size scan.
-  peak = std::max(peak, total);
-  total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 10. Deallocate cut size scan.
-  total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 11. Allocate final cut values and cut ptrs: std::min(rows, bins + 1) * n_columns +
-  //    n_columns + 1
-  total += std::min(num_rows, num_bins) * num_columns * sizeof(float);
-  total +=
-      (num_columns + 1) *
-      sizeof(std::remove_reference_t<decltype(std::declval<HistogramCuts>().Ptrs())>::value_type);
-  peak = std::max(peak, total);
-
-  return peak;
-}
-
 bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShape shape, int device,
                                  size_t num_cuts, bool has_weight, std::size_t container_bytes) {
   auto constexpr kIntMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
-
-  // Device available memory is not accurate when a memory pool is used.
-  auto avoid_estimation_with_pool = [&] {
-    (void)device;
-    double total_mem = curt::TotalMemory() - container_bytes;
-    double total_f32 = total_mem / sizeof(float);
-    double n_max_used_f32 = std::max(total_f32 / 8.0, 1.0);
-    if (shape.nnz > shape.Size()) {
-      // Unknown nnz
-      shape.nnz = shape.Size();
-    }
-    return std::min(static_cast<bst_idx_t>(n_max_used_f32), shape.nnz);
-  };
-
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  // Early exit with RMM pool
-  return avoid_estimation_with_pool();
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  // Early exit with CUDA async pool
-  if (GlobalConfigThreadLocalStore::Get()->use_cuda_async_pool) {
-    return avoid_estimation_with_pool();
-  }
-
-  (void)container_bytes;  // We known the remaining size when RMM is not used.
+  auto constexpr kDefaultSketchBatchElements = bst_idx_t{1} << 26;  // 64M
+  (void)device;
+  (void)num_cuts;
+  (void)has_weight;
+  (void)container_bytes;
   if (sketch_batch_num_elements == detail::UnknownSketchNumElements()) {
-    auto required_memory =
-        RequiredMemory(shape.n_samples, shape.n_features, shape.nnz, num_cuts, has_weight);
-    // use up to 80% of available space
-    auto avail = dh::AvailableMemory(device) * 0.8;
-    CHECK_GT(avail, 0) << error::ZeroCudaMemory();
-    if (required_memory > avail) {
-      sketch_batch_num_elements = avail / BytesPerElement(has_weight);
-    } else {
-      sketch_batch_num_elements = std::min(shape.Size(), shape.nnz);
-    }
+    auto nnz = std::min(shape.Size(), shape.nnz);
+    sketch_batch_num_elements = std::min(kDefaultSketchBatchElements, nnz);
   }
 
   return std::min(sketch_batch_num_elements, kIntMax);

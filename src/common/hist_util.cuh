@@ -179,8 +179,9 @@ struct SketchShape {
 };
 
 /**
- * @brief Calcuate the length of sliding window. Returns `sketch_batch_num_elements`
- *        directly if it's not 0.
+ * @brief Calculate the length of the sliding window. Returns
+ *        `sketch_batch_num_elements` directly when it's not 0.  Otherwise use a fixed
+ *        default element budget and clamp it to the input size.
  */
 bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShape shape, int device,
                                  size_t num_cuts, bool has_weight, std::size_t container_bytes);
@@ -188,24 +189,6 @@ bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShap
 // Compute number of sample cuts needed on local node to maintain accuracy
 // We take more cuts than needed and then reduce them later
 size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows);
-
-/* \brief Estimate required memory for each sliding window.
- *
- *   It's not precise as to obtain exact memory usage for sparse dataset we need to walk
- *   through the whole dataset first.  Also if data is from host DMatrix, we copy the
- *   weight, group and offset on first batch, which is not considered in the function.
- *
- * \param num_rows     Number of rows in this worker.
- * \param num_columns  Number of columns for this dataset.
- * \param nnz          Number of non-zero element.  Put in something greater than rows *
- *                     cols if nnz is unknown.
- * \param num_bins     Number of histogram bins.
- * \param with_weights Whether weight is used, works the same for ranking and other models.
- *
- * \return The estimated bytes
- */
-size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz,
-                      size_t num_bins, bool with_weights);
 
 // Count the valid entries in each column and copy them out.
 template <typename AdapterBatch, typename BatchIter>
