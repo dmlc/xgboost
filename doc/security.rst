@@ -18,7 +18,7 @@ Suggestion:
 The lack of authentication in the collective implementation
 ***********************************************************
 
-XGBoost uses TCP sockets for communication between workers during distributed model training. XGBoost is a numeric computation library; the collective module provides high-performance numeric operations (allreduce, allgather, etc.). We will NOT add TLS authentication or encryption into the collective implementation.
+XGBoost uses TCP sockets for communication between workers during distributed model training. XGBoost is a numeric computation library; the collective module in intended for high-performance numeric operations (allreduce, allgather, etc.). For performance reasons, we decided that the collective module will NOT support TLS authentication or encryption.
 
 Suggestion:
 
