@@ -160,31 +160,7 @@ void GetColumnSizesScan(CUDAContext const* cuctx, DeviceOrd device, size_t num_c
                          column_sizes_scan->begin());
 }
 
-inline size_t constexpr BytesPerElement(bool has_weight) {
-  // Double the memory usage for sorting.  We need to assign weight for each element, so
-  // sizeof(float) is added to all elements.
-  return (has_weight ? sizeof(Entry) + sizeof(float) : sizeof(Entry)) * 2;
-}
-
-struct SketchShape {
-  bst_idx_t n_samples;
-  bst_feature_t n_features;
-  bst_idx_t nnz;
-
-  template <typename F, std::enable_if_t<std::is_integral_v<F>>* = nullptr>
-  SketchShape(bst_idx_t n_samples, F n_features, bst_idx_t nnz)
-      : n_samples{n_samples}, n_features{static_cast<bst_feature_t>(n_features)}, nnz{nnz} {}
-
-  [[nodiscard]] bst_idx_t Size() const { return n_samples * n_features; }
-};
-
-/**
- * @brief Calculate the length of the sliding window. Returns
- *        `sketch_batch_num_elements` directly when it's not 0.  Otherwise use a fixed
- *        default element budget and clamp it to the input size.
- */
-bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShape shape, int device,
-                                 size_t num_cuts, bool has_weight, std::size_t container_bytes);
+constexpr bst_idx_t kSketchBatchNumElements = bst_idx_t{1} << 26;  // 64M
 
 // Compute number of sample cuts needed on local node to maintain accuracy
 // We take more cuts than needed and then reduce them later
@@ -224,7 +200,6 @@ void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
                                 dh::device_vector<float>* p_sorted_weights,
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan);
 
-constexpr bst_idx_t UnknownSketchNumElements() { return 0; }
 }  // namespace detail
 
 /**
@@ -234,13 +209,11 @@ constexpr bst_idx_t UnknownSketchNumElements() { return 0; }
  * @param p_fmat  Training feature matrix
  * @param max_bin Maximum number of bins for each feature
  * @param hessian Hessian vector.
- * @param sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
  *
  * @return Quantile cuts
  */
 HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_bin_t max_bin,
-                                      Span<float const> hessian,
-                                      std::size_t sketch_batch_num_elements = detail::UnknownSketchNumElements());
+                                      Span<float const> hessian);
 
 /**
  * @brief Compute sketch on DMatrix with GPU.
@@ -248,14 +221,11 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
  * @param ctx     Runtime context
  * @param p_fmat  Training feature matrix
  * @param max_bin Maximum number of bins for each feature
- * @param sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
  *
  * @return Quantile cuts
  */
-inline HistogramCuts DeviceSketch(
-    Context const* ctx, DMatrix* p_fmat, bst_bin_t max_bin,
-    std::size_t sketch_batch_num_elements = detail::UnknownSketchNumElements()) {
-  return DeviceSketchWithHessian(ctx, p_fmat, max_bin, {}, sketch_batch_num_elements);
+inline HistogramCuts DeviceSketch(Context const* ctx, DMatrix* p_fmat, bst_bin_t max_bin) {
+  return DeviceSketchWithHessian(ctx, p_fmat, max_bin, {});
 }
 
 template <typename AdapterBatch>
@@ -376,13 +346,10 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
  * @param info             Metainfo used for sketching.
  * @param missing          Floating point value that represents invalid value.
  * @param sketch_container Container for output sketch.
- * @param sketch_batch_num_elements Number of element per-sliding window, use it only for
- *                                  testing.
  */
 template <typename Batch>
 void AdapterDeviceSketch(Context const* ctx, Batch batch, bst_bin_t num_bins, MetaInfo const& info,
-                         float missing, SketchContainer* sketch_container,
-                         bst_idx_t sketch_batch_num_elements = detail::UnknownSketchNumElements()) {
+                         float missing, SketchContainer* sketch_container) {
   bst_idx_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
 
@@ -391,16 +358,9 @@ void AdapterDeviceSketch(Context const* ctx, Batch batch, bst_bin_t num_bins, Me
   bst_idx_t const kRemaining = batch.Size();
   bst_idx_t begin = 0;
 
-  auto shape = detail::SketchShape{num_rows, num_cols, std::numeric_limits<bst_idx_t>::max()};
-
   while (begin < kRemaining) {
-    // Use total number of samples to estimate the needed cuts first, this doesn't hurt
-    // accuracy as total number of samples is larger.
     auto num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
-    // Estimate the memory usage based on the current available memory.
-    sketch_batch_num_elements = detail::SketchBatchNumElements(
-        sketch_batch_num_elements, shape, ctx->Ordinal(), num_cuts_per_feature, weighted,
-        sketch_container->MemCostBytes());
+    auto sketch_batch_num_elements = std::min(detail::kSketchBatchNumElements, kRemaining);
     // Re-estimate the needed number of cuts based on the size of the sub-batch.
     //
     // The estimation of `sketch_batch_num_elements` assumes dense input, so the

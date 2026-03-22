@@ -35,30 +35,6 @@ size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
   return std::min(num_cuts, num_rows);
 }
 
-size_t RequiredSampleCuts(bst_idx_t num_rows, bst_feature_t num_columns, size_t max_bins,
-                          bst_idx_t nnz) {
-  auto per_column = RequiredSampleCutsPerColumn(max_bins, num_rows);
-  auto if_dense = num_columns * per_column;
-  auto result = std::min(nnz, if_dense);
-  return result;
-}
-
-bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShape shape, int device,
-                                 size_t num_cuts, bool has_weight, std::size_t container_bytes) {
-  auto constexpr kIntMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
-  auto constexpr kDefaultSketchBatchElements = bst_idx_t{1} << 26;  // 64M
-  (void)device;
-  (void)num_cuts;
-  (void)has_weight;
-  (void)container_bytes;
-  if (sketch_batch_num_elements == detail::UnknownSketchNumElements()) {
-    auto nnz = std::min(shape.Size(), shape.nnz);
-    sketch_batch_num_elements = std::min(kDefaultSketchBatchElements, nnz);
-  }
-
-  return std::min(sketch_batch_num_elements, kIntMax);
-}
-
 void SortByWeight(Context const* ctx, dh::device_vector<float>* weights,
                   dh::device_vector<Entry>* sorted_entries) {
   // Sort both entries and wegihts.
@@ -278,8 +254,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
 }
 
 HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_bin_t max_bin,
-                                      Span<float const> hessian,
-                                      std::size_t sketch_batch_num_elements) {
+                                      Span<float const> hessian) {
   auto const& info = p_fmat->Info();
   bool has_weight = !info.weights_.Empty();
   info.feature_types.SetDevice(ctx->Device());
@@ -287,12 +262,8 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
   HostDeviceVector<float> weight;
   weight.SetDevice(ctx->Device());
 
-  // Configure batch size based on available memory
   std::size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(max_bin, info.num_row_);
-  sketch_batch_num_elements = detail::SketchBatchNumElements(
-      sketch_batch_num_elements,
-      detail::SketchShape{info.num_row_, info.num_col_, info.num_nonzero_}, ctx->Ordinal(),
-      num_cuts_per_feature, has_weight, 0);
+  auto sketch_batch_num_elements = std::min(detail::kSketchBatchNumElements, info.num_nonzero_);
 
   CUDAContext const* cuctx = ctx->CUDACtx();
 
