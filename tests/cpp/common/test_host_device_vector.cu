@@ -1,11 +1,13 @@
 /**
- * Copyright 2018-2024, XGBoost contributors
+ * Copyright 2018-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/equal.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <xgboost/context.h>
 #include <xgboost/host_device_vector.h>
 
+#include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/cuda_rt_utils.h"  // for SetDevice
 #include "../../../src/common/device_helpers.cuh"
 
@@ -30,23 +32,19 @@ struct HostDeviceVectorSetDeviceHandler {
   }
 };
 
-void InitHostDeviceVector(size_t n, DeviceOrd device, HostDeviceVector<int> *v) {
-  // create the vector
-  v->SetDevice(device);
+void InitHostDeviceVector(size_t n, DeviceOrd device, HostDeviceVector<int> *v,
+                          CUDAContext const* ctx) {
+  v->SetDevice(device, ctx);
   v->Resize(n);
 
   ASSERT_EQ(v->Size(), n);
   ASSERT_EQ(v->Device(), device);
-  // ensure that the device have read-write access
   ASSERT_TRUE(v->DeviceCanRead());
   ASSERT_TRUE(v->DeviceCanWrite());
-  // ensure that the host has no access
   ASSERT_FALSE(v->HostCanRead());
   ASSERT_FALSE(v->HostCanWrite());
 
-  // fill in the data on the host
-  std::vector<int>& data_h = v->HostVector();
-  // ensure that the host has full access, while the device have none
+  std::vector<int>& data_h = v->HostVector(ctx);
   ASSERT_TRUE(v->HostCanRead());
   ASSERT_TRUE(v->HostCanWrite());
   ASSERT_FALSE(v->DeviceCanRead());
@@ -66,14 +64,14 @@ void PlusOne(HostDeviceVector<int> *v) {
 void CheckDevice(HostDeviceVector<int>* v,
                  size_t size,
                  unsigned int first,
-                 GPUAccess access) {
+                 GPUAccess access,
+                 CUDAContext const* ctx) {
   ASSERT_EQ(v->Size(), size);
   SetDeviceForTest(v->Device());
 
   ASSERT_TRUE(thrust::equal(dh::tcbegin(*v), dh::tcend(*v),
                             thrust::make_counting_iterator(first)));
   ASSERT_TRUE(v->DeviceCanRead());
-  // ensure that the device has at most the access specified by access
   ASSERT_EQ(v->DeviceCanWrite(), access == GPUAccess::kWrite);
   ASSERT_EQ(v->HostCanRead(), access == GPUAccess::kRead);
   ASSERT_FALSE(v->HostCanWrite());
@@ -86,93 +84,98 @@ void CheckDevice(HostDeviceVector<int>* v,
   ASSERT_FALSE(v->HostCanWrite());
 }
 
-void CheckHost(HostDeviceVector<int> *v, GPUAccess access) {
+void CheckHost(HostDeviceVector<int> *v, GPUAccess access, CUDAContext const* ctx) {
   const std::vector<int>& data_h = access == GPUAccess::kNone ?
-    v->HostVector() : v->ConstHostVector();
+    v->HostVector(ctx) : v->ConstHostVector(ctx);
   for (size_t i = 0; i < v->Size(); ++i) {
     ASSERT_EQ(data_h.at(i), i + 1);
   }
   ASSERT_TRUE(v->HostCanRead());
   ASSERT_EQ(v->HostCanWrite(), access == GPUAccess::kNone);
   ASSERT_EQ(v->DeviceCanRead(), access == GPUAccess::kRead);
-  // the devices should have no write access
   ASSERT_FALSE(v->DeviceCanWrite());
 }
 
-void TestHostDeviceVector(size_t n, DeviceOrd device) {
+void TestHostDeviceVector(size_t n, DeviceOrd device, CUDAContext const* ctx) {
   HostDeviceVectorSetDeviceHandler hdvec_dev_hndlr(curt::SetDevice);
   HostDeviceVector<int> v;
-  InitHostDeviceVector(n, device, &v);
-  CheckDevice(&v, n, 0, GPUAccess::kRead);
+  InitHostDeviceVector(n, device, &v, ctx);
+  CheckDevice(&v, n, 0, GPUAccess::kRead, ctx);
   PlusOne(&v);
-  CheckDevice(&v, n, 1, GPUAccess::kWrite);
-  CheckHost(&v, GPUAccess::kRead);
-  CheckHost(&v, GPUAccess::kNone);
+  CheckDevice(&v, n, 1, GPUAccess::kWrite, ctx);
+  CheckHost(&v, GPUAccess::kRead, ctx);
+  CheckHost(&v, GPUAccess::kNone, ctx);
 }
 
 TEST(HostDeviceVector, Basic) {
   size_t n = 1001;
-  DeviceOrd device = DeviceOrd::CUDA(0);
-  TestHostDeviceVector(n, device);
+  auto ctx = Context{}.MakeCUDA(0);
+  auto const* cuctx = ctx.CUDACtx();
+  TestHostDeviceVector(n, ctx.Device(), cuctx);
 }
 
 TEST(HostDeviceVector, Copy) {
   size_t n = 1001;
-  auto device = DeviceOrd::CUDA(0);
+  auto ctx = Context{}.MakeCUDA(0);
+  auto const* cuctx = ctx.CUDACtx();
   HostDeviceVectorSetDeviceHandler hdvec_dev_hndlr(curt::SetDevice);
 
   HostDeviceVector<int> v;
   {
-    // a separate scope to ensure that v1 is gone before further checks
     HostDeviceVector<int> v1;
-    InitHostDeviceVector(n, device, &v1);
+    InitHostDeviceVector(n, ctx.Device(), &v1, cuctx);
     v.Resize(v1.Size());
-    v.Copy(v1);
+    v.Copy(v1, cuctx);
   }
-  CheckDevice(&v, n, 0, GPUAccess::kRead);
+  CheckDevice(&v, n, 0, GPUAccess::kRead, cuctx);
   PlusOne(&v);
-  CheckDevice(&v, n, 1, GPUAccess::kWrite);
-  CheckHost(&v, GPUAccess::kRead);
-  CheckHost(&v, GPUAccess::kNone);
+  CheckDevice(&v, n, 1, GPUAccess::kWrite, cuctx);
+  CheckHost(&v, GPUAccess::kRead, cuctx);
+  CheckHost(&v, GPUAccess::kNone, cuctx);
 }
 
 TEST(HostDeviceVector, SetDevice) {
+  auto ctx = Context{}.MakeCUDA(0);
+  auto const* cuctx = ctx.CUDACtx();
+
   std::vector<int> h_vec (2345);
   for (size_t i = 0; i < h_vec.size(); ++i) {
     h_vec[i] = i;
   }
   HostDeviceVector<int> vec (h_vec);
-  auto device = DeviceOrd::CUDA(0);
 
-  vec.SetDevice(device);
+  vec.SetDevice(ctx.Device(), cuctx);
   ASSERT_EQ(vec.Size(), h_vec.size());
-  vec.DeviceSpan();  // sync to device
+  vec.DeviceSpan(cuctx);  // sync to device
 
-  vec.SetDevice(DeviceOrd::CPU());  // pull back to cpu.
+  vec.SetDevice(DeviceOrd::CPU(), cuctx);  // pull back to cpu.
   ASSERT_EQ(vec.Size(), h_vec.size());
   ASSERT_EQ(vec.Device(), DeviceOrd::CPU());
 
-  auto h_vec_1 = vec.HostVector();
+  auto h_vec_1 = vec.HostVector(cuctx);
   ASSERT_TRUE(std::equal(h_vec_1.cbegin(), h_vec_1.cend(), h_vec.cbegin()));
 }
 
 TEST(HostDeviceVector, Span) {
-  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
-  vec.SetDevice(DeviceOrd::CUDA(0));
-  auto span = vec.DeviceSpan();
-  ASSERT_EQ(vec.Size(), span.size());
-  ASSERT_EQ(vec.DevicePointer(), span.data());
-  auto const_span = vec.ConstDeviceSpan();
-  ASSERT_EQ(vec.Size(), const_span.size());
-  ASSERT_EQ(vec.ConstDevicePointer(), const_span.data());
+  auto ctx = Context{}.MakeCUDA(0);
+  auto const* cuctx = ctx.CUDACtx();
 
-  auto h_span = vec.ConstHostSpan();
+  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
+  vec.SetDevice(ctx.Device(), cuctx);
+  auto span = vec.DeviceSpan(cuctx);
+  ASSERT_EQ(vec.Size(), span.size());
+  ASSERT_EQ(vec.DevicePointer(cuctx), span.data());
+  auto const_span = vec.ConstDeviceSpan(cuctx);
+  ASSERT_EQ(vec.Size(), const_span.size());
+  ASSERT_EQ(vec.ConstDevicePointer(cuctx), const_span.data());
+
+  auto h_span = vec.ConstHostSpan(cuctx);
   ASSERT_TRUE(vec.HostCanRead());
   ASSERT_FALSE(vec.HostCanWrite());
   ASSERT_EQ(h_span.size(), vec.Size());
-  ASSERT_EQ(h_span.data(), vec.ConstHostPointer());
+  ASSERT_EQ(h_span.data(), vec.ConstHostPointer(cuctx));
 
-  h_span = vec.HostSpan();
+  h_span = vec.HostSpan(cuctx);
   ASSERT_TRUE(vec.HostCanWrite());
 }
 
@@ -184,8 +187,11 @@ TEST(HostDeviceVector, Empty) {
 }
 
 TEST(HostDeviceVector, Resize) {
+  auto ctx = Context{}.MakeCUDA(0);
+  auto const* cuctx = ctx.CUDACtx();
+
   auto check = [&](HostDeviceVector<float> const& vec) {
-    auto const& h_vec = vec.ConstHostSpan();
+    auto const& h_vec = vec.ConstHostSpan(cuctx);
     for (std::size_t i = 0; i < 4; ++i) {
       ASSERT_EQ(h_vec[i], i + 1);
     }
@@ -195,26 +201,26 @@ TEST(HostDeviceVector, Resize) {
   };
   {
     HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
-    vec.SetDevice(DeviceOrd::CUDA(0));
-    vec.ConstDeviceSpan();
+    vec.SetDevice(ctx.Device(), cuctx);
+    vec.ConstDeviceSpan(cuctx);
     ASSERT_TRUE(vec.DeviceCanRead());
     ASSERT_FALSE(vec.DeviceCanWrite());
-    vec.DeviceSpan();
-    vec.Resize(7, 3.0f);
+    vec.DeviceSpan(cuctx);
+    vec.Resize(7, 3.0f, cuctx);
     ASSERT_TRUE(vec.DeviceCanWrite());
     check(vec);
   }
   {
-    HostDeviceVector<float> vec{{1.0f, 2.0f, 3.0f, 4.0f}, DeviceOrd::CUDA(0)};
+    HostDeviceVector<float> vec{{1.0f, 2.0f, 3.0f, 4.0f}, ctx.Device(), cuctx};
     ASSERT_TRUE(vec.DeviceCanWrite());
-    vec.Resize(7, 3.0f);
+    vec.Resize(7, 3.0f, cuctx);
     ASSERT_TRUE(vec.DeviceCanWrite());
     check(vec);
   }
   {
     HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
     ASSERT_TRUE(vec.HostCanWrite());
-    vec.Resize(7, 3.0f);
+    vec.Resize(7, 3.0f, cuctx);
     ASSERT_TRUE(vec.HostCanWrite());
     check(vec);
   }
