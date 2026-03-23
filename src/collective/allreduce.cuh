@@ -45,27 +45,26 @@ AllreduceV(Comm const& comm, dh::device_vector<std::int8_t>* data, Fn redop) {
   auto const world = comm.World();
   auto const rank = comm.Rank();
   auto constexpr kRoot = 0;
+  dh::device_vector<std::int64_t> d_send_n_bytes(1);
+  dh::device_vector<std::int64_t> d_recv_n_bytes(1);
 
   auto send = [&](std::int32_t peer, dh::device_vector<std::int8_t> const& vec) {
-    dh::device_vector<std::int64_t> d_n_bytes(1);
     std::int64_t n_bytes = static_cast<std::int64_t>(vec.size());
-    dh::safe_cuda(cudaMemcpyAsync(d_n_bytes.data().get(), &n_bytes, sizeof(n_bytes),
+    dh::safe_cuda(cudaMemcpyAsync(d_send_n_bytes.data().get(), &n_bytes, sizeof(n_bytes),
                                   cudaMemcpyHostToDevice, curt::DefaultStream()));
-    dh::safe_cuda(cudaStreamSynchronize(curt::DefaultStream()));
     return Success() << [&] {
-      return SendAllDevice(comm, peer, d_n_bytes.data().get(), d_n_bytes.size());
+      return SendAllDevice(comm, peer, d_send_n_bytes.data().get(), d_send_n_bytes.size());
     } << [&] {
       return SendAllDevice(comm, peer, vec.data().get(), vec.size());
     };
   };
 
   auto recv = [&](std::int32_t peer, dh::device_vector<std::int8_t>* out) {
-    dh::device_vector<std::int64_t> d_n_bytes(1);
     return Success() << [&] {
-      return RecvAllDevice(comm, peer, d_n_bytes.data().get(), d_n_bytes.size());
+      return RecvAllDevice(comm, peer, d_recv_n_bytes.data().get(), d_recv_n_bytes.size());
     } << [&] {
       std::int64_t n_bytes{0};
-      dh::safe_cuda(cudaMemcpyAsync(&n_bytes, d_n_bytes.data().get(), sizeof(n_bytes),
+      dh::safe_cuda(cudaMemcpyAsync(&n_bytes, d_recv_n_bytes.data().get(), sizeof(n_bytes),
                                     cudaMemcpyDeviceToHost, curt::DefaultStream()));
       dh::safe_cuda(cudaStreamSynchronize(curt::DefaultStream()));
       CHECK_GE(n_bytes, 0);
