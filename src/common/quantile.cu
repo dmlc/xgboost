@@ -13,7 +13,9 @@
 #include <utility>
 
 #include "../collective/allgather.h"
+#include "../collective/allreduce.cuh"
 #include "../collective/allreduce.h"
+#include "../collective/comm_group.h"
 #include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "categorical.h"
 #include "common.h"
@@ -29,6 +31,28 @@
 namespace xgboost::common {
 using WQSketch = WQuantileSketch;
 using SketchEntry = WQSketch::Entry;
+
+namespace {
+struct DeviceSketchView {
+  Span<SketchContainer::OffsetT const> columns_ptr;
+  Span<SketchEntry const> entries;
+};
+
+[[nodiscard]] std::size_t DeviceSketchBytes(std::size_t n_columns, std::size_t n_entries) {
+  return (n_columns + 1) * sizeof(SketchContainer::OffsetT) + n_entries * sizeof(SketchEntry);
+}
+
+[[nodiscard]] DeviceSketchView ParseDeviceSketchPayload(std::int8_t const *ptr,
+                                                        std::size_t n_columns,
+                                                        std::size_t n_bytes) {
+  auto columns_bytes = (n_columns + 1) * sizeof(SketchContainer::OffsetT);
+  CHECK_GE(n_bytes, columns_bytes);
+  auto n_entries = (n_bytes - columns_bytes) / sizeof(SketchEntry);
+  auto columns_ptr = reinterpret_cast<SketchContainer::OffsetT const *>(ptr);
+  auto entries = reinterpret_cast<SketchEntry const *>(ptr + columns_bytes);
+  return {{columns_ptr, n_columns + 1}, {entries, n_entries}};
+}
+}  // namespace
 
 // Algorithm 4 in XGBoost's paper, using binary search to find i.
 template <typename EntryIter>
@@ -563,59 +587,56 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   SafeColl(rc);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
-  // Get the columns ptr from all workers
-  dh::device_vector<SketchContainer::OffsetT> gathered_ptrs;
-  gathered_ptrs.resize(d_columns_ptr.size() * world, 0);
-  size_t rank = collective::GetRank();
-  auto offset = rank * d_columns_ptr.size();
-  thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
-               gathered_ptrs.begin() + offset);
-  rc = collective::Allreduce(
-      ctx, linalg::MakeVec(gathered_ptrs.data().get(), gathered_ptrs.size(), ctx->Device()),
-      collective::Op::kSum);
+  auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, ctx->Device());
+
+  auto to_payload = [&]() {
+    dh::device_vector<std::int8_t> payload;
+    auto d_columns = this->columns_ptr_.ConstDeviceSpan();
+    auto columns_bytes = d_columns.size() * sizeof(OffsetT);
+    auto entries_bytes = this->entries_.size() * sizeof(SketchEntry);
+    payload.resize(DeviceSketchBytes(this->num_columns_, this->entries_.size()));
+    auto *ptr = payload.data().get();
+    dh::safe_cuda(cudaMemcpyAsync(ptr, d_columns.data(), columns_bytes, cudaMemcpyDeviceToDevice,
+                                  ctx->CUDACtx()->Stream()));
+    dh::safe_cuda(cudaMemcpyAsync(ptr + columns_bytes, this->entries_.data().get(), entries_bytes,
+                                  cudaMemcpyDeviceToDevice, ctx->CUDACtx()->Stream()));
+    ctx->CUDACtx()->Stream().Sync();
+    return payload;
+  };
+
+  auto from_payload = [&](common::Span<std::int8_t const> payload) {
+    auto parsed = ParseDeviceSketchPayload(payload.data(), this->num_columns_, payload.size());
+    SketchContainer out{this->feature_types_, num_bins_, this->num_columns_, ctx->Device()};
+    out.Merge(ctx, parsed.columns_ptr, parsed.entries);
+    return out;
+  };
+
+  auto payload = to_payload();
+  rc = collective::gpu_impl::AllreduceV(
+      comm, &payload,
+      [&](common::Span<std::int8_t const> lhs, common::Span<std::int8_t const> rhs,
+          dh::device_vector<std::int8_t> *out) {
+        auto merged = from_payload(lhs);
+        auto rhs_parsed = ParseDeviceSketchPayload(rhs.data(), this->num_columns_, rhs.size());
+        merged.Merge(ctx, rhs_parsed.columns_ptr, rhs_parsed.entries);
+        merged.Prune(ctx, intermediate_num_cuts);
+        auto d_columns = merged.columns_ptr_.DeviceSpan();
+        auto columns_bytes = d_columns.size() * sizeof(OffsetT);
+        auto entries_bytes = merged.entries_.size() * sizeof(SketchEntry);
+        out->resize(DeviceSketchBytes(this->num_columns_, merged.entries_.size()));
+        auto *ptr = out->data().get();
+        dh::safe_cuda(cudaMemcpyAsync(ptr, d_columns.data(), columns_bytes,
+                                      cudaMemcpyDeviceToDevice, ctx->CUDACtx()->Stream()));
+        dh::safe_cuda(cudaMemcpyAsync(ptr + columns_bytes, merged.entries_.data().get(),
+                                      entries_bytes, cudaMemcpyDeviceToDevice,
+                                      ctx->CUDACtx()->Stream()));
+        ctx->CUDACtx()->Stream().Sync();
+      });
   SafeColl(rc);
 
-  // Get the data from all workers.
-  std::vector<std::int64_t> recv_lengths;
-  HostDeviceVector<std::int8_t> recvbuf;
-  rc = collective::AllgatherV(
-      ctx, linalg::MakeVec(this->entries_.data().get(), this->entries_.size(), ctx->Device()),
-      &recv_lengths, &recvbuf);
-  collective::SafeColl(rc);
-  for (std::size_t i = 0; i < recv_lengths.size() - 1; ++i) {
-    recv_lengths[i] = recv_lengths[i + 1] - recv_lengths[i];
-  }
-  recv_lengths.resize(recv_lengths.size() - 1);
+  *this = from_payload({payload.data().get(), payload.size()});
 
-  // Segment the received data.
-  auto s_recvbuf = recvbuf.DeviceSpan();
-  std::vector<Span<SketchEntry>> allworkers;
-  offset = 0;
-  for (int32_t i = 0; i < world; ++i) {
-    size_t length_as_bytes = recv_lengths.at(i);
-    auto raw = s_recvbuf.subspan(offset, length_as_bytes);
-    CHECK_EQ(length_as_bytes % sizeof(SketchEntry), 0)
-        << "Allgathered GPU sketch buffer has invalid size.";
-    auto ptr = reinterpret_cast<std::uintptr_t>(raw.data());
-    CHECK_EQ(ptr % alignof(SketchEntry), 0) << "Allgathered GPU sketch buffer is misaligned.";
-    auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry *>(raw.data()),
-                                    length_as_bytes / sizeof(SketchEntry));
-    allworkers.emplace_back(sketch);
-    offset += length_as_bytes;
-  }
-  // Stop the timer early to avoid interference from the new sketch container.
   timer_.Stop(__func__);
-
-  // Merge them into a new sketch.
-  SketchContainer new_sketch(this->feature_types_, num_bins_, this->num_columns_, ctx->Device());
-  for (size_t i = 0; i < allworkers.size(); ++i) {
-    auto worker = allworkers[i];
-    auto worker_ptr =
-        dh::ToSpan(gathered_ptrs).subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
-    new_sketch.Merge(ctx, worker_ptr, worker);
-  }
-
-  *this = std::move(new_sketch);
 }
 
 namespace {
