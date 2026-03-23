@@ -768,7 +768,7 @@ class Tensor {
   Order order_{Order::kC};
 
   template <typename I, std::int32_t D>
-  void Initialize(I const (&shape)[D], DeviceOrd device, Context const* ctx = nullptr) {
+  void Initialize(I const (&shape)[D], DeviceOrd device, Context const *ctx = nullptr) {
     static_assert(D <= kDim, "Invalid shape.");
     std::copy(shape, shape + D, shape_);
     for (auto i = D; i < kDim; ++i) {
@@ -792,12 +792,12 @@ class Tensor {
    */
   template <typename I, int32_t D>
   explicit Tensor(I const (&shape)[D], DeviceOrd device, Order order = kC,
-                  Context const* ctx = nullptr)
+                  Context const *ctx = nullptr)
       : Tensor{common::Span<I const, D>{shape}, device, order, ctx} {}
 
   template <typename I, size_t D>
   explicit Tensor(common::Span<I const, D> shape, DeviceOrd device, Order order = kC,
-                  Context const* ctx = nullptr)
+                  Context const *ctx = nullptr)
       : order_{order} {
     // No device unroll as this is a host only function.
     std::copy(shape.data(), shape.data() + D, shape_);
@@ -818,7 +818,7 @@ class Tensor {
    */
   template <typename It, typename I, int32_t D>
   explicit Tensor(It begin, It end, I const (&shape)[D], DeviceOrd device, Order order = kC,
-                  Context const* ctx = nullptr)
+                  Context const *ctx = nullptr)
       : order_{order} {
     auto &h_vec = data_.HostVector();
     h_vec.insert(h_vec.begin(), begin, end);
@@ -828,7 +828,7 @@ class Tensor {
 
   template <typename I, int32_t D>
   explicit Tensor(std::initializer_list<T> data, I const (&shape)[D], DeviceOrd device,
-                  Order order = kC, Context const* ctx = nullptr)
+                  Order order = kC, Context const *ctx = nullptr)
       : order_{order} {
     auto &h_vec = data_.HostVector();
     h_vec = data;
@@ -855,7 +855,7 @@ class Tensor {
   /**
    * @brief Get a @ref TensorView for this tensor.
    */
-  auto View(DeviceOrd device, Context const* ctx = nullptr) {
+  auto View(DeviceOrd device, Context const *ctx = nullptr) {
     if (device.IsCPU()) {
       auto span = data_.HostSpan(ctx);
       return TensorView<T, kDim>{span, shape_, device, order_};
@@ -865,7 +865,7 @@ class Tensor {
       return TensorView<T, kDim>{span, shape_, device, order_};
     }
   }
-  auto View(DeviceOrd device, Context const* ctx = nullptr) const {
+  auto View(DeviceOrd device, Context const *ctx = nullptr) const {
     if (device.IsCPU()) {
       auto span = data_.ConstHostSpan(ctx);
       return TensorView<T const, kDim>{span, shape_, device, order_};
@@ -876,10 +876,8 @@ class Tensor {
     }
   }
 
-  auto HostView(Context const* ctx = nullptr) { return this->View(DeviceOrd::CPU(), ctx); }
-  auto HostView(Context const* ctx = nullptr) const {
-    return this->View(DeviceOrd::CPU(), ctx);
-  }
+  auto HostView(Context const *ctx = nullptr) { return this->View(DeviceOrd::CPU(), ctx); }
+  auto HostView(Context const *ctx = nullptr) const { return this->View(DeviceOrd::CPU(), ctx); }
 
   [[nodiscard]] std::size_t Size() const { return data_.Size(); }
   [[nodiscard]] bool Empty() const { return Size() == 0; }
@@ -955,7 +953,7 @@ class Tensor {
   /**
    * \brief Set device ordinal for this tensor.
    */
-  void SetDevice(DeviceOrd device, Context const* ctx = nullptr) const {
+  void SetDevice(DeviceOrd device, Context const *ctx = nullptr) const {
     data_.SetDevice(device, ctx);
   }
   [[nodiscard]] DeviceOrd Device() const { return data_.Device(); }

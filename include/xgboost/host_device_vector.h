@@ -64,7 +64,8 @@ namespace xgboost {
 void SetCudaSetDeviceHandler(void (*handler)(int));
 #endif  // __CUDACC__
 
-template <typename T> struct HostDeviceVectorImpl;
+template <typename T>
+struct HostDeviceVectorImpl;
 
 /*!
  * \brief Controls data access from the GPU.
@@ -78,7 +79,8 @@ template <typename T> struct HostDeviceVectorImpl;
  *   - Data is being manipulated on the host. Host has write access, device doesn't have access.
  */
 enum GPUAccess {
-  kNone, kRead,
+  kNone,
+  kRead,
   // write implies read
   kWrite
 };
@@ -113,9 +115,7 @@ class HostDeviceVector {
   }
   T* DevicePointer(Context const* ctx = nullptr);
   const T* ConstDevicePointer(Context const* ctx = nullptr) const;
-  const T* DevicePointer(Context const* ctx = nullptr) const {
-    return ConstDevicePointer(ctx);
-  }
+  const T* DevicePointer(Context const* ctx = nullptr) const { return ConstDevicePointer(ctx); }
 
   T* HostPointer(Context const* ctx = nullptr) { return HostVector(ctx).data(); }
   common::Span<T> HostSpan(Context const* ctx = nullptr) {
@@ -124,15 +124,11 @@ class HostDeviceVector {
   common::Span<T const> HostSpan(Context const* ctx = nullptr) const {
     return common::Span<T const>{HostVector(ctx)};
   }
-  common::Span<T const> ConstHostSpan(Context const* ctx = nullptr) const {
-    return HostSpan(ctx);
-  }
+  common::Span<T const> ConstHostSpan(Context const* ctx = nullptr) const { return HostSpan(ctx); }
   const T* ConstHostPointer(Context const* ctx = nullptr) const {
     return ConstHostVector(ctx).data();
   }
-  const T* HostPointer(Context const* ctx = nullptr) const {
-    return ConstHostPointer(ctx);
-  }
+  const T* HostPointer(Context const* ctx = nullptr) const { return ConstHostPointer(ctx); }
 
   void Fill(T v, Context const* ctx = nullptr);
   void Copy(const HostDeviceVector<T>& other, Context const* ctx = nullptr);
