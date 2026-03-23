@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <thrust/fill.h>
 
@@ -25,6 +25,10 @@ void SetCudaSetDeviceHandler(void (*handler)(int)) { cudaSetDeviceHandler = hand
 namespace {
 curt::StreamRef GetStream(CUDAContext const* ctx) {
   return ctx ? ctx->Stream() : curt::DefaultStream();
+}
+
+CUDAContext const* GetCUDACtx(Context const* ctx) {
+  return ctx && ctx->IsCUDA() ? ctx->CUDACtx() : nullptr;
 }
 }  // namespace
 
@@ -292,18 +296,18 @@ class HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd device, CUDAContext const* ctx)
-    : impl_(new HostDeviceVectorImpl<T>(size, v, device, ctx)) {}
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd device, Context const* ctx)
+    : impl_(new HostDeviceVectorImpl<T>(size, v, device, GetCUDACtx(ctx))) {}
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd device,
-                                      CUDAContext const* ctx)
-    : impl_(new HostDeviceVectorImpl<T>(init, device, ctx)) {}
+                                      Context const* ctx)
+    : impl_(new HostDeviceVectorImpl<T>(init, device, GetCUDACtx(ctx))) {}
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd device,
-                                      CUDAContext const* ctx)
-    : impl_(new HostDeviceVectorImpl<T>(init, device, ctx)) {}
+                                      Context const* ctx)
+    : impl_(new HostDeviceVectorImpl<T>(init, device, GetCUDACtx(ctx))) {}
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector(HostDeviceVector<T>&& other)
@@ -339,58 +343,58 @@ DeviceOrd HostDeviceVector<T>::Device() const {
 }
 
 template <typename T>
-T* HostDeviceVector<T>::DevicePointer(CUDAContext const* ctx) {
-  return impl_->DevicePointer(ctx);
+T* HostDeviceVector<T>::DevicePointer(Context const* ctx) {
+  return impl_->DevicePointer(GetCUDACtx(ctx));
 }
 
 template <typename T>
-const T* HostDeviceVector<T>::ConstDevicePointer(CUDAContext const* ctx) const {
-  return impl_->ConstDevicePointer(ctx);
+const T* HostDeviceVector<T>::ConstDevicePointer(Context const* ctx) const {
+  return impl_->ConstDevicePointer(GetCUDACtx(ctx));
 }
 
 template <typename T>
-common::Span<T> HostDeviceVector<T>::DeviceSpan(CUDAContext const* ctx) {
-  return impl_->DeviceSpan(ctx);
+common::Span<T> HostDeviceVector<T>::DeviceSpan(Context const* ctx) {
+  return impl_->DeviceSpan(GetCUDACtx(ctx));
 }
 
 template <typename T>
-common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan(CUDAContext const* ctx) const {
-  return impl_->ConstDeviceSpan(ctx);
+common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan(Context const* ctx) const {
+  return impl_->ConstDeviceSpan(GetCUDACtx(ctx));
 }
 
 template <typename T>
-void HostDeviceVector<T>::Fill(T v, CUDAContext const* ctx) {
-  impl_->Fill(v, ctx);
+void HostDeviceVector<T>::Fill(T v, Context const* ctx) {
+  impl_->Fill(v, GetCUDACtx(ctx));
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(const HostDeviceVector<T>& other, CUDAContext const* ctx) {
-  impl_->Copy(other.impl_, ctx);
+void HostDeviceVector<T>::Copy(const HostDeviceVector<T>& other, Context const* ctx) {
+  impl_->Copy(other.impl_, GetCUDACtx(ctx));
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(const std::vector<T>& other, CUDAContext const* ctx) {
-  impl_->Copy(other, ctx);
+void HostDeviceVector<T>::Copy(const std::vector<T>& other, Context const* ctx) {
+  impl_->Copy(other, GetCUDACtx(ctx));
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(std::initializer_list<T> other, CUDAContext const* ctx) {
-  impl_->Copy(other, ctx);
+void HostDeviceVector<T>::Copy(std::initializer_list<T> other, Context const* ctx) {
+  impl_->Copy(other, GetCUDACtx(ctx));
 }
 
 template <typename T>
-void HostDeviceVector<T>::Extend(HostDeviceVector const& other, CUDAContext const* ctx) {
-  impl_->Extend(other.impl_, ctx);
+void HostDeviceVector<T>::Extend(HostDeviceVector const& other, Context const* ctx) {
+  impl_->Extend(other.impl_, GetCUDACtx(ctx));
 }
 
 template <typename T>
-std::vector<T>& HostDeviceVector<T>::HostVector(CUDAContext const* ctx) {
-  return impl_->HostVector(ctx);
+std::vector<T>& HostDeviceVector<T>::HostVector(Context const* ctx) {
+  return impl_->HostVector(GetCUDACtx(ctx));
 }
 
 template <typename T>
-const std::vector<T>& HostDeviceVector<T>::ConstHostVector(CUDAContext const* ctx) const {
-  return impl_->ConstHostVector(ctx);
+const std::vector<T>& HostDeviceVector<T>::ConstHostVector(Context const* ctx) const {
+  return impl_->ConstHostVector(GetCUDACtx(ctx));
 }
 
 template <typename T>
@@ -419,8 +423,8 @@ GPUAccess HostDeviceVector<T>::DeviceAccess() const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::SetDevice(DeviceOrd device, CUDAContext const* ctx) const {
-  impl_->SetDevice(device, ctx);
+void HostDeviceVector<T>::SetDevice(DeviceOrd device, Context const* ctx) const {
+  impl_->SetDevice(device, GetCUDACtx(ctx));
 }
 
 template <typename T>
@@ -429,7 +433,7 @@ void HostDeviceVector<T>::Resize(std::size_t new_size) {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Resize(std::size_t new_size, T v, CUDAContext const*) {
+void HostDeviceVector<T>::Resize(std::size_t new_size, T v, Context const*) {
   impl_->Resize(new_size, v);
 }
 
