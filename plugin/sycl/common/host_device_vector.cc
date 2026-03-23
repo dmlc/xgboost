@@ -254,19 +254,20 @@ class HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd device)
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd device, Context const*)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size, v, device);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd device)
+HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd device,
+                                      Context const*)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init, device);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd device)
+HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd device, Context const*)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init, device);
 }
@@ -302,35 +303,35 @@ DeviceOrd HostDeviceVector<T>::Device() const {
 }
 
 template <typename T>
-T* HostDeviceVector<T>::DevicePointer() {
+T* HostDeviceVector<T>::DevicePointer(Context const*) {
   return impl_->DevicePointer();
 }
 
 template <typename T>
-const T* HostDeviceVector<T>::ConstDevicePointer() const {
+const T* HostDeviceVector<T>::ConstDevicePointer(Context const*) const {
   return impl_->ConstDevicePointer();
 }
 
 template <typename T>
-common::Span<T> HostDeviceVector<T>::DeviceSpan() {
+common::Span<T> HostDeviceVector<T>::DeviceSpan(Context const*) {
   return impl_->DeviceSpan();
 }
 
 template <typename T>
-common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan() const {
+common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan(Context const*) const {
   return impl_->ConstDeviceSpan();
 }
 
 template <typename T>
-std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->HostVector(); }
+std::vector<T>& HostDeviceVector<T>::HostVector(Context const*) { return impl_->HostVector(); }
 
 template <typename T>
-const std::vector<T>& HostDeviceVector<T>::ConstHostVector() const {
+const std::vector<T>& HostDeviceVector<T>::ConstHostVector(Context const*) const {
   return impl_->ConstHostVector();
 }
 
 template <typename T>
-void HostDeviceVector<T>::Resize(size_t new_size, T v) {
+void HostDeviceVector<T>::Resize(size_t new_size, T v, Context const*) {
   impl_->Resize(new_size, v);
 }
 
@@ -340,27 +341,27 @@ void HostDeviceVector<T>::Resize(size_t new_size) {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Fill(T v) {
+void HostDeviceVector<T>::Fill(T v, Context const*) {
   impl_->Fill(v);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(const HostDeviceVector<T>& other) {
+void HostDeviceVector<T>::Copy(const HostDeviceVector<T>& other, Context const*) {
   impl_->Copy(other.impl_);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(const std::vector<T>& other) {
+void HostDeviceVector<T>::Copy(const std::vector<T>& other, Context const*) {
   impl_->Copy(other);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
+void HostDeviceVector<T>::Copy(std::initializer_list<T> other, Context const*) {
   impl_->Copy(other);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Extend(HostDeviceVector const& other) {
+void HostDeviceVector<T>::Extend(HostDeviceVector const& other, Context const*) {
   impl_->Extend(other.impl_);
 }
 
@@ -390,7 +391,7 @@ GPUAccess HostDeviceVector<T>::DeviceAccess() const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::SetDevice(DeviceOrd device) const {
+void HostDeviceVector<T>::SetDevice(DeviceOrd device, Context const*) const {
   impl_->SetDevice(device);
 }
 
