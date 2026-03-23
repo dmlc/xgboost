@@ -219,7 +219,7 @@ class TestDepthDecay : public ::testing::Test {
     if (tol == 0.0f) {
       CHECK_EQ(expected, actual);
     } else {
-      CHECK_NEAR(expected, actual, tol);
+      ASSERT_NEAR(expected, actual, tol);
     }
   }
 

@@ -1,9 +1,0 @@
-{
-  "commands": [
-    {
-      "suite": "lint",
-      "command": "pre-commit run --all-files --show-diff-on-failure",
-      "required": true
-    }
-  ]
-}
