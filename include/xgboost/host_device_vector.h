@@ -89,11 +89,11 @@ class HostDeviceVector {
 
  public:
   explicit HostDeviceVector(size_t size = 0, T v = T(), DeviceOrd device = DeviceOrd::CPU(),
-                            CUDAContext const* ctx = nullptr);
+                            Context const* ctx = nullptr);
   HostDeviceVector(std::initializer_list<T> init, DeviceOrd device = DeviceOrd::CPU(),
-                   CUDAContext const* ctx = nullptr);
+                   Context const* ctx = nullptr);
   explicit HostDeviceVector(const std::vector<T>& init, DeviceOrd device = DeviceOrd::CPU(),
-                            CUDAContext const* ctx = nullptr);
+                            Context const* ctx = nullptr);
   ~HostDeviceVector();
 
   HostDeviceVector(const HostDeviceVector<T>&) = delete;
@@ -106,44 +106,44 @@ class HostDeviceVector {
   [[nodiscard]] std::size_t Size() const;
   [[nodiscard]] std::size_t SizeBytes() const { return this->Size() * sizeof(T); }
   [[nodiscard]] DeviceOrd Device() const;
-  common::Span<T> DeviceSpan(CUDAContext const* ctx = nullptr);
-  common::Span<const T> ConstDeviceSpan(CUDAContext const* ctx = nullptr) const;
-  common::Span<const T> DeviceSpan(CUDAContext const* ctx = nullptr) const {
+  common::Span<T> DeviceSpan(Context const* ctx = nullptr);
+  common::Span<const T> ConstDeviceSpan(Context const* ctx = nullptr) const;
+  common::Span<const T> DeviceSpan(Context const* ctx = nullptr) const {
     return ConstDeviceSpan(ctx);
   }
-  T* DevicePointer(CUDAContext const* ctx = nullptr);
-  const T* ConstDevicePointer(CUDAContext const* ctx = nullptr) const;
-  const T* DevicePointer(CUDAContext const* ctx = nullptr) const {
+  T* DevicePointer(Context const* ctx = nullptr);
+  const T* ConstDevicePointer(Context const* ctx = nullptr) const;
+  const T* DevicePointer(Context const* ctx = nullptr) const {
     return ConstDevicePointer(ctx);
   }
 
-  T* HostPointer(CUDAContext const* ctx = nullptr) { return HostVector(ctx).data(); }
-  common::Span<T> HostSpan(CUDAContext const* ctx = nullptr) {
+  T* HostPointer(Context const* ctx = nullptr) { return HostVector(ctx).data(); }
+  common::Span<T> HostSpan(Context const* ctx = nullptr) {
     return common::Span<T>{HostVector(ctx)};
   }
-  common::Span<T const> HostSpan(CUDAContext const* ctx = nullptr) const {
+  common::Span<T const> HostSpan(Context const* ctx = nullptr) const {
     return common::Span<T const>{HostVector(ctx)};
   }
-  common::Span<T const> ConstHostSpan(CUDAContext const* ctx = nullptr) const {
+  common::Span<T const> ConstHostSpan(Context const* ctx = nullptr) const {
     return HostSpan(ctx);
   }
-  const T* ConstHostPointer(CUDAContext const* ctx = nullptr) const {
+  const T* ConstHostPointer(Context const* ctx = nullptr) const {
     return ConstHostVector(ctx).data();
   }
-  const T* HostPointer(CUDAContext const* ctx = nullptr) const {
+  const T* HostPointer(Context const* ctx = nullptr) const {
     return ConstHostPointer(ctx);
   }
 
-  void Fill(T v, CUDAContext const* ctx = nullptr);
-  void Copy(const HostDeviceVector<T>& other, CUDAContext const* ctx = nullptr);
-  void Copy(const std::vector<T>& other, CUDAContext const* ctx = nullptr);
-  void Copy(std::initializer_list<T> other, CUDAContext const* ctx = nullptr);
+  void Fill(T v, Context const* ctx = nullptr);
+  void Copy(const HostDeviceVector<T>& other, Context const* ctx = nullptr);
+  void Copy(const std::vector<T>& other, Context const* ctx = nullptr);
+  void Copy(std::initializer_list<T> other, Context const* ctx = nullptr);
 
-  void Extend(const HostDeviceVector<T>& other, CUDAContext const* ctx = nullptr);
+  void Extend(const HostDeviceVector<T>& other, Context const* ctx = nullptr);
 
-  std::vector<T>& HostVector(CUDAContext const* ctx = nullptr);
-  const std::vector<T>& ConstHostVector(CUDAContext const* ctx = nullptr) const;
-  const std::vector<T>& HostVector(CUDAContext const* ctx = nullptr) const {
+  std::vector<T>& HostVector(Context const* ctx = nullptr);
+  const std::vector<T>& ConstHostVector(Context const* ctx = nullptr) const;
+  const std::vector<T>& HostVector(Context const* ctx = nullptr) const {
     return ConstHostVector(ctx);
   }
 
@@ -153,11 +153,11 @@ class HostDeviceVector {
   [[nodiscard]] bool DeviceCanWrite() const;
   [[nodiscard]] GPUAccess DeviceAccess() const;
 
-  void SetDevice(DeviceOrd device, CUDAContext const* ctx = nullptr) const;
+  void SetDevice(DeviceOrd device, Context const* ctx = nullptr) const;
 
   void Resize(std::size_t new_size);
   /** @brief Resize and initialize the data if the new size is larger than the old size. */
-  void Resize(std::size_t new_size, T v, CUDAContext const* ctx = nullptr);
+  void Resize(std::size_t new_size, T v, Context const* ctx = nullptr);
 
   using value_type = T;  // NOLINT
 
