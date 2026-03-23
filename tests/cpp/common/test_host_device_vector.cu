@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2025, XGBoost contributors
+ * Copyright 2018-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/equal.h>
@@ -26,12 +26,10 @@ struct HostDeviceVectorSetDeviceHandler {
     SetCudaSetDeviceHandler(f);
   }
 
-  ~HostDeviceVectorSetDeviceHandler() {
-    SetCudaSetDeviceHandler(nullptr);
-  }
+  ~HostDeviceVectorSetDeviceHandler() { SetCudaSetDeviceHandler(nullptr); }
 };
 
-void InitHostDeviceVector(size_t n, DeviceOrd device, HostDeviceVector<int> *v,
+void InitHostDeviceVector(size_t n, DeviceOrd device, HostDeviceVector<int>* v,
                           Context const* ctx) {
   v->SetDevice(device, ctx);
   v->Resize(n);
@@ -52,40 +50,35 @@ void InitHostDeviceVector(size_t n, DeviceOrd device, HostDeviceVector<int> *v,
   std::copy_n(thrust::make_counting_iterator(0), n, data_h.begin());
 }
 
-void PlusOne(HostDeviceVector<int> *v) {
+void PlusOne(HostDeviceVector<int>* v) {
   auto device = v->Device();
   SetDeviceForTest(device);
   thrust::transform(dh::tcbegin(*v), dh::tcend(*v), dh::tbegin(*v),
-                    [=]__device__(unsigned int a){ return a + 1; });
+                    [=] __device__(unsigned int a) { return a + 1; });
   ASSERT_TRUE(v->DeviceCanWrite());
 }
 
-void CheckDevice(HostDeviceVector<int>* v,
-                 size_t size,
-                 unsigned int first,
-                 GPUAccess access,
+void CheckDevice(HostDeviceVector<int>* v, size_t size, unsigned int first, GPUAccess access,
                  Context const* ctx) {
   ASSERT_EQ(v->Size(), size);
   SetDeviceForTest(v->Device());
 
-  ASSERT_TRUE(thrust::equal(dh::tcbegin(*v), dh::tcend(*v),
-                            thrust::make_counting_iterator(first)));
+  ASSERT_TRUE(thrust::equal(dh::tcbegin(*v), dh::tcend(*v), thrust::make_counting_iterator(first)));
   ASSERT_TRUE(v->DeviceCanRead());
   ASSERT_EQ(v->DeviceCanWrite(), access == GPUAccess::kWrite);
   ASSERT_EQ(v->HostCanRead(), access == GPUAccess::kRead);
   ASSERT_FALSE(v->HostCanWrite());
 
-  ASSERT_TRUE(thrust::equal(dh::tbegin(*v), dh::tend(*v),
-                            thrust::make_counting_iterator(first)));
+  ASSERT_TRUE(thrust::equal(dh::tbegin(*v), dh::tend(*v), thrust::make_counting_iterator(first)));
   ASSERT_TRUE(v->DeviceCanRead());
   ASSERT_TRUE(v->DeviceCanWrite());
   ASSERT_FALSE(v->HostCanRead());
   ASSERT_FALSE(v->HostCanWrite());
 }
 
-void CheckHost(HostDeviceVector<int> *v, GPUAccess access, Context const* ctx) {
-  const std::vector<int>& data_h = access == GPUAccess::kNone ?
-    v->HostVector(ctx) : v->ConstHostVector(ctx);
+void CheckHost(HostDeviceVector<int>* v, GPUAccess access, Context const* ctx) {
+  const std::vector<int>& data_h =
+      access == GPUAccess::kNone ? v->HostVector(ctx) : v->ConstHostVector(ctx);
   for (size_t i = 0; i < v->Size(); ++i) {
     ASSERT_EQ(data_h.at(i), i + 1);
   }
@@ -134,11 +127,11 @@ TEST(HostDeviceVector, Copy) {
 TEST(HostDeviceVector, SetDevice) {
   auto ctx = Context{}.MakeCUDA(0);
 
-  std::vector<int> h_vec (2345);
+  std::vector<int> h_vec(2345);
   for (size_t i = 0; i < h_vec.size(); ++i) {
     h_vec[i] = i;
   }
-  HostDeviceVector<int> vec (h_vec);
+  HostDeviceVector<int> vec(h_vec);
 
   vec.SetDevice(ctx.Device(), &ctx);
   ASSERT_EQ(vec.Size(), h_vec.size());
@@ -155,7 +148,7 @@ TEST(HostDeviceVector, SetDevice) {
 TEST(HostDeviceVector, Span) {
   auto ctx = Context{}.MakeCUDA(0);
 
-  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
+  HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
   vec.SetDevice(ctx.Device(), &ctx);
   auto span = vec.DeviceSpan(&ctx);
   ASSERT_EQ(vec.Size(), span.size());
@@ -175,8 +168,8 @@ TEST(HostDeviceVector, Span) {
 }
 
 TEST(HostDeviceVector, Empty) {
-  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
-  HostDeviceVector<float> another { std::move(vec) };
+  HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
+  HostDeviceVector<float> another{std::move(vec)};
   ASSERT_FALSE(another.Empty());
   ASSERT_TRUE(vec.Empty());
 }
