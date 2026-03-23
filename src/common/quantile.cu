@@ -183,6 +183,13 @@ XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry
   return thrust::make_tuple(a_ind, k - a_ind);
 }
 
+void SketchContainer::SetCurrentColumns(Span<OffsetT const> columns_ptr) {
+  CHECK_EQ(columns_ptr.size(), num_columns_ + 1);
+  CHECK_EQ(columns_ptr_tmp_.Size(), num_columns_ + 1);
+  columns_ptr_.Resize(columns_ptr.size());
+  CopyTo(columns_ptr_.DeviceSpan(), columns_ptr);
+}
+
 // Merge d_x and d_y into out.  Because the final output depends on predicate (which
 // summary does the output element come from) result by definition of merged rank.  So we
 // compute the partition for each output directly and customize the standard merge
@@ -294,19 +301,17 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
   });
 }
 
+// Convert one sorted batch into a temporary pruned summary in `prune_buffer_`, normalize
+// duplicated raw values in place, then merge that summary into the resident sketch in
+// `entries_`. Out-of-place merge/prune results use `entries_tmp_` as scratch before being
+// committed back into `entries_`.
 void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
-                           common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights) {
+                           common::Span<OffsetT> cuts_ptr, size_t total_cuts,
+                           bst_idx_t n_rows_in_batch, Span<float> weights) {
   curt::SetDevice(ctx->Ordinal());
-  Span<SketchEntry> out;
-  dh::device_vector<SketchEntry> cuts;
-  bool first_window = this->Current().empty();
-  if (!first_window) {
-    cuts.resize(total_cuts);
-    out = dh::ToSpan(cuts);
-  } else {
-    this->Current().resize(total_cuts);
-    out = dh::ToSpan(this->Current());
-  }
+  rows_seen_ += n_rows_in_batch;
+  this->prune_buffer_.resize(total_cuts);
+  auto out = dh::ToSpan(this->prune_buffer_);
   auto ft = this->feature_types_.ConstDeviceSpan();
   if (weights.empty()) {
     auto to_sketch_entry = [] __device__(size_t sample_idx, Span<Entry const> const &column,
@@ -331,20 +336,13 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
     PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
   }
   auto n_uniques = this->ScanInput(ctx, out, cuts_ptr);
-
-  if (!first_window) {
-    CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
-    out = out.subspan(0, n_uniques);
-    this->Merge(ctx, cuts_ptr, out);
-    this->FixError();
-  } else {
-    this->Current().resize(n_uniques);
-    this->columns_ptr_.SetDevice(ctx->Device());
-    this->columns_ptr_.Resize(cuts_ptr.size());
-
-    auto d_cuts_ptr = this->columns_ptr_.DeviceSpan();
-    CopyTo(d_cuts_ptr, cuts_ptr);
+  CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
+  if (n_uniques == 0) {
+    return;
   }
+  this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
+  auto intermediate_num_cuts = static_cast<bst_idx_t>(this->IntermediateNumCuts());
+  this->Prune(ctx, intermediate_num_cuts);
 }
 
 size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
@@ -374,7 +372,7 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
                                   return l;
                                 });
 
-  auto d_columns_ptr_out = columns_ptr_b_.DeviceSpan();
+  auto d_columns_ptr_out = this->columns_ptr_tmp_.DeviceSpan();
   // thrust unique_by_key preserves the first element.
   auto n_uniques =
       dh::SegmentedUnique(ctx->CUDACtx()->CTP(), d_columns_ptr_in.data(),
@@ -390,11 +388,21 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
 void SketchContainer::Prune(Context const *ctx, std::size_t to) {
   timer_.Start(__func__);
   curt::SetDevice(ctx->Ordinal());
+  auto &entries = this->entries_;
+  auto &scratch = this->entries_tmp_;
+  auto &columns_ptr = this->columns_ptr_;
+  auto &columns_ptr_tmp = this->columns_ptr_tmp_;
+  auto const &feature_types = this->feature_types_;
+
+  if (entries.size() <= to * num_columns_) {
+    timer_.Stop(__func__);
+    return;
+  }
 
   OffsetT to_total = 0;
-  auto &h_columns_ptr = columns_ptr_b_.HostVector();
+  auto &h_columns_ptr = columns_ptr_tmp.HostVector();
   h_columns_ptr[0] = to_total;
-  auto const &h_feature_types = feature_types_.ConstHostSpan();
+  auto const &h_feature_types = feature_types.ConstHostSpan();
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
     size_t length = this->Column(i).size();
     length = std::min(length, to);
@@ -404,16 +412,16 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
     to_total += length;
     h_columns_ptr[i + 1] = to_total;
   }
-  this->Other().resize(to_total);
+  scratch.resize(to_total);
 
-  auto d_columns_ptr_in = this->columns_ptr_.ConstDeviceSpan();
-  auto d_columns_ptr_out = columns_ptr_b_.ConstDeviceSpan();
-  auto out = dh::ToSpan(this->Other());
-  auto in = dh::ToSpan(this->Current());
-  auto ft = this->feature_types_.ConstDeviceSpan();
+  auto d_columns_ptr_in = columns_ptr.ConstDeviceSpan();
+  auto d_columns_ptr_out = columns_ptr_tmp.ConstDeviceSpan();
+  auto out = dh::ToSpan(scratch);
+  auto in = dh::ToSpan(entries);
+  auto ft = feature_types.ConstDeviceSpan();
   dh::device_vector<size_t> selected_idx(out.size());
   auto d_selected_idx = dh::ToSpan(selected_idx);
-  HostDeviceVector<OffsetT> selected_columns_ptr(columns_ptr_b_.Size());
+  HostDeviceVector<OffsetT> selected_columns_ptr(columns_ptr_tmp.Size());
   selected_columns_ptr.SetDevice(ctx->Device());
   auto entry_from_index = [=] __device__(size_t abs_idx) {
     return in[abs_idx];
@@ -428,66 +436,94 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
       d_selected_idx.data(), thrust::equal_to<size_t>{});
   GatherPruneEntries(Span<size_t const>{d_selected_idx.data(), n_selected}, out, entry_from_index,
                      stream);
-  this->columns_ptr_.Copy(selected_columns_ptr);
-  this->Alternate();
-  this->Current().resize(n_selected);
-  this->Unique(ctx);
+  entries.swap(scratch);
+  columns_ptr.Copy(selected_columns_ptr);
+  entries.resize(n_selected);
+  auto d_column_scan = columns_ptr.DeviceSpan();
+  HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
+  scan_out.SetDevice(ctx->Device());
+  auto n_uniques = dh::SegmentedUnique(ctx->CUDACtx()->CTP(), d_column_scan.data(),
+                                       d_column_scan.data() + d_column_scan.size(), out.data(),
+                                       out.data() + n_selected, scan_out.DevicePointer(),
+                                       out.data(), detail::SketchUnique{});
+  columns_ptr.Copy(scan_out);
+  CHECK(!columns_ptr.HostCanRead());
+  entries.resize(n_uniques);
   timer_.Stop(__func__);
 }
 
 void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_columns_ptr,
                             Span<SketchEntry const> that) {
   curt::SetDevice(ctx->Ordinal());
-  auto self = dh::ToSpan(this->Current());
+  auto &entries = this->entries_;
+  auto &scratch = this->entries_tmp_;
+  auto &columns_ptr = this->columns_ptr_;
+  auto &columns_ptr_tmp = this->columns_ptr_tmp_;
+  auto self = dh::ToSpan(entries);
   LOG(DEBUG) << "Merge: self:" << HumanMemUnit(self.size_bytes()) << ". "
              << "That:" << HumanMemUnit(that.size_bytes()) << ". "
              << "This capacity:" << HumanMemUnit(this->MemCapacityBytes()) << "." << std::endl;
 
   timer_.Start(__func__);
-  if (this->Current().size() == 0) {
-    CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
-    CHECK_EQ(this->columns_ptr_.HostVector().size(), d_that_columns_ptr.size());
-    CHECK_EQ(columns_ptr_.Size(), num_columns_ + 1);
+  auto normalize_merged = [&] {
+    if (this->HasCategorical()) {
+      // Numerical summaries are normalized during prune.  Categorical features can still
+      // produce repeated category values, so compact those here before exposing the sketch.
+      auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
+      auto d_column_scan = columns_ptr.DeviceSpan();
+      auto merged_entries = dh::ToSpan(entries);
+      HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
+      scan_out.SetDevice(ctx->Device());
+      auto n_uniques = dh::SegmentedUnique(
+          ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
+          merged_entries.data(), merged_entries.data() + merged_entries.size(),
+          scan_out.DevicePointer(), merged_entries.data(), detail::SketchUnique{},
+          [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
+            return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
+          });
+      columns_ptr.Copy(scan_out);
+      entries.resize(n_uniques);
+    }
+    this->FixError();
+  };
+  if (entries.empty()) {
+    CHECK_EQ(columns_ptr.HostVector().back(), 0);
+    CHECK_EQ(columns_ptr.HostVector().size(), d_that_columns_ptr.size());
+    CHECK_EQ(columns_ptr.Size(), num_columns_ + 1);
     thrust::copy(ctx->CUDACtx()->CTP(), d_that_columns_ptr.data(),
                  d_that_columns_ptr.data() + d_that_columns_ptr.size(),
-                 this->columns_ptr_.DevicePointer());
-    auto total = this->columns_ptr_.HostVector().back();
-    this->Current().resize(total);
-    CopyTo(dh::ToSpan(this->Current()), that);
+                 columns_ptr.DevicePointer());
+    auto total = columns_ptr.HostVector().back();
+    entries.resize(total);
+    CopyTo(dh::ToSpan(entries), that);
+    normalize_merged();
     timer_.Stop(__func__);
     return;
   }
 
-  std::size_t new_size = this->Current().size() + that.size();
+  std::size_t new_size = entries.size() + that.size();
   try {
-    this->Other().resize(new_size);
+    scratch.resize(new_size);
   } catch (dmlc::Error const &) {
     // Retry
-    this->Other().clear();
-    this->Other().shrink_to_fit();
-    this->Other().resize(new_size);
+    scratch.clear();
+    scratch.shrink_to_fit();
+    scratch.resize(new_size);
   }
 
-  CHECK_EQ(d_that_columns_ptr.size(), this->columns_ptr_.Size());
+  CHECK_EQ(d_that_columns_ptr.size(), columns_ptr.Size());
 
-  MergeImpl(ctx, this->Data(), this->ColumnsPtr(), that, d_that_columns_ptr,
-            dh::ToSpan(this->Other()), columns_ptr_b_.DeviceSpan());
-  this->columns_ptr_.Copy(columns_ptr_b_);
-  CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
-  this->Alternate();
-
-  if (this->HasCategorical()) {
-    auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
-    this->Unique(ctx, [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
-      return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
-    });
-  }
+  MergeImpl(ctx, {entries.data().get(), entries.size()}, columns_ptr.ConstDeviceSpan(), that,
+            d_that_columns_ptr, dh::ToSpan(scratch), columns_ptr_tmp.DeviceSpan());
+  this->CommitScratch(new_size);
+  CHECK_EQ(columns_ptr.Size(), num_columns_ + 1);
+  normalize_merged();
   timer_.Stop(__func__);
 }
 
 void SketchContainer::FixError() {
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
-  auto in = dh::ToSpan(this->Current());
+  auto in = dh::ToSpan(this->entries_);
   dh::LaunchN(in.size(), [=] __device__(size_t idx) {
     auto column_id = dh::SegmentId(d_columns_ptr, idx);
     auto in_column = in.subspan(d_columns_ptr[column_id],
@@ -543,7 +579,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   std::vector<std::int64_t> recv_lengths;
   HostDeviceVector<std::int8_t> recvbuf;
   rc = collective::AllgatherV(
-      ctx, linalg::MakeVec(this->Current().data().get(), this->Current().size(), ctx->Device()),
+      ctx, linalg::MakeVec(this->entries_.data().get(), this->entries_.size(), ctx->Device()),
       &recv_lengths, &recvbuf);
   collective::SafeColl(rc);
   for (std::size_t i = 0; i < recv_lengths.size() - 1; ++i) {
@@ -577,7 +613,6 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
     auto worker_ptr =
         dh::ToSpan(gathered_ptrs).subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
     new_sketch.Merge(ctx, worker_ptr, worker);
-    new_sketch.FixError();
   }
 
   *this = std::move(new_sketch);
@@ -607,12 +642,11 @@ HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split
   timer_.Start(__func__);
   // Prune to final number of bins.
   this->Prune(ctx, num_bins_ + 1);
-  this->FixError();
 
   // Set up inputs
   auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
 
-  auto const in_cut_values = dh::ToSpan(this->Current());
+  auto const in_cut_values = dh::ToSpan(this->entries_);
 
   // Set up output ptr
   p_cuts->cut_ptrs_.SetDevice(ctx->Device());

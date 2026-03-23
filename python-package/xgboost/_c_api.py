@@ -89,7 +89,7 @@ def _py_version() -> str:
 
 def _register_log_callback(lib: ctypes.CDLL) -> None:
     lib.XGBGetLastError.restype = ctypes.c_char_p
-    lib.callback = _get_log_callback_func()  # type: ignore
+    lib.callback = _get_log_callback_func()  # type: ignore[attr-defined]
     if lib.XGBRegisterLogCallback(lib.callback) != 0:
         raise XGBoostError(lib.XGBGetLastError())
 
@@ -120,7 +120,7 @@ def _load_lib() -> ctypes.CDLL:
     lib_paths = find_lib_path()
     if not lib_paths:
         # This happens only when building document.
-        return None  # type: ignore
+        return None  # type: ignore[return-value]
     try:
         path_backup = os.environ["PATH"].split(os.pathsep)
     except KeyError:
