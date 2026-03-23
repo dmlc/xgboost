@@ -84,7 +84,7 @@ Applied depth-aware LR consistently where leaf values are written:
 
 ## 2. fix_pattern
 - repo: t7r0n/OSS_3
-- adjusted_score: 0.4289
+- adjusted_score: 0.4288
 - timestamp: 2026-03-21T22:40:33.870734+00:00
 PR queued for issue #3. Branch: bot/issue-3-append-explicit-readme-sentence.
 
@@ -315,4 +315,3 @@ Performed the feedback/CI remediation workflow with minimal scope:
 - No PRs opened
 - No pushes
 - No destructive commands used
-

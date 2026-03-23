@@ -149,7 +149,7 @@ Applied depth-aware LR consistently where leaf values are written:
 
 ## 3. fix_pattern
 - repo: t7r0n/OSS_3
-- adjusted_score: 0.4289
+- adjusted_score: 0.4288
 - timestamp: 2026-03-21T22:40:33.870734+00:00
 PR queued for issue #3. Branch: bot/issue-3-append-explicit-readme-sentence.
 
@@ -205,14 +205,14 @@ PR queued for issue #3. Branch: bot/issue-3-append-explicit-readme-sentence.
 
 ## 5. issue_summary
 - repo: t7r0n/OSS_3
-- adjusted_score: 0.3180
+- adjusted_score: 0.3179
 - timestamp: 2026-03-21T22:40:33.842979+00:00
 Issue #3: Append explicit README sentence
 Append exactly one line to README.md: Supervisor validation sentence added by Codex.
 
 ## 6. issue_summary
 - repo: t7r0n/OSS_3
-- adjusted_score: 0.2470
+- adjusted_score: 0.2469
 - timestamp: 2026-03-21T23:13:39.941080+00:00
 Issue #4: Supervisor non-dry-run README patch
 Append one line to README.md: Supervisor live-mode sentence.
@@ -288,4 +288,3 @@ Steps executed:
 - No pushes
 - No `pre-commit run --all-files`
 - No destructive commands used
-
