@@ -34,19 +34,19 @@ struct HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd)
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd, CUDAContext const*)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size, v);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd)
+HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd, CUDAContext const*)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd)
+HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd, CUDAContext const*)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
@@ -85,33 +85,33 @@ template <typename T>
 DeviceOrd HostDeviceVector<T>::Device() const { return DeviceOrd::CPU(); }
 
 template <typename T>
-T* HostDeviceVector<T>::DevicePointer() { return nullptr; }
+T* HostDeviceVector<T>::DevicePointer(CUDAContext const*) { return nullptr; }
 
 template <typename T>
-const T* HostDeviceVector<T>::ConstDevicePointer() const {
+const T* HostDeviceVector<T>::ConstDevicePointer(CUDAContext const*) const {
   return nullptr;
 }
 
 template <typename T>
-common::Span<T> HostDeviceVector<T>::DeviceSpan() {
+common::Span<T> HostDeviceVector<T>::DeviceSpan(CUDAContext const*) {
   return common::Span<T>();
 }
 
 template <typename T>
-common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan() const {
+common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan(CUDAContext const*) const {
   return common::Span<const T>();
 }
 
 template <typename T>
-std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->Vec(); }
+std::vector<T>& HostDeviceVector<T>::HostVector(CUDAContext const*) { return impl_->Vec(); }
 
 template <typename T>
-const std::vector<T>& HostDeviceVector<T>::ConstHostVector() const {
+const std::vector<T>& HostDeviceVector<T>::ConstHostVector(CUDAContext const*) const {
   return impl_->Vec();
 }
 
 template <typename T>
-void HostDeviceVector<T>::Resize(size_t new_size, T v) {
+void HostDeviceVector<T>::Resize(size_t new_size, T v, CUDAContext const*) {
   impl_->Vec().resize(new_size, v);
 }
 
@@ -121,30 +121,30 @@ void HostDeviceVector<T>::Resize(size_t new_size) {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Fill(T v) {
+void HostDeviceVector<T>::Fill(T v, CUDAContext const*) {
   std::fill(HostVector().begin(), HostVector().end(), v);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(const HostDeviceVector<T>& other) {
+void HostDeviceVector<T>::Copy(const HostDeviceVector<T>& other, CUDAContext const*) {
   CHECK_EQ(Size(), other.Size());
   std::copy(other.HostVector().begin(), other.HostVector().end(), HostVector().begin());
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(const std::vector<T>& other) {
+void HostDeviceVector<T>::Copy(const std::vector<T>& other, CUDAContext const*) {
   CHECK_EQ(Size(), other.size());
   std::copy(other.begin(), other.end(), HostVector().begin());
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
+void HostDeviceVector<T>::Copy(std::initializer_list<T> other, CUDAContext const*) {
   CHECK_EQ(Size(), other.size());
   std::copy(other.begin(), other.end(), HostVector().begin());
 }
 
 template <typename T>
-void HostDeviceVector<T>::Extend(HostDeviceVector const& other) {
+void HostDeviceVector<T>::Extend(HostDeviceVector const& other, CUDAContext const*) {
   auto ori_size = this->Size();
   this->HostVector().resize(ori_size + other.Size());
   std::copy(other.ConstHostVector().cbegin(), other.ConstHostVector().cend(),
@@ -172,7 +172,7 @@ bool HostDeviceVector<T>::DeviceCanWrite() const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::SetDevice(DeviceOrd) const {}
+void HostDeviceVector<T>::SetDevice(DeviceOrd, CUDAContext const*) const {}
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
