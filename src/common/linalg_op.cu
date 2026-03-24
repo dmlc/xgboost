@@ -18,7 +18,7 @@ void SmallHistogram(Context const* ctx, linalg::MatrixView<float const> indices,
   auto n_bins = bins.Size();
   auto cuctx = ctx->CUDACtx();
   // Sort for segmented sum
-  dh::DeviceUVector<std::size_t> sorted_idx(indices.Size());
+  dh::DeviceUVector<std::size_t> sorted_idx(indices.Size(), cuctx->Stream());
   common::ArgSort<true>(ctx, indices.Values(), dh::ToSpan(sorted_idx));
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
 
@@ -27,8 +27,8 @@ void SmallHistogram(Context const* ctx, linalg::MatrixView<float const> indices,
 
   dh::device_vector<std::size_t> counts_out(n_bins + 1, 0);
   // Obtain the segment boundaries for the segmented sum.
-  dh::DeviceUVector<float> unique(n_bins);
-  dh::CachingDeviceUVector<std::size_t> num_runs(1);
+  dh::DeviceUVector<float> unique(n_bins, cuctx->Stream());
+  dh::CachingDeviceUVector<std::size_t> num_runs(1, cuctx->Stream());
   common::RunLengthEncode(cuctx->Stream(), key_it, unique.begin(), counts_out.begin() + 1,
                           num_runs.begin(), indices.Size());
   thrust::inclusive_scan(cuctx->CTP(), counts_out.begin(), counts_out.end(), counts_out.begin());

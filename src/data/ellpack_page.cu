@@ -158,7 +158,7 @@ __global__ void CompressBinEllpackKernel(
       [=] XGBOOST_DEVICE(std::size_t i) { return dptrs[i] - dptrs[i - 1]; });
   CHECK_GE(dptrs.size(), 2);
   auto max_it = thrust::max_element(cuctx->CTP(), it, it + dptrs.size() - 1);
-  dh::CachingDeviceUVector<PtrT> max_element(1);
+  dh::CachingDeviceUVector<PtrT> max_element(1, cuctx->Stream());
   auto d_me = max_element.data();
   dh::LaunchN(1, cuctx->Stream(), [=] XGBOOST_DEVICE(std::size_t i) { d_me[i] = *max_it; });
   dh::safe_cuda(cudaMemcpyAsync(&n_symbols_dense, d_me, sizeof(PtrT), cudaMemcpyDeviceToHost,
@@ -595,7 +595,7 @@ void EllpackPageImpl::CreateHistIndices(Context const* ctx, const SparsePage& ro
 
     /*! \brief row offset in SparsePage (the input data). */
     using OffT = typename std::remove_reference_t<decltype(offset_vec)>::value_type;
-    dh::DeviceUVector<OffT> row_ptrs(batch_nrows + 1);
+    dh::DeviceUVector<OffT> row_ptrs(batch_nrows + 1, ctx->CUDACtx()->Stream());
     auto size =
         std::distance(offset_vec.data() + batch_row_begin, offset_vec.data() + batch_row_end + 1);
     dh::safe_cuda(cudaMemcpyAsync(row_ptrs.data(), offset_vec.data() + batch_row_begin,
@@ -604,7 +604,7 @@ void EllpackPageImpl::CreateHistIndices(Context const* ctx, const SparsePage& ro
 
     // number of entries in this batch.
     size_t n_entries = ent_cnt_end - ent_cnt_begin;
-    dh::DeviceUVector<Entry> entries_d(n_entries);
+    dh::DeviceUVector<Entry> entries_d(n_entries, ctx->CUDACtx()->Stream());
     // copy data entries to device.
     if (row_batch.data.DeviceCanRead()) {
       auto const& d_data = row_batch.data.ConstDeviceSpan();
