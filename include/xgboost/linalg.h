@@ -808,7 +808,7 @@ class Tensor {
     if (!device.IsCPU()) {
       data_.SetDevice(device, ctx);
     }
-    data_.Resize(size, ctx);
+    data_.Resize(ctx, size);
     if (!device.IsCPU()) {
       data_.DevicePointer(ctx);  // Pull to device
     }

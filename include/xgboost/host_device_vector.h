@@ -154,17 +154,13 @@ class HostDeviceVector {
 
   void SetDevice(DeviceOrd device, Context const* ctx = nullptr) const;
 
-  void Resize(std::size_t new_size, Context const* ctx = nullptr);
+  void Resize(std::size_t new_size);
+  void Resize(Context const* ctx, std::size_t new_size);
 
   /** @brief Resize and initialize the data if the new size is larger than the old size. */
-  template <std::enable_if_t<!std::is_pointer_v<T>>* = nullptr>
-  void Resize(std::size_t new_size, T v, Context const* ctx = nullptr) {
-    this->ResizeImpl(new_size, v, ctx);
-  }
+  void Resize(Context const* ctx, std::size_t new_size, T v);
 
  private:
-  void ResizeImpl(std::size_t new_size, T v, Context const* ctx);
-
   HostDeviceVectorImpl<T>* impl_;
 };
 
