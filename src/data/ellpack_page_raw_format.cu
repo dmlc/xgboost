@@ -21,7 +21,7 @@ DMLC_REGISTRY_FILE_TAG(ellpack_page_raw_format);
 namespace {
 // Function to support system without HMM or ATS
 template <typename T>
-[[nodiscard]] bool ReadDeviceVec(common::AlignedResourceReadStream* fi,
+[[nodiscard]] bool ReadDeviceVec(Context const* ctx, common::AlignedResourceReadStream* fi,
                                  common::RefResourceView<T>* vec) {
   xgboost_NVTX_FN_RANGE();
 
@@ -40,7 +40,7 @@ template <typename T>
     return false;
   }
 
-  *vec = common::MakeFixedVecWithCudaMalloc<T>(n);
+  *vec = common::MakeFixedVecWithCudaMalloc<T>(ctx, n);
   dh::safe_cuda(
       cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, curt::DefaultStream()));
   return true;
@@ -61,8 +61,10 @@ template <typename T>
   RET_IF_NOT(fi->Read(&impl->is_dense));
   RET_IF_NOT(fi->Read(&impl->info.row_stride));
 
+  Context ctx = Context{}.MakeCUDA(curt::CurrentDevice());
+
   if (this->param_.prefetch_copy || !has_hmm_ats_) {
-    RET_IF_NOT(ReadDeviceVec(fi, &impl->gidx_buffer));
+    RET_IF_NOT(ReadDeviceVec(&ctx, fi, &impl->gidx_buffer));
   } else {
     RET_IF_NOT(common::ReadVec(fi, &impl->gidx_buffer));
   }

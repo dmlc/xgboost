@@ -59,10 +59,11 @@ struct CopyViews {
 
   void operator()(dh::DeviceUVector<TreeViewVar>* p_dst, std::vector<TreeViewVar>&& src) {
     xgboost_NVTX_FN_RANGE();
-    p_dst->resize(src.size());
+    auto stream = ctx->CUDACtx()->Stream();
+    p_dst->resize(src.size(), stream);
     auto d_dst = dh::ToSpan(*p_dst);
-    dh::safe_cuda(cudaMemcpyAsync(d_dst.data(), src.data(), d_dst.size_bytes(), cudaMemcpyDefault,
-                                  ctx->CUDACtx()->Stream()));
+    dh::safe_cuda(
+        cudaMemcpyAsync(d_dst.data(), src.data(), d_dst.size_bytes(), cudaMemcpyDefault, stream));
   }
 };
 

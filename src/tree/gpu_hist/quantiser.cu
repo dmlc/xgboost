@@ -116,10 +116,11 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
   }
 
   // Copy to device.
-  d_quantizers_.resize(n_targets);
+  auto stream = ctx->CUDACtx()->Stream();
+  d_quantizers_.resize(n_targets, stream);
   dh::safe_cuda(cudaMemcpyAsync(d_quantizers_.data(), h_quantizers_.data(),
                                 n_targets * sizeof(GradientQuantiser), cudaMemcpyHostToDevice,
-                                ctx->CUDACtx()->Stream()));
+                                stream));
 }
 
 GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
