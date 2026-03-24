@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost Contributors
+ * Copyright 2025-2026, XGBoost Contributors
  */
 #pragma once
 
@@ -19,8 +19,9 @@ void TestLinalgDispatch(Context const* ctx, Fn&& fn) {
   std::iota(data.begin(), data.end(), 0.0);
   Vector<double> vec(data.begin(), data.end(), {data.size()}, DeviceOrd::CPU());
 
-  TransformKernel(ctx, vec.View(ctx->Device()), [=] XGBOOST_DEVICE(double v) { return fn(v); });
-  auto h_v = vec.HostView();
+  TransformKernel(ctx, vec.View(ctx->Device(), ctx),
+                  [=] XGBOOST_DEVICE(double v) { return fn(v); });
+  auto h_v = vec.HostView(ctx);
   for (std::size_t i = 0; i < h_v.Size(); ++i) {
     ASSERT_EQ(h_v(i), fn(i));
   }

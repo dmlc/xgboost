@@ -57,12 +57,13 @@ MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
   this->sum_hess_.Copy(that.sum_hess_);
 }
 
-void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight, float sum_hess) {
+void MultiTargetTree::SetRoot(Context const* ctx, linalg::VectorView<float const> weight,
+                              float sum_hess) {
   CHECK(!weight.Empty());
   auto const next_nidx = RegTree::kRoot + 1;
 
   this->weights_.SetDevice(weight.Device());
-  this->weights_.Resize(weight.Size(), DftBadValue());
+  this->weights_.Resize(ctx, weight.Size(), DftBadValue());
 
   CHECK_LE(weight.Size(), this->NumTargets());
   CHECK_GE(weights_.Size(), next_nidx * weight.Size());
@@ -80,16 +81,17 @@ void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight, float sum_
   }
 
   // Set root statistics
-  sum_hess_.Resize(next_nidx, 0.0f);
+  sum_hess_.Resize(ctx, next_nidx, 0.0f);
   sum_hess_.HostVector()[RegTree::kRoot] = sum_hess;
-  loss_chg_.Resize(next_nidx, 0.0f);
+  loss_chg_.Resize(ctx, next_nidx, 0.0f);
 
   CHECK_EQ(this->param_->num_nodes, 1);
   CHECK_EQ(this->NumSplitTargets(), weight.Size());
 }
 
-void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float split_cond,
-                             bool default_left, linalg::VectorView<float const> base_weight,
+void MultiTargetTree::Expand(Context const* ctx, bst_node_t nidx, bst_feature_t split_idx,
+                             float split_cond, bool default_left,
+                             linalg::VectorView<float const> base_weight,
                              linalg::VectorView<float const> left_weight,
                              linalg::VectorView<float const> right_weight, float loss_chg,
                              float sum_hess, float left_sum, float right_sum) {
@@ -102,9 +104,9 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
 
   std::size_t n = param_->num_nodes + 2;
   CHECK_LT(split_idx, this->param_->num_feature);
-  left_.Resize(n, InvalidNodeId());
-  right_.Resize(n, InvalidNodeId());
-  parent_.Resize(n, InvalidNodeId());
+  left_.Resize(ctx, n, InvalidNodeId());
+  right_.Resize(ctx, n, InvalidNodeId());
+  parent_.Resize(ctx, n, InvalidNodeId());
 
   auto left_child = parent_.Size() - 2;
   auto right_child = parent_.Size() - 1;
@@ -124,7 +126,7 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
   split_index_.Resize(n);
   split_index_.HostVector()[nidx] = split_idx;
 
-  split_conds_.Resize(n, DftBadValue());
+  split_conds_.Resize(ctx, n, DftBadValue());
   split_conds_.HostVector()[nidx] = split_cond;
 
   default_left_.Resize(n);
@@ -148,10 +150,10 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
     r_weight(i) = right_weight(i);
   }
 
-  loss_chg_.Resize(n, 0.0f);
+  loss_chg_.Resize(ctx, n, 0.0f);
   loss_chg_.HostVector()[nidx] = loss_chg;
 
-  sum_hess_.Resize(n, 0.0f);
+  sum_hess_.Resize(ctx, n, 0.0f);
   auto& h_hess = sum_hess_.HostVector();
   h_hess[nidx] = sum_hess;
   h_hess[left_child] = left_sum;

@@ -362,7 +362,7 @@ template <typename Adapter>
 auto MakeUnweightedCutsForTest(Context const* ctx, Adapter adapter, int32_t num_bins, float missing,
                                size_t batch_size = 0) {
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), DeviceOrd::CUDA(0));
+  SketchContainer sketch_container(ctx, ft, num_bins, adapter.NumColumns());
   MetaInfo info;
   AdapterDeviceSketch(ctx, adapter.Value(), num_bins, info, missing, &sketch_container, batch_size);
   return sketch_container.MakeCuts(ctx, info.IsColumnSplit());
@@ -431,7 +431,7 @@ TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, num_bins, num_columns, DeviceOrd::CUDA(0));
+  SketchContainer sketch_container(&ctx, ft, num_bins, num_columns);
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &sketch_container);
   [[maybe_unused]] auto cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
@@ -458,7 +458,7 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, num_bins, num_columns, DeviceOrd::CUDA(0));
+  SketchContainer sketch_container(&ctx, ft, num_bins, num_columns);
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &sketch_container);
 
@@ -492,7 +492,7 @@ void TestCategoricalSketchAdapter(size_t n, size_t num_categories, int32_t num_b
   }
 
   ASSERT_EQ(info.feature_types.Size(), 1);
-  SketchContainer container(info.feature_types, num_bins, 1, DeviceOrd::CUDA(0));
+  SketchContainer container(&ctx, info.feature_types, num_bins, 1);
   AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &container);
   auto cuts = container.MakeCuts(&ctx, info.IsColumnSplit());
@@ -726,7 +726,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
   data::CupyAdapter adapter(m);
   auto const& batch = adapter.Value();
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, kBins, kCols, DeviceOrd::CUDA(0));
+  SketchContainer sketch_container(&ctx, ft, kBins, kCols);
   AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
 
@@ -765,7 +765,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
       // https://github.com/dmlc/xgboost/issues/7946
       h_weights[i] = (i % 2 == 0 ? 1 : 2) / static_cast<float>(kGroups);
     }
-    SketchContainer sketch_container{ft, kBins, kCols, DeviceOrd::CUDA(0)};
+    SketchContainer sketch_container{&ctx, ft, kBins, kCols};
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_container);
     weighted = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());

@@ -471,15 +471,16 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
 
 GPUExpandEntry GPUHistEvaluator::EvaluateSingleSplit(Context const *ctx, EvaluateSplitInputs input,
                                                      EvaluateSplitSharedInputs shared_inputs) {
-  dh::CachingDeviceUVector<EvaluateSplitInputs> inputs(1);
-  dh::safe_cuda(cudaMemcpyAsync(inputs.data(), &input, sizeof(input), cudaMemcpyDefault));
+  auto stream = ctx->CUDACtx()->Stream();
+  dh::CachingDeviceUVector<EvaluateSplitInputs> inputs(1, stream);
+  dh::safe_cuda(cudaMemcpyAsync(inputs.data(), &input, sizeof(input), cudaMemcpyDefault, stream));
 
   dh::TemporaryArray<GPUExpandEntry> out_entries(1);
   this->EvaluateSplits(ctx, {input.nidx}, input.feature_set.size(), dh::ToSpan(inputs),
                        shared_inputs, dh::ToSpan(out_entries));
   GPUExpandEntry root_entry;
   dh::safe_cuda(cudaMemcpyAsync(&root_entry, out_entries.data().get(), sizeof(GPUExpandEntry),
-                                cudaMemcpyDeviceToHost));
+                                cudaMemcpyDeviceToHost, stream));
   return root_entry;
 }
 }  // namespace xgboost::tree

@@ -297,9 +297,10 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     return;
   }
 
+  auto stream = ctx->CUDACtx()->Stream();
   // Allocate weight and split sum storage on demand for the maximum node ID being evaluated.
-  this->AllocNodeWeight(max_nidx, n_targets);
-  this->split_sums_.Alloc(max_nidx, n_targets);
+  this->AllocNodeWeight(max_nidx, n_targets, stream);
+  this->split_sums_.Alloc(max_nidx, n_targets, stream);
 
   // Calculate total scan buffer size needed for all nodes
   auto node_hist_size = n_targets * shared_inputs.Features() * n_bins_per_feat_tar;
@@ -307,7 +308,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
   // Scan the histograms. One for forward and the other for backward.
   // Since there's only store op on the scan buffer, no need to initialize it.
-  this->scan_buffer_.resize(total_hist_size * 2);
+  this->scan_buffer_.resize(total_hist_size * 2, stream);
 
   // Create spans for each node's scan results
   std::vector<common::Span<GradientPairInt64>> h_scans(n_nodes);
@@ -444,7 +445,7 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
   auto max_node = thrust::reduce(
       ctx->CUDACtx()->CTP(), max_in_it, max_in_it + d_candidates.size(), 0,
       [=] XGBOOST_DEVICE(bst_node_t l, bst_node_t r) { return cuda::std::max(l, r); });
-  this->AllocNodeSum(max_node, n_targets);
+  this->AllocNodeSum(max_node, n_targets, ctx->CUDACtx()->Stream());
 
   auto node_sums = this->node_sums_.View();
   // Use the internal split sums buffer instead of candidate.split.child_sum . It may be

@@ -228,7 +228,7 @@ class EllpackHostCacheStreamImpl {
 
       // Device cache
       auto remaining = old_impl->gidx_buffer.size_bytes() - n_bytes;
-      auto d_page = common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(remaining);
+      auto d_page = common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(&ctx, remaining);
       if (remaining > 0) {
         dh::safe_cuda(cudaMemcpyAsync(d_page.data(), old_impl->gidx_buffer.data() + n_bytes,
                                       remaining, cudaMemcpyDefault));
@@ -323,7 +323,8 @@ class EllpackHostCacheStreamImpl {
       // Copy the data in the same order as written
       // Normal host cache
       auto n_bytes = this->cache_->GidxSizeBytes(this->ptr_);
-      out_impl->gidx_buffer = common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(n_bytes);
+      out_impl->gidx_buffer =
+          common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(ctx, n_bytes);
       if (!h_page->gidx_buffer.empty()) {
         dh::safe_cuda(cudaMemcpyAsync(out_impl->gidx_buffer.data(), h_page->gidx_buffer.data(),
                                       h_page->gidx_buffer.size_bytes(), cudaMemcpyDefault,

@@ -235,7 +235,7 @@ class MultiTargetHistMaker {
     auto n_targets = d_gpair.Shape(1);
 
     // Calculate the root sum
-    this->evaluator_.AllocNodeSum(RegTree::kRoot, n_targets);
+    this->evaluator_.AllocNodeSum(RegTree::kRoot, n_targets, ctx_->CUDACtx()->Stream());
     auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
     CalcRootSum(this->ctx_, d_gpair, d_root_sum);
 
@@ -262,7 +262,7 @@ class MultiTargetHistMaker {
     auto weights = this->evaluator_.GetNodeWeights(n_targets);
     // Root's sum_hess is the sum of left and right child hessians
     float root_sum_hess = static_cast<float>(entry.left_sum + entry.right_sum);
-    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), weights.Base(RegTree::kRoot)),
+    p_tree->SetRoot(this->ctx_, linalg::MakeVec(this->ctx_->Device(), weights.Base(RegTree::kRoot)),
                     root_sum_hess);
 
     return entry;
@@ -286,9 +286,10 @@ class MultiTargetHistMaker {
       float left_sum = static_cast<float>(candidate.left_sum);
       float right_sum = static_cast<float>(candidate.right_sum);
       float sum_hess = left_sum + right_sum;
-      p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
-                         candidate.split.dir == kLeftDir, linalg::MakeVec(h_base_weight),
-                         linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight), loss_chg,
+      p_tree->ExpandNode(this->ctx_, candidate.nidx, candidate.split.findex,
+                         candidate.split.fvalue, candidate.split.dir == kLeftDir,
+                         linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_weight),
+                         linalg::MakeVec(h_right_weight), loss_chg,
                          sum_hess, left_sum, right_sum);
     }
 

@@ -14,8 +14,8 @@
 #include "xgboost/host_device_vector.h"
 #pragma GCC diagnostic pop
 
-#include "../device_manager.h"
 #include "../data.h"
+#include "../device_manager.h"
 #include "../predictor/node.h"
 
 namespace xgboost {
@@ -46,10 +46,11 @@ class HostDeviceVectorImpl {
     }
   }
 
-  HostDeviceVectorImpl(HostDeviceVectorImpl<T>&& that) : device_{that.device_},
-                                                         data_h_{std::move(that.data_h_)},
-                                                         data_d_{std::move(that.data_d_)},
-                                                         device_access_{that.device_access_} {}
+  HostDeviceVectorImpl(HostDeviceVectorImpl<T>&& that)
+      : device_{that.device_},
+        data_h_{std::move(that.data_h_)},
+        data_d_{std::move(that.data_d_)},
+        device_access_{that.device_access_} {}
 
   std::vector<T>& HostVector() {
     SyncHost(GPUAccess::kNone);
@@ -62,14 +63,15 @@ class HostDeviceVectorImpl {
   }
 
   void SetDevice(DeviceOrd device) {
-    if (device_ == device) { return; }
+    if (device_ == device) {
+      return;
+    }
     if (device_.IsSycl()) {
       SyncHost(GPUAccess::kNone);
     }
 
     if (device_.IsSycl() && device.IsSycl()) {
-      CHECK_EQ(device_, device)
-          << "New device is different from previous one.";
+      CHECK_EQ(device_, device) << "New device is different from previous one.";
     }
     device_ = device;
     if (device_.IsSycl()) {
@@ -97,20 +99,26 @@ class HostDeviceVectorImpl {
   }
 
   void SyncHost(GPUAccess access) {
-    if (HostCanAccess(access)) { return; }
+    if (HostCanAccess(access)) {
+      return;
+    }
     if (HostCanRead()) {
       // data is present, just need to deny access to the device
       device_access_ = access;
       return;
     }
     device_access_ = access;
-    if (data_h_.size() != data_d_->Size()) { data_h_.resize(data_d_->Size()); }
+    if (data_h_.size() != data_d_->Size()) {
+      data_h_.resize(data_d_->Size());
+    }
     SetDevice();
     qu_->memcpy(data_h_.data(), data_d_->Data(), data_d_->Size() * sizeof(T)).wait();
   }
 
   void SyncDevice(GPUAccess access) {
-    if (DeviceCanAccess(access)) { return; }
+    if (DeviceCanAccess(access)) {
+      return;
+    }
     if (DeviceCanRead()) {
       device_access_ = access;
       return;
@@ -130,9 +138,7 @@ class HostDeviceVectorImpl {
   bool DeviceCanWrite() const { return DeviceCanAccess(GPUAccess::kWrite); }
   GPUAccess Access() const { return device_access_; }
 
-  size_t Size() const {
-    return HostCanRead() ? data_h_.size() : data_d_ ? data_d_->Size() : 0;
-  }
+  size_t Size() const { return HostCanRead() ? data_h_.size() : data_d_ ? data_d_->Size() : 0; }
 
   DeviceOrd Device() const { return device_; }
 
@@ -214,7 +220,9 @@ class HostDeviceVectorImpl {
 
  private:
   void ResizeDevice(size_t new_size) {
-    if (data_d_ && new_size == data_d_->Size()) { return; }
+    if (data_d_ && new_size == data_d_->Size()) {
+      return;
+    }
     SetDevice();
     data_d_->Resize(qu_, new_size);
   }
@@ -254,20 +262,21 @@ class HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd device)
-  : impl_(nullptr) {
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd device, Context const*)
+    : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size, v, device);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd device)
-  : impl_(nullptr) {
+HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd device,
+                                      Context const*)
+    : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init, device);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd device)
-  : impl_(nullptr) {
+HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd device, Context const*)
+    : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init, device);
 }
 
@@ -278,7 +287,9 @@ HostDeviceVector<T>::HostDeviceVector(HostDeviceVector<T>&& that) {
 
 template <typename T>
 HostDeviceVector<T>& HostDeviceVector<T>::operator=(HostDeviceVector<T>&& that) {
-  if (this == &that) { return *this; }
+  if (this == &that) {
+    return *this;
+  }
 
   std::unique_ptr<HostDeviceVectorImpl<T>> new_impl(
       new HostDeviceVectorImpl<T>(std::move(*that.impl_)));
@@ -294,7 +305,9 @@ HostDeviceVector<T>::~HostDeviceVector() {
 }
 
 template <typename T>
-size_t HostDeviceVector<T>::Size() const { return impl_->Size(); }
+size_t HostDeviceVector<T>::Size() const {
+  return impl_->Size();
+}
 
 template <typename T>
 DeviceOrd HostDeviceVector<T>::Device() const {
@@ -302,65 +315,72 @@ DeviceOrd HostDeviceVector<T>::Device() const {
 }
 
 template <typename T>
-T* HostDeviceVector<T>::DevicePointer() {
+T* HostDeviceVector<T>::DevicePointer(Context const*) {
   return impl_->DevicePointer();
 }
 
 template <typename T>
-const T* HostDeviceVector<T>::ConstDevicePointer() const {
+const T* HostDeviceVector<T>::ConstDevicePointer(Context const*) const {
   return impl_->ConstDevicePointer();
 }
 
 template <typename T>
-common::Span<T> HostDeviceVector<T>::DeviceSpan() {
+common::Span<T> HostDeviceVector<T>::DeviceSpan(Context const*) {
   return impl_->DeviceSpan();
 }
 
 template <typename T>
-common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan() const {
+common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan(Context const*) const {
   return impl_->ConstDeviceSpan();
 }
 
 template <typename T>
-std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->HostVector(); }
+std::vector<T>& HostDeviceVector<T>::HostVector(Context const*) {
+  return impl_->HostVector();
+}
 
 template <typename T>
-const std::vector<T>& HostDeviceVector<T>::ConstHostVector() const {
+const std::vector<T>& HostDeviceVector<T>::ConstHostVector(Context const*) const {
   return impl_->ConstHostVector();
 }
 
 template <typename T>
-void HostDeviceVector<T>::Resize(size_t new_size, T v) {
+void HostDeviceVector<T>::Resize(Context const*, std::size_t new_size, T v) {
   impl_->Resize(new_size, v);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Resize(size_t new_size) {
+void HostDeviceVector<T>::Resize(std::size_t new_size) {
   impl_->Resize(new_size);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Fill(T v) {
+void HostDeviceVector<T>::Resize(Context const*, std::size_t new_size) {
+  impl_->Resize(new_size);
+}
+
+template <typename T>
+void HostDeviceVector<T>::Fill(T v, Context const*) {
   impl_->Fill(v);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(const HostDeviceVector<T>& other) {
+void HostDeviceVector<T>::Copy(const HostDeviceVector<T>& other, Context const*) {
   impl_->Copy(other.impl_);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(const std::vector<T>& other) {
+void HostDeviceVector<T>::Copy(const std::vector<T>& other, Context const*) {
   impl_->Copy(other);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
+void HostDeviceVector<T>::Copy(std::initializer_list<T> other, Context const*) {
   impl_->Copy(other);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Extend(HostDeviceVector const& other) {
+void HostDeviceVector<T>::Extend(HostDeviceVector const& other, Context const*) {
   impl_->Extend(other.impl_);
 }
 
@@ -390,7 +410,7 @@ GPUAccess HostDeviceVector<T>::DeviceAccess() const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::SetDevice(DeviceOrd device) const {
+void HostDeviceVector<T>::SetDevice(DeviceOrd device, Context const*) const {
   impl_->SetDevice(device);
 }
 
@@ -399,7 +419,7 @@ template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<double>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<GradientPairPrecise>;
-template class HostDeviceVector<std::int32_t>;   // bst_node_t
+template class HostDeviceVector<std::int32_t>;  // bst_node_t
 template class HostDeviceVector<std::uint8_t>;
 template class HostDeviceVector<std::int8_t>;
 template class HostDeviceVector<FeatureType>;

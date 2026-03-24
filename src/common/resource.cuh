@@ -18,18 +18,22 @@ namespace xgboost::common {
  */
 class CudaMallocResource : public ResourceHandler {
   dh::DeviceUVector<std::byte> storage_;
+  curt::StreamRef stream_;
 
-  void Clear() noexcept(true) { this->Resize(0); }
+  void Clear() noexcept(true) { this->Resize(0, this->stream_); }
 
  public:
-  explicit CudaMallocResource(std::size_t n_bytes) : ResourceHandler{kCudaMalloc} {
-    this->Resize(n_bytes);
+  explicit CudaMallocResource(std::size_t n_bytes, curt::StreamRef stream)
+      : ResourceHandler{kCudaMalloc}, stream_{stream} {
+    this->Resize(n_bytes, stream);
   }
   ~CudaMallocResource() noexcept(true) override { this->Clear(); }
 
   [[nodiscard]] void* Data() override { return storage_.data(); }
   [[nodiscard]] std::size_t Size() const override { return storage_.size(); }
-  void Resize(std::size_t n_bytes) { this->storage_.resize(n_bytes); }
+  void Resize(std::size_t n_bytes, curt::StreamRef stream) {
+    this->storage_.resize(n_bytes, stream);
+  }
 };
 
 /**

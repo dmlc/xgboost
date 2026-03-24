@@ -164,7 +164,7 @@ class ColMaker : public TreeUpdater {
           colmaker_train_param_{colmaker_train_param},
           ctx_{ctx},
           column_sampler_{std::move(column_sampler)},
-          tree_evaluator_(param_, column_densities.size(), DeviceOrd::CPU()),
+          tree_evaluator_(ctx, param_, column_densities.size()),
           interaction_constraints_{std::move(_interaction_constraints)},
           column_densities_(column_densities) {}
     // update one tree, growing
@@ -186,7 +186,7 @@ class ColMaker : public TreeUpdater {
           int cleft = (*p_tree)[nid].LeftChild();
           int cright = (*p_tree)[nid].RightChild();
 
-          tree_evaluator_.AddSplit(nid, cleft, cright, snode_[nid].best.SplitIndex(),
+          tree_evaluator_.AddSplit(ctx_, nid, cleft, cright, snode_[nid].best.SplitIndex(),
                                    snode_[cleft].weight, snode_[cright].weight);
           interaction_constraints_.Split(nid, snode_[nid].best.SplitIndex(), cleft, cright);
         }

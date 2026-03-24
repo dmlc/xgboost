@@ -709,10 +709,10 @@ template <class Src, class Dst>
 void CopyTo(Src const &src, Dst *dst,
             ::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {
   if (src.empty()) {
-    dst->clear();
+    dst->clear(stream);
     return;
   }
-  dst->resize(src.size());
+  dst->resize(src.size(), stream);
   using SVT = std::remove_cv_t<typename Src::value_type>;
   using DVT = std::remove_cv_t<typename Dst::value_type>;
   static_assert(std::is_same_v<SVT, DVT>, "Host and device containers must have same value type.");

@@ -253,7 +253,7 @@ class MultiTargetHistBuilder {
     for (bst_target_t t{0}; t < n_targets; ++t) {
       root_sum_hess += static_cast<float>(h_root_sum(t).GetHess());
     }
-    p_tree->SetRoot(weight_t, root_sum_hess);
+    p_tree->SetRoot(ctx_, weight_t, root_sum_hess);
     std::vector<BoundedHistCollection const *> hists;
     std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
 

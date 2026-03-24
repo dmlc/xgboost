@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost contributors
+ * Copyright 2025-2026, XGBoost contributors
  *
  * We use NVComp to perform compression and access the DE API directly for
  * decompression. Invoking the DE directly can help us avoid unnecessary kernal launches
@@ -172,7 +172,7 @@ SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(curt::StreamRef s,
   std::vector<std::size_t> in_chunk_sizes(n_chunks);
   std::vector<std::size_t> out_chunk_sizes(n_chunks);
 
-  dh::DeviceUVector<std::int32_t> status(n_chunks);
+  dh::DeviceUVector<std::int32_t> status(n_chunks, s);
   for (std::size_t i = 0; i < n_chunks; ++i) {
     in_chunk_ptrs[i] = in_compressed_data.subspan(last_in, params[i].src_act_nbytes).data();
     in_chunk_sizes[i] = params[i].src_act_nbytes;
@@ -195,8 +195,8 @@ SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(curt::StreamRef s,
     std::memset(this->de_params.data() + i, 0, sizeof(CUmemDecompressParams));
   }
 
-  FillDecompParams(d_in_chunk_ptrs.data().get(), d_in_chunk_sizes.data().get(), de_params.ToSpan(),
-                   this->act_nbytes.data().get(), d_out_chunk_sizes.data().get(), status.data(), s);
+  FillDecompParams(d_in_chunk_ptrs.data(), d_in_chunk_sizes.data(), de_params.ToSpan(),
+                   this->act_nbytes.data().get(), d_out_chunk_sizes.data(), status.data(), s);
   dh::XGBCachingDeviceAllocator<char> alloc;
   bool valid = thrust::all_of(thrust::cuda::par_nosync(alloc).on(s), status.cbegin(), status.cend(),
                               ChkOp{});
@@ -301,8 +301,8 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
                                   dh::ToSpan(d_out_ptrs).size_bytes(), cudaMemcpyDefault, stream));
     // Run nvcomp
     SafeNvComp(nvcompBatchedSnappyDecompressAsync(
-        mgr_impl->d_in_chunk_ptrs.data().get(), mgr_impl->d_in_chunk_sizes.data().get(),
-        mgr_impl->d_out_chunk_sizes.data().get(), mgr_impl->act_nbytes.data().get(), n_chunks,
+        mgr_impl->d_in_chunk_ptrs.data(), mgr_impl->d_in_chunk_sizes.data(),
+        mgr_impl->d_out_chunk_sizes.data(), mgr_impl->act_nbytes.data().get(), n_chunks,
         tmp.data().get(), n_tmp_bytes, d_out_ptrs.data().get(),
         nvcompBatchedSnappyDecompressDefaultOpts, status.data().get(), stream));
   }
@@ -326,7 +326,7 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
    */
   std::size_t n_chunks = (in.size() + chunk_size - 1) / chunk_size;
   if (n_chunks == 0) {
-    p_out->clear();
+    p_out->clear(ctx->CUDACtx()->Stream());
     return {};
   }
   std::size_t last = 0;
@@ -343,11 +343,11 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
   }
   CHECK_EQ(last, in.size());
 
-  dh::DeviceUVector<void const*> in_ptrs(h_in_ptrs.size());
+  dh::DeviceUVector<void const*> in_ptrs(h_in_ptrs.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(in_ptrs.data(), h_in_ptrs.data(),
                                 common::Span{h_in_ptrs}.size_bytes(), cudaMemcpyDefault,
                                 cuctx->Stream()));
-  dh::DeviceUVector<std::size_t> in_sizes(h_in_sizes.size());
+  dh::DeviceUVector<std::size_t> in_sizes(h_in_sizes.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(in_sizes.data(), h_in_sizes.data(),
                                 common::Span{h_in_sizes}.size_bytes(), cudaMemcpyDefault,
                                 cuctx->Stream()));
@@ -363,12 +363,12 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
       n_chunks, chunk_size, nvcomp_batched_snappy_opts, &comp_temp_bytes,
       /*max_total_uncompressed_bytes=*/in.size()));
   CHECK_EQ(comp_temp_bytes, 0);
-  dh::DeviceUVector<char> comp_tmp(comp_temp_bytes);
+  dh::DeviceUVector<char> comp_tmp(comp_temp_bytes, cuctx->Stream());
 
   std::size_t max_out_nbytes = 0;
   SafeNvComp(nvcompBatchedSnappyCompressGetMaxOutputChunkSize(
       std::min(max_in_nbytes, chunk_size), nvcomp_batched_snappy_opts, &max_out_nbytes));
-  p_out->resize(max_out_nbytes * n_chunks);
+  p_out->resize(max_out_nbytes * n_chunks, cuctx->Stream());
   std::vector<void*> h_out_ptrs(n_chunks);
   std::vector<std::size_t> h_out_sizes(n_chunks);
   auto s_out = dh::ToSpan(*p_out);
@@ -377,12 +377,14 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
     h_out_ptrs[i] = chunk.data();
     h_out_sizes[i] = chunk.size();
   }
-  dh::DeviceUVector<void*> out_ptrs(h_out_ptrs.size());
+  dh::DeviceUVector<void*> out_ptrs(h_out_ptrs.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(out_ptrs.data(), h_out_ptrs.data(),
-                                common::Span{h_out_ptrs}.size_bytes(), cudaMemcpyDefault));
-  dh::DeviceUVector<std::size_t> out_sizes(h_out_sizes.size());
+                                common::Span{h_out_ptrs}.size_bytes(), cudaMemcpyDefault,
+                                cuctx->Stream()));
+  dh::DeviceUVector<std::size_t> out_sizes(h_out_sizes.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(out_sizes.data(), h_out_sizes.data(),
-                                common::Span{h_out_sizes}.size_bytes(), cudaMemcpyDefault));
+                                common::Span{h_out_sizes}.size_bytes(), cudaMemcpyDefault,
+                                cuctx->Stream()));
 
   /**
    * Compress

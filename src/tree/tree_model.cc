@@ -829,8 +829,9 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
   this->split_types_.HostVector().at(nid) = FeatureType::kNumerical;
 }
 
-void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond,
-                         bool default_left, linalg::VectorView<float const> base_weight,
+void RegTree::ExpandNode(Context const* ctx, bst_node_t nidx, bst_feature_t split_index,
+                         float split_cond, bool default_left,
+                         linalg::VectorView<float const> base_weight,
                          linalg::VectorView<float const> left_weight,
                          linalg::VectorView<float const> right_weight, float loss_chg,
                          float sum_hess, float left_sum, float right_sum) {
@@ -839,8 +840,8 @@ void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split
   CHECK(this->p_mt_tree_);
   CHECK_GT(param_.size_leaf_vector, 1);
 
-  this->p_mt_tree_->Expand(nidx, split_index, split_cond, default_left, base_weight, left_weight,
-                           right_weight, loss_chg, sum_hess, left_sum, right_sum);
+  this->p_mt_tree_->Expand(ctx, nidx, split_index, split_cond, default_left, base_weight,
+                           left_weight, right_weight, loss_chg, sum_hess, left_sum, right_sum);
 
   split_types_.HostVector().resize(this->Size(), FeatureType::kNumerical);
   split_categories_segments_.HostVector().resize(this->Size());
@@ -877,14 +878,14 @@ void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
   h_split_categories_segments.at(nidx).size = split_cat.size();
 }
 
-void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
+void RegTree::ExpandCategorical(Context const* ctx, bst_node_t nidx, bst_feature_t split_index,
                                 common::Span<common::KCatBitField::value_type> split_cat,
                                 bool default_left, linalg::VectorView<float const> base_weight,
                                 linalg::VectorView<float const> left_weight,
                                 linalg::VectorView<float const> right_weight, float loss_chg,
                                 float sum_hess, float left_sum, float right_sum) {
   CHECK(IsMultiTarget());
-  this->ExpandNode(nidx, split_index, DftBadValue(), default_left, base_weight, left_weight,
+  this->ExpandNode(ctx, nidx, split_index, DftBadValue(), default_left, base_weight, left_weight,
                    right_weight, loss_chg, sum_hess, left_sum, right_sum);
 
   auto& h_split_categories = split_categories_.HostVector();

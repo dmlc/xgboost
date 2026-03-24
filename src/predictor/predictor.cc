@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  */
 #include "xgboost/predictor.h"
 
@@ -58,7 +58,7 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>
   CHECK_NE(model.learner_model_param->num_output_group, 0);
 
   if (!ctx_->Device().IsCPU()) {
-    out_preds->SetDevice(ctx_->Device());
+    out_preds->SetDevice(ctx_->Device(), this->ctx_);
   }
 
   // Cannot rely on the Resize to fill as it might skip if the size is already correct.
@@ -69,14 +69,14 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>
   if (!base_margin->Empty()) {
     ValidateBaseMarginShape(info.base_margin_, info.num_row_,
                             model.learner_model_param->OutputLength());
-    out_preds->Copy(*base_margin);
+    out_preds->Copy(*base_margin, this->ctx_);
     return;
   }
 
   auto base_score = model.learner_model_param->BaseScore(this->ctx_->Device());
   if (base_score.Size() == 1) {
     // Fill a scalar
-    out_preds->Fill(model.learner_model_param->BaseScore(DeviceOrd::CPU())(0));
+    out_preds->Fill(model.learner_model_param->BaseScore(DeviceOrd::CPU())(0), this->ctx_);
     return;
   }
 

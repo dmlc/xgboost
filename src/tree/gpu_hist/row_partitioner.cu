@@ -11,9 +11,10 @@
 
 namespace xgboost::tree {
 void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid) {
+  auto stream = ctx->CUDACtx()->Stream();
   ridx_segments_.clear();
-  ridx_.resize(n_samples);
-  tmp_.clear();
+  ridx_.resize(n_samples, stream);
+  tmp_.clear(stream);
   n_nodes_ = 1;  // Root
 
   CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());

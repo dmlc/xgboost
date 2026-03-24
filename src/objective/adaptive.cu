@@ -3,7 +3,7 @@
  */
 #include <thrust/sort.h>
 
-#include <cub/cub.cuh>         // NOLINT
+#include <cub/cub.cuh>  // NOLINT
 
 #include "../collective/aggregator.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
@@ -95,7 +95,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   auto d_node_idx = nidx.DeviceSpan();
 
   nptr.SetDevice(ctx->Device());
-  nptr.Resize(n_leaf + 1, 0);
+  nptr.Resize(ctx, n_leaf + 1, bst_idx_t{0});
   auto d_node_ptr = nptr.DeviceSpan();
 
   dh::LaunchN(n_leaf, [=] XGBOOST_DEVICE(size_t i) {

@@ -57,11 +57,11 @@ void TestPartitionBasedSplit::SetUp() {
     total_gpair_ += e;
   }
 
-  auto enumerate = [this, n_feat = info_.num_col_](common::GHistRow hist,
-                                                   GradientPairPrecise parent_sum) {
+  auto enumerate = [this, &ctx, n_feat = info_.num_col_](common::GHistRow hist,
+                                                         GradientPairPrecise parent_sum) {
     int32_t best_thresh = -1;
     float best_score{-std::numeric_limits<float>::infinity()};
-    TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), DeviceOrd::CPU()};
+    TreeEvaluator evaluator{&ctx, param_, static_cast<bst_feature_t>(n_feat)};
     auto tree_evaluator = evaluator.GetEvaluator<TrainParam>();
     GradientPairPrecise left_sum;
     auto parent_gain = tree_evaluator.CalcGain(0, param_, GradStats{total_gpair_});
@@ -205,7 +205,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   for (bst_target_t t{0}; t < n_targets; ++t) {
     root_sum_hess += static_cast<float>(root_sum.HostView()(t).GetHess());
   }
-  tree.SetRoot(weight.HostView(), root_sum_hess);
+  tree.SetRoot(&ctx, weight.HostView(), root_sum_hess);
   auto w = weight.HostView();
   ASSERT_EQ(w.Size(), n_targets);
   ASSERT_EQ(w(0), -1.5);
@@ -410,7 +410,7 @@ TEST(HistMultiEvaluator, CategoricalOneHot) {
   for (bst_target_t t = 0; t < n_targets; ++t) {
     root_sum_hess += static_cast<float>(root_sum.HostView()(t).GetHess());
   }
-  tree.SetRoot(weight.HostView(), root_sum_hess);
+  tree.SetRoot(&ctx, weight.HostView(), root_sum_hess);
 
   std::vector<MultiExpandEntry> entries(1, {0, 0});
   std::vector<BoundedHistCollection const *> ptrs;

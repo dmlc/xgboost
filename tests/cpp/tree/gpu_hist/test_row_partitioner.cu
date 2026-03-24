@@ -32,7 +32,7 @@ void TestUpdatePositionBatch() {
     EXPECT_EQ(rows[i], i);
   }
   std::vector<int> extra_data = {0};
-  dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(kNumRows);
+  dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(kNumRows, ctx.CUDACtx()->Stream());
   // Send the first five training instances to the right node
   // and the second 5 to the left node
   rp.UpdatePositionBatch(
@@ -65,7 +65,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   auto op = [=] __device__(auto ridx, int split_index, int data) {
     return ridx % 2 == 0;
-  };
+  };  // NOLINT
   std::vector<int> op_data(segments.size());
   std::vector<PerNodeData<int>> h_batch_info(segments.size());
   dh::TemporaryArray<PerNodeData<int>> d_batch_info(segments.size());
@@ -85,7 +85,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   auto op_without_data = [=] __device__(auto ridx) {
     return ridx % 2 == 0;
-  };
+  };  // NOLINT
   for (size_t i = 0; i < segments.size(); i++) {
     auto begin = ridx.begin() + segments[i].begin;
     auto end = ridx.begin() + segments[i].end;
@@ -162,7 +162,7 @@ void TestExternalMemory() {
 
     partitioners.emplace_back(std::make_unique<RowPartitioner>());
     partitioners.back()->Reset(&ctx, page.Size(), page.BaseRowId());
-    dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(page.Size());
+    dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(page.Size(), ctx.CUDACtx()->Stream());
     std::vector<RegTree::Node> splits{tree[0]};
     page.Impl()->Visit(&ctx, {}, [&](auto&& acc) {
       partitioners.back()->UpdatePositionBatch(&ctx, {0}, {1}, {2}, splits, dh::ToSpan(ridx_tmp),
@@ -205,7 +205,7 @@ void TestEmptyNode(std::int32_t n_workers) {
     bst_idx_t base_rowid = 0;
     partitioner.Reset(&ctx, n_samples, base_rowid);
     std::vector<RegTree::Node> splits(1);
-    dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(n_samples);
+    dh::DeviceUVector<cuda_impl::RowIndexT> ridx_tmp(n_samples, ctx.CUDACtx()->Stream());
     partitioner.UpdatePositionBatch(
         &ctx, {0}, {1}, {2}, splits, dh::ToSpan(ridx_tmp),
         [] XGBOOST_DEVICE(bst_idx_t ridx, std::int32_t /*nidx_in_batch*/, RegTree::Node) {

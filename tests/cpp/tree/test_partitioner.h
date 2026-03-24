@@ -1,14 +1,13 @@
 /**
- * Copyright 2021-2026 by XGBoost contributors.
+ * Copyright 2021-2026, XGBoost contributors.
  */
-#ifndef XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
-#define XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
-#include <xgboost/context.h>                      // for Context
-#include <xgboost/linalg.h>                       // for Constant, Vector
-#include <xgboost/logging.h>                      // for CHECK
-#include <xgboost/tree_model.h>                   // for RegTree
+#pragma once
+#include <xgboost/context.h>     // for Context
+#include <xgboost/linalg.h>      // for Constant, Vector
+#include <xgboost/logging.h>     // for CHECK
+#include <xgboost/tree_model.h>  // for RegTree
 
-#include <vector>                                 // for vector
+#include <vector>  // for vector
 
 #include "../../../src/tree/hist/expand_entry.h"  // for CPUExpandEntry, MultiExpandEntry
 
@@ -33,8 +32,8 @@ inline void GetMultiSplitForTest(RegTree *tree, float split_value,
   linalg::Vector<float> base_weight{linalg::Constant(&ctx, 0.0f, n_targets)};
   linalg::Vector<float> left_weight{linalg::Constant(&ctx, 0.0f, n_targets)};
   linalg::Vector<float> right_weight{linalg::Constant(&ctx, 0.0f, n_targets)};
-  tree->SetRoot(base_weight.HostView(), /*sum_hess=*/0.0f);
-  tree->ExpandNode(/*nidx=*/RegTree::kRoot, /*split_index=*/0, /*split_value=*/split_value,
+  tree->SetRoot(&ctx, base_weight.HostView(), /*sum_hess=*/0.0f);
+  tree->ExpandNode(&ctx, /*nidx=*/RegTree::kRoot, /*split_index=*/0, /*split_value=*/split_value,
                    /*default_left=*/true, base_weight.HostView(), left_weight.HostView(),
                    right_weight.HostView(), /*loss_chg=*/0.0f, /*sum_hess=*/0.0f, /*left_sum=*/0.0f,
                    /*right_sum=*/0.0f);
@@ -44,4 +43,3 @@ inline void GetMultiSplitForTest(RegTree *tree, float split_value,
   tree->GetMultiTargetTree()->SetLeaves();
 }
 }  // namespace xgboost::tree
-#endif  // XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_

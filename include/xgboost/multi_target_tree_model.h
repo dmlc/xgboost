@@ -90,12 +90,12 @@ class MultiTargetTree : public Model {
    * @param weight   The weight vector for the root node.
    * @param sum_hess The sum of hessians for the root node (coverage).
    */
-  void SetRoot(linalg::VectorView<float const> weight, float sum_hess);
+  void SetRoot(Context const* ctx, linalg::VectorView<float const> weight, float sum_hess);
   /**
    * @brief Expand a leaf into split node.
    */
-  void Expand(bst_node_t nidx, bst_feature_t split_idx, float split_cond, bool default_left,
-              linalg::VectorView<float const> base_weight,
+  void Expand(Context const* ctx, bst_node_t nidx, bst_feature_t split_idx, float split_cond,
+              bool default_left, linalg::VectorView<float const> base_weight,
               linalg::VectorView<float const> left_weight,
               linalg::VectorView<float const> right_weight, float loss_chg, float sum_hess,
               float left_sum, float right_sum);

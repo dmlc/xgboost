@@ -438,7 +438,7 @@ class HistEvaluator {
     // Set up child constraints
     auto left_child = tree[candidate.nid].LeftChild();
     auto right_child = tree[candidate.nid].RightChild();
-    tree_evaluator_.AddSplit(candidate.nid, left_child, right_child,
+    tree_evaluator_.AddSplit(ctx_, candidate.nid, left_child, right_child,
                              tree[candidate.nid].SplitIndex(), left_weight, right_weight);
     evaluator = tree_evaluator_.GetEvaluator();
 
@@ -476,7 +476,7 @@ class HistEvaluator {
       : ctx_{ctx},
         param_{param},
         column_sampler_{std::move(sampler)},
-        tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU()},
+        tree_evaluator_{ctx, *param, static_cast<bst_feature_t>(info.num_col_)},
         is_col_split_{info.IsColumnSplit()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights, param_->colsample_bynode,
@@ -751,14 +751,15 @@ class HistMultiEvaluator {
     float sum_hess = left_sum_hess + right_sum_hess;
 
     if (candidate.split.is_cat) {
-      p_tree->ExpandCategorical(candidate.nid, candidate.split.SplitIndex(),
+      p_tree->ExpandCategorical(ctx_, candidate.nid, candidate.split.SplitIndex(),
                                 candidate.split.cat_bits, candidate.split.DefaultLeft(),
                                 base_weight, left_weight, right_weight, loss_chg, sum_hess,
                                 left_sum_hess, right_sum_hess);
     } else {
-      p_tree->ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
-                         candidate.split.DefaultLeft(), base_weight, left_weight, right_weight,
-                         loss_chg, sum_hess, left_sum_hess, right_sum_hess);
+      p_tree->ExpandNode(ctx_, candidate.nid, candidate.split.SplitIndex(),
+                         candidate.split.split_value, candidate.split.DefaultLeft(), base_weight,
+                         left_weight, right_weight, loss_chg, sum_hess, left_sum_hess,
+                         right_sum_hess);
     }
 
     CHECK(p_tree->IsMultiTarget());

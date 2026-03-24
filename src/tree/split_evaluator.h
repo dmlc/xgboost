@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023 by Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  * \file split_evaluator.h
  * \brief Used for implementing a loss term specific to decision trees. Useful for custom regularisation.
  * \author Henry Gouk
@@ -33,12 +33,12 @@ class TreeEvaluator {
   bool has_constraint_;
 
  public:
-  TreeEvaluator(TrainParam const& p, bst_feature_t n_features, DeviceOrd device) {
-    device_ = device;
-    if (device.IsCUDA()) {
-      lower_bounds_.SetDevice(device);
-      upper_bounds_.SetDevice(device);
-      monotone_.SetDevice(device);
+  TreeEvaluator(Context const* ctx, TrainParam const& p, bst_feature_t n_features)
+      : device_{ctx->Device()} {
+    if (device_.IsCUDA()) {
+      lower_bounds_.SetDevice(device_);
+      upper_bounds_.SetDevice(device_);
+      monotone_.SetDevice(device_);
     }
 
     if (p.monotone_constraints.empty()) {
@@ -50,8 +50,8 @@ class TreeEvaluator {
       monotone_.HostVector() = p.monotone_constraints;
       monotone_.HostVector().resize(n_features, 0);
       // Initialised to some small size, can grow if needed
-      lower_bounds_.Resize(256, -std::numeric_limits<float>::max());
-      upper_bounds_.Resize(256, std::numeric_limits<float>::max());
+      lower_bounds_.Resize(ctx, 256, -std::numeric_limits<float>::max());
+      upper_bounds_.Resize(ctx, 256, std::numeric_limits<float>::max());
       has_constraint_ = true;
     }
 
@@ -79,7 +79,7 @@ class TreeEvaluator {
       float wright = this->CalcWeight(nidx, param, right);
 
       float gain = this->CalcGainGivenWeight(param, left, wleft) +
-                    this->CalcGainGivenWeight(param, right, wright);
+                   this->CalcGainGivenWeight(param, right, wright);
 
       if (constraint == 0) {
         // no constraint
@@ -92,7 +92,7 @@ class TreeEvaluator {
     }
 
     template <typename GradientSumT>
-    XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT &param,
+    XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT& param,
                                     GradientSumT const& stats) const {
       float w = ::xgboost::tree::CalcWeight(param, stats);
       if (!has_constraint) {
@@ -138,11 +138,10 @@ class TreeEvaluator {
         return Divide(common::Sqr(ThresholdL1(stats.GetGrad(), p.reg_alpha)),
                       (stats.GetHess() + p.reg_lambda));
       }
-      return tree::CalcGainGivenWeight<ParamT, float>(p, stats.GetGrad(),
-                                                      stats.GetHess(), w);
+      return tree::CalcGainGivenWeight<ParamT, float>(p, stats.GetGrad(), stats.GetHess(), w);
     }
     template <typename GradientSumT>
-    XGBOOST_DEVICE float CalcGain(bst_node_t nid, ParamT const &p,
+    XGBOOST_DEVICE float CalcGain(bst_node_t nid, ParamT const& p,
                                   GradientSumT const& stats) const {
       return this->CalcGainGivenWeight(p, stats, this->CalcWeight(nid, p, stats));
     }
@@ -150,7 +149,8 @@ class TreeEvaluator {
 
  public:
   /* Get a view to the evaluator that can be passed down to device. */
-  template <typename ParamT = TrainParam> auto GetEvaluator() const {
+  template <typename ParamT = TrainParam>
+  auto GetEvaluator() const {
     if (device_.IsCUDA()) {
       auto constraints = monotone_.ConstDevicePointer();
       return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDevicePointer(),
@@ -163,7 +163,7 @@ class TreeEvaluator {
   }
 
   template <bool CompiledWithCuda = WITH_CUDA()>
-  void AddSplit(bst_node_t nodeid, bst_node_t leftid, bst_node_t rightid,
+  void AddSplit(Context const* ctx, bst_node_t nodeid, bst_node_t leftid, bst_node_t rightid,
                 bst_feature_t f, float left_weight, float right_weight) {
     if (!has_constraint_) {
       return;
@@ -171,15 +171,14 @@ class TreeEvaluator {
 
     size_t max_nidx = std::max(leftid, rightid);
     if (lower_bounds_.Size() <= max_nidx) {
-      lower_bounds_.Resize(max_nidx * 2 + 1, -std::numeric_limits<float>::max());
+      lower_bounds_.Resize(ctx, max_nidx * 2 + 1, -std::numeric_limits<float>::max());
     }
     if (upper_bounds_.Size() <= max_nidx) {
-      upper_bounds_.Resize(max_nidx * 2 + 1, std::numeric_limits<float>::max());
+      upper_bounds_.Resize(ctx, max_nidx * 2 + 1, std::numeric_limits<float>::max());
     }
 
     common::Transform<>::Init(
-        [=] XGBOOST_DEVICE(size_t, common::Span<float> lower,
-                           common::Span<float> upper,
+        [=] XGBOOST_DEVICE(size_t, common::Span<float> lower, common::Span<float> upper,
                            common::Span<int> monotone) {
           lower[leftid] = lower[nodeid];
           upper[leftid] = upper[nodeid];

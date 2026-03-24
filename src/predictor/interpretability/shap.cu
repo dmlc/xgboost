@@ -59,10 +59,11 @@ struct CopyViews {
 
   void operator()(dh::DeviceUVector<TreeViewVar>* p_dst, std::vector<TreeViewVar>&& src) {
     xgboost_NVTX_FN_RANGE();
-    p_dst->resize(src.size());
+    auto stream = ctx->CUDACtx()->Stream();
+    p_dst->resize(src.size(), stream);
     auto d_dst = dh::ToSpan(*p_dst);
-    dh::safe_cuda(cudaMemcpyAsync(d_dst.data(), src.data(), d_dst.size_bytes(), cudaMemcpyDefault,
-                                  ctx->CUDACtx()->Stream()));
+    dh::safe_cuda(
+        cudaMemcpyAsync(d_dst.data(), src.data(), d_dst.size_bytes(), cudaMemcpyDefault, stream));
   }
 };
 
@@ -213,7 +214,7 @@ void ExtractPaths(Context const* ctx,
     });
     auto max_cat_it =
         thrust::max_element(ctx->CUDACtx()->CTP(), max_elem_it, max_elem_it + d_model.n_nodes);
-    dh::CachingDeviceUVector<std::size_t> d_max_cat(1);
+    dh::CachingDeviceUVector<std::size_t> d_max_cat(1, ctx->CUDACtx()->Stream());
     auto s_max_cat = dh::ToSpan(d_max_cat);
     dh::LaunchN(1, ctx->CUDACtx()->Stream(),
                 [=] __device__(std::size_t) { s_max_cat[0] = *max_cat_it; });

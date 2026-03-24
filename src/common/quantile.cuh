@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_QUANTILE_CUH_
 #define XGBOOST_COMMON_QUANTILE_CUH_
@@ -7,13 +7,10 @@
 #include <thrust/logical.h>  // for any_of
 
 #include <algorithm>
-#include <cstddef>     // for size_t
-#include <functional>  // for equal_to
+#include <cstddef>  // for size_t
 
 #include "categorical.h"
-#include "common.h"          // for HumanMemUnit
-#include "cuda_context.cuh"  // for CUDAContext
-#include "cuda_rt_utils.h"   // for SetDevice
+#include "common.h"  // for HumanMemUnit
 #include "device_helpers.cuh"
 #include "error_msg.h"  // for InvalidMaxBin
 #include "quantile.h"
@@ -77,7 +74,7 @@ class SketchContainer {
   Span<SketchEntry> Column(bst_feature_t i) {
     auto data = dh::ToSpan(this->entries_);
     auto h_ptr = columns_ptr_.ConstHostSpan();
-    auto c = data.subspan(h_ptr[i], h_ptr[i+1] - h_ptr[i]);
+    auto c = data.subspan(h_ptr[i], h_ptr[i + 1] - h_ptr[i]);
     return c;
   }
 
@@ -88,20 +85,20 @@ class SketchContainer {
    * \param num_columns Total number of columns in dataset.
    * \param device      GPU ID.
    */
-  SketchContainer(HostDeviceVector<FeatureType> const& feature_types, bst_bin_t max_bin,
-                  bst_feature_t num_columns, DeviceOrd device)
+  SketchContainer(Context const* ctx, HostDeviceVector<FeatureType> const& feature_types,
+                  bst_bin_t max_bin, bst_feature_t num_columns)
       : num_columns_{num_columns}, num_bins_{max_bin} {
-    CHECK(device.IsCUDA());
+    CHECK(ctx->IsCUDA());
     // Initialize Sketches for this dmatrix
-    this->columns_ptr_.SetDevice(device);
-    this->columns_ptr_.Resize(num_columns + 1, 0);
-    this->columns_ptr_tmp_.SetDevice(device);
-    this->columns_ptr_tmp_.Resize(num_columns + 1, 0);
+    this->columns_ptr_.SetDevice(ctx->Device());
+    this->columns_ptr_.Resize(ctx, num_columns + 1, 0);
+    this->columns_ptr_tmp_.SetDevice(ctx->Device());
+    this->columns_ptr_tmp_.Resize(ctx, num_columns + 1, 0);
 
     this->feature_types_.Resize(feature_types.Size());
     this->feature_types_.Copy(feature_types);
     // Pull to device.
-    this->feature_types_.SetDevice(device);
+    this->feature_types_.SetDevice(ctx->Device());
     this->feature_types_.ConstDeviceSpan();
     this->feature_types_.ConstHostSpan();
 
@@ -118,9 +115,9 @@ class SketchContainer {
    */
   [[nodiscard]] std::size_t MemCapacityBytes() const {
     auto constexpr kE = sizeof(typename decltype(this->entries_)::value_type);
-    auto n_bytes =
-        (this->entries_.capacity() + this->entries_tmp_.capacity() + this->prune_buffer_.capacity()) *
-        kE;
+    auto n_bytes = (this->entries_.capacity() + this->entries_tmp_.capacity() +
+                    this->prune_buffer_.capacity()) *
+                   kE;
     n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_tmp_.Size()) * sizeof(OffsetT);
     n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
 
@@ -194,7 +191,6 @@ class SketchContainer {
 
   SketchContainer(const SketchContainer&) = delete;
   SketchContainer& operator=(const SketchContainer&) = delete;
-
 };
 }  // namespace xgboost::common
 

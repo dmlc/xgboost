@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2025, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/equal.h>                       // for equal
@@ -21,17 +21,17 @@ namespace {
 void TestElementWiseKernel() {
   auto ctx = MakeCUDACtx(0);
   auto device = ctx.Device();
-  Tensor<float, 3> l{{2, 3, 4}, device};
+  Tensor<float, 3> l{{2, 3, 4}, device, kC, &ctx};
   {
     /**
      * Non-contiguous
      */
     // GPU view
-    auto t = l.View(device).Slice(linalg::All(), 1, linalg::All());
+    auto t = l.View(device, &ctx).Slice(linalg::All(), 1, linalg::All());
     ASSERT_FALSE(t.CContiguous());
     cuda_impl::TransformIdxKernel(&ctx, t, [] XGBOOST_DEVICE(std::size_t i, float) { return i; });
     // CPU view
-    t = l.View(DeviceOrd::CPU()).Slice(linalg::All(), 1, linalg::All());
+    t = l.View(DeviceOrd::CPU(), &ctx).Slice(linalg::All(), 1, linalg::All());
     std::size_t k = 0;
     for (size_t i = 0; i < l.Shape(0); ++i) {
       for (size_t j = 0; j < l.Shape(2); ++j) {
@@ -39,7 +39,7 @@ void TestElementWiseKernel() {
       }
     }
 
-    t = l.View(device).Slice(linalg::All(), 1, linalg::All());
+    t = l.View(device, &ctx).Slice(linalg::All(), 1, linalg::All());
     cuda_impl::ElementWiseKernel(
         t, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable { t(i, j) = i + j; });
 
@@ -55,11 +55,11 @@ void TestElementWiseKernel() {
     /**
      * Contiguous
      */
-    auto t = l.View(device);
+    auto t = l.View(device, &ctx);
     cuda_impl::TransformIdxKernel(&ctx, t, [] XGBOOST_DEVICE(size_t i, float) { return i; });
     ASSERT_TRUE(t.CContiguous());
     // CPU view
-    t = l.View(DeviceOrd::CPU());
+    t = l.View(DeviceOrd::CPU(), &ctx);
 
     size_t ind = 0;
     for (size_t i = 0; i < l.Shape(0); ++i) {
@@ -138,7 +138,7 @@ TEST(Linalg, SmallHistogram) {
 
   linalg::MatrixView<float> indices =
       linalg::MakeTensorView(&ctx, dh::ToSpan(values), values.size(), 1);
-  dh::CachingDeviceUVector<float> bins(n_bins);
+  dh::CachingDeviceUVector<float> bins(n_bins, ctx.CUDACtx()->Stream());
   HostDeviceVector<float> weights;
   SmallHistogram(&ctx, indices, common::MakeOptionalWeights(ctx.Device(), weights),
                  linalg::MakeTensorView(&ctx, dh::ToSpan(bins), bins.size()));

@@ -20,7 +20,7 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
                              common::Span<FeatureType const> ft, bst_feature_t n_features,
                              TrainParam const &param, bool is_column_split) {
   param_ = param;
-  tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device()};
+  tree_evaluator_ = TreeEvaluator{ctx, param, n_features};
   has_categoricals_ = cuts.HasCategorical();
   if (cuts.HasCategorical()) {
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();

@@ -595,13 +595,13 @@ auto MakeTensorView(Context const *ctx, Order order, common::Span<T, ext> data, 
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> *data, S &&...shape) {
-  auto span = ctx->IsCPU() ? data->HostSpan() : data->DeviceSpan();
+  auto span = ctx->IsCPU() ? data->HostSpan(ctx) : data->DeviceSpan(ctx);
   return MakeTensorView(ctx->Device(), span, std::forward<S>(shape)...);
 }
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> const *data, S &&...shape) {
-  auto span = ctx->IsCPU() ? data->ConstHostSpan() : data->ConstDeviceSpan();
+  auto span = ctx->IsCPU() ? data->ConstHostSpan(ctx) : data->ConstDeviceSpan(ctx);
   return MakeTensorView(ctx->Device(), span, std::forward<S>(shape)...);
 }
 
@@ -768,15 +768,15 @@ class Tensor {
   Order order_{Order::kC};
 
   template <typename I, std::int32_t D>
-  void Initialize(I const (&shape)[D], DeviceOrd device) {
+  void Initialize(I const (&shape)[D], DeviceOrd device, Context const *ctx = nullptr) {
     static_assert(D <= kDim, "Invalid shape.");
     std::copy(shape, shape + D, shape_);
     for (auto i = D; i < kDim; ++i) {
       shape_[i] = 1;
     }
     if (!device.IsCPU()) {
-      data_.SetDevice(device);
-      data_.ConstDevicePointer();  // Pull to device;
+      data_.SetDevice(device, ctx);
+      data_.ConstDevicePointer(ctx);  // Pull to device;
     }
     CHECK_EQ(data_.Size(), detail::CalcSize(shape_));
   }
@@ -791,11 +791,13 @@ class Tensor {
    * See \ref TensorView for parameters of this constructor.
    */
   template <typename I, int32_t D>
-  explicit Tensor(I const (&shape)[D], DeviceOrd device, Order order = kC)
-      : Tensor{common::Span<I const, D>{shape}, device, order} {}
+  explicit Tensor(I const (&shape)[D], DeviceOrd device, Order order = kC,
+                  Context const *ctx = nullptr)
+      : Tensor{common::Span<I const, D>{shape}, device, order, ctx} {}
 
   template <typename I, size_t D>
-  explicit Tensor(common::Span<I const, D> shape, DeviceOrd device, Order order = kC)
+  explicit Tensor(common::Span<I const, D> shape, DeviceOrd device, Order order = kC,
+                  Context const *ctx = nullptr)
       : order_{order} {
     // No device unroll as this is a host only function.
     std::copy(shape.data(), shape.data() + D, shape_);
@@ -804,33 +806,34 @@ class Tensor {
     }
     auto size = detail::CalcSize(shape_);
     if (!device.IsCPU()) {
-      data_.SetDevice(device);
+      data_.SetDevice(device, ctx);
     }
-    data_.Resize(size);
+    data_.Resize(ctx, size);
     if (!device.IsCPU()) {
-      data_.DevicePointer();  // Pull to device
+      data_.DevicePointer(ctx);  // Pull to device
     }
   }
   /**
    * Initialize from 2 host iterators.
    */
   template <typename It, typename I, int32_t D>
-  explicit Tensor(It begin, It end, I const (&shape)[D], DeviceOrd device, Order order = kC)
+  explicit Tensor(It begin, It end, I const (&shape)[D], DeviceOrd device, Order order = kC,
+                  Context const *ctx = nullptr)
       : order_{order} {
     auto &h_vec = data_.HostVector();
     h_vec.insert(h_vec.begin(), begin, end);
     // shape
-    this->Initialize(shape, device);
+    this->Initialize(shape, device, ctx);
   }
 
   template <typename I, int32_t D>
   explicit Tensor(std::initializer_list<T> data, I const (&shape)[D], DeviceOrd device,
-                  Order order = kC)
+                  Order order = kC, Context const *ctx = nullptr)
       : order_{order} {
     auto &h_vec = data_.HostVector();
     h_vec = data;
     // shape
-    this->Initialize(shape, device);
+    this->Initialize(shape, device, ctx);
   }
   /**
    * \brief Index operator. Not thread safe, should not be used in performance critical
@@ -852,29 +855,29 @@ class Tensor {
   /**
    * @brief Get a @ref TensorView for this tensor.
    */
-  auto View(DeviceOrd device) {
+  auto View(DeviceOrd device, Context const *ctx = nullptr) {
     if (device.IsCPU()) {
-      auto span = data_.HostSpan();
+      auto span = data_.HostSpan(ctx);
       return TensorView<T, kDim>{span, shape_, device, order_};
     } else {
-      data_.SetDevice(device);
-      auto span = data_.DeviceSpan();
+      data_.SetDevice(device, ctx);
+      auto span = data_.DeviceSpan(ctx);
       return TensorView<T, kDim>{span, shape_, device, order_};
     }
   }
-  auto View(DeviceOrd device) const {
+  auto View(DeviceOrd device, Context const *ctx = nullptr) const {
     if (device.IsCPU()) {
-      auto span = data_.ConstHostSpan();
+      auto span = data_.ConstHostSpan(ctx);
       return TensorView<T const, kDim>{span, shape_, device, order_};
     } else {
-      data_.SetDevice(device);
-      auto span = data_.ConstDeviceSpan();
+      data_.SetDevice(device, ctx);
+      auto span = data_.ConstDeviceSpan(ctx);
       return TensorView<T const, kDim>{span, shape_, device, order_};
     }
   }
 
-  auto HostView() { return this->View(DeviceOrd::CPU()); }
-  auto HostView() const { return this->View(DeviceOrd::CPU()); }
+  auto HostView(Context const *ctx = nullptr) { return this->View(DeviceOrd::CPU(), ctx); }
+  auto HostView(Context const *ctx = nullptr) const { return this->View(DeviceOrd::CPU(), ctx); }
 
   [[nodiscard]] std::size_t Size() const { return data_.Size(); }
   [[nodiscard]] bool Empty() const { return Size() == 0; }
@@ -950,7 +953,9 @@ class Tensor {
   /**
    * \brief Set device ordinal for this tensor.
    */
-  void SetDevice(DeviceOrd device) const { data_.SetDevice(device); }
+  void SetDevice(DeviceOrd device, Context const *ctx = nullptr) const {
+    data_.SetDevice(device, ctx);
+  }
   [[nodiscard]] DeviceOrd Device() const { return data_.Device(); }
 };
 
@@ -966,7 +971,7 @@ using Vector = Tensor<T, 1>;
 template <typename T, typename... Index>
 auto Empty(Context const *ctx, Index &&...index) {
   Tensor<T, sizeof...(Index)> t;
-  t.SetDevice(ctx->Device());
+  t.SetDevice(ctx->Device(), ctx);
   t.Reshape(index...);
   return t;
 }
@@ -977,7 +982,7 @@ auto Empty(Context const *ctx, Index &&...index) {
 template <typename T, std::int32_t kDim>
 auto EmptyLike(Context const *ctx, Tensor<T, kDim> const &in) {
   Tensor<T, kDim> t;
-  t.SetDevice(ctx->Device());
+  t.SetDevice(ctx->Device(), ctx);
   t.Reshape(in.Shape());
   return t;
 }
@@ -988,9 +993,9 @@ auto EmptyLike(Context const *ctx, Tensor<T, kDim> const &in) {
 template <typename T, typename... Index>
 auto Constant(Context const *ctx, T v, Index &&...index) {
   Tensor<T, sizeof...(Index)> t;
-  t.SetDevice(ctx->Device());
+  t.SetDevice(ctx->Device(), ctx);
   t.Reshape(index...);
-  t.Data()->Fill(std::move(v));
+  t.Data()->Fill(std::move(v), ctx);
   return t;
 }
 

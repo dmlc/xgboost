@@ -137,7 +137,7 @@ struct CatContainerImpl {
 
 [[nodiscard]] std::tuple<CatAccessor, dh::DeviceUVector<std::int32_t>> MakeCatAccessor(
     Context const* ctx, enc::DeviceColumnsView const& new_enc, CatContainer const* orig_cats) {
-  dh::DeviceUVector<std::int32_t> mapping(new_enc.n_total_cats);
+  dh::DeviceUVector<std::int32_t> mapping(new_enc.n_total_cats, ctx->CUDACtx()->Stream());
   auto d_sorted_idx = orig_cats->RefSortedIndex(ctx);
   auto orig_enc = orig_cats->DeviceView(ctx);
   enc::Recode(EncPolicy, orig_enc, d_sorted_idx, new_enc, dh::ToSpan(mapping));

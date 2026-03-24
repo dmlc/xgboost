@@ -180,7 +180,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
                                                                       total_rows),
                                                                   ctx->CUDACtx()->Stream());
     dh::safe_cuda(ret);
-    tmp->resize(n_bytes);
+    tmp->resize(n_bytes, ctx->CUDACtx()->Stream());
   }
   n_bytes = tmp->size();
   auto ret =
@@ -473,7 +473,7 @@ class RowPartitionerBatches {
       CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());
       n_max_samples = std::max(n_samples, n_max_samples);
     }
-    this->ridx_tmp_.resize(n_max_samples);
+    this->ridx_tmp_.resize(n_max_samples, ctx->CUDACtx()->Stream());
   }
 
   // Accessors
