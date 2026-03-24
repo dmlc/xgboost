@@ -541,9 +541,7 @@ class DeviceUVectorImpl {
     // std::swap(this->data_, new_ptr);
   }
   // Resize with init
-  void resize(  // NOLINT
-      std::size_t n, T const &v,
-      xgboost::curt::StreamRef stream = xgboost::curt::DefaultStream()) {
+  void resize(std::size_t n, T const &v, xgboost::curt::StreamRef stream) {  // NOLINT
     auto orig = this->size();
     this->resize(n, stream);
     if (orig < n) {
@@ -551,8 +549,7 @@ class DeviceUVectorImpl {
       thrust::fill(exec, this->begin() + orig, this->end(), v);
     }
   }
-
-  void clear() {  // NOLINT
+  void clear(xgboost::curt::StreamRef stream) {  // NOLINT
     this->resize(0);
   }
 

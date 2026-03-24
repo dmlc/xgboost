@@ -61,7 +61,7 @@ TEST(DeviceUVector, Basic) {
                           thrust::make_counting_iterator(0));
   ASSERT_TRUE(eq);
 
-  uvec1.clear();
+  uvec1.clear(stream);
   ASSERT_EQ(uvec1.size(), 0);
   ASSERT_EQ(uvec1.Capacity(), 32);
 }
@@ -153,7 +153,7 @@ TEST(TestVirtualMem, Version) {
   PinnedMemory pinned;
 #if defined(xgboost_IS_WIN)
   ASSERT_FALSE(pinned.IsVm());
-#else  // defined(xgboost_IS_WIN)
+#else   // defined(xgboost_IS_WIN)
   if (major == 12 && minor >= 5 || major > 12) {
     ASSERT_TRUE(pinned.IsVm());
   } else {
