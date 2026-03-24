@@ -90,6 +90,9 @@ class HostDeviceVector {
   static_assert(std::is_standard_layout_v<T>, "HostDeviceVector admits only POD types");
 
  public:
+  using value_type = T;  // NOLINT
+
+ public:
   explicit HostDeviceVector(size_t size = 0, T v = T(), DeviceOrd device = DeviceOrd::CPU(),
                             Context const* ctx = nullptr);
   HostDeviceVector(std::initializer_list<T> init, DeviceOrd device = DeviceOrd::CPU(),
@@ -152,12 +155,16 @@ class HostDeviceVector {
   void SetDevice(DeviceOrd device, Context const* ctx = nullptr) const;
 
   void Resize(std::size_t new_size, Context const* ctx = nullptr);
-  /** @brief Resize and initialize the data if the new size is larger than the old size. */
-  void Resize(std::size_t new_size, T v, Context const* ctx = nullptr);
 
-  using value_type = T;  // NOLINT
+  /** @brief Resize and initialize the data if the new size is larger than the old size. */
+  template <std::enable_if_t<!std::is_pointer_v<T>>* = nullptr>
+  void Resize(std::size_t new_size, T v, Context const* ctx = nullptr) {
+    this->ResizeImpl(new_size, v, ctx);
+  }
 
  private:
+  void ResizeImpl(std::size_t new_size, T v, Context const* ctx);
+
   HostDeviceVectorImpl<T>* impl_;
 };
 

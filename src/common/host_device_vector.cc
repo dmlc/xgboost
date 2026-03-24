@@ -122,12 +122,12 @@ const std::vector<T>& HostDeviceVector<T>::ConstHostVector(Context const*) const
 }
 
 template <typename T>
-void HostDeviceVector<T>::Resize(size_t new_size, T v, Context const*) {
+void HostDeviceVector<T>::ResizeImpl(size_t new_size, T v, Context const*) {
   impl_->Vec().resize(new_size, v);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Resize(size_t new_size) {
+void HostDeviceVector<T>::Resize(size_t new_size, Context const*) {
   impl_->Vec().resize(new_size, T{});
 }
 
