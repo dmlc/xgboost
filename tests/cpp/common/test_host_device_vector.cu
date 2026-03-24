@@ -192,21 +192,21 @@ TEST(HostDeviceVector, Resize) {
     ASSERT_TRUE(vec.DeviceCanRead());
     ASSERT_FALSE(vec.DeviceCanWrite());
     vec.DeviceSpan(&ctx);
-    vec.Resize(7, 3.0f, &ctx);
+    vec.Resize(&ctx, 7, 3.0f);
     ASSERT_TRUE(vec.DeviceCanWrite());
     check(vec);
   }
   {
     HostDeviceVector<float> vec{{1.0f, 2.0f, 3.0f, 4.0f}, ctx.Device(), &ctx};
     ASSERT_TRUE(vec.DeviceCanWrite());
-    vec.Resize(7, 3.0f, &ctx);
+    vec.Resize(&ctx, 7, 3.0f);
     ASSERT_TRUE(vec.DeviceCanWrite());
     check(vec);
   }
   {
     HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
     ASSERT_TRUE(vec.HostCanWrite());
-    vec.Resize(7, 3.0f, &ctx);
+    vec.Resize(&ctx, 7, 3.0f);
     ASSERT_TRUE(vec.HostCanWrite());
     check(vec);
   }
