@@ -81,6 +81,8 @@ jobs:
         run: |
           # Must run before checkout to have the latest git installed.
           apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 pandoc -y
+          # Required by R `fs` package, which is required by `rmarkdown`.
+          apt install libuv1-dev -y
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
