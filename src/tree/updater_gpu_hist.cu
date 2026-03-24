@@ -145,7 +145,7 @@ struct GPUHistMakerDevice {
                      std::shared_ptr<common::ColumnSampler> column_sampler, MetaInfo const& info,
                      std::vector<bst_idx_t> batch_ptr,
                      std::shared_ptr<common::HistogramCuts const> cuts, bool dense_compressed)
-      : evaluator_{_param, static_cast<bst_feature_t>(info.num_col_), ctx->Device()},
+      : evaluator_{ctx, _param, static_cast<bst_feature_t>(info.num_col_)},
         ctx_{ctx},
         column_sampler_{std::move(column_sampler)},
         batch_ptr_{std::move(batch_ptr)},
@@ -647,7 +647,7 @@ struct GPUHistMakerDevice {
                       candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
                       candidate.split.loss_chg, parent_hess, left_hess, right_hess);
     }
-    evaluator_.ApplyTreeSplit(candidate, p_tree);
+    evaluator_.ApplyTreeSplit(ctx_, candidate, p_tree);
 
     const auto& parent = tree[candidate.nidx];
     interaction_constraints.Split(candidate.nidx, parent.SplitIndex(), parent.LeftChild(),

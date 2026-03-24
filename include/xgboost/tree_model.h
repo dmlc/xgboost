@@ -315,7 +315,8 @@ class RegTree : public Model {
    * @param left_sum  The sum of hessians for the left child (coverage).
    * @param right_sum The sum of hessians for the right child (coverage).
    */
-  void ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond, bool default_left,
+  void ExpandNode(Context const* ctx, bst_node_t nidx, bst_feature_t split_index,
+                  float split_cond, bool default_left,
                   linalg::VectorView<float const> base_weight,
                   linalg::VectorView<float const> left_weight,
                   linalg::VectorView<float const> right_weight, float loss_chg, float sum_hess,
@@ -355,7 +356,7 @@ class RegTree : public Model {
   /**
    * @brief Expands a leaf node with categories for a multi-target tree.
    */
-  void ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
+  void ExpandCategorical(Context const* ctx, bst_node_t nidx, bst_feature_t split_index,
                          common::Span<const uint32_t> split_cat, bool default_left,
                          linalg::VectorView<float const> base_weight,
                          linalg::VectorView<float const> left_weight,
@@ -414,9 +415,9 @@ class RegTree : public Model {
    * @param weight   Internal split weight, with size equals to reduced targets.
    * @param sum_hess The sum of hessians for the root node (coverage).
    */
-  void SetRoot(linalg::VectorView<float const> weight, float sum_hess) {
+  void SetRoot(Context const* ctx, linalg::VectorView<float const> weight, float sum_hess) {
     CHECK(IsMultiTarget());
-    return this->p_mt_tree_->SetRoot(weight, sum_hess);
+    return this->p_mt_tree_->SetRoot(ctx, weight, sum_hess);
   }
   /**
    * @brief Get the maximum depth.

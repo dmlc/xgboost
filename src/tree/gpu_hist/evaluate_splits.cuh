@@ -134,8 +134,8 @@ class GPUHistEvaluator {
   }
 
  public:
-  GPUHistEvaluator(TrainParam const &param, bst_feature_t n_features, DeviceOrd device)
-      : tree_evaluator_{param, n_features, device}, param_{param} {}
+  GPUHistEvaluator(Context const *ctx, TrainParam const &param, bst_feature_t n_features)
+      : tree_evaluator_{ctx, param, n_features}, param_{param} {}
   /**
    * \brief Reset the evaluator, should be called before any use.
    */
@@ -166,12 +166,12 @@ class GPUHistEvaluator {
   /**
    * \brief Add a split to the internal tree evaluator.
    */
-  void ApplyTreeSplit(GPUExpandEntry const &candidate, RegTree *p_tree) {
+  void ApplyTreeSplit(Context const *ctx, GPUExpandEntry const &candidate, RegTree *p_tree) {
     auto &tree = *p_tree;
     // Set up child constraints
     auto left_child = tree[candidate.nidx].LeftChild();
     auto right_child = tree[candidate.nidx].RightChild();
-    tree_evaluator_.AddSplit(candidate.nidx, left_child, right_child,
+    tree_evaluator_.AddSplit(ctx, candidate.nidx, left_child, right_child,
                              tree[candidate.nidx].SplitIndex(), candidate.left_weight,
                              candidate.right_weight);
   }
