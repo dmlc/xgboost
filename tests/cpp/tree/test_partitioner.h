@@ -1,14 +1,13 @@
 /**
- * Copyright 2021-2026 by XGBoost contributors.
+ * Copyright 2021-2026, XGBoost contributors.
  */
-#ifndef XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
-#define XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
-#include <xgboost/context.h>                      // for Context
-#include <xgboost/linalg.h>                       // for Constant, Vector
-#include <xgboost/logging.h>                      // for CHECK
-#include <xgboost/tree_model.h>                   // for RegTree
+#pragma once
+#include <xgboost/context.h>     // for Context
+#include <xgboost/linalg.h>      // for Constant, Vector
+#include <xgboost/logging.h>     // for CHECK
+#include <xgboost/tree_model.h>  // for RegTree
 
-#include <vector>                                 // for vector
+#include <vector>  // for vector
 
 #include "../../../src/tree/hist/expand_entry.h"  // for CPUExpandEntry, MultiExpandEntry
 
@@ -44,4 +43,3 @@ inline void GetMultiSplitForTest(RegTree *tree, float split_value,
   tree->GetMultiTargetTree()->SetLeaves();
 }
 }  // namespace xgboost::tree
-#endif  // XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
