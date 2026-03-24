@@ -195,8 +195,8 @@ SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(curt::StreamRef s,
     std::memset(this->de_params.data() + i, 0, sizeof(CUmemDecompressParams));
   }
 
-  FillDecompParams(d_in_chunk_ptrs.data().get(), d_in_chunk_sizes.data().get(), de_params.ToSpan(),
-                   this->act_nbytes.data().get(), d_out_chunk_sizes.data().get(), status.data(), s);
+  FillDecompParams(d_in_chunk_ptrs.data(), d_in_chunk_sizes.data(), de_params.ToSpan(),
+                   this->act_nbytes.data().get(), d_out_chunk_sizes.data(), status.data(), s);
   dh::XGBCachingDeviceAllocator<char> alloc;
   bool valid = thrust::all_of(thrust::cuda::par_nosync(alloc).on(s), status.cbegin(), status.cend(),
                               ChkOp{});
@@ -301,8 +301,8 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
                                   dh::ToSpan(d_out_ptrs).size_bytes(), cudaMemcpyDefault, stream));
     // Run nvcomp
     SafeNvComp(nvcompBatchedSnappyDecompressAsync(
-        mgr_impl->d_in_chunk_ptrs.data().get(), mgr_impl->d_in_chunk_sizes.data().get(),
-        mgr_impl->d_out_chunk_sizes.data().get(), mgr_impl->act_nbytes.data().get(), n_chunks,
+        mgr_impl->d_in_chunk_ptrs.data(), mgr_impl->d_in_chunk_sizes.data(),
+        mgr_impl->d_out_chunk_sizes.data(), mgr_impl->act_nbytes.data().get(), n_chunks,
         tmp.data().get(), n_tmp_bytes, d_out_ptrs.data().get(),
         nvcompBatchedSnappyDecompressDefaultOpts, status.data().get(), stream));
   }
@@ -326,7 +326,7 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
    */
   std::size_t n_chunks = (in.size() + chunk_size - 1) / chunk_size;
   if (n_chunks == 0) {
-    p_out->clear();
+    p_out->clear(ctx->CUDACtx()->Stream());
     return {};
   }
   std::size_t last = 0;
@@ -368,7 +368,7 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
   std::size_t max_out_nbytes = 0;
   SafeNvComp(nvcompBatchedSnappyCompressGetMaxOutputChunkSize(
       std::min(max_in_nbytes, chunk_size), nvcomp_batched_snappy_opts, &max_out_nbytes));
-  p_out->resize(max_out_nbytes * n_chunks);
+  p_out->resize(max_out_nbytes * n_chunks, cuctx->Stream());
   std::vector<void*> h_out_ptrs(n_chunks);
   std::vector<std::size_t> h_out_sizes(n_chunks);
   auto s_out = dh::ToSpan(*p_out);
