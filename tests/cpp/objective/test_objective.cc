@@ -27,6 +27,7 @@ TEST(Objective, PredTransform) {
   xgboost::Context tparam;
   tparam.UpdateAllowUnknown(Args{{"device", "cuda"}});
   size_t n = 100;
+  Context ctx;
 
   for (const auto& entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
     std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create(entry->name, &tparam)};
@@ -40,7 +41,7 @@ TEST(Objective, PredTransform) {
       obj->Configure(Args{{"expectile_alpha", "0.5"}});
     }
     HostDeviceVector<float> predts;
-    predts.Resize(n, 3.14f);  // prediction is performed on host.
+    predts.Resize(&ctx, n, 3.14f);  // prediction is performed on host.
     ASSERT_FALSE(predts.DeviceCanRead());
     obj->PredTransform(&predts);
     ASSERT_FALSE(predts.DeviceCanRead());

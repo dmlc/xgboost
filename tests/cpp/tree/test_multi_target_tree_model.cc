@@ -28,11 +28,12 @@ std::unique_ptr<RegTree> MakeMtTreeForTest(bst_target_t n_targets) {
     std::iota(h_data.begin(), h_data.end(), init);
   };
 
+  Context ctx;
   linalg::Vector<float> base_weight;
   base_weight.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
     iota_weights(1.0f, data, shape);
   });
-  tree->SetRoot(base_weight.HostView(), /*sum_hess=*/1.0f);
+  tree->SetRoot(&ctx, base_weight.HostView(), /*sum_hess=*/1.0f);
 
   linalg::Vector<float> left_weight;
   left_weight.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
@@ -43,7 +44,7 @@ std::unique_ptr<RegTree> MakeMtTreeForTest(bst_target_t n_targets) {
     iota_weights(3.0f, data, shape);
   });
 
-  tree->ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
+  tree->ExpandNode(&ctx, RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
                    left_weight.HostView(), right_weight.HostView(), /*loss_chg=*/0.5f,
                    /*sum_hess=*/1.0f, /*left_sum=*/0.6f, /*right_sum=*/0.4f);
   tree->GetMultiTargetTree()->SetLeaves();
@@ -109,11 +110,12 @@ void TestTreeDump(std::string format, std::string leaf_key) {
 
   {
     // Test the "..."
+    Context ctx;
     bst_target_t n_targets{4};
     RegTree tree{n_targets, n_features};
     linalg::Vector<float> weight{{1.0f, 2.0f, 3.0f, 4.0f}, {4ul}, DeviceOrd::CPU()};
-    tree.SetRoot(weight.HostView(), /*sum_hess=*/1.0f);
-    tree.ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, weight.HostView(),
+    tree.SetRoot(&ctx, weight.HostView(), /*sum_hess=*/1.0f);
+    tree.ExpandNode(&ctx, RegTree::kRoot, /*split_idx=*/1, 0.5f, true, weight.HostView(),
                     weight.HostView(), weight.HostView(), /*loss_chg=*/0.5f, /*sum_hess=*/1.0f,
                     /*left_sum=*/0.6f, /*right_sum=*/0.4f);
     tree.GetMultiTargetTree()->SetLeaves();
@@ -144,13 +146,14 @@ TEST(MultiTargetTree, SetLeaves) {
   std::unique_ptr<RegTree> tree{std::make_unique<RegTree>(n_targets, n_features)};
   CHECK(tree->IsMultiTarget());
   // Reduce to 2 targets
+  Context ctx;
   linalg::Vector<float> base_weight{{1.0f, 2.0f}, {2ul}, DeviceOrd::CPU()};
-  tree->SetRoot(base_weight.HostView(), /*sum_hess=*/1.0f);
+  tree->SetRoot(&ctx, base_weight.HostView(), /*sum_hess=*/1.0f);
   ASSERT_EQ(tree->GetMultiTargetTree()->NumSplitTargets(), 2);
 
   linalg::Vector<float> left_weight{{2.0f, 3.0f}, {2ul}, DeviceOrd::CPU()};
   linalg::Vector<float> right_weight{{3.0f, 4.0f}, {2ul}, DeviceOrd::CPU()};
-  tree->ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
+  tree->ExpandNode(&ctx, RegTree::kRoot, /*split_idx=*/1, 0.5f, true, base_weight.HostView(),
                    left_weight.HostView(), right_weight.HostView(), /*loss_chg=*/0.5f,
                    /*sum_hess=*/1.0f, /*left_sum=*/0.6f, /*right_sum=*/0.4f);
 

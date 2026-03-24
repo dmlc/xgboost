@@ -14,7 +14,7 @@ namespace xgboost {
 inline auto MakePositionsForTest(bst_idx_t n_samples, bst_node_t left_nidx, bst_node_t right_nidx,
                                  HostDeviceVector<bst_node_t>* p_position) {
   HostDeviceVector<bst_node_t>& position = *p_position;
-  position.Resize(n_samples, 0);
+  position.Resize(n_samples);
   auto& h_position = position.HostVector();
   for (size_t i = 0; i < n_samples; ++i) {
     if (i < n_samples / 2) {

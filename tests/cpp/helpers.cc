@@ -249,7 +249,7 @@ void RandomDataGenerator::GenerateDense(HostDeviceVector<float>* out) const {
   CHECK(out);
 
   SimpleLCG lcg{lcg_};
-  out->Resize(rows_ * cols_, 0);
+  out->Resize(rows_ * cols_);
   auto& h_data = out->HostVector();
   float sparsity = sparsity_ * (upper_ - lower_) + lower_;
   for (auto& v : h_data) {

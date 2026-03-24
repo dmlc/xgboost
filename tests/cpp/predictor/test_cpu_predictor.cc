@@ -215,7 +215,7 @@ void TestUpdatePredictionCache(bool use_subsampling) {
   }
 
   PredictionCacheEntry predtion_cache;
-  predtion_cache.predictions.Resize(kRows * kClasses, 0);
+  predtion_cache.predictions.Resize(&ctx, kRows * kClasses, 0.0f);
   // after one training iteration predtion_cache is filled with cached in QuantileHistMaker
   // prediction values
   gbm->DoBoost(dmat.get(), &gpair, &predtion_cache, nullptr);
