@@ -315,9 +315,8 @@ class RegTree : public Model {
    * @param left_sum  The sum of hessians for the left child (coverage).
    * @param right_sum The sum of hessians for the right child (coverage).
    */
-  void ExpandNode(Context const* ctx, bst_node_t nidx, bst_feature_t split_index,
-                  float split_cond, bool default_left,
-                  linalg::VectorView<float const> base_weight,
+  void ExpandNode(Context const* ctx, bst_node_t nidx, bst_feature_t split_index, float split_cond,
+                  bool default_left, linalg::VectorView<float const> base_weight,
                   linalg::VectorView<float const> left_weight,
                   linalg::VectorView<float const> right_weight, float loss_chg, float sum_hess,
                   float left_sum, float right_sum);

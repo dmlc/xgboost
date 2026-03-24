@@ -58,7 +58,7 @@ void TestPartitionBasedSplit::SetUp() {
   }
 
   auto enumerate = [this, &ctx, n_feat = info_.num_col_](common::GHistRow hist,
-                                                        GradientPairPrecise parent_sum) {
+                                                         GradientPairPrecise parent_sum) {
     int32_t best_thresh = -1;
     float best_score{-std::numeric_limits<float>::infinity()};
     TreeEvaluator evaluator{&ctx, param_, static_cast<bst_feature_t>(n_feat)};
