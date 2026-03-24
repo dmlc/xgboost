@@ -65,11 +65,11 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
 struct SnappyDecomprMgrImpl {
   std::size_t n_dst_bytes{0};
   // src of the CUmemDecompressParams
-  dh::device_vector<void const*> d_in_chunk_ptrs;
+  dh::DeviceUVector<void const*> d_in_chunk_ptrs;
   // srcNumBytes of the CUmemDecompressParams
-  dh::device_vector<std::size_t> d_in_chunk_sizes;
+  dh::DeviceUVector<std::size_t> d_in_chunk_sizes;
   // dstNumBytes of the CUmemDecompressParams
-  dh::device_vector<std::size_t> d_out_chunk_sizes;
+  dh::DeviceUVector<std::size_t> d_out_chunk_sizes;
   // dstActBytes of the CUmemDecompressParams
   dh::device_vector<std::size_t> act_nbytes;
 
