@@ -12,7 +12,7 @@ from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
 
 from ..collective import Config
 from ..sklearn import XGBClassifier, XGBRanker, XGBRegressor
-from .core import (  # type: ignore
+from .core import (  # type: ignore[attr-defined]
     _ClassificationModel,
     _SparkXGBEstimator,
     _SparkXGBModel,
