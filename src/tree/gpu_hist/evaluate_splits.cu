@@ -471,7 +471,7 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
 
 GPUExpandEntry GPUHistEvaluator::EvaluateSingleSplit(Context const *ctx, EvaluateSplitInputs input,
                                                      EvaluateSplitSharedInputs shared_inputs) {
-  dh::CachingDeviceUVector<EvaluateSplitInputs> inputs(1);
+  dh::CachingDeviceUVector<EvaluateSplitInputs> inputs(1, ctx->CUDACtx()->Stream());
   dh::safe_cuda(cudaMemcpyAsync(inputs.data(), &input, sizeof(input), cudaMemcpyDefault));
 
   dh::TemporaryArray<GPUExpandEntry> out_entries(1);

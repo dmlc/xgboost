@@ -172,7 +172,7 @@ SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(curt::StreamRef s,
   std::vector<std::size_t> in_chunk_sizes(n_chunks);
   std::vector<std::size_t> out_chunk_sizes(n_chunks);
 
-  dh::DeviceUVector<std::int32_t> status(n_chunks);
+  dh::DeviceUVector<std::int32_t> status(n_chunks, s);
   for (std::size_t i = 0; i < n_chunks; ++i) {
     in_chunk_ptrs[i] = in_compressed_data.subspan(last_in, params[i].src_act_nbytes).data();
     in_chunk_sizes[i] = params[i].src_act_nbytes;
@@ -343,11 +343,11 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
   }
   CHECK_EQ(last, in.size());
 
-  dh::DeviceUVector<void const*> in_ptrs(h_in_ptrs.size());
+  dh::DeviceUVector<void const*> in_ptrs(h_in_ptrs.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(in_ptrs.data(), h_in_ptrs.data(),
                                 common::Span{h_in_ptrs}.size_bytes(), cudaMemcpyDefault,
                                 cuctx->Stream()));
-  dh::DeviceUVector<std::size_t> in_sizes(h_in_sizes.size());
+  dh::DeviceUVector<std::size_t> in_sizes(h_in_sizes.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(in_sizes.data(), h_in_sizes.data(),
                                 common::Span{h_in_sizes}.size_bytes(), cudaMemcpyDefault,
                                 cuctx->Stream()));
@@ -363,7 +363,7 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
       n_chunks, chunk_size, nvcomp_batched_snappy_opts, &comp_temp_bytes,
       /*max_total_uncompressed_bytes=*/in.size()));
   CHECK_EQ(comp_temp_bytes, 0);
-  dh::DeviceUVector<char> comp_tmp(comp_temp_bytes);
+  dh::DeviceUVector<char> comp_tmp(comp_temp_bytes, cuctx->Stream());
 
   std::size_t max_out_nbytes = 0;
   SafeNvComp(nvcompBatchedSnappyCompressGetMaxOutputChunkSize(
@@ -377,10 +377,10 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
     h_out_ptrs[i] = chunk.data();
     h_out_sizes[i] = chunk.size();
   }
-  dh::DeviceUVector<void*> out_ptrs(h_out_ptrs.size());
+  dh::DeviceUVector<void*> out_ptrs(h_out_ptrs.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(out_ptrs.data(), h_out_ptrs.data(),
                                 common::Span{h_out_ptrs}.size_bytes(), cudaMemcpyDefault));
-  dh::DeviceUVector<std::size_t> out_sizes(h_out_sizes.size());
+  dh::DeviceUVector<std::size_t> out_sizes(h_out_sizes.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(out_sizes.data(), h_out_sizes.data(),
                                 common::Span{h_out_sizes}.size_bytes(), cudaMemcpyDefault));
 

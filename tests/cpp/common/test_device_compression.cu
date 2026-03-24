@@ -26,7 +26,7 @@ TEST(NvComp, Snappy) {
 #endif
   auto ctx = MakeCUDACtx(0);
   auto cuctx = ctx.CUDACtx();
-  dh::DeviceUVector<common::CompressedByteT> in(1024);
+  dh::DeviceUVector<common::CompressedByteT> in(1024, cuctx->Stream());
   thrust::sequence(ctx.CUDACtx()->CTP(), in.begin(), in.end(), 0);
   dh::DeviceUVector<std::uint8_t> compr;
 
@@ -57,7 +57,7 @@ class TestNvComp : public ::testing::TestWithParam<std::tuple<std::size_t, std::
     auto ctx = MakeCUDACtx(0);
     auto cuctx = ctx.CUDACtx();
 
-    dh::DeviceUVector<common::CompressedByteT> in(n_bytes);
+    dh::DeviceUVector<common::CompressedByteT> in(n_bytes, cuctx->Stream());
     thrust::sequence(ctx.CUDACtx()->CTP(), in.begin(), in.end(), 0);
     dh::DeviceUVector<std::uint8_t> compr;
 

@@ -33,26 +33,28 @@ TEST(AsyncPoolAllocator, Basic) {
 #endif  // !defined(XGBOOST_USE_RMM)
 
 TEST(DeviceUVector, Basic) {
+  auto stream = xgboost::curt::DefaultStream();
+
   GlobalMemoryLogger().Clear();
   std::int32_t verbosity{3};
   std::swap(verbosity, xgboost::GlobalConfigThreadLocalStore::Get()->verbosity);
   DeviceUVector<float> uvec;
-  uvec.resize(12);
+  uvec.resize(12, stream);
   auto peak = GlobalMemoryLogger().PeakMemory();
   auto n_bytes = sizeof(decltype(uvec)::value_type) * uvec.size();
   ASSERT_EQ(peak, n_bytes);
   std::swap(verbosity, xgboost::GlobalConfigThreadLocalStore::Get()->verbosity);
 
-  DeviceUVector<double> uvec1{16};
+  DeviceUVector<double> uvec1{16, stream};
   ASSERT_EQ(uvec1.size(), 16);
-  uvec1.resize(3);
+  uvec1.resize(3, stream);
   ASSERT_EQ(uvec1.size(), 3);
   ASSERT_EQ(uvec1.Capacity(), 16);
   ASSERT_EQ(std::distance(uvec1.begin(), uvec1.end()), uvec1.size());
   auto orig = uvec1.size();
 
   thrust::sequence(dh::CachingThrustPolicy(), uvec1.begin(), uvec1.end(), 0);
-  uvec1.resize(32);
+  uvec1.resize(32, stream);
   ASSERT_EQ(uvec1.size(), 32);
   ASSERT_EQ(uvec1.Capacity(), 32);
   auto eq = thrust::equal(dh::CachingThrustPolicy(), uvec1.cbegin(), uvec1.cbegin() + orig,

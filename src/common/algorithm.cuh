@@ -344,7 +344,7 @@ template <typename... Args>
 void RunLengthEncode(curt::StreamRef stream, Args &&...args) {
   std::size_t n_bytes = 0;
   dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(nullptr, n_bytes, args..., stream));
-  dh::CachingDeviceUVector<char> tmp(n_bytes);
+  dh::CachingDeviceUVector<char> tmp(n_bytes, stream);
   dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(tmp.data(), n_bytes, args..., stream));
 }
 
@@ -352,7 +352,7 @@ template <typename... Args>
 void SegmentedSum(curt::StreamRef stream, Args &&...args) {
   std::size_t n_bytes = 0;
   dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, args..., stream));
-  dh::CachingDeviceUVector<char> tmp(n_bytes);
+  dh::CachingDeviceUVector<char> tmp(n_bytes, stream);
   dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(tmp.data(), n_bytes, args..., stream));
 }
 
