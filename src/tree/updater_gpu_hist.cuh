@@ -235,7 +235,7 @@ class MultiTargetHistMaker {
     auto n_targets = d_gpair.Shape(1);
 
     // Calculate the root sum
-    this->evaluator_.AllocNodeSum(RegTree::kRoot, n_targets);
+    this->evaluator_.AllocNodeSum(RegTree::kRoot, n_targets, ctx_->CUDACtx()->Stream());
     auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
     CalcRootSum(this->ctx_, d_gpair, d_root_sum);
 

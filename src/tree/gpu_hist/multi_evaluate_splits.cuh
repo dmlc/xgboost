@@ -48,10 +48,10 @@ class MultiHistEvaluator {
     /**
      * @brief Allocate storage for node sums up to the given node ID.
      */
-    void Alloc(bst_node_t nidx, bst_target_t n_targets) {
+    void Alloc(bst_node_t nidx, bst_target_t n_targets, curt::StreamRef stream) {
       auto end = (nidx + 1) * n_targets;
       if (this->node_sums.size() < end) {
-        this->node_sums.resize(end);
+        this->node_sums.resize(end, stream);
       }
     }
     [[nodiscard]] common::Span<GradientPairInt64> GetNode(bst_node_t nidx, bst_target_t n_targets) {
@@ -98,8 +98,8 @@ class MultiHistEvaluator {
   /**
    * @brief Allocate storage for node sums up to the given node ID.
    */
-  void AllocNodeSum(bst_node_t nidx, bst_target_t n_targets) {
-    this->node_sums_.Alloc(nidx, n_targets);
+  void AllocNodeSum(bst_node_t nidx, bst_target_t n_targets, curt::StreamRef stream) {
+    this->node_sums_.Alloc(nidx, n_targets, stream);
   }
   [[nodiscard]] common::Span<GradientPairInt64> GetNodeSum(bst_node_t nidx,
                                                            bst_target_t n_targets) {
@@ -109,10 +109,10 @@ class MultiHistEvaluator {
   /**
    * @brief Allocate storage for weights up to the given node ID.
    */
-  void AllocNodeWeight(bst_node_t nidx, bst_target_t n_targets) {
+  void AllocNodeWeight(bst_node_t nidx, bst_target_t n_targets, curt::StreamRef stream) {
     auto required = (nidx + 1) * n_targets * NodeWeightBuffer::kWeightsPerNode;
     if (this->node_weights_.size() < required) {
-      this->node_weights_.resize(required);
+      this->node_weights_.resize(required, stream);
     }
   }
   [[nodiscard]] NodeWeightBuffer GetNodeWeights(bst_target_t n_targets) {
