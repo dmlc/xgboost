@@ -65,7 +65,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   auto op = [=] __device__(auto ridx, int split_index, int data) {
     return ridx % 2 == 0;
-  };
+  };  // NOLINT
   std::vector<int> op_data(segments.size());
   std::vector<PerNodeData<int>> h_batch_info(segments.size());
   dh::TemporaryArray<PerNodeData<int>> d_batch_info(segments.size());
@@ -85,7 +85,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   auto op_without_data = [=] __device__(auto ridx) {
     return ridx % 2 == 0;
-  };
+  };  // NOLINT
   for (size_t i = 0; i < segments.size(); i++) {
     auto begin = ridx.begin() + segments[i].begin;
     auto end = ridx.begin() + segments[i].end;
