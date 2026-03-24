@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <dmlc/registry.h>
 
@@ -42,7 +42,7 @@ template <typename T>
 
   *vec = common::MakeFixedVecWithCudaMalloc<T>(ctx, n);
   dh::safe_cuda(
-      cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, curt::DefaultStream()));
+      cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
   return true;
 }
 }  // namespace
@@ -75,7 +75,7 @@ template <typename T>
 
   impl->SetCuts(this->cuts_);
 
-  curt::DefaultStream().Sync();
+  ctx.CUDACtx()->Stream().Sync();
   return true;
 }
 
@@ -96,7 +96,7 @@ template <typename T>
   bytes += fo->Write(impl->base_rowid);
   bytes += fo->Write(impl->NumSymbols());
 
-  curt::DefaultStream().Sync();
+  ctx.CUDACtx()->Stream().Sync();
   return bytes;
 }
 
@@ -130,7 +130,7 @@ template <typename T>
     dispatch();
   }
 
-  curt::DefaultStream().Sync();
+  ctx.CUDACtx()->Stream().Sync();
 
   return true;
 }

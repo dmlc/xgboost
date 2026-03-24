@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #pragma once
 
@@ -19,6 +19,7 @@ namespace xgboost::common {
 template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithCudaMalloc(Context const* ctx,
                                                             std::size_t n_elements) {
+  CHECK(ctx);
   auto resource = std::make_shared<common::CudaMallocResource>(n_elements * sizeof(T),
                                                                ctx->CUDACtx()->Stream());
   auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
