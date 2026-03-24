@@ -310,11 +310,7 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
     using other = XGBAsyncPoolAllocator<U>;  // NOLINT(readability-identifier-naming)
   };
 
-  void SetStream([[maybe_unused]] ::xgboost::curt::StreamRef stream) {
-#if !defined(xgboost_IS_WIN)
-    this->stream_ = stream;
-#endif
-  }
+  void SetStream(::xgboost::curt::StreamRef stream) { this->stream_ = stream; }
 
   pointer allocate(std::size_t n) {  // NOLINT
 #if defined(xgboost_IS_WIN)
