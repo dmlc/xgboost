@@ -13,9 +13,11 @@
 namespace dh {
 namespace detail {
 void ThrowOOMError(std::string const &err, std::size_t bytes) {
-  auto device = CurrentDevice();
-  auto rank = xgboost::collective::GetRank();
   using xgboost::common::HumanMemUnit;
+
+  auto device = ::xgboost::curt::CurrentDevice();
+  auto rank = xgboost::collective::GetRank();
+
   std::stringstream ss;
   ss << "Memory allocation error on worker " << rank << ": " << err << "\n"
      << "- Free memory: " << HumanMemUnit(dh::AvailableMemory(device)) << "\n"
@@ -26,9 +28,9 @@ void ThrowOOMError(std::string const &err, std::size_t bytes) {
   std::size_t used_bytes = 0;
 
   // Get the default memory pool for the current device
-  auto status = cudaDeviceGetDefaultMemPool(&memPool, ::xgboost::curt::CurrentDevice());
+  auto status = cudaDeviceGetDefaultMemPool(&memPool, device);
   if (status != cudaSuccess) {
-    ss << "Failed to get default memory pool: " << cudaGetErrorString(status) << "\n";
+    ss << "Failed to get the default memory pool: " << cudaGetErrorString(status) << "\n";
     LOG(FATAL) << ss.str();
   }
 
@@ -36,18 +38,18 @@ void ThrowOOMError(std::string const &err, std::size_t bytes) {
   status = cudaMemPoolGetAttribute(memPool, cudaMemPoolAttrReservedMemCurrent, &reserved_bytes);
   if (status != cudaSuccess) {
     ss << "Failed to get reserved memory attribute: " << cudaGetErrorString(status) << "\n";
-    LOG(FATAL) << ss.str();
+  } else {
+    ss << "- Reserved by the pool: " << HumanMemUnit(reserved_bytes) << "\n";
   }
-  ss << "- Reserved by pool:" << HumanMemUnit(reserved_bytes) << "\n";
 
   // Get the current total used memory size
   status = cudaMemPoolGetAttribute(memPool, cudaMemPoolAttrUsedMemCurrent, &used_bytes);
   if (status != cudaSuccess) {
     ss << "Failed to get used memory attribute: " << cudaGetErrorString(status) << "\n";
-    LOG(FATAL) << ss.str();
+  } else {
+    ss << "- Used by the pool: " << HumanMemUnit(used_bytes) << "\n";
   }
 
-  ss << "- Used by pool:" << HumanMemUnit(used_bytes) << "\n";
   LOG(FATAL) << ss.str();
 }
 
