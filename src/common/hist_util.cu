@@ -169,7 +169,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
       sorted_entries.data().get(), [] __device__(Entry const& e) -> data::COOTuple {
         return {0, e.index, e.fvalue};  // row_idx is not needed for scaning column size.
       });
-  detail::GetColumnSizesScan(ctx->CUDACtx(), ctx->Device(), info.num_col_, num_cuts_per_feature,
+  detail::GetColumnSizesScan(ctx, info.num_col_, num_cuts_per_feature,
                              IterSpan{batch_it, sorted_entries.size()}, dummy_is_valid, &cuts_ptr,
                              &column_sizes_scan);
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
@@ -270,7 +270,7 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
   info.weights_.SetDevice(ctx->Device());
   auto d_weight = UnifyWeight(cuctx, info, hessian, &weight);
 
-  SketchContainer sketch_container(info.feature_types, max_bin, info.num_col_, ctx->Device());
+  SketchContainer sketch_container(ctx, info.feature_types, max_bin, info.num_col_);
   CHECK_EQ(has_weight || !hessian.empty(), !d_weight.empty());
   for (const auto& page : p_fmat->GetBatches<SparsePage>()) {
     std::size_t page_nnz = page.data.Size();

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost contributors
+ * Copyright 2020-2026, XGBoost contributors
  *
  * \brief Front end and utilities for GPU based sketching.  Works on sliding window
  *        instead of stream.
@@ -138,24 +138,25 @@ void LaunchGetColumnSizeKernel(CUDAContext const* cuctx, DeviceOrd device,
 }
 
 template <typename BatchIt>
-void GetColumnSizesScan(CUDAContext const* cuctx, DeviceOrd device, size_t num_columns,
+void GetColumnSizesScan(Context const* ctx, size_t num_columns,
                         std::size_t num_cuts_per_feature, IterSpan<BatchIt> batch_iter,
                         data::IsValidFunctor is_valid,
                         HostDeviceVector<SketchContainer::OffsetT>* cuts_ptr,
                         dh::caching_device_vector<size_t>* column_sizes_scan) {
+  auto cuctx = ctx->CUDACtx();
   column_sizes_scan->resize(num_columns + 1);
-  cuts_ptr->SetDevice(device);
-  cuts_ptr->Resize(num_columns + 1, 0);
+  cuts_ptr->SetDevice(ctx->Device());
+  cuts_ptr->Resize(ctx, num_columns + 1, 0);
 
   auto d_column_sizes_scan = dh::ToSpan(*column_sizes_scan);
-  LaunchGetColumnSizeKernel(cuctx, device, batch_iter, is_valid, d_column_sizes_scan);
+  LaunchGetColumnSizeKernel(cuctx, ctx->Device(), batch_iter, is_valid, d_column_sizes_scan);
   // Calculate cuts CSC pointer
   auto cut_ptr_it = dh::MakeTransformIterator<size_t>(
       column_sizes_scan->begin(), [=] __device__(size_t column_size) {
         return thrust::min(num_cuts_per_feature, column_size);
       });
-  thrust::exclusive_scan(cuctx->CTP(), cut_ptr_it,
-                         cut_ptr_it + column_sizes_scan->size(), cuts_ptr->DevicePointer());
+  thrust::exclusive_scan(cuctx->CTP(), cut_ptr_it, cut_ptr_it + column_sizes_scan->size(),
+                         cuts_ptr->DevicePointer());
   thrust::exclusive_scan(cuctx->CTP(), column_sizes_scan->begin(), column_sizes_scan->end(),
                          column_sizes_scan->begin());
 }
@@ -168,9 +169,8 @@ size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows);
 
 // Count the valid entries in each column and copy them out.
 template <typename AdapterBatch, typename BatchIter>
-void MakeEntriesFromAdapter(CUDAContext const* cuctx, AdapterBatch const& batch,
-                            BatchIter batch_iter, Range1d range, float missing, size_t columns,
-                            size_t cuts_per_feature, DeviceOrd device,
+void MakeEntriesFromAdapter(Context const* ctx, AdapterBatch const& batch, BatchIter batch_iter,
+                            Range1d range, float missing, size_t columns, size_t cuts_per_feature,
                             HostDeviceVector<SketchContainer::OffsetT>* cut_sizes_scan,
                             dh::caching_device_vector<size_t>* column_sizes_scan,
                             dh::device_vector<Entry>* sorted_entries) {
@@ -182,13 +182,13 @@ void MakeEntriesFromAdapter(CUDAContext const* cuctx, AdapterBatch const& batch,
   auto span = IterSpan{batch_iter + range.begin(), n};
   data::IsValidFunctor is_valid(missing);
   // Work out how many valid entries we have in each column
-  GetColumnSizesScan(cuctx, device, columns, cuts_per_feature, span, is_valid, cut_sizes_scan,
+  GetColumnSizesScan(ctx, columns, cuts_per_feature, span, is_valid, cut_sizes_scan,
                      column_sizes_scan);
   size_t num_valid = column_sizes_scan->back();
   // Copy current subset of valid elements into temporary storage and sort
   sorted_entries->resize(num_valid);
-  CopyIf(cuctx, entry_iter + range.begin(), entry_iter + range.end(), sorted_entries->begin(),
-         is_valid);
+  CopyIf(ctx->CUDACtx(), entry_iter + range.begin(), entry_iter + range.end(),
+         sorted_entries->begin(), is_valid);
 }
 
 void SortByWeight(Context const* ctx, dh::device_vector<float>* weights,
@@ -242,9 +242,8 @@ void ProcessSlidingWindow(Context const* ctx, AdapterBatch const& batch, MetaInf
   HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   cuts_ptr.SetDevice(ctx->Device());
   CUDAContext const* cuctx = ctx->CUDACtx();
-  detail::MakeEntriesFromAdapter(cuctx, batch, batch_iter, {begin, end}, missing, n_features,
-                                 num_cuts, ctx->Device(), &cuts_ptr, &column_sizes_scan,
-                                 &sorted_entries);
+  detail::MakeEntriesFromAdapter(ctx, batch, batch_iter, {begin, end}, missing, n_features,
+                                 num_cuts, &cuts_ptr, &column_sizes_scan, &sorted_entries);
   thrust::sort(cuctx->TP(), sorted_entries.begin(), sorted_entries.end(), detail::EntryCompareOp());
 
   if (sketch_container->HasCategorical()) {
@@ -279,8 +278,8 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
   dh::device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
   HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
-  detail::MakeEntriesFromAdapter(cuctx, batch, batch_iter, {begin, end}, missing, columns,
-                                 num_cuts_per_feature, ctx->Device(), &cuts_ptr, &column_sizes_scan,
+  detail::MakeEntriesFromAdapter(ctx, batch, batch_iter, {begin, end}, missing, columns,
+                                 num_cuts_per_feature, &cuts_ptr, &column_sizes_scan,
                                  &sorted_entries);
   data::IsValidFunctor is_valid(missing);
 
@@ -299,24 +298,20 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
           bst_group_t group_idx = dh::SegmentId(d_group_ptr, ridx);
           return weights[group_idx];
         });
-    auto retit = thrust::copy_if(cuctx->CTP(),
-                                 weight_iter + begin, weight_iter + end,
-                                 batch_iter + begin,
-                                 d_temp_weights.data(),  // output
-                                 is_valid);
+    auto retit =
+        thrust::copy_if(cuctx->CTP(), weight_iter + begin, weight_iter + end, batch_iter + begin,
+                        d_temp_weights.data(),  // output
+                        is_valid);
     CHECK_EQ(retit - d_temp_weights.data(), d_temp_weights.size());
   } else {
     CHECK_EQ(batch.NumRows(), weights.size());
     auto const weight_iter = dh::MakeTransformIterator<float>(
         thrust::make_counting_iterator(0lu),
-        [=]__device__(size_t idx) -> float {
-          return weights[batch.GetElement(idx).row_idx];
-        });
-    auto retit = thrust::copy_if(cuctx->CTP(),
-                                 weight_iter + begin, weight_iter + end,
-                                 batch_iter + begin,
-                                 d_temp_weights.data(),  // output
-                                 is_valid);
+        [=] __device__(size_t idx) -> float { return weights[batch.GetElement(idx).row_idx]; });
+    auto retit =
+        thrust::copy_if(cuctx->CTP(), weight_iter + begin, weight_iter + end, batch_iter + begin,
+                        d_temp_weights.data(),  // output
+                        is_valid);
     CHECK_EQ(retit - d_temp_weights.data(), d_temp_weights.size());
   }
 
