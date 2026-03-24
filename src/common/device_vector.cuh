@@ -290,8 +290,8 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
   // MSVC/NVCC optimizes this variable away, as a result, we disable the async pool
   // entirely on Windows.
   std::int32_t use_async_pool_;
-  cudaStream_t stream_{cudaStreamPerThread};
 #endif
+  ::xgboost::curt::StreamRef stream_{::xgboost::curt::DefaultStream()};
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
@@ -495,7 +495,7 @@ class DeviceUVectorImpl {
 
  public:
   DeviceUVectorImpl() = default;
-  explicit DeviceUVectorImpl(std::size_t n, xgboost::curt::StreamRef stream) {
+  explicit DeviceUVectorImpl(std::size_t n, ::xgboost::curt::StreamRef stream) {
     this->resize(n, stream);
   }
   DeviceUVectorImpl(DeviceUVectorImpl const &that) = delete;
@@ -506,8 +506,7 @@ class DeviceUVectorImpl {
   [[nodiscard]] std::size_t Capacity() const { return this->capacity_; }
 
   // Resize without init.
-  void resize(  // NOLINT
-      std::size_t n, xgboost::curt::StreamRef stream = xgboost::curt::DefaultStream()) {
+  void resize(std::size_t n, ::xgboost::curt::StreamRef stream) {  // NOLINT
     using ::xgboost::common::SizeBytes;
 
     if (n <= this->Capacity()) {
@@ -537,7 +536,7 @@ class DeviceUVectorImpl {
     // std::swap(this->data_, new_ptr);
   }
   // Resize with init
-  void resize(std::size_t n, T const &v, xgboost::curt::StreamRef stream) {  // NOLINT
+  void resize(std::size_t n, T const &v, ::xgboost::curt::StreamRef stream) {  // NOLINT
     auto orig = this->size();
     this->resize(n, stream);
     if (orig < n) {
@@ -545,8 +544,8 @@ class DeviceUVectorImpl {
       thrust::fill(exec, this->begin() + orig, this->end(), v);
     }
   }
-  void clear(xgboost::curt::StreamRef stream) {  // NOLINT
-    this->resize(0);
+  void clear(::xgboost::curt::StreamRef stream) {  // NOLINT
+    this->resize(0, stream);
   }
 
   [[nodiscard]] std::size_t size() const { return this->size_; }  // NOLINT
