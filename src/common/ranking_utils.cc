@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  */
 #include "ranking_utils.h"
 
@@ -22,7 +22,7 @@
 namespace xgboost::ltr {
 void RankingCache::InitOnCPU(Context const* ctx, MetaInfo const& info) {
   if (info.group_ptr_.empty()) {
-    group_ptr_.Resize(2, 0);
+    group_ptr_.Resize(2, 0, ctx);
     group_ptr_.HostVector()[1] = info.num_row_;
   } else {
     group_ptr_.HostVector() = info.group_ptr_;
@@ -75,7 +75,7 @@ common::Span<std::size_t const> RankingCache::MakeRankOnCUDA(Context const*,
 void NDCGCache::InitOnCPU(Context const* ctx, MetaInfo const& info) {
   auto const h_group_ptr = this->DataGroupPtr(ctx);
 
-  discounts_.Resize(MaxGroupSize(), 0);
+  discounts_.Resize(MaxGroupSize(), 0, ctx);
   auto& h_discounts = discounts_.HostVector();
   for (std::size_t i = 0; i < MaxGroupSize(); ++i) {
     h_discounts[i] = CalcDCGDiscount(i);

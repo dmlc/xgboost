@@ -151,7 +151,7 @@ class HostDeviceVector {
 
   void SetDevice(DeviceOrd device, Context const* ctx = nullptr) const;
 
-  void Resize(std::size_t new_size);
+  void Resize(std::size_t new_size, Context const* ctx = nullptr);
   /** @brief Resize and initialize the data if the new size is larger than the old size. */
   void Resize(std::size_t new_size, T v, Context const* ctx = nullptr);
 

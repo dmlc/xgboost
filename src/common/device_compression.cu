@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost contributors
+ * Copyright 2025-2026, XGBoost contributors
  *
  * We use NVComp to perform compression and access the DE API directly for
  * decompression. Invoking the DE directly can help us avoid unnecessary kernal launches
@@ -379,10 +379,12 @@ void DecompressSnappy(curt::StreamRef stream, SnappyDecomprMgr const& mgr,
   }
   dh::DeviceUVector<void*> out_ptrs(h_out_ptrs.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(out_ptrs.data(), h_out_ptrs.data(),
-                                common::Span{h_out_ptrs}.size_bytes(), cudaMemcpyDefault));
+                                common::Span{h_out_ptrs}.size_bytes(), cudaMemcpyDefault,
+                                cuctx->Stream()));
   dh::DeviceUVector<std::size_t> out_sizes(h_out_sizes.size(), cuctx->Stream());
   dh::safe_cuda(cudaMemcpyAsync(out_sizes.data(), h_out_sizes.data(),
-                                common::Span{h_out_sizes}.size_bytes(), cudaMemcpyDefault));
+                                common::Span{h_out_sizes}.size_bytes(), cudaMemcpyDefault,
+                                cuctx->Stream()));
 
   /**
    * Compress
