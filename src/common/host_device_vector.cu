@@ -433,7 +433,7 @@ void HostDeviceVector<T>::Resize(std::size_t new_size, Context const* ctx) {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Resize(std::size_t new_size, T v, Context const* ctx) {
+void HostDeviceVector<T>::ResizeImpl(std::size_t new_size, T v, Context const* ctx) {
   impl_->Resize(GetCUDACtx(ctx), new_size, v);
 }
 

@@ -58,8 +58,7 @@ void PlusOne(HostDeviceVector<int>* v) {
   ASSERT_TRUE(v->DeviceCanWrite());
 }
 
-void CheckDevice(HostDeviceVector<int>* v, size_t size, unsigned int first, GPUAccess access,
-                 Context const* ctx) {
+void CheckDevice(HostDeviceVector<int>* v, size_t size, unsigned int first, GPUAccess access) {
   ASSERT_EQ(v->Size(), size);
   SetDeviceForTest(v->Device());
 
@@ -92,9 +91,9 @@ void TestHostDeviceVector(size_t n, Context const* ctx) {
   HostDeviceVectorSetDeviceHandler hdvec_dev_hndlr(curt::SetDevice);
   HostDeviceVector<int> v;
   InitHostDeviceVector(n, ctx->Device(), &v, ctx);
-  CheckDevice(&v, n, 0, GPUAccess::kRead, ctx);
+  CheckDevice(&v, n, 0, GPUAccess::kRead);
   PlusOne(&v);
-  CheckDevice(&v, n, 1, GPUAccess::kWrite, ctx);
+  CheckDevice(&v, n, 1, GPUAccess::kWrite);
   CheckHost(&v, GPUAccess::kRead, ctx);
   CheckHost(&v, GPUAccess::kNone, ctx);
 }
@@ -117,9 +116,9 @@ TEST(HostDeviceVector, Copy) {
     v.Resize(v1.Size());
     v.Copy(v1, &ctx);
   }
-  CheckDevice(&v, n, 0, GPUAccess::kRead, &ctx);
+  CheckDevice(&v, n, 0, GPUAccess::kRead);
   PlusOne(&v);
-  CheckDevice(&v, n, 1, GPUAccess::kWrite, &ctx);
+  CheckDevice(&v, n, 1, GPUAccess::kWrite);
   CheckHost(&v, GPUAccess::kRead, &ctx);
   CheckHost(&v, GPUAccess::kNone, &ctx);
 }
