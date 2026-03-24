@@ -97,6 +97,7 @@ void GBTreeModel::LoadModel(Json const& in) {
 
   common::ParallelFor(param.num_trees, ctx_->Threads(), [&](auto t) {
     auto tree_id = get<Integer const>(trees_json[t]["id"]);
+    CHECK_EQ(tree_id, t);
     trees.at(tree_id).reset(new RegTree{});
     trees[tree_id]->LoadModel(trees_json[t]);
   });
