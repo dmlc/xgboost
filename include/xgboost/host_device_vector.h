@@ -151,7 +151,7 @@ class HostDeviceVector {
   [[nodiscard]] bool DeviceCanRead() const;
   [[nodiscard]] bool DeviceCanWrite() const;
   [[nodiscard]] GPUAccess DeviceAccess() const;
-
+  // FIXME(jiamingy): Until we can fully unify the context, we will have both ctx and device here.
   void SetDevice(DeviceOrd device, Context const* ctx = nullptr) const;
 
   void Resize(std::size_t new_size);
