@@ -607,7 +607,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   timer_.Stop(__func__);
 
   // Merge them into a new sketch.
-  SketchContainer new_sketch(this->feature_types_, num_bins_, this->num_columns_, ctx->Device());
+  SketchContainer new_sketch(ctx, this->feature_types_, num_bins_, this->num_columns_);
   for (size_t i = 0; i < allworkers.size(); ++i) {
     auto worker = allworkers[i];
     auto worker_ptr =
