@@ -85,6 +85,10 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
     return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);
   } << [&] {
     ncclConfig_t config = NCCL_CONFIG_INITIALIZER;
+    // Split subcommunicators inherit behavior from the parent communicator. With a non-blocking
+    // parent, `ncclCommSplit`/subgroup setup was unstable for the quantile tree path and failed
+    // with NCCL invalid-argument errors in MGPU tests. Keep the root communicator blocking until
+    // NCCL subgroup initialization is reliable without it.
     config.blocking = 1;
     return this->stub_->CommInitRankConfig(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank(),
                                            &config);
