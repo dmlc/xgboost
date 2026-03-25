@@ -23,6 +23,7 @@
 #include "common.h"
 #include "cuda_context.cuh"  // for CUDAContext
 #include "cuda_rt_utils.h"   // for SetDevice
+#include "cuda_stream.h"     // for Event
 #include "device_helpers.cuh"
 #include "hist_util.h"
 #include "quantile.cuh"
@@ -559,6 +560,8 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   // Bound local sketch size before exchanging data across workers.
   auto intermediate_num_cuts = static_cast<bst_idx_t>(num_bins_ * kFactor);
   this->Prune(ctx, intermediate_num_cuts);
+  curt::Event sketch_ready;
+  sketch_ready.Record(ctx->CUDACtx()->Stream());
 
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
@@ -676,7 +679,9 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
         return collective::Success();
       }
       auto const &group = nccl->SubgroupAt(lc.group_idx);
-      SafeColl(collective::GetCUDAResult(ctx->CUDACtx()->Stream().Sync(false)));
+      // The subgroup communicator uses its own stream. Make it wait for any sketch updates
+      // enqueued on the default stream before we expose `columns_ptr_` / `entries_` again.
+      group.stream->Wait(sketch_ready);
       auto n_entries = static_cast<std::int64_t>(this->entries_.size());
       dh::safe_cuda(cudaMemcpyAsync(d_local_n_entries.data().get(), &n_entries, sizeof(n_entries),
                                     cudaMemcpyHostToDevice, group.stream->View()));
@@ -774,7 +779,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
                                       recv_entries.size() * sizeof(SketchEntry),
                                       cudaMemcpyDeviceToDevice, ctx->CUDACtx()->Stream()));
       }
-      ctx->CUDACtx()->Stream().Sync();
+      sketch_ready.Record(ctx->CUDACtx()->Stream());
     };
 
     for (auto const &lc : reduce_levels) {
@@ -791,6 +796,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
         this->Merge(ctx, {recv_columns_ptr.data().get(), recv_columns_ptr.size()},
                     {recv_entries.data().get(), recv_entries.size()});
         this->Prune(ctx, intermediate_num_cuts);
+        sketch_ready.Record(ctx->CUDACtx()->Stream());
       }
     }
 
