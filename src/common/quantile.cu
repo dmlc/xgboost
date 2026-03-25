@@ -24,7 +24,6 @@
 #include "common.h"
 #include "cuda_context.cuh"  // for CUDAContext
 #include "cuda_rt_utils.h"   // for SetDevice
-#include "cuda_stream.h"     // for Event
 #include "device_helpers.cuh"
 #include "hist_util.h"
 #include "quantile.cuh"
