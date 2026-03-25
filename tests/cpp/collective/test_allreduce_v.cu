@@ -4,10 +4,12 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>  // for max
-#include <cstdint>    // for int32_t
-#include <vector>     // for vector
+#include <chrono>
+#include <cstdint>  // for int32_t
+#include <vector>   // for vector
 
 #include "../../../src/collective/allreduce.h"
+#include "../../../src/collective/allreduce_v.cuh"
 #include "../../../src/collective/comm.cuh"
 #include "../../../src/collective/topo.h"
 #include "../../../src/common/cuda_context.cuh"
@@ -101,19 +103,6 @@ class AllreduceVWorker : public NCCLWorkerForTest {
   using NCCLWorkerForTest::NCCLWorkerForTest;
 
   template <typename T>
-  struct TreeScratch {
-    dh::device_vector<T> payload;
-    dh::device_vector<T> next;
-    dh::device_vector<std::int64_t> size;
-
-    void Reserve(std::size_t n) {
-      payload.reserve(n);
-      next.reserve(n);
-      size.resize(1);
-    }
-  };
-
-  template <typename T>
   void DeviceSumToMaxLen(dh::device_vector<T> const& lhs, dh::device_vector<T> const& rhs,
                          dh::device_vector<T>* out, cudaStream_t stream) {
     auto n = std::max(lhs.size(), rhs.size());
@@ -141,7 +130,21 @@ class AllreduceVWorker : public NCCLWorkerForTest {
   }
 
   template <typename T>
-  void TreeAllreduceV(dh::device_vector<T>* data, TreeScratch<T>* scratch) {
+  void TreeAllreduceV(dh::device_vector<T>* data,
+                      collective::gpu_impl::AllreduceVScratch<T>* scratch) {
+    auto* nccl = dynamic_cast<NCCLComm const*>(nccl_comm_.get());
+    ASSERT_NE(nccl, nullptr);
+    auto rc = collective::gpu_impl::AllreduceV(
+        *nccl, data, scratch,
+        [&](dh::device_vector<T> const& lhs, dh::device_vector<T> const& rhs,
+            dh::device_vector<T>* out,
+            cudaStream_t stream) { this->DeviceSumToMaxLen(lhs, rhs, out, stream); });
+    SafeColl(rc);
+  }
+
+  template <typename T>
+  void RootAllreduceV(dh::device_vector<T>* data,
+                      collective::gpu_impl::AllreduceVScratch<T>* scratch) {
     auto* nccl = dynamic_cast<NCCLComm const*>(nccl_comm_.get());
     ASSERT_NE(nccl, nullptr);
     auto stub = nccl->Stub();
@@ -149,6 +152,7 @@ class AllreduceVWorker : public NCCLWorkerForTest {
 
     auto wait_nccl = [&] {
       SafeColl(collective::BusyWait(stub, nccl->Handle(), nccl->Timeout()));
+      dh::safe_cuda(cudaStreamSynchronize(stream));
     };
 
     auto send_size = [&](std::int32_t peer, std::int64_t n) {
@@ -198,23 +202,14 @@ class AllreduceVWorker : public NCCLWorkerForTest {
     auto rank = comm_.Rank();
     auto world = comm_.World();
 
-    bool continue_reduce = true;
-    for (std::int32_t level = 0; (std::int32_t{1} << level) < world; ++level) {
-      if (!continue_reduce) {
-        continue;
-      }
-      if (rank > 0 && binomial_tree::ParentLevel(rank) == level) {
-        auto parent = binomial_tree::Parent(rank);
-        send_vec(parent, *data);
-        continue_reduce = false;
-        continue;
-      }
-      if (binomial_tree::HasChild(rank, level, world)) {
-        auto child = binomial_tree::Child(rank, level);
-        recv_vec(child, &scratch->payload);
+    if (rank == 0) {
+      for (std::int32_t peer = 1; peer < world; ++peer) {
+        recv_vec(peer, &scratch->payload);
         DeviceSumToMaxLen(*data, scratch->payload, &scratch->next, stream);
         std::swap(*data, scratch->next);
       }
+    } else {
+      send_vec(0, *data);
     }
 
     std::int64_t n = 0;
@@ -245,7 +240,7 @@ class AllreduceVWorker : public NCCLWorkerForTest {
   void Prototype() {
     std::vector<std::int32_t> h_data(comm_.Rank() + 1, 1);
     dh::device_vector<std::int32_t> d_data;
-    TreeScratch<std::int32_t> scratch;
+    collective::gpu_impl::AllreduceVScratch<std::int32_t> scratch;
     scratch.Reserve(static_cast<std::size_t>(comm_.World()));
     d_data.reserve(static_cast<std::size_t>(comm_.World()));
     CopyToDevice(h_data, &d_data, cudaStream_t{ctx_.CUDACtx()->Stream()});
@@ -263,7 +258,7 @@ class AllreduceVWorker : public NCCLWorkerForTest {
     auto rank = comm_.Rank();
     auto stream = cudaStream_t{ctx_.CUDACtx()->Stream()};
     dh::device_vector<std::int32_t> d_data;
-    TreeScratch<std::int32_t> scratch;
+    collective::gpu_impl::AllreduceVScratch<std::int32_t> scratch;
     auto max_n = static_cast<std::size_t>(world);
     d_data.reserve(max_n);
     scratch.Reserve(max_n);
@@ -282,6 +277,55 @@ class AllreduceVWorker : public NCCLWorkerForTest {
 
       auto out = CopyToHost(d_data, stream);
       ASSERT_EQ(out, expected) << "iter=" << iter;
+    }
+  }
+
+  template <typename AllreduceFn>
+  double BenchmarkImpl(AllreduceFn&& fn, std::int32_t iters) {
+    auto world = comm_.World();
+    auto rank = comm_.Rank();
+    auto stream = cudaStream_t{ctx_.CUDACtx()->Stream()};
+    dh::device_vector<std::int32_t> d_data;
+    collective::gpu_impl::AllreduceVScratch<std::int32_t> scratch;
+    auto max_n = static_cast<std::size_t>(world);
+    d_data.reserve(max_n);
+    scratch.Reserve(max_n);
+
+    auto run_once = [&](std::int32_t iter) {
+      std::vector<std::vector<std::int32_t>> inputs(world);
+      for (std::int32_t r = 0; r < world; ++r) {
+        auto n = (r + iter) % (world + 1);
+        inputs[r].assign(n, r + iter + 1);
+      }
+      CopyToDevice(inputs.at(rank), &d_data, stream);
+      fn(&d_data, &scratch);
+    };
+
+    for (std::int32_t i = 0; i < 5; ++i) {
+      run_once(i);
+    }
+
+    auto begin = std::chrono::steady_clock::now();
+    for (std::int32_t i = 0; i < iters; ++i) {
+      run_once(i + 5);
+    }
+    auto end = std::chrono::steady_clock::now();
+
+    double seconds = std::chrono::duration<double>(end - begin).count();
+    SafeColl(collective::Allreduce(&ctx_, &seconds, collective::Op::kMax));
+    return seconds;
+  }
+
+  void BenchmarkRootVsTree() {
+    constexpr std::int32_t kIters{20};
+    auto root_s = this->BenchmarkImpl(
+        [&](auto* data, auto* scratch) { this->RootAllreduceV(data, scratch); }, kIters);
+    auto tree_s = this->BenchmarkImpl(
+        [&](auto* data, auto* scratch) { this->TreeAllreduceV(data, scratch); }, kIters);
+
+    if (comm_.Rank() == 0) {
+      LOG(INFO) << "AllreduceV benchmark over " << kIters << " iterations, world=" << comm_.World()
+                << " root_s=" << root_s << " tree_s=" << tree_s;
     }
   }
 };
@@ -311,6 +355,20 @@ TEST_F(MGPUAllreduceVTest, RepeatedTree) {
     AllreduceVWorker w{host, port, timeout, n_workers, r};
     w.Setup();
     w.PrototypeRepeated();
+  });
+}
+
+TEST_F(MGPUAllreduceVTest, BenchmarkRootVsTree) {
+  auto n_workers = curt::AllVisibleGPUs();
+  if (n_workers < 2) {
+    GTEST_SKIP_("Requires at least 2 GPUs.");
+  }
+  n_workers = std::min<std::int32_t>(n_workers, 4);
+  TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
+                                 std::int32_t r) {
+    AllreduceVWorker w{host, port, timeout, n_workers, r};
+    w.Setup();
+    w.BenchmarkRootVsTree();
   });
 }
 #endif  // defined(XGBOOST_USE_NCCL)

@@ -16,6 +16,7 @@
 
 #include "../collective/allgather.h"
 #include "../collective/allreduce.h"
+#include "../collective/allreduce_v.cuh"
 #include "../collective/comm.cuh"
 #include "../collective/comm_group.h"
 #include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank
@@ -159,6 +160,35 @@ void CopyTo(Span<T> out, Span<U> src) {
   CHECK_EQ(out.size(), src.size());
   static_assert(std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<T>>);
   dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(), out.size_bytes(), cudaMemcpyDefault));
+}
+
+struct DeviceSketchPayload {
+  Span<SketchContainer::OffsetT const> columns_ptr;
+  Span<SketchEntry const> entries;
+};
+
+[[nodiscard]] std::size_t SketchPayloadEntriesOffset(bst_feature_t num_columns) {
+  auto columns_bytes = (num_columns + 1) * sizeof(SketchContainer::OffsetT);
+  auto alignment = alignof(SketchEntry);
+  return common::DivRoundUp(columns_bytes, alignment) * alignment;
+}
+
+[[nodiscard]] std::size_t SketchPayloadBytes(bst_feature_t num_columns, std::size_t n_entries) {
+  return SketchPayloadEntriesOffset(num_columns) + n_entries * sizeof(SketchEntry);
+}
+
+[[nodiscard]] DeviceSketchPayload ParseDeviceSketchPayload(
+    dh::device_vector<std::int8_t> const &payload, bst_feature_t num_columns) {
+  auto entries_offset = SketchPayloadEntriesOffset(num_columns);
+  CHECK_GE(payload.size(), entries_offset);
+  auto entries_bytes = payload.size() - entries_offset;
+  CHECK_EQ(entries_bytes % sizeof(SketchEntry), 0) << "Invalid sketch payload size.";
+
+  auto const *ptr = payload.data().get();
+  auto const *columns_ptr = reinterpret_cast<SketchContainer::OffsetT const *>(ptr);
+  auto const *entries = reinterpret_cast<SketchEntry const *>(ptr + entries_offset);
+  return {Span<SketchContainer::OffsetT const>{columns_ptr, num_columns + 1},
+          Span<SketchEntry const>{entries, entries_bytes / sizeof(SketchEntry)}};
 }
 
 XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
@@ -560,8 +590,6 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   // Bound local sketch size before exchanging data across workers.
   auto intermediate_num_cuts = static_cast<bst_idx_t>(num_bins_ * kFactor);
   this->Prune(ctx, intermediate_num_cuts);
-  curt::Event sketch_ready;
-  sketch_ready.Record(ctx->CUDACtx()->Stream());
 
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
@@ -574,246 +602,69 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
 
 #if defined(XGBOOST_USE_NCCL)
   if (auto nccl = dynamic_cast<collective::NCCLComm const *>(&comm)) {
-    struct LevelComm {
-      std::size_t group_idx{0};
-      bool active{false};
-      bool is_sender{false};
-      bool is_receiver{false};
-      int send_peer{-1};
-      int recv_peer{-1};
+    dh::device_vector<std::int8_t> payload;
+    collective::gpu_impl::AllreduceVScratch<std::int8_t> scratch;
+
+    auto reserve_n_bytes = SketchPayloadBytes(this->num_columns_, intermediate_num_cuts);
+    payload.reserve(reserve_n_bytes);
+    scratch.Reserve(reserve_n_bytes);
+
+    auto pack_payload = [&](dh::device_vector<std::int8_t> *out) {
+      auto stream = ctx->CUDACtx()->Stream();
+      auto entries_offset = SketchPayloadEntriesOffset(this->num_columns_);
+      auto n_bytes = SketchPayloadBytes(this->num_columns_, this->entries_.size());
+      out->resize(n_bytes);
+
+      auto columns_bytes = (this->num_columns_ + 1) * sizeof(OffsetT);
+      auto rc = collective::GetCUDAResult(
+          cudaMemcpyAsync(out->data().get(), this->columns_ptr_.ConstDeviceSpan().data(),
+                          columns_bytes, cudaMemcpyDeviceToDevice, stream));
+      SafeColl(rc);
+      if (!this->entries_.empty()) {
+        rc = collective::GetCUDAResult(cudaMemcpyAsync(
+            out->data().get() + entries_offset, this->entries_.data().get(),
+            this->entries_.size() * sizeof(SketchEntry), cudaMemcpyDeviceToDevice, stream));
+        SafeColl(rc);
+      }
+      rc = collective::GetCUDAResult(cudaStreamSynchronize(stream));
+      SafeColl(rc);
     };
 
-    auto subrank = [](std::vector<std::int32_t> const &active_ranks, std::int32_t rank) {
-      auto it = std::find(active_ranks.cbegin(), active_ranks.cend(), rank);
-      CHECK(it != active_ranks.cend());
-      return static_cast<std::int32_t>(std::distance(active_ranks.cbegin(), it));
-    };
-    auto sync = [&](LevelComm const &lc) {
-      if (!lc.active) {
-        return collective::Success();
-      }
-      auto const &group = nccl->SubgroupAt(lc.group_idx);
-      return collective::Success() << [&] {
-        return collective::GetCUDAResult(group.stream->View().Sync(false));
-      } << [&] {
-        return collective::BusyWait(nccl->Stub(), group.comm, nccl->Timeout());
-      };
-    };
-    auto read_recv_entries = [&](LevelComm const &lc,
-                                 dh::device_vector<std::int64_t> const &counts) {
-      auto const &group = nccl->SubgroupAt(lc.group_idx);
-      std::int64_t n_entries{0};
-      dh::safe_cuda(cudaMemcpyAsync(&n_entries, counts.data().get() + lc.recv_peer,
-                                    sizeof(n_entries), cudaMemcpyDeviceToHost,
-                                    group.stream->View()));
-      SafeColl(collective::GetCUDAResult(group.stream->View().Sync(false)));
-      CHECK_GE(n_entries, 0);
-      return static_cast<std::size_t>(n_entries);
-    };
+    auto load_payload = [&](dh::device_vector<std::int8_t> const &in) {
+      auto stream = ctx->CUDACtx()->Stream();
+      auto view = ParseDeviceSketchPayload(in, this->num_columns_);
 
-    // Cache the active-rank sets for each tree level up front.  Reusing split communicators is
-    // what makes the NCCL p2p tree stable across repeated top-level calls.
-    std::vector<LevelComm> reduce_levels;
-    std::vector<LevelComm> bcast_levels;
-    std::vector<bool> active(world, true);
-
-    for (std::int32_t level = 0; (std::int32_t{1} << level) < world; ++level) {
-      LevelComm lc;
-      std::vector<std::int32_t> active_ranks;
-      for (std::int32_t r = 0; r < world; ++r) {
-        if (active[r]) {
-          active_ranks.push_back(r);
-        }
-      }
-      lc.active =
-          std::find(active_ranks.cbegin(), active_ranks.cend(), comm.Rank()) != active_ranks.cend();
-      lc.is_sender = lc.active && comm.Rank() > 0 &&
-                     collective::binomial_tree::ParentLevel(comm.Rank()) == level;
-      lc.is_receiver = lc.active && collective::binomial_tree::HasChild(comm.Rank(), level, world);
-      lc.group_idx = nccl->GetSubgroup(active_ranks);
-      if (lc.is_sender) {
-        lc.send_peer = subrank(active_ranks, collective::binomial_tree::Parent(comm.Rank()));
-      }
-      if (lc.is_receiver) {
-        lc.recv_peer = subrank(active_ranks, collective::binomial_tree::Child(comm.Rank(), level));
-      }
-      reduce_levels.push_back(std::move(lc));
-      for (std::int32_t r = 0; r < world; ++r) {
-        if (active[r] && r > 0 && collective::binomial_tree::ParentLevel(r) == level) {
-          active[r] = false;
-        }
-      }
-    }
-
-    for (std::int32_t level = collective::binomial_tree::Depth(world); level >= 0; --level) {
-      LevelComm lc;
-      std::vector<std::int32_t> active_ranks;
-      for (std::int32_t r = 0; r < world; ++r) {
-        if (r == 0 || collective::binomial_tree::ParentLevel(r) >= level) {
-          active_ranks.push_back(r);
-        }
-      }
-      lc.active =
-          std::find(active_ranks.cbegin(), active_ranks.cend(), comm.Rank()) != active_ranks.cend();
-      lc.is_sender = collective::binomial_tree::HasChild(comm.Rank(), level, world);
-      lc.is_receiver =
-          comm.Rank() != 0 && collective::binomial_tree::ParentLevel(comm.Rank()) == level;
-      lc.group_idx = nccl->GetSubgroup(active_ranks);
-      if (lc.is_sender) {
-        lc.send_peer = subrank(active_ranks, collective::binomial_tree::Child(comm.Rank(), level));
-      }
-      if (lc.is_receiver) {
-        lc.recv_peer = subrank(active_ranks, collective::binomial_tree::Parent(comm.Rank()));
-      }
-      bcast_levels.push_back(std::move(lc));
-    }
-
-    dh::device_vector<std::int64_t> d_local_n_entries(1);
-    dh::device_vector<std::int64_t> d_gathered_n_entries;
-    dh::device_vector<OffsetT> recv_columns_ptr(this->num_columns_ + 1);
-    dh::device_vector<SketchEntry> recv_entries;
-    dh::device_vector<std::int8_t> dummy_payload(1, 0);
-
-    auto exchange_entries_size = [&](LevelComm const &lc) {
-      if (!lc.active) {
-        return collective::Success();
-      }
-      auto const &group = nccl->SubgroupAt(lc.group_idx);
-      // The subgroup communicator uses its own stream. Make it wait for any sketch updates
-      // enqueued on the default stream before we expose `columns_ptr_` / `entries_` again.
-      group.stream->Wait(sketch_ready);
-      auto n_entries = static_cast<std::int64_t>(this->entries_.size());
-      dh::safe_cuda(cudaMemcpyAsync(d_local_n_entries.data().get(), &n_entries, sizeof(n_entries),
-                                    cudaMemcpyHostToDevice, group.stream->View()));
-      d_gathered_n_entries.resize(group.active_ranks.size());
-      return collective::Success() << [&] {
-        return nccl->Stub()->Allgather(d_local_n_entries.data().get(),
-                                       d_gathered_n_entries.data().get(), 1, ncclInt64, group.comm,
-                                       group.stream->View());
-      } << [&] {
-        return sync(lc);
-      };
-    };
-    auto exchange_columns = [&](LevelComm const &lc) {
-      if (!lc.active) {
-        return collective::Success();
-      }
-      auto const &group = nccl->SubgroupAt(lc.group_idx);
-      auto recv_ptr = lc.is_receiver ? recv_columns_ptr.data().get() : nullptr;
-      return collective::Success() << [&] {
-        return nccl->Stub()->GroupStart();
-      } << [&] {
-        if (lc.is_sender) {
-          auto rc = nccl->Stub()->Send(this->columns_ptr_.ConstDeviceSpan().data(),
-                                       this->num_columns_ + 1, ncclUint64, lc.send_peer, group.comm,
-                                       group.stream->View());
-          if (!rc.OK()) {
-            return rc;
-          }
-        }
-        if (lc.is_receiver) {
-          return nccl->Stub()->Recv(recv_ptr, this->num_columns_ + 1, ncclUint64, lc.recv_peer,
-                                    group.comm, group.stream->View());
-        }
-        return collective::Success();
-      } << [&] {
-        return nccl->Stub()->GroupEnd();
-      } << [&] {
-        return sync(lc);
-      };
-    };
-    auto exchange_entries = [&](LevelComm const &lc) {
-      if (!lc.active) {
-        return collective::Success();
-      }
-      auto const &group = nccl->SubgroupAt(lc.group_idx);
-      // `columns_ptr` is fixed-width once the number of features is known, but the number of
-      // sketch entries depends on sparsity and pruning.  Exchange entry counts first, then move
-      // only the exact entry payload for the tree edge at this level.
-      if (lc.is_receiver) {
-        auto recv_count = read_recv_entries(lc, d_gathered_n_entries);
-        recv_entries.resize(recv_count);
-      }
-      auto send_count = lc.is_sender
-                            ? std::max<std::size_t>(1, this->entries_.size() * sizeof(SketchEntry))
-                            : std::size_t{0};
-      auto recv_count = lc.is_receiver
-                            ? std::max<std::size_t>(1, recv_entries.size() * sizeof(SketchEntry))
-                            : std::size_t{0};
-      auto *send_ptr = (lc.is_sender && !this->entries_.empty())
-                           ? reinterpret_cast<std::int8_t const *>(this->entries_.data().get())
-                           : dummy_payload.data().get();
-      auto *recv_ptr = (lc.is_receiver && !recv_entries.empty())
-                           ? reinterpret_cast<std::int8_t *>(recv_entries.data().get())
-                           : dummy_payload.data().get();
-      return collective::Success() << [&] {
-        return nccl->Stub()->GroupStart();
-      } << [&] {
-        if (lc.is_sender) {
-          auto rc = nccl->Stub()->Send(send_ptr, send_count, ncclInt8, lc.send_peer, group.comm,
-                                       group.stream->View());
-          if (!rc.OK()) {
-            return rc;
-          }
-        }
-        if (lc.is_receiver) {
-          return nccl->Stub()->Recv(recv_ptr, recv_count, ncclInt8, lc.recv_peer, group.comm,
-                                    group.stream->View());
-        }
-        return collective::Success();
-      } << [&] {
-        return nccl->Stub()->GroupEnd();
-      } << [&] {
-        return sync(lc);
-      };
-    };
-    auto assign_recv = [&]() {
       this->columns_ptr_.Resize(this->num_columns_ + 1);
-      dh::safe_cuda(cudaMemcpyAsync(this->columns_ptr_.DeviceSpan().data(),
-                                    recv_columns_ptr.data().get(),
-                                    recv_columns_ptr.size() * sizeof(OffsetT),
-                                    cudaMemcpyDeviceToDevice, ctx->CUDACtx()->Stream()));
-      this->entries_.resize(recv_entries.size());
-      if (!recv_entries.empty()) {
-        dh::safe_cuda(cudaMemcpyAsync(this->entries_.data().get(), recv_entries.data().get(),
-                                      recv_entries.size() * sizeof(SketchEntry),
-                                      cudaMemcpyDeviceToDevice, ctx->CUDACtx()->Stream()));
+      auto rc = collective::GetCUDAResult(
+          cudaMemcpyAsync(this->columns_ptr_.DeviceSpan().data(), view.columns_ptr.data(),
+                          view.columns_ptr.size_bytes(), cudaMemcpyDeviceToDevice, stream));
+      SafeColl(rc);
+
+      this->entries_.resize(view.entries.size());
+      if (!view.entries.empty()) {
+        rc = collective::GetCUDAResult(
+            cudaMemcpyAsync(this->entries_.data().get(), view.entries.data(),
+                            view.entries.size_bytes(), cudaMemcpyDeviceToDevice, stream));
+        SafeColl(rc);
       }
-      sketch_ready.Record(ctx->CUDACtx()->Stream());
+      rc = collective::GetCUDAResult(cudaStreamSynchronize(stream));
+      SafeColl(rc);
     };
 
-    for (auto const &lc : reduce_levels) {
-      // Each reduction step is "metadata, fixed ptrs, variable entries".  Prune immediately after
-      // merging so the sketch stays bounded before the next tree level.
-      rc = exchange_entries_size(lc);
-      SafeColl(rc);
-      rc = exchange_columns(lc);
-      SafeColl(rc);
-      rc = exchange_entries(lc);
-      SafeColl(rc);
-
-      if (lc.is_receiver) {
-        this->Merge(ctx, {recv_columns_ptr.data().get(), recv_columns_ptr.size()},
-                    {recv_entries.data().get(), recv_entries.size()});
-        this->Prune(ctx, intermediate_num_cuts);
-        sketch_ready.Record(ctx->CUDACtx()->Stream());
-      }
-    }
-
-    for (auto const &lc : bcast_levels) {
-      // Broadcast reuses the same per-level group schedule so every rank receives the final
-      // pruned sketch through the same stable communicator/stream discipline.
-      rc = exchange_entries_size(lc);
-      SafeColl(rc);
-      rc = exchange_columns(lc);
-      SafeColl(rc);
-      rc = exchange_entries(lc);
-      SafeColl(rc);
-
-      if (lc.is_receiver) {
-        assign_recv();
-      }
-    }
+    pack_payload(&payload);
+    rc = collective::gpu_impl::AllreduceV(
+        *nccl, &payload, &scratch,
+        [&](dh::device_vector<std::int8_t> const &lhs, dh::device_vector<std::int8_t> const &rhs,
+            dh::device_vector<std::int8_t> *out, cudaStream_t stream) {
+          SafeColl(collective::GetCUDAResult(cudaStreamSynchronize(stream)));
+          load_payload(lhs);
+          auto rhs_view = ParseDeviceSketchPayload(rhs, this->num_columns_);
+          this->Merge(ctx, rhs_view.columns_ptr, rhs_view.entries);
+          this->Prune(ctx, intermediate_num_cuts);
+          pack_payload(out);
+        });
+    SafeColl(rc);
+    load_payload(payload);
 
     timer_.Stop(__func__);
     return;
