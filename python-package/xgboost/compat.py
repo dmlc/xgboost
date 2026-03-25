@@ -16,8 +16,6 @@ if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
 
-assert sys.version_info[0] == 3, "Python 2 is no longer supported."
-
 
 def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
@@ -42,11 +40,7 @@ try:
     from sklearn.base import BaseEstimator as XGBModelBase
     from sklearn.base import ClassifierMixin as XGBClassifierBase
     from sklearn.base import RegressorMixin as XGBRegressorBase
-
-    try:
-        from sklearn.model_selection import StratifiedKFold as XGBStratifiedKFold
-    except ImportError:
-        from sklearn.cross_validation import StratifiedKFold as XGBStratifiedKFold
+    from sklearn.model_selection import StratifiedKFold as XGBStratifiedKFold
 
     # sklearn.utils Tags types can be imported unconditionally once
     # xgboost's minimum scikit-learn version is 1.6 or higher
