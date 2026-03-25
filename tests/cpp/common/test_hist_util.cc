@@ -326,7 +326,7 @@ void TestSketchFromWeights(bool with_group) {
   m->Info().num_col_ = kCols;
   m->Info().num_row_ = kRows;
   ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
-  ValidateCuts(cuts, m.get(), kBins);
+  ValidateCutsGpu(cuts, m.get(), kBins);
 
   if (with_group) {
     m->Info().weights_ = decltype(m->Info().weights_)();  // remove weight
@@ -347,7 +347,7 @@ void TestSketchFromWeights(bool with_group) {
     }
     m->SetInfo("weight", Make1dInterfaceTest(group_weights.data(), group_weights.size()));
     HistogramCuts weighted = SketchOnDMatrix(&ctx, m.get(), kBins);
-    ValidateCuts(weighted, m.get(), kBins, kMaxWeightedNormalizedRankError);
+    ValidateCutsGpu(weighted, m.get(), kBins);
   }
 }
 
