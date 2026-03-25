@@ -114,7 +114,7 @@ TEST(HistUtil, DeviceSketchCategoricalAsNumeric) {
       auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
       auto dmat = GetDMatrixFromData(x, n, 1);
       auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
+      ValidateCutsGpu(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -232,7 +232,7 @@ TEST(HistUtil, DeviceSketchMultipleColumns) {
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
+      ValidateCutsGpu(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -248,7 +248,7 @@ TEST(HistUtil, DeviceSketchMultipleColumnsWeights) {
     dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
+      ValidateCutsGpu(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -270,8 +270,8 @@ TEST(HistUitl, DeviceSketchWeights) {
       auto wcuts = DeviceSketch(&ctx, weighted_dmat.get(), num_bins);
       ASSERT_EQ(cuts.Ptrs(), wcuts.Ptrs());
       ASSERT_EQ(cuts.Values(), wcuts.Values());
-      ValidateCuts(cuts, dmat.get(), num_bins);
-      ValidateCuts(wcuts, weighted_dmat.get(), num_bins);
+      ValidateCutsGpu(cuts, dmat.get(), num_bins);
+      ValidateCutsGpu(wcuts, weighted_dmat.get(), num_bins);
     }
   }
 }
@@ -287,7 +287,7 @@ TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
     auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
+      ValidateCutsGpu(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -305,7 +305,7 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
     dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
+      ValidateCutsGpu(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -324,7 +324,7 @@ template <typename Adapter>
 void ValidateBatchedCuts(Context const* ctx, Adapter adapter, int num_bins, DMatrix* dmat) {
   common::HistogramCuts batched_cuts =
       MakeUnweightedCutsForTest(ctx, adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
-  ValidateCuts(batched_cuts, dmat, num_bins);
+  ValidateCutsGpu(batched_cuts, dmat, num_bins);
 }
 
 TEST(HistUtil, AdapterDeviceSketch) {
@@ -555,7 +555,7 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
     ASSERT_EQ(cuts.Ptrs().at(i), weighted_cuts.Ptrs().at(i));
   }
-  ValidateCuts(weighted_cuts, m.get(), kBins);
+  ValidateCutsGpu(weighted_cuts, m.get(), kBins);
 }
 
 void TestAdapterSketchFromWeights(bool with_group) {
@@ -605,7 +605,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
   dmat->Info().num_col_ = kCols;
   dmat->Info().num_row_ = kRows;
   ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
-  ValidateCuts(cuts, dmat.get(), kBins);
+  ValidateCutsGpu(cuts, dmat.get(), kBins);
 
   if (with_group) {
     dmat->Info().weights_ = decltype(dmat->Info().weights_)();  // remove weight
@@ -633,7 +633,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_container);
     weighted = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
-    ValidateCuts(weighted, dmat.get(), kBins);
+    ValidateCutsGpu(weighted, dmat.get(), kBins);
   }
 }
 
@@ -668,7 +668,7 @@ class DeviceSketchWithHessianTest
 
     HistogramCuts cuts_hess =
         DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan());
-    ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
+    ValidateCutsGpu(cuts_hess, p_fmat.get(), n_bins);
 
     // merge hessian
     {
@@ -680,7 +680,7 @@ class DeviceSketchWithHessianTest
     }
 
     HistogramCuts cuts_wh = DeviceSketch(ctx, p_fmat.get(), n_bins);
-    ValidateCuts(cuts_wh, p_fmat.get(), n_bins);
+    ValidateCutsGpu(cuts_wh, p_fmat.get(), n_bins);
     ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
     for (std::size_t i = 0; i < cuts_hess.Values().size(); ++i) {
       ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
@@ -714,7 +714,7 @@ class DeviceSketchWithHessianTest
     // make validation easier by converting it into sample weight.
     p_fmat->Info().weights_.HostVector() = h_hess;
     p_fmat->Info().group_ptr_.clear();
-    ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
+    ValidateCutsGpu(cuts_hess, p_fmat.get(), n_bins);
     // restore ltr properties
     p_fmat->Info().weights_.HostVector() = w;
     p_fmat->Info().group_ptr_ = gptr;
@@ -726,7 +726,7 @@ class DeviceSketchWithHessianTest
     // make validation easier by converting it into sample weight.
     p_fmat->Info().weights_.HostVector() = h_hess;
     p_fmat->Info().group_ptr_.clear();
-    ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
+    ValidateCutsGpu(cuts_hess, p_fmat.get(), n_bins);
 
     // merge hessian with sample weight
     p_fmat->Info().weights_.Resize(n_samples);
@@ -736,7 +736,7 @@ class DeviceSketchWithHessianTest
       p_fmat->Info().weights_.HostVector()[i] = w[gidx] * h_hess[i];
     }
     auto cuts = DeviceSketch(ctx, p_fmat.get(), n_bins);
-    ValidateCuts(cuts, p_fmat.get(), n_bins);
+    ValidateCutsGpu(cuts, p_fmat.get(), n_bins);
     ASSERT_EQ(cuts.Values().size(), cuts_hess.Values().size());
     for (std::size_t i = 0; i < cuts.Values().size(); ++i) {
       EXPECT_NEAR(cuts.Values()[i], cuts_hess.Values()[i], 1e-4f);

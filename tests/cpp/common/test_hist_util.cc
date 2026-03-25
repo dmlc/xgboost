@@ -198,10 +198,10 @@ void TestQuantileWithHessian(bool use_sorted) {
       for (size_t i = 0; i < w.size(); ++i) {
         dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
       }
-      ValidateCuts(cuts_hess, dmat.get(), num_bins);
+      ValidateCuts(cuts_hess, dmat.get(), num_bins, kMaxWeightedNormalizedRankError);
 
       HistogramCuts cuts_wh = SketchOnDMatrix(&ctx, dmat.get(), num_bins, use_sorted);
-      ValidateCuts(cuts_wh, dmat.get(), num_bins);
+      ValidateCuts(cuts_wh, dmat.get(), num_bins, kMaxWeightedNormalizedRankError);
 
       ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
       for (size_t i = 0; i < cuts_hess.Values().size(); ++i) {
@@ -326,7 +326,7 @@ void TestSketchFromWeights(bool with_group) {
   m->Info().num_col_ = kCols;
   m->Info().num_row_ = kRows;
   ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
-  ValidateCuts(cuts, m.get(), kBins);
+  ValidateCutsGpu(cuts, m.get(), kBins);
 
   if (with_group) {
     m->Info().weights_ = decltype(m->Info().weights_)();  // remove weight
@@ -347,7 +347,7 @@ void TestSketchFromWeights(bool with_group) {
     }
     m->SetInfo("weight", Make1dInterfaceTest(group_weights.data(), group_weights.size()));
     HistogramCuts weighted = SketchOnDMatrix(&ctx, m.get(), kBins);
-    ValidateCuts(weighted, m.get(), kBins);
+    ValidateCutsGpu(weighted, m.get(), kBins);
   }
 }
 
