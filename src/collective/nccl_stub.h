@@ -34,8 +34,6 @@ class NcclStub {
   decltype(ncclCommGetAsyncError)* comm_get_async_error_{nullptr};
   decltype(ncclCommAbort)* comm_abort_{nullptr};
   decltype(ncclCommSplit)* comm_split_{nullptr};
-  decltype(ncclCommCount)* comm_count_{nullptr};
-  decltype(ncclCommUserRank)* comm_user_rank_{nullptr};
   decltype(ncclGetUniqueId)* get_uniqueid_{nullptr};
   decltype(ncclSend)* send_{nullptr};
   decltype(ncclRecv)* recv_{nullptr};
@@ -105,12 +103,6 @@ class NcclStub {
   [[nodiscard]] Result CommSplit(ncclComm_t comm, int color, int key, ncclComm_t* newcomm,
                                  ncclConfig_t* config) const {
     return this->GetNcclResult(comm_split_(comm, color, key, newcomm, config));
-  }
-  [[nodiscard]] Result CommCount(ncclComm_t comm, int* count) const {
-    return this->GetNcclResult(comm_count_(comm, count));
-  }
-  [[nodiscard]] Result CommUserRank(ncclComm_t comm, int* rank) const {
-    return this->GetNcclResult(comm_user_rank_(comm, rank));
   }
   [[nodiscard]] Result GetUniqueId(ncclUniqueId* uniqueId) const {
     return this->GetNcclResult(get_uniqueid_(uniqueId));
