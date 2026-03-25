@@ -28,12 +28,10 @@ class NcclStub {
   decltype(ncclBroadcast)* broadcast_{nullptr};
   decltype(ncclAllGather)* allgather_{nullptr};
   decltype(ncclCommInitRank)* comm_init_rank_{nullptr};
-  decltype(ncclCommInitRankConfig)* comm_init_rank_config_{nullptr};
   decltype(ncclCommDestroy)* comm_destroy_{nullptr};
   decltype(ncclCommFinalize)* comm_finalize_{nullptr};
   decltype(ncclCommGetAsyncError)* comm_get_async_error_{nullptr};
   decltype(ncclCommAbort)* comm_abort_{nullptr};
-  decltype(ncclCommSplit)* comm_split_{nullptr};
   decltype(ncclGetUniqueId)* get_uniqueid_{nullptr};
   decltype(ncclSend)* send_{nullptr};
   decltype(ncclRecv)* recv_{nullptr};
@@ -68,10 +66,6 @@ class NcclStub {
                                     int rank) const {
     return this->GetNcclResult(this->comm_init_rank_(comm, nranks, commId, rank));
   }
-  [[nodiscard]] Result CommInitRankConfig(ncclComm_t* comm, int nranks, ncclUniqueId commId,
-                                          int rank, ncclConfig_t* config) const {
-    return this->GetNcclResult(this->comm_init_rank_config_(comm, nranks, commId, rank, config));
-  }
   [[nodiscard]] Result CommDestroy(ncclComm_t comm) const {
     if (this->Aborted()) {
       return Success();
@@ -99,10 +93,6 @@ class NcclStub {
     }
     this->aborted_ = true;
     return this->GetNcclResult(comm_abort_(comm));
-  }
-  [[nodiscard]] Result CommSplit(ncclComm_t comm, int color, int key, ncclComm_t* newcomm,
-                                 ncclConfig_t* config) const {
-    return this->GetNcclResult(comm_split_(comm, color, key, newcomm, config));
   }
   [[nodiscard]] Result GetUniqueId(ncclUniqueId* uniqueId) const {
     return this->GetNcclResult(get_uniqueid_(uniqueId));
