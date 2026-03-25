@@ -59,7 +59,7 @@
               <configuration>
                 <archive>
                   <manifestEntries>
-                    <Automatic-Module-Name>ml.dmlc.xgboost4j.sparkgpu</Automatic-Module-Name>
+                    <Automatic-Module-Name>ml.dmlc.xgboost4j.spark.gpu</Automatic-Module-Name>
                   </manifestEntries>
                 </archive>
               </configuration>
