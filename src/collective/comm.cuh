@@ -7,7 +7,10 @@
 #include "nccl.h"
 #endif  // XGBOOST_USE_NCCL
 
+#include <cstdint>  // for int32_t
+#include <memory>   // for shared_ptr
 #include <utility>  // for move
+#include <vector>   // for vector
 
 #include "../common/cuda_stream.h"  // for StreamRef
 #include "coll.h"
@@ -27,11 +30,20 @@ inline Result GetCUDAResult(cudaError rc) {
 
 #if defined(XGBOOST_USE_NCCL)
 class NCCLComm : public Comm {
+ public:
+  struct Subgroup {
+    std::vector<std::int32_t> active_ranks;
+    ncclComm_t comm{nullptr};
+    std::shared_ptr<curt::Stream> stream;
+  };
+
+ private:
   ncclComm_t nccl_comm_{nullptr};
   std::shared_ptr<NcclStub> stub_;
   ncclUniqueId nccl_unique_id_{};
   curt::StreamRef stream_;
   std::string nccl_path_;
+  mutable std::vector<Subgroup> subgroups_;
 
  public:
   [[nodiscard]] ncclComm_t Handle() const { return nccl_comm_; }
@@ -54,6 +66,8 @@ class NCCLComm : public Comm {
     this->ResetState();
     return Success();
   }
+  [[nodiscard]] std::size_t GetSubgroup(std::vector<std::int32_t> const& active_ranks) const;
+  [[nodiscard]] Subgroup const& SubgroupAt(std::size_t idx) const { return subgroups_.at(idx); }
 };
 
 class NCCLChannel : public Channel {

@@ -85,7 +85,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
     return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);
   } << [&] {
     ncclConfig_t config = NCCL_CONFIG_INITIALIZER;
-    config.blocking = 0;
+    config.blocking = 1;
     return this->stub_->CommInitRankConfig(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank(),
                                            &config);
   } << [&] {
@@ -99,7 +99,57 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   }
 }
 
+std::size_t NCCLComm::GetSubgroup(std::vector<std::int32_t> const& active_ranks) const {
+  auto it = std::find_if(this->subgroups_.cbegin(), this->subgroups_.cend(),
+                         [&](auto const& g) { return g.active_ranks == active_ranks; });
+  if (it != this->subgroups_.cend()) {
+    return static_cast<std::size_t>(std::distance(this->subgroups_.cbegin(), it));
+  }
+
+  Subgroup g;
+  g.active_ranks = active_ranks;
+  g.stream = std::make_shared<curt::Stream>();
+
+  auto active =
+      std::find(active_ranks.cbegin(), active_ranks.cend(), this->Rank()) != active_ranks.cend();
+  auto color = active ? 1 : NCCL_SPLIT_NOCOLOR;
+  ncclConfig_t config = NCCL_CONFIG_INITIALIZER;
+  config.blocking = 0;
+  config.splitShare = 0;
+
+  auto rc = this->stub_->CommSplit(this->nccl_comm_, color, this->Rank(), &g.comm, &config);
+  SafeColl(rc);
+  if (g.comm != nullptr) {
+    rc = BusyWait(this->stub_, g.comm, this->Timeout());
+    SafeColl(rc);
+  }
+
+  this->subgroups_.push_back(std::move(g));
+  return this->subgroups_.size() - 1;
+}
+
 NCCLComm::~NCCLComm() {
+  for (auto& subgroup : this->subgroups_) {
+    if (subgroup.comm == nullptr) {
+      continue;
+    }
+    auto rc = Success() << [this, &subgroup] {
+      return this->stub_->CommFinalize(subgroup.comm);
+    } << [this, &subgroup] {
+      auto rc = BusyWait(this->stub_, subgroup.comm, this->Timeout());
+      if (!rc.OK()) {
+        return std::move(rc) + this->stub_->CommAbort(subgroup.comm);
+      }
+      return rc;
+    } << [this, &subgroup] {
+      return this->stub_->CommDestroy(subgroup.comm);
+    };
+    if (!rc.OK()) {
+      LOG(WARNING) << rc.Report();
+    }
+  }
+  this->subgroups_.clear();
+
   if (nccl_comm_) {
     auto rc = Success() << [this] {
       return this->stub_->CommFinalize(this->nccl_comm_);

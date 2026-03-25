@@ -6,8 +6,8 @@
 #include <cstdint>      // for int8_t
 #include <type_traits>  // for is_invocable_v, enable_if_t
 
-#include "../common/device_helpers.cuh"  // for device_vector, safe_cuda
 #include "../common/cuda_rt_utils.h"     // for DefaultStream
+#include "../common/device_helpers.cuh"  // for device_vector, safe_cuda
 #include "allreduce.h"                   // for Result, Comm
 
 namespace xgboost::collective::gpu_impl {
@@ -45,8 +45,11 @@ AllreduceV(Comm const& comm, dh::device_vector<std::int8_t>* data, Fn redop) {
   auto const world = comm.World();
   auto const rank = comm.Rank();
   auto constexpr kRoot = 0;
+
   dh::device_vector<std::int64_t> d_send_n_bytes(1);
   dh::device_vector<std::int64_t> d_recv_n_bytes(1);
+  dh::device_vector<std::int8_t> incoming;
+  dh::device_vector<std::int8_t> out;
 
   auto send = [&](std::int32_t peer, dh::device_vector<std::int8_t> const& vec) {
     std::int64_t n_bytes = static_cast<std::int64_t>(vec.size());
@@ -55,6 +58,9 @@ AllreduceV(Comm const& comm, dh::device_vector<std::int8_t>* data, Fn redop) {
     return Success() << [&] {
       return SendAllDevice(comm, peer, d_send_n_bytes.data().get(), d_send_n_bytes.size());
     } << [&] {
+      if (vec.empty()) {
+        return Success();
+      }
       return SendAllDevice(comm, peer, vec.data().get(), vec.size());
     };
   };
@@ -71,12 +77,13 @@ AllreduceV(Comm const& comm, dh::device_vector<std::int8_t>* data, Fn redop) {
       out->resize(n_bytes);
       return Success();
     } << [&] {
+      if (out->empty()) {
+        return Success();
+      }
       return RecvAllDevice(comm, peer, out->data().get(), out->size());
     };
   };
 
-  dh::device_vector<std::int8_t> incoming;
-  dh::device_vector<std::int8_t> out;
   bool continue_reduce = true;
   for (std::int32_t level = 0; (std::int32_t{1} << level) < world; ++level) {
     if (!continue_reduce) {
