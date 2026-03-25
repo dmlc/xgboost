@@ -11,6 +11,7 @@
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/adapter.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
+#include "test_hist_util.h"
 #include "xgboost/context.h"
 
 namespace xgboost::common {
@@ -114,247 +115,130 @@ void PushPage(HostSketchContainer* container, SparsePage const& page, MetaInfo c
   }
 }
 
+auto RowSplitBounds(std::size_t n_rows, std::size_t world, std::size_t rank) {
+  auto rows_per_worker = n_rows / world;
+  CHECK_EQ(rows_per_worker * world, n_rows);
+  auto row_begin = rank * rows_per_worker;
+  auto row_end = row_begin + rows_per_worker;
+  return std::pair{row_begin, row_end};
+}
+
+auto SliceRows(std::vector<float> const& data, std::size_t n_cols, std::size_t row_begin,
+               std::size_t row_end) -> std::vector<float> {
+  auto begin = data.cbegin() + row_begin * n_cols;
+  auto end = data.cbegin() + row_end * n_cols;
+  return {begin, end};
+}
+
 template <bool use_column>
-void DoTestDistributedQuantile(size_t rows, size_t cols) {
-  Context ctx;
-  auto const world = collective::GetWorldSize();
-  std::vector<MetaInfo> infos(2);
-  auto& h_weights = infos.front().weights_.HostVector();
-  h_weights.resize(rows);
-  SimpleLCG lcg;
-  SimpleRealUniformDistribution<float> dist(3, 1000);
-  std::generate(h_weights.begin(), h_weights.end(), [&]() { return dist(&lcg); });
-  std::vector<bst_idx_t> column_size(cols, rows);
-  bst_bin_t n_bins = 64;
-
-  // Generate cuts for distributed environment.
-  auto sparsity = 0.5f;
-  auto rank = collective::GetRank();
-  std::vector<FeatureType> ft(cols);
-  for (size_t i = 0; i < ft.size(); ++i) {
-    ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
-  }
-
-  auto m = RandomDataGenerator{rows, cols, sparsity}
-               .Seed(rank)
-               .Lower(.0f)
-               .Upper(1.0f)
-               .Type(ft)
-               .MaxCategory(13)
-               .GenerateDMatrix();
-
-  std::vector<float> hessian(rows, 1.0);
-  auto hess = Span<float const>{hessian};
-
-  HostSketchContainer sketch_distributed(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
-                                         column_size, false);
-
-  if (use_column) {
-    for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-      PushPage<use_column>(&sketch_distributed, page, m->Info(), hess);
+auto SketchDistributedCuts(Context const* ctx, DMatrix* m,
+                           std::vector<bst_idx_t> const& column_size, bst_bin_t n_bins)
+    -> HistogramCuts {
+  HostSketchContainer sketch{ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size,
+                             HostSketchContainer::UseGroup(m->Info())};
+  auto hess = Span<float const>{};
+  if constexpr (use_column) {
+    for (auto const& page : m->GetBatches<SortedCSCPage>(ctx)) {
+      PushPage<use_column>(&sketch, page, m->Info(), hess);
     }
   } else {
-    for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-      PushPage<use_column>(&sketch_distributed, page, m->Info(), hess);
+    for (auto const& page : m->GetBatches<SparsePage>(ctx)) {
+      PushPage<use_column>(&sketch, page, m->Info(), hess);
     }
   }
-
-  auto distributed_cuts = sketch_distributed.MakeCuts(&ctx, m->Info());
-
-  // Generate cuts for single node environment
-  collective::Finalize();
-
-  CHECK_EQ(collective::GetWorldSize(), 1);
-  std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
-  m->Info().num_row_ = world * rows;
-  HostSketchContainer sketch_on_single_node(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
-                                            column_size, false);
-  m->Info().num_row_ = rows;
-
-  for (auto rank = 0; rank < world; ++rank) {
-    auto m = RandomDataGenerator{rows, cols, sparsity}
-                 .Seed(rank)
-                 .Type(ft)
-                 .MaxCategory(13)
-                 .Lower(.0f)
-                 .Upper(1.0f)
-                 .GenerateDMatrix();
-    if (use_column) {
-      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage<use_column>(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    } else {
-      for (auto const& page : m->GetBatches<SparsePage>()) {
-        PushPage<use_column>(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    }
-  }
-
-  auto single_node_cuts = sketch_on_single_node.MakeCuts(&ctx, m->Info());
-
-  auto const& sptrs = single_node_cuts.Ptrs();
-  auto const& dptrs = distributed_cuts.Ptrs();
-  auto const& svals = single_node_cuts.Values();
-  auto const& dvals = distributed_cuts.Values();
-
-  ASSERT_EQ(sptrs.size(), dptrs.size());
-  for (size_t i = 0; i < sptrs.size(); ++i) {
-    ASSERT_EQ(sptrs[i], dptrs[i]) << i;
-  }
-
-  ASSERT_EQ(svals.size(), dvals.size());
-  for (size_t i = 0; i < svals.size(); ++i) {
-    ASSERT_NEAR(svals[i], dvals[i], 2e-2f);
-  }
+  return sketch.MakeCuts(ctx, m->Info());
 }
 
 template <bool use_column>
-void TestDistributedQuantile(size_t const rows, size_t const cols) {
+void DoTestRowSplitRankError(std::size_t rows, std::size_t cols) {
+  Context ctx;
+  auto const world = static_cast<std::size_t>(collective::GetWorldSize());
+  auto const rank = static_cast<std::size_t>(collective::GetRank());
+  auto constexpr kBins = 64;
+
+  auto full_data = GenerateRandom(rows, cols);
+  auto full_weights = GenerateRandomWeights(rows);
+  auto [row_begin, row_end] = RowSplitBounds(rows, world, rank);
+
+  auto local_data = SliceRows(full_data, cols, row_begin, row_end);
+  std::vector<float> local_weights(full_weights.cbegin() + row_begin,
+                                   full_weights.cbegin() + row_end);
+  auto local = GetDMatrixFromData(local_data, row_end - row_begin, cols);
+  local->Info().weights_.HostVector() = local_weights;
+
+  std::vector<bst_idx_t> column_size(cols, row_end - row_begin);
+  auto distributed_cuts = SketchDistributedCuts<use_column>(&ctx, local.get(), column_size, kBins);
+
+  collective::Finalize();
+  CHECK_EQ(collective::GetWorldSize(), 1);
+
+  auto full = GetDMatrixFromData(full_data, rows, cols);
+  full->Info().weights_.HostVector() = full_weights;
+  ValidateCuts(distributed_cuts, full.get(), kBins);
+}
+
+template <bool use_column>
+void TestRowSplitRankError(std::size_t rows, std::size_t cols) {
   auto constexpr kWorkers = 4;
   collective::TestDistributedGlobal(
-      kWorkers, [=] { DoTestDistributedQuantile<use_column>(rows, cols); }, false);
-}
-}  // anonymous namespace
-
-TEST(Quantile, DistributedBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestDistributedQuantile<false>(kRows, kCols);
+      kWorkers, [=] { DoTestRowSplitRankError<use_column>(rows, cols); }, false);
 }
 
-TEST(Quantile, Distributed) {
-  constexpr size_t kRows = 4000, kCols = 200;
-  TestDistributedQuantile<false>(kRows, kCols);
-}
-
-TEST(Quantile, SortedDistributedBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestDistributedQuantile<true>(kRows, kCols);
-}
-
-TEST(Quantile, SortedDistributed) {
-  constexpr size_t kRows = 4000, kCols = 200;
-  TestDistributedQuantile<true>(kRows, kCols);
-}
-
-namespace {
 template <bool use_column>
-void DoTestColSplitQuantile(size_t rows, size_t cols) {
+void DoTestColumnSplitRankError(std::size_t rows, std::size_t cols) {
   Context ctx;
-  auto const world = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
+  auto const world = static_cast<std::size_t>(collective::GetWorldSize());
+  auto const rank = static_cast<std::size_t>(collective::GetRank());
+  auto constexpr kBins = 64;
 
-  auto m = std::unique_ptr<DMatrix>{[=]() {
-    auto sparsity = 0.5f;
-    std::vector<FeatureType> ft(cols);
-    for (size_t i = 0; i < ft.size(); ++i) {
-      ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
-    }
-    auto dmat = RandomDataGenerator{rows, cols, sparsity}
-                    .Seed(0)
-                    .Lower(.0f)
-                    .Upper(1.0f)
-                    .Type(ft)
-                    .MaxCategory(13)
-                    .GenerateDMatrix();
-    return dmat->SliceCol(world, rank);
-  }()};
+  auto full_data = GenerateRandom(rows, cols);
+  auto full_weights = GenerateRandomWeights(rows);
+  auto base = GetDMatrixFromData(full_data, rows, cols);
+  base->Info().weights_.HostVector() = full_weights;
+  auto m = std::unique_ptr<DMatrix>{base->SliceCol(world, rank)};
 
   std::vector<bst_idx_t> column_size(cols, 0);
   auto const slice_size = cols / world;
   auto const slice_start = slice_size * rank;
   auto const slice_end = (rank == world - 1) ? cols : slice_start + slice_size;
-  for (auto i = slice_start; i < slice_end; i++) {
+  for (auto i = slice_start; i < slice_end; ++i) {
     column_size[i] = rows;
   }
 
-  auto const n_bins = 64;
+  auto distributed_cuts = SketchDistributedCuts<use_column>(&ctx, m.get(), column_size, kBins);
 
-  // Generate cuts for distributed environment.
-  HistogramCuts distributed_cuts{0};
-  {
-    HostSketchContainer sketch_distributed(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
-                                           column_size, false);
-
-    std::vector<float> hessian(rows, 1.0);
-    auto hess = Span<float const>{hessian};
-    if (use_column) {
-      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage<use_column>(&sketch_distributed, page, m->Info(), hess);
-      }
-    } else {
-      for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-        PushPage<use_column>(&sketch_distributed, page, m->Info(), hess);
-      }
-    }
-
-    distributed_cuts = sketch_distributed.MakeCuts(&ctx, m->Info());
-  }
-
-  // Generate cuts for single node environment
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
-  HistogramCuts single_node_cuts{0};
-  {
-    HostSketchContainer sketch_on_single_node(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
-                                              column_size, false);
 
-    std::vector<float> hessian(rows, 1.0);
-    auto hess = Span<float const>{hessian};
-    if (use_column) {
-      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage<use_column>(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    } else {
-      for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-        PushPage<use_column>(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    }
-
-    single_node_cuts = sketch_on_single_node.MakeCuts(&ctx, m->Info());
-  }
-
-  auto const& sptrs = single_node_cuts.Ptrs();
-  auto const& dptrs = distributed_cuts.Ptrs();
-  auto const& svals = single_node_cuts.Values();
-  auto const& dvals = distributed_cuts.Values();
-
-  EXPECT_EQ(sptrs.size(), dptrs.size());
-  for (size_t i = 0; i < sptrs.size(); ++i) {
-    EXPECT_EQ(sptrs[i], dptrs[i]) << "rank: " << rank << ", i: " << i;
-  }
-
-  EXPECT_EQ(svals.size(), dvals.size());
-  for (size_t i = 0; i < svals.size(); ++i) {
-    EXPECT_NEAR(svals[i], dvals[i], 2e-2f) << "rank: " << rank << ", i: " << i;
-  }
+  ValidateCuts(distributed_cuts, m.get(), kBins);
 }
 
 template <bool use_column>
-void TestColSplitQuantile(size_t rows, size_t cols) {
+void TestColumnSplitRankError(std::size_t rows, std::size_t cols) {
   auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers,
-                                    [=] { DoTestColSplitQuantile<use_column>(rows, cols); });
+  collective::TestDistributedGlobal(
+      kWorkers, [=] { DoTestColumnSplitRankError<use_column>(rows, cols); }, false);
 }
 }  // anonymous namespace
 
-TEST(Quantile, ColumnSplitBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestColSplitQuantile<false>(kRows, kCols);
+TEST(Quantile, DistributedRankError) {
+  constexpr std::size_t kRows = 1024, kCols = 64;
+  TestRowSplitRankError<false>(kRows, kCols);
 }
 
-TEST(Quantile, ColumnSplit) {
-  constexpr size_t kRows = 4000, kCols = 200;
-  TestColSplitQuantile<false>(kRows, kCols);
+TEST(Quantile, SortedDistributedRankError) {
+  constexpr std::size_t kRows = 1024, kCols = 64;
+  TestRowSplitRankError<true>(kRows, kCols);
 }
 
-TEST(Quantile, ColumnSplitSortedBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestColSplitQuantile<true>(kRows, kCols);
+TEST(Quantile, ColumnSplitRankError) {
+  constexpr std::size_t kRows = 1024, kCols = 64;
+  TestColumnSplitRankError<false>(kRows, kCols);
 }
 
-TEST(Quantile, ColumnSplitSorted) {
-  constexpr size_t kRows = 4000, kCols = 200;
-  TestColSplitQuantile<true>(kRows, kCols);
+TEST(Quantile, ColumnSplitSortedRankError) {
+  constexpr std::size_t kRows = 1024, kCols = 64;
+  TestColumnSplitRankError<true>(kRows, kCols);
 }
 
 namespace {
