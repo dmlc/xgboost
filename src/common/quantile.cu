@@ -597,9 +597,8 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   SafeColl(rc);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
-  auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, ctx->Device());
-
 #if defined(XGBOOST_USE_NCCL)
+  auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, ctx->Device());
   if (auto nccl = dynamic_cast<collective::NCCLComm const *>(&comm)) {
     dh::device_vector<std::int8_t> payload;
     collective::gpu_impl::AllreduceVScratch<std::int8_t> scratch;
@@ -655,7 +654,6 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
         *nccl, &payload, &scratch,
         [&](dh::device_vector<std::int8_t> const &lhs, dh::device_vector<std::int8_t> const &rhs,
             dh::device_vector<std::int8_t> *out, cudaStream_t stream) {
-          SafeColl(collective::GetCUDAResult(cudaStreamSynchronize(stream)));
           load_payload(lhs);
           auto rhs_view = ParseDeviceSketchPayload(rhs, this->num_columns_);
           this->Merge(ctx, rhs_view.columns_ptr, rhs_view.entries);
