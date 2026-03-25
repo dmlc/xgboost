@@ -11,8 +11,8 @@
 #include <utility>
 
 #include "../common/device_helpers.cuh"  // for device_vector
+#include "comm_group.h"                  // for GlobalCommGroup
 #include "comm.cuh"                      // for NCCLComm, GetCUDAResult
-#include "nccl_stub.h"                   // for BusyWait
 #include "topo.h"                        // for binomial tree helpers
 #include "xgboost/collective/result.h"
 #include "xgboost/logging.h"
@@ -50,14 +50,24 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     scratch->size.resize(1);
   }
 
-  auto stub = nccl.Stub();
   auto stream = cudaStream_t{nccl.Stream()};
-  auto wait_nccl = [&] {
-    auto rc = BusyWait(stub, nccl.Handle(), nccl.Timeout());
+
+  auto send_all = [&](std::int32_t peer, std::int8_t const* ptr, std::size_t n_bytes) {
+    auto ch = nccl.Chan(peer);
+    auto rc = ch->SendAll(ptr, n_bytes);
     if (!rc.OK()) {
       return rc;
     }
-    return GetCUDAResult(cudaStreamSynchronize(stream));
+    return ch->Block();
+  };
+
+  auto recv_all = [&](std::int32_t peer, std::int8_t* ptr, std::size_t n_bytes) {
+    auto ch = nccl.Chan(peer);
+    auto rc = ch->RecvAll(ptr, n_bytes);
+    if (!rc.OK()) {
+      return rc;
+    }
+    return ch->Block();
   };
 
   auto send_size = [&](std::int32_t peer, std::int64_t n) {
@@ -66,20 +76,14 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     if (!rc.OK()) {
       return rc;
     }
-    rc = stub->Send(scratch->size.data().get(), 1, ncclInt64, peer, nccl.Handle(), stream);
-    if (!rc.OK()) {
-      return rc;
-    }
-    return wait_nccl();
+    return send_all(peer, reinterpret_cast<std::int8_t const*>(scratch->size.data().get()),
+                    sizeof(n));
   };
 
   auto recv_size = [&](std::int32_t peer, std::int64_t* n) {
     CHECK(n);
-    auto rc = stub->Recv(scratch->size.data().get(), 1, ncclInt64, peer, nccl.Handle(), stream);
-    if (!rc.OK()) {
-      return rc;
-    }
-    rc = wait_nccl();
+    auto rc = recv_all(peer, reinterpret_cast<std::int8_t*>(scratch->size.data().get()),
+                       sizeof(*n));
     if (!rc.OK()) {
       return rc;
     }
@@ -98,12 +102,7 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     }
 
     auto count = payload.size() * sizeof(T);
-    rc = stub->Send(reinterpret_cast<std::int8_t const*>(payload.data().get()), count, ncclInt8,
-                    peer, nccl.Handle(), stream);
-    if (!rc.OK()) {
-      return rc;
-    }
-    return wait_nccl();
+    return send_all(peer, reinterpret_cast<std::int8_t const*>(payload.data().get()), count);
   };
 
   auto recv_vec = [&](std::int32_t peer, dh::device_vector<T>* payload) {
@@ -120,12 +119,7 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     }
 
     auto count = static_cast<std::size_t>(n) * sizeof(T);
-    rc = stub->Recv(reinterpret_cast<std::int8_t*>(payload->data().get()), count, ncclInt8, peer,
-                    nccl.Handle(), stream);
-    if (!rc.OK()) {
-      return rc;
-    }
-    return wait_nccl();
+    return recv_all(peer, reinterpret_cast<std::int8_t*>(payload->data().get()), count);
   };
 
   auto rank = nccl.Rank();
@@ -158,6 +152,13 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
 
   constexpr std::int32_t kRoot = 0;
   std::int64_t n = 0;
+  // `Backend` only dispatches on the device type, so any CUDA ordinal is sufficient here.
+  auto coll = GlobalCommGroup()->Backend(DeviceOrd::CUDA(0));
+  auto broadcast = [&](void* ptr, std::size_t n_bytes) {
+    return coll->Broadcast(nccl, common::Span<std::int8_t>{reinterpret_cast<std::int8_t*>(ptr),
+                                                           n_bytes},
+                           kRoot);
+  };
   if (rank == kRoot) {
     n = static_cast<std::int64_t>(data->size());
     auto rc = GetCUDAResult(cudaMemcpyAsync(scratch->size.data().get(), &n, sizeof(n),
@@ -167,14 +168,9 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     }
   }
 
-  auto rc = stub->Broadcast(scratch->size.data().get(), scratch->size.data().get(), 1, ncclInt64,
-                            kRoot, nccl.Handle(), stream);
+  auto rc = broadcast(scratch->size.data().get(), sizeof(n));
   if (!rc.OK()) {
     return Fail("AllreduceV failed to broadcast reduced size.", std::move(rc));
-  }
-  rc = wait_nccl();
-  if (!rc.OK()) {
-    return rc;
   }
   rc = GetCUDAResult(cudaMemcpyAsync(&n, scratch->size.data().get(), sizeof(n),
                                      cudaMemcpyDeviceToHost, stream));
@@ -193,13 +189,11 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     return Success();
   }
 
-  rc = stub->Broadcast(reinterpret_cast<std::int8_t const*>(data->data().get()),
-                       reinterpret_cast<std::int8_t*>(data->data().get()), count, ncclInt8, kRoot,
-                       nccl.Handle(), stream);
+  rc = broadcast(data->data().get(), count);
   if (!rc.OK()) {
     return Fail("AllreduceV failed to broadcast reduced payload.", std::move(rc));
   }
-  return wait_nccl();
+  return Success();
 }
 }  // namespace xgboost::collective::gpu_impl
 
