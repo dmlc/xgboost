@@ -215,3 +215,56 @@ AllreduceV(Context const* ctx, std::vector<T>* data, Fn redop) {
   return AllreduceV(ctx, *GlobalCommGroup(), data, redop);
 }
 }  // namespace xgboost::collective
+
+#if defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
+#include "allreduce_v.cuh"  // for gpu_impl::AllreduceV, AllreduceVScratch
+
+namespace xgboost::collective {
+template <typename T>
+using AllreduceVScratch = gpu_impl::AllreduceVScratch<T>;
+
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
+                                     dh::device_vector<T>*, cudaStream_t>,
+                 Result>
+AllreduceV(Comm const& comm, dh::device_vector<T>* data, AllreduceVScratch<T>* scratch,
+           Fn&& redop) {
+  if (!comm.IsDistributed() || comm.World() == 1) {
+    return Success();
+  }
+
+  auto nccl = dynamic_cast<NCCLComm const*>(&comm);
+  if (nccl == nullptr) {
+    return Fail("Distributed GPU AllreduceV requires NCCL support.");
+  }
+
+  return gpu_impl::AllreduceV(*nccl, data, scratch, std::forward<Fn>(redop));
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
+                                     dh::device_vector<T>*, cudaStream_t>,
+                 Result>
+AllreduceV(Context const* ctx, CommGroup const& comm, dh::device_vector<T>* data,
+           AllreduceVScratch<T>* scratch, Fn&& redop) {
+  CHECK(ctx);
+  CHECK(ctx->IsCUDA()) << "GPU AllreduceV requires a CUDA context.";
+
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
+
+  auto const& cctx = comm.Ctx(ctx, ctx->Device());
+  return AllreduceV(cctx, data, scratch, std::forward<Fn>(redop));
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
+                                     dh::device_vector<T>*, cudaStream_t>,
+                 Result>
+AllreduceV(Context const* ctx, dh::device_vector<T>* data, AllreduceVScratch<T>* scratch,
+           Fn&& redop) {
+  return AllreduceV(ctx, *GlobalCommGroup(), data, scratch, std::forward<Fn>(redop));
+}
+}  // namespace xgboost::collective
+#endif  // defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)

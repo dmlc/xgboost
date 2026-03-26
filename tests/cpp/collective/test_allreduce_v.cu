@@ -8,7 +8,6 @@
 #include <vector>     // for vector
 
 #include "../../../src/collective/allreduce.h"
-#include "../../../src/collective/allreduce_v.cuh"
 #include "../../../src/collective/comm.cuh"
 #include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/cuda_rt_utils.h"
@@ -128,22 +127,20 @@ class AllreduceVWorker : public NCCLWorkerForTest {
   }
 
   template <typename T>
-  void TreeAllreduceV(dh::device_vector<T>* data,
-                      collective::gpu_impl::AllreduceVScratch<T>* scratch) {
-    auto* nccl = dynamic_cast<NCCLComm const*>(nccl_comm_.get());
-    ASSERT_NE(nccl, nullptr);
-    auto rc = collective::gpu_impl::AllreduceV(
-        *nccl, data, scratch,
-        [&](dh::device_vector<T> const& lhs, dh::device_vector<T> const& rhs,
-            dh::device_vector<T>* out,
-            cudaStream_t stream) { this->DeviceSumToMaxLen(lhs, rhs, out, stream); });
+  void TreeAllreduceV(dh::device_vector<T>* data, collective::AllreduceVScratch<T>* scratch) {
+    auto rc =
+        collective::AllreduceV(*nccl_comm_, data, scratch,
+                               [&](dh::device_vector<T> const& lhs, dh::device_vector<T> const& rhs,
+                                   dh::device_vector<T>* out, cudaStream_t stream) {
+                                 this->DeviceSumToMaxLen(lhs, rhs, out, stream);
+                               });
     SafeColl(rc);
   }
 
   void Prototype() {
     std::vector<std::int32_t> h_data(comm_.Rank() + 1, 1);
     dh::device_vector<std::int32_t> d_data;
-    collective::gpu_impl::AllreduceVScratch<std::int32_t> scratch;
+    collective::AllreduceVScratch<std::int32_t> scratch;
     scratch.Reserve(static_cast<std::size_t>(comm_.World()));
     d_data.reserve(static_cast<std::size_t>(comm_.World()));
     CopyToDevice(h_data, &d_data, cudaStream_t{ctx_.CUDACtx()->Stream()});
@@ -161,7 +158,7 @@ class AllreduceVWorker : public NCCLWorkerForTest {
     auto rank = comm_.Rank();
     auto stream = cudaStream_t{ctx_.CUDACtx()->Stream()};
     dh::device_vector<std::int32_t> d_data;
-    collective::gpu_impl::AllreduceVScratch<std::int32_t> scratch;
+    collective::AllreduceVScratch<std::int32_t> scratch;
     auto max_n = static_cast<std::size_t>(world);
     d_data.reserve(max_n);
     scratch.Reserve(max_n);
