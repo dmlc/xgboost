@@ -606,8 +606,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   payload.reserve(reserve_n_bytes);
   scratch.Reserve(reserve_n_bytes);
 
-  auto pack_payload = [&](dh::device_vector<std::int8_t> *out) {
-    auto stream = ctx->CUDACtx()->Stream();
+  auto pack_payload = [&](dh::device_vector<std::int8_t> *out, cudaStream_t stream) {
     auto entries_offset = SketchPayloadEntriesOffset(this->num_columns_);
     auto n_bytes = SketchPayloadBytes(this->num_columns_, this->entries_.size());
     out->resize(n_bytes);
@@ -623,12 +622,9 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
           this->entries_.size() * sizeof(SketchEntry), cudaMemcpyDeviceToDevice, stream));
       SafeColl(rc);
     }
-    rc = collective::GetCUDAResult(cudaStreamSynchronize(stream));
-    SafeColl(rc);
   };
 
-  auto load_payload = [&](dh::device_vector<std::int8_t> const &in) {
-    auto stream = ctx->CUDACtx()->Stream();
+  auto load_payload = [&](dh::device_vector<std::int8_t> const &in, cudaStream_t stream) {
     auto view = ParseDeviceSketchPayload(in, this->num_columns_);
 
     this->columns_ptr_.Resize(this->num_columns_ + 1);
@@ -644,11 +640,10 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
                                                      cudaMemcpyDeviceToDevice, stream));
       SafeColl(rc);
     }
-    rc = collective::GetCUDAResult(cudaStreamSynchronize(stream));
-    SafeColl(rc);
   };
 
-  pack_payload(&payload);
+  auto stream = ctx->CUDACtx()->Stream();
+  pack_payload(&payload, stream);
   rc = collective::AllreduceV(
       ctx, &payload, &scratch,
       [&](dh::device_vector<std::int8_t> const &lhs, dh::device_vector<std::int8_t> const &rhs,
@@ -656,10 +651,10 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
         auto rhs_view = ParseDeviceSketchPayload(rhs, this->num_columns_);
         this->Merge(ctx, rhs_view.columns_ptr, rhs_view.entries);
         this->Prune(ctx, intermediate_num_cuts);
-        pack_payload(out);
+        pack_payload(out, stream);
       });
   SafeColl(rc);
-  load_payload(payload);
+  load_payload(payload, stream);
 
   timer_.Stop(__func__);
   return;
