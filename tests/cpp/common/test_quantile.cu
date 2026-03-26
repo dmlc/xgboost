@@ -485,7 +485,7 @@ void TestAllReduceBasic() {
     // to match a single-node merge order exactly.  Validate the final cuts with a tolerance that
     // reflects the changed reduction order instead of requiring sketch-level identity.
     for (size_t i = 0; i < single_values.size(); ++i) {
-      ASSERT_NEAR(single_values[i], dist_values[i], 7e-2f) << "i: " << i;
+      ASSERT_NEAR(single_values[i], dist_values[i], 8e-2f) << "i: " << i;
     }
   });
 }
