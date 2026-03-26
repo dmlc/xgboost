@@ -13,6 +13,7 @@
 #include <thrust/tuple.h>  // for tuple
 #include <xgboost/logging.h>
 
+#include <algorithm>
 #include <cstddef>  // for size_t
 #include <utility>
 #include <vector>
@@ -218,6 +219,20 @@ void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
 }
 }  // namespace detail
 
+namespace {
+[[nodiscard]] bst_idx_t RowsInEntrySpan(SparsePage const& page, std::size_t begin,
+                                        std::size_t end) {
+  CHECK_LT(begin, end);
+  auto const& h_offset = page.offset.ConstHostVector();
+  auto row_begin_it = std::upper_bound(h_offset.cbegin(), h_offset.cend(), begin);
+  auto row_end_it = std::lower_bound(h_offset.cbegin(), h_offset.cend(), end);
+  auto row_begin = std::distance(h_offset.cbegin(), row_begin_it) - 1;
+  auto row_end = std::distance(h_offset.cbegin(), row_end_it);
+  CHECK_LE(row_begin, row_end);
+  return std::max<bst_idx_t>(1, row_end - row_begin);
+}
+}  // namespace
+
 void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo const& info,
                           std::size_t begin, std::size_t end,
                           SketchContainer* sketch_container,  // <- output sketch
@@ -276,9 +291,9 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
   CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
 
   // Add cuts into sketches
-  auto approx_n_samples = std::max<bst_idx_t>(1, (end - begin + info.num_col_ - 1) / info.num_col_);
+  auto n_rows_in_batch = RowsInEntrySpan(page, begin, end);
   sketch_container->Push(ctx, dh::ToSpan(sorted_entries), dh::ToSpan(column_sizes_scan), d_cuts_ptr,
-                         h_cuts_ptr.back(), approx_n_samples, dh::ToSpan(entry_weight));
+                         h_cuts_ptr.back(), n_rows_in_batch, dh::ToSpan(entry_weight));
 
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();

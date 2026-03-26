@@ -427,11 +427,6 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
   auto &columns_ptr_tmp = this->columns_ptr_tmp_;
   auto const &feature_types = this->feature_types_;
 
-  if (entries.size() <= to * num_columns_) {
-    timer_.Stop(__func__);
-    return;
-  }
-
   OffsetT to_total = 0;
   auto &h_columns_ptr = columns_ptr_tmp.HostVector();
   h_columns_ptr[0] = to_total;
@@ -444,6 +439,10 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
     }
     to_total += length;
     h_columns_ptr[i + 1] = to_total;
+  }
+  if (entries.size() <= static_cast<std::size_t>(to_total)) {
+    timer_.Stop(__func__);
+    return;
   }
   scratch.resize(to_total);
 
