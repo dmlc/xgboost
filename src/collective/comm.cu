@@ -94,8 +94,10 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   SafeColl(rc);
 
   for (std::int32_t r = 0; r < root.World(); ++r) {
+    // Keep point-to-point channel launches on the communicator stream so helper-local staging
+    // work and the NCCL send/recv edges share one ordering domain.
     this->channels_.emplace_back(
-        std::make_shared<NCCLChannel>(root, r, nccl_comm_, stub_, curt::DefaultStream()));
+        std::make_shared<NCCLChannel>(root, r, nccl_comm_, stub_, stream_));
   }
 }
 
