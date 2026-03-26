@@ -28,6 +28,7 @@ class NcclStub {
   decltype(ncclBroadcast)* broadcast_{nullptr};
   decltype(ncclAllGather)* allgather_{nullptr};
   decltype(ncclCommInitRank)* comm_init_rank_{nullptr};
+  decltype(ncclCommInitRankConfig)* comm_init_rank_config_{nullptr};
   decltype(ncclCommDestroy)* comm_destroy_{nullptr};
   decltype(ncclCommFinalize)* comm_finalize_{nullptr};
   decltype(ncclCommGetAsyncError)* comm_get_async_error_{nullptr};
@@ -65,6 +66,10 @@ class NcclStub {
   [[nodiscard]] Result CommInitRank(ncclComm_t* comm, int nranks, ncclUniqueId commId,
                                     int rank) const {
     return this->GetNcclResult(this->comm_init_rank_(comm, nranks, commId, rank));
+  }
+  [[nodiscard]] Result CommInitRankConfig(ncclComm_t* comm, int nranks, ncclUniqueId commId,
+                                          int rank, ncclConfig_t* config) const {
+    return this->GetNcclResult(this->comm_init_rank_config_(comm, nranks, commId, rank, config));
   }
   [[nodiscard]] Result CommDestroy(ncclComm_t comm) const {
     if (this->Aborted()) {

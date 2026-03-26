@@ -84,7 +84,10 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   rc = std::move(rc) << [&] {
     return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);
   } << [&] {
-    return this->stub_->CommInitRank(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank());
+    ncclConfig_t config = NCCL_CONFIG_INITIALIZER;
+    config.blocking = 0;
+    return this->stub_->CommInitRankConfig(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank(),
+                                           &config);
   } << [&] {
     return BusyWait(this->stub_, this->nccl_comm_, this->Timeout());
   };

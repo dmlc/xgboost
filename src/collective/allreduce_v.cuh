@@ -51,10 +51,17 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
   }
 
   auto stream = cudaStream_t{nccl.Stream()};
+  // Nonblocking NCCL communicators can keep returning `ncclInProgress` after the p2p launch.
+  // Wait for communicator progress here so the next tree edge doesn't race the previous one.
+  auto wait_p2p = [&] { return BusyWait(nccl.Stub(), nccl.Handle(), nccl.Timeout()); };
 
   auto send_all = [&](std::int32_t peer, std::int8_t const* ptr, std::size_t n_bytes) {
     auto ch = nccl.Chan(peer);
     auto rc = ch->SendAll(ptr, n_bytes);
+    if (!rc.OK()) {
+      return rc;
+    }
+    rc = wait_p2p();
     if (!rc.OK()) {
       return rc;
     }
@@ -64,6 +71,10 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
   auto recv_all = [&](std::int32_t peer, std::int8_t* ptr, std::size_t n_bytes) {
     auto ch = nccl.Chan(peer);
     auto rc = ch->RecvAll(ptr, n_bytes);
+    if (!rc.OK()) {
+      return rc;
+    }
+    rc = wait_p2p();
     if (!rc.OK()) {
       return rc;
     }

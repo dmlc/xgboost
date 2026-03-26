@@ -94,6 +94,7 @@ no long bundles NCCL in the binary wheel.
   broadcast_ = safe_load(broadcast_, "ncclBroadcast");
   allgather_ = safe_load(allgather_, "ncclAllGather");
   comm_init_rank_ = safe_load(comm_init_rank_, "ncclCommInitRank");
+  comm_init_rank_config_ = safe_load(comm_init_rank_config_, "ncclCommInitRankConfig");
   comm_destroy_ = safe_load(comm_destroy_, "ncclCommDestroy");
   comm_finalize_ = safe_load(comm_finalize_, "ncclCommFinalize");
   comm_get_async_error_ = safe_load(comm_get_async_error_, "ncclCommGetAsyncError");
@@ -110,6 +111,7 @@ no long bundles NCCL in the binary wheel.
   broadcast_ = ncclBroadcast;
   allgather_ = ncclAllGather;
   comm_init_rank_ = ncclCommInitRank;
+  comm_init_rank_config_ = ncclCommInitRankConfig;
   comm_destroy_ = ncclCommDestroy;
   comm_finalize_ = ncclCommFinalize;
   comm_get_async_error_ = ncclCommGetAsyncError;
