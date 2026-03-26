@@ -66,12 +66,6 @@ class SketchContainer {
     columns_ptr_.Copy(columns_ptr_tmp_);
     entries_.resize(n_entries);
   }
-  [[nodiscard]] std::size_t IntermediateNumCuts() const {
-    auto const base = static_cast<std::size_t>(num_bins_) * kFactor;
-    auto const eps = 1.0 / static_cast<double>(base);
-    auto const per_feature = WQSketch::LimitSizeLevel(std::max<std::size_t>(1, rows_seen_), eps);
-    return per_feature * num_columns_;
-  }
 
   // Get the span of one column.
   Span<SketchEntry> Column(bst_feature_t i) {

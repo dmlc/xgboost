@@ -33,9 +33,7 @@ HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bin,
   categories_.resize(columns_size_.size());
   has_categorical_ = std::any_of(feature_types_.cbegin(), feature_types_.cend(), IsCatOp{});
   ParallelFor(sketches_.size(), n_threads_, Sched::Auto(), [&](auto i) {
-    auto n_bins = std::min(static_cast<bst_idx_t>(max_bins_), columns_size_[i]);
-    n_bins = std::max(n_bins, static_cast<decltype(n_bins)>(1));
-    auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
+    auto eps = SketchEpsilon(max_bins_, columns_size_[i]);
     if (!IsCat(this->feature_types_, i)) {
       sketches_[i] = WQSketch{columns_size_[i], eps};
     }

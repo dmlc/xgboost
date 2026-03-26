@@ -374,8 +374,8 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
     return;
   }
   this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
-  auto intermediate_num_cuts = static_cast<bst_idx_t>(this->IntermediateNumCuts());
-  this->Prune(ctx, intermediate_num_cuts);
+  auto intermediate_budget = SketchSummaryBudget(num_bins_, rows_seen_);
+  this->Prune(ctx, intermediate_budget);
 }
 
 size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
@@ -586,13 +586,16 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
 
   timer_.Start(__func__);
   // Bound local sketch size before exchanging data across workers.
-  auto intermediate_num_cuts = static_cast<bst_idx_t>(num_bins_ * kFactor);
-  this->Prune(ctx, intermediate_num_cuts);
+  std::size_t global_rows_seen = rows_seen_;
+  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&global_rows_seen, 1), collective::Op::kSum);
+  SafeColl(rc);
+  auto exchange_budget = SketchSummaryBudget(num_bins_, global_rows_seen);
+  this->Prune(ctx, exchange_budget);
 
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
   size_t n = d_columns_ptr.size();
-  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&n, 1), collective::Op::kMax);
+  rc = collective::Allreduce(ctx, linalg::MakeVec(&n, 1), collective::Op::kMax);
   SafeColl(rc);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
@@ -600,8 +603,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   dh::device_vector<std::int8_t> payload;
   collective::AllreduceVScratch<std::int8_t> scratch;
 
-  auto reserve_n_entries = static_cast<std::size_t>(intermediate_num_cuts) *
-                           static_cast<std::size_t>(this->num_columns_);
+  auto reserve_n_entries = exchange_budget * static_cast<std::size_t>(this->num_columns_);
   auto reserve_n_bytes = SketchPayloadBytes(this->num_columns_, reserve_n_entries);
   payload.reserve(reserve_n_bytes);
   scratch.Reserve(reserve_n_bytes);
@@ -650,7 +652,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
           dh::device_vector<std::int8_t> *out, cudaStream_t stream) {
         auto rhs_view = ParseDeviceSketchPayload(rhs, this->num_columns_);
         this->Merge(ctx, rhs_view.columns_ptr, rhs_view.entries);
-        this->Prune(ctx, intermediate_num_cuts);
+        this->Prune(ctx, exchange_budget);
         pack_payload(out, stream);
       });
   SafeColl(rc);
