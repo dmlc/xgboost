@@ -155,6 +155,27 @@ xgboost::Json CheckConfigReloadImpl(xgboost::Configurable* const configurable, s
   return config_1;
 }
 
+xgboost::Json CheckConfigReload(std::unique_ptr<xgboost::ObjFunction> const& obj,
+                                std::string name) {
+  xgboost::Json config_0{xgboost::Object()};
+  obj->SaveConfig(&config_0);
+  auto loaded =
+      std::unique_ptr<xgboost::ObjFunction>{xgboost::ObjFunction::Create(obj->Ctx(), config_0)};
+
+  xgboost::Json config_1{xgboost::Object()};
+  loaded->SaveConfig(&config_1);
+
+  std::string str_0, str_1;
+  xgboost::Json::Dump(config_0, &str_0);
+  xgboost::Json::Dump(config_1, &str_1);
+  EXPECT_EQ(str_0, str_1);
+
+  if (!name.empty()) {
+    EXPECT_EQ(xgboost::get<xgboost::String>(config_1["name"]), name);
+  }
+  return config_1;
+}
+
 void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                              std::vector<xgboost::bst_float> preds,
                              std::vector<xgboost::bst_float> labels,

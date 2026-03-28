@@ -84,7 +84,7 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
 TEST(Objective, CPU_vs_CUDA) {
   Context ctx = MakeCUDACtx(GPUIDX);
 
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:squarederror", &ctx)};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:squarederror", &ctx, Args{})};
   linalg::Matrix<GradientPair> cpu_out_preds;
   linalg::Matrix<GradientPair> cuda_out_preds;
 

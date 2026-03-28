@@ -1,26 +1,24 @@
 /**
  * Copyright 2023-2025, XGBoost Contributors
  */
-#ifndef XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
-#define XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
+#ifndef TESTS_CPP_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
+#define TESTS_CPP_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
 #include <gtest/gtest.h>
-#include <xgboost/data.h>                           // for MetaInfo
-#include <xgboost/host_device_vector.h>             // for HostDeviceVector
-#include <xgboost/linalg.h>                         // for All
-#include <xgboost/objective.h>                      // for ObjFunction
+#include <xgboost/data.h>                // for MetaInfo
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/linalg.h>              // for All
+#include <xgboost/objective.h>           // for ObjFunction
 
-#include <memory>                                   // for shared_ptr, make_shared
+#include <memory>  // for shared_ptr, make_shared
 
-#include "../../../src/common/ranking_utils.h"      // for LambdaRankParam, MAPCache
-#include "../helpers.h"                             // for EmptyDMatrix
+#include "../../../src/common/ranking_utils.h"  // for LambdaRankParam, MAPCache
+#include "../helpers.h"                         // for EmptyDMatrix
 
 namespace xgboost::obj {
 void TestMAPStat(Context const* ctx);
 
 inline void TestNDCGJsonIO(Context const* ctx) {
-  std::unique_ptr<xgboost::ObjFunction> obj{ObjFunction::Create("rank:ndcg", ctx)};
-
-  obj->Configure(Args{});
+  std::unique_ptr<xgboost::ObjFunction> obj{ObjFunction::Create("rank:ndcg", ctx, {})};
   Json j_obj{Object()};
   obj->SaveConfig(&j_obj);
 
@@ -43,4 +41,4 @@ void TestMAPGPair(Context const* ctx);
  */
 void InitMakePairTest(Context const* ctx, MetaInfo* out_info, HostDeviceVector<float>* out_predt);
 }  // namespace xgboost::obj
-#endif  // XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
+#endif  // TESTS_CPP_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_

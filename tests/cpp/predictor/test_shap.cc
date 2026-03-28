@@ -87,8 +87,7 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
       break;
     }
   }
-  auto obj = std::unique_ptr<ObjFunction>(ObjFunction::Create(objective, ctx));
-  obj->Configure(model_args);
+  auto obj = std::unique_ptr<ObjFunction>(ObjFunction::Create(objective, ctx, model_args));
   obj->ProbToMargin(&base_score_vec);
   // Keep both host/device views readable, matching LearnerModelParam invariants.
   std::as_const(base_score_vec).HostView();
