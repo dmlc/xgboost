@@ -8,6 +8,8 @@ Starting from version 1.7.0, xgboost supports pyspark estimator APIs.
 
   The integration is only tested on Linux distributions.
 
+See :doc:`distributed` for a cross-backend overview before diving into backend-specific details.
+
 .. contents::
   :backlinks: none
   :local:
