@@ -17,6 +17,8 @@ Official Dask API for XGBoost
 
 **Contents**
 
+See :doc:`distributed` for a cross-backend overview before diving into backend-specific details.
+
 .. contents::
   :backlinks: none
   :local:

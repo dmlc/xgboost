@@ -10,6 +10,8 @@ lifecycle of XGBoost training jobs on Kubernetes clusters.
 This tutorial covers the end-to-end workflow: from setting up prerequisites, through
 writing distributed training code, to launching and monitoring multi-node XGBoost jobs.
 
+See :doc:`distributed` for a cross-backend overview before diving into backend-specific details.
+
 .. contents::
   :backlinks: none
   :local:
