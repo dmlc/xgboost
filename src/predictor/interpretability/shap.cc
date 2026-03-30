@@ -242,6 +242,7 @@ void CalculateContributions(tree::ScalarTreeView const &tree, RegTree::FVec cons
 constexpr std::size_t kQuadratureShapPoints = 8;
 constexpr double kQuadratureShapBuildQeps = 1e-15;
 constexpr float kQuadratureShapUnseen = -999.0f;
+
 struct QuadratureRule {
   std::array<float, kQuadratureShapPoints> nodes{};
   std::array<float, kQuadratureShapPoints> weights{};
@@ -280,15 +281,13 @@ float ExtractQuadratureDelta(QuadratureRule const &rule, QuadratureBuffer const 
   if (p_enter != 1.0f) {
     auto const alpha_enter = p_enter - 1.0f;
     for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
-      auto const weighted_h = h_vals[i] * rule.weights[i];
-      acc += alpha_enter * weighted_h / (1.0f + alpha_enter * rule.nodes[i]);
+      acc += alpha_enter * h_vals[i] / (1.0f + alpha_enter * rule.nodes[i]);
     }
   }
   if (p_exit != 1.0f) {
     auto const alpha_exit = p_exit - 1.0f;
     for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
-      auto const weighted_h = h_vals[i] * rule.weights[i];
-      acc -= alpha_exit * weighted_h / (1.0f + alpha_exit * rule.nodes[i]);
+      acc -= alpha_exit * h_vals[i] / (1.0f + alpha_exit * rule.nodes[i]);
     }
   }
   return acc;
@@ -317,8 +316,10 @@ struct QuadratureShapTreeRunner {
 
   void HandleLeaf(bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
                   QuadratureBuffer *out_h) const {
-    *out_h = c_vals;
-    ScaleInPlace(out_h, w_prod * tree.LeafValue(nidx));
+    auto const leaf_scale = w_prod * tree.LeafValue(nidx);
+    for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+      (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
+    }
   }
 
   void ExtractContribution(bst_feature_t split_index, QuadratureBuffer const &h_vals, float p_enter,
