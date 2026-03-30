@@ -19,9 +19,10 @@
 #include "../data_accessor.h"              // for GHistIndexMatrixView
 #include "../predict_fn.h"                 // for GetTreeLimit
 #include "dmlc/omp.h"                      // for omp_get_thread_num
-#include "xgboost/base.h"                  // for bst_omp_uint
-#include "xgboost/logging.h"               // for CHECK
-#include "xgboost/tree_model.h"            // for MTNotImplemented
+#include "quadrature.h"
+#include "xgboost/base.h"        // for bst_omp_uint
+#include "xgboost/logging.h"     // for CHECK
+#include "xgboost/tree_model.h"  // for MTNotImplemented
 
 namespace xgboost::interpretability {
 namespace {
@@ -242,76 +243,8 @@ constexpr std::size_t kDefaultQuadratureShapPoints = 16;
 constexpr std::size_t kMaxQuadratureShapPoints = 64;
 constexpr double kQuadratureShapQeps = 1e-15;
 constexpr double kQuadratureShapUnseen = -999.0;
-struct QuadratureRule {
-  std::size_t points{0};
-  std::array<double, kMaxQuadratureShapPoints> nodes{};
-  std::array<double, kMaxQuadratureShapPoints> weights{};
-};
-
+using QuadratureRule = detail::EndpointQuadratureRule<kMaxQuadratureShapPoints>;
 using QuadratureBuffer = std::array<double, kMaxQuadratureShapPoints>;
-
-double LegendrePolynomial(std::size_t n, double x) {
-  double p0 = 1.0;
-  if (n == 0) {
-    return p0;
-  }
-  double p1 = x;
-  if (n == 1) {
-    return p1;
-  }
-  for (std::size_t k = 2; k <= n; ++k) {
-    double pk =
-        ((2.0 * static_cast<double>(k) - 1.0) * x * p1 - (static_cast<double>(k) - 1.0) * p0) /
-        static_cast<double>(k);
-    p0 = p1;
-    p1 = pk;
-  }
-  return p1;
-}
-
-double LegendreDerivative(std::size_t n, double x, double pn) {
-  auto n_d = static_cast<double>(n);
-  return n_d * (x * pn - LegendrePolynomial(n - 1, x)) / (x * x - 1.0);
-}
-
-QuadratureRule MakeEndpointQuadrature(std::size_t n) {
-  CHECK_GE(n, 2);
-  CHECK_LE(n, kMaxQuadratureShapPoints);
-
-  QuadratureRule rule;
-  rule.points = n;
-  std::vector<std::pair<double, double>> nodes_weights;
-  nodes_weights.reserve(n);
-
-  for (std::size_t i = 0; i < n; ++i) {
-    double theta = M_PI * (static_cast<double>(i) + 0.75) / (static_cast<double>(n) + 0.5);
-    double x = std::cos(theta);
-    for (std::size_t iter = 0; iter < 64; ++iter) {
-      auto pn = LegendrePolynomial(n, x);
-      auto dpn = LegendreDerivative(n, x, pn);
-      auto dx = pn / dpn;
-      x -= dx;
-      if (std::abs(dx) < kQuadratureShapQeps) {
-        break;
-      }
-    }
-
-    auto pn = LegendrePolynomial(n, x);
-    auto dpn = LegendreDerivative(n, x, pn);
-    auto w = 2.0 / ((1.0 - x * x) * dpn * dpn);
-    double s = 0.5 * (x + 1.0);
-    double ws = 0.5 * w;
-    nodes_weights.emplace_back(s * s, 2.0 * s * ws);
-  }
-
-  std::sort(nodes_weights.begin(), nodes_weights.end(),
-            [](auto const &l, auto const &r) { return l.first < r.first; });
-  for (std::size_t i = 0; i < n; ++i) {
-    rule.nodes[i] = nodes_weights[i].first;
-    rule.weights[i] = nodes_weights[i].second;
-  }
-  return rule;
-}
 
 QuadratureRule const &GetQuadratureRule(std::size_t n) {
   static std::mutex cache_mutex;
@@ -319,7 +252,10 @@ QuadratureRule const &GetQuadratureRule(std::size_t n) {
   std::lock_guard<std::mutex> guard{cache_mutex};
   auto it = cache.find(n);
   if (it == cache.cend()) {
-    it = cache.emplace(n, MakeEndpointQuadrature(n)).first;
+    it = cache
+             .emplace(n, detail::MakeEndpointQuadrature<kMaxQuadratureShapPoints>(
+                             n, kQuadratureShapQeps))
+             .first;
   }
   return it->second;
 }
