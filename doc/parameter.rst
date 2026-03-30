@@ -197,10 +197,10 @@ Parameters for Tree Booster
     - ``treeshap``: Existing exact TreeSHAP implementation.
     - ``quadratureshap``: Quadrature plus telescoping SHAP implementation for CPU prediction.
 
-* ``quadratureshap_points`` [default= ``16``]
+* ``quadratureshap_points`` [default= ``8``]
 
-  - Experimental number of quadrature points used by CPU ``quadratureshap``.
-  - Valid range: ``[2, 64]``.
+  - Experimental fixed quadrature size used by CPU and GPU ``quadratureshap`` variants.
+  - Current supported value: ``8``.
 
 * ``scale_pos_weight`` [default=1]
 

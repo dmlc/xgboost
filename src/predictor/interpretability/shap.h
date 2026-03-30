@@ -14,6 +14,21 @@ struct GBTreeModel;
 }  // namespace xgboost::gbm
 
 namespace xgboost::interpretability {
+namespace detail {
+template <typename TreeView, typename NodeIndex>
+inline double FillRootMeanValue(TreeView const& tree, NodeIndex nidx) {
+  if (tree.IsLeaf(nidx)) {
+    return tree.LeafValue(nidx);
+  }
+  auto left = tree.LeftChild(nidx);
+  auto right = tree.RightChild(nidx);
+  double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
+  result += FillRootMeanValue(tree, right) * tree.SumHess(right);
+  result /= tree.SumHess(nidx);
+  return result;
+}
+}  // namespace detail
+
 namespace cpu_impl {
 void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,

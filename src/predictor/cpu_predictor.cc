@@ -761,8 +761,7 @@ class CPUPredictor : public Predictor {
         } catch (std::out_of_range const &) {
           LOG(FATAL) << "quadratureshap_points out of range: " << kv.second;
         }
-        CHECK_GE(points, 2) << "quadratureshap_points must be >= 2";
-        CHECK_LE(points, 64) << "quadratureshap_points must be <= 64";
+        CHECK_EQ(points, 8) << "CPU QuadratureSHAP currently uses a fixed quadrature size of 8.";
         quadrature_shap_points_ = points;
       }
     }
@@ -911,7 +910,7 @@ class CPUPredictor : public Predictor {
 
  private:
   std::string shap_algorithm_{"treeshap"};
-  std::size_t quadrature_shap_points_{16};
+  std::size_t quadrature_shap_points_{8};
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")

@@ -67,18 +67,6 @@ constexpr std::array<std::size_t, 3> kGpuQuadratureDepthBuckets{{16, 32, 64}};
 constexpr double kQuadratureShapQeps = 1e-15;
 using QuadratureRule = detail::EndpointQuadratureRule<kGpuQuadraturePoints>;
 
-double FillRootMeanValue(tree::ScalarTreeView const& tree, bst_node_t nidx) {
-  if (tree.IsLeaf(nidx)) {
-    return tree.LeafValue(nidx);
-  }
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
-  result += FillRootMeanValue(tree, right) * tree.SumHess(right);
-  result /= tree.SumHess(nidx);
-  return result;
-}
-
 std::vector<float> MakeGroupRootMeanSums(gbm::GBTreeModel const& model, bst_tree_t tree_end,
                                          std::vector<float> const* tree_weights) {
   auto h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
@@ -88,7 +76,7 @@ std::vector<float> MakeGroupRootMeanSums(gbm::GBTreeModel const& model, bst_tree
     auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[tree_idx];
     auto const tree = model.trees.at(tree_idx)->HostScView();
     h_group_root_mean_sums[h_tree_groups[tree_idx]] +=
-        FillRootMeanValue(tree, RegTree::kRoot) * weight;
+        detail::FillRootMeanValue(tree, RegTree::kRoot) * weight;
   }
 
   std::vector<float> out(h_group_root_mean_sums.size());

@@ -64,7 +64,7 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   TreeMethod tree_method;
   // CPU SHAP implementation used for pred_contribs.
   std::string shap_algorithm;
-  // Number of quadrature points for CPU QuadratureSHAP.
+  // Number of quadrature points for QuadratureSHAP variants.
   std::size_t quadratureshap_points;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
@@ -88,9 +88,8 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
         .set_default("treeshap")
         .describe("CPU algorithm used for SHAP feature contributions.");
     DMLC_DECLARE_FIELD(quadratureshap_points)
-        .set_default(16)
-        .set_range(2, 64)
-        .describe("Experimental number of quadrature points used by CPU QuadratureSHAP.");
+        .set_default(8)
+        .describe("Experimental fixed quadrature size used by CPU and GPU QuadratureSHAP.");
   }
 };
 
