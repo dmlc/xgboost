@@ -11,6 +11,7 @@ from xgboost import testing as tm
 from xgboost.core import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
 from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
+from xgboost.testing.quantile_dmatrix import assert_cut_rank_error_within_tolerance
 from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
@@ -19,49 +20,6 @@ from xgboost.testing.updater import (
 )
 
 pytestmark = tm.timeout(30)
-
-
-def _to_numpy(data: Any) -> np.ndarray:
-    if hasattr(data, "get"):
-        return data.get()
-    return np.asarray(data)
-
-
-def _assert_cut_rank_error_within_tolerance(
-    indptr: np.ndarray, cuts: np.ndarray, x: np.ndarray, w: np.ndarray
-) -> None:
-    eps = 0.05
-    assert x.ndim == 2
-    total_weight = float(np.sum(w))
-    max_weight = float(np.max(w))
-
-    for fidx in range(x.shape[1]):
-        beg = int(indptr[fidx])
-        end = int(indptr[fidx + 1])
-        column_cuts = cuts[beg:end]
-        assert np.all(np.diff(column_cuts) >= 0.0)
-        # For tiny weighted sketches, allow the coarse sketch tolerance plus the mass
-        # of one observation, since a cut can move across one weighted sample.
-        base_tolerance = max(
-            total_weight * eps, total_weight / float(column_cuts.shape[0])
-        )
-        acceptable_error = base_tolerance + max_weight
-
-        # Ignore the last cut, matching the C++ TestRank helper.
-        sorted_idx = np.argsort(x[:, fidx], kind="stable")
-        sorted_x = x[sorted_idx, fidx]
-        sorted_w = w[sorted_idx]
-        sum_weight = 0.0
-        j = 0
-        for i in range(column_cuts.shape[0] - 1):
-            while j < sorted_x.shape[0] and column_cuts[i] > sorted_x[j]:
-                sum_weight += float(sorted_w[j])
-                j += 1
-            expected_rank = ((i + 1) * total_weight) / column_cuts.shape[0]
-            np.testing.assert_array_less(
-                np.array([abs(expected_rank - sum_weight)]),
-                np.array([acceptable_error + 1e-12]),
-            )
 
 
 def test_single_batch(tree_method: str = "approx", device: str = "cpu") -> None:
@@ -197,11 +155,9 @@ def run_data_iterator(
     rtol = 1e-2
     indptr_it, cuts_it = Xy_it.get_quantile_cut()
     indptr_arr, cuts_arr = Xy_arr.get_quantile_cut()
-    x_np = _to_numpy(X)
-    w_np = _to_numpy(w)
     np.testing.assert_array_equal(indptr_it, indptr_arr)
-    _assert_cut_rank_error_within_tolerance(indptr_it, cuts_it, x_np, w_np)
-    _assert_cut_rank_error_within_tolerance(indptr_arr, cuts_arr, x_np, w_np)
+    assert_cut_rank_error_within_tolerance(indptr_it, cuts_it, X, w)
+    assert_cut_rank_error_within_tolerance(indptr_arr, cuts_arr, X, w)
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],

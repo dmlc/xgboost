@@ -656,7 +656,8 @@ void TestAdapterSketchFromWeights(bool with_group) {
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_container);
     weighted = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
-    ValidateCutsGpu(weighted, dmat.get(), kBins);
+    dmat->Info().SetInfo(ctx, "weight", Make1dInterfaceTest(h_weights.data(), h_weights.size()));
+    ValidateCuts(weighted, dmat.get(), kBins, kMaxWeightedNormalizedRankError);
   }
 }
 

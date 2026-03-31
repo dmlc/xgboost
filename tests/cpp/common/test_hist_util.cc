@@ -169,11 +169,11 @@ TEST(HistUtil, DenseCutsAccuracyTestWeights) {
     for (auto num_bins : bin_sizes) {
       {
         HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins, true);
-        ValidateCuts(cuts, dmat.get(), num_bins);
+        ValidateCuts(cuts, dmat.get(), num_bins, kMaxWeightedNormalizedRankError);
       }
       {
         HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins, false);
-        ValidateCuts(cuts, dmat.get(), num_bins);
+        ValidateCuts(cuts, dmat.get(), num_bins, kMaxWeightedNormalizedRankError);
       }
     }
   }

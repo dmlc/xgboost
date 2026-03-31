@@ -31,9 +31,7 @@ constexpr float SketchContainer::kFactor;
 
 namespace detail {
 size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
-  double eps = 1.0 / (WQSketch::kFactor * max_bins);
-  size_t num_cuts = WQuantileSketch::LimitSizeLevel(num_rows, eps);
-  return std::min(num_cuts, num_rows);
+  return std::min(SketchSummaryBudget(max_bins, num_rows), num_rows);
 }
 
 size_t RequiredSampleCuts(bst_idx_t num_rows, bst_feature_t num_columns, size_t max_bins,

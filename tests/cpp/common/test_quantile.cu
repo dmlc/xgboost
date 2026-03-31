@@ -428,8 +428,6 @@ TEST(GPUQuantile, MissingColumns) {
 }
 
 namespace {
-inline constexpr double kMaxDistributedWeightedNormalizedRankError = 20.0;
-
 void TestAllReduceBasic() {
   auto const world = collective::GetWorldSize();
   constexpr size_t kRows = 1000, kCols = 100;
@@ -455,8 +453,8 @@ void TestAllReduceBasic() {
     auto distributed_cuts = sketch_distributed.MakeCuts(&ctx, false);
     TestQuantileElemRank(device, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
     auto full = MakeFullRowSplitDMatrix(kRows, kCols, world, seed);
-    auto max_rank_error = info.weights_.Empty() ? kMaxNormalizedRankError
-                                                : kMaxDistributedWeightedNormalizedRankError;
+    auto max_rank_error =
+        info.weights_.Empty() ? kMaxNormalizedRankError : kMaxWeightedNormalizedRankError;
     ValidateCuts(distributed_cuts, full.get(), n_bins, max_rank_error);
   });
 }

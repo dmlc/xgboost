@@ -631,7 +631,12 @@ void HostSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &in
       }
       return;
     }
-    sketches_[fidx].PushSorted(column, weights, static_cast<size_t>(max_bins_));
+    if (column.empty()) {
+      return;
+    }
+    auto num_elements = sketches_[fidx].NumElements() + column.size();
+    auto retained_items = std::min(column.size(), SketchSummaryBudget(max_bins_, num_elements));
+    sketches_[fidx].PushSorted(column, weights, retained_items);
   });
   monitor_.Stop(__func__);
 }

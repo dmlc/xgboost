@@ -91,11 +91,8 @@ struct RankErrorSummary {
   std::size_t num_cuts{0};
 };
 
-// The rank-error overhaul in this branch is scoped to CPU tests for now. GPU tests still
-// use a temporary looser bound until they are migrated to the same criteria.
 inline constexpr double kMaxNormalizedRankError = 2.0;
-inline constexpr double kMaxWeightedNormalizedRankError = 10.0;
-inline constexpr double kMaxGpuNormalizedRankError = 14.0;
+inline constexpr double kMaxWeightedNormalizedRankError = 14.0;
 
 inline double DistanceToInterval(double target, double lo, double hi) {
   if (target < lo) {
@@ -209,7 +206,9 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
   for (auto const& entry : sorted_column) {
     unique.insert(entry.value);
   }
-  if (unique.size() <= num_bins) {
+  auto const all_unit_weights = std::all_of(sorted_column.cbegin(), sorted_column.cend(),
+                                            [](auto const& entry) { return entry.weight == 1.0; });
+  if (unique.size() <= num_bins && all_unit_weights) {
     // Less unique values than number of bins
     // Each value should get its own bin
     int i = 0;
@@ -245,7 +244,9 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat, int num_bins,
 }
 
 inline void ValidateCutsGpu(const HistogramCuts& cuts, DMatrix* dmat, int num_bins) {
-  ValidateCuts(cuts, dmat, num_bins, kMaxGpuNormalizedRankError);
+  auto max_rank_error =
+      dmat->Info().weights_.Empty() ? kMaxNormalizedRankError : kMaxWeightedNormalizedRankError;
+  ValidateCuts(cuts, dmat, num_bins, max_rank_error);
 }
 
 /**

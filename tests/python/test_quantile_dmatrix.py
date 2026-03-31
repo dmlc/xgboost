@@ -16,6 +16,7 @@ from xgboost.testing import (
 from xgboost.testing.data import check_inf, np_dtypes
 from xgboost.testing.data_iter import run_mixed_sparsity
 from xgboost.testing.quantile_dmatrix import (
+    assert_cut_rank_error_within_tolerance,
     check_categorical_strings,
     check_ref_quantile_cut,
 )
@@ -163,6 +164,11 @@ class TestQuantileDMatrix:
         from_arr = xgb.train(parameters, Xy_arr)
 
         np.testing.assert_allclose(from_arr.predict(Xy_it), from_it.predict(Xy_arr))
+        indptr_it, cuts_it = Xy_it.get_quantile_cut()
+        indptr_arr, cuts_arr = Xy_arr.get_quantile_cut()
+        np.testing.assert_array_equal(indptr_it, indptr_arr)
+        assert_cut_rank_error_within_tolerance(indptr_it, cuts_it, X, w)
+        assert_cut_rank_error_within_tolerance(indptr_arr, cuts_arr, X, w)
 
         y -= y.min()
         y += 0.01

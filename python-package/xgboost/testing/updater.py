@@ -25,6 +25,7 @@ from ..sklearn import XGBModel, XGBRegressor
 from ..training import train
 from .data import IteratorForTest, make_batches, make_categorical
 from .data_iter import CatIter
+from .quantile_dmatrix import assert_cut_rank_error_within_tolerance
 from .utils import Device, assert_allclose, non_increasing
 
 
@@ -334,11 +335,13 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     Xyw: DMatrix = QuantileDMatrix(X, y, weight=w, max_bin=max_bin)
     indptr, data = Xyw.get_quantile_cut()
     check_cut((max_bin + 1) * n_features, indptr, data, dtypes)
+    assert_cut_rank_error_within_tolerance(indptr, data, X, w)
     # - dm
     Xyw = DMatrix(X, y, weight=w)
     train({"tree_method": tree_method, "max_bin": max_bin}, Xyw)
     indptr, data = Xyw.get_quantile_cut()
     check_cut((max_bin + 1) * n_features, indptr, data, dtypes)
+    assert_cut_rank_error_within_tolerance(indptr, data, X, w)
     # - ext mem
     n_batches = 3
     n_samples_per_batch = 256
