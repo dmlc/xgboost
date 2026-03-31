@@ -17,10 +17,6 @@
 #include "hist_util.h"
 
 namespace xgboost::common {
-namespace {
-[[nodiscard]] double SketchEpsilon(bst_bin_t max_bins, std::size_t num_elements);
-[[nodiscard]] std::size_t SketchSummaryBudget(bst_bin_t max_bins, std::size_t num_elements);
-}  // namespace
 
 HostSketchContainer::HostSketchContainer(Context const *ctx, bst_bin_t max_bin,
                                          Span<FeatureType const> feature_types,
@@ -71,16 +67,6 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
                 [&](auto i) { results[i] = hessian[i] * get_weight(i); });
   }
   return results;
-}
-
-[[nodiscard]] double SketchEpsilon(bst_bin_t max_bins, std::size_t num_elements) {
-  auto const n = std::max<std::size_t>(1, num_elements);
-  auto const n_bins = std::min<std::size_t>(static_cast<std::size_t>(max_bins), n);
-  return 1.0 / (static_cast<double>(n_bins) * WQuantileSketch::kFactor);
-}
-
-[[nodiscard]] std::size_t SketchSummaryBudget(bst_bin_t max_bins, std::size_t num_elements) {
-  return WQuantileSketch::LimitSizeLevel(num_elements, SketchEpsilon(max_bins, num_elements));
 }
 
 template <typename T>

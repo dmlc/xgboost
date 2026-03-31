@@ -3,12 +3,14 @@
  */
 #pragma once
 #include <cstdint>      // for int8_t
+#include <cstring>      // for memcpy
 #include <functional>   // for function
 #include <type_traits>  // for is_invocable_v, enable_if_t
 #include <vector>       // for vector
 
 #include "../common/type.h"             // for EraseType, RestoreType
 #include "../data/array_interface.h"    // for ToDType, ArrayInterfaceHandler
+#include "allgather.h"                  // for AllgatherV
 #include "broadcast.h"                  // for Broadcast
 #include "comm.h"                       // for Comm, RestoreType
 #include "comm_group.h"                 // for GlobalCommGroup
@@ -215,3 +217,197 @@ AllreduceV(Context const* ctx, std::vector<T>* data, Fn redop) {
   return AllreduceV(ctx, *GlobalCommGroup(), data, redop);
 }
 }  // namespace xgboost::collective
+
+#if defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
+#include "../common/cuda_context.cuh"
+#include "allreduce_v.cuh"  // for gpu_impl::AllreduceV, AllreduceVScratch
+
+namespace xgboost::collective {
+template <typename T>
+using AllreduceVScratch = gpu_impl::AllreduceVScratch<T>;
+
+namespace gpu_detail {
+template <typename T>
+Result CopyDeviceVectorToHost(dh::device_vector<T> const& src, std::vector<T>* dst,
+                              cudaStream_t stream) {
+  CHECK(dst);
+  dst->resize(src.size());
+  if (src.empty()) {
+    return Success();
+  }
+  auto rc = GetCUDAResult(cudaMemcpyAsync(dst->data(), src.data().get(), src.size() * sizeof(T),
+                                          cudaMemcpyDeviceToHost, stream));
+  if (!rc.OK()) {
+    return rc;
+  }
+  return GetCUDAResult(cudaStreamSynchronize(stream));
+}
+
+template <typename T>
+Result CopyHostVectorToDevice(std::vector<T> const& src, dh::device_vector<T>* dst,
+                              cudaStream_t stream) {
+  CHECK(dst);
+  dst->resize(src.size());
+  if (src.empty()) {
+    return Success();
+  }
+  auto rc = GetCUDAResult(cudaMemcpyAsync(dst->data().get(), src.data(), src.size() * sizeof(T),
+                                          cudaMemcpyHostToDevice, stream));
+  if (!rc.OK()) {
+    return rc;
+  }
+  return GetCUDAResult(cudaStreamSynchronize(stream));
+}
+
+template <typename T>
+void CopyGatheredSegment(common::Span<std::int8_t const> gathered,
+                         std::vector<std::int64_t> const& recv_segments, std::int32_t rank,
+                         std::vector<T>* out) {
+  CHECK(out);
+  CHECK_GE(rank, 0);
+  CHECK_LT(static_cast<std::size_t>(rank + 1), recv_segments.size());
+  auto begin = recv_segments[rank];
+  auto end = recv_segments[rank + 1];
+  CHECK_LE(begin, end);
+  auto n_bytes = static_cast<std::size_t>(end - begin);
+  CHECK_EQ(n_bytes % sizeof(T), 0) << "Invalid gathered segment size.";
+  out->resize(n_bytes / sizeof(T));
+  if (n_bytes != 0) {
+    std::memcpy(out->data(), gathered.data() + begin, n_bytes);
+  }
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
+                                     dh::device_vector<T>*, cudaStream_t>,
+                 Result>
+AllreduceVHostFallback(Context const* ctx, CommGroup const& comm, dh::device_vector<T>* data,
+                       AllreduceVScratch<T>* scratch, Fn&& redop) {
+  CHECK(ctx);
+  CHECK(ctx->IsCUDA()) << "GPU AllreduceV requires a CUDA context.";
+  CHECK(data);
+  CHECK(scratch);
+
+  Context cpu_ctx;
+  auto stream = ctx->CUDACtx()->Stream();
+
+  std::vector<T> h_local;
+  auto rc = CopyDeviceVectorToHost(*data, &h_local, stream);
+  if (!rc.OK()) {
+    return Fail("GPU AllreduceV fallback failed to copy local payload to host.", std::move(rc));
+  }
+
+  std::vector<std::int64_t> recv_segments;
+  HostDeviceVector<std::int8_t> gathered;
+  rc = AllgatherV(&cpu_ctx, comm, linalg::MakeVec(h_local.data(), h_local.size()), &recv_segments,
+                  &gathered);
+  if (!rc.OK()) {
+    return Fail("GPU AllreduceV fallback failed to allgather host payloads.", std::move(rc));
+  }
+
+  constexpr std::int32_t kRoot = 0;
+  std::vector<T> h_result;
+  if (comm.Rank() == kRoot) {
+    auto gathered_bytes = gathered.ConstHostSpan();
+    CopyGatheredSegment(gathered_bytes, recv_segments, kRoot, &h_result);
+
+    rc = CopyHostVectorToDevice(h_result, data, stream);
+    if (!rc.OK()) {
+      return Fail("GPU AllreduceV fallback failed to stage root payload to device.", std::move(rc));
+    }
+
+    std::vector<T> h_peer;
+    for (std::int32_t peer = 1; peer < comm.World(); ++peer) {
+      CopyGatheredSegment(gathered_bytes, recv_segments, peer, &h_peer);
+      rc = CopyHostVectorToDevice(h_peer, &scratch->payload, stream);
+      if (!rc.OK()) {
+        return Fail("GPU AllreduceV fallback failed to stage peer payload to device.",
+                    std::move(rc));
+      }
+      redop(*data, scratch->payload, &scratch->next, stream);
+      std::swap(*data, scratch->next);
+    }
+
+    rc = CopyDeviceVectorToHost(*data, &h_result, stream);
+    if (!rc.OK()) {
+      return Fail("GPU AllreduceV fallback failed to copy reduced payload to host.", std::move(rc));
+    }
+  }
+
+  std::int64_t reduced_size = comm.Rank() == kRoot ? static_cast<std::int64_t>(h_result.size()) : 0;
+  rc = Broadcast(&cpu_ctx, comm, linalg::MakeVec(&reduced_size, 1), kRoot);
+  if (!rc.OK()) {
+    return Fail("GPU AllreduceV fallback failed to broadcast reduced size.", std::move(rc));
+  }
+
+  CHECK_GE(reduced_size, 0);
+  if (comm.Rank() != kRoot) {
+    h_result.resize(static_cast<std::size_t>(reduced_size));
+  }
+  if (reduced_size != 0) {
+    rc = Broadcast(&cpu_ctx, comm, linalg::MakeVec(h_result.data(), h_result.size()), kRoot);
+    if (!rc.OK()) {
+      return Fail("GPU AllreduceV fallback failed to broadcast reduced payload.", std::move(rc));
+    }
+  }
+
+  if (comm.Rank() != kRoot) {
+    rc = CopyHostVectorToDevice(h_result, data, stream);
+    if (!rc.OK()) {
+      return Fail("GPU AllreduceV fallback failed to copy broadcast payload to device.",
+                  std::move(rc));
+    }
+  }
+  return Success();
+}
+}  // namespace gpu_detail
+
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
+                                     dh::device_vector<T>*, cudaStream_t>,
+                 Result>
+AllreduceV(Comm const& comm, dh::device_vector<T>* data, AllreduceVScratch<T>* scratch,
+           Fn&& redop) {
+  if (!comm.IsDistributed() || comm.World() == 1) {
+    return Success();
+  }
+
+  auto nccl = dynamic_cast<NCCLComm const*>(&comm);
+  if (nccl == nullptr) {
+    return Fail("Distributed GPU AllreduceV requires NCCL support.");
+  }
+
+  return gpu_impl::AllreduceV(*nccl, data, scratch, std::forward<Fn>(redop));
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
+                                     dh::device_vector<T>*, cudaStream_t>,
+                 Result>
+AllreduceV(Context const* ctx, CommGroup const& comm, dh::device_vector<T>* data,
+           AllreduceVScratch<T>* scratch, Fn&& redop) {
+  CHECK(ctx);
+  CHECK(ctx->IsCUDA()) << "GPU AllreduceV requires a CUDA context.";
+
+  if (!comm.IsDistributed()) {
+    return Success();
+  }
+
+  auto const& cctx = comm.Ctx(ctx, ctx->Device());
+  auto nccl = dynamic_cast<NCCLComm const*>(&cctx);
+  if (nccl != nullptr) {
+    return gpu_impl::AllreduceV(*nccl, data, scratch, std::forward<Fn>(redop));
+  }
+  return gpu_detail::AllreduceVHostFallback(ctx, comm, data, scratch, std::forward<Fn>(redop));
+}
+
+template <typename T, typename Fn>
+std::enable_if_t<std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
+                                     dh::device_vector<T>*, cudaStream_t>,
+                 Result>
+AllreduceV(Context const* ctx, dh::device_vector<T>* data, AllreduceVScratch<T>* scratch,
+           Fn&& redop) {
+  return AllreduceV(ctx, *GlobalCommGroup(), data, scratch, std::forward<Fn>(redop));
+}
+}  // namespace xgboost::collective
+#endif  // defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
