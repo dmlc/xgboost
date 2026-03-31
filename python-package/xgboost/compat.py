@@ -22,7 +22,7 @@ assert sys.version_info[0] == 3, "Python 2 is no longer supported."
 def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
     assert x is not None  # ctypes might return None
-    return x.decode("utf-8")  # type: ignore
+    return x.decode("utf-8")  # type: ignore[union-attr]
 
 
 def lazy_isinstance(instance: Any, module: str, name: str) -> bool:

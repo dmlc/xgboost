@@ -13,6 +13,7 @@
 #include <thrust/tuple.h>  // for tuple
 #include <xgboost/logging.h>
 
+#include <algorithm>
 #include <cstddef>  // for size_t
 #include <utility>
 #include <vector>
@@ -46,6 +47,7 @@ size_t RequiredSampleCuts(bst_idx_t num_rows, bst_feature_t num_columns, size_t 
 size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz, size_t num_bins,
                       bool with_weights) {
   size_t peak = 0;
+  auto cuts_bytes = RequiredSampleCuts(num_rows, num_bins, num_bins, nnz) * sizeof(SketchEntry);
   // 0. Allocate cut pointer in quantile container by increasing: n_columns + 1
   size_t total = (num_columns + 1) * sizeof(SketchContainer::OffsetT);
   // 1. Copy and sort: 2 * bytes_per_element * shape
@@ -58,16 +60,22 @@ size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz,
   // 4. Allocate cut pointer by increasing: n_columns + 1
   total += (num_columns + 1) * sizeof(SketchContainer::OffsetT);
   // 5. Allocate cuts: assuming rows is greater than bins: n_columns * limit_size
-  total += RequiredSampleCuts(num_rows, num_bins, num_bins, nnz) * sizeof(SketchEntry);
-  // 6. Deallocate copied entries by reducing: bytes_per_element * shape.
+  total += cuts_bytes;
+  // 6. Install the first batch summary into the resident sketch while the temporary pruned
+  // summary is still live.
+  total += cuts_bytes;
+  // 7. Deallocate copied entries by reducing: bytes_per_element * shape.
   peak = std::max(peak, total);
   total -= (BytesPerElement(with_weights) * num_rows * num_columns) / 2;
-  // 7. Deallocate column size scan.
+  // 8. Deallocate the temporary pruned batch summary after merge/prune commit.
+  peak = std::max(peak, total);
+  total -= cuts_bytes;
+  // 9. Deallocate column size scan.
   peak = std::max(peak, total);
   total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 8. Deallocate cut size scan.
+  // 10. Deallocate cut size scan.
   total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 9. Allocate final cut values and cut ptrs: std::min(rows, bins + 1) * n_columns +
+  // 11. Allocate final cut values and cut ptrs: std::min(rows, bins + 1) * n_columns +
   //    n_columns + 1
   total += std::min(num_rows, num_bins) * num_columns * sizeof(float);
   total +=
@@ -211,6 +219,20 @@ void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
 }
 }  // namespace detail
 
+namespace {
+[[nodiscard]] bst_idx_t RowsInEntrySpan(SparsePage const& page, std::size_t begin,
+                                        std::size_t end) {
+  CHECK_LT(begin, end);
+  auto const& h_offset = page.offset.ConstHostVector();
+  auto row_begin_it = std::upper_bound(h_offset.cbegin(), h_offset.cend(), begin);
+  auto row_end_it = std::lower_bound(h_offset.cbegin(), h_offset.cend(), end);
+  auto row_begin = std::distance(h_offset.cbegin(), row_begin_it) - 1;
+  auto row_end = std::distance(h_offset.cbegin(), row_end_it);
+  CHECK_LE(row_begin, row_end);
+  return std::max<bst_idx_t>(1, row_end - row_begin);
+}
+}  // namespace
+
 void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo const& info,
                           std::size_t begin, std::size_t end,
                           SketchContainer* sketch_container,  // <- output sketch
@@ -269,8 +291,9 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
   CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
 
   // Add cuts into sketches
+  auto n_rows_in_batch = RowsInEntrySpan(page, begin, end);
   sketch_container->Push(ctx, dh::ToSpan(sorted_entries), dh::ToSpan(column_sizes_scan), d_cuts_ptr,
-                         h_cuts_ptr.back(), dh::ToSpan(entry_weight));
+                         h_cuts_ptr.back(), n_rows_in_batch, dh::ToSpan(entry_weight));
 
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();

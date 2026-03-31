@@ -98,7 +98,7 @@ def cuda_array_interface_dict(data: _CudaArrayLikeArg) -> CudaArrayInf:
         raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     ainf = data.__cuda_array_interface__
     if "mask" in ainf:
-        ainf["mask"] = ainf["mask"].__cuda_array_interface__  # type: ignore
+        ainf["mask"] = ainf["mask"].__cuda_array_interface__  # type: ignore[union-attr]
     return ainf
 
 
@@ -375,7 +375,7 @@ def _arrow_array_inf(
             "mask": None,
         }
         if not mask.is_cpu:
-            jmask["stream"] = STREAM_PER_THREAD  # type: ignore
+            jmask["stream"] = STREAM_PER_THREAD  # type: ignore[index, typeddict-unknown-key]
     else:
         jmask = None
 
