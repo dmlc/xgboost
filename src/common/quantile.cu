@@ -374,8 +374,8 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
     return;
   }
   this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
-  auto intermediate_budget = SketchSummaryBudget(num_bins_, rows_seen_);
-  this->Prune(ctx, intermediate_budget);
+  auto intermediate_num_cuts = static_cast<bst_idx_t>(this->IntermediateNumCuts());
+  this->Prune(ctx, intermediate_num_cuts);
 }
 
 size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
