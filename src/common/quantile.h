@@ -608,6 +608,19 @@ class WQuantileSketch {
   std::vector<Entry> combine_workspace_;
 };
 
+[[nodiscard]] inline double SketchEpsilon(bst_bin_t max_bins, std::size_t num_elements) {
+  auto const n = std::max<std::size_t>(1, num_elements);
+  auto const n_bins = std::min<std::size_t>(static_cast<std::size_t>(max_bins), n);
+  return 1.0 / (static_cast<double>(n_bins) * WQuantileSketch::kFactor);
+}
+
+// Per-feature summary size for a sketch that represents `num_elements`.  `num_elements`
+// can be an exact per-feature count or a conservative approximation when a tighter count
+// is not available on the current path.
+[[nodiscard]] inline std::size_t SketchSummaryBudget(bst_bin_t max_bins, std::size_t num_elements) {
+  return WQuantileSketch::LimitSizeLevel(num_elements, SketchEpsilon(max_bins, num_elements));
+}
+
 namespace detail {
 inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
   auto const &group_weights = info.weights_.HostVector();
