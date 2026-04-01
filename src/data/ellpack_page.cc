@@ -20,7 +20,7 @@ class EllpackPageImpl {
   [[nodiscard]] std::shared_ptr<common::HistogramCuts const> CutsShared() const { return cuts_; }
 };
 
-EllpackPage::EllpackPage(Context const*) = default;
+EllpackPage::EllpackPage(Context const*) {}
 
 EllpackPage::EllpackPage(Context const*, DMatrix*, const BatchParam&) {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
