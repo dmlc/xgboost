@@ -533,8 +533,8 @@ class WQuantileSketch {
    * \param w The weight of the element.
    */
   void Push(bst_float x, bst_float w = 1) {
-    ++num_elements_;
     if (w == static_cast<bst_float>(0)) return;
+    ++num_elements_;
     if (!inqueue_.Push(x, w)) {
       inqueue_.PopSummary(&temp_);
       this->PushSummary(&temp_);

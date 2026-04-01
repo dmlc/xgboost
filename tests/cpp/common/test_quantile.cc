@@ -215,7 +215,7 @@ void DoTestRowSplitRankError(std::size_t rows, std::size_t cols) {
 
   auto full = GetDMatrixFromData(full_data, rows, cols);
   full->Info().weights_.HostVector() = full_weights;
-  ValidateCuts(distributed_cuts, full.get(), kBins);
+  ValidateCutsDefaultTol(distributed_cuts, full.get(), kBins);
 }
 
 template <bool use_column>
@@ -250,7 +250,7 @@ void DoTestRowSplitRankErrorSparseCounts(std::size_t rows, std::size_t cols) {
 
   auto full = GetDMatrixFromData(full_data, rows, cols);
   full->Info().weights_.HostVector() = full_weights;
-  ValidateCuts(distributed_cuts, full.get(), kBins);
+  ValidateCutsDefaultTol(distributed_cuts, full.get(), kBins);
 }
 
 template <bool use_column>
@@ -286,7 +286,7 @@ void DoTestColumnSplitRankError(std::size_t rows, std::size_t cols) {
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
 
-  ValidateCuts(distributed_cuts, m.get(), kBins);
+  ValidateCutsDefaultTol(distributed_cuts, m.get(), kBins);
 }
 
 template <bool use_column>

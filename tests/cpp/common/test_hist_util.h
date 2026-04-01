@@ -243,10 +243,14 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat, int num_bins,
   }
 }
 
-inline void ValidateCutsGpu(const HistogramCuts& cuts, DMatrix* dmat, int num_bins) {
+inline void ValidateCutsDefaultTol(const HistogramCuts& cuts, DMatrix* dmat, int num_bins) {
   auto max_rank_error =
       dmat->Info().weights_.Empty() ? kMaxNormalizedRankError : kMaxWeightedNormalizedRankError;
   ValidateCuts(cuts, dmat, num_bins, max_rank_error);
+}
+
+inline void ValidateCutsGpu(const HistogramCuts& cuts, DMatrix* dmat, int num_bins) {
+  ValidateCutsDefaultTol(cuts, dmat, num_bins);
 }
 
 /**
