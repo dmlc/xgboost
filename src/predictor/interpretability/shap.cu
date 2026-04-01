@@ -93,8 +93,11 @@ struct CompressedNode {
   float leaf_value{0};
   float left_weight{0};
   float right_weight{0};
+  std::uint32_t cat_begin{0};
+  std::uint32_t cat_size{0};
   std::uint8_t default_left{0};
   std::uint8_t is_leaf{0};
+  std::uint8_t is_categorical{0};
   std::uint8_t prev_same_offset_plus1{0};
 };
 
@@ -106,6 +109,7 @@ struct CompressedTree {
 struct CompressedModel {
   dh::device_vector<CompressedTree> trees;
   dh::device_vector<CompressedNode> nodes;
+  dh::device_vector<std::uint32_t> categories;
 };
 
 std::size_t DepthBucketIndex(std::size_t path_depth) {
@@ -124,6 +128,7 @@ CompressedModel MakeCompressedModel(Context const* ctx, gbm::GBTreeModel const& 
                                     std::vector<float> const* tree_weights) {
   std::vector<CompressedTree> h_trees;
   std::vector<CompressedNode> h_nodes;
+  std::vector<std::uint32_t> h_categories;
   auto h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   static_cast<void>(ctx);
 
@@ -131,8 +136,6 @@ CompressedModel MakeCompressedModel(Context const* ctx, gbm::GBTreeModel const& 
   for (auto tree_idx : tree_indices) {
     auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[tree_idx];
     auto const tree = model.trees.at(tree_idx)->HostScView();
-    CHECK(!tree.HasCategoricalSplit())
-        << "GPU QuadratureSHAP prototype does not support categorical splits.";
 
     auto node_begin = h_nodes.size();
     h_nodes.resize(node_begin + tree.Size());
@@ -157,6 +160,17 @@ CompressedModel MakeCompressedModel(Context const* ctx, gbm::GBTreeModel const& 
       out.left_weight = static_cast<float>(static_cast<double>(tree.SumHess(left)) / parent_cover);
       out.right_weight =
           static_cast<float>(static_cast<double>(tree.SumHess(right)) / parent_cover);
+      if (common::IsCat(tree.cats.split_type, nidx)) {
+        auto node_cats = tree.NodeCats(nidx);
+        CHECK_LE(node_cats.size(),
+                 static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
+        CHECK_LE(h_categories.size(),
+                 static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
+        out.cat_begin = static_cast<std::uint32_t>(h_categories.size());
+        out.cat_size = static_cast<std::uint32_t>(node_cats.size());
+        out.is_categorical = 1;
+        h_categories.insert(h_categories.end(), node_cats.begin(), node_cats.end());
+      }
       out.default_left = tree.DefaultLeft(nidx);
       out.is_leaf = 0;
     }
@@ -189,6 +203,7 @@ CompressedModel MakeCompressedModel(Context const* ctx, gbm::GBTreeModel const& 
   CompressedModel out;
   out.trees = dh::device_vector<CompressedTree>(h_trees.cbegin(), h_trees.cend());
   out.nodes = dh::device_vector<CompressedNode>(h_nodes.cbegin(), h_nodes.cend());
+  out.categories = dh::device_vector<std::uint32_t>(h_categories.cbegin(), h_categories.cend());
   return out;
 }
 
@@ -390,6 +405,7 @@ struct QuadratureShapTaskRunner {
   SharedT shared;
   CompressedTree const* trees;
   CompressedNode const* nodes;
+  std::uint32_t const* categories;
   float* phis;
   bst_idx_t base_rowid;
   bst_target_t n_groups;
@@ -403,8 +419,14 @@ struct QuadratureShapTaskRunner {
   [[nodiscard]] XGBOOST_DEV_INLINE bool EvaluateGoesLeft(bst_idx_t ridx,
                                                          CompressedNode const& node) const {
     auto fvalue = loader.GetElement(ridx, node.split_global);
-    return common::CheckNAN(fvalue) ? static_cast<bool>(node.default_left)
-                                    : fvalue < node.split_cond;
+    if (common::CheckNAN(fvalue)) {
+      return static_cast<bool>(node.default_left);
+    }
+    if (node.is_categorical) {
+      auto cats = common::Span<std::uint32_t const>{categories + node.cat_begin, node.cat_size};
+      return common::Decision(cats, fvalue);
+    }
+    return fvalue < node.split_cond;
   }
 
   XGBOOST_DEV_INLINE void AddContribution(bst_idx_t row_idx, bst_target_t tree_group,
@@ -597,6 +619,7 @@ struct QuadratureShapInteractionTaskRunner {
   SharedT shared;
   CompressedTree const* trees;
   CompressedNode const* nodes;
+  std::uint32_t const* categories;
   float* phis;
   bst_idx_t base_rowid;
   bst_target_t n_groups;
@@ -610,8 +633,14 @@ struct QuadratureShapInteractionTaskRunner {
   [[nodiscard]] XGBOOST_DEV_INLINE bool EvaluateGoesLeft(bst_idx_t ridx,
                                                          CompressedNode const& node) const {
     auto fvalue = loader.GetElement(ridx, node.split_global);
-    return common::CheckNAN(fvalue) ? static_cast<bool>(node.default_left)
-                                    : fvalue < node.split_cond;
+    if (common::CheckNAN(fvalue)) {
+      return static_cast<bool>(node.default_left);
+    }
+    if (node.is_categorical) {
+      auto cats = common::Span<std::uint32_t const>{categories + node.cat_begin, node.cat_size};
+      return common::Decision(cats, fvalue);
+    }
+    return fvalue < node.split_cond;
   }
 
   XGBOOST_DEV_INLINE void AddDiagonalContribution(bst_idx_t row_idx, bst_target_t tree_group,
@@ -845,6 +874,7 @@ __global__ void __launch_bounds__(BlockThreads, 9)
                              std::size_t row_tiles, bst_idx_t valid_rows_in_tail,
                              std::size_t n_trees, CompressedTree const* __restrict__ trees,
                              CompressedNode const* __restrict__ nodes,
+                             std::uint32_t const* __restrict__ categories,
                              float const* __restrict__ quad_nodes,
                              float const* __restrict__ quad_weights, float* __restrict__ phis) {
   static_assert(MaxPoints == kGpuQuadraturePoints);
@@ -888,6 +918,7 @@ __global__ void __launch_bounds__(BlockThreads, 9)
                                                                      shared,
                                                                      trees,
                                                                      nodes,
+                                                                     categories,
                                                                      phis,
                                                                      base_rowid,
                                                                      n_groups,
@@ -919,6 +950,7 @@ void LaunchQuadratureShapTasks(Context const* ctx, Loader loader, bst_idx_t base
   }
   auto trees = thrust::raw_pointer_cast(compressed.trees.data());
   auto nodes = thrust::raw_pointer_cast(compressed.nodes.data());
+  auto categories = thrust::raw_pointer_cast(compressed.categories.data());
   auto d_quad_nodes = quad_nodes.data();
   auto d_quad_weights = quad_weights.data();
   auto phis = out_contribs->DeviceSpan().data();
@@ -928,7 +960,7 @@ void LaunchQuadratureShapTasks(Context const* ctx, Loader loader, bst_idx_t base
       <<<static_cast<uint32_t>(grids), static_cast<uint32_t>(BlockThreads), 0,
          ctx->CUDACtx()->Stream()>>>(loader, base_rowid, n_groups, n_columns, row_tile_begin,
                                      row_tiles, valid_rows_in_tail, compressed.trees.size(), trees,
-                                     nodes, d_quad_nodes, d_quad_weights, phis);
+                                     nodes, categories, d_quad_nodes, d_quad_weights, phis);
   dh::safe_cuda(cudaGetLastError());
 }
 
@@ -957,8 +989,9 @@ __global__ void __launch_bounds__(BlockThreads, 9) QuadratureShapInteractionTask
     Loader loader, bst_idx_t base_rowid, bst_target_t n_groups, bst_feature_t n_columns,
     std::size_t row_tile_begin, std::size_t row_tiles, bst_idx_t valid_rows_in_tail,
     std::size_t n_trees, CompressedTree const* __restrict__ trees,
-    CompressedNode const* __restrict__ nodes, float const* __restrict__ quad_nodes,
-    float const* __restrict__ quad_weights, float* __restrict__ phis) {
+    CompressedNode const* __restrict__ nodes, std::uint32_t const* __restrict__ categories,
+    float const* __restrict__ quad_nodes, float const* __restrict__ quad_weights,
+    float* __restrict__ phis) {
   static_assert(MaxPoints == kGpuQuadraturePoints);
   static_assert(DepthCap <= static_cast<int>(kMaxGpuQuadratureDepth));
   static_assert(dh::WarpThreads() % RowsPerWarp == 0);
@@ -1001,6 +1034,7 @@ __global__ void __launch_bounds__(BlockThreads, 9) QuadratureShapInteractionTask
                                                                       shared,
                                                                       trees,
                                                                       nodes,
+                                                                      categories,
                                                                       phis,
                                                                       base_rowid,
                                                                       n_groups,
@@ -1033,6 +1067,7 @@ void LaunchQuadratureShapInteractionTasks(Context const* ctx, Loader loader, bst
   }
   auto trees = thrust::raw_pointer_cast(compressed.trees.data());
   auto nodes = thrust::raw_pointer_cast(compressed.nodes.data());
+  auto categories = thrust::raw_pointer_cast(compressed.categories.data());
   auto d_quad_nodes = quad_nodes.data();
   auto d_quad_weights = quad_weights.data();
   auto phis = out_contribs->DeviceSpan().data();
@@ -1042,7 +1077,7 @@ void LaunchQuadratureShapInteractionTasks(Context const* ctx, Loader loader, bst
       <<<static_cast<uint32_t>(grids), static_cast<uint32_t>(BlockThreads), 0,
          ctx->CUDACtx()->Stream()>>>(loader, base_rowid, n_groups, n_columns, row_tile_begin,
                                      row_tiles, valid_rows_in_tail, compressed.trees.size(), trees,
-                                     nodes, d_quad_nodes, d_quad_weights, phis);
+                                     nodes, categories, d_quad_nodes, d_quad_weights, phis);
   dh::safe_cuda(cudaGetLastError());
 }
 
