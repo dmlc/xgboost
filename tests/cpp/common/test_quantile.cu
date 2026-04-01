@@ -50,6 +50,16 @@ auto MakeFullRowSplitDMatrix(std::size_t rows_per_worker, std::size_t cols, std:
   }
   return GetDMatrixFromData(full_data, rows_per_worker * world, cols);
 }
+
+auto RepeatRowWeights(std::vector<float> const& local_weights, std::int32_t world)
+    -> std::vector<float> {
+  std::vector<float> full_weights;
+  full_weights.reserve(local_weights.size() * static_cast<std::size_t>(world));
+  for (std::int32_t rank = 0; rank < world; ++rank) {
+    full_weights.insert(full_weights.end(), local_weights.cbegin(), local_weights.cend());
+  }
+  return full_weights;
+}
 }  // namespace
 
 namespace common {
@@ -453,6 +463,10 @@ void TestAllReduceBasic() {
     auto distributed_cuts = sketch_distributed.MakeCuts(&ctx, false);
     TestQuantileElemRank(device, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
     auto full = MakeFullRowSplitDMatrix(kRows, kCols, world, seed);
+    if (!info.weights_.Empty()) {
+      full->Info().weights_.HostVector() =
+          RepeatRowWeights(info.weights_.HostVector(), static_cast<std::int32_t>(world));
+    }
     auto max_rank_error =
         info.weights_.Empty() ? kMaxNormalizedRankError : kMaxWeightedNormalizedRankError;
     ValidateCuts(distributed_cuts, full.get(), n_bins, max_rank_error);
