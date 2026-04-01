@@ -5,7 +5,10 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>    // for isnan
 #include <cstdint>  // for int64_t
+#include <limits>   // for quiet_NaN
+#include <set>
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.h"
@@ -130,6 +133,44 @@ auto SliceRows(std::vector<float> const& data, std::size_t n_cols, std::size_t r
   return {begin, end};
 }
 
+auto CountNonMissingByColumn(std::vector<float> const& data, std::size_t n_cols)
+    -> std::vector<bst_idx_t> {
+  CHECK_EQ(data.size() % n_cols, 0);
+  std::vector<bst_idx_t> column_size(n_cols, 0);
+  auto n_rows = data.size() / n_cols;
+  for (std::size_t r = 0; r < n_rows; ++r) {
+    for (std::size_t c = 0; c < n_cols; ++c) {
+      if (!std::isnan(data[r * n_cols + c])) {
+        column_size[c] += 1;
+      }
+    }
+  }
+  return column_size;
+}
+
+auto GenerateSparseCountSkewedData(std::size_t rows, std::size_t cols, std::size_t world)
+    -> std::vector<float> {
+  CHECK_EQ(rows % world, 0);
+  auto rows_per_worker = rows / world;
+  auto missing = std::numeric_limits<float>::quiet_NaN();
+
+  std::vector<float> data(rows * cols, missing);
+  for (std::size_t r = 0; r < rows; ++r) {
+    auto worker_block = r / rows_per_worker;
+    auto local_row = r % rows_per_worker;
+    for (std::size_t c = 0; c < cols; ++c) {
+      auto skip_mod = 2 + ((c + worker_block) % 5);
+      auto present = ((local_row + c * 3 + worker_block) % skip_mod) != 0;
+      if (present) {
+        data[r * cols + c] =
+            static_cast<float>(c) + static_cast<float>(local_row + worker_block * rows_per_worker) /
+                                        static_cast<float>(rows);
+      }
+    }
+  }
+  return data;
+}
+
 template <bool use_column>
 auto SketchDistributedCuts(Context const* ctx, DMatrix* m,
                            std::vector<bst_idx_t> const& column_size, bst_bin_t n_bins)
@@ -185,6 +226,41 @@ void TestRowSplitRankError(std::size_t rows, std::size_t cols) {
 }
 
 template <bool use_column>
+void DoTestRowSplitRankErrorSparseCounts(std::size_t rows, std::size_t cols) {
+  Context ctx;
+  auto const world = static_cast<std::size_t>(collective::GetWorldSize());
+  auto const rank = static_cast<std::size_t>(collective::GetRank());
+  auto constexpr kBins = 64;
+
+  auto full_data = GenerateSparseCountSkewedData(rows, cols, world);
+  std::vector<float> full_weights(rows, 1.0f);
+  auto [row_begin, row_end] = RowSplitBounds(rows, world, rank);
+  auto local_data = SliceRows(full_data, cols, row_begin, row_end);
+  std::vector<float> local_weights(full_weights.cbegin() + row_begin,
+                                   full_weights.cbegin() + row_end);
+  auto column_size = CountNonMissingByColumn(local_data, cols);
+  ASSERT_GT(std::set<bst_idx_t>(column_size.cbegin(), column_size.cend()).size(), 1ul);
+
+  auto local = GetDMatrixFromData(local_data, row_end - row_begin, cols);
+  local->Info().weights_.HostVector() = local_weights;
+  auto distributed_cuts = SketchDistributedCuts<use_column>(&ctx, local.get(), column_size, kBins);
+
+  collective::Finalize();
+  CHECK_EQ(collective::GetWorldSize(), 1);
+
+  auto full = GetDMatrixFromData(full_data, rows, cols);
+  full->Info().weights_.HostVector() = full_weights;
+  ValidateCuts(distributed_cuts, full.get(), kBins);
+}
+
+template <bool use_column>
+void TestRowSplitRankErrorSparseCounts(std::size_t rows, std::size_t cols) {
+  auto constexpr kWorkers = 4;
+  collective::TestDistributedGlobal(
+      kWorkers, [=] { DoTestRowSplitRankErrorSparseCounts<use_column>(rows, cols); }, false);
+}
+
+template <bool use_column>
 void DoTestColumnSplitRankError(std::size_t rows, std::size_t cols) {
   Context ctx;
   auto const world = static_cast<std::size_t>(collective::GetWorldSize());
@@ -229,6 +305,16 @@ TEST(Quantile, DistributedRankError) {
 TEST(Quantile, SortedDistributedRankError) {
   constexpr std::size_t kRows = 1024, kCols = 64;
   TestRowSplitRankError<true>(kRows, kCols);
+}
+
+TEST(Quantile, DistributedSparseCountRankError) {
+  constexpr std::size_t kRows = 1024, kCols = 32;
+  TestRowSplitRankErrorSparseCounts<false>(kRows, kCols);
+}
+
+TEST(Quantile, SortedDistributedSparseCountRankError) {
+  constexpr std::size_t kRows = 1024, kCols = 32;
+  TestRowSplitRankErrorSparseCounts<true>(kRows, kCols);
 }
 
 TEST(Quantile, ColumnSplitRankError) {
