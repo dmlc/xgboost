@@ -110,20 +110,15 @@ BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
     ellpack_.reset(new EllpackPage{&fmat_ctx_});
     if (ctx->IsCUDA()) {
       this->Info().feature_types.SetDevice(ctx->Device());
-      *ellpack_->Impl() =
-          EllpackPageImpl(ctx, *this->ghist_, this->Info().feature_types.ConstDeviceSpan());
     } else if (fmat_ctx_.IsCUDA()) {
       this->Info().feature_types.SetDevice(fmat_ctx_.Device());
-      *ellpack_->Impl() =
-          EllpackPageImpl(&fmat_ctx_, *this->ghist_, this->Info().feature_types.ConstDeviceSpan());
     } else {
       // Can happen when QDM is initialized on CPU, but a GPU version is queried by a different QDM
       // for cut reference.
-      auto cuda_ctx = ctx->MakeCUDA();
-      this->Info().feature_types.SetDevice(cuda_ctx.Device());
-      *ellpack_->Impl() =
-          EllpackPageImpl(&cuda_ctx, *this->ghist_, this->Info().feature_types.ConstDeviceSpan());
+      this->Info().feature_types.SetDevice(ctx->MakeCUDA().Device());
     }
+    *ellpack_->Impl() =
+        EllpackPageImpl{&fmat_ctx_, *this->ghist_, this->Info().feature_types.ConstDeviceSpan()};
   }
   CHECK(ellpack_);
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
