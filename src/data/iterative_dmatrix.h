@@ -66,7 +66,7 @@ class IterativeDMatrix : public QuantileDMatrix {
 
   void Save(common::AlignedFileWriteStream *fo) const;
   [[nodiscard]] static IterativeDMatrix *Load(Context const *ctx,
-                                               common::AlignedResourceReadStream *fi);
+                                              common::AlignedResourceReadStream *fi);
 };
 }  // namespace data
 }  // namespace xgboost

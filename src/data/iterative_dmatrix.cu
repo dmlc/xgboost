@@ -149,7 +149,8 @@ IterativeDMatrix* IterativeDMatrix::Load(Context const* ctx,
   // Load cuts
   std::shared_ptr<common::HistogramCuts> p_cuts{common::HistogramCuts::Load(fi)};
   // Load ellpack
-  auto fmt = std::make_unique<EllpackPageRawFormat>(ctx, p_cuts, ctx->Device(), BatchParam{}, false);
+  auto fmt =
+      std::make_unique<EllpackPageRawFormat>(ctx, p_cuts, ctx->Device(), BatchParam{}, false);
   auto ellpack = std::make_shared<EllpackPage>(ctx);
   CHECK(fmt->Read(ellpack.get(), fi));
   return new IterativeDMatrix{std::move(ellpack)};

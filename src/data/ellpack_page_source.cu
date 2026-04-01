@@ -532,7 +532,8 @@ void EllpackPageSourceImpl<F>::Fetch() {
     if (this->GetCuts()->HasCategorical()) {
       CHECK(!this->feature_types_.empty());
     }
-    *impl = EllpackPageImpl{this->Ctx(), this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
+    *impl =
+        EllpackPageImpl{this->Ctx(), this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
     this->page_->SetBaseRowId(csr->base_rowid);
     LOG(INFO) << "Generated an Ellpack page with size: "
               << common::HumanMemUnit(impl->MemCostBytes())
