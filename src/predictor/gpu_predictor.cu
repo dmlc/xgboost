@@ -813,8 +813,13 @@ class GPUPredictor : public xgboost::Predictor {
       LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use cpu "
                     "instead.";
     }
-    interpretability::ShapInteractionValues(ctx_, p_fmat, out_contribs, model, tree_end,
-                                            tree_weights, approximate);
+    if (shap_algorithm_ == "quadratureshap") {
+      interpretability::cuda_impl::QuadratureShapInteractionValues(
+          ctx_, p_fmat, out_contribs, model, tree_end, tree_weights, quadrature_shap_points_);
+    } else {
+      interpretability::ShapInteractionValues(ctx_, p_fmat, out_contribs, model, tree_end,
+                                              tree_weights, approximate);
+    }
   }
 
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<float>* predictions,

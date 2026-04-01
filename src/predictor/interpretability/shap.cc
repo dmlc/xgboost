@@ -20,6 +20,7 @@
 #include "quadrature.h"
 #include "xgboost/base.h"        // for bst_omp_uint
 #include "xgboost/logging.h"     // for CHECK
+#include "xgboost/span.h"        // for Span
 #include "xgboost/tree_model.h"  // for MTNotImplemented
 
 namespace xgboost::interpretability {
@@ -263,12 +264,6 @@ QuadratureRule const &GetQuadratureRule() {
   return rule;
 }
 
-void ScaleInPlace(QuadratureBuffer *h_vals, float scale) {
-  for (auto &v : *h_vals) {
-    v *= scale;
-  }
-}
-
 void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs) {
   for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
     (*lhs)[i] += rhs[i];
@@ -293,12 +288,277 @@ float ExtractQuadratureDelta(QuadratureRule const &rule, QuadratureBuffer const 
   return acc;
 }
 
+constexpr bool kQuadratureInteractionUseEdgeKernel = false;
+constexpr bool kQuadratureInteractionUseLatestLiveIndex = false;
+
+// Off-diagonal interaction terms use the same return-edge delta as additive SHAP, but with one
+// partner feature removed from the live quadrature basis. For an active partner with live ratio
+// q_j, the weighted subtree return factors as
+//   H(t) = H_without_j(t) * (1 + (q_j - 1) t)
+// after the zero-fraction terms cancel. The conditioned on/off difference is therefore the
+// precomputed return-edge kernel divided by that partner factor and multiplied by (q_j - 1).
+float ExtractQuadratureInteractionDelta(QuadratureRule const &rule, QuadratureBuffer const &h_vals,
+                                        float p_enter, float p_exit, float q_partner) {
+  if (q_partner == 1.0f) {
+    return 0.0f;
+  }
+
+  auto const alpha_partner = q_partner - 1.0f;
+  auto const has_enter = p_enter != 1.0f;
+  auto const has_exit = p_exit != 1.0f;
+  auto const alpha_enter = p_enter - 1.0f;
+  auto const alpha_exit = p_exit - 1.0f;
+
+  float acc = 0.0f;
+  for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+    float edge_delta = 0.0f;
+    if (has_enter) {
+      edge_delta += alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
+    }
+    if (has_exit) {
+      edge_delta -= alpha_exit / (1.0f + alpha_exit * rule.nodes[i]);
+    }
+    acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
+  }
+  return acc;
+}
+
+float ExtractQuadratureInteractionDelta(QuadratureRule const &rule,
+                                        QuadratureBuffer const &edge_kernel, float q_partner) {
+  if (q_partner == 1.0f) {
+    return 0.0f;
+  }
+
+  auto const alpha_partner = q_partner - 1.0f;
+  float acc = 0.0f;
+  for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+    acc += alpha_partner * edge_kernel[i] / (1.0f + alpha_partner * rule.nodes[i]);
+  }
+  return acc;
+}
+
+void WriteWeightedLeafReturn(tree::ScalarTreeView const &tree, QuadratureRule const &rule,
+                             bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
+                             QuadratureBuffer *out_h) {
+  auto const leaf_scale = w_prod * tree.LeafValue(nidx);
+  for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+    (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
+  }
+}
+
+// Dense row-local output view for additive contributions.
+template <typename T>
+struct ContributionVectorView {
+  T *data;
+  std::size_t size;
+
+  T &operator[](std::size_t idx) const { return data[idx]; }
+};
+
+// Dense row-local output view for interaction matrices. Future formulations can target this sink
+// directly instead of open-coding flattened indexing arithmetic.
+template <typename T>
+struct DenseInteractionMatrixView {
+  T *data;
+  std::size_t ncolumns;
+
+  T &operator()(std::size_t i, std::size_t j) const { return data[i * ncolumns + j]; }
+};
+
+// One active split on the current root-to-node path. Traversal owns the push/pop discipline, while
+// formulations can inspect the live path without duplicating duplicate-feature bookkeeping.
+struct QuadraturePathElement {
+  bst_feature_t split_index;
+  float p_parent;
+  float p_child;
+  std::int32_t prev_live_index;
+};
+
+// Read-only formulation view of the current root-to-node path. Traversal keeps ownership of the
+// stack so different contribution formulations can inspect the same live path state.
+struct QuadraturePathView {
+  common::Span<QuadraturePathElement const> elements;
+  common::Span<std::int32_t const> latest_live_index;
+
+  [[nodiscard]] auto Depth() const { return elements.size(); }
+  [[nodiscard]] bool Empty() const { return elements.empty(); }
+  [[nodiscard]] auto Entries() const { return elements; }
+
+  [[nodiscard]] auto CurrentSplit() const -> QuadraturePathElement const & {
+    CHECK(!elements.empty());
+    return elements.back();
+  }
+
+  // Iterate the active path once per feature, newest-to-oldest. Later duplicate splits are the
+  // live ones for path-local partner lookups, so older duplicates are hidden from formulations.
+  template <typename Fn>
+  void ForEachUniqueFeature(Fn &&fn) const {
+    if (!latest_live_index.empty()) {
+      for (std::size_t i = elements.size(); i != 0; --i) {
+        auto const idx = i - 1;
+        auto const split_index = elements[idx].split_index;
+        if (latest_live_index[split_index] == static_cast<std::int32_t>(idx)) {
+          fn(idx, elements[idx]);
+        }
+      }
+    } else {
+      for (std::size_t i = elements.size(); i != 0; --i) {
+        auto const idx = i - 1;
+        auto const split_index = elements[idx].split_index;
+        bool shadowed = false;
+        for (std::size_t newer = elements.size(); newer > i; --newer) {
+          if (elements[newer - 1].split_index == split_index) {
+            shadowed = true;
+            break;
+          }
+        }
+        if (!shadowed) {
+          fn(idx, elements[idx]);
+        }
+      }
+    }
+  }
+};
+
+// Current additive SHAP formulation. It consumes the weighted subtree return and writes one
+// feature contribution per return edge.
+struct AdditiveContributionFormulation {
+  static constexpr bool kTrackLatestLiveIndex = false;
+  ContributionVectorView<float> phi;
+
+  void HandleLeaf(tree::ScalarTreeView const &tree, QuadratureRule const &rule,
+                  QuadraturePathView path, bst_node_t nidx, QuadratureBuffer const &c_vals,
+                  float w_prod, QuadratureBuffer *out_h) const {
+    (void)path;
+    WriteWeightedLeafReturn(tree, rule, nidx, c_vals, w_prod, out_h);
+  }
+
+  void HandleReturn(QuadratureRule const &rule, QuadraturePathView path, bst_feature_t split_index,
+                    QuadratureBuffer const &h_vals, float p_enter, float p_exit) const {
+    (void)path;
+    phi[split_index] += ExtractQuadratureDelta(rule, h_vals, p_enter, p_exit);
+  }
+};
+
+// First path-local interaction formulation built on top of the quadrature traversal. It keeps the
+// traversal and weighted subtree return shared with additive SHAP, and only changes how return
+// edges are written into the dense interaction sink.
+struct InteractionContributionFormulation {
+  static constexpr bool kTrackLatestLiveIndex = kQuadratureInteractionUseLatestLiveIndex;
+  struct EdgeEffect {
+    bst_feature_t split_index;
+    float diagonal_delta;
+    QuadratureBuffer edge_kernel;
+  };
+
+  ContributionVectorView<float> phi_diag;
+  DenseInteractionMatrixView<float> phi_interactions;
+  float scale;
+
+  // Traversal still needs a weighted subtree return, so the interaction path shares the additive
+  // leaf behavior and changes only the return-edge algebra.
+  void HandleLeaf(tree::ScalarTreeView const &tree, QuadratureRule const &rule,
+                  QuadraturePathView path, bst_node_t nidx, QuadratureBuffer const &c_vals,
+                  float w_prod, QuadratureBuffer *out_h) const {
+    (void)path;
+    WriteWeightedLeafReturn(tree, rule, nidx, c_vals, w_prod, out_h);
+  }
+
+  [[nodiscard]] auto MakeEdgeEffect(QuadratureRule const &rule, bst_feature_t split_index,
+                                    QuadratureBuffer const &h_vals, float p_enter,
+                                    float p_exit) const {
+    QuadratureBuffer edge_kernel{};
+    float diagonal_delta = 0.0f;
+
+    if constexpr (kQuadratureInteractionUseEdgeKernel) {
+      auto const has_enter = p_enter != 1.0f;
+      auto const has_exit = p_exit != 1.0f;
+      auto const alpha_enter = p_enter - 1.0f;
+      auto const alpha_exit = p_exit - 1.0f;
+
+      for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+        float edge_delta = 0.0f;
+        if (has_enter) {
+          edge_delta += alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
+        }
+        if (has_exit) {
+          edge_delta -= alpha_exit / (1.0f + alpha_exit * rule.nodes[i]);
+        }
+        edge_kernel[i] = h_vals[i] * edge_delta;
+        diagonal_delta += edge_kernel[i];
+      }
+    } else {
+      diagonal_delta = ExtractQuadratureDelta(rule, h_vals, p_enter, p_exit);
+    }
+
+    return EdgeEffect{split_index, diagonal_delta, edge_kernel};
+  }
+
+  void AccumulateDiagonal(EdgeEffect const &edge) const {
+    phi_diag[edge.split_index] += scale * edge.diagonal_delta;
+  }
+
+  // Walk the live unique path excluding the current split. A pairwise formulation can distribute
+  // the current edge effect across these partner features without reimplementing duplicate logic.
+  template <typename Fn>
+  void ForEachPartner(QuadraturePathView path, Fn &&fn) const {
+    CHECK(!path.Empty());
+    auto const current_split = path.CurrentSplit().split_index;
+    bool skipped_current = false;
+    path.ForEachUniqueFeature([&](std::size_t, QuadraturePathElement const &element) {
+      if (!skipped_current && element.split_index == current_split) {
+        skipped_current = true;
+        return;
+      }
+      fn(element);
+    });
+  }
+
+  void AccumulatePair(EdgeEffect const &edge, QuadraturePathElement const &partner,
+                      float pair_delta) const {
+    auto const i = static_cast<std::size_t>(edge.split_index);
+    auto const j = static_cast<std::size_t>(partner.split_index);
+    phi_interactions(i, j) += scale * pair_delta;
+  }
+
+  void HandleReturn(QuadratureRule const &rule, QuadraturePathView path, bst_feature_t split_index,
+                    QuadratureBuffer const &h_vals, float p_enter, float p_exit) const {
+    auto const edge = this->MakeEdgeEffect(rule, split_index, h_vals, p_enter, p_exit);
+    this->AccumulateDiagonal(edge);
+
+    this->ForEachPartner(path, [&](QuadraturePathElement const &partner) {
+      float pair_delta = 0.0f;
+      if constexpr (kQuadratureInteractionUseEdgeKernel) {
+        pair_delta = ExtractQuadratureInteractionDelta(rule, edge.edge_kernel, partner.p_child);
+      } else {
+        pair_delta =
+            ExtractQuadratureInteractionDelta(rule, h_vals, p_enter, p_exit, partner.p_child);
+      }
+      this->AccumulatePair(edge, partner, pair_delta);
+    });
+  }
+};
+
+// Tree-walk engine for quadrature formulations. It owns feature evaluation, child descent, and
+// the live path-probability state, then hands leaf/return events to the selected formulation.
+template <typename ContributionFormulation>
 struct QuadratureShapTreeRunner {
   tree::ScalarTreeView const &tree;
   RegTree::FVec const &feat;
   QuadratureRule const &rule;
   std::vector<float> *path_prob;
-  float *phi;
+  std::vector<QuadraturePathElement> *path;
+  std::vector<std::int32_t> *latest_live_index;
+  ContributionFormulation formulation;
+
+  [[nodiscard]] auto CurrentPath() const {
+    if constexpr (ContributionFormulation::kTrackLatestLiveIndex) {
+      return QuadraturePathView{common::Span<QuadraturePathElement const>{*path},
+                                common::Span<std::int32_t const>{*latest_live_index}};
+    } else {
+      return QuadraturePathView{common::Span<QuadraturePathElement const>{*path}, {}};
+    }
+  }
 
   [[nodiscard]] bool EvaluateGoesLeft(bst_node_t nidx) const {
     auto split_index = tree.SplitIndex(nidx);
@@ -312,19 +572,6 @@ struct QuadratureShapTreeRunner {
     auto parent_cover = tree.Stat(parent).sum_hess;
     CHECK_GT(parent_cover, 0.0f);
     return tree.Stat(child).sum_hess / parent_cover;
-  }
-
-  void HandleLeaf(bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
-                  QuadratureBuffer *out_h) const {
-    auto const leaf_scale = w_prod * tree.LeafValue(nidx);
-    for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
-      (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
-    }
-  }
-
-  void ExtractContribution(bst_feature_t split_index, QuadratureBuffer const &h_vals, float p_enter,
-                           float p_exit) {
-    phi[split_index] += ExtractQuadratureDelta(rule, h_vals, p_enter, p_exit);
   }
 
   void VisitChild(bst_node_t split_node, bst_node_t child_node, float child_weight, bool satisfies,
@@ -361,15 +608,26 @@ struct QuadratureShapTreeRunner {
     }
 
     (*path_prob)[split_index] = p_e;
+    if constexpr (ContributionFormulation::kTrackLatestLiveIndex) {
+      auto prev_live = (*latest_live_index)[split_index];
+      path->push_back(QuadraturePathElement{split_index, p_up, p_e, prev_live});
+      (*latest_live_index)[split_index] = static_cast<std::int32_t>(path->size() - 1);
+    } else {
+      path->push_back(QuadraturePathElement{split_index, p_up, p_e, -1});
+    }
     this->RunNode(child_node, c_child, w_prod * child_weight, out_h);
+    formulation.HandleReturn(rule, this->CurrentPath(), split_index, *out_h, p_e, p_up);
+    if constexpr (ContributionFormulation::kTrackLatestLiveIndex) {
+      (*latest_live_index)[split_index] = path->back().prev_live_index;
+    }
+    path->pop_back();
     (*path_prob)[split_index] = p_old;
-    this->ExtractContribution(split_index, *out_h, p_e, p_up);
   }
 
   void RunNode(bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
                QuadratureBuffer *out_h) {
     if (tree.IsLeaf(nidx)) {
-      this->HandleLeaf(nidx, c_vals, w_prod, out_h);
+      formulation.HandleLeaf(tree, rule, this->CurrentPath(), nidx, c_vals, w_prod, out_h);
       return;
     }
 
@@ -378,6 +636,7 @@ struct QuadratureShapTreeRunner {
     auto left_weight = this->ChildWeight(nidx, left);
     auto right_weight = this->ChildWeight(nidx, right);
     auto goes_left = this->EvaluateGoesLeft(nidx);
+
     QuadratureBuffer right_h{};
 
     this->VisitChild(nidx, left, left_weight, goes_left, c_vals, w_prod, out_h);
@@ -386,6 +645,7 @@ struct QuadratureShapTreeRunner {
   }
 
   void Run() {
+    path->clear();
     if (tree.IsLeaf(RegTree::kRoot)) {
       return;
     }
@@ -564,8 +824,11 @@ void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
   auto model_data = MakeQuadratureShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<float>(ncolumns));
+  std::vector<std::vector<QuadraturePathElement>> path_tloc(n_threads);
   std::vector<std::vector<float>> path_prob_tloc(
       n_threads, std::vector<float>(n_features, kQuadratureShapUnseen));
+  std::vector<std::vector<std::int32_t>> latest_live_tloc(
+      n_threads, std::vector<std::int32_t>(n_features, -1));
 
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
   auto base_margin = info.base_margin_.View(device);
@@ -578,7 +841,9 @@ void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
         feats.Init(model.learner_model_param->num_feature);
       }
       auto &this_tree_contribs = contribs_tloc[tid];
+      auto &path = path_tloc[tid];
       auto &path_prob = path_prob_tloc[tid];
+      auto &latest_live = latest_live_tloc[tid];
       auto row_idx = view.base_rowid + i;
       auto n_valid = view.DoFill(i, feats.Data().data());
       feats.HasMissing(n_valid != feats.Size());
@@ -586,8 +851,9 @@ void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
         float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
         for (auto j : model_data.trees_by_group[gid]) {
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0f);
-          auto runner = QuadratureShapTreeRunner{model_data.trees[j], feats, rule, &path_prob,
-                                                 this_tree_contribs.data()};
+          auto formulation = AdditiveContributionFormulation{{this_tree_contribs.data(), ncolumns}};
+          auto runner = QuadratureShapTreeRunner<AdditiveContributionFormulation>{
+              model_data.trees[j], feats, rule, &path_prob, &path, &latest_live, formulation};
           runner.Run();
           auto const weight = model_data.weights[j];
           for (size_t ci = 0; ci + 1 < ncolumns; ++ci) {
@@ -602,6 +868,115 @@ void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
           p_contribs[ncolumns - 1] += base_score(gid);
         }
       }
+      feats.Drop();
+    });
+  };
+
+  LaunchShap(ctx, p_fmat, model, process_view);
+}
+
+void QuadratureShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
+                                     HostDeviceVector<float> *out_contribs,
+                                     gbm::GBTreeModel const &model, bst_tree_t tree_end,
+                                     std::vector<float> const *tree_weights,
+                                     std::size_t quadrature_points) {
+  CHECK(!model.learner_model_param->IsVectorLeaf())
+      << "Predict interaction contribution" << MTNotImplemented();
+  CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
+                                            "column-wise data split is not yet implemented.";
+  CHECK_EQ(quadrature_points, kQuadratureShapPoints)
+      << "CPU QuadratureSHAP currently uses a fixed quadrature size of " << kQuadratureShapPoints
+      << ".";
+
+  MetaInfo const &info = p_fmat->Info();
+  tree_end = predictor::GetTreeLimit(model.trees, tree_end);
+  CHECK_GE(tree_end, 0);
+  ValidateTreeWeights(tree_weights, tree_end);
+
+  auto const n_threads = ctx->Threads();
+  auto const n_groups = model.learner_model_param->num_output_group;
+  auto const n_features = model.learner_model_param->num_feature;
+  auto const ncolumns = n_features + 1;
+  auto const row_chunk = n_groups * ncolumns * ncolumns;
+  auto const matrix_chunk = ncolumns * ncolumns;
+
+  std::vector<bst_float> &contribs = out_contribs->HostVector();
+  contribs.resize(info.num_row_ * row_chunk);
+  std::fill(contribs.begin(), contribs.end(), 0.0f);
+
+  auto const &rule = GetQuadratureRule();
+  auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
+  auto model_data = MakeQuadratureShapModelData(model, tree_end, tree_weights);
+  std::vector<RegTree::FVec> feats_tloc(n_threads);
+  std::vector<std::vector<QuadraturePathElement>> path_tloc(n_threads);
+  std::vector<std::vector<float>> path_prob_tloc(
+      n_threads, std::vector<float>(n_features, kQuadratureShapUnseen));
+  std::vector<std::vector<std::int32_t>> latest_live_tloc(
+      n_threads, std::vector<std::int32_t>(n_features, -1));
+  std::vector<std::vector<float>> diag_tloc(n_threads, std::vector<float>(ncolumns));
+
+  auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
+  auto base_margin = info.base_margin_.View(device);
+
+  auto process_view = [&](auto &&view) {
+    common::ParallelFor(view.Size(), n_threads, [&](auto i) {
+      auto tid = omp_get_thread_num();
+      auto &feats = feats_tloc[tid];
+      if (feats.Size() == 0) {
+        feats.Init(model.learner_model_param->num_feature);
+      }
+      auto &path = path_tloc[tid];
+      auto &path_prob = path_prob_tloc[tid];
+      auto &latest_live = latest_live_tloc[tid];
+      auto &diag = diag_tloc[tid];
+      auto row_idx = view.base_rowid + i;
+      auto n_valid = view.DoFill(i, feats.Data().data());
+      feats.HasMissing(n_valid != feats.Size());
+
+      for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+        auto const offset = (row_idx * n_groups + gid) * matrix_chunk;
+        auto matrix = DenseInteractionMatrixView<bst_float>{contribs.data() + offset, ncolumns};
+        std::fill(diag.begin(), diag.end(), 0.0f);
+
+        for (auto j : model_data.trees_by_group[gid]) {
+          auto formulation = InteractionContributionFormulation{
+              {diag.data(), ncolumns}, {matrix.data, matrix.ncolumns}, model_data.weights[j]};
+          auto runner = QuadratureShapTreeRunner<InteractionContributionFormulation>{
+              model_data.trees[j], feats, rule, &path_prob, &path, &latest_live, formulation};
+          runner.Run();
+        }
+
+        diag[ncolumns - 1] += model_data.group_root_mean_sums[gid];
+        if (base_margin.Size() != 0) {
+          CHECK_EQ(base_margin.Shape(1), n_groups);
+          diag[ncolumns - 1] += base_margin(row_idx, gid);
+        } else {
+          diag[ncolumns - 1] += base_score(gid);
+        }
+
+        // The path-local return updates populate row-wise off-diagonal effects. Average the two
+        // directional estimates so the final matrix is explicitly symmetric.
+        for (size_t r = 0; r < ncolumns; ++r) {
+          for (size_t c = r + 1; c < ncolumns; ++c) {
+            auto const sym = 0.5f * (matrix(r, c) + matrix(c, r));
+            matrix(r, c) = sym;
+            matrix(c, r) = sym;
+          }
+        }
+
+        // Match the incumbent interaction semantics: each diagonal entry is the additive SHAP
+        // value minus the off-diagonal interactions in that row.
+        for (size_t r = 0; r < ncolumns; ++r) {
+          float value = diag[r];
+          for (size_t c = 0; c < ncolumns; ++c) {
+            if (c != r) {
+              value -= matrix(r, c);
+            }
+          }
+          matrix(r, r) = value;
+        }
+      }
+
       feats.Drop();
     });
   };
@@ -690,9 +1065,9 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   MetaInfo const &info = p_fmat->Info();
   auto const ngroup = model.learner_model_param->num_output_group;
   auto const ncolumns = model.learner_model_param->num_feature;
-  const unsigned row_chunk = ngroup * (ncolumns + 1) * (ncolumns + 1);
-  const unsigned mrow_chunk = (ncolumns + 1) * (ncolumns + 1);
-  const unsigned crow_chunk = ngroup * (ncolumns + 1);
+  const std::size_t row_chunk = ngroup * (ncolumns + 1) * (ncolumns + 1);
+  const std::size_t mrow_chunk = (ncolumns + 1) * (ncolumns + 1);
+  const std::size_t crow_chunk = ngroup * (ncolumns + 1);
 
   // allocate space for (number of features^2) times the number of rows and tmp off/on contribs
   std::vector<bst_float> &contribs = out_contribs->HostVector();
@@ -723,16 +1098,22 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 
     for (size_t j = 0; j < info.num_row_; ++j) {
       for (std::remove_const_t<decltype(ngroup)> l = 0; l < ngroup; ++l) {
-        const unsigned o_offset = j * row_chunk + l * mrow_chunk + i * (ncolumns + 1);
-        const unsigned c_offset = j * crow_chunk + l * (ncolumns + 1);
-        contribs[o_offset + i] = 0;
+        const std::size_t o_offset = j * row_chunk + l * mrow_chunk;
+        const std::size_t c_offset = j * crow_chunk + l * (ncolumns + 1);
+        auto matrix =
+            DenseInteractionMatrixView<bst_float>{contribs.data() + o_offset, ncolumns + 1};
+        auto diag =
+            ContributionVectorView<bst_float>{contribs_diag.data() + c_offset, ncolumns + 1};
+        auto off = ContributionVectorView<bst_float>{contribs_off.data() + c_offset, ncolumns + 1};
+        auto on = ContributionVectorView<bst_float>{contribs_on.data() + c_offset, ncolumns + 1};
+        matrix(i, i) = 0;
         for (size_t k = 0; k < ncolumns + 1; ++k) {
           // fill in the diagonal with additive effects, and off-diagonal with the interactions
           if (k == i) {
-            contribs[o_offset + i] += contribs_diag[c_offset + k];
+            matrix(i, i) += diag[k];
           } else {
-            contribs[o_offset + k] = (contribs_on[c_offset + k] - contribs_off[c_offset + k]) / 2.0;
-            contribs[o_offset + i] -= contribs[o_offset + k];
+            matrix(i, k) = (on[k] - off[k]) / 2.0f;
+            matrix(i, i) -= matrix(i, k);
           }
         }
       }

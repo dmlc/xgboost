@@ -904,8 +904,14 @@ class CPUPredictor : public Predictor {
                                        gbm::GBTreeModel const &model, bst_tree_t ntree_limit,
                                        std::vector<float> const *tree_weights,
                                        bool approximate) const override {
-    interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
-                                            tree_weights, approximate);
+    if (!approximate && shap_algorithm_ == "quadratureshap") {
+      interpretability::cpu_impl::QuadratureShapInteractionValues(this->ctx_, p_fmat, out_contribs,
+                                                                  model, ntree_limit, tree_weights,
+                                                                  quadrature_shap_points_);
+    } else {
+      interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
+                                              tree_weights, approximate);
+    }
   }
 
  private:
