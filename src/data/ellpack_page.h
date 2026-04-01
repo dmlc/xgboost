@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_H_
 #define XGBOOST_DATA_ELLPACK_PAGE_H_
@@ -28,7 +28,7 @@ class EllpackPage {
    * This is used in the external memory case. An empty ELLPACK page is constructed with its content
    * set later by the reader.
    */
-  EllpackPage();
+  explicit EllpackPage(Context const* ctx);
   /**
    * @brief Constructor from an existing DMatrix.
    *

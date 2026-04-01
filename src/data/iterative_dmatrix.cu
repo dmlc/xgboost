@@ -44,7 +44,7 @@ void IterativeDMatrix::InitFromCUDA(
     if (!ellpack_) {
       // Should be put inside the while loop to protect against empty batch.  In
       // that case device id is invalid.
-      ellpack_.reset(new EllpackPage);
+      ellpack_.reset(new EllpackPage{&fmat_ctx_});
       *(ellpack_->Impl()) = EllpackPageImpl(&fmat_ctx_, cuts, this->IsDense(), ext_info.row_stride,
                                             ext_info.accumulated_rows);
     }
@@ -107,7 +107,7 @@ BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
   }
 
   if (!ellpack_) {
-    ellpack_.reset(new EllpackPage());
+    ellpack_.reset(new EllpackPage{&fmat_ctx_});
     if (ctx->IsCUDA()) {
       this->Info().feature_types.SetDevice(ctx->Device());
       *ellpack_->Impl() =
@@ -137,20 +137,20 @@ void IterativeDMatrix::Save(common::AlignedFileWriteStream* fo) const {
   auto const& p_cuts = this->ellpack_->Impl()->CutsShared();
   p_cuts->Save(fo);
   // Save ellpack
-  auto fmt =
-      std::make_unique<EllpackPageRawFormat>(p_cuts, this->Ctx()->Device(), BatchParam{}, false);
+  auto fmt = std::make_unique<EllpackPageRawFormat>(this->Ctx(), p_cuts, this->Ctx()->Device(),
+                                                    BatchParam{}, false);
   auto n_bytes = fmt->Write(*this->ellpack_, fo);
   CHECK_GE(n_bytes, this->ellpack_->Impl()->MemCostBytes());
 }
 
-IterativeDMatrix* IterativeDMatrix::Load(common::AlignedResourceReadStream* fi) {
+IterativeDMatrix* IterativeDMatrix::Load(Context const* ctx,
+                                         common::AlignedResourceReadStream* fi) {
   CHECK(fi);
   // Load cuts
   std::shared_ptr<common::HistogramCuts> p_cuts{common::HistogramCuts::Load(fi)};
   // Load ellpack
-  auto fmt = std::make_unique<EllpackPageRawFormat>(p_cuts, DeviceOrd::CUDA(dh::CurrentDevice()),
-                                                    BatchParam{}, false);
-  auto ellpack = std::make_shared<EllpackPage>();
+  auto fmt = std::make_unique<EllpackPageRawFormat>(ctx, p_cuts, ctx->Device(), BatchParam{}, false);
+  auto ellpack = std::make_shared<EllpackPage>(ctx);
   CHECK(fmt->Read(ellpack.get(), fi));
   return new IterativeDMatrix{std::move(ellpack)};
 }

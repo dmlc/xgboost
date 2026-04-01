@@ -56,7 +56,7 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
 
     auto row_stride = GetRowStride(m.get());
     EllpackCacheInfo cinfo = CInfoForTest(&ctx, m.get(), row_stride, param, cuts);
-    policy.SetCuts(cuts, ctx.Device(), cinfo);
+    policy.SetCuts(&ctx, cuts, ctx.Device(), cinfo);
 
     std::unique_ptr<EllpackPageRawFormat> format{policy.CreatePageFormat(param)};
 
@@ -68,7 +68,7 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
       }
     }
 
-    EllpackPage page;
+    EllpackPage page{&ctx};
     auto fi = policy.CreateReader(StringView{path}, static_cast<bst_idx_t>(0), n_bytes);
     ASSERT_TRUE(format->Read(&page, fi.get()));
 
@@ -130,7 +130,7 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
             cinfo.buffer_bytes.push_back(page.Impl()->MemCostBytes());
             cinfo.buffer_rows.push_back(page.Impl()->n_rows);
           }
-          policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
+          policy.SetCuts(&ctx, page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
           format = policy.CreatePageFormat(param);
         }
         auto writer = policy.CreateWriter({}, i);
@@ -143,7 +143,7 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
 
     for (std::size_t i = 0; i < 3; ++i) {
       auto reader = policy.CreateReader({}, cache.offset[i], cache.Bytes(i));
-      EllpackPage page;
+      EllpackPage page{&ctx};
       ASSERT_TRUE(format->Read(&page, reader.get()));
       ASSERT_EQ(page.Impl()->MemCostBytes(), cache.Bytes(i));
       auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();
@@ -202,7 +202,7 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
       } else {
         EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
       }
-      policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
+      policy.SetCuts(&ctx, page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
     }
 
     auto format = policy.CreatePageFormat(param);

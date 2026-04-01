@@ -235,6 +235,7 @@ class DefaultFormatPolicy {
     std::unique_ptr<FormatT> fmt{::xgboost::data::CreatePageFormat<S>("raw")};
     return fmt;
   }
+  [[nodiscard]] auto MakePage() const { return std::make_shared<S>(); }
 };
 
 /**
@@ -317,7 +318,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
       }
       auto p = this->param_;
       ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, p, this] {
-        auto page = std::make_shared<S>();
+        auto page = self->MakePage();
         this->exce_.Run([&] {
           std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{self->CreatePageFormat(p)};
           auto name = self->cache_info_->ShardName();
