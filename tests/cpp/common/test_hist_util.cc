@@ -158,7 +158,7 @@ TEST(HistUtil, DenseCutsAccuracyTest) {
 
 TEST(HistUtil, DenseCutsAccuracyTestWeights) {
   int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {100, 1000, 1500};
+  int sizes[] = {100, 512, 1000, 1500};
   int num_columns = 5;
   Context ctx;
   for (auto num_rows : sizes) {
@@ -181,7 +181,7 @@ TEST(HistUtil, DenseCutsAccuracyTestWeights) {
 
 void TestQuantileWithHessian(bool use_sorted) {
   int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {1000, 1500};
+  int sizes[] = {512, 1000, 1500};
   int num_columns = 5;
   Context ctx;
   for (auto num_rows : sizes) {

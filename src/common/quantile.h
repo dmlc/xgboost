@@ -118,6 +118,7 @@ struct WQSummary {
     auto const *col_data = column.data();
     auto const col_size = column.size();
     double sum_total{0.0};
+    std::size_t unique_values{0};
     double rmin{0.0};
     double wmin{0.0};
     bst_float last_fvalue{0.0f};
@@ -125,8 +126,44 @@ struct WQSummary {
 
     // first pass
     for (size_t i = 0; i < col_size; ++i) {
+      if (i == 0 || col_data[i - 1].fvalue != col_data[i].fvalue) {
+        ++unique_values;
+      }
       auto const &c = col_data[i];
       sum_total += weights[c.index];
+    }
+
+    if (unique_values <= max_size) {
+      // When we have enough budget to keep every unique feature value, emit the exact
+      // weighted summary instead of running the weighted goal-selection logic below.
+      for (size_t i = 0; i < col_size; ++i) {
+        auto const &c = col_data[i];
+        if (i == 0) {
+          last_fvalue = c.fvalue;
+          wmin = weights[c.index];
+          continue;
+        }
+        if (last_fvalue == c.fvalue) {
+          wmin += weights[c.index];
+          continue;
+        }
+
+        auto rmax = rmin + wmin;
+        data_[this->Size()] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                    static_cast<bst_float>(wmin), last_fvalue);
+        this->SetSize(this->Size() + 1);
+        rmin = rmax;
+        last_fvalue = c.fvalue;
+        wmin = weights[c.index];
+      }
+
+      if (col_size != 0) {
+        auto rmax = rmin + wmin;
+        data_[this->Size()] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                    static_cast<bst_float>(wmin), last_fvalue);
+        this->SetSize(this->Size() + 1);
+      }
+      return;
     }
 
     // second pass

@@ -206,11 +206,11 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
   for (auto const& entry : sorted_column) {
     unique.insert(entry.value);
   }
-  auto const all_unit_weights = std::all_of(sorted_column.cbegin(), sorted_column.cend(),
-                                            [](auto const& entry) { return entry.weight == 1.0; });
-  if (unique.size() <= num_bins && all_unit_weights) {
-    // Less unique values than number of bins
-    // Each value should get its own bin
+  if (unique.size() <= num_bins) {
+    // If the feature has no more unique values than bins, the sketch preserves every
+    // unique value regardless of weight. In this exact-value regime, rank-uniform
+    // spacing is not the right contract; we should assert that each unique value maps
+    // to its own bin.
     int i = 0;
     for (auto v : unique) {
       ASSERT_EQ(cuts.SearchBin(v, column_idx), cuts.Ptrs()[column_idx] + i);
