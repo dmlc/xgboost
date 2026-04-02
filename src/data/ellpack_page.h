@@ -28,7 +28,7 @@ class EllpackPage {
    * This is used in the external memory case. An empty ELLPACK page is constructed with its content
    * set later by the reader.
    */
-  explicit EllpackPage(Context const* ctx);
+  EllpackPage();
   /**
    * @brief Constructor from an existing DMatrix.
    *

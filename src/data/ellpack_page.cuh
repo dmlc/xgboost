@@ -186,7 +186,7 @@ class EllpackPageImpl {
    * This is used in the external memory case. An empty ELLPACK page is constructed with its content
    * set later by the reader.
    */
-  explicit EllpackPageImpl(Context const* ctx);
+  EllpackPageImpl();
 
   /**
    * @brief Constructor from existing ellpack matrics.
@@ -357,7 +357,6 @@ class EllpackPageImpl {
   void InitCompressedData(Context const* ctx);
 
   std::shared_ptr<common::HistogramCuts const> cuts_;
-  Context const* ctx_{nullptr};
 
  public:
   bool is_dense{false};

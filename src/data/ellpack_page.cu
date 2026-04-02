@@ -30,9 +30,9 @@
 #include "xgboost/data.h"                   // for DMatrix
 
 namespace xgboost {
-EllpackPage::EllpackPage(Context const* ctx) : impl_{new EllpackPageImpl{ctx}} {}
+EllpackPage::EllpackPage() : impl_{new EllpackPageImpl{}} {}
 
-EllpackPageImpl::EllpackPageImpl(Context const* ctx) : ctx_{ctx} {}
+EllpackPageImpl::EllpackPageImpl() = default;
 
 EllpackPage::EllpackPage(Context const* ctx, DMatrix* dmat, const BatchParam& param)
     : impl_{new EllpackPageImpl{ctx, dmat, param}} {}
@@ -189,7 +189,6 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
     : is_dense{is_dense},
       n_rows{n_rows},
       cuts_{std::move(cuts)},
-      ctx_{ctx},
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
@@ -205,7 +204,6 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
     : is_dense{is_dense},
       n_rows{page.Size()},
       cuts_{std::move(cuts)},
-      ctx_{ctx},
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
@@ -225,7 +223,6 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* p_fmat, const Batc
                       common::DeviceSketch(ctx, p_fmat, param.max_bin))
                 : std::make_shared<common::HistogramCuts>(
                       common::DeviceSketchWithHessian(ctx, p_fmat, param.max_bin, param.hess))},
-      ctx_{ctx},
       info{CalcNumSymbols(ctx, GetRowStride(p_fmat), p_fmat->IsDense(), this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
@@ -470,7 +467,6 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
         cuts->SetDevice(ctx->Device());
         return cuts;
       }()},
-      ctx_{ctx},
       info{CalcNumSymbols(
           ctx,
           [&] {
@@ -506,17 +502,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
   this->monitor_.Stop("CopyGHistToEllpack");
 }
 
-EllpackPageImpl::~EllpackPageImpl() noexcept(false) {
-  // Sync the stream to make sure all running CUDA kernels finish before deallocation.
-  auto status = ctx_->CUDACtx()->Stream().Sync(false);
-  if (status != cudaSuccess) {
-    auto str = cudaGetErrorString(status);
-    // For external-memory, throwing here can trigger a series of calls to
-    // `std::terminate` by various destructors. For now, we just log the error.
-    LOG(WARNING) << "Ran into CUDA error:" << str << "\nXGBoost is likely to abort.";
-  }
-  dh::safe_cuda(status);
-}
+EllpackPageImpl::~EllpackPageImpl() noexcept(false) = default;
 
 // A functor that copies the data from one EllpackPage to another.
 template <typename IterT>

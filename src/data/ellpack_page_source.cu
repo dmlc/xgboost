@@ -183,7 +183,7 @@ class EllpackHostCacheStreamImpl {
     // Finish writing a (concatenated) cache page.
     auto commit_page = [&](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
-      auto new_impl = std::make_unique<EllpackPageImpl>(ctx);
+      auto new_impl = std::make_unique<EllpackPageImpl>();
       new_impl->CopyInfo(old_impl);
 
       // Split the cache into host cache, compressed host cache, and the device cache. We
@@ -386,6 +386,20 @@ void EllpackHostCacheStream::Read(Context const* ctx, EllpackPage* page, bool pr
 }
 
 /**
+ * EllpackFormatPolicy
+ */
+template <typename S>
+void EllpackFormatPolicy<S>::DestroyPage(std::shared_ptr<S>& page) const {
+  if (page && ctx_) {
+    ctx_->CUDACtx()->Stream().Sync();
+  }
+  page.reset();
+}
+
+template void EllpackFormatPolicy<EllpackPage>::DestroyPage(
+    std::shared_ptr<EllpackPage>& page) const;
+
+/**
  * EllpackCacheStreamPolicy
  */
 template <typename S, template <typename> typename F>
@@ -527,7 +541,8 @@ void EllpackPageSourceImpl<F>::Fetch() {
     // This is not read from cache so we still need it to be synced with sparse page source.
     CHECK_EQ(this->Iter(), this->source_->Iter());
     auto const& csr = this->source_->Page();
-    this->page_.reset(new EllpackPage{this->Ctx()});
+    this->DestroyPage(this->page_);
+    this->page_.reset(new EllpackPage{});
     auto* impl = this->page_->Impl();
     if (this->GetCuts()->HasCategorical()) {
       CHECK(!this->feature_types_.empty());
@@ -572,7 +587,8 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
       bst_idx_t row_stride = GetRowCounts(this->ctx_, value, row_counts_span,
                                           dh::GetDevice(this->ctx_), this->missing_);
       CHECK_LE(row_stride, this->ext_info_.row_stride);
-      this->page_.reset(new EllpackPage{this->ctx_});
+      this->DestroyPage(this->page_);
+      this->page_.reset(new EllpackPage{});
       *this->page_->Impl() = EllpackPageImpl{this->ctx_,
                                              value,
                                              this->missing_,

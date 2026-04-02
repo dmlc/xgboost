@@ -233,7 +233,7 @@ class EllpackFormatPolicy {
   [[nodiscard]] auto Device() const { return this->device_; }
   [[nodiscard]] auto const& CacheInfo() { return this->cache_info_; }
   [[nodiscard]] auto Ctx() const { return this->ctx_; }
-  [[nodiscard]] auto MakePage() const { return std::make_shared<S>(ctx_); }
+  void DestroyPage(std::shared_ptr<S>& page) const;
 };
 
 template <typename S, template <typename> typename F>
@@ -387,6 +387,11 @@ using ExtEllpackPageSource =
     ExtEllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
 
 #if !defined(XGBOOST_USE_CUDA)
+template <typename S>
+inline void EllpackFormatPolicy<S>::DestroyPage(std::shared_ptr<S>& page) const {
+  page.reset();
+}
+
 template <typename F>
 inline void EllpackPageSourceImpl<F>::Fetch() {
   // silent the warning about unused variables.

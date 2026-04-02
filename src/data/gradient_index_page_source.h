@@ -37,7 +37,7 @@ class GHistIndexFormatPolicy {
   }
 
   void SetCuts(common::HistogramCuts cuts) { std::swap(cuts_, cuts); }
-  [[nodiscard]] auto MakePage() const { return std::make_shared<GHistIndexMatrix>(); }
+  static void DestroyPage(std::shared_ptr<S>& page) { page.reset(); }
 };
 
 class GradientIndexPageSource

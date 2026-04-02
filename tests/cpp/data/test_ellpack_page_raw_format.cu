@@ -68,7 +68,7 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
       }
     }
 
-    EllpackPage page{&ctx};
+    EllpackPage page;
     auto fi = policy.CreateReader(StringView{path}, static_cast<bst_idx_t>(0), n_bytes);
     ASSERT_TRUE(format->Read(&page, fi.get()));
 
@@ -143,7 +143,7 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
 
     for (std::size_t i = 0; i < 3; ++i) {
       auto reader = policy.CreateReader({}, cache.offset[i], cache.Bytes(i));
-      EllpackPage page{&ctx};
+      EllpackPage page;
       ASSERT_TRUE(format->Read(&page, reader.get()));
       ASSERT_EQ(page.Impl()->MemCostBytes(), cache.Bytes(i));
       auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();

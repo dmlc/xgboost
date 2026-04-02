@@ -235,7 +235,7 @@ class DefaultFormatPolicy {
     std::unique_ptr<FormatT> fmt{::xgboost::data::CreatePageFormat<S>("raw")};
     return fmt;
   }
-  [[nodiscard]] auto MakePage() const { return std::make_shared<S>(); }
+  static void DestroyPage(std::shared_ptr<S>& page) { page.reset(); }
 };
 
 /**
@@ -300,9 +300,9 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
 
     exce_.Rethrow();
     // Clear out the existing page before loading new ones. This helps reduce memory usage
-    // when page is not loaded with mmap, in addition, it triggers necessary CUDA
-    // synchronizations by freeing memory.
-    page_.reset();
+    // when page is not loaded with mmap. The destruction policy handles any necessary
+    // synchronizations (e.g., CUDA stream sync for Ellpack pages).
+    this->DestroyPage(page_);
 
     for (std::int32_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       bool restart = fetch_it == n_batches;
@@ -318,7 +318,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
       }
       auto p = this->param_;
       ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, p, this] {
-        auto page = self->MakePage();
+        auto page = std::make_shared<S>();
         this->exce_.Run([&] {
           std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{self->CreatePageFormat(p)};
           auto name = self->cache_info_->ShardName();
