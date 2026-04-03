@@ -595,7 +595,11 @@ def cudf_cat_inf(  # pylint: disable=too-many-locals
         return cats_ainf, codes_ainf, (cats, codes)
 
     # pylint: disable=protected-access
-    arrow_col = cats._column.to_pylibcudf(mode="read")
+    try:
+        # cuDF >= 26.02, read-only
+        arrow_col = cats._column.to_pylibcudf()
+    except TypeError:
+        arrow_col = cats._column.to_pylibcudf(mode="read")
     # Tuple[types.CapsuleType, types.CapsuleType]
     schema, array = arrow_col.__arrow_c_device_array__()
 
