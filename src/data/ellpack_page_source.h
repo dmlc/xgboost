@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
@@ -233,7 +233,7 @@ class EllpackFormatPolicy {
   [[nodiscard]] auto Device() const { return this->device_; }
   [[nodiscard]] auto const& CacheInfo() { return this->cache_info_; }
   [[nodiscard]] auto Ctx() const { return this->ctx_; }
-  void DestroyPage(std::shared_ptr<S>& page) const;
+  void DestroyPage(std::shared_ptr<S>* page) const;
 };
 
 template <typename S, template <typename> typename F>
@@ -388,8 +388,8 @@ using ExtEllpackPageSource =
 
 #if !defined(XGBOOST_USE_CUDA)
 template <typename S>
-inline void EllpackFormatPolicy<S>::DestroyPage(std::shared_ptr<S>& page) const {
-  page.reset();
+inline void EllpackFormatPolicy<S>::DestroyPage(std::shared_ptr<S>* page) const {
+  page->reset();
 }
 
 template <typename F>

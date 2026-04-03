@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <algorithm>  // for max
 #include <cstddef>    // for size_t
@@ -389,15 +389,15 @@ void EllpackHostCacheStream::Read(Context const* ctx, EllpackPage* page, bool pr
  * EllpackFormatPolicy
  */
 template <typename S>
-void EllpackFormatPolicy<S>::DestroyPage(std::shared_ptr<S>& page) const {
+void EllpackFormatPolicy<S>::DestroyPage(std::shared_ptr<S>* page) const {
   if (page && ctx_) {
     ctx_->CUDACtx()->Stream().Sync();
   }
-  page.reset();
+  page->reset();
 }
 
 template void EllpackFormatPolicy<EllpackPage>::DestroyPage(
-    std::shared_ptr<EllpackPage>& page) const;
+    std::shared_ptr<EllpackPage>* page) const;
 
 /**
  * EllpackCacheStreamPolicy
@@ -541,7 +541,7 @@ void EllpackPageSourceImpl<F>::Fetch() {
     // This is not read from cache so we still need it to be synced with sparse page source.
     CHECK_EQ(this->Iter(), this->source_->Iter());
     auto const& csr = this->source_->Page();
-    this->DestroyPage(this->page_);
+    this->DestroyPage(&this->page_);
     this->page_.reset(new EllpackPage{});
     auto* impl = this->page_->Impl();
     if (this->GetCuts()->HasCategorical()) {
@@ -587,7 +587,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
       bst_idx_t row_stride = GetRowCounts(this->ctx_, value, row_counts_span,
                                           dh::GetDevice(this->ctx_), this->missing_);
       CHECK_LE(row_stride, this->ext_info_.row_stride);
-      this->DestroyPage(this->page_);
+      this->DestroyPage(&this->page_);
       this->page_.reset(new EllpackPage{});
       *this->page_->Impl() = EllpackPageImpl{this->ctx_,
                                              value,
