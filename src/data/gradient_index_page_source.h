@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_PAGE_SOURCE_H_
 #define XGBOOST_DATA_GRADIENT_INDEX_PAGE_SOURCE_H_
