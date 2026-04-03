@@ -612,8 +612,8 @@ def cudf_cat_inf(  # pylint: disable=too-many-locals
         codes_ainf = cuda_array_interface_dict(codes)
         return cats_ainf, codes_ainf, (cats, codes)
 
+    # pylint: disable=protected-access
     if cudf_read_only():
-        # pylint: disable=protected-access
         arrow_col = cats._column.to_pylibcudf()
     else:
         arrow_col = cats._column.to_pylibcudf(mode="read")
