@@ -737,19 +737,32 @@ void DMatrixToCSR(DMatrix* dmat, std::vector<float>* p_data, std::vector<size_t>
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 using CUDAMemoryResource = rmm::mr::cuda_memory_resource;
+#if RMM_VERSION_MAJOR > 26 || (RMM_VERSION_MAJOR == 26 && RMM_VERSION_MINOR >= 6)
+using PoolMemoryResource = rmm::mr::pool_memory_resource;
+#else
 using PoolMemoryResource = rmm::mr::pool_memory_resource<CUDAMemoryResource>;
+#endif
 class RMMAllocator {
  public:
+#if RMM_VERSION_MAJOR > 26 || (RMM_VERSION_MAJOR == 26 && RMM_VERSION_MINOR >= 6)
+  std::vector<PoolMemoryResource> pool_mr;
+#else
   std::vector<std::unique_ptr<CUDAMemoryResource>> cuda_mr;
   std::vector<std::unique_ptr<PoolMemoryResource>> pool_mr;
+#endif
   int n_gpu;
   RMMAllocator() : n_gpu(curt::AllVisibleGPUs()) {
     int current_device;
     CHECK_EQ(cudaGetDevice(&current_device), cudaSuccess);
     for (int i = 0; i < n_gpu; ++i) {
       CHECK_EQ(cudaSetDevice(i), cudaSuccess);
+#if RMM_VERSION_MAJOR > 26 || (RMM_VERSION_MAJOR == 26 && RMM_VERSION_MINOR >= 6)
+      CUDAMemoryResource cuda_mr;
+      pool_mr.push_back(PoolMemoryResource{cuda_mr, 0ul});
+#else
       cuda_mr.push_back(std::make_unique<CUDAMemoryResource>());
       pool_mr.push_back(std::make_unique<PoolMemoryResource>(cuda_mr[i].get(), 0ul));
+#endif
     }
     CHECK_EQ(cudaSetDevice(current_device), cudaSuccess);
   }
@@ -771,7 +784,11 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
   LOG(INFO) << "Using RMM memory pool";
   auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);
   for (int i = 0; i < ptr->n_gpu; ++i) {
+#if RMM_VERSION_MAJOR > 26 || (RMM_VERSION_MAJOR == 26 && RMM_VERSION_MINOR >= 6)
+    rmm::mr::set_per_device_resource_ref(rmm::cuda_device_id(i), ptr->pool_mr[i]);
+#else
     rmm::mr::set_per_device_resource(rmm::cuda_device_id(i), ptr->pool_mr[i].get());
+#endif
   }
   GlobalConfigThreadLocalStore::Get()->UpdateAllowUnknown(Args{{"use_rmm", "true"}});
   return ptr;
