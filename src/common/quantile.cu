@@ -498,24 +498,17 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
 
   timer_.Start(__func__);
   auto normalize_merged = [&] {
-    if (this->HasCategorical()) {
-      // Numerical summaries are normalized during prune.  Categorical features can still
-      // produce repeated category values, so compact those here before exposing the sketch.
-      auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
-      auto d_column_scan = columns_ptr.DeviceSpan();
-      auto merged_entries = dh::ToSpan(entries);
-      HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
-      scan_out.SetDevice(ctx->Device());
-      auto n_uniques = dh::SegmentedUnique(
-          ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
-          merged_entries.data(), merged_entries.data() + merged_entries.size(),
-          scan_out.DevicePointer(), merged_entries.data(), detail::SketchUnique{},
-          [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
-            return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
-          });
-      columns_ptr.Copy(scan_out);
-      entries.resize(n_uniques);
-    }
+    // Merge can leave adjacent duplicate values in both numerical and categorical summaries.
+    auto d_column_scan = columns_ptr.DeviceSpan();
+    auto merged_entries = dh::ToSpan(entries);
+    HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
+    scan_out.SetDevice(ctx->Device());
+    auto n_uniques = dh::SegmentedUnique(
+        ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
+        merged_entries.data(), merged_entries.data() + merged_entries.size(),
+        scan_out.DevicePointer(), merged_entries.data(), detail::SketchUnique{});
+    columns_ptr.Copy(scan_out);
+    entries.resize(n_uniques);
     this->FixError();
   };
   if (entries.empty()) {
