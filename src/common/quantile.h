@@ -232,6 +232,60 @@ struct WQSummary {
       dst_data[current_elements_++] = src_data[src_size - 1];
     }
   }
+
+  [[nodiscard]] Entry const &Query(double rank) const {
+    CHECK(!this->Empty());
+    auto const entries = this->Entries();
+    if (entries.size() == 1 || rank < entries.front().rmax) {
+      return entries.front();
+    }
+    if (rank >= entries.back().rmin) {
+      return entries.back();
+    }
+
+    auto rank2 = static_cast<double>(2.0) * rank;
+    auto it = std::upper_bound(entries.cbegin() + 1, entries.cend() - 1, rank2,
+                               [](double lhs, Entry const &rhs) {
+                                 return lhs < static_cast<double>(rhs.rmin + rhs.rmax);
+                               });
+    auto i = static_cast<std::size_t>(std::distance(entries.cbegin(), it) - 1);
+    if (rank2 < static_cast<double>(entries[i].RMinNext() + entries[i + 1].RMaxPrev())) {
+      return entries[i];
+    }
+    return entries[i + 1];
+  }
+
+  template <typename Fn>
+  void QueryRanks(std::size_t num_cuts, Fn &&fn) const {
+    CHECK(!this->Empty());
+    if (num_cuts <= 1) {
+      return;
+    }
+
+    auto const entries = this->Entries();
+    if (entries.size() == 1) {
+      for (std::size_t i = 1; i < num_cuts; ++i) {
+        fn(i, entries.front());
+      }
+      return;
+    }
+
+    auto total = static_cast<double>(entries.back().rmax);
+    std::size_t cursor = 0;
+    for (std::size_t i = 1; i < num_cuts; ++i) {
+      auto rank = static_cast<double>(i) * total / static_cast<double>(num_cuts);
+      auto rank2 = static_cast<double>(2.0) * rank;
+      while (cursor < entries.size() - 2 &&
+             rank2 >= static_cast<double>(entries[cursor + 1].rmin + entries[cursor + 1].rmax)) {
+        ++cursor;
+      }
+      auto const &queried =
+          rank2 < static_cast<double>(entries[cursor].RMinNext() + entries[cursor + 1].RMaxPrev())
+              ? entries[cursor]
+              : entries[cursor + 1];
+      fn(i, queried);
+    }
+  }
   /*!
    * \brief combine `other` into `this`.
    *
@@ -452,6 +506,10 @@ struct WQSummaryContainer : public WQSummary<> {
 /*! \brief Weighted quantile sketch algorithm using merge/prune. */
 class WQuantileSketch {
  public:
+  // Sketch epsilon is approximately `1 / (kFactor * max_bin)` once `max_bin` limits the budget.
+  // Our current cut-rank measurements suggest an empirical constant of about 2 for the final
+  // emitted cuts, so the observed normalized cut error is about `2 / kFactor`. With
+  // `kFactor = 8`, that is roughly `0.25` bins of rank mass, i.e. about a quarter-bin offset.
   static float constexpr kFactor = 8.0;
 
  public:

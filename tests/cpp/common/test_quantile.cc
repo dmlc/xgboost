@@ -77,6 +77,214 @@ TEST(Quantile, SetPruneInplace) {
 }
 
 namespace {
+struct QueryBoundStats {
+  double max_absolute_error{0.0};
+  double total_weight{0.0};
+  double epsilon{0.0};
+  double prune_term{0.0};
+  double target_rank{0.0};
+  double rank_lo{0.0};
+  double rank_hi{0.0};
+  float queried_value{0.0f};
+  std::size_t query_index{0};
+  std::size_t n_queries{0};
+};
+
+struct WeightedSketchScenario {
+  char const* name{nullptr};
+  bst_bin_t max_bins{0};
+  std::vector<float> values;
+  std::vector<float> weights;
+};
+
+auto AggregateWeightedData(std::vector<float> const& values, std::vector<float> const& weights)
+    -> std::vector<WeightedValue> {
+  CHECK_EQ(values.size(), weights.size());
+  std::vector<WeightedValue> sorted(values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    sorted[i] = WeightedValue{values[i], weights[i]};
+  }
+  std::sort(sorted.begin(), sorted.end(),
+            [](auto const& lhs, auto const& rhs) { return lhs.value < rhs.value; });
+
+  std::vector<WeightedValue> unique;
+  unique.reserve(sorted.size());
+  for (auto const& entry : sorted) {
+    if (!unique.empty() && unique.back().value == entry.value) {
+      unique.back().weight += entry.weight;
+    } else {
+      unique.push_back(entry);
+    }
+  }
+  return unique;
+}
+
+auto PrefixWeights(std::vector<WeightedValue> const& weighted_uniques) -> std::vector<double> {
+  std::vector<double> prefix_sum(weighted_uniques.size() + 1, 0.0);
+  for (std::size_t i = 0; i < weighted_uniques.size(); ++i) {
+    prefix_sum[i + 1] = prefix_sum[i] + weighted_uniques[i].weight;
+  }
+  return prefix_sum;
+}
+
+auto ExactRankInterval(std::vector<WeightedValue> const& weighted_uniques,
+                       std::vector<double> const& prefix_sum, float value)
+    -> std::pair<double, double> {
+  auto lb = std::lower_bound(weighted_uniques.cbegin(), weighted_uniques.cend(), value,
+                             [](auto const& lhs, float rhs) { return lhs.value < rhs; });
+  auto ub = std::upper_bound(weighted_uniques.cbegin(), weighted_uniques.cend(), value,
+                             [](float lhs, auto const& rhs) { return lhs < rhs.value; });
+  auto rank_lo = prefix_sum[std::distance(weighted_uniques.cbegin(), lb)];
+  auto rank_hi = prefix_sum[std::distance(weighted_uniques.cbegin(), ub)];
+  return {rank_lo, rank_hi};
+}
+
+auto MeasurePaperQueryBound(WQSummaryContainer const& summary,
+                            std::vector<WeightedValue> const& weighted_uniques, double epsilon,
+                            double prune_term) -> QueryBoundStats {
+  QueryBoundStats stats;
+  stats.epsilon = epsilon;
+  stats.prune_term = prune_term;
+  auto prefix_sum = PrefixWeights(weighted_uniques);
+  stats.total_weight = prefix_sum.back();
+  if (stats.total_weight == 0.0) {
+    return stats;
+  }
+
+  auto const entries = summary.Entries();
+  stats.n_queries = std::max<std::size_t>(1, entries.size() * 4);
+  for (std::size_t i = 0; i <= stats.n_queries; ++i) {
+    auto target_rank =
+        static_cast<double>(i) * stats.total_weight / static_cast<double>(stats.n_queries);
+    auto const& query = summary.Query(target_rank);
+    auto [rank_lo, rank_hi] = ExactRankInterval(weighted_uniques, prefix_sum, query.value);
+    auto absolute_error = DistanceToInterval(target_rank, rank_lo, rank_hi);
+    if (absolute_error > stats.max_absolute_error) {
+      stats.max_absolute_error = absolute_error;
+      stats.target_rank = target_rank;
+      stats.rank_lo = rank_lo;
+      stats.rank_hi = rank_hi;
+      stats.queried_value = query.value;
+      stats.query_index = i;
+    }
+  }
+  return stats;
+}
+
+auto BuildPushSummary(WeightedSketchScenario const& scenario) -> WQSummaryContainer {
+  auto eps = SketchEpsilon(scenario.max_bins, scenario.values.size());
+  auto budget = SketchSummaryBudget(scenario.max_bins, scenario.values.size());
+  WQuantileSketch sketch{scenario.values.size(), eps};
+  for (std::size_t i = 0; i < scenario.values.size(); ++i) {
+    sketch.Push(scenario.values[i], scenario.weights[i]);
+  }
+  return sketch.GetSummary(budget);
+}
+
+auto BuildSortedSummary(WeightedSketchScenario const& scenario) -> WQSummaryContainer {
+  auto eps = SketchEpsilon(scenario.max_bins, scenario.values.size());
+  auto budget = SketchSummaryBudget(scenario.max_bins, scenario.values.size());
+  WQuantileSketch sketch{scenario.values.size(), eps};
+
+  std::vector<::xgboost::Entry> column(scenario.values.size());
+  for (std::size_t i = 0; i < scenario.values.size(); ++i) {
+    column[i] = ::xgboost::Entry{static_cast<bst_feature_t>(i), scenario.values[i]};
+  }
+  std::sort(column.begin(), column.end(),
+            [](auto const& lhs, auto const& rhs) { return lhs.fvalue < rhs.fvalue; });
+  sketch.PushSorted(Span<::xgboost::Entry const>{column.data(), column.size()}, scenario.weights,
+                    budget);
+  return sketch.GetSummary(budget);
+}
+
+auto BuildMergedSummary(WeightedSketchScenario const& scenario) -> WQSummaryContainer {
+  auto eps = SketchEpsilon(scenario.max_bins, scenario.values.size());
+  auto budget = SketchSummaryBudget(scenario.max_bins, scenario.values.size());
+  auto split = scenario.values.size() / 2;
+
+  WQuantileSketch lhs{scenario.values.size(), eps};
+  WQuantileSketch rhs{scenario.values.size(), eps};
+  for (std::size_t i = 0; i < split; ++i) {
+    lhs.Push(scenario.values[i], scenario.weights[i]);
+  }
+  for (std::size_t i = split; i < scenario.values.size(); ++i) {
+    rhs.Push(scenario.values[i], scenario.weights[i]);
+  }
+
+  auto lhs_summary = lhs.GetSummary(budget);
+  auto rhs_summary = rhs.GetSummary(budget);
+  WQSummaryContainer merged;
+  merged.Reserve(lhs_summary.Size() + rhs_summary.Size());
+  merged.CopyFrom(lhs_summary);
+  merged.SetCombine(rhs_summary);
+  merged.SetPrune(budget);
+  return merged;
+}
+
+auto MakeWeightedSketchScenarios() -> std::vector<WeightedSketchScenario> {
+  std::vector<WeightedSketchScenario> scenarios;
+
+  {
+    WeightedSketchScenario s;
+    s.name = "continuous_random_weights";
+    s.max_bins = 64;
+    s.values = GenerateRandom(2048, 1);
+    s.weights = GenerateRandomWeights(2048);
+    scenarios.push_back(std::move(s));
+  }
+
+  {
+    WeightedSketchScenario s;
+    s.name = "bucketed_random_weights";
+    s.max_bins = 64;
+    s.values = GenerateRandom(2048, 1);
+    for (auto& v : s.values) {
+      v = std::floor(v * 192.0f) / 8.0f;
+    }
+    s.weights = GenerateRandomWeights(2048);
+    scenarios.push_back(std::move(s));
+  }
+
+  {
+    WeightedSketchScenario s;
+    s.name = "sample_weight_times_hessian";
+    s.max_bins = 128;
+    s.values = GenerateRandom(4096, 1);
+    auto sample_weight = GenerateRandomWeights(4096);
+    auto hessian = GenerateRandomWeights(4096);
+    s.weights.resize(sample_weight.size());
+    for (std::size_t i = 0; i < s.weights.size(); ++i) {
+      s.weights[i] = std::max(sample_weight[i] * hessian[s.weights.size() - i - 1], 1e-7f);
+    }
+    scenarios.push_back(std::move(s));
+  }
+
+  return scenarios;
+}
+
+template <typename SummaryBuilder>
+void CheckWeightedQueryBound(char const* builder_name, SummaryBuilder&& build_summary) {
+  for (auto const& scenario : MakeWeightedSketchScenarios()) {
+    auto trace = std::string(builder_name) + ":" + scenario.name;
+    SCOPED_TRACE(trace);
+    auto weighted_uniques = AggregateWeightedData(scenario.values, scenario.weights);
+    auto summary = build_summary(scenario);
+    auto eps = SketchEpsilon(scenario.max_bins, scenario.values.size());
+    auto budget = SketchSummaryBudget(scenario.max_bins, scenario.values.size());
+    auto stats =
+        MeasurePaperQueryBound(summary, weighted_uniques, eps, 1.0 / static_cast<double>(budget));
+    auto bound = (stats.epsilon + stats.prune_term) * stats.total_weight;
+    auto tol = std::max(1e-6, 1e-6 * stats.total_weight);
+    EXPECT_LE(stats.max_absolute_error, bound + tol)
+        << "scenario=" << scenario.name << ", builder=" << builder_name
+        << ", query_index=" << stats.query_index << ", queried_value=" << stats.queried_value
+        << ", target_rank=" << stats.target_rank << ", rank_lo=" << stats.rank_lo
+        << ", rank_hi=" << stats.rank_hi << ", total_weight=" << stats.total_weight
+        << ", epsilon=" << stats.epsilon << ", prune_term=" << stats.prune_term
+        << ", bound=" << bound;
+  }
+}
+
 template <bool use_column>
 void PushPage(HostSketchContainer* container, SparsePage const& page, MetaInfo const& info,
               Span<float const> hessian) {
@@ -328,6 +536,20 @@ TEST(Quantile, ColumnSplitSortedBasic) {
 TEST(Quantile, ColumnSplitSorted) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestColSplitQuantile<true>(kRows, kCols);
+}
+
+TEST(Quantile, WeightedSummaryQueryBoundPush) {
+  CheckWeightedQueryBound("push", [](auto const& scenario) { return BuildPushSummary(scenario); });
+}
+
+TEST(Quantile, WeightedSummaryQueryBoundSortedPush) {
+  CheckWeightedQueryBound("sorted_push",
+                          [](auto const& scenario) { return BuildSortedSummary(scenario); });
+}
+
+TEST(Quantile, WeightedSummaryQueryBoundMerged) {
+  CheckWeightedQueryBound("merge",
+                          [](auto const& scenario) { return BuildMergedSummary(scenario); });
 }
 
 namespace {
