@@ -704,8 +704,8 @@ HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split
       summary.Reserve(column.size());
       std::copy(column.cbegin(), column.cend(), summary.space.begin());
       summary.SetSize(column.size());
-      QueryCutValues(summary, static_cast<std::size_t>(num_bins_),
-                     [&](float cpt) { h_out_cut_values.push_back(cpt); });
+      auto queried = summary.QueryCutValues(static_cast<std::size_t>(num_bins_));
+      h_out_cut_values.insert(h_out_cut_values.end(), queried.cbegin(), queried.cend());
     }
     h_out_columns_ptr[i + 1] = h_out_cut_values.size();
   }

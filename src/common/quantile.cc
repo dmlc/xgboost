@@ -493,7 +493,8 @@ auto HostSketchContainer::AllReduce(Context const *ctx, MetaInfo const &info,
 
 void AddCutPoints(WQSummaryContainer const &summary, size_t max_bin, HistogramCuts *cuts) {
   auto &cut_values = cuts->cut_values_.HostVector();
-  QueryCutValues(summary, max_bin, [&](float cpt) { cut_values.push_back(cpt); });
+  auto queried = summary.QueryCutValues(max_bin);
+  cut_values.insert(cut_values.end(), queried.cbegin(), queried.cend());
 }
 
 void AddCategories(std::set<float> const &categories, float *max_cat, HistogramCuts *cuts) {
