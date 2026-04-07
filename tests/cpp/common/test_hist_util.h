@@ -92,7 +92,7 @@ struct RankErrorSummary {
 };
 
 inline constexpr double kMaxNormalizedRankError = 2.0;
-inline constexpr double kMaxWeightedNormalizedRankError = 15.0;
+inline constexpr double kMaxWeightedNormalizedRankError = 7.0;
 
 inline double DistanceToInterval(double target, double lo, double hi) {
   if (target < lo) {
