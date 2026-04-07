@@ -664,6 +664,5 @@ TEST(GPUQuantile, MultiColPush) {
     ASSERT_EQ(v_1.rmax, static_cast<float>(kRows));
   }
 }
-
 }  // namespace common
 }  // namespace xgboost
