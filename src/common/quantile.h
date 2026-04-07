@@ -233,28 +233,6 @@ struct WQSummary {
     }
   }
 
-  [[nodiscard]] Entry const &Query(double rank) const {
-    CHECK(!this->Empty());
-    auto const entries = this->Entries();
-    if (entries.size() == 1 || rank < entries.front().rmax) {
-      return entries.front();
-    }
-    if (rank >= entries.back().rmin) {
-      return entries.back();
-    }
-
-    auto rank2 = static_cast<double>(2.0) * rank;
-    auto it = std::upper_bound(entries.cbegin() + 1, entries.cend() - 1, rank2,
-                               [](double lhs, Entry const &rhs) {
-                                 return lhs < static_cast<double>(rhs.rmin + rhs.rmax);
-                               });
-    auto i = static_cast<std::size_t>(std::distance(entries.cbegin(), it) - 1);
-    if (rank2 < static_cast<double>(entries[i].RMinNext() + entries[i + 1].RMaxPrev())) {
-      return entries[i];
-    }
-    return entries[i + 1];
-  }
-
   template <typename Fn>
   void QueryRanks(std::size_t num_cuts, Fn &&fn) const {
     CHECK(!this->Empty());

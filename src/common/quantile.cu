@@ -681,8 +681,6 @@ HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split
   dh::CopyDeviceSpanToVector(&h_entries, dh::ToSpan(this->entries_));
   auto const &h_feature_types = this->feature_types_.ConstHostSpan();
 
-  // TODO(rory): Port query-based cut extraction back onto the device and remove this temporary
-  // host-side extraction path once the GPU semantics are validated.
   float max_cat{-1.f};
   WQSummaryContainer summary;
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
