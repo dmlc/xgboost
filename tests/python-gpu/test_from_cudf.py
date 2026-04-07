@@ -86,8 +86,8 @@ def _test_from_cudf(DMatrixT: Type[xgb.DMatrix]) -> None:
 
 
 def _test_cudf_training(DMatrixT: Type[xgb.DMatrix]) -> None:
-    import pandas as pd
     import cudf
+    import pandas as pd
 
     np.random.seed(1)
     X = pd.DataFrame(np.random.randn(50, 10))
@@ -122,8 +122,8 @@ def _test_cudf_training(DMatrixT: Type[xgb.DMatrix]) -> None:
 
 
 def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
-    import pandas as pd
     import cudf
+    import pandas as pd
 
     n = 100
     X = np.random.random((n, 2))
@@ -253,8 +253,8 @@ class TestFromColumnar:
 @pytest.mark.skipif(**tm.no_sklearn())
 @pytest.mark.skipif(**tm.no_pandas())
 def test_cudf_training_with_sklearn() -> None:
-    import pandas as pd
     import cudf
+    import pandas as pd
 
     np.random.seed(1)
     X = pd.DataFrame(np.random.randn(50, 10))
