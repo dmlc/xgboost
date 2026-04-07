@@ -491,48 +491,9 @@ auto HostSketchContainer::AllReduce(Context const *ctx, MetaInfo const &info,
   return reduced;
 }
 
-auto NextGreaterSummaryValue(WQSummaryContainer const &summary, float value) -> float {
-  auto const entries = summary.Entries();
-  auto it = std::upper_bound(
-      entries.cbegin(), entries.cend(), value,
-      [](float lhs, WQSummaryContainer::Entry const &rhs) { return lhs < rhs.value; });
-  if (it == entries.cend()) {
-    return value;
-  }
-  return it->value;
-}
-
 void AddCutPoints(WQSummaryContainer const &summary, size_t max_bin, HistogramCuts *cuts) {
-  size_t required_cuts = std::min(summary.Size(), static_cast<size_t>(max_bin));
   auto &cut_values = cuts->cut_values_.HostVector();
-  auto const entries = summary.Entries();
-  if (summary.Size() <= max_bin) {
-    // If every unique value already fits in the working summary, preserve them exactly.
-    auto const *summary_data = entries.data();
-    // summary[0] is the observed minimum; the first bin lower bound is implicit.
-    for (size_t i = 1; i < required_cuts; ++i) {
-      bst_float cpt = summary_data[i].value;
-      if (i == 1 || cpt > cut_values.back()) {
-        cut_values.push_back(cpt);
-      }
-    }
-  } else {
-    auto last_cut = entries.front().value;
-    summary.QueryRanks(required_cuts, [&](std::size_t, auto const &queried) {
-      auto cpt = queried.value;
-      if (cpt <= last_cut) {
-        cpt = NextGreaterSummaryValue(summary, last_cut);
-      }
-      if (cpt > last_cut) {
-        cut_values.push_back(cpt);
-        last_cut = cpt;
-      }
-    });
-  }
-  auto const cpt = !entries.empty() ? entries.back().value : 1e-5f;
-  // This must be bigger than the last observed cut value.
-  auto const last = cpt + (std::fabs(cpt) + 1e-5f);
-  cut_values.push_back(last);
+  QueryCutValues(summary, max_bin, [&](float cpt) { cut_values.push_back(cpt); });
 }
 
 void AddCategories(std::set<float> const &categories, float *max_cat, HistogramCuts *cuts) {

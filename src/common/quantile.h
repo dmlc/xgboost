@@ -503,6 +503,44 @@ struct WQSummaryContainer : public WQSummary<> {
   }
 };
 
+template <typename Summary>
+auto NextGreaterSummaryValue(Summary const &summary, float value) -> float {
+  auto const entries = summary.Entries();
+  auto it = std::upper_bound(entries.cbegin(), entries.cend(), value,
+                             [](float lhs, auto const &rhs) { return lhs < rhs.value; });
+  if (it == entries.cend()) {
+    return value;
+  }
+  return it->value;
+}
+
+template <typename Summary, typename Fn>
+void QueryCutValues(Summary const &summary, std::size_t max_bin, Fn &&fn) {
+  auto required_cuts = std::min(summary.Size(), max_bin);
+  auto const entries = summary.Entries();
+
+  if (summary.Size() <= max_bin) {
+    for (std::size_t i = 1; i < required_cuts; ++i) {
+      fn(entries[i].value);
+    }
+  } else {
+    auto last_cut = entries.front().value;
+    summary.QueryRanks(required_cuts, [&](std::size_t, auto const &queried) {
+      auto cpt = queried.value;
+      if (cpt <= last_cut) {
+        cpt = NextGreaterSummaryValue(summary, last_cut);
+      }
+      if (cpt > last_cut) {
+        fn(cpt);
+        last_cut = cpt;
+      }
+    });
+  }
+
+  auto cpt = !entries.empty() ? entries.back().value : 1e-5f;
+  fn(cpt + (std::fabs(cpt) + 1e-5f));
+}
+
 /*! \brief Weighted quantile sketch algorithm using merge/prune. */
 class WQuantileSketch {
  public:
