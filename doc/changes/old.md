@@ -1,7 +1,7 @@
-XGBoost Change Log
-==================
+Change Log (pre 2.1.0)
+======================
 
-**Starting from 2.1.0, release note is recorded in the documentation.**
+**Starting from 2.1.0, release note is recorded in separate files.**
 
 This file records the changes in xgboost library in reverse chronological order.
 
@@ -289,7 +289,7 @@ More progress on the experimental support for categorical features. In 1.7, XGBo
 
 ###  Experimental support for federated learning and new communication collective
 
-An exciting addition to XGBoost is the experimental federated learning support. The federated learning is implemented with a gRPC federated server that aggregates allreduce calls, and federated clients that train on local data and use existing tree methods (approx, hist, gpu_hist). Currently, this only supports horizontal federated learning (samples are split across participants, and each participant has all the features and labels). Future plans include vertical federated learning (features split across participants), and stronger privacy guarantees with homomorphic encryption and differential privacy. See [Demo with NVFlare integration](demo/nvflare/README.md) for example usage with nvflare.
+An exciting addition to XGBoost is the experimental federated learning support. The federated learning is implemented with a gRPC federated server that aggregates allreduce calls, and federated clients that train on local data and use existing tree methods (approx, hist, gpu_hist). Currently, this only supports horizontal federated learning (samples are split across participants, and each participant has all the features and labels). Future plans include vertical federated learning (features split across participants), and stronger privacy guarantees with homomorphic encryption and differential privacy. See `demo/nvflare/README.md` for example usage with nvflare.
 
 As part of the work, XGBoost 1.7 has replaced the old rabit module with the new collective module as the network communication interface with added support for runtime backend selection. In previous versions, the backend is defined at compile time and can not be changed once built. In this new release, users can choose between `rabit` and `federated.` (#8029, #8351, #8350, #8342, #8340, #8325, #8279, #8181, #8027, #7958, #7831, #7879, #8257, #8316, #8242, #8057, #8203, #8038, #7965, #7930, #7911)
 
@@ -2873,7 +2873,7 @@ This version is only applicable for the Python package. The content is identical
 * Support for boosting from initial predictions
 * Experimental version of LambdaRank
 * Linear booster is now parallelized, using parallel coordinated descent.
-* Add [Code Guide](src/README.md) for customizing objective function and evaluation
+* Add `src/README.md` for customizing objective function and evaluation
 * Add R module
 
 
