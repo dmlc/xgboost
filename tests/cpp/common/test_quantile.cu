@@ -269,6 +269,7 @@ TEST(GPUQuantile, MergeBasic) {
 
     std::vector<SketchEntry> h_data(sketch_0.Data().size());
     dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
+    ASSERT_EQ(static_cast<std::size_t>(h_columns_ptr.back()), h_data.size());
     for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
       auto begin = h_columns_ptr[i - 1];
       auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);
@@ -331,6 +332,7 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
 
   std::vector<SketchEntry> h_data(sketch_0.Data().size());
   dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
+  ASSERT_EQ(static_cast<std::size_t>(h_columns_ptr.back()), h_data.size());
   for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
     auto begin = h_columns_ptr[i - 1];
     auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);

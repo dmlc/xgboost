@@ -501,13 +501,13 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
     // Merge can leave adjacent duplicate values in both numerical and categorical summaries.
     auto d_column_scan = columns_ptr.DeviceSpan();
     auto merged_entries = dh::ToSpan(entries);
-    HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
-    scan_out.SetDevice(ctx->Device());
+    columns_ptr_tmp.Resize(columns_ptr.Size());
+    columns_ptr_tmp.SetDevice(ctx->Device());
     auto n_uniques = dh::SegmentedUnique(
         ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
         merged_entries.data(), merged_entries.data() + merged_entries.size(),
-        scan_out.DevicePointer(), merged_entries.data(), detail::SketchUnique{});
-    columns_ptr.Copy(scan_out);
+        columns_ptr_tmp.DevicePointer(), merged_entries.data(), detail::SketchUnique{});
+    columns_ptr.Copy(columns_ptr_tmp);
     entries.resize(n_uniques);
     this->FixError();
   };
