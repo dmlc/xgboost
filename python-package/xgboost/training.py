@@ -37,6 +37,7 @@ from .core import (
     _deprecate_positional_args,
     _RefMixIn,
 )
+from .objective import _BuiltInObjective
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -49,6 +50,26 @@ _RefError = (
 )
 
 
+def _check_obj(
+    obj: Optional[Union[PlainObj, _BuiltInObjective]], booster: Booster
+) -> Optional[PlainObj]:
+    builtin_obj = None
+    if isinstance(obj, _BuiltInObjective):
+        builtin_obj = obj
+        obj = None
+    if builtin_obj is None:
+        return obj
+
+    if hasattr(builtin_obj, "split_grad"):
+        raise NotImplementedError(
+            "`split_grad` is not yet supported for the built-in objectives."
+        )
+
+    for key, value in builtin_obj.flat_params().items():
+        booster.set_param(key, value)
+    return obj
+
+
 @_deprecate_positional_args
 def train(
     params: Dict[str, Any],
@@ -56,7 +77,7 @@ def train(
     num_boost_round: int = 10,
     *,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
-    obj: Optional[PlainObj] = None,
+    obj: Optional[Union[PlainObj, _BuiltInObjective]] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     evals_result: Optional[TrainingCallback.EvalsLog] = None,
@@ -181,7 +202,7 @@ def train(
             raise ValueError(_RefError)
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
-    start_iteration = 0
+    obj = _check_obj(obj, bst)
 
     if verbose_eval:
         verbose_eval = 1 if verbose_eval is True else verbose_eval
@@ -194,6 +215,7 @@ def train(
 
     bst = cb_container.before_training(bst)
 
+    start_iteration = 0
     for i in range(start_iteration, num_boost_round):
         if cb_container.before_iteration(bst, i, dtrain, evals):
             break
@@ -578,6 +600,10 @@ def cv(
 
     # setup callbacks
     callbacks = [] if callbacks is None else copy.copy(list(callbacks))
+    if isinstance(obj, _BuiltInObjective):
+        raise NotImplementedError(
+            "The objective interface is not supported by the CV function yet."
+        )
 
     if verbose_eval:
         verbose_eval = 1 if verbose_eval is True else verbose_eval
