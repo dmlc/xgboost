@@ -538,6 +538,8 @@ class WQuantileSketch {
     level_.clear();
   }
 
+  [[nodiscard]] size_t NumElements() const { return num_elements_; }
+
   static size_t LimitSizeLevel(size_t maxn, double eps) {
     if (maxn == 0) {
       // Empty columns can appear in distributed column-split settings.
@@ -567,6 +569,7 @@ class WQuantileSketch {
    */
   void Push(bst_float x, bst_float w = 1) {
     if (w == static_cast<bst_float>(0)) return;
+    ++num_elements_;
     if (!inqueue_.Push(x, w)) {
       inqueue_.PopSummary(&temp_);
       this->PushSummary(&temp_);
@@ -584,6 +587,7 @@ class WQuantileSketch {
   void PushSorted(common::Span<::xgboost::Entry const> column, std::vector<float> const &weights,
                   size_t num_retained_items) {
     CHECK_GE(num_retained_items, 1);
+    num_elements_ += column.size();
     auto const max_size = num_retained_items;
     this->temp_.Reserve(max_size + 1);
     this->temp_.SetPruneSorted(column, weights, max_size);
@@ -678,6 +682,8 @@ class WQuantileSketch {
   WQSummaryContainer temp_;
   // reusable workspace for combine-prune operations
   std::vector<Entry> combine_workspace_;
+  // Number of source elements represented by this sketch.
+  size_t num_elements_{0};
 };
 
 [[nodiscard]] inline double SketchEpsilon(bst_bin_t max_bins, std::size_t num_elements) {
