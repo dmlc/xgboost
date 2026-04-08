@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_H_
 #define XGBOOST_DATA_ELLPACK_PAGE_H_

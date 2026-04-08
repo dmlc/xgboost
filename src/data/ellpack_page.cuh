@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_CUH_
 #define XGBOOST_DATA_ELLPACK_PAGE_CUH_
@@ -186,7 +186,7 @@ class EllpackPageImpl {
    * This is used in the external memory case. An empty ELLPACK page is constructed with its content
    * set later by the reader.
    */
-  EllpackPageImpl() = default;
+  EllpackPageImpl();
 
   /**
    * @brief Constructor from existing ellpack matrics.
