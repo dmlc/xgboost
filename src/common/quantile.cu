@@ -27,7 +27,6 @@
 #include "hist_util.h"
 #include "quantile.cuh"
 #include "quantile.h"
-#include "transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/span.h"
 
 namespace xgboost::common {
@@ -663,19 +662,6 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   LOG(FATAL) << "Distributed GPU quantile sketch reduction requires NCCL support.";
 }
 
-namespace {
-struct InvalidCatOp {
-  Span<SketchEntry const> values;
-  Span<size_t const> ptrs;
-  Span<FeatureType const> ft;
-
-  XGBOOST_DEVICE bool operator()(size_t i) const {
-    auto fidx = dh::SegmentId(ptrs, i);
-    return IsCat(ft, fidx) && InvalidCat(values[i].value);
-  }
-};
-}  // anonymous namespace
-
 HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split) {
   curt::SetDevice(ctx->Ordinal());
   HistogramCuts cuts{num_columns_};
@@ -685,133 +671,46 @@ HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split
   this->AllReduce(ctx, is_column_split);
 
   timer_.Start(__func__);
-  // Prune to final number of bins.
-  this->Prune(ctx, num_bins_ + 1);
-
-  // Set up inputs
-  auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
-
-  auto const in_cut_values = dh::ToSpan(this->entries_);
-
-  // Set up output ptr
-  p_cuts->cut_ptrs_.SetDevice(ctx->Device());
   auto &h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
-  h_out_columns_ptr.front() = 0;
+  h_out_columns_ptr.assign(num_columns_ + 1, 0);
+  auto &h_out_cut_values = p_cuts->cut_values_.HostVector();
+  h_out_cut_values.clear();
+
+  auto const &h_in_columns_ptr = this->columns_ptr_.ConstHostVector();
+  std::vector<SketchEntry> h_entries(this->entries_.size());
+  dh::CopyDeviceSpanToVector(&h_entries, dh::ToSpan(this->entries_));
   auto const &h_feature_types = this->feature_types_.ConstHostSpan();
 
-  auto d_ft = feature_types_.ConstDeviceSpan();
-
-  std::vector<SketchEntry> max_values;
   float max_cat{-1.f};
-  if (has_categorical_) {
-    auto key_it = dh::MakeTransformIterator<bst_feature_t>(
-        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> bst_feature_t {
-          return dh::SegmentId(d_in_columns_ptr, i);
-        });
-    auto invalid_op = InvalidCatOp{in_cut_values, d_in_columns_ptr, d_ft};
-    auto val_it = dh::MakeTransformIterator<SketchEntry>(
-        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
-          auto fidx = dh::SegmentId(d_in_columns_ptr, i);
-          auto v = in_cut_values[i];
-          if (IsCat(d_ft, fidx)) {
-            if (invalid_op(i)) {
-              // use inf to indicate invalid value, this way we can keep it as in
-              // indicator in the reduce operation as it's always the greatest value.
-              v.value = std::numeric_limits<float>::infinity();
-            }
-          }
-          return v;
-        });
-    CHECK_EQ(num_columns_, d_in_columns_ptr.size() - 1);
-    max_values.resize(d_in_columns_ptr.size() - 1);
-
-    // In some cases (e.g. column-wise data split), we may have empty columns, so we need to keep
-    // track of the unique keys (feature indices) after the thrust::reduce_by_key` call.
-    dh::caching_device_vector<size_t> d_max_keys(d_in_columns_ptr.size() - 1);
-    dh::caching_device_vector<SketchEntry> d_max_values(d_in_columns_ptr.size() - 1);
-    auto new_end = thrust::reduce_by_key(
-        ctx->CUDACtx()->CTP(), key_it, key_it + in_cut_values.size(), val_it, d_max_keys.begin(),
-        d_max_values.begin(), thrust::equal_to<bst_feature_t>{},
-        [] __device__(auto l, auto r) { return l.value > r.value ? l : r; });
-    d_max_keys.erase(new_end.first, d_max_keys.end());
-    d_max_values.erase(new_end.second, d_max_values.end());
-
-    // The device vector needs to be initialized explicitly since we may have some missing columns.
-    SketchEntry default_entry{};
-    dh::caching_device_vector<SketchEntry> d_max_results(d_in_columns_ptr.size() - 1,
-                                                         default_entry);
-    thrust::scatter(ctx->CUDACtx()->CTP(), d_max_values.begin(), d_max_values.end(),
-                    d_max_keys.begin(), d_max_results.begin());
-    dh::CopyDeviceSpanToVector(&max_values, dh::ToSpan(d_max_results));
-    auto max_it = MakeIndexTransformIter([&](auto i) {
-      if (IsCat(h_feature_types, i)) {
-        return max_values[i].value;
-      }
-      return -1.f;
-    });
-    max_cat = *std::max_element(max_it, max_it + max_values.size());
-    if (std::isinf(max_cat)) {
-      InvalidCategory();
-    }
-  }
-
-  // Set up output cuts
+  WQSummaryContainer summary;
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
-    size_t column_size = std::max(static_cast<size_t>(1ul), this->Column(i).size());
+    auto begin = h_in_columns_ptr[i];
+    auto end = h_in_columns_ptr[i + 1];
+    auto column = Span<SketchEntry const>{h_entries.data() + begin, end - begin};
+
     if (IsCat(h_feature_types, i)) {
-      // column_size is the number of unique values in that feature.
-      CheckMaxCat(max_values[i].value, column_size);
-      h_out_columns_ptr[i + 1] = max_values[i].value + 1;  // includes both max_cat and 0.
-    } else {
-      h_out_columns_ptr[i + 1] =
-          std::min(static_cast<size_t>(column_size), static_cast<size_t>(num_bins_));
-    }
-  }
-  std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(), h_out_columns_ptr.begin());
-  auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();
-
-  size_t total_bins = h_out_columns_ptr.back();
-  p_cuts->cut_values_.SetDevice(ctx->Device());
-  p_cuts->cut_values_.Resize(total_bins);
-  auto out_cut_values = p_cuts->cut_values_.DeviceSpan();
-
-  dh::LaunchN(total_bins, [=] __device__(size_t idx) {
-    auto column_id = dh::SegmentId(d_out_columns_ptr, idx);
-    auto in_column = in_cut_values.subspan(
-        d_in_columns_ptr[column_id], d_in_columns_ptr[column_id + 1] - d_in_columns_ptr[column_id]);
-    auto out_column =
-        out_cut_values.subspan(d_out_columns_ptr[column_id],
-                               d_out_columns_ptr[column_id + 1] - d_out_columns_ptr[column_id]);
-    idx -= d_out_columns_ptr[column_id];
-    if (in_column.size() == 0) {
-      // If the column is empty, we push a dummy value.  It won't affect training as the
-      // column is empty, trees cannot split on it.  This is just to be consistent with
-      // rest of the library.
-      if (idx == 0) {
-        out_column[0] = kRtEps;
-        assert(out_column.size() == 1);
+      auto column_size = std::max(static_cast<std::size_t>(1), column.size());
+      auto feature_max = column.empty() ? 0.0f : column.back().value;
+      if (std::any_of(column.cbegin(), column.cend(),
+                      [](auto const &entry) { return InvalidCat(entry.value); })) {
+        InvalidCategory();
       }
-      return;
+      CheckMaxCat(feature_max, column_size);
+      max_cat = std::max(max_cat, feature_max);
+      for (std::size_t cat = 0; cat <= static_cast<std::size_t>(feature_max); ++cat) {
+        h_out_cut_values.push_back(cat);
+      }
+    } else {
+      summary.Reserve(column.size());
+      std::copy(column.cbegin(), column.cend(), summary.space.begin());
+      summary.SetSize(column.size());
+      auto queried = summary.QueryCutValues(static_cast<std::size_t>(num_bins_));
+      h_out_cut_values.insert(h_out_cut_values.end(), queried.cbegin(), queried.cend());
     }
-
-    if (IsCat(d_ft, column_id)) {
-      out_column[idx] = idx;
-      return;
-    }
-
-    // Last thread is responsible for setting a value that's greater than other cuts.
-    if (idx == out_column.size() - 1) {
-      const bst_float cpt = in_column.back().value;
-      // this must be bigger than last value in a scale
-      const bst_float last = cpt + (fabs(cpt) + 1e-5);
-      out_column[idx] = last;
-      return;
-    }
-    assert(idx + 1 < in_column.size());
-    out_column[idx] = in_column[idx + 1].value;
-  });
-
+    h_out_columns_ptr[i + 1] = h_out_cut_values.size();
+  }
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
+  p_cuts->SetDevice(ctx->Device());
   timer_.Stop(__func__);
   return cuts;
 }

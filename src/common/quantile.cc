@@ -492,22 +492,9 @@ auto HostSketchContainer::AllReduce(Context const *ctx, MetaInfo const &info,
 }
 
 void AddCutPoints(WQSummaryContainer const &summary, size_t max_bin, HistogramCuts *cuts) {
-  size_t required_cuts = std::min(summary.Size(), static_cast<size_t>(max_bin));
   auto &cut_values = cuts->cut_values_.HostVector();
-  auto const entries = summary.Entries();
-  // Use raw pointer in the cut extraction loop to avoid per-access bounds checks.
-  auto const *summary_data = entries.data();
-  // summary[0] is the observed minimum; the first bin lower bound is implicit.
-  for (size_t i = 1; i < required_cuts; ++i) {
-    bst_float cpt = summary_data[i].value;
-    if (i == 1 || cpt > cut_values.back()) {
-      cut_values.push_back(cpt);
-    }
-  }
-  auto const cpt = !entries.empty() ? entries.back().value : 1e-5f;
-  // This must be bigger than the last observed cut value.
-  auto const last = cpt + (std::fabs(cpt) + 1e-5f);
-  cut_values.push_back(last);
+  auto queried = summary.QueryCutValues(max_bin);
+  cut_values.insert(cut_values.end(), queried.cbegin(), queried.cend());
 }
 
 void AddCategories(std::set<float> const &categories, float *max_cat, HistogramCuts *cuts) {
@@ -551,13 +538,6 @@ HistogramCuts HostSketchContainer::MakeCuts(Context const *ctx, MetaInfo const &
   }
 
   auto &h_cut_ptrs = p_cuts->cut_ptrs_.HostVector();
-  // Prune size down to max_bins + 1 (reserve one extra for the max value)
-  // before extracting cut points.
-  ParallelFor(numeric_features.size(), n_threads_, Sched::Guided(), [&](size_t idx) {
-    auto fidx = numeric_features[idx];
-    reduced_numerical.at(fidx).SetPrune(max_bins_ + 1);  // reserve one extra for the max value
-  });
-
   float max_cat{-1.f};
   for (size_t fid = 0; fid < reduced_numerical.size(); ++fid) {
     size_t max_num_bins = std::min(reduced_numerical[fid].Size(), static_cast<size_t>(max_bins_));
