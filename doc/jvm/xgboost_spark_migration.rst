@@ -113,3 +113,18 @@ Starting from xgboost4j-spark 3.0, below parameters are removed.
 - singlePrecisionHistogram
 - lambdaBias
 - objectiveType
+
+***************************
+Spark 4.0 Compatibility
+***************************
+
+XGBoost4J-Spark JARs built against Spark 3.5 are binary compatible with **Spark 4.0.1+** and
+**Spark 4.1.0+**. No code changes are required.
+
+.. warning::
+
+  **Spark 4.0.0** is **not** compatible due to an upstream bug
+  (`SPARK-52259 <https://issues.apache.org/jira/browse/SPARK-52259>`_) that changed the
+  constructor signature of ``org.apache.spark.ml.param.Param``. This causes a
+  ``NoSuchMethodError`` at runtime when instantiating any XGBoost estimator. The fix is included
+  in Spark 4.0.1 and later. Please avoid Spark 4.0.0 and upgrade to at least **Spark 4.0.1**.
