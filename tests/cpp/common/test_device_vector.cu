@@ -43,25 +43,42 @@ TEST(DeviceUVector, Basic) {
   ASSERT_EQ(peak, n_bytes);
   std::swap(verbosity, xgboost::GlobalConfigThreadLocalStore::Get()->verbosity);
 
-  DeviceUVector<double> uvec1{16};
-  ASSERT_EQ(uvec1.size(), 16);
-  uvec1.resize(3);
-  ASSERT_EQ(uvec1.size(), 3);
-  ASSERT_EQ(uvec1.Capacity(), 16);
-  ASSERT_EQ(std::distance(uvec1.begin(), uvec1.end()), uvec1.size());
-  auto orig = uvec1.size();
+  {
+    // Second half of the dynamic table
+    DeviceUVector<double> uvec{16};
+    ASSERT_EQ(uvec.size(), 16);
+    uvec.resize(13);
+    ASSERT_EQ(uvec.size(), 13);
+    ASSERT_EQ(uvec.Capacity(), 16);
+    ASSERT_EQ(std::distance(uvec.begin(), uvec.end()), uvec.size());
+    auto orig = uvec.size();
 
-  thrust::sequence(dh::CachingThrustPolicy(), uvec1.begin(), uvec1.end(), 0);
-  uvec1.resize(32);
-  ASSERT_EQ(uvec1.size(), 32);
-  ASSERT_EQ(uvec1.Capacity(), 32);
-  auto eq = thrust::equal(dh::CachingThrustPolicy(), uvec1.cbegin(), uvec1.cbegin() + orig,
-                          thrust::make_counting_iterator(0));
-  ASSERT_TRUE(eq);
+    // Grow
+    thrust::sequence(dh::CachingThrustPolicy(), uvec.begin(), uvec.end(), 0);
+    uvec.resize(32);
+    ASSERT_EQ(uvec.size(), 32);
+    ASSERT_EQ(uvec.Capacity(), 32);
+    auto eq = thrust::equal(dh::CachingThrustPolicy(), uvec.cbegin(), uvec.cbegin() + orig,
+                            thrust::make_counting_iterator(0));
+    ASSERT_TRUE(eq);
 
-  uvec1.clear();
-  ASSERT_EQ(uvec1.size(), 0);
-  ASSERT_EQ(uvec1.Capacity(), 32);
+    uvec.clear();
+    ASSERT_EQ(uvec.size(), 0);
+    ASSERT_EQ(uvec.Capacity(), 0);
+  }
+
+  {
+    // First half of the dynamic table
+    DeviceUVector<double> uvec2{16};
+    ASSERT_EQ(uvec2.Capacity(), 16);
+    thrust::sequence(dh::CachingThrustPolicy(), uvec2.begin(), uvec2.end(), 0);
+    std::size_t n = 4;
+    uvec2.resize(n);
+    ASSERT_EQ(uvec2.Capacity(), n);
+    auto eq = thrust::equal(dh::CachingThrustPolicy(), uvec2.cbegin(),
+                            uvec2.cbegin() + uvec2.size(), thrust::make_counting_iterator(0));
+    ASSERT_TRUE(eq);
+  }
 }
 
 #if defined(__linux__)
