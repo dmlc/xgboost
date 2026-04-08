@@ -7,6 +7,7 @@
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
+#include <memory>
 #include <sstream>  // for stringstream
 #include <string>   // for string
 
@@ -15,19 +16,34 @@ DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
 }  // namespace dmlc
 
 namespace xgboost {
-// implement factory functions
-ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx) {
-  std::string obj_name = name;
-  auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(obj_name);
+namespace {
+ObjFunctionReg const* GetObjRegistryEntry(std::string const& name) {
+  auto* e = ::dmlc::Registry<::xgboost::ObjFunctionReg>::Get()->Find(name);
   if (e == nullptr) {
     std::stringstream ss;
-    for (const auto& entry : ::dmlc::Registry< ::xgboost::ObjFunctionReg>::List()) {
+    for (const auto& entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
       ss << "Objective candidate: " << entry->name << "\n";
     }
-    LOG(FATAL) << "Unknown objective function: `" << name << "`\n"
-               << ss.str();
+    LOG(FATAL) << "Unknown objective function: `" << name << "`\n" << ss.str();
   }
-  auto pobj = (e->body)();
+  return e;
+}
+}  // namespace
+
+// implement factory functions
+ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx, Args const& args) {
+  auto* e = GetObjRegistryEntry(name);
+  auto pobj = (e->body)(args);
+  pobj->ctx_ = ctx;
+  return pobj;
+}
+
+ObjFunction* ObjFunction::Create(Context const* ctx, Json const& config) {
+  auto const& obj = get<Object const>(config);
+  auto name = get<String const>(obj.at("name"));
+  auto* e = GetObjRegistryEntry(name);
+  CHECK(e->json_body) << "JSON factory is not defined for objective `" << name << "`.";
+  auto pobj = (e->json_body)(config);
   pobj->ctx_ = ctx;
   return pobj;
 }

@@ -18,14 +18,12 @@ namespace xgboost {
 void TestQuantile(Context const* ctx) {
   {
     Args args{{"quantile_alpha", "[0.6, 0.8]"}};
-    std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx)};
-    obj->Configure(args);
+    std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx, args)};
     CheckConfigReload(obj, "reg:quantileerror");
   }
 
   Args args{{"quantile_alpha", "0.6"}};
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx)};
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx, args)};
   CheckConfigReload(obj, "reg:quantileerror");
 
   std::vector<float> predts{1.0f, 2.0f, 3.0f};
@@ -38,8 +36,7 @@ void TestQuantile(Context const* ctx) {
 
 void TestQuantileIntercept(Context const* ctx) {
   Args args{{"quantile_alpha", "[0.6, 0.8]"}};
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx)};
-  obj->Configure(args);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx, args)};
 
   MetaInfo info;
   info.num_row_ = 10;

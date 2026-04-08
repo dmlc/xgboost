@@ -3,7 +3,7 @@
  */
 #include "init_estimation.h"
 
-#include <memory>                        // unique_ptr
+#include <memory>  // unique_ptr
 
 #include "../common/stats.h"             // Mean
 #include "../tree/fit_stump.h"           // FitStump
@@ -26,9 +26,7 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
   Json config{Object{}};
   this->SaveConfig(&config);
 
-  std::unique_ptr<ObjFunction> new_obj{
-      ObjFunction::Create(get<String const>(config["name"]), this->ctx_)};
-  new_obj->LoadConfig(config);
+  std::unique_ptr<ObjFunction> new_obj{ObjFunction::Create(this->ctx_, config)};
   new_obj->GetGradient(dummy_predt, info, 0, &gpair);
 
   bst_target_t n_targets = this->Targets(info);

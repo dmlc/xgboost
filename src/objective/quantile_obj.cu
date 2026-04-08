@@ -1,10 +1,10 @@
 /**
  * Copyright 2023-2026, XGBoost contributors
  */
-#include <array>                            // std::array
-#include <cstddef>                          // std::size_t
-#include <cstdint>                          // std::int32_t
-#include <vector>                           // std::vector
+#include <array>    // std::array
+#include <cstddef>  // std::size_t
+#include <cstdint>  // std::int32_t
+#include <vector>   // std::vector
 
 #include "../common/linalg_op.h"            // ElementWiseKernel,cbegin,cend
 #include "../common/quantile_loss_utils.h"  // QuantileLossParam
@@ -20,14 +20,20 @@
 
 #if defined(XGBOOST_USE_CUDA)
 
-#include "../common/stats.cuh"      // SegmentedQuantile
+#include "../common/stats.cuh"  // SegmentedQuantile
 
-#endif                              // defined(XGBOOST_USE_CUDA)
+#endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost::obj {
 class QuantileRegression : public ObjFunction {
   common::QuantileLossParam param_;
   HostDeviceVector<float> alpha_;
+
+  void UpdateConfig(Args const& args) {
+    param_.UpdateAllowUnknown(args);
+    param_.Validate();
+    alpha_.HostVector() = param_.quantile_alpha.Get();
+  }
 
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     auto const& alpha = param_.quantile_alpha.Get();
@@ -45,6 +51,17 @@ class QuantileRegression : public ObjFunction {
   }
 
  public:
+  explicit QuantileRegression(Args const& args) {
+    if (!args.empty()) {
+      this->UpdateConfig(args);
+    }
+  }
+  explicit QuantileRegression(Json const& in) {
+    CHECK_EQ(get<String const>(in["name"]), Name());
+    FromJson(in["quantile_loss_param"], &param_);
+    alpha_.HostVector() = param_.quantile_alpha.Get();
+  }
+
   void GetGradient(HostDeviceVector<float> const& preds, const MetaInfo& info, std::int32_t iter,
                    linalg::Matrix<GradientPair>* out_gpair) override {
     if (iter == 0) {
@@ -176,11 +193,6 @@ class QuantileRegression : public ObjFunction {
     }
   }
 
-  void Configure(Args const& args) override {
-    param_.UpdateAllowUnknown(args);
-    param_.Validate();
-    this->alpha_.HostVector() = param_.quantile_alpha.Get();
-  }
   [[nodiscard]] ObjInfo Task() const override { return {ObjInfo::kRegression, true, true}; }
   static char const* Name() { return "reg:quantileerror"; }
 
@@ -189,12 +201,6 @@ class QuantileRegression : public ObjFunction {
     out["name"] = String(Name());
     out["quantile_loss_param"] = ToJson(param_);
   }
-  void LoadConfig(Json const& in) override {
-    CHECK_EQ(get<String const>(in["name"]), Name());
-    FromJson(in["quantile_loss_param"], &param_);
-    alpha_.HostVector() = param_.quantile_alpha.Get();
-  }
-
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "quantile"; }
   [[nodiscard]] Json DefaultMetricConfig() const override {
     CHECK(param_.GetInitialised());
@@ -207,7 +213,8 @@ class QuantileRegression : public ObjFunction {
 
 XGBOOST_REGISTER_OBJECTIVE(QuantileRegression, QuantileRegression::Name())
     .describe("Regression with quantile loss.")
-    .set_body([]() { return new QuantileRegression(); });
+    .set_body([](Args const& args) { return new QuantileRegression{args}; })
+    .set_body_json([](Json const& config) { return new QuantileRegression{config}; });
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(quantile_obj_gpu);

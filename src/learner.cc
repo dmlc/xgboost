@@ -587,9 +587,8 @@ class LearnerConfiguration : public Intercept {
     auto const& objective_fn = learner_parameters.at("objective");
     if (!obj_) {
       CHECK_EQ(get<String const>(objective_fn["name"]), tparam_.objective);
-      obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
-    obj_->LoadConfig(objective_fn);
+    obj_.reset(ObjFunction::Create(&ctx_, objective_fn));
     learner_model_param_.task = obj_->Task();
 
     tparam_.booster = CanonicalizeBoosterName(get<String>(gradient_booster["name"]));
@@ -832,6 +831,7 @@ class LearnerConfiguration : public Intercept {
   }
 
   void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
+    auto preserve_loaded_objective = cfg_.empty() && obj_ != nullptr;
     // Once binary IO is gone, NONE of these config is useful.
     if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0" &&
         tparam_.objective != "multi:softprob") {
@@ -847,17 +847,19 @@ class LearnerConfiguration : public Intercept {
       // Rename one of them once binary IO is gone.
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
-    if (obj_ == nullptr || tparam_.objective != old.objective) {
-      obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
-    }
-
     bool has_nc{cfg_.find("num_class") != cfg_.cend()};
     // Inject num_class into configuration.
     // FIXME(jiamingy): Remove the duplicated parameter in softmax
     cfg_["num_class"] = std::to_string(mparam_.num_class);
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    obj_->Configure(args);
+    if (preserve_loaded_objective && tparam_.objective == old.objective) {
+      if (!has_nc) {
+        cfg_.erase("num_class");
+      }
+      return;
+    }
+    obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_, args));
     if (!has_nc) {
       cfg_.erase("num_class");
     }
@@ -911,8 +913,7 @@ class LearnerIO : public LearnerConfiguration {
 
     std::string name = get<String>(objective_fn["name"]);
     tparam_.UpdateAllowUnknown(Args{{"objective", name}});
-    obj_.reset(ObjFunction::Create(name, &ctx_));
-    obj_->LoadConfig(objective_fn);
+    obj_.reset(ObjFunction::Create(&ctx_, objective_fn));
 
     auto const& gradient_booster = learner.at("gradient_booster");
     name = get<String>(gradient_booster["name"]);

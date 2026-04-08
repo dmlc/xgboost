@@ -32,46 +32,38 @@ TEST(LambdaRank, NDCGJsonIO) {
 
 void TestNDCGGPair(Context const* ctx) {
   {
-    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
-    obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+    std::unique_ptr<xgboost::ObjFunction> obj{
+        xgboost::ObjFunction::Create("rank:ndcg", ctx, {{"lambdarank_pair_method", "topk"}})};
     CheckConfigReload(obj, "rank:ndcg");
 
     // No gain in swapping 2 documents.
-    CheckRankingObjFunction(obj,
-                            {1, 1, 1, 1},
-                            {1, 1, 1, 1},
-                            {1.0f, 1.0f},
-                            {0, 2, 4},
-                            {0.0f, -0.0f, 0.0f, 0.0f},
-                            {0.0f, 0.0f, 0.0f, 0.0f});
+    CheckRankingObjFunction(obj, {1, 1, 1, 1}, {1, 1, 1, 1}, {1.0f, 1.0f}, {0, 2, 4},
+                            {0.0f, -0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f});
   }
   {
-    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
-    obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+    std::unique_ptr<xgboost::ObjFunction> obj{
+        xgboost::ObjFunction::Create("rank:ndcg", ctx, {{"lambdarank_pair_method", "topk"}})};
     // Test with setting sample weight to second query group
-    CheckRankingObjFunction(obj,
-                            {0, 0.1f, 0, 0.1f},
-                            {0,   1, 0, 1},
-                            {2.0f, 0.0f},
-                            {0, 2, 4},
-                            {2.06611f, -2.06611f, 0.0f, 0.0f},
-                            {2.169331f, 2.169331f, 0.0f, 0.0f});
+    CheckRankingObjFunction(obj, {0, 0.1f, 0, 0.1f}, {0, 1, 0, 1}, {2.0f, 0.0f}, {0, 2, 4},
+                            {2.06611f, -2.06611f, 0.0f, 0.0f}, {2.169331f, 2.169331f, 0.0f, 0.0f});
   }
   {
-    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
-    obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+    std::unique_ptr<xgboost::ObjFunction> obj{
+        xgboost::ObjFunction::Create("rank:ndcg", ctx, {{"lambdarank_pair_method", "topk"}})};
     float weight_norm = 0.5;  // n_groups / sum_weights
     std::vector<float> out_grad{2.06611f, -2.06611f, 2.06611f, -2.06611f};
     std::vector<float> out_hess{2.169331f, 2.169331f, 2.169331f, 2.169331f};
-    auto norm = [=](auto v) { return v * weight_norm; };
+    auto norm = [=](auto v) {
+      return v * weight_norm;
+    };
     std::transform(out_grad.begin(), out_grad.end(), out_grad.begin(), norm);
     std::transform(out_hess.begin(), out_hess.end(), out_hess.begin(), norm);
     CheckRankingObjFunction(obj, {0, 0.1f, 0, 0.1f}, {0, 1, 0, 1}, {2.0f, 2.0f}, {0, 2, 4},
                             out_grad, out_hess);
   }
 
-  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
-  obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+  std::unique_ptr<xgboost::ObjFunction> obj{
+      xgboost::ObjFunction::Create("rank:ndcg", ctx, {{"lambdarank_pair_method", "topk"}})};
 
   HostDeviceVector<float> predts{0, 1, 0, 1};
   MetaInfo info;
@@ -112,8 +104,8 @@ void TestNDCGGPair(Context const* ctx) {
 
   {
     // Test empty input
-    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
-    obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+    std::unique_ptr<xgboost::ObjFunction> obj{
+        xgboost::ObjFunction::Create("rank:ndcg", ctx, {{"lambdarank_pair_method", "topk"}})};
 
     HostDeviceVector<float> predts;
     MetaInfo info;
@@ -133,10 +125,11 @@ TEST(LambdaRank, NDCGGPair) {
 }
 
 void TestUnbiasedNDCG(Context const* ctx) {
-  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
-  obj->Configure(Args{{"lambdarank_pair_method", "topk"},
-                      {"lambdarank_unbiased", "true"},
-                      {"lambdarank_bias_norm", "0"}});
+  std::unique_ptr<xgboost::ObjFunction> obj{
+      xgboost::ObjFunction::Create("rank:ndcg", ctx,
+                                   {{"lambdarank_pair_method", "topk"},
+                                    {"lambdarank_unbiased", "true"},
+                                    {"lambdarank_bias_norm", "0"}})};
   std::shared_ptr<DMatrix> p_fmat{
       RandomDataGenerator{10, 1, 0.0f}.Classes(2).GenerateDMatrix(true)};
   auto h_label = p_fmat->Info().labels.HostView().Values();
@@ -323,8 +316,7 @@ TEST(LambdaRank, MAPStat) {
 }
 
 void TestMAPGPair(Context const* ctx) {
-  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:map", ctx)};
-  obj->Configure({});
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:map", ctx, {})};
 
   CheckConfigReload(obj, "rank:map");
 
@@ -336,8 +328,7 @@ void TestMAPGPair(Context const* ctx) {
                           {1.2054923f, -1.2054923f, 1.2054923f, -1.2054923f},  // out grad
                           {1.2657166f, 1.2657166f, 1.2657166f, 1.2657166f});
 
-  obj.reset(xgboost::ObjFunction::Create("rank:map", ctx));
-  obj->Configure({});
+  obj.reset(xgboost::ObjFunction::Create("rank:map", ctx, {}));
 
   // disable the second query group with 0 weight
   auto w = 2.0f;  // weight for the first group
@@ -357,11 +348,8 @@ TEST(LambdaRank, MAPGPair) {
 }
 
 void TestPairWiseGPair(Context const* ctx) {
-  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:pairwise", ctx)};
-  Args args;
-  obj->Configure(args);
-
-  args.emplace_back("lambdarank_unbiased", "true");
+  std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:pairwise", ctx, {})};
+  obj.reset(xgboost::ObjFunction::Create("rank:pairwise", ctx, {{"lambdarank_unbiased", "true"}}));
 }
 
 TEST(LambdaRank, Pairwise) {

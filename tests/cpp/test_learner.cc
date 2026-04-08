@@ -245,6 +245,36 @@ TEST(Learner, ConfigIO) {
   ASSERT_EQ(eval_res_0, eval_res_1);
 }
 
+TEST(Learner, RecreateConfigurableObjective) {
+  auto m = MakeFmatForObjTest("reg:quantileerror", 16, 4, 1);
+  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  learner->SetParams({{"objective", "reg:quantileerror"}, {"quantile_alpha", "0.8"}});
+  learner->Configure();
+
+  Json config{Object{}};
+  learner->SaveConfig(&config);
+  auto obj_config_0 = config["learner"]["objective"];
+
+  learner->SetParam("quantile_alpha", "0.2");
+  learner->Configure();
+  learner->SaveConfig(&config);
+  auto obj_config_1 = config["learner"]["objective"];
+  ASSERT_FALSE(obj_config_0 == obj_config_1);
+
+  std::unique_ptr<ObjFunction> expected{
+      ObjFunction::Create("reg:quantileerror", learner->Ctx(), {{"quantile_alpha", "0.2"}})};
+  Json expected_config{Object{}};
+  expected->SaveConfig(&expected_config);
+  ASSERT_EQ(obj_config_1, expected_config);
+
+  std::unique_ptr<Learner> loaded{Learner::Create({m})};
+  loaded->LoadConfig(config);
+  loaded->Configure();
+  Json loaded_config{Object{}};
+  loaded->SaveConfig(&loaded_config);
+  ASSERT_EQ(loaded_config["learner"]["objective"], obj_config_1);
+}
+
 // Crashes the test runner if there are race condiditions.
 //
 // Build with additional cmake flags to enable thread sanitizer
