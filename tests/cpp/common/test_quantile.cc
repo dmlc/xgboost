@@ -37,6 +37,34 @@ TEST(Quantile, InitWithEmptyColumn) {
   ASSERT_EQ(out.Size(), 0);
 }
 
+TEST(Quantile, TrackSketchElements) {
+  WQuantileSketch sketch{16, 0.1};
+  ASSERT_EQ(sketch.NumElements(), 0);
+
+  sketch.Push(0.1f);
+  sketch.Push(0.2f, 0.0f);
+  sketch.Push(0.3f, 2.0f);
+  sketch.Push(0.9f);
+
+  ASSERT_EQ(sketch.NumElements(), 3);
+  auto out = sketch.GetSummary(4);
+  ASSERT_GT(out.Size(), 0);
+  ASSERT_EQ(sketch.NumElements(), 3);
+}
+
+TEST(Quantile, TrackSketchElementsSorted) {
+  WQuantileSketch sketch{16, 0.1};
+  std::vector<::xgboost::Entry> column{{0, 0.1f}, {1, 0.2f}, {2, 0.8f}, {3, 0.9f}};
+  std::vector<float> weights{1.0f, 0.0f, 1.0f, 1.0f};
+
+  sketch.PushSorted(Span<::xgboost::Entry const>{column.data(), column.size()}, weights, 2);
+
+  ASSERT_EQ(sketch.NumElements(), 3);
+  auto out = sketch.GetSummary(4);
+  ASSERT_GT(out.Size(), 0);
+  ASSERT_EQ(sketch.NumElements(), 3);
+}
+
 TEST(Quantile, SetPruneInplace) {
   using Summary = WQSummary<>;
   using Entry = Summary::Entry;
