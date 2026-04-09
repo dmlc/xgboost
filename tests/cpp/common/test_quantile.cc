@@ -50,7 +50,7 @@ TEST_P(QuantileSummaryTest, Invariants) {
         << "case=" << c.name << " should exercise sketch compression.";
   }
 
-  // The summary query rule should satisfy the paper-style rank-error bound.
+  // The summary query rule should satisfy the target rank bound plus the final prune term.
   auto total = TotalWeight(ref);
   auto max_error = MaxSummaryQueryRankError(summary, ref, c.max_bin);
   auto eps = SketchEpsilon(c.max_bin, c.rows);

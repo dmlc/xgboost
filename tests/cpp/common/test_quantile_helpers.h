@@ -5,6 +5,7 @@
 #define TESTS_CPP_COMMON_TEST_QUANTILE_HELPERS_H_
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <numeric>
@@ -18,13 +19,13 @@
 namespace xgboost::common::quantile_test {
 enum class WeightKind { kNone, kRow };
 
-enum class DataKind { kDenseRandom, kDuplicateHeavy, kExactUnique };
+enum class DataKind { kClustered, kDuplicateHeavy, kExactUnique, kStaircaseMass };
 
 struct SummaryCase {
   std::string name;
   std::size_t rows{0};
   bst_bin_t max_bin{0};
-  DataKind data{DataKind::kDenseRandom};
+  DataKind data{DataKind::kClustered};
   WeightKind weights{WeightKind::kNone};
   std::uint32_t seed{0};
 };
@@ -52,15 +53,17 @@ inline std::string CaseName(testing::TestParamInfo<SummaryCase> const& info) {
 
 inline std::vector<SummaryCase> SummaryAnchorCases() {
   return {
-      {"empty_unweighted", 0, 16, DataKind::kDenseRandom, WeightKind::kNone, 10},
-      {"dense_unweighted_small", 128, 16, DataKind::kDenseRandom, WeightKind::kNone, 0},
-      {"dense_weighted_small", 128, 16, DataKind::kDenseRandom, WeightKind::kRow, 1},
+      {"empty_unweighted", 0, 16, DataKind::kClustered, WeightKind::kNone, 10},
+      {"clustered_unweighted_small", 128, 16, DataKind::kClustered, WeightKind::kNone, 0},
+      {"clustered_weighted_small", 128, 16, DataKind::kClustered, WeightKind::kRow, 1},
       {"duplicate_weighted_small", 128, 16, DataKind::kDuplicateHeavy, WeightKind::kRow, 2},
-      {"dense_unweighted_large", 4096, 16, DataKind::kDenseRandom, WeightKind::kNone, 5},
-      {"dense_weighted_large", 4096, 16, DataKind::kDenseRandom, WeightKind::kRow, 6},
+      {"staircase_unweighted_large", 4096, 16, DataKind::kStaircaseMass, WeightKind::kNone, 5},
+      {"clustered_weighted_large", 4096, 16, DataKind::kClustered, WeightKind::kRow, 6},
       {"duplicate_weighted_large", 4096, 16, DataKind::kDuplicateHeavy, WeightKind::kRow, 7},
-      {"dense_unweighted_wide_budget_gap", 16384, 32, DataKind::kDenseRandom, WeightKind::kNone, 8},
-      {"dense_weighted_wide_budget_gap", 16384, 32, DataKind::kDenseRandom, WeightKind::kRow, 9},
+      {"clustered_unweighted_wide_budget_gap", 16384, 32, DataKind::kClustered, WeightKind::kNone,
+       8},
+      {"staircase_weighted_wide_budget_gap", 16384, 32, DataKind::kStaircaseMass, WeightKind::kRow,
+       9},
       {"exact_unique_unweighted", 16, 16, DataKind::kExactUnique, WeightKind::kNone, 3},
       {"exact_unique_weighted", 16, 16, DataKind::kExactUnique, WeightKind::kRow, 4},
   };
@@ -79,8 +82,8 @@ inline std::vector<SummaryCase> SummaryRandomCases(std::size_t n_cases) {
   cases.reserve(n_cases);
 
   SimpleLCG lcg;
-  auto const data_kinds = std::vector<DataKind>{DataKind::kDenseRandom, DataKind::kDuplicateHeavy,
-                                                DataKind::kExactUnique};
+  auto const data_kinds = std::vector<DataKind>{DataKind::kClustered, DataKind::kDuplicateHeavy,
+                                                DataKind::kExactUnique, DataKind::kStaircaseMass};
   auto const weight_kinds = std::vector<WeightKind>{WeightKind::kNone, WeightKind::kRow};
   auto const max_bins_pool = std::vector<bst_bin_t>{8, 16, 32, 64};
   auto const rows_pool = std::vector<std::size_t>{256, 1024, 4096, 16384, 65536};
@@ -112,9 +115,12 @@ inline GeneratedColumn GenerateSummaryColumn(SummaryCase const& c) {
   SimpleLCG lcg{c.seed};
 
   switch (c.data) {
-    case DataKind::kDenseRandom: {
-      SimpleRealUniformDistribution<float> dist(0.0f, 1.0f);
-      std::generate(out.values.begin(), out.values.end(), [&] { return dist(&lcg); });
+    case DataKind::kClustered: {
+      SimpleRealUniformDistribution<float> jitter(-1e-4f, 1e-4f);
+      for (std::size_t i = 0; i < c.rows; ++i) {
+        auto base = static_cast<float>(lcg() % 4);
+        out.values[i] = base + jitter(&lcg);
+      }
       break;
     }
     case DataKind::kDuplicateHeavy: {
@@ -129,11 +135,45 @@ inline GeneratedColumn GenerateSummaryColumn(SummaryCase const& c) {
       std::iota(out.values.begin(), out.values.end(), 0.0f);
       break;
     }
+    case DataKind::kStaircaseMass: {
+      for (std::size_t i = 0; i < c.rows; ++i) {
+        out.values[i] =
+            static_cast<float>(i) / static_cast<float>(std::max<std::size_t>(c.rows, 1));
+      }
+      break;
+    }
   }
 
   if (c.weights == WeightKind::kRow) {
-    SimpleRealUniformDistribution<float> wdist(0.1f, 5.0f);
-    std::generate(out.weights.begin(), out.weights.end(), [&] { return wdist(&lcg); });
+    switch (c.data) {
+      case DataKind::kClustered: {
+        SimpleRealUniformDistribution<float> unit_dist(0.0f, 1.0f);
+        std::generate(out.weights.begin(), out.weights.end(),
+                      [&] { return std::exp(6.0f * unit_dist(&lcg)); });
+        break;
+      }
+      case DataKind::kDuplicateHeavy: {
+        SimpleRealUniformDistribution<float> unit_dist(0.0f, 1.0f);
+        std::generate(out.weights.begin(), out.weights.end(),
+                      [&] { return unit_dist(&lcg) < 0.01f ? 1000.0f : 1.0f; });
+        break;
+      }
+      case DataKind::kExactUnique: {
+        SimpleRealUniformDistribution<float> unit_dist(0.0f, 1.0f);
+        std::generate(out.weights.begin(), out.weights.end(),
+                      [&] { return std::exp(6.0f * unit_dist(&lcg)); });
+        break;
+      }
+      case DataKind::kStaircaseMass: {
+        auto period = std::max<std::size_t>(2, static_cast<std::size_t>(c.max_bin));
+        for (std::size_t i = 0; i < c.rows; ++i) {
+          auto phase = i % period;
+          auto exponent = static_cast<float>((phase * 8) / period);
+          out.weights[i] = std::exp2(exponent);
+        }
+        break;
+      }
+    }
   }
 
   return out;
