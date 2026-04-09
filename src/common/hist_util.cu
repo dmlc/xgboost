@@ -27,11 +27,9 @@
 #include "xgboost/host_device_vector.h"
 
 namespace xgboost::common {
-constexpr float SketchContainer::kFactor;
-
 namespace detail {
 size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
-  double eps = 1.0 / (WQSketch::kFactor * max_bins);
+  double eps = SketchEpsilon(max_bins, num_rows);
   size_t num_cuts = WQuantileSketch::LimitSizeLevel(num_rows, eps);
   return std::min(num_cuts, num_rows);
 }
