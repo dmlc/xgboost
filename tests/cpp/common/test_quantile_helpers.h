@@ -77,6 +77,14 @@ inline std::vector<SummaryCase> ExactUniqueAnchorCases() {
   return cases;
 }
 
+inline std::vector<SummaryCase> SortedHardAnchorCases() {
+  return {
+      {"sorted_clustered_weighted_large", 4096, 16, DataKind::kClustered, WeightKind::kRow, 6},
+      {"sorted_staircase_weighted_wide_budget_gap", 16384, 32, DataKind::kStaircaseMass,
+       WeightKind::kRow, 9},
+  };
+}
+
 inline std::vector<SummaryCase> SummaryRandomCases(std::size_t n_cases) {
   std::vector<SummaryCase> cases;
   cases.reserve(n_cases);
