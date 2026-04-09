@@ -50,6 +50,20 @@ auto MakeFullRowSplitDMatrix(std::size_t rows_per_worker, std::size_t cols, std:
   }
   return GetDMatrixFromData(full_data, rows_per_worker * world, cols);
 }
+
+auto MakeHostSummary(std::vector<std::pair<float, float>> const& items)
+    -> common::WQSummaryContainer {
+  common::WQSummaryContainer summary;
+  summary.Reserve(items.size());
+  summary.SetFromSorted(items);
+  return summary;
+}
+
+auto CopySummaryEntries(common::WQSummaryContainer const& summary)
+    -> std::vector<common::SketchEntry> {
+  auto entries = summary.Entries();
+  return {entries.cbegin(), entries.cend()};
+}
 }  // namespace
 
 namespace common {
@@ -251,14 +265,19 @@ TEST(GPUQuantile, MergeBasic) {
     auto columns_ptr = sketch_0.ColumnsPtr();
     std::vector<bst_idx_t> h_columns_ptr(columns_ptr.size());
     dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
-    ASSERT_EQ(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
+    ASSERT_LE(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
 
     std::vector<SketchEntry> h_data(sketch_0.Data().size());
     dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
+    ASSERT_EQ(static_cast<std::size_t>(h_columns_ptr.back()), h_data.size());
     for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
       auto begin = h_columns_ptr[i - 1];
       auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);
       ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
+      ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
+                                     [](SketchEntry const& l, SketchEntry const& r) {
+                                       return l.value == r.value;
+                                     }) == column.end());
     }
   });
 }
@@ -309,14 +328,19 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
   auto columns_ptr = sketch_0.ColumnsPtr();
   std::vector<bst_idx_t> h_columns_ptr(columns_ptr.size());
   dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
-  ASSERT_EQ(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
+  ASSERT_LE(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
 
   std::vector<SketchEntry> h_data(sketch_0.Data().size());
   dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
+  ASSERT_EQ(static_cast<std::size_t>(h_columns_ptr.back()), h_data.size());
   for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
     auto begin = h_columns_ptr[i - 1];
     auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);
     ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
+    ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
+                                   [](SketchEntry const& l, SketchEntry const& r) {
+                                     return l.value == r.value;
+                                   }) == column.end());
   }
 }
 
@@ -368,6 +392,84 @@ TEST(GPUQuantile, MergeCategorical) {
                                  [](SketchEntry const& l, SketchEntry const& r) {
                                    return l.value == r.value;
                                  }) == cat_column.end());
+}
+
+TEST(GPUQuantile, MergeSameValue) {
+  auto ctx = MakeCUDACtx(0);
+  constexpr bst_feature_t kCols = 1;
+  bst_bin_t n_bins = 16;
+
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
+  SketchContainer sketch_1(ft, n_bins, kCols, ctx.Device());
+
+  std::vector<Entry> entries_0{{0, 0.5f}};
+  std::vector<Entry> entries_1{{0, 0.5f}};
+  dh::device_vector<Entry> d_entries_0{entries_0};
+  dh::device_vector<Entry> d_entries_1{entries_1};
+  dh::device_vector<size_t> columns_ptr{0, 1};
+  dh::device_vector<size_t> cuts_ptr{0, 1};
+
+  sketch_0.Push(&ctx, dh::ToSpan(d_entries_0), dh::ToSpan(columns_ptr), dh::ToSpan(cuts_ptr), 1, 1,
+                {});
+  sketch_1.Push(&ctx, dh::ToSpan(d_entries_1), dh::ToSpan(columns_ptr), dh::ToSpan(cuts_ptr), 1, 1,
+                {});
+
+  sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
+
+  std::vector<bst_idx_t> h_columns_ptr(sketch_0.ColumnsPtr().size());
+  dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch_0.ColumnsPtr());
+  std::vector<SketchEntry> h_data(sketch_0.Data().size());
+  dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
+
+  ASSERT_EQ(h_columns_ptr.back(), 1);
+  ASSERT_EQ(h_data.size(), 1);
+  EXPECT_FLOAT_EQ(h_data.front().value, 0.5f);
+  EXPECT_FLOAT_EQ(h_data.front().rmin, 0.0f);
+  EXPECT_FLOAT_EQ(h_data.front().wmin, 2.0f);
+  EXPECT_FLOAT_EQ(h_data.front().rmax, 2.0f);
+}
+
+TEST(GPUQuantile, MergeMatchesCpuCombine) {
+  auto ctx = MakeCUDACtx(0);
+  constexpr bst_feature_t kCols = 1;
+  bst_bin_t n_bins = 16;
+
+  auto lhs = MakeHostSummary({{0.1f, 1.0f}, {0.3f, 2.0f}, {0.5f, 1.0f}});
+  auto rhs = MakeHostSummary({{0.3f, 1.5f}, {0.4f, 1.0f}, {0.5f, 0.5f}});
+
+  common::WQSummaryContainer expected;
+  expected.Reserve(lhs.Size() + rhs.Size());
+  expected.CopyFrom(lhs);
+  expected.SetCombine(rhs);
+
+  auto lhs_entries = CopySummaryEntries(lhs);
+  auto rhs_entries = CopySummaryEntries(rhs);
+
+  dh::device_vector<SketchEntry> d_lhs{lhs_entries};
+  dh::device_vector<SketchEntry> d_rhs{rhs_entries};
+  dh::device_vector<size_t> lhs_ptr{0, lhs.Size()};
+  dh::device_vector<size_t> rhs_ptr{0, rhs.Size()};
+
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
+  sketch.Merge(&ctx, dh::ToSpan(lhs_ptr), dh::ToSpan(d_lhs));
+  sketch.Merge(&ctx, dh::ToSpan(rhs_ptr), dh::ToSpan(d_rhs));
+
+  std::vector<bst_idx_t> h_columns_ptr(sketch.ColumnsPtr().size());
+  dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch.ColumnsPtr());
+  auto h_data = std::vector<SketchEntry>(sketch.Data().size());
+  dh::CopyDeviceSpanToVector(&h_data, sketch.Data());
+
+  ASSERT_EQ(h_columns_ptr.back(), expected.Size());
+  auto expected_entries = expected.Entries();
+  ASSERT_EQ(h_data.size(), expected_entries.size());
+  for (std::size_t i = 0; i < h_data.size(); ++i) {
+    EXPECT_FLOAT_EQ(h_data[i].value, expected_entries[i].value);
+    EXPECT_FLOAT_EQ(h_data[i].rmin, expected_entries[i].rmin);
+    EXPECT_FLOAT_EQ(h_data[i].rmax, expected_entries[i].rmax);
+    EXPECT_FLOAT_EQ(h_data[i].wmin, expected_entries[i].wmin);
+  }
 }
 
 TEST(GPUQuantile, MultiMerge) {

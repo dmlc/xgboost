@@ -179,6 +179,27 @@ TEST(HistUtil, DenseCutsAccuracyTestWeights) {
   }
 }
 
+TEST(HistUtil, SortedWeightedExactCuts) {
+  Context ctx;
+  std::vector<float> x{0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+  std::vector<float> weights{3.0f, 0.25f, 7.0f, 2.0f, 0.5f, 4.0f};
+  auto dmat = GetDMatrixFromData(x, x.size(), 1);
+  dmat->Info().weights_.HostVector() = weights;
+
+  auto sorted_cuts = SketchOnDMatrix(&ctx, dmat.get(), x.size(), true);
+  auto row_cuts = SketchOnDMatrix(&ctx, dmat.get(), x.size(), false);
+
+  ASSERT_EQ(sorted_cuts.Ptrs(), row_cuts.Ptrs());
+  ASSERT_EQ(sorted_cuts.Values().size(), row_cuts.Values().size());
+  ASSERT_EQ(sorted_cuts.Values().size(), x.size());
+  for (std::size_t i = 1; i < x.size(); ++i) {
+    EXPECT_FLOAT_EQ(sorted_cuts.Values()[i - 1], x[i]);
+    EXPECT_FLOAT_EQ(sorted_cuts.Values()[i - 1], row_cuts.Values()[i - 1]);
+  }
+  EXPECT_GT(sorted_cuts.Values().back(), x.back());
+  EXPECT_FLOAT_EQ(sorted_cuts.Values().back(), row_cuts.Values().back());
+}
+
 void TestQuantileWithHessian(bool use_sorted) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {1000, 1500};

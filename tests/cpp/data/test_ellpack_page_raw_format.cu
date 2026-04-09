@@ -56,7 +56,7 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
 
     auto row_stride = GetRowStride(m.get());
     EllpackCacheInfo cinfo = CInfoForTest(&ctx, m.get(), row_stride, param, cuts);
-    policy.SetCuts(cuts, ctx.Device(), cinfo);
+    policy.SetCuts(&ctx, cuts, ctx.Device(), cinfo);
 
     std::unique_ptr<EllpackPageRawFormat> format{policy.CreatePageFormat(param)};
 
@@ -130,7 +130,7 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
             cinfo.buffer_bytes.push_back(page.Impl()->MemCostBytes());
             cinfo.buffer_rows.push_back(page.Impl()->n_rows);
           }
-          policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
+          policy.SetCuts(&ctx, page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
           format = policy.CreatePageFormat(param);
         }
         auto writer = policy.CreateWriter({}, i);
@@ -202,7 +202,7 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
       } else {
         EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
       }
-      policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
+      policy.SetCuts(&ctx, page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
     }
 
     auto format = policy.CreatePageFormat(param);

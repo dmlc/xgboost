@@ -1,12 +1,12 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <dmlc/registry.h>
 
 #include <cstddef>  // for size_t
 #include <vector>   // for vector
 
-#include "../common/cuda_rt_utils.h"
+#include "../common/cuda_context.cuh"       // for CUDAContext
 #include "../common/cuda_stream.h"          // for Event
 #include "../common/io.h"                   // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
@@ -21,7 +21,7 @@ DMLC_REGISTRY_FILE_TAG(ellpack_page_raw_format);
 namespace {
 // Function to support system without HMM or ATS
 template <typename T>
-[[nodiscard]] bool ReadDeviceVec(common::AlignedResourceReadStream* fi,
+[[nodiscard]] bool ReadDeviceVec(Context const* ctx, common::AlignedResourceReadStream* fi,
                                  common::RefResourceView<T>* vec) {
   xgboost_NVTX_FN_RANGE();
 
@@ -42,7 +42,7 @@ template <typename T>
 
   *vec = common::MakeFixedVecWithCudaMalloc<T>(n);
   dh::safe_cuda(
-      cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, curt::DefaultStream()));
+      cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
   return true;
 }
 }  // namespace
@@ -62,7 +62,7 @@ template <typename T>
   RET_IF_NOT(fi->Read(&impl->info.row_stride));
 
   if (this->param_.prefetch_copy || !has_hmm_ats_) {
-    RET_IF_NOT(ReadDeviceVec(fi, &impl->gidx_buffer));
+    RET_IF_NOT(ReadDeviceVec(ctx_, fi, &impl->gidx_buffer));
   } else {
     RET_IF_NOT(common::ReadVec(fi, &impl->gidx_buffer));
   }
@@ -73,7 +73,7 @@ template <typename T>
 
   impl->SetCuts(this->cuts_);
 
-  curt::DefaultStream().Sync();
+  ctx_->CUDACtx()->Stream().Sync();
   return true;
 }
 
@@ -87,14 +87,13 @@ template <typename T>
   bytes += fo->Write(impl->is_dense);
   bytes += fo->Write(impl->info.row_stride);
   std::vector<common::CompressedByteT> h_gidx_buffer;
-  Context ctx = Context{}.MakeCUDA(curt::CurrentDevice());
   // write data into the h_gidx_buffer
-  [[maybe_unused]] auto h_accessor = impl->GetHostEllpack(&ctx, &h_gidx_buffer);
+  [[maybe_unused]] auto h_accessor = impl->GetHostEllpack(ctx_, &h_gidx_buffer);
   bytes += common::WriteVec(fo, h_gidx_buffer);
   bytes += fo->Write(impl->base_rowid);
   bytes += fo->Write(impl->NumSymbols());
 
-  curt::DefaultStream().Sync();
+  ctx_->CUDACtx()->Stream().Sync();
   return bytes;
 }
 
@@ -104,21 +103,21 @@ template <typename T>
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
 
-  auto ctx = Context{}.MakeCUDA(curt::CurrentDevice());
+  auto stream = ctx_->CUDACtx()->Stream();
 
   auto dispatch = [&] {
-    fi->Read(&ctx, page, this->param_.prefetch_copy || !this->has_hmm_ats_);
+    fi->Read(ctx_, page, this->param_.prefetch_copy || !this->has_hmm_ats_);
     impl->SetCuts(this->cuts_);
   };
 
   if (ConsoleLogger::GlobalVerbosity() == ConsoleLogger::LogVerbosity::kDebug) {
     curt::Event start{false}, stop{false};
     float milliseconds = 0;
-    start.Record(ctx.CUDACtx()->Stream());
+    start.Record(stream);
 
     dispatch();
 
-    stop.Record(ctx.CUDACtx()->Stream());
+    stop.Record(stream);
     stop.Sync();
     dh::safe_cuda(cudaEventElapsedTime(&milliseconds, start, stop));
     double n_bytes = page->Impl()->MemCostBytes();
@@ -128,7 +127,7 @@ template <typename T>
     dispatch();
   }
 
-  curt::DefaultStream().Sync();
+  stream.Sync();
 
   return true;
 }
@@ -137,8 +136,8 @@ template <typename T>
                                                       EllpackHostCacheStream* fo) const {
   xgboost_NVTX_FN_RANGE_C(3, 252, 198);
 
-  bool new_page = fo->Write(page);
-  curt::DefaultStream().Sync();
+  bool new_page = fo->Write(ctx_, page);
+  ctx_->CUDACtx()->Stream().Sync();
 
   if (new_page) {
     auto cache = fo->Share();

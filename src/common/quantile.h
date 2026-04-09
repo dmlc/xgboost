@@ -118,6 +118,7 @@ struct WQSummary {
     auto const *col_data = column.data();
     auto const col_size = column.size();
     double sum_total{0.0};
+    std::size_t unique_values{0};
     double rmin{0.0};
     double wmin{0.0};
     bst_float last_fvalue{0.0f};
@@ -125,8 +126,44 @@ struct WQSummary {
 
     // first pass
     for (size_t i = 0; i < col_size; ++i) {
+      if (i == 0 || col_data[i - 1].fvalue != col_data[i].fvalue) {
+        ++unique_values;
+      }
       auto const &c = col_data[i];
       sum_total += weights[c.index];
+    }
+
+    if (unique_values <= max_size) {
+      // When we have enough budget to keep every unique feature value, emit the exact
+      // weighted summary instead of running the weighted goal-selection logic below.
+      for (size_t i = 0; i < col_size; ++i) {
+        auto const &c = col_data[i];
+        if (i == 0) {
+          last_fvalue = c.fvalue;
+          wmin = weights[c.index];
+          continue;
+        }
+        if (last_fvalue == c.fvalue) {
+          wmin += weights[c.index];
+          continue;
+        }
+
+        auto rmax = rmin + wmin;
+        data_[this->Size()] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                    static_cast<bst_float>(wmin), last_fvalue);
+        this->SetSize(this->Size() + 1);
+        rmin = rmax;
+        last_fvalue = c.fvalue;
+        wmin = weights[c.index];
+      }
+
+      if (col_size != 0) {
+        auto rmax = rmin + wmin;
+        data_[this->Size()] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                    static_cast<bst_float>(wmin), last_fvalue);
+        this->SetSize(this->Size() + 1);
+      }
+      return;
     }
 
     // second pass
@@ -231,6 +268,74 @@ struct WQSummary {
     if (lastidx != src_size - 1) {
       dst_data[current_elements_++] = src_data[src_size - 1];
     }
+  }
+
+  /*!
+   * \brief Materialize histogram cut values from this summary.
+   *
+   * If the summary already fits within max_bin, this reuses the exact retained values. Otherwise
+   * it answers evenly spaced interior rank queries from the summary, forces the resulting cuts to
+   * be strictly increasing, and appends the final sentinel upper bound required by HistogramCuts.
+   */
+  [[nodiscard]] std::vector<DType> QueryCutValues(std::size_t max_bin) const {
+    if (this->Empty()) {
+      return {static_cast<DType>(1e-5f)};
+    }
+
+    auto n_entries = this->Size();
+    std::vector<DType> cut_values;
+    cut_values.reserve(std::min(n_entries, max_bin) + 1);
+
+    auto advance_to_next_distinct = [&](std::size_t cursor, DType value) {
+      while (cursor < n_entries && this->data_[cursor].value <= value) {
+        ++cursor;
+      }
+      return cursor;
+    };
+
+    auto last_cut = this->data_[0].value;
+    auto next_value_cursor = advance_to_next_distinct(1, last_cut);
+
+    if (n_entries <= max_bin) {
+      while (next_value_cursor < n_entries) {
+        auto cpt = this->data_[next_value_cursor].value;
+        cut_values.push_back(cpt);
+        last_cut = cpt;
+        next_value_cursor = advance_to_next_distinct(next_value_cursor + 1, last_cut);
+      }
+    } else {
+      auto total = static_cast<double>(this->data_[n_entries - 1].rmax);
+      std::size_t query_cursor = 0;
+      for (std::size_t i = 1; i < max_bin; ++i) {
+        auto rank = static_cast<double>(i) * total / static_cast<double>(max_bin);
+        auto rank2 = static_cast<double>(2.0) * rank;
+        while (query_cursor < n_entries - 2 &&
+               rank2 >= static_cast<double>(this->data_[query_cursor + 1].rmin +
+                                            this->data_[query_cursor + 1].rmax)) {
+          ++query_cursor;
+        }
+        auto const &queried = rank2 < static_cast<double>(this->data_[query_cursor].RMinNext() +
+                                                          this->data_[query_cursor + 1].RMaxPrev())
+                                  ? this->data_[query_cursor]
+                                  : this->data_[query_cursor + 1];
+        auto cpt = queried.value;
+        if (cpt <= last_cut) {
+          next_value_cursor = advance_to_next_distinct(next_value_cursor, last_cut);
+          if (next_value_cursor == n_entries) {
+            break;
+          }
+          cpt = this->data_[next_value_cursor].value;
+        } else if (next_value_cursor < n_entries && this->data_[next_value_cursor].value <= cpt) {
+          next_value_cursor = advance_to_next_distinct(next_value_cursor + 1, cpt);
+        }
+        cut_values.push_back(cpt);
+        last_cut = cpt;
+      }
+    }
+
+    auto cpt = this->data_[n_entries - 1].value;
+    cut_values.push_back(cpt + (std::fabs(cpt) + static_cast<DType>(1e-5f)));
+    return cut_values;
   }
   /*!
    * \brief combine `other` into `this`.
@@ -452,6 +557,10 @@ struct WQSummaryContainer : public WQSummary<> {
 /*! \brief Weighted quantile sketch algorithm using merge/prune. */
 class WQuantileSketch {
  public:
+  // Sketch epsilon is approximately `1 / (kFactor * max_bin)` once `max_bin` limits the budget.
+  // Our current cut-rank measurements suggest an empirical constant of about 2 for the final
+  // emitted cuts, so the observed normalized cut error is about `2 / kFactor`. With
+  // `kFactor = 8`, that is roughly `0.25` bins of rank mass, i.e. about a quarter-bin offset.
   static float constexpr kFactor = 8.0;
 
  public:
