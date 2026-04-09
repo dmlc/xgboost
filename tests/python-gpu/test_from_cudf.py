@@ -86,21 +86,21 @@ def _test_from_cudf(DMatrixT: Type[xgb.DMatrix]) -> None:
 
 
 def _test_cudf_training(DMatrixT: Type[xgb.DMatrix]) -> None:
+    import cudf
     import pandas as pd
-    from cudf import DataFrame as df
 
     np.random.seed(1)
     X = pd.DataFrame(np.random.randn(50, 10))
     y = pd.DataFrame(np.random.randn(50))
     weights = np.random.random(50) + 1.0
-    cudf_weights = df.from_pandas(pd.DataFrame(weights))
+    cudf_weights = cudf.DataFrame(pd.DataFrame(weights))
     base_margin = np.random.random(50)
-    cudf_base_margin = df.from_pandas(pd.DataFrame(base_margin))
+    cudf_base_margin = cudf.DataFrame(pd.DataFrame(base_margin))
 
     evals_result_cudf: Dict[str, Any] = {}
     dtrain_cudf = DMatrixT(
-        df.from_pandas(X),
-        df.from_pandas(y),
+        cudf.DataFrame(X),
+        cudf.DataFrame(y),
         weight=cudf_weights,
         base_margin=cudf_base_margin,
     )
@@ -122,17 +122,17 @@ def _test_cudf_training(DMatrixT: Type[xgb.DMatrix]) -> None:
 
 
 def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
+    import cudf
     import pandas as pd
-    from cudf import DataFrame as df
 
     n = 100
     X = np.random.random((n, 2))
-    dmat_cudf = DMatrixT(df.from_pandas(pd.DataFrame(X)))
+    dmat_cudf = DMatrixT(cudf.DataFrame(pd.DataFrame(X)))
     dmat = xgb.DMatrix(X)
     floats = np.random.random(n)
     uints = np.array([4, 2, 8]).astype("uint32")
-    cudf_floats = df.from_pandas(pd.DataFrame(floats))
-    cudf_uints = df.from_pandas(pd.DataFrame(uints))
+    cudf_floats = cudf.DataFrame(pd.DataFrame(floats))
+    cudf_uints = cudf.DataFrame(pd.DataFrame(uints))
     dmat.set_weight(floats)
     dmat.set_label(floats)
     dmat.set_base_margin(floats)
@@ -162,7 +162,7 @@ def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
         dmat.get_uint_info("group_ptr"), dmat_cudf.get_uint_info("group_ptr")
     )
 
-    run_base_margin_info(df, DMatrixT, "cuda")
+    run_base_margin_info(cudf.DataFrame, DMatrixT, "cuda")
 
 
 class TestFromColumnar:
@@ -253,21 +253,20 @@ class TestFromColumnar:
 @pytest.mark.skipif(**tm.no_sklearn())
 @pytest.mark.skipif(**tm.no_pandas())
 def test_cudf_training_with_sklearn() -> None:
+    import cudf
     import pandas as pd
-    from cudf import DataFrame as df
-    from cudf import Series as ss
 
     np.random.seed(1)
     X = pd.DataFrame(np.random.randn(50, 10))
     y = pd.DataFrame((np.random.randn(50) > 0).astype(np.int8))
     weights = np.random.random(50) + 1.0
-    cudf_weights = df.from_pandas(pd.DataFrame(weights))
+    cudf_weights = cudf.DataFrame(pd.DataFrame(weights))
     base_margin = np.random.random(50)
-    cudf_base_margin = df.from_pandas(pd.DataFrame(base_margin))
+    cudf_base_margin = cudf.DataFrame(pd.DataFrame(base_margin))
 
-    X_cudf = df.from_pandas(X)
-    y_cudf = df.from_pandas(y)
-    y_cudf_series = ss(data=y.iloc[:, 0])
+    X_cudf = cudf.DataFrame(X)
+    y_cudf = cudf.DataFrame(y)
+    y_cudf_series = cudf.Series(data=y.iloc[:, 0])
 
     for y_obj in [y_cudf, y_cudf_series]:
         clf = xgb.XGBClassifier(tree_method="hist", device="cuda:0")
