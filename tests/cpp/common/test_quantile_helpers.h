@@ -133,6 +133,10 @@ inline GeneratedColumn GenerateSummaryColumn(SummaryCase const& c) {
     case DataKind::kExactUnique: {
       CHECK_LE(c.rows, static_cast<std::size_t>(c.max_bin));
       std::iota(out.values.begin(), out.values.end(), 0.0f);
+      for (std::size_t i = out.values.size(); i > 1; --i) {
+        auto j = lcg() % i;
+        std::swap(out.values[i - 1], out.values[j]);
+      }
       break;
     }
     case DataKind::kStaircaseMass: {
