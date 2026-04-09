@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef TESTS_CPP_COMMON_TEST_QUANTILE_HELPERS_H_
 #define TESTS_CPP_COMMON_TEST_QUANTILE_HELPERS_H_
@@ -261,8 +261,8 @@ inline double RankErrorForValue(ReferenceColumn const& col, double target_rank, 
 }
 
 template <typename Summary>
-inline double MaxSummaryQueryRankError(Summary const& summary, ReferenceColumn const& reference,
-                                       std::size_t num_queries) {
+double MaxSummaryQueryRankError(Summary const& summary, ReferenceColumn const& reference,
+                                std::size_t num_queries) {
   auto total = TotalWeight(reference);
   CHECK_GT(total, 0.0);
   double max_error = 0.0;
