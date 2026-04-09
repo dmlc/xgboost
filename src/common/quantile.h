@@ -587,7 +587,14 @@ class WQuantileSketch {
   void PushSorted(common::Span<::xgboost::Entry const> column, std::vector<float> const &weights,
                   size_t num_retained_items) {
     CHECK_GE(num_retained_items, 1);
-    num_elements_ += column.size();
+    if (weights.empty()) {
+      num_elements_ += column.size();
+    } else {
+      num_elements_ +=
+          std::count_if(column.cbegin(), column.cend(), [&](::xgboost::Entry const &entry) {
+            return weights[entry.index] != static_cast<float>(0);
+          });
+    }
     auto const max_size = num_retained_items;
     this->temp_.Reserve(max_size + 1);
     this->temp_.SetPruneSorted(column, weights, max_size);
