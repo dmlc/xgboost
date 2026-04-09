@@ -82,7 +82,6 @@ TEST_P(QuantileSummarySortedTest, QueryBound) {
   std::sort(sorted_col.begin(), sorted_col.end(), ::xgboost::Entry::CmpValue);
   sketch.PushSorted(Span<::xgboost::Entry const>{sorted_col.data(), sorted_col.size()}, col.weights,
                     c.max_bin);
-
   auto budget = SketchSummaryBudget(c.max_bin, c.rows);
   auto summary = sketch.GetSummary(budget);
   auto entries = summary.Entries();
