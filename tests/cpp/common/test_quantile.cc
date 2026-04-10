@@ -93,51 +93,6 @@ void TestContainerInvariants(ContainerCase const& c, HistogramCuts const& cuts, 
   }
 }
 
-void SameOnAllWorkers(Context const* ctx, HistogramCuts const& cuts) {
-  auto const world = collective::GetWorldSize();
-  if (world <= 1) {
-    return;
-  }
-
-  std::vector<float> cut_values(cuts.Values().size() * world, 0.0f);
-  std::vector<typename std::remove_reference_t<decltype(cuts.Ptrs())>::value_type> cut_ptrs(
-      cuts.Ptrs().size() * world, 0);
-
-  std::int64_t value_size = cuts.Values().size();
-  std::int64_t ptr_size = cuts.Ptrs().size();
-  auto rc = collective::Success() << [&] {
-    return collective::Allreduce(ctx, &value_size, collective::Op::kMax);
-  } << [&] {
-    return collective::Allreduce(ctx, &ptr_size, collective::Op::kMax);
-  };
-  collective::SafeColl(rc);
-
-  auto rank = collective::GetRank();
-  auto value_offset = static_cast<std::size_t>(value_size) * rank;
-  std::copy(cuts.Values().begin(), cuts.Values().end(), cut_values.begin() + value_offset);
-  auto ptr_offset = static_cast<std::size_t>(ptr_size) * rank;
-  std::copy(cuts.Ptrs().cbegin(), cuts.Ptrs().cend(), cut_ptrs.begin() + ptr_offset);
-
-  rc = collective::Success() << [&] {
-    return collective::Allreduce(ctx, linalg::MakeVec(cut_values.data(), cut_values.size()),
-                                 collective::Op::kSum);
-  } << [&] {
-    return collective::Allreduce(ctx, linalg::MakeVec(cut_ptrs.data(), cut_ptrs.size()),
-                                 collective::Op::kSum);
-  };
-  collective::SafeColl(rc);
-
-  for (std::int32_t worker = 0; worker < world; ++worker) {
-    for (std::int64_t j = 0; j < value_size; ++j) {
-      auto idx = static_cast<std::size_t>(worker) * value_size + j;
-      ASSERT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
-    }
-    for (std::int64_t j = 0; j < ptr_size; ++j) {
-      auto idx = static_cast<std::size_t>(worker) * ptr_size + j;
-      ASSERT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
-    }
-  }
-}
 }  // namespace
 
 TEST_P(QuantileSummaryTest, Invariants) {
