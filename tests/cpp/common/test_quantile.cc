@@ -11,9 +11,104 @@
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/adapter.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
+#include "test_quantile_helpers.h"
 #include "xgboost/context.h"
 
 namespace xgboost::common {
+namespace quantile_test {
+class QuantileSummaryTest : public ::testing::TestWithParam<SummaryCase> {};
+class QuantileSummarySortedTest : public ::testing::TestWithParam<SummaryCase> {};
+
+TEST_P(QuantileSummaryTest, Invariants) {
+  auto c = GetParam();
+  auto col = GenerateSummaryColumn(c);
+  WQuantileSketch sketch{c.rows, SketchEpsilon(c.max_bin, c.rows)};
+  for (std::size_t i = 0; i < col.values.size(); ++i) {
+    sketch.Push(col.values[i], col.weights[i]);
+  }
+  auto budget = SketchSummaryBudget(c.max_bin, c.rows);
+  auto summary = sketch.GetSummary(budget);
+  auto entries = summary.Entries();
+  auto ref = AggregateReferenceColumn(col);
+  auto nonzero_samples = NonZeroWeightCount(col);
+
+  // An empty sketch should remain empty after finalization.
+  if (EmptyReference(ref)) {
+    ASSERT_TRUE(entries.empty()) << "case=" << c.name;
+    return;
+  }
+
+  // A numerical summary should remain a strictly increasing support set.
+  ASSERT_FALSE(entries.empty()) << "case=" << c.name;
+  for (std::size_t i = 1; i < entries.size(); ++i) {
+    EXPECT_LT(entries[i - 1].value, entries[i].value) << "case=" << c.name;
+  }
+
+  // Large-n anchors should exercise actual compression rather than exact retention.
+  if (c.rows > static_cast<std::size_t>(c.max_bin) * 8) {
+    ASSERT_LT(summary.Size(), nonzero_samples)
+        << "case=" << c.name << " should exercise sketch compression.";
+  }
+
+  // The summary query rule should satisfy the target rank bound plus the final prune term.
+  auto total = TotalWeight(ref);
+  auto max_error = MaxSummaryQueryRankError(summary, ref, c.max_bin);
+  auto eps = SketchEpsilon(c.max_bin, c.rows);
+  auto bound = (eps + 1.0 / static_cast<double>(budget)) * total;
+
+  EXPECT_LE(max_error, bound) << "case=" << c.name << ", total=" << total << ", budget=" << budget
+                              << ", eps=" << eps;
+
+  // If the target bin count can already represent all distinct values, the summary should
+  // preserve the exact support instead of approximating it.
+  if (UniqueValueCount(ref) <= static_cast<std::size_t>(c.max_bin)) {
+    auto exact_values = ExactValues(ref);
+    ASSERT_EQ(entries.size(), exact_values.size()) << "case=" << c.name;
+    for (std::size_t i = 0; i < exact_values.size(); ++i) {
+      EXPECT_FLOAT_EQ(entries[i].value, exact_values[i]) << "case=" << c.name;
+    }
+  }
+}
+
+TEST_P(QuantileSummarySortedTest, QueryBound) {
+  auto c = GetParam();
+  auto col = GenerateSummaryColumn(c);
+  WQuantileSketch sketch{c.rows, SketchEpsilon(c.max_bin, c.rows)};
+  std::vector<::xgboost::Entry> sorted_col;
+  sorted_col.reserve(col.values.size());
+  for (std::size_t i = 0; i < col.values.size(); ++i) {
+    sorted_col.emplace_back(i, col.values[i]);
+  }
+  std::sort(sorted_col.begin(), sorted_col.end(), ::xgboost::Entry::CmpValue);
+  sketch.PushSorted(Span<::xgboost::Entry const>{sorted_col.data(), sorted_col.size()}, col.weights,
+                    c.max_bin);
+  auto budget = SketchSummaryBudget(c.max_bin, c.rows);
+  auto summary = sketch.GetSummary(budget);
+  auto entries = summary.Entries();
+  auto ref = AggregateReferenceColumn(col);
+
+  if (EmptyReference(ref)) {
+    ASSERT_TRUE(entries.empty()) << "case=" << c.name;
+    return;
+  }
+
+  auto total = TotalWeight(ref);
+  auto max_error = MaxSummaryQueryRankError(summary, ref, c.max_bin);
+  auto eps = SketchEpsilon(c.max_bin, c.rows);
+  auto bound = (eps + 1.0 / static_cast<double>(budget)) * total;
+
+  EXPECT_LE(max_error, bound) << "case=" << c.name << ", total=" << total << ", budget=" << budget
+                              << ", eps=" << eps;
+}
+
+INSTANTIATE_TEST_SUITE_P(Anchors, QuantileSummaryTest, ::testing::ValuesIn(SummaryAnchorCases()),
+                         CaseName);
+INSTANTIATE_TEST_SUITE_P(RandomSamples, QuantileSummaryTest,
+                         ::testing::ValuesIn(SummaryRandomCases(100)), CaseName);
+INSTANTIATE_TEST_SUITE_P(Anchors, QuantileSummarySortedTest,
+                         ::testing::ValuesIn(SummaryAnchorCases()), CaseName);
+}  // namespace quantile_test
+
 TEST(Quantile, LoadBalance) {
   size_t constexpr kRows = 1000, kCols = 100;
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
@@ -64,46 +159,6 @@ TEST(Quantile, TrackSketchElementsSorted) {
   ASSERT_GT(out.Size(), 0);
   ASSERT_EQ(sketch.NumElements(), 3);
 }
-
-TEST(Quantile, SetPruneInplace) {
-  using Summary = WQSummary<>;
-  using Entry = Summary::Entry;
-
-  SimpleLCG lcg;
-  for (size_t trial = 0; trial < 256; ++trial) {
-    size_t n = (lcg() % 256) + 1;
-    size_t max_size = (lcg() % n) + 1;
-
-    std::vector<Entry> src_storage(n);
-    float running_rank = 0.0f;
-    for (size_t i = 0; i < n; ++i) {
-      float w = static_cast<float>((lcg() % 7) + 1);
-      float value = static_cast<float>(i);
-      src_storage[i] = Entry{running_rank, running_rank + w, w, value};
-      running_rank += w;
-    }
-
-    std::vector<Entry> ref_storage(n);
-    Summary src_ref{Span<Entry>{src_storage.data(), src_storage.size()}, n};
-    Summary out_ref{Span<Entry>{ref_storage.data(), ref_storage.size()}, 0};
-    out_ref.CopyFrom(src_ref);
-    out_ref.SetPrune(max_size);
-
-    Summary in_place{Span<Entry>{src_storage.data(), src_storage.size()}, n};
-    in_place.SetPrune(max_size);
-
-    ASSERT_EQ(in_place.Size(), out_ref.Size()) << "trial=" << trial;
-    auto const in_entries = in_place.Entries();
-    auto const ref_entries = out_ref.Entries();
-    for (size_t i = 0; i < in_place.Size(); ++i) {
-      EXPECT_FLOAT_EQ(in_entries[i].rmin, ref_entries[i].rmin) << "trial=" << trial;
-      EXPECT_FLOAT_EQ(in_entries[i].rmax, ref_entries[i].rmax) << "trial=" << trial;
-      EXPECT_FLOAT_EQ(in_entries[i].wmin, ref_entries[i].wmin) << "trial=" << trial;
-      EXPECT_FLOAT_EQ(in_entries[i].value, ref_entries[i].value) << "trial=" << trial;
-    }
-  }
-}
-
 namespace {
 template <bool use_column>
 void PushPage(HostSketchContainer* container, SparsePage const& page, MetaInfo const& info,
