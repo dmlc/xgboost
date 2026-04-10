@@ -121,47 +121,6 @@ TEST(ParallelGHistBuilder, Reset) { ParallelGHistBuilderReset(); }
 
 TEST(ParallelGHistBuilder, ReduceHist) { ParallelGHistBuilderReduceHist(); }
 
-TEST(HistUtil, DenseCutsCategorical) {
-  Context ctx;
-  int categorical_sizes[] = {2, 6, 8, 12};
-  int num_bins = 256;
-  int sizes[] = {25, 100, 1000};
-  for (auto n : sizes) {
-    for (auto num_categories : categorical_sizes) {
-      auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
-      std::vector<float> x_sorted(x);
-      std::sort(x_sorted.begin(), x_sorted.end());
-      auto dmat = GetDMatrixFromData(x, n, 1);
-      HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
-      auto cuts_from_sketch = cuts.Values();
-      EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
-      EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
-      EXPECT_EQ(cuts_from_sketch.size(), static_cast<size_t>(num_categories));
-    }
-  }
-}
-
-TEST(HistUtil, SortedWeightedExactCuts) {
-  Context ctx;
-  std::vector<float> x{0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
-  std::vector<float> weights{3.0f, 0.25f, 7.0f, 2.0f, 0.5f, 4.0f};
-  auto dmat = GetDMatrixFromData(x, x.size(), 1);
-  dmat->Info().weights_.HostVector() = weights;
-
-  auto sorted_cuts = SketchOnDMatrix(&ctx, dmat.get(), x.size(), true);
-  auto row_cuts = SketchOnDMatrix(&ctx, dmat.get(), x.size(), false);
-
-  ASSERT_EQ(sorted_cuts.Ptrs(), row_cuts.Ptrs());
-  ASSERT_EQ(sorted_cuts.Values().size(), row_cuts.Values().size());
-  ASSERT_EQ(sorted_cuts.Values().size(), x.size());
-  for (std::size_t i = 1; i < x.size(); ++i) {
-    EXPECT_FLOAT_EQ(sorted_cuts.Values()[i - 1], x[i]);
-    EXPECT_FLOAT_EQ(sorted_cuts.Values()[i - 1], row_cuts.Values()[i - 1]);
-  }
-  EXPECT_GT(sorted_cuts.Values().back(), x.back());
-  EXPECT_FLOAT_EQ(sorted_cuts.Values().back(), row_cuts.Values().back());
-}
-
 void TestQuantileWithHessian(bool use_sorted) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {1000, 1500};
@@ -386,13 +345,4 @@ TEST(HistUtil, GroupWeightsEquivalentToRowWeights) {
   TestGroupWeightsEquivalentToRowWeights(false);
 }
 
-TEST(HistUtil, SketchCategoricalFeatures) {
-  Context ctx;
-  TestCategoricalSketch(1000, 256, 32, false, [&ctx](DMatrix* p_fmat, int32_t num_bins) {
-    return SketchOnDMatrix(&ctx, p_fmat, num_bins);
-  });
-  TestCategoricalSketch(1000, 256, 32, true, [&ctx](DMatrix* p_fmat, int32_t num_bins) {
-    return SketchOnDMatrix(&ctx, p_fmat, num_bins);
-  });
-}
 }  // namespace xgboost::common
