@@ -141,44 +141,6 @@ TEST(HistUtil, DenseCutsCategorical) {
   }
 }
 
-TEST(HistUtil, DenseCutsAccuracyTest) {
-  Context ctx;
-  int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {100};
-  int num_columns = 5;
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    for (auto num_bins : bin_sizes) {
-      HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
-    }
-  }
-}
-
-TEST(HistUtil, DenseCutsAccuracyTestWeights) {
-  int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {100, 1000, 1500};
-  int num_columns = 5;
-  Context ctx;
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    auto w = GenerateRandomWeights(num_rows);
-    dmat->Info().weights_.HostVector() = w;
-    for (auto num_bins : bin_sizes) {
-      {
-        HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins, true);
-        ValidateCuts(cuts, dmat.get(), num_bins);
-      }
-      {
-        HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins, false);
-        ValidateCuts(cuts, dmat.get(), num_bins);
-      }
-    }
-  }
-}
-
 TEST(HistUtil, SortedWeightedExactCuts) {
   Context ctx;
   std::vector<float> x{0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f};

@@ -121,12 +121,18 @@ inline std::vector<SummaryCase> SummaryRandomCases(std::size_t n_cases) {
 
 inline std::vector<ContainerCase> ContainerAnchorCases() {
   return {
-      {"dense_numeric_unweighted", 256, 32, 0.0f, 32, WeightKind::kNone, FeatureKind::kNumerical,
-       11},
-      {"dense_numeric_weighted", 256, 32, 0.0f, 32, WeightKind::kRow, FeatureKind::kNumerical, 12},
-      {"sparse_numeric_weighted", 512, 48, 0.7f, 32, WeightKind::kRow, FeatureKind::kNumerical, 13},
-      {"dense_mixed_unweighted", 256, 24, 0.0f, 32, WeightKind::kNone, FeatureKind::kMixed, 14},
-      {"sparse_mixed_weighted", 512, 40, 0.8f, 32, WeightKind::kRow, FeatureKind::kMixed, 15},
+      {"dense_numeric_unweighted_bins2", 256, 32, 0.0f, 2, WeightKind::kNone,
+       FeatureKind::kNumerical, 11},
+      {"dense_numeric_unweighted_bins16", 256, 32, 0.0f, 16, WeightKind::kNone,
+       FeatureKind::kNumerical, 12},
+      {"dense_numeric_weighted_bins256", 512, 32, 0.0f, 256, WeightKind::kRow,
+       FeatureKind::kNumerical, 13},
+      {"sparse_numeric_weighted_bins32", 512, 48, 0.7f, 32, WeightKind::kRow,
+       FeatureKind::kNumerical, 14},
+      {"dense_mixed_unweighted_bins16", 256, 24, 0.0f, 16, WeightKind::kNone, FeatureKind::kMixed,
+       15},
+      {"sparse_mixed_weighted_bins64", 512, 40, 0.8f, 64, WeightKind::kRow, FeatureKind::kMixed,
+       16},
   };
 }
 
