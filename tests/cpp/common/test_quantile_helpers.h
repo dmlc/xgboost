@@ -121,6 +121,7 @@ inline std::vector<SummaryCase> SummaryRandomCases(std::size_t n_cases) {
 
 inline std::vector<ContainerCase> ContainerAnchorCases() {
   return {
+      {"empty_numeric_bins16", 0, 32, 0.0f, 16, WeightKind::kNone, FeatureKind::kNumerical, 10},
       {"dense_numeric_unweighted_bins2", 256, 32, 0.0f, 2, WeightKind::kNone,
        FeatureKind::kNumerical, 11},
       {"dense_numeric_unweighted_bins16", 256, 32, 0.0f, 16, WeightKind::kNone,
@@ -156,6 +157,9 @@ inline std::vector<float> GenerateWeights(std::size_t rows, std::uint32_t seed) 
 
 inline auto CollectWeightedColumns(DMatrix* dmat) -> std::vector<std::vector<WeightedValue>> {
   std::vector<std::vector<WeightedValue>> columns(dmat->Info().num_col_);
+  if (dmat->Info().num_row_ == 0) {
+    return columns;
+  }
   std::vector<float> weights = dmat->Info().group_ptr_.empty()
                                    ? dmat->Info().weights_.HostVector()
                                    : detail::UnrollGroupWeights(dmat->Info());
@@ -164,7 +168,6 @@ inline auto CollectWeightedColumns(DMatrix* dmat) -> std::vector<std::vector<Wei
   Context ctx;
   for (auto const& batch : dmat->GetBatches<SparsePage>(&ctx)) {
     auto page = batch.GetView();
-    CHECK_GT(batch.Size(), 0ul);
     for (std::size_t i = 0; i < batch.Size(); ++i) {
       auto row_weight =
           weights.empty() ? 1.0
