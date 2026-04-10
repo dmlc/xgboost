@@ -33,24 +33,6 @@ struct RepeatedValueOp {
   }
 };
 
-auto GenerateDenseData(std::size_t rows, std::size_t cols, std::uint64_t seed)
-    -> std::vector<float> {
-  HostDeviceVector<float> storage;
-  RandomDataGenerator{static_cast<bst_idx_t>(rows), cols, 0}.Seed(seed).GenerateDense(&storage);
-  return storage.HostVector();
-}
-
-auto MakeFullRowSplitDMatrix(std::size_t rows_per_worker, std::size_t cols, std::int32_t world,
-                             std::int32_t seed) -> std::shared_ptr<DMatrix> {
-  std::vector<float> full_data;
-  full_data.reserve(rows_per_worker * cols * world);
-  for (std::int32_t rank = 0; rank < world; ++rank) {
-    auto block = GenerateDenseData(rows_per_worker, cols, rank + seed);
-    full_data.insert(full_data.end(), block.cbegin(), block.cend());
-  }
-  return GetDMatrixFromData(full_data, rows_per_worker * world, cols);
-}
-
 auto MakeHostSummary(std::vector<std::pair<float, float>> const& items)
     -> common::WQSummaryContainer {
   common::WQSummaryContainer summary;
@@ -68,6 +50,355 @@ auto CopySummaryEntries(common::WQSummaryContainer const& summary)
 
 namespace common {
 class MGPUQuantileTest : public collective::BaseMGPUTest {};
+
+namespace {
+enum class WeightKind { kNone, kRow };
+enum class FeatureKind { kNumerical, kMixed };
+
+inline constexpr double kMaxNormalizedRankError = 2.0;
+inline constexpr double kMaxWeightedNormalizedRankError = 10.0;
+
+struct WeightedValue {
+  float value;
+  double weight;
+};
+
+struct ReferenceColumn {
+  std::vector<float> values;
+  std::vector<double> prefix_weights;
+};
+
+struct ContainerCase {
+  std::string name;
+  std::size_t rows{0};
+  std::size_t cols{0};
+  float sparsity{0.0f};
+  bst_bin_t max_bin{0};
+  WeightKind weights{WeightKind::kNone};
+  FeatureKind features{FeatureKind::kNumerical};
+  std::uint32_t seed{0};
+};
+
+auto ContainerAnchorCases() -> std::vector<ContainerCase> {
+  return {
+      {"empty_numeric_bins16", 0, 32, 0.0f, 16, WeightKind::kNone, FeatureKind::kNumerical, 10},
+      {"dense_numeric_unweighted_bins2", 256, 32, 0.0f, 2, WeightKind::kNone,
+       FeatureKind::kNumerical, 11},
+      {"dense_numeric_unweighted_bins16", 256, 32, 0.0f, 16, WeightKind::kNone,
+       FeatureKind::kNumerical, 12},
+      {"dense_numeric_weighted_bins256", 512, 32, 0.0f, 256, WeightKind::kRow,
+       FeatureKind::kNumerical, 13},
+      {"sparse_numeric_weighted_bins32", 512, 48, 0.7f, 32, WeightKind::kRow,
+       FeatureKind::kNumerical, 14},
+      {"dense_mixed_unweighted_bins16", 256, 24, 0.0f, 16, WeightKind::kNone, FeatureKind::kMixed,
+       15},
+      {"sparse_mixed_weighted_bins64", 512, 40, 0.8f, 64, WeightKind::kRow, FeatureKind::kMixed,
+       16},
+  };
+}
+
+auto FeatureTypes(ContainerCase const& c) -> std::vector<FeatureType> {
+  std::vector<FeatureType> ft(c.cols, FeatureType::kNumerical);
+  if (c.features == FeatureKind::kMixed) {
+    for (std::size_t i = 0; i < ft.size(); ++i) {
+      ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
+    }
+  }
+  return ft;
+}
+
+auto GenerateWeights(std::size_t rows, std::uint32_t seed) -> std::vector<float> {
+  std::vector<float> weights(rows, 1.0f);
+  SimpleLCG lcg{seed};
+  SimpleRealUniformDistribution<float> unit_dist(0.0f, 1.0f);
+  std::generate(weights.begin(), weights.end(), [&] { return std::exp(6.0f * unit_dist(&lcg)); });
+  return weights;
+}
+
+auto CollectWeightedColumns(DMatrix* dmat) -> std::vector<std::vector<WeightedValue>> {
+  std::vector<std::vector<WeightedValue>> columns(dmat->Info().num_col_);
+  if (dmat->Info().num_row_ == 0) {
+    return columns;
+  }
+  std::vector<float> weights = dmat->Info().group_ptr_.empty()
+                                   ? dmat->Info().weights_.HostVector()
+                                   : detail::UnrollGroupWeights(dmat->Info());
+
+  bst_idx_t row_idx{0};
+  Context ctx;
+  for (auto const& batch : dmat->GetBatches<SparsePage>(&ctx)) {
+    auto page = batch.GetView();
+    for (std::size_t i = 0; i < batch.Size(); ++i) {
+      auto row_weight =
+          weights.empty() ? 1.0
+                          : static_cast<double>(weights.at(static_cast<std::size_t>(row_idx + i)));
+      for (auto e : page[i]) {
+        columns[e.index].push_back({e.fvalue, row_weight});
+      }
+    }
+    row_idx += batch.Size();
+  }
+
+  for (auto& column : columns) {
+    std::sort(column.begin(), column.end(),
+              [](auto const& lhs, auto const& rhs) { return lhs.value < rhs.value; });
+  }
+  return columns;
+}
+
+auto AggregateWeightedColumn(std::vector<WeightedValue> const& sorted_column) -> ReferenceColumn {
+  ReferenceColumn ref;
+  ref.prefix_weights.push_back(0.0);
+  for (auto const& entry : sorted_column) {
+    if (!ref.values.empty() && ref.values.back() == entry.value) {
+      ref.prefix_weights.back() += entry.weight;
+    } else {
+      ref.values.push_back(entry.value);
+      ref.prefix_weights.push_back(ref.prefix_weights.back() + entry.weight);
+    }
+  }
+  return ref;
+}
+
+double DistanceToInterval(double target, double lo, double hi) {
+  if (target < lo) {
+    return lo - target;
+  }
+  if (target > hi) {
+    return target - hi;
+  }
+  return 0.0;
+}
+
+struct CutRankErrorSummary {
+  double max_normalized_error{0.0};
+  double max_absolute_error{0.0};
+  double target_rank{0.0};
+  double rank_lo{0.0};
+  double rank_hi{0.0};
+  double total_weight{0.0};
+  bst_feature_t feature{0};
+  std::size_t cut_index{0};
+  std::size_t num_interior_cuts{0};
+};
+
+auto MeasureCutRankError(HistogramCuts const& cuts, bst_feature_t column_idx,
+                         ReferenceColumn const& ref) -> CutRankErrorSummary {
+  CutRankErrorSummary summary;
+  summary.feature = column_idx;
+  if (ref.values.empty()) {
+    return summary;
+  }
+
+  auto beg = cuts.Ptrs()[column_idx];
+  auto end = cuts.Ptrs()[column_idx + 1];
+  auto num_cuts = end - beg;
+  if (num_cuts <= 1) {
+    return summary;
+  }
+  summary.num_interior_cuts = num_cuts - 1;
+  summary.total_weight = ref.prefix_weights.back();
+  if (summary.total_weight == 0.0 || summary.num_interior_cuts == 0) {
+    return summary;
+  }
+
+  auto avg_bin_weight = summary.total_weight / static_cast<double>(summary.num_interior_cuts);
+  for (std::size_t cut_idx = 0; cut_idx < summary.num_interior_cuts; ++cut_idx) {
+    auto cut_value = cuts.Values()[beg + cut_idx];
+    auto lb = std::lower_bound(ref.values.cbegin(), ref.values.cend(), cut_value);
+    auto ub = std::upper_bound(ref.values.cbegin(), ref.values.cend(), cut_value);
+    auto rank_lo = ref.prefix_weights[std::distance(ref.values.cbegin(), lb)];
+    auto rank_hi = ref.prefix_weights[std::distance(ref.values.cbegin(), ub)];
+    auto target_rank = static_cast<double>(cut_idx + 1) * summary.total_weight /
+                       static_cast<double>(summary.num_interior_cuts);
+    auto absolute_error = DistanceToInterval(target_rank, rank_lo, rank_hi);
+    auto normalized_error = absolute_error / avg_bin_weight;
+    if (normalized_error > summary.max_normalized_error) {
+      summary.max_normalized_error = normalized_error;
+      summary.max_absolute_error = absolute_error;
+      summary.target_rank = target_rank;
+      summary.rank_lo = rank_lo;
+      summary.rank_hi = rank_hi;
+      summary.cut_index = cut_idx;
+    }
+  }
+
+  return summary;
+}
+
+void ValidateNumericalCuts(HistogramCuts const& cuts, bst_feature_t column_idx,
+                           std::vector<WeightedValue> const& sorted_column, std::size_t num_bins,
+                           double max_normalized_rank_error) {
+  auto ref = AggregateWeightedColumn(sorted_column);
+  CHECK(!ref.values.empty());
+
+  auto beg = cuts.Ptrs()[column_idx];
+  auto end = cuts.Ptrs()[column_idx + 1];
+  auto first_bin = HistogramCuts::NumericBinLowerBound(cuts.Ptrs(), cuts.Values(), column_idx, beg);
+  EXPECT_TRUE(std::isinf(first_bin));
+  EXPECT_LT(first_bin, 0.0f);
+  EXPECT_GT(cuts.Values()[beg], ref.values.front());
+  EXPECT_GE(cuts.Values()[end - 1], ref.values.back());
+
+  if (ref.values.size() <= num_bins) {
+    for (std::size_t i = 0; i < ref.values.size(); ++i) {
+      ASSERT_EQ(cuts.SearchBin(ref.values[i], column_idx), beg + i)
+          << "feature=" << column_idx << ", value_index=" << i;
+    }
+  } else {
+    auto stats = MeasureCutRankError(cuts, column_idx, ref);
+    EXPECT_LE(stats.max_normalized_error, max_normalized_rank_error)
+        << "feature=" << column_idx << ", cut=" << stats.cut_index;
+  }
+}
+
+void ValidateCategoricalCuts(HistogramCuts const& cuts, bst_feature_t column_idx,
+                             std::vector<WeightedValue> const& sorted_column) {
+  std::vector<float> categories;
+  categories.reserve(sorted_column.size());
+  for (auto const& entry : sorted_column) {
+    categories.push_back(entry.value);
+  }
+  std::sort(categories.begin(), categories.end());
+  categories.erase(std::unique(categories.begin(), categories.end()), categories.end());
+
+  auto beg = cuts.Ptrs()[column_idx];
+  auto end = cuts.Ptrs()[column_idx + 1];
+  ASSERT_EQ(static_cast<std::size_t>(end - beg), categories.size()) << "feature=" << column_idx;
+  for (std::size_t i = 0; i < categories.size(); ++i) {
+    EXPECT_EQ(cuts.Values()[beg + i], categories[i]) << "feature=" << column_idx;
+  }
+}
+
+void TestCutInvariants(ContainerCase const& c, HistogramCuts const& cuts, DMatrix* dmat,
+                       std::vector<std::vector<WeightedValue>> const& columns,
+                       std::size_t f_begin = 0,
+                       std::size_t f_end = std::numeric_limits<std::size_t>::max()) {
+  ASSERT_EQ(cuts.Ptrs().size(), c.cols + 1) << "case=" << c.name;
+  auto ft = dmat->Info().feature_types.ConstHostSpan();
+  auto max_error =
+      c.weights == WeightKind::kRow ? kMaxWeightedNormalizedRankError : kMaxNormalizedRankError;
+  f_end = std::min(f_end, columns.size());
+  for (std::size_t i = f_begin; i < f_end; ++i) {
+    auto beg = cuts.Ptrs()[i];
+    auto end = cuts.Ptrs()[i + 1];
+    ASSERT_LT(beg, end) << "case=" << c.name << ", feature=" << i;
+    for (auto j = beg + 1; j < end; ++j) {
+      EXPECT_LT(cuts.Values()[j - 1], cuts.Values()[j]) << "case=" << c.name << ", feature=" << i;
+    }
+    if (columns[i].empty()) {
+      continue;
+    }
+    if (!ft.empty() && IsCat(ft, i)) {
+      ValidateCategoricalCuts(cuts, i, columns[i]);
+    } else {
+      ValidateNumericalCuts(cuts, i, columns[i], c.max_bin, max_error);
+    }
+  }
+}
+
+void DoGPUContainerProperty(ContainerCase const& c) {
+  auto ctx = MakeCUDACtx(0);
+  auto ft = FeatureTypes(c);
+  auto m = RandomDataGenerator{c.rows, c.cols, c.sparsity}
+               .Seed(c.seed)
+               .Lower(.0f)
+               .Upper(1.0f)
+               .Type(ft)
+               .MaxCategory(13)
+               .GenerateDMatrix();
+  if (c.weights == WeightKind::kRow) {
+    m->Info().weights_.HostVector() = GenerateWeights(c.rows, c.seed + 1024);
+  }
+  auto cuts = DeviceSketch(&ctx, m.get(), c.max_bin);
+  auto columns = CollectWeightedColumns(m.get());
+  TestCutInvariants(c, cuts, m.get(), columns);
+}
+
+void DoMGPURowSplitProperty(ContainerCase const& c) {
+  auto const world = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  auto ctx = MakeCUDACtx(GPUIDX);
+  auto ft = FeatureTypes(c);
+  auto full_m = RandomDataGenerator{c.rows * static_cast<std::size_t>(world), c.cols, c.sparsity}
+                    .Seed(c.seed)
+                    .Lower(.0f)
+                    .Upper(1.0f)
+                    .Type(ft)
+                    .MaxCategory(13)
+                    .GenerateDMatrix();
+  if (c.weights == WeightKind::kRow) {
+    full_m->Info().weights_.HostVector() =
+        GenerateWeights(c.rows * static_cast<std::size_t>(world), c.seed + 4096);
+  }
+
+  std::vector<std::int32_t> ridxs(c.rows);
+  auto row_begin = static_cast<std::size_t>(rank) * c.rows;
+  std::iota(ridxs.begin(), ridxs.end(), static_cast<std::int32_t>(row_begin));
+  auto m =
+      std::shared_ptr<DMatrix>{full_m->Slice(Span<std::int32_t const>{ridxs.data(), ridxs.size()})};
+  m->Info().data_split_mode = DataSplitMode::kRow;
+
+  auto cuts = DeviceSketch(&ctx, m.get(), c.max_bin);
+  collective::Finalize();
+  CHECK_EQ(collective::GetWorldSize(), 1);
+
+  auto columns = CollectWeightedColumns(full_m.get());
+  TestCutInvariants(c, cuts, full_m.get(), columns);
+}
+
+void DoMGPUColumnSplitProperty(ContainerCase const& c) {
+  auto const world = collective::GetWorldSize();
+  auto const rank = collective::GetRank();
+  auto ctx = MakeCUDACtx(GPUIDX);
+  auto ft = FeatureTypes(c);
+  auto full_m = RandomDataGenerator{c.rows, c.cols, c.sparsity}
+                    .Seed(c.seed)
+                    .Lower(.0f)
+                    .Upper(1.0f)
+                    .Type(ft)
+                    .MaxCategory(13)
+                    .GenerateDMatrix();
+  if (c.weights == WeightKind::kRow) {
+    full_m->Info().weights_.HostVector() = GenerateWeights(c.rows, c.seed + 2048);
+  }
+  auto m = std::shared_ptr<DMatrix>{full_m->SliceCol(world, rank)};
+
+  auto cuts = DeviceSketch(&ctx, m.get(), c.max_bin);
+  auto const slice_size = c.cols / world;
+  auto const slice_start = slice_size * rank;
+  auto const slice_end = (rank == world - 1) ? c.cols : slice_start + slice_size;
+
+  collective::Finalize();
+  CHECK_EQ(collective::GetWorldSize(), 1);
+
+  auto columns = CollectWeightedColumns(full_m.get());
+  TestCutInvariants(c, cuts, full_m.get(), columns, slice_start, slice_end);
+}
+}  // namespace
+
+TEST(GPUQuantileProperty, Invariants) {
+  for (auto const& c : ContainerAnchorCases()) {
+    SCOPED_TRACE(c.name);
+    DoGPUContainerProperty(c);
+  }
+}
+
+TEST_F(MGPUQuantileTest, RowSplitProperty) {
+  for (auto const& c : ContainerAnchorCases()) {
+    SCOPED_TRACE(c.name);
+    this->DoTest([&] { DoMGPURowSplitProperty(c); }, true);
+    this->DoTest([&] { DoMGPURowSplitProperty(c); }, false);
+  }
+}
+
+TEST_F(MGPUQuantileTest, ColumnSplitProperty) {
+  for (auto const& c : ContainerAnchorCases()) {
+    SCOPED_TRACE(c.name);
+    this->DoTest([&] { DoMGPUColumnSplitProperty(c); }, true);
+    this->DoTest([&] { DoMGPUColumnSplitProperty(c); }, false);
+  }
+}
 
 TEST(GPUQuantile, Basic) {
   auto ctx = MakeCUDACtx(0);
@@ -527,85 +858,6 @@ TEST(GPUQuantile, MissingColumns) {
   std::size_t constexpr kBins = 64;
   HistogramCuts cuts = common::DeviceSketch(&ctx, dmat.get(), kBins);
   ASSERT_TRUE(cuts.HasCategorical());
-}
-
-namespace {
-inline constexpr double kMaxDistributedWeightedNormalizedRankError = 20.0;
-
-void TestAllReduceBasic() {
-  auto const world = collective::GetWorldSize();
-  constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
-    auto const device = DeviceOrd::CUDA(GPUIDX);
-    auto ctx = MakeCUDACtx(device.ordinal);
-
-    /**
-     * Set up distributed version.  We rely on using rank as seed to generate
-     * the exact same copy of data.
-     */
-    auto rank = collective::GetRank();
-    HostDeviceVector<FeatureType> ft({}, device);
-    SketchContainer sketch_distributed(ft, n_bins, kCols, device);
-    HostDeviceVector<float> storage({}, device);
-    std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                    .Device(device)
-                                    .Seed(rank + seed)
-                                    .GenerateArrayInterface(&storage);
-    data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
-                        std::numeric_limits<float>::quiet_NaN(), &sketch_distributed);
-    auto distributed_cuts = sketch_distributed.MakeCuts(&ctx, false);
-    TestQuantileElemRank(device, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
-    auto full = MakeFullRowSplitDMatrix(kRows, kCols, world, seed);
-    auto max_rank_error = info.weights_.Empty() ? kMaxNormalizedRankError
-                                                : kMaxDistributedWeightedNormalizedRankError;
-    ValidateCuts(distributed_cuts, full.get(), n_bins, max_rank_error);
-  });
-}
-}  // anonymous namespace
-
-TEST_F(MGPUQuantileTest, AllReduceBasic) {
-  this->DoTest([] { TestAllReduceBasic(); }, true);
-  this->DoTest([] { TestAllReduceBasic(); }, false);
-}
-
-namespace {
-void TestColumnSplit(DMatrix* dmat) {
-  auto const world = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  auto m = std::unique_ptr<DMatrix>{dmat->SliceCol(world, rank)};
-
-  // Generate cuts for distributed environment.
-  auto ctx = MakeCUDACtx(GPUIDX);
-  std::size_t constexpr kBins = 64;
-  HistogramCuts distributed_cuts = common::DeviceSketch(&ctx, m.get(), kBins);
-  ValidateCuts(distributed_cuts, m.get(), kBins);
-}
-}  // anonymous namespace
-
-TEST_F(MGPUQuantileTest, ColumnSplitBasic) {
-  std::size_t constexpr kRows = 1000, kCols = 100;
-  auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
-  this->DoTest([&] { TestColumnSplit(dmat.get()); }, true);
-  this->DoTest([&] { TestColumnSplit(dmat.get()); }, false);
-}
-
-TEST_F(MGPUQuantileTest, ColumnSplitCategorical) {
-  std::size_t constexpr kRows = 1000, kCols = 100;
-  auto sparsity = 0.5f;
-  std::vector<FeatureType> ft(kCols);
-  for (size_t i = 0; i < ft.size(); ++i) {
-    ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
-  }
-  auto dmat = RandomDataGenerator{kRows, kCols, sparsity}
-                  .Seed(0)
-                  .Lower(.0f)
-                  .Upper(1.0f)
-                  .Type(ft)
-                  .MaxCategory(13)
-                  .GenerateDMatrix();
-  this->DoTest([&] { TestColumnSplit(dmat.get()); }, true);
-  this->DoTest([&] { TestColumnSplit(dmat.get()); }, false);
 }
 
 namespace {
