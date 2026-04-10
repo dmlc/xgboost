@@ -581,6 +581,24 @@ def wait_event(event_hdl: int) -> None:
         raise ValueError(msg)
 
 
+def parse_cal_ver(ver: str) -> tuple[int, int]:
+    """Parse calendar version."""
+    vers = ver.strip().split(".")
+    return int(vers[0]), int(vers[1])
+
+
+@fcache
+def cudf_read_only() -> bool:
+    """When cuDF >= 26.02, the `to_pylibcudf` method is read-only."""
+    import cudf
+
+    try:
+        vers = parse_cal_ver(cudf.__version__)
+        return vers[0] > 26 or (vers[0] == 26) and vers[1] >= 2
+    except Exception:  # pylint: disable=broad-exception-caught
+        return True
+
+
 def cudf_cat_inf(  # pylint: disable=too-many-locals
     cats: DfCatAccessor, codes: "pd.Series"
 ) -> Tuple[Union[CudaArrayInf, CudaStringArray], ArrayInf, Tuple]:
@@ -595,7 +613,10 @@ def cudf_cat_inf(  # pylint: disable=too-many-locals
         return cats_ainf, codes_ainf, (cats, codes)
 
     # pylint: disable=protected-access
-    arrow_col = cats._column.to_pylibcudf(mode="read")
+    if cudf_read_only():
+        arrow_col = cats._column.to_pylibcudf()
+    else:
+        arrow_col = cats._column.to_pylibcudf(mode="read")
     # Tuple[types.CapsuleType, types.CapsuleType]
     schema, array = arrow_col.__arrow_c_device_array__()
 
