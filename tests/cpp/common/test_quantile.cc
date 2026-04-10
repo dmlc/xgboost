@@ -93,6 +93,64 @@ void TestContainerInvariants(ContainerCase const& c, HistogramCuts const& cuts, 
   }
 }
 
+void AssertSameOnAllWorkers(Context const* ctx, HistogramCuts const& cuts) {
+  auto const world = collective::GetWorldSize();
+  if (world <= 1) {
+    return;
+  }
+
+  auto const rank = collective::GetRank();
+  auto const local_value_size = static_cast<std::int64_t>(cuts.Values().size());
+  auto const local_ptr_size = static_cast<std::int64_t>(cuts.Ptrs().size());
+
+  std::vector<std::int64_t> value_sizes(world, 0);
+  std::vector<std::int64_t> ptr_sizes(world, 0);
+  value_sizes.at(rank) = local_value_size;
+  ptr_sizes.at(rank) = local_ptr_size;
+
+  auto rc = collective::Success() << [&] {
+    return collective::Allreduce(ctx, linalg::MakeVec(value_sizes.data(), value_sizes.size()),
+                                 collective::Op::kSum);
+  } << [&] {
+    return collective::Allreduce(ctx, linalg::MakeVec(ptr_sizes.data(), ptr_sizes.size()),
+                                 collective::Op::kSum);
+  };
+  collective::SafeColl(rc);
+
+  auto const max_value_size = *std::max_element(value_sizes.cbegin(), value_sizes.cend());
+  auto const max_ptr_size = *std::max_element(ptr_sizes.cbegin(), ptr_sizes.cend());
+  std::vector<float> cut_values(static_cast<std::size_t>(max_value_size) * world, 0.0f);
+  std::vector<typename std::remove_reference_t<decltype(cuts.Ptrs())>::value_type> cut_ptrs(
+      static_cast<std::size_t>(max_ptr_size) * world, 0);
+
+  auto const value_offset = static_cast<std::size_t>(max_value_size) * rank;
+  auto const ptr_offset = static_cast<std::size_t>(max_ptr_size) * rank;
+  std::copy(cuts.Values().cbegin(), cuts.Values().cend(), cut_values.begin() + value_offset);
+  std::copy(cuts.Ptrs().cbegin(), cuts.Ptrs().cend(), cut_ptrs.begin() + ptr_offset);
+
+  rc = collective::Success() << [&] {
+    return collective::Allreduce(ctx, linalg::MakeVec(cut_values.data(), cut_values.size()),
+                                 collective::Op::kSum);
+  } << [&] {
+    return collective::Allreduce(ctx, linalg::MakeVec(cut_ptrs.data(), cut_ptrs.size()),
+                                 collective::Op::kSum);
+  };
+  collective::SafeColl(rc);
+
+  for (std::int32_t worker = 0; worker < world; ++worker) {
+    ASSERT_EQ(value_sizes.at(worker), local_value_size);
+    ASSERT_EQ(ptr_sizes.at(worker), local_ptr_size);
+    for (std::int64_t j = 0; j < local_value_size; ++j) {
+      auto idx = static_cast<std::size_t>(worker) * max_value_size + static_cast<std::size_t>(j);
+      ASSERT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
+    }
+    for (std::int64_t j = 0; j < local_ptr_size; ++j) {
+      auto idx = static_cast<std::size_t>(worker) * max_ptr_size + static_cast<std::size_t>(j);
+      ASSERT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
+    }
+  }
+}
+
 }  // namespace
 
 TEST_P(QuantileSummaryTest, Invariants) {
@@ -231,11 +289,67 @@ void DoPropertyDistributedQuantile(ContainerCase const& c) {
   TestContainerInvariants(c, row_cuts, full_m.get(), columns);
   TestContainerInvariants(c, sorted_cuts, full_m.get(), columns);
 }
+
+void DoSameOnAllWorkersDistributedQuantile(ContainerCase const& c) {
+  Context ctx;
+  auto const world = collective::GetWorldSize();
+  auto ft = FeatureTypes(c);
+  auto rank = collective::GetRank();
+  auto full_m = RandomDataGenerator{c.rows * static_cast<std::size_t>(world), c.cols, c.sparsity}
+                    .Seed(c.seed)
+                    .Lower(.0f)
+                    .Upper(1.0f)
+                    .Type(ft)
+                    .MaxCategory(13)
+                    .GenerateDMatrix();
+  if (c.weights == WeightKind::kRow) {
+    full_m->Info().weights_.HostVector() =
+        GenerateWeights(c.rows * static_cast<std::size_t>(world), c.seed + 4096);
+  }
+  std::vector<std::int32_t> ridxs(c.rows);
+  auto row_begin = static_cast<std::size_t>(rank) * c.rows;
+  std::iota(ridxs.begin(), ridxs.end(), static_cast<std::int32_t>(row_begin));
+  std::shared_ptr<DMatrix> m{full_m->Slice(Span<std::int32_t const>{ridxs.data(), ridxs.size()})};
+
+  std::vector<bst_idx_t> column_size(c.cols, c.rows);
+  std::vector<float> hessian(c.rows, 1.0f);
+  auto hess = Span<float const>{hessian};
+  HostSketchContainer row_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
+                                 column_size, false);
+  for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+    row_sketch.PushRowPage(page, m->Info(), hess);
+  }
+  auto row_cuts = row_sketch.MakeCuts(&ctx, m->Info());
+  AssertSameOnAllWorkers(&ctx, row_cuts);
+
+  HostSketchContainer sorted_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
+                                    column_size, false);
+  for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
+    sorted_sketch.PushColPage(page, m->Info(), hess);
+  }
+  auto sorted_cuts = sorted_sketch.MakeCuts(&ctx, m->Info());
+  AssertSameOnAllWorkers(&ctx, sorted_cuts);
+
+  collective::Finalize();
+}
 }  // namespace
 
 TEST_P(QuantileDistributedContainerTest, Invariants) {
   auto c = GetParam();
   collective::TestDistributedGlobal(4, [&] { DoPropertyDistributedQuantile(c); }, false);
+}
+
+TEST(Quantile, SameOnAllWorkers) {
+  auto c = ContainerCase{};
+  c.name = "same_on_all_workers";
+  c.rows = 1024;
+  c.cols = 8;
+  c.sparsity = 0.2f;
+  c.max_bin = 256;
+  c.weights = WeightKind::kRow;
+  c.features = FeatureKind::kNumerical;
+  c.seed = 11;
+  collective::TestDistributedGlobal(4, [&] { DoSameOnAllWorkersDistributedQuantile(c); }, false);
 }
 
 INSTANTIATE_TEST_SUITE_P(Anchors, QuantileContainerTest,
