@@ -21,6 +21,11 @@ enum class WeightKind { kNone, kRow };
 
 enum class DataKind { kClustered, kDuplicateHeavy, kExactUnique, kStaircaseMass };
 
+enum class FeatureKind { kNumerical, kMixed };
+
+inline constexpr double kMaxNormalizedRankError = 2.0;
+inline constexpr double kMaxWeightedNormalizedRankError = 10.0;
+
 struct SummaryCase {
   std::string name;
   std::size_t rows{0};
@@ -45,9 +50,24 @@ struct ReferenceColumn {
   std::vector<double> prefix_weights;
 };
 
+struct ContainerCase {
+  std::string name;
+  std::size_t rows{0};
+  std::size_t cols{0};
+  float sparsity{0.0f};
+  bst_bin_t max_bin{0};
+  WeightKind weights{WeightKind::kNone};
+  FeatureKind features{FeatureKind::kNumerical};
+  std::uint32_t seed{0};
+};
+
 inline bool IsExactUniqueCase(SummaryCase const& c) { return c.data == DataKind::kExactUnique; }
 
-inline std::string CaseName(testing::TestParamInfo<SummaryCase> const& info) {
+inline std::string SummaryCaseName(testing::TestParamInfo<SummaryCase> const& info) {
+  return info.param.name;
+}
+
+inline std::string ContainerCaseName(testing::TestParamInfo<ContainerCase> const& info) {
   return info.param.name;
 }
 
@@ -97,6 +117,204 @@ inline std::vector<SummaryCase> SummaryRandomCases(std::size_t n_cases) {
   }
 
   return cases;
+}
+
+inline std::vector<ContainerCase> ContainerAnchorCases() {
+  return {
+      {"empty_numeric_bins16", 0, 32, 0.0f, 16, WeightKind::kNone, FeatureKind::kNumerical, 10},
+      {"dense_numeric_unweighted_bins2", 256, 32, 0.0f, 2, WeightKind::kNone,
+       FeatureKind::kNumerical, 11},
+      {"dense_numeric_unweighted_bins16", 256, 32, 0.0f, 16, WeightKind::kNone,
+       FeatureKind::kNumerical, 12},
+      {"dense_numeric_weighted_bins256", 512, 32, 0.0f, 256, WeightKind::kRow,
+       FeatureKind::kNumerical, 13},
+      {"sparse_numeric_weighted_bins32", 512, 48, 0.7f, 32, WeightKind::kRow,
+       FeatureKind::kNumerical, 14},
+      {"dense_mixed_unweighted_bins16", 256, 24, 0.0f, 16, WeightKind::kNone, FeatureKind::kMixed,
+       15},
+      {"sparse_mixed_weighted_bins64", 512, 40, 0.8f, 64, WeightKind::kRow, FeatureKind::kMixed,
+       16},
+  };
+}
+
+inline std::vector<FeatureType> FeatureTypes(ContainerCase const& c) {
+  std::vector<FeatureType> ft(c.cols, FeatureType::kNumerical);
+  if (c.features == FeatureKind::kMixed) {
+    for (std::size_t i = 0; i < ft.size(); ++i) {
+      ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
+    }
+  }
+  return ft;
+}
+
+inline std::vector<float> GenerateWeights(std::size_t rows, std::uint32_t seed) {
+  std::vector<float> weights(rows, 1.0f);
+  SimpleLCG lcg{seed};
+  SimpleRealUniformDistribution<float> unit_dist(0.0f, 1.0f);
+  std::generate(weights.begin(), weights.end(), [&] { return std::exp(6.0f * unit_dist(&lcg)); });
+  return weights;
+}
+
+inline auto CollectWeightedColumns(DMatrix* dmat) -> std::vector<std::vector<WeightedValue>> {
+  std::vector<std::vector<WeightedValue>> columns(dmat->Info().num_col_);
+  if (dmat->Info().num_row_ == 0) {
+    return columns;
+  }
+  std::vector<float> weights = dmat->Info().group_ptr_.empty()
+                                   ? dmat->Info().weights_.HostVector()
+                                   : detail::UnrollGroupWeights(dmat->Info());
+
+  bst_idx_t row_idx{0};
+  Context ctx;
+  for (auto const& batch : dmat->GetBatches<SparsePage>(&ctx)) {
+    auto page = batch.GetView();
+    for (std::size_t i = 0; i < batch.Size(); ++i) {
+      auto row_weight =
+          weights.empty() ? 1.0
+                          : static_cast<double>(weights.at(static_cast<std::size_t>(row_idx + i)));
+      for (auto e : page[i]) {
+        columns[e.index].push_back({e.fvalue, row_weight});
+      }
+    }
+    row_idx += batch.Size();
+  }
+  CHECK_EQ(row_idx, dmat->Info().num_row_);
+
+  for (auto& column : columns) {
+    std::sort(column.begin(), column.end(),
+              [](auto const& lhs, auto const& rhs) { return lhs.value < rhs.value; });
+  }
+  return columns;
+}
+
+inline auto AggregateWeightedColumn(std::vector<WeightedValue> const& sorted_column)
+    -> ReferenceColumn {
+  ReferenceColumn ref;
+  ref.prefix_weights.push_back(0.0);
+  for (auto const& entry : sorted_column) {
+    if (!ref.values.empty() && ref.values.back() == entry.value) {
+      ref.prefix_weights.back() += entry.weight;
+    } else {
+      ref.values.push_back(entry.value);
+      ref.prefix_weights.push_back(ref.prefix_weights.back() + entry.weight);
+    }
+  }
+  return ref;
+}
+
+inline double DistanceToInterval(double target, double lo, double hi) {
+  if (target < lo) {
+    return lo - target;
+  }
+  if (target > hi) {
+    return target - hi;
+  }
+  return 0.0;
+}
+
+struct CutRankErrorSummary {
+  double max_normalized_error{0.0};
+  double max_absolute_error{0.0};
+  double target_rank{0.0};
+  double rank_lo{0.0};
+  double rank_hi{0.0};
+  double total_weight{0.0};
+  bst_feature_t feature{0};
+  std::size_t cut_index{0};
+  std::size_t num_interior_cuts{0};
+};
+
+inline auto MeasureCutRankError(HistogramCuts const& cuts, bst_feature_t column_idx,
+                                ReferenceColumn const& ref) -> CutRankErrorSummary {
+  CutRankErrorSummary summary;
+  summary.feature = column_idx;
+  if (ref.values.empty()) {
+    return summary;
+  }
+
+  auto beg = cuts.Ptrs()[column_idx];
+  auto end = cuts.Ptrs()[column_idx + 1];
+  auto num_cuts = end - beg;
+  if (num_cuts <= 1) {
+    return summary;
+  }
+  summary.num_interior_cuts = num_cuts - 1;  // Final cut is the sentinel upper bound.
+  summary.total_weight = ref.prefix_weights.back();
+  if (summary.total_weight == 0.0 || summary.num_interior_cuts == 0) {
+    return summary;
+  }
+
+  auto avg_bin_weight = summary.total_weight / static_cast<double>(summary.num_interior_cuts);
+  for (std::size_t cut_idx = 0; cut_idx < summary.num_interior_cuts; ++cut_idx) {
+    auto cut_value = cuts.Values()[beg + cut_idx];
+    auto lb = std::lower_bound(ref.values.cbegin(), ref.values.cend(), cut_value);
+    auto ub = std::upper_bound(ref.values.cbegin(), ref.values.cend(), cut_value);
+    auto rank_lo = ref.prefix_weights[std::distance(ref.values.cbegin(), lb)];
+    auto rank_hi = ref.prefix_weights[std::distance(ref.values.cbegin(), ub)];
+    auto target_rank = static_cast<double>(cut_idx + 1) * summary.total_weight /
+                       static_cast<double>(summary.num_interior_cuts);
+    auto absolute_error = DistanceToInterval(target_rank, rank_lo, rank_hi);
+    auto normalized_error = absolute_error / avg_bin_weight;
+    if (normalized_error > summary.max_normalized_error) {
+      summary.max_normalized_error = normalized_error;
+      summary.max_absolute_error = absolute_error;
+      summary.target_rank = target_rank;
+      summary.rank_lo = rank_lo;
+      summary.rank_hi = rank_hi;
+      summary.cut_index = cut_idx;
+    }
+  }
+
+  return summary;
+}
+
+inline void ValidateNumericalCuts(HistogramCuts const& cuts, bst_feature_t column_idx,
+                                  std::vector<WeightedValue> const& sorted_column,
+                                  std::size_t num_bins, double max_normalized_rank_error) {
+  auto ref = AggregateWeightedColumn(sorted_column);
+  CHECK(!ref.values.empty());
+
+  auto beg = cuts.Ptrs()[column_idx];
+  auto end = cuts.Ptrs()[column_idx + 1];
+  auto first_bin = HistogramCuts::NumericBinLowerBound(cuts.Ptrs(), cuts.Values(), column_idx, beg);
+  EXPECT_TRUE(std::isinf(first_bin));
+  EXPECT_LT(first_bin, 0.0f);
+  EXPECT_GT(cuts.Values()[beg], ref.values.front());
+  EXPECT_GE(cuts.Values()[end - 1], ref.values.back());
+
+  if (ref.values.size() <= num_bins) {
+    for (std::size_t i = 0; i < ref.values.size(); ++i) {
+      ASSERT_EQ(cuts.SearchBin(ref.values[i], column_idx), beg + i)
+          << "feature=" << column_idx << ", value_index=" << i;
+    }
+  } else {
+    auto stats = MeasureCutRankError(cuts, column_idx, ref);
+    EXPECT_LE(stats.max_normalized_error, max_normalized_rank_error)
+        << "feature=" << column_idx << ", cut=" << stats.cut_index
+        << ", normalized_error=" << stats.max_normalized_error
+        << ", absolute_error=" << stats.max_absolute_error << ", target_rank=" << stats.target_rank
+        << ", rank_lo=" << stats.rank_lo << ", rank_hi=" << stats.rank_hi
+        << ", total_weight=" << stats.total_weight
+        << ", num_interior_cuts=" << stats.num_interior_cuts;
+  }
+}
+
+inline void ValidateCategoricalCuts(HistogramCuts const& cuts, bst_feature_t column_idx,
+                                    std::vector<WeightedValue> const& sorted_column) {
+  std::vector<float> categories;
+  categories.reserve(sorted_column.size());
+  for (auto const& entry : sorted_column) {
+    categories.push_back(entry.value);
+  }
+  std::sort(categories.begin(), categories.end());
+  categories.erase(std::unique(categories.begin(), categories.end()), categories.end());
+
+  auto beg = cuts.Ptrs()[column_idx];
+  auto end = cuts.Ptrs()[column_idx + 1];
+  ASSERT_EQ(static_cast<std::size_t>(end - beg), categories.size()) << "feature=" << column_idx;
+  for (std::size_t i = 0; i < categories.size(); ++i) {
+    EXPECT_EQ(cuts.Values()[beg + i], categories[i]) << "feature=" << column_idx;
+  }
 }
 
 inline GeneratedColumn GenerateSummaryColumn(SummaryCase const& c) {
