@@ -85,6 +85,66 @@ TEST(GPUPredictor, ShapOutputCasesGPU) {
   }
 }
 
+TEST(GPUPredictor, CompareCPUQuadratureShap) {
+  auto ctx = MakeCUDACtx(0);
+  Context cpu_ctx;
+  bst_feature_t constexpr kCols{10};
+  bst_idx_t constexpr kRows{256};
+  std::size_t constexpr kIters{8};
+
+  HostDeviceVector<float> predictions;
+  HostDeviceVector<float> cpu_predictions;
+
+  auto dmat = RandomDataGenerator(kRows, kCols, 0.0).Device(ctx.Device()).GenerateDMatrix();
+  dmat->Info().labels.Reshape(kRows, 1);
+  auto& h_labels = dmat->Info().labels.Data()->HostVector();
+  for (size_t i = 0; i < kRows; ++i) {
+    h_labels[i] = i % 2;
+  }
+
+  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  learner->SetParams(Args{{"objective", "binary:logistic"},
+                          {"tree_method", "hist"},
+                          {"max_depth", "8"},
+                          {"min_split_loss", "0"},
+                          {"min_child_weight", "0"},
+                          {"reg_lambda", "0"},
+                          {"reg_alpha", "0"},
+                          {"subsample", "1"},
+                          {"colsample_bytree", "1"},
+                          {"device", ctx.DeviceName()}});
+  learner->Configure();
+  for (std::size_t i = 0; i < kIters; ++i) {
+    learner->UpdateOneIter(i, dmat);
+  }
+
+  Json model{Object{}};
+  learner->SaveModel(&model);
+
+  std::unique_ptr<Learner> learner_gpu{Learner::Create({})};
+  learner_gpu->LoadModel(model);
+  learner_gpu->SetParam("device", ctx.DeviceName());
+  learner_gpu->SetParam("shap_algorithm", "quadratureshap");
+  learner_gpu->SetParam("quadratureshap_points", "8");
+  learner_gpu->Configure();
+
+  std::unique_ptr<Learner> learner_cpu{Learner::Create({})};
+  learner_cpu->LoadModel(model);
+  learner_cpu->SetParam("device", cpu_ctx.DeviceName());
+  learner_cpu->SetParam("shap_algorithm", "quadratureshap");
+  learner_cpu->SetParam("quadratureshap_points", "8");
+  learner_cpu->Configure();
+
+  learner_gpu->Predict(dmat, false, &predictions, 0, 0, false, false, true, false, false);
+  learner_cpu->Predict(dmat, false, &cpu_predictions, 0, 0, false, false, true, false, false);
+  auto& phis = predictions.HostVector();
+  auto& cpu_phis = cpu_predictions.HostVector();
+  ASSERT_EQ(cpu_phis.size(), phis.size());
+  for (auto i = 0ull; i < phis.size(); ++i) {
+    EXPECT_NEAR(cpu_phis[i], phis[i], 1e-4);
+  }
+}
+
 TEST(GPUPredictor, DartShapOutputGPU) {
   auto ctx = MakeCUDACtx(0);
   CheckDartShapOutput(&ctx);

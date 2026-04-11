@@ -6,6 +6,7 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t, uint64_t
 #include <memory>     // for unique_ptr, shared_ptr
+#include <stdexcept>  // for invalid_argument, out_of_range
 #include <vector>     // for vector
 
 #include "../collective/allreduce.h"         // for Allreduce
@@ -745,6 +746,27 @@ class CPUPredictor : public Predictor {
  public:
   explicit CPUPredictor(Context const *ctx) : Predictor::Predictor{ctx} {}
 
+  void Configure(Args const &cfg) override {
+    for (auto const &kv : cfg) {
+      if (kv.first == "shap_algorithm") {
+        CHECK(kv.second == "treeshap" || kv.second == "quadratureshap")
+            << "Unknown SHAP algorithm: " << kv.second;
+        shap_algorithm_ = kv.second;
+      } else if (kv.first == "quadratureshap_points") {
+        std::size_t points{0};
+        try {
+          points = std::stoul(kv.second);
+        } catch (std::invalid_argument const &) {
+          LOG(FATAL) << "Invalid quadratureshap_points: " << kv.second;
+        } catch (std::out_of_range const &) {
+          LOG(FATAL) << "quadratureshap_points out of range: " << kv.second;
+        }
+        CHECK_EQ(points, 8) << "CPU QuadratureSHAP currently uses a fixed quadrature size of 8.";
+        quadrature_shap_points_ = points;
+      }
+    }
+  }
+
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts, gbm::GBTreeModel const &model,
                     bst_tree_t tree_begin, bst_tree_t tree_end = 0,
                     std::vector<float> const *tree_weights = nullptr) const override {
@@ -868,6 +890,10 @@ class CPUPredictor : public Predictor {
     if (approximate) {
       interpretability::ApproxFeatureImportance(this->ctx_, p_fmat, out_contribs, model,
                                                 ntree_limit, tree_weights);
+    } else if (shap_algorithm_ == "quadratureshap" && condition == 0 && condition_feature == 0) {
+      interpretability::cpu_impl::QuadratureShapValues(this->ctx_, p_fmat, out_contribs, model,
+                                                       ntree_limit, tree_weights,
+                                                       quadrature_shap_points_);
     } else {
       interpretability::ShapValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
                                    tree_weights, condition, condition_feature);
@@ -878,9 +904,19 @@ class CPUPredictor : public Predictor {
                                        gbm::GBTreeModel const &model, bst_tree_t ntree_limit,
                                        std::vector<float> const *tree_weights,
                                        bool approximate) const override {
-    interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
-                                            tree_weights, approximate);
+    if (!approximate && shap_algorithm_ == "quadratureshap") {
+      interpretability::cpu_impl::QuadratureShapInteractionValues(this->ctx_, p_fmat, out_contribs,
+                                                                  model, ntree_limit, tree_weights,
+                                                                  quadrature_shap_points_);
+    } else {
+      interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
+                                              tree_weights, approximate);
+    }
   }
+
+ private:
+  std::string shap_algorithm_{"treeshap"};
+  std::size_t quadrature_shap_points_{8};
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")

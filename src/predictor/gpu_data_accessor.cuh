@@ -32,14 +32,17 @@ struct SparsePageView {
         num_features{n_features} {}
 
   [[nodiscard]] __device__ float GetElement(size_t ridx, size_t fidx) const {
-    // Binary search
-    auto begin_ptr = d_data.begin() + d_row_ptr[ridx];
-    auto end_ptr = d_data.begin() + d_row_ptr[ridx + 1];
-    if (end_ptr - begin_ptr == this->NumCols()) {
-      // Bypass span check for dense data
-      return d_data.data()[d_row_ptr[ridx] + fidx].fvalue;
+    auto row_begin = d_row_ptr[ridx];
+    auto row_size = d_row_ptr[ridx + 1] - row_begin;
+    auto begin_ptr = d_data.data() + row_begin;
+    if (row_size == this->NumCols()) {
+      // Dense rows are laid out in feature order, so this is a raw-pointer lookup.
+      return begin_ptr[fidx].fvalue;
     }
-    common::Span<const Entry>::iterator previous_middle;
+
+    // Binary search over sparse entries using raw pointers.
+    auto end_ptr = begin_ptr + row_size;
+    auto previous_middle = static_cast<Entry const*>(nullptr);
     while (end_ptr != begin_ptr) {
       auto middle = begin_ptr + (end_ptr - begin_ptr) / 2;
       if (middle == previous_middle) {
