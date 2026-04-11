@@ -14,6 +14,7 @@
 #include "../helpers.h"
 #include "test_hist_util.h"
 #include "test_quantile.h"
+#include "test_quantile_helpers.h"
 
 namespace xgboost {
 namespace {
@@ -52,254 +53,9 @@ namespace common {
 class MGPUQuantileTest : public collective::BaseMGPUTest {};
 
 namespace {
-enum class WeightKind { kNone, kRow };
-enum class FeatureKind { kNumerical, kMixed };
-
-inline constexpr double kMaxNormalizedRankError = 2.0;
-inline constexpr double kMaxWeightedNormalizedRankError = 10.0;
-
-struct WeightedValue {
-  float value;
-  double weight;
-};
-
-struct ReferenceColumn {
-  std::vector<float> values;
-  std::vector<double> prefix_weights;
-};
-
-struct ContainerCase {
-  std::string name;
-  std::size_t rows{0};
-  std::size_t cols{0};
-  float sparsity{0.0f};
-  bst_bin_t max_bin{0};
-  WeightKind weights{WeightKind::kNone};
-  FeatureKind features{FeatureKind::kNumerical};
-  std::uint32_t seed{0};
-};
-
-auto ContainerAnchorCases() -> std::vector<ContainerCase> {
-  return {
-      {"empty_numeric_bins16", 0, 32, 0.0f, 16, WeightKind::kNone, FeatureKind::kNumerical, 10},
-      {"dense_numeric_unweighted_bins2", 256, 32, 0.0f, 2, WeightKind::kNone,
-       FeatureKind::kNumerical, 11},
-      {"dense_numeric_unweighted_bins16", 256, 32, 0.0f, 16, WeightKind::kNone,
-       FeatureKind::kNumerical, 12},
-      {"dense_numeric_weighted_bins256", 512, 32, 0.0f, 256, WeightKind::kRow,
-       FeatureKind::kNumerical, 13},
-      {"sparse_numeric_weighted_bins32", 512, 48, 0.7f, 32, WeightKind::kRow,
-       FeatureKind::kNumerical, 14},
-      {"dense_mixed_unweighted_bins16", 256, 24, 0.0f, 16, WeightKind::kNone, FeatureKind::kMixed,
-       15},
-      {"sparse_mixed_weighted_bins64", 512, 40, 0.8f, 64, WeightKind::kRow, FeatureKind::kMixed,
-       16},
-  };
-}
-
-auto FeatureTypes(ContainerCase const& c) -> std::vector<FeatureType> {
-  std::vector<FeatureType> ft(c.cols, FeatureType::kNumerical);
-  if (c.features == FeatureKind::kMixed) {
-    for (std::size_t i = 0; i < ft.size(); ++i) {
-      ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
-    }
-  }
-  return ft;
-}
-
-auto GenerateWeights(std::size_t rows, std::uint32_t seed) -> std::vector<float> {
-  std::vector<float> weights(rows, 1.0f);
-  SimpleLCG lcg{seed};
-  SimpleRealUniformDistribution<float> unit_dist(0.0f, 1.0f);
-  std::generate(weights.begin(), weights.end(), [&] { return std::exp(6.0f * unit_dist(&lcg)); });
-  return weights;
-}
-
-auto CollectWeightedColumns(DMatrix* dmat) -> std::vector<std::vector<WeightedValue>> {
-  std::vector<std::vector<WeightedValue>> columns(dmat->Info().num_col_);
-  if (dmat->Info().num_row_ == 0) {
-    return columns;
-  }
-  std::vector<float> weights = dmat->Info().group_ptr_.empty()
-                                   ? dmat->Info().weights_.HostVector()
-                                   : detail::UnrollGroupWeights(dmat->Info());
-
-  bst_idx_t row_idx{0};
-  Context ctx;
-  for (auto const& batch : dmat->GetBatches<SparsePage>(&ctx)) {
-    auto page = batch.GetView();
-    for (std::size_t i = 0; i < batch.Size(); ++i) {
-      auto row_weight =
-          weights.empty() ? 1.0
-                          : static_cast<double>(weights.at(static_cast<std::size_t>(row_idx + i)));
-      for (auto e : page[i]) {
-        columns[e.index].push_back({e.fvalue, row_weight});
-      }
-    }
-    row_idx += batch.Size();
-  }
-
-  for (auto& column : columns) {
-    std::sort(column.begin(), column.end(),
-              [](auto const& lhs, auto const& rhs) { return lhs.value < rhs.value; });
-  }
-  return columns;
-}
-
-auto AggregateWeightedColumn(std::vector<WeightedValue> const& sorted_column) -> ReferenceColumn {
-  ReferenceColumn ref;
-  ref.prefix_weights.push_back(0.0);
-  for (auto const& entry : sorted_column) {
-    if (!ref.values.empty() && ref.values.back() == entry.value) {
-      ref.prefix_weights.back() += entry.weight;
-    } else {
-      ref.values.push_back(entry.value);
-      ref.prefix_weights.push_back(ref.prefix_weights.back() + entry.weight);
-    }
-  }
-  return ref;
-}
-
-double DistanceToInterval(double target, double lo, double hi) {
-  if (target < lo) {
-    return lo - target;
-  }
-  if (target > hi) {
-    return target - hi;
-  }
-  return 0.0;
-}
-
-struct CutRankErrorSummary {
-  double max_normalized_error{0.0};
-  double max_absolute_error{0.0};
-  double target_rank{0.0};
-  double rank_lo{0.0};
-  double rank_hi{0.0};
-  double total_weight{0.0};
-  bst_feature_t feature{0};
-  std::size_t cut_index{0};
-  std::size_t num_interior_cuts{0};
-};
-
-auto MeasureCutRankError(HistogramCuts const& cuts, bst_feature_t column_idx,
-                         ReferenceColumn const& ref) -> CutRankErrorSummary {
-  CutRankErrorSummary summary;
-  summary.feature = column_idx;
-  if (ref.values.empty()) {
-    return summary;
-  }
-
-  auto beg = cuts.Ptrs()[column_idx];
-  auto end = cuts.Ptrs()[column_idx + 1];
-  auto num_cuts = end - beg;
-  if (num_cuts <= 1) {
-    return summary;
-  }
-  summary.num_interior_cuts = num_cuts - 1;
-  summary.total_weight = ref.prefix_weights.back();
-  if (summary.total_weight == 0.0 || summary.num_interior_cuts == 0) {
-    return summary;
-  }
-
-  auto avg_bin_weight = summary.total_weight / static_cast<double>(summary.num_interior_cuts);
-  for (std::size_t cut_idx = 0; cut_idx < summary.num_interior_cuts; ++cut_idx) {
-    auto cut_value = cuts.Values()[beg + cut_idx];
-    auto lb = std::lower_bound(ref.values.cbegin(), ref.values.cend(), cut_value);
-    auto ub = std::upper_bound(ref.values.cbegin(), ref.values.cend(), cut_value);
-    auto rank_lo = ref.prefix_weights[std::distance(ref.values.cbegin(), lb)];
-    auto rank_hi = ref.prefix_weights[std::distance(ref.values.cbegin(), ub)];
-    auto target_rank = static_cast<double>(cut_idx + 1) * summary.total_weight /
-                       static_cast<double>(summary.num_interior_cuts);
-    auto absolute_error = DistanceToInterval(target_rank, rank_lo, rank_hi);
-    auto normalized_error = absolute_error / avg_bin_weight;
-    if (normalized_error > summary.max_normalized_error) {
-      summary.max_normalized_error = normalized_error;
-      summary.max_absolute_error = absolute_error;
-      summary.target_rank = target_rank;
-      summary.rank_lo = rank_lo;
-      summary.rank_hi = rank_hi;
-      summary.cut_index = cut_idx;
-    }
-  }
-
-  return summary;
-}
-
-void ValidateNumericalCuts(HistogramCuts const& cuts, bst_feature_t column_idx,
-                           std::vector<WeightedValue> const& sorted_column, std::size_t num_bins,
-                           double max_normalized_rank_error) {
-  auto ref = AggregateWeightedColumn(sorted_column);
-  CHECK(!ref.values.empty());
-
-  auto beg = cuts.Ptrs()[column_idx];
-  auto end = cuts.Ptrs()[column_idx + 1];
-  auto first_bin = HistogramCuts::NumericBinLowerBound(cuts.Ptrs(), cuts.Values(), column_idx, beg);
-  EXPECT_TRUE(std::isinf(first_bin));
-  EXPECT_LT(first_bin, 0.0f);
-  EXPECT_GT(cuts.Values()[beg], ref.values.front());
-  EXPECT_GE(cuts.Values()[end - 1], ref.values.back());
-
-  if (ref.values.size() <= num_bins) {
-    for (std::size_t i = 0; i < ref.values.size(); ++i) {
-      ASSERT_EQ(cuts.SearchBin(ref.values[i], column_idx), beg + i)
-          << "feature=" << column_idx << ", value_index=" << i;
-    }
-  } else {
-    auto stats = MeasureCutRankError(cuts, column_idx, ref);
-    EXPECT_LE(stats.max_normalized_error, max_normalized_rank_error)
-        << "feature=" << column_idx << ", cut=" << stats.cut_index;
-  }
-}
-
-void ValidateCategoricalCuts(HistogramCuts const& cuts, bst_feature_t column_idx,
-                             std::vector<WeightedValue> const& sorted_column) {
-  std::vector<float> categories;
-  categories.reserve(sorted_column.size());
-  for (auto const& entry : sorted_column) {
-    categories.push_back(entry.value);
-  }
-  std::sort(categories.begin(), categories.end());
-  categories.erase(std::unique(categories.begin(), categories.end()), categories.end());
-
-  auto beg = cuts.Ptrs()[column_idx];
-  auto end = cuts.Ptrs()[column_idx + 1];
-  ASSERT_EQ(static_cast<std::size_t>(end - beg), categories.size()) << "feature=" << column_idx;
-  for (std::size_t i = 0; i < categories.size(); ++i) {
-    EXPECT_EQ(cuts.Values()[beg + i], categories[i]) << "feature=" << column_idx;
-  }
-}
-
-void TestCutInvariants(ContainerCase const& c, HistogramCuts const& cuts, DMatrix* dmat,
-                       std::vector<std::vector<WeightedValue>> const& columns,
-                       std::size_t f_begin = 0,
-                       std::size_t f_end = std::numeric_limits<std::size_t>::max()) {
-  ASSERT_EQ(cuts.Ptrs().size(), c.cols + 1) << "case=" << c.name;
-  auto ft = dmat->Info().feature_types.ConstHostSpan();
-  auto max_error =
-      c.weights == WeightKind::kRow ? kMaxWeightedNormalizedRankError : kMaxNormalizedRankError;
-  f_end = std::min(f_end, columns.size());
-  for (std::size_t i = f_begin; i < f_end; ++i) {
-    auto beg = cuts.Ptrs()[i];
-    auto end = cuts.Ptrs()[i + 1];
-    ASSERT_LT(beg, end) << "case=" << c.name << ", feature=" << i;
-    for (auto j = beg + 1; j < end; ++j) {
-      EXPECT_LT(cuts.Values()[j - 1], cuts.Values()[j]) << "case=" << c.name << ", feature=" << i;
-    }
-    if (columns[i].empty()) {
-      continue;
-    }
-    if (!ft.empty() && IsCat(ft, i)) {
-      ValidateCategoricalCuts(cuts, i, columns[i]);
-    } else {
-      ValidateNumericalCuts(cuts, i, columns[i], c.max_bin, max_error);
-    }
-  }
-}
-
-void DoGPUContainerProperty(ContainerCase const& c) {
+void DoGPUContainerProperty(quantile_test::ContainerCase const& c) {
   auto ctx = MakeCUDACtx(0);
-  auto ft = FeatureTypes(c);
+  auto ft = quantile_test::FeatureTypes(c);
   auto m = RandomDataGenerator{c.rows, c.cols, c.sparsity}
                .Seed(c.seed)
                .Lower(.0f)
@@ -307,19 +63,19 @@ void DoGPUContainerProperty(ContainerCase const& c) {
                .Type(ft)
                .MaxCategory(13)
                .GenerateDMatrix();
-  if (c.weights == WeightKind::kRow) {
-    m->Info().weights_.HostVector() = GenerateWeights(c.rows, c.seed + 1024);
+  if (c.weights == quantile_test::WeightKind::kRow) {
+    m->Info().weights_.HostVector() = quantile_test::GenerateWeights(c.rows, c.seed + 1024);
   }
   auto cuts = DeviceSketch(&ctx, m.get(), c.max_bin);
-  auto columns = CollectWeightedColumns(m.get());
-  TestCutInvariants(c, cuts, m.get(), columns);
+  auto columns = quantile_test::CollectWeightedColumns(m.get());
+  quantile_test::ValidateContainerCuts(c, cuts, m.get(), columns);
 }
 
-void DoMGPURowSplitProperty(ContainerCase const& c) {
+void DoMGPURowSplitProperty(quantile_test::ContainerCase const& c) {
   auto const world = collective::GetWorldSize();
   auto const rank = collective::GetRank();
   auto ctx = MakeCUDACtx(GPUIDX);
-  auto ft = FeatureTypes(c);
+  auto ft = quantile_test::FeatureTypes(c);
   auto full_m = RandomDataGenerator{c.rows * static_cast<std::size_t>(world), c.cols, c.sparsity}
                     .Seed(c.seed)
                     .Lower(.0f)
@@ -327,9 +83,9 @@ void DoMGPURowSplitProperty(ContainerCase const& c) {
                     .Type(ft)
                     .MaxCategory(13)
                     .GenerateDMatrix();
-  if (c.weights == WeightKind::kRow) {
+  if (c.weights == quantile_test::WeightKind::kRow) {
     full_m->Info().weights_.HostVector() =
-        GenerateWeights(c.rows * static_cast<std::size_t>(world), c.seed + 4096);
+        quantile_test::GenerateWeights(c.rows * static_cast<std::size_t>(world), c.seed + 4096);
   }
 
   std::vector<std::int32_t> ridxs(c.rows);
@@ -343,15 +99,15 @@ void DoMGPURowSplitProperty(ContainerCase const& c) {
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
 
-  auto columns = CollectWeightedColumns(full_m.get());
-  TestCutInvariants(c, cuts, full_m.get(), columns);
+  auto columns = quantile_test::CollectWeightedColumns(full_m.get());
+  quantile_test::ValidateContainerCuts(c, cuts, full_m.get(), columns);
 }
 
-void DoMGPUColumnSplitProperty(ContainerCase const& c) {
+void DoMGPUColumnSplitProperty(quantile_test::ContainerCase const& c) {
   auto const world = collective::GetWorldSize();
   auto const rank = collective::GetRank();
   auto ctx = MakeCUDACtx(GPUIDX);
-  auto ft = FeatureTypes(c);
+  auto ft = quantile_test::FeatureTypes(c);
   auto full_m = RandomDataGenerator{c.rows, c.cols, c.sparsity}
                     .Seed(c.seed)
                     .Lower(.0f)
@@ -359,8 +115,8 @@ void DoMGPUColumnSplitProperty(ContainerCase const& c) {
                     .Type(ft)
                     .MaxCategory(13)
                     .GenerateDMatrix();
-  if (c.weights == WeightKind::kRow) {
-    full_m->Info().weights_.HostVector() = GenerateWeights(c.rows, c.seed + 2048);
+  if (c.weights == quantile_test::WeightKind::kRow) {
+    full_m->Info().weights_.HostVector() = quantile_test::GenerateWeights(c.rows, c.seed + 2048);
   }
   auto m = std::shared_ptr<DMatrix>{full_m->SliceCol(world, rank)};
 
@@ -372,20 +128,20 @@ void DoMGPUColumnSplitProperty(ContainerCase const& c) {
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
 
-  auto columns = CollectWeightedColumns(full_m.get());
-  TestCutInvariants(c, cuts, full_m.get(), columns, slice_start, slice_end);
+  auto columns = quantile_test::CollectWeightedColumns(full_m.get());
+  quantile_test::ValidateContainerCuts(c, cuts, full_m.get(), columns, slice_start, slice_end);
 }
 }  // namespace
 
 TEST(GPUQuantileProperty, Invariants) {
-  for (auto const& c : ContainerAnchorCases()) {
+  for (auto const& c : quantile_test::ContainerAnchorCases()) {
     SCOPED_TRACE(c.name);
     DoGPUContainerProperty(c);
   }
 }
 
 TEST_F(MGPUQuantileTest, RowSplitProperty) {
-  for (auto const& c : ContainerAnchorCases()) {
+  for (auto const& c : quantile_test::ContainerAnchorCases()) {
     SCOPED_TRACE(c.name);
     this->DoTest([&] { DoMGPURowSplitProperty(c); }, true);
     this->DoTest([&] { DoMGPURowSplitProperty(c); }, false);
@@ -393,7 +149,7 @@ TEST_F(MGPUQuantileTest, RowSplitProperty) {
 }
 
 TEST_F(MGPUQuantileTest, ColumnSplitProperty) {
-  for (auto const& c : ContainerAnchorCases()) {
+  for (auto const& c : quantile_test::ContainerAnchorCases()) {
     SCOPED_TRACE(c.name);
     this->DoTest([&] { DoMGPUColumnSplitProperty(c); }, true);
     this->DoTest([&] { DoMGPUColumnSplitProperty(c); }, false);

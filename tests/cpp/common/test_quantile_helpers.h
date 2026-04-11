@@ -317,6 +317,33 @@ inline void ValidateCategoricalCuts(HistogramCuts const& cuts, bst_feature_t col
   }
 }
 
+inline void ValidateContainerCuts(ContainerCase const& c, HistogramCuts const& cuts, DMatrix* dmat,
+                                  std::vector<std::vector<WeightedValue>> const& columns,
+                                  std::size_t f_begin = 0,
+                                  std::size_t f_end = std::numeric_limits<std::size_t>::max()) {
+  ASSERT_EQ(cuts.Ptrs().size(), c.cols + 1) << "case=" << c.name;
+  auto ft = dmat->Info().feature_types.ConstHostSpan();
+  auto max_error =
+      c.weights == WeightKind::kRow ? kMaxWeightedNormalizedRankError : kMaxNormalizedRankError;
+  f_end = std::min(f_end, columns.size());
+  for (std::size_t i = f_begin; i < f_end; ++i) {
+    auto beg = cuts.Ptrs()[i];
+    auto end = cuts.Ptrs()[i + 1];
+    ASSERT_LT(beg, end) << "case=" << c.name << ", feature=" << i;
+    for (auto j = beg + 1; j < end; ++j) {
+      EXPECT_LT(cuts.Values()[j - 1], cuts.Values()[j]) << "case=" << c.name << ", feature=" << i;
+    }
+    if (columns[i].empty()) {
+      continue;
+    }
+    if (!ft.empty() && IsCat(ft, i)) {
+      ValidateCategoricalCuts(cuts, i, columns[i]);
+    } else {
+      ValidateNumericalCuts(cuts, i, columns[i], c.max_bin, max_error);
+    }
+  }
+}
+
 inline GeneratedColumn GenerateSummaryColumn(SummaryCase const& c) {
   GeneratedColumn out;
   out.values.resize(c.rows);
