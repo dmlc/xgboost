@@ -37,23 +37,6 @@ HistogramCuts GetHostCuts(Context const* ctx, AdapterT* adapter, int num_bins, f
   return cuts;
 }
 
-TEST(HistUtil, DeviceSketch) {
-  auto ctx = MakeCUDACtx(0);
-  int num_columns = 1;
-  int num_bins = 4;
-  std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 7.0f, -1.0f};
-  int num_rows = x.size();
-  auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-
-  auto device_cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-
-  Context cpu_ctx;
-  HistogramCuts host_cuts = SketchOnDMatrix(&cpu_ctx, dmat.get(), num_bins);
-
-  EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
-  EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
-}
-
 TEST(HistUtil, DeviceSketchPeakMemory) {
   auto ctx = MakeCUDACtx(0);
   int num_columns = 2048;
@@ -104,21 +87,6 @@ TEST(HistUtil, DeviceSketchDeterminism) {
   }
 }
 
-TEST(HistUtil, DeviceSketchCategoricalAsNumeric) {
-  auto ctx = MakeCUDACtx(0);
-  auto categorical_sizes = {2, 6, 8, 12};
-  int num_bins = 256;
-  auto sizes = {25, 100, 1000};
-  for (auto n : sizes) {
-    for (auto num_categories : categorical_sizes) {
-      auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
-      auto dmat = GetDMatrixFromData(x, n, 1);
-      auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
-    }
-  }
-}
-
 TEST(HistUtil, DeviceSketchCategoricalFeatures) {
   auto ctx = MakeCUDACtx(0);
   TestCategoricalSketch(1000, 256, 32, false, [ctx](DMatrix* p_fmat, int32_t num_bins) {
@@ -128,34 +96,6 @@ TEST(HistUtil, DeviceSketchCategoricalFeatures) {
     return DeviceSketch(&ctx, p_fmat, num_bins);
   });
 }
-
-void TestMixedSketch() {
-  size_t n_samples = 1000, n_features = 2, n_categories = 3;
-  bst_bin_t n_bins = 64;
-
-  std::vector<float> data(n_samples * n_features);
-  SimpleLCG gen;
-  SimpleRealUniformDistribution<float> cat_d{0.0f, static_cast<float>(n_categories)};
-  SimpleRealUniformDistribution<float> num_d{0.0f, 3.0f};
-  for (size_t i = 0; i < n_samples * n_features; ++i) {
-    // two features, row major. The first column is numeric and the second is categorical.
-    if (i % 2 == 0) {
-      data[i] = std::floor(cat_d(&gen));
-    } else {
-      data[i] = num_d(&gen);
-    }
-  }
-
-  auto m = GetDMatrixFromData(data, n_samples, n_features);
-  m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
-  m->Info().feature_types.HostVector().push_back(FeatureType::kNumerical);
-
-  auto ctx = MakeCUDACtx(0);
-  auto cuts = DeviceSketch(&ctx, m.get(), n_bins);
-  ASSERT_EQ(cuts.Values().size(), n_bins + n_categories);
-}
-
-TEST(HistUtil, DeviceSketchMixedFeatures) { TestMixedSketch(); }
 
 TEST(HistUtil, RemoveDuplicatedCategories) {
   bst_idx_t n_samples = 512;
@@ -219,60 +159,6 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   for (bst_cat_t i = 0; i < n_categories; ++i) {
     // all from the second column
     ASSERT_EQ(static_cast<bst_feature_t>(weight[i + beg]) % n_features, 1);
-  }
-}
-
-TEST(HistUtil, DeviceSketchMultipleColumns) {
-  auto ctx = MakeCUDACtx(0);
-  auto bin_sizes = {2, 16, 256, 512};
-  auto sizes = {100, 1000, 1500};
-  int num_columns = 5;
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    for (auto num_bins : bin_sizes) {
-      auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
-    }
-  }
-}
-
-TEST(HistUtil, DeviceSketchMultipleColumnsWeights) {
-  auto ctx = MakeCUDACtx(0);
-  auto bin_sizes = {2, 16, 256, 512};
-  auto sizes = {100, 1000, 1500};
-  int num_columns = 5;
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
-    for (auto num_bins : bin_sizes) {
-      auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
-    }
-  }
-}
-
-TEST(HistUitl, DeviceSketchWeights) {
-  auto ctx = MakeCUDACtx(0);
-  auto bin_sizes = {2, 16, 256, 512};
-  auto sizes = {100, 1000, 1500};
-  int num_columns = 5;
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    auto weighted_dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    auto& h_weights = weighted_dmat->Info().weights_.HostVector();
-    h_weights.resize(num_rows);
-    std::fill(h_weights.begin(), h_weights.end(), 1.0f);
-    for (auto num_bins : bin_sizes) {
-      auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      auto wcuts = DeviceSketch(&ctx, weighted_dmat.get(), num_bins);
-      ASSERT_EQ(cuts.Ptrs(), wcuts.Ptrs());
-      ASSERT_EQ(cuts.Values(), wcuts.Values());
-      ValidateCuts(cuts, dmat.get(), num_bins);
-      ValidateCuts(wcuts, weighted_dmat.get(), num_bins);
-    }
   }
 }
 

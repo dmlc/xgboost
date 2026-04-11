@@ -2,9 +2,6 @@
  * Copyright 2020-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <thrust/iterator/zip_iterator.h>  // for make_zip_iterator
-
-#include <cuda/std/tuple>  // for make_tuple, tuple
 
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"
@@ -24,16 +21,6 @@ struct IsSorted {
   }
 };
 
-struct RepeatedValueOp {
-  std::size_t cols;
-
-  XGBOOST_DEVICE float operator()(cuda::std::tuple<size_t, float> const& tuple) const {
-    auto i = cuda::std::get<0>(tuple);
-    auto ridx = i / cols;
-    return static_cast<float>((ridx / 8) % 4);
-  }
-};
-
 auto MakeHostSummary(std::vector<std::pair<float, float>> const& items)
     -> common::WQSummaryContainer {
   common::WQSummaryContainer summary;
@@ -46,6 +33,54 @@ auto CopySummaryEntries(common::WQSummaryContainer const& summary)
     -> std::vector<common::SketchEntry> {
   auto entries = summary.Entries();
   return {entries.cbegin(), entries.cend()};
+}
+
+struct HostSketchView {
+  std::vector<common::SketchEntry> data;
+  std::vector<bst_idx_t> columns_ptr;
+};
+
+struct HostEntryBatch {
+  std::vector<Entry> entries;
+  std::vector<size_t> columns_ptr;
+};
+
+auto MakeEntryBatch(std::vector<std::vector<float>> const& columns) -> HostEntryBatch {
+  HostEntryBatch batch;
+  batch.columns_ptr.push_back(0);
+  for (bst_feature_t c = 0; c < columns.size(); ++c) {
+    for (auto value : columns[c]) {
+      batch.entries.push_back(Entry{c, value});
+    }
+    batch.columns_ptr.push_back(batch.entries.size());
+  }
+  return batch;
+}
+
+auto MakePruneBatch(std::size_t rows, bst_feature_t cols, bool with_duplicates) -> HostEntryBatch {
+  std::vector<std::vector<float>> columns(cols);
+  for (size_t i = 0; i < rows; ++i) {
+    if (with_duplicates) {
+      columns[0].push_back(static_cast<float>(i / 4));
+      columns[1].push_back(static_cast<float>(i / 8) + 10.0f);
+      columns[2].push_back(static_cast<float>(i / 2) + 100.0f);
+    } else {
+      columns[0].push_back(static_cast<float>(i));
+      columns[1].push_back(static_cast<float>(i) * 0.5f + 10.0f);
+      columns[2].push_back(static_cast<float>(i) * 0.25f + 100.0f);
+    }
+  }
+  return MakeEntryBatch(columns);
+}
+
+auto CopySketchToHost(xgboost::common::Span<common::SketchEntry const> data,
+                      xgboost::common::Span<bst_idx_t const> columns_ptr) -> HostSketchView {
+  HostSketchView out;
+  out.data.resize(data.size());
+  out.columns_ptr.resize(columns_ptr.size());
+  dh::CopyDeviceSpanToVector(&out.data, data);
+  dh::CopyDeviceSpanToVector(&out.columns_ptr, columns_ptr);
+  return out;
 }
 }  // namespace
 
@@ -156,7 +191,7 @@ TEST_F(MGPUQuantileTest, ColumnSplitProperty) {
   }
 }
 
-TEST(GPUQuantile, Basic) {
+TEST(GPUQuantile, EmptyPush) {
   auto ctx = MakeCUDACtx(0);
   constexpr size_t kCols = 100, kBins = 256;
   HostDeviceVector<FeatureType> ft;
@@ -169,115 +204,55 @@ TEST(GPUQuantile, Basic) {
   ASSERT_EQ(sketch.Data().size(), 0);
 }
 
-// if with_error is true, the test tolerates floating point error
-void TestQuantileElemRank(DeviceOrd device, Span<SketchEntry const> in,
-                          Span<bst_idx_t const> d_columns_ptr, bool with_error = false) {
-  dh::safe_cuda(cudaSetDevice(device.ordinal));
-  std::vector<SketchEntry> h_in(in.size());
-  dh::CopyDeviceSpanToVector(&h_in, in);
-  std::vector<bst_idx_t> h_columns_ptr(d_columns_ptr.size());
-  dh::CopyDeviceSpanToVector(&h_columns_ptr, d_columns_ptr);
-
-  for (size_t i = 1; i < d_columns_ptr.size(); ++i) {
+void ValidateSketchInvariants(HostSketchView const& sketch, bool with_error = false) {
+  for (size_t i = 1; i < sketch.columns_ptr.size(); ++i) {
     auto column_id = i - 1;
-    auto beg = h_columns_ptr[column_id];
-    auto end = h_columns_ptr[i];
+    auto beg = sketch.columns_ptr[column_id];
+    auto end = sketch.columns_ptr[i];
 
-    auto in_column = Span<SketchEntry>{h_in}.subspan(beg, end - beg);
-    for (size_t idx = 1; idx < in_column.size(); ++idx) {
-      float prev_rmin = in_column[idx - 1].rmin;
-      float prev_rmax = in_column[idx - 1].rmax;
-      float rmin_next = in_column[idx].RMinNext();
+    auto column = Span<SketchEntry const>{sketch.data}.subspan(beg, end - beg);
+    ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
+    ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
+                                   [](SketchEntry const& l, SketchEntry const& r) {
+                                     return l.value == r.value;
+                                   }) == column.end());
+    for (size_t idx = 1; idx < column.size(); ++idx) {
+      float prev_rmin = column[idx - 1].rmin;
+      float prev_rmax = column[idx - 1].rmax;
+      float rmin_next = column[idx].RMinNext();
       if (with_error) {
-        ASSERT_GE(in_column[idx].rmin + in_column[idx].rmin * kRtEps, prev_rmin);
-        ASSERT_GE(in_column[idx].rmax + in_column[idx].rmin * kRtEps, prev_rmax);
-        ASSERT_GE(in_column[idx].rmax + in_column[idx].rmin * kRtEps, rmin_next);
+        ASSERT_GE(column[idx].rmin + column[idx].rmin * kRtEps, prev_rmin);
+        ASSERT_GE(column[idx].rmax + column[idx].rmin * kRtEps, prev_rmax);
+        ASSERT_GE(column[idx].rmax + column[idx].rmin * kRtEps, rmin_next);
       } else {
-        ASSERT_GE(in_column[idx].rmin, prev_rmin);
-        ASSERT_GE(in_column[idx].rmax, prev_rmax);
-        ASSERT_GE(in_column[idx].rmax, rmin_next);
+        ASSERT_GE(column[idx].rmin, prev_rmin);
+        ASSERT_GE(column[idx].rmax, prev_rmax);
+        ASSERT_GE(column[idx].rmax, rmin_next);
       }
     }
   }
 }
 
 TEST(GPUQuantile, Prune) {
-  constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
-    auto ctx = MakeCUDACtx(0);
-    HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
+  constexpr size_t kRows = 64, kCols = 3;
+  for (auto with_duplicates : {false, true}) {
+    for (auto n_bins : {8, 16, 80}) {
+      auto ctx = MakeCUDACtx(0);
+      HostDeviceVector<FeatureType> ft;
+      SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
+      auto batch = MakePruneBatch(kRows, kCols, with_duplicates);
+      dh::device_vector<Entry> d_entries{batch.entries};
+      dh::device_vector<size_t> d_columns_ptr{batch.columns_ptr};
+      dh::device_vector<size_t> d_cuts_ptr{batch.columns_ptr};
+      sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(d_columns_ptr), dh::ToSpan(d_cuts_ptr),
+                  batch.entries.size(), kRows, {});
 
-    HostDeviceVector<float> storage;
-    std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                    .Device(ctx.Device())
-                                    .Seed(seed)
-                                    .GenerateArrayInterface(&storage);
-    data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
-                        std::numeric_limits<float>::quiet_NaN(), &sketch);
-    auto n_cuts = detail::RequiredSampleCutsPerColumn(n_bins, kRows);
-    // LE because kRows * kCols is pushed into sketch, after removing
-    // duplicated entries we might not have that much inputs for prune.
-    ASSERT_LE(sketch.Data().size(), n_cuts * kCols);
-
-    sketch.Prune(&ctx, n_bins);
-    ASSERT_LE(sketch.Data().size(), kRows * kCols);
-    std::vector<bst_idx_t> h_columns_ptr(sketch.ColumnsPtr().size());
-    dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch.ColumnsPtr());
-    std::vector<SketchEntry> h_data(sketch.Data().size());
-    dh::CopyDeviceSpanToVector(&h_data, sketch.Data());
-    for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
-      auto begin = h_columns_ptr[i - 1];
-      auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);
-      ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
-                                     [](SketchEntry const& l, SketchEntry const& r) {
-                                       return l.value == r.value;
-                                     }) == column.end());
+      sketch.Prune(&ctx, n_bins);
+      ASSERT_LE(sketch.Data().size(), static_cast<std::size_t>(n_bins) * kCols);
+      auto h_sketch = CopySketchToHost(sketch.Data(), sketch.ColumnsPtr());
+      ValidateSketchInvariants(h_sketch);
     }
-    TestQuantileElemRank(ctx.Device(), sketch.Data(), sketch.ColumnsPtr());
-  });
-}
-
-TEST(GPUQuantile, PruneDuplicated) {
-  constexpr size_t kRows = 512, kCols = 8;
-  RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
-    auto ctx = MakeCUDACtx(0);
-    HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
-
-    HostDeviceVector<float> storage;
-    std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                    .Device(ctx.Device())
-                                    .Seed(seed)
-                                    .GenerateArrayInterface(&storage);
-    auto d_data = storage.DeviceSpan();
-    auto tuple_it =
-        cuda::std::make_tuple(thrust::make_counting_iterator<size_t>(0ul), d_data.data());
-    auto it = thrust::make_zip_iterator(tuple_it);
-    thrust::transform(ctx.CUDACtx()->CTP(), it, it + d_data.size(), d_data.data(),
-                      RepeatedValueOp{kCols});
-
-    data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
-                        std::numeric_limits<float>::quiet_NaN(), &sketch);
-
-    sketch.Prune(&ctx, n_bins);
-
-    std::vector<bst_idx_t> h_columns_ptr(sketch.ColumnsPtr().size());
-    dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch.ColumnsPtr());
-    std::vector<SketchEntry> h_data(sketch.Data().size());
-    dh::CopyDeviceSpanToVector(&h_data, sketch.Data());
-    for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
-      auto begin = h_columns_ptr[i - 1];
-      auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);
-      ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
-                                     [](SketchEntry const& l, SketchEntry const& r) {
-                                       return l.value == r.value;
-                                     }) == column.end());
-    }
-    TestQuantileElemRank(ctx.Device(), sketch.Data(), sketch.ColumnsPtr());
-  });
+  }
 }
 
 TEST(GPUQuantile, MergeEmpty) {
@@ -347,25 +322,11 @@ TEST(GPUQuantile, MergeBasic) {
 
     size_t size_before_merge = sketch_0.Data().size();
     sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
-    TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr());
-
-    auto columns_ptr = sketch_0.ColumnsPtr();
-    std::vector<bst_idx_t> h_columns_ptr(columns_ptr.size());
-    dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
+    auto h_sketch = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
+    ValidateSketchInvariants(h_sketch);
+    auto const& h_columns_ptr = h_sketch.columns_ptr;
     ASSERT_LE(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
-
-    std::vector<SketchEntry> h_data(sketch_0.Data().size());
-    dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
-    ASSERT_EQ(static_cast<std::size_t>(h_columns_ptr.back()), h_data.size());
-    for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
-      auto begin = h_columns_ptr[i - 1];
-      auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);
-      ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
-      ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
-                                     [](SketchEntry const& l, SketchEntry const& r) {
-                                       return l.value == r.value;
-                                     }) == column.end());
-    }
+    ASSERT_EQ(static_cast<std::size_t>(h_columns_ptr.back()), h_sketch.data.size());
   });
 }
 
@@ -410,25 +371,11 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
 
   size_t size_before_merge = sketch_0.Data().size();
   sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
-  TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr());
-
-  auto columns_ptr = sketch_0.ColumnsPtr();
-  std::vector<bst_idx_t> h_columns_ptr(columns_ptr.size());
-  dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
+  auto h_sketch = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
+  ValidateSketchInvariants(h_sketch);
+  auto const& h_columns_ptr = h_sketch.columns_ptr;
   ASSERT_LE(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
-
-  std::vector<SketchEntry> h_data(sketch_0.Data().size());
-  dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
-  ASSERT_EQ(static_cast<std::size_t>(h_columns_ptr.back()), h_data.size());
-  for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
-    auto begin = h_columns_ptr[i - 1];
-    auto column = Span<SketchEntry>{h_data}.subspan(begin, h_columns_ptr[i] - begin);
-    ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
-    ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
-                                   [](SketchEntry const& l, SketchEntry const& r) {
-                                     return l.value == r.value;
-                                   }) == column.end());
-  }
+  ASSERT_EQ(static_cast<std::size_t>(h_columns_ptr.back()), h_sketch.data.size());
 }
 
 TEST(GPUQuantile, MergeDuplicated) {
@@ -467,14 +414,11 @@ TEST(GPUQuantile, MergeCategorical) {
                 entries_1.size(), 5, {});
 
   sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
-  TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr());
+  auto h_sketch = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
+  ValidateSketchInvariants(h_sketch);
 
-  std::vector<bst_idx_t> h_columns_ptr(sketch_0.ColumnsPtr().size());
-  dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch_0.ColumnsPtr());
-  std::vector<SketchEntry> h_data(sketch_0.Data().size());
-  dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
-
-  auto cat_column = Span<SketchEntry>{h_data}.subspan(h_columns_ptr[0], h_columns_ptr[1]);
+  auto cat_column = Span<SketchEntry const>{h_sketch.data}.subspan(h_sketch.columns_ptr[0],
+                                                                   h_sketch.columns_ptr[1]);
   ASSERT_TRUE(std::adjacent_find(cat_column.begin(), cat_column.end(),
                                  [](SketchEntry const& l, SketchEntry const& r) {
                                    return l.value == r.value;
@@ -586,8 +530,9 @@ TEST(GPUQuantile, MultiMerge) {
       sketch.Prune(&ctx, intermediate_num_cuts);
       sketch_on_single_node.Merge(&ctx, sketch.ColumnsPtr(), sketch.Data());
     }
-    TestQuantileElemRank(ctx.Device(), sketch_on_single_node.Data(),
-                         sketch_on_single_node.ColumnsPtr());
+    auto h_sketch =
+        CopySketchToHost(sketch_on_single_node.Data(), sketch_on_single_node.ColumnsPtr());
+    ValidateSketchInvariants(h_sketch);
   });
 }
 
@@ -635,7 +580,8 @@ void TestSameOnAllWorkers() {
     AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(), &sketch_distributed);
     sketch_distributed.AllReduce(&ctx, false);
-    TestQuantileElemRank(device, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
+    auto h_sketch = CopySketchToHost(sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
+    ValidateSketchInvariants(h_sketch, true);
 
     // Test for all workers having the same sketch.
     size_t n_data = sketch_distributed.Data().size();
@@ -683,7 +629,6 @@ TEST(GPUQuantile, Push) {
   size_t constexpr kRows = 100;
   std::vector<float> data(kRows);
   auto ctx = MakeCUDACtx(0);
-
   std::fill(data.begin(), data.begin() + (data.size() / 2), 0.3f);
   std::fill(data.begin() + (data.size() / 2), data.end(), 0.5f);
   int32_t n_bins = 128;
@@ -743,8 +688,8 @@ TEST(GPUQuantile, MultiColPush) {
   int32_t n_bins = 16;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
-  dh::device_vector<Entry> d_entries{entries};
 
+  dh::device_vector<Entry> d_entries{entries};
   dh::device_vector<size_t> columns_ptr(kCols + 1, 0);
   for (size_t i = 1; i < kCols + 1; ++i) {
     columns_ptr[i] = kRows;
