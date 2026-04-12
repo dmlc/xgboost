@@ -2985,7 +2985,7 @@ class Booster:
         self,
         data: DMatrix,
         reference: DMatrix,
-        weight_type: str = "gain",
+        weight_type: str = "uniform",
     ) -> np.ndarray:
         """Compute similarity between observations based on leaf node co-occurrence.
 
@@ -2999,51 +2999,85 @@ class Booster:
         reference :
             Reference dataset (n samples).
         weight_type :
-            How to weight trees: "gain" (by loss improvement) or "cover"
-            (by hessian sum, approximately sample count for regression).
+            How to weight trees: "uniform" (equal tree weights), "gain"
+            (by loss improvement), or "cover" (by hessian sum, approximately
+            sample count for regression).
 
         Returns
         -------
         similarity : ndarray of shape (m, n)
             Similarity scores in [0, 1].
         """
-        if weight_type not in ("gain", "cover"):
+        if weight_type not in ("uniform", "gain", "cover"):
             raise ValueError(
-                f"weight_type must be 'gain' or 'cover', got '{weight_type}'"
+                "weight_type must be 'uniform', 'gain', or 'cover', "
+                f"got '{weight_type}'"
             )
 
-        query_leaves = self.predict(data, pred_leaf=True)
-        ref_leaves = self.predict(reference, pred_leaf=True)
+        query_leaves = self.predict(data, pred_leaf=True, strict_shape=True)
+        ref_leaves = self.predict(reference, pred_leaf=True, strict_shape=True)
 
-        if query_leaves.ndim == 1:
-            query_leaves = query_leaves.reshape(-1, 1)
-        if ref_leaves.ndim == 1:
-            ref_leaves = ref_leaves.reshape(-1, 1)
+        query_leaves = np.asarray(query_leaves, dtype=np.int64).reshape(
+            query_leaves.shape[0], -1
+        )
+        ref_leaves = np.asarray(ref_leaves, dtype=np.int64).reshape(
+            ref_leaves.shape[0], -1
+        )
+
+        m, n = query_leaves.shape[0], ref_leaves.shape[0]
+        if query_leaves.shape[1] != ref_leaves.shape[1]:
+            raise ValueError("Query and reference leaf predictions have different shapes.")
 
         n_trees = query_leaves.shape[1]
+        if m == 0 or n == 0 or n_trees == 0:
+            return np.zeros((m, n), dtype=np.float32)
 
-        trees_df = self.trees_to_dataframe()
-        split_nodes = trees_df[trees_df["Feature"] != "Leaf"]
-        col = "Gain" if weight_type == "gain" else "Cover"
-        tree_weights = split_nodes.groupby("Tree")[col].sum()
-
-        weights = np.zeros(n_trees, dtype=np.float32)
-        for tree_id, w in tree_weights.items():
-            if tree_id < n_trees:
-                weights[int(tree_id)] = w
-
-        if weights.sum() == 0:
+        if weight_type == "uniform":
             weights = np.ones(n_trees, dtype=np.float32)
+        else:
+            trees_df = self.trees_to_dataframe()
+            split_nodes = trees_df[trees_df["Feature"] != "Leaf"]
+            col = "Gain" if weight_type == "gain" else "Cover"
+            tree_weights = split_nodes.groupby("Tree")[col].sum()
+
+            weights = np.zeros(n_trees, dtype=np.float32)
+            for tree_id, w in tree_weights.items():
+                if tree_id < n_trees:
+                    weights[int(tree_id)] = w
+
+            if weights.sum() == 0:
+                weights = np.ones(n_trees, dtype=np.float32)
 
         total_weight = weights.sum()
-        m, n = len(query_leaves), len(ref_leaves)
+        if total_weight == 0:
+            weights = np.ones(n_trees, dtype=np.float32)
+            total_weight = weights.sum()
 
-        similarity = np.zeros((m, n), dtype=np.float32)
-        for i in range(m):
-            matches_i = query_leaves[i] == ref_leaves
-            similarity[i] = (matches_i * weights).sum(axis=1) / total_weight
+        leaf_upper = np.maximum(query_leaves.max(axis=0), ref_leaves.max(axis=0)) + 1
+        offsets = np.zeros(n_trees, dtype=np.int64)
+        if n_trees > 1:
+            offsets[1:] = np.cumsum(leaf_upper[:-1], dtype=np.int64)
 
-        return similarity
+        weight_values = np.sqrt(weights / total_weight, dtype=np.float32)
+        q_cols = (query_leaves + offsets).reshape(-1)
+        r_cols = (ref_leaves + offsets).reshape(-1)
+        q_rows = np.repeat(np.arange(m), n_trees)
+        r_rows = np.repeat(np.arange(n), n_trees)
+        feature_dim = int(offsets[-1] + leaf_upper[-1])
+
+        query_matrix = scipy.sparse.csr_matrix(
+            (np.tile(weight_values, m), (q_rows, q_cols)),
+            shape=(m, feature_dim),
+            dtype=np.float32,
+        )
+        ref_matrix = scipy.sparse.csr_matrix(
+            (np.tile(weight_values, n), (r_rows, r_cols)),
+            shape=(n, feature_dim),
+            dtype=np.float32,
+        )
+
+        similarity = query_matrix @ ref_matrix.T
+        return similarity.toarray()
 
     def save_model(self, fname: PathLike) -> None:
         """Save the model to a file.
