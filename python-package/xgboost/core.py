@@ -3014,6 +3014,18 @@ class Booster:
                 f"got '{weight_type}'"
             )
 
+        config = json.loads(self.save_config())["learner"]
+        booster = config["gradient_booster"]["name"]
+        if booster == "gblinear":
+            raise XGBoostError(
+                "Leaf similarity is only defined for tree boosters, got gblinear."
+            )
+
+        if config["learner_train_param"]["multi_strategy"] == "multi_output_tree":
+            raise XGBoostError(
+                "Leaf similarity does not support multi_output_tree."
+            )
+
         query_leaves = self.predict(data, pred_leaf=True, strict_shape=True)
         ref_leaves = self.predict(reference, pred_leaf=True, strict_shape=True)
 

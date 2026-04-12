@@ -4,6 +4,7 @@ import ctypes
 
 import numpy as np
 import pytest
+from sklearn.datasets import load_diabetes, load_iris
 
 import xgboost as xgb
 from xgboost.core import (
@@ -118,3 +119,117 @@ class TestLeafSimilarity:
         # Invalid weight_type
         with pytest.raises(ValueError, match="weight_type must be"):
             bst.compute_leaf_similarity(dm_query, dm_ref, weight_type="invalid")
+
+    @pytest.mark.parametrize(
+        "param",
+        [
+            {
+                "max_depth": 3,
+                "eta": 0.3,
+                "objective": "multi:softprob",
+                "num_class": 3,
+            },
+            {
+                "booster": "dart",
+                "max_depth": 4,
+                "eta": 0.3,
+                "objective": "binary:logistic",
+            },
+            {
+                "max_depth": 4,
+                "eta": 1.0,
+                "objective": "binary:logistic",
+                "num_parallel_tree": 3,
+            },
+        ],
+    )
+    @pytest.mark.parametrize("weight_type", ["uniform", "gain", "cover"])
+    def test_leaf_similarity_supported_tree_modes(
+        self, param: dict, weight_type: str
+    ) -> None:
+        """Test supported tree model modes."""
+        if param.get("objective") == "multi:softprob":
+            X, y = load_iris(return_X_y=True)
+            dtrain = xgb.DMatrix(X, label=y)
+            dm_query = xgb.DMatrix(X[:5])
+            dm_ref = xgb.DMatrix(X[10:20])
+            rounds = 8
+        else:
+            dtrain, _ = tm.load_agaricus(__file__)
+            X = dtrain.get_data()
+            dm_query = xgb.DMatrix(X[:10])
+            dm_ref = xgb.DMatrix(X[100:130])
+            rounds = 8 if param.get("booster") == "dart" else 5
+
+        bst = xgb.train(param, dtrain, num_boost_round=rounds)
+        similarity = bst.compute_leaf_similarity(dm_query, dm_ref, weight_type=weight_type)
+        assert similarity.shape == (dm_query.num_row(), dm_ref.num_row())
+        assert similarity.min() >= 0.0
+        assert similarity.max() <= 1.0 + 1e-6
+
+    @pytest.mark.parametrize("weight_type", ["uniform", "gain", "cover"])
+    def test_leaf_similarity_one_output_per_tree_multi_target(
+        self, weight_type: str
+    ) -> None:
+        """Test multi-target model with one output per tree."""
+        X, y = load_diabetes(return_X_y=True)
+        y = np.column_stack([y, y * 0.5])
+        dtrain = xgb.DMatrix(X, label=y)
+        bst = xgb.train(
+            {
+                "max_depth": 3,
+                "eta": 0.3,
+                "tree_method": "hist",
+                "objective": "reg:squarederror",
+                "multi_strategy": "one_output_per_tree",
+                "num_target": 2,
+            },
+            dtrain,
+            num_boost_round=6,
+        )
+
+        similarity = bst.compute_leaf_similarity(
+            xgb.DMatrix(X[:5]), xgb.DMatrix(X[10:20]), weight_type=weight_type
+        )
+        assert similarity.shape == (5, 10)
+        assert similarity.min() >= 0.0
+        assert similarity.max() <= 1.0 + 1e-6
+
+    @pytest.mark.parametrize("weight_type", ["uniform", "gain", "cover"])
+    def test_leaf_similarity_gblinear_error(self, weight_type: str) -> None:
+        """Test unsupported gblinear booster with stable error."""
+        dtrain, _ = tm.load_agaricus(__file__)
+        bst = xgb.train({"booster": "gblinear", "objective": "binary:logistic"}, dtrain)
+        X = dtrain.get_data()
+
+        with pytest.raises(xgb.core.XGBoostError, match="Leaf similarity is only defined"):
+            bst.compute_leaf_similarity(
+                xgb.DMatrix(X[:5]), xgb.DMatrix(X[10:20]), weight_type=weight_type
+            )
+
+    @pytest.mark.parametrize("weight_type", ["uniform", "gain", "cover"])
+    def test_leaf_similarity_multi_output_tree_error(self, weight_type: str) -> None:
+        """Test unsupported multi-output tree with stable error."""
+        X, y = load_diabetes(return_X_y=True)
+        y = np.column_stack([y, y * 0.5])
+        dtrain = xgb.DMatrix(X, label=y)
+        bst = xgb.train(
+            {
+                "max_depth": 3,
+                "eta": 0.3,
+                "tree_method": "hist",
+                "objective": "reg:squarederror",
+                "multi_strategy": "multi_output_tree",
+                "num_target": 2,
+            },
+            dtrain,
+            num_boost_round=6,
+        )
+
+        with pytest.raises(
+            xgb.core.XGBoostError,
+            match="Leaf similarity does not support multi_output_tree",
+        ):
+            bst.compute_leaf_similarity(
+                xgb.DMatrix(X[:5]), xgb.DMatrix(X[10:20]), weight_type=weight_type
+            )
