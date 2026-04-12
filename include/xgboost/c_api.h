@@ -1698,6 +1698,34 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
                                   bst_ulong *out_n_features, char const ***out_features,
                                   bst_ulong *out_dim, bst_ulong const **out_shape,
                                   float const **out_scores);
+
+/**
+ * @brief Get per-tree weights for leaf similarity computation.
+ *
+ * @param config A JSON string with the following format:
+ *
+ *   {
+ *    "weight_type": str,
+ *    "iteration_begin": int,
+ *    "iteration_end": int
+ *   }
+ *
+ *   - weight_type: A JSON string with following possible values:
+ *       * 'uniform': assign equal weight to each tree.
+ *       * 'gain': sum split gain for each tree.
+ *       * 'cover': sum split cover for each tree.
+ *   - iteration_begin: Beginning iteration used when extracting tree weights.
+ *   - iteration_end: End iteration used when extracting tree weights. 0 means
+ *                    using all remaining iterations.
+ *
+ * @param out_len      Length of output tree weight array.
+ * @param out_weights  Pointer to the output tree weight array.
+ *
+ * @return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterGetLeafSimilarityWeights(BoosterHandle handle, const char *config,
+                                              bst_ulong *out_len,
+                                              float const **out_weights);
 /**@}*/  // End of Booster
 
 /**

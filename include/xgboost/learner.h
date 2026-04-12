@@ -140,6 +140,11 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                                 std::vector<bst_feature_t>* features,
                                 std::vector<float>* scores) = 0;
 
+  virtual void CalcLeafSimilarityWeights(std::string const& weight_type,
+                                         bst_layer_t iteration_begin,
+                                         bst_layer_t iteration_end,
+                                         std::vector<float>* weights) = 0;
+
   /*
    * \brief Get number of boosted rounds from gradient booster.
    */

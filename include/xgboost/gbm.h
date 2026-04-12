@@ -151,6 +151,11 @@ class GradientBooster : public Model, public Configurable {
                             common::Span<int32_t const> trees,
                             std::vector<bst_feature_t>* features,
                             std::vector<float>* scores) const = 0;
+
+  virtual void LeafSimilarityWeights(std::string const& weight_type,
+                                     bst_layer_t iteration_begin,
+                                     bst_layer_t iteration_end,
+                                     std::vector<float>* weights) const = 0;
   /**
    * @brief Getter for categories.
    */

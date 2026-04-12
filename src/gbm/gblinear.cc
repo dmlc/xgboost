@@ -237,6 +237,16 @@ class GBLinear : public GradientBooster {
     }
   }
 
+  void LeafSimilarityWeights(std::string const& weight_type, bst_layer_t iteration_begin,
+                             bst_layer_t iteration_end,
+                             std::vector<float>* weights) const override {
+    (void)weight_type;
+    (void)iteration_begin;
+    (void)iteration_end;
+    (void)weights;
+    LOG(FATAL) << "Leaf similarity weights are not defined for gblinear booster.";
+  }
+
  protected:
   void PredictBatchInternal(DMatrix *p_fmat,
                             std::vector<bst_float> *out_preds) {

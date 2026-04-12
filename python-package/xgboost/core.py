@@ -3035,15 +3035,26 @@ class Booster:
         if weight_type == "uniform":
             weights = np.ones(n_trees, dtype=np.float32)
         else:
-            trees_df = self.trees_to_dataframe()
-            split_nodes = trees_df[trees_df["Feature"] != "Leaf"]
-            col = "Gain" if weight_type == "gain" else "Cover"
-            tree_weights = split_nodes.groupby("Tree")[col].sum()
-
-            weights = np.zeros(n_trees, dtype=np.float32)
-            for tree_id, w in tree_weights.items():
-                if tree_id < n_trees:
-                    weights[int(tree_id)] = w
+            out_len = c_bst_ulong()
+            out_weights = ctypes.POINTER(ctypes.c_float)()
+            _check_call(
+                _LIB.XGBoosterGetLeafSimilarityWeights(
+                    self.handle,
+                    make_jcargs(
+                        weight_type=weight_type,
+                        iteration_begin=0,
+                        iteration_end=0,
+                    ),
+                    ctypes.byref(out_len),
+                    ctypes.byref(out_weights),
+                )
+            )
+            weights = ctypes2numpy(out_weights, out_len.value, np.float32)
+            if weights.shape[0] != n_trees:
+                raise ValueError(
+                    "Tree weight count does not match leaf prediction shape: "
+                    f"{weights.shape[0]} != {n_trees}"
+                )
 
             if weights.sum() == 0:
                 weights = np.ones(n_trees, dtype=np.float32)
