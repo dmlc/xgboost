@@ -346,14 +346,14 @@ TEST(GPUQuantile, MergeDuplicated) {
   for (float frac = 0.5; frac < 2.5; frac += 0.5) {
     auto ctx = MakeCUDACtx(0);
     HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch_0(ft, n_bins, kRows, ctx.Device());
-    auto batch_0 = MakeSyntheticBatch(kCols, kRows, 0, false, false);
+    SketchContainer sketch_0(ft, n_bins, kCols, ctx.Device());
+    auto batch_0 = MakeSyntheticBatch(kRows, kCols, 0, false, false);
     sketch_0.Push(&ctx, dh::ToSpan(batch_0.entries), dh::ToSpan(batch_0.columns_ptr), batch_0.rows,
                   {});
 
-    size_t f_rows = kCols * frac;
-    SketchContainer sketch_1(ft, n_bins, kRows, ctx.Device());
-    auto batch_1 = MakeSyntheticBatch(f_rows, kRows, 0, false, true);
+    size_t f_rows = kRows * frac;
+    SketchContainer sketch_1(ft, n_bins, kCols, ctx.Device());
+    auto batch_1 = MakeSyntheticBatch(f_rows, kCols, 0, false, true);
     sketch_1.Push(&ctx, dh::ToSpan(batch_1.entries), dh::ToSpan(batch_1.columns_ptr), batch_1.rows,
                   {});
 
