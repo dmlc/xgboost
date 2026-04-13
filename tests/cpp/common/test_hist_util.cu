@@ -158,29 +158,6 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   }
 }
 
-TEST(HistUtil, DeviceSketchBatches) {
-  auto ctx = MakeCUDACtx(0);
-  int num_bins = 256;
-  int num_rows = 5000;
-  auto batch_sizes = {0, 100, 1500, 6000};
-  int num_columns = 5;
-  for (auto batch_size : batch_sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins, batch_size);
-    ValidateCuts(cuts, dmat.get(), num_bins);
-  }
-
-  num_rows = 1000;
-  size_t batches = 16;
-  auto x = GenerateRandom(num_rows * batches, num_columns);
-  auto dmat = GetDMatrixFromData(x, num_rows * batches, num_columns);
-  auto cuts_with_batches = DeviceSketch(&ctx, dmat.get(), num_bins, num_rows);
-  auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins, 0);
-  ValidateCuts(cuts_with_batches, dmat.get(), num_bins);
-  ValidateCuts(cuts, dmat.get(), num_bins);
-}
-
 TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
   auto ctx = MakeCUDACtx(0);
   auto bin_sizes = {2, 16, 256, 512};

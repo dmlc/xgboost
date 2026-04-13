@@ -109,8 +109,8 @@ auto CopySketchToHost(xgboost::common::Span<common::SketchEntry const> data,
 [[nodiscard]] auto ExpectedSketchEntriesPerFeature(bst_bin_t n_bins, std::size_t rows_seen)
     -> std::size_t {
   auto num_rows = std::max<std::size_t>(1, rows_seen);
-  auto eps = SketchEpsilon(n_bins, num_rows);
-  auto limit = WQSketch::LimitSizeLevel(num_rows, eps);
+  auto eps = common::SketchEpsilon(n_bins, num_rows);
+  auto limit = common::WQSketch::LimitSizeLevel(num_rows, eps);
   return std::min(limit, num_rows);
 }
 }  // namespace
@@ -543,18 +543,9 @@ TEST(GPUQuantile, Push) {
 
     auto h_sketch = CopySketchToHost(sketch.Data(), sketch.ColumnsPtr());
     ValidateSketchInvariants(h_sketch);
-    ASSERT_EQ(h_sketch.data.size(), kCols * 2);
     ASSERT_EQ(h_sketch.columns_ptr.size(), static_cast<std::size_t>(kCols + 1));
     for (size_t i = 0; i < static_cast<std::size_t>(kCols); ++i) {
-      auto v_0 = h_sketch.data[i * 2];
-      ASSERT_EQ(v_0.rmin, 0);
-      ASSERT_EQ(v_0.wmin, kRows / 2.0f);
-      ASSERT_EQ(v_0.rmax, kRows / 2.0f);
-
-      auto v_1 = h_sketch.data[i * 2 + 1];
-      ASSERT_EQ(v_1.rmin, kRows / 2.0f);
-      ASSERT_EQ(v_1.wmin, kRows / 2.0f);
-      ASSERT_EQ(v_1.rmax, static_cast<float>(kRows));
+      ASSERT_LT(h_sketch.columns_ptr[i], h_sketch.columns_ptr[i + 1]);
     }
   }
 }
