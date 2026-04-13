@@ -101,12 +101,7 @@ void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
 
   // Renew the column scan based on categorical data. Numerical columns preserve their original
   // span, while categorical columns shrink to their unique category count.
-  CHECK_EQ(new_column_scan.size(), column_sizes_scan.size());
-  dh::LaunchN(new_column_scan.size(), ctx->CUDACtx()->Stream(),
-              [=, d_column_sizes_scan = dh::ToSpan(column_sizes_scan),
-               d_new_columns_ptr = dh::ToSpan(new_column_scan)] __device__(size_t idx) {
-                d_column_sizes_scan[idx] = d_new_columns_ptr[idx];
-              });
+  column_sizes_scan = std::move(new_column_scan);
 }
 }  // namespace detail
 
