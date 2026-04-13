@@ -123,7 +123,9 @@ void MakeCutsPtr(Context const *ctx, Span<size_t const> columns_ptr_in, Span<Fea
     }
     auto column_size = columns_ptr_in[idx + 1] - columns_ptr_in[idx];
     auto is_cat = IsCat(ft, idx);
-    d_cuts_size[idx] = is_cat ? column_size : thrust::min(num_cuts_per_feature, column_size);
+    d_cuts_size[idx] =
+        is_cat ? column_size
+               : (column_size < num_cuts_per_feature ? column_size : num_cuts_per_feature);
   });
   thrust::exclusive_scan(ctx->CUDACtx()->CTP(), cuts_ptr.DevicePointer(),
                          cuts_ptr.DevicePointer() + cuts_ptr.Size(), cuts_ptr.DevicePointer());
