@@ -69,10 +69,6 @@ void MakeSketches(Context const* ctx,
 
     auto batch_rows = data::BatchSamples(proxy);
     ext_info.accumulated_rows += batch_rows;
-    // Prune to this after each batch
-    auto n_cuts_per_feat =
-        common::detail::RequiredSampleCutsPerColumn(p.max_bin, ext_info.accumulated_rows);
-
     /**
      * Handle sketching.
      */
@@ -85,7 +81,6 @@ void MakeSketches(Context const* ctx,
       DispatchAny(proxy, [&](auto const& value) {
         common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing, sketch.get());
       });
-      sketch->Prune(p_ctx, n_cuts_per_feat);
       LOG(DEBUG) << "Total capacity:" << common::HumanMemUnit(sketch->MemCapacityBytes());
     }
 

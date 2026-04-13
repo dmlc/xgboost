@@ -127,9 +127,6 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
       FeatureType::kNumerical, FeatureType::kCategorical, FeatureType::kNumerical};
   ASSERT_EQ(info.feature_types.Size(), n_features);
 
-  HostDeviceVector<bst_idx_t> cuts_ptr{0, n_samples, n_samples * 2, n_samples * 3};
-  cuts_ptr.SetDevice(DeviceOrd::CUDA(0));
-
   dh::device_vector<float> weight(n_samples * n_features, 0);
   dh::Iota(dh::ToSpan(weight), ctx.CUDACtx()->Stream());
 
@@ -141,10 +138,9 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   thrust::sort_by_key(sorted_entries.begin(), sorted_entries.end(), weight.begin(),
                       detail::EntryCompareOp());
 
-  detail::RemoveDuplicatedCategories(&ctx, info, cuts_ptr.DeviceSpan(), &sorted_entries, &weight,
-                                     &columns_ptr);
+  detail::RemoveDuplicatedCategories(&ctx, info, &sorted_entries, &weight, &columns_ptr);
 
-  auto const& h_cptr = cuts_ptr.ConstHostVector();
+  auto const& h_cptr = columns_ptr;
   ASSERT_EQ(h_cptr.back(), n_samples * 2 + n_categories);
   // check numerical
   for (std::size_t i = 0; i < n_samples; ++i) {

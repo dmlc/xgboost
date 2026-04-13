@@ -40,35 +40,32 @@ struct HostSketchView {
   std::vector<bst_idx_t> columns_ptr;
 };
 
-struct HostEntryBatch {
-  std::vector<Entry> entries;
-  std::vector<size_t> columns_ptr;
+struct DeviceEntryBatch {
+  dh::device_vector<Entry> entries;
+  dh::device_vector<size_t> columns_ptr;
 };
 
-auto MakeEntryBatch(std::vector<std::vector<float>> const& columns) -> HostEntryBatch {
-  HostEntryBatch batch;
-  batch.columns_ptr.push_back(0);
+auto MakeEntryBatch(std::vector<std::vector<float>> const& columns) -> DeviceEntryBatch {
+  std::vector<Entry> h_entries;
+  std::vector<size_t> h_columns_ptr;
+  h_columns_ptr.push_back(0);
   for (bst_feature_t c = 0; c < columns.size(); ++c) {
     for (auto value : columns[c]) {
-      batch.entries.push_back(Entry{c, value});
+      h_entries.push_back(Entry{c, value});
     }
-    batch.columns_ptr.push_back(batch.entries.size());
+    h_columns_ptr.push_back(h_entries.size());
   }
-  return batch;
+  return {dh::device_vector<Entry>{h_entries}, dh::device_vector<size_t>{h_columns_ptr}};
 }
 
-auto MakePruneBatch(std::size_t rows, bst_feature_t cols, bool with_duplicates) -> HostEntryBatch {
+auto MakeSyntheticBatch(std::size_t rows, bst_feature_t cols, std::size_t batch_idx = 0)
+    -> DeviceEntryBatch {
   std::vector<std::vector<float>> columns(cols);
+  auto base = static_cast<float>(batch_idx) * 1000.0f;
   for (size_t i = 0; i < rows; ++i) {
-    if (with_duplicates) {
-      columns[0].push_back(static_cast<float>(i / 4));
-      columns[1].push_back(static_cast<float>(i / 8) + 10.0f);
-      columns[2].push_back(static_cast<float>(i / 2) + 100.0f);
-    } else {
-      columns[0].push_back(static_cast<float>(i));
-      columns[1].push_back(static_cast<float>(i) * 0.5f + 10.0f);
-      columns[2].push_back(static_cast<float>(i) * 0.25f + 100.0f);
-    }
+    columns[0].push_back(base + static_cast<float>(i / 4));
+    columns[1].push_back(base + static_cast<float>(i / 8) + 10.0f);
+    columns[2].push_back(base + static_cast<float>(i / 2) + 100.0f);
   }
   return MakeEntryBatch(columns);
 }
@@ -81,6 +78,14 @@ auto CopySketchToHost(xgboost::common::Span<common::SketchEntry const> data,
   dh::CopyDeviceSpanToVector(&out.data, data);
   dh::CopyDeviceSpanToVector(&out.columns_ptr, columns_ptr);
   return out;
+}
+
+[[nodiscard]] auto ExpectedSketchEntriesPerFeature(bst_bin_t n_bins, std::size_t rows_seen)
+    -> std::size_t {
+  auto num_rows = std::max<std::size_t>(1, rows_seen);
+  auto eps = SketchEpsilon(n_bins, num_rows);
+  auto limit = WQSketch::LimitSizeLevel(num_rows, eps);
+  return std::min(limit, num_rows);
 }
 }  // namespace
 
@@ -200,7 +205,7 @@ TEST(GPUQuantile, EmptyPush) {
   dh::device_vector<bst_idx_t> cuts_ptr(kCols + 1);
   thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
   // Push empty
-  sketch.Push(&ctx, dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0, 0);
+  sketch.Push(&ctx, dh::ToSpan(entries), dh::ToSpan(cuts_ptr), 0);
   ASSERT_EQ(sketch.Data().size(), 0);
 }
 
@@ -234,24 +239,22 @@ void ValidateSketchInvariants(HostSketchView const& sketch, bool with_error = fa
 }
 
 TEST(GPUQuantile, Prune) {
-  constexpr size_t kRows = 64, kCols = 3;
-  for (auto with_duplicates : {false, true}) {
-    for (auto n_bins : {8, 16, 80}) {
-      auto ctx = MakeCUDACtx(0);
-      HostDeviceVector<FeatureType> ft;
-      SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
-      auto batch = MakePruneBatch(kRows, kCols, with_duplicates);
-      dh::device_vector<Entry> d_entries{batch.entries};
-      dh::device_vector<size_t> d_columns_ptr{batch.columns_ptr};
-      dh::device_vector<size_t> d_cuts_ptr{batch.columns_ptr};
-      sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(d_columns_ptr), dh::ToSpan(d_cuts_ptr),
-                  batch.entries.size(), kRows, {});
-
-      sketch.Prune(&ctx, n_bins);
-      ASSERT_LE(sketch.Data().size(), static_cast<std::size_t>(n_bins) * kCols);
-      auto h_sketch = CopySketchToHost(sketch.Data(), sketch.ColumnsPtr());
-      ValidateSketchInvariants(h_sketch);
+  constexpr size_t kRows = 64, kCols = 3, kBatches = 3;
+  for (auto n_bins : {8, 16, 80}) {
+    auto ctx = MakeCUDACtx(0);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
+    for (size_t batch_idx = 0; batch_idx < kBatches; ++batch_idx) {
+      auto batch = MakeSyntheticBatch(kRows, kCols, batch_idx);
+      sketch.Push(&ctx, dh::ToSpan(batch.entries), dh::ToSpan(batch.columns_ptr), kRows, {});
+      auto rows_seen = kRows * (batch_idx + 1);
+      ASSERT_LE(sketch.Data().size(), ExpectedSketchEntriesPerFeature(n_bins, rows_seen) * kCols);
     }
+
+    sketch.Prune(&ctx, n_bins);
+    ASSERT_LE(sketch.Data().size(), static_cast<std::size_t>(n_bins) * kCols);
+    auto h_sketch = CopySketchToHost(sketch.Data(), sketch.ColumnsPtr());
+    ValidateSketchInvariants(h_sketch);
   }
 }
 
@@ -405,13 +408,9 @@ TEST(GPUQuantile, MergeCategorical) {
   dh::device_vector<Entry> d_entries_1{entries_1};
   dh::device_vector<size_t> columns_ptr_0{0, 5, 8};
   dh::device_vector<size_t> columns_ptr_1{0, 5, 8};
-  dh::device_vector<size_t> cuts_ptr_0{0, 5, 8};
-  dh::device_vector<size_t> cuts_ptr_1{0, 5, 8};
 
-  sketch_0.Push(&ctx, dh::ToSpan(d_entries_0), dh::ToSpan(columns_ptr_0), dh::ToSpan(cuts_ptr_0),
-                entries_0.size(), 5, {});
-  sketch_1.Push(&ctx, dh::ToSpan(d_entries_1), dh::ToSpan(columns_ptr_1), dh::ToSpan(cuts_ptr_1),
-                entries_1.size(), 5, {});
+  sketch_0.Push(&ctx, dh::ToSpan(d_entries_0), dh::ToSpan(columns_ptr_0), 5, {});
+  sketch_1.Push(&ctx, dh::ToSpan(d_entries_1), dh::ToSpan(columns_ptr_1), 5, {});
 
   sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
   auto h_sketch = CopySketchToHost(sketch_0.Data(), sketch_0.ColumnsPtr());
@@ -439,12 +438,9 @@ TEST(GPUQuantile, MergeSameValue) {
   dh::device_vector<Entry> d_entries_0{entries_0};
   dh::device_vector<Entry> d_entries_1{entries_1};
   dh::device_vector<size_t> columns_ptr{0, 1};
-  dh::device_vector<size_t> cuts_ptr{0, 1};
 
-  sketch_0.Push(&ctx, dh::ToSpan(d_entries_0), dh::ToSpan(columns_ptr), dh::ToSpan(cuts_ptr), 1, 1,
-                {});
-  sketch_1.Push(&ctx, dh::ToSpan(d_entries_1), dh::ToSpan(columns_ptr), dh::ToSpan(cuts_ptr), 1, 1,
-                {});
+  sketch_0.Push(&ctx, dh::ToSpan(d_entries_0), dh::ToSpan(columns_ptr), 1, {});
+  sketch_1.Push(&ctx, dh::ToSpan(d_entries_1), dh::ToSpan(columns_ptr), 1, {});
 
   sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
 
@@ -647,8 +643,8 @@ TEST(GPUQuantile, Push) {
 
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
-  sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr), kRows,
-              kRows, {});
+  sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), kRows, {});
+  ASSERT_LE(sketch.Data().size(), ExpectedSketchEntriesPerFeature(n_bins, kRows) * kCols);
 
   auto sketch_data = sketch.Data();
 
@@ -696,10 +692,9 @@ TEST(GPUQuantile, MultiColPush) {
   }
   thrust::inclusive_scan(thrust::device, columns_ptr.begin(), columns_ptr.end(),
                          columns_ptr.begin());
-  dh::device_vector<size_t> cuts_ptr(columns_ptr);
 
-  sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(cuts_ptr),
-              kRows * kCols, kRows, {});
+  sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), kRows, {});
+  ASSERT_LE(sketch.Data().size(), ExpectedSketchEntriesPerFeature(n_bins, kRows) * kCols);
 
   auto sketch_data = sketch.Data();
   ASSERT_EQ(sketch_data.size(), kCols * 2);
