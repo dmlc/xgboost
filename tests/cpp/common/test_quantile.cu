@@ -530,6 +530,31 @@ TEST_F(MGPUQuantileTest, SameOnAllWorkers) {
 TEST(GPUQuantile, Push) {
   constexpr size_t kRows = 100, kBatches = 3;
   auto ctx = MakeCUDACtx(0);
+  {
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch(ft, 128, 1, ctx.Device());
+    auto batch = MakeEntryBatch({{0.3f, 0.3f, 0.3f, 0.3f, 0.5f, 0.5f, 0.5f, 0.5f}});
+    sketch.Push(&ctx, dh::ToSpan(batch.entries), dh::ToSpan(batch.columns_ptr), batch.rows,
+                dh::ToSpan(batch.weights_scan));
+
+    auto h_sketch = CopySketchToHost(sketch.Data(), sketch.ColumnsPtr());
+    ValidateSketchInvariants(h_sketch);
+    ASSERT_EQ(h_sketch.columns_ptr, (std::vector<bst_idx_t>{0, 2}));
+    ASSERT_EQ(h_sketch.data.size(), 2);
+
+    auto v_0 = h_sketch.data[0];
+    EXPECT_FLOAT_EQ(v_0.value, 0.3f);
+    EXPECT_FLOAT_EQ(v_0.rmin, 0.0f);
+    EXPECT_FLOAT_EQ(v_0.wmin, 4.0f);
+    EXPECT_FLOAT_EQ(v_0.rmax, 4.0f);
+
+    auto v_1 = h_sketch.data[1];
+    EXPECT_FLOAT_EQ(v_1.value, 0.5f);
+    EXPECT_FLOAT_EQ(v_1.rmin, 4.0f);
+    EXPECT_FLOAT_EQ(v_1.wmin, 4.0f);
+    EXPECT_FLOAT_EQ(v_1.rmax, 8.0f);
+  }
+
   for (auto [n_bins, kCols] : {std::pair{128, 1}, std::pair{16, 4}}) {
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch(ft, n_bins, kCols, ctx.Device());
