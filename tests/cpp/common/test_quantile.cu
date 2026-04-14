@@ -51,20 +51,20 @@ auto MakeEntryBatch(std::vector<std::vector<float>> const& columns,
   std::vector<Entry> h_entries;
   std::vector<size_t> h_columns_ptr;
   std::vector<float> h_weights_scan;
-  h_columns_ptr.push_back(0);
+  h_columns_ptr.emplace_back(0);
   for (bst_feature_t c = 0; c < columns.size(); ++c) {
     float prefix_sum = 0.0f;
     for (auto value : columns[c]) {
-      h_entries.push_back(Entry{c, value});
+      h_entries.emplace_back(Entry{c, value});
     }
     if (weights) {
       CHECK_EQ(columns[c].size(), (*weights)[c].size());
       for (auto w : (*weights)[c]) {
         prefix_sum += w;
-        h_weights_scan.push_back(prefix_sum);
+        h_weights_scan.emplace_back(prefix_sum);
       }
     }
-    h_columns_ptr.push_back(h_entries.size());
+    h_columns_ptr.emplace_back(h_entries.size());
   }
   return {dh::device_vector<Entry>{h_entries}, dh::device_vector<size_t>{h_columns_ptr},
           dh::device_vector<float>{h_weights_scan}, columns.empty() ? 0 : columns.front().size()};
