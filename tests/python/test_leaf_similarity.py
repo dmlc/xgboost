@@ -4,9 +4,9 @@ import ctypes
 
 import numpy as np
 import pytest
-from sklearn.datasets import load_diabetes, load_iris
-
 import xgboost as xgb
+from sklearn.datasets import load_diabetes, load_iris
+from xgboost import testing as tm
 from xgboost.core import (
     _LIB,
     _check_call,
@@ -14,9 +14,6 @@ from xgboost.core import (
     ctypes2numpy,
     from_pystr_to_cstr,
 )
-from xgboost import testing as tm
-
-rng = np.random.RandomState(1994)
 
 
 class TestLeafSimilarity:
@@ -46,7 +43,10 @@ class TestLeafSimilarity:
             ),
         ],
     )
-    @pytest.mark.parametrize(("weight_type", "column"), [("gain", "Gain"), ("cover", "Cover")])
+    @pytest.mark.parametrize(
+        ("weight_type", "column"), [("gain", "Gain"), ("cover", "Cover")]
+    )
+    @pytest.mark.skipif(**tm.no_pandas())
     def test_leaf_similarity_weight_api(
         self, param: dict, num_boost_round: int, weight_type: str, column: str
     ) -> None:
@@ -64,13 +64,7 @@ class TestLeafSimilarity:
             expected_weights[int(tree_id)] = weight
 
         config = from_pystr_to_cstr(
-            (
-                "{"
-                f'"weight_type":"{weight_type}",'
-                '"iteration_begin":0,'
-                '"iteration_end":0'
-                "}"
-            )
+            (f'{{"weight_type":"{weight_type}","iteration_begin":0,"iteration_end":0}}')
         )
         out_len = c_bst_ulong()
         out_weights = ctypes.POINTER(ctypes.c_float)()
@@ -112,7 +106,9 @@ class TestLeafSimilarity:
         assert sim_gain.shape == sim_cover.shape
 
         # Default should be uniform
-        sim_uniform = bst.compute_leaf_similarity(dm_query, dm_ref, weight_type="uniform")
+        sim_uniform = bst.compute_leaf_similarity(
+            dm_query, dm_ref, weight_type="uniform"
+        )
         sim_default = bst.compute_leaf_similarity(dm_query, dm_ref)
         np.testing.assert_array_equal(sim_default, sim_uniform)
 
@@ -162,7 +158,9 @@ class TestLeafSimilarity:
             rounds = 8 if param.get("booster") == "dart" else 5
 
         bst = xgb.train(param, dtrain, num_boost_round=rounds)
-        similarity = bst.compute_leaf_similarity(dm_query, dm_ref, weight_type=weight_type)
+        similarity = bst.compute_leaf_similarity(
+            dm_query, dm_ref, weight_type=weight_type
+        )
         assert similarity.shape == (dm_query.num_row(), dm_ref.num_row())
         assert similarity.min() >= 0.0
         assert similarity.max() <= 1.0 + 1e-6
@@ -202,7 +200,9 @@ class TestLeafSimilarity:
         bst = xgb.train({"booster": "gblinear", "objective": "binary:logistic"}, dtrain)
         X = dtrain.get_data()
 
-        with pytest.raises(xgb.core.XGBoostError, match="Leaf similarity is only defined"):
+        with pytest.raises(
+            xgb.core.XGBoostError, match="Leaf similarity is only defined"
+        ):
             bst.compute_leaf_similarity(
                 xgb.DMatrix(X[:5]), xgb.DMatrix(X[10:20]), weight_type=weight_type
             )

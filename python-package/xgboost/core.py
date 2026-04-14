@@ -806,9 +806,9 @@ def _get_categories(
         values = from_array_interface(jvalues)
         pa_offsets = pa.array(offsets).buffers()
         pa_values = pa.array(values).buffers()
-        assert (
-            pa_offsets[0] is None and pa_values[0] is None
-        ), "Should not have null mask."
+        assert pa_offsets[0] is None and pa_values[0] is None, (
+            "Should not have null mask."
+        )
         pa_dict = pa.StringArray.from_buffers(
             len(offsets) - 1, pa_offsets[1], pa_values[1]
         )
@@ -3022,9 +3022,7 @@ class Booster:
             )
 
         if config["learner_train_param"]["multi_strategy"] == "multi_output_tree":
-            raise XGBoostError(
-                "Leaf similarity does not support multi_output_tree."
-            )
+            raise XGBoostError("Leaf similarity does not support multi_output_tree.")
 
         query_leaves = self.predict(data, pred_leaf=True, strict_shape=True)
         ref_leaves = self.predict(reference, pred_leaf=True, strict_shape=True)
@@ -3038,7 +3036,9 @@ class Booster:
 
         m, n = query_leaves.shape[0], ref_leaves.shape[0]
         if query_leaves.shape[1] != ref_leaves.shape[1]:
-            raise ValueError("Query and reference leaf predictions have different shapes.")
+            raise ValueError(
+                "Query and reference leaf predictions have different shapes."
+            )
 
         n_trees = query_leaves.shape[1]
         if m == 0 or n == 0 or n_trees == 0:

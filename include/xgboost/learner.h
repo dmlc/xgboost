@@ -96,8 +96,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param data_names name of each dataset
    * \return a string corresponding to the evaluation result
    */
-  virtual std::string EvalOneIter(int iter,
-                                  const std::vector<std::shared_ptr<DMatrix>>& data_sets,
+  virtual std::string EvalOneIter(int iter, const std::vector<std::shared_ptr<DMatrix>>& data_sets,
                                   const std::vector<std::string>& data_names) = 0;
   /*!
    * \brief get prediction given the model.
@@ -107,7 +106,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param training Whether the prediction result is used for training
-   * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
+   * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree
+   * predictor
    * \param pred_contribs whether to only predict the feature contributions
    * \param approx_contribs whether to approximate the feature contributions for speed
    * \param pred_interactions whether to compute the feature pair contributions
@@ -141,8 +141,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                                 std::vector<float>* scores) = 0;
 
   virtual void CalcLeafSimilarityWeights(std::string const& weight_type,
-                                         bst_layer_t iteration_begin,
-                                         bst_layer_t iteration_end,
+                                         bst_layer_t iteration_begin, bst_layer_t iteration_end,
                                          std::vector<float>* weights) = 0;
 
   /*
@@ -211,7 +210,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \brief Set the feature names for current booster.
    * \param fn Input feature names
    */
-  virtual  void SetFeatureNames(std::vector<std::string> const& fn) = 0;
+  virtual void SetFeatureNames(std::vector<std::string> const& fn) = 0;
   /*!
    * \brief Get the feature names for current booster.
    * \param fn Output feature names
@@ -250,8 +249,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param format the format to dump the model in
    * \return a vector of dump for boosters.
    */
-  virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
-                                             bool with_stats,
+  virtual std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                              std::string format) = 0;
 
   virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
@@ -264,7 +262,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param cache_data The matrix to cache the prediction.
    * \return Created learner.
    */
-  static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
+  static Learner* Create(const std::vector<std::shared_ptr<DMatrix>>& cache_data);
   /**
    * \brief Return the context object of this Booster.
    */
@@ -281,7 +279,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /*! \brief The gradient booster used by the model*/
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
-  std::vector<std::unique_ptr<Metric> > metrics_;
+  std::vector<std::unique_ptr<Metric>> metrics_;
   /*! \brief Training parameter. */
   Context ctx_;
 };
