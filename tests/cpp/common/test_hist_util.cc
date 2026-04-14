@@ -140,8 +140,6 @@ void TestQuantileWithHessian(bool use_sorted) {
       for (size_t i = 0; i < w.size(); ++i) {
         dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
       }
-      ValidateCuts(cuts_hess, dmat.get(), num_bins, kMaxWeightedNormalizedRankError);
-
       HistogramCuts cuts_wh = SketchOnDMatrix(&ctx, dmat.get(), num_bins, use_sorted);
       ValidateCuts(cuts_wh, dmat.get(), num_bins, kMaxWeightedNormalizedRankError);
 

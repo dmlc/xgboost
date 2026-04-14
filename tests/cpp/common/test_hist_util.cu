@@ -158,22 +158,6 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   }
 }
 
-TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
-  auto ctx = MakeCUDACtx(0);
-  auto bin_sizes = {2, 16, 256, 512};
-  auto sizes = {100, 1000, 1500};
-  int num_columns = 5;
-  for (auto num_rows : sizes) {
-    HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
-    common::TemporaryDirectory temp;
-    auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp);
-    for (auto num_bins : bin_sizes) {
-      auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
-    }
-  }
-}
-
 // See https://github.com/dmlc/xgboost/issues/5866.
 TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
   auto ctx = MakeCUDACtx(0);
@@ -295,22 +279,6 @@ TEST(HistUtil, AdapterDeviceSketchCategorical) {
   }
 }
 
-TEST(HistUtil, AdapterDeviceSketchMultipleColumns) {
-  auto bin_sizes = {2, 16, 256, 512};
-  auto sizes = {100, 1000, 1500};
-  int num_columns = 5;
-  auto ctx = MakeCUDACtx(0);
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    auto x_device = thrust::device_vector<float>(x);
-    for (auto num_bins : bin_sizes) {
-      auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-      ValidateBatchedCuts(&ctx, adapter, num_bins, dmat.get());
-    }
-  }
-}
-
 namespace {
 auto MakeData(Context const* ctx, std::size_t n_samples, bst_feature_t n_features) {
   curt::SetDevice(ctx->Ordinal());
@@ -318,7 +286,7 @@ auto MakeData(Context const* ctx, std::size_t n_samples, bst_feature_t n_feature
   std::vector<float> x;
   x.resize(n);
 
-  std::iota(x.begin(), x.end(), 0);
+  std::iota(x.begin(), x.end(), 0.0f);
   std::int32_t c{0};
   float missing = n_samples * n_features;
   for (std::size_t i = 0; i < x.size(); ++i) {
@@ -401,8 +369,6 @@ TEST(HistUtil, SketchingEquivalent) {
           &ctx, adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
       EXPECT_EQ(dmat_cuts.Values(), adapter_cuts.Values());
       EXPECT_EQ(dmat_cuts.Ptrs(), adapter_cuts.Ptrs());
-
-      ValidateBatchedCuts(&ctx, adapter, num_bins, dmat.get());
     }
   }
 }

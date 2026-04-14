@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../src/common/hist_util.h"
 #include "../../../src/common/quantile.h"
 #include "../helpers.h"
 
