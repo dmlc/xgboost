@@ -11,7 +11,6 @@
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/adapter.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
-#include "test_quantile_helpers.h"
 #include "xgboost/context.h"
 
 namespace xgboost::common {

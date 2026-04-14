@@ -10,7 +10,6 @@
 #include "../helpers.h"
 #include "test_hist_util.h"
 #include "test_quantile.h"
-#include "test_quantile_helpers.h"
 
 namespace xgboost {
 namespace {
