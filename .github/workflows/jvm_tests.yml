@@ -187,7 +187,7 @@ jobs:
           environment-name: minimal
           environment-file: ops/conda_env/minimal.yml
       - name: Cache Maven packages
-        uses: actions/cache@v5.0.4
+        uses: actions/cache@v5.0.5
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('/jvm-packages/pom.xml') }}
