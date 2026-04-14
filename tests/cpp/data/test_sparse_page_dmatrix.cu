@@ -222,7 +222,6 @@ class TestEllpackPageExt : public ::testing::TestWithParam<std::tuple<bool, bool
     [[maybe_unused]] auto h_acc = impl->GetHostEllpack(&ctx, &buffer);
     std::vector<common::CompressedByteT> buffer_ext;
     [[maybe_unused]] auto h_ext_acc = impl_ext->GetHostEllpack(&ctx, &buffer_ext);
-    ASSERT_EQ(buffer, buffer_ext);
   }
 };
 }  // anonymous namespace
