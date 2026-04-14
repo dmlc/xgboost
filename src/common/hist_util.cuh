@@ -331,7 +331,6 @@ void AdapterDeviceSketch(Context const* ctx, Batch batch, bst_bin_t num_bins, Me
   bst_idx_t begin = 0;
 
   while (begin < kRemaining) {
-    auto num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
     auto remaining = kRemaining - begin;
     auto sketch_batch_num_elements = std::min(detail::kSketchBatchNumElements, remaining);
     // Re-estimate the needed number of cuts based on the size of the sub-batch.
@@ -342,7 +341,6 @@ void AdapterDeviceSketch(Context const* ctx, Batch batch, bst_bin_t num_bins, Me
     // dense assumption.
     auto approx_n_samples =
         std::max(common::DivRoundUp(sketch_batch_num_elements, num_cols), bst_idx_t{1});
-    num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, approx_n_samples);
     bst_idx_t end =
         std::min(batch.Size(), static_cast<std::size_t>(begin + sketch_batch_num_elements));
 

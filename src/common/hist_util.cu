@@ -249,7 +249,6 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
   HostDeviceVector<float> weight;
   weight.SetDevice(ctx->Device());
 
-  std::size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(max_bin, info.num_row_);
   auto sketch_batch_num_elements = detail::kSketchBatchNumElements;
 
   CUDAContext const* cuctx = ctx->CUDACtx();
