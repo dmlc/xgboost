@@ -7,6 +7,8 @@
 #include "nccl.h"
 #endif  // XGBOOST_USE_NCCL
 
+#include <cstdint>  // for int32_t
+#include <memory>   // for shared_ptr
 #include <utility>  // for move
 
 #include "../common/cuda_stream.h"  // for StreamRef
@@ -27,6 +29,7 @@ inline Result GetCUDAResult(cudaError rc) {
 
 #if defined(XGBOOST_USE_NCCL)
 class NCCLComm : public Comm {
+ private:
   ncclComm_t nccl_comm_{nullptr};
   std::shared_ptr<NcclStub> stub_;
   ncclUniqueId nccl_unique_id_{};

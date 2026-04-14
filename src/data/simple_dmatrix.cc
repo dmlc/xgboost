@@ -156,15 +156,12 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(Context const* ctx,
     if (ctx->IsCUDA()) {
       // The context passed in is on GPU, we pick it first since we prioritize the context
       // in Booster.
-      ellpack_page_.reset(new EllpackPage(ctx, this, param));
-    } else if (fmat_ctx_.IsCUDA()) {
-      // DMatrix was initialized on GPU, we use the context from initialization.
-      ellpack_page_.reset(new EllpackPage(&fmat_ctx_, this, param));
-    } else {
+      fmat_ctx_ = *ctx;
+    } else if (!fmat_ctx_.IsCUDA()) {
       // Mismatched parameter, user set a new max_bin during training.
-      auto cuda_ctx = ctx->MakeCUDA();
-      ellpack_page_.reset(new EllpackPage(&cuda_ctx, this, param));
+      fmat_ctx_ = ctx->MakeCUDA();
     }
+    ellpack_page_.reset(new EllpackPage(&fmat_ctx_, this, param));
 
     batch_param_ = param.MakeCache();
   }

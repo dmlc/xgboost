@@ -13,13 +13,43 @@
 namespace dh {
 namespace detail {
 void ThrowOOMError(std::string const &err, std::size_t bytes) {
-  auto device = CurrentDevice();
-  auto rank = xgboost::collective::GetRank();
   using xgboost::common::HumanMemUnit;
+
+  auto device = ::xgboost::curt::CurrentDevice();
+  auto rank = xgboost::collective::GetRank();
+
   std::stringstream ss;
   ss << "Memory allocation error on worker " << rank << ": " << err << "\n"
      << "- Free memory: " << HumanMemUnit(dh::AvailableMemory(device)) << "\n"
      << "- Requested memory: " << HumanMemUnit(bytes) << std::endl;
+
+  cudaMemPool_t memPool;
+  std::size_t reserved_bytes = 0;
+  std::size_t used_bytes = 0;
+
+  // Get the default memory pool for the current device
+  auto status = cudaDeviceGetDefaultMemPool(&memPool, device);
+  if (status != cudaSuccess) {
+    ss << "Failed to get the default memory pool: " << cudaGetErrorString(status) << "\n";
+    LOG(FATAL) << ss.str();
+  }
+
+  // Get the current total reserved memory size
+  status = cudaMemPoolGetAttribute(memPool, cudaMemPoolAttrReservedMemCurrent, &reserved_bytes);
+  if (status != cudaSuccess) {
+    ss << "Failed to get reserved memory attribute: " << cudaGetErrorString(status) << "\n";
+  } else {
+    ss << "- Reserved by the pool: " << HumanMemUnit(reserved_bytes) << "\n";
+  }
+
+  // Get the current total used memory size
+  status = cudaMemPoolGetAttribute(memPool, cudaMemPoolAttrUsedMemCurrent, &used_bytes);
+  if (status != cudaSuccess) {
+    ss << "Failed to get used memory attribute: " << cudaGetErrorString(status) << "\n";
+  } else {
+    ss << "- Used by the pool: " << HumanMemUnit(used_bytes) << "\n";
+  }
+
   LOG(FATAL) << ss.str();
 }
 

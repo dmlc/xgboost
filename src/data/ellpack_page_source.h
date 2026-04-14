@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
@@ -164,7 +164,7 @@ class EllpackHostCacheStream {
    * @return Whether a new cache page is create. False if the new page is appended to the
    * previous one.
    */
-  [[nodiscard]] bool Write(EllpackPage const& page);
+  [[nodiscard]] bool Write(Context const* ctx, EllpackPage const& page);
 };
 
 namespace detail {
@@ -177,6 +177,7 @@ class EllpackFormatPolicy {
   std::shared_ptr<common::HistogramCuts const> cuts_{nullptr};
   DeviceOrd device_;
   bool has_hmm_{curt::SupportsPageableMem()};
+  Context const* ctx_{nullptr};
 
   EllpackCacheInfo cache_info_;
   static_assert(std::is_same_v<S, EllpackPage>);
@@ -214,11 +215,12 @@ class EllpackFormatPolicy {
 
   [[nodiscard]] auto CreatePageFormat(BatchParam const& param) const {
     CHECK_EQ(cuts_->cut_values_.Device(), device_);
-    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_, param, has_hmm_}};
+    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{ctx_, cuts_, device_, param, has_hmm_}};
     return fmt;
   }
-  void SetCuts(std::shared_ptr<common::HistogramCuts const> cuts, DeviceOrd device,
-               EllpackCacheInfo cinfo) {
+  void SetCuts(Context const* ctx, std::shared_ptr<common::HistogramCuts const> cuts,
+               DeviceOrd device, EllpackCacheInfo cinfo) {
+    this->ctx_ = ctx;
     std::swap(this->cuts_, cuts);
     this->device_ = device;
     CHECK(this->device_.IsCUDA());
@@ -230,6 +232,8 @@ class EllpackFormatPolicy {
   }
   [[nodiscard]] auto Device() const { return this->device_; }
   [[nodiscard]] auto const& CacheInfo() { return this->cache_info_; }
+  [[nodiscard]] auto Ctx() const { return this->ctx_; }
+  void DestroyPage(std::shared_ptr<S>* page) const;
 };
 
 template <typename S, template <typename> typename F>
@@ -311,7 +315,7 @@ class EllpackPageSourceImpl : public PageSourceIncMixIn<EllpackPage, F> {
         feature_types_{feature_types} {
     this->source_ = source;
     cuts->SetDevice(ctx->Device());
-    this->SetCuts(std::move(cuts), ctx->Device(), cinfo);
+    this->SetCuts(ctx, std::move(cuts), ctx->Device(), cinfo);
     this->Fetch();
   }
 
@@ -353,7 +357,7 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
         info_{info},
         ext_info_{std::move(ext_info)} {
     cuts->SetDevice(ctx->Device());
-    this->SetCuts(std::move(cuts), ctx->Device(), cinfo);
+    this->SetCuts(ctx, std::move(cuts), ctx->Device(), cinfo);
     CHECK(!this->cache_info_->written);
     this->source_->Reset();
     CHECK(this->source_->Next());
@@ -383,6 +387,11 @@ using ExtEllpackPageSource =
     ExtEllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
 
 #if !defined(XGBOOST_USE_CUDA)
+template <typename S>
+inline void EllpackFormatPolicy<S>::DestroyPage(std::shared_ptr<S>* page) const {
+  page->reset();
+}
+
 template <typename F>
 inline void EllpackPageSourceImpl<F>::Fetch() {
   // silent the warning about unused variables.

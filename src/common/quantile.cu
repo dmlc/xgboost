@@ -6,14 +6,18 @@
 #include <thrust/tuple.h>  // for make_tuple
 #include <thrust/unique.h>
 
+#include <algorithm>
 #include <cstdint>      // for uintptr_t
 #include <limits>       // for numeric_limits
 #include <numeric>      // for partial_sum
 #include <type_traits>  // for is_same_v
 #include <utility>
+#include <vector>
 
 #include "../collective/allgather.h"
 #include "../collective/allreduce.h"
+#include "../collective/comm.cuh"
+#include "../collective/comm_group.h"
 #include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "categorical.h"
 #include "common.h"
@@ -23,7 +27,6 @@
 #include "hist_util.h"
 #include "quantile.cuh"
 #include "quantile.h"
-#include "transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/span.h"
 
 namespace xgboost::common {
@@ -154,6 +157,35 @@ void CopyTo(Span<T> out, Span<U> src) {
   CHECK_EQ(out.size(), src.size());
   static_assert(std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<T>>);
   dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(), out.size_bytes(), cudaMemcpyDefault));
+}
+
+struct DeviceSketchPayload {
+  Span<SketchContainer::OffsetT const> columns_ptr;
+  Span<SketchEntry const> entries;
+};
+
+[[nodiscard]] std::size_t SketchPayloadEntriesOffset(bst_feature_t num_columns) {
+  auto columns_bytes = (num_columns + 1) * sizeof(SketchContainer::OffsetT);
+  auto alignment = alignof(SketchEntry);
+  return common::DivRoundUp(columns_bytes, alignment) * alignment;
+}
+
+[[nodiscard]] std::size_t SketchPayloadBytes(bst_feature_t num_columns, std::size_t n_entries) {
+  return SketchPayloadEntriesOffset(num_columns) + n_entries * sizeof(SketchEntry);
+}
+
+[[nodiscard]] DeviceSketchPayload ParseDeviceSketchPayload(
+    dh::device_vector<std::int8_t> const &payload, bst_feature_t num_columns) {
+  auto entries_offset = SketchPayloadEntriesOffset(num_columns);
+  CHECK_GE(payload.size(), entries_offset);
+  auto entries_bytes = payload.size() - entries_offset;
+  CHECK_EQ(entries_bytes % sizeof(SketchEntry), 0) << "Invalid sketch payload size.";
+
+  auto const *ptr = payload.data().get();
+  auto const *columns_ptr = reinterpret_cast<SketchContainer::OffsetT const *>(ptr);
+  auto const *entries = reinterpret_cast<SketchEntry const *>(ptr + entries_offset);
+  return {Span<SketchContainer::OffsetT const>{columns_ptr, num_columns + 1},
+          Span<SketchEntry const>{entries, entries_bytes / sizeof(SketchEntry)}};
 }
 
 XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry const> x,
@@ -301,21 +333,17 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
   });
 }
 
+// Convert one sorted batch into a temporary pruned summary in `prune_buffer_`, normalize
+// duplicated raw values in place, then merge that summary into the resident sketch in
+// `entries_`. Out-of-place merge/prune results use `entries_tmp_` as scratch before being
+// committed back into `entries_`.
 void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
-                           common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights) {
+                           common::Span<OffsetT> cuts_ptr, size_t total_cuts,
+                           bst_idx_t n_rows_in_batch, Span<float> weights) {
   curt::SetDevice(ctx->Ordinal());
-  auto &current = this->entries_;
-  auto &columns_ptr_out = this->columns_ptr_;
-  Span<SketchEntry> out;
-  dh::device_vector<SketchEntry> cuts;
-  bool first_window = current.empty();
-  if (!first_window) {
-    cuts.resize(total_cuts);
-    out = dh::ToSpan(cuts);
-  } else {
-    current.resize(total_cuts);
-    out = dh::ToSpan(current);
-  }
+  rows_seen_ += n_rows_in_batch;
+  this->prune_buffer_.resize(total_cuts);
+  auto out = dh::ToSpan(this->prune_buffer_);
   auto ft = this->feature_types_.ConstDeviceSpan();
   if (weights.empty()) {
     auto to_sketch_entry = [] __device__(size_t sample_idx, Span<Entry const> const &column,
@@ -340,19 +368,13 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
     PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
   }
   auto n_uniques = this->ScanInput(ctx, out, cuts_ptr);
-
-  if (!first_window) {
-    CHECK_EQ(columns_ptr_out.Size(), cuts_ptr.size());
-    out = out.subspan(0, n_uniques);
-    this->Merge(ctx, cuts_ptr, out);
-  } else {
-    current.resize(n_uniques);
-    columns_ptr_out.SetDevice(ctx->Device());
-    columns_ptr_out.Resize(cuts_ptr.size());
-
-    auto d_cuts_ptr = columns_ptr_out.DeviceSpan();
-    CopyTo(d_cuts_ptr, cuts_ptr);
+  CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
+  if (n_uniques == 0) {
+    return;
   }
+  this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
+  auto intermediate_num_cuts = static_cast<bst_idx_t>(this->IntermediateNumCuts());
+  this->Prune(ctx, intermediate_num_cuts);
 }
 
 size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
@@ -417,6 +439,10 @@ void SketchContainer::Prune(Context const *ctx, std::size_t to) {
     to_total += length;
     h_columns_ptr[i + 1] = to_total;
   }
+  if (entries.size() <= static_cast<std::size_t>(to_total)) {
+    timer_.Stop(__func__);
+    return;
+  }
   scratch.resize(to_total);
 
   auto d_columns_ptr_in = columns_ptr.ConstDeviceSpan();
@@ -471,24 +497,17 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
 
   timer_.Start(__func__);
   auto normalize_merged = [&] {
-    if (this->HasCategorical()) {
-      // Numerical summaries are normalized during prune.  Categorical features can still
-      // produce repeated category values, so compact those here before exposing the sketch.
-      auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
-      auto d_column_scan = columns_ptr.DeviceSpan();
-      auto merged_entries = dh::ToSpan(entries);
-      HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
-      scan_out.SetDevice(ctx->Device());
-      auto n_uniques = dh::SegmentedUnique(
-          ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
-          merged_entries.data(), merged_entries.data() + merged_entries.size(),
-          scan_out.DevicePointer(), merged_entries.data(), detail::SketchUnique{},
-          [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
-            return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
-          });
-      columns_ptr.Copy(scan_out);
-      entries.resize(n_uniques);
-    }
+    // Merge can leave adjacent duplicate values in both numerical and categorical summaries.
+    auto d_column_scan = columns_ptr.DeviceSpan();
+    auto merged_entries = dh::ToSpan(entries);
+    columns_ptr_tmp.Resize(columns_ptr.Size());
+    columns_ptr_tmp.SetDevice(ctx->Device());
+    auto n_uniques = dh::SegmentedUnique(
+        ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
+        merged_entries.data(), merged_entries.data() + merged_entries.size(),
+        columns_ptr_tmp.DevicePointer(), merged_entries.data(), detail::SketchUnique{});
+    columns_ptr.Copy(columns_ptr_tmp);
+    entries.resize(n_uniques);
     this->FixError();
   };
   if (entries.empty()) {
@@ -558,83 +577,83 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
 
   timer_.Start(__func__);
   // Bound local sketch size before exchanging data across workers.
-  auto intermediate_num_cuts = static_cast<bst_idx_t>(num_bins_ * kFactor);
-  this->Prune(ctx, intermediate_num_cuts);
+  std::size_t global_rows_seen = rows_seen_;
+  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&global_rows_seen, 1), collective::Op::kSum);
+  SafeColl(rc);
+  auto exchange_budget = SketchSummaryBudget(num_bins_, global_rows_seen);
+  this->Prune(ctx, exchange_budget);
 
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
   size_t n = d_columns_ptr.size();
-  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&n, 1), collective::Op::kMax);
+  rc = collective::Allreduce(ctx, linalg::MakeVec(&n, 1), collective::Op::kMax);
   SafeColl(rc);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
-  // Get the columns ptr from all workers
-  dh::device_vector<SketchContainer::OffsetT> gathered_ptrs;
-  gathered_ptrs.resize(d_columns_ptr.size() * world, 0);
-  size_t rank = collective::GetRank();
-  auto offset = rank * d_columns_ptr.size();
-  thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
-               gathered_ptrs.begin() + offset);
-  rc = collective::Allreduce(
-      ctx, linalg::MakeVec(gathered_ptrs.data().get(), gathered_ptrs.size(), ctx->Device()),
-      collective::Op::kSum);
+#if defined(XGBOOST_USE_NCCL)
+  dh::device_vector<std::int8_t> payload;
+  collective::AllreduceVScratch<std::int8_t> scratch;
+
+  auto reserve_n_entries = exchange_budget * static_cast<std::size_t>(this->num_columns_);
+  auto reserve_n_bytes = SketchPayloadBytes(this->num_columns_, reserve_n_entries);
+  payload.reserve(reserve_n_bytes);
+  scratch.Reserve(reserve_n_bytes);
+
+  auto pack_payload = [&](dh::device_vector<std::int8_t> *out, cudaStream_t stream) {
+    auto entries_offset = SketchPayloadEntriesOffset(this->num_columns_);
+    auto n_bytes = SketchPayloadBytes(this->num_columns_, this->entries_.size());
+    out->resize(n_bytes);
+
+    auto columns_bytes = (this->num_columns_ + 1) * sizeof(OffsetT);
+    auto rc = collective::GetCUDAResult(
+        cudaMemcpyAsync(out->data().get(), this->columns_ptr_.ConstDeviceSpan().data(),
+                        columns_bytes, cudaMemcpyDeviceToDevice, stream));
+    SafeColl(rc);
+    if (!this->entries_.empty()) {
+      rc = collective::GetCUDAResult(cudaMemcpyAsync(
+          out->data().get() + entries_offset, this->entries_.data().get(),
+          this->entries_.size() * sizeof(SketchEntry), cudaMemcpyDeviceToDevice, stream));
+      SafeColl(rc);
+    }
+  };
+
+  auto load_payload = [&](dh::device_vector<std::int8_t> const &in, cudaStream_t stream) {
+    auto view = ParseDeviceSketchPayload(in, this->num_columns_);
+
+    this->columns_ptr_.Resize(this->num_columns_ + 1);
+    auto rc = collective::GetCUDAResult(
+        cudaMemcpyAsync(this->columns_ptr_.DeviceSpan().data(), view.columns_ptr.data(),
+                        view.columns_ptr.size_bytes(), cudaMemcpyDeviceToDevice, stream));
+    SafeColl(rc);
+
+    this->entries_.resize(view.entries.size());
+    if (!view.entries.empty()) {
+      rc = collective::GetCUDAResult(cudaMemcpyAsync(this->entries_.data().get(),
+                                                     view.entries.data(), view.entries.size_bytes(),
+                                                     cudaMemcpyDeviceToDevice, stream));
+      SafeColl(rc);
+    }
+  };
+
+  auto stream = ctx->CUDACtx()->Stream();
+  pack_payload(&payload, stream);
+  rc = collective::AllreduceV(
+      ctx, &payload, &scratch,
+      [&](dh::device_vector<std::int8_t> const &lhs, dh::device_vector<std::int8_t> const &rhs,
+          dh::device_vector<std::int8_t> *out, cudaStream_t stream) {
+        auto rhs_view = ParseDeviceSketchPayload(rhs, this->num_columns_);
+        this->Merge(ctx, rhs_view.columns_ptr, rhs_view.entries);
+        this->Prune(ctx, exchange_budget);
+        pack_payload(out, stream);
+      });
   SafeColl(rc);
+  load_payload(payload, stream);
 
-  // Get the data from all workers.
-  std::vector<std::int64_t> recv_lengths;
-  HostDeviceVector<std::int8_t> recvbuf;
-  rc = collective::AllgatherV(
-      ctx, linalg::MakeVec(this->entries_.data().get(), this->entries_.size(), ctx->Device()),
-      &recv_lengths, &recvbuf);
-  collective::SafeColl(rc);
-  for (std::size_t i = 0; i < recv_lengths.size() - 1; ++i) {
-    recv_lengths[i] = recv_lengths[i + 1] - recv_lengths[i];
-  }
-  recv_lengths.resize(recv_lengths.size() - 1);
-
-  // Segment the received data.
-  auto s_recvbuf = recvbuf.DeviceSpan();
-  std::vector<Span<SketchEntry>> allworkers;
-  offset = 0;
-  for (int32_t i = 0; i < world; ++i) {
-    size_t length_as_bytes = recv_lengths.at(i);
-    auto raw = s_recvbuf.subspan(offset, length_as_bytes);
-    CHECK_EQ(length_as_bytes % sizeof(SketchEntry), 0)
-        << "Allgathered GPU sketch buffer has invalid size.";
-    auto ptr = reinterpret_cast<std::uintptr_t>(raw.data());
-    CHECK_EQ(ptr % alignof(SketchEntry), 0) << "Allgathered GPU sketch buffer is misaligned.";
-    auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry *>(raw.data()),
-                                    length_as_bytes / sizeof(SketchEntry));
-    allworkers.emplace_back(sketch);
-    offset += length_as_bytes;
-  }
-  // Stop the timer early to avoid interference from the new sketch container.
   timer_.Stop(__func__);
-
-  // Merge them into a new sketch.
-  SketchContainer new_sketch(this->feature_types_, num_bins_, this->num_columns_, ctx->Device());
-  for (size_t i = 0; i < allworkers.size(); ++i) {
-    auto worker = allworkers[i];
-    auto worker_ptr =
-        dh::ToSpan(gathered_ptrs).subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
-    new_sketch.Merge(ctx, worker_ptr, worker);
-  }
-
-  *this = std::move(new_sketch);
+  return;
+#endif
+  LOG(FATAL) << "Distributed GPU quantile sketch reduction requires NCCL support.";
 }
-
-namespace {
-struct InvalidCatOp {
-  Span<SketchEntry const> values;
-  Span<size_t const> ptrs;
-  Span<FeatureType const> ft;
-
-  XGBOOST_DEVICE bool operator()(size_t i) const {
-    auto fidx = dh::SegmentId(ptrs, i);
-    return IsCat(ft, fidx) && InvalidCat(values[i].value);
-  }
-};
-}  // anonymous namespace
 
 HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split) {
   curt::SetDevice(ctx->Ordinal());
@@ -645,133 +664,46 @@ HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split
   this->AllReduce(ctx, is_column_split);
 
   timer_.Start(__func__);
-  // Prune to final number of bins.
-  this->Prune(ctx, num_bins_ + 1);
-
-  // Set up inputs
-  auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
-
-  auto const in_cut_values = dh::ToSpan(this->entries_);
-
-  // Set up output ptr
-  p_cuts->cut_ptrs_.SetDevice(ctx->Device());
   auto &h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
-  h_out_columns_ptr.front() = 0;
+  h_out_columns_ptr.assign(num_columns_ + 1, 0);
+  auto &h_out_cut_values = p_cuts->cut_values_.HostVector();
+  h_out_cut_values.clear();
+
+  auto const &h_in_columns_ptr = this->columns_ptr_.ConstHostVector();
+  std::vector<SketchEntry> h_entries(this->entries_.size());
+  dh::CopyDeviceSpanToVector(&h_entries, dh::ToSpan(this->entries_));
   auto const &h_feature_types = this->feature_types_.ConstHostSpan();
 
-  auto d_ft = feature_types_.ConstDeviceSpan();
-
-  std::vector<SketchEntry> max_values;
   float max_cat{-1.f};
-  if (has_categorical_) {
-    auto key_it = dh::MakeTransformIterator<bst_feature_t>(
-        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> bst_feature_t {
-          return dh::SegmentId(d_in_columns_ptr, i);
-        });
-    auto invalid_op = InvalidCatOp{in_cut_values, d_in_columns_ptr, d_ft};
-    auto val_it = dh::MakeTransformIterator<SketchEntry>(
-        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
-          auto fidx = dh::SegmentId(d_in_columns_ptr, i);
-          auto v = in_cut_values[i];
-          if (IsCat(d_ft, fidx)) {
-            if (invalid_op(i)) {
-              // use inf to indicate invalid value, this way we can keep it as in
-              // indicator in the reduce operation as it's always the greatest value.
-              v.value = std::numeric_limits<float>::infinity();
-            }
-          }
-          return v;
-        });
-    CHECK_EQ(num_columns_, d_in_columns_ptr.size() - 1);
-    max_values.resize(d_in_columns_ptr.size() - 1);
-
-    // In some cases (e.g. column-wise data split), we may have empty columns, so we need to keep
-    // track of the unique keys (feature indices) after the thrust::reduce_by_key` call.
-    dh::caching_device_vector<size_t> d_max_keys(d_in_columns_ptr.size() - 1);
-    dh::caching_device_vector<SketchEntry> d_max_values(d_in_columns_ptr.size() - 1);
-    auto new_end = thrust::reduce_by_key(
-        ctx->CUDACtx()->CTP(), key_it, key_it + in_cut_values.size(), val_it, d_max_keys.begin(),
-        d_max_values.begin(), thrust::equal_to<bst_feature_t>{},
-        [] __device__(auto l, auto r) { return l.value > r.value ? l : r; });
-    d_max_keys.erase(new_end.first, d_max_keys.end());
-    d_max_values.erase(new_end.second, d_max_values.end());
-
-    // The device vector needs to be initialized explicitly since we may have some missing columns.
-    SketchEntry default_entry{};
-    dh::caching_device_vector<SketchEntry> d_max_results(d_in_columns_ptr.size() - 1,
-                                                         default_entry);
-    thrust::scatter(ctx->CUDACtx()->CTP(), d_max_values.begin(), d_max_values.end(),
-                    d_max_keys.begin(), d_max_results.begin());
-    dh::CopyDeviceSpanToVector(&max_values, dh::ToSpan(d_max_results));
-    auto max_it = MakeIndexTransformIter([&](auto i) {
-      if (IsCat(h_feature_types, i)) {
-        return max_values[i].value;
-      }
-      return -1.f;
-    });
-    max_cat = *std::max_element(max_it, max_it + max_values.size());
-    if (std::isinf(max_cat)) {
-      InvalidCategory();
-    }
-  }
-
-  // Set up output cuts
+  WQSummaryContainer summary;
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
-    size_t column_size = std::max(static_cast<size_t>(1ul), this->Column(i).size());
+    auto begin = h_in_columns_ptr[i];
+    auto end = h_in_columns_ptr[i + 1];
+    auto column = Span<SketchEntry const>{h_entries.data() + begin, end - begin};
+
     if (IsCat(h_feature_types, i)) {
-      // column_size is the number of unique values in that feature.
-      CheckMaxCat(max_values[i].value, column_size);
-      h_out_columns_ptr[i + 1] = max_values[i].value + 1;  // includes both max_cat and 0.
-    } else {
-      h_out_columns_ptr[i + 1] =
-          std::min(static_cast<size_t>(column_size), static_cast<size_t>(num_bins_));
-    }
-  }
-  std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(), h_out_columns_ptr.begin());
-  auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();
-
-  size_t total_bins = h_out_columns_ptr.back();
-  p_cuts->cut_values_.SetDevice(ctx->Device());
-  p_cuts->cut_values_.Resize(total_bins);
-  auto out_cut_values = p_cuts->cut_values_.DeviceSpan();
-
-  dh::LaunchN(total_bins, [=] __device__(size_t idx) {
-    auto column_id = dh::SegmentId(d_out_columns_ptr, idx);
-    auto in_column = in_cut_values.subspan(
-        d_in_columns_ptr[column_id], d_in_columns_ptr[column_id + 1] - d_in_columns_ptr[column_id]);
-    auto out_column =
-        out_cut_values.subspan(d_out_columns_ptr[column_id],
-                               d_out_columns_ptr[column_id + 1] - d_out_columns_ptr[column_id]);
-    idx -= d_out_columns_ptr[column_id];
-    if (in_column.size() == 0) {
-      // If the column is empty, we push a dummy value.  It won't affect training as the
-      // column is empty, trees cannot split on it.  This is just to be consistent with
-      // rest of the library.
-      if (idx == 0) {
-        out_column[0] = kRtEps;
-        assert(out_column.size() == 1);
+      auto column_size = std::max(static_cast<std::size_t>(1), column.size());
+      auto feature_max = column.empty() ? 0.0f : column.back().value;
+      if (std::any_of(column.cbegin(), column.cend(),
+                      [](auto const &entry) { return InvalidCat(entry.value); })) {
+        InvalidCategory();
       }
-      return;
+      CheckMaxCat(feature_max, column_size);
+      max_cat = std::max(max_cat, feature_max);
+      for (std::size_t cat = 0; cat <= static_cast<std::size_t>(feature_max); ++cat) {
+        h_out_cut_values.push_back(cat);
+      }
+    } else {
+      summary.Reserve(column.size());
+      std::copy(column.cbegin(), column.cend(), summary.space.begin());
+      summary.SetSize(column.size());
+      auto queried = summary.QueryCutValues(static_cast<std::size_t>(num_bins_));
+      h_out_cut_values.insert(h_out_cut_values.end(), queried.cbegin(), queried.cend());
     }
-
-    if (IsCat(d_ft, column_id)) {
-      out_column[idx] = idx;
-      return;
-    }
-
-    // Last thread is responsible for setting a value that's greater than other cuts.
-    if (idx == out_column.size() - 1) {
-      const bst_float cpt = in_column.back().value;
-      // this must be bigger than last value in a scale
-      const bst_float last = cpt + (fabs(cpt) + 1e-5);
-      out_column[idx] = last;
-      return;
-    }
-    assert(idx + 1 < in_column.size());
-    out_column[idx] = in_column[idx + 1].value;
-  });
-
+    h_out_columns_ptr[i + 1] = h_out_cut_values.size();
+  }
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
+  p_cuts->SetDevice(ctx->Device());
   timer_.Stop(__func__);
   return cuts;
 }

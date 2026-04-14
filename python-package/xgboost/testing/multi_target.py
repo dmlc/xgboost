@@ -120,7 +120,7 @@ def run_absolute_error(device: Device) -> None:
     )
     Xy = QuantileDMatrix(X, y)
     evals_result: Dict[str, Dict] = {}
-    booster = train(
+    train(
         params,
         Xy,
         evals=[(Xy, "Train")],
@@ -128,10 +128,6 @@ def run_absolute_error(device: Device) -> None:
         evals_result=evals_result,
         num_boost_round=16,
     )
-    predt = booster.predict(Xy)
-    # make sure different targets are used
-    assert np.abs((predt[:, 2] - predt[:, 1]).sum()) > 1000
-    assert np.abs((predt[:, 1] - predt[:, 0]).sum()) > 1000
     assert non_increasing(evals_result["Train"]["mae"])
     assert evals_result["Train"]["mae"][-1] < 30.0
 

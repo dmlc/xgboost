@@ -4,15 +4,13 @@
 
 import inspect
 import logging
-import os
 import sys
-import uuid
 from threading import Thread
 from typing import Any, Callable, Dict, Optional, Set, Type, Union
 
 import pyspark
-from pyspark import BarrierTaskContext, SparkConf, SparkContext, SparkFiles, TaskContext
-from pyspark.sql.session import SparkSession
+from pyspark import BarrierTaskContext, TaskContext
+from pyspark.sql import SparkSession
 
 from ..collective import CommunicatorContext as CCtx
 from ..collective import Config
@@ -81,19 +79,6 @@ def _get_host_ip(context: BarrierTaskContext) -> str:
     return task_ip_list[0]
 
 
-def _get_spark_session() -> SparkSession:
-    """Get or create spark session. Note: This function can only be invoked from driver
-    side.
-
-    """
-    if pyspark.TaskContext.get() is not None:
-        # This is a safety check.
-        raise RuntimeError(
-            "_get_spark_session should not be invoked from executor side."
-        )
-    return SparkSession.builder.getOrCreate()
-
-
 def get_logger(name: str, level: Optional[Union[str, int]] = None) -> logging.Logger:
     """Gets a logger by name, or creates and configures it for the first time."""
     logger = logging.getLogger(name)
@@ -120,28 +105,36 @@ def get_logger_level(name: str) -> Optional[int]:
     return None if logger.level == logging.NOTSET else logger.level
 
 
-def _get_max_num_concurrent_tasks(spark_context: SparkContext) -> int:
+def _get_max_num_concurrent_tasks(spark_session: SparkSession) -> int:
     """Gets the current max number of concurrent tasks."""
+
+    # In Spark Connect, we cannot easily get the max number of concurrent tasks
+    # from the client side without accessing internal APIs or executing a task.
+    # For now, we return a large number to skip the check.
+    if _is_connect(spark_session):
+        return sys.maxsize
+
     # pylint: disable=protected-access
-    # spark 3.1 and above has a different API for fetching max concurrent tasks
-    if spark_context._jsc.sc().version() >= "3.1":
-        return spark_context._jsc.sc().maxNumConcurrentTasks(
-            spark_context._jsc.sc().resourceProfileManager().resourceProfileFromId(0)
-        )
-    return spark_context._jsc.sc().maxNumConcurrentTasks()
-
-
-def _is_local(spark_context: SparkContext) -> bool:
-    """Whether it is Spark local mode"""
-    # pylint: disable=protected-access
-    return spark_context._jsc.sc().isLocal()
-
-
-def _is_standalone_or_localcluster(conf: SparkConf) -> bool:
-    master = conf.get("spark.master")
-    return master is not None and (
-        master.startswith("spark://") or master.startswith("local-cluster")
+    return spark_session.sparkContext._jsc.sc().maxNumConcurrentTasks(
+        spark_session.sparkContext._jsc.sc()
+        .resourceProfileManager()
+        .resourceProfileFromId(0)
     )
+
+
+def _is_connect(spark_session: SparkSession) -> bool:
+    try:
+        return isinstance(spark_session, pyspark.sql.connect.session.SparkSession)
+    except AttributeError:
+        return False
+
+
+def _is_local(spark_session: SparkSession) -> bool:
+    """Whether it is Spark local mode"""
+    # In Spark Connect, we check the spark.master configuration if available.
+    # Note: This might not be accurate if spark.master is not set in RuntimeConfig.
+    master = spark_session.conf.get("spark.master", None)
+    return master is not None and (master == "local" or master.startswith("local["))
 
 
 def _get_gpu_id(task_context: TaskContext) -> int:
@@ -156,14 +149,6 @@ def _get_gpu_id(task_context: TaskContext) -> int:
         )
     # return the first gpu id.
     return int(resources["gpu"].addresses[0].strip())
-
-
-def _get_or_create_tmp_dir() -> str:
-    root_dir = SparkFiles.getRootDirectory()
-    xgb_tmp_dir = os.path.join(root_dir, "xgboost-tmp")
-    if not os.path.exists(xgb_tmp_dir):
-        os.makedirs(xgb_tmp_dir)
-    return xgb_tmp_dir
 
 
 def deserialize_xgb_model(
@@ -186,12 +171,7 @@ def serialize_booster(booster: Booster) -> str:
     booster:
         an xgboost.core.Booster instance
     """
-    # TODO: change to use string io
-    tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
-    booster.save_model(tmp_file_name)
-    with open(tmp_file_name, encoding="utf-8") as f:
-        ser_model_string = f.read()
-    return ser_model_string
+    return booster.save_raw("json").decode("utf-8")
 
 
 def deserialize_booster(model: str) -> Booster:
@@ -199,11 +179,7 @@ def deserialize_booster(model: str) -> Booster:
     Deserialize an xgboost.core.Booster from the input ser_model_string.
     """
     booster = Booster()
-    # TODO: change to use string io
-    tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
-    with open(tmp_file_name, "w", encoding="utf-8") as f:
-        f.write(model)
-    booster.load_model(tmp_file_name)
+    booster.load_model(bytearray(model.encode("utf-8")))
     return booster
 
 

@@ -204,7 +204,7 @@ TEST(IterativeDeviceDMatrix, IO) {
   }
   auto fsize = std::filesystem::file_size(path);
   auto fi = std::make_unique<common::MemBufFileReadStream>(path.string(), 0ul, fsize);
-  auto loaded = std::shared_ptr<IterativeDMatrix>(IterativeDMatrix::Load(fi.get()));
+  auto loaded = std::shared_ptr<IterativeDMatrix>(IterativeDMatrix::Load(&ctx, fi.get()));
   for (auto const& orig_page : qdm->GetBatches<EllpackPage>(&ctx, {})) {
     for (auto const& new_page : loaded->GetBatches<EllpackPage>(&ctx, {})) {
       std::vector<common::CompressedByteT> h_orig, h_new;

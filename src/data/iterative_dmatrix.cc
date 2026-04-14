@@ -212,7 +212,7 @@ void IterativeDMatrix::Save(common::AlignedFileWriteStream*) const {
   LOG(FATAL) << "Not implemented";
 }
 
-IterativeDMatrix* IterativeDMatrix::Load(common::AlignedResourceReadStream*) {
+IterativeDMatrix* IterativeDMatrix::Load(Context const*, common::AlignedResourceReadStream*) {
   LOG(FATAL) << "Not implemented";
   return nullptr;
 }

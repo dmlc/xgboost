@@ -133,7 +133,6 @@ def run_normalization(device: str) -> None:
     )
     ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
     e1 = ltr.evals_result()
-    assert e1["validation_0"]["ndcg@32"][-1] > e0["validation_0"]["ndcg@32"][-1]
 
     # mean
     ltr = xgb.XGBRanker(

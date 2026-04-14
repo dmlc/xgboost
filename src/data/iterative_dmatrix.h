@@ -65,7 +65,8 @@ class IterativeDMatrix : public QuantileDMatrix {
   BatchSet<ExtSparsePage> GetExtBatches(Context const *ctx, BatchParam const &param) override;
 
   void Save(common::AlignedFileWriteStream *fo) const;
-  [[nodiscard]] static IterativeDMatrix *Load(common::AlignedResourceReadStream *fi);
+  [[nodiscard]] static IterativeDMatrix *Load(Context const *ctx,
+                                              common::AlignedResourceReadStream *fi);
 };
 }  // namespace data
 }  // namespace xgboost
