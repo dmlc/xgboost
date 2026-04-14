@@ -77,6 +77,11 @@ private[spark] trait LearningTaskParams extends Params {
   final def getHuberSlope: Double = $(huberSlope)
 
   // Parameter for using Quantile Loss (reg:quantileerror) TODO
+  // Parameter for using Expectile Loss (reg:expectileerror)
+  final val expectileAlpha = new Param[String](this, "expectile_alpha", "List of expectiles for " +
+    "expectile loss.")
+
+  final def getExpectileAlpha: String = $(expectileAlpha)
 
   // Parameter for using AFT Survival Loss (survival:aft) and Negative
   // Log Likelihood of AFT metric (aft-nloglik)
@@ -124,7 +129,8 @@ private[spark] trait LearningTaskParams extends Params {
 
 private[spark] object LearningTaskParams {
   val SUPPORTED_OBJECTIVES = HashSet("reg:squarederror", "reg:squaredlogerror", "reg:logistic",
-    "reg:pseudohubererror", "reg:absoluteerror", "reg:quantileerror", "binary:logistic",
+    "reg:pseudohubererror", "reg:absoluteerror", "reg:quantileerror", "reg:expectileerror",
+    "binary:logistic",
     "binary:logitraw", "binary:hinge", "count:poisson", "survival:cox", "survival:aft",
     "multi:softmax", "multi:softprob", "rank:ndcg", "rank:map", "rank:pairwise", "reg:gamma",
     "reg:tweedie")
@@ -138,6 +144,6 @@ private[spark] object LearningTaskParams {
   val SUPPORTED_EVAL_METRICS = HashSet("rmse", "rmsle", "mae", "mape", "mphe", "logloss", "error",
     "error@t", "merror", "mlogloss", "auc", "aucpr", "pre", "ndcg", "map", "ndcg@n", "map@n",
     "pre@n", "ndcg-", "map-", "ndcg@n-", "map@n-", "poisson-nloglik", "gamma-nloglik",
-    "cox-nloglik", "gamma-deviance", "tweedie-nloglik", "aft-nloglik",
+    "cox-nloglik", "gamma-deviance", "tweedie-nloglik", "aft-nloglik", "expectile",
     "interval-regression-accuracy")
 }

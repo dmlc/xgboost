@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2025, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  *
  * @brief This module defines the dispatching functions for various linalg kernels.
  *

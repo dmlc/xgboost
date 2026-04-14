@@ -1,5 +1,5 @@
-/*!
- * Copyright 2022, XGBoost contributors.
+/**
+ * Copyright 2022-2026, XGBoost contributors.
  */
 #include <gtest/gtest.h>
 
@@ -7,8 +7,7 @@
 
 #include "../../../src/common/numeric.h"
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 TEST(Numeric, PartialSum) {
   {
     std::vector<size_t> values{1, 2, 3, 4};
@@ -39,5 +38,19 @@ TEST(Numeric, Reduce) {
   auto sum = Reduce(&ctx, values);
   ASSERT_EQ(sum, (values.Size() - 1) * values.Size() / 2);
 }
-}  // namespace common
-}  // namespace xgboost
+
+TEST(Numeric, Iota) {
+  Context ctx;
+  auto run = [&](std::size_t n) {
+    std::vector<float> values(n);
+    float init = 1.2f;
+    Iota(&ctx, values.begin(), values.end(), init);
+    for (std::size_t i = 0; i < values.size(); ++i) {
+      ASSERT_EQ(values[i], init + i);
+    }
+  };
+  run(1234);
+  run(0);
+  run(1);
+}
+}  // namespace xgboost::common

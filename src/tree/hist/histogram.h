@@ -353,8 +353,7 @@ class MultiHistogramBuilder {
                      std::vector<Partitioner> const &partitioners,
                      linalg::MatrixView<GradientPair const> gpair, ExpandEntry const &best,
                      BatchParam const &param, bool force_read_by_column = false) {
-    auto n_targets = tree.NumTargets();
-    CHECK_EQ(gpair.Shape(1), n_targets);
+    auto n_targets = gpair.Shape(1);
     CHECK_EQ(p_fmat->Info().num_row_, gpair.Shape(0));
     CHECK_EQ(target_builders_.size(), n_targets);
     std::vector<bst_node_t> nodes{best.nid};
@@ -414,8 +413,8 @@ class MultiHistogramBuilder {
       auto space = ConstructHistSpace(partitioners, nodes_to_build, page,
                                       cache_manager_.L1Size(), param.max_bin, read_by_column);
 
-      CHECK_EQ(gpair.Shape(1), tree.NumTargets());
-      for (bst_target_t t = 0; t < tree.NumTargets(); ++t) {
+      auto n_targets = gpair.Shape(1);
+      for (bst_target_t t = 0; t < n_targets; ++t) {
         auto t_gpair = gpair.Slice(linalg::All(), t);
         CHECK_EQ(t_gpair.Shape(0), p_fmat->Info().num_row_);
         this->target_builders_[t].BuildHist(page_idx, space, page,
@@ -425,7 +424,8 @@ class MultiHistogramBuilder {
       page_idx++;
     }
 
-    for (bst_target_t t = 0; t < tree.NumTargets(); ++t) {
+    auto n_targets = gpair.Shape(1);
+    for (bst_target_t t = 0; t < n_targets; ++t) {
       this->target_builders_[t].SyncHistogram(ctx, tree, nodes_to_build, nodes_to_sub);
     }
   }
@@ -434,6 +434,8 @@ class MultiHistogramBuilder {
     return target_builders_[t].Histogram();
   }
   [[nodiscard]] auto &Histogram(bst_target_t t) { return target_builders_[t].Histogram(); }
+  // Number of targets for histogram building (may differ from tree.NumTargets() for reduced grad)
+  [[nodiscard]] bst_target_t NumTargets() const { return target_builders_.size(); }
 
   void Reset(Context const *ctx, bst_bin_t total_bins, bst_target_t n_targets, BatchParam const &p,
              bool is_distributed, bool is_col_split, HistMakerTrainParam const *param) {

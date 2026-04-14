@@ -9,6 +9,7 @@
 #include <dmlc/parameter.h>
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -126,12 +127,14 @@ struct GBTreeModel : public Model {
    * @brief Getter for the tree group index.
    */
   common::Span<bst_target_t const> TreeGroups(DeviceOrd device) const;
+  [[nodiscard]] std::mutex& Mutex() const { return tree_view_mu_; }
 
  private:
   /**
    * @brief Categories in the training data.
    */
   std::shared_ptr<CatContainer> cats_{std::make_shared<CatContainer>()};
+  mutable std::mutex tree_view_mu_;
   Context const* ctx_;
 };
 }  // namespace gbm

@@ -36,6 +36,9 @@ TEST(Objective, PredTransform) {
     if (entry->name.find("quantile") != std::string::npos) {
       obj->Configure(Args{{"quantile_alpha", "0.5"}});
     }
+    if (entry->name.find("expectile") != std::string::npos) {
+      obj->Configure(Args{{"expectile_alpha", "0.5"}});
+    }
     HostDeviceVector<float> predts;
     predts.Resize(n, 3.14f);  // prediction is performed on host.
     ASSERT_FALSE(predts.DeviceCanRead());
@@ -61,6 +64,9 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
     } else if (objective.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
       objfn->Configure(Args{{"quantile_alpha", "0.5"}});
+    } else if (objective.find("expectile") != std::string::npos) {
+      learner->SetParam("expectile_alpha", "0.5");
+      objfn->Configure(Args{{"expectile_alpha", "0.5"}});
     } else {
       objfn->Configure(Args{});
     }
@@ -101,4 +107,4 @@ INSTANTIATE_TEST_SUITE_P(Objective, TestDefaultObjConfig,
                          [](const ::testing::TestParamInfo<TestDefaultObjConfig::ParamType>& info) {
                            return ObjTestNameGenerator(info);
                          });
-} // namespace xgboost
+}  // namespace xgboost

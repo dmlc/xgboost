@@ -72,6 +72,8 @@ constexpr int kCpuidTypeUnif = 3;  // NOLINT
 // Interpret the raw CPUID results and extract actual (or unified) cache parameters.
 template <std::int32_t kMaxCacheSize>
 void DetectDataCaches(int64_t* cache_sizes) {
+  (void)kCpuidTypeData;
+  (void)kCpuidTypeUnif;
   int cache_num = 0, cache_sizes_idx = 0;
   while (cache_sizes_idx < kMaxCacheSize) {
     int type, level, line_size, partitions, ways;

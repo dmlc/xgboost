@@ -6,7 +6,7 @@ import os
 import pickle
 from dataclasses import dataclass
 from enum import IntEnum, unique
-from typing import Any, Dict, Optional, TypeAlias, Union
+from typing import Any, Callable, Dict, Optional, TypeAlias, Union
 
 import numpy as np
 
@@ -46,6 +46,21 @@ class Config:
 
     tracker_timeout : See :py:class:`~xgboost.tracker.RabitTracker`.
 
+    worker_port :
+
+        The port each worker listens to for peer-to-peer connections. By default,
+        workers use an available port assigned by the OS. This option can be used in
+        restricted network environments where only specific ports are open.
+
+        This can be an integer for a fixed port used by all workers, or a callback
+        function that takes no arguments and returns a port number. The callback is
+        invoked per-worker at the worker side.
+
+        .. note::
+
+            The option does not affect the NCCL communicator group, which must be
+            configured via NCCL's own environment variables.
+
     """
 
     retry: Optional[int] = None
@@ -54,6 +69,18 @@ class Config:
     tracker_host_ip: Optional[str] = None
     tracker_port: Optional[int] = None
     tracker_timeout: Optional[int] = None
+
+    worker_port: Optional[Union[Callable[[], int], int]] = None
+
+    def update_worker_args(self, args: _Conf) -> _Conf:
+        """Worker side arguments resolution."""
+        if self.worker_port is None:
+            return args
+        if callable(self.worker_port):
+            args["dmlc_worker_port"] = self.worker_port()
+        else:
+            args["dmlc_worker_port"] = self.worker_port
+        return args
 
     def get_comm_config(self, args: _Conf) -> _Conf:
         """Update the arguments for the communicator."""

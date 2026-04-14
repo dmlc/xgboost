@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include "comm.h"
 
@@ -16,6 +16,7 @@
 #endif                                  // !defined(XGBOOST_USE_NCCL)
 #include "allgather.h"                  // for RingAllgather
 #include "protocol.h"                   // for kMagic
+#include "topo.h"                       // for BootstrapNext, BootstrapPrev
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
 #include "xgboost/collective/socket.h"  // for TCPSocket
 #include "xgboost/global_config.h"      // for InitNewThread
@@ -59,10 +60,66 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
                             this->Rank(), this->World());
 }
 
+// Connect to a peer (outgoing), sending our rank for identification.
+[[nodiscard]] Result ConnectPeer(proto::PeerInfo const& peer, std::int32_t my_rank,
+                                 std::chrono::seconds timeout, std::int32_t retry,
+                                 std::shared_ptr<TCPSocket>* out) {
+  auto sock = std::make_shared<TCPSocket>();
+  auto rc = Success() << [&] {
+    return Connect(peer.host, peer.port, retry, timeout, sock.get());
+  } << [&] {
+    return sock->RecvTimeout(timeout);
+  };
+  if (!rc.OK()) {
+    return rc;
+  }
+  std::size_t n_bytes{0};
+  rc = sock->SendAll(&my_rank, sizeof(my_rank), &n_bytes);
+  if (!rc.OK()) {
+    return rc;
+  }
+  if (n_bytes != sizeof(my_rank)) {
+    return Fail("Failed to send rank.");
+  }
+  *out = std::move(sock);
+  return Success();
+}
+
+// Accept a connection from a peer (incoming), receiving their rank.
+[[nodiscard]] Result AcceptPeer(TCPSocket* listener, std::chrono::seconds timeout,
+                                std::int32_t* out_rank, std::shared_ptr<TCPSocket>* out) {
+  auto sock = std::make_shared<TCPSocket>();
+  auto rc = Success() << [&] {
+    SockAddress addr;
+    return listener->Accept(sock.get(), &addr);
+  } << [&] {
+    return sock->RecvTimeout(timeout);
+  };
+  if (!rc.OK()) {
+    return rc;
+  }
+  std::int32_t rank{-1};
+  std::size_t n_bytes{0};
+  rc = sock->RecvAll(&rank, sizeof(rank), &n_bytes);
+  if (!rc.OK()) {
+    return rc;
+  }
+  if (n_bytes != sizeof(rank)) {
+    return Fail("Failed to recv rank.");
+  }
+  *out_rank = rank;
+  *out = std::move(sock);
+  return Success();
+}
+
+// Workers connect to a sparse subset of peers: ring neighbors plus binomial tree
+// neighbors (rooted at rank 0). This gives O(log n) connections per worker instead
+// of O(n). The bootstrap ring sockets are reused as the final ring channels.
 [[nodiscard]] Result ConnectWorkers(Comm const& comm, TCPSocket* listener, std::int32_t lport,
                                     proto::PeerInfo ninfo, std::chrono::seconds timeout,
                                     std::int32_t retry,
                                     std::vector<std::shared_ptr<TCPSocket>>* out_workers) {
+  // Establish ring connections and exchange peer info.
   auto next = std::make_shared<TCPSocket>();
   auto prev = std::make_shared<TCPSocket>();
 
@@ -84,7 +141,6 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     return rc;
   }
 
-  // exchange host name and port
   std::vector<std::int8_t> buffer(HOST_NAME_MAX * comm.World(), 0);
   auto s_buffer = common::Span{buffer.data(), buffer.size()};
   auto next_host = s_buffer.subspan(HOST_NAME_MAX * comm.Rank(), HOST_NAME_MAX);
@@ -108,7 +164,9 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
 
   rc = std::move(rc) << [&] {
     return cpu_impl::RingAllgather(comm, s_buffer, HOST_NAME_MAX, 0, prev_ch, next_ch);
-  } << [&] { return block(); };
+  } << [&] {
+    return block();
+  };
   if (!rc.OK()) {
     return Fail("Failed to get host names from peers.", std::move(rc));
   }
@@ -119,7 +177,9 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     auto s_ports = common::Span{reinterpret_cast<std::int8_t*>(peers_port.data()),
                                 peers_port.size() * sizeof(ninfo.port)};
     return cpu_impl::RingAllgather(comm, s_ports, sizeof(ninfo.port), 0, prev_ch, next_ch);
-  } << [&] { return block(); };
+  } << [&] {
+    return block();
+  };
   if (!rc.OK()) {
     return Fail("Failed to get the port from peers.", std::move(rc));
   }
@@ -129,7 +189,6 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     auto nhost = s_buffer.subspan(HOST_NAME_MAX * r, HOST_NAME_MAX);
     auto nport = peers_port[r];
     auto nrank = BootstrapNext(r, comm.World());
-
     peers[nrank] = {std::string{reinterpret_cast<char const*>(nhost.data())}, nport, nrank};
   }
   CHECK_EQ(peers[comm.Rank()].port, lport);
@@ -137,57 +196,61 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     CHECK_NE(p.port, -1);
   }
 
-  std::vector<std::shared_ptr<TCPSocket>>& workers = *out_workers;
+  // Connect to sparse peer set, reusing bootstrap ring sockets.
+  auto my_peers = SparsePeers(comm.Rank(), comm.World());
+
+  auto& workers = *out_workers;
   workers.resize(comm.World());
 
-  for (std::int32_t r = (comm.Rank() + 1); r < comm.World(); ++r) {
-    auto const& peer = peers[r];
-    auto worker = std::make_shared<TCPSocket>();
-    rc = std::move(rc)
-         << [&] { return Connect(peer.host, peer.port, retry, timeout, worker.get()); }
-         << [&] { return worker->RecvTimeout(timeout); };
-    if (!rc.OK()) {
-      return rc;
+  auto next_rank = BootstrapNext(comm.Rank(), comm.World());
+  auto prev_rank = BootstrapPrev(comm.Rank(), comm.World());
+  if (next_rank == prev_rank) {
+    // world == 2: both ring neighbors are the same rank. We have two TCP
+    // connections but only one slot. Keep the one where the lower-ranked
+    // worker initiated (next), matching the all-to-all convention.
+    if (comm.Rank() < next_rank) {
+      workers[next_rank] = std::move(next);
+    } else {
+      workers[prev_rank] = std::move(prev);
     }
-
-    auto rank = comm.Rank();
-    std::size_t n_bytes{0};
-    auto rc = worker->SendAll(&rank, sizeof(comm.Rank()), &n_bytes);
-    if (!rc.OK()) {
-      return rc;
-    } else if (n_bytes != sizeof(comm.Rank())) {
-      return Fail("Failed to send rank.", std::move(rc));
-    }
-    workers[r] = std::move(worker);
+  } else {
+    workers[next_rank] = std::move(next);
+    workers[prev_rank] = std::move(prev);
   }
 
-  for (std::int32_t r = 0; r < comm.Rank(); ++r) {
-    auto peer = std::make_shared<TCPSocket>();
-    rc = std::move(rc) << [&] {
-      SockAddress addr;
-      return listener->Accept(peer.get(), &addr);
-    } << [&] {
-      return peer->RecvTimeout(timeout);
-    };
-    if (!rc.OK()) {
-      return rc;
+  // For each peer pair, the lower-ranked worker initiates (connect) and the higher-ranked
+  // worker accepts. Ring sockets are already in place, so only tree-only peers need new
+  // connections.
+  for (auto r : my_peers) {
+    if (r > comm.Rank() && !workers[r]) {
+      rc = ConnectPeer(peers[r], comm.Rank(), timeout, retry, &workers[r]);
+      if (!rc.OK()) {
+        return Fail("Failed to connect to peer " + std::to_string(r), std::move(rc));
+      }
     }
-    std::int32_t rank{-1};
-    std::size_t n_bytes{0};
-    auto rc = peer->RecvAll(&rank, sizeof(rank), &n_bytes);
-    if (!rc.OK()) {
-      return rc;
-    } else if (n_bytes != sizeof(comm.Rank())) {
-      return Fail("Failed to recv rank.");
-    }
-    workers[rank] = std::move(peer);
   }
 
-  for (std::int32_t r = 0; r < comm.World(); ++r) {
-    if (r == comm.Rank()) {
-      continue;
+  // Accept connections from lower-ranked tree peers that weren't already covered by the
+  // ring. The exact arrival order is unspecified, so we accept n_accept times and use the
+  // rank sent by each peer to place the socket in the right slot.
+  std::int32_t n_accept = 0;
+  for (auto r : my_peers) {
+    if (r < comm.Rank() && !workers[r]) {
+      ++n_accept;
     }
-    CHECK(workers[r]);
+  }
+  for (std::int32_t i = 0; i < n_accept; ++i) {
+    std::int32_t peer_rank{-1};
+    std::shared_ptr<TCPSocket> sock;
+    rc = AcceptPeer(listener, timeout, &peer_rank, &sock);
+    if (!rc.OK()) {
+      return Fail("Failed to accept from peer.", std::move(rc));
+    }
+    workers.at(peer_rank) = std::move(sock);
+  }
+
+  for (auto r : my_peers) {
+    CHECK(workers[r]) << "Peer " << r << " not connected for rank " << comm.Rank();
   }
 
   return Success();
@@ -204,9 +267,10 @@ std::string InitLog(std::string task_id, std::int32_t rank) {
 
 RabitComm::RabitComm(std::string const& tracker_host, std::int32_t tracker_port,
                      std::chrono::seconds timeout, std::int32_t retry, std::string task_id,
-                     StringView nccl_path)
+                     StringView nccl_path, std::int32_t worker_port)
     : HostComm{tracker_host, tracker_port, timeout, retry, std::move(task_id)},
-      nccl_path_{std::move(nccl_path)} {
+      nccl_path_{std::move(nccl_path)},
+      worker_port_{worker_port} {
   if (this->TrackerInfo().host.empty()) {
     // Not in a distributed environment.
     LOG(CONSOLE) << InitLog(task_id_, rank_);
@@ -214,7 +278,7 @@ RabitComm::RabitComm(std::string const& tracker_host, std::int32_t tracker_port,
   }
 
   loop_.reset(new Loop{std::chrono::seconds{timeout_}});  // NOLINT
-  auto rc = this->Bootstrap(timeout_, retry_, task_id_);
+  auto rc = this->Bootstrap(timeout_, retry_, task_id_, worker_port_);
   if (!rc.OK()) {
     this->ResetState();
     SafeColl(Fail("Failed to bootstrap the communication group.", std::move(rc)));
@@ -230,7 +294,7 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 #endif  //  !defined(XGBOOST_USE_NCCL)
 
 [[nodiscard]] Result RabitComm::Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
-                                          std::string task_id) {
+                                          std::string task_id, std::int32_t worker_port) {
   TCPSocket tracker;
   std::int32_t world{-1};
   auto rc = ConnectTrackerImpl(this->TrackerInfo(), timeout, retry, task_id, &tracker, this->Rank(),
@@ -243,8 +307,14 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 
   // Start command
   TCPSocket listener = TCPSocket::Create(tracker.Domain());
-  std::int32_t lport{0};
+  std::int32_t lport{worker_port};
   rc = std::move(rc) << [&] {
+    if (lport > 0) {
+      // User-specified port, bind to INADDR_ANY with the given port.
+      auto addr = (tracker.Domain() == SockDomain::kV6) ? "::" : "0.0.0.0";
+      return listener.Bind(addr, &lport);
+    }
+    // Default: let the OS pick an available port.
     return listener.BindHost(&lport);
   } << [&] {
     return listener.Listen();
@@ -306,8 +376,11 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   error_worker_.detach();
 
   proto::Start start;
-  rc = std::move(rc) << [&] { return start.WorkerSend(lport, &tracker, eport); }
-                     << [&] { return start.WorkerRecv(&tracker, &world); };
+  rc = std::move(rc) << [&] {
+    return start.WorkerSend(lport, &tracker, eport);
+  } << [&] {
+    return start.WorkerRecv(&tracker, &world);
+  };
   if (!rc.OK()) {
     return rc;
   }
@@ -342,11 +415,13 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
       } << [&] {
         return w->SetKeepAlive();
       };
+      if (!rc.OK()) {
+        return rc;
+      }
+      this->channels_.emplace_back(std::make_shared<Channel>(*this, w));
+    } else {
+      this->channels_.emplace_back(nullptr);
     }
-    if (!rc.OK()) {
-      return rc;
-    }
-    this->channels_.emplace_back(std::make_shared<Channel>(*this, w));
   }
 
   LOG(CONSOLE) << InitLog(task_id_, rank_);
@@ -418,8 +493,11 @@ RabitComm::~RabitComm() noexcept(false) {
   }
   TCPSocket out;
   proto::Print print;
-  return Success() << [&] { return this->ConnectTracker(&out); }
-                   << [&] { return print.WorkerSend(&out, msg); };
+  return Success() << [&] {
+    return this->ConnectTracker(&out);
+  } << [&] {
+    return print.WorkerSend(&out, msg);
+  };
 }
 
 [[nodiscard]] Result RabitComm::SignalError(Result const& res) {

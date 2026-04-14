@@ -1,4 +1,3 @@
-from itertools import product
 from typing import Any, Dict
 
 import numpy as np
@@ -17,31 +16,13 @@ from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
-    check_init_estimation,
     check_quantile_loss,
-    run_adaptive,
     run_invalid_category,
     run_max_cat,
     train_result,
 )
 
 pytestmark = tm.timeout(30)
-
-
-class TestGPUUpdatersMulti:
-    @given(
-        hist_parameter_strategy, strategies.integers(1, 20), tm.multi_dataset_strategy
-    )
-    @settings(deadline=None, max_examples=50, print_blob=True)
-    def test_hist(
-        self, param: Dict[str, Any], num_rounds: int, dataset: tm.TestDataset
-    ) -> None:
-        param["tree_method"] = "hist"
-        param["device"] = "cuda"
-        param = dataset.set_params(param)
-        result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(str(result))
-        assert tm.non_increasing(result["train"][dataset.metric])
 
 
 class TestGPUUpdaters:
@@ -334,16 +315,6 @@ class TestGPUUpdaters:
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), 10)
         assert tm.non_increasing(result["train"][dataset.metric])
-
-    @pytest.mark.skipif(**tm.no_sklearn())
-    @pytest.mark.parametrize(
-        "tree_method,weighted", list(product(["approx", "hist"], [True, False]))
-    )
-    def test_adaptive(self, tree_method: str, weighted: bool) -> None:
-        run_adaptive(tree_method, weighted, "cuda")
-
-    def test_init_estimation(self) -> None:
-        check_init_estimation("hist", "cuda")
 
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:

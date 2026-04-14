@@ -179,13 +179,11 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
             )
         )
     print(f"List of downloaded wheels: {wheels}")
-    print(
-        """
+    print("""
 Following steps should be done manually:
 - Upload pypi package by `python3 -m twine upload dist/<Package Name>` for all wheels.
 - Check the uploaded files on `https://pypi.org/project/xgboost/<VERSION>/#files` and
-  `pip install xgboost==<VERSION>` """
-    )
+  `pip install xgboost==<VERSION>` """)
 
 
 def download_r_artifacts(

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2025, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -415,5 +415,23 @@ TEST(Linalg, IO) {
 TEST(Linalg, CpuDispatch) {
   Context ctx;
   TestLinalgDispatch(&ctx, [](auto v) { return v + 1; });
+}
+
+TEST(Linalg, ExpandDim) {
+  Context ctx;
+  linalg::Matrix<float> x = Zeros<float>(&ctx, 16, 8);
+  std::size_t i = 0;
+  for (auto &v : x.HostView()) {
+    v = static_cast<float>(i);
+    ++i;
+  }
+  auto y = x.Slice(linalg::All(), 2);
+  auto z = ExpandDim(y);
+  ASSERT_EQ(z.Size(), x.Shape(0));
+  ASSERT_EQ(z.Shape(0), x.Shape(0));
+  ASSERT_EQ(z.Shape(1), 1);
+  for (std::size_t i = 0; i < z.Size(); ++i) {
+    ASSERT_EQ(z(i, 0), y(i));
+  }
 }
 }  // namespace xgboost::linalg

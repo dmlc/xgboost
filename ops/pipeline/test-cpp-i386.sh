@@ -11,4 +11,4 @@ IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.i386:${IMAGE_TAG}"
 set -x
 python3 ops/docker_run.py \
   --image-uri ${IMAGE_URI} \
-  -- bash ops/pipeline/test-cpp-i386-impl.sh
+  -- bash ops/pipeline/build-cpu.sh i386

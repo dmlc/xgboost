@@ -11,7 +11,7 @@
  * The algorithm proceeds as follow:
  *
  * Given the categories used for training [c, b, d, a], the ordering of this list is the
- * encoding, c maps to 0, b maps to 1, so on and so forth. At test time, we recieve an
+ * encoding, c maps to 0, b maps to 1, so on and so forth. At test time, we receive an
  * encoding [c, a, b], which differs from the encoding used for training and we need to
  * re-code the data.
  *

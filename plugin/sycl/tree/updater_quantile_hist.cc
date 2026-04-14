@@ -106,6 +106,7 @@ void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param, GradientC
 }
 
 bool QuantileHistMaker::UpdatePredictionCache(const DMatrix *data,
+                                              xgboost::common::Span<HostDeviceVector<bst_node_t>>,
                                               ::xgboost::linalg::MatrixView<float> out_preds) {
   if (param_.subsample < 1.0f) return false;
 

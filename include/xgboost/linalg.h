@@ -1,7 +1,8 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
- * \file linalg.h
- * \brief Linear algebra related utilities.
+ * Copyright 2021-2026, XGBoost Contributors
+ *
+ * @file linalg.h
+ * @brief Linear algebra related utilities.
  */
 #ifndef XGBOOST_LINALG_H_
 #define XGBOOST_LINALG_H_
@@ -261,7 +262,7 @@ enum Order : std::uint8_t {
 };
 
 /**
- * \brief A tensor view with static type and dimension. It implements indexing and slicing.
+ * @brief A tensor view with static type and dimension. It implements indexing and slicing.
  *
  * Most of the algorithms in XGBoost are implemented for both CPU and GPU without using
  * much linear algebra routines, this class is a helper intended to ease some high level
@@ -278,6 +279,7 @@ class TensorView {
  public:
   using ShapeT = std::size_t[kDim];
   using StrideT = ShapeT;
+  using SizeType = std::size_t;
 
   using element_type = T;                  // NOLINT
   using value_type = std::remove_cv_t<T>;  // NOLINT
@@ -288,7 +290,7 @@ class TensorView {
   common::Span<T> data_;
   T *ptr_{nullptr};  // pointer of data_ to avoid bound check.
 
-  size_t size_{0};
+  SizeType size_{0};
   DeviceOrd device_;
 
   // Unlike `Tensor`, the data_ can have arbitrary size since this is just a view.
@@ -301,8 +303,8 @@ class TensorView {
   }
 
   template <size_t old_dim, size_t new_dim, std::int32_t D, typename I>
-  LINALG_HD size_t MakeSliceDim(std::size_t new_shape[D], std::size_t new_stride[D],
-                                detail::RangeTag<I> &&range) const {
+  LINALG_HD SizeType MakeSliceDim(std::size_t new_shape[D], std::size_t new_stride[D],
+                                  detail::RangeTag<I> &&range) const {
     static_assert(new_dim < D);
     static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
@@ -316,8 +318,8 @@ class TensorView {
    * \brief Slice dimension for Range tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename I, typename... S>
-  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
-                                detail::RangeTag<I> &&range, S &&...slices) const {
+  LINALG_HD SizeType MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
+                                  detail::RangeTag<I> &&range, S &&...slices) const {
     static_assert(new_dim < D);
     static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
@@ -331,7 +333,7 @@ class TensorView {
   }
 
   template <size_t old_dim, size_t new_dim, int32_t D>
-  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag) const {
+  LINALG_HD SizeType MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag) const {
     static_assert(new_dim < D);
     static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
@@ -342,8 +344,8 @@ class TensorView {
    * \brief Slice dimension for All tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename... S>
-  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag,
-                                S &&...slices) const {
+  LINALG_HD SizeType MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag,
+                                  S &&...slices) const {
     static_assert(new_dim < D);
     static_assert(old_dim < kDim);
     new_stride[new_dim] = stride_[old_dim];
@@ -353,8 +355,8 @@ class TensorView {
   }
 
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index>
-  LINALG_HD size_t MakeSliceDim(DMLC_ATTRIBUTE_UNUSED size_t new_shape[D],
-                                DMLC_ATTRIBUTE_UNUSED size_t new_stride[D], Index i) const {
+  LINALG_HD SizeType MakeSliceDim([[maybe_unused]] size_t new_shape[D],
+                                  [[maybe_unused]] size_t new_stride[D], Index i) const {
     static_assert(old_dim < kDim);
     return stride_[old_dim] * i;
   }
@@ -362,8 +364,10 @@ class TensorView {
    * \brief Slice dimension for Index tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index, typename... S>
-  LINALG_HD std::enable_if_t<std::is_integral_v<Index>, size_t> MakeSliceDim(
-      size_t new_shape[D], size_t new_stride[D], Index i, S &&...slices) const {
+  LINALG_HD std::enable_if_t<std::is_integral_v<Index>, size_t> MakeSliceDim(size_t new_shape[D],
+                                                                             size_t new_stride[D],
+                                                                             Index i,
+                                                                             S &&...slices) const {
     static_assert(old_dim < kDim);
     auto offset = stride_[old_dim] * i;
     auto res =
@@ -658,8 +662,8 @@ auto MakeVec(std::vector<T> const &v) {
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> *data) {
-  return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(),
-                 data->Size(), data->Device());
+  return MakeVec(data->Device().IsCPU() ? data->HostPointer() : data->DevicePointer(), data->Size(),
+                 data->Device());
 }
 
 template <typename T>
@@ -979,7 +983,7 @@ auto EmptyLike(Context const *ctx, Tensor<T, kDim> const &in) {
 }
 
 /**
- * \brief Create an array with value v.
+ * @brief Create an array with value v.
  */
 template <typename T, typename... Index>
 auto Constant(Context const *ctx, T v, Index &&...index) {
@@ -991,7 +995,7 @@ auto Constant(Context const *ctx, T v, Index &&...index) {
 }
 
 /**
- * \brief Like `np.zeros`, return a new array of given shape and type, filled with zeros.
+ * @brief Like `np.zeros`, return a new array of given shape and type, filled with zeros.
  */
 template <typename T, typename... Index>
 auto Zeros(Context const *ctx, Index &&...index) {
@@ -1015,6 +1019,16 @@ void Stack(Tensor<T, D> *l, Tensor<T, D> const &r) {
     data->Extend(*r.Data());
     shape[0] = l->Shape(0) + r.Shape(0);
   });
+}
+
+/**
+ * @brief Push an extra dim to the end.
+ */
+template <typename T>
+MatrixView<T> ExpandDim(VectorView<T> x) {
+  std::size_t shape[2]{x.Shape(0), 1};
+  std::size_t stride[2]{x.Stride(0), 1};
+  return MatrixView<T>{x.Values(), shape, stride, x.Device()};
 }
 }  // namespace xgboost::linalg
 

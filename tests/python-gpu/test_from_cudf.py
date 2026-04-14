@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Type
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import is_dataframe
 from xgboost.testing.data import run_base_margin_info
+from xgboost.testing.utils import assert_allclose
 
 if TYPE_CHECKING:
     import cudf
@@ -86,21 +86,21 @@ def _test_from_cudf(DMatrixT: Type[xgb.DMatrix]) -> None:
 
 
 def _test_cudf_training(DMatrixT: Type[xgb.DMatrix]) -> None:
+    import cudf
     import pandas as pd
-    from cudf import DataFrame as df
 
     np.random.seed(1)
     X = pd.DataFrame(np.random.randn(50, 10))
     y = pd.DataFrame(np.random.randn(50))
     weights = np.random.random(50) + 1.0
-    cudf_weights = df.from_pandas(pd.DataFrame(weights))
+    cudf_weights = cudf.DataFrame(pd.DataFrame(weights))
     base_margin = np.random.random(50)
-    cudf_base_margin = df.from_pandas(pd.DataFrame(base_margin))
+    cudf_base_margin = cudf.DataFrame(pd.DataFrame(base_margin))
 
     evals_result_cudf: Dict[str, Any] = {}
     dtrain_cudf = DMatrixT(
-        df.from_pandas(X),
-        df.from_pandas(y),
+        cudf.DataFrame(X),
+        cudf.DataFrame(y),
         weight=cudf_weights,
         base_margin=cudf_base_margin,
     )
@@ -122,20 +122,20 @@ def _test_cudf_training(DMatrixT: Type[xgb.DMatrix]) -> None:
 
 
 def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
+    import cudf
     import pandas as pd
-    from cudf import DataFrame as df
 
     n = 100
     X = np.random.random((n, 2))
-    dmat_cudf = DMatrixT(df.from_pandas(pd.DataFrame(X)))
+    dmat_cudf = DMatrixT(cudf.DataFrame(pd.DataFrame(X)))
     dmat = xgb.DMatrix(X)
     floats = np.random.random(n)
     uints = np.array([4, 2, 8]).astype("uint32")
-    cudf_floats = df.from_pandas(pd.DataFrame(floats))
-    cudf_uints = df.from_pandas(pd.DataFrame(uints))
-    dmat.set_float_info("weight", floats)
-    dmat.set_float_info("label", floats)
-    dmat.set_float_info("base_margin", floats)
+    cudf_floats = cudf.DataFrame(pd.DataFrame(floats))
+    cudf_uints = cudf.DataFrame(pd.DataFrame(uints))
+    dmat.set_weight(floats)
+    dmat.set_label(floats)
+    dmat.set_base_margin(floats)
     dmat.set_uint_info("group", uints)
     dmat_cudf.set_info(weight=cudf_floats)
     dmat_cudf.set_info(label=cudf_floats)
@@ -143,15 +143,9 @@ def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     dmat_cudf.set_info(group=cudf_uints)
 
     # Test setting info with cudf DataFrame
-    assert np.array_equal(
-        dmat.get_float_info("weight"), dmat_cudf.get_float_info("weight")
-    )
-    assert np.array_equal(
-        dmat.get_float_info("label"), dmat_cudf.get_float_info("label")
-    )
-    assert np.array_equal(
-        dmat.get_float_info("base_margin"), dmat_cudf.get_float_info("base_margin")
-    )
+    assert_allclose("cuda", dmat.get_weight(), dmat_cudf.get_weight())
+    assert_allclose("cuda", dmat.get_label(), dmat_cudf.get_label())
+    assert_allclose("cuda", dmat.get_base_margin(), dmat_cudf.get_base_margin())
     assert np.array_equal(
         dmat.get_uint_info("group_ptr"), dmat_cudf.get_uint_info("group_ptr")
     )
@@ -161,20 +155,14 @@ def _test_cudf_metainfo(DMatrixT: Type[xgb.DMatrix]) -> None:
     dmat_cudf.set_info(label=cudf_floats[cudf_floats.columns[0]])
     dmat_cudf.set_info(base_margin=cudf_floats[cudf_floats.columns[0]])
     dmat_cudf.set_info(group=cudf_uints[cudf_uints.columns[0]])
-    assert np.array_equal(
-        dmat.get_float_info("weight"), dmat_cudf.get_float_info("weight")
-    )
-    assert np.array_equal(
-        dmat.get_float_info("label"), dmat_cudf.get_float_info("label")
-    )
-    assert np.array_equal(
-        dmat.get_float_info("base_margin"), dmat_cudf.get_float_info("base_margin")
-    )
+    assert_allclose("cuda", dmat.get_weight(), dmat_cudf.get_weight())
+    assert_allclose("cuda", dmat.get_label(), dmat_cudf.get_label())
+    assert_allclose("cuda", dmat.get_base_margin(), dmat_cudf.get_base_margin())
     assert np.array_equal(
         dmat.get_uint_info("group_ptr"), dmat_cudf.get_uint_info("group_ptr")
     )
 
-    run_base_margin_info(df, DMatrixT, "cuda")
+    run_base_margin_info(cudf.DataFrame, DMatrixT, "cuda")
 
 
 class TestFromColumnar:
@@ -207,17 +195,19 @@ class TestFromColumnar:
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_categorical(self) -> None:
+        import pandas as pd
+
         n_features = 30
         _X, _y = tm.make_categorical(100, n_features, 17, onehot=False)
         X = cudf.from_pandas(_X)
-        y = cudf.from_pandas(_y)
+        y = cudf.from_pandas(pd.DataFrame(_y))
 
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        Xy = xgb.DMatrix(X, y)
         assert Xy.feature_types is not None
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
 
-        Xy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
+        Xy = xgb.QuantileDMatrix(X, y)
         assert Xy.feature_types is not None
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
@@ -244,24 +234,16 @@ class TestFromColumnar:
             assert "mask" in col[1]
 
         y = [0, 1, 2]
-        with pytest.raises(ValueError):
-            xgb.DMatrix(X, y)
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        Xy = xgb.DMatrix(X, y)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
-        with pytest.raises(ValueError, match="enable_categorical"):
-            xgb.QuantileDMatrix(X, y)
-
-        Xy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
+        Xy = xgb.QuantileDMatrix(X, y)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
         X = X["f0"]
-        with pytest.raises(ValueError):
-            xgb.DMatrix(X, y)
-
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        Xy = xgb.DMatrix(X, y)
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
@@ -271,21 +253,20 @@ class TestFromColumnar:
 @pytest.mark.skipif(**tm.no_sklearn())
 @pytest.mark.skipif(**tm.no_pandas())
 def test_cudf_training_with_sklearn() -> None:
+    import cudf
     import pandas as pd
-    from cudf import DataFrame as df
-    from cudf import Series as ss
 
     np.random.seed(1)
     X = pd.DataFrame(np.random.randn(50, 10))
     y = pd.DataFrame((np.random.randn(50) > 0).astype(np.int8))
     weights = np.random.random(50) + 1.0
-    cudf_weights = df.from_pandas(pd.DataFrame(weights))
+    cudf_weights = cudf.DataFrame(pd.DataFrame(weights))
     base_margin = np.random.random(50)
-    cudf_base_margin = df.from_pandas(pd.DataFrame(base_margin))
+    cudf_base_margin = cudf.DataFrame(pd.DataFrame(base_margin))
 
-    X_cudf = df.from_pandas(X)
-    y_cudf = df.from_pandas(y)
-    y_cudf_series = ss(data=y.iloc[:, 0])
+    X_cudf = cudf.DataFrame(X)
+    y_cudf = cudf.DataFrame(y)
+    y_cudf_series = cudf.Series(data=y.iloc[:, 0])
 
     for y_obj in [y_cudf, y_cudf_series]:
         clf = xgb.XGBClassifier(tree_method="hist", device="cuda:0")

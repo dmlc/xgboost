@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024 by Contributors
+ Copyright (c) 2024-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.apache.spark.ml.xgboost
 
 import org.apache.spark.{SparkContext, SparkException}
+import org.apache.spark.ml.PredictorParams
 import org.apache.spark.ml.classification.ProbabilisticClassifierParams
 import org.apache.spark.ml.linalg.VectorUDT
 import org.apache.spark.ml.param.Params
@@ -53,6 +54,20 @@ trait XGBProbabilisticClassifierParams[T <: Params]
   }
 
   addNonXGBoostParam(rawPredictionCol, probabilityCol, thresholds)
+}
+
+trait XGBPredictorParams[T <: Params] extends PredictorParams {
+
+  /**
+   * XGBoost doesn't use validateAndTransformSchema since spark validateAndTransformSchema
+   * needs to ensure the feature is vector type
+   */
+  override protected def validateAndTransformSchema(schema: StructType,
+                                                    fitting: Boolean,
+                                                    featuresDataType: DataType): StructType = {
+    SparkUtils.appendColumn(schema, $(predictionCol), DoubleType)
+  }
+
 }
 
 /** Utils to access the spark internal functions */

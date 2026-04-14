@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2025, XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  *
  * \brief Common error message for various checks.
  */
@@ -140,5 +140,7 @@ constexpr StringView CacheHostRatioInvalid() {
 [[nodiscard]] std::error_code SystemError();
 
 void InvalidIntercept(std::int32_t n_classes, bst_target_t n_targets, std::size_t intercept_len);
+
+inline void Unreachable() { LOG(FATAL) << "Unreachable"; }
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

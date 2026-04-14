@@ -1,6 +1,7 @@
 # pylint: disable=too-many-locals, too-many-arguments
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
+
 import copy
 import os
 import weakref
@@ -280,7 +281,7 @@ class _PackedBooster:
 
     @best_iteration.setter
     def best_iteration(self, iteration: int) -> None:
-        """Get best_iteration"""
+        """Set best_iteration"""
         self.set_attr(best_iteration=iteration)
 
     @property
@@ -438,7 +439,7 @@ def cv(
     *,
     nfold: int = 3,
     stratified: bool = False,
-    folds: XGBStratifiedKFold = None,
+    folds: Optional[XGBStratifiedKFold] = None,
     metrics: Sequence[str] = (),
     obj: Optional[PlainObj] = None,
     maximize: Optional[bool] = None,

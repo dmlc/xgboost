@@ -1,5 +1,6 @@
 # pylint: disable=protected-access
 """Utilities for processing spark partitions."""
+
 from collections import defaultdict, namedtuple
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
@@ -17,7 +18,7 @@ from .utils import get_logger
 def stack_series(series: pd.Series) -> np.ndarray:
     """Stack a series of arrays."""
     array = series.to_numpy(copy=False)
-    array = np.stack(array)  # type: ignore
+    array = np.stack(array)  # type: ignore[arg-type]
     return array
 
 

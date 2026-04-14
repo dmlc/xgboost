@@ -3,14 +3,14 @@
  * \file compressed_iterator.h
  */
 #pragma once
-#include <xgboost/base.h>  // for XGBOOST_RESTRICT
-
 #include <algorithm>  // for max
 #include <cmath>      // for ceil, log2
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t
 
 #include "common.h"
+#include "xgboost/base.h"      // for XGBOOST_RESTRICT
+#include "xgboost/byteswap.h"  // for ByteSwap
 
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
@@ -30,13 +30,47 @@ inline T CheckBit(const T &byte, int bit_idx) {
 inline void ClearBit(CompressedByteT *byte, int bit_idx) {
   *byte &= ~(1 << bit_idx);
 }
-static const int kPadding = 4;  // Assign padding so we can read slightly off
-                                // the beginning of the array
+inline constexpr int kPadding = 8;  // Assign padding so we can read slightly off
+                                    // the beginning of the array
 
 // The number of bits required to represent a given unsigned range
 inline XGBOOST_DEVICE std::uint32_t SymbolBits(std::size_t n_symbols) {
   std::uint32_t bits = std::ceil(log2(static_cast<double>(n_symbols)));
   return common::Max(bits, std::uint32_t{1});
+}
+
+// The alignment is assumed to be power of 2.
+template <typename T>
+XGBOOST_HOST_DEV_INLINE CompressedByteT const *AlignDown(T const *ptr, std::uint32_t alignment) {
+  return reinterpret_cast<CompressedByteT const *>(reinterpret_cast<std::uintptr_t>(ptr) &
+                                                   ~std::uintptr_t{alignment - 1});
+}
+
+struct PaddedPtr {
+  CompressedByteT const *XGBOOST_RESTRICT ptr;
+  std::int32_t head_padding;
+};
+
+// Create an aligned pointer with head padding.
+template <typename T>
+XGBOOST_DEVICE auto MakePaddedPtr(T const *XGBOOST_RESTRICT ptr, std::uint32_t alignment) {
+  auto base = AlignDown(ptr, alignment);
+  return PaddedPtr{
+      base, static_cast<std::int32_t>(reinterpret_cast<CompressedByteT const *>(ptr) - base)};
+}
+
+// Vector load, load a single 64-bit unsigned integer with 2 32-bit loads. Input ptr must
+// be correctly aligned first.
+template <typename T>
+XGBOOST_DEVICE [[nodiscard]] std::uint64_t Load64u(T const *XGBOOST_RESTRICT ptr) {
+  std::uint64_t u64 = 0;
+  auto out_ptr = reinterpret_cast<std::uint32_t *>(&u64);
+  // base ptr in uint32
+  auto in_ptr = reinterpret_cast<std::uint32_t const *>(ptr);
+  // 2 vector loads for 8 bytes.
+  out_ptr[0] = in_ptr[0];
+  out_ptr[1] = in_ptr[1];
+  return u64;
 }
 }  // namespace detail
 
@@ -167,14 +201,10 @@ class CompressedBufferWriter {
  * @author  Rory
  *
  * @tparam  T          Type of the symbols.
- * @tparam  SymbolBits The type used to store the number of symbols.
  */
 template <typename T>
 class CompressedIterator {
  public:
-  // Type definitions for thrust
-  typedef CompressedIterator<T> self_type;  // NOLINT
-  typedef ptrdiff_t difference_type;        // NOLINT
   typedef T value_type;                     // NOLINT
   typedef value_type *pointer;              // NOLINT
   typedef value_type reference;             // NOLINT
@@ -183,26 +213,56 @@ class CompressedIterator {
   CompressedByteT const *XGBOOST_RESTRICT buffer_{nullptr};
   std::uint32_t const symbol_bits_{0};
 
+  static_assert(sizeof(T) <= sizeof(std::uint32_t));
+  static_assert(detail::kPadding >= std::alignment_of_v<std::uint32_t>);
+
  public:
   CompressedIterator() = default;
   CompressedIterator(CompressedByteT const *XGBOOST_RESTRICT buffer, bst_idx_t n_symbols)
-      : buffer_{buffer}, symbol_bits_{detail::SymbolBits(n_symbols)} {}
+      : buffer_{buffer}, symbol_bits_{detail::SymbolBits(n_symbols)} {
+#if !defined(DMLC_LITTLE_ENDIAN) || DMLC_LITTLE_ENDIAN != 1
+    LOG(FATAL) << "Not implemented for big endian";
+#endif
+  }
 
   XGBOOST_DEVICE reference operator[](std::size_t idx) const {
     constexpr std::int32_t kBitsPerByte = 8;
+    // Read 5 bytes - the maximum we will need assuming symbols fit in a 32bit int.
+    constexpr std::int32_t kBytes = 5;
+
     std::size_t start_bit_idx = ((idx + 1) * symbol_bits_ - 1);
     std::size_t start_byte_idx = start_bit_idx / kBitsPerByte;
     start_byte_idx += detail::kPadding;
 
-    // Read 5 bytes - the maximum we will need
-    std::uint64_t tmp = static_cast<std::uint64_t>(buffer_[start_byte_idx - 4]) << 32 |
-                        static_cast<std::uint64_t>(buffer_[start_byte_idx - 3]) << 24 |
-                        static_cast<std::uint64_t>(buffer_[start_byte_idx - 2]) << 16 |
-                        static_cast<std::uint64_t>(buffer_[start_byte_idx - 1]) << 8 |
-                        buffer_[start_byte_idx];
-    int bit_shift = (kBitsPerByte - ((idx + 1) * symbol_bits_)) % kBitsPerByte;
+    /**
+     * The following load is equivalent to:
+     *
+     * std::uint64_t tmp = static_cast<std::uint64_t>(buffer_[start_byte_idx - 4]) << 32 |
+     *                     static_cast<std::uint64_t>(buffer_[start_byte_idx - 3]) << 24 |
+     *                     static_cast<std::uint64_t>(buffer_[start_byte_idx - 2]) << 16 |
+     *                     static_cast<std::uint64_t>(buffer_[start_byte_idx - 1]) << 8 |
+     *                     buffer_[start_byte_idx];
+     *
+     * The above snippet loads 5 bytes from the buffer, and performs a byte swap within
+     * the loaded 5 bytes. We use a vector load to reduce the pressure on the LSU.
+     */
+
+    // Pointer to the first byte.
+    auto beg_ptr = buffer_ + start_byte_idx - (kBytes - 1);
+    // Align the pointer for vector load.
+    auto [ptr, head_padding] = detail::MakePaddedPtr(beg_ptr, std::alignment_of_v<std::uint32_t>);
+    // Load 8 bytes, we will use 5 of them.
+    std::uint64_t tmp = detail::Load64u(ptr);
+    // tail_padding = 8 - 5 - head_padding
+    std::int32_t tail_padding_bits = (sizeof(tmp) - kBytes - head_padding) * kBitsPerByte;
+    // Unsigned logical shift. Knock out the unneeded bits loaded by the vector load. We
+    // assume little endian here.
+    tmp = ByteSwap(tmp << tail_padding_bits);
+
+    // Knock out the unneeded bits from the right
+    std::int32_t bit_shift = (kBitsPerByte - ((idx + 1) * symbol_bits_)) % kBitsPerByte;
     tmp >>= bit_shift;
-    // Mask off unneeded bits
+    // Take exactly symbol_bits_ number of bits by masking off unneeded bits.
     std::uint64_t mask = (static_cast<std::uint64_t>(1) << symbol_bits_) - 1;
     return static_cast<T>(tmp & mask);
   }
@@ -221,9 +281,6 @@ class CompressedIterator {
 template <typename OutT>
 class DoubleCompressedIter {
  public:
-  // Type definitions for thrust
-  using self_type = DoubleCompressedIter<OutT>;  // NOLINT
-  using difference_type = ptrdiff_t;             // NOLINT
   using value_type = OutT;                       // NOLINT
   using pointer = value_type *;                  // NOLINT
   using reference = value_type;                  // NOLINT
@@ -243,8 +300,9 @@ class DoubleCompressedIter {
 
   XGBOOST_DEVICE reference operator[](std::size_t idx) const {
     constexpr std::int32_t kBitsPerByte = 8;
+
     std::size_t start_bit_idx = ((idx + 1) * symbol_bits_ - 1);
-    std::size_t start_byte_idx = start_bit_idx >> 3;
+    std::size_t start_byte_idx = start_bit_idx / kBitsPerByte;
     start_byte_idx += detail::kPadding;
 
     std::uint64_t tmp;
@@ -269,18 +327,23 @@ class DoubleCompressedIter {
       auto const *XGBOOST_RESTRICT buf = reinterpret_cast<CompressedByteT const *>(
           (!ind) * reinterpret_cast<std::uintptr_t>(buf0_) +
           ind * reinterpret_cast<std::uintptr_t>(buf1_));
+      // shifted start_byte_idx for buffer-local indexing.
       auto shifted = start_byte_idx - n0_ * ind;
 
       // Read 5 bytes - the maximum we will need
+
+      // We don't have vector load here as we might create out-of-bound access due to down
+      // alignment for the second buffer.
       tmp = static_cast<std::uint64_t>(buf[shifted - 4]) << 32 |
             static_cast<std::uint64_t>(buf[shifted - 3]) << 24 |
             static_cast<std::uint64_t>(buf[shifted - 2]) << 16 |
             static_cast<std::uint64_t>(buf[shifted - 1]) << 8 | buf[shifted];
     }
 
+    // Knock out the unneeded bits from the right
     std::int32_t bit_shift = (kBitsPerByte - ((idx + 1) * symbol_bits_)) % kBitsPerByte;
     tmp >>= bit_shift;
-    // Mask off unneeded bits
+    // Take exactly symbol_bits_ number of bits by masking off unneeded bits.
     std::uint64_t mask = (static_cast<std::uint64_t>(1) << symbol_bits_) - 1;
     return static_cast<OutT>(tmp & mask);
   }

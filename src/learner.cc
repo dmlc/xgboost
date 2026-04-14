@@ -38,7 +38,6 @@
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
 #include "common/param_array.h"           // for ParamArray
-#include "common/random.h"                // for GlobalRandom
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
 #include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
@@ -335,6 +334,18 @@ using LearnerAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const*, XGBAPIThreadLocalEntry>>;
 
 namespace {
+std::string CanonicalizeBoosterName(std::string booster) {
+  if (booster == "dart") {
+    static std::once_flag flag;
+    std::call_once(flag, [] {
+      LOG(WARNING) << "`booster=dart` is deprecated. Use the tree booster directly with "
+                      "dropout parameters like `rate_drop`, `skip_drop`, or `one_drop`.";
+    });
+    return "gbtree";
+  }
+  return booster;
+}
+
 /**
  * @brief Handler for the `n_targets` property and the intercept.
  */
@@ -531,7 +542,7 @@ class LearnerConfiguration : public Intercept {
 
     // set seed only before the model is initialized
     if (!initialized || ctx_.seed != old_seed) {
-      common::GlobalRandom().seed(ctx_.seed);
+      ctx_.Rng().seed(ctx_.seed);
     }
 
     // must precede configure gbm since num_features is required for gbm
@@ -581,7 +592,7 @@ class LearnerConfiguration : public Intercept {
     obj_->LoadConfig(objective_fn);
     learner_model_param_.task = obj_->Task();
 
-    tparam_.booster = get<String>(gradient_booster["name"]);
+    tparam_.booster = CanonicalizeBoosterName(get<String>(gradient_booster["name"]));
     if (!gbm_) {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     }
@@ -605,7 +616,7 @@ class LearnerConfiguration : public Intercept {
       }
     }
 
-    FromJson(learner_parameters.at("generic_param"), &ctx_);
+    ctx_.FromJson(learner_parameters.at("generic_param"));
 
     this->need_configuration_ = true;
   }
@@ -635,7 +646,7 @@ class LearnerConfiguration : public Intercept {
     }
     learner_parameters["metrics"] = Array(std::move(metrics));
 
-    learner_parameters["generic_param"] = ToJson(ctx_);
+    learner_parameters["generic_param"] = ctx_.ToJson();
   }
 
   void SetParam(const std::string& key, const std::string& value) override {
@@ -808,7 +819,13 @@ class LearnerConfiguration : public Intercept {
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
-    if (gbm_ == nullptr || old.booster != tparam_.booster) {
+    tparam_.booster = CanonicalizeBoosterName(tparam_.booster);
+    if (tparam_.booster == "gblinear") {
+      LOG(WARNING) << "`booster=gblinear` is deprecated and support will be removed in a future "
+                      "release.";
+    }
+    auto old_booster = CanonicalizeBoosterName(old.booster);
+    if (gbm_ == nullptr || old_booster != tparam_.booster) {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     }
     gbm_->Configure(args);
@@ -900,6 +917,7 @@ class LearnerIO : public LearnerConfiguration {
     auto const& gradient_booster = learner.at("gradient_booster");
     name = get<String>(gradient_booster["name"]);
     tparam_.UpdateAllowUnknown(Args{{"booster", name}});
+    tparam_.booster = CanonicalizeBoosterName(tparam_.booster);
     gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     gbm_->LoadModel(gradient_booster);
 
@@ -1094,7 +1112,7 @@ class LearnerImpl : public LearnerIO {
     this->FitIntercept(this->tparam_, train.get());
 
     if (ctx_.seed_per_iteration) {
-      common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + this->BoostedRounds());
     }
 
     this->ValidateDMatrix(train.get(), true);
@@ -1115,13 +1133,13 @@ class LearnerImpl : public LearnerIO {
     monitor_.Stop("UpdateOneIter");
   }
 
-  void BoostOneIter(std::int32_t iter, std::shared_ptr<DMatrix> train,
+  void BoostOneIter(std::int32_t, std::shared_ptr<DMatrix> train,
                     GradientContainer* in_gpair) override {
     this->monitor_.Start(__func__);
     this->Configure();
 
     if (ctx_.seed_per_iteration) {
-      common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
+      ctx_.Rng().seed(ctx_.seed * kRandSeedMagic + this->BoostedRounds());
     }
 
     this->ValidateDMatrix(train.get(), true);
@@ -1301,6 +1319,9 @@ class LearnerImpl : public LearnerIO {
 
     if (p_fmat->Info().num_row_ == 0) {
       error::WarnEmptyDataset();
+    }
+    if (!p_fmat->Info().base_margin_.Empty()) {
+      CHECK_EQ(p_fmat->Info().base_margin_.Shape(1), this->mparam_.OutputLength());
     }
   }
 

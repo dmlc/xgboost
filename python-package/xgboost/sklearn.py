@@ -1,4 +1,5 @@
 # pylint: disable=too-many-arguments, too-many-locals, fixme, too-many-lines
+# pylint: disable=duplicate-code
 """Scikit-Learn Wrapper interface for XGBoost."""
 
 import collections
@@ -27,6 +28,7 @@ from typing import (
 import numpy as np
 from scipy.special import softmax
 
+from ._c_api import _parse_version, _py_version
 from ._data_utils import Categories
 from ._typing import (
     ArrayLike,
@@ -60,8 +62,6 @@ from .core import (
     XGBoostError,
     _deprecate_positional_args,
     _parse_eval_str,
-    _parse_version,
-    _py_version,
 )
 from .data import (
     CAT_T,
@@ -273,6 +273,10 @@ __model_doc = f"""
     booster: {Optional[str]}
 
         Specify which booster to use: ``gbtree``, ``gblinear`` or ``dart``.
+
+        .. deprecated:: 3.3.0
+
+            ``gblinear`` is deprecated and support will be removed in a future release.
 
     tree_method : {Optional[str]}
 
@@ -838,7 +842,7 @@ class XGBModel(XGBModelBase):
         importance_type: Optional[str] = None,
         device: Optional[str] = None,
         validate_parameters: Optional[bool] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         feature_types: Optional[FeatureTypes] = None,
         feature_weights: Optional[ArrayLike] = None,
         max_cat_to_onehot: Optional[int] = None,
@@ -1118,7 +1122,8 @@ class XGBModel(XGBModelBase):
         self.get_booster().save_model(fname)
         self.get_booster().set_attr(scikit_learn=None)
 
-    save_model.__doc__ = f"""{Booster.save_model.__doc__}"""
+    if Booster.save_model.__doc__ is not None:
+        save_model.__doc__ = f"""{Booster.save_model.__doc__}"""
 
     def load_model(self, fname: ModelIn) -> None:
         # pylint: disable=attribute-defined-outside-init
@@ -1140,7 +1145,8 @@ class XGBModel(XGBModelBase):
         config = json.loads(self.get_booster().save_config())
         self._load_model_attributes(config)
 
-    load_model.__doc__ = f"""{Booster.load_model.__doc__}"""
+    if Booster.load_model.__doc__ is not None:
+        load_model.__doc__ = f"""{Booster.load_model.__doc__}"""
 
     def _load_model_attributes(self, config: dict) -> None:
         """Load model attributes without hyper-parameters."""
@@ -1243,13 +1249,6 @@ class XGBModel(XGBModelBase):
             if self.feature_weights is not None
             else feature_weights
         )
-
-        tree_method = params.get("tree_method", None)
-        if self.enable_categorical and tree_method == "exact":
-            raise ValueError(
-                "Experimental support for categorical data is not implemented for"
-                " current tree method yet."
-            )
         return model, metric, params, feature_weights
 
     def _create_dmatrix(self, ref: Optional[DMatrix], **kwargs: Any) -> DMatrix:
@@ -1825,10 +1824,10 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             self._set_evaluation_result(evals_result)
             return self
 
-    assert XGBModel.fit.__doc__ is not None
-    fit.__doc__ = XGBModel.fit.__doc__.replace(
-        "Fit gradient boosting model", "Fit gradient boosting classifier", 1
-    )
+    if XGBModel.fit.__doc__ is not None:
+        fit.__doc__ = XGBModel.fit.__doc__.replace(
+            "Fit gradient boosting model", "Fit gradient boosting classifier", 1
+        )
 
     @_deprecate_positional_args
     def predict(

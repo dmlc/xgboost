@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 
 #if defined(__unix__) || defined(__APPLE__)
@@ -24,13 +24,14 @@
 
 #include "../common/json_utils.h"
 #include "../common/threading_utils.h"  // for NameThread
-#include "comm.h"
-#include "protocol.h"  // for kMagic, PeerInfo
+#include "../common/timer.h"            // for Timer
+#include "protocol.h"                   // for kMagic, PeerInfo
+#include "topo.h"                       // for BootstrapNext
 #include "tracker.h"
 #include "xgboost/collective/poll_utils.h"  // for PollHelper
 #include "xgboost/collective/result.h"      // for Result, Fail, Success
 #include "xgboost/collective/socket.h"      // for GetHostName, FailWithCode, MakeSockAddress, ...
-#include "xgboost/global_config.h"          // for InitNewThread
+#include "xgboost/global_config.h"          // for GlobalConfiguration
 #include "xgboost/json.h"                   // for Json
 
 namespace xgboost::collective {
@@ -132,6 +133,13 @@ RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
   SafeColl(rc);
 }
 
+// The thread init function here doesn't set any state in openmp and CUDA as the tracker
+// doesn't need them.
+struct TrackerInitThread {
+  GlobalConfiguration config;
+  void operator()() const { *GlobalConfigThreadLocalStore::Get() = config; }
+};
+
 Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   auto& workers = *p_workers;
 
@@ -142,13 +150,14 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     auto& worker = workers[r];
     auto next = BootstrapNext(r, n_workers_);
     auto const& next_w = workers[next];
-    bootstrap_threads.emplace_back([next, &worker, &next_w, init = InitNewThread{}] {
-      init();
-      auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
-      std::string str;
-      Json::Dump(jnext, &str);
-      worker.Send(StringView{str});
-    });
+    bootstrap_threads.emplace_back(
+        [next, &worker, &next_w, init = TrackerInitThread{*GlobalConfigThreadLocalStore::Get()}] {
+          init();
+          auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
+          std::string str;
+          Json::Dump(jnext, &str);
+          worker.Send(StringView{str});
+        });
     std::string name = "tkbs_t-" + std::to_string(r);
     common::NameThread(&bootstrap_threads.back(), name.c_str());
   }
@@ -232,7 +241,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   auto handle_error = [&](WorkerProxy const& worker) {
     auto msg = worker.Msg();
     auto code = worker.Code();
-    LOG(WARNING) << "[tracker]: Recieved error from [" << worker.Host() << ":" << worker.Rank()
+    LOG(WARNING) << "[tracker]: Received error from [" << worker.Host() << ":" << worker.Rank()
                  << "]: " << msg << " code:" << code;
     auto host = worker.Host();
     // We signal all workers for the error, if they haven't aborted already.
@@ -257,101 +266,103 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     return Success();
   };
 
-  return std::async(std::launch::async, [this, handle_error, init = InitNewThread{}] {
-    init();
-    State state{this->n_workers_};
+  return std::async(
+      std::launch::async,
+      [this, handle_error, init = TrackerInitThread{*GlobalConfigThreadLocalStore::Get()}] {
+        init();
+        State state{this->n_workers_};
 
-    auto select_accept = [&](TCPSocket* sock, auto* addr) {
-      // accept with poll so that we can enable timeout and interruption.
-      rabit::utils::PollHelper poll;
-      auto rc = Success() << [&] {
-        std::lock_guard lock{listener_mu_};
-        return listener_.NonBlocking(true);
-      } << [&] {
-        {
-          std::lock_guard lock{listener_mu_};
-          poll.WatchRead(listener_);
-        }
-        if (state.running) {
-          // Don't timeout if the communicator group is up and running.
-          return poll.Poll(std::chrono::seconds{-1});
-        } else {
-          // Have timeout for workers to bootstrap.
-          return poll.Poll(timeout_);
-        }
-      } << [&] {
-        // this->Stop() closes the socket with a lock. Therefore, when the accept returns
-        // due to shutdown, the state is still valid (closed).
-        return listener_.Accept(sock, addr);
-      };
-      return rc;
-    };
+        auto select_accept = [&](TCPSocket* sock, auto* addr) {
+          // accept with poll so that we can enable timeout and interruption.
+          rabit::utils::PollHelper poll;
+          auto rc = Success() << [&] {
+            std::lock_guard lock{listener_mu_};
+            return listener_.NonBlocking(true);
+          } << [&] {
+            {
+              std::lock_guard lock{listener_mu_};
+              poll.WatchRead(listener_);
+            }
+            if (state.running) {
+              // Don't timeout if the communicator group is up and running.
+              return poll.Poll(std::chrono::seconds{-1});
+            } else {
+              // Have timeout for workers to bootstrap.
+              return poll.Poll(timeout_);
+            }
+          } << [&] {
+            // this->Stop() closes the socket with a lock. Therefore, when the accept returns
+            // due to shutdown, the state is still valid (closed).
+            return listener_.Accept(sock, addr);
+          };
+          return rc;
+        };
 
-    while (state.ShouldContinue()) {
-      TCPSocket sock;
-      SockAddress addr;
-      this->ready_ = true;
-      auto rc = select_accept(&sock, &addr);
-      if (!rc.OK()) {
-        return Fail("Failed to accept connection.", this->Stop() + std::move(rc));
-      }
+        while (state.ShouldContinue()) {
+          TCPSocket sock;
+          SockAddress addr;
+          this->ready_ = true;
+          auto rc = select_accept(&sock, &addr);
+          if (!rc.OK()) {
+            return Fail("Failed to accept connection.", this->Stop() + std::move(rc));
+          }
 
-      auto worker = WorkerProxy{n_workers_, std::move(sock), std::move(addr)};
-      if (!worker.Status().OK()) {
-        LOG(WARNING) << "Failed to initialize worker proxy." << worker.Status().Report();
-        continue;
-      }
-      switch (worker.Command()) {
-        case proto::CMD::kStart: {
-          if (state.running) {
-            // Something went wrong with one of the workers. It got disconnected without
-            // notice.
-            state.Error();
-            rc = handle_error(worker);
-            if (!rc.OK()) {
-              return Fail("Failed to handle abort.", this->Stop() + std::move(rc));
+          auto worker = WorkerProxy{n_workers_, std::move(sock), std::move(addr)};
+          if (!worker.Status().OK()) {
+            LOG(WARNING) << "Failed to initialize worker proxy." << worker.Status().Report();
+            continue;
+          }
+          switch (worker.Command()) {
+            case proto::CMD::kStart: {
+              if (state.running) {
+                // Something went wrong with one of the workers. It got disconnected without
+                // notice.
+                state.Error();
+                rc = handle_error(worker);
+                if (!rc.OK()) {
+                  return Fail("Failed to handle abort.", this->Stop() + std::move(rc));
+                }
+              }
+
+              state.Start(std::move(worker));
+              if (state.Ready()) {
+                rc = this->Bootstrap(&state.pending);
+                state.Bootstrap();
+              }
+              if (!rc.OK()) {
+                return this->Stop() + std::move(rc);
+              }
+              continue;
+            }
+            case proto::CMD::kShutdown: {
+              if (state.during_restart) {
+                // The worker can still send shutdown after call to `std::exit`.
+                continue;
+              }
+              state.Shutdown();
+              continue;
+            }
+            case proto::CMD::kError: {
+              if (state.during_restart) {
+                // Ignore further errors.
+                continue;
+              }
+              state.Error();
+              rc = handle_error(worker);
+              continue;
+            }
+            case proto::CMD::kPrint: {
+              LOG(CONSOLE) << worker.Msg();
+              continue;
+            }
+            case proto::CMD::kInvalid:
+            default: {
+              return Fail("Invalid command received.", this->Stop());
             }
           }
-
-          state.Start(std::move(worker));
-          if (state.Ready()) {
-            rc = this->Bootstrap(&state.pending);
-            state.Bootstrap();
-          }
-          if (!rc.OK()) {
-            return this->Stop() + std::move(rc);
-          }
-          continue;
         }
-        case proto::CMD::kShutdown: {
-          if (state.during_restart) {
-            // The worker can still send shutdown after call to `std::exit`.
-            continue;
-          }
-          state.Shutdown();
-          continue;
-        }
-        case proto::CMD::kError: {
-          if (state.during_restart) {
-            // Ignore further errors.
-            continue;
-          }
-          state.Error();
-          rc = handle_error(worker);
-          continue;
-        }
-        case proto::CMD::kPrint: {
-          LOG(CONSOLE) << worker.Msg();
-          continue;
-        }
-        case proto::CMD::kInvalid:
-        default: {
-          return Fail("Invalid command received.", this->Stop());
-        }
-      }
-    }
-    return this->Stop();
-  });
+        return this->Stop();
+      });
 }
 
 [[nodiscard]] Json RabitTracker::WorkerArgs() const {
@@ -398,9 +409,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   hints.ai_flags = AI_PASSIVE;
 
   std::int32_t errc{0};
-  std::unique_ptr<addrinfo*, std::function<void(addrinfo**)>> guard{&servinfo, [](addrinfo** ptr) {
-                                                                      freeaddrinfo(*ptr);
-                                                                    }};
+  std::unique_ptr<addrinfo*, std::function<void(addrinfo**)>> guard{
+      &servinfo, [](addrinfo** ptr) { freeaddrinfo(*ptr); }};
   if ((errc = getaddrinfo(nullptr, "0", &hints, &servinfo)) != 0) {
     return Fail("Failed to get address info:" + std::string{gai_strerror(errc)});
   }

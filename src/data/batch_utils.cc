@@ -51,16 +51,6 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
   using xgboost::cuda_impl::CachePageRatio;
 
   auto lc = cudr::GetC2cLinkCountFromSmiGlobal();
-  if (lc >= 10) {
-    // >= 10, life is easy.
-    if (CachePageBytesIsAuto(min_cache_page_bytes)) {
-      min_cache_page_bytes = n_d_bytes * CachePageRatio();
-    }
-    if (HostRatioIsAuto(cache_host_ratio)) {
-      cache_host_ratio = 1.0;
-    }
-    return {cache_host_ratio, min_cache_page_bytes};
-  }
 
   /**
    * Configure the min_cache_page_bytes
@@ -96,7 +86,6 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
     auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes * 0.85;
     cache_host_ratio = static_cast<double>(h_cache_nbytes) / static_cast<double>(n_cache_bytes);
     if (lc > 0) {
-      // 0 < lc < 10, C2C is available, but with reduced link count.
       // No need to exceed half in practice.
       cache_host_ratio = std::max(cache_host_ratio, 0.5);
     }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #pragma once
 #include <chrono>   // for seconds
@@ -22,17 +22,6 @@ namespace xgboost::collective {
 
 inline constexpr std::int64_t DefaultTimeoutSec() { return 60 * 30; }  // 30min
 inline constexpr std::int32_t DefaultRetry() { return 3; }
-
-// indexing into the ring
-inline std::int32_t BootstrapNext(std::int32_t r, std::int32_t world) {
-  auto nrank = (r + world + 1) % world;
-  return nrank;
-}
-
-inline std::int32_t BootstrapPrev(std::int32_t r, std::int32_t world) {
-  auto nrank = (r + world - 1) % world;
-  return nrank;
-}
 
 inline StringView DefaultNcclName() { return "libnccl.so.2"; }
 
@@ -98,8 +87,14 @@ class Comm : public std::enable_shared_from_this<Comm> {
   }
   [[nodiscard]] virtual Result Block() const { return loop_->Block(); }
 
+  [[nodiscard]] bool HasChan(std::int32_t rank) const {
+    return rank >= 0 && rank < static_cast<std::int32_t>(channels_.size()) &&
+           channels_[rank] != nullptr;
+  }
   [[nodiscard]] virtual std::shared_ptr<Channel> Chan(std::int32_t rank) const {
-    return channels_.at(rank);
+    CHECK(HasChan(rank)) << "No channel to rank " << rank << " from rank " << rank_
+                         << ". The topology does not include this peer.";
+    return channels_[rank];
   }
   [[nodiscard]] virtual bool IsFederated() const = 0;
   [[nodiscard]] virtual Result LogTracker(std::string msg) const = 0;
@@ -127,16 +122,19 @@ class HostComm : public Comm {
 
 class RabitComm : public HostComm {
   std::string nccl_path_ = std::string{DefaultNcclName()};
+  // User-specified port for the worker listener socket. 0 means the OS picks an available
+  // port.
+  std::int32_t worker_port_{0};
 
   [[nodiscard]] Result Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
-                                 std::string task_id);
+                                 std::string task_id, std::int32_t worker_port);
 
  public:
   // bootstrapping construction.
   RabitComm() = default;
   RabitComm(std::string const& tracker_host, std::int32_t tracker_port,
             std::chrono::seconds timeout, std::int32_t retry, std::string task_id,
-            StringView nccl_path);
+            StringView nccl_path, std::int32_t worker_port);
   ~RabitComm() noexcept(false) override;
 
   [[nodiscard]] bool IsFederated() const override { return false; }

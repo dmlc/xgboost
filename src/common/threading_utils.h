@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_THREADING_UTILS_H_
 #define XGBOOST_COMMON_THREADING_UTILS_H_
@@ -103,9 +103,7 @@ class BlockedSpace2d {
   }
 
   // Amount of blocks(tasks) in a space
-  [[nodiscard]] std::size_t Size() const {
-    return ranges_.size();
-  }
+  [[nodiscard]] std::size_t Size() const { return ranges_.size(); }
 
   // get index of the first dimension of i-th block(task)
   [[nodiscard]] std::size_t GetFirstDimension(std::size_t i) const {
@@ -135,7 +133,6 @@ class BlockedSpace2d {
   std::vector<Range1d> ranges_;
   std::vector<std::size_t> first_dimension_;
 };
-
 
 // Wrapper to implement nested parallelism with simple omp parallel for
 template <typename Func>
@@ -200,48 +197,48 @@ void ParallelFor(Index size, std::int32_t n_threads, Sched sched, Func&& fn) {
 
   dmlc::OMPException exc;
   switch (sched.sched) {
-  case Sched::kAuto: {
+    case Sched::kAuto: {
 #pragma omp parallel for num_threads(n_threads)
-    for (OmpInd i = 0; i < length; ++i) {
-      exc.Run(fn, i);
+      for (OmpInd i = 0; i < length; ++i) {
+        exc.Run(fn, i);
+      }
+      break;
     }
-    break;
-  }
-  case Sched::kDynamic: {
-    if (sched.chunk == 0) {
+    case Sched::kDynamic: {
+      if (sched.chunk == 0) {
 #pragma omp parallel for num_threads(n_threads) schedule(dynamic)
-      for (OmpInd i = 0; i < length; ++i) {
-        exc.Run(fn, i);
-      }
-    } else {
+        for (OmpInd i = 0; i < length; ++i) {
+          exc.Run(fn, i);
+        }
+      } else {
 #pragma omp parallel for num_threads(n_threads) schedule(dynamic, sched.chunk)
-      for (OmpInd i = 0; i < length; ++i) {
-        exc.Run(fn, i);
+        for (OmpInd i = 0; i < length; ++i) {
+          exc.Run(fn, i);
+        }
       }
+      break;
     }
-    break;
-  }
-  case Sched::kStatic: {
-    if (sched.chunk == 0) {
+    case Sched::kStatic: {
+      if (sched.chunk == 0) {
 #pragma omp parallel for num_threads(n_threads) schedule(static)
-      for (OmpInd i = 0; i < length; ++i) {
-        exc.Run(fn, i);
-      }
-    } else {
+        for (OmpInd i = 0; i < length; ++i) {
+          exc.Run(fn, i);
+        }
+      } else {
 #pragma omp parallel for num_threads(n_threads) schedule(static, sched.chunk)
+        for (OmpInd i = 0; i < length; ++i) {
+          exc.Run(fn, i);
+        }
+      }
+      break;
+    }
+    case Sched::kGuided: {
+#pragma omp parallel for num_threads(n_threads) schedule(guided)
       for (OmpInd i = 0; i < length; ++i) {
         exc.Run(fn, i);
       }
+      break;
     }
-    break;
-  }
-  case Sched::kGuided: {
-#pragma omp parallel for num_threads(n_threads) schedule(guided)
-    for (OmpInd i = 0; i < length; ++i) {
-      exc.Run(fn, i);
-    }
-    break;
-  }
   }
   exc.Rethrow();
 }
@@ -273,6 +270,21 @@ void ParallelFor1d(Index size, std::int32_t n_threads, Func&& fn) {
   });
 }
 
+/** @brief Use n_threads as the number of blocks. */
+template <typename Index, typename Func>
+void ParallelForBlock(Index size, std::int32_t n_threads, Func&& fn) {
+  static_assert(std::is_void_v<std::invoke_result_t<Func, common::Range1d>>);
+  std::size_t blk_size = size / n_threads + (size % n_threads > 0);
+  ParallelFor(n_threads, n_threads, [&](auto tid) {
+    auto blk_beg = tid * blk_size;
+    auto blk_end = std::min((tid + 1) * blk_size, static_cast<std::size_t>(size));
+    if (blk_end <= blk_beg) {
+      return;
+    }
+    fn(common::Range1d{blk_beg, blk_end});
+  });
+}
+
 inline std::int32_t OmpGetThreadLimit() {
   std::int32_t limit = omp_get_thread_limit();
   CHECK_GE(limit, 1) << "Invalid thread limit for OpenMP.";
@@ -280,9 +292,9 @@ inline std::int32_t OmpGetThreadLimit() {
 }
 
 /**
- * \brief Get thread limit from CFS.
+ * @brief Get thread limit from CFS.
  *
- *   This function has non-trivial overhead and should not be called repeatly.
+ * This function has non-trivial overhead and should not be called repeatedly.
  */
 std::int32_t GetCfsCPUCount() noexcept;
 
@@ -291,10 +303,11 @@ std::int32_t GetCfsCPUCount() noexcept;
  */
 std::int32_t OmpGetNumThreads(std::int32_t n_threads) noexcept(true);
 
-/*!
- * \brief A C-style array with in-stack allocation. As long as the array is smaller than
- * MaxStackSize, it will be allocated inside the stack. Otherwise, it will be
- * heap-allocated.
+/**
+ * @brief A C-style array with in-stack allocation.
+ *
+ * As long as the array is smaller than MaxStackSize, it will be allocated inside the
+ * stack. Otherwise, it will be heap-allocated.
  */
 template <typename T, std::size_t MaxStackSize>
 class MemStackAllocator {

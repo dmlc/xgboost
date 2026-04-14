@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024 by XGBoost contributors.
+ * Copyright 2021-2026, XGBoost contributors.
  */
 #pragma once
 
@@ -83,7 +83,7 @@ class TestPredictionCache : public ::testing::Test {
       out_prediction_cached.Resize(n_samples_);
       auto cache =
           linalg::MakeTensorView(ctx, &out_prediction_cached, out_prediction_cached.Size(), 1);
-      ASSERT_TRUE(updater->UpdatePredictionCache(Xy_.get(), cache));
+      ASSERT_TRUE(updater->UpdatePredictionCache(Xy_.get(), common::Span{position}, cache));
     }
 
     for (auto policy : {"depthwise", "lossguide"}) {

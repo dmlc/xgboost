@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024 by XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_TEST_QUANTILE_OBJ_H_
 #define XGBOOST_TEST_QUANTILE_OBJ_H_
@@ -8,9 +8,9 @@
 
 namespace xgboost {
 
-void TestQuantile(const Context* ctx);
+void TestQuantile(Context const* ctx);
 
-void TestQuantileIntercept(const Context* ctx);
+void TestQuantileIntercept(Context const* ctx);
 
 }  // namespace xgboost
 

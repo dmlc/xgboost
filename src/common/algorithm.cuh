@@ -333,7 +333,7 @@ void InclusiveScan(xgboost::Context const *ctx, InputIteratorT d_in, OutputItera
 template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
 void InclusiveSum(Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out,
                   OffsetT num_items) {
-#if CUB_VERSION >= 300000
+#if CUB_VERSION >= 200800
   InclusiveScan(ctx, d_in, d_out, std::plus{}, num_items);
 #else
   InclusiveScan(ctx, d_in, d_out, cub::Sum{}, num_items);

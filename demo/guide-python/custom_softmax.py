@@ -11,13 +11,14 @@ detailed tutorial and notes.
 
 """
 
+# pylint: disable=missing-function-docstring,redefined-outer-name,unused-variable
+
 import argparse
 from typing import Dict, Tuple
 
 import numpy as np
-from matplotlib import pyplot as plt
-
 import xgboost as xgb
+from matplotlib import pyplot as plt
 
 np.random.seed(1994)
 
@@ -50,7 +51,7 @@ def softprob_obj(predt: np.ndarray, data: xgb.DMatrix) -> Tuple[np.ndarray, np.n
     labels = data.get_label()
     if data.get_weight().size == 0:
         # Use 1 as weight if we don't have custom weight.
-        weights = np.ones((kRows, 1), dtype=float)
+        weights = np.ones(kRows, dtype=float)
     else:
         weights = data.get_weight()
 
@@ -70,13 +71,15 @@ def softprob_obj(predt: np.ndarray, data: xgb.DMatrix) -> Tuple[np.ndarray, np.n
     # numeric overflow as we don't do anything to mitigate the `exp` in
     # `softmax` here.
     for r in range(predt.shape[0]):
-        target = labels[r]
+        target = int(labels[r])
+        weight = float(weights[r])
         p = softmax(predt[r, :])
         for c in range(predt.shape[1]):
-            assert target >= 0 or target <= kClasses
-            g = p[c] - 1.0 if c == target else p[c]
-            g = g * weights[r]
-            h = max((2.0 * p[c] * (1.0 - p[c]) * weights[r]).item(), eps)
+            assert 0 <= target < kClasses
+            pc = float(p[c])
+            g = pc - 1.0 if c == target else pc
+            g = g * weight
+            h = max(2.0 * pc * (1.0 - pc) * weight, eps)
             grad[r, c] = g
             hess[r, c] = h
 

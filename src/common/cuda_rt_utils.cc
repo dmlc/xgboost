@@ -1,15 +1,21 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  */
 #include "cuda_rt_utils.h"
 
-#include "cuda_stream.h"  // for StreamRef
+#include <cstring>  // for memcpy
+#include <set>      // for set
+#include <sstream>  // for stringstream
+
+#include "cuda_stream.h"   // for StreamRef
+#include "xgboost/span.h"  // for Span
 
 #if defined(XGBOOST_USE_CUDA)
 #include <cuda_runtime_api.h>
 
 #include <algorithm>  // for max
-#endif                // defined(XGBOOST_USE_CUDA)
+
+#endif  // defined(XGBOOST_USE_CUDA)
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
@@ -114,6 +120,27 @@ void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   return !!res;
 }
 
+static_assert(kUuidLength == sizeof(std::declval<cudaDeviceProp>().uuid));
+
+void GetUuid(xgboost::common::Span<unsigned char> uuid, std::int32_t device) {
+  cudaDeviceProp prop{};
+  dh::safe_cuda(cudaGetDeviceProperties(&prop, device));
+  std::memcpy(uuid.data(), static_cast<void*>(&(prop.uuid)), kUuidLength);
+}
+
+[[nodiscard]] std::string PrintUuid(common::Span<unsigned char const, kUuidLength> uuid) {
+  std::set<std::size_t> dash_pos{0, 4, 6, 8, 10};
+  std::stringstream ss;
+  ss << "GPU";
+  for (std::size_t i = 0; i < kUuidLength; ++i) {
+    if (dash_pos.find(i) != dash_pos.cend()) {
+      ss << "-";
+    }
+    ss << std::setw(2) << std::setfill('0') << std::hex << (0xFF & std::uint32_t{uuid[i]});
+  }
+  return ss.str();
+}
+
 void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream) {
   dh::safe_cuda(cudaMemcpyAsync(dst, src, count, cudaMemcpyDefault, stream));
 }
@@ -153,6 +180,10 @@ void SetDevice(std::int32_t device) {
 }
 
 [[nodiscard]] bool MemoryPoolsSupported(std::int32_t) { return false; }
+
+void GetUuid(xgboost::common::Span<unsigned char>, std::int32_t) { common::AssertGPUSupport(); }
+
+[[nodiscard]] std::string PrintUuid(common::Span<unsigned char const, kUuidLength>) { return {}; }
 
 void MemcpyAsync(void*, const void*, std::size_t, StreamRef) { common::AssertGPUSupport(); }
 

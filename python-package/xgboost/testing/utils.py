@@ -1,6 +1,6 @@
 """Helpers for test code."""
 
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, Sequence, TypeAlias
 
 import numpy as np
 
@@ -32,3 +32,13 @@ def predictor_equal(lhs: DMatrix, rhs: DMatrix) -> bool:
             np.array_equal(lcsr.indptr, rcsr.indptr),
         )
     )
+
+
+def non_increasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
+    """Values in the sequence are not increasing."""
+    return all((y - x) < tolerance for x, y in zip(L, L[1:]))
+
+
+def non_decreasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
+    """Values in the sequence are not decreasing."""
+    return all((y - x) >= -tolerance for x, y in zip(L, L[1:]))

@@ -1,14 +1,17 @@
 /**
  * Copyright 2020-2023 by XGBoost Contributors
  */
-#ifndef XGBOOST_TEST_PREDICTOR_H_
-#define XGBOOST_TEST_PREDICTOR_H_
+#ifndef TESTS_CPP_PREDICTOR_TEST_PREDICTOR_H_
+#define TESTS_CPP_PREDICTOR_TEST_PREDICTOR_H_
 
 #include <xgboost/context.h>  // for Context
 #include <xgboost/predictor.h>
 
 #include <cstddef>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../../../src/gbm/gbtree_model.h"  // for GBTreeModel
 #include "../helpers.h"
@@ -45,7 +48,7 @@ inline auto CreatePredictorForTest(Context const* ctx) {
 template <typename Page>
 void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t cols,
                                      std::shared_ptr<DMatrix> p_hist) {
-  constexpr size_t kClasses { 3 };
+  constexpr size_t kClasses{3};
 
   LearnerModelParam mparam{MakeMP(cols, .5, kClasses, ctx->Device())};
   auto cuda_ctx = MakeCUDACtx(0);
@@ -86,7 +89,9 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
   }
 }
 
-void TestBasic(DMatrix* dmat, Context const * ctx);
+void TestBasic(DMatrix* dmat, Context const* ctx);
+void TestBatchPredictionWithWeights(Context const* ctx);
+void TestInplacePredictionWithWeights(Context const* ctx);
 
 // p_full and p_hist should come from the same data set.
 void TestTrainingPrediction(Context const* ctx, size_t rows, size_t bins,
@@ -103,7 +108,7 @@ void TestCategoricalPrediction(bool use_gpu, bool is_column_split);
 
 void TestPredictionWithLesserFeaturesColumnSplit(bool use_gpu);
 
-void TestCategoricalPredictLeaf(Context const *ctx, bool is_column_split);
+void TestCategoricalPredictLeaf(Context const* ctx, bool is_column_split);
 
 void TestIterationRange(Context const* ctx);
 
@@ -115,10 +120,6 @@ void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsit
 
 void TestVectorLeafPrediction(Context const* ctx);
 
-class ShapExternalMemoryTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
- public:
-  void Run(Context const* ctx, bool is_qdm, bool is_interaction);
-};
 }  // namespace xgboost
 
-#endif  // XGBOOST_TEST_PREDICTOR_H_
+#endif  // TESTS_CPP_PREDICTOR_TEST_PREDICTOR_H_

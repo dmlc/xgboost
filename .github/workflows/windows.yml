@@ -1,6 +1,11 @@
-name: XGBoost CI (Windows)
+name: Windows
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+      - 'release_*'
+  pull_request:
 
 permissions:
   contents: read  # to fetch code (actions/checkout)
@@ -25,10 +30,13 @@ jobs:
       - runner=windows-cpu
       - tag=windows-build-win64-gpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: "true"
-      - run: powershell ops/pipeline/build-win64-gpu.ps1
+      - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - run: ops/pipeline/build-win64.ps1 -variant gpu
+      - run: sccache --show-stats
       - name: Stash files
         shell: powershell
         run: |
@@ -46,10 +54,13 @@ jobs:
       - runner=windows-cpu
       - tag=windows-build-win64-cpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: "true"
-      - run: powershell ops/pipeline/build-win64-cpu.ps1
+      - uses: dmlc/xgboost-devops/actions/msvc-dev-env@main
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - run: ops/pipeline/build-win64.ps1 -variant cpu
+      - run: sccache --show-stats
 
   test-win64-gpu:
     name: Test XGBoost on Windows
@@ -59,7 +70,7 @@ jobs:
       - runner=windows-gpu
       - tag=windows-test-win64-gpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           submodules: "true"
       - name: Unstash files

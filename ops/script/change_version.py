@@ -141,14 +141,12 @@ def main(args: argparse.Namespace) -> None:
     rpkg(major, minor, patch, is_dev=is_dev)
     jvmpkgs(major, minor, patch, rc, is_rc, is_dev)
 
-    print(
-        """
+    print("""
 
 Please examine the changes and commit. Be aware that mvn might leave backup files in the
 source tree.
 
-"""
-    )
+""")
 
 
 if __name__ == "__main__":

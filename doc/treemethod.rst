@@ -8,7 +8,7 @@ namely ``updater`` and ``tree_method``.  XGBoost has 3 builtin tree methods, nam
 free standing updaters including ``refresh``, ``prune`` and ``sync``.  The parameter
 ``updater`` is more primitive than ``tree_method`` as the latter is just a
 pre-configuration of the former.  The difference is mostly due to historical reasons that
-each updater requires some specific configurations and might has missing features.  As we
+each updater requires some specific configurations and might have missing features.  As we
 are moving forward, the gap between them is becoming more and more irrelevant.  We will
 collectively document them under tree methods.
 
@@ -123,21 +123,21 @@ Feature Matrix
 Following table summarizes some differences in supported features between 4 tree methods,
 `T` means supported while `F` means unsupported.
 
-+------------------+-----------+---------------------+------------------------+---------------------+------------------------+
-|                  | Exact     | Approx              | Approx (GPU)           | Hist                | Hist (GPU)             |
-+==================+===========+=====================+========================+=====================+========================+
-| grow_policy      | Depthwise | depthwise/lossguide | depthwise/lossguide    | depthwise/lossguide | depthwise/lossguide    |
-+------------------+-----------+---------------------+------------------------+---------------------+------------------------+
-| max_leaves       | F         | T                   | T                      | T                   | T                      |
-+------------------+-----------+---------------------+------------------------+---------------------+------------------------+
-| sampling method  | uniform   | uniform             | gradient_based/uniform | uniform             | gradient_based/uniform |
-+------------------+-----------+---------------------+------------------------+---------------------+------------------------+
-| categorical data | F         | T                   | T                      | T                   | T                      |
-+------------------+-----------+---------------------+------------------------+---------------------+------------------------+
-| External memory  | F         | T                   | P                      | T                   | P                      |
-+------------------+-----------+---------------------+------------------------+---------------------+------------------------+
-| Distributed      | F         | T                   | T                      | T                   | T                      |
-+------------------+-----------+---------------------+------------------------+---------------------+------------------------+
++------------------+-----------+---------------------+------------------------+------------------------+
+|                  | Exact     | Approx              | Approx (GPU)           | Hist                   |
++==================+===========+=====================+========================+========================+
+| grow_policy      | Depthwise | depthwise/lossguide | depthwise/lossguide    | depthwise/lossguide    |
++------------------+-----------+---------------------+------------------------+------------------------+
+| max_leaves       | F         | T                   | T                      | T                      |
++------------------+-----------+---------------------+------------------------+------------------------+
+| sampling method  | uniform   | uniform             | gradient_based/uniform | gradient_based/uniform |
++------------------+-----------+---------------------+------------------------+------------------------+
+| categorical data | F         | T                   | T                      | T                      |
++------------------+-----------+---------------------+------------------------+------------------------+
+| External memory  | F         | T                   | P                      | T                      |
++------------------+-----------+---------------------+------------------------+------------------------+
+| Distributed      | F         | T                   | T                      | T                      |
++------------------+-----------+---------------------+------------------------+------------------------+
 
 Features/parameters that are not mentioned here are universally supported for all 3 tree
 methods (for instance, column sampling and constraints).  The `P` in external memory means

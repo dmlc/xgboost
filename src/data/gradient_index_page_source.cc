@@ -13,6 +13,8 @@
 namespace xgboost::data {
 void GradientIndexPageSource::Fetch() {
   if (!this->ReadCache()) {
+    auto ctx = Context{};
+    ctx.Init(Args{{"nthread", std::to_string(nthreads_)}});
     // source is initialized to be the 0th page during construction, so when count_ is 0
     // there's no need to increment the source.
     if (this->count_ != 0 && !this->sync_) {
@@ -24,8 +26,8 @@ void GradientIndexPageSource::Fetch() {
     CHECK_EQ(this->count_, this->source_->Iter());
     auto const& csr = this->source_->Page();
     CHECK_NE(this->cuts_.Values().size(), 0);
-    this->page_.reset(new GHistIndexMatrix{*csr, feature_types_, cuts_, max_bin_per_feat_,
-                                           is_dense_, sparse_thresh_, nthreads_});
+    this->page_.reset(new GHistIndexMatrix{&ctx, *csr, feature_types_, cuts_, max_bin_per_feat_,
+                                           is_dense_, sparse_thresh_});
     this->WriteCache();
   }
 }

@@ -12,7 +12,6 @@ import warnings
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from enum import IntEnum, unique
 from functools import wraps
 from inspect import Parameter, signature
 from types import EllipsisType
@@ -32,12 +31,22 @@ from typing import (
     TypeVar,
     Union,
     cast,
-    overload,
 )
 
 import numpy as np
 import scipy.sparse
 
+from ._c_api import (
+    _LIB,
+    _check_call,
+    c_str,
+    from_cstr_to_pystr,
+    from_pystr_to_cstr,
+    make_jcargs,
+)
+from ._c_api import (
+    XGBoostError as _XGBoostError,
+)
 from ._data_utils import (
     Categories,
     TransformedDf,
@@ -55,9 +64,9 @@ from ._typing import (
     CFloatPtr,
     CNumeric,
     CNumericPtr,
-    CStrPptr,
     CStrPtr,
     CTypeT,
+    DataSplitMode,
     DataType,
     FeatureInfo,
     FeatureNames,
@@ -78,67 +87,12 @@ from .compat import (
     is_pyarrow_available,
     py_str,
 )
-from .libpath import find_lib_path
 from .objective import Objective, TreeObjective, _grad_arrinf
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
 
-
-class XGBoostError(ValueError):
-    """Error thrown by xgboost trainer."""
-
-
-@overload
-def from_pystr_to_cstr(data: str) -> bytes: ...
-
-
-@overload
-def from_pystr_to_cstr(data: List[str]) -> ctypes.Array: ...
-
-
-def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array]:
-    """Convert a Python str or list of Python str to C pointer
-
-    Parameters
-    ----------
-    data
-        str or list of str
-    """
-
-    if isinstance(data, str):
-        return bytes(data, "utf-8")
-    if isinstance(data, list):
-        data_as_bytes: List[bytes] = [bytes(d, "utf-8") for d in data]
-        pointers: ctypes.Array[ctypes.c_char_p] = (
-            ctypes.c_char_p * len(data_as_bytes)
-        )(*data_as_bytes)
-        return pointers
-    raise TypeError()
-
-
-def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
-    """Revert C pointer to Python str
-
-    Parameters
-    ----------
-    data :
-        pointer to data
-    length :
-        pointer to length of data
-    """
-    res = []
-    for i in range(length.value):
-        try:
-            res.append(str(cast(bytes, data[i]).decode("ascii")))
-        except UnicodeDecodeError:
-            res.append(str(cast(bytes, data[i]).decode("utf-8")))
-    return res
-
-
-def make_jcargs(**kwargs: Any) -> bytes:
-    "Make JSON-based arguments for C functions."
-    return from_pystr_to_cstr(json.dumps(kwargs))
+XGBoostError = _XGBoostError
 
 
 def _parse_eval_str(result: str) -> List[Tuple[str, float]]:
@@ -177,155 +131,6 @@ def _expect(expectations: Sequence[Type], got: Type) -> str:
     return msg
 
 
-def _log_callback(msg: bytes) -> None:
-    """Redirect logs from native library into Python console"""
-    smsg = py_str(msg)
-    if smsg.find("WARNING:") != -1:
-        # Stacklevel:
-        # 1: This line
-        # 2: XGBoost C functions like `_LIB.XGBoosterTrainOneIter`.
-        # 3: The Python function that calls the C function.
-        warnings.warn(smsg, UserWarning, stacklevel=3)
-        return
-    print(smsg)
-
-
-def _get_log_callback_func() -> Callable:
-    """Wrap log_callback() method in ctypes callback type"""
-    c_callback = ctypes.CFUNCTYPE(None, ctypes.c_char_p)
-    return c_callback(_log_callback)
-
-
-def _lib_version(lib: ctypes.CDLL) -> Tuple[int, int, int]:
-    """Get the XGBoost version from native shared object."""
-    major = ctypes.c_int()
-    minor = ctypes.c_int()
-    patch = ctypes.c_int()
-    lib.XGBoostVersion(ctypes.byref(major), ctypes.byref(minor), ctypes.byref(patch))
-    return major.value, minor.value, patch.value
-
-
-def _py_version() -> str:
-    """Get the XGBoost version from Python version file."""
-    VERSION_FILE = os.path.join(os.path.dirname(__file__), "VERSION")
-    with open(VERSION_FILE, encoding="ascii") as f:
-        return f.read().strip()
-
-
-def _register_log_callback(lib: ctypes.CDLL) -> None:
-    lib.XGBGetLastError.restype = ctypes.c_char_p
-    lib.callback = _get_log_callback_func()  # type: ignore
-    if lib.XGBRegisterLogCallback(lib.callback) != 0:
-        raise XGBoostError(lib.XGBGetLastError())
-
-
-def _parse_version(ver: str) -> Tuple[Tuple[int, int, int], str]:
-    """Avoid dependency on packaging (PEP 440)."""
-    # 2.0.0-dev, 2.0.0, 2.0.0.post1, or 2.0.0rc1
-    if ver.find("post") != -1:
-        major, minor, patch = ver.split(".")[:-1]
-        postfix = ver.split(".")[-1]
-    elif "-dev" in ver:
-        major, minor, patch = ver.split("-")[0].split(".")
-        postfix = "dev"
-    else:
-        major, minor, patch = ver.split(".")
-        rc = patch.find("rc")
-        if rc != -1:
-            postfix = patch[rc:]
-            patch = patch[:rc]
-        else:
-            postfix = ""
-
-    return (int(major), int(minor), int(patch)), postfix
-
-
-def _load_lib() -> ctypes.CDLL:
-    """Load xgboost Library."""
-    lib_paths = find_lib_path()
-    if not lib_paths:
-        # This happens only when building document.
-        return None  # type: ignore
-    try:
-        pathBackup = os.environ["PATH"].split(os.pathsep)
-    except KeyError:
-        pathBackup = []
-    lib_success = False
-    os_error_list = []
-    for lib_path in lib_paths:
-        try:
-            # needed when the lib is linked with non-system-available
-            # dependencies
-            os.environ["PATH"] = os.pathsep.join(
-                pathBackup + [os.path.dirname(lib_path)]
-            )
-            lib = ctypes.cdll.LoadLibrary(lib_path)
-            setattr(lib, "path", os.path.normpath(lib_path))
-            lib_success = True
-            break
-        except OSError as e:
-            os_error_list.append(str(e))
-            continue
-        finally:
-            os.environ["PATH"] = os.pathsep.join(pathBackup)
-    if not lib_success:
-        libname = os.path.basename(lib_paths[0])
-        raise XGBoostError(
-            f"""
-XGBoost Library ({libname}) could not be loaded.
-Likely causes:
-  * OpenMP runtime is not installed
-    - vcomp140.dll or libgomp-1.dll for Windows
-    - libomp.dylib for Mac OSX
-    - libgomp.so for Linux and other UNIX-like OSes
-    Mac OSX users: Run `brew install libomp` to install OpenMP runtime.
-
-  * You are running 32-bit Python on a 64-bit OS
-
-Error message(s): {os_error_list}
-"""
-        )
-    _register_log_callback(lib)
-
-    libver = _lib_version(lib)
-    pyver, _ = _parse_version(_py_version())
-
-    # verify that we are loading the correct binary.
-    if pyver != libver:
-        pyver_str = ".".join((str(v) for v in pyver))
-        libver_str = ".".join((str(v) for v in libver))
-        msg = (
-            "Mismatched version between the Python package and the native shared "
-            f"""object.  Python package version: {pyver_str}. Shared object """
-            f"""version: {libver_str}. Shared object is loaded from: {lib.path}.
-Likely cause:
-  * XGBoost is first installed with anaconda then upgraded with pip. To fix it """
-            "please remove one of the installations."
-        )
-        raise ValueError(msg)
-
-    return lib
-
-
-# load the XGBoost library globally
-_LIB = _load_lib()
-
-
-def _check_call(ret: int) -> None:
-    """Check the return value of C API call
-
-    This function will raise exception when error occurs.
-    Wrap every API call with this function
-
-    Parameters
-    ----------
-    ret :
-        return value from API calls
-    """
-    if ret != 0:
-        raise XGBoostError(py_str(_LIB.XGBGetLastError()))
-
-
 def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
     """Validate parameters in distributed environments."""
     device = kwargs.get("device", None)
@@ -358,7 +163,7 @@ def _validate_feature_info(
     feature_info = list(feature_info)
     if len(feature_info) != n_features and n_features != 0 and not is_column_split:
         msg = (
-            f"{name} must have the same length as the number of data columns, ",
+            f"{name} must have the same length as the number of data columns, "
             f"expected {n_features}, got {len(feature_info)}",
         )
         raise ValueError(msg)
@@ -420,11 +225,6 @@ def ctypes2buffer(cptr: CStrPtr, length: int) -> bytearray:
     if not ctypes.memmove(rptr, cptr, length):
         raise RuntimeError("memmove failed")
     return res
-
-
-def c_str(string: str) -> ctypes.c_char_p:
-    """Convert a python string to cstring."""
-    return ctypes.c_char_p(string.encode("utf-8"))
 
 
 def c_array(
@@ -817,12 +617,34 @@ def _get_categories(
     return results
 
 
-@unique
-class DataSplitMode(IntEnum):
-    """Supported data split mode for DMatrix."""
+def _is_iter(data: DataType) -> TypeGuard[DataIter]:
+    return isinstance(data, DataIter)
 
-    ROW = 0
-    COL = 1
+
+class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
+    """An iterator for single batch data to help creating device DMatrix.
+    Transforming input directly to histogram with normal single batch data API
+    can not access weight for sketching.  So this iterator acts as a staging
+    area for meta info.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        self.kwargs = kwargs
+        self.it = 0
+
+        # This does not necessarily increase memory usage as the data transformation
+        # might use memory.
+        super().__init__(release_data=False)
+
+    def next(self, input_data: Callable) -> bool:
+        if self.it == 1:
+            return False
+        self.it += 1
+        input_data(**self.kwargs)
+        return True
+
+    def reset(self) -> None:
+        self.it = 0
 
 
 class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
@@ -852,7 +674,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         label_lower_bound: Optional[ArrayLike] = None,
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
         """Parameters
@@ -968,7 +790,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             self.handle = data
             return
 
-        from .data import _is_iter, dispatch_data_backend
+        from .data import dispatch_data_backend
 
         if _is_iter(data):
             self._init_from_iter(data, enable_categorical)
@@ -1073,49 +895,38 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
                 matrix=self, data=feature_weights, name="feature_weights"
             )
 
-    def get_float_info(self, field: str) -> np.ndarray:
+    def _get_info(self, field: str) -> NumpyOrCupy:
+        """Get meta info."""
+        c_sdata = ctypes.c_char_p()
+        _check_call(
+            _LIB.XGDMatrixGetInfoRef(self.handle, c_str(field), ctypes.byref(c_sdata))
+        )
+        assert c_sdata.value is not None
+        idata = json.loads(c_sdata.value)
+        data = from_array_interface(idata)
+        return data
+
+    def get_float_info(self, field: str) -> NumpyOrCupy:
         """Get float property from the DMatrix.
 
         Parameters
         ----------
         field: str
-            The field name of the information
+            The field name of the information.
 
-        Returns
-        -------
-        info : array
-            a numpy array of float information of the data
         """
-        length = c_bst_ulong()
-        ret = ctypes.POINTER(ctypes.c_float)()
-        _check_call(
-            _LIB.XGDMatrixGetFloatInfo(
-                self.handle, c_str(field), ctypes.byref(length), ctypes.byref(ret)
-            )
-        )
-        return ctypes2numpy(ret, length.value, np.float32)
+        return self._get_info(field)
 
-    def get_uint_info(self, field: str) -> np.ndarray:
+    def get_uint_info(self, field: str) -> NumpyOrCupy:
         """Get unsigned integer property from the DMatrix.
 
         Parameters
         ----------
         field: str
-            The field name of the information
+            The field name of the information.
 
-        Returns
-        -------
-        info : array
-            a numpy array of unsigned integer information of the data
         """
-        length = c_bst_ulong()
-        ret = ctypes.POINTER(ctypes.c_uint)()
-        _check_call(
-            _LIB.XGDMatrixGetUIntInfo(
-                self.handle, c_str(field), ctypes.byref(length), ctypes.byref(ret)
-            )
-        )
-        return ctypes2numpy(ret, length.value, np.uint32)
+        return self._get_info(field)
 
     def set_float_info(self, field: str, data: ArrayLike) -> None:
         """Set float type property into the DMatrix.
@@ -1241,32 +1052,17 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         dispatch_meta_backend(self, group, "group", "uint32")
 
-    def get_label(self) -> np.ndarray:
-        """Get the label of the DMatrix.
+    def get_label(self) -> NumpyOrCupy:
+        """Get the label of the DMatrix."""
+        return self._get_info("label")
 
-        Returns
-        -------
-        label : array
-        """
-        return self.get_float_info("label")
+    def get_weight(self) -> NumpyOrCupy:
+        """Get the weight of the DMatrix."""
+        return self._get_info("weight")
 
-    def get_weight(self) -> np.ndarray:
-        """Get the weight of the DMatrix.
-
-        Returns
-        -------
-        weight : array
-        """
-        return self.get_float_info("weight")
-
-    def get_base_margin(self) -> np.ndarray:
-        """Get the base margin of the DMatrix.
-
-        Returns
-        -------
-        base_margin
-        """
-        return self.get_float_info("base_margin")
+    def get_base_margin(self) -> NumpyOrCupy:
+        """Get the base margin of the DMatrix."""
+        return self._get_info("base_margin")
 
     def get_group(self) -> np.ndarray:
         """Get the group of the DMatrix.
@@ -1275,7 +1071,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         -------
         group
         """
-        group_ptr = self.get_uint_info("group_ptr")
+        group_ptr = self._get_info("group_ptr")
         return np.diff(group_ptr)
 
     def get_data(self) -> scipy.sparse.csr_matrix:
@@ -1669,19 +1465,12 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         applied to the validation/test data
 
     max_quantile_batches :
-        For GPU-based inputs from an iterator, XGBoost handles incoming batches with
-        multiple growing sub-streams. This parameter sets the maximum number of batches
-        before XGBoost can cut a sub-stream and create a new one. This can help bound
-        the memory usage. By default, XGBoost grows a sub-stream exponentially until
-        batches are exhausted. This option is only used for the training dataset and the
-        default is None (unbounded). Lastly, if the `data` is a single batch instead of
-        an iterator, this parameter has no effect.
+        Deprecated. This parameter no longer has any effect and will be removed in a
+        future release.
 
         .. versionadded:: 3.0.0
 
-        .. warning::
-
-            This is an experimental parameter and subject to change.
+        .. deprecated:: 3.3.0
 
     """
 
@@ -1705,7 +1494,7 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         label_lower_bound: Optional[ArrayLike] = None,
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         max_quantile_batches: Optional[int] = None,
         data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
@@ -1769,12 +1558,7 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         max_quantile_blocks: Optional[int],
         **meta: Any,
     ) -> None:
-        from .data import (
-            SingleBatchInternalIter,
-            _is_dlpack,
-            _is_iter,
-            _transform_dlpack,
-        )
+        from .data import _is_dlpack, _transform_dlpack
 
         if _is_dlpack(data):
             # We specialize for dlpack because cupy will take the memory from it so
@@ -1840,7 +1624,7 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
         nthread: Optional[int] = None,
         max_bin: Optional[int] = None,
         ref: Optional[DMatrix] = None,
-        enable_categorical: bool = False,
+        enable_categorical: bool = True,
         max_quantile_batches: Optional[int] = None,
         cache_host_ratio: Optional[float] = None,
     ) -> None:
@@ -1851,7 +1635,7 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             A user-defined :py:class:`DataIter` for loading data.
 
         max_quantile_batches :
-            See :py:class:`QuantileDMatrix`.
+            Deprecated. See :py:class:`QuantileDMatrix`.
 
         cache_host_ratio :
 
@@ -2632,7 +2416,7 @@ class Booster:
         strict_shape: bool = False,
     ) -> np.ndarray:
         """Predict with data.  The full model will be used unless `iteration_range` is
-        specified, meaning user have to either slice the model or use the
+        specified, meaning users have to either slice the model or use the
         ``best_iteration`` attribute to get prediction from best model returned from
         early stopping.
 
@@ -3495,7 +3279,23 @@ class Booster:
                         splits.append(float("NAN"))
                         categories.append(cats_split if cats_split else None)
                     else:
-                        raise ValueError("Failed to parse model text dump.")
+                        # indicator (boolean) feature: format is
+                        #   {nid}:[{fname}] yes={yes},no={no}
+                        # No split threshold or missing direction.
+                        bracket_expr = fid[0]
+                        remainder = fid[1] if len(fid) > 1 else ""
+                        if (
+                            "<" in bracket_expr
+                            or ":{" in bracket_expr
+                            or "yes=" not in remainder
+                            or "no=" not in remainder
+                        ):
+                            raise ValueError(
+                                f"Unrecognized split format: [{bracket_expr}]{remainder}"
+                            )
+                        parse = [bracket_expr]
+                        splits.append(float("NAN"))
+                        categories.append(None)
                     stats = re.split("=|,", fid[1])
 
                     # append to lists
@@ -3505,9 +3305,16 @@ class Booster:
                     str_i = str(i)
                     y_directs.append(str_i + "-" + stats[1])
                     n_directs.append(str_i + "-" + stats[3])
-                    missings.append(str_i + "-" + stats[5])
-                    gains.append(float(stats[7]))
-                    covers.append(float(stats[9]))
+                    # Indicator nodes have no explicit missing= field;
+                    # the default (missing) child is the "no" direction.
+                    if len(stats) > 5 and stats[4] == "missing":
+                        missings.append(str_i + "-" + stats[5])
+                        gains.append(float(stats[7]))
+                        covers.append(float(stats[9]))
+                    else:
+                        missings.append(str_i + "-" + stats[3])
+                        gains.append(float(stats[5]))
+                        covers.append(float(stats[7]))
 
         ids = [str(t_id) + "-" + str(n_id) for t_id, n_id in zip(tree_ids, node_ids)]
         df = DataFrame(

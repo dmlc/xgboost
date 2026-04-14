@@ -26,6 +26,9 @@ auto MakeModel(std::string tree_method, std::string device, std::string objectiv
   if (objective.find("quantile") != std::string::npos) {
     learner->SetParam("quantile_alpha", "0.5");
   }
+  if (objective.find("expectile") != std::string::npos) {
+    learner->SetParam("expectile_alpha", "0.5");
+  }
   if (objective.find("multi") != std::string::npos) {
     learner->SetParam("num_class", std::to_string(kClassesForTest));
   }

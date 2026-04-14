@@ -1,10 +1,12 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
-#ifndef XGBOOST_TEST_REGRESSION_OBJ_H_
-#define XGBOOST_TEST_REGRESSION_OBJ_H_
+#pragma once
 
 #include <xgboost/context.h>  // for Context
+
+#include <string>  // for string
+#include <vector>  // for vector
 
 namespace xgboost {
 
@@ -36,8 +38,16 @@ void TestAbsoluteError(const Context* ctx);
 
 void TestAbsoluteErrorLeaf(const Context* ctx);
 
+void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, bst_idx_t n_samples,
+                       bst_idx_t n_target_labels, std::vector<float> const& sol_left,
+                       std::vector<float> const& sol_right);
+
 void TestPseudoHuber(const Context* ctx);
 
-}  // namespace xgboost
+void TestExpectileRegressionGPair(const Context* ctx);
 
-#endif  // XGBOOST_TEST_REGRESSION_OBJ_H_
+void TestExpectileRegressionMultiAlpha(const Context* ctx);
+
+void TestExpectileRegressionInitEstimation(const Context* ctx);
+
+}  // namespace xgboost

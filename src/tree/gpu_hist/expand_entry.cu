@@ -42,10 +42,6 @@ std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& e) {
 
   os << "base_weight: ";
   print_span(e.base_weight);
-  os << "left_weight: ";
-  print_span(e.left_weight);
-  os << "right_weight: ";
-  print_span(e.right_weight);
 
   return os;
 }

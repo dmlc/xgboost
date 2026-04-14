@@ -135,12 +135,9 @@ struct MultiExpandEntry {
   MultiSplitCandidate split;
 
   common::Span<float> base_weight;
-  common::Span<float const> left_weight;
-  common::Span<float const> right_weight;
-
-  // Sum Hessian of the first target. Used as a surrogate for node size.
-  double left_fst_hess{0};
-  double right_fst_hess{0};
+  // Sum of hessians across all targets for left/right children.
+  double left_sum{0};
+  double right_sum{0};
 
   MultiExpandEntry() = default;
 
@@ -156,7 +153,7 @@ struct MultiExpandEntry {
     if (split.loss_chg <= kRtEps) {
       return false;
     }
-    if (base_weight.empty() || left_weight.empty() || right_weight.empty()) {
+    if (base_weight.empty()) {
       return false;
     }
     if (split.loss_chg < param.min_split_loss) {
@@ -171,9 +168,14 @@ struct MultiExpandEntry {
     return true;
   }
 
-  __device__ void UpdateFirstHessian(GradientPairPrecise const& lg, GradientPairPrecise const& rg) {
-    this->left_fst_hess = lg.GetHess();
-    this->right_fst_hess = rg.GetHess();
+  /**
+   * @brief Update hessian statistics.
+   * @param left_hess  Sum of hessians across all targets for left child.
+   * @param right_hess Sum of hessians across all targets for right child.
+   */
+  __device__ void UpdateHessian(double left_hess, double right_hess) {
+    this->left_sum = left_hess;
+    this->right_sum = right_hess;
   }
 
   friend std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& entry);

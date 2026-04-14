@@ -81,7 +81,7 @@ TEST(CompressedIterator, TestGPU) {
 namespace {
 class TestDoubleCompressedIter : public ::testing::TestWithParam<std::size_t> {
  public:
-  constexpr std::size_t static CompressedBytes() { return 24; }
+  constexpr std::size_t static CompressedBytes() { return 28; }
 
  private:
   dh::DeviceUVector<std::int32_t> input_;

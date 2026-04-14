@@ -75,7 +75,7 @@ OBJECTS= \
     $(PKGROOT)/src/data/gradient_index.o \
     $(PKGROOT)/src/data/gradient_index_page_source.o \
     $(PKGROOT)/src/data/gradient_index_format.o \
-    $(PKGROOT)/src/data/validation.o \
+    $(PKGROOT)/src/data/metainfo.o \
     $(PKGROOT)/src/data/sparse_page_dmatrix.o \
     $(PKGROOT)/src/data/sparse_page_source.o \
     $(PKGROOT)/src/data/extmem_quantile_dmatrix.o \
@@ -85,6 +85,7 @@ OBJECTS= \
     $(PKGROOT)/src/data/iterative_dmatrix.o \
     $(PKGROOT)/src/predictor/predictor.o \
     $(PKGROOT)/src/predictor/cpu_predictor.o \
+    $(PKGROOT)/src/predictor/interpretability/shap.o \
     $(PKGROOT)/src/predictor/treeshap.o \
     $(PKGROOT)/src/tree/constraints.o \
     $(PKGROOT)/src/tree/param.o \
@@ -101,6 +102,7 @@ OBJECTS= \
     $(PKGROOT)/src/tree/updater_sync.o \
     $(PKGROOT)/src/tree/hist/hist_param.o \
     $(PKGROOT)/src/tree/hist/histogram.o \
+    $(PKGROOT)/src/tree/hist/sampler.o \
     $(PKGROOT)/src/linear/linear_updater.o \
     $(PKGROOT)/src/linear/updater_coordinate.o \
     $(PKGROOT)/src/linear/updater_shotgun.o \
@@ -140,6 +142,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/threading_utils.o \
     $(PKGROOT)/src/common/ranking_utils.o \
     $(PKGROOT)/src/common/param_array.o \
+    $(PKGROOT)/src/common/expectile_loss_utils.o \
     $(PKGROOT)/src/common/quantile_loss_utils.o \
     $(PKGROOT)/src/common/timer.o \
     $(PKGROOT)/src/common/version.o \

@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2025, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
@@ -7,13 +7,14 @@
 #include "../../../src/collective/communicator-inl.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
-#include "../../../src/predictor/array_tree_layout.h"
-#include "../../../src/tree/tree_view.h"
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/predictor/array_tree_layout.h"
+#include "../../../src/tree/tree_view.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_predictor.h"
+#include "test_shap.h"
 
 namespace xgboost {
 TEST(CpuPredictor, Basic) {
@@ -22,6 +23,16 @@ TEST(CpuPredictor, Basic) {
   size_t constexpr kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   TestBasic(dmat.get(), &ctx);
+}
+
+TEST(CpuPredictor, BatchPredictionWithWeights) {
+  Context ctx;
+  TestBatchPredictionWithWeights(&ctx);
+}
+
+TEST(CpuPredictor, InplacePredictionWithWeights) {
+  Context ctx;
+  TestInplacePredictionWithWeights(&ctx);
 }
 
 template <typename ArrayLayoutT>
@@ -78,29 +89,29 @@ TEST(CpuPredictor, ArrayTreeLayout) {
     tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0);
   }
 
-  auto sc_tree = tree::ScalarTreeView{ctx.Device(), &tree};
+  auto sc_tree = tree::ScalarTreeView{ctx.Device(), false, &tree};
   {
-    constexpr int kDepth = 1;
+    constexpr bst_node_t kDepth = 1;
     LayoutForTest<kDepth> buffer(sc_tree, sc_tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 2;
+    constexpr bst_node_t kDepth = 2;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 3;
+    constexpr bst_node_t kDepth = 3;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 4;
+    constexpr bst_node_t kDepth = 4;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
-    constexpr int kDepth = 5;
+    constexpr bst_node_t kDepth = 5;
     LayoutForTest<kDepth> buffer{sc_tree, sc_tree.GetCategoriesMatrix()};
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
@@ -143,12 +154,6 @@ TEST(CpuPredictor, ExternalMemory) {
   auto dmat =
       RandomDataGenerator{kRows, kCols, 0.5f}.Batches(3).GenerateSparsePageDMatrix("temp", true);
   TestBasic(dmat.get(), &ctx);
-}
-
-TEST_P(ShapExternalMemoryTest, CPUPredictor) {
-  Context ctx;
-  auto [is_qdm, is_interaction] = this->GetParam();
-  this->Run(&ctx, is_qdm, is_interaction);
 }
 
 TEST(CpuPredictor, InplacePredict) {
@@ -239,9 +244,7 @@ TEST(CPUPredictor, GHistIndexTraining) {
   TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist);
 }
 
-TEST(CPUPredictor, CategoricalPrediction) {
-  TestCategoricalPrediction(false, false);
-}
+TEST(CPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(false, false); }
 
 TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
   auto constexpr kWorldSize = 2;

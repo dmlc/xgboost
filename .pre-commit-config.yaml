@@ -1,0 +1,64 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: mixed-line-ending
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.14
+    hooks:
+      - id: ruff-check
+        args:
+          - --fix
+          - --select=I
+        files: \.py$
+        exclude: (dmlc-core|gputreeshap)
+      - id: ruff-format
+        files: \.py$
+        exclude: (dmlc-core|gputreeshap)
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v21.1.8
+    hooks:
+      - id: clang-format
+        args: [--style=file]
+        files: \.(cc|c|cpp|h|cu|hpp)$
+        exclude: (dmlc-core|gputreeshap)
+  - repo: local
+    hooks:
+      - id: lint-cpp
+        name: C++ lint (cpplint)
+        entry: python ops/script/lint_cpp.py
+        language: python
+        types: [file]
+        files: \.(cc|c|cpp|h|cu|hpp)$
+        exclude: (dmlc-core|gputreeshap)
+        additional_dependencies:
+          - cpplint==1.6.1
+      - id: lint-cmake
+        name: CMake lint (cmakelint)
+        entry: cmakelint --linelength=120 --filter=-convention/filename,-package/stdargs,-readability/wonkycase
+        language: python
+        types: [file]
+        files: (CMakeLists\.txt$|^cmake/.*\.cmake$)
+        exclude: (dmlc-core|gputreeshap)
+        additional_dependencies:
+          - cmakelint
+      - id: pylint
+        name: Python lint (pylint)
+        entry: pylint
+        language: python
+        types: [file]
+        files: \.py$
+        exclude: (dmlc-core|gputreeshap|^ops/|^tests/)
+        args:
+          - --rcfile=python-package/pyproject.toml
+        additional_dependencies:
+          - pylint

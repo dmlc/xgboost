@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  *
  * @brief model structure for tree
  * \author Tianqi Chen
@@ -29,7 +29,7 @@ namespace xgboost {
 namespace tree {
 struct ScalarTreeView;
 struct MultiTargetTreeView;
-}
+}  // namespace tree
 
 class Json;
 
@@ -88,7 +88,7 @@ class RegTree : public Model {
   /** @brief tree node */
   class Node {
    public:
-    XGBOOST_DEVICE Node()  {
+    XGBOOST_DEVICE Node() {
       // assert compact alignment
       static_assert(sizeof(Node) == 4 * sizeof(int) + sizeof(Info), "Node: 64 bit align");
     }
@@ -132,16 +132,12 @@ class RegTree : public Model {
      * \brief set the left child
      * \param nid node id to right child
      */
-    XGBOOST_DEVICE void SetLeftChild(int nid) {
-      this->cleft_ = nid;
-    }
+    XGBOOST_DEVICE void SetLeftChild(int nid) { this->cleft_ = nid; }
     /*!
      * \brief set the right child
      * \param nid node id to right child
      */
-    XGBOOST_DEVICE void SetRightChild(int nid) {
-      this->cright_ = nid;
-    }
+    XGBOOST_DEVICE void SetRightChild(int nid) { this->cright_ = nid; }
     /*!
      * \brief set split condition of current node
      * \param split_index feature index to split
@@ -166,22 +162,17 @@ class RegTree : public Model {
       this->cright_ = right;
     }
     /*! \brief mark that this node is deleted */
-    XGBOOST_DEVICE void MarkDelete() {
-      this->sindex_ = kDeletedNodeMarker;
-    }
+    XGBOOST_DEVICE void MarkDelete() { this->sindex_ = kDeletedNodeMarker; }
     /*! \brief Reuse this deleted node. */
-    XGBOOST_DEVICE void Reuse() {
-      this->sindex_ = 0;
-    }
+    XGBOOST_DEVICE void Reuse() { this->sindex_ = 0; }
     // set parent
     XGBOOST_DEVICE void SetParent(int pidx, bool is_left_child = true) {
       if (is_left_child) pidx |= (1U << 31);
       this->parent_ = pidx;
     }
     bool operator==(const Node& b) const {
-      return parent_ == b.parent_ && cleft_ == b.cleft_ &&
-             cright_ == b.cright_ && sindex_ == b.sindex_ &&
-             info_.leaf_value == b.info_.leaf_value;
+      return parent_ == b.parent_ && cleft_ == b.cleft_ && cright_ == b.cright_ &&
+             sindex_ == b.sindex_ && info_.leaf_value == b.info_.leaf_value;
     }
 
    private:
@@ -189,7 +180,7 @@ class RegTree : public Model {
      * \brief in leaf node, we have weights, in non-leaf nodes,
      *        we have split condition
      */
-    union Info{
+    union Info {
       bst_float leaf_value;
       SplitCondT split_cond;
     };
@@ -277,9 +268,7 @@ class RegTree : public Model {
   }
 
   /*! \brief get node statistics given nid */
-  RTreeNodeStat& Stat(int nid) {
-    return stats_.HostVector()[nid];
-  }
+  RTreeNodeStat& Stat(int nid) { return stats_.HostVector()[nid]; }
 
   void LoadModel(Json const& in) override;
   void SaveModel(Json* out) const override;
@@ -314,19 +303,23 @@ class RegTree : public Model {
    * \param leaf_right_child  The right child index of leaf, by default kInvalidNodeId,
    *                          some updaters use the right child index of leaf as a marker
    */
-  void ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
-                  bool default_left, bst_float base_weight,
-                  bst_float left_leaf_weight, bst_float right_leaf_weight,
-                  bst_float loss_change, float sum_hess, float left_sum,
-                  float right_sum,
+  void ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value, bool default_left,
+                  bst_float base_weight, bst_float left_leaf_weight, bst_float right_leaf_weight,
+                  bst_float loss_change, float sum_hess, float left_sum, float right_sum,
                   bst_node_t leaf_right_child = kInvalidNodeId);
   /**
    * @brief Expands a leaf node into two additional leaf nodes for a multi-target tree.
+   *
+   * @param gain      The gain (loss change) from this split.
+   * @param sum_hess  The sum of hessians for the parent node (coverage).
+   * @param left_sum  The sum of hessians for the left child (coverage).
+   * @param right_sum The sum of hessians for the right child (coverage).
    */
   void ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split_cond, bool default_left,
                   linalg::VectorView<float const> base_weight,
                   linalg::VectorView<float const> left_weight,
-                  linalg::VectorView<float const> right_weight);
+                  linalg::VectorView<float const> right_weight, float loss_chg, float sum_hess,
+                  float left_sum, float right_sum);
   /**
    * @brief Set all leaf weights for a multi-target tree.
    *
@@ -359,6 +352,15 @@ class RegTree : public Model {
                          bst_float base_weight, bst_float left_leaf_weight,
                          bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
                          float left_sum, float right_sum);
+  /**
+   * @brief Expands a leaf node with categories for a multi-target tree.
+   */
+  void ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
+                         common::Span<const uint32_t> split_cat, bool default_left,
+                         linalg::VectorView<float const> base_weight,
+                         linalg::VectorView<float const> left_weight,
+                         linalg::VectorView<float const> right_weight, float loss_chg,
+                         float sum_hess, float left_sum, float right_sum);
   /**
    * @brief Whether this tree has categorical split.
    */
@@ -407,13 +409,14 @@ class RegTree : public Model {
    */
   [[nodiscard]] bst_node_t GetDepth(bst_node_t nidx) const;
   /**
-   * @brief Set the root weight for a multi-target tree.
+   * @brief Set the root weight and statistics for a multi-target tree.
    *
-   * @param weight Internal split weight, with size equals to reduced targets.
+   * @param weight   Internal split weight, with size equals to reduced targets.
+   * @param sum_hess The sum of hessians for the root node (coverage).
    */
-  void SetRoot(linalg::VectorView<float const> weight) {
+  void SetRoot(linalg::VectorView<float const> weight, float sum_hess) {
     CHECK(IsMultiTarget());
-    return this->p_mt_tree_->SetRoot(weight);
+    return this->p_mt_tree_->SetRoot(weight, sum_hess);
   }
   /**
    * @brief Get the maximum depth.
@@ -560,7 +563,7 @@ class RegTree : public Model {
   // vector of nodes
   HostDeviceVector<Node> nodes_;
   // free node space, used during training process
-  std::vector<int>  deleted_nodes_;
+  std::vector<int> deleted_nodes_;
   // stats of nodes
   HostDeviceVector<RTreeNodeStat> stats_;
   HostDeviceVector<FeatureType> split_types_;
@@ -625,13 +628,9 @@ inline void RegTree::FVec::Fill(SparsePage::Inst const& inst) {
 
 inline void RegTree::FVec::Drop() { this->Init(this->Size()); }
 
-inline size_t RegTree::FVec::Size() const {
-  return data_.size();
-}
+inline size_t RegTree::FVec::Size() const { return data_.size(); }
 
-inline float RegTree::FVec::GetFvalue(size_t i) const {
-  return data_[i];
-}
+inline float RegTree::FVec::GetFvalue(size_t i) const { return data_[i]; }
 
 inline bool RegTree::FVec::IsMissing(size_t i) const { return std::isnan(data_[i]); }
 

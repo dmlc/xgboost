@@ -463,6 +463,14 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBSetGlobalConfig
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetGlobalConfig
   (JNIEnv *, jclass, jobjectArray);
 
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    CudaSetDevice
+ * Signature: (I)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CudaSetDevice
+  (JNIEnv *, jclass, jint);
+
 #ifdef __cplusplus
 }
 #endif

@@ -27,5 +27,6 @@ struct QuantileLossParam : public XGBoostParameter<QuantileLossParam> {
     CHECK(valid) << "quantile alpha must be in the range [0.0, 1.0].";
   }
 };
+
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_QUANTILE_LOSS_UTILS_H_

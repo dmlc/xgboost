@@ -64,6 +64,8 @@ def quantile_loss(args: argparse.Namespace) -> None:
             # Let's try not to overfit.
             "learning_rate": 0.04,
             "max_depth": 5,
+            "multi_strategy": args.multi_strategy,
+            "device": args.device,
         },
         Xy,
         num_boost_round=32,
@@ -127,5 +129,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Specify it to enable plotting the outputs.",
     )
+    parser.add_argument(
+        "--multi_strategy",
+        choices=["multi_output_tree", "one_output_per_tree"],
+        default="one_output_per_tree",
+        help="See the parameter `multi_strategy` for more info. (Experimental)",
+    )
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     args = parser.parse_args()
     quantile_loss(args)

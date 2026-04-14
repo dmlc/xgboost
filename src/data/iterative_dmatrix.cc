@@ -10,6 +10,7 @@
 #include <vector>     // for vector
 
 #include "../common/categorical.h"  // for IsCat
+#include "../common/error_msg.h"    // for Unreachable
 #include "../common/hist_util.h"    // for HistogramCuts
 #include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
 #include "batch_utils.h"            // for RegenGHist
@@ -26,11 +27,10 @@ namespace xgboost::data {
 IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                                    std::shared_ptr<DMatrix> ref, DataIterResetCallback* reset,
                                    XGDMatrixCallbackNext* next, float missing, int nthread,
-                                   bst_bin_t max_bin, std::int64_t max_quantile_blocks)
+                                   bst_bin_t max_bin)
     : proxy_{proxy} {
   // The external iterator, fetch the first batch
-  auto iter =
-      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset, next};
+  auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset, next};
   iter.Reset();
   bool valid = iter.Next();
   CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
@@ -43,7 +43,7 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
 
   if (ctx.IsCUDA()) {
-    this->InitFromCUDA(&ctx, p, max_quantile_blocks, std::move(iter), missing, ref);
+    this->InitFromCUDA(&ctx, p, std::move(iter), missing, ref);
   } else {
     this->InitFromCPU(&ctx, p, std::move(iter), missing, ref);
   }
@@ -64,7 +64,7 @@ void IterativeDMatrix::InitFromCPU(
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
 
-  common::HistogramCuts cuts;
+  common::HistogramCuts cuts{0};
   ExternalDataInfo ext_info;
   cpu_impl::GetDataShape(ctx, proxy, &iter, missing, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
@@ -169,7 +169,6 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
 
     auto& h_data = p_out->data.HostVector();
     auto const& vals = page.cut.Values();
-    auto const& mins = page.cut.MinValues();
     auto const& ptrs = page.cut.Ptrs();
     auto ft = Info().feature_types.ConstHostSpan();
 
@@ -178,7 +177,7 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
       if (common::IsCat(ft, fidx)) {
         v = vals[bin_idx];
       } else {
-        v = common::HistogramCuts::NumericBinValue(ptrs, vals, mins, fidx, bin_idx);
+        v = common::HistogramCuts::NumericBinValue(ptrs, vals, fidx, bin_idx);
       }
       h_data[idx] = Entry{fidx, v};
     });
@@ -188,14 +187,14 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
         BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(p_ext_out));
     return BatchSet<ExtSparsePage>(begin_iter);
   }
-  LOG(FATAL) << "Unreachable";
+  error::Unreachable();
   auto begin_iter =
       BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(nullptr));
   return BatchSet<ExtSparsePage>(begin_iter);
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, std::int64_t,
+void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&,
                                     DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>&&,
                                     float, std::shared_ptr<DMatrix>) {
   // silent the warning about unused variables.
@@ -213,7 +212,7 @@ void IterativeDMatrix::Save(common::AlignedFileWriteStream*) const {
   LOG(FATAL) << "Not implemented";
 }
 
-IterativeDMatrix* IterativeDMatrix::Load(common::AlignedResourceReadStream*) {
+IterativeDMatrix* IterativeDMatrix::Load(Context const*, common::AlignedResourceReadStream*) {
   LOG(FATAL) << "Not implemented";
   return nullptr;
 }

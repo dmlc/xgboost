@@ -1,10 +1,11 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <thrust/binary_search.h>                       // for lower_bound,  upper_bound
 #include <thrust/extrema.h>                             // for max_element
 #include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for transform_output_iterator
+#include <thrust/tuple.h>                               // for tuple
 
 #include <algorithm>          // for copy
 #include <cuda/std/iterator>  // for distance
@@ -14,9 +15,10 @@
 
 #include "../common/algorithm.cuh"          // for InclusiveScan
 #include "../common/categorical.h"          // for IsCat
+#include "../common/compressed_iterator.h"  // for CompressedIterator
 #include "../common/cuda_context.cuh"       // for CUDAContext
 #include "../common/cuda_rt_utils.h"        // for SetDevice
-#include "../common/cuda_stream.h"          // for DefaultStream
+#include "../common/cuda_stream.h"          // for StreamRef
 #include "../common/hist_util.cuh"          // for HistogramCuts
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
 #include "../common/transform_iterator.h"   // for MakeIndexTransformIter
@@ -29,6 +31,8 @@
 
 namespace xgboost {
 EllpackPage::EllpackPage() : impl_{new EllpackPageImpl{}} {}
+
+EllpackPageImpl::EllpackPageImpl() = default;
 
 EllpackPage::EllpackPage(Context const* ctx, DMatrix* dmat, const BatchParam& param)
     : impl_{new EllpackPageImpl{ctx, dmat, param}} {}
@@ -188,6 +192,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
+  this->cuts_->SetDevice(ctx->Device());
 
   this->InitCompressedData(ctx);
 }
@@ -202,6 +207,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
+  this->cuts_->SetDevice(ctx->Device());
 
   this->InitCompressedData(ctx);
   this->CreateHistIndices(ctx, page, feature_types);
@@ -359,7 +365,7 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
 void WriteNullValues(Context const* ctx, EllpackPageImpl* dst,
                      common::Span<size_t const> row_counts) {
   // Write the null values
-  auto null = dst->NullValue();;
+  auto null = dst->NullValue();
   common::CompressedBufferWriter writer(dst->NumSymbols());
   auto d_compressed_buffer = dst->gidx_buffer.data();
   auto row_stride = dst->info.row_stride;
@@ -496,17 +502,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
   this->monitor_.Stop("CopyGHistToEllpack");
 }
 
-EllpackPageImpl::~EllpackPageImpl() noexcept(false) {
-  // Sync the stream to make sure all running CUDA kernels finish before deallocation.
-  auto status = curt::DefaultStream().Sync(false);
-  if (status != cudaSuccess) {
-    auto str = cudaGetErrorString(status);
-    // For external-memory, throwing here can trigger a series of calls to
-    // `std::terminate` by various destructors. For now, we just log the error.
-    LOG(WARNING) << "Ran into CUDA error:" << str << "\nXGBoost is likely to abort.";
-  }
-  dh::safe_cuda(status);
-}
+EllpackPageImpl::~EllpackPageImpl() noexcept(false) = default;
 
 // A functor that copies the data from one EllpackPage to another.
 template <typename IterT>

@@ -1,7 +1,9 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include "array_interface.h"
+
+#include "../common/error_msg.h"  // for Unreachable
 
 #if !defined(XGBOOST_USE_CUDA)
 
@@ -40,7 +42,7 @@ std::string ArrayInterfaceHandler::TypeStr(Type type) {
     case kU8:
       return name_fn(64, 'u');
   }
-  LOG(FATAL) << "unreachable";
+  error::Unreachable();
   return {};
 }
 

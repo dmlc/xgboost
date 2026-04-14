@@ -6,12 +6,12 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm_2.12</artifactId>
-        <version>3.2.0-SNAPSHOT</version>
+        <version>3.3.0-SNAPSHOT</version>
     </parent>
     <name>xgboost4j-spark-gpu</name>
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost4j-spark-gpu_2.12</artifactId>
-    <version>3.2.0-SNAPSHOT</version>
+    <version>3.3.0-SNAPSHOT</version>
     <description>JVM Package for XGBoost</description>
     <url>https://github.com/dmlc/xgboost/tree/master/jvm-packages</url>
     <licenses>
@@ -51,6 +51,18 @@
                 <configuration>
                     <skipAssembly>false</skipAssembly>
                 </configuration>
+            </plugin>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-jar-plugin</artifactId>
+              <version>3.4.2</version>
+              <configuration>
+                <archive>
+                  <manifestEntries>
+                    <Automatic-Module-Name>ml.dmlc.xgboost4j.spark.gpu</Automatic-Module-Name>
+                  </manifestEntries>
+                </archive>
+              </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

@@ -1198,8 +1198,8 @@ XGB_DLL SEXP XGBoosterUpdateOneIter_R(SEXP handle, SEXP iter, SEXP dtrain) {
 XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP grad, SEXP hess) {
   R_API_BEGIN();
   CHECK_EQ(Rf_xlength(grad), Rf_xlength(hess)) << "gradient and hess must have same length.";
-  SEXP gdim = Rf_getAttrib(grad, R_DimSymbol);
-  SEXP hdim = Rf_getAttrib(hess, R_DimSymbol);
+  SEXP gdim = Rf_protect(Rf_getAttrib(grad, R_DimSymbol));
+  SEXP hdim = Rf_protect(Rf_getAttrib(hess, R_DimSymbol));
 
   int res_code;
   {
@@ -1212,6 +1212,7 @@ XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP g
   }
   CHECK_CALL(res_code);
 
+  Rf_unprotect(2);
   R_API_END();
   return R_NilValue;
 }

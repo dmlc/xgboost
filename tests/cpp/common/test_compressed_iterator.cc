@@ -11,12 +11,12 @@ TEST(CompressedIterator, Size) {
   {
     bst_idx_t n_symbols = 256;
     auto n_bytes = CompressedBufferWriter::CalculateBufferSize(n, n_symbols);
-    ASSERT_EQ(n_bytes, 2052);
+    ASSERT_EQ(n_bytes, n + detail::kPadding);
   }
   {
     bst_idx_t n_symbols = 64;
     auto n_bytes = CompressedBufferWriter::CalculateBufferSize(n, n_symbols);
-    ASSERT_EQ(n_bytes, 1540);
+    ASSERT_EQ(n_bytes, 1544);
   }
 }
 

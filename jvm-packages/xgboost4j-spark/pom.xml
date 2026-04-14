@@ -6,7 +6,7 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm_2.12</artifactId>
-        <version>3.2.0-SNAPSHOT</version>
+        <version>3.3.0-SNAPSHOT</version>
     </parent>
     <name>xgboost4j-spark</name>
     <artifactId>xgboost4j-spark_2.12</artifactId>
@@ -40,6 +40,18 @@
                     </goals>
                   </execution>
                 </executions>
+              </plugin>
+              <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                  <archive>
+                    <manifestEntries>
+                      <Automatic-Module-Name>ml.dmlc.xgboost4j.spark</Automatic-Module-Name>
+                    </manifestEntries>
+                  </archive>
+                </configuration>
               </plugin>
         </plugins>
     </build>

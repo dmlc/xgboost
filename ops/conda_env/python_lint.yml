@@ -20,4 +20,4 @@ dependencies:
 - pytest
 - hypothesis
 - hatchling
-- pyspark>=3.4.0
+- pyspark>=4.0.0

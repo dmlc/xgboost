@@ -7,8 +7,9 @@
 #include <xgboost/tree_updater.h>  // for TreeUpdater
 
 #include <algorithm>  // for transform
-#include <memory>     // for unique_ptr
-#include <vector>     // for vector
+#include <limits>
+#include <memory>  // for unique_ptr
+#include <vector>  // for vector
 
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../../../src/tree/param.h"    // for TrainParam
@@ -45,7 +46,7 @@ TEST(Approx, Partitioner) {
   for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(&ctx, {64, hess, true})) {
     bst_feature_t const split_ind = 0;
     {
-      auto min_value = page.cut.MinValues()[split_ind];
+      auto min_value = -std::numeric_limits<float>::infinity();
       RegTree tree;
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
       GetSplit(&tree, min_value, &candidates);
@@ -194,7 +195,7 @@ TEST(Approx, PartitionerColumnSplit) {
   CommonRowPartitioner mid_partitioner{&ctx, n_samples, base_rowid, false};
   for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(&ctx, {64, hess, true})) {
     bst_feature_t const split_ind = 0;
-    min_value = page.cut.MinValues()[split_ind];
+    min_value = -std::numeric_limits<float>::infinity();
 
     auto ptr = page.cut.Ptrs()[split_ind + 1];
     mid_value = page.cut.Values().at(ptr / 2);

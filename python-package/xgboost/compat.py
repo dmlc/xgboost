@@ -1,5 +1,6 @@
 # pylint: disable=unused-import
 """For compatibility and optional dependencies."""
+
 import functools
 import importlib.util
 import logging
@@ -21,7 +22,7 @@ assert sys.version_info[0] == 3, "Python 2 is no longer supported."
 def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
     assert x is not None  # ctypes might return None
-    return x.decode("utf-8")  # type: ignore
+    return x.decode("utf-8")  # type: ignore[union-attr]
 
 
 def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
@@ -198,11 +199,15 @@ def _is_cudf_pandas(data: DataType) -> bool:
 
 
 def _is_pandas_df(data: DataType) -> TypeGuard["pd.DataFrame"]:
-    return lazy_isinstance(data, "pandas.core.frame", "DataFrame")
+    return lazy_isinstance(data, "pandas.core.frame", "DataFrame") or lazy_isinstance(
+        data, "pandas", "DataFrame"
+    )
 
 
 def _is_pandas_series(data: DataType) -> TypeGuard["pd.Series"]:
-    return lazy_isinstance(data, "pandas.core.series", "Series")
+    return lazy_isinstance(data, "pandas.core.series", "Series") or lazy_isinstance(
+        data, "pandas", "Series"
+    )
 
 
 def _is_modin_df(data: DataType) -> bool:

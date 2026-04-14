@@ -12,8 +12,8 @@ dependencies:
 - scikit-learn>=1.4.1
 - pandas
 - matplotlib
-- dask<=2024.10.0
-- distributed<=2024.10.0
+- dask
+- distributed
 - graphviz
 - python-graphviz
 - hypothesis
@@ -29,5 +29,3 @@ dependencies:
 - loky>=3.5.1
 - pyarrow
 - cloudpickle
-- pip:
-  - setuptools

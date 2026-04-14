@@ -29,8 +29,8 @@ endmacro()
 # Patch libxgboost.dylib so that it depends on @rpath/libomp.dylib instead of
 # /opt/homebrew/opt/libomp/lib/libomp.dylib or other hard-coded paths.
 # Doing so enables XGBoost to interoperate with multiple kinds of OpenMP
-# libraries. See https://github.com/microsoft/LightGBM/pull/6391 for detailed
-# explanation. Adapted from https://github.com/microsoft/LightGBM/pull/6391
+# libraries. See https://github.com/lightgbm-org/LightGBM/pull/6391 for detailed
+# explanation. Adapted from https://github.com/lightgbm-org/LightGBM/pull/6391
 # by James Lamb.
 # MacOS only.
 function(patch_openmp_path_macos target target_default_output_name)

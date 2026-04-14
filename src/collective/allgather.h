@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #pragma once
 #include <cstddef>      // for size_t
@@ -13,6 +13,7 @@
 #include "../common/type.h"             // for EraseType
 #include "comm.h"                       // for Comm, Channel
 #include "comm_group.h"                 // for CommGroup
+#include "topo.h"                       // for BootstrapNext, BootstrapPrev
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/linalg.h"             // for MakeVec
 #include "xgboost/span.h"               // for Span
@@ -142,8 +143,8 @@ template <typename T>
   std::vector<std::int64_t> sizes(comm.World(), 0);
   sizes[comm.Rank()] = data.Values().size_bytes();
   auto erased_sizes = common::EraseType(common::Span{sizes.data(), sizes.size()});
-  auto rc = comm.Backend(DeviceOrd::CPU())
-                ->Allgather(comm.Ctx(ctx, DeviceOrd::CPU()), erased_sizes);
+  auto rc =
+      comm.Backend(DeviceOrd::CPU())->Allgather(comm.Ctx(ctx, DeviceOrd::CPU()), erased_sizes);
   if (!rc.OK()) {
     return rc;
   }
@@ -161,7 +162,8 @@ template <typename T>
 
   return backend->AllgatherV(
       comm.Ctx(ctx, data.Device()), erased, common::Span{sizes.data(), sizes.size()}, s_segments,
-      data.Device().IsCUDA() ? recv->DeviceSpan() : recv->HostSpan(), AllgatherVAlgo::kBcast);
+      data.Device().IsCUDA() ? recv->DeviceSpan() : recv->HostSpan(),
+      data.Device().IsCUDA() ? AllgatherVAlgo::kBcast : AllgatherVAlgo::kRing);
 }
 
 /**
