@@ -287,7 +287,8 @@ TEST(HistUtil, GroupWeightsEquivalentToRowWeightsOnDevice) {
 
     data::CupyAdapter adapter(interface_str);
     HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch{ft, kBins, kCols, DeviceOrd::CUDA(0)};
+    SketchContainer sketch{ft, static_cast<bst_bin_t>(kBins), static_cast<bst_feature_t>(kCols),
+                           DeviceOrd::CUDA(0)};
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch);
     return sketch.MakeCuts(&ctx, info.IsColumnSplit());

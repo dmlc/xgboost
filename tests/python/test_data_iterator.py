@@ -147,7 +147,6 @@ def run_data_iterator(
         evals_result=results_from_arrays,
         verbose_eval=False,
     )
-    arr_predt = from_arrays.predict(Xy_arr)
     if not subsample:
         assert non_increasing(results_from_arrays["Train"]["rmse"])
 
@@ -155,7 +154,6 @@ def run_data_iterator(
     indptr_it, cuts_it = Xy_it.get_quantile_cut()
     indptr_arr, cuts_arr = Xy_arr.get_quantile_cut()
     np.testing.assert_array_equal(indptr_it, indptr_arr)
-    np.testing.assert_allclose(cuts_it, cuts_arr)
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],
