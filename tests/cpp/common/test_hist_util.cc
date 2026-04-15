@@ -235,8 +235,7 @@ TEST(HistUtil, UnrollGroupWeights) {
   ASSERT_EQ(detail::UnrollGroupWeights(info), expected);
 }
 
-namespace {
-void TestGroupWeightsEquivalentToRowWeights(bool use_sorted) {
+TEST(HistUtil, GroupWeightsEquivalentToRowWeights) {
   Context ctx;
   std::vector<float> x{
       0.0f, 5.0f, 1.0f, 4.0f, 2.0f, 3.0f, 3.0f, 2.0f, 4.0f, 1.0f, 5.0f, 0.0f,
@@ -252,24 +251,15 @@ void TestGroupWeightsEquivalentToRowWeights(bool use_sorted) {
   grouped->SetInfo("weight", Make1dInterfaceTest(group_weights.data(), group_weights.size()));
   per_row->SetInfo("weight", Make1dInterfaceTest(row_weights.data(), row_weights.size()));
 
-  auto grouped_cuts = SketchOnDMatrix(&ctx, grouped.get(), 2, use_sorted);
-  auto per_row_cuts = SketchOnDMatrix(&ctx, per_row.get(), 2, use_sorted);
+  auto grouped_cuts = SketchOnDMatrix(&ctx, grouped.get(), 2, false);
+  auto per_row_cuts = SketchOnDMatrix(&ctx, per_row.get(), 2, false);
+  auto sorted_grouped_cuts = SketchOnDMatrix(&ctx, grouped.get(), 2, true);
+  auto sorted_per_row_cuts = SketchOnDMatrix(&ctx, per_row.get(), 2, true);
 
-  ASSERT_EQ(grouped_cuts.Ptrs().size(), per_row_cuts.Ptrs().size());
-  for (size_t i = 0; i < grouped_cuts.Ptrs().size(); ++i) {
-    ASSERT_EQ(grouped_cuts.Ptrs()[i], per_row_cuts.Ptrs()[i]);
-  }
-
-  ASSERT_EQ(grouped_cuts.Values().size(), per_row_cuts.Values().size());
-  for (size_t i = 0; i < grouped_cuts.Values().size(); ++i) {
-    ASSERT_FLOAT_EQ(grouped_cuts.Values()[i], per_row_cuts.Values()[i]);
-  }
-}
-}  // anonymous namespace
-
-TEST(HistUtil, GroupWeightsEquivalentToRowWeights) {
-  TestGroupWeightsEquivalentToRowWeights(true);
-  TestGroupWeightsEquivalentToRowWeights(false);
+  ASSERT_EQ(grouped_cuts.Ptrs(), per_row_cuts.Ptrs());
+  ASSERT_EQ(grouped_cuts.Values(), per_row_cuts.Values());
+  ASSERT_EQ(sorted_grouped_cuts.Ptrs(), sorted_per_row_cuts.Ptrs());
+  ASSERT_EQ(sorted_grouped_cuts.Values(), sorted_per_row_cuts.Values());
 }
 
 }  // namespace xgboost::common
