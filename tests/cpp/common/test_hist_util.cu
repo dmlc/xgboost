@@ -149,14 +149,14 @@ TEST(HistUtil, DeviceSketchCutInvariants) {
   auto bin_sizes = {2, 16, 256, 512};
   auto sizes = {100, 1000, 1500};
   std::array<bool, 2> weighted = {false, true};
-  int constexpr num_columns = 5;
+  int constexpr kNumColumns = 5;
   for (auto num_rows : sizes) {
-    auto data = GenerateRandom(num_rows, num_columns);
-    std::vector<FeatureType> ft(num_columns, FeatureType::kNumerical);
+    auto data = GenerateRandom(num_rows, kNumColumns);
+    std::vector<FeatureType> ft(kNumColumns, FeatureType::kNumerical);
     for (std::size_t ridx = 0; ridx < static_cast<std::size_t>(num_rows); ++ridx) {
-      data[ridx * num_columns + 1] = static_cast<float>(ridx % 7);
-      data[ridx * num_columns + 2] = static_cast<float>(ridx % 5);
-      data[ridx * num_columns + 4] = static_cast<float>(ridx % 17);
+      data[ridx * kNumColumns + 1] = static_cast<float>(ridx % 7);
+      data[ridx * kNumColumns + 2] = static_cast<float>(ridx % 5);
+      data[ridx * kNumColumns + 4] = static_cast<float>(ridx % 17);
     }
     ft[1] = FeatureType::kCategorical;
     ft[4] = FeatureType::kCategorical;
@@ -164,8 +164,8 @@ TEST(HistUtil, DeviceSketchCutInvariants) {
     HostDeviceVector<float> x{data};
     common::TemporaryDirectory temp;
     std::vector<std::shared_ptr<DMatrix>> matrices{
-        GetDMatrixFromData(data, num_rows, num_columns),
-        GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp)};
+        GetDMatrixFromData(data, num_rows, kNumColumns),
+        GetExternalMemoryDMatrixFromData(x, num_rows, kNumColumns, temp)};
     for (auto const& dmat : matrices) {
       dmat->Info().feature_types.HostVector() = ft;
       for (bool use_weights : weighted) {
