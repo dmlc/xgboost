@@ -26,6 +26,13 @@
 
 namespace xgboost::common {
 
+template <typename Batch>
+struct GetBatchElementOp {
+  Batch batch;
+
+  __device__ data::COOTuple operator()(std::size_t idx) const { return batch.GetElement(idx); }
+};
+
 TEST(HistUtil, DeviceSketchPeakMemory) {
   auto ctx = MakeCUDACtx(0);
   int num_columns = 2048;
@@ -196,14 +203,9 @@ TEST(HistUtil, GetColumnSize) {
   auto adapter = AdapterFromData(d_x, n_samples, n_features);
   auto batch = adapter.Value();
   using Batch = decltype(batch);
-  struct GetElementOp {
-    Batch batch;
-
-    __device__ data::COOTuple operator()(std::size_t idx) const { return batch.GetElement(idx); }
-  };
 
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(thrust::make_counting_iterator(0llu),
-                                                              GetElementOp{batch});
+                                                              GetBatchElementOp<Batch>{batch});
 
   dh::caching_device_vector<std::size_t> column_sizes_scan;
   column_sizes_scan.resize(n_features + 1);
