@@ -226,7 +226,7 @@ XGBOOST_DEVICE thrust::tuple<uint64_t, uint64_t> MergePartition(Span<SketchEntry
   auto low = k > n ? k - n : 0ul;
   auto high = std::min(k, m);
   auto candidate_it = thrust::make_counting_iterator<uint64_t>(low);
-  auto need_more_x = dh::MakeTransformIterator<bool>(candidate_it, [=] __device__(uint64_t i) {
+  auto need_more_x = dh::MakeTransformIterator<bool>(candidate_it, [=] XGBOOST_DEVICE(uint64_t i) {
     // j is the number of elements taken from y when the partition takes i from x.
     auto j = k - i;
     // Move the boundary right while the last candidate from y still sorts ahead of the

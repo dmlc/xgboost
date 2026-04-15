@@ -60,7 +60,9 @@ endif()
 # Generate CMAKE_CUDA_ARCHITECTURES form a list of architectures
 # Also generates PTX for the most recent architecture for forwards compatibility
 function(compute_cmake_cuda_archs archs)
-  if(CMAKE_CUDA_COMPILER_VERSION MATCHES "^([0-9]+\\.[0-9]+)")
+  if(CMAKE_CUDA_COMPILER_TOOLKIT_VERSION MATCHES "^([0-9]+\\.[0-9]+)")
+    set(CUDA_VERSION "${CMAKE_MATCH_1}")
+  elseif(CMAKE_CUDA_COMPILER_VERSION MATCHES "^([0-9]+\\.[0-9]+)")
     set(CUDA_VERSION "${CMAKE_MATCH_1}")
   endif()
   list(SORT archs)
@@ -93,34 +95,79 @@ function(compute_cmake_cuda_archs archs)
   message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
 endfunction()
 
+function(xgboost_cuda_wrap_host_compiler_options out_var)
+  set(wrapped "")
+  foreach(flag IN LISTS ARGN)
+    if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+      list(APPEND wrapped "$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${flag}>")
+    elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
+      list(APPEND wrapped "$<$<COMPILE_LANGUAGE:CUDA>:${flag}>")
+    else()
+      message(FATAL_ERROR "Unsupported CUDA compiler: ${CMAKE_CUDA_COMPILER_ID}")
+    endif()
+  endforeach()
+  set(${out_var} "${wrapped}" PARENT_SCOPE)
+endfunction()
+
 # Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
 function(xgboost_set_cuda_flags target)
-  target_compile_options(${target} PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>
-    $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>
-  )
+  set(cuda_compile_options "")
+  set(cuda_compile_definitions "")
+  set(cuda_device_debug_options "")
+  set(cuda_lineinfo_option "")
+
+  if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+    list(APPEND cuda_compile_options
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>
+      $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>
+    )
+    set(cuda_device_debug_options
+      $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
+    set(cuda_lineinfo_option $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
+  elseif(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
+    list(APPEND cuda_compile_options
+      $<$<COMPILE_LANGUAGE:CUDA>:-Wno-unknown-cuda-version>
+    )
+    list(APPEND cuda_compile_definitions
+      $<$<COMPILE_LANGUAGE:CUDA>:CUDA_API_PER_THREAD_DEFAULT_STREAM=1>
+    )
+    set(cuda_device_debug_options
+      $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:--cuda-noopt-device-debug>)
+    set(cuda_lineinfo_option $<$<COMPILE_LANGUAGE:CUDA>:-gline-tables-only>)
+  else()
+    message(FATAL_ERROR "Unsupported CUDA compiler: ${CMAKE_CUDA_COMPILER_ID}")
+  endif()
+
+  if(OpenMP_CXX_FLAGS)
+    separate_arguments(cuda_openmp_flags NATIVE_COMMAND "${OpenMP_CXX_FLAGS}")
+    xgboost_cuda_wrap_host_compiler_options(cuda_host_flags ${cuda_openmp_flags})
+    list(APPEND cuda_compile_options ${cuda_host_flags})
+  endif()
+
+  target_compile_options(${target} PRIVATE ${cuda_compile_options})
+  if(cuda_compile_definitions)
+    target_compile_definitions(${target} PRIVATE ${cuda_compile_definitions})
+  endif()
 
   if(FORCE_COLORED_OUTPUT)
     if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
         ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
           (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
-      target_compile_options(${target} PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fdiagnostics-color=always>)
+      xgboost_cuda_wrap_host_compiler_options(cuda_color_flags -fdiagnostics-color=always)
+      target_compile_options(${target} PRIVATE ${cuda_color_flags})
     endif()
   endif()
 
   if(USE_DEVICE_DEBUG)
-    target_compile_options(${target} PRIVATE
-      $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
+    target_compile_options(${target} PRIVATE ${cuda_device_debug_options})
   endif()
 
   if(USE_NVTX)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
     if(NOT USE_DEVICE_DEBUG)
-      target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
+      target_compile_options(${target} PRIVATE ${cuda_lineinfo_option})
     endif()
   endif()
 
@@ -143,8 +190,8 @@ function(xgboost_set_cuda_flags target)
     ${xgboost_SOURCE_DIR}/gputreeshap)
 
   if(MSVC)
-    target_compile_options(${target} PRIVATE
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
+    xgboost_cuda_wrap_host_compiler_options(cuda_utf8_flags /utf-8)
+    target_compile_options(${target} PRIVATE ${cuda_utf8_flags})
   endif()
 
   set_target_properties(${target} PROPERTIES
@@ -198,10 +245,15 @@ macro(xgboost_target_properties target)
 
   if(ENABLE_ALL_WARNINGS)
     target_compile_options(${target} PUBLIC
-      $<IF:$<COMPILE_LANGUAGE:CUDA>,
-      -Xcompiler=-Wall -Xcompiler=-Wextra -Xcompiler=-Wno-expansion-to-defined,
-      -Wall -Wextra -Wno-expansion-to-defined>
-    )
+      $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-Wall>
+      $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-Wextra>
+      $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-Wno-expansion-to-defined>)
+    if(USE_CUDA)
+      xgboost_cuda_wrap_host_compiler_options(
+        cuda_warning_flags -Wall -Wextra -Wno-expansion-to-defined
+      )
+      target_compile_options(${target} PUBLIC ${cuda_warning_flags})
+    endif()
   endif()
 
   target_compile_options(${target}
@@ -221,7 +273,8 @@ macro(xgboost_target_properties target)
     target_compile_options(${target} PUBLIC -static-libstdc++)
   endif()
 
-  if(NOT WIN32 AND ENABLE_ALL_WARNINGS)
+  if(NOT WIN32 AND ENABLE_ALL_WARNINGS AND USE_CUDA AND
+      CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
     target_compile_options(${target} PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-Werror=cross-execution-space-call>
     )
