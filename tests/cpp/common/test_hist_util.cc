@@ -188,10 +188,12 @@ TEST(HistUtil, QuantileWithHessian) {
   dmat->Info().weights_.HostVector() = w;
 
   HistogramCuts cuts_hess = SketchOnDMatrix(&ctx, dmat.get(), kBins, false, hessian);
+  HistogramCuts sorted_cuts_hess = SketchOnDMatrix(&ctx, dmat.get(), kBins, true, hessian);
   for (size_t i = 0; i < w.size(); ++i) {
     dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
   }
   ValidateCuts(cuts_hess, dmat.get(), kBins);
+  ValidateCuts(sorted_cuts_hess, dmat.get(), kBins);
 
   HistogramCuts cuts_wh = SketchOnDMatrix(&ctx, dmat.get(), kBins, false);
   ValidateCuts(cuts_wh, dmat.get(), kBins);
@@ -201,7 +203,7 @@ TEST(HistUtil, QuantileWithHessian) {
   ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
   for (size_t i = 0; i < cuts_hess.Values().size(); ++i) {
     ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
-    ASSERT_NEAR(sorted_cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
+    ASSERT_NEAR(sorted_cuts_wh.Values()[i], sorted_cuts_hess.Values()[i], kRtEps);
   }
 }
 
@@ -209,12 +211,13 @@ TEST(HistUtil, DenseCutsDMatrixTypes) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
-  common::TemporaryDirectory tmpdir;
   Context ctx;
   for (auto num_rows : sizes) {
-    HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
+    auto data = GenerateRandom(num_rows, num_columns);
+    HostDeviceVector<float> x{data};
+    common::TemporaryDirectory tmpdir;
     std::vector<std::shared_ptr<DMatrix>> matrices{
-        GetDMatrixFromData(x, num_rows, num_columns),
+        GetDMatrixFromData(data, num_rows, num_columns),
         GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, tmpdir)};
     for (auto num_bins : bin_sizes) {
       for (auto const& dmat : matrices) {

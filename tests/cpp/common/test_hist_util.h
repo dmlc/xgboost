@@ -87,6 +87,10 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat, int num_bins)
     if (!ft.empty() && IsCat(ft, i)) {
       quantile_test::ValidateCategoricalCuts(cuts, i, columns[i]);
     } else {
+      auto beg = cuts.Values().cbegin() + cuts.Ptrs().at(i);
+      auto end = cuts.Values().cbegin() + cuts.Ptrs().at(i + 1);
+      EXPECT_TRUE(std::is_sorted(beg, end));
+      EXPECT_EQ(std::adjacent_find(beg, end), end);
       quantile_test::ValidateNumericalCuts(cuts, i, columns.at(i), num_bins,
                                            max_normalized_rank_error);
     }
