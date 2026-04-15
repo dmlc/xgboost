@@ -7,7 +7,7 @@ clang_version="21.1.8"
 build_dir="build-clang-tidy-cuda"
 jobs="${XGBOOST_TIDY_JOBS:-}"
 checks="${XGBOOST_TIDY_CHECKS:--*,google-runtime-int}"
-files_regex="${XGBOOST_TIDY_FILES:-src/common/timer\\.cc$|src/predictor/interpretability/shap\\.cu$}"
+files_csv="${XGBOOST_TIDY_FILES:-src/common/timer.cc,src/predictor/interpretability/shap.cu}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,12 +28,12 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --files)
-      files_regex="$2"
+      files_csv="$2"
       shift 2
       ;;
     *)
       echo "Unrecognized argument: $1"
-      echo "Usage: $0 [--clang-version <version>] [--build-dir <dir>] [--jobs <n>] [--checks <filter>] [--files <regex>]"
+      echo "Usage: $0 [--clang-version <version>] [--build-dir <dir>] [--jobs <n>] [--checks <filter>] [--files <comma-separated-files>]"
       exit 1
       ;;
   esac
@@ -73,9 +73,11 @@ if [[ ! -x "${clang_run_tidy}" ]]; then
   clang_run_tidy="$(command -v run-clang-tidy)"
 fi
 
+IFS=',' read -r -a tidy_files <<< "${files_csv}"
+
 "${clang_run_tidy}" \
   -p "${repo_root}/${build_dir}" \
   -j "${jobs}" \
   -checks="${checks}" \
   -quiet \
-  "${files_regex}"
+  "${tidy_files[@]}"

@@ -145,7 +145,7 @@ struct BitFieldContainer {
 #endif  // defined(__CUDA_ARCH__)
   }
 
-  XGBOOST_DEVICE auto Set(index_type pos) noexcept(true) {
+  XGBOOST_DEVICE void Set(index_type pos) noexcept(true) {
 #if defined(__CUDA_ARCH__)
     Pos pos_v = Direction::Shift(ToBitPos(pos));
     value_type& value = Data()[pos_v.int_pos];

@@ -19,6 +19,32 @@ env:
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
+  ci-configure:
+    name: Configure variables for CI
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=lint-ci-configure
+    steps:
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2.1.2
+        with:
+          mask-password: 'false'
+          registries: '492475357299'
+      - uses: actions/checkout@v6.0.2
+      - name: Get image tag
+        id: get-image-tag
+        run: |
+          source ops/pipeline/get-image-tag.sh
+          echo "Using image tag $IMAGE_TAG"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+    outputs:
+      docker_registry: ${{ steps.login-ecr.outputs.registry }}
+      docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
+      image_tag: ${{ steps.get-image-tag.outputs.image_tag }}
+
   clang-tidy:
     name: Run clang-tidy
     runs-on:
@@ -35,24 +61,22 @@ jobs:
 
   clang-tidy-clang-cuda-smoke:
     name: Run clang-tidy from clang-CUDA compile DB
+    needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=lint-clang-tidy-clang-cuda
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: actions/checkout@v6.0.2
         with:
           submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
       - name: Run clang-tidy smoke on CPU and CUDA translation units
-        run: |
-          source ops/pipeline/get-docker-registry-details.sh
-          source ops/pipeline/get-image-tag.sh
-          IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu_build_rockylinux8:${IMAGE_TAG}
-          python3 ops/docker_run.py \
-            --image-uri ${IMAGE_URI} \
-            -- bash ops/pipeline/run-clang-tidy-clang-cuda.sh
+        run: bash ops/pipeline/run-clang-tidy-clang-cuda.sh
 
   python-mypy:
     runs-on: ubuntu-latest

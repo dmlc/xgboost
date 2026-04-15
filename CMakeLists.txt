@@ -245,7 +245,7 @@ if(USE_CUDA)
     compute_cmake_cuda_archs("${GPU_COMPUTE_VER}")
   endif()
 
-  find_package(CUDAToolkit 12.8 REQUIRED)
+  find_package(CUDAToolkit 12.9 REQUIRED)
 endif()
 
 if(USE_NVCOMP)

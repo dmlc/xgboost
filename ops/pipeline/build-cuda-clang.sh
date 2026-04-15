@@ -118,6 +118,7 @@ cmake_args=(
   -DCMAKE_C_COMPILER="${clang_c}"
   -DCMAKE_CXX_COMPILER="${clang_cxx}"
   -DCMAKE_CUDA_COMPILER="${clang_cxx}"
+  -DCMAKE_CUDA_ARCHITECTURES="${gpu_compute_ver}"
   -DUSE_CUDA=ON
   -DUSE_OPENMP=ON
   -DHIDE_CXX_SYMBOLS=ON
