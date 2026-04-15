@@ -5,6 +5,7 @@
 set -euo pipefail
 
 clang_version="21.1.8"
+cmake_version="4.2.3"
 build_dir="build-clang-cuda"
 target="xgboost"
 configure_only=0
@@ -18,6 +19,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --clang-version)
       clang_version="$2"
+      shift 2
+      ;;
+    --cmake-version)
+      cmake_version="$2"
       shift 2
       ;;
     --build-dir)
@@ -38,7 +43,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unrecognized argument: $1"
-      echo "Usage: $0 [--clang-version <version>] [--build-dir <dir>] [--target <target>] [--configure-only] [--jobs <n>]"
+      echo "Usage: $0 [--clang-version <version>] [--cmake-version <version>] [--build-dir <dir>] [--target <target>] [--configure-only] [--jobs <n>]"
       exit 1
       ;;
   esac
@@ -46,11 +51,11 @@ done
 
 if [[ "${XGBOOST_SKIP_CLANG_INSTALL:-0}" != 1 ]]; then
   if command -v mamba >/dev/null 2>&1; then
-    mamba install -y -n base -c conda-forge "clangxx=${clang_version}"
+    mamba install -y -n base -c conda-forge "clangxx=${clang_version}" "cmake=${cmake_version}"
   elif command -v conda >/dev/null 2>&1; then
-    conda install -y -n base -c conda-forge "clangxx=${clang_version}"
+    conda install -y -n base -c conda-forge "clangxx=${clang_version}" "cmake=${cmake_version}"
   else
-    echo "clangxx=${clang_version} is required, but neither mamba nor conda is available."
+    echo "clangxx=${clang_version} and cmake=${cmake_version} are required, but neither mamba nor conda is available."
     exit 1
   fi
 fi
@@ -67,15 +72,19 @@ fi
 clang_bin_dir="${clang_prefix}/bin"
 clang_c="${clang_bin_dir}/clang"
 clang_cxx="${clang_bin_dir}/clang++"
+cmake_bin="${clang_bin_dir}/cmake"
 
-if [[ ! -x "${clang_c}" || ! -x "${clang_cxx}" ]]; then
-  echo "Could not find clang toolchain under ${clang_prefix}"
+if [[ ! -x "${clang_c}" || ! -x "${clang_cxx}" || ! -x "${cmake_bin}" ]]; then
+  echo "Could not find clang/CMake toolchain under ${clang_prefix}"
   exit 1
 fi
+
+export PATH="${clang_bin_dir}:${PATH}"
 
 echo "--- Build with clang-CUDA using ${clang_cxx}"
 "${clang_c}" --version
 "${clang_cxx}" --version
+"${cmake_bin}" --version
 
 if [[ -z "${jobs}" ]]; then
   if command -v nproc >/dev/null 2>&1; then
@@ -134,7 +143,7 @@ cmake_args=(
 )
 cmake_args+=("${nccl_args[@]}")
 cmake_args+=("${launcher_args[@]}")
-cmake "${cmake_args[@]}"
+"${cmake_bin}" "${cmake_args[@]}"
 
 if [[ "${configure_only}" == 1 ]]; then
   popd

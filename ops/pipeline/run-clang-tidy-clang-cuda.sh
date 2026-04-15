@@ -4,6 +4,7 @@
 set -euo pipefail
 
 clang_version="21.1.8"
+cmake_version="4.2.3"
 build_dir="build-clang-tidy-cuda"
 jobs="${XGBOOST_TIDY_JOBS:-}"
 checks="${XGBOOST_TIDY_CHECKS:--*,google-runtime-int}"
@@ -13,6 +14,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --clang-version)
       clang_version="$2"
+      shift 2
+      ;;
+    --cmake-version)
+      cmake_version="$2"
       shift 2
       ;;
     --build-dir)
@@ -33,7 +38,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unrecognized argument: $1"
-      echo "Usage: $0 [--clang-version <version>] [--build-dir <dir>] [--jobs <n>] [--checks <filter>] [--files <comma-separated-files>]"
+      echo "Usage: $0 [--clang-version <version>] [--cmake-version <version>] [--build-dir <dir>] [--jobs <n>] [--checks <filter>] [--files <comma-separated-files>]"
       exit 1
       ;;
   esac
@@ -56,6 +61,7 @@ repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 "${repo_root}/ops/pipeline/build-cuda-clang.sh" \
   --clang-version "${clang_version}" \
+  --cmake-version "${cmake_version}" \
   --build-dir "${repo_root}/${build_dir}" \
   --configure-only
 
