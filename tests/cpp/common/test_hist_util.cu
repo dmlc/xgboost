@@ -481,7 +481,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_container);
     weighted = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
-    ValidateCuts(weighted, dmat.get(), kBins, kMaxWeightedNormalizedRankError);
+    ValidateCuts(weighted, dmat.get(), kBins);
   }
 }
 
@@ -520,10 +520,10 @@ class DeviceSketchWithHessianTest
     for (std::size_t i = 0; i < h_weight.size(); ++i) {
       h_weight[i] = w[i] * h_hess[i];
     }
-    ValidateCuts(cuts_hess, p_fmat.get(), n_bins, kMaxWeightedNormalizedRankError);
+    ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
 
     HistogramCuts cuts_wh = DeviceSketch(ctx, p_fmat.get(), n_bins);
-    ValidateCuts(cuts_wh, p_fmat.get(), n_bins, kMaxWeightedNormalizedRankError);
+    ValidateCuts(cuts_wh, p_fmat.get(), n_bins);
     ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
     for (std::size_t i = 0; i < cuts_hess.Values().size(); ++i) {
       ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
@@ -557,7 +557,7 @@ class DeviceSketchWithHessianTest
     // make validation easier by converting it into sample weight.
     p_fmat->Info().weights_.HostVector() = h_hess;
     p_fmat->Info().group_ptr_.clear();
-    ValidateCuts(cuts_hess, p_fmat.get(), n_bins, kMaxWeightedNormalizedRankError);
+    ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
     // restore ltr properties
     p_fmat->Info().weights_.HostVector() = w;
     p_fmat->Info().group_ptr_ = gptr;
@@ -573,7 +573,7 @@ class DeviceSketchWithHessianTest
       p_fmat->Info().weights_.HostVector()[i] = w[gidx] * h_hess[i];
     }
     p_fmat->Info().group_ptr_.clear();
-    ValidateCuts(cuts_hess, p_fmat.get(), n_bins, kMaxWeightedNormalizedRankError);
+    ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
 
     // merge hessian with sample weight
     p_fmat->Info().weights_.Resize(n_samples);
@@ -583,7 +583,7 @@ class DeviceSketchWithHessianTest
       p_fmat->Info().weights_.HostVector()[i] = w[gidx] * h_hess[i];
     }
     auto cuts = DeviceSketch(ctx, p_fmat.get(), n_bins);
-    ValidateCuts(cuts, p_fmat.get(), n_bins, kMaxWeightedNormalizedRankError);
+    ValidateCuts(cuts, p_fmat.get(), n_bins);
     ASSERT_EQ(cuts.Values().size(), cuts_hess.Values().size());
     for (std::size_t i = 0; i < cuts.Values().size(); ++i) {
       EXPECT_NEAR(cuts.Values()[i], cuts_hess.Values()[i], 1e-4f);

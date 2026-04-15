@@ -16,7 +16,7 @@
 #include "../helpers.h"
 
 namespace xgboost::common {
-void ParallelGHistBuilderReset() {
+TEST(ParallelGHistBuilder, Reset) {
   constexpr size_t kBins = 10;
   constexpr size_t kNodes = 5;
   constexpr size_t kNodesExtended = 10;
@@ -71,7 +71,7 @@ void ParallelGHistBuilderReset() {
   });
 }
 
-void ParallelGHistBuilderReduceHist() {
+TEST(ParallelGHistBuilder, ReduceHist) {
   constexpr size_t kBins = 10;
   constexpr size_t kNodes = 5;
   constexpr size_t kTasksPerNode = 10;
@@ -113,63 +113,6 @@ void ParallelGHistBuilderReduceHist() {
     for (size_t i = 0; i < kBins; ++i) {
       ASSERT_EQ(kValue * kTasksPerNode, collection[inode][i].GetGrad());
       ASSERT_EQ(kValue * kTasksPerNode, collection[inode][i].GetHess());
-    }
-  }
-}
-
-TEST(ParallelGHistBuilder, Reset) { ParallelGHistBuilderReset(); }
-
-TEST(ParallelGHistBuilder, ReduceHist) { ParallelGHistBuilderReduceHist(); }
-
-void TestQuantileWithHessian(bool use_sorted) {
-  int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {1000, 1500};
-  int num_columns = 5;
-  Context ctx;
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    auto w = GenerateRandomWeights(num_rows);
-    auto hessian = GenerateRandomWeights(num_rows);
-    std::mt19937 rng(0);
-    std::shuffle(hessian.begin(), hessian.end(), rng);
-    dmat->Info().weights_.HostVector() = w;
-
-    for (auto num_bins : bin_sizes) {
-      HistogramCuts cuts_hess = SketchOnDMatrix(&ctx, dmat.get(), num_bins, use_sorted, hessian);
-      for (size_t i = 0; i < w.size(); ++i) {
-        dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
-      }
-      HistogramCuts cuts_wh = SketchOnDMatrix(&ctx, dmat.get(), num_bins, use_sorted);
-      ValidateCuts(cuts_wh, dmat.get(), num_bins, kMaxWeightedNormalizedRankError);
-
-      ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
-      for (size_t i = 0; i < cuts_hess.Values().size(); ++i) {
-        ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
-      }
-
-      dmat->Info().weights_.HostVector() = w;
-    }
-  }
-}
-
-TEST(HistUtil, QuantileWithHessian) {
-  TestQuantileWithHessian(true);
-  TestQuantileWithHessian(false);
-}
-
-TEST(HistUtil, DenseCutsExternalMemory) {
-  int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {100, 1000, 1500};
-  int num_columns = 5;
-  Context ctx;
-  for (auto num_rows : sizes) {
-    HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
-    common::TemporaryDirectory tmpdir;
-    auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, tmpdir);
-    for (auto num_bins : bin_sizes) {
-      HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -225,6 +168,59 @@ TEST(HistUtil, IndexBinData) {
       case kBinSizes[2]:
         CheckIndexData(hmat.index.data<uint32_t>(), offsets, hmat, kCols);
         break;
+    }
+  }
+}
+
+// Sketching with a separate Hessian input should match sketching with sample weights after
+// folding the Hessian into the per-row weights, for both sorted and unsorted CPU paths.
+TEST(HistUtil, QuantileWithHessian) {
+  int constexpr kRows = 1500;
+  int constexpr kCols = 5;
+  int constexpr kBins = 256;
+  Context ctx;
+  auto x = GenerateRandom(kRows, kCols);
+  auto dmat = GetDMatrixFromData(x, kRows, kCols);
+  auto w = GenerateRandomWeights(kRows);
+  auto hessian = GenerateRandomWeights(kRows);
+  std::mt19937 rng(0);
+  std::shuffle(hessian.begin(), hessian.end(), rng);
+  dmat->Info().weights_.HostVector() = w;
+
+  HistogramCuts cuts_hess = SketchOnDMatrix(&ctx, dmat.get(), kBins, false, hessian);
+  for (size_t i = 0; i < w.size(); ++i) {
+    dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
+  }
+  ValidateCuts(cuts_hess, dmat.get(), kBins);
+
+  HistogramCuts cuts_wh = SketchOnDMatrix(&ctx, dmat.get(), kBins, false);
+  ValidateCuts(cuts_wh, dmat.get(), kBins);
+  HistogramCuts sorted_cuts_wh = SketchOnDMatrix(&ctx, dmat.get(), kBins, true);
+  ValidateCuts(sorted_cuts_wh, dmat.get(), kBins);
+
+  ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
+  for (size_t i = 0; i < cuts_hess.Values().size(); ++i) {
+    ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
+    ASSERT_NEAR(sorted_cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
+  }
+}
+
+TEST(HistUtil, DenseCutsDMatrixTypes) {
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {100, 1000, 1500};
+  int num_columns = 5;
+  common::TemporaryDirectory tmpdir;
+  Context ctx;
+  for (auto num_rows : sizes) {
+    HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
+    std::vector<std::shared_ptr<DMatrix>> matrices{
+        GetDMatrixFromData(x, num_rows, num_columns),
+        GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, tmpdir)};
+    for (auto num_bins : bin_sizes) {
+      for (auto const& dmat : matrices) {
+        HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
+        ValidateCuts(cuts, dmat.get(), num_bins);
+      }
     }
   }
 }
@@ -287,7 +283,7 @@ void TestSketchFromWeights(bool with_group) {
     }
     m->SetInfo("weight", Make1dInterfaceTest(group_weights.data(), group_weights.size()));
     HistogramCuts weighted = SketchOnDMatrix(&ctx, m.get(), kBins);
-    ValidateCuts(weighted, m.get(), kBins, kMaxWeightedNormalizedRankError);
+    ValidateCuts(weighted, m.get(), kBins);
   }
 }
 
