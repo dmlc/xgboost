@@ -138,6 +138,30 @@ jobs:
             --prefix cache/${{ github.run_id }}/build-cuda${{ matrix.cuda_version }}-${{ matrix.arch }} \
             build/testxgboost python-package/dist/*.whl
 
+  build-cuda-clang:
+    name: Build CUDA with clang 21.1.8 (x86_64)
+    needs: ci-configure
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cuda-clang
+      - extras=s3-cache
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6.0.2
+        with:
+          submodules: "true"
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          cache-key-prefix: ${{ github.job }}-clang21-cuda12
+      - run: bash ops/pipeline/build-cuda-clang.sh --clang-version 21.1.8
+      - run: sccache --show-stats
+
   audit-cuda-wheel:
     name: Audit CUDA ${{ matrix.cuda_version }} wheel for manylinux_2_28_${{ matrix.arch }}
     needs: [ci-configure, build-cuda]

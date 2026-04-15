@@ -33,6 +33,27 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/run-clang-tidy.sh
 
+  clang-tidy-clang-cuda-smoke:
+    name: Run clang-tidy from clang-CUDA compile DB
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=lint-clang-tidy-clang-cuda
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - name: Run clang-tidy smoke on CPU and CUDA translation units
+        run: |
+          source ops/pipeline/get-docker-registry-details.sh
+          source ops/pipeline/get-image-tag.sh
+          IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu_build_rockylinux8:${IMAGE_TAG}
+          python3 ops/docker_run.py \
+            --image-uri ${IMAGE_URI} \
+            -- bash ops/pipeline/run-clang-tidy-clang-cuda.sh
+
   python-mypy:
     runs-on: ubuntu-latest
     name: Type checks for the Python package
