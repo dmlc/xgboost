@@ -195,10 +195,17 @@ TEST(HistUtil, GetColumnSize) {
 
   auto adapter = AdapterFromData(d_x, n_samples, n_features);
   auto batch = adapter.Value();
+  using Batch = decltype(batch);
+  struct GetElementOp {
+    Batch batch;
 
-  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
-      thrust::make_counting_iterator(0llu),
-      [=] __device__(std::size_t idx) { return batch.GetElement(idx); });
+    XGBOOST_DEVICE data::COOTuple operator()(std::size_t idx) const {
+      return batch.GetElement(idx);
+    }
+  };
+
+  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(thrust::make_counting_iterator(0llu),
+                                                              GetElementOp{batch});
 
   dh::caching_device_vector<std::size_t> column_sizes_scan;
   column_sizes_scan.resize(n_features + 1);
