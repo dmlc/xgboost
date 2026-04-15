@@ -8,7 +8,6 @@
 #include <cstdint>  // for int64_t
 
 #include "../../../src/collective/allreduce.h"
-#include "../../../src/common/hist_util.h"
 #include "../../../src/data/adapter.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "xgboost/context.h"

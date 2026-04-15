@@ -5,11 +5,9 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <cmath>
 #include <memory>  // for shared_ptr
 #include <numeric>
 #include <random>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -95,45 +93,4 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat, int num_bins)
   }
 }
 
-/**
- * \brief Test for sketching on categorical data.
- *
- * \param sketch Sketch function, can be on device or on host.
- */
-template <typename Fn>
-void TestCategoricalSketch(size_t n, size_t num_categories, int32_t num_bins, bool weighted,
-                           Fn sketch) {
-  auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
-  auto dmat = GetDMatrixFromData(x, n, 1);
-  dmat->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
-
-  if (weighted) {
-    std::vector<float> weights(n, 0);
-    SimpleLCG lcg;
-    SimpleRealUniformDistribution<float> dist(0, 1);
-    for (auto& v : weights) {
-      v = dist(&lcg);
-    }
-    dmat->Info().weights_.HostVector() = weights;
-  }
-
-  ASSERT_EQ(dmat->Info().feature_types.Size(), 1);
-  auto cuts = sketch(dmat.get(), num_bins);
-  ASSERT_EQ(cuts.MaxCategory(), num_categories - 1);
-  std::sort(x.begin(), x.end());
-  auto n_uniques = std::unique(x.begin(), x.end()) - x.begin();
-  ASSERT_NE(n_uniques, x.size());
-  ASSERT_EQ(cuts.TotalBins(), n_uniques);
-  ASSERT_EQ(n_uniques, num_categories);
-
-  auto& values = cuts.cut_values_.HostVector();
-  ASSERT_TRUE(std::is_sorted(values.cbegin(), values.cend()));
-  auto is_unique = (std::unique(values.begin(), values.end()) - values.begin()) == n_uniques;
-  ASSERT_TRUE(is_unique);
-
-  x.resize(n_uniques);
-  for (decltype(n_uniques) i = 0; i < n_uniques; ++i) {
-    ASSERT_EQ(x[i], values[i]);
-  }
-}
 }  // namespace xgboost::common

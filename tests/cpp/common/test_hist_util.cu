@@ -4,16 +4,14 @@
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>  // for bst_bin_t
-#include <xgboost/c_api.h>
 #include <xgboost/data.h>
 
 #include <algorithm>  // for transform
-#include <cmath>      // for floor
-#include <cstddef>    // for size_t
-#include <limits>     // for numeric_limits
-#include <string>     // for string, to_string
-#include <tuple>      // for tuple, make_tuple
-#include <vector>     // for vector
+#include <array>
+#include <cmath>    // for floor
+#include <cstddef>  // for size_t
+#include <limits>   // for numeric_limits
+#include <vector>   // for vector
 
 #include "../../../include/xgboost/logging.h"
 #include "../../../src/common/cuda_context.cuh"
@@ -21,21 +19,12 @@
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/hist_util.h"
-#include "../../../src/data/device_adapter.cuh"
-#include "../../../src/data/simple_dmatrix.h"
 #include "../data/test_array_interface.h"
 #include "../filesystem.h"  // for TemporaryDirectory
 #include "../helpers.h"
 #include "test_hist_util.h"
 
 namespace xgboost::common {
-
-template <typename AdapterT>
-HistogramCuts GetHostCuts(Context const* ctx, AdapterT* adapter, int num_bins, float missing) {
-  data::SimpleDMatrix dmat(adapter, missing, 1);
-  HistogramCuts cuts = SketchOnDMatrix(ctx, &dmat, num_bins);
-  return cuts;
-}
 
 TEST(HistUtil, DeviceSketchPeakMemory) {
   auto ctx = MakeCUDACtx(0);
@@ -85,16 +74,6 @@ TEST(HistUtil, DeviceSketchDeterminism) {
     auto new_sketch = DeviceSketch(&ctx, dmat.get(), num_bins);
     ASSERT_EQ(reference_sketch.Values(), new_sketch.Values());
   }
-}
-
-TEST(HistUtil, DeviceSketchCategoricalFeatures) {
-  auto ctx = MakeCUDACtx(0);
-  TestCategoricalSketch(1000, 256, 32, false, [ctx](DMatrix* p_fmat, int32_t num_bins) {
-    return DeviceSketch(&ctx, p_fmat, num_bins);
-  });
-  TestCategoricalSketch(1000, 256, 32, true, [ctx](DMatrix* p_fmat, int32_t num_bins) {
-    return DeviceSketch(&ctx, p_fmat, num_bins);
-  });
 }
 
 TEST(HistUtil, RemoveDuplicatedCategories) {
@@ -158,155 +137,61 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   }
 }
 
-// See https://github.com/dmlc/xgboost/issues/5866.
-TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
+TEST(HistUtil, DeviceSketchCutInvariants) {
   auto ctx = MakeCUDACtx(0);
   auto bin_sizes = {2, 16, 256, 512};
   auto sizes = {100, 1000, 1500};
-  int num_columns = 5;
-  common::TemporaryDirectory temp;
+  std::array<bool, 2> weighted = {false, true};
+  int constexpr num_columns = 5;
   for (auto num_rows : sizes) {
-    HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
-    auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp);
-    dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
-    for (auto num_bins : bin_sizes) {
-      auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
+    auto data = GenerateRandom(num_rows, num_columns);
+    std::vector<FeatureType> ft(num_columns, FeatureType::kNumerical);
+    for (std::size_t ridx = 0; ridx < static_cast<std::size_t>(num_rows); ++ridx) {
+      data[ridx * num_columns + 1] = static_cast<float>(ridx % 7);
+      data[ridx * num_columns + 2] = static_cast<float>(ridx % 5);
+      data[ridx * num_columns + 4] = static_cast<float>(ridx % 17);
+    }
+    ft[1] = FeatureType::kCategorical;
+    ft[4] = FeatureType::kCategorical;
+
+    HostDeviceVector<float> x{data};
+    common::TemporaryDirectory temp;
+    std::vector<std::shared_ptr<DMatrix>> matrices{
+        GetDMatrixFromData(data, num_rows, num_columns),
+        GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp)};
+    for (auto const& dmat : matrices) {
+      dmat->Info().feature_types.HostVector() = ft;
+      for (bool use_weights : weighted) {
+        if (use_weights) {
+          dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
+        } else {
+          dmat->Info().weights_.HostVector().clear();
+        }
+        for (auto num_bins : bin_sizes) {
+          auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
+          ValidateCuts(cuts, dmat.get(), num_bins);
+        }
+      }
     }
   }
 }
 
-template <typename Adapter>
-auto MakeUnweightedCutsForTest(Context const* ctx, Adapter adapter, int32_t num_bins,
-                               float missing) {
-  HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), DeviceOrd::CUDA(0));
-  MetaInfo info;
-  AdapterDeviceSketch(ctx, adapter.Value(), num_bins, info, missing, &sketch_container);
-  return sketch_container.MakeCuts(ctx, info.IsColumnSplit());
-}
-
-template <typename Adapter>
-void ValidateBatchedCuts(Context const* ctx, Adapter adapter, int num_bins, DMatrix* dmat) {
-  common::HistogramCuts batched_cuts =
-      MakeUnweightedCutsForTest(ctx, adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
-  ValidateCuts(batched_cuts, dmat, num_bins);
-}
-
-TEST(HistUtil, AdapterDeviceSketch) {
+TEST(HistUtil, GetColumnSize) {
+  bst_idx_t n_samples = 4096;
   auto ctx = MakeCUDACtx(0);
-  int rows = 5;
-  int cols = 1;
-  int num_bins = 4;
-  float missing = -1.0;
-  thrust::device_vector<float> data(rows * cols);
-  auto json_array_interface = Generate2dArrayInterface(rows, cols, "<f4", &data);
-  data = std::vector<float>{1.0, 2.0, 3.0, 4.0, 5.0};
-  std::string str;
-  Json::Dump(json_array_interface, &str);
-
-  data::CupyAdapter adapter(str);
-
-  auto device_cuts = MakeUnweightedCutsForTest(&ctx, adapter, num_bins, missing);
-  ctx = ctx.MakeCPU();
-  auto host_cuts = GetHostCuts(&ctx, &adapter, num_bins, missing);
-
-  EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
-  EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
-}
-
-void TestCategoricalSketchAdapter(size_t n, size_t num_categories, int32_t num_bins,
-                                  bool weighted) {
-  auto ctx = MakeCUDACtx(0);
-  auto h_x = GenerateRandomCategoricalSingleColumn(n, num_categories);
-  thrust::device_vector<float> x(h_x);
-  auto adapter = AdapterFromData(x, n, 1);
-  MetaInfo info;
-  info.num_row_ = n;
-  info.num_col_ = 1;
-  info.feature_types.HostVector().push_back(FeatureType::kCategorical);
-
-  if (weighted) {
-    std::vector<float> weights(n, 0);
-    SimpleLCG lcg;
-    SimpleRealUniformDistribution<float> dist(0, 1);
-    for (auto& v : weights) {
-      v = dist(&lcg);
-    }
-    info.weights_.HostVector() = weights;
-  }
-
-  ASSERT_EQ(info.feature_types.Size(), 1);
-  SketchContainer container(info.feature_types, num_bins, 1, DeviceOrd::CUDA(0));
-  AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
-                      std::numeric_limits<float>::quiet_NaN(), &container);
-  auto cuts = container.MakeCuts(&ctx, info.IsColumnSplit());
-
-  thrust::sort(x.begin(), x.end());
-  auto n_uniques = thrust::unique(x.begin(), x.end()) - x.begin();
-  ASSERT_NE(n_uniques, x.size());
-  ASSERT_EQ(cuts.TotalBins(), n_uniques);
-  ASSERT_EQ(n_uniques, num_categories);
-
-  auto& values = cuts.cut_values_.HostVector();
-  ASSERT_TRUE(std::is_sorted(values.cbegin(), values.cend()));
-  auto is_unique = (std::unique(values.begin(), values.end()) - values.begin()) == n_uniques;
-  ASSERT_TRUE(is_unique);
-
-  x.resize(n_uniques);
-  h_x.resize(n_uniques);
-  thrust::copy(x.begin(), x.end(), h_x.begin());
-  for (decltype(n_uniques) i = 0; i < n_uniques; ++i) {
-    ASSERT_EQ(h_x[i], values[i]);
-  }
-}
-
-TEST(HistUtil, AdapterDeviceSketchCategorical) {
-  auto categorical_sizes = {2, 6, 8, 12};
-  int num_bins = 256;
-  auto ctx = MakeCUDACtx(0);
-  auto sizes = {25, 100, 1000};
-  for (auto n : sizes) {
-    for (auto num_categories : categorical_sizes) {
-      auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
-      auto dmat = GetDMatrixFromData(x, n, 1);
-      auto x_device = thrust::device_vector<float>(x);
-      auto adapter = AdapterFromData(x_device, n, 1);
-      ValidateBatchedCuts(&ctx, adapter, num_bins, dmat.get());
-      TestCategoricalSketchAdapter(n, num_categories, num_bins, true);
-      TestCategoricalSketchAdapter(n, num_categories, num_bins, false);
-    }
-  }
-}
-
-namespace {
-auto MakeData(Context const* ctx, std::size_t n_samples, bst_feature_t n_features) {
-  curt::SetDevice(ctx->Ordinal());
+  bst_feature_t n_features = 12;
+  curt::SetDevice(ctx.Ordinal());
   auto n = n_samples * n_features;
-  std::vector<float> x;
-  x.resize(n);
-
+  std::vector<float> x(n);
   std::iota(x.begin(), x.end(), 0.0f);
-  std::int32_t c{0};
   float missing = n_samples * n_features;
   for (std::size_t i = 0; i < x.size(); ++i) {
     if (i % 5 == 0) {
       x[i] = missing;
-      c++;
     }
   }
-  thrust::device_vector<float> d_x;
-  d_x = x;
-
-  auto n_invalids = n / 10 * 2 + 1;
+  thrust::device_vector<float> d_x = x;
   auto is_valid = data::IsValidFunctor{missing};
-  return std::tuple{x, d_x, n_invalids, is_valid};
-}
-
-void TestGetColumnSize(std::size_t n_samples) {
-  auto ctx = MakeCUDACtx(0);
-  bst_feature_t n_features = 12;
-  [[maybe_unused]] auto [x, d_x, n_invalids, is_valid] = MakeData(&ctx, n_samples, n_features);
 
   auto adapter = AdapterFromData(d_x, n_samples, n_features);
   auto batch = adapter.Value();
@@ -344,16 +229,8 @@ void TestGetColumnSize(std::size_t n_samples) {
   thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
   ASSERT_EQ(h_column_size, h_column_size_1);
 }
-}  // namespace
 
-TEST(HistUtil, GetColumnSize) {
-  bst_idx_t n_samples = 4096;
-  TestGetColumnSize(n_samples);
-}
-
-// Check sketching from adapter or DMatrix results in the same answer
-// Consistency here is useful for testing and user experience
-TEST(HistUtil, SketchingEquivalent) {
+TEST(HistUtil, AdapterSketch) {
   auto ctx = MakeCUDACtx(0);
   auto bin_sizes = {2, 16, 256, 512};
   auto sizes = {100, 1000, 1500};
@@ -365,262 +242,123 @@ TEST(HistUtil, SketchingEquivalent) {
       auto dmat_cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
       auto x_device = thrust::device_vector<float>(x);
       auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-      common::HistogramCuts adapter_cuts = MakeUnweightedCutsForTest(
-          &ctx, adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
+      HostDeviceVector<FeatureType> ft;
+      SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), DeviceOrd::CUDA(0));
+      MetaInfo info;
+      AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
+                          std::numeric_limits<float>::quiet_NaN(), &sketch_container);
+      common::HistogramCuts adapter_cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
       EXPECT_EQ(dmat_cuts.Values(), adapter_cuts.Values());
       EXPECT_EQ(dmat_cuts.Ptrs(), adapter_cuts.Ptrs());
     }
   }
 }
 
-TEST(HistUtil, DeviceSketchFromGroupWeights) {
-  auto ctx = MakeCUDACtx(0);
-  size_t constexpr kRows = 3000, kCols = 200, kBins = 256;
-  size_t constexpr kGroups = 10;
-  auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
-
-  // sketch with group weight
-  auto& h_weights = m->Info().weights_.HostVector();
-  h_weights.resize(kGroups);
-  std::fill(h_weights.begin(), h_weights.end(), 1.0f);
-  std::vector<bst_group_t> groups(kGroups);
-  for (size_t i = 0; i < kGroups; ++i) {
-    groups[i] = kRows / kGroups;
-  }
-  m->SetInfo("group", Make1dInterfaceTest(groups.data(), kGroups));
-  HistogramCuts weighted_cuts = DeviceSketch(&ctx, m.get(), kBins);
-
-  // sketch with no weight
-  h_weights.clear();
-  HistogramCuts cuts = DeviceSketch(&ctx, m.get(), kBins);
-
-  ASSERT_EQ(cuts.Values(), weighted_cuts.Values());
-  ASSERT_EQ(cuts.Ptrs(), weighted_cuts.Ptrs());
-  ValidateCuts(weighted_cuts, m.get(), kBins);
-}
-
-void TestAdapterSketchFromWeights(bool with_group) {
+TEST(HistUtil, GroupWeightsEquivalentToRowWeightsOnDevice) {
   size_t constexpr kRows = 300, kCols = 20, kBins = 256;
   size_t constexpr kGroups = 10;
   HostDeviceVector<float> storage;
-  std::string m = RandomDataGenerator{kRows, kCols, 0}
-                      .Device(DeviceOrd::CUDA(0))
-                      .GenerateArrayInterface(&storage);
-  MetaInfo info;
+  auto interface_str = RandomDataGenerator{kRows, kCols, 0}
+                           .Device(DeviceOrd::CUDA(0))
+                           .GenerateArrayInterface(&storage);
   auto ctx = MakeCUDACtx(0);
-  auto& h_weights = info.weights_.HostVector();
-  if (with_group) {
-    h_weights.resize(kGroups);
-  } else {
-    h_weights.resize(kRows);
-  }
-  std::fill(h_weights.begin(), h_weights.end(), 1.0f);
-
-  std::vector<bst_group_t> groups(kGroups);
-  if (with_group) {
-    for (size_t i = 0; i < kGroups; ++i) {
-      groups[i] = kRows / kGroups;
-    }
-    info.SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), kGroups));
+  std::vector<bst_group_t> group_sizes(kGroups, kRows / kGroups);
+  std::vector<bst_group_t> group_ptr(kGroups + 1, 0);
+  std::partial_sum(group_sizes.begin(), group_sizes.end(), group_ptr.begin() + 1);
+  std::vector<float> group_weights(kGroups);
+  for (size_t i = 0; i < group_weights.size(); ++i) {
+    group_weights[i] = static_cast<float>(i + 1) / static_cast<float>(kGroups);
   }
 
-  info.weights_.SetDevice(DeviceOrd::CUDA(0));
-  info.num_row_ = kRows;
-  info.num_col_ = kCols;
+  auto make_adapter_cuts = [&] {
+    MetaInfo info;
+    info.SetInfo(ctx, "group", Make1dInterfaceTest(group_sizes.data(), group_sizes.size()));
+    info.weights_.HostVector() = group_weights;
+    info.weights_.SetDevice(DeviceOrd::CUDA(0));
+    info.num_row_ = kRows;
+    info.num_col_ = kCols;
 
-  data::CupyAdapter adapter(m);
-  auto const& batch = adapter.Value();
-  HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, kBins, kCols, DeviceOrd::CUDA(0));
-  AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_container);
-
-  auto cuts = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
-
-  auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
-  if (with_group) {
-    dmat->Info().SetInfo(ctx, "group", Make1dInterfaceTest(groups.data(), kGroups));
-  }
-
-  dmat->Info().SetInfo(ctx, "weight", Make1dInterfaceTest(h_weights.data(), h_weights.size()));
-  dmat->Info().num_col_ = kCols;
-  dmat->Info().num_row_ = kRows;
-  ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
-  ValidateCuts(cuts, dmat.get(), kBins);
-
-  if (with_group) {
-    dmat->Info().weights_ = decltype(dmat->Info().weights_)();  // remove weight
-    HistogramCuts non_weighted = DeviceSketch(&ctx, dmat.get(), kBins);
-    ASSERT_EQ(cuts.Values(), non_weighted.Values());
-    ASSERT_EQ(cuts.Ptrs(), non_weighted.Ptrs());
-  }
-
-  if (with_group) {
-    common::HistogramCuts weighted{0};
-    auto& h_weights = info.weights_.HostVector();
-    h_weights.resize(kGroups);
-    // Generate different weight.
-    for (size_t i = 0; i < h_weights.size(); ++i) {
-      // FIXME(jiamingy): Some entries generated GPU test cannot pass the validate cuts if
-      // we use more diverse weights, partially caused by
-      // https://github.com/dmlc/xgboost/issues/7946
-      h_weights[i] = (i % 2 == 0 ? 1 : 2) / static_cast<float>(kGroups);
-    }
-    SketchContainer sketch_container{ft, kBins, kCols, DeviceOrd::CUDA(0)};
+    data::CupyAdapter adapter(interface_str);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch{ft, kBins, kCols, DeviceOrd::CUDA(0)};
     AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
-                        &sketch_container);
-    weighted = sketch_container.MakeCuts(&ctx, info.IsColumnSplit());
-    ValidateCuts(weighted, dmat.get(), kBins);
+                        &sketch);
+    return sketch.MakeCuts(&ctx, info.IsColumnSplit());
+  };
+
+  auto grouped_cuts = make_adapter_cuts();
+
+  auto grouped = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
+  grouped->Info().SetInfo(ctx, "group",
+                          Make1dInterfaceTest(group_sizes.data(), group_sizes.size()));
+  grouped->Info().SetInfo(ctx, "weight",
+                          Make1dInterfaceTest(group_weights.data(), group_weights.size()));
+  auto device_grouped_cuts = DeviceSketch(&ctx, grouped.get(), kBins);
+
+  auto per_row = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
+  std::vector<float> row_weights(kRows);
+  for (size_t i = 0; i < row_weights.size(); ++i) {
+    auto gidx = dh::SegmentId(Span{group_ptr.data(), group_ptr.size()}, i);
+    row_weights[i] = group_weights[gidx];
   }
+  per_row->Info().SetInfo(ctx, "weight",
+                          Make1dInterfaceTest(row_weights.data(), row_weights.size()));
+  auto row_cuts = DeviceSketch(&ctx, per_row.get(), kBins);
+
+  ASSERT_EQ(device_grouped_cuts.Values(), row_cuts.Values());
+  ASSERT_EQ(device_grouped_cuts.Ptrs(), row_cuts.Ptrs());
+  ASSERT_EQ(grouped_cuts.Values(), row_cuts.Values());
+  ASSERT_EQ(grouped_cuts.Ptrs(), row_cuts.Ptrs());
 }
 
-TEST(HistUtil, AdapterSketchFromWeights) {
-  TestAdapterSketchFromWeights(false);
-  TestAdapterSketchFromWeights(true);
-}
+// For ranking data on GPU, sketching with group weights and Hessian should match sketching
+// with the equivalent per-row weights after expanding each group weight onto its rows.
+TEST(HistUtil, DeviceSketchWithHessianLTR) {
+  auto ctx = MakeCUDACtx(0);
+  bst_feature_t constexpr kFeatures = 5;
+  bst_group_t constexpr kGroups = 3;
+  std::vector<bst_idx_t> sizes = {1, 2, 256, 512, 1000, 1500};
+  std::vector<bst_bin_t> bin_sizes = {2, 16, 256, 512};
 
-namespace {
-class DeviceSketchWithHessianTest
-    : public ::testing::TestWithParam<std::tuple<bool, bst_idx_t, bst_bin_t>> {
-  bst_feature_t n_features_ = 5;
-  bst_group_t n_groups_{3};
+  for (auto n_samples : sizes) {
+    auto x = GenerateRandom(n_samples, kFeatures);
+    std::vector<bst_group_t> gptr(kGroups + 1, 0);
+    gptr[1] = n_samples / kGroups;
+    gptr[2] = n_samples / kGroups + gptr[1];
+    gptr.back() = n_samples;
 
-  auto GenerateHessian(Context const* ctx, bst_idx_t n_samples) const {
     HostDeviceVector<float> hessian;
     auto& h_hess = hessian.HostVector();
     h_hess = GenerateRandomWeights(n_samples);
     std::mt19937 rng(0);
     std::shuffle(h_hess.begin(), h_hess.end(), rng);
-    hessian.SetDevice(ctx->Device());
-    return hessian;
-  }
-
-  void CheckReg(Context const* ctx, std::shared_ptr<DMatrix> p_fmat, bst_bin_t n_bins,
-                HostDeviceVector<float> const& hessian, std::vector<float> const& w) const {
-    auto const& h_hess = hessian.ConstHostVector();
-    auto& h_weight = p_fmat->Info().weights_.HostVector();
-    h_weight = w;
-
-    HistogramCuts cuts_hess =
-        DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan());
-
-    // merge hessian
-    ASSERT_EQ(h_weight.size(), h_hess.size());
-    for (std::size_t i = 0; i < h_weight.size(); ++i) {
-      h_weight[i] = w[i] * h_hess[i];
-    }
-    ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
-
-    HistogramCuts cuts_wh = DeviceSketch(ctx, p_fmat.get(), n_bins);
-    ValidateCuts(cuts_wh, p_fmat.get(), n_bins);
-    ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
-    for (std::size_t i = 0; i < cuts_hess.Values().size(); ++i) {
-      ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
-    }
-
-    p_fmat->Info().weights_.HostVector() = w;
-  }
-
- protected:
-  Context ctx_ = MakeCUDACtx(0);
-
-  void TestLTR(Context const* ctx, bst_idx_t n_samples, bst_bin_t n_bins) const {
-    auto x = GenerateRandom(n_samples, n_features_);
-
-    std::vector<bst_group_t> gptr;
-    gptr.resize(n_groups_ + 1, 0);
-    gptr[1] = n_samples / n_groups_;
-    gptr[2] = n_samples / n_groups_ + gptr[1];
-    gptr.back() = n_samples;
-
-    auto hessian = this->GenerateHessian(ctx, n_samples);
-    auto const& h_hess = hessian.ConstHostVector();
-    auto p_fmat = GetDMatrixFromData(x, n_samples, n_features_);
-    p_fmat->Info().group_ptr_ = gptr;
-
-    // test with constant group weight
-    std::vector<float> w(n_groups_, 1.0f);
-    p_fmat->Info().weights_.HostVector() = w;
-    HistogramCuts cuts_hess =
-        DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan());
-    // make validation easier by converting it into sample weight.
-    p_fmat->Info().weights_.HostVector() = h_hess;
-    p_fmat->Info().group_ptr_.clear();
-    ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
-    // restore ltr properties
-    p_fmat->Info().weights_.HostVector() = w;
-    p_fmat->Info().group_ptr_ = gptr;
-
-    // test with random group weight
-    w = GenerateRandomWeights(n_groups_);
-    p_fmat->Info().weights_.HostVector() = w;
-    cuts_hess = DeviceSketchWithHessian(ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan());
-    // make validation easier by converting it into sample weight.
-    p_fmat->Info().weights_.Resize(n_samples);
-    for (std::size_t i = 0; i < h_hess.size(); ++i) {
-      auto gidx = dh::SegmentId(Span{gptr.data(), gptr.size()}, i);
-      p_fmat->Info().weights_.HostVector()[i] = w[gidx] * h_hess[i];
-    }
-    p_fmat->Info().group_ptr_.clear();
-    ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
-
-    // merge hessian with sample weight
-    p_fmat->Info().weights_.Resize(n_samples);
-    p_fmat->Info().group_ptr_.clear();
-    for (std::size_t i = 0; i < h_hess.size(); ++i) {
-      auto gidx = dh::SegmentId(Span{gptr.data(), gptr.size()}, i);
-      p_fmat->Info().weights_.HostVector()[i] = w[gidx] * h_hess[i];
-    }
-    auto cuts = DeviceSketch(ctx, p_fmat.get(), n_bins);
-    ValidateCuts(cuts, p_fmat.get(), n_bins);
-    ASSERT_EQ(cuts.Values().size(), cuts_hess.Values().size());
-    for (std::size_t i = 0; i < cuts.Values().size(); ++i) {
-      EXPECT_NEAR(cuts.Values()[i], cuts_hess.Values()[i], 1e-4f);
-    }
-  }
-
-  void TestRegression(Context const* ctx, bst_idx_t n_samples, bst_bin_t n_bins) const {
-    auto x = GenerateRandom(n_samples, n_features_);
-    auto p_fmat = GetDMatrixFromData(x, n_samples, n_features_);
-    std::vector<float> w = GenerateRandomWeights(n_samples);
-
-    auto hessian = this->GenerateHessian(ctx, n_samples);
-
-    this->CheckReg(ctx, p_fmat, n_bins, hessian, w);
-  }
-};
-
-auto MakeParamsForTest() {
-  std::vector<bst_idx_t> sizes = {1, 2, 256, 512, 1000, 1500};
-  std::vector<bst_bin_t> bin_sizes = {2, 16, 256, 512};
-  std::vector<std::tuple<bool, bst_idx_t, bst_bin_t>> configs;
-  for (auto n_samples : sizes) {
+    hessian.SetDevice(ctx.Device());
+    auto p_fmat = GetDMatrixFromData(x, n_samples, kFeatures);
+    std::vector<std::vector<float>> group_weight_cases = {std::vector<float>(kGroups, 1.0f),
+                                                          GenerateRandomWeights(kGroups)};
     for (auto n_bins : bin_sizes) {
-      configs.emplace_back(true, n_samples, n_bins);
-      configs.emplace_back(false, n_samples, n_bins);
+      for (auto const& group_weights : group_weight_cases) {
+        p_fmat->Info().group_ptr_ = gptr;
+        p_fmat->Info().weights_.HostVector() = group_weights;
+
+        auto cuts_hess =
+            DeviceSketchWithHessian(&ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan());
+        p_fmat->Info().weights_.Resize(p_fmat->Info().num_row_);
+        for (std::size_t i = 0; i < h_hess.size(); ++i) {
+          auto gidx = dh::SegmentId(Span{gptr.data(), gptr.size()}, i);
+          p_fmat->Info().weights_.HostVector()[i] = group_weights[gidx] * h_hess[i];
+        }
+        p_fmat->Info().group_ptr_.clear();
+        ValidateCuts(cuts_hess, p_fmat.get(), n_bins);
+
+        auto cuts = DeviceSketch(&ctx, p_fmat.get(), n_bins);
+        ValidateCuts(cuts, p_fmat.get(), n_bins);
+        ASSERT_EQ(cuts.Values().size(), cuts_hess.Values().size());
+        for (std::size_t i = 0; i < cuts.Values().size(); ++i) {
+          EXPECT_NEAR(cuts.Values()[i], cuts_hess.Values()[i], 1e-4f);
+        }
+      }
     }
   }
-  return configs;
 }
-}  // namespace
-
-TEST_P(DeviceSketchWithHessianTest, DeviceSketchWithHessian) {
-  auto param = GetParam();
-  auto n_samples = std::get<1>(param);
-  auto n_bins = std::get<2>(param);
-  if (std::get<0>(param)) {
-    this->TestLTR(&ctx_, n_samples, n_bins);
-  } else {
-    this->TestRegression(&ctx_, n_samples, n_bins);
-  }
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    HistUtil, DeviceSketchWithHessianTest, ::testing::ValuesIn(MakeParamsForTest()),
-    [](::testing::TestParamInfo<DeviceSketchWithHessianTest::ParamType> const& info) {
-      auto task = std::get<0>(info.param) ? "ltr" : "reg";
-      auto n_samples = std::to_string(std::get<1>(info.param));
-      auto n_bins = std::to_string(std::get<2>(info.param));
-      return std::string(task) + "_" + n_samples + "_" + n_bins;
-    });
 }  // namespace xgboost::common

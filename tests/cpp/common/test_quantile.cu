@@ -8,7 +8,6 @@
 #include "../../../src/common/quantile.cuh"
 #include "../collective/test_worker.h"  // for BaseMGPUTest
 #include "../helpers.h"
-#include "test_hist_util.h"
 #include "test_quantile.h"
 
 namespace xgboost {
