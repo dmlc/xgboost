@@ -199,9 +199,7 @@ TEST(HistUtil, GetColumnSize) {
   struct GetElementOp {
     Batch batch;
 
-    XGBOOST_DEVICE data::COOTuple operator()(std::size_t idx) const {
-      return batch.GetElement(idx);
-    }
+    __device__ data::COOTuple operator()(std::size_t idx) const { return batch.GetElement(idx); }
   };
 
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(thrust::make_counting_iterator(0llu),
