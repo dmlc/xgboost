@@ -394,15 +394,8 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   h_weights.clear();
   HistogramCuts cuts = DeviceSketch(&ctx, m.get(), kBins);
 
-  ASSERT_EQ(cuts.Values().size(), weighted_cuts.Values().size());
-  ASSERT_EQ(cuts.Ptrs().size(), weighted_cuts.Ptrs().size());
-
-  for (size_t i = 0; i < cuts.Values().size(); ++i) {
-    EXPECT_EQ(cuts.Values()[i], weighted_cuts.Values()[i]) << "i:" << i;
-  }
-  for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
-    ASSERT_EQ(cuts.Ptrs().at(i), weighted_cuts.Ptrs().at(i));
-  }
+  ASSERT_EQ(cuts.Values(), weighted_cuts.Values());
+  ASSERT_EQ(cuts.Ptrs(), weighted_cuts.Ptrs());
   ValidateCuts(weighted_cuts, m.get(), kBins);
 }
 
@@ -458,12 +451,8 @@ void TestAdapterSketchFromWeights(bool with_group) {
   if (with_group) {
     dmat->Info().weights_ = decltype(dmat->Info().weights_)();  // remove weight
     HistogramCuts non_weighted = DeviceSketch(&ctx, dmat.get(), kBins);
-    for (size_t i = 0; i < cuts.Values().size(); ++i) {
-      ASSERT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
-    }
-    for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
-      ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
-    }
+    ASSERT_EQ(cuts.Values(), non_weighted.Values());
+    ASSERT_EQ(cuts.Ptrs(), non_weighted.Ptrs());
   }
 
   if (with_group) {
