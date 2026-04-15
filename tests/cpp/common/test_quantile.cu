@@ -461,7 +461,7 @@ TEST(GPUQuantile, MergeMatchesCpuCombine) {
 }
 
 namespace {
-void AssertSameSketchOnAllWorkers(Context const* ctx, HostSketchView const& sketch) {
+void AssertSameSketchOnAllWorkers(HostSketchView const& sketch) {
   constexpr std::int32_t kRoot = 0;
   Context cpu_ctx;
 
@@ -514,7 +514,7 @@ void TestSameOnAllWorkers() {
       sketch_distributed.AllReduce(&ctx, false);
       auto h_sketch = CopySketchToHost(sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
       ValidateSketchInvariants(h_sketch, true);
-      AssertSameSketchOnAllWorkers(&ctx, h_sketch);
+      AssertSameSketchOnAllWorkers(h_sketch);
     }
   }
 }
