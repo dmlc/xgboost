@@ -54,7 +54,7 @@ auto MakeEntryBatch(std::vector<std::vector<float>> const& columns,
   for (bst_feature_t c = 0; c < columns.size(); ++c) {
     float prefix_sum = 0.0f;
     for (auto value : columns[c]) {
-      h_entries.emplace_back(Entry{c, value});
+      h_entries.emplace_back(c, value);
     }
     if (weights) {
       CHECK_EQ(columns[c].size(), (*weights)[c].size());
