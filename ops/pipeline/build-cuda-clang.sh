@@ -4,6 +4,31 @@
 
 set -euo pipefail
 
+dump_cmake_logs() {
+  local status="$?"
+
+  if [[ "${PWD}" != */"${build_dir}" ]]; then
+    return "${status}"
+  fi
+
+  echo "--- CMake configure failure diagnostics"
+  for log in \
+    CMakeFiles/CMakeConfigureLog.yaml \
+    CMakeFiles/CMakeError.log \
+    CMakeFiles/CMakeOutput.log; do
+    if [[ -f "${log}" ]]; then
+      echo "--- ${log}"
+      tail -n 400 "${log}"
+    fi
+  done
+
+  find CMakeFiles -path '*/CMakeTmp/*' -type f \( \
+      -name '*.log' -o -name '*.txt' -o -name '*.ninja' -o -name '*.cu' \) \
+      -print -exec sh -c 'echo "--- $1"; tail -n 200 "$1"' sh {} \; || true
+
+  return "${status}"
+}
+
 clang_version="21.1.8"
 cmake_version="4.2.3"
 build_dir="build-clang-cuda"
@@ -15,6 +40,8 @@ nccl_include_dir="${XGBOOST_NCCL_INCLUDE_DIR:-/usr/include}"
 nccl_root="${XGBOOST_NCCL_ROOT:-}"
 gpu_compute_ver="${XGBOOST_GPU_COMPUTE_VER:-75}"
 cuda_toolkit_root="${XGBOOST_CUDA_TOOLKIT_ROOT:-/usr/local/cuda}"
+
+trap dump_cmake_logs ERR
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -146,7 +173,7 @@ cmake_args=(
 )
 cmake_args+=("${nccl_args[@]}")
 cmake_args+=("${launcher_args[@]}")
-"${cmake_bin}" "${cmake_args[@]}"
+"${cmake_bin}" --debug-trycompile "${cmake_args[@]}"
 
 if [[ "${configure_only}" == 1 ]]; then
   popd
