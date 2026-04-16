@@ -36,8 +36,6 @@ target="xgboost"
 configure_only=0
 jobs="${XGBOOST_BUILD_JOBS:-}"
 cmake_prefix_path="${XGBOOST_CMAKE_PREFIX_PATH:-/opt/grpc}"
-nccl_include_dir="${XGBOOST_NCCL_INCLUDE_DIR:-/usr/include}"
-nccl_root="${XGBOOST_NCCL_ROOT:-}"
 gpu_compute_ver="${XGBOOST_GPU_COMPUTE_VER:-75}"
 cuda_toolkit_root="${XGBOOST_CUDA_TOOLKIT_ROOT:-/usr/local/cuda}"
 
@@ -143,14 +141,6 @@ if command -v sccache >/dev/null 2>&1; then
   )
 fi
 
-nccl_args=()
-if [[ -n "${nccl_root}" ]]; then
-  nccl_args=(
-    -DNccl_ROOT="${nccl_root}"
-    -DBUILD_WITH_SHARED_NCCL=ON
-  )
-fi
-
 mkdir -p "${build_dir}"
 pushd "${build_dir}"
 
@@ -168,9 +158,7 @@ cmake_args=(
   -DUSE_CUDA=ON
   -DUSE_OPENMP=ON
   -DHIDE_CXX_SYMBOLS=ON
-  -DUSE_NCCL=ON
-  -DNCCL_INCLUDE_DIR="${nccl_include_dir}"
-  -DUSE_DLOPEN_NCCL=ON
+  -DUSE_NCCL=OFF
   -DGOOGLE_TEST=ON
   -DUSE_DMLC_GTEST=ON
   -DENABLE_ALL_WARNINGS=ON
@@ -178,7 +166,6 @@ cmake_args=(
   -DPLUGIN_FEDERATED=OFF
   -DGPU_COMPUTE_VER="${gpu_compute_ver}"
 )
-cmake_args+=("${nccl_args[@]}")
 cmake_args+=("${launcher_args[@]}")
 "${cmake_bin}" --debug-trycompile "${cmake_args[@]}"
 
