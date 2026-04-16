@@ -113,6 +113,13 @@ echo "--- Build with clang-CUDA using ${clang_cxx}"
 "${clang_c}" --version
 "${clang_cxx}" --version
 "${cmake_bin}" --version
+echo "--- clang-CUDA toolchain probe"
+command -v clang-linker-wrapper || true
+command -v x86_64-conda-linux-gnu-ld || true
+ls -l \
+  "${clang_bin_dir}/clang-linker-wrapper" \
+  "${clang_bin_dir}/x86_64-conda-linux-gnu-ld" \
+  2>/dev/null || true
 
 if [[ -z "${jobs}" ]]; then
   if command -v nproc >/dev/null 2>&1; then
@@ -156,7 +163,7 @@ cmake_args=(
   -DCMAKE_CXX_COMPILER="${clang_cxx}"
   -DCMAKE_CUDA_COMPILER="${clang_cxx}"
   -DCMAKE_CUDA_ARCHITECTURES="${gpu_compute_ver}"
-  -DCMAKE_CUDA_FLAGS="-std=c++17 --cuda-path=${cuda_toolkit_root} -Wno-unknown-cuda-version"
+  -DCMAKE_CUDA_FLAGS="-std=c++17 --cuda-path=${cuda_toolkit_root} --cuda-gpu-arch=sm_${gpu_compute_ver} --no-cuda-version-check"
   -DCUDAToolkit_ROOT="${cuda_toolkit_root}"
   -DUSE_CUDA=ON
   -DUSE_OPENMP=ON
