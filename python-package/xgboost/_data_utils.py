@@ -97,8 +97,18 @@ def cuda_array_interface_dict(data: _CudaArrayLikeArg) -> CudaArrayInf:
     if array_hasobject(data):
         raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     ainf = data.__cuda_array_interface__
-    if "mask" in ainf:
-        ainf["mask"] = ainf["mask"].__cuda_array_interface__  # type: ignore[union-attr]
+    if "mask" in ainf and ainf["mask"] is not None:
+        mask_ainf = ainf["mask"].__cuda_array_interface__  # type: ignore[union-attr]
+        # Normalize the validity mask to XGBoost's expected layout (`|t1` bit field of
+        # length `n_samples`).
+        typestr = mask_ainf["typestr"]
+        n_samples = ainf["shape"][0]
+        if typestr[1] in ("u", "i", "t") and typestr[2:] == "1" and n_samples:
+            mask_ainf = dict(mask_ainf)
+            mask_ainf["typestr"] = "|t1"
+            mask_ainf["shape"] = (n_samples,)
+            mask_ainf.pop("strides", None)
+        ainf["mask"] = mask_ainf
     return ainf
 
 
