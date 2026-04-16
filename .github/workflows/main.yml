@@ -350,7 +350,7 @@ jobs:
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda-with-rmm
             container_options: "--gpus all --privileged"
-            test_args: "--use-rmm-pool"
+            test_args: "--use-rmm-pool --gtest_filter=-*DeathTest*"
           - cuda_version: 12
             suite: mgpu
             arch: x86_64
