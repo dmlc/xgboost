@@ -4,31 +4,6 @@
 
 set -euo pipefail
 
-dump_cmake_logs() {
-  local status="$?"
-
-  if [[ "${PWD}" != */"${build_dir}" ]]; then
-    return "${status}"
-  fi
-
-  echo "--- CMake configure failure diagnostics"
-  for log in \
-    CMakeFiles/CMakeConfigureLog.yaml \
-    CMakeFiles/CMakeError.log \
-    CMakeFiles/CMakeOutput.log; do
-    if [[ -f "${log}" ]]; then
-      echo "--- ${log}"
-      tail -n 400 "${log}"
-    fi
-  done
-
-  find CMakeFiles -path '*/CMakeTmp/*' -type f \( \
-      -name '*.log' -o -name '*.txt' -o -name '*.ninja' -o -name '*.cu' \) \
-      -print -exec sh -c 'echo "--- $1"; tail -n 200 "$1"' sh {} \; || true
-
-  return "${status}"
-}
-
 clang_version="21.1.8"
 cmake_version="4.2.3"
 build_dir="build-clang-cuda"
@@ -38,8 +13,7 @@ jobs="${XGBOOST_BUILD_JOBS:-}"
 cmake_prefix_path="${XGBOOST_CMAKE_PREFIX_PATH:-/opt/grpc}"
 gpu_compute_ver="${XGBOOST_GPU_COMPUTE_VER:-75}"
 cuda_toolkit_root="${XGBOOST_CUDA_TOOLKIT_ROOT:-/usr/local/cuda}"
-
-trap dump_cmake_logs ERR
+repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -74,6 +48,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "${build_dir}" != /* ]]; then
+  build_dir="${repo_root}/${build_dir}"
+fi
 
 if [[ "${XGBOOST_SKIP_CLANG_INSTALL:-0}" != 1 ]]; then
   if command -v mamba >/dev/null 2>&1; then
@@ -111,13 +89,15 @@ echo "--- Build with clang-CUDA using ${clang_cxx}"
 "${clang_c}" --version
 "${clang_cxx}" --version
 "${cmake_bin}" --version
-echo "--- clang-CUDA toolchain probe"
-command -v clang-linker-wrapper
-command -v x86_64-conda-linux-gnu-ld
-ls -l \
-  "${clang_bin_dir}/clang-linker-wrapper" \
-  "${clang_bin_dir}/x86_64-conda-linux-gnu-ld" \
-  2>/dev/null
+
+if ! command -v clang-linker-wrapper >/dev/null 2>&1; then
+  echo "clang-linker-wrapper is required for clang CUDA offload linking. Install clang-tools=${clang_version}."
+  exit 1
+fi
+if ! command -v x86_64-conda-linux-gnu-ld >/dev/null 2>&1; then
+  echo "x86_64-conda-linux-gnu-ld is required for the conda clang toolchain."
+  exit 1
+fi
 
 if [[ -z "${jobs}" ]]; then
   if command -v nproc >/dev/null 2>&1; then
@@ -141,11 +121,7 @@ if command -v sccache >/dev/null 2>&1; then
   )
 fi
 
-mkdir -p "${build_dir}"
-pushd "${build_dir}"
-
 cmake_args=(
-  ..
   -GNinja
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   -DCMAKE_PREFIX_PATH="${cmake_prefix_path}"
@@ -153,27 +129,21 @@ cmake_args=(
   -DCMAKE_CXX_COMPILER="${clang_cxx}"
   -DCMAKE_CUDA_COMPILER="${clang_cxx}"
   -DCMAKE_CUDA_ARCHITECTURES="${gpu_compute_ver}"
-  -DCMAKE_CUDA_FLAGS="-std=c++17 --cuda-path=${cuda_toolkit_root} --cuda-gpu-arch=sm_${gpu_compute_ver} --no-cuda-version-check"
   -DCUDAToolkit_ROOT="${cuda_toolkit_root}"
   -DUSE_CUDA=ON
   -DUSE_OPENMP=ON
   -DHIDE_CXX_SYMBOLS=ON
   -DUSE_NCCL=OFF
-  -DGOOGLE_TEST=ON
-  -DUSE_DMLC_GTEST=ON
   -DENABLE_ALL_WARNINGS=ON
   -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
   -DPLUGIN_FEDERATED=OFF
   -DGPU_COMPUTE_VER="${gpu_compute_ver}"
 )
 cmake_args+=("${launcher_args[@]}")
-"${cmake_bin}" --debug-trycompile "${cmake_args[@]}"
+"${cmake_bin}" -S "${repo_root}" -B "${build_dir}" "${cmake_args[@]}"
 
 if [[ "${configure_only}" == 1 ]]; then
-  popd
   exit 0
 fi
 
-time ninja -v -j "${jobs}" "${target}"
-
-popd
+time "${cmake_bin}" --build "${build_dir}" --target "${target}" --verbose -j "${jobs}"
