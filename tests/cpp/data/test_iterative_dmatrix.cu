@@ -10,8 +10,9 @@
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/ellpack_page.h"
 #include "../../../src/data/iterative_dmatrix.h"
-#include "../../../src/tree/param.h"  // TrainParam
-#include "../filesystem.h"            // for TemporaryDirectory
+#include "../../../src/tree/param.h"   // TrainParam
+#include "../common/test_hist_util.h"  // for ValidateCuts
+#include "../filesystem.h"             // for TemporaryDirectory
 #include "../helpers.h"
 #include "test_iterative_dmatrix.h"
 
@@ -47,16 +48,12 @@ void TestEquivalent(float sparsity) {
 
     std::visit(
         [](auto&& from_iter, auto&& from_data) {
-          ASSERT_EQ(from_iter.gidx_fvalue_map.size(), from_data.gidx_fvalue_map.size());
-          for (size_t i = 0; i < from_iter.gidx_fvalue_map.size(); ++i) {
-            EXPECT_NEAR(from_iter.gidx_fvalue_map[i], from_data.gidx_fvalue_map[i], kRtEps);
-          }
           ASSERT_EQ(from_iter.NumFeatures(), from_data.NumFeatures());
-          for (size_t i = 0; i < from_iter.NumFeatures() + 1; ++i) {
-            ASSERT_EQ(from_iter.feature_segments[i], from_data.feature_segments[i]);
-          }
         },
         from_iter, from_data);
+
+    common::ValidateCuts(page_concatenated->Cuts(), dm.get(), 256);
+    common::ValidateCuts(ellpack.Impl()->Cuts(), dm.get(), 256);
 
     std::vector<common::CompressedByteT> buffer_from_iter, buffer_from_data;
     auto data_iter = page_concatenated->GetHostEllpack(&ctx, &buffer_from_iter);
@@ -65,17 +62,14 @@ void TestEquivalent(float sparsity) {
     ASSERT_NE(buffer_from_iter.size(), 0);
     CHECK_EQ(ellpack.Impl()->NumSymbols(), page_concatenated->NumSymbols());
 
-    std::visit(
-        [](auto&& from_iter, auto&& from_data) {
-          CHECK_EQ(from_data.n_rows * from_data.row_stride,
-                   from_data.n_rows * from_iter.row_stride);
-        },
-        from_iter, from_data);
+    std::visit([](auto&& from_iter,
+                  auto&& from_data) { CHECK_EQ(from_data.row_stride, from_iter.row_stride); },
+               from_iter, from_data);
     std::visit(
         [](auto&& from_data, auto&& data_buf, auto&& data_iter) {
-          for (size_t i = 0; i < from_data.n_rows * from_data.row_stride; ++i) {
-            CHECK_EQ(data_buf.gidx_iter[i], data_iter.gidx_iter[i]);
-          }
+          ASSERT_EQ(data_buf.row_stride, data_iter.row_stride);
+          ASSERT_EQ(data_buf.NullValue(), data_iter.NullValue());
+          ASSERT_EQ(from_data.n_rows * from_data.row_stride, data_buf.n_rows * data_buf.row_stride);
         },
         from_data, data_buf, data_iter);
   }

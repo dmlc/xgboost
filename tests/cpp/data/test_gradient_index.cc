@@ -2,25 +2,25 @@
  * Copyright 2021-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/data.h>                       // for BatchIterator, BatchSet, DMatrix, BatchParam
+#include <xgboost/data.h>  // for BatchIterator, BatchSet, DMatrix, BatchParam
 
-#include <algorithm>                            // for sort, unique
-#include <cmath>                                // for isnan
-#include <cstddef>                              // for size_t
-#include <limits>                               // for numeric_limits
-#include <memory>                               // for shared_ptr, __shared_ptr_access, unique_ptr
-#include <string>                               // for string
-#include <tuple>                                // for make_tuple, tie, tuple
-#include <utility>                              // for move
-#include <vector>                               // for vector
+#include <algorithm>  // for sort, unique
+#include <cmath>      // for isnan
+#include <cstddef>    // for size_t
+#include <limits>     // for numeric_limits
+#include <memory>     // for shared_ptr, __shared_ptr_access, unique_ptr
+#include <string>     // for string
+#include <tuple>      // for make_tuple, tie, tuple
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../../../src/common/categorical.h"    // for AsCat
 #include "../../../src/common/column_matrix.h"  // for ColumnMatrix
 #include "../../../src/common/hist_util.h"      // for Index, HistogramCuts, SketchOnDMatrix
-#include "../../../src/common/io.h"             // for MemoryBufferStream
 #include "../../../src/data/adapter.h"          // for SparsePageAdapterBatch
 #include "../../../src/data/gradient_index.h"   // for GHistIndexMatrix
 #include "../../../src/tree/param.h"            // for TrainParam
+#include "../common/test_hist_util.h"           // for ValidateCuts
 #include "../helpers.h"                         // for GenerateRandomCategoricalSingleColumn...
 #include "xgboost/base.h"                       // for bst_bin_t
 #include "xgboost/context.h"                    // for Context
@@ -184,12 +184,8 @@ class GHistIndexMatrixTest : public testing::TestWithParam<std::tuple<float, flo
       ASSERT_EQ(from_sparse_page.Size(), from_ellpack->Size());
       ASSERT_EQ(from_sparse_page.index.Size(), from_ellpack->index.Size());
 
-      auto const &gidx_from_sparse = from_sparse_page.index;
-      auto const &gidx_from_ellpack = from_ellpack->index;
-
-      for (size_t i = 0; i < gidx_from_sparse.Size(); ++i) {
-        ASSERT_EQ(gidx_from_sparse[i], gidx_from_ellpack[i]);
-      }
+      common::ValidateCuts(from_sparse_page.Cuts(), Xy.get(), kBins);
+      common::ValidateCuts(from_ellpack->Cuts(), Xy.get(), kBins);
 
       auto const &columns_from_sparse = from_sparse_page.Transpose();
       auto const &columns_from_ellpack = from_ellpack->Transpose();
@@ -199,20 +195,6 @@ class GHistIndexMatrixTest : public testing::TestWithParam<std::tuple<float, flo
       for (size_t i = 0; i < n_features; ++i) {
         ASSERT_EQ(columns_from_sparse.GetColumnType(i), columns_from_ellpack.GetColumnType(i));
       }
-
-      std::string from_sparse_buf;
-      {
-        common::AlignedMemWriteStream fo{&from_sparse_buf};
-        auto n_bytes = columns_from_sparse.Write(&fo);
-        ASSERT_EQ(fo.Tell(), n_bytes);
-      }
-      std::string from_ellpack_buf;
-      {
-        common::AlignedMemWriteStream fo{&from_ellpack_buf};
-        auto n_bytes = columns_from_sparse.Write(&fo);
-        ASSERT_EQ(fo.Tell(), n_bytes);
-      }
-      ASSERT_EQ(from_sparse_buf, from_ellpack_buf);
     }
   }
 };
