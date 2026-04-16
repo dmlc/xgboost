@@ -2003,7 +2003,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             iteration_range=iteration_range,
         )
 
-    predict_proba.__doc__ = XGBClassifier.predict_proba.__doc__
+    if XGBClassifier.predict_proba.__doc__ is not None:
+        predict_proba.__doc__ = XGBClassifier.predict_proba.__doc__
 
     async def _predict_async(
         self,
@@ -2146,7 +2147,8 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
 
     # FIXME(trivialfis): arguments differ due to additional parameters like group and
     # qid.
-    fit.__doc__ = XGBRanker.fit.__doc__
+    if XGBRanker.fit.__doc__ is not None:
+        fit.__doc__ = XGBRanker.fit.__doc__
 
 
 @xgboost_model_doc(

@@ -968,7 +968,8 @@ class XGBModel(XGBModelBase):
         self.get_booster().save_model(fname)
         self.get_booster().set_attr(scikit_learn=None)
 
-    save_model.__doc__ = f"""{Booster.save_model.__doc__}"""
+    if Booster.save_model.__doc__ is not None:
+        save_model.__doc__ = f"""{Booster.save_model.__doc__}"""
 
     def load_model(self, fname: ModelIn) -> None:
         # pylint: disable=attribute-defined-outside-init
@@ -991,7 +992,8 @@ class XGBModel(XGBModelBase):
         config = json.loads(self.get_booster().save_config())
         self._load_model_attributes(config)
 
-    load_model.__doc__ = f"""{Booster.load_model.__doc__}"""
+    if Booster.load_model.__doc__ is not None:
+        load_model.__doc__ = f"""{Booster.load_model.__doc__}"""
 
     def _load_model_attributes(self, config: dict) -> None:
         """Load model attributes without hyper-parameters."""
@@ -1616,10 +1618,10 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             self._set_evaluation_result(evals_result)
             return self
 
-    assert XGBModel.fit.__doc__ is not None
-    fit.__doc__ = XGBModel.fit.__doc__.replace(
-        "Fit gradient boosting model", "Fit gradient boosting classifier", 1
-    )
+    if XGBModel.fit.__doc__ is not None:
+        fit.__doc__ = XGBModel.fit.__doc__.replace(
+            "Fit gradient boosting model", "Fit gradient boosting classifier", 1
+        )
 
     def predict(
         self,
