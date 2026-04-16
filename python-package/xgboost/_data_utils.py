@@ -525,6 +525,49 @@ def parse_cal_ver(ver: str) -> tuple[int, int]:
     return int(vers[0]), int(vers[1])
 
 
+def _cudf_str_cat_inf(cats: DfCatAccessor) -> Tuple[CudaStringArray, Tuple]:
+    """String category index path for :py:func:`cudf_cat_inf`."""
+    import pandas as pd  # pylint: disable=import-outside-toplevel
+    import pylibcudf as plc  # pylint: disable=import-outside-toplevel
+
+    # pylint: disable=protected-access
+    col_dtype = cats._column.dtype
+    if not (col_dtype == np.dtype("object") or isinstance(col_dtype, pd.StringDtype)):
+        raise TypeError(
+            "Unexpected type for category index. It's neither numeric nor string."
+        )
+
+    plc_col = cats._column.to_pylibcudf()
+    if plc_col.type().id() != plc.TypeId.STRING:
+        raise TypeError(
+            "Unexpected type for category index. It's neither numeric nor string."
+        )
+    # Categories should not have missing values nor a non-zero logical offset.
+    assert plc_col.null_count() == 0
+    assert plc_col.offset() == 0
+
+    off_child = plc_col.children()[0]  # offsets
+    assert off_child.type().id() == plc.TypeId.INT32, "Expected INT32 string offsets."
+
+    # String category index in arrow format
+    jdata: CudaArrayInf = _arrow_buf_inf(
+        plc_col.data().__cuda_array_interface__["data"][0],
+        "|i1",
+        0,
+        STREAM_PER_THREAD,
+    )
+    joffset: CudaArrayInf = _arrow_buf_inf(
+        off_child.data().__cuda_array_interface__["data"][0],
+        "<i4",
+        off_child.size(),
+        STREAM_PER_THREAD,
+    )
+    jnames: CudaStringArray = {"offsets": joffset, "values": jdata}
+    # Keep `plc_col` alive: it owns the GPU buffers pointed to by `jdata` and
+    # `joffset`.
+    return jnames, (plc_col,)
+
+
 def cudf_cat_inf(
     cats: DfCatAccessor, codes: "pd.Series"
 ) -> Tuple[Union[CudaArrayInf, CudaStringArray], ArrayInf, Tuple]:
@@ -538,43 +581,9 @@ def cudf_cat_inf(
         codes_ainf = cuda_array_interface_dict(codes)
         return cats_ainf, codes_ainf, (cats, codes)
 
-    import pandas as pd  # pylint: disable=import-outside-toplevel
-    import pylibcudf as plc  # pylint: disable=import-outside-toplevel
-
-    # pylint: disable=protected-access
-    col_dtype = cats._column.dtype
-    if not (col_dtype == np.dtype("object") or isinstance(col_dtype, pd.StringDtype)):
-        raise TypeError(
-            "Unexpected type for category index. It's neither numeric nor string."
-        )
-
-    plc_col = cats._column.to_pylibcudf()
-
-    if plc_col.type().id() != plc.TypeId.STRING:
-        raise TypeError(
-            "Unexpected type for category index. It's neither numeric nor string."
-        )
-    # Categories should not have missing values nor a non-zero logical offset.
-    assert plc_col.null_count() == 0
-    assert plc_col.offset() == 0
-
-    off_child = plc_col.children()[0]  # offsets
-    assert off_child.type().id() == plc.TypeId.INT32, "Expected INT32 string offsets."
-
-    # String category index in arrow format
-    data_ptr = plc_col.data().__cuda_array_interface__["data"][0]  # values
-    off_ptr = off_child.data().__cuda_array_interface__["data"][0]  # offsets
-
-    jdata: CudaArrayInf = _arrow_buf_inf(data_ptr, "|i1", 0, STREAM_PER_THREAD)
-    joffset: CudaArrayInf = _arrow_buf_inf(
-        off_ptr, "<i4", off_child.size(), STREAM_PER_THREAD
-    )
-    jnames: CudaStringArray = {"offsets": joffset, "values": jdata}
-
+    jnames, buf = _cudf_str_cat_inf(cats)
     jcodes = cuda_array_interface_dict(codes)
-    # Keep `plc_col` alive: it owns the GPU buffers pointed to by `jdata` and
-    # `joffset`.
-    return jnames, jcodes, (plc_col,)
+    return jnames, jcodes, buf
 
 
 class Categories:
