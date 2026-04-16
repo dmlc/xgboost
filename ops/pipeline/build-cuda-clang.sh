@@ -79,11 +79,11 @@ done
 
 if [[ "${XGBOOST_SKIP_CLANG_INSTALL:-0}" != 1 ]]; then
   if command -v mamba >/dev/null 2>&1; then
-    mamba install -y -n base -c conda-forge "clangxx=${clang_version}" "cmake=${cmake_version}"
+    mamba install -y -n base -c conda-forge "clangxx=${clang_version}" "clang-tools=${clang_version}" "cmake=${cmake_version}"
   elif command -v conda >/dev/null 2>&1; then
-    conda install -y -n base -c conda-forge "clangxx=${clang_version}" "cmake=${cmake_version}"
+    conda install -y -n base -c conda-forge "clangxx=${clang_version}" "clang-tools=${clang_version}" "cmake=${cmake_version}"
   else
-    echo "clangxx=${clang_version} and cmake=${cmake_version} are required, but neither mamba nor conda is available."
+    echo "clangxx=${clang_version}, clang-tools=${clang_version}, and cmake=${cmake_version} are required, but neither mamba nor conda is available."
     exit 1
   fi
 fi
@@ -114,12 +114,12 @@ echo "--- Build with clang-CUDA using ${clang_cxx}"
 "${clang_cxx}" --version
 "${cmake_bin}" --version
 echo "--- clang-CUDA toolchain probe"
-command -v clang-linker-wrapper || true
-command -v x86_64-conda-linux-gnu-ld || true
+command -v clang-linker-wrapper
+command -v x86_64-conda-linux-gnu-ld
 ls -l \
   "${clang_bin_dir}/clang-linker-wrapper" \
   "${clang_bin_dir}/x86_64-conda-linux-gnu-ld" \
-  2>/dev/null || true
+  2>/dev/null
 
 if [[ -z "${jobs}" ]]; then
   if command -v nproc >/dev/null 2>&1; then
