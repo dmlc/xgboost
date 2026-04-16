@@ -14,6 +14,7 @@ cmake_prefix_path="${XGBOOST_CMAKE_PREFIX_PATH:-/opt/grpc}"
 nccl_include_dir="${XGBOOST_NCCL_INCLUDE_DIR:-/usr/include}"
 nccl_root="${XGBOOST_NCCL_ROOT:-}"
 gpu_compute_ver="${XGBOOST_GPU_COMPUTE_VER:-75}"
+cuda_toolkit_root="${XGBOOST_CUDA_TOOLKIT_ROOT:-/usr/local/cuda}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -128,7 +129,8 @@ cmake_args=(
   -DCMAKE_CXX_COMPILER="${clang_cxx}"
   -DCMAKE_CUDA_COMPILER="${clang_cxx}"
   -DCMAKE_CUDA_ARCHITECTURES="${gpu_compute_ver}"
-  -DCMAKE_CUDA_FLAGS="-std=c++17"
+  -DCMAKE_CUDA_FLAGS="-std=c++17 --cuda-path=${cuda_toolkit_root} -Wno-unknown-cuda-version"
+  -DCUDAToolkit_ROOT="${cuda_toolkit_root}"
   -DUSE_CUDA=ON
   -DUSE_OPENMP=ON
   -DHIDE_CXX_SYMBOLS=ON
