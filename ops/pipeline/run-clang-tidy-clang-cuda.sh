@@ -1,5 +1,5 @@
 #!/bin/bash
-## Smoke-test clang-tidy using a clang-generated CUDA compilation database.
+## Run clang-tidy using a clang-generated CUDA compilation database.
 
 set -euo pipefail
 
@@ -7,8 +7,11 @@ clang_version="21.1.8"
 cmake_version="4.2.3"
 build_dir="build-clang-tidy-cuda"
 jobs="${XGBOOST_TIDY_JOBS:-}"
-checks="${XGBOOST_TIDY_CHECKS:--*,google-runtime-int}"
-files_csv="${XGBOOST_TIDY_FILES:-src/common/timer.cc,src/predictor/interpretability/shap.cu}"
+checks="${XGBOOST_TIDY_CHECKS:-}"
+extra_args_csv="${XGBOOST_TIDY_EXTRA_ARGS:--Wno-everything}"
+files_csv="${XGBOOST_TIDY_FILES:-}"
+source_filter="${XGBOOST_TIDY_SOURCE_FILTER:-}"
+warnings_as_errors="${XGBOOST_TIDY_WARNINGS_AS_ERRORS:-*,-clang-diagnostic-*,-clang-analyzer-*}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -32,13 +35,25 @@ while [[ $# -gt 0 ]]; do
       checks="$2"
       shift 2
       ;;
+    --extra-arg)
+      extra_args_csv="$2"
+      shift 2
+      ;;
     --files)
       files_csv="$2"
       shift 2
       ;;
+    --source-filter)
+      source_filter="$2"
+      shift 2
+      ;;
+    --warnings-as-errors)
+      warnings_as_errors="$2"
+      shift 2
+      ;;
     *)
       echo "Unrecognized argument: $1"
-      echo "Usage: $0 [--clang-version <version>] [--cmake-version <version>] [--build-dir <dir>] [--jobs <n>] [--checks <filter>] [--files <comma-separated-files>]"
+      echo "Usage: $0 [--clang-version <version>] [--cmake-version <version>] [--build-dir <dir>] [--jobs <n>] [--checks <filter>] [--extra-arg <comma-separated-extra-args>] [--files <comma-separated-files>] [--source-filter <regex>] [--warnings-as-errors <filter>]"
       exit 1
       ;;
   esac
@@ -58,6 +73,9 @@ if [[ -z "${jobs}" ]]; then
 fi
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
+if [[ -z "${source_filter}" ]]; then
+  source_filter="${repo_root}/src/.*"
+fi
 
 "${repo_root}/ops/pipeline/build-cuda-clang.sh" \
   --clang-version "${clang_version}" \
@@ -79,11 +97,31 @@ if [[ ! -x "${clang_run_tidy}" ]]; then
   clang_run_tidy="$(command -v run-clang-tidy)"
 fi
 
+IFS=',' read -r -a extra_args <<< "${extra_args_csv}"
 IFS=',' read -r -a tidy_files <<< "${files_csv}"
 
-"${clang_run_tidy}" \
+tidy_args=(
   -p "${repo_root}/${build_dir}" \
   -j "${jobs}" \
-  -checks="${checks}" \
-  -quiet \
-  "${tidy_files[@]}"
+  -config-file "${repo_root}/.clang-tidy" \
+  -header-filter "${repo_root}/(include|src)/.*" \
+  -source-filter "${source_filter}" \
+  -quiet
+)
+
+if [[ -n "${checks}" ]]; then
+  tidy_args+=(-checks="${checks}")
+fi
+if [[ -n "${extra_args_csv}" ]]; then
+  for extra_arg in "${extra_args[@]}"; do
+    tidy_args+=(-extra-arg="${extra_arg}")
+  done
+fi
+if [[ -n "${warnings_as_errors}" ]]; then
+  tidy_args+=(-warnings-as-errors="${warnings_as_errors}")
+fi
+if [[ -n "${files_csv}" ]]; then
+  tidy_args+=("${tidy_files[@]}")
+fi
+
+"${clang_run_tidy}" "${tidy_args[@]}"

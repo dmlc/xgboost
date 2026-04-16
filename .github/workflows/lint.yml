@@ -59,7 +59,7 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/run-clang-tidy.sh
 
-  clang-tidy-clang-cuda-smoke:
+  clang-tidy-clang-cuda:
     name: Run clang-tidy from clang-CUDA compile DB
     needs: ci-configure
     runs-on:
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@v6.0.2
         with:
           submodules: "true"
-      - name: Run clang-tidy smoke on CPU and CUDA translation units
+      - name: Run clang-tidy on clang-CUDA compile database
         run: bash ops/pipeline/run-clang-tidy-clang-cuda.sh
 
   python-mypy:
