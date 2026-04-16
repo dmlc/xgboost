@@ -519,12 +519,6 @@ def check_cudf_meta(data: _CudaArrayLikeArg, field: str) -> None:
         raise ValueError(f"Missing value is not allowed for: {field}")
 
 
-def parse_cal_ver(ver: str) -> tuple[int, int]:
-    """Parse calendar version."""
-    vers = ver.strip().split(".")
-    return int(vers[0]), int(vers[1])
-
-
 def _cudf_str_cat_inf(cats: DfCatAccessor) -> Tuple[CudaStringArray, Tuple]:
     """String category index path for :py:func:`cudf_cat_inf`."""
     import pandas as pd  # pylint: disable=import-outside-toplevel
