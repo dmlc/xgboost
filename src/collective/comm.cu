@@ -7,7 +7,6 @@
 #include <cstdint>    // for uint64_t, int8_t
 #include <cstring>    // for memcpy
 #include <memory>     // for shared_ptr
-#include <sstream>    // for stringstream
 #include <vector>     // for vector
 
 #include "../common/cuda_context.cuh"   // for CUDAContext
@@ -47,7 +46,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
                    StringView nccl_path)
     : Comm{root.TrackerInfo().host, root.TrackerInfo().port, root.Timeout(), root.Retry(),
            root.TaskID()},
-      stream_{ctx->CUDACtx()->Stream()} {
+      stream_{} {
   this->world_ = root.World();
   this->rank_ = root.Rank();
   this->domain_ = root.Domain();
@@ -97,11 +96,14 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
     // Keep point-to-point channel launches on the communicator stream so helper-local staging
     // work and the NCCL send/recv edges share one ordering domain.
     this->channels_.emplace_back(
-        std::make_shared<NCCLChannel>(root, r, nccl_comm_, stub_, stream_));
+        std::make_shared<NCCLChannel>(root, r, nccl_comm_, stub_, stream_.View()));
   }
 }
 
 NCCLComm::~NCCLComm() {
+  // Drain any kernels NCCL's non-blocking async thread may have queued on our stream
+  // before `stream_` destructs the underlying cudaStream_t.
+  (void)stream_.Sync();
   if (nccl_comm_) {
     auto rc = Success() << [this] {
       return this->stub_->CommFinalize(this->nccl_comm_);

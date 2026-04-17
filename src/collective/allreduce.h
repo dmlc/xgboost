@@ -377,7 +377,9 @@ AllreduceV(Comm const& comm, dh::device_vector<T>* data, AllreduceVScratch<T>* s
     return Fail("Distributed GPU AllreduceV requires NCCL support.");
   }
 
-  return gpu_impl::AllreduceV(*nccl, data, scratch, std::forward<Fn>(redop));
+  // No separate user stream available; let the NCCL stream drive everything.
+  // Cross-stream events inside `gpu_impl::AllreduceV` degenerate to same-stream no-ops.
+  return gpu_impl::AllreduceV(nccl->Stream(), *nccl, data, scratch, std::forward<Fn>(redop));
 }
 
 template <typename T, typename Fn>
@@ -396,7 +398,8 @@ AllreduceV(Context const* ctx, CommGroup const& comm, dh::device_vector<T>* data
   auto const& cctx = comm.Ctx(ctx, ctx->Device());
   auto nccl = dynamic_cast<NCCLComm const*>(&cctx);
   if (nccl != nullptr) {
-    return gpu_impl::AllreduceV(*nccl, data, scratch, std::forward<Fn>(redop));
+    return gpu_impl::AllreduceV(ctx->CUDACtx()->Stream(), *nccl, data, scratch,
+                                std::forward<Fn>(redop));
   }
   return gpu_detail::AllreduceVHostFallback(ctx, comm, data, scratch, std::forward<Fn>(redop));
 }

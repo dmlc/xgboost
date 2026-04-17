@@ -91,17 +91,8 @@ struct Chan {
 
 template <typename Fn, typename R = std::invoke_result_t<Fn, curt::StreamRef>>
 [[nodiscard]] std::enable_if_t<std::is_same_v<R, Result>, Result> AsyncLaunch(
-    common::ThreadPool* pool, NCCLComm const* nccl, std::shared_ptr<NcclStub> stub,
-    curt::StreamRef stream, Fn&& fn) {
-  curt::Event e0;
-  e0.Record(nccl->Stream());
-  stream.Wait(e0);
-
-  auto cleanup = common::MakeCleanup([&] {
-    curt::Event e1;
-    e1.Record(stream);
-    nccl->Stream().Wait(e1);
-  });
+    common::ThreadPool* pool, NCCLComm const* nccl, std::shared_ptr<NcclStub> stub, Fn&& fn) {
+  auto stream = nccl->Stream();
 
   Chan chan;
 
@@ -195,14 +186,13 @@ void RunBitwiseAllreduce(curt::StreamRef stream, common::Span<std::int8_t> out_b
 }
 
 [[nodiscard]] Result BitwiseAllReduce(common::ThreadPool* pool, NCCLComm const* pcomm,
-                                      common::Span<std::int8_t> data, Op op,
-                                      curt::StreamRef stream) {
+                                      common::Span<std::int8_t> data, Op op) {
   dh::device_vector<std::int8_t> buffer(data.size() * pcomm->World());
   auto* device_buffer = buffer.data().get();
   auto stub = pcomm->Stub();
 
   // First gather data from all the workers.
-  auto rc = AsyncLaunch(pool, pcomm, stub, stream, [&](curt::StreamRef s) {
+  auto rc = AsyncLaunch(pool, pcomm, stub, [&](curt::StreamRef s) {
     return stub->Allgather(data.data(), device_buffer, data.size(), ncclInt8, pcomm->Handle(), s);
   });
   if (!rc.OK()) {
@@ -259,16 +249,15 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
   return Success() << [&] {
     if (IsBitwiseOp(op)) {
-      return BitwiseAllReduce(&this->pool_, nccl, data, op, this->stream_.View());
+      return BitwiseAllReduce(&this->pool_, nccl, data, op);
     } else {
       return DispatchDType(type, [&](auto t) {
         using T = decltype(t);
         auto rdata = common::RestoreType<T>(data);
-        return AsyncLaunch(
-            &this->pool_, nccl, stub, this->stream_.View(), [&](curt::StreamRef s) {
-              return stub->Allreduce(data.data(), data.data(), rdata.size(), GetNCCLType(type),
-                                     GetNCCLRedOp(op), nccl->Handle(), s);
-            });
+        return AsyncLaunch(&this->pool_, nccl, stub, [&](curt::StreamRef s) {
+          return stub->Allreduce(data.data(), data.data(), rdata.size(), GetNCCLType(type),
+                                 GetNCCLRedOp(op), nccl->Handle(), s);
+        });
       });
     }
   } << [&] {
@@ -286,11 +275,10 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   auto stub = nccl->Stub();
 
   return Success() << [&] {
-    return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(),
-                       [data, nccl, root, stub](curt::StreamRef s) {
-                         return stub->Broadcast(data.data(), data.data(), data.size_bytes(),
-                                                ncclInt8, root, nccl->Handle(), s);
-                       });
+    return AsyncLaunch(&this->pool_, nccl, stub, [data, nccl, root, stub](curt::StreamRef s) {
+      return stub->Broadcast(data.data(), data.data(), data.size_bytes(), ncclInt8, root,
+                             nccl->Handle(), s);
+    });
   } << [&] {
     return nccl->Block();
   };
@@ -307,11 +295,9 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
   auto send = data.subspan(comm.Rank() * size, size);
   return Success() << [&] {
-    return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(),
-                       [send, data, size, nccl, stub](curt::StreamRef s) {
-                         return stub->Allgather(send.data(), data.data(), size, ncclInt8,
-                                                nccl->Handle(), s);
-                       });
+    return AsyncLaunch(&this->pool_, nccl, stub, [send, data, size, nccl, stub](curt::StreamRef s) {
+      return stub->Allgather(send.data(), data.data(), size, ncclInt8, nccl->Handle(), s);
+    });
   } << [&] {
     return nccl->Block();
   };
@@ -381,7 +367,7 @@ Result BroadcastAllgatherV(NCCLComm const* comm, curt::StreamRef s,
       };
     }
     case AllgatherVAlgo::kBcast: {
-      return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(), [&](curt::StreamRef s) {
+      return AsyncLaunch(&this->pool_, nccl, stub, [&](curt::StreamRef s) {
         return cuda_impl::BroadcastAllgatherV(nccl, s, data, sizes, recv);
       });
     }

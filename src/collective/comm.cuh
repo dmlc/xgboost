@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2025, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #pragma once
 
@@ -30,10 +30,12 @@ inline Result GetCUDAResult(cudaError rc) {
 #if defined(XGBOOST_USE_NCCL)
 class NCCLComm : public Comm {
  private:
-  ncclComm_t nccl_comm_{nullptr};
+  // stream_ is declared first so it is destroyed LAST, after stub_/nccl_comm_ and after
+  // the base class's channels_.
+  curt::Stream stream_;
   std::shared_ptr<NcclStub> stub_;
+  ncclComm_t nccl_comm_{nullptr};
   ncclUniqueId nccl_unique_id_{};
-  curt::StreamRef stream_;
   std::string nccl_path_;
 
  public:
@@ -48,7 +50,7 @@ class NCCLComm : public Comm {
   }
   ~NCCLComm() override;
   [[nodiscard]] bool IsFederated() const override { return false; }
-  [[nodiscard]] curt::StreamRef Stream() const { return stream_; }
+  [[nodiscard]] curt::StreamRef Stream() const { return stream_.View(); }
   [[nodiscard]] Result Block() const override {
     auto rc = this->Stream().Sync(false);
     return GetCUDAResult(rc);

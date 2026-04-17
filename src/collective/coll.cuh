@@ -1,11 +1,10 @@
 /**
- * Copyright 2023-2025, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #pragma once
 
 #include <cstdint>  // for int8_t, int64_t
 
-#include "../common/cuda_stream.h"    // for Stream
 #include "../common/threadpool.h"     // for ThreadPool
 #include "../data/array_interface.h"  // for ArrayInterfaceHandler
 #include "coll.h"                     // for Coll
@@ -15,7 +14,6 @@
 namespace xgboost::collective {
 class NCCLColl : public Coll {
   common::ThreadPool pool_;
-  curt::Stream stream_;
 
  public:
   NCCLColl();
