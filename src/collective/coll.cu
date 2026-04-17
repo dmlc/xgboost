@@ -238,8 +238,10 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 }
 }  // namespace
 
-[[nodiscard]] Result NCCLColl::Allreduce(Comm const& comm, common::Span<std::int8_t> data,
+[[nodiscard]] Result NCCLColl::Allreduce(Context const* ctx, Comm const& comm,
+                                         common::Span<std::int8_t> data,
                                          ArrayInterfaceHandler::Type type, Op op) {
+  CHECK(ctx);
   if (!comm.IsDistributed()) {
     return Success();
   }
@@ -249,12 +251,12 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
   return Success() << [&] {
     if (IsBitwiseOp(op)) {
-      return BitwiseAllReduce(&this->pool_, nccl, data, op);
+      return BitwiseAllReduce(ctx, &this->pool_, nccl, data, op);
     } else {
       return DispatchDType(type, [&](auto t) {
         using T = decltype(t);
         auto rdata = common::RestoreType<T>(data);
-        return AsyncLaunch(&this->pool_, nccl, stub, [&](curt::StreamRef s) {
+        return AsyncLaunch(ctx, &this->pool_, nccl, stub, [&](curt::StreamRef s) {
           return stub->Allreduce(data.data(), data.data(), rdata.size(), GetNCCLType(type),
                                  GetNCCLRedOp(op), nccl->Handle(), s);
         });
@@ -265,8 +267,9 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   };
 }
 
-[[nodiscard]] Result NCCLColl::Broadcast(Comm const& comm, common::Span<std::int8_t> data,
-                                         std::int32_t root) {
+[[nodiscard]] Result NCCLColl::Broadcast(Context const* ctx, Comm const& comm,
+                                         common::Span<std::int8_t> data, std::int32_t root) {
+  CHECK(ctx);
   if (!comm.IsDistributed()) {
     return Success();
   }
@@ -275,16 +278,19 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   auto stub = nccl->Stub();
 
   return Success() << [&] {
-    return AsyncLaunch(&this->pool_, nccl, stub, [data, nccl, root, stub](curt::StreamRef s) {
-      return stub->Broadcast(data.data(), data.data(), data.size_bytes(), ncclInt8, root,
-                             nccl->Handle(), s);
-    });
+    return AsyncLaunch(ctx, &this->pool_, nccl, stub,
+                       [data, nccl, root, stub](curt::StreamRef s) {
+                         return stub->Broadcast(data.data(), data.data(), data.size_bytes(),
+                                                ncclInt8, root, nccl->Handle(), s);
+                       });
   } << [&] {
     return nccl->Block();
   };
 }
 
-[[nodiscard]] Result NCCLColl::Allgather(Comm const& comm, common::Span<std::int8_t> data) {
+[[nodiscard]] Result NCCLColl::Allgather(Context const* ctx, Comm const& comm,
+                                         common::Span<std::int8_t> data) {
+  CHECK(ctx);
   if (!comm.IsDistributed()) {
     return Success();
   }
@@ -295,9 +301,11 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
   auto send = data.subspan(comm.Rank() * size, size);
   return Success() << [&] {
-    return AsyncLaunch(&this->pool_, nccl, stub, [send, data, size, nccl, stub](curt::StreamRef s) {
-      return stub->Allgather(send.data(), data.data(), size, ncclInt8, nccl->Handle(), s);
-    });
+    return AsyncLaunch(ctx, &this->pool_, nccl, stub,
+                       [send, data, size, nccl, stub](curt::StreamRef s) {
+                         return stub->Allgather(send.data(), data.data(), size, ncclInt8,
+                                                nccl->Handle(), s);
+                       });
   } << [&] {
     return nccl->Block();
   };
@@ -333,10 +341,12 @@ Result BroadcastAllgatherV(NCCLComm const* comm, curt::StreamRef s,
 }
 }  // namespace cuda_impl
 
-[[nodiscard]] Result NCCLColl::AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
+[[nodiscard]] Result NCCLColl::AllgatherV(Context const* ctx, Comm const& comm,
+                                          common::Span<std::int8_t const> data,
                                           common::Span<std::int64_t const> sizes,
                                           common::Span<std::int64_t> recv_segments,
                                           common::Span<std::int8_t> recv, AllgatherVAlgo algo) {
+  CHECK(ctx);
   auto nccl = dynamic_cast<NCCLComm const*>(&comm);
   CHECK(nccl);
   if (!comm.IsDistributed()) {

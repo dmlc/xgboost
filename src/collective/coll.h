@@ -8,6 +8,7 @@
 #include "../data/array_interface.h"    // for ArrayInterfaceHandler
 #include "comm.h"                       // for Comm
 #include "xgboost/collective/result.h"  // for Result
+#include "xgboost/context.h"            // for Context
 #include "xgboost/span.h"               // for Span
 
 namespace xgboost::collective {
@@ -60,7 +61,8 @@ class Coll : public std::enable_shared_from_this<Coll> {
    *              doesn't use the buffer.
    * @param [out] recv pre-allocated buffer for output.
    */
-  [[nodiscard]] virtual Result AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
+  [[nodiscard]] virtual Result AllgatherV(Context const* ctx, Comm const& comm,
+                                          common::Span<std::int8_t const> data,
                                           common::Span<std::int64_t const> sizes,
                                           common::Span<std::int64_t> recv_segments,
                                           common::Span<std::int8_t> recv, AllgatherVAlgo algo);

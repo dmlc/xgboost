@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <gtest/gtest.h>
@@ -40,7 +40,8 @@ class Worker : public NCCLWorkerForTest {
       auto s_result = common::EraseType(dh::ToSpan(result));
 
       std::vector<std::int64_t> recv_seg(nccl_comm_->World() + 1, 0);
-      rc = nccl_coll_->AllgatherV(*nccl_comm_, s_data, common::Span{sizes.data(), sizes.size()},
+      rc = nccl_coll_->AllgatherV(&ctx_, *nccl_comm_, s_data,
+                                  common::Span{sizes.data(), sizes.size()},
                                   common::Span{recv_seg.data(), recv_seg.size()}, s_result, algo);
       SafeColl(rc);
 
@@ -65,7 +66,8 @@ class Worker : public NCCLWorkerForTest {
       auto s_result = common::EraseType(dh::ToSpan(result));
 
       std::vector<std::int64_t> recv_seg(nccl_comm_->World() + 1, 0);
-      rc = nccl_coll_->AllgatherV(*nccl_comm_, s_data, common::Span{sizes.data(), sizes.size()},
+      rc = nccl_coll_->AllgatherV(&ctx_, *nccl_comm_, s_data,
+                                  common::Span{sizes.data(), sizes.size()},
                                   common::Span{recv_seg.data(), recv_seg.size()}, s_result, algo);
       SafeColl(rc);
       // check segment size

@@ -115,7 +115,7 @@ template <typename T>
 
   auto const& cctx = comm.Ctx(ctx, data.Device());
   auto backend = comm.Backend(data.Device());
-  return backend->Allgather(cctx, erased);
+  return backend->Allgather(ctx, cctx, erased);
 }
 
 /**
@@ -144,7 +144,7 @@ template <typename T>
   sizes[comm.Rank()] = data.Values().size_bytes();
   auto erased_sizes = common::EraseType(common::Span{sizes.data(), sizes.size()});
   auto rc =
-      comm.Backend(DeviceOrd::CPU())->Allgather(comm.Ctx(ctx, DeviceOrd::CPU()), erased_sizes);
+      comm.Backend(DeviceOrd::CPU())->Allgather(ctx, comm.Ctx(ctx, DeviceOrd::CPU()), erased_sizes);
   if (!rc.OK()) {
     return rc;
   }
@@ -161,8 +161,8 @@ template <typename T>
   auto erased = common::EraseType(data.Values());
 
   return backend->AllgatherV(
-      comm.Ctx(ctx, data.Device()), erased, common::Span{sizes.data(), sizes.size()}, s_segments,
-      data.Device().IsCUDA() ? recv->DeviceSpan() : recv->HostSpan(),
+      ctx, comm.Ctx(ctx, data.Device()), erased, common::Span{sizes.data(), sizes.size()},
+      s_segments, data.Device().IsCUDA() ? recv->DeviceSpan() : recv->HostSpan(),
       data.Device().IsCUDA() ? AllgatherVAlgo::kBcast : AllgatherVAlgo::kRing);
 }
 

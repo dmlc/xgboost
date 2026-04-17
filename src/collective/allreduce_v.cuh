@@ -11,9 +11,8 @@
 #include <utility>
 
 #include "../common/device_helpers.cuh"  // for device_vector
-#include "../common/utils.h"             // for MakeCleanup
+#include "comm.cuh"                      // for NCCLComm, BracketNccl
 #include "comm_group.h"                  // for GlobalCommGroup
-#include "comm.cuh"                      // for NCCLComm, GetCUDAResult
 #include "topo.h"                        // for binomial tree helpers
 #include "xgboost/collective/result.h"
 #include "xgboost/logging.h"
@@ -32,35 +31,16 @@ struct AllreduceVScratch {
   }
 };
 
-// Bracket a block of NCCL work with CUDA events so that `nccl_stream` sees any prior
-// writes on `user_stream`, and `user_stream`'s subsequent reads see the NCCL work. Events
-// are recorded on the caller's thread, so magic stream handles (cudaStreamPerThread) are
-// resolved on the correct thread.
-template <typename Fn>
-std::enable_if_t<std::is_same_v<std::invoke_result_t<Fn>, Result>, Result> BracketNccl(
-    curt::StreamRef user_stream, curt::StreamRef nccl_stream, Fn&& fn) {
-  curt::Event before;
-  before.Record(user_stream);
-  nccl_stream.Wait(before);
-
-  auto after = common::MakeCleanup([&] {
-    curt::Event ev;
-    ev.Record(nccl_stream);
-    user_stream.Wait(ev);
-  });
-
-  return std::forward<Fn>(fn)();
-}
-
 template <typename T, typename Fn>
 std::enable_if_t<
     std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
                         dh::device_vector<T>*, cudaStream_t>,
     Result>
-AllreduceV(curt::StreamRef user_stream, NCCLComm const& nccl, dh::device_vector<T>* data,
+AllreduceV(Context const* ctx, NCCLComm const& nccl, dh::device_vector<T>* data,
            AllreduceVScratch<T>* scratch, Fn&& redop) {
   static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
                 "AllreduceV requires trivially-copyable payload elements.");
+  CHECK(ctx);
   CHECK(data);
   CHECK(scratch);
 
@@ -71,6 +51,7 @@ AllreduceV(curt::StreamRef user_stream, NCCLComm const& nccl, dh::device_vector<
     scratch->size.resize(1);
   }
 
+  auto user_stream = ctx->CUDACtx()->Stream();
   auto nccl_stream = nccl.Stream();
   auto stream = cudaStream_t{nccl_stream};
   // Nonblocking NCCL communicators can keep returning `ncclInProgress` after the p2p launch.
@@ -190,7 +171,8 @@ AllreduceV(curt::StreamRef user_stream, NCCLComm const& nccl, dh::device_vector<
   auto broadcast = [&](void* ptr, std::size_t n_bytes) {
     return BracketNccl(user_stream, nccl_stream, [&] {
       return coll->Broadcast(
-          nccl, common::Span<std::int8_t>{reinterpret_cast<std::int8_t*>(ptr), n_bytes}, kRoot);
+          ctx, nccl,
+          common::Span<std::int8_t>{reinterpret_cast<std::int8_t*>(ptr), n_bytes}, kRoot);
     });
   };
   if (rank == kRoot) {

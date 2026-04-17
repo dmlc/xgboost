@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  */
 #include "federated_coll.h"
 
@@ -61,7 +61,8 @@ Coll *FederatedColl::MakeCUDAVar() {
 }
 #endif
 
-[[nodiscard]] Result FederatedColl::Allreduce(Comm const &comm, common::Span<std::int8_t> data,
+[[nodiscard]] Result FederatedColl::Allreduce(Context const * /*ctx*/, Comm const &comm,
+                                              common::Span<std::int8_t> data,
                                               ArrayInterfaceHandler::Type type, Op op) {
   using namespace federated;  // NOLINT
   auto fed = dynamic_cast<FederatedComm const *>(&comm);
@@ -87,12 +88,13 @@ Coll *FederatedColl::MakeCUDAVar() {
   return Success();
 }
 
-[[nodiscard]] Result FederatedColl::Broadcast(Comm const &comm, common::Span<std::int8_t> data,
-                                              std::int32_t root) {
+[[nodiscard]] Result FederatedColl::Broadcast(Context const * /*ctx*/, Comm const &comm,
+                                              common::Span<std::int8_t> data, std::int32_t root) {
   return BroadcastImpl(comm, &this->sequence_number_, data, root);
 }
 
-[[nodiscard]] Result FederatedColl::Allgather(Comm const &comm, common::Span<std::int8_t> data) {
+[[nodiscard]] Result FederatedColl::Allgather(Context const * /*ctx*/, Comm const &comm,
+                                              common::Span<std::int8_t> data) {
   using namespace federated;  // NOLINT
   auto fed = dynamic_cast<FederatedComm const *>(&comm);
   CHECK(fed);
@@ -120,7 +122,7 @@ Coll *FederatedColl::MakeCUDAVar() {
   return Success();
 }
 
-[[nodiscard]] Result FederatedColl::AllgatherV(Comm const &comm,
+[[nodiscard]] Result FederatedColl::AllgatherV(Context const * /*ctx*/, Comm const &comm,
                                                common::Span<std::int8_t const> data,
                                                common::Span<std::int64_t const>,
                                                common::Span<std::int64_t>,
