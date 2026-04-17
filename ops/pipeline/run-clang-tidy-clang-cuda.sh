@@ -88,13 +88,20 @@ if [[ -n "${XGBOOST_CLANG_PREFIX:-}" ]]; then
 elif command -v conda >/dev/null 2>&1; then
   clang_prefix="$(conda info --base)"
 else
-  clang_path="$(command -v clang++)"
+  if ! clang_path="$(command -v clang++)"; then
+    echo "Could not find clang++ on PATH."
+    echo "Install the clang toolchain, set XGBOOST_CLANG_PREFIX, or ensure clang++ is available on PATH."
+    exit 1
+  fi
   clang_prefix="$(cd "$(dirname "${clang_path}")/.." && pwd)"
 fi
 
 clang_run_tidy="${clang_prefix}/bin/run-clang-tidy"
 if [[ ! -x "${clang_run_tidy}" ]]; then
-  clang_run_tidy="$(command -v run-clang-tidy)"
+  if ! clang_run_tidy="$(command -v run-clang-tidy)"; then
+    echo "run-clang-tidy is required. Install clang-tools or set XGBOOST_CLANG_PREFIX to a clang prefix containing bin/run-clang-tidy."
+    exit 1
+  fi
 fi
 
 IFS=',' read -r -a extra_args <<< "${extra_args_csv}"

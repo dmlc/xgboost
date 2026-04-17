@@ -69,7 +69,11 @@ if [[ -n "${XGBOOST_CLANG_PREFIX:-}" ]]; then
 elif command -v conda >/dev/null 2>&1; then
   clang_prefix="$(conda info --base)"
 else
-  clang_path="$(command -v clang++)"
+  if ! clang_path="$(command -v clang++)"; then
+    echo "Could not find clang++ on PATH."
+    echo "Install the clang toolchain, set XGBOOST_CLANG_PREFIX, or ensure clang++ is available on PATH."
+    exit 1
+  fi
   clang_prefix="$(cd "$(dirname "${clang_path}")/.." && pwd)"
 fi
 
@@ -94,7 +98,8 @@ if ! command -v clang-linker-wrapper >/dev/null 2>&1; then
   echo "clang-linker-wrapper is required for clang CUDA offload linking. Install clang-tools=${clang_version}."
   exit 1
 fi
-if ! command -v x86_64-conda-linux-gnu-ld >/dev/null 2>&1; then
+if [[ -f "${clang_bin_dir}/x86_64-conda-linux-gnu-clang++.cfg" ]] &&
+  ! command -v x86_64-conda-linux-gnu-ld >/dev/null 2>&1; then
   echo "x86_64-conda-linux-gnu-ld is required for the conda clang toolchain."
   exit 1
 fi
