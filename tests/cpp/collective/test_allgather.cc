@@ -113,7 +113,8 @@ class Worker : public WorkerForTest {
 
     auto s_recv = common::Span{recv.data(), recv.size()};
 
-    rc = pcoll->AllgatherV(comm_, common::EraseType(s_data),
+    Context ctx;
+    rc = pcoll->AllgatherV(&ctx, comm_, common::EraseType(s_data),
                            common::Span{sizes.data(), sizes.size()},
                            common::Span{recv_segments.data(), recv_segments.size()},
                            common::EraseType(s_recv), AllgatherVAlgo::kBcast);
@@ -126,7 +127,8 @@ class Worker : public WorkerForTest {
       auto current = s_recv.subspan(recv_segments[comm_.Rank()],
                                     recv_segments[comm_.Rank() + 1] - recv_segments[comm_.Rank()]);
       std::copy_n(data.data(), data.size(), current.data());
-      rc = pcoll->AllgatherV(comm_, common::EraseType(current),
+      Context ctx;
+      rc = pcoll->AllgatherV(&ctx, comm_, common::EraseType(current),
                              common::Span{sizes.data(), sizes.size()},
                              common::Span{recv_segments.data(), recv_segments.size()},
                              common::EraseType(s_recv), algo);

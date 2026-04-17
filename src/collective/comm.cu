@@ -9,7 +9,6 @@
 #include <memory>     // for shared_ptr
 #include <vector>     // for vector
 
-#include "../common/cuda_context.cuh"   // for CUDAContext
 #include "../common/cuda_rt_utils.h"    // for SetDevice, GetUuid, PrintUuid
 #include "../common/type.h"             // for EraseType
 #include "comm.cuh"                     // for NCCLComm
@@ -20,8 +19,8 @@
 
 namespace xgboost::collective {
 namespace {
-Result GetUniqueId(Comm const& comm, std::shared_ptr<NcclStub> stub, std::shared_ptr<Coll> coll,
-                   ncclUniqueId* pid) {
+Result GetUniqueId(Context const* ctx, Comm const& comm, std::shared_ptr<NcclStub> stub,
+                   std::shared_ptr<Coll> coll, ncclUniqueId* pid) {
   static const int kRootRank = 0;
   ncclUniqueId id;
   if (comm.Rank() == kRootRank) {
@@ -29,7 +28,8 @@ Result GetUniqueId(Comm const& comm, std::shared_ptr<NcclStub> stub, std::shared
     SafeColl(rc);
   }
   auto rc = coll->Broadcast(
-      comm, common::Span{reinterpret_cast<std::int8_t*>(&id), sizeof(ncclUniqueId)}, kRootRank);
+      ctx, comm, common::Span{reinterpret_cast<std::int8_t*>(&id), sizeof(ncclUniqueId)},
+      kRootRank);
   if (!rc.OK()) {
     return rc;
   }
@@ -46,7 +46,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
                    StringView nccl_path)
     : Comm{root.TrackerInfo().host, root.TrackerInfo().port, root.Timeout(), root.Retry(),
            root.TaskID()},
-      stream_{} {
+      stream_{ctx->Ordinal()} {
   this->world_ = root.World();
   this->rank_ = root.Rank();
   this->domain_ = root.Domain();
@@ -62,7 +62,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   auto s_this_uuid = s_uuid.subspan(root.Rank() * curt::kUuidLength, curt::kUuidLength);
   curt::GetUuid(s_this_uuid, ctx->Ordinal());
 
-  auto rc = pimpl->Allgather(root, common::EraseType(s_uuid));
+  auto rc = pimpl->Allgather(ctx, root, common::EraseType(s_uuid));
   SafeColl(rc);
 
   std::vector<common::Span<unsigned char>> converted(root.World());
@@ -81,7 +81,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
       << "device is not supported. " << curt::PrintUuid(s_this_uuid) << "\n";
 
   rc = std::move(rc) << [&] {
-    return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);
+    return GetUniqueId(ctx, root, this->stub_, pimpl, &nccl_unique_id_);
   } << [&] {
     ncclConfig_t config = NCCL_CONFIG_INITIALIZER;
     config.blocking = 0;
@@ -101,8 +101,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
 }
 
 NCCLComm::~NCCLComm() {
-  // Drain any kernels NCCL's non-blocking async thread may have queued on our stream
-  // before `stream_` destructs the underlying cudaStream_t.
+  // Drain pending NCCL kernels before `stream_` is destroyed.
   (void)stream_.Sync();
   if (nccl_comm_) {
     auto rc = Success() << [this] {

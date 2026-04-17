@@ -7,11 +7,13 @@
 #include "nccl.h"
 #endif  // XGBOOST_USE_NCCL
 
-#include <cstdint>  // for int32_t
-#include <memory>   // for shared_ptr
-#include <utility>  // for move
+#include <cstdint>      // for int32_t
+#include <memory>       // for shared_ptr
+#include <type_traits>  // for enable_if_t, invoke_result_t, is_same_v
+#include <utility>      // for move, forward
 
-#include "../common/cuda_stream.h"  // for StreamRef
+#include "../common/cuda_stream.h"  // for StreamRef, Stream, Event
+#include "../common/utils.h"        // for MakeCleanup
 #include "coll.h"
 #include "comm.h"
 #include "nccl_stub.h"  // for NcclStub
@@ -28,10 +30,30 @@ inline Result GetCUDAResult(cudaError rc) {
 }
 
 #if defined(XGBOOST_USE_NCCL)
+// Cross-stream bracket for a block of NCCL work: `nccl_stream` waits for
+// prior `user_stream` work on entry, `user_stream` waits for the NCCL work
+// on exit. Events are recorded on the calling thread.
+template <typename Fn>
+[[nodiscard]] std::enable_if_t<std::is_same_v<std::invoke_result_t<Fn>, Result>, Result>
+BracketNccl(curt::StreamRef user_stream, curt::StreamRef nccl_stream, Fn&& fn) {
+  curt::Event before;
+  before.Record(user_stream);
+  nccl_stream.Wait(before);
+
+  auto after = common::MakeCleanup([&] {
+    curt::Event ev;
+    ev.Record(nccl_stream);
+    user_stream.Wait(ev);
+  });
+
+  return std::forward<Fn>(fn)();
+}
+#endif  // defined(XGBOOST_USE_NCCL)
+
+#if defined(XGBOOST_USE_NCCL)
 class NCCLComm : public Comm {
  private:
-  // stream_ is declared first so it is destroyed LAST, after stub_/nccl_comm_ and after
-  // the base class's channels_.
+  // Declared first so it outlives stub_/nccl_comm_ and the base class's channels_.
   curt::Stream stream_;
   std::shared_ptr<NcclStub> stub_;
   ncclComm_t nccl_comm_{nullptr};

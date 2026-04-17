@@ -35,22 +35,24 @@ class Coll : public std::enable_shared_from_this<Coll> {
    * @param [in] op Reduce operation. For custom operation, user needs to reach down to
    *             the CPU implementation.
    */
-  [[nodiscard]] virtual Result Allreduce(Comm const& comm, common::Span<std::int8_t> data,
+  [[nodiscard]] virtual Result Allreduce(Context const* ctx, Comm const& comm,
+                                         common::Span<std::int8_t> data,
                                          ArrayInterfaceHandler::Type type, Op op);
   /**
    * @brief Broadcast
    *
    * @param [in,out] data Data buffer for input and output.
-   * @param [in] root Root rank for broadcast.
+   * @param [in]     root Root rank for broadcast.
    */
-  [[nodiscard]] virtual Result Broadcast(Comm const& comm, common::Span<std::int8_t> data,
-                                         std::int32_t root);
+  [[nodiscard]] virtual Result Broadcast(Context const* ctx, Comm const& comm,
+                                         common::Span<std::int8_t> data, std::int32_t root);
   /**
    * @brief Allgather
    *
    * @param [in,out] data Data buffer for input and output.
    */
-  [[nodiscard]] virtual Result Allgather(Comm const& comm, common::Span<std::int8_t> data);
+  [[nodiscard]] virtual Result Allgather(Context const* ctx, Comm const& comm,
+                                         common::Span<std::int8_t> data);
   /**
    * @brief Allgather with variable length.
    *

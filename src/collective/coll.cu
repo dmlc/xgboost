@@ -185,38 +185,43 @@ void RunBitwiseAllreduce(curt::StreamRef stream, common::Span<std::int8_t> out_b
   });
 }
 
-[[nodiscard]] Result BitwiseAllReduce(common::ThreadPool* pool, NCCLComm const* pcomm,
-                                      common::Span<std::int8_t> data, Op op) {
+[[nodiscard]] Result BitwiseAllReduce(Context const* ctx, common::ThreadPool* pool,
+                                      NCCLComm const* pcomm, common::Span<std::int8_t> data,
+                                      Op op) {
   dh::device_vector<std::int8_t> buffer(data.size() * pcomm->World());
   auto* device_buffer = buffer.data().get();
   auto stub = pcomm->Stub();
 
-  // First gather data from all the workers.
-  auto rc = AsyncLaunch(pool, pcomm, stub, [&](curt::StreamRef s) {
-    return stub->Allgather(data.data(), device_buffer, data.size(), ncclInt8, pcomm->Handle(), s);
+  // Outer bracket so the post-allgather reduce kernel (run on the NCCL
+  // stream) is synchronised back to the caller's stream.
+  return BracketNccl(ctx->CUDACtx()->Stream(), pcomm->Stream(), [&]() -> Result {
+    auto rc = AsyncLaunch(ctx, pool, pcomm, stub, [&](curt::StreamRef s) {
+      return stub->Allgather(data.data(), device_buffer, data.size(), ncclInt8, pcomm->Handle(),
+                             s);
+    });
+    if (!rc.OK()) {
+      return rc;
+    }
+    // Reduce on the NCCL stream (ordered after the allgather kernel queued
+    // by `AsyncLaunch`).
+    switch (op) {
+      case Op::kBitwiseAND:
+        RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, std::bit_and{}, pcomm->World(),
+                            data.size());
+        break;
+      case Op::kBitwiseOR:
+        RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, std::bit_or{}, pcomm->World(),
+                            data.size());
+        break;
+      case Op::kBitwiseXOR:
+        RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, std::bit_xor{}, pcomm->World(),
+                            data.size());
+        break;
+      default:
+        LOG(FATAL) << "Not a bitwise reduce operation.";
+    }
+    return Success();
   });
-  if (!rc.OK()) {
-    return rc;
-  }
-
-  // Then reduce locally.
-  switch (op) {
-    case Op::kBitwiseAND:
-      RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, std::bit_and{}, pcomm->World(),
-                          data.size());
-      break;
-    case Op::kBitwiseOR:
-      RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, std::bit_or{}, pcomm->World(),
-                          data.size());
-      break;
-    case Op::kBitwiseXOR:
-      RunBitwiseAllreduce(pcomm->Stream(), data, device_buffer, std::bit_xor{}, pcomm->World(),
-                          data.size());
-      break;
-    default:
-      LOG(FATAL) << "Not a bitwise reduce operation.";
-  }
-  return Success();
 }
 
 ncclRedOp_t GetNCCLRedOp(Op const& op) {
@@ -356,28 +361,32 @@ Result BroadcastAllgatherV(NCCLComm const* comm, curt::StreamRef s,
 
   switch (algo) {
     case AllgatherVAlgo::kRing: {
-      return Success() << [&] {
-        return stub->GroupStart();
-      } << [&] {
-        // get worker offset
-        detail::AllgatherVOffset(sizes, recv_segments);
-        // copy data
-        auto current = recv.subspan(recv_segments[comm.Rank()], data.size_bytes());
-        if (current.data() != data.data()) {
-          dh::safe_cuda(cudaMemcpyAsync(current.data(), data.data(), current.size_bytes(),
-                                        cudaMemcpyDeviceToDevice, nccl->Stream()));
-        }
-        return detail::RingAllgatherV(comm, sizes, recv_segments, recv);
-      } << [&] {
-        return stub->GroupEnd();
-      } << [&] {
-        return nccl->Block();
-      } << [&] {
-        return BusyWait(stub, nccl->Handle(), nccl->Timeout());
-      };
+      // kRing talks to `NCCLChannel` directly without `AsyncLaunch`; bracket
+      // with the caller's stream explicitly.
+      return BracketNccl(ctx->CUDACtx()->Stream(), nccl->Stream(), [&] {
+        return Success() << [&] {
+          return stub->GroupStart();
+        } << [&] {
+          // get worker offset
+          detail::AllgatherVOffset(sizes, recv_segments);
+          // copy data
+          auto current = recv.subspan(recv_segments[comm.Rank()], data.size_bytes());
+          if (current.data() != data.data()) {
+            dh::safe_cuda(cudaMemcpyAsync(current.data(), data.data(), current.size_bytes(),
+                                          cudaMemcpyDeviceToDevice, nccl->Stream()));
+          }
+          return detail::RingAllgatherV(comm, sizes, recv_segments, recv);
+        } << [&] {
+          return stub->GroupEnd();
+        } << [&] {
+          return nccl->Block();
+        } << [&] {
+          return BusyWait(stub, nccl->Handle(), nccl->Timeout());
+        };
+      });
     }
     case AllgatherVAlgo::kBcast: {
-      return AsyncLaunch(&this->pool_, nccl, stub, [&](curt::StreamRef s) {
+      return AsyncLaunch(ctx, &this->pool_, nccl, stub, [&](curt::StreamRef s) {
         return cuda_impl::BroadcastAllgatherV(nccl, s, data, sizes, recv);
       });
     }
