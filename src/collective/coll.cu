@@ -14,6 +14,7 @@
 #include <type_traits>  // for invoke_result_t, is_same_v, enable_if_t
 #include <utility>      // for move
 
+#include "../common/cuda_context.cuh"    // for CUDAContext
 #include "../common/cuda_stream.h"       // for StreamRef, Event
 #include "../common/device_helpers.cuh"  // for device_vector
 #include "../common/threadpool.h"        // for ThreadPool
@@ -91,8 +92,20 @@ struct Chan {
 
 template <typename Fn, typename R = std::invoke_result_t<Fn, curt::StreamRef>>
 [[nodiscard]] std::enable_if_t<std::is_same_v<R, Result>, Result> AsyncLaunch(
-    common::ThreadPool* pool, NCCLComm const* nccl, std::shared_ptr<NcclStub> stub, Fn&& fn) {
+    Context const* ctx, common::ThreadPool* pool, NCCLComm const* nccl,
+    std::shared_ptr<NcclStub> stub, Fn&& fn) {
   auto stream = nccl->Stream();
+  auto user_stream = ctx->CUDACtx()->Stream();
+
+  curt::Event before;
+  before.Record(user_stream);
+  stream.Wait(before);
+
+  auto user_after = common::MakeCleanup([&] {
+    curt::Event ev;
+    ev.Record(stream);
+    user_stream.Wait(ev);
+  });
 
   Chan chan;
 
@@ -196,8 +209,7 @@ void RunBitwiseAllreduce(curt::StreamRef stream, common::Span<std::int8_t> out_b
   // stream) is synchronised back to the caller's stream.
   return BracketNccl(ctx->CUDACtx()->Stream(), pcomm->Stream(), [&]() -> Result {
     auto rc = AsyncLaunch(ctx, pool, pcomm, stub, [&](curt::StreamRef s) {
-      return stub->Allgather(data.data(), device_buffer, data.size(), ncclInt8, pcomm->Handle(),
-                             s);
+      return stub->Allgather(data.data(), device_buffer, data.size(), ncclInt8, pcomm->Handle(), s);
     });
     if (!rc.OK()) {
       return rc;
@@ -283,11 +295,10 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   auto stub = nccl->Stub();
 
   return Success() << [&] {
-    return AsyncLaunch(ctx, &this->pool_, nccl, stub,
-                       [data, nccl, root, stub](curt::StreamRef s) {
-                         return stub->Broadcast(data.data(), data.data(), data.size_bytes(),
-                                                ncclInt8, root, nccl->Handle(), s);
-                       });
+    return AsyncLaunch(ctx, &this->pool_, nccl, stub, [data, nccl, root, stub](curt::StreamRef s) {
+      return stub->Broadcast(data.data(), data.data(), data.size_bytes(), ncclInt8, root,
+                             nccl->Handle(), s);
+    });
   } << [&] {
     return nccl->Block();
   };
@@ -306,11 +317,10 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
   auto send = data.subspan(comm.Rank() * size, size);
   return Success() << [&] {
-    return AsyncLaunch(ctx, &this->pool_, nccl, stub,
-                       [send, data, size, nccl, stub](curt::StreamRef s) {
-                         return stub->Allgather(send.data(), data.data(), size, ncclInt8,
-                                                nccl->Handle(), s);
-                       });
+    return AsyncLaunch(
+        ctx, &this->pool_, nccl, stub, [send, data, size, nccl, stub](curt::StreamRef s) {
+          return stub->Allgather(send.data(), data.data(), size, ncclInt8, nccl->Handle(), s);
+        });
   } << [&] {
     return nccl->Block();
   };

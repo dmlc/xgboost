@@ -366,8 +366,8 @@ template <typename T, typename Fn>
 std::enable_if_t<std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
                                      dh::device_vector<T>*, cudaStream_t>,
                  Result>
-AllreduceV(Comm const& comm, dh::device_vector<T>* data, AllreduceVScratch<T>* scratch,
-           Fn&& redop) {
+AllreduceV(Context const* ctx, Comm const& comm, dh::device_vector<T>* data,
+           AllreduceVScratch<T>* scratch, Fn&& redop) {
   if (!comm.IsDistributed() || comm.World() == 1) {
     return Success();
   }
@@ -377,9 +377,7 @@ AllreduceV(Comm const& comm, dh::device_vector<T>* data, AllreduceVScratch<T>* s
     return Fail("Distributed GPU AllreduceV requires NCCL support.");
   }
 
-  // No separate user stream available; let the NCCL stream drive everything.
-  // Cross-stream events inside `gpu_impl::AllreduceV` degenerate to same-stream no-ops.
-  return gpu_impl::AllreduceV(nccl->Stream(), *nccl, data, scratch, std::forward<Fn>(redop));
+  return gpu_impl::AllreduceV(ctx, *nccl, data, scratch, std::forward<Fn>(redop));
 }
 
 template <typename T, typename Fn>

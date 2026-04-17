@@ -129,7 +129,7 @@ class AllreduceVWorker : public NCCLWorkerForTest {
   template <typename T>
   void TreeAllreduceV(dh::device_vector<T>* data, collective::AllreduceVScratch<T>* scratch) {
     auto rc =
-        collective::AllreduceV(*nccl_comm_, data, scratch,
+        collective::AllreduceV(&ctx_, *nccl_comm_, data, scratch,
                                [&](dh::device_vector<T> const& lhs, dh::device_vector<T> const& rhs,
                                    dh::device_vector<T>* out, cudaStream_t stream) {
                                  this->DeviceSumToMaxLen(lhs, rhs, out, stream);
