@@ -93,10 +93,10 @@ void TestAllgatherV(std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
   r.resize(sizes[0] + sizes[1]);
 
   Context ctx;
-  auto rc = w.coll->AllgatherV(&ctx, *w.nccl_comm,
-                               common::EraseType(dh::ToSpan(inputs[comm->Rank()])),
-                               common::Span{sizes.data(), sizes.size()}, recv_segments,
-                               common::EraseType(dh::ToSpan(r)), AllgatherVAlgo::kRing);
+  auto rc =
+      w.coll->AllgatherV(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(inputs[comm->Rank()])),
+                         common::Span{sizes.data(), sizes.size()}, recv_segments,
+                         common::EraseType(dh::ToSpan(r)), AllgatherVAlgo::kRing);
   SafeColl(rc);
 
   ASSERT_EQ(r[0], 1);

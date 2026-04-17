@@ -27,9 +27,9 @@ Result GetUniqueId(Context const* ctx, Comm const& comm, std::shared_ptr<NcclStu
     auto rc = stub->GetUniqueId(&id);
     SafeColl(rc);
   }
-  auto rc = coll->Broadcast(
-      ctx, comm, common::Span{reinterpret_cast<std::int8_t*>(&id), sizeof(ncclUniqueId)},
-      kRootRank);
+  auto rc = coll->Broadcast(ctx, comm,
+                            common::Span{reinterpret_cast<std::int8_t*>(&id), sizeof(ncclUniqueId)},
+                            kRootRank);
   if (!rc.OK()) {
     return rc;
   }

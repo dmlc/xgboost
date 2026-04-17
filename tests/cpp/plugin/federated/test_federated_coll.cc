@@ -27,9 +27,9 @@ TEST_F(FederatedCollTest, Allreduce) {
 
     auto coll = std::make_shared<FederatedColl>();
     Context ctx;
-    auto rc = coll->Allreduce(&ctx, *comm,
-                              common::EraseType(common::Span{buffer.data(), buffer.size()}),
-                              ArrayInterfaceHandler::kI4, Op::kSum);
+    auto rc =
+        coll->Allreduce(&ctx, *comm, common::EraseType(common::Span{buffer.data(), buffer.size()}),
+                        ArrayInterfaceHandler::kI4, Op::kSum);
     SafeColl(rc);
     for (auto i = 0; i < 5; i++) {
       ASSERT_EQ(buffer[i], expected[i]);
@@ -66,8 +66,8 @@ TEST_F(FederatedCollTest, Allgather) {
     std::vector<std::int32_t> buffer(n_workers, 0);
     buffer[comm->Rank()] = comm->Rank();
     Context ctx;
-    auto rc = coll.Allgather(&ctx, *comm,
-                             common::EraseType(common::Span{buffer.data(), buffer.size()}));
+    auto rc =
+        coll.Allgather(&ctx, *comm, common::EraseType(common::Span{buffer.data(), buffer.size()}));
     SafeColl(rc);
     for (auto i = 0; i < n_workers; i++) {
       ASSERT_EQ(buffer[i], i);

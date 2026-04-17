@@ -72,10 +72,12 @@ Coll *FederatedColl::MakeCUDAVar() {
   };
 }
 
-[[nodiscard]] Result CUDAFederatedColl::AllgatherV(
-    Context const *ctx, Comm const &comm, common::Span<std::int8_t const> data,
-    common::Span<std::int64_t const> sizes, common::Span<std::int64_t> recv_segments,
-    common::Span<std::int8_t> recv, AllgatherVAlgo algo) {
+[[nodiscard]] Result CUDAFederatedColl::AllgatherV(Context const *ctx, Comm const &comm,
+                                                   common::Span<std::int8_t const> data,
+                                                   common::Span<std::int64_t const> sizes,
+                                                   common::Span<std::int64_t> recv_segments,
+                                                   common::Span<std::int8_t> recv,
+                                                   AllgatherVAlgo algo) {
   auto cufed = dynamic_cast<CUDAFederatedComm const *>(&comm);
   CHECK(cufed);
 

@@ -101,7 +101,9 @@ bool constexpr IsFloatingPointV() {
     return Fail("Invalid op.");
   });
 
-  return std::move(rc) << [&] { return comm.Block(); };
+  return std::move(rc) << [&] {
+    return comm.Block();
+  };
 }
 
 [[nodiscard]] Result Coll::Broadcast(Context const* /*ctx*/, Comm const& comm,
