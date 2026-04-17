@@ -227,7 +227,7 @@ __global__ __launch_bounds__(StHistBound::kBlockThreads, StHistBound::kMinBlocks
     Accessor const matrix, FeatureGroupsAccessor const feature_groups,
     common::Span<cuda_impl::RowIndexT const> d_ridx_iter,
     common::Span<GradientPairInt64 const> d_gpair, common::Span<GradientPairInt64> node_hist) {
-  extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
+  extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
 
   // Privatized histogram
   auto smem_hist = reinterpret_cast<GradientPairInt64*>(shmem);
@@ -263,7 +263,7 @@ __global__ __launch_bounds__(MtHistBound::kBlockThreads, MtHistBound::kMinBlocks
   Idx nidx_in_set = dh::SegmentId(p_blk_ptr, p_blk_ptr + blk_ptr.size(), blockIdx.x);
   Idx starting_blk = p_blk_ptr[nidx_in_set];
 
-  extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
+  extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
 
   // Privatized histogram
   auto smem_hist = reinterpret_cast<GradientPairInt64*>(shmem);
