@@ -521,16 +521,9 @@ def check_cudf_meta(data: _CudaArrayLikeArg, field: str) -> None:
 
 def _cudf_str_cat_inf(cats: DfCatAccessor) -> Tuple[CudaStringArray, Tuple]:
     """String category index path for :py:func:`cudf_cat_inf`."""
-    import pandas as pd  # pylint: disable=import-outside-toplevel
     import pylibcudf as plc  # pylint: disable=import-outside-toplevel
 
     # pylint: disable=protected-access
-    col_dtype = cats._column.dtype
-    if not (col_dtype == np.dtype("object") or isinstance(col_dtype, pd.StringDtype)):
-        raise TypeError(
-            "Unexpected type for category index. It's neither numeric nor string."
-        )
-
     plc_col = cats._column.to_pylibcudf()
     if plc_col.type().id() != plc.TypeId.STRING:
         raise TypeError(
