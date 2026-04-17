@@ -30,9 +30,6 @@ inline Result GetCUDAResult(cudaError rc) {
 }
 
 #if defined(XGBOOST_USE_NCCL)
-// Cross-stream bracket for a block of NCCL work: `nccl_stream` waits for
-// prior `user_stream` work on entry, `user_stream` waits for the NCCL work
-// on exit. Events are recorded on the calling thread.
 template <typename Fn>
 [[nodiscard]] std::enable_if_t<std::is_same_v<std::invoke_result_t<Fn>, Result>, Result>
 BracketNccl(curt::StreamRef user_stream, curt::StreamRef nccl_stream, Fn&& fn) {
@@ -53,7 +50,7 @@ BracketNccl(curt::StreamRef user_stream, curt::StreamRef nccl_stream, Fn&& fn) {
 #if defined(XGBOOST_USE_NCCL)
 class NCCLComm : public Comm {
  private:
-  // Declared first so it outlives stub_/nccl_comm_ and the base class's channels_.
+  // Declared first so among this class's own members it is destroyed last
   curt::Stream stream_;
   std::shared_ptr<NcclStub> stub_;
   ncclComm_t nccl_comm_{nullptr};

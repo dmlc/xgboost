@@ -54,6 +54,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
     return;
   }
 
+  CHECK(ctx && ctx->IsCUDA());
   curt::SetDevice(ctx->Ordinal());
   stub_ = std::make_shared<NcclStub>(nccl_path);
 
@@ -103,6 +104,9 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
 NCCLComm::~NCCLComm() {
   // Drain pending NCCL kernels before `stream_` is destroyed.
   (void)stream_.Sync();
+  // Release channels while `stream_` is still alive.
+  this->channels_.clear();
+
   if (nccl_comm_) {
     auto rc = Success() << [this] {
       return this->stub_->CommFinalize(this->nccl_comm_);

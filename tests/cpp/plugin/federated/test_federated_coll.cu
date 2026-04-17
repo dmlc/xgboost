@@ -39,7 +39,7 @@ void TestAllreduce(std::shared_ptr<FederatedComm> comm, std::int32_t rank, std::
   thrust::transform(buffer.cbegin(), buffer.cend(), expected.begin(),
                     [=] XGBOOST_DEVICE(std::int32_t i) { return i * n_workers; });
 
-  Context ctx;
+  auto ctx = MakeCUDACtx(rank);
   auto rc = w.coll->Allreduce(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(buffer)),
                               ArrayInterfaceHandler::kI4, Op::kSum);
   SafeColl(rc);
@@ -54,7 +54,7 @@ void TestBroadcast(std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
   auto rc = Success();
   std::vector<std::int32_t> expect{0, 1, 2, 3};
 
-  Context ctx;
+  auto ctx = MakeCUDACtx(rank);
   if (comm->Rank() == 0) {
     dh::device_vector<std::int32_t> buffer{expect};
     rc = w.coll->Broadcast(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(buffer)), 0);
@@ -73,7 +73,7 @@ void TestAllgather(std::shared_ptr<FederatedComm> comm, std::int32_t rank, std::
 
   dh::device_vector<std::int32_t> buffer(n_workers, 0);
   buffer[comm->Rank()] = comm->Rank();
-  Context ctx;
+  auto ctx = MakeCUDACtx(rank);
   auto rc = w.coll->Allgather(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(buffer)));
   SafeColl(rc);
   for (auto i = 0; i < n_workers; i++) {
@@ -92,7 +92,7 @@ void TestAllgatherV(std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
                                   static_cast<std::int64_t>(inputs[1].size())};
   r.resize(sizes[0] + sizes[1]);
 
-  Context ctx;
+  auto ctx = MakeCUDACtx(rank);
   auto rc =
       w.coll->AllgatherV(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(inputs[comm->Rank()])),
                          common::Span{sizes.data(), sizes.size()}, recv_segments,
