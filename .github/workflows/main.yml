@@ -21,29 +21,9 @@ env:
 jobs:
   ci-configure:
     name: Configure variables for CI
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
-      - tag=main-ci-configure
-    steps:
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2.1.2
-        with:
-          mask-password: 'false'
-          registries: '492475357299'
-      - uses: actions/checkout@v6.0.2
-      - name: Get image tag
-        id: get-image-tag
-        run: |
-          source ops/pipeline/get-image-tag.sh
-          echo "Using image tag $IMAGE_TAG"
-          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
-    outputs:
-      docker_registry: ${{ steps.login-ecr.outputs.registry }}
-      docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
-      docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
-      image_tag: ${{ steps.get-image-tag.outputs.image_tag }}
+    uses: ./.github/workflows/ci_configure.yml
+    with:
+      tag-prefix: main
 
   build-cpu:
     name: Build CPU (${{ matrix.variant }})
