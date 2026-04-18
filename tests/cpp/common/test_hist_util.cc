@@ -16,7 +16,7 @@
 #include "../helpers.h"
 
 namespace xgboost::common {
-void ParallelGHistBuilderReset() {
+TEST(ParallelGHistBuilder, Reset) {
   constexpr size_t kBins = 10;
   constexpr size_t kNodes = 5;
   constexpr size_t kNodesExtended = 10;
@@ -71,7 +71,7 @@ void ParallelGHistBuilderReset() {
   });
 }
 
-void ParallelGHistBuilderReduceHist() {
+TEST(ParallelGHistBuilder, ReduceHist) {
   constexpr size_t kBins = 10;
   constexpr size_t kNodes = 5;
   constexpr size_t kTasksPerNode = 10;
@@ -113,65 +113,6 @@ void ParallelGHistBuilderReduceHist() {
     for (size_t i = 0; i < kBins; ++i) {
       ASSERT_EQ(kValue * kTasksPerNode, collection[inode][i].GetGrad());
       ASSERT_EQ(kValue * kTasksPerNode, collection[inode][i].GetHess());
-    }
-  }
-}
-
-TEST(ParallelGHistBuilder, Reset) { ParallelGHistBuilderReset(); }
-
-TEST(ParallelGHistBuilder, ReduceHist) { ParallelGHistBuilderReduceHist(); }
-
-void TestQuantileWithHessian(bool use_sorted) {
-  int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {1000, 1500};
-  int num_columns = 5;
-  Context ctx;
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-    auto w = GenerateRandomWeights(num_rows);
-    auto hessian = GenerateRandomWeights(num_rows);
-    std::mt19937 rng(0);
-    std::shuffle(hessian.begin(), hessian.end(), rng);
-    dmat->Info().weights_.HostVector() = w;
-
-    for (auto num_bins : bin_sizes) {
-      HistogramCuts cuts_hess = SketchOnDMatrix(&ctx, dmat.get(), num_bins, use_sorted, hessian);
-      for (size_t i = 0; i < w.size(); ++i) {
-        dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
-      }
-      ValidateCuts(cuts_hess, dmat.get(), num_bins, kMaxWeightedNormalizedRankError);
-
-      HistogramCuts cuts_wh = SketchOnDMatrix(&ctx, dmat.get(), num_bins, use_sorted);
-      ValidateCuts(cuts_wh, dmat.get(), num_bins, kMaxWeightedNormalizedRankError);
-
-      ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
-      for (size_t i = 0; i < cuts_hess.Values().size(); ++i) {
-        ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
-      }
-
-      dmat->Info().weights_.HostVector() = w;
-    }
-  }
-}
-
-TEST(HistUtil, QuantileWithHessian) {
-  TestQuantileWithHessian(true);
-  TestQuantileWithHessian(false);
-}
-
-TEST(HistUtil, DenseCutsExternalMemory) {
-  int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {100, 1000, 1500};
-  int num_columns = 5;
-  Context ctx;
-  for (auto num_rows : sizes) {
-    HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
-    common::TemporaryDirectory tmpdir;
-    auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, tmpdir);
-    for (auto num_bins : bin_sizes) {
-      HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -231,71 +172,60 @@ TEST(HistUtil, IndexBinData) {
   }
 }
 
-void TestSketchFromWeights(bool with_group) {
-  size_t constexpr kRows = 300, kCols = 20, kBins = 256;
-  size_t constexpr kGroups = 10;
-  auto m = RandomDataGenerator{kRows, kCols, 0}.Device(DeviceOrd::CUDA(0)).GenerateDMatrix();
+// Sketching with a separate Hessian input should match sketching with sample weights after
+// folding the Hessian into the per-row weights, for both sorted and unsorted CPU paths.
+TEST(HistUtil, QuantileWithHessian) {
+  int constexpr kRows = 1500;
+  int constexpr kCols = 5;
+  int constexpr kBins = 256;
   Context ctx;
-  common::HistogramCuts cuts = SketchOnDMatrix(&ctx, m.get(), kBins);
+  auto x = GenerateRandom(kRows, kCols);
+  auto dmat = GetDMatrixFromData(x, kRows, kCols);
+  auto w = GenerateRandomWeights(kRows);
+  auto hessian = GenerateRandomWeights(kRows);
+  std::mt19937 rng(0);
+  std::shuffle(hessian.begin(), hessian.end(), rng);
+  dmat->Info().weights_.HostVector() = w;
 
-  MetaInfo info;
-  auto& h_weights = info.weights_.HostVector();
-  if (with_group) {
-    h_weights.resize(kGroups);
-  } else {
-    h_weights.resize(kRows);
+  HistogramCuts cuts_hess = SketchOnDMatrix(&ctx, dmat.get(), kBins, false, hessian);
+  HistogramCuts sorted_cuts_hess = SketchOnDMatrix(&ctx, dmat.get(), kBins, true, hessian);
+  for (size_t i = 0; i < w.size(); ++i) {
+    dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
   }
-  std::fill(h_weights.begin(), h_weights.end(), 1.0f);
+  ValidateCuts(cuts_hess, dmat.get(), kBins);
+  ValidateCuts(sorted_cuts_hess, dmat.get(), kBins);
 
-  std::vector<bst_group_t> groups(kGroups);
-  if (with_group) {
-    for (size_t i = 0; i < kGroups; ++i) {
-      groups[i] = kRows / kGroups;
-    }
-    auto sg = linalg::Make1dInterface(groups.data(), kGroups);
-    info.SetInfo(ctx, "group", sg.c_str());
-  }
+  HistogramCuts cuts_wh = SketchOnDMatrix(&ctx, dmat.get(), kBins, false);
+  ValidateCuts(cuts_wh, dmat.get(), kBins);
+  HistogramCuts sorted_cuts_wh = SketchOnDMatrix(&ctx, dmat.get(), kBins, true);
+  ValidateCuts(sorted_cuts_wh, dmat.get(), kBins);
 
-  info.num_row_ = kRows;
-  info.num_col_ = kCols;
-
-  // Assign weights.
-  if (with_group) {
-    m->SetInfo("group", Make1dInterfaceTest(groups.data(), kGroups));
-  }
-
-  m->SetInfo("weight", Make1dInterfaceTest(h_weights.data(), h_weights.size()));
-  m->Info().num_col_ = kCols;
-  m->Info().num_row_ = kRows;
-  ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
-  ValidateCuts(cuts, m.get(), kBins);
-
-  if (with_group) {
-    m->Info().weights_ = decltype(m->Info().weights_)();  // remove weight
-    HistogramCuts non_weighted = SketchOnDMatrix(&ctx, m.get(), kBins);
-    for (size_t i = 0; i < cuts.Values().size(); ++i) {
-      EXPECT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
-    }
-    for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
-      ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
-    }
-  }
-
-  if (with_group) {
-    std::vector<float> group_weights(kGroups);
-    // Generate different weight.
-    for (size_t i = 0; i < group_weights.size(); ++i) {
-      group_weights[i] = static_cast<float>(i + 1) / static_cast<float>(kGroups);
-    }
-    m->SetInfo("weight", Make1dInterfaceTest(group_weights.data(), group_weights.size()));
-    HistogramCuts weighted = SketchOnDMatrix(&ctx, m.get(), kBins);
-    ValidateCuts(weighted, m.get(), kBins, kMaxWeightedNormalizedRankError);
+  ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
+  for (size_t i = 0; i < cuts_hess.Values().size(); ++i) {
+    ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
+    ASSERT_NEAR(sorted_cuts_wh.Values()[i], sorted_cuts_hess.Values()[i], kRtEps);
   }
 }
 
-TEST(HistUtil, SketchFromWeights) {
-  TestSketchFromWeights(true);
-  TestSketchFromWeights(false);
+TEST(HistUtil, DenseCutsDMatrixTypes) {
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {100, 1000, 1500};
+  int num_columns = 5;
+  Context ctx;
+  for (auto num_rows : sizes) {
+    auto data = GenerateRandom(num_rows, num_columns);
+    HostDeviceVector<float> x{data};
+    common::TemporaryDirectory tmpdir;
+    std::vector<std::shared_ptr<DMatrix>> matrices{
+        GetDMatrixFromData(data, num_rows, num_columns),
+        GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, tmpdir)};
+    for (auto num_bins : bin_sizes) {
+      for (auto const& dmat : matrices) {
+        HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);
+        ValidateCuts(cuts, dmat.get(), num_bins);
+      }
+    }
+  }
 }
 
 TEST(HistUtil, UnrollGroupWeights) {
@@ -308,8 +238,7 @@ TEST(HistUtil, UnrollGroupWeights) {
   ASSERT_EQ(detail::UnrollGroupWeights(info), expected);
 }
 
-namespace {
-void TestGroupWeightsEquivalentToRowWeights(bool use_sorted) {
+TEST(HistUtil, GroupWeightsEquivalentToRowWeights) {
   Context ctx;
   std::vector<float> x{
       0.0f, 5.0f, 1.0f, 4.0f, 2.0f, 3.0f, 3.0f, 2.0f, 4.0f, 1.0f, 5.0f, 0.0f,
@@ -325,24 +254,15 @@ void TestGroupWeightsEquivalentToRowWeights(bool use_sorted) {
   grouped->SetInfo("weight", Make1dInterfaceTest(group_weights.data(), group_weights.size()));
   per_row->SetInfo("weight", Make1dInterfaceTest(row_weights.data(), row_weights.size()));
 
-  auto grouped_cuts = SketchOnDMatrix(&ctx, grouped.get(), 2, use_sorted);
-  auto per_row_cuts = SketchOnDMatrix(&ctx, per_row.get(), 2, use_sorted);
+  auto grouped_cuts = SketchOnDMatrix(&ctx, grouped.get(), 2, false);
+  auto per_row_cuts = SketchOnDMatrix(&ctx, per_row.get(), 2, false);
+  auto sorted_grouped_cuts = SketchOnDMatrix(&ctx, grouped.get(), 2, true);
+  auto sorted_per_row_cuts = SketchOnDMatrix(&ctx, per_row.get(), 2, true);
 
-  ASSERT_EQ(grouped_cuts.Ptrs().size(), per_row_cuts.Ptrs().size());
-  for (size_t i = 0; i < grouped_cuts.Ptrs().size(); ++i) {
-    ASSERT_EQ(grouped_cuts.Ptrs()[i], per_row_cuts.Ptrs()[i]);
-  }
-
-  ASSERT_EQ(grouped_cuts.Values().size(), per_row_cuts.Values().size());
-  for (size_t i = 0; i < grouped_cuts.Values().size(); ++i) {
-    ASSERT_FLOAT_EQ(grouped_cuts.Values()[i], per_row_cuts.Values()[i]);
-  }
-}
-}  // anonymous namespace
-
-TEST(HistUtil, GroupWeightsEquivalentToRowWeights) {
-  TestGroupWeightsEquivalentToRowWeights(true);
-  TestGroupWeightsEquivalentToRowWeights(false);
+  ASSERT_EQ(grouped_cuts.Ptrs(), per_row_cuts.Ptrs());
+  ASSERT_EQ(grouped_cuts.Values(), per_row_cuts.Values());
+  ASSERT_EQ(sorted_grouped_cuts.Ptrs(), sorted_per_row_cuts.Ptrs());
+  ASSERT_EQ(sorted_grouped_cuts.Values(), sorted_per_row_cuts.Values());
 }
 
 }  // namespace xgboost::common

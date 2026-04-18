@@ -8,10 +8,8 @@
 #include <cstdint>  // for int64_t
 
 #include "../../../src/collective/allreduce.h"
-#include "../../../src/common/hist_util.h"
 #include "../../../src/data/adapter.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
-#include "test_quantile_helpers.h"
 #include "xgboost/context.h"
 
 namespace xgboost::common {
@@ -65,34 +63,6 @@ void TestSummaryInvariants(SummaryCase const& c, WQSummaryContainer const& summa
     }
   }
 }
-void TestContainerInvariants(ContainerCase const& c, HistogramCuts const& cuts, DMatrix* dmat,
-                             std::vector<std::vector<WeightedValue>> const& columns) {
-  ASSERT_EQ(cuts.Ptrs().size(), c.cols + 1) << "case=" << c.name;
-  // Every feature should contribute at least one strictly increasing cut value sequence.
-  for (std::size_t fidx = 0; fidx < c.cols; ++fidx) {
-    auto beg = cuts.Ptrs()[fidx];
-    auto end = cuts.Ptrs()[fidx + 1];
-    ASSERT_LT(beg, end) << "case=" << c.name << ", feature=" << fidx;
-    for (auto i = beg + 1; i < end; ++i) {
-      EXPECT_LT(cuts.Values()[i - 1], cuts.Values()[i])
-          << "case=" << c.name << ", feature=" << fidx;
-    }
-  }
-  auto ft = dmat->Info().feature_types.ConstHostSpan();
-  auto max_error =
-      c.weights == WeightKind::kRow ? kMaxWeightedNormalizedRankError : kMaxNormalizedRankError;
-  for (std::size_t i = 0; i < columns.size(); ++i) {
-    if (columns[i].empty()) {
-      continue;
-    }
-    if (!ft.empty() && IsCat(ft, i)) {
-      ValidateCategoricalCuts(cuts, i, columns[i]);
-    } else {
-      ValidateNumericalCuts(cuts, i, columns[i], c.max_bin, max_error);
-    }
-  }
-}
-
 void AssertSameOnAllWorkers(Context const* ctx, HistogramCuts const& cuts) {
   auto const world = collective::GetWorldSize();
   if (world <= 1) {
@@ -208,7 +178,7 @@ TEST_P(QuantileContainerTest, Invariants) {
   }
   auto row_cuts = row_sketch.MakeCuts(&ctx, m->Info());
   auto columns = CollectWeightedColumns(m.get());
-  TestContainerInvariants(c, row_cuts, m.get(), columns);
+  ValidateContainerCuts(c, row_cuts, m.get(), columns);
 
   HostSketchContainer sorted_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
                                     column_size, false);
@@ -216,7 +186,7 @@ TEST_P(QuantileContainerTest, Invariants) {
     sorted_sketch.PushColPage(page, m->Info(), hess);
   }
   auto sorted_cuts = sorted_sketch.MakeCuts(&ctx, m->Info());
-  TestContainerInvariants(c, sorted_cuts, m.get(), columns);
+  ValidateContainerCuts(c, sorted_cuts, m.get(), columns);
 }
 
 TEST_P(QuantileSketchOnDMatrixTest, Invariants) {
@@ -238,10 +208,10 @@ TEST_P(QuantileSketchOnDMatrixTest, Invariants) {
   std::vector<float> hessian(c.rows, 1.0f);
   auto hess = Span<float const>{hessian};
   auto row_cuts = SketchOnDMatrix(&ctx, m.get(), c.max_bin, false, hess);
-  TestContainerInvariants(c, row_cuts, m.get(), columns);
+  ValidateContainerCuts(c, row_cuts, m.get(), columns);
 
   auto sorted_cuts = SketchOnDMatrix(&ctx, m.get(), c.max_bin, true, hess);
-  TestContainerInvariants(c, sorted_cuts, m.get(), columns);
+  ValidateContainerCuts(c, sorted_cuts, m.get(), columns);
 }
 
 namespace {
@@ -286,8 +256,8 @@ void DoPropertyDistributedQuantile(ContainerCase const& c) {
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
   auto columns = CollectWeightedColumns(full_m.get());
-  TestContainerInvariants(c, row_cuts, full_m.get(), columns);
-  TestContainerInvariants(c, sorted_cuts, full_m.get(), columns);
+  ValidateContainerCuts(c, row_cuts, full_m.get(), columns);
+  ValidateContainerCuts(c, sorted_cuts, full_m.get(), columns);
 }
 
 void DoSameOnAllWorkersDistributedQuantile(ContainerCase const& c) {
@@ -404,33 +374,6 @@ TEST(Quantile, TrackSketchElementsSorted) {
   ASSERT_EQ(sketch.NumElements(), 3);
 }
 namespace {
-void TestColumnSplitInvariants(
-    quantile_test::ContainerCase const& c, HistogramCuts const& cuts, DMatrix* dmat,
-    std::vector<std::vector<quantile_test::WeightedValue>> const& columns, std::size_t f_begin,
-    std::size_t f_end) {
-  ASSERT_EQ(cuts.Ptrs().size(), c.cols + 1) << "case=" << c.name;
-  auto ft = dmat->Info().feature_types.ConstHostSpan();
-  auto max_error = c.weights == quantile_test::WeightKind::kRow
-                       ? quantile_test::kMaxWeightedNormalizedRankError
-                       : quantile_test::kMaxNormalizedRankError;
-  for (std::size_t i = f_begin; i < f_end; ++i) {
-    auto beg = cuts.Ptrs()[i];
-    auto end = cuts.Ptrs()[i + 1];
-    ASSERT_LT(beg, end) << "case=" << c.name << ", feature=" << i;
-    for (auto j = beg + 1; j < end; ++j) {
-      EXPECT_LT(cuts.Values()[j - 1], cuts.Values()[j]) << "case=" << c.name << ", feature=" << i;
-    }
-    if (columns[i].empty()) {
-      continue;
-    }
-    if (!ft.empty() && IsCat(ft, i)) {
-      quantile_test::ValidateCategoricalCuts(cuts, i, columns[i]);
-    } else {
-      quantile_test::ValidateNumericalCuts(cuts, i, columns[i], c.max_bin, max_error);
-    }
-  }
-}
-
 void DoPropertyColumnSplitQuantile(size_t rows, size_t cols) {
   Context ctx;
   auto const world = collective::GetWorldSize();
@@ -493,8 +436,9 @@ void DoPropertyColumnSplitQuantile(size_t rows, size_t cols) {
 
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
-  TestColumnSplitInvariants(c, row_cuts, full_m.get(), columns, slice_start, slice_end);
-  TestColumnSplitInvariants(c, sorted_cuts, full_m.get(), columns, slice_start, slice_end);
+  quantile_test::ValidateContainerCuts(c, row_cuts, full_m.get(), columns, slice_start, slice_end);
+  quantile_test::ValidateContainerCuts(c, sorted_cuts, full_m.get(), columns, slice_start,
+                                       slice_end);
 }
 }  // anonymous namespace
 

@@ -560,7 +560,7 @@ class WQuantileSketch {
   // Safety factor used to oversample the internal sketch relative to the target rank
   // resolution. User-facing epsilon remains the target rank guarantee; `kFactor`
   // only affects how much summary storage we reserve to achieve it.
-  static float constexpr kFactor = 8.0;
+  static float constexpr kFactor = 2.0;
 
  public:
   using Summary = WQSummary<>;

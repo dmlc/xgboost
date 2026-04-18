@@ -105,6 +105,32 @@ void GatherPruneEntries(Span<size_t const> selected_idx, Span<SketchEntry> out_c
               [=] __device__(size_t idx) { out_cuts[idx] = entry_from_index(selected_idx[idx]); });
 }
 
+void MakeCutsPtr(Context const *ctx, Span<size_t const> columns_ptr_in, Span<FeatureType const> ft,
+                 bst_bin_t num_bins, bst_idx_t n_rows_in_batch,
+                 HostDeviceVector<SketchContainer::OffsetT> *p_cuts_ptr) {
+  auto &cuts_ptr = *p_cuts_ptr;
+  cuts_ptr.SetDevice(ctx->Device());
+  cuts_ptr.Resize(columns_ptr_in.size());
+  auto d_cuts_size = cuts_ptr.DeviceSpan();
+  auto num_rows = std::max<bst_idx_t>(1, n_rows_in_batch);
+  auto eps = SketchEpsilon(num_bins, num_rows);
+  auto num_cuts_per_feature =
+      std::min(WQuantileSketch::LimitSizeLevel(num_rows, eps), static_cast<std::size_t>(num_rows));
+  dh::LaunchN(columns_ptr_in.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
+    if (idx == columns_ptr_in.size() - 1) {
+      d_cuts_size[idx] = 0;
+      return;
+    }
+    auto column_size = columns_ptr_in[idx + 1] - columns_ptr_in[idx];
+    auto is_cat = IsCat(ft, idx);
+    d_cuts_size[idx] =
+        is_cat ? column_size
+               : (column_size < num_cuts_per_feature ? column_size : num_cuts_per_feature);
+  });
+  thrust::exclusive_scan(ctx->CUDACtx()->CTP(), cuts_ptr.DevicePointer(),
+                         cuts_ptr.DevicePointer() + cuts_ptr.Size(), cuts_ptr.DevicePointer());
+}
+
 template <typename InEntry, typename ToSketchEntry>
 void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
                Span<InEntry const> sorted_data,
@@ -338,43 +364,41 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
 // `entries_`. Out-of-place merge/prune results use `entries_tmp_` as scratch before being
 // committed back into `entries_`.
 void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
-                           common::Span<OffsetT> cuts_ptr, size_t total_cuts,
                            bst_idx_t n_rows_in_batch, Span<float> weights) {
   curt::SetDevice(ctx->Ordinal());
   rows_seen_ += n_rows_in_batch;
+  HostDeviceVector<OffsetT> cuts_ptr;
+  MakeCutsPtr(ctx, columns_ptr, this->feature_types_.ConstDeviceSpan(), this->num_bins_,
+              n_rows_in_batch, &cuts_ptr);
+  auto d_cuts_ptr = cuts_ptr.DeviceSpan();
+  auto total_cuts = cuts_ptr.ConstHostSpan().back();
   this->prune_buffer_.resize(total_cuts);
   auto out = dh::ToSpan(this->prune_buffer_);
   auto ft = this->feature_types_.ConstDeviceSpan();
-  if (weights.empty()) {
-    auto to_sketch_entry = [] __device__(size_t sample_idx, Span<Entry const> const &column,
-                                         size_t) {
+  auto to_sketch_entry = [weights, columns_ptr] __device__(
+                             size_t sample_idx, Span<Entry const> const &column, size_t column_id) {
+    if (weights.empty()) {
       float rmin = sample_idx;
       float rmax = sample_idx + 1;
       return SketchEntry{rmin, rmax, 1, column[sample_idx].fvalue};
-    };  // NOLINT
-    PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
-  } else {
-    auto to_sketch_entry = [weights, columns_ptr] __device__(size_t sample_idx,
-                                                             Span<Entry const> const &column,
-                                                             size_t column_id) {
-      Span<float const> column_weights_scan =
-          weights.subspan(columns_ptr[column_id], column.size());
-      float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
-      float rmax = column_weights_scan[sample_idx];
-      float wmin = rmax - rmin;
-      wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
-      return SketchEntry{rmin, rmax, wmin, column[sample_idx].fvalue};
-    };  // NOLINT
-    PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
-  }
-  auto n_uniques = this->ScanInput(ctx, out, cuts_ptr);
-  CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
+    }
+
+    Span<float const> column_weights_scan = weights.subspan(columns_ptr[column_id], column.size());
+    float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
+    float rmax = column_weights_scan[sample_idx];
+    float wmin = rmax - rmin;
+    wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
+    return SketchEntry{rmin, rmax, wmin, column[sample_idx].fvalue};
+  };  // NOLINT
+  PruneImpl<Entry>(d_cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
+  auto n_uniques = this->ScanInput(ctx, out, d_cuts_ptr);
+  CHECK_EQ(this->columns_ptr_.Size(), d_cuts_ptr.size());
   if (n_uniques == 0) {
     return;
   }
-  this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
-  auto intermediate_num_cuts = static_cast<bst_idx_t>(this->IntermediateNumCuts());
-  this->Prune(ctx, intermediate_num_cuts);
+  this->Merge(ctx, d_cuts_ptr, out.subspan(0, n_uniques));
+  auto intermediate_cuts_per_feature = static_cast<bst_idx_t>(this->IntermediateCutsPerFeature());
+  this->Prune(ctx, intermediate_cuts_per_feature);
 }
 
 size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
