@@ -58,12 +58,12 @@ class EvaluateSplitAgent {
   const uint32_t gidx_end;    // end bin for i^th feature
   const dh::LDGIterator<float> feature_values;
   const GradientPairInt64 *node_histogram;
+  TempStorage *temp_storage;
   const GradientQuantiser &rounding;
   const GradientPairInt64 parent_sum;
   const GradientPairInt64 missing;
   const GPUTrainingParam &param;
   const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator;
-  TempStorage *temp_storage;
   SumCallbackOp<GradientPairInt64> prefix_op;
   static float constexpr kNullGain = -std::numeric_limits<bst_float>::infinity();
 
@@ -71,25 +71,25 @@ class EvaluateSplitAgent {
                                 const EvaluateSplitInputs &inputs,
                                 const EvaluateSplitSharedInputs &shared_inputs,
                                 const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator)
-      : temp_storage(temp_storage),
+      : fidx(fidx),
         nidx(inputs.nidx),
-        fidx(fidx),
         gidx_begin(__ldg(shared_inputs.feature_segments.data() + fidx)),
         gidx_end(__ldg(shared_inputs.feature_segments.data() + fidx + 1)),
         feature_values(shared_inputs.feature_values.data()),
         node_histogram(inputs.gradient_histogram.data()),
+        temp_storage(temp_storage),
         rounding(shared_inputs.rounding),
         parent_sum(dh::LDGIterator<GradientPairInt64>(&inputs.parent_sum)[0]),
+        missing(parent_sum - ReduceFeature()),
         param(shared_inputs.param),
-        evaluator(evaluator),
-        missing(parent_sum - ReduceFeature()) {
+        evaluator(evaluator) {
     static_assert(kBlockSize == 32, "This kernel relies on the assumption block_size == warp_size");
     // There should be no missing value gradients for a dense matrix
     KERNEL_CHECK(!shared_inputs.is_dense || missing.GetQuantisedHess() == 0);
   }
   __device__ GradientPairInt64 ReduceFeature() {
     GradientPairInt64 local_sum;
-    for (int idx = gidx_begin + threadIdx.x; idx < gidx_end; idx += kBlockSize) {
+    for (auto idx = gidx_begin + threadIdx.x; idx < gidx_end; idx += kBlockSize) {
       local_sum += LoadGpair(node_histogram + idx);
     }
     local_sum = SumReduceT(temp_storage->sum_reduce).Sum(local_sum);  // NOLINT
@@ -108,7 +108,7 @@ class EvaluateSplitAgent {
   }
 
   __device__ __forceinline__ void Numerical(DeviceSplitCandidate *best_split) {
-    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
+    for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
       GradientPairInt64 bin = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
                                             : GradientPairInt64();
@@ -146,7 +146,7 @@ class EvaluateSplitAgent {
   }
 
   __device__ __forceinline__ void OneHot(DeviceSplitCandidate *best_split) {
-    for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
+    for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
 
       auto rest = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
@@ -165,7 +165,7 @@ class EvaluateSplitAgent {
       auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
       // Best thread updates the split
       if (threadIdx.x == best_thread) {
-        int32_t split_gidx = (scan_begin + threadIdx.x);
+        auto split_gidx = scan_begin + threadIdx.x;
         float fvalue = feature_values[split_gidx];
         GradientPairInt64 left = missing_left ? bin + missing : bin;
         GradientPairInt64 right = parent_sum - left;
@@ -273,7 +273,8 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   const EvaluateSplitInputs &inputs = d_inputs[input_idx];
   // One block for each feature. Features are sampled, so fidx != blockIdx.x
   // Some blocks may not have any feature to work on, simply return
-  int feature_offset = blockIdx.x % max_active_features;
+  auto feature_offset =
+      static_cast<decltype(inputs.feature_set.size())>(blockIdx.x % max_active_features);
   if (feature_offset >= inputs.feature_set.size()) {
     return;
   }

@@ -350,7 +350,7 @@ struct GPUHistMakerDevice {
     auto d_split_data = dh::ToSpan(split_data_storage);
 
     dh::LaunchN(d_matrix.n_rows, cuctx->Stream(), [=] __device__(std::size_t ridx) mutable {
-      for (auto i = 0; i < num_candidates; i++) {
+      for (std::size_t i = 0; i < num_candidates; i++) {
         auto const& data = d_split_data[i];
         auto const cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
         if (isnan(cut_value)) {
@@ -894,8 +894,8 @@ class GPUGlobalApproxMaker : public TreeUpdater {
  public:
   explicit GPUGlobalApproxMaker(Context const* ctx, ObjInfo const* task)
       : TreeUpdater(ctx),
-        task_{task},
-        column_sampler_{std::make_shared<common::ColumnSampler>()} {};
+        column_sampler_{std::make_shared<common::ColumnSampler>()},
+        task_{task} {};
   void Configure(Args const& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Approx]: Configure";

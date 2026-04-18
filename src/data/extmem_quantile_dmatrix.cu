@@ -113,9 +113,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
 }
 
 [[nodiscard]] BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackPageImpl() {
-  auto batch_set =
-      std::visit([this](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
-                 this->ellpack_page_source_);
+  auto batch_set = std::visit([](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
+                              this->ellpack_page_source_);
   return batch_set;
 }
 
@@ -127,7 +126,7 @@ BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *,
   }
 
   std::visit(
-      [this, param](auto &&ptr) {
+      [param](auto &&ptr) {
         CHECK(ptr)
             << "The `ExtMemQuantileDMatrix` is initialized using CPU data, cannot be used for GPU.";
         ptr->Reset(param);

@@ -135,12 +135,14 @@ cmake_args=(
   -DCMAKE_CUDA_COMPILER="${clang_cxx}"
   -DCMAKE_CUDA_ARCHITECTURES="${gpu_compute_ver}"
   -DCUDAToolkit_ROOT="${cuda_toolkit_root}"
+  -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -Wno-pass-failed"
+  -DCMAKE_CUDA_FLAGS="-Wno-deprecated-declarations -Wno-pass-failed"
   -DUSE_CUDA=ON
   -DUSE_OPENMP=ON
   -DHIDE_CXX_SYMBOLS=ON
   -DUSE_NCCL=OFF
   -DENABLE_ALL_WARNINGS=ON
-  -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF
+  -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
   -DPLUGIN_FEDERATED=OFF
   -DGPU_COMPUTE_VER="${gpu_compute_ver}"
 )

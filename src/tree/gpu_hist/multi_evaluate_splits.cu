@@ -42,7 +42,7 @@ struct ScanHistogramAgent {
   __device__ void ScanFeature(GradientPairInt64 const *node_histogram,
                               GradientPairInt64 *scan_result, bst_target_t t,
                               BinIndexFn &&bin_idx_fn) {
-    auto lane_id = cuda::ptx::get_sreg_laneid();
+    auto lane_id = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
     // The forward pass and the backward pass differs in where the bin is read, which is
     // specified by the callback bin_idx_fn(). They write to the same output location.
     GradientPairInt64 warp_aggregate;
@@ -146,7 +146,7 @@ struct EvaluateSplitAgent {
     // Calculate split gain for each bin
     auto n_targets = shared.Targets();
     auto roundings = shared.roundings.data();
-    auto lane_id = cuda::ptx::get_sreg_laneid();
+    auto lane_id = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
 
     bst_bin_t gidx_begin = shared.feature_segments[fidx];
     bst_bin_t gidx_end = shared.feature_segments[fidx + 1];

@@ -170,7 +170,7 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
     auto fidx = fidx_in_set + group.start_feature;
 
     bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
-    if (Policy::kDense || compressed_bin != matrix.NullValue()) {
+    if (Policy::kDense || compressed_bin != static_cast<bst_bin_t>(matrix.NullValue())) {
       auto g = LoadGpair(gpair + ridx);
       if constexpr (Policy::kCompressed) {
         compressed_bin += matrix.feature_segments[fidx];
@@ -523,7 +523,6 @@ class DeviceHistogramDispatchAccessor {
       this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx_iters.data().get(), hists,
                               h_sizes_csum);
     } else {
-      using RidxIter = cuda_impl::RowIndexT const;
       this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridxs.data(), hists,
                               h_sizes_csum);
     }

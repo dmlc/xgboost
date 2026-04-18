@@ -166,8 +166,7 @@ void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
     }
 
     float w = back.rmin - front.rmax;
-    auto budget = static_cast<float>(d_out.size());
-    assert(budget != 0);
+    assert(!d_out.empty());
     auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
     auto it = dh::MakeTransformIterator<SketchEntry>(
         thrust::make_counting_iterator(0ul), [=] __device__(size_t idx) {

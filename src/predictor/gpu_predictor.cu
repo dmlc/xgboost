@@ -59,7 +59,7 @@ struct SparsePageLoader {
 
   __device__ SparsePageLoader(SparsePageView data, bool use_shared, bst_feature_t num_features,
                               bst_idx_t num_rows, float, EncAccessor&& acc)
-      : use_shared(use_shared), data(data), acc_{std::forward<EncAccessor>(acc)} {
+      : acc_{std::forward<EncAccessor>(acc)}, use_shared(use_shared), data(data) {
     extern __shared__ float _smem[];
     smem = _smem;
     // Copy instances
@@ -219,7 +219,7 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
 
   if (n_groups == 1u) {
     float sum = 0;
-    for (bst_tree_t tree_idx = 0; tree_idx < d_trees.size(); ++tree_idx) {
+    for (std::size_t tree_idx = 0; tree_idx < d_trees.size(); ++tree_idx) {
       auto const& d_tree = d_trees[tree_idx];
       auto const& sc_tree = cuda::std::get<tree::ScalarTreeView>(d_tree);
       float leaf = GetLeafWeight<has_missing>(global_idx, sc_tree, &loader);
@@ -227,7 +227,7 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
     }
     d_out_predictions[global_idx] += sum;
   } else {
-    for (bst_tree_t tree_idx = 0, k = d_trees.size(); tree_idx < k; tree_idx++) {
+    for (std::size_t tree_idx = 0, k = d_trees.size(); tree_idx < k; tree_idx++) {
       // Both d_tree_group and d_tress are subset of trees.
       auto tree_group = d_tree_groups[tree_idx];
       auto const& d_tree = d_trees[tree_idx];
@@ -646,8 +646,6 @@ class GPUPredictor : public xgboost::Predictor {
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
     LaunchPredict(ctx_, p_fmat->IsDense(), new_enc, model, [&](auto&& cfg, auto&& acc) {
-      using Config = common::GetValueT<decltype(cfg)>;
-
       bst_idx_t batch_offset = 0;
       cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
         using Loader = typename common::GetValueT<decltype(loader_t)>;
@@ -701,7 +699,6 @@ class GPUPredictor : public xgboost::Predictor {
     out_preds->predictions.SetDevice(m->Device());
     using BatchT = common::GetValueT<decltype(std::declval<Adapter>().Value())>;
 
-    auto n_samples = m->NumRows();
     auto n_features = model.learner_model_param->num_feature;
 
     DeviceModel d_model{ctx_->Device(), model, false, tree_begin, tree_end, CopyViews{this->ctx_}};

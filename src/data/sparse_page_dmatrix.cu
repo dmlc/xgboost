@@ -73,9 +73,8 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
     std::visit([&](auto&& ptr) { ptr->Reset(param); }, this->ellpack_page_source_);
   }
 
-  auto batch_set =
-      std::visit([this](auto&& ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
-                 this->ellpack_page_source_);
+  auto batch_set = std::visit([](auto&& ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
+                              this->ellpack_page_source_);
   return batch_set;
 }
 }  // namespace xgboost::data

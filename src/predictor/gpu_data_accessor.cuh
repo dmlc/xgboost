@@ -35,7 +35,7 @@ struct SparsePageView {
     // Binary search
     auto begin_ptr = d_data.begin() + d_row_ptr[ridx];
     auto end_ptr = d_data.begin() + d_row_ptr[ridx + 1];
-    if (end_ptr - begin_ptr == this->NumCols()) {
+    if (end_ptr - begin_ptr == static_cast<decltype(end_ptr - begin_ptr)>(this->NumCols())) {
       // Bypass span check for dense data
       return d_data.data()[d_row_ptr[ridx] + fidx].fvalue;
     }
@@ -100,7 +100,7 @@ struct EllpackLoader {
     if (common::IsCat(matrix.feature_types, fidx)) {
       return this->acc(matrix.gidx_fvalue_map[gidx], fidx);
     }
-    if (gidx == matrix.feature_segments[fidx]) {
+    if (gidx == static_cast<bst_bin_t>(matrix.feature_segments[fidx])) {
       return -std::numeric_limits<float>::infinity();
     }
     return matrix.gidx_fvalue_map[gidx - 1];

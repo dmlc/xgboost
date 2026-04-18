@@ -1,7 +1,14 @@
 /**
  * Copyright 2017-2026, XGBoost Contributors
  */
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsign-compare"
+#endif  // defined(__clang__)
 #include <GPUTreeShap/gpu_treeshap.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif  // defined(__clang__)
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
@@ -75,8 +82,8 @@ struct ShapSplitCondition {
                      common::CatBitField cats)
       : feature_lower_bound(feature_lower_bound),
         feature_upper_bound(feature_upper_bound),
-        is_missing_branch(is_missing_branch),
-        categories{std::move(cats)} {
+        categories{std::move(cats)},
+        is_missing_branch(is_missing_branch) {
     assert(feature_lower_bound <= feature_upper_bound);
   }
 
@@ -319,8 +326,6 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,
                 std::vector<float> const* tree_weights, int, unsigned) {
   xgboost_NVTX_FN_RANGE();
-  StringView not_implemented{
-      "contribution is not implemented in the GPU predictor, use CPU instead."};
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
