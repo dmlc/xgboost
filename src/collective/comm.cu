@@ -54,7 +54,6 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
     return;
   }
 
-  CHECK(ctx && ctx->IsCUDA());
   curt::SetDevice(ctx->Ordinal());
   stub_ = std::make_shared<NcclStub>(nccl_path);
 

@@ -90,11 +90,7 @@ class Stream {
 
  public:
   Stream() { dh::safe_cuda(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking)); }
-  explicit Stream(std::int32_t device) {
-    CHECK_GE(device, 0);
-    dh::safe_cuda(cudaSetDevice(device));
-    dh::safe_cuda(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
-  }
+  explicit Stream(std::int32_t device);
   ~Stream() { dh::safe_cuda(cudaStreamDestroy(stream_)); }
 
   [[nodiscard]] StreamRef View() const { return StreamRef{stream_}; }
