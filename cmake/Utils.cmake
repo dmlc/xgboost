@@ -249,12 +249,8 @@ macro(xgboost_target_properties target)
       $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-Wextra>
       $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-Wno-expansion-to-defined>)
     if(USE_CUDA)
-      set(cuda_host_warning_flags -Wall -Wextra -Wno-expansion-to-defined)
-      if(CMAKE_CUDA_COMPILER_ID MATCHES "Clang")
-        list(APPEND cuda_host_warning_flags -Wno-unused-parameter)
-      endif()
       xgboost_cuda_wrap_host_compiler_options(
-        cuda_warning_flags ${cuda_host_warning_flags}
+        cuda_warning_flags -Wall -Wextra -Wno-expansion-to-defined
       )
       target_compile_options(${target} PUBLIC ${cuda_warning_flags})
     endif()
