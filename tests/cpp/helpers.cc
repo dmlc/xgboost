@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2025, XGBoost contributors
+ * Copyright 2016-2026, XGBoost contributors
  */
 #include "helpers.h"
 
@@ -17,6 +17,7 @@
 #include <random>      // for mt19937
 
 #include "../../src/collective/communicator-inl.h"  // for GetRank
+#include "../../src/common/cuda_rt_utils.h"         // for SetDevice
 #include "../../src/data/adapter.h"
 #include "../../src/data/batch_utils.h"  // for AutoHostRatio, AutoCachePageBytes
 #include "../../src/data/iterative_dmatrix.h"
@@ -785,4 +786,12 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int, char**) { return {nullptr, Dele
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
 
 std::int32_t DistGpuIdx() { return curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank(); }
+
+[[nodiscard]] Context MakeCUDACtx(std::int32_t device) {
+  if (device == DeviceOrd::CPUOrdinal()) {
+    return Context{};
+  }
+  curt::SetDevice(device);
+  return Context{}.MakeCUDA(device);
+}
 }  // namespace xgboost

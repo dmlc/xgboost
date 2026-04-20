@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2025, XGBoost contributors
+ * Copyright 2016-2026, XGBoost contributors
  */
 #pragma once
 
@@ -382,14 +382,9 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs,
                                                   Context const* generic_param);
 
 /**
- * \brief Make a context that uses CUDA if device >= 0.
+ * @brief Make a context that uses CUDA if device >= 0.
  */
-inline Context MakeCUDACtx(std::int32_t device) {
-  if (device == DeviceOrd::CPUOrdinal()) {
-    return Context{};
-  }
-  return Context{}.MakeCUDA(device);
-}
+[[nodiscard]] Context MakeCUDACtx(std::int32_t device);
 
 inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows,
                                                               float lower = 0.0f,
