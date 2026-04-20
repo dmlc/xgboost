@@ -7,10 +7,8 @@
 #include <cstdint>    // for uint64_t, int8_t
 #include <cstring>    // for memcpy
 #include <memory>     // for shared_ptr
-#include <sstream>    // for stringstream
 #include <vector>     // for vector
 
-#include "../common/cuda_context.cuh"   // for CUDAContext
 #include "../common/cuda_rt_utils.h"    // for SetDevice, GetUuid, PrintUuid
 #include "../common/type.h"             // for EraseType
 #include "comm.cuh"                     // for NCCLComm
@@ -21,16 +19,17 @@
 
 namespace xgboost::collective {
 namespace {
-Result GetUniqueId(Comm const& comm, std::shared_ptr<NcclStub> stub, std::shared_ptr<Coll> coll,
-                   ncclUniqueId* pid) {
+Result GetUniqueId(Context const* ctx, Comm const& comm, std::shared_ptr<NcclStub> stub,
+                   std::shared_ptr<Coll> coll, ncclUniqueId* pid) {
   static const int kRootRank = 0;
   ncclUniqueId id;
   if (comm.Rank() == kRootRank) {
     auto rc = stub->GetUniqueId(&id);
     SafeColl(rc);
   }
-  auto rc = coll->Broadcast(
-      comm, common::Span{reinterpret_cast<std::int8_t*>(&id), sizeof(ncclUniqueId)}, kRootRank);
+  auto rc = coll->Broadcast(ctx, comm,
+                            common::Span{reinterpret_cast<std::int8_t*>(&id), sizeof(ncclUniqueId)},
+                            kRootRank);
   if (!rc.OK()) {
     return rc;
   }
@@ -47,7 +46,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
                    StringView nccl_path)
     : Comm{root.TrackerInfo().host, root.TrackerInfo().port, root.Timeout(), root.Retry(),
            root.TaskID()},
-      stream_{ctx->CUDACtx()->Stream()} {
+      stream_{ctx->Ordinal()} {
   this->world_ = root.World();
   this->rank_ = root.Rank();
   this->domain_ = root.Domain();
@@ -63,7 +62,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
   auto s_this_uuid = s_uuid.subspan(root.Rank() * curt::kUuidLength, curt::kUuidLength);
   curt::GetUuid(s_this_uuid, ctx->Ordinal());
 
-  auto rc = pimpl->Allgather(root, common::EraseType(s_uuid));
+  auto rc = pimpl->Allgather(ctx, root, common::EraseType(s_uuid));
   SafeColl(rc);
 
   std::vector<common::Span<unsigned char>> converted(root.World());
@@ -82,7 +81,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
       << "device is not supported. " << curt::PrintUuid(s_this_uuid) << "\n";
 
   rc = std::move(rc) << [&] {
-    return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);
+    return GetUniqueId(ctx, root, this->stub_, pimpl, &nccl_unique_id_);
   } << [&] {
     ncclConfig_t config = NCCL_CONFIG_INITIALIZER;
     config.blocking = 0;
@@ -97,11 +96,16 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
     // Keep point-to-point channel launches on the communicator stream so helper-local staging
     // work and the NCCL send/recv edges share one ordering domain.
     this->channels_.emplace_back(
-        std::make_shared<NCCLChannel>(root, r, nccl_comm_, stub_, stream_));
+        std::make_shared<NCCLChannel>(root, r, nccl_comm_, stub_, stream_.View()));
   }
 }
 
 NCCLComm::~NCCLComm() {
+  // Drain pending NCCL kernels before `stream_` is destroyed.
+  (void)stream_.Sync();
+  // Release channels while `stream_` is still alive.
+  this->channels_.clear();
+
   if (nccl_comm_) {
     auto rc = Success() << [this] {
       return this->stub_->CommFinalize(this->nccl_comm_);

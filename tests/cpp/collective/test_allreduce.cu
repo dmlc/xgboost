@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <gtest/gtest.h>
@@ -41,7 +41,7 @@ class Worker : public NCCLWorkerForTest {
   void BitOr() {
     dh::device_vector<std::uint32_t> data(comm_.World(), 0);
     data[comm_.Rank()] = ~std::uint32_t{0};
-    auto rc = nccl_coll_->Allreduce(*nccl_comm_, common::EraseType(dh::ToSpan(data)),
+    auto rc = nccl_coll_->Allreduce(&ctx_, *nccl_comm_, common::EraseType(dh::ToSpan(data)),
                                     ArrayInterfaceHandler::kU4, Op::kBitwiseOR);
     SafeColl(rc);
     thrust::host_vector<std::uint32_t> h_data(data.size());
@@ -53,7 +53,7 @@ class Worker : public NCCLWorkerForTest {
 
   void Acc() {
     dh::device_vector<double> data(314, 1.5);
-    auto rc = nccl_coll_->Allreduce(*nccl_comm_, common::EraseType(dh::ToSpan(data)),
+    auto rc = nccl_coll_->Allreduce(&ctx_, *nccl_comm_, common::EraseType(dh::ToSpan(data)),
                                     ArrayInterfaceHandler::kF8, Op::kSum);
     SafeColl(rc);
     for (std::size_t i = 0; i < data.size(); ++i) {
@@ -64,7 +64,7 @@ class Worker : public NCCLWorkerForTest {
 
   Result NoCheck() {
     dh::device_vector<double> data(314, 1.5);
-    auto rc = nccl_coll_->Allreduce(*nccl_comm_, common::EraseType(dh::ToSpan(data)),
+    auto rc = nccl_coll_->Allreduce(&ctx_, *nccl_comm_, common::EraseType(dh::ToSpan(data)),
                                     ArrayInterfaceHandler::kF8, Op::kSum);
     return rc;
   }

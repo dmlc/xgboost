@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2025, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #pragma once
 
@@ -7,11 +7,13 @@
 #include "nccl.h"
 #endif  // XGBOOST_USE_NCCL
 
-#include <cstdint>  // for int32_t
-#include <memory>   // for shared_ptr
-#include <utility>  // for move
+#include <cstdint>      // for int32_t
+#include <memory>       // for shared_ptr
+#include <type_traits>  // for enable_if_t, invoke_result_t, is_same_v
+#include <utility>      // for move, forward
 
-#include "../common/cuda_stream.h"  // for StreamRef
+#include "../common/cuda_stream.h"  // for StreamRef, Stream, Event
+#include "../common/utils.h"        // for MakeCleanup
 #include "coll.h"
 #include "comm.h"
 #include "nccl_stub.h"  // for NcclStub
@@ -28,12 +30,31 @@ inline Result GetCUDAResult(cudaError rc) {
 }
 
 #if defined(XGBOOST_USE_NCCL)
+template <typename Fn>
+[[nodiscard]] std::enable_if_t<std::is_same_v<std::invoke_result_t<Fn>, Result>, Result>
+BracketNccl(curt::StreamRef user_stream, curt::StreamRef nccl_stream, Fn&& fn) {
+  curt::Event before;
+  before.Record(user_stream);
+  nccl_stream.Wait(before);
+
+  auto after = common::MakeCleanup([&] {
+    curt::Event ev;
+    ev.Record(nccl_stream);
+    user_stream.Wait(ev);
+  });
+
+  return std::forward<Fn>(fn)();
+}
+#endif  // defined(XGBOOST_USE_NCCL)
+
+#if defined(XGBOOST_USE_NCCL)
 class NCCLComm : public Comm {
  private:
-  ncclComm_t nccl_comm_{nullptr};
+  // Declared first so among this class's own members it is destroyed last
+  curt::Stream stream_;
   std::shared_ptr<NcclStub> stub_;
+  ncclComm_t nccl_comm_{nullptr};
   ncclUniqueId nccl_unique_id_{};
-  curt::StreamRef stream_;
   std::string nccl_path_;
 
  public:
@@ -48,7 +69,7 @@ class NCCLComm : public Comm {
   }
   ~NCCLComm() override;
   [[nodiscard]] bool IsFederated() const override { return false; }
-  [[nodiscard]] curt::StreamRef Stream() const { return stream_; }
+  [[nodiscard]] curt::StreamRef Stream() const { return stream_.View(); }
   [[nodiscard]] Result Block() const override {
     auto rc = this->Stream().Sync(false);
     return GetCUDAResult(rc);

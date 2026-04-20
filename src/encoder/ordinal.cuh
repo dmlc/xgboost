@@ -282,7 +282,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
 
   auto err_it = thrust::find_if(
       exec, dh::tcbegin(mapping), dh::tcend(mapping),
-      [=] XGBOOST_DEVICE(std::int32_t v) -> bool { return v == detail::NotFound(); });
+      [=] __device__(std::int32_t v) -> bool { return v == detail::NotFound(); });
 
   if (err_it != dh::tcend(mapping)) {
     // Report missing cat.

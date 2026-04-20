@@ -11,8 +11,8 @@
 #include <utility>
 
 #include "../common/device_helpers.cuh"  // for device_vector
+#include "comm.cuh"                      // for NCCLComm, BracketNccl
 #include "comm_group.h"                  // for GlobalCommGroup
-#include "comm.cuh"                      // for NCCLComm, GetCUDAResult
 #include "topo.h"                        // for binomial tree helpers
 #include "xgboost/collective/result.h"
 #include "xgboost/logging.h"
@@ -36,10 +36,11 @@ std::enable_if_t<
     std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
                         dh::device_vector<T>*, cudaStream_t>,
     Result>
-AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T>* scratch,
-           Fn&& redop) {
+AllreduceV(Context const* ctx, NCCLComm const& nccl, dh::device_vector<T>* data,
+           AllreduceVScratch<T>* scratch, Fn&& redop) {
   static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
                 "AllreduceV requires trivially-copyable payload elements.");
+  CHECK(ctx);
   CHECK(data);
   CHECK(scratch);
 
@@ -50,7 +51,9 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     scratch->size.resize(1);
   }
 
-  auto stream = cudaStream_t{nccl.Stream()};
+  auto user_stream = ctx->CUDACtx()->Stream();
+  auto nccl_stream = nccl.Stream();
+  auto stream = cudaStream_t{nccl_stream};
   // Nonblocking NCCL communicators can keep returning `ncclInProgress` after the p2p launch.
   // Wait for communicator progress here so the next tree edge doesn't race the previous one.
   auto wait_p2p = [&] { return BusyWait(nccl.Stub(), nccl.Handle(), nccl.Timeout()); };
@@ -61,11 +64,7 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     if (!rc.OK()) {
       return rc;
     }
-    rc = wait_p2p();
-    if (!rc.OK()) {
-      return rc;
-    }
-    return ch->Block();
+    return wait_p2p();
   };
 
   auto recv_all = [&](std::int32_t peer, std::int8_t* ptr, std::size_t n_bytes) {
@@ -74,11 +73,7 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     if (!rc.OK()) {
       return rc;
     }
-    rc = wait_p2p();
-    if (!rc.OK()) {
-      return rc;
-    }
-    return ch->Block();
+    return wait_p2p();
   };
 
   auto send_size = [&](std::int32_t peer, std::int64_t n) {
@@ -106,31 +101,37 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
     return GetCUDAResult(cudaStreamSynchronize(stream));
   };
 
+  // send_vec / recv_vec bracket every NCCL boundary that transfers payload
+  // bytes between user-owned buffers and the NCCL stream. `send_size` /
+  // `recv_size` stay inside the bracket: their internal `scratch->size`
+  // copies are already stream-ordered on the NCCL stream.
   auto send_vec = [&](std::int32_t peer, dh::device_vector<T> const& payload) {
-    auto rc = send_size(peer, static_cast<std::int64_t>(payload.size()));
-    if (!rc.OK() || payload.empty()) {
-      return rc;
-    }
-
-    auto count = payload.size() * sizeof(T);
-    return send_all(peer, reinterpret_cast<std::int8_t const*>(payload.data().get()), count);
+    return BracketNccl(user_stream, nccl_stream, [&]() -> Result {
+      auto rc = send_size(peer, static_cast<std::int64_t>(payload.size()));
+      if (!rc.OK() || payload.empty()) {
+        return rc;
+      }
+      auto count = payload.size() * sizeof(T);
+      return send_all(peer, reinterpret_cast<std::int8_t const*>(payload.data().get()), count);
+    });
   };
 
   auto recv_vec = [&](std::int32_t peer, dh::device_vector<T>* payload) {
     CHECK(payload);
-    std::int64_t n = 0;
-    auto rc = recv_size(peer, &n);
-    if (!rc.OK()) {
-      return rc;
-    }
-    CHECK_GE(n, 0);
-    payload->resize(static_cast<std::size_t>(n));
-    if (n == 0) {
-      return Success();
-    }
-
-    auto count = static_cast<std::size_t>(n) * sizeof(T);
-    return recv_all(peer, reinterpret_cast<std::int8_t*>(payload->data().get()), count);
+    return BracketNccl(user_stream, nccl_stream, [&]() -> Result {
+      std::int64_t n = 0;
+      auto rc = recv_size(peer, &n);
+      if (!rc.OK()) {
+        return rc;
+      }
+      CHECK_GE(n, 0);
+      payload->resize(static_cast<std::size_t>(n));
+      if (n == 0) {
+        return Success();
+      }
+      auto count = static_cast<std::size_t>(n) * sizeof(T);
+      return recv_all(peer, reinterpret_cast<std::int8_t*>(payload->data().get()), count);
+    });
   };
 
   auto rank = nccl.Rank();
@@ -156,7 +157,9 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
       if (!rc.OK()) {
         return Fail("AllreduceV failed to receive payload from child.", std::move(rc));
       }
-      redop(*data, scratch->payload, &scratch->next, stream);
+      // `recv_vec`'s BracketNccl already made `user_stream` wait for the NCCL kernel, so
+      // `redop` may run freely on `user_stream`.
+      redop(*data, scratch->payload, &scratch->next, cudaStream_t{user_stream});
       std::swap(*data, scratch->next);
     }
   }
@@ -166,9 +169,11 @@ AllreduceV(NCCLComm const& nccl, dh::device_vector<T>* data, AllreduceVScratch<T
   // `Backend` only dispatches on the device type, so any CUDA ordinal is sufficient here.
   auto coll = GlobalCommGroup()->Backend(DeviceOrd::CUDA(0));
   auto broadcast = [&](void* ptr, std::size_t n_bytes) {
-    return coll->Broadcast(nccl, common::Span<std::int8_t>{reinterpret_cast<std::int8_t*>(ptr),
-                                                           n_bytes},
-                           kRoot);
+    return BracketNccl(user_stream, nccl_stream, [&] {
+      return coll->Broadcast(
+          ctx, nccl,
+          common::Span<std::int8_t>{reinterpret_cast<std::int8_t*>(ptr), n_bytes}, kRoot);
+    });
   };
   if (rank == kRoot) {
     n = static_cast<std::int64_t>(data->size());

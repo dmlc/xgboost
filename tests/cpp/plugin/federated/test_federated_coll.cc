@@ -26,8 +26,10 @@ TEST_F(FederatedCollTest, Allreduce) {
                    [=](auto i) { return i * n_workers; });
 
     auto coll = std::make_shared<FederatedColl>();
-    auto rc = coll->Allreduce(*comm, common::EraseType(common::Span{buffer.data(), buffer.size()}),
-                              ArrayInterfaceHandler::kI4, Op::kSum);
+    Context ctx;
+    auto rc =
+        coll->Allreduce(&ctx, *comm, common::EraseType(common::Span{buffer.data(), buffer.size()}),
+                        ArrayInterfaceHandler::kI4, Op::kSum);
     SafeColl(rc);
     for (auto i = 0; i < 5; i++) {
       ASSERT_EQ(buffer[i], expected[i]);
@@ -39,14 +41,17 @@ TEST_F(FederatedCollTest, Broadcast) {
   std::int32_t n_workers = std::min(std::thread::hardware_concurrency(), 3u);
   TestFederated(n_workers, [=](std::shared_ptr<FederatedComm> comm, std::int32_t) {
     FederatedColl coll{};
+    Context ctx;
     auto rc = Success();
     if (comm->Rank() == 0) {
       std::string buffer{"hello"};
-      rc = coll.Broadcast(*comm, common::EraseType(common::Span{buffer.data(), buffer.size()}), 0);
+      rc = coll.Broadcast(&ctx, *comm,
+                          common::EraseType(common::Span{buffer.data(), buffer.size()}), 0);
       ASSERT_EQ(buffer, "hello");
     } else {
       std::string buffer{"     "};
-      rc = coll.Broadcast(*comm, common::EraseType(common::Span{buffer.data(), buffer.size()}), 0);
+      rc = coll.Broadcast(&ctx, *comm,
+                          common::EraseType(common::Span{buffer.data(), buffer.size()}), 0);
       ASSERT_EQ(buffer, "hello");
     }
     SafeColl(rc);
@@ -60,7 +65,9 @@ TEST_F(FederatedCollTest, Allgather) {
 
     std::vector<std::int32_t> buffer(n_workers, 0);
     buffer[comm->Rank()] = comm->Rank();
-    auto rc = coll.Allgather(*comm, common::EraseType(common::Span{buffer.data(), buffer.size()}));
+    Context ctx;
+    auto rc =
+        coll.Allgather(&ctx, *comm, common::EraseType(common::Span{buffer.data(), buffer.size()}));
     SafeColl(rc);
     for (auto i = 0; i < n_workers; i++) {
       ASSERT_EQ(buffer[i], i);
@@ -80,8 +87,9 @@ TEST_F(FederatedCollTest, AllgatherV) {
                                     static_cast<std::int64_t>(inputs[1].size())};
     r.resize(sizes[0] + sizes[1]);
 
+    Context ctx;
     auto rc = coll.AllgatherV(
-        *comm,
+        &ctx, *comm,
         common::EraseType(common::Span{inputs[comm->Rank()].data(), inputs[comm->Rank()].size()}),
         common::Span{sizes.data(), sizes.size()}, recv_segments,
         common::EraseType(common::Span{r.data(), r.size()}), AllgatherVAlgo::kRing);

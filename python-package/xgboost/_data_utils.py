@@ -97,8 +97,18 @@ def cuda_array_interface_dict(data: _CudaArrayLikeArg) -> CudaArrayInf:
     if array_hasobject(data):
         raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
     ainf = data.__cuda_array_interface__
-    if "mask" in ainf:
-        ainf["mask"] = ainf["mask"].__cuda_array_interface__  # type: ignore[union-attr]
+    if "mask" in ainf and ainf["mask"] is not None:
+        mask_ainf = ainf["mask"].__cuda_array_interface__  # type: ignore[union-attr]
+        # Normalize the validity mask to XGBoost's expected layout (`|t1` bit field of
+        # length `n_samples`).
+        typestr = mask_ainf["typestr"]
+        n_samples = ainf["shape"][0]
+        if typestr[1] in ("u", "i", "t") and typestr[2:] == "1" and n_samples:
+            mask_ainf = dict(mask_ainf)
+            mask_ainf["typestr"] = "|t1"
+            mask_ainf["shape"] = (n_samples,)
+            mask_ainf.pop("strides", None)
+        ainf["mask"] = mask_ainf
     return ainf
 
 
@@ -509,79 +519,43 @@ def check_cudf_meta(data: _CudaArrayLikeArg, field: str) -> None:
         raise ValueError(f"Missing value is not allowed for: {field}")
 
 
-class ArrowSchema(ctypes.Structure):
-    """The Schema type from arrow C array."""
+def _cudf_str_cat_inf(cats: DfCatAccessor) -> Tuple[CudaStringArray, Tuple]:
+    """String category index path for :py:func:`cudf_cat_inf`."""
+    import pylibcudf as plc  # pylint: disable=import-outside-toplevel
 
-    _fields_ = [
-        ("format", ctypes.c_char_p),
-        ("name", ctypes.c_char_p),
-        ("metadata", ctypes.c_char_p),
-        ("flags", ctypes.c_int64),
-        ("n_children", ctypes.c_int64),
-        ("children", ctypes.POINTER(ctypes.c_void_p)),
-        ("dictionary", ctypes.c_void_p),
-        ("release", ctypes.c_void_p),
-        ("private_data", ctypes.c_void_p),
-    ]
+    # pylint: disable=protected-access
+    plc_col = cats._column.to_pylibcudf()
+    if plc_col.type().id() != plc.TypeId.STRING:
+        raise TypeError(
+            "Unexpected type for category index. It's neither numeric nor string."
+        )
+    # Categories should not have missing values nor a non-zero logical offset.
+    assert plc_col.null_count() == 0
+    assert plc_col.offset() == 0
 
+    off_child = plc_col.children()[0]  # offsets
+    assert off_child.type().id() == plc.TypeId.INT32, "Expected INT32 string offsets."
 
-class ArrowArray(ctypes.Structure):
-    """The Array type from arrow C array."""
-
-
-ArrowArray._fields_ = [  # pylint: disable=protected-access
-    ("length", ctypes.c_int64),
-    ("null_count", ctypes.c_int64),
-    ("offset", ctypes.c_int64),
-    ("n_buffers", ctypes.c_int64),
-    ("n_children", ctypes.c_int64),
-    ("buffers", ctypes.POINTER(ctypes.c_void_p)),
-    ("children", ctypes.POINTER(ctypes.POINTER(ArrowArray))),
-    ("dictionary", ctypes.POINTER(ArrowArray)),
-    ("release", ctypes.c_void_p),
-    ("private_data", ctypes.c_void_p),
-]
-
-
-class ArrowDeviceArray(ctypes.Structure):
-    """The Array type from arrow C device array."""
-
-    _fields_ = [
-        ("array", ArrowArray),
-        ("device_id", ctypes.c_int64),
-        ("device_type", ctypes.c_int32),
-        ("sync_event", ctypes.c_void_p),
-        ("reserved", ctypes.c_int64 * 3),
-    ]
-
-
-PyCapsule_GetName = ctypes.pythonapi.PyCapsule_GetName
-PyCapsule_GetName.restype = ctypes.c_char_p
-PyCapsule_GetName.argtypes = [ctypes.py_object]
-
-
-PyCapsule_GetPointer = ctypes.pythonapi.PyCapsule_GetPointer
-PyCapsule_GetPointer.restype = ctypes.c_void_p
-PyCapsule_GetPointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
-
-
-def wait_event(event_hdl: int) -> None:
-    """Wait for CUDA event exported by arrow."""
-    # cuda-python is a dependency of cuDF.
-    from cuda.bindings import runtime as cudart
-
-    event = ctypes.cast(event_hdl, ctypes.POINTER(ctypes.c_int64))
-    (status,) = cudart.cudaStreamWaitEvent(
+    # String category index in arrow format
+    jdata: CudaArrayInf = _arrow_buf_inf(
+        plc_col.data().__cuda_array_interface__["data"][0],
+        "|i1",
+        0,
         STREAM_PER_THREAD,
-        event.contents.value,
-        cudart.cudaEventWaitDefault,
     )
-    if status != cudart.cudaError_t.cudaSuccess:
-        _, msg = cudart.cudaGetErrorString(status)
-        raise ValueError(msg)
+    joffset: CudaArrayInf = _arrow_buf_inf(
+        off_child.data().__cuda_array_interface__["data"][0],
+        "<i4",
+        off_child.size(),
+        STREAM_PER_THREAD,
+    )
+    jnames: CudaStringArray = {"offsets": joffset, "values": jdata}
+    # Keep `plc_col` alive: it owns the GPU buffers pointed to by `jdata` and
+    # `joffset`.
+    return jnames, (plc_col,)
 
 
-def cudf_cat_inf(  # pylint: disable=too-many-locals
+def cudf_cat_inf(
     cats: DfCatAccessor, codes: "pd.Series"
 ) -> Tuple[Union[CudaArrayInf, CudaStringArray], ArrayInf, Tuple]:
     """Obtain the cuda array interface for cuDF categories."""
@@ -594,55 +568,9 @@ def cudf_cat_inf(  # pylint: disable=too-many-locals
         codes_ainf = cuda_array_interface_dict(codes)
         return cats_ainf, codes_ainf, (cats, codes)
 
-    # pylint: disable=protected-access
-    arrow_col = cats._column.to_pylibcudf(mode="read")
-    # Tuple[types.CapsuleType, types.CapsuleType]
-    schema, array = arrow_col.__arrow_c_device_array__()
-
-    array_ptr = PyCapsule_GetPointer(array, PyCapsule_GetName(array))
-    schema_ptr = PyCapsule_GetPointer(schema, PyCapsule_GetName(schema))
-
-    # Cast to arrow array
-    arrow_device_array = ctypes.cast(
-        array_ptr, ctypes.POINTER(ArrowDeviceArray)
-    ).contents
-    wait_event(arrow_device_array.sync_event)
-    assert arrow_device_array.device_type == 2  # 2 is CUDA
-
-    arrow_array = arrow_device_array.array
-    mask, offset, data = (
-        arrow_array.buffers[0],
-        arrow_array.buffers[1],
-        arrow_array.buffers[2],
-    )
-    # Categories should not have missing values.
-    assert mask is None
-    assert arrow_array.n_children == 0
-    assert arrow_array.n_buffers == 3
-    assert arrow_array.offset == 0
-
-    # Cast to ArrowSchema
-    arrow_schema = ctypes.cast(schema_ptr, ctypes.POINTER(ArrowSchema)).contents
-    assert arrow_schema.format in (b"u", b"U", b"vu")  # utf8, large utf8
-    if arrow_schema.format in (b"u", b"vu"):
-        joffset: CudaArrayInf = _arrow_buf_inf(
-            offset, "<i4", arrow_array.length + 1, STREAM_PER_THREAD
-        )
-    elif arrow_schema.format == b"U":
-        raise TypeError("Large string for category index (names) is not supported.")
-    else:
-        raise TypeError(
-            "Unexpected type for category index. It's neither numeric nor string."
-        )
-    # 0 size for unknown
-    jdata: CudaArrayInf = _arrow_buf_inf(data, "|i1", 0, STREAM_PER_THREAD)
-    jnames: CudaStringArray = {
-        "offsets": joffset,
-        "values": jdata,
-    }
-
+    jnames, buf = _cudf_str_cat_inf(cats)
     jcodes = cuda_array_interface_dict(codes)
-    return jnames, jcodes, (arrow_col,)
+    return jnames, jcodes, buf
 
 
 class Categories:

@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include "coll.h"
 
@@ -31,7 +31,8 @@ bool constexpr IsFloatingPointV() {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
-[[nodiscard]] Result Coll::Allreduce(Comm const& comm, common::Span<std::int8_t> data,
+[[nodiscard]] Result Coll::Allreduce(Context const* /*ctx*/, Comm const& comm,
+                                     common::Span<std::int8_t> data,
                                      ArrayInterfaceHandler::Type type, Op op) {
   namespace coll = ::xgboost::collective;
 
@@ -100,19 +101,23 @@ bool constexpr IsFloatingPointV() {
     return Fail("Invalid op.");
   });
 
-  return std::move(rc) << [&] { return comm.Block(); };
+  return std::move(rc) << [&] {
+    return comm.Block();
+  };
 }
 
-[[nodiscard]] Result Coll::Broadcast(Comm const& comm, common::Span<std::int8_t> data,
-                                     std::int32_t root) {
+[[nodiscard]] Result Coll::Broadcast(Context const* /*ctx*/, Comm const& comm,
+                                     common::Span<std::int8_t> data, std::int32_t root) {
   return cpu_impl::Broadcast(comm, data, root);
 }
 
-[[nodiscard]] Result Coll::Allgather(Comm const& comm, common::Span<std::int8_t> data) {
+[[nodiscard]] Result Coll::Allgather(Context const* /*ctx*/, Comm const& comm,
+                                     common::Span<std::int8_t> data) {
   return RingAllgather(comm, data);
 }
 
-[[nodiscard]] Result Coll::AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
+[[nodiscard]] Result Coll::AllgatherV(Context const* /*ctx*/, Comm const& comm,
+                                      common::Span<std::int8_t const> data,
                                       common::Span<std::int64_t const> sizes,
                                       common::Span<std::int64_t> recv_segments,
                                       common::Span<std::int8_t> recv, AllgatherVAlgo algo) {

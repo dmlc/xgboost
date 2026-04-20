@@ -55,7 +55,7 @@ template <typename T, std::int32_t kDim>
   auto type = ToDType<T>::kType;
 
   auto backend = comm.Backend(data.Device());
-  return backend->Allreduce(comm.Ctx(ctx, data.Device()), erased, type, op);
+  return backend->Allreduce(ctx, comm.Ctx(ctx, data.Device()), erased, type, op);
 }
 
 template <typename T, std::int32_t kDim>
@@ -366,8 +366,8 @@ template <typename T, typename Fn>
 std::enable_if_t<std::is_invocable_v<Fn, dh::device_vector<T> const&, dh::device_vector<T> const&,
                                      dh::device_vector<T>*, cudaStream_t>,
                  Result>
-AllreduceV(Comm const& comm, dh::device_vector<T>* data, AllreduceVScratch<T>* scratch,
-           Fn&& redop) {
+AllreduceV(Context const* ctx, Comm const& comm, dh::device_vector<T>* data,
+           AllreduceVScratch<T>* scratch, Fn&& redop) {
   if (!comm.IsDistributed() || comm.World() == 1) {
     return Success();
   }
@@ -377,7 +377,7 @@ AllreduceV(Comm const& comm, dh::device_vector<T>* data, AllreduceVScratch<T>* s
     return Fail("Distributed GPU AllreduceV requires NCCL support.");
   }
 
-  return gpu_impl::AllreduceV(*nccl, data, scratch, std::forward<Fn>(redop));
+  return gpu_impl::AllreduceV(ctx, *nccl, data, scratch, std::forward<Fn>(redop));
 }
 
 template <typename T, typename Fn>
@@ -396,7 +396,7 @@ AllreduceV(Context const* ctx, CommGroup const& comm, dh::device_vector<T>* data
   auto const& cctx = comm.Ctx(ctx, ctx->Device());
   auto nccl = dynamic_cast<NCCLComm const*>(&cctx);
   if (nccl != nullptr) {
-    return gpu_impl::AllreduceV(*nccl, data, scratch, std::forward<Fn>(redop));
+    return gpu_impl::AllreduceV(ctx, *nccl, data, scratch, std::forward<Fn>(redop));
   }
   return gpu_detail::AllreduceVHostFallback(ctx, comm, data, scratch, std::forward<Fn>(redop));
 }

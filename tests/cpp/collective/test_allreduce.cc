@@ -73,8 +73,10 @@ class AllreduceWorker : public WorkerForTest {
     std::vector<std::uint32_t> data(comm_.World(), 0);
     data[comm_.Rank()] = ~std::uint32_t{0};
     auto pcoll = std::shared_ptr<Coll>{new Coll{}};
-    auto rc = pcoll->Allreduce(comm_, common::EraseType(common::Span{data.data(), data.size()}),
-                               ArrayInterfaceHandler::kU4, Op::kBitwiseOR);
+    Context ctx;
+    auto rc =
+        pcoll->Allreduce(&ctx, comm_, common::EraseType(common::Span{data.data(), data.size()}),
+                         ArrayInterfaceHandler::kU4, Op::kBitwiseOR);
     SafeColl(rc);
     for (auto v : data) {
       ASSERT_EQ(v, ~std::uint32_t{0});
