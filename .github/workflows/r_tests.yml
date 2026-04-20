@@ -39,7 +39,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev librsvg2-dev librsvg2-2
+          sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev librsvg2-dev librsvg2-2 libuv1-dev
         if: matrix.os == 'ubuntu-latest'
       - uses: actions/checkout@v6.0.2
         with:
@@ -80,8 +80,8 @@ jobs:
       - name: Install system dependencies
         run: |
           # Must run before checkout to have the latest git installed.
-          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 pandoc -y
-          # cmake is required by the R `fs` package to build its bundled libuv.
+          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 pandoc libuv1-dev -y
+          # cmake is required by the R `fs` package if it builds its bundled libuv.
           apt install cmake -y
       - name: Trust git cloning project sources
         run: |
