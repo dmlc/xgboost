@@ -6,6 +6,7 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t, uint64_t
 #include <memory>     // for unique_ptr, shared_ptr
+#include <stdexcept>  // for invalid_argument, out_of_range
 #include <vector>     // for vector
 
 #include "../collective/allreduce.h"         // for Allreduce
@@ -744,6 +745,8 @@ class CPUPredictor : public Predictor {
 
  public:
   explicit CPUPredictor(Context const *ctx) : Predictor::Predictor{ctx} {}
+
+  void Configure(Args const &) override {}
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts, gbm::GBTreeModel const &model,
                     bst_tree_t tree_begin, bst_tree_t tree_end = 0,

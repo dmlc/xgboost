@@ -14,10 +14,36 @@ struct GBTreeModel;
 }  // namespace xgboost::gbm
 
 namespace xgboost::interpretability {
+namespace detail {
+template <typename TreeView, typename NodeIndex>
+inline double FillRootMeanValue(TreeView const& tree, NodeIndex nidx) {
+  if (tree.IsLeaf(nidx)) {
+    return tree.LeafValue(nidx);
+  }
+  auto left = tree.LeftChild(nidx);
+  auto right = tree.RightChild(nidx);
+  double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
+  result += FillRootMeanValue(tree, right) * tree.SumHess(right);
+  result /= tree.SumHess(nidx);
+  return result;
+}
+}  // namespace detail
+
 namespace cpu_impl {
 void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,
                 std::vector<float> const* tree_weights, int condition, unsigned condition_feature);
+
+void QuadratureShapValues(Context const* ctx, DMatrix* p_fmat,
+                          HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
+                          bst_tree_t tree_end, std::vector<float> const* tree_weights,
+                          std::size_t quadrature_points);
+
+void QuadratureShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
+                                     HostDeviceVector<float>* out_contribs,
+                                     gbm::GBTreeModel const& model, bst_tree_t tree_end,
+                                     std::vector<float> const* tree_weights,
+                                     std::size_t quadrature_points);
 
 void ApproxFeatureImportance(Context const* ctx, DMatrix* p_fmat,
                              HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
@@ -34,6 +60,15 @@ namespace cuda_impl {
 void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,
                 std::vector<float> const* tree_weights, int condition, unsigned condition_feature);
+void QuadratureShapValues(Context const* ctx, DMatrix* p_fmat,
+                          HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
+                          bst_tree_t tree_end, std::vector<float> const* tree_weights,
+                          std::size_t quadrature_points);
+void QuadratureShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
+                                     HostDeviceVector<float>* out_contribs,
+                                     gbm::GBTreeModel const& model, bst_tree_t tree_end,
+                                     std::vector<float> const* tree_weights,
+                                     std::size_t quadrature_points);
 void ApproxFeatureImportance(Context const* ctx, DMatrix* p_fmat,
                              HostDeviceVector<float>* out_contribs, gbm::GBTreeModel const& model,
                              bst_tree_t tree_end, std::vector<float> const* tree_weights);
