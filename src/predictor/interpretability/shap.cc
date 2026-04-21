@@ -97,22 +97,22 @@ void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVe
 
 // Keep the CPU quadrature recurrence on the same fixed 8-point rule as the GPU path so the hot
 // loops stay small and the compiler can fully unroll the basis update and extraction work.
-constexpr std::size_t kQuadratureShapPoints = 8;
-constexpr double kQuadratureShapBuildQeps = 1e-15;
-constexpr float kQuadratureShapUnseen = -999.0f;
+constexpr std::size_t kQuadratureTreeShapPoints = 8;
+constexpr double kQuadratureTreeShapBuildQeps = 1e-15;
+constexpr float kQuadratureTreeShapUnseen = -999.0f;
 
 struct QuadratureRule {
-  std::array<float, kQuadratureShapPoints> nodes{};
-  std::array<float, kQuadratureShapPoints> weights{};
+  std::array<float, kQuadratureTreeShapPoints> nodes{};
+  std::array<float, kQuadratureTreeShapPoints> weights{};
 };
-using QuadratureBuffer = std::array<float, kQuadratureShapPoints>;
+using QuadratureBuffer = std::array<float, kQuadratureTreeShapPoints>;
 
 QuadratureRule const &GetQuadratureRule() {
   static QuadratureRule const rule = [] {
     auto const rule_d =
-        detail::MakeEndpointQuadrature<kQuadratureShapPoints>(kQuadratureShapBuildQeps);
+        detail::MakeEndpointQuadrature<kQuadratureTreeShapPoints>(kQuadratureTreeShapBuildQeps);
     QuadratureRule out;
-    for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
       out.nodes[i] = static_cast<float>(rule_d.nodes[i]);
       out.weights[i] = static_cast<float>(rule_d.weights[i]);
     }
@@ -122,7 +122,7 @@ QuadratureRule const &GetQuadratureRule() {
 }
 
 void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs) {
-  for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
     (*lhs)[i] += rhs[i];
   }
 }
@@ -132,13 +132,13 @@ float ExtractQuadratureDelta(QuadratureRule const &rule, QuadratureBuffer const 
   float acc = 0.0f;
   if (p_enter != 1.0f) {
     auto const alpha_enter = p_enter - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
       acc += alpha_enter * h_vals[i] / (1.0f + alpha_enter * rule.nodes[i]);
     }
   }
   if (p_exit != 1.0f) {
     auto const alpha_exit = p_exit - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
       acc -= alpha_exit * h_vals[i] / (1.0f + alpha_exit * rule.nodes[i]);
     }
   }
@@ -158,7 +158,7 @@ float ExtractQuadratureInteractionDelta(QuadratureRule const &rule, QuadratureBu
   auto const alpha_exit = p_exit - 1.0f;
 
   float acc = 0.0f;
-  for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
     float edge_delta = 0.0f;
     if (has_enter) {
       edge_delta += alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
@@ -175,7 +175,7 @@ void WriteWeightedLeafReturn(tree::ScalarTreeView const &tree, QuadratureRule co
                              bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
                              QuadratureBuffer *out_h) {
   auto const leaf_scale = w_prod * tree.LeafValue(nidx);
-  for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
     (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
   }
 }
@@ -359,7 +359,7 @@ struct InteractionContributionFormulation {
 // Tree-walk engine for quadrature formulations. It owns feature evaluation, child descent, and
 // the live path-probability state, then hands leaf/return events to the selected formulation.
 template <typename ContributionFormulation>
-struct QuadratureShapTreeRunner {
+struct QuadratureTreeShapRunner {
   tree::ScalarTreeView const &tree;
   RegTree::FVec const &feat;
   QuadratureRule const &rule;
@@ -386,7 +386,7 @@ struct QuadratureShapTreeRunner {
     auto p_old = (*path_prob)[split_index];
 
     float p_e = 0.0f;
-    if (p_old == kQuadratureShapUnseen) {
+    if (p_old == kQuadratureTreeShapUnseen) {
       p_e = satisfies ? 1.0f / child_weight : 0.0f;
     } else {
       p_e = satisfies ? p_old / child_weight : 0.0f;
@@ -394,14 +394,14 @@ struct QuadratureShapTreeRunner {
 
     auto c_child = c_vals;
     auto alpha_e = p_e - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
       c_child[i] *= 1.0f + alpha_e * rule.nodes[i];
     }
 
-    if (p_old != kQuadratureShapUnseen) {
+    if (p_old != kQuadratureTreeShapUnseen) {
       auto alpha_old = p_old - 1.0f;
       if (alpha_old != 0.0f) {
-        for (std::size_t i = 0; i < kQuadratureShapPoints; ++i) {
+        for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
           c_child[i] /= 1.0f + alpha_old * rule.nodes[i];
         }
       }
@@ -411,7 +411,7 @@ struct QuadratureShapTreeRunner {
     formulation.PushPathSplit(split_index, p_e);
     this->RunNode(child_node, c_child, w_prod * child_weight, out_h);
     formulation.HandleReturn(rule, split_index, *out_h, p_e,
-                             p_old == kQuadratureShapUnseen ? 1.0f : p_old);
+                             p_old == kQuadratureTreeShapUnseen ? 1.0f : p_old);
     formulation.PopPathSplit(split_index);
     (*path_prob)[split_index] = p_old;
   }
@@ -449,21 +449,20 @@ struct QuadratureShapTreeRunner {
   }
 };
 
-struct QuadratureShapModelData {
+struct QuadratureTreeShapModelData {
   std::vector<tree::ScalarTreeView> trees;
   std::vector<std::vector<bst_tree_t>> trees_by_group;
   std::vector<float> weights;
   std::vector<float> group_root_mean_sums;
 };
 
-QuadratureShapModelData MakeQuadratureShapModelData(gbm::GBTreeModel const &model,
-                                                    bst_tree_t tree_end,
-                                                    std::vector<float> const *tree_weights) {
+QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
+    gbm::GBTreeModel const &model, bst_tree_t tree_end, std::vector<float> const *tree_weights) {
   auto const n_trees = static_cast<std::size_t>(tree_end);
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   auto const n_groups = model.learner_model_param->num_output_group;
 
-  QuadratureShapModelData out;
+  QuadratureTreeShapModelData out;
   out.trees.reserve(n_trees);
   out.trees_by_group.resize(n_groups);
   out.weights.resize(n_trees, 1.0f);
@@ -513,37 +512,38 @@ void LaunchShap(Context const *ctx, DMatrix *p_fmat, gbm::GBTreeModel const &mod
 }  // namespace
 
 namespace cpu_impl {
-void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
-                          HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                          bst_tree_t tree_end, std::vector<float> const *tree_weights,
-                          std::size_t quadrature_points);
-void QuadratureShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
-                                     HostDeviceVector<float> *out_contribs,
-                                     gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                                     std::vector<float> const *tree_weights,
-                                     std::size_t quadrature_points);
+void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
+                              HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
+                              bst_tree_t tree_end, std::vector<float> const *tree_weights,
+                              std::size_t quadrature_points);
+void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
+                                         HostDeviceVector<float> *out_contribs,
+                                         gbm::GBTreeModel const &model, bst_tree_t tree_end,
+                                         std::vector<float> const *tree_weights,
+                                         std::size_t quadrature_points);
 
 void ShapValues(Context const *ctx, DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                 gbm::GBTreeModel const &model, bst_tree_t tree_end,
                 std::vector<float> const *tree_weights, int condition, unsigned condition_feature) {
-  CHECK_EQ(condition, 0) << "CPU exact SHAP uses fixed 8-point QuadratureSHAP and does not "
+  CHECK_EQ(condition, 0) << "CPU exact SHAP uses fixed 8-point QuadratureTreeSHAP and does not "
                             "support conditioned exact attributions.";
-  CHECK_EQ(condition_feature, 0U) << "CPU exact SHAP uses fixed 8-point QuadratureSHAP and does "
-                                     "not support conditioned exact attributions.";
-  QuadratureShapValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights,
-                       kQuadratureShapPoints);
+  CHECK_EQ(condition_feature, 0U)
+      << "CPU exact SHAP uses fixed 8-point QuadratureTreeSHAP and does "
+         "not support conditioned exact attributions.";
+  QuadratureTreeShapValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights,
+                           kQuadratureTreeShapPoints);
 }
 
-void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
-                          HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
-                          bst_tree_t tree_end, std::vector<float> const *tree_weights,
-                          std::size_t quadrature_points) {
+void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
+                              HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
+                              bst_tree_t tree_end, std::vector<float> const *tree_weights,
+                              std::size_t quadrature_points) {
   CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
-  CHECK_EQ(quadrature_points, kQuadratureShapPoints)
-      << "CPU QuadratureSHAP currently uses a fixed quadrature size of " << kQuadratureShapPoints
-      << ".";
+  CHECK_EQ(quadrature_points, kQuadratureTreeShapPoints)
+      << "CPU QuadratureTreeSHAP currently uses a fixed quadrature size of "
+      << kQuadratureTreeShapPoints << ".";
   MetaInfo const &info = p_fmat->Info();
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
   CHECK_GE(tree_end, 0);
@@ -559,11 +559,11 @@ void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
   CHECK_NE(n_groups, 0);
   auto const &rule = GetQuadratureRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
-  auto model_data = MakeQuadratureShapModelData(model, tree_end, tree_weights);
+  auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<float>(ncolumns));
   std::vector<std::vector<float>> path_prob_tloc(
-      n_threads, std::vector<float>(n_features, kQuadratureShapUnseen));
+      n_threads, std::vector<float>(n_features, kQuadratureTreeShapUnseen));
 
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
   auto base_margin = info.base_margin_.View(device);
@@ -585,7 +585,7 @@ void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
         for (auto j : model_data.trees_by_group[gid]) {
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0f);
           auto formulation = AdditiveContributionFormulation{{this_tree_contribs.data(), ncolumns}};
-          auto runner = QuadratureShapTreeRunner<AdditiveContributionFormulation>{
+          auto runner = QuadratureTreeShapRunner<AdditiveContributionFormulation>{
               model_data.trees[j], feats, rule, &path_prob, formulation};
           runner.Run();
           auto const weight = model_data.weights[j];
@@ -608,18 +608,18 @@ void QuadratureShapValues(Context const *ctx, DMatrix *p_fmat,
   LaunchShap(ctx, p_fmat, model, process_view);
 }
 
-void QuadratureShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
-                                     HostDeviceVector<float> *out_contribs,
-                                     gbm::GBTreeModel const &model, bst_tree_t tree_end,
-                                     std::vector<float> const *tree_weights,
-                                     std::size_t quadrature_points) {
+void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
+                                         HostDeviceVector<float> *out_contribs,
+                                         gbm::GBTreeModel const &model, bst_tree_t tree_end,
+                                         std::vector<float> const *tree_weights,
+                                         std::size_t quadrature_points) {
   CHECK(!model.learner_model_param->IsVectorLeaf())
       << "Predict interaction contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
                                             "column-wise data split is not yet implemented.";
-  CHECK_EQ(quadrature_points, kQuadratureShapPoints)
-      << "CPU QuadratureSHAP currently uses a fixed quadrature size of " << kQuadratureShapPoints
-      << ".";
+  CHECK_EQ(quadrature_points, kQuadratureTreeShapPoints)
+      << "CPU QuadratureTreeSHAP currently uses a fixed quadrature size of "
+      << kQuadratureTreeShapPoints << ".";
 
   MetaInfo const &info = p_fmat->Info();
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
@@ -639,11 +639,11 @@ void QuadratureShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 
   auto const &rule = GetQuadratureRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
-  auto model_data = MakeQuadratureShapModelData(model, tree_end, tree_weights);
+  auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
   std::vector<std::vector<QuadraturePathElement>> path_tloc(n_threads);
   std::vector<std::vector<float>> path_prob_tloc(
-      n_threads, std::vector<float>(n_features, kQuadratureShapUnseen));
+      n_threads, std::vector<float>(n_features, kQuadratureTreeShapUnseen));
   std::vector<std::vector<float>> diag_tloc(n_threads, std::vector<float>(ncolumns));
 
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
@@ -673,7 +673,7 @@ void QuadratureShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                                                                 {diag.data(), ncolumns},
                                                                 {matrix.data, matrix.ncolumns},
                                                                 model_data.weights[j]};
-          auto runner = QuadratureShapTreeRunner<InteractionContributionFormulation>{
+          auto runner = QuadratureTreeShapRunner<InteractionContributionFormulation>{
               model_data.trees[j], feats, rule, &path_prob, formulation};
           runner.Run();
         }
@@ -791,8 +791,8 @@ void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                            bst_tree_t tree_end, std::vector<float> const *tree_weights,
                            bool approximate) {
   if (!approximate) {
-    QuadratureShapInteractionValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights,
-                                    kQuadratureShapPoints);
+    QuadratureTreeShapInteractionValues(ctx, p_fmat, out_contribs, model, tree_end, tree_weights,
+                                        kQuadratureTreeShapPoints);
     return;
   }
   CHECK(!model.learner_model_param->IsVectorLeaf())
