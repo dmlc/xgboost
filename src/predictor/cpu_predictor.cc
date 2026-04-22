@@ -761,7 +761,8 @@ class CPUPredictor : public Predictor {
         } catch (std::out_of_range const &) {
           LOG(FATAL) << "quadratureshap_points out of range: " << kv.second;
         }
-        CHECK_EQ(points, 8) << "CPU QuadratureSHAP currently uses a fixed quadrature size of 8.";
+        CHECK(points == 4 || points == 6 || points == 8 || points == 16)
+            << "CPU QuadratureSHAP currently supports quadrature sizes of 4, 6, 8, or 16.";
         quadrature_shap_points_ = points;
       }
     }
