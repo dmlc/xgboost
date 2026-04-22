@@ -292,6 +292,34 @@ TEST(Predictor, DartShapOutputCPU) {
   CheckDartShapOutput(&ctx);
 }
 
+TEST(Predictor, ShapRejectsZeroCoverChild) {
+  Context ctx;
+  std::size_t shape[1]{1};
+  linalg::Vector<float> base_score{shape, ctx.Device()};
+  base_score.Data()->HostVector()[0] = 0.0f;
+  LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
+  gbm::GBTreeModel model{&mparam, &ctx};
+
+  gbm::TreesOneGroup trees;
+  trees.emplace_back(std::make_unique<RegTree>());
+  trees.front()->ExpandNode(RegTree::kRoot, 0, 0.5f, true, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f,
+                            1.0f);
+  model.CommitModelGroup(std::move(trees), 0);
+
+  auto dmat = GetDMatrixFromData(std::vector<float>{0.0f, 1.0f}, 2, 1);
+  HostDeviceVector<float> out;
+  auto msg = "non-positive cover at child nodes";
+  ASSERT_THAT(
+      [&] { interpretability::ShapValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr, 0, 0); },
+      GMockThrow(msg));
+  ASSERT_THAT(
+      [&] {
+        interpretability::ShapInteractionValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr,
+                                                false);
+      },
+      GMockThrow(msg));
+}
+
 TEST(Predictor, ApproxContribsBasic) {
   Context ctx;
   size_t constexpr kRows = 64;

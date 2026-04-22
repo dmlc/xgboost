@@ -70,6 +70,25 @@ double FillRootMeanValue(tree::ScalarTreeView const &tree, bst_node_t nidx) {
   return result;
 }
 
+void ValidateQuadratureTreeShapCovers(tree::ScalarTreeView const &tree, bst_node_t nidx) {
+  if (tree.IsLeaf(nidx)) {
+    return;
+  }
+
+  CHECK_GT(tree.SumHess(nidx), 0.0f)
+      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at split nodes.";
+
+  auto left = tree.LeftChild(nidx);
+  auto right = tree.RightChild(nidx);
+  CHECK_GT(tree.SumHess(left), 0.0f)
+      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
+  CHECK_GT(tree.SumHess(right), 0.0f)
+      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
+
+  ValidateQuadratureTreeShapCovers(tree, left);
+  ValidateQuadratureTreeShapCovers(tree, right);
+}
+
 void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVec const &feats,
                                   std::vector<float> *mean_values,
                                   std::vector<bst_float> *out_contribs) {
@@ -152,21 +171,21 @@ float ExtractQuadratureInteractionDelta(QuadratureRule const &rule, QuadratureBu
   }
 
   auto const alpha_partner = q_partner - 1.0f;
-  auto const has_enter = p_enter != 1.0f;
-  auto const has_exit = p_exit != 1.0f;
   auto const alpha_enter = p_enter - 1.0f;
-  auto const alpha_exit = p_exit - 1.0f;
 
   float acc = 0.0f;
-  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-    float edge_delta = 0.0f;
-    if (has_enter) {
-      edge_delta += alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
+  if (p_exit == 1.0f) {
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
+      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
     }
-    if (has_exit) {
-      edge_delta -= alpha_exit / (1.0f + alpha_exit * rule.nodes[i]);
+  } else {
+    auto const alpha_exit = p_exit - 1.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]) -
+                              alpha_exit / (1.0f + alpha_exit * rule.nodes[i]);
+      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
     }
-    acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
   }
   return acc;
 }
@@ -476,6 +495,7 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
     out.trees_by_group[gid].push_back(i);
     out.weights[i] = weight;
+    ValidateQuadratureTreeShapCovers(out.trees[i], RegTree::kRoot);
     out.group_root_mean_sums[gid] +=
         static_cast<float>(FillRootMeanValue(out.trees[i], RegTree::kRoot) * weight);
   }
