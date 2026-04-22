@@ -108,7 +108,7 @@ struct QuadratureRule {
 using QuadratureBuffer = std::array<float, kQuadratureTreeShapPoints>;
 
 QuadratureRule const &GetQuadratureRule() {
-  static QuadratureRule const rule = [] {
+  static QuadratureRule const kRule = [] {
     auto const rule_d =
         detail::MakeEndpointQuadrature<kQuadratureTreeShapPoints>(kQuadratureTreeShapBuildQeps);
     QuadratureRule out;
@@ -118,7 +118,7 @@ QuadratureRule const &GetQuadratureRule() {
     }
     return out;
   }();
-  return rule;
+  return kRule;
 }
 
 void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs) {
@@ -548,7 +548,6 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
   CHECK_GE(tree_end, 0);
   ValidateTreeWeights(tree_weights, tree_end);
-  auto const n_trees = static_cast<std::size_t>(tree_end);
   auto const n_threads = ctx->Threads();
   auto const n_groups = model.learner_model_param->num_output_group;
   auto const n_features = model.learner_model_param->num_feature;

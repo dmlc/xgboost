@@ -85,7 +85,6 @@ OBJECTS= \
     $(PKGROOT)/src/predictor/predictor.o \
     $(PKGROOT)/src/predictor/cpu_predictor.o \
     $(PKGROOT)/src/predictor/interpretability/shap.o \
-    $(PKGROOT)/src/predictor/treeshap.o \
     $(PKGROOT)/src/tree/constraints.o \
     $(PKGROOT)/src/tree/param.o \
     $(PKGROOT)/src/tree/fit_stump.o \

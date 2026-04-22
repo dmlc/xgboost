@@ -15,6 +15,8 @@
 
 namespace xgboost::interpretability::detail {
 
+constexpr double kPi = 3.141592653589793238462643383279502884;
+
 template <std::size_t MaxPoints>
 struct EndpointQuadratureRule {
   std::size_t points{0};
@@ -58,7 +60,7 @@ inline EndpointQuadratureRule<MaxPoints> MakeEndpointQuadrature(std::size_t n,
   nodes_weights.reserve(n);
 
   for (std::size_t i = 0; i < n; ++i) {
-    double theta = M_PI * (static_cast<double>(i) + 0.75) / (static_cast<double>(n) + 0.5);
+    double theta = kPi * (static_cast<double>(i) + 0.75) / (static_cast<double>(n) + 0.5);
     double x = std::cos(theta);
     for (std::size_t iter = 0; iter < 64; ++iter) {
       auto pn = LegendrePolynomial(n, x);
