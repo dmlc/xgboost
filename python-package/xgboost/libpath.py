@@ -49,7 +49,7 @@ def find_lib_path() -> List[str]:
             ]
         )
         dll_path = [os.path.join(p, "xgboost.dll") for p in dll_path]
-    elif sys.platform.startswith(("linux", "freebsd", "emscripten")):
+    elif sys.platform.startswith(("linux", "android", "freebsd", "emscripten")):
         dll_path = [os.path.join(p, "libxgboost.so") for p in dll_path]
     elif sys.platform == "darwin":
         dll_path = [os.path.join(p, "libxgboost.dylib") for p in dll_path]

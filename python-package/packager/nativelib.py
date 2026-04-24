@@ -16,7 +16,7 @@ from .build_config import BuildConfiguration
 
 def _lib_name() -> str:
     """Return platform dependent shared object name."""
-    if system() in ["Linux", "OS400"] or system().upper().endswith("BSD"):
+    if system() in ["Linux", "Android", "OS400"] or system().upper().endswith("BSD"):
         name = "libxgboost.so"
     elif system() == "Darwin":
         name = "libxgboost.dylib"
