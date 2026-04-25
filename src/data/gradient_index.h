@@ -161,7 +161,13 @@ class GHistIndexMatrix {
   bst_idx_t base_rowid{0};
 
   [[nodiscard]] bst_bin_t MaxNumBinPerFeat() const {
-    return std::max(static_cast<bst_bin_t>(cut.MaxCategory() + 1), max_numeric_bins_per_feat);
+    // widest per-feature bin range across cut.Ptrs() (cut_values is no longer dense)
+    auto const& ptrs = cut.Ptrs();
+    bst_bin_t max_bins = max_numeric_bins_per_feat;
+    for (std::size_t f = 1; f < ptrs.size(); ++f) {
+      max_bins = std::max(max_bins, static_cast<bst_bin_t>(ptrs[f] - ptrs[f - 1]));
+    }
+    return max_bins;
   }
 
   ~GHistIndexMatrix();

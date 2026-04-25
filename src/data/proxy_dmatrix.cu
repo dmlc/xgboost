@@ -1,6 +1,8 @@
 /**
  * Copyright 2020-2025, XGBoost contributors
  */
+#include <limits>  // for numeric_limits
+
 #include "../encoder/ordinal.h"  // for DeviceColumnsView
 #include "device_adapter.cuh"
 #include "proxy_dmatrix.cuh"
@@ -48,11 +50,19 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
 }
 
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
-  return cuda_impl::DispatchAny(proxy, [](auto const& value) { return value.NumRows(); });
+  return cuda_impl::DispatchAny<false>(
+      proxy, [](auto const& adapter) -> bst_idx_t { return adapter->NumRows(); });
 }
 
-[[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const* proxy) {
-  return cuda_impl::DispatchAny(proxy, [](auto const& value) { return value.NumCols(); });
+[[nodiscard]] bst_feature_t BatchColumns(DMatrixProxy const* proxy) {
+  return cuda_impl::DispatchAny<false>(
+      proxy, [](auto const& adapter) -> bst_feature_t {
+        auto const cols = adapter->NumColumns();
+        CHECK_LE(cols, static_cast<bst_idx_t>(std::numeric_limits<bst_feature_t>::max()))
+            << "Number of features exceeds bst_feature_t range; reduce the column"
+               " count or update the producing library.";
+        return static_cast<bst_feature_t>(cols);
+      });
 }
 
 [[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const* proxy) {

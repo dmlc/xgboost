@@ -17,3 +17,4 @@ dependencies:
 - py-ubjson
 - loky>=3.5.1
 - pyarrow
+- polars

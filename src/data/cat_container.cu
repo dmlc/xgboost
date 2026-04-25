@@ -4,6 +4,7 @@
 #include <thrust/copy.h>  // for copy
 
 #include <memory>  // for make_unique
+#include <mutex>   // for lock_guard, scoped_lock
 #include <vector>  // for vector
 
 #include "../common/cuda_context.cuh"    // for CUDAContext
@@ -154,6 +155,7 @@ CatContainer::CatContainer()  // NOLINT
 
 CatContainer::CatContainer(Context const* ctx, enc::DeviceColumnsView const& df, bool is_ref)
     : CatContainer{} {
+  // device path skips ValidateCatStrArrayOffsets; cuDF validates Arrow offsets upstream
   this->is_ref_ = is_ref;
   this->n_total_cats_ = df.n_total_cats;
 
@@ -179,6 +181,12 @@ CatContainer::CatContainer(Context const* ctx, enc::DeviceColumnsView const& df,
 CatContainer::~CatContainer() = default;
 
 void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
+  if (&that == this) {
+    return;
+  }
+  // scoped_lock serializes concurrent a.Copy(b)+b.Copy(a); that.HostView() and
+  // that.DeviceView() acquire that.device_mu_ internally for the brief migration path
+  std::scoped_lock guard{this->sort_mu_, that.sort_mu_, this->device_mu_};
   if (ctx->IsCPU()) {
     // Pull data to host
     [[maybe_unused]] auto h_view = that.HostView();
@@ -247,10 +255,12 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
 }
 
 void CatContainer::Sort(Context const* ctx) {
-  if (!this->HasCategorical()) {
+  // sort_mu_ serializes Sort()/Copy(); HasCategorical() reads n_total_cats_ which
+  // Copy() writes under sort_mu_, so check inside the lock
+  std::lock_guard guard{sort_mu_};
+  if (!this->HasCategorical() || this->sorted_) {
     return;
   }
-
   if (ctx->IsCPU()) {
     auto view = this->HostView();
     CHECK(!view.Empty()) << view.n_total_cats;
@@ -263,6 +273,7 @@ void CatContainer::Sort(Context const* ctx) {
     this->sorted_idx_.Resize(view.n_total_cats);
     enc::SortNames(cuda_impl::EncPolicy, view, this->sorted_idx_.DeviceSpan());
   }
+  this->sorted_ = true;
 }
 
 [[nodiscard]] enc::HostColumnsView CatContainer::HostView() const {

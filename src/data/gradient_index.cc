@@ -171,12 +171,13 @@ void GHistIndexMatrix::ResizeIndex(Context const *ctx, const size_t n_index, con
         common::Index{common::Span{data.data(), static_cast<size_t>(data.size())}, t_size};
   };
 
-  if ((MaxNumBinPerFeat() - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) &&
-      isDense) {
+  // evaluate once per ResizeIndex call; MaxNumBinPerFeat() is O(n_features) now
+  auto const max_bin_per_feat = MaxNumBinPerFeat();
+  if ((max_bin_per_feat - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
     // compress dense index to uint8
     make_index(std::uint8_t{}, common::kUint8BinsTypeSize);
-  } else if ((MaxNumBinPerFeat() - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max()) &&
-              MaxNumBinPerFeat() - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) &&
+  } else if ((max_bin_per_feat - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max()) &&
+              max_bin_per_feat - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) &&
              isDense) {
     // compress dense index to uint16
     make_index(std::uint16_t{}, common::kUint16BinsTypeSize);

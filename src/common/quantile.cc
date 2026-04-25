@@ -533,14 +533,18 @@ void AddCategories(std::set<float> const &categories, float *max_cat, HistogramC
     InvalidCategory();
   }
   auto &cut_values = cuts->cut_values_.HostVector();
-  // With column-wise data split, the categories may be empty.
-  auto feature_max_cat =
-      categories.empty() ? 0.0f : *std::max_element(categories.cbegin(), categories.cend());
+  if (categories.empty()) {
+    // column-wise split: emit a placeholder cut and treat the synthetic 0.0f as the
+    // observed max so downstream sizing (evaluator.cu MaxCategory()+1) does not see -1
+    cut_values.push_back(0.0f);
+    *max_cat = std::max(*max_cat, 0.0f);
+    return;
+  }
+  auto feature_max_cat = *std::max_element(categories.cbegin(), categories.cend());
   CheckMaxCat(feature_max_cat, categories.size());
   *max_cat = std::max(*max_cat, feature_max_cat);
-  for (bst_cat_t i = 0; i <= AsCat(feature_max_cat); ++i) {
-    cut_values.push_back(i);
-  }
+  // one cut per observed code; categories is sorted ascending
+  cut_values.insert(cut_values.end(), categories.cbegin(), categories.cend());
 }
 
 HistogramCuts HostSketchContainer::MakeCuts(Context const *ctx, MetaInfo const &info) {

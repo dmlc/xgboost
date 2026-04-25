@@ -7,10 +7,13 @@
 
 namespace xgboost::data {
 namespace {
-auto GetRefCats(Context const* ctx, Json handle,
-                std::vector<enc::DeviceCatIndexView>* p_h_ref_cats) {
+// returns both the CatContainer pointer and its device view; keeping the pointer lets
+// MakeEncColumnarBatch alias the reference dictionary instead of building a fresh
+// CatContainer on every adapter dispatch (same optimization as the CPU path)
+std::pair<CatContainer*, enc::DeviceColumnsView> GetRefCats(
+    Context const* ctx, Json handle, std::vector<enc::DeviceCatIndexView>* p_h_ref_cats) {
   auto& h_ref_cats = *p_h_ref_cats;
-  auto cats = reinterpret_cast<CatContainer const*>(get<Integer const>(handle));
+  auto cats = reinterpret_cast<CatContainer*>(get<Integer const>(handle));
   CHECK(cats);
   auto d_cats = cats->DeviceView(ctx);
   // FIXME(jiamingy): Remove this along with the host copy in the cat container once
@@ -18,7 +21,7 @@ auto GetRefCats(Context const* ctx, Json handle,
   h_ref_cats.resize(d_cats.columns.size());
   thrust::copy(dh::tcbegin(d_cats.columns), dh::tcend(d_cats.columns), h_ref_cats.begin());
   d_cats.columns = common::Span{h_ref_cats};
-  return d_cats;
+  return {cats, d_cats};
 }
 }  // anonymous namespace
 
@@ -28,7 +31,10 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
   if (IsA<Object>(jdf)) {
     // Has reference categories.
     auto ctx = Context{}.MakeCUDA(curt::CurrentDevice());
-    this->ref_cats_ = GetRefCats(&ctx, jdf["ref_categories"], &this->h_ref_cats_);
+    auto [ref_cats_ptr, ref_cats_view] =
+        GetRefCats(&ctx, jdf["ref_categories"], &this->h_ref_cats_);
+    this->ref_cats_ptr_ = ref_cats_ptr;
+    this->ref_cats_ = ref_cats_view;
     jdf = jdf["columns"];
   }
 

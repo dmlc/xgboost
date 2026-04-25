@@ -13,6 +13,10 @@
 #include "xgboost/context.h"
 
 namespace xgboost::common {
+
+// Forward declaration for the regression tests below; definition is in src/common/quantile.cc.
+void AddCategories(std::set<float> const &categories, float *max_cat, HistogramCuts *cuts);
+
 namespace quantile_test {
 class QuantileSummaryTest : public ::testing::TestWithParam<SummaryCase> {};
 class QuantileContainerTest : public ::testing::TestWithParam<ContainerCase> {};
@@ -445,6 +449,50 @@ void DoPropertyColumnSplitQuantile(size_t rows, size_t cols) {
 TEST(Quantile, ColumnSplit) {
   constexpr size_t kRows = 4000, kCols = 200;
   collective::TestDistributedGlobal(4, [&] { DoPropertyColumnSplitQuantile(kRows, kCols); });
+}
+
+TEST(Quantile, AddCategoriesSparseCodes) {
+  HistogramCuts cuts{1};
+  std::set<float> categories{0.f, 1.f, 2.f, 87.f, 2526058.f};
+  float max_cat{-1.f};
+  AddCategories(categories, &max_cat, &cuts);
+
+  auto const& cut_values = cuts.cut_values_.HostVector();
+  ASSERT_EQ(cut_values.size(), categories.size());
+  EXPECT_FLOAT_EQ(max_cat, 2526058.f);
+
+  std::vector<float> expected(categories.cbegin(), categories.cend());
+  for (std::size_t i = 0; i < expected.size(); ++i) {
+    EXPECT_FLOAT_EQ(cut_values[i], expected[i]) << "entry=" << i;
+  }
+}
+
+TEST(Quantile, AddCategoriesDenseCodesUnchanged) {
+  HistogramCuts cuts{1};
+  std::set<float> categories{0.f, 1.f, 2.f, 3.f};
+  float max_cat{-1.f};
+  AddCategories(categories, &max_cat, &cuts);
+
+  auto const& cut_values = cuts.cut_values_.HostVector();
+  ASSERT_EQ(cut_values.size(), 4u);
+  EXPECT_FLOAT_EQ(max_cat, 3.f);
+  for (bst_cat_t i = 0; i < 4; ++i) {
+    EXPECT_FLOAT_EQ(cut_values[i], static_cast<float>(i));
+  }
+}
+
+TEST(Quantile, AddCategoriesEmptyInputBranch) {
+  HistogramCuts cuts{1};
+  std::set<float> categories;
+  float max_cat{-1.f};
+  AddCategories(categories, &max_cat, &cuts);
+
+  auto const& cut_values = cuts.cut_values_.HostVector();
+  ASSERT_EQ(cut_values.size(), 1u);
+  EXPECT_FLOAT_EQ(cut_values[0], 0.f);
+  // empty branch must update max_cat to 0.0f so MaxCategory()+1 in downstream sizing
+  // (gpu_hist/evaluator.cu) never sees the -1.f sentinel
+  EXPECT_FLOAT_EQ(max_cat, 0.f);
 }
 
 }  // namespace xgboost::common

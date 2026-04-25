@@ -11,7 +11,9 @@
 #include <cuda/std/variant>  // for variant
 #include <limits>            // for numeric_limits
 #include <memory>            // for make_unique
+#include <mutex>             // for once_flag, call_once
 #include <string>            // for string
+#include <utility>           // for forward
 
 #include "../common/algorithm.cuh"  // for AllOf
 #include "../common/cuda_context.cuh"
@@ -70,6 +72,13 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   explicit CudfAdapter(std::string cuda_interfaces_str)
       : CudfAdapter{StringView{cuda_interfaces_str}} {}
 
+  // non-copyable and non-movable (owns std::once_flag for the ref mapping cache,
+  // matches the ColumnarAdapter CPU sibling)
+  CudfAdapter(CudfAdapter const&) = delete;
+  CudfAdapter& operator=(CudfAdapter const&) = delete;
+  CudfAdapter(CudfAdapter&&) = delete;
+  CudfAdapter& operator=(CudfAdapter&&) = delete;
+
   [[nodiscard]] CudfAdapterBatch const& Value() const override {
     CHECK_EQ(batch_.Columns().data(), columns_.data().get());
     return batch_;
@@ -87,11 +96,26 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     return {dh::ToSpan(this->d_cats_), dh::ToSpan(this->cat_segments_), this->n_total_cats_};
   }
   [[nodiscard]] enc::DeviceColumnsView RefCats() const { return ref_cats_; }
+  // non-owning; pointee outlives the adapter; non-const so dispatchers can call Sort()
+  // on the ref CatContainer through a const adapter
+  [[nodiscard]] CatContainer* RefCatsPtr() const { return this->ref_cats_ptr_; }
   [[nodiscard]] bool HasCategorical() const { return n_total_cats_ != 0; }
   [[nodiscard]] bool HasRefCategorical() const { return this->ref_cats_.n_total_cats != 0; }
 
   [[nodiscard]] common::Span<ArrayInterface<1> const> Columns() const {
     return dh::ToSpan(this->columns_);
+  }
+
+  /** @brief Cached Recode mapping; thread-safe via std::call_once, first call wins.
+   *
+   * @warning Returned span aliases adapter storage (lifetime <= adapter) and is pinned
+   * to the device of the first invocation; later callers must dispatch on that device.
+   */
+  template <typename Fn>
+  [[nodiscard]] common::Span<std::int32_t const> CachedRefMapping(Fn&& builder) const {
+    std::call_once(this->cache_once_,
+                   [&] { this->cached_ref_mapping_ = std::forward<Fn>(builder)(); });
+    return dh::ToSpan(this->cached_ref_mapping_);
   }
 
  private:
@@ -106,6 +130,11 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
 
   enc::DeviceColumnsView ref_cats_;                  // A view to the reference category.
   std::vector<enc::DeviceCatIndexView> h_ref_cats_;  // host storage for column view
+  // non-owning; pointee outlives the adapter (caller keeps the ref DMatrix alive)
+  CatContainer* ref_cats_ptr_{nullptr};
+  // cached Recode mapping; write-once via CachedRefMapping()
+  mutable std::once_flag cache_once_;
+  mutable dh::DeviceUVector<std::int32_t> cached_ref_mapping_;
 
   size_t num_rows_{0};
   bst_idx_t n_bytes_{0};
@@ -139,15 +168,27 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
   ArrayInterface<2> array_interface_;
 };
 
-inline auto MakeEncColumnarBatch(Context const* ctx, CudfAdapter const* adapter) {
-  auto cats = std::make_unique<CatContainer>(ctx, adapter->RefCats(), true);
-  cats->Sort(ctx);
-  auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, adapter->DCats(), cats.get());
-  return std::tuple{EncCudfAdapterBatch{adapter->Columns(), acc, adapter->NumRows()},
-                    std::move(mapping)};
+inline EncCudfAdapterBatch MakeEncColumnarBatch(Context const* ctx,
+                                                CudfAdapter const* adapter) {
+  // alias the reference dictionary; Sort() is idempotent under sort_mu_
+  auto* ref_cats_ptr = adapter->RefCatsPtr();
+  if (ref_cats_ptr != nullptr) {
+    ref_cats_ptr->Sort(ctx);
+    auto cached = adapter->CachedRefMapping([&] {
+      [[maybe_unused]] auto [acc, mapping] =
+          ::xgboost::cuda_impl::MakeCatAccessor(ctx, adapter->DCats(), ref_cats_ptr);
+      return std::move(mapping);
+    });
+    auto cats_mapping = enc::MappingView{adapter->DCats().feature_segments, cached};
+    return EncCudfAdapterBatch{adapter->Columns(), CatAccessor{cats_mapping}, adapter->NumRows()};
+  }
+  CHECK(!adapter->HasRefCategorical())
+      << "CudfAdapter has reference categorical view but no CatContainer pointer.";
+  return EncCudfAdapterBatch{adapter->Columns(), CatAccessor{}, adapter->NumRows()};
 }
 
-inline auto MakeEncColumnarBatch(Context const* ctx, std::shared_ptr<CudfAdapter> const& adapter) {
+inline EncCudfAdapterBatch MakeEncColumnarBatch(
+    Context const* ctx, std::shared_ptr<CudfAdapter> const& adapter) {
   return MakeEncColumnarBatch(ctx, adapter.get());
 }
 
