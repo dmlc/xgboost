@@ -2176,7 +2176,7 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
         eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
         eval_group: Optional[Sequence[ArrayLike]] = None,
         eval_qid: Optional[Sequence[ArrayLike]] = None,
-        verbose: Optional[Union[bool, int]] = False,
+        verbose: Optional[Union[bool, int]] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
