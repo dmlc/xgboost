@@ -35,7 +35,7 @@ The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :do
 
 GPU-Accelerated SHAP values
 =============================
-XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as a backend for computing shap values when the GPU is used.
+XGBoost provides an in-tree GPU implementation of ``QuadratureTreeSHAP`` for computing SHAP values when the GPU is used.
 
 .. code-block:: python
 

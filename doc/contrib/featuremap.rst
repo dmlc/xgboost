@@ -45,7 +45,7 @@ XGBoost includes features designed to improve understanding of the model. Here's
 - Tree visualization.
 - Tree as dataframe.
 
-For GPU support, the SHAP value uses the `GPUTreeShap <https://github.com/rapidsai/gputreeshap/tree/main>`_ project in rapidsai. They all support categorical features, while vector-leaf is still in progress.
+For GPU support, the SHAP value uses XGBoost's in-tree ``QuadratureTreeSHAP`` implementation. They all support categorical features, while vector-leaf is still in progress.
 
 ----------
 Evaluation
