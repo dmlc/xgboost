@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #pragma once
 #include <cstddef>     // for size_t
@@ -48,8 +48,8 @@ class CudaGrowOnlyResource : public ResourceHandler {
       : ResourceHandler{kCudaGrowOnly}, alloc_{MakeNew()} {
     this->Resize(n_bytes);
   }
-  void Resize(std::size_t n_bytes) {
-    this->alloc_->GrowTo(n_bytes);
+  void Resize(std::size_t n_bytes, curt::StreamRef stream = curt::DefaultStream()) {
+    this->alloc_->GrowTo(n_bytes, stream);
     this->n_bytes_ = n_bytes;
   }
   void Clear() {

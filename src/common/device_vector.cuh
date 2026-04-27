@@ -204,12 +204,13 @@ class GrowOnlyVirtualMemVec {
     safe_cu(this->cu_.cuMemCreate(&alloc_handle, padded_size, &this->prop_, 0));
     return alloc_handle;
   }
-  void Reserve(std::size_t new_size);
+  void Reserve(std::size_t new_size, xgboost::curt::StreamRef stream);
 
  public:
   explicit GrowOnlyVirtualMemVec(CUmemLocationType type);
 
-  void GrowTo(std::size_t n_bytes) {
+  void GrowTo(std::size_t n_bytes,
+              xgboost::curt::StreamRef stream = xgboost::curt::DefaultStream()) {
     auto alloc_size = this->PhyCapacity();
     if (n_bytes <= alloc_size) {
       return;
@@ -217,7 +218,7 @@ class GrowOnlyVirtualMemVec {
 
     std::size_t delta = n_bytes - alloc_size;
     auto const padded_delta = RoundUp(delta, this->granularity_);
-    this->Reserve(alloc_size + padded_delta);
+    this->Reserve(alloc_size + padded_delta, stream);
 
     this->handles_.emplace_back(
         std::unique_ptr<PhyAddrHandle, std::function<void(PhyAddrHandle *)>>{
