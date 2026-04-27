@@ -9,6 +9,10 @@
 
 #if !defined(xgboost_IS_WIN)
 
+#if defined(__APPLE__)
+#include <unistd.h>  // for mkdtemp on macOS
+#endif
+
 #include <cstdlib>  // for mkdtemp
 
 #include "../../src/common/error_msg.h"  // for SystemError
