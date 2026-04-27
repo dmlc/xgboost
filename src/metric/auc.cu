@@ -567,8 +567,6 @@ std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<
       [=] XGBOOST_DEVICE(RankScanItem const &item) -> RankScanItem {
         auto group_id = item.group_id;
         assert(group_id < d_group_ptr.size());
-        auto data_group_begin = d_group_ptr[group_id];
-        size_t n_samples = d_group_ptr[group_id + 1] - data_group_begin;
         // last item of current group
         if (item.idx == common::LastOf(group_id, d_threads_group_ptr)) {
           if (item.w > 0) {
@@ -678,7 +676,6 @@ double GPUMultiClassPRAUC(Context const *ctx, common::Span<float const> predts,
   auto d_totals = dh::ToSpan(totals);
   auto fn = [d_totals] XGBOOST_DEVICE(double fp_prev, double fp, double tp_prev, double tp,
                                       size_t class_id) {
-    auto total_pos = d_totals[class_id].first;
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, d_totals[class_id].first);
   };
   return GPUMultiClassAUCOVR<false>(ctx, info, d_class_ptr, n_classes, cache, fn);
@@ -703,7 +700,6 @@ std::pair<double, uint32_t> GPURankingPRAUCImpl(Context const *ctx,
   /**
    * Linear scan
    */
-  size_t n_samples = labels.Shape(0);
   dh::caching_device_vector<double> d_auc(n_groups, 0);
   auto get_weight = common::OptionalWeights{weights};
   auto d_fptp = dh::ToSpan(cache->fptp);
@@ -856,7 +852,6 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
   auto d_totals = dh::ToSpan(totals);
   auto fn = [d_totals] XGBOOST_DEVICE(double fp_prev, double fp, double tp_prev, double tp,
                                       size_t group_id) {
-    auto total_pos = d_totals[group_id].first;
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, d_totals[group_id].first);
   };
   return GPURankingPRAUCImpl(ctx, predts, info, d_group_ptr, cache, fn);

@@ -27,20 +27,6 @@ jobs:
 
   clang-tidy:
     name: Run clang-tidy
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
-      - tag=lint-clang-tidy
-    steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/run-clang-tidy.sh
-
-  clang-tidy-clang-cuda:
-    name: Run clang-tidy from clang-CUDA compile DB
     needs: ci-configure
     runs-on:
       - runs-on=${{ github.run_id }}

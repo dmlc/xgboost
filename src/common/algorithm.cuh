@@ -300,13 +300,12 @@ void CopyIf(CUDAContext const *cuctx, InIt in_first, InIt in_second, OutIt out_f
 // Go one level down into cub::DeviceScan API to set OffsetT as 64 bit So we don't crash
 // on n > 2^31.
 template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT, typename OffsetT>
-void InclusiveScan(xgboost::Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out,
+void InclusiveScan(xgboost::Context const*, InputIteratorT d_in, OutputIteratorT d_out,
                    ScanOpT scan_op, OffsetT num_items) {
 #if CUB_VERSION >= 300000
   static_assert(std::is_unsigned_v<OffsetT>, "OffsetT must be unsigned");
   static_assert(sizeof(OffsetT) >= 4, "OffsetT must be at least 4 bytes long");
 #endif
-  auto cuctx = ctx->CUDACtx();
   std::size_t bytes = 0;
 #if THRUST_MAJOR_VERSION >= 2
   dh::safe_cuda((

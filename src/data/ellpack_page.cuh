@@ -112,7 +112,7 @@ struct EllpackAccessorImpl {
       return gidx;
     }
     bst_bin_t gidx = gidx_iter[row_begin + fidx];
-    if (gidx == this->NullValue()) {
+    if (gidx == static_cast<bst_bin_t>(this->NullValue())) {
       // Missing value in a dense ellpack
       return -1;
     }
@@ -138,7 +138,7 @@ struct EllpackAccessorImpl {
       gidx = it - gidx_fvalue_map.cbegin();
     }
 
-    if (gidx == end) {
+    if (gidx == static_cast<bst_bin_t>(end)) {
       gidx -= 1;
     }
     return gidx;

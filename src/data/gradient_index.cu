@@ -82,8 +82,8 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
                                    EllpackPage const& in_page, BatchParam const& p)
     : cut{in_page.Cuts()},
       max_numeric_bins_per_feat{p.max_bin},
-      isDense_{in_page.Impl()->IsDense()},
-      base_rowid{in_page.BaseRowId()} {
+      base_rowid{in_page.BaseRowId()},
+      isDense_{in_page.Impl()->IsDense()} {
   auto page = in_page.Impl();
   CHECK_EQ(info.num_row_, in_page.Size());
 

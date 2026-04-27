@@ -178,26 +178,43 @@ Clang-tidy
 ==========
 `Clang-tidy <https://clang.llvm.org/extra/clang-tidy/>`_ is an advance linter for C++ code, made by the LLVM team. We use it to conform our C++ codebase to modern C++ practices and conventions.
 
-To run this check locally, run the following command from the top level source tree:
+To run this check locally, use the clang-CUDA helper from the top level source tree:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python3 ops/script/run_clang_tidy.py
+  bash ops/pipeline/run-clang-tidy-clang-cuda.sh
 
-Also, the script accepts two optional integer arguments, namely ``--cpp`` and ``--cuda``. By default they are both set to 1, meaning that both C++ and CUDA code will be checked. If the CUDA toolkit is not installed on your machine, you'll encounter an error. To exclude CUDA source from linting, use:
+This helper configures a clang-generated CUDA compilation database and then runs
+``run-clang-tidy -p`` against it. The same path is used by CI.
 
-.. code-block:: bash
-
-  cd /path/to/xgboost/
-  python3 ops/script/run_clang_tidy.py --cuda=0
-
-Similarly, if you want to exclude C++ source from linting:
+By default it lints files under ``src/``. Use environment variables to narrow the
+scope or adjust the checks:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python3 ops/script/run_clang_tidy.py --cpp=0
+  XGBOOST_TIDY_FILES='src/common/timer.cc,src/predictor/interpretability/shap.cu' \
+  XGBOOST_TIDY_CHECKS='-*,google-runtime-int' \
+  bash ops/pipeline/run-clang-tidy-clang-cuda.sh
+
+The helper accepts command-line overrides for the build directory, job count, source
+filter, checks, extra arguments, and ``warnings-as-errors`` filter. For example:
+
+.. code-block:: bash
+
+  cd /path/to/xgboost/
+  bash ops/pipeline/run-clang-tidy-clang-cuda.sh \
+    --build-dir build-clang-tidy-cuda \
+    --jobs 16 \
+    --source-filter '.*/(src|include)/.*' \
+    --checks '-*,google-runtime-int'
+
+The helper expects a clang toolchain with ``clang++``, ``clang-linker-wrapper``, and
+``run-clang-tidy`` available either from the active conda base environment or from
+``XGBOOST_CLANG_PREFIX``. When using conda, install both ``clangxx`` and
+``clang-tools`` so the compiler resource directory and ``run-clang-tidy`` are both
+present.
 
 **********************************
 Guide for handling user input data

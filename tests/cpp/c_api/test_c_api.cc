@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
@@ -18,6 +18,7 @@
 
 #include "../../../src/c_api/c_api_error.h"
 #include "../../../src/common/io.h"
+#include "../../../src/common/utils.h"              // for MakeCleanup
 #include "../../../src/data/adapter.h"              // for ArrayAdapter
 #include "../../../src/data/array_interface.h"      // for ArrayInterface
 #include "../../../src/data/batch_utils.h"          // for MatchingPageBytes
@@ -273,6 +274,10 @@ TEST(CAPI, Exception) {
 }
 
 TEST(CAPI, XGBGlobalConfig) {
+  auto guard = common::MakeCleanup([cfg_bak = *GlobalConfigThreadLocalStore::Get()] {
+    *GlobalConfigThreadLocalStore::Get() = cfg_bak;
+  });
+
   int ret;
   {
     const char *config_str = R"json(

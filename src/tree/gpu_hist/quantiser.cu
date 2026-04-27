@@ -53,8 +53,6 @@ struct Clip {
  * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
  */
 Pair MakeQuantiserForTarget(Context const* ctx, linalg::VectorView<GradientPair const> gpair) {
-  using T = typename GradientPairPrecise::ValueT;
-
   auto beg = thrust::make_transform_iterator(linalg::tcbegin(gpair), Clip{});
   Pair p =
       dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + gpair.Size(), Pair{}, cuda::std::plus<Pair>{});

@@ -320,9 +320,8 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
  * @param sketch_container Container for output sketch.
  */
 template <typename Batch>
-void AdapterDeviceSketch(Context const* ctx, Batch batch, bst_bin_t num_bins, MetaInfo const& info,
+void AdapterDeviceSketch(Context const* ctx, Batch batch, bst_bin_t, MetaInfo const& info,
                          float missing, SketchContainer* sketch_container) {
-  bst_idx_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
 
   bool weighted = !info.weights_.Empty();

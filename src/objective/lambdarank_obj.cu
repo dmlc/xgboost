@@ -50,7 +50,6 @@ void MinBias(Context const* ctx, std::shared_ptr<ltr::RankingCache> p_cache,
   auto cuctx = ctx->CUDACtx();
 
   auto k = t_plus.Size();
-  auto const& p = p_cache->Param();
   CHECK_GT(k, 0);
   CHECK_EQ(k, p_cache->MaxPositionSize());
 
@@ -311,7 +310,6 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
   // boilerplate
   auto device = ctx->Device();
   dh::safe_cuda(cudaSetDevice(device.ordinal));
-  auto n_groups = p_cache->Groups();
 
   info.labels.SetDevice(device);
   preds.SetDevice(device);

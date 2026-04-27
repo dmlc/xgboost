@@ -186,9 +186,9 @@ __global__ void CompressBinEllpackKernel(
 EllpackPageImpl::EllpackPageImpl(Context const* ctx,
                                  std::shared_ptr<common::HistogramCuts const> cuts, bool is_dense,
                                  bst_idx_t row_stride, bst_idx_t n_rows)
-    : is_dense{is_dense},
+    : cuts_{std::move(cuts)},
+      is_dense{is_dense},
       n_rows{n_rows},
-      cuts_{std::move(cuts)},
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
@@ -201,9 +201,9 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
                                  std::shared_ptr<common::HistogramCuts const> cuts,
                                  const SparsePage& page, bool is_dense, size_t row_stride,
                                  common::Span<FeatureType const> feature_types)
-    : is_dense{is_dense},
+    : cuts_{std::move(cuts)},
+      is_dense{is_dense},
       n_rows{page.Size()},
-      cuts_{std::move(cuts)},
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
@@ -215,14 +215,14 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
 
 // Construct an ELLPACK matrix in memory.
 EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* p_fmat, const BatchParam& param)
-    : is_dense{p_fmat->IsDense()},
-      n_rows{p_fmat->Info().num_row_},
-      // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
-      cuts_{param.hess.empty()
+    // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
+    : cuts_{param.hess.empty()
                 ? std::make_shared<common::HistogramCuts>(
                       common::DeviceSketch(ctx, p_fmat, param.max_bin))
                 : std::make_shared<common::HistogramCuts>(
                       common::DeviceSketchWithHessian(ctx, p_fmat, param.max_bin, param.hess))},
+      is_dense{p_fmat->IsDense()},
+      n_rows{p_fmat->Info().num_row_},
       info{CalcNumSymbols(ctx, GetRowStride(p_fmat), p_fmat->IsDense(), this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
@@ -420,7 +420,6 @@ void CopyGHistToEllpack(Context const* ctx, GHistIndexMatrix const& page,
   auto d_data = dh::ToSpan(data);
 
   // GPU employs the same dense compression as CPU, no need to handle page.index.Offset()
-  auto bin_type = page.index.GetBinTypeSize();
   common::CompressedBufferWriter writer{n_symbols};
   auto cuctx = ctx->CUDACtx();
 
@@ -459,14 +458,14 @@ void CopyGHistToEllpack(Context const* ctx, GHistIndexMatrix const& page,
 
 EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& page,
                                  common::Span<FeatureType const> ft)
-    : is_dense{page.IsDense()},
-      base_rowid{page.base_rowid},
-      n_rows{page.Size()},
-      cuts_{[&] {
+    : cuts_{[&] {
         auto cuts = std::make_shared<common::HistogramCuts>(page.cut);
         cuts->SetDevice(ctx->Device());
         return cuts;
       }()},
+      is_dense{page.IsDense()},
+      base_rowid{page.base_rowid},
+      n_rows{page.Size()},
       info{CalcNumSymbols(
           ctx,
           [&] {
@@ -721,7 +720,6 @@ struct NotNullOp {
     return this->n_rows * this->info.row_stride;
   }
   return this->Visit(ctx, feature_types, [&](auto&& d_acc) -> bst_idx_t {
-    using T = typename decltype(d_acc.gidx_iter)::value_type;
     auto it = thrust::make_transform_iterator(thrust::make_counting_iterator(0ull), CntOp{d_acc});
     return thrust::count_if(ctx->CUDACtx()->CTP(), it, it + d_acc.row_stride * d_acc.n_rows,
                             NotNullOp{d_acc});
