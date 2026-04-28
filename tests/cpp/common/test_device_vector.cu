@@ -12,9 +12,9 @@
 #include "../../../src/common/cuda_rt_utils.h"     // for DrVersion
 #include "../../../src/common/device_helpers.cuh"  // for PinnedMemory
 #include "../../../src/common/device_vector.cuh"
-#include "../helpers.h"                            // for MakeCUDACtx
-#include "xgboost/global_config.h"                 // for GlobalConfigThreadLocalStore
-#include "xgboost/windefs.h"                       // for xgboost_IS_WIN
+#include "../helpers.h"             // for MakeCUDACtx
+#include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
+#include "xgboost/windefs.h"        // for xgboost_IS_WIN
 
 namespace dh {
 #if !defined(XGBOOST_USE_RMM)
@@ -155,7 +155,7 @@ TEST(TestVirtualMem, Version) {
   PinnedMemory pinned;
 #if defined(xgboost_IS_WIN)
   ASSERT_FALSE(pinned.IsVm());
-#else  // defined(xgboost_IS_WIN)
+#else   // defined(xgboost_IS_WIN)
   if (major == 12 && minor >= 5 || major > 12) {
     ASSERT_TRUE(pinned.IsVm());
   } else {
