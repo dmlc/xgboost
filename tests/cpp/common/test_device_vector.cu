@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
