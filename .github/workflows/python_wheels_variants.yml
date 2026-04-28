@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2.1.3
+        uses: aws-actions/amazon-ecr-login@v2.1.4
         with:
           mask-password: 'false'
           registries: '492475357299'
