@@ -281,8 +281,9 @@ __global__ void InteractionConstraintSplitKernel(LBitField64 feature, int32_t fe
   }
 }
 
-void FeatureInteractionConstraintDevice::Split(bst_node_t node_id, bst_feature_t feature_id,
-                                               bst_node_t left_id, bst_node_t right_id) {
+void FeatureInteractionConstraintDevice::Split(Context const* ctx, bst_node_t node_id,
+                                               bst_feature_t feature_id, bst_node_t left_id,
+                                               bst_node_t right_id) {
   if (!has_constraint_) {
     return;
   }
@@ -310,7 +311,7 @@ void FeatureInteractionConstraintDevice::Split(bst_node_t node_id, bst_feature_t
   launch_split(InteractionConstraintSplitKernel, feature_buffer_, feature_id, node, left, right);
 
   // clear the buffer after use
-  thrust::fill_n(dh::CachingThrustPolicy(), feature_buffer_.Data(), feature_buffer_.NumValues(), 0);
+  thrust::fill_n(ctx->CUDACtx()->CTP(), feature_buffer_.Data(), feature_buffer_.NumValues(), 0);
 }
 
 }  // namespace xgboost

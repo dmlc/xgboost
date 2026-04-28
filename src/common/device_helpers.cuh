@@ -764,11 +764,6 @@ template <cudaMemcpyKind kind, typename T, typename U>
 #endif  // CUDART_VERSION >= 12080
 }
 
-inline auto CachingThrustPolicy() {
-  XGBCachingDeviceAllocator<char> alloc;
-  return thrust::cuda::par_nosync(alloc).on(::xgboost::curt::DefaultStream());
-}
-
 // Force nvcc to load data as constant
 template <typename T>
 class LDGIterator {
