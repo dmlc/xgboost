@@ -421,6 +421,7 @@ def run_cat_invalid(device: Device) -> None:
 
 
 def run_cat_oov_in_range(device: Device) -> None:
+    """Test OOV categories whose sorted insertion point is inside the training set."""
     Df, _ = get_df_impl(device)
 
     def check(train_df: Any, pred_df: Any, y: np.ndarray) -> None:
