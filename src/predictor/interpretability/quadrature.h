@@ -11,11 +11,23 @@
 #include <utility>
 #include <vector>
 
+#include "xgboost/base.h"
 #include "xgboost/logging.h"
 
 namespace xgboost::interpretability::detail {
 
 constexpr double kPi = 3.141592653589793238462643383279502884;
+constexpr std::size_t kQuadratureTreeShapPoints = 8;
+constexpr double kQuadratureTreeShapBuildQeps = 1e-15;
+constexpr float kQuadratureTreeShapUnseen = -999.0f;
+
+template <std::size_t Points>
+struct FloatQuadratureRule {
+  float nodes[Points];
+  float weights[Points];
+};
+
+using QuadratureTreeShapRule = FloatQuadratureRule<kQuadratureTreeShapPoints>;
 
 template <std::size_t MaxPoints>
 struct EndpointQuadratureRule {
@@ -81,7 +93,7 @@ inline EndpointQuadratureRule<MaxPoints> MakeEndpointQuadrature(std::size_t n,
   }
 
   std::sort(nodes_weights.begin(), nodes_weights.end(),
-            [](auto const &l, auto const &r) { return l.first < r.first; });
+            [](auto const& l, auto const& r) { return l.first < r.first; });
   for (std::size_t i = 0; i < n; ++i) {
     rule.nodes[i] = nodes_weights[i].first;
     rule.weights[i] = nodes_weights[i].second;
@@ -92,6 +104,115 @@ inline EndpointQuadratureRule<MaxPoints> MakeEndpointQuadrature(std::size_t n,
 template <std::size_t Points>
 inline EndpointQuadratureRule<Points> MakeEndpointQuadrature(double convergence_eps) {
   return MakeEndpointQuadrature<Points>(Points, convergence_eps);
+}
+
+template <std::size_t Points>
+inline FloatQuadratureRule<Points> MakeFloatQuadratureRule(double convergence_eps) {
+  auto const rule_d = MakeEndpointQuadrature<Points>(convergence_eps);
+  FloatQuadratureRule<Points> out;
+  for (std::size_t i = 0; i < Points; ++i) {
+    out.nodes[i] = static_cast<float>(rule_d.nodes[i]);
+    out.weights[i] = static_cast<float>(rule_d.weights[i]);
+  }
+  return out;
+}
+
+template <typename Tree>
+double FillRootMeanValue(Tree const& tree, bst_node_t nidx) {
+  if (tree.IsLeaf(nidx)) {
+    return tree.LeafValue(nidx);
+  }
+  auto left = tree.LeftChild(nidx);
+  auto right = tree.RightChild(nidx);
+  double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
+  result += FillRootMeanValue(tree, right) * tree.SumHess(right);
+  result /= tree.SumHess(nidx);
+  return result;
+}
+
+template <typename Tree>
+void ValidateQuadratureTreeShapCovers(Tree const& tree, bst_node_t nidx, char const* device_name) {
+  if (tree.IsLeaf(nidx)) {
+    return;
+  }
+
+  CHECK_GT(tree.SumHess(nidx), 0.0f)
+      << device_name
+      << " QuadratureTreeSHAP is undefined for trees with non-positive cover at split nodes.";
+
+  auto left = tree.LeftChild(nidx);
+  auto right = tree.RightChild(nidx);
+  CHECK_GT(tree.SumHess(left), 0.0f)
+      << device_name
+      << " QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
+  CHECK_GT(tree.SumHess(right), 0.0f)
+      << device_name
+      << " QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
+
+  ValidateQuadratureTreeShapCovers(tree, left, device_name);
+  ValidateQuadratureTreeShapCovers(tree, right, device_name);
+}
+
+template <typename Lhs, typename Rhs>
+XGBOOST_DEVICE void AddQuadratureInPlace(Lhs&& lhs, Rhs&& rhs) {
+  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+    lhs[i] += rhs[i];
+  }
+}
+
+template <typename Rule, typename HVals>
+XGBOOST_DEVICE float ExtractQuadratureDelta(Rule const& rule, HVals&& h_vals, float p_enter,
+                                            float p_exit) {
+  float acc = 0.0f;
+  if (p_enter != 1.0f) {
+    auto const alpha_enter = p_enter - 1.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      acc += alpha_enter * h_vals[i] / (1.0f + alpha_enter * rule.nodes[i]);
+    }
+  }
+  if (p_exit != 1.0f) {
+    auto const alpha_exit = p_exit - 1.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      acc -= alpha_exit * h_vals[i] / (1.0f + alpha_exit * rule.nodes[i]);
+    }
+  }
+  return acc;
+}
+
+template <typename Rule, typename HVals>
+XGBOOST_DEVICE float ExtractQuadratureInteractionDelta(Rule const& rule, HVals&& h_vals,
+                                                       float p_enter, float p_exit,
+                                                       float q_partner) {
+  if (q_partner == 1.0f) {
+    return 0.0f;
+  }
+
+  auto const alpha_partner = q_partner - 1.0f;
+  auto const alpha_enter = p_enter - 1.0f;
+
+  float acc = 0.0f;
+  if (p_exit == 1.0f) {
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
+      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
+    }
+  } else {
+    auto const alpha_exit = p_exit - 1.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]) -
+                              alpha_exit / (1.0f + alpha_exit * rule.nodes[i]);
+      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
+    }
+  }
+  return acc;
+}
+
+template <typename Rule, typename CVals, typename Out>
+XGBOOST_DEVICE void WriteQuadratureLeafReturn(Rule const& rule, CVals&& c_vals, float leaf_scale,
+                                              Out&& out_h) {
+  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+    out_h[i] = c_vals[i] * leaf_scale * rule.weights[i];
+  }
 }
 
 }  // namespace xgboost::interpretability::detail

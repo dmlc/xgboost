@@ -58,37 +58,6 @@ void FillNodeMeanValues(tree::ScalarTreeView const &tree, std::vector<float> *me
   FillNodeMeanValues(tree, 0, mean_values);
 }
 
-double FillRootMeanValue(tree::ScalarTreeView const &tree, bst_node_t nidx) {
-  if (tree.IsLeaf(nidx)) {
-    return tree.LeafValue(nidx);
-  }
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
-  result += FillRootMeanValue(tree, right) * tree.SumHess(right);
-  result /= tree.SumHess(nidx);
-  return result;
-}
-
-void ValidateQuadratureTreeShapCovers(tree::ScalarTreeView const &tree, bst_node_t nidx) {
-  if (tree.IsLeaf(nidx)) {
-    return;
-  }
-
-  CHECK_GT(tree.SumHess(nidx), 0.0f)
-      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at split nodes.";
-
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  CHECK_GT(tree.SumHess(left), 0.0f)
-      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
-  CHECK_GT(tree.SumHess(right), 0.0f)
-      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
-
-  ValidateQuadratureTreeShapCovers(tree, left);
-  ValidateQuadratureTreeShapCovers(tree, right);
-}
-
 void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVec const &feats,
                                   std::vector<float> *mean_values,
                                   std::vector<bst_float> *out_contribs) {
@@ -116,87 +85,30 @@ void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVe
 
 // Keep the CPU quadrature recurrence on the same fixed 8-point rule as the GPU path so the hot
 // loops stay small and the compiler can fully unroll the basis update and extraction work.
-constexpr std::size_t kQuadratureTreeShapPoints = 8;
-constexpr double kQuadratureTreeShapBuildQeps = 1e-15;
-constexpr float kQuadratureTreeShapUnseen = -999.0f;
+constexpr std::size_t kQuadratureTreeShapPoints = detail::kQuadratureTreeShapPoints;
+constexpr float kQuadratureTreeShapUnseen = detail::kQuadratureTreeShapUnseen;
 
-struct QuadratureRule {
-  std::array<float, kQuadratureTreeShapPoints> nodes{};
-  std::array<float, kQuadratureTreeShapPoints> weights{};
-};
+using QuadratureRule = detail::QuadratureTreeShapRule;
 using QuadratureBuffer = std::array<float, kQuadratureTreeShapPoints>;
 
 QuadratureRule const &GetQuadratureRule() {
-  static QuadratureRule const kRule = [] {
-    auto const rule_d =
-        detail::MakeEndpointQuadrature<kQuadratureTreeShapPoints>(kQuadratureTreeShapBuildQeps);
-    QuadratureRule out;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      out.nodes[i] = static_cast<float>(rule_d.nodes[i]);
-      out.weights[i] = static_cast<float>(rule_d.weights[i]);
-    }
-    return out;
-  }();
+  static QuadratureRule const kRule = detail::MakeFloatQuadratureRule<kQuadratureTreeShapPoints>(
+      detail::kQuadratureTreeShapBuildQeps);
   return kRule;
 }
 
 void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs) {
-  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-    (*lhs)[i] += rhs[i];
-  }
+  detail::AddQuadratureInPlace(*lhs, rhs);
 }
 
-float ExtractQuadratureDelta(QuadratureRule const &rule, QuadratureBuffer const &h_vals,
-                             float p_enter, float p_exit) {
-  float acc = 0.0f;
-  if (p_enter != 1.0f) {
-    auto const alpha_enter = p_enter - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      acc += alpha_enter * h_vals[i] / (1.0f + alpha_enter * rule.nodes[i]);
-    }
-  }
-  if (p_exit != 1.0f) {
-    auto const alpha_exit = p_exit - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      acc -= alpha_exit * h_vals[i] / (1.0f + alpha_exit * rule.nodes[i]);
-    }
-  }
-  return acc;
-}
-
-float ExtractQuadratureInteractionDelta(QuadratureRule const &rule, QuadratureBuffer const &h_vals,
-                                        float p_enter, float p_exit, float q_partner) {
-  if (q_partner == 1.0f) {
-    return 0.0f;
-  }
-
-  auto const alpha_partner = q_partner - 1.0f;
-  auto const alpha_enter = p_enter - 1.0f;
-
-  float acc = 0.0f;
-  if (p_exit == 1.0f) {
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
-      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
-    }
-  } else {
-    auto const alpha_exit = p_exit - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]) -
-                              alpha_exit / (1.0f + alpha_exit * rule.nodes[i]);
-      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
-    }
-  }
-  return acc;
-}
+using detail::ExtractQuadratureDelta;
+using detail::ExtractQuadratureInteractionDelta;
 
 void WriteWeightedLeafReturn(tree::ScalarTreeView const &tree, QuadratureRule const &rule,
                              bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
                              QuadratureBuffer *out_h) {
   auto const leaf_scale = w_prod * tree.LeafValue(nidx);
-  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-    (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
-  }
+  detail::WriteQuadratureLeafReturn(rule, c_vals, leaf_scale, *out_h);
 }
 
 // Dense row-local output view for additive contributions.
@@ -495,9 +407,9 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
     out.trees_by_group[gid].push_back(i);
     out.weights[i] = weight;
-    ValidateQuadratureTreeShapCovers(out.trees[i], RegTree::kRoot);
+    detail::ValidateQuadratureTreeShapCovers(out.trees[i], RegTree::kRoot, "CPU");
     out.group_root_mean_sums[gid] +=
-        static_cast<float>(FillRootMeanValue(out.trees[i], RegTree::kRoot) * weight);
+        static_cast<float>(detail::FillRootMeanValue(out.trees[i], RegTree::kRoot) * weight);
   }
   return out;
 }

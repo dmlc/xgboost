@@ -46,9 +46,8 @@ using ::xgboost::cuda_impl::StaticBatch;
 
 using TreeViewVar = cuda::std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
 
-constexpr std::size_t kQuadratureTreeShapPoints = 8;
-constexpr double kQuadratureTreeShapBuildQeps = 1e-15;
-constexpr float kQuadratureTreeShapUnseen = -999.0f;
+constexpr std::size_t kQuadratureTreeShapPoints = detail::kQuadratureTreeShapPoints;
+constexpr float kQuadratureTreeShapUnseen = detail::kQuadratureTreeShapUnseen;
 
 struct CopyViews {
   Context const* ctx;
@@ -65,10 +64,7 @@ struct CopyViews {
 
 using DeviceModel = GBTreeModelView<dh::DeviceUVector, TreeViewVar, CopyViews>;
 
-struct QuadratureRule {
-  float nodes[kQuadratureTreeShapPoints];
-  float weights[kQuadratureTreeShapPoints];
-};
+using QuadratureRule = detail::QuadratureTreeShapRule;
 
 struct QuadraturePathElement {
   bst_feature_t split_index;
@@ -81,45 +77,8 @@ struct GpuQuadratureTreeShapModelData {
 };
 
 QuadratureRule MakeQuadratureRule() {
-  auto const rule_d =
-      detail::MakeEndpointQuadrature<kQuadratureTreeShapPoints>(kQuadratureTreeShapBuildQeps);
-  QuadratureRule out;
-  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-    out.nodes[i] = static_cast<float>(rule_d.nodes[i]);
-    out.weights[i] = static_cast<float>(rule_d.weights[i]);
-  }
-  return out;
-}
-
-double FillRootMeanValue(tree::ScalarTreeView const& tree, bst_node_t nidx) {
-  if (tree.IsLeaf(nidx)) {
-    return tree.LeafValue(nidx);
-  }
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
-  result += FillRootMeanValue(tree, right) * tree.SumHess(right);
-  result /= tree.SumHess(nidx);
-  return result;
-}
-
-void ValidateQuadratureTreeShapCovers(tree::ScalarTreeView const& tree, bst_node_t nidx) {
-  if (tree.IsLeaf(nidx)) {
-    return;
-  }
-
-  CHECK_GT(tree.SumHess(nidx), 0.0f)
-      << "GPU QuadratureTreeSHAP is undefined for trees with non-positive cover at split nodes.";
-
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  CHECK_GT(tree.SumHess(left), 0.0f)
-      << "GPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
-  CHECK_GT(tree.SumHess(right), 0.0f)
-      << "GPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
-
-  ValidateQuadratureTreeShapCovers(tree, left);
-  ValidateQuadratureTreeShapCovers(tree, right);
+  return detail::MakeFloatQuadratureRule<kQuadratureTreeShapPoints>(
+      detail::kQuadratureTreeShapBuildQeps);
 }
 
 GpuQuadratureTreeShapModelData MakeGpuQuadratureTreeShapModelData(
@@ -137,12 +96,13 @@ GpuQuadratureTreeShapModelData MakeGpuQuadratureTreeShapModelData(
   for (bst_tree_t i = 0; i < tree_end; ++i) {
     CHECK(!model.trees[i]->IsMultiTarget()) << " SHAP " << MTNotImplemented();
     auto tree = model.trees[i]->HostScView();
-    ValidateQuadratureTreeShapCovers(tree, RegTree::kRoot);
+    detail::ValidateQuadratureTreeShapCovers(tree, RegTree::kRoot, "GPU");
     out.max_depth = std::max(out.max_depth, tree.MaxDepth());
 
     auto gid = model.TreeGroups(DeviceOrd::CPU())[i];
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
-    h_root_mean_sums[gid] += static_cast<float>(FillRootMeanValue(tree, RegTree::kRoot) * weight);
+    h_root_mean_sums[gid] +=
+        static_cast<float>(detail::FillRootMeanValue(tree, RegTree::kRoot) * weight);
   }
 
   out.group_root_mean_sums.SetDevice(ctx->Device());
@@ -150,64 +110,18 @@ GpuQuadratureTreeShapModelData MakeGpuQuadratureTreeShapModelData(
 }
 
 XGBOOST_DEVICE void AddInPlace(float* lhs, float const* rhs) {
-  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-    lhs[i] += rhs[i];
-  }
+  detail::AddQuadratureInPlace(lhs, rhs);
 }
 
-XGBOOST_DEVICE float ExtractQuadratureDelta(QuadratureRule const& rule, float const* h_vals,
-                                            float p_enter, float p_exit) {
-  float acc = 0.0f;
-  if (p_enter != 1.0f) {
-    auto const alpha_enter = p_enter - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      acc += alpha_enter * h_vals[i] / (1.0f + alpha_enter * rule.nodes[i]);
-    }
-  }
-  if (p_exit != 1.0f) {
-    auto const alpha_exit = p_exit - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      acc -= alpha_exit * h_vals[i] / (1.0f + alpha_exit * rule.nodes[i]);
-    }
-  }
-  return acc;
-}
-
-XGBOOST_DEVICE float ExtractQuadratureInteractionDelta(QuadratureRule const& rule,
-                                                       float const* h_vals, float p_enter,
-                                                       float p_exit, float q_partner) {
-  if (q_partner == 1.0f) {
-    return 0.0f;
-  }
-
-  auto const alpha_partner = q_partner - 1.0f;
-  auto const alpha_enter = p_enter - 1.0f;
-
-  float acc = 0.0f;
-  if (p_exit == 1.0f) {
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
-      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
-    }
-  } else {
-    auto const alpha_exit = p_exit - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]) -
-                              alpha_exit / (1.0f + alpha_exit * rule.nodes[i]);
-      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
-    }
-  }
-  return acc;
-}
+using detail::ExtractQuadratureDelta;
+using detail::ExtractQuadratureInteractionDelta;
 
 template <typename Tree>
 XGBOOST_DEVICE void WriteWeightedLeafReturn(Tree const& tree, QuadratureRule const& rule,
                                             bst_node_t nidx, float const* c_vals, float w_prod,
                                             float tree_weight, float* out_h) {
   auto const leaf_scale = w_prod * tree.LeafValue(nidx) * tree_weight;
-  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-    out_h[i] = c_vals[i] * leaf_scale * rule.weights[i];
-  }
+  detail::WriteQuadratureLeafReturn(rule, c_vals, leaf_scale, out_h);
 }
 
 template <typename Tree, typename Loader>
@@ -226,118 +140,90 @@ XGBOOST_DEVICE float ChildWeight(Tree const& tree, bst_node_t parent, bst_node_t
   return tree.SumHess(child) / parent_cover;
 }
 
-template <typename Loader>
-XGBOOST_DEVICE void RunAdditiveNode(tree::ScalarTreeView const& tree, Loader const& loader,
-                                    bst_idx_t row_idx, QuadratureRule const& rule, float* path_prob,
-                                    bst_node_t nidx, float const* c_vals, float w_prod,
-                                    float tree_weight, float* out_h, float* phi);
+struct DeviceAdditiveContributionFormulation {
+  float tree_weight;
+  float* phi;
 
-template <typename Loader>
-XGBOOST_DEVICE void VisitAdditiveChild(tree::ScalarTreeView const& tree, Loader const& loader,
-                                       bst_idx_t row_idx, QuadratureRule const& rule,
-                                       float* path_prob, bst_node_t split_node,
-                                       bst_node_t child_node, float child_weight, bool satisfies,
-                                       float const* c_vals, float w_prod, float tree_weight,
-                                       float* out_h, float* phi) {
-  auto split_index = tree.SplitIndex(split_node);
-  auto p_old = path_prob[split_index];
-  float p_exit = p_old == kQuadratureTreeShapUnseen ? 1.0f : p_old;
-  float p_e = satisfies ? p_exit / child_weight : 0.0f;
+  XGBOOST_DEVICE void PushPathSplit(bst_feature_t, float) const {}
+  XGBOOST_DEVICE void PopPathSplit(bst_feature_t) const {}
 
-  float c_child[kQuadratureTreeShapPoints];
-  auto alpha_e = p_e - 1.0f;
-  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-    c_child[i] = c_vals[i] * (1.0f + alpha_e * rule.nodes[i]);
-  }
-
-  if (p_exit != 1.0f) {
-    auto const alpha_exit = p_exit - 1.0f;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      c_child[i] /= 1.0f + alpha_exit * rule.nodes[i];
-    }
-  }
-
-  path_prob[split_index] = p_e;
-  RunAdditiveNode(tree, loader, row_idx, rule, path_prob, child_node, c_child,
-                  w_prod * child_weight, tree_weight, out_h, phi);
-  phi[split_index] += ExtractQuadratureDelta(rule, out_h, p_e, p_exit);
-  path_prob[split_index] = p_old;
-}
-
-template <typename Loader>
-XGBOOST_DEVICE void RunAdditiveNode(tree::ScalarTreeView const& tree, Loader const& loader,
-                                    bst_idx_t row_idx, QuadratureRule const& rule, float* path_prob,
-                                    bst_node_t nidx, float const* c_vals, float w_prod,
-                                    float tree_weight, float* out_h, float* phi) {
-  if (tree.IsLeaf(nidx)) {
+  template <typename Tree>
+  XGBOOST_DEVICE void HandleLeaf(Tree const& tree, QuadratureRule const& rule, bst_node_t nidx,
+                                 float const* c_vals, float w_prod, float* out_h) const {
     WriteWeightedLeafReturn(tree, rule, nidx, c_vals, w_prod, tree_weight, out_h);
-    return;
   }
 
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  auto left_weight = ChildWeight(tree, nidx, left);
-  auto right_weight = ChildWeight(tree, nidx, right);
-  auto goes_left = EvaluateGoesLeft(tree, loader, row_idx, nidx);
+  XGBOOST_DEVICE void HandleReturn(QuadratureRule const& rule, bst_feature_t split_index,
+                                   float const* h_vals, float p_enter, float p_exit) const {
+    phi[split_index] += ExtractQuadratureDelta(rule, h_vals, p_enter, p_exit);
+  }
+};
 
-  float right_h[kQuadratureTreeShapPoints];
-  VisitAdditiveChild(tree, loader, row_idx, rule, path_prob, nidx, left, left_weight, goes_left,
-                     c_vals, w_prod, tree_weight, out_h, phi);
-  VisitAdditiveChild(tree, loader, row_idx, rule, path_prob, nidx, right, right_weight, !goes_left,
-                     c_vals, w_prod, tree_weight, right_h, phi);
-  AddInPlace(out_h, right_h);
-}
+struct DeviceInteractionContributionFormulation {
+  float tree_weight;
+  std::size_t ncolumns;
+  QuadraturePathElement* path;
+  std::size_t* path_depth;
+  float* matrix;
 
-template <typename Loader>
-XGBOOST_DEVICE void RunInteractionNode(tree::ScalarTreeView const& tree, Loader const& loader,
-                                       bst_idx_t row_idx, QuadratureRule const& rule,
-                                       float* path_prob, QuadraturePathElement* path,
-                                       std::size_t path_depth, std::size_t ncolumns,
-                                       bst_node_t nidx, float const* c_vals, float w_prod,
-                                       float tree_weight, float* out_h, float* matrix);
+  XGBOOST_DEVICE void PushPathSplit(bst_feature_t split_index, float p_child) const {
+    path[*path_depth] = QuadraturePathElement{split_index, p_child};
+    ++(*path_depth);
+  }
 
-XGBOOST_DEVICE void HandleInteractionReturn(QuadratureRule const& rule, std::size_t ncolumns,
-                                            QuadraturePathElement const* path,
-                                            std::size_t path_depth, bst_feature_t split_index,
-                                            float const* h_vals, float p_enter, float p_exit,
-                                            float* matrix) {
-  matrix[static_cast<std::size_t>(split_index) * ncolumns + split_index] +=
-      ExtractQuadratureDelta(rule, h_vals, p_enter, p_exit);
+  XGBOOST_DEVICE void PopPathSplit(bst_feature_t) const { --(*path_depth); }
 
-  auto const current_split = path[path_depth - 1].split_index;
-  bool skipped_current = false;
-  for (std::size_t i = path_depth; i != 0; --i) {
-    auto const idx = i - 1;
-    auto const partner_split = path[idx].split_index;
-    bool shadowed = false;
-    for (std::size_t newer = path_depth; newer > i; --newer) {
-      if (path[newer - 1].split_index == partner_split) {
-        shadowed = true;
-        break;
+  template <typename Tree>
+  XGBOOST_DEVICE void HandleLeaf(Tree const& tree, QuadratureRule const& rule, bst_node_t nidx,
+                                 float const* c_vals, float w_prod, float* out_h) const {
+    WriteWeightedLeafReturn(tree, rule, nidx, c_vals, w_prod, tree_weight, out_h);
+  }
+
+  XGBOOST_DEVICE void HandleReturn(QuadratureRule const& rule, bst_feature_t split_index,
+                                   float const* h_vals, float p_enter, float p_exit) const {
+    matrix[static_cast<std::size_t>(split_index) * ncolumns + split_index] +=
+        ExtractQuadratureDelta(rule, h_vals, p_enter, p_exit);
+
+    auto const depth = *path_depth;
+    auto const current_split = path[depth - 1].split_index;
+    bool skipped_current = false;
+    for (std::size_t i = depth; i != 0; --i) {
+      auto const idx = i - 1;
+      auto const partner_split = path[idx].split_index;
+      bool shadowed = false;
+      for (std::size_t newer = depth; newer > i; --newer) {
+        if (path[newer - 1].split_index == partner_split) {
+          shadowed = true;
+          break;
+        }
       }
+      if (shadowed) {
+        continue;
+      }
+      if (!skipped_current && partner_split == current_split) {
+        skipped_current = true;
+        continue;
+      }
+      auto pair_delta =
+          ExtractQuadratureInteractionDelta(rule, h_vals, p_enter, p_exit, path[idx].p_child);
+      matrix[static_cast<std::size_t>(split_index) * ncolumns + partner_split] += pair_delta;
     }
-    if (shadowed) {
-      continue;
-    }
-    if (!skipped_current && partner_split == current_split) {
-      skipped_current = true;
-      continue;
-    }
-    auto pair_delta =
-        ExtractQuadratureInteractionDelta(rule, h_vals, p_enter, p_exit, path[idx].p_child);
-    matrix[static_cast<std::size_t>(split_index) * ncolumns + partner_split] += pair_delta;
   }
-}
+};
 
-template <typename Loader>
-XGBOOST_DEVICE void VisitInteractionChild(tree::ScalarTreeView const& tree, Loader const& loader,
-                                          bst_idx_t row_idx, QuadratureRule const& rule,
-                                          float* path_prob, QuadraturePathElement* path,
-                                          std::size_t path_depth, std::size_t ncolumns,
-                                          bst_node_t split_node, bst_node_t child_node,
-                                          float child_weight, bool satisfies, float const* c_vals,
-                                          float w_prod, float tree_weight, float* out_h,
-                                          float* matrix) {
+template <typename Loader, typename Formulation>
+XGBOOST_DEVICE void RunQuadratureNode(tree::ScalarTreeView const& tree, Loader const& loader,
+                                      bst_idx_t row_idx, QuadratureRule const& rule,
+                                      float* path_prob, bst_node_t nidx, float const* c_vals,
+                                      float w_prod, float* out_h, Formulation const& formulation);
+
+template <typename Loader, typename Formulation>
+XGBOOST_DEVICE void VisitQuadratureChild(tree::ScalarTreeView const& tree, Loader const& loader,
+                                         bst_idx_t row_idx, QuadratureRule const& rule,
+                                         float* path_prob, bst_node_t split_node,
+                                         bst_node_t child_node, float child_weight, bool satisfies,
+                                         float const* c_vals, float w_prod, float* out_h,
+                                         Formulation const& formulation) {
   auto split_index = tree.SplitIndex(split_node);
   auto p_old = path_prob[split_index];
   float p_exit = p_old == kQuadratureTreeShapUnseen ? 1.0f : p_old;
@@ -357,23 +243,21 @@ XGBOOST_DEVICE void VisitInteractionChild(tree::ScalarTreeView const& tree, Load
   }
 
   path_prob[split_index] = p_e;
-  path[path_depth] = QuadraturePathElement{split_index, p_e};
-  RunInteractionNode(tree, loader, row_idx, rule, path_prob, path, path_depth + 1, ncolumns,
-                     child_node, c_child, w_prod * child_weight, tree_weight, out_h, matrix);
-  HandleInteractionReturn(rule, ncolumns, path, path_depth + 1, split_index, out_h, p_e, p_exit,
-                          matrix);
+  formulation.PushPathSplit(split_index, p_e);
+  RunQuadratureNode(tree, loader, row_idx, rule, path_prob, child_node, c_child,
+                    w_prod * child_weight, out_h, formulation);
+  formulation.HandleReturn(rule, split_index, out_h, p_e, p_exit);
+  formulation.PopPathSplit(split_index);
   path_prob[split_index] = p_old;
 }
 
-template <typename Loader>
-XGBOOST_DEVICE void RunInteractionNode(tree::ScalarTreeView const& tree, Loader const& loader,
-                                       bst_idx_t row_idx, QuadratureRule const& rule,
-                                       float* path_prob, QuadraturePathElement* path,
-                                       std::size_t path_depth, std::size_t ncolumns,
-                                       bst_node_t nidx, float const* c_vals, float w_prod,
-                                       float tree_weight, float* out_h, float* matrix) {
+template <typename Loader, typename Formulation>
+XGBOOST_DEVICE void RunQuadratureNode(tree::ScalarTreeView const& tree, Loader const& loader,
+                                      bst_idx_t row_idx, QuadratureRule const& rule,
+                                      float* path_prob, bst_node_t nidx, float const* c_vals,
+                                      float w_prod, float* out_h, Formulation const& formulation) {
   if (tree.IsLeaf(nidx)) {
-    WriteWeightedLeafReturn(tree, rule, nidx, c_vals, w_prod, tree_weight, out_h);
+    formulation.HandleLeaf(tree, rule, nidx, c_vals, w_prod, out_h);
     return;
   }
 
@@ -384,11 +268,10 @@ XGBOOST_DEVICE void RunInteractionNode(tree::ScalarTreeView const& tree, Loader 
   auto goes_left = EvaluateGoesLeft(tree, loader, row_idx, nidx);
 
   float right_h[kQuadratureTreeShapPoints];
-  VisitInteractionChild(tree, loader, row_idx, rule, path_prob, path, path_depth, ncolumns, nidx,
-                        left, left_weight, goes_left, c_vals, w_prod, tree_weight, out_h, matrix);
-  VisitInteractionChild(tree, loader, row_idx, rule, path_prob, path, path_depth, ncolumns, nidx,
-                        right, right_weight, !goes_left, c_vals, w_prod, tree_weight, right_h,
-                        matrix);
+  VisitQuadratureChild(tree, loader, row_idx, rule, path_prob, nidx, left, left_weight, goes_left,
+                       c_vals, w_prod, out_h, formulation);
+  VisitQuadratureChild(tree, loader, row_idx, rule, path_prob, nidx, right, right_weight,
+                       !goes_left, c_vals, w_prod, right_h, formulation);
   AddInPlace(out_h, right_h);
 }
 
@@ -428,8 +311,9 @@ void LaunchAdditiveKernel(Context const* ctx, Loader const& loader, bst_idx_t ba
       for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
         c_init[i] = 1.0f;
       }
-      RunAdditiveNode(tree, loader, local_row, rule, row_path_prob, RegTree::kRoot, c_init, 1.0f,
-                      tree_weights[tree_idx], h_vals, phi);
+      auto formulation = DeviceAdditiveContributionFormulation{tree_weights[tree_idx], phi};
+      RunQuadratureNode(tree, loader, local_row, rule, row_path_prob, RegTree::kRoot, c_init, 1.0f,
+                        h_vals, formulation);
     }
 
     auto const bias =
@@ -479,8 +363,11 @@ void LaunchInteractionKernel(Context const* ctx, Loader const& loader, bst_idx_t
       for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
         c_init[i] = 1.0f;
       }
-      RunInteractionNode(tree, loader, local_row, rule, row_path_prob, row_path, 0, ncolumns,
-                         RegTree::kRoot, c_init, 1.0f, tree_weights[tree_idx], h_vals, matrix);
+      std::size_t path_depth = 0;
+      auto formulation = DeviceInteractionContributionFormulation{tree_weights[tree_idx], ncolumns,
+                                                                  row_path, &path_depth, matrix};
+      RunQuadratureNode(tree, loader, local_row, rule, row_path_prob, RegTree::kRoot, c_init, 1.0f,
+                        h_vals, formulation);
     }
 
     matrix[(ncolumns - 1) * ncolumns + (ncolumns - 1)] +=
