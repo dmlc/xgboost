@@ -73,6 +73,8 @@ struct QuadraturePathElement {
 
 struct GpuQuadratureTreeShapModelData {
   HostDeviceVector<float> group_root_mean_sums;
+  HostDeviceVector<bst_tree_t> group_tree_indices;
+  HostDeviceVector<std::size_t> group_segments;
   bst_node_t max_depth{0};
 };
 
@@ -86,21 +88,39 @@ GpuQuadratureTreeShapModelData MakeGpuQuadratureTreeShapModelData(
 
   GpuQuadratureTreeShapModelData out;
   out.group_root_mean_sums = HostDeviceVector<float>(n_groups, 0.0f, ctx->Device());
+  out.group_tree_indices =
+      HostDeviceVector<bst_tree_t>(static_cast<std::size_t>(tree_end), 0, ctx->Device());
+  out.group_segments = HostDeviceVector<std::size_t>(n_groups + 1, 0, ctx->Device());
   auto& h_root_mean_sums = out.group_root_mean_sums.HostVector();
+  auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
+  auto& h_group_segments = out.group_segments.HostVector();
 
+  for (bst_tree_t i = 0; i < tree_end; ++i) {
+    auto gid = h_tree_groups[i];
+    ++h_group_segments[gid + 1];
+  }
+  for (bst_target_t gid = 0; gid < n_groups; ++gid) {
+    h_group_segments[gid + 1] += h_group_segments[gid];
+  }
+
+  auto& h_group_tree_indices = out.group_tree_indices.HostVector();
+  auto group_offsets = h_group_segments;
   for (bst_tree_t i = 0; i < tree_end; ++i) {
     CHECK(!model.trees[i]->IsMultiTarget()) << " SHAP " << MTNotImplemented();
     auto tree = model.trees[i]->HostScView();
     detail::ValidateQuadratureTreeShapCovers(tree, RegTree::kRoot, "GPU");
     out.max_depth = std::max(out.max_depth, tree.MaxDepth());
 
-    auto gid = model.TreeGroups(DeviceOrd::CPU())[i];
+    auto gid = h_tree_groups[i];
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
+    h_group_tree_indices[group_offsets[gid]++] = i;
     h_root_mean_sums[gid] +=
         static_cast<float>(detail::FillRootMeanValue(tree, RegTree::kRoot) * weight);
   }
 
   out.group_root_mean_sums.SetDevice(ctx->Device());
+  out.group_tree_indices.SetDevice(ctx->Device());
+  out.group_segments.SetDevice(ctx->Device());
   return out;
 }
 
@@ -275,6 +295,8 @@ void LaunchAdditiveKernel(Context const* ctx, Loader const& loader, bst_idx_t ba
                           DeviceModel const& d_model, QuadratureRule rule,
                           common::OptionalWeights tree_weights,
                           common::Span<float const> group_root_mean_sums,
+                          common::Span<bst_tree_t const> group_tree_indices,
+                          common::Span<std::size_t const> group_segments,
                           linalg::VectorView<float const> base_score,
                           common::Span<float const> base_margin, float* path_prob, float* phis) {
   auto const n_rows = loader.NumRows();
@@ -283,7 +305,6 @@ void LaunchAdditiveKernel(Context const* ctx, Loader const& loader, bst_idx_t ba
   auto const ncolumns = static_cast<std::size_t>(n_features) + 1;
   auto const row_stride = static_cast<std::size_t>(n_groups) * ncolumns;
   auto d_trees = d_model.Trees();
-  auto d_tree_groups = d_model.tree_groups;
 
   dh::LaunchN(n_rows * n_groups, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
     auto [local_row, gid] = linalg::UnravelIndex(idx, n_rows, n_groups);
@@ -296,10 +317,8 @@ void LaunchAdditiveKernel(Context const* ctx, Loader const& loader, bst_idx_t ba
       row_path_prob[i] = kQuadratureTreeShapUnseen;
     }
 
-    for (bst_tree_t tree_idx = 0; tree_idx < static_cast<bst_tree_t>(d_trees.size()); ++tree_idx) {
-      if (d_tree_groups[tree_idx] != gid) {
-        continue;
-      }
+    for (auto i = group_segments[gid]; i < group_segments[gid + 1]; ++i) {
+      auto tree_idx = group_tree_indices[i];
       auto const& tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx]);
       float c_init[kQuadratureTreeShapPoints];
       float h_vals[kQuadratureTreeShapPoints];
@@ -324,6 +343,8 @@ void LaunchInteractionKernel(Context const* ctx, Loader const& loader, bst_idx_t
                              DeviceModel const& d_model, QuadratureRule rule,
                              common::OptionalWeights tree_weights,
                              common::Span<float const> group_root_mean_sums,
+                             common::Span<bst_tree_t const> group_tree_indices,
+                             common::Span<std::size_t const> group_segments,
                              linalg::VectorView<float const> base_score,
                              common::Span<float const> base_margin, float* path_prob,
                              QuadraturePathElement* path, bst_node_t max_depth, float* phis) {
@@ -333,7 +354,6 @@ void LaunchInteractionKernel(Context const* ctx, Loader const& loader, bst_idx_t
   auto const ncolumns = static_cast<std::size_t>(n_features) + 1;
   auto const matrix_size = ncolumns * ncolumns;
   auto d_trees = d_model.Trees();
-  auto d_tree_groups = d_model.tree_groups;
   auto const path_stride = std::max<bst_node_t>(max_depth, 1);
 
   dh::LaunchN(n_rows * n_groups, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
@@ -348,10 +368,8 @@ void LaunchInteractionKernel(Context const* ctx, Loader const& loader, bst_idx_t
       row_path_prob[i] = kQuadratureTreeShapUnseen;
     }
 
-    for (bst_tree_t tree_idx = 0; tree_idx < static_cast<bst_tree_t>(d_trees.size()); ++tree_idx) {
-      if (d_tree_groups[tree_idx] != gid) {
-        continue;
-      }
+    for (auto i = group_segments[gid]; i < group_segments[gid + 1]; ++i) {
+      auto tree_idx = group_tree_indices[i];
       auto const& tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx]);
       float c_init[kQuadratureTreeShapPoints];
       float h_vals[kQuadratureTreeShapPoints];
@@ -480,6 +498,8 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   auto model_data = MakeGpuQuadratureTreeShapModelData(ctx, model, tree_end, tree_weights);
   ConfigureQuadratureTreeShapStack(model_data.max_depth, model.Cats()->HasCategorical());
   auto group_root_mean_sums = model_data.group_root_mean_sums.ConstDeviceSpan();
+  auto group_tree_indices = model_data.group_tree_indices.ConstDeviceSpan();
+  auto group_segments = model_data.group_segments.ConstDeviceSpan();
 
   DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, CopyViews{ctx}};
   dh::device_vector<float> d_tree_weights;
@@ -494,8 +514,8 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
     dh::device_vector<float> path_prob(loader.NumRows() * n_groups * n_features);
     LaunchAdditiveKernel(ctx, loader, base_rowid, d_model, rule, weights, group_root_mean_sums,
-                         base_score, margin, thrust::raw_pointer_cast(path_prob.data()),
-                         phis.data());
+                         group_tree_indices, group_segments, base_score, margin,
+                         thrust::raw_pointer_cast(path_prob.data()), phis.data());
   });
 }
 
@@ -529,6 +549,8 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto model_data = MakeGpuQuadratureTreeShapModelData(ctx, model, tree_end, tree_weights);
   ConfigureQuadratureTreeShapStack(model_data.max_depth, model.Cats()->HasCategorical());
   auto group_root_mean_sums = model_data.group_root_mean_sums.ConstDeviceSpan();
+  auto group_tree_indices = model_data.group_tree_indices.ConstDeviceSpan();
+  auto group_segments = model_data.group_segments.ConstDeviceSpan();
 
   DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, CopyViews{ctx}};
   dh::device_vector<float> d_tree_weights;
@@ -546,7 +568,8 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
     dh::device_vector<float> path_prob(n_rows * n_groups * n_features);
     dh::device_vector<QuadraturePathElement> path(n_rows * n_groups * path_stride);
     LaunchInteractionKernel(ctx, loader, base_rowid, d_model, rule, weights, group_root_mean_sums,
-                            base_score, margin, thrust::raw_pointer_cast(path_prob.data()),
+                            group_tree_indices, group_segments, base_score, margin,
+                            thrust::raw_pointer_cast(path_prob.data()),
                             thrust::raw_pointer_cast(path.data()), path_stride, phis.data());
   });
 }
