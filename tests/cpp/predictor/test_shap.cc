@@ -13,6 +13,7 @@
 #include <xgboost/objective.h>           // for ObjFunction
 
 #include <algorithm>
+#include <cmath>
 #include <memory>  // for unique_ptr
 #include <sstream>
 #include <string>  // for to_string
@@ -292,7 +293,7 @@ TEST(Predictor, DartShapOutputCPU) {
   CheckDartShapOutput(&ctx);
 }
 
-TEST(Predictor, ShapRejectsZeroCoverChild) {
+TEST(Predictor, ShapHandlesZeroCoverChild) {
   Context ctx;
   std::size_t shape[1]{1};
   linalg::Vector<float> base_score{shape, ctx.Device()};
@@ -308,16 +309,16 @@ TEST(Predictor, ShapRejectsZeroCoverChild) {
 
   auto dmat = GetDMatrixFromData(std::vector<float>{0.0f, 1.0f}, 2, 1);
   HostDeviceVector<float> out;
-  auto msg = "non-positive cover at child nodes";
-  ASSERT_THAT(
-      [&] { interpretability::ShapValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr, 0, 0); },
-      GMockThrow(msg));
-  ASSERT_THAT(
-      [&] {
-        interpretability::ShapInteractionValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr,
-                                                false);
-      },
-      GMockThrow(msg));
+  ASSERT_NO_THROW(
+      interpretability::ShapValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr, 0, 0));
+  for (auto v : out.HostVector()) {
+    ASSERT_TRUE(std::isfinite(v));
+  }
+  ASSERT_NO_THROW(interpretability::ShapInteractionValues(dmat->Ctx(), dmat.get(), &out, model, 0,
+                                                          nullptr, false));
+  for (auto v : out.HostVector()) {
+    ASSERT_TRUE(std::isfinite(v));
+  }
 }
 
 TEST(Predictor, ApproxContribsBasic) {

@@ -308,7 +308,7 @@ struct QuadratureTreeShapRunner {
   [[nodiscard]] float ChildWeight(bst_node_t parent, bst_node_t child) const {
     auto parent_cover = tree.Stat(parent).sum_hess;
     CHECK_GT(parent_cover, 0.0f);
-    return tree.Stat(child).sum_hess / parent_cover;
+    return detail::GuardChildWeight(tree.Stat(child).sum_hess, parent_cover);
   }
 
   void VisitChild(bst_node_t split_node, bst_node_t child_node, float child_weight, bool satisfies,

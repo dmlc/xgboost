@@ -137,7 +137,7 @@ XGBOOST_DEVICE bool EvaluateGoesLeft(Tree const& tree, Loader const& loader, bst
 template <typename Tree>
 XGBOOST_DEVICE float ChildWeight(Tree const& tree, bst_node_t parent, bst_node_t child) {
   auto parent_cover = tree.SumHess(parent);
-  return tree.SumHess(child) / parent_cover;
+  return detail::GuardChildWeight(tree.SumHess(child), parent_cover);
 }
 
 struct DeviceAdditiveContributionFormulation {
@@ -308,8 +308,8 @@ void LaunchAdditiveKernel(Context const* ctx, Loader const& loader, bst_idx_t ba
       auto const& tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx]);
       float c_init[kQuadratureTreeShapPoints];
       float h_vals[kQuadratureTreeShapPoints];
-      for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-        c_init[i] = 1.0f;
+      for (auto& v : c_init) {
+        v = 1.0f;
       }
       auto formulation = DeviceAdditiveContributionFormulation{tree_weights[tree_idx], phi};
       RunQuadratureNode(tree, loader, local_row, rule, row_path_prob, RegTree::kRoot, c_init, 1.0f,
@@ -360,8 +360,8 @@ void LaunchInteractionKernel(Context const* ctx, Loader const& loader, bst_idx_t
       auto const& tree = cuda::std::get<tree::ScalarTreeView>(d_trees[tree_idx]);
       float c_init[kQuadratureTreeShapPoints];
       float h_vals[kQuadratureTreeShapPoints];
-      for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-        c_init[i] = 1.0f;
+      for (auto& v : c_init) {
+        v = 1.0f;
       }
       std::size_t path_depth = 0;
       auto formulation = DeviceInteractionContributionFormulation{tree_weights[tree_idx], ncolumns,

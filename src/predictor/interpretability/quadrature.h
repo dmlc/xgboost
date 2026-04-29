@@ -20,6 +20,15 @@ constexpr double kPi = 3.141592653589793238462643383279502884;
 constexpr std::size_t kQuadratureTreeShapPoints = 8;
 constexpr double kQuadratureTreeShapBuildQeps = 1e-15;
 constexpr float kQuadratureTreeShapUnseen = -999.0f;
+constexpr float kQuadratureTreeShapMinChildWeight = 1e-12f;
+
+XGBOOST_DEVICE inline float GuardChildWeight(float cover, float parent_cover) {
+  auto weight = cover / parent_cover;
+  if (weight < kQuadratureTreeShapMinChildWeight) {
+    return kQuadratureTreeShapMinChildWeight;
+  }
+  return weight;
+}
 
 template <std::size_t Points>
 struct FloatQuadratureRule {
@@ -142,12 +151,10 @@ void ValidateQuadratureTreeShapCovers(Tree const& tree, bst_node_t nidx, char co
 
   auto left = tree.LeftChild(nidx);
   auto right = tree.RightChild(nidx);
-  CHECK_GT(tree.SumHess(left), 0.0f)
-      << device_name
-      << " QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
-  CHECK_GT(tree.SumHess(right), 0.0f)
-      << device_name
-      << " QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
+  CHECK_GE(tree.SumHess(left), 0.0f)
+      << device_name << " QuadratureTreeSHAP is undefined for trees with negative child cover.";
+  CHECK_GE(tree.SumHess(right), 0.0f)
+      << device_name << " QuadratureTreeSHAP is undefined for trees with negative child cover.";
 
   ValidateQuadratureTreeShapCovers(tree, left, device_name);
   ValidateQuadratureTreeShapCovers(tree, right, device_name);
