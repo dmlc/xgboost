@@ -296,7 +296,7 @@ void LaunchAdditiveKernel(Context const* ctx, Loader const& loader, bst_idx_t ba
     auto* phi = phis + static_cast<std::size_t>(global_row) * row_stride +
                 static_cast<std::size_t>(gid) * ncolumns;
     auto* row_path_prob =
-        path_prob + (static_cast<std::size_t>(global_row) * n_groups + gid) * n_features;
+        path_prob + (static_cast<std::size_t>(local_row) * n_groups + gid) * n_features;
     for (bst_feature_t i = 0; i < n_features; ++i) {
       row_path_prob[i] = kQuadratureTreeShapUnseen;
     }
@@ -346,8 +346,8 @@ void LaunchInteractionKernel(Context const* ctx, Loader const& loader, bst_idx_t
     auto global_row = base_rowid + local_row;
     auto* matrix = phis + (static_cast<std::size_t>(global_row) * n_groups + gid) * matrix_size;
     auto* row_path_prob =
-        path_prob + (static_cast<std::size_t>(global_row) * n_groups + gid) * n_features;
-    auto* row_path = path + (static_cast<std::size_t>(global_row) * n_groups + gid) * path_stride;
+        path_prob + (static_cast<std::size_t>(local_row) * n_groups + gid) * n_features;
+    auto* row_path = path + (static_cast<std::size_t>(local_row) * n_groups + gid) * path_stride;
 
     for (bst_feature_t i = 0; i < n_features; ++i) {
       row_path_prob[i] = kQuadratureTreeShapUnseen;
@@ -435,8 +435,7 @@ void LaunchShap(Context const* ctx, DMatrix* p_fmat, enc::DeviceColumnsView cons
   }
 }
 
-common::OptionalWeights MakeOptionalTreeWeights(Context const* ctx,
-                                                std::vector<float> const* tree_weights,
+common::OptionalWeights MakeOptionalTreeWeights(std::vector<float> const* tree_weights,
                                                 bst_tree_t tree_end,
                                                 dh::device_vector<float>* d_tree_weights) {
   if (tree_weights == nullptr) {
@@ -489,8 +488,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
 
   DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, CopyViews{ctx}};
   dh::device_vector<float> d_tree_weights;
-  auto weights = MakeOptionalTreeWeights(ctx, tree_weights, tree_end, &d_tree_weights);
-  dh::device_vector<float> path_prob(n_samples * n_groups * n_features);
+  auto weights = MakeOptionalTreeWeights(tree_weights, tree_end, &d_tree_weights);
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
@@ -499,6 +497,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   auto new_enc =
       p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
+    dh::device_vector<float> path_prob(loader.NumRows() * n_groups * n_features);
     LaunchAdditiveKernel(ctx, loader, base_rowid, d_model, rule, weights, group_root_mean_sums,
                          base_score, margin, thrust::raw_pointer_cast(path_prob.data()),
                          phis.data());
@@ -538,10 +537,8 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
 
   DeviceModel d_model{ctx->Device(), model, true, 0, tree_end, CopyViews{ctx}};
   dh::device_vector<float> d_tree_weights;
-  auto weights = MakeOptionalTreeWeights(ctx, tree_weights, tree_end, &d_tree_weights);
-  dh::device_vector<float> path_prob(n_samples * n_groups * n_features);
+  auto weights = MakeOptionalTreeWeights(tree_weights, tree_end, &d_tree_weights);
   auto const path_stride = std::max<bst_node_t>(model_data.max_depth, 1);
-  dh::device_vector<QuadraturePathElement> path(n_samples * n_groups * path_stride);
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
   auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
@@ -550,6 +547,9 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto new_enc =
       p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
+    auto const n_rows = loader.NumRows();
+    dh::device_vector<float> path_prob(n_rows * n_groups * n_features);
+    dh::device_vector<QuadraturePathElement> path(n_rows * n_groups * path_stride);
     LaunchInteractionKernel(ctx, loader, base_rowid, d_model, rule, weights, group_root_mean_sums,
                             base_score, margin, thrust::raw_pointer_cast(path_prob.data()),
                             thrust::raw_pointer_cast(path.data()), path_stride, phis.data());
