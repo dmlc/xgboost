@@ -91,12 +91,6 @@ constexpr float kQuadratureTreeShapUnseen = detail::kQuadratureTreeShapUnseen;
 using QuadratureRule = detail::QuadratureTreeShapRule;
 using QuadratureBuffer = std::array<float, kQuadratureTreeShapPoints>;
 
-QuadratureRule const &GetQuadratureRule() {
-  static QuadratureRule const kRule = detail::MakeFloatQuadratureRule<kQuadratureTreeShapPoints>(
-      detail::kQuadratureTreeShapBuildQeps);
-  return kRule;
-}
-
 void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs) {
   detail::AddQuadratureInPlace(*lhs, rhs);
 }
@@ -488,7 +482,7 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
   std::fill(contribs.begin(), contribs.end(), 0.0f);
   CHECK_NE(n_groups, 0);
-  auto const &rule = GetQuadratureRule();
+  auto const &rule = detail::GetQuadratureTreeShapRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
@@ -568,7 +562,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   contribs.resize(info.num_row_ * row_chunk);
   std::fill(contribs.begin(), contribs.end(), 0.0f);
 
-  auto const &rule = GetQuadratureRule();
+  auto const &rule = detail::GetQuadratureTreeShapRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);

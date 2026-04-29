@@ -126,6 +126,12 @@ inline FloatQuadratureRule<Points> MakeFloatQuadratureRule(double convergence_ep
   return out;
 }
 
+inline QuadratureTreeShapRule const& GetQuadratureTreeShapRule() {
+  static QuadratureTreeShapRule const kRule =
+      MakeFloatQuadratureRule<kQuadratureTreeShapPoints>(kQuadratureTreeShapBuildQeps);
+  return kRule;
+}
+
 template <typename Tree>
 double FillRootMeanValue(Tree const& tree, bst_node_t nidx) {
   if (tree.IsLeaf(nidx)) {

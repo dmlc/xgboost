@@ -76,11 +76,6 @@ struct GpuQuadratureTreeShapModelData {
   bst_node_t max_depth{0};
 };
 
-QuadratureRule MakeQuadratureRule() {
-  return detail::MakeFloatQuadratureRule<kQuadratureTreeShapPoints>(
-      detail::kQuadratureTreeShapBuildQeps);
-}
-
 GpuQuadratureTreeShapModelData MakeGpuQuadratureTreeShapModelData(
     Context const* ctx, gbm::GBTreeModel const& model, bst_tree_t tree_end,
     std::vector<float> const* tree_weights) {
@@ -481,7 +476,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   out_contribs->Fill(0.0f);
   auto phis = out_contribs->DeviceSpan();
 
-  auto rule = MakeQuadratureRule();
+  auto rule = detail::GetQuadratureTreeShapRule();
   auto model_data = MakeGpuQuadratureTreeShapModelData(ctx, model, tree_end, tree_weights);
   ConfigureQuadratureTreeShapStack(model_data.max_depth, model.Cats()->HasCategorical());
   auto group_root_mean_sums = model_data.group_root_mean_sums.ConstDeviceSpan();
@@ -530,7 +525,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   out_contribs->Fill(0.0f);
   auto phis = out_contribs->DeviceSpan();
 
-  auto rule = MakeQuadratureRule();
+  auto rule = detail::GetQuadratureTreeShapRule();
   auto model_data = MakeGpuQuadratureTreeShapModelData(ctx, model, tree_end, tree_weights);
   ConfigureQuadratureTreeShapStack(model_data.max_depth, model.Cats()->HasCategorical());
   auto group_root_mean_sums = model_data.group_root_mean_sums.ConstDeviceSpan();
