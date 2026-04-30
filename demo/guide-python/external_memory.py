@@ -227,7 +227,7 @@ def setup_rmm() -> None:
 
     total = device_mem_total()
 
-    mr = rmm.mr.CudaMemoryResource()
+    mr: rmm.mr.DeviceMemoryResource = rmm.mr.CudaMemoryResource()
     mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))
 
     rmm.mr.set_current_device_resource(mr)
