@@ -693,7 +693,7 @@ def _reject_pd_sparse_col_split(
     """Sparse pandas columns are not supported with column-wise data split."""
     if data_split_mode != DataSplitMode.COL:
         return
-    for col, dtype in zip(data.columns, data.dtypes):
+    for _, dtype in zip(data.columns, data.dtypes):
         if is_pd_sparse_dtype(dtype):
             raise ValueError("Column split does not support pandas sparse array.")
 
