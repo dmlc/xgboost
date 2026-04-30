@@ -61,29 +61,29 @@ inline double LegendreDerivative(std::size_t n, double x, double pn) {
 }
 
 inline QuadratureRule MakeEndpointQuadrature() {
-  constexpr std::size_t n = kQuadratureTreeShapPoints;
-  constexpr double convergence_eps = 1e-15;
+  constexpr std::size_t kN = kQuadratureTreeShapPoints;
+  constexpr double kConvergenceEps = 1e-15;
   QuadratureRule rule;
 
-  for (std::size_t i = 0; i < n; ++i) {
-    double theta = kPi * (static_cast<double>(i) + 0.75) / (static_cast<double>(n) + 0.5);
+  for (std::size_t i = 0; i < kN; ++i) {
+    double theta = kPi * (static_cast<double>(i) + 0.75) / (static_cast<double>(kN) + 0.5);
     double x = std::cos(theta);
     for (std::size_t iter = 0; iter < 64; ++iter) {
-      auto pn = LegendrePolynomial(n, x);
-      auto dpn = LegendreDerivative(n, x, pn);
+      auto pn = LegendrePolynomial(kN, x);
+      auto dpn = LegendreDerivative(kN, x, pn);
       auto dx = pn / dpn;
       x -= dx;
-      if (std::abs(dx) < convergence_eps) {
+      if (std::abs(dx) < kConvergenceEps) {
         break;
       }
     }
 
-    auto pn = LegendrePolynomial(n, x);
-    auto dpn = LegendreDerivative(n, x, pn);
+    auto pn = LegendrePolynomial(kN, x);
+    auto dpn = LegendreDerivative(kN, x, pn);
     auto w = 2.0 / ((1.0 - x * x) * dpn * dpn);
     double s = 0.5 * (x + 1.0);
     double ws = 0.5 * w;
-    auto out_idx = n - 1 - i;
+    auto out_idx = kN - 1 - i;
     rule.nodes[out_idx] = static_cast<float>(s * s);
     rule.weights[out_idx] = static_cast<float>(2.0 * s * ws);
   }

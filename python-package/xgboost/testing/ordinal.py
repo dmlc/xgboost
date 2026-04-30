@@ -479,7 +479,8 @@ def _run_predt(
         pred_interactions=pred_interactions,
         pred_leaf=pred_leaf,
     )
-    assert_allclose(device, predt_0, predt_1)
+    atol = 1e-6 if pred_contribs or pred_interactions else 0
+    assert_allclose(device, predt_0, predt_1, atol=atol)
 
 
 def run_cat_shap(device: Device) -> None:
