@@ -293,21 +293,22 @@ TEST(Predictor, DartShapOutputCPU) {
   CheckDartShapOutput(&ctx);
 }
 
-TEST(Predictor, ShapHandlesZeroCoverChild) {
-  Context ctx;
+void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   std::size_t shape[1]{1};
-  linalg::Vector<float> base_score{shape, ctx.Device()};
+  linalg::Vector<float> base_score{shape, ctx->Device()};
   base_score.Data()->HostVector()[0] = 0.0f;
   LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
-  gbm::GBTreeModel model{&mparam, &ctx};
+  gbm::GBTreeModel model{&mparam, ctx};
 
   gbm::TreesOneGroup trees;
   trees.emplace_back(std::make_unique<RegTree>());
-  trees.front()->ExpandNode(RegTree::kRoot, 0, 0.5f, true, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f,
-                            1.0f);
+  auto const parent_cover = zero_parent_cover ? 0.0f : 1.0f;
+  auto const left_cover = parent_cover;
+  trees.front()->ExpandNode(RegTree::kRoot, 0, 0.5f, true, 0.0f, 0.0f, 1.0f, 1.0f, parent_cover,
+                            left_cover, 0.0f);
   model.CommitModelGroup(std::move(trees), 0);
 
-  auto dmat = GetDMatrixFromData(std::vector<float>{0.0f, 1.0f}, 2, 1);
+  auto dmat = RandomDataGenerator{2, 1, 0.0f}.Device(ctx->Device()).GenerateDMatrix();
   HostDeviceVector<float> out;
   ASSERT_NO_THROW(
       interpretability::ShapValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr, 0, 0));
@@ -319,6 +320,16 @@ TEST(Predictor, ShapHandlesZeroCoverChild) {
   for (auto v : out.HostVector()) {
     ASSERT_TRUE(std::isfinite(v));
   }
+}
+
+TEST(Predictor, ShapHandlesZeroCoverChild) {
+  Context ctx;
+  CheckShapHandlesZeroCover(&ctx, false);
+}
+
+TEST(Predictor, ShapHandlesZeroCoverParent) {
+  Context ctx;
+  CheckShapHandlesZeroCover(&ctx, true);
 }
 
 TEST(Predictor, ApproxContribsBasic) {

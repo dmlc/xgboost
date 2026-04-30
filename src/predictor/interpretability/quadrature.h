@@ -20,7 +20,10 @@ constexpr std::size_t kQuadratureTreeShapPoints = 8;
 constexpr float kQuadratureTreeShapUnseen = -999.0f;
 constexpr float kQuadratureTreeShapMinChildWeight = 1e-12f;
 
-XGBOOST_DEVICE inline float GuardChildWeight(float cover, float parent_cover) {
+XGBOOST_DEVICE inline float BranchWeight(float cover, float parent_cover) {
+  if (parent_cover <= 0.0f) {
+    return 0.5f;
+  }
   auto weight = cover / parent_cover;
   if (weight < kQuadratureTreeShapMinChildWeight) {
     return kQuadratureTreeShapMinChildWeight;
@@ -99,16 +102,19 @@ double FillRootMeanValue(Tree const& tree, bst_node_t nidx) {
   }
   auto left = tree.LeftChild(nidx);
   auto right = tree.RightChild(nidx);
-  CHECK_GT(tree.SumHess(nidx), 0.0f)
-      << "QuadratureTreeSHAP is undefined for trees with non-positive cover at split nodes.";
+  CHECK_GE(tree.SumHess(nidx), 0.0f)
+      << "QuadratureTreeSHAP is undefined for trees with negative cover at split nodes.";
   CHECK_GE(tree.SumHess(left), 0.0f)
       << "QuadratureTreeSHAP is undefined for trees with negative child cover.";
   CHECK_GE(tree.SumHess(right), 0.0f)
       << "QuadratureTreeSHAP is undefined for trees with negative child cover.";
-  double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
-  result += FillRootMeanValue(tree, right) * tree.SumHess(right);
-  result /= tree.SumHess(nidx);
-  return result;
+  auto const parent_cover = tree.SumHess(nidx);
+  auto const left_mean = FillRootMeanValue(tree, left);
+  auto const right_mean = FillRootMeanValue(tree, right);
+  if (parent_cover == 0.0f) {
+    return 0.5 * (left_mean + right_mean);
+  }
+  return (left_mean * tree.SumHess(left) + right_mean * tree.SumHess(right)) / parent_cover;
 }
 
 template <typename TreeGroups, typename GetTree>

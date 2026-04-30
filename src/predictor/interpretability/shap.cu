@@ -134,15 +134,17 @@ CompressedModel MakeCompressedModel(Context const* ctx, gbm::GBTreeModel const& 
 
       auto left = tree.LeftChild(nidx);
       auto right = tree.RightChild(nidx);
-      auto parent_cover = static_cast<double>(tree.SumHess(nidx));
-      CHECK_GT(parent_cover, 0.0);
+      auto parent_cover = tree.SumHess(nidx);
+      CHECK_GE(parent_cover, 0.0f);
+      CHECK_GE(tree.SumHess(left), 0.0f);
+      CHECK_GE(tree.SumHess(right), 0.0f);
 
       out.left = left;
       out.right = right;
       out.split_global = tree.SplitIndex(nidx);
       out.split_cond = tree.SplitCond(nidx);
-      out.left_weight = detail::GuardChildWeight(tree.SumHess(left), tree.SumHess(nidx));
-      out.right_weight = detail::GuardChildWeight(tree.SumHess(right), tree.SumHess(nidx));
+      out.left_weight = detail::BranchWeight(tree.SumHess(left), parent_cover);
+      out.right_weight = detail::BranchWeight(tree.SumHess(right), parent_cover);
       if (common::IsCat(tree.cats.split_type, nidx)) {
         auto node_cats = tree.NodeCats(nidx);
         CHECK_LE(node_cats.size(),
