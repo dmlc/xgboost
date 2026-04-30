@@ -38,6 +38,11 @@ struct FloatQuadratureRule {
 
 using QuadratureTreeShapRule = FloatQuadratureRule<kQuadratureTreeShapPoints>;
 
+struct QuadratureTreeShapRuleArrays {
+  std::array<float, kQuadratureTreeShapPoints> nodes{};
+  std::array<float, kQuadratureTreeShapPoints> weights{};
+};
+
 template <std::size_t MaxPoints>
 struct EndpointQuadratureRule {
   std::size_t points{0};
@@ -132,6 +137,16 @@ inline QuadratureTreeShapRule const& GetQuadratureTreeShapRule() {
   return kRule;
 }
 
+inline QuadratureTreeShapRuleArrays GetQuadratureTreeShapRuleArrays() {
+  auto const& rule = GetQuadratureTreeShapRule();
+  QuadratureTreeShapRuleArrays out;
+  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+    out.nodes[i] = rule.nodes[i];
+    out.weights[i] = rule.weights[i];
+  }
+  return out;
+}
+
 template <typename Tree>
 double FillRootMeanValue(Tree const& tree, bst_node_t nidx) {
   if (tree.IsLeaf(nidx)) {
@@ -139,10 +154,34 @@ double FillRootMeanValue(Tree const& tree, bst_node_t nidx) {
   }
   auto left = tree.LeftChild(nidx);
   auto right = tree.RightChild(nidx);
+  CHECK_GT(tree.SumHess(nidx), 0.0f)
+      << "QuadratureTreeSHAP is undefined for trees with non-positive cover at split nodes.";
+  CHECK_GE(tree.SumHess(left), 0.0f)
+      << "QuadratureTreeSHAP is undefined for trees with negative child cover.";
+  CHECK_GE(tree.SumHess(right), 0.0f)
+      << "QuadratureTreeSHAP is undefined for trees with negative child cover.";
   double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
   result += FillRootMeanValue(tree, right) * tree.SumHess(right);
   result /= tree.SumHess(nidx);
   return result;
+}
+
+template <typename TreeGroups, typename GetTree>
+std::vector<float> MakeGroupRootMeanSums(TreeGroups const& tree_groups, bst_target_t n_groups,
+                                         bst_tree_t tree_end,
+                                         std::vector<float> const* tree_weights,
+                                         GetTree&& get_tree) {
+  std::vector<double> group_root_mean_sums(n_groups, 0.0);
+  for (bst_tree_t tree_idx = 0; tree_idx < tree_end; ++tree_idx) {
+    auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[tree_idx];
+    group_root_mean_sums[tree_groups[tree_idx]] +=
+        FillRootMeanValue(get_tree(tree_idx), RegTree::kRoot) * weight;
+  }
+
+  std::vector<float> out(group_root_mean_sums.size());
+  std::transform(group_root_mean_sums.cbegin(), group_root_mean_sums.cend(), out.begin(),
+                 [](double v) { return static_cast<float>(v); });
+  return out;
 }
 
 template <typename Tree>

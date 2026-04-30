@@ -53,30 +53,11 @@ using ::xgboost::cuda_impl::StaticBatch;
 
 using TreeViewVar = cuda::std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
 
-constexpr std::size_t kGpuQuadraturePoints = 8;
-constexpr std::size_t kMaxGpuQuadratureDepth = 64;
 constexpr std::size_t kGpuQuadratureRowsPerWarp = 4;
 constexpr std::size_t kGpuQuadratureTreeBlockThreads = 64;
 constexpr std::array<std::size_t, 3> kGpuQuadratureDepthBuckets{{16, 32, 64}};
+constexpr std::size_t kMaxGpuQuadratureDepth = kGpuQuadratureDepthBuckets.back();
 using QuadratureRule = detail::QuadratureTreeShapRule;
-std::vector<float> MakeGroupRootMeanSums(gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                                         std::vector<float> const* tree_weights) {
-  auto h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
-  auto n_groups = model.learner_model_param->num_output_group;
-  std::vector<double> h_group_root_mean_sums(n_groups, 0.0);
-  for (bst_tree_t tree_idx = 0; tree_idx < tree_end; ++tree_idx) {
-    auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[tree_idx];
-    auto const tree = model.trees.at(tree_idx)->HostScView();
-    h_group_root_mean_sums[h_tree_groups[tree_idx]] +=
-        detail::FillRootMeanValue(tree, RegTree::kRoot) * weight;
-  }
-
-  std::vector<float> out(h_group_root_mean_sums.size());
-  std::transform(h_group_root_mean_sums.cbegin(), h_group_root_mean_sums.cend(), out.begin(),
-                 [](double v) { return static_cast<float>(v); });
-  return out;
-}
-
 struct CompressedNode {
   bst_node_t left{RegTree::kInvalidNodeId};
   bst_node_t right{RegTree::kInvalidNodeId};
@@ -201,8 +182,8 @@ CompressedModel MakeCompressedModel(Context const* ctx, gbm::GBTreeModel const& 
 template <int RowsPerWarp>
 XGBOOST_DEVICE constexpr unsigned ActiveSubgroupMask(int row_slot) {
   constexpr int kSegmentWidth = dh::WarpThreads() / RowsPerWarp;
-  static_assert(kSegmentWidth >= static_cast<int>(kGpuQuadraturePoints));
-  return ((1u << kGpuQuadraturePoints) - 1u) << (row_slot * kSegmentWidth);
+  static_assert(kSegmentWidth >= static_cast<int>(detail::kQuadratureTreeShapPoints));
+  return ((1u << detail::kQuadratureTreeShapPoints) - 1u) << (row_slot * kSegmentWidth);
 }
 
 XGBOOST_DEVICE inline float PreviousPathProbability(std::uint8_t prev_same_offset_plus1, int depth,
@@ -293,7 +274,7 @@ struct SubgroupOps {
 
   template <typename T>
   [[nodiscard]] XGBOOST_DEV_INLINE T Broadcast(T value) const {
-    // Each row uses an independent kGpuQuadraturePoints-wide subgroup inside the warp.
+    // Each row uses an independent quadrature-point-wide subgroup inside the warp.
     if constexpr (kHasRowMask) {
       return __shfl_sync(subgroup_mask, value, 0, MaxPoints);
     } else {
@@ -870,7 +851,7 @@ __global__ void __launch_bounds__(BlockThreads, 9)
                              std::uint32_t const* __restrict__ categories,
                              float const* __restrict__ quad_nodes,
                              float const* __restrict__ quad_weights, float* __restrict__ phis) {
-  static_assert(MaxPoints == kGpuQuadraturePoints);
+  static_assert(MaxPoints == detail::kQuadratureTreeShapPoints);
   static_assert(DepthCap <= static_cast<int>(kMaxGpuQuadratureDepth));
   static_assert(dh::WarpThreads() % RowsPerWarp == 0);
   static_assert(BlockThreads % dh::WarpThreads() == 0);
@@ -985,7 +966,7 @@ __global__ void __launch_bounds__(BlockThreads, 9) QuadratureShapInteractionTask
     CompressedNode const* __restrict__ nodes, std::uint32_t const* __restrict__ categories,
     float const* __restrict__ quad_nodes, float const* __restrict__ quad_weights,
     float* __restrict__ phis) {
-  static_assert(MaxPoints == kGpuQuadraturePoints);
+  static_assert(MaxPoints == detail::kQuadratureTreeShapPoints);
   static_assert(DepthCap <= static_cast<int>(kMaxGpuQuadratureDepth));
   static_assert(dh::WarpThreads() % RowsPerWarp == 0);
   static_assert(BlockThreads % dh::WarpThreads() == 0);
@@ -1157,8 +1138,6 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   std::array<std::vector<bst_tree_t>, kGpuQuadratureDepthBuckets.size()> tree_buckets;
   for (bst_tree_t tree_idx = 0; tree_idx < tree_end; ++tree_idx) {
     CHECK(!model.trees[tree_idx]->IsMultiTarget()) << "Predict contribution" << MTNotImplemented();
-    detail::ValidateQuadratureTreeShapCovers(model.trees[tree_idx]->HostScView(), RegTree::kRoot,
-                                             "GPU");
     auto tree_depth = model.trees[tree_idx]->MaxDepth();
     max_depth = std::max(max_depth, tree_depth);
     auto path_depth = static_cast<std::size_t>(tree_depth) + 1;
@@ -1168,17 +1147,14 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   CHECK_LE(max_depth + 1, static_cast<bst_node_t>(kMaxGpuQuadratureDepth))
       << "GPU QuadratureSHAP currently supports trees of depth up to "
       << (kMaxGpuQuadratureDepth - 1) << ".";
-  auto h_group_root_mean_sums = MakeGroupRootMeanSums(model, tree_end, tree_weights);
+  auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
+  auto h_group_root_mean_sums = detail::MakeGroupRootMeanSums(
+      h_tree_groups, ngroup, tree_end, tree_weights,
+      [&](bst_tree_t tree_idx) { return model.trees.at(tree_idx)->HostScView(); });
 
-  auto const& rule = detail::GetQuadratureTreeShapRule();
-  std::array<float, kGpuQuadraturePoints> h_quad_nodes{};
-  std::array<float, kGpuQuadraturePoints> h_quad_weights{};
-  for (std::size_t i = 0; i < kGpuQuadraturePoints; ++i) {
-    h_quad_nodes[i] = rule.nodes[i];
-    h_quad_weights[i] = rule.weights[i];
-  }
-  dh::device_vector<float> d_quad_nodes(h_quad_nodes.cbegin(), h_quad_nodes.cend());
-  dh::device_vector<float> d_quad_weights(h_quad_weights.cbegin(), h_quad_weights.cend());
+  auto const rule_arrays = detail::GetQuadratureTreeShapRuleArrays();
+  dh::device_vector<float> d_quad_nodes(rule_arrays.nodes.cbegin(), rule_arrays.nodes.cend());
+  dh::device_vector<float> d_quad_weights(rule_arrays.weights.cbegin(), rule_arrays.weights.cend());
   dh::device_vector<float> d_group_root_mean_sums(h_group_root_mean_sums.cbegin(),
                                                   h_group_root_mean_sums.cend());
   auto compressed_16 = MakeCompressedModel(ctx, model, tree_buckets[0], tree_weights);
@@ -1195,15 +1171,15 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
       thrust::raw_pointer_cast(d_group_root_mean_sums.data()), d_group_root_mean_sums.size()};
 
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
-    LaunchQuadratureShapBuckets<kGpuQuadraturePoints, kGpuQuadratureRowsPerWarp,
+    LaunchQuadratureShapBuckets<detail::kQuadratureTreeShapPoints, kGpuQuadratureRowsPerWarp,
                                 kGpuQuadratureTreeBlockThreads, 16>(
         ctx, loader, base_rowid, ngroup, ncolumns, compressed_16, quad_nodes, quad_weights,
         out_contribs);
-    LaunchQuadratureShapBuckets<kGpuQuadraturePoints, kGpuQuadratureRowsPerWarp,
+    LaunchQuadratureShapBuckets<detail::kQuadratureTreeShapPoints, kGpuQuadratureRowsPerWarp,
                                 kGpuQuadratureTreeBlockThreads, 32>(
         ctx, loader, base_rowid, ngroup, ncolumns, compressed_32, quad_nodes, quad_weights,
         out_contribs);
-    LaunchQuadratureShapBuckets<kGpuQuadraturePoints, kGpuQuadratureRowsPerWarp,
+    LaunchQuadratureShapBuckets<detail::kQuadratureTreeShapPoints, kGpuQuadratureRowsPerWarp,
                                 kGpuQuadratureTreeBlockThreads, 64>(
         ctx, loader, base_rowid, ngroup, ncolumns, compressed_64, quad_nodes, quad_weights,
         out_contribs);
@@ -1247,8 +1223,6 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   for (bst_tree_t tree_idx = 0; tree_idx < tree_end; ++tree_idx) {
     CHECK(!model.trees[tree_idx]->IsMultiTarget())
         << "Predict interaction contribution" << MTNotImplemented();
-    detail::ValidateQuadratureTreeShapCovers(model.trees[tree_idx]->HostScView(), RegTree::kRoot,
-                                             "GPU");
     auto tree_depth = model.trees[tree_idx]->MaxDepth();
     max_depth = std::max(max_depth, tree_depth);
     auto path_depth = static_cast<std::size_t>(tree_depth) + 1;
@@ -1259,16 +1233,13 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
       << "GPU QuadratureSHAP currently supports trees of depth up to "
       << (kMaxGpuQuadratureDepth - 1) << ".";
 
-  auto h_group_root_mean_sums = MakeGroupRootMeanSums(model, tree_end, tree_weights);
-  auto const& rule = detail::GetQuadratureTreeShapRule();
-  std::array<float, kGpuQuadraturePoints> h_quad_nodes{};
-  std::array<float, kGpuQuadraturePoints> h_quad_weights{};
-  for (std::size_t i = 0; i < kGpuQuadraturePoints; ++i) {
-    h_quad_nodes[i] = rule.nodes[i];
-    h_quad_weights[i] = rule.weights[i];
-  }
-  dh::device_vector<float> d_quad_nodes(h_quad_nodes.cbegin(), h_quad_nodes.cend());
-  dh::device_vector<float> d_quad_weights(h_quad_weights.cbegin(), h_quad_weights.cend());
+  auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
+  auto h_group_root_mean_sums = detail::MakeGroupRootMeanSums(
+      h_tree_groups, ngroup, tree_end, tree_weights,
+      [&](bst_tree_t tree_idx) { return model.trees.at(tree_idx)->HostScView(); });
+  auto const rule_arrays = detail::GetQuadratureTreeShapRuleArrays();
+  dh::device_vector<float> d_quad_nodes(rule_arrays.nodes.cbegin(), rule_arrays.nodes.cend());
+  dh::device_vector<float> d_quad_weights(rule_arrays.weights.cbegin(), rule_arrays.weights.cend());
   dh::device_vector<float> d_group_root_mean_sums(h_group_root_mean_sums.cbegin(),
                                                   h_group_root_mean_sums.cend());
   auto compressed_16 = MakeCompressedModel(ctx, model, tree_buckets[0], tree_weights);
@@ -1285,15 +1256,18 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
       thrust::raw_pointer_cast(d_group_root_mean_sums.data()), d_group_root_mean_sums.size()};
 
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
-    LaunchQuadratureShapInteractionBuckets<kGpuQuadraturePoints, kGpuQuadratureRowsPerWarp,
+    LaunchQuadratureShapInteractionBuckets<detail::kQuadratureTreeShapPoints,
+                                           kGpuQuadratureRowsPerWarp,
                                            kGpuQuadratureTreeBlockThreads, 16>(
         ctx, loader, base_rowid, ngroup, ncolumns, compressed_16, quad_nodes, quad_weights,
         out_contribs);
-    LaunchQuadratureShapInteractionBuckets<kGpuQuadraturePoints, kGpuQuadratureRowsPerWarp,
+    LaunchQuadratureShapInteractionBuckets<detail::kQuadratureTreeShapPoints,
+                                           kGpuQuadratureRowsPerWarp,
                                            kGpuQuadratureTreeBlockThreads, 32>(
         ctx, loader, base_rowid, ngroup, ncolumns, compressed_32, quad_nodes, quad_weights,
         out_contribs);
-    LaunchQuadratureShapInteractionBuckets<kGpuQuadraturePoints, kGpuQuadratureRowsPerWarp,
+    LaunchQuadratureShapInteractionBuckets<detail::kQuadratureTreeShapPoints,
+                                           kGpuQuadratureRowsPerWarp,
                                            kGpuQuadratureTreeBlockThreads, 64>(
         ctx, loader, base_rowid, ngroup, ncolumns, compressed_64, quad_nodes, quad_weights,
         out_contribs);

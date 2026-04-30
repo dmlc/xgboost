@@ -391,7 +391,6 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
   out.trees.reserve(n_trees);
   out.trees_by_group.resize(n_groups);
   out.weights.resize(n_trees, 1.0f);
-  out.group_root_mean_sums.resize(n_groups, 0.0f);
 
   for (std::size_t i = 0; i < n_trees; ++i) {
     out.trees.emplace_back(model.trees[i].get());
@@ -401,10 +400,10 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
     out.trees_by_group[gid].push_back(i);
     out.weights[i] = weight;
-    detail::ValidateQuadratureTreeShapCovers(out.trees[i], RegTree::kRoot, "CPU");
-    out.group_root_mean_sums[gid] +=
-        static_cast<float>(detail::FillRootMeanValue(out.trees[i], RegTree::kRoot) * weight);
   }
+  out.group_root_mean_sums = detail::MakeGroupRootMeanSums(
+      h_tree_groups, n_groups, tree_end, tree_weights,
+      [&](bst_tree_t tree_idx) -> tree::ScalarTreeView const & { return out.trees[tree_idx]; });
   return out;
 }
 
