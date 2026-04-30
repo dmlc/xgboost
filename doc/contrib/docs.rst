@@ -32,9 +32,9 @@ Build the Python Docs using pip and Conda
 
    .. code-block:: bash
 
-     conda create -n xgboost-docs --yes python=3.10
+     conda create -n xgboost-docs --yes python=3.12
 
-   .. note:: Python 3.10 is required by `xgboost_ray <https://github.com/ray-project/xgboost_ray>`__ package.
+   .. note:: Python is required to match XGBoost's minimum supported Python version.
 
 #. Activate the environment
 

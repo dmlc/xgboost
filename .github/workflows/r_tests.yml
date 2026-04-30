@@ -49,7 +49,7 @@ jobs:
           r-version: ${{ matrix.r }}
       - uses: actions/setup-python@v6.2.0
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           architecture: 'x64'
       - uses: r-lib/actions/setup-tinytex@v2
       - uses: dmlc/xgboost-devops/actions/sccache@main

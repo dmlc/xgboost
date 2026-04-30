@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v6.2.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install pre-commit
         run: python -m pip install pre-commit
       - name: Run pre-commit on updated files
