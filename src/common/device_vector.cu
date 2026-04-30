@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #include <numeric>  // for accumulate
 
@@ -59,7 +59,7 @@ void ThrowOOMError(std::string const &err, std::size_t bytes) {
   return std::accumulate(it, it + this->handles_.size(), static_cast<std::size_t>(0));
 }
 
-void GrowOnlyVirtualMemVec::Reserve(std::size_t new_size) {
+void GrowOnlyVirtualMemVec::Reserve(std::size_t new_size, xgboost::curt::StreamRef stream) {
   auto va_capacity = this->Capacity();
   if (new_size < va_capacity) {
     return;
@@ -83,6 +83,9 @@ void GrowOnlyVirtualMemVec::Reserve(std::size_t new_size) {
     // New allocation is successful. Map the pyhsical address to the virtual address.
     // First unmap the existing ptr.
     if (this->DevPtr() != 0) {
+      // Slow-path growth invalidates the existing virtual address. Wait for prior users on the
+      // caller's stream before changing the mapping.
+      stream.Sync();
       // Unmap the existing ptr.
       safe_cu(cu_.cuMemUnmap(this->DevPtr(), this->PhyCapacity()));
 

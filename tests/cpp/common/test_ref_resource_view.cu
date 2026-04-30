@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #if defined(__linux__)
 
@@ -25,7 +25,7 @@ class TestCudaGrowOnly : public ::testing::TestWithParam<std::size_t> {
     thrust::sequence(ctx.CUDACtx()->CTP(), ref.begin(), ref.end(), 0.0);
     auto res = std::dynamic_pointer_cast<common::CudaGrowOnlyResource>(ref.Resource());
     CHECK(res);
-    res->Resize(n * sizeof(double));
+    res->Resize(n * sizeof(double), ctx.CUDACtx()->Stream());
 
     auto ref1 = RefResourceView<double>(res->DataAs<double>(), res->Size() / sizeof(double),
                                         ref.Resource());
@@ -33,7 +33,9 @@ class TestCudaGrowOnly : public ::testing::TestWithParam<std::size_t> {
     ASSERT_EQ(ref1.size(), n);
     thrust::sequence(ctx.CUDACtx()->CTP(), ref1.begin(), ref1.end(), static_cast<double>(0.0));
     std::vector<double> h_vec(ref1.size());
-    dh::safe_cuda(cudaMemcpyAsync(h_vec.data(), ref1.data(), ref1.size_bytes(), cudaMemcpyDefault));
+    dh::safe_cuda(cudaMemcpyAsync(h_vec.data(), ref1.data(), ref1.size_bytes(), cudaMemcpyDefault,
+                                  ctx.CUDACtx()->Stream()));
+    ctx.CUDACtx()->Stream().Sync();
     for (std::size_t i = 0; i < h_vec.size(); ++i) {
       ASSERT_EQ(h_vec[i], i);
     }
@@ -64,8 +66,7 @@ TEST(HostPinnedMemPool, Alloc) {
 
     // Thread safety.
     auto n_threads = static_cast<std::int32_t>(std::thread::hardware_concurrency());
-    common::ThreadPool workers{"tmempool", n_threads, [] {
-                               }};
+    common::ThreadPool workers{"tmempool", n_threads, [] {}};
     std::vector<std::future<RefResourceView<double>>> alloc_futs;
     for (std::int32_t i = 0, n = n_threads * 4; i < n; ++i) {
       auto fut = workers.Submit([i, pool] {

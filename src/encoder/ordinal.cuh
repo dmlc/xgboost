@@ -73,7 +73,14 @@ struct SegmentedSearchSortedStrOp {
     if (ret_it == it + f_sorted_idx.size()) {
       return detail::NotFound();
     }
-    return *ret_it;
+    // Handle OOV category
+    auto sorted_idx = *ret_it;
+    auto candidate_idx = f_sorted_idx[sorted_idx];
+    auto candidate_beg = haystack.offsets[candidate_idx];
+    auto candidate_end = haystack.offsets[candidate_idx + 1];
+    auto candidate =
+        haystack.values.subspan(candidate_beg, candidate_end - candidate_beg);
+    return candidate == needle ? sorted_idx : detail::NotFound();
   }
 };
 
@@ -105,7 +112,9 @@ struct SegmentedSearchSortedNumOp {
     if (ret_it == it + f_sorted_idx.size()) {
       return detail::NotFound();
     }
-    return *ret_it;
+    auto sorted_idx = *ret_it;
+    auto candidate = haystack[f_sorted_idx[sorted_idx]];
+    return candidate == needle ? sorted_idx : detail::NotFound();
   }
 };
 

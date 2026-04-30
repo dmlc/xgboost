@@ -249,7 +249,13 @@ void ArgSort(InIt in_first, InIt in_last, OutIt out_first, Comp comp = std::less
   if (ret_it == it + haystack.size()) {
     return detail::NotFound();
   }
-  return *ret_it;
+  // Handle OOV category
+  auto sorted_idx = *ret_it;
+  auto candidate_idx = ref_sorted_idx[sorted_idx];
+  auto candidate_beg = h_off[candidate_idx];
+  auto candidate_end = h_off[candidate_idx + 1];
+  auto candidate = h_data.subspan(candidate_beg, candidate_end - candidate_beg);
+  return candidate == needle ? sorted_idx : detail::NotFound();
 }
 
 template <typename T>
@@ -265,7 +271,9 @@ SearchSorted(Span<T const> haystack, Span<std::int32_t const> ref_sorted_idx, T 
   if (ret_it == it + haystack.size()) {
     return detail::NotFound();
   }
-  return *ret_it;
+  auto sorted_idx = *ret_it;
+  auto candidate = haystack[ref_sorted_idx[sorted_idx]];
+  return candidate == needle ? sorted_idx : detail::NotFound();
 }
 
 template <typename ExecPolicy>
@@ -344,8 +352,8 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
 
   std::size_t out_idx = 0;
   for (std::size_t f_idx = 0, n_features = orig_enc.Size(); f_idx < n_features; f_idx++) {
-    auto const& l_f = orig_enc.columns[f_idx];
-    auto const& r_f = new_enc.columns[f_idx];
+    auto const &l_f = orig_enc.columns[f_idx];
+    auto const &r_f = new_enc.columns[f_idx];
     auto report = [&] {
       std::stringstream ss;
       ss << "Invalid new DataFrame input for the: " << f_idx << "th feature (0-based). "

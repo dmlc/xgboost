@@ -420,6 +420,44 @@ def run_cat_invalid(device: Device) -> None:
         )
 
 
+def run_cat_oov_in_range(device: Device) -> None:
+    """Test OOV categories whose sorted insertion point is inside the training set."""
+    Df, _ = get_df_impl(device)
+
+    def check(train_df: Any, pred_df: Any, y: np.ndarray) -> None:
+        for DMatrixT in (DMatrix, QuantileDMatrix):
+            Xy = DMatrixT(train_df, y, enable_categorical=True)
+            booster = train({"device": device}, Xy, num_boost_round=1)
+
+            with pytest.raises(
+                ValueError, match="Found a category not in the training"
+            ):
+                booster.inplace_predict(pred_df)
+
+            fmat = DMatrixT(pred_df, enable_categorical=True)
+            with pytest.raises(
+                ValueError, match="Found a category not in the training"
+            ):
+                booster.predict(fmat)
+
+    # "B2" is absent from training but sorts between "B" and "C".
+    train_df = Df({"cat": ["A", "B", "C", "A", "B", "B"], "x": [1, 2, 3, 4, 5, 6]})
+    train_df["cat"] = train_df["cat"].astype("category")
+    pred_df = Df({"cat": ["B2", "C"], "x": [2, 2]})
+    pred_df["cat"] = pred_df["cat"].astype("category")
+    check(train_df, pred_df, np.array([0, 1, 0, 1, 0, 1]))
+
+    # Numeric category 4 is absent from training but sorts between 3 and 5.
+
+    # XGBoost accepts only dense codes. In this test case, even though the categories
+    # are not contiguous, the code can still be dense.
+    train_df = Df({"cat": [1, 3, 5, 1, 3, 3], "x": [1, 2, 3, 4, 5, 6]})
+    train_df["cat"] = train_df["cat"].astype("category")
+    pred_df = Df({"cat": [4, 5], "x": [2, 2]})
+    pred_df["cat"] = pred_df["cat"].astype("category")
+    check(train_df, pred_df, np.array([0, 1, 0, 1, 0, 1]))
+
+
 def run_cat_thread_safety(device: Device) -> None:
     """Basic tests for thread safety."""
     X, y = make_categorical(2048, 16, 112, onehot=False, cat_ratio=0.5, device=device)

@@ -1391,6 +1391,26 @@ def test_evaluation_metric():
         clf.fit(X, y, eval_set=[(X, y)])
 
 
+def test_verbose_default_consistency() -> None:
+    import inspect
+
+    from xgboost import (
+        XGBClassifier,
+        XGBRanker,
+        XGBRegressor,
+        XGBRFClassifier,
+        XGBRFRegressor,
+    )
+
+    clf_default = inspect.signature(XGBClassifier.fit).parameters["verbose"].default
+    reg_default = inspect.signature(XGBRegressor.fit).parameters["verbose"].default
+    rank_default = inspect.signature(XGBRanker.fit).parameters["verbose"].default
+    rfc_default = inspect.signature(XGBRFClassifier.fit).parameters["verbose"].default
+    rfr_default = inspect.signature(XGBRFRegressor.fit).parameters["verbose"].default
+
+    assert clf_default == reg_default == rank_default == rfc_default == rfr_default
+
+
 def test_mixed_metrics() -> None:
     from sklearn.datasets import make_classification
     from sklearn.metrics import hamming_loss, hinge_loss, log_loss

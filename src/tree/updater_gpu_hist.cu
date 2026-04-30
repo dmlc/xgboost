@@ -650,7 +650,7 @@ struct GPUHistMakerDevice {
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 
     const auto& parent = tree[candidate.nidx];
-    interaction_constraints.Split(candidate.nidx, parent.SplitIndex(), parent.LeftChild(),
+    interaction_constraints.Split(ctx_, candidate.nidx, parent.SplitIndex(), parent.LeftChild(),
                                   parent.RightChild());
   }
 
