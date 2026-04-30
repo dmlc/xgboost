@@ -579,9 +579,10 @@ class TestPandas:
         )
         y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
 
-        with pytest.raises(ValueError, match="Column split .*COL.*sparse"):
+        match_sparse = r"Column split does not support pandas sparse array\."
+        with pytest.raises(ValueError, match=match_sparse):
             xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
-        with pytest.raises(ValueError, match="Column split .*COL.*sparse"):
+        with pytest.raises(ValueError, match=match_sparse):
             xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
 
     @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
