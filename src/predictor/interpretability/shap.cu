@@ -353,15 +353,15 @@ struct SubgroupOps {
 // state instead of raw multidimensional indexing.
 template <int MaxPoints, int RowsPerWarp, int DepthCap, int kWarpsPerBlock, bool kUseQPrevCache>
 struct QuadratureSharedState {
-  bst_node_t (&nodes)[kWarpsPerBlock][DepthCap];
-  std::uint8_t (&stages)[kWarpsPerBlock][DepthCap];
-  std::uint8_t (&goes_left)[kWarpsPerBlock][RowsPerWarp][DepthCap];
+  bst_node_t nodes[kWarpsPerBlock][DepthCap];
+  std::uint8_t stages[kWarpsPerBlock][DepthCap];
+  std::uint8_t goes_left[kWarpsPerBlock][RowsPerWarp][DepthCap];
   // q_d(t): path probability at depth d for one row-slot evaluated at quadrature point t.
-  float (&path_prob)[kWarpsPerBlock][RowsPerWarp][DepthCap];
+  float path_prob[kWarpsPerBlock][RowsPerWarp][DepthCap];
   // G_d(t): multiplicative basis carried down the path before the leaf value is applied.
-  float (&basis)[kWarpsPerBlock][RowsPerWarp][DepthCap][MaxPoints];
-  float (&q_prev_cache)[kUseQPrevCache ? kWarpsPerBlock : 1][kUseQPrevCache ? RowsPerWarp : 1]
-                       [kUseQPrevCache ? DepthCap : 1];
+  float basis[kWarpsPerBlock][RowsPerWarp][DepthCap][MaxPoints];
+  float q_prev_cache[kUseQPrevCache ? kWarpsPerBlock : 1][kUseQPrevCache ? RowsPerWarp : 1]
+                    [kUseQPrevCache ? DepthCap : 1];
 
   [[nodiscard]] XGBOOST_DEV_INLINE bst_node_t& Node(int warp, int depth) {
     return nodes[warp][depth];
@@ -420,7 +420,7 @@ template <typename Loader, typename SubgroupT, typename SharedT>
 struct QuadratureShapTaskRunner {
   Loader loader;
   SubgroupT subgroup;
-  SharedT shared;
+  SharedT& shared;
   CompressedTree const* trees;
   CompressedNode const* nodes;
   std::uint32_t const* categories;
@@ -634,7 +634,7 @@ template <typename Loader, typename SubgroupT, typename SharedT>
 struct QuadratureShapInteractionTaskRunner {
   Loader loader;
   SubgroupT subgroup;
-  SharedT shared;
+  SharedT& shared;
   CompressedTree const* trees;
   CompressedNode const* nodes;
   std::uint32_t const* categories;
@@ -911,13 +911,7 @@ __global__ void __launch_bounds__(BlockThreads, 9)
   using SharedT =
       QuadratureSharedState<MaxPoints, RowsPerWarp, DepthCap, kWarpsPerBlock, kUseQPrevCache>;
 
-  __shared__ bst_node_t s_node[kWarpsPerBlock][DepthCap];
-  __shared__ std::uint8_t s_stage[kWarpsPerBlock][DepthCap];
-  __shared__ std::uint8_t s_goes_left[kWarpsPerBlock][RowsPerWarp][DepthCap];
-  __shared__ float s_path_p[kWarpsPerBlock][RowsPerWarp][DepthCap];
-  __shared__ float s_c_vals[kWarpsPerBlock][RowsPerWarp][DepthCap][MaxPoints];
-  __shared__ float s_q_prev[kUseQPrevCache ? kWarpsPerBlock : 1][kUseQPrevCache ? RowsPerWarp : 1]
-                           [kUseQPrevCache ? DepthCap : 1];
+  __shared__ SharedT shared;
 
   int warp = static_cast<int>(threadIdx.x) / dh::WarpThreads();
   int lane = static_cast<int>(threadIdx.x) % dh::WarpThreads();
@@ -926,7 +920,6 @@ __global__ void __launch_bounds__(BlockThreads, 9)
     return;
   }
 
-  auto shared = SharedT{s_node, s_stage, s_goes_left, s_path_p, s_c_vals, s_q_prev};
   auto global_warp =
       (static_cast<std::size_t>(blockIdx.x) * BlockThreads + threadIdx.x) / dh::WarpThreads();
   auto warp_stride = (static_cast<std::size_t>(gridDim.x) * BlockThreads) / dh::WarpThreads();
@@ -1022,13 +1015,7 @@ __global__ void __launch_bounds__(BlockThreads, 9)
   using SharedT =
       QuadratureSharedState<MaxPoints, RowsPerWarp, DepthCap, kWarpsPerBlock, kUseQPrevCache>;
 
-  __shared__ bst_node_t s_node[kWarpsPerBlock][DepthCap];
-  __shared__ std::uint8_t s_stage[kWarpsPerBlock][DepthCap];
-  __shared__ std::uint8_t s_goes_left[kWarpsPerBlock][RowsPerWarp][DepthCap];
-  __shared__ float s_path_p[kWarpsPerBlock][RowsPerWarp][DepthCap];
-  __shared__ float s_c_vals[kWarpsPerBlock][RowsPerWarp][DepthCap][MaxPoints];
-  __shared__ float s_q_prev[kUseQPrevCache ? kWarpsPerBlock : 1][kUseQPrevCache ? RowsPerWarp : 1]
-                           [kUseQPrevCache ? DepthCap : 1];
+  __shared__ SharedT shared;
 
   int warp = static_cast<int>(threadIdx.x) / dh::WarpThreads();
   int lane = static_cast<int>(threadIdx.x) % dh::WarpThreads();
@@ -1037,7 +1024,6 @@ __global__ void __launch_bounds__(BlockThreads, 9)
     return;
   }
 
-  auto shared = SharedT{s_node, s_stage, s_goes_left, s_path_p, s_c_vals, s_q_prev};
   auto global_warp =
       (static_cast<std::size_t>(blockIdx.x) * BlockThreads + threadIdx.x) / dh::WarpThreads();
   auto warp_stride = (static_cast<std::size_t>(gridDim.x) * BlockThreads) / dh::WarpThreads();
