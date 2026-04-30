@@ -4,7 +4,6 @@
 import functools
 import importlib.util
 import logging
-import sys
 import types
 from typing import TYPE_CHECKING, Any, Sequence, TypeGuard, cast
 
