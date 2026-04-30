@@ -88,21 +88,66 @@ void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVe
 constexpr std::size_t kQuadratureTreeShapPoints = detail::kQuadratureTreeShapPoints;
 constexpr float kQuadratureTreeShapUnseen = detail::kQuadratureTreeShapUnseen;
 
-using QuadratureRule = detail::QuadratureTreeShapRule;
+using QuadratureRule = detail::QuadratureRule;
 using QuadratureBuffer = std::array<float, kQuadratureTreeShapPoints>;
 
 void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs) {
-  detail::AddQuadratureInPlace(*lhs, rhs);
+  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+    (*lhs)[i] += rhs[i];
+  }
 }
 
-using detail::ExtractQuadratureDelta;
-using detail::ExtractQuadratureInteractionDelta;
+float ExtractQuadratureDelta(QuadratureRule const &rule, QuadratureBuffer const &h_vals,
+                             float p_enter, float p_exit) {
+  float acc = 0.0f;
+  if (p_enter != 1.0f) {
+    auto const alpha_enter = p_enter - 1.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      acc += alpha_enter * h_vals[i] / (1.0f + alpha_enter * rule.nodes[i]);
+    }
+  }
+  if (p_exit != 1.0f) {
+    auto const alpha_exit = p_exit - 1.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      acc -= alpha_exit * h_vals[i] / (1.0f + alpha_exit * rule.nodes[i]);
+    }
+  }
+  return acc;
+}
+
+float ExtractQuadratureInteractionDelta(QuadratureRule const &rule, QuadratureBuffer const &h_vals,
+                                        float p_enter, float p_exit, float q_partner) {
+  if (q_partner == 1.0f) {
+    return 0.0f;
+  }
+
+  auto const alpha_partner = q_partner - 1.0f;
+  auto const alpha_enter = p_enter - 1.0f;
+
+  float acc = 0.0f;
+  if (p_exit == 1.0f) {
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]);
+      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
+    }
+  } else {
+    auto const alpha_exit = p_exit - 1.0f;
+    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+      auto const edge_delta = alpha_enter / (1.0f + alpha_enter * rule.nodes[i]) -
+                              alpha_exit / (1.0f + alpha_exit * rule.nodes[i]);
+      acc += alpha_partner * h_vals[i] * edge_delta / (1.0f + alpha_partner * rule.nodes[i]);
+    }
+  }
+  return acc;
+}
 
 void WriteWeightedLeafReturn(tree::ScalarTreeView const &tree, QuadratureRule const &rule,
                              bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
                              QuadratureBuffer *out_h) {
   auto const leaf_scale = w_prod * tree.LeafValue(nidx);
-  detail::WriteQuadratureLeafReturn(rule, c_vals, leaf_scale, *out_h);
+  for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
+    (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
+  }
 }
 
 // Dense row-local output view for additive contributions.
@@ -481,7 +526,7 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
   std::fill(contribs.begin(), contribs.end(), 0.0f);
   CHECK_NE(n_groups, 0);
-  auto const &rule = detail::GetQuadratureTreeShapRule();
+  auto const &rule = detail::GetQuadratureRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
@@ -561,7 +606,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   contribs.resize(info.num_row_ * row_chunk);
   std::fill(contribs.begin(), contribs.end(), 0.0f);
 
-  auto const &rule = detail::GetQuadratureTreeShapRule();
+  auto const &rule = detail::GetQuadratureRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
