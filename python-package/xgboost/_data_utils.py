@@ -473,8 +473,8 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
         if "\0" in values:
             warnings.warn(
                 (
-                    "Found EOF character in string category. "
-                    "Arrow used to strip the character but it's now preserved"
+                    "Found embedded NUL (\\0) characters in string categories. "
+                    "Arrow used to strip these characters, but they are now preserved."
                 ),
                 UserWarning,
             )
