@@ -7,4 +7,4 @@
 # or PR number:
 # IMAGE_TAG=PR-88
 
-IMAGE_TAG=main
+IMAGE_TAG=PR-83
