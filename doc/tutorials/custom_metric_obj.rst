@@ -126,7 +126,7 @@ a callback function for XGBoost during training by passing it as an argument to
           params = list(tree_method = "hist", seed = 1994),
           data = dtrain,
           nrounds = 10,
-          obj = squared_log
+          objective = squared_log
         )
 
 Notice that in our definition of the objective, whether we subtract the labels from the
@@ -162,7 +162,7 @@ monitor our model's performance.  As mentioned above, the default metric for ``S
           return(list(metric = "RRMSLE", value = err))
         }
 
-Since we are demonstrating in Python, the metric or objective need not be a function, any
+For the Python tab, the metric or objective need not be a function, any
 callable object should suffice.  Similar to the objective function, our metric also
 accepts ``predt`` and ``dtrain`` as inputs, but returns the name of the metric itself and
 a floating point value as the result.  After passing it into XGBoost as argument of
@@ -185,11 +185,11 @@ a floating point value as the result.  After passing it into XGBoost as argument
         results <- list()
         model <- xgb.train(
           params = list(tree_method = "hist", seed = 1994,
-                        disable_default_eval_metric = TRUE),
+                        disable_default_eval_metric = TRUE,
+                        objective = squared_log),
           data = dtrain,
           nrounds = 10,
-          obj = squared_log,
-          feval = rmsle,
+          custom_metric = rmsle,
           evals = list(dtrain = dtrain, dtest = dtest),
           evals_result = results
         )
@@ -249,7 +249,7 @@ metric functions implementing the same underlying metric for comparison,
             # With the use of `custom_metric` parameter in train function, custom metric receives
             # raw input only when custom objective is also being used.  Otherwise custom metric
             # will receive transformed prediction.
-            assert predt.shape == (d_train.num_row(), n_classes)
+            assert predt.shape == (dtrain.num_row(), n_classes)
             out = np.zeros(dtrain.num_row())
             for r in range(predt.shape[0]):
                 i = np.argmax(predt[r])
@@ -270,9 +270,10 @@ metric functions implementing the same underlying metric for comparison,
           # Predictions are raw (untransformed) when custom objective is provided.
           labels <- getinfo(dtrain, "label")
           n_samples <- length(labels)
-          n_classes <- length(preds) / n_samples
-          # Reshape predictions into matrix (n_samples x n_classes)
-          pred_matrix <- matrix(preds, nrow = n_samples, ncol = n_classes, byrow = TRUE)
+          # In the R package, multi-class predictions are already provided as a
+          # matrix with shape (n_samples x n_classes).
+          pred_matrix <- preds
+          stopifnot(is.matrix(pred_matrix), nrow(pred_matrix) == n_samples)
           # Get predicted class (0-indexed to match labels)
           out <- max.col(pred_matrix) - 1
           err <- sum(labels != out) / n_samples
@@ -289,6 +290,8 @@ function is:
         def merror(predt: np.ndarray, dtrain: xgb.DMatrix):
             """Used when there's no custom objective."""
             # No need to do transform, XGBoost handles it internally.
+            y = dtrain.get_label()
+            out = predt
             errors = np.zeros(dtrain.num_row())
             errors[y != out] = 1.0
             return 'PyMError', np.sum(errors) / dtrain.num_row()
@@ -298,8 +301,12 @@ function is:
         merror <- function(preds, dtrain) {
           # Used when there's no custom objective.
           # No need to transform, XGBoost handles it internally.
+          # For multi-class custom metrics in R, preds contains per-class scores.
           labels <- getinfo(dtrain, "label")
-          err <- sum(labels != preds) / length(labels)
+          n_samples <- length(labels)
+          pred_matrix <- matrix(preds, nrow = n_samples, ncol = length(preds) / n_samples, byrow = TRUE)
+          out <- max.col(pred_matrix) - 1
+          err <- sum(labels != out) / n_samples
           return(list(metric = "RMError", value = err))
         }
 
@@ -326,9 +333,9 @@ Next we need the custom softprob objective:
           # Reimplements the `multi:softprob` inside XGBoost.
           labels <- getinfo(dtrain, "label")
           n_samples <- length(labels)
-          n_classes <- length(preds) / n_samples
-          # Reshape predictions
-          pred_matrix <- matrix(preds, nrow = n_samples, ncol = n_classes, byrow = TRUE)
+          # In the R package, multi-class predictions are already provided as a
+          # matrix with shape (n_samples x n_classes).
+          pred_matrix <- preds
           # Softmax transform
           pred_matrix <- exp(pred_matrix)
           pred_matrix <- pred_matrix / rowSums(pred_matrix)
@@ -338,7 +345,7 @@ Next we need the custom softprob objective:
             grad[i, labels[i] + 1] <- grad[i, labels[i] + 1] - 1
           }
           hess <- pmax(2 * pred_matrix * (1 - pred_matrix), 1e-6)
-          return(list(grad = as.vector(t(grad)), hess = as.vector(t(hess))))
+          return(list(grad = grad, hess = hess))
         }
 
 Lastly we can train the model using ``obj`` and ``custom_metric`` parameters:
@@ -362,11 +369,11 @@ Lastly we can train the model using ``obj`` and ``custom_metric`` parameters:
         dtrain <- xgb.DMatrix(data = X, label = y)
         model <- xgb.train(
           params = list(num_class = kClasses,
-                        disable_default_eval_metric = TRUE),
+                        disable_default_eval_metric = TRUE,
+                        objective = softprob_obj),
           data = dtrain,
           nrounds = kRounds,
-          obj = softprob_obj,
-          feval = merror_with_transform,
+          custom_metric = merror_with_transform,
           evals = list(train = dtrain)
         )
 
@@ -399,7 +406,7 @@ available in XGBoost:
           data = dtrain,
           nrounds = kRounds,
           # Use a simpler metric implementation.
-          feval = merror,
+          custom_metric = merror,
           evals = list(train = dtrain)
         )
 
