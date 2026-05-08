@@ -4,7 +4,6 @@
 import functools
 import importlib.util
 import logging
-import sys
 import types
 from typing import TYPE_CHECKING, Any, Sequence, TypeGuard, cast
 
@@ -249,7 +248,7 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
     """Concatenate row-wise."""
     if isinstance(value[0], np.ndarray):
         value_arr = cast(Sequence[np.ndarray], value)
-        return np.concatenate(value_arr, axis=0)
+        return cast(_T, np.concatenate(value_arr, axis=0))
     if scipy_sparse and isinstance(value[0], scipy_sparse.csr_matrix):
         return scipy_sparse.vstack(value, format="csr")
     if scipy_sparse and isinstance(value[0], scipy_sparse.csc_matrix):

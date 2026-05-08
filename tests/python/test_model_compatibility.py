@@ -8,7 +8,6 @@ from typing import Any, Dict
 
 import generate_models as gm
 import pytest
-
 import xgboost
 from xgboost import testing as tm
 from xgboost.testing.updater import get_basescore
@@ -132,10 +131,9 @@ def download(path: str) -> None:
         + ".amazonaws.com/xgboost_model_compatibility_tests-3.0.2.zip"
     )
     sha = "49d4d4db667a73590099dad9dca4f078532df05c5ea6e035ad4fa09596b1905a"
-    if hasattr(hashlib, "file_digest"):  # not in py 3.10
-        with open(zip_path, "rb") as fd:
-            digest = hashlib.file_digest(fd, "sha256")  # pylint: disable=attr-defined
-            assert digest.hexdigest() == sha
+    with open(zip_path, "rb") as fd:
+        digest = hashlib.file_digest(fd, "sha256")
+        assert digest.hexdigest() == sha
     with zipfile.ZipFile(zip_path, "r") as z:
         z.extractall(path)
 

@@ -25,7 +25,7 @@ source ops/pipeline/get-image-tag.sh
 WHEEL_TAG="${manylinux_target}_${arch}"
 IMAGE_REPO="xgb-ci.${WHEEL_TAG}"
 IMAGE_URI="${DOCKER_REGISTRY_URL}/${IMAGE_REPO}:${IMAGE_TAG}"
-PYTHON_BIN="/opt/python/cp310-cp310/bin/python"
+PYTHON_BIN="/opt/python/cp312-cp312/bin/python"
 
 echo "--- Build binary wheel for ${WHEEL_TAG} (CPU only)"
 set -x

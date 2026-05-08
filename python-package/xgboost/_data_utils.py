@@ -3,6 +3,7 @@
 import copy
 import ctypes
 import json
+import warnings
 from abc import ABC, abstractmethod
 from functools import cache as fcache
 from typing import (
@@ -469,7 +470,14 @@ def pd_cat_inf(  # pylint: disable=too-many-locals
         else:
             str_list = [str(s) for s in strarr.tolist()]
         values = "".join(str_list)
-        assert "\0" not in values  # arrow string array doesn't need null terminal
+        if "\0" in values:
+            warnings.warn(
+                (
+                    "Found embedded NUL (\\0) characters in string categories. "
+                    "Arrow used to strip these characters, but they are now preserved."
+                ),
+                UserWarning,
+            )
         return offsets.astype(np.int32), values
 
     # String index type

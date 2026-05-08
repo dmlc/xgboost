@@ -566,7 +566,6 @@ class TestPandas:
             data_split_mode=DataSplitMode.COL,
         )
 
-    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
     def test_pandas_sparse_column_split(self):
         rows = 100
         X = pd.DataFrame(
@@ -580,20 +579,11 @@ class TestPandas:
         )
         y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
 
-        def verify_pandas_sparse():
-            with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
-                dtrain = xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
-            booster = xgb.train({}, dtrain, num_boost_round=4)
-            with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
-                predt_sparse = booster.predict(
-                    xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-                )
-                predt_dense = booster.predict(
-                    xgb.DMatrix(X.sparse.to_dense(), data_split_mode=DataSplitMode.COL)
-                )
-            np.testing.assert_allclose(predt_sparse, predt_dense)
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_pandas_sparse)
+        match_sparse = r"Column split does not support pandas sparse array\."
+        with pytest.raises(ValueError, match=match_sparse):
+            xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
+        with pytest.raises(ValueError, match=match_sparse):
+            xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
 
     @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
     def test_pandas_label_column_split(self):

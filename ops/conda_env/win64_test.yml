@@ -2,7 +2,7 @@ name: win64_env
 channels:
 - conda-forge
 dependencies:
-- python=3.10
+- python=3.12
 - numpy
 - scipy
 - matplotlib

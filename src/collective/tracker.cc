@@ -282,6 +282,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
             {
               std::lock_guard lock{listener_mu_};
               poll.WatchRead(listener_);
+              this->ready_ = true;
             }
             if (state.running) {
               // Don't timeout if the communicator group is up and running.
@@ -301,7 +302,6 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
         while (state.ShouldContinue()) {
           TCPSocket sock;
           SockAddress addr;
-          this->ready_ = true;
           auto rc = select_accept(&sock, &addr);
           if (!rc.OK()) {
             return Fail("Failed to accept connection.", this->Stop() + std::move(rc));

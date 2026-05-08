@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@v6.0.2
       - name: Pick Python
         run: |
-          export PATH=/opt/python/cp310-cp310/bin/:$PATH
+          export PATH=/opt/python/cp312-cp312/bin/:$PATH
           echo ${PATH} >> $GITHUB_PATH
       - name: Install dependencies
         run: |

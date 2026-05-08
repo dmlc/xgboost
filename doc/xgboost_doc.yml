@@ -1,6 +1,6 @@
 name: xgboost_docs
 dependencies:
-  - python=3.10
+  - python=3.12
   - pip
   - pygraphviz
   - sphinx

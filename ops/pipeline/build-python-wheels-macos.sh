@@ -14,12 +14,12 @@ commit_id=$2
 if [[ "$platform_id" == macosx_* ]]; then
     if [[ "$platform_id" == macosx_arm64 ]]; then
         # MacOS, Apple Silicon
-        cpython_ver=310
+        cpython_ver=312
         cibw_archs=arm64
         export MACOSX_DEPLOYMENT_TARGET=12.0
     elif [[ "$platform_id" == macosx_x86_64 ]]; then
         # MacOS, Intel
-        cpython_ver=310
+        cpython_ver=312
         cibw_archs=x86_64
         export MACOSX_DEPLOYMENT_TARGET=10.15
     else
