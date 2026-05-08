@@ -15,7 +15,7 @@
 namespace xgboost::error {
 [[nodiscard]] std::string DeprecatedFunc(StringView old, StringView since, StringView replacement) {
   std::stringstream ss;
-  ss << "`" << old << "` is deprecated since" << since << ", use `" << replacement << "` instead.";
+  ss << "`" << old << "` is deprecated since " << since << ", use `" << replacement << "` instead.";
   return ss.str();
 }
 
