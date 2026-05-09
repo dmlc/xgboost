@@ -660,8 +660,7 @@ def _transform_pandas_df(
     if data.columns.has_duplicates:
         duplicates = data.columns[data.columns.duplicated()].unique().tolist()
         raise ValueError(
-            "Duplicate column names are not supported. "
-            f"Duplicates found: {duplicates}"
+            f"Duplicate column names are not supported. Duplicates found: {duplicates}"
         )
 
     feature_types, ref_categories = get_ref_categories(feature_types)
