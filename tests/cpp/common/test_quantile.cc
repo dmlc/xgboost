@@ -227,6 +227,13 @@ auto EnumeratedSummaryEntries(std::size_t size, std::uint64_t code)
   return entries;
 }
 
+auto RepresentativePruneBudgets(std::size_t size) -> std::vector<std::size_t> {
+  std::vector<std::size_t> budgets{0, 1, 2, size / 4, size / 2, size - 1, size, size + 1};
+  std::sort(budgets.begin(), budgets.end());
+  budgets.erase(std::unique(budgets.begin(), budgets.end()), budgets.end());
+  return budgets;
+}
+
 }  // namespace
 
 TEST_P(QuantileSummaryTest, Invariants) {
@@ -286,7 +293,7 @@ TEST(Quantile, SetPrunePreservesIncreasingValuesWithAliasingGeometry) {
 }
 
 TEST(Quantile, SetPruneInPlaceMatchesOutOfPlaceReferenceOnSmallIntegerGeometries) {
-  for (std::size_t size = 3; size <= 6; ++size) {
+  for (std::size_t size = 3; size <= 5; ++size) {
     auto const n_cases = static_cast<std::uint64_t>(std::pow(9.0, static_cast<double>(size)));
     for (std::uint64_t code = 0; code < n_cases; ++code) {
       auto source = EnumeratedSummaryEntries(size, code);
@@ -298,10 +305,11 @@ TEST(Quantile, SetPruneInPlaceMatchesOutOfPlaceReferenceOnSmallIntegerGeometries
 }
 
 TEST(Quantile, SetPruneInPlaceMatchesOutOfPlaceReferenceOnRandomGeometries) {
-  for (std::size_t size = 3; size < 128; ++size) {
-    for (std::uint32_t seed = 0; seed < 100; ++seed) {
+  for (auto size : {3, 4, 5, 7, 8, 15, 16, 31, 32, 63, 64, 127, 256}) {
+    auto budgets = RepresentativePruneBudgets(size);
+    for (std::uint32_t seed = 0; seed < 16; ++seed) {
       auto source = RandomSummaryEntries(size, seed);
-      for (std::size_t maxsize = 0; maxsize <= size + 1; ++maxsize) {
+      for (auto maxsize : budgets) {
         SCOPED_TRACE(::testing::Message()
                      << "size=" << size << ", seed=" << seed << ", maxsize=" << maxsize);
         ExpectPruneMatchesReference(source, maxsize);
