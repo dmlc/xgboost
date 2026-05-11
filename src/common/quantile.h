@@ -238,38 +238,42 @@ struct WQSummary {
       this->current_elements_ = 1;
       return;
     }
-    std::vector<Entry> pruned(maxsize);
-    auto *dst_data = pruned.data();
     const RType begin = src_data[0].rmax;
     const RType range = src_data[src_size - 1].rmin - src_data[0].rmax;
     const size_t n = maxsize - 1;
-    dst_data[0] = src_data[0];
+    Entry const tail = src_data[src_size - 1];
+    Entry left = src_data[1];
+    Entry right = src_data[2];
+    data_[0] = src_data[0];
     size_t current_elements = 1;
     // lastidx is used to avoid duplicated records
     size_t i = 1, lastidx = 0;
     for (size_t k = 1; k < n; ++k) {
       RType dx2 = 2 * ((k * range) / n + begin);
       // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2
-      while (i < src_size - 1 && dx2 >= src_data[i + 1].rmax + src_data[i + 1].rmin) {
+      while (i < src_size - 1 && dx2 >= right.rmax + right.rmin) {
         ++i;
+        left = right;
+        if (i < src_size - 1) {
+          right = src_data[i + 1];
+        }
       }
       if (i == src_size - 1) break;
-      if (dx2 < src_data[i].RMinNext() + src_data[i + 1].RMaxPrev()) {
+      if (dx2 < left.RMinNext() + right.RMaxPrev()) {
         if (i != lastidx) {
-          dst_data[current_elements++] = src_data[i];
+          data_[current_elements++] = left;
           lastidx = i;
         }
       } else {
         if (i + 1 != lastidx) {
-          dst_data[current_elements++] = src_data[i + 1];
+          data_[current_elements++] = right;
           lastidx = i + 1;
         }
       }
     }
     if (lastidx != src_size - 1) {
-      dst_data[current_elements++] = src_data[src_size - 1];
+      data_[current_elements++] = tail;
     }
-    std::copy_n(pruned.data(), current_elements, this->data_.data());
     this->current_elements_ = current_elements;
   }
 
