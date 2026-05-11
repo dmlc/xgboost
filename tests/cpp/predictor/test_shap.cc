@@ -16,7 +16,8 @@
 #include <cmath>
 #include <memory>  // for unique_ptr
 #include <sstream>
-#include <string>  // for to_string
+#include <string>   // for to_string
+#include <utility>  // for as_const
 #include <vector>
 
 #include "../../../src/common/param_array.h"
@@ -298,6 +299,10 @@ void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   std::size_t shape[1]{1};
   linalg::Vector<float> base_score{shape, ctx->Device()};
   base_score.Data()->HostVector()[0] = 0.0f;
+  std::as_const(base_score).HostView();
+  if (!ctx->Device().IsCPU()) {
+    std::as_const(base_score).View(ctx->Device());
+  }
   LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
   gbm::GBTreeModel model{&mparam, ctx};
 
