@@ -17,6 +17,7 @@
 #include <memory>  // for unique_ptr
 #include <sstream>
 #include <string>  // for to_string
+#include <vector>
 
 #include "../../../src/common/param_array.h"
 #include "../../../src/gbm/gbtree_model.h"
@@ -308,18 +309,24 @@ void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
                             left_cover, 0.0f);
   model.CommitModelGroup(std::move(trees), 0);
 
-  auto dmat = RandomDataGenerator{2, 1, 0.0f}.Device(ctx->Device()).GenerateDMatrix();
+  auto dmat = GetDMatrixFromData(std::vector<float>{0.0f, 1.0f}, 2, 1);
+  HostDeviceVector<float> margin_predt{std::vector<float>{0.0f, 1.0f}, ctx->Device()};
+
   HostDeviceVector<float> out;
+  ASSERT_NO_THROW(interpretability::ShapValues(ctx, dmat.get(), &out, model, 0, nullptr, 0, 0));
+  ASSERT_EQ(out.HostVector().size(), 2 * (1 + 1));
+  for (auto v : out.HostVector()) {
+    ASSERT_TRUE(std::isfinite(v));
+  }
+  CheckShapAdditivity(2, 1, out, margin_predt);
+
   ASSERT_NO_THROW(
-      interpretability::ShapValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr, 0, 0));
+      interpretability::ShapInteractionValues(ctx, dmat.get(), &out, model, 0, nullptr, false));
+  ASSERT_EQ(out.HostVector().size(), 2 * (1 + 1) * (1 + 1));
   for (auto v : out.HostVector()) {
     ASSERT_TRUE(std::isfinite(v));
   }
-  ASSERT_NO_THROW(interpretability::ShapInteractionValues(dmat->Ctx(), dmat.get(), &out, model, 0,
-                                                          nullptr, false));
-  for (auto v : out.HostVector()) {
-    ASSERT_TRUE(std::isfinite(v));
-  }
+  CheckShapAdditivity(2, 1, out, margin_predt);
 }
 
 TEST(Predictor, ShapHandlesZeroCoverChild) {
