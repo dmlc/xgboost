@@ -53,8 +53,23 @@ using ::xgboost::cuda_impl::StaticBatch;
 
 using TreeViewVar = cuda::std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
 
-constexpr std::size_t kGpuQuadratureRowsPerWarp = 4;
-constexpr std::size_t kGpuQuadratureTreeBlockThreads = 64;
+constexpr int kGpuQuadraturePoints = static_cast<int>(detail::kQuadratureTreeShapPoints);
+
+// One warp evaluates multiple rows for the same tree. Give each row one lane per quadrature point
+// so the quadrature loop maps directly onto warp lanes, with the remaining warp-level parallelism
+// used for independent rows.
+constexpr int kGpuQuadratureRowsPerWarp = dh::WarpThreads() / kGpuQuadraturePoints;
+constexpr int kGpuQuadratureSegmentWidth = dh::WarpThreads() / kGpuQuadratureRowsPerWarp;
+constexpr unsigned kFullWarpMask = 0xffffffffu;
+// The traversal state is stored in shared memory per warp. Keeping blocks to two warps avoids
+// exhausting shared memory when launching the deepest bucket while still providing block-level
+// occupancy for shallower buckets.
+constexpr int kGpuQuadratureTreeBlockThreads = 64;
+constexpr int kGpuQuadratureWarpsPerBlock = kGpuQuadratureTreeBlockThreads / dh::WarpThreads();
+
+// The traversal stack lives in shared memory and is sized at compile time. Group trees by depth so
+// shallow models use smaller stack/basis arrays, while deeper trees still get a bounded fallback
+// specialization instead of forcing every model through the largest shared-memory footprint.
 constexpr std::array<std::size_t, 3> kGpuQuadratureDepthBuckets{{16, 32, 64}};
 constexpr std::size_t kMaxGpuQuadratureDepth = kGpuQuadratureDepthBuckets.back();
 using QuadratureRule = detail::QuadratureRule;
@@ -71,6 +86,9 @@ struct CompressedNode {
   std::uint8_t default_left{0};
   std::uint8_t is_leaf{0};
   std::uint8_t is_categorical{0};
+  // Distance to the nearest ancestor that split on the same feature, plus one. Zero means the
+  // feature has not appeared earlier on this path. Storing plus-one keeps the sentinel cheap and
+  // lets traversal recover q_prev without rescanning ancestors in the hot loop.
   std::uint8_t prev_same_offset_plus1{0};
 };
 
@@ -106,14 +124,13 @@ std::size_t DepthBucketIndex(std::size_t path_depth) {
   return kGpuQuadratureDepthBuckets.size() - 1;
 }
 
-CompressedModel MakeCompressedModel(Context const* ctx, gbm::GBTreeModel const& model,
-                                    std::vector<bst_tree_t> const& tree_indices,
-                                    common::Span<bst_target_t const> h_tree_groups,
-                                    std::vector<float> const* tree_weights) {
+CompressedModel CompressTreeBucket(gbm::GBTreeModel const& model,
+                                   std::vector<bst_tree_t> const& tree_indices,
+                                   common::Span<bst_target_t const> h_tree_groups,
+                                   std::vector<float> const* tree_weights) {
   std::vector<CompressedTree> h_trees;
   std::vector<CompressedNode> h_nodes;
   std::vector<std::uint32_t> h_categories;
-  static_cast<void>(ctx);
 
   h_trees.reserve(tree_indices.size());
   for (auto tree_idx : tree_indices) {
@@ -166,6 +183,9 @@ CompressedModel MakeCompressedModel(Context const* ctx, gbm::GBTreeModel const& 
         continue;
       }
 
+      // Repeated feature splits need q_prev from the previous occurrence of the same feature,
+      // not the default probability 1.0. Compute that ancestor distance once during compression
+      // and keep the GPU traversal stack purely array-index based.
       std::uint8_t prev_same_offset_plus1 = 0;
       std::uint16_t distance = 0;
       auto ancestor = nidx;
@@ -204,6 +224,8 @@ GpuQuadratureModelData PrepareGpuQuadratureModel(Context const* ctx, gbm::GBTree
     CHECK(!model.trees[tree_idx]->IsMultiTarget()) << prediction_kind << MTNotImplemented();
     auto tree_depth = model.trees[tree_idx]->MaxDepth();
     max_depth = std::max(max_depth, tree_depth);
+    // MaxDepth counts edges, while the iterative traversal stack stores nodes along the active
+    // path. Account for the root node when selecting the smallest fitting depth specialization.
     auto path_depth = static_cast<std::size_t>(tree_depth) + 1;
     auto bucket_idx = DepthBucketIndex(path_depth);
     tree_buckets[bucket_idx].push_back(tree_idx);
@@ -221,17 +243,14 @@ GpuQuadratureModelData PrepareGpuQuadratureModel(Context const* ctx, gbm::GBTree
   out.group_root_mean_sums =
       dh::device_vector<float>(h_group_root_mean_sums.cbegin(), h_group_root_mean_sums.cend());
   for (std::size_t i = 0; i < tree_buckets.size(); ++i) {
-    out.compressed[i] =
-        MakeCompressedModel(ctx, model, tree_buckets[i], h_tree_groups, tree_weights);
+    out.compressed[i] = CompressTreeBucket(model, tree_buckets[i], h_tree_groups, tree_weights);
   }
   return out;
 }
 
-template <int RowsPerWarp>
 XGBOOST_DEVICE constexpr unsigned ActiveSubgroupMask(int row_slot) {
-  constexpr int kSegmentWidth = dh::WarpThreads() / RowsPerWarp;
-  static_assert(kSegmentWidth >= static_cast<int>(detail::kQuadratureTreeShapPoints));
-  return ((1u << detail::kQuadratureTreeShapPoints) - 1u) << (row_slot * kSegmentWidth);
+  static_assert(kGpuQuadratureSegmentWidth >= kGpuQuadraturePoints);
+  return ((1u << kGpuQuadraturePoints) - 1u) << (row_slot * kGpuQuadratureSegmentWidth);
 }
 
 XGBOOST_DEVICE inline float PreviousPathProbability(std::uint8_t prev_same_offset_plus1, int depth,
@@ -277,12 +296,8 @@ struct IsSparsePageLoaderNoShared<SparsePageLoaderNoShared<EncAccessor>> : std::
 
 // Encapsulate the tail-tile versus full-tile differences so the traversal code can focus on
 // probability updates instead of mask plumbing.
-template <bool kHasRowMask, int RowsPerWarp, int MaxPoints>
+template <bool kHasRowMask>
 struct SubgroupOps {
-  static constexpr int kRowsPerWarpValue = RowsPerWarp;
-  static constexpr int kSegmentWidth = dh::WarpThreads() / RowsPerWarp;
-  static constexpr unsigned kFullMask = 0xffffffffu;
-
   int row_slot;
   int point;
   unsigned subgroup_mask;
@@ -292,21 +307,19 @@ struct SubgroupOps {
   bool is_warp_leader;
 
   XGBOOST_DEV_INLINE SubgroupOps(int lane, bst_idx_t valid_rows_in_tail)
-      : row_slot{lane / kSegmentWidth},
-        point{lane % kSegmentWidth},
-        subgroup_mask{kFullMask},
-        warp_mask{kFullMask},
+      : row_slot{lane / kGpuQuadratureSegmentWidth},
+        point{lane % kGpuQuadratureSegmentWidth},
+        subgroup_mask{kFullWarpMask},
+        warp_mask{kFullWarpMask},
         row_valid{true},
         is_leader{point == 0},
         is_warp_leader{lane == 0} {
     if constexpr (kHasRowMask) {
-      subgroup_mask = ActiveSubgroupMask<RowsPerWarp>(row_slot);
+      subgroup_mask = ActiveSubgroupMask(row_slot);
       warp_mask = __activemask();
       row_valid = static_cast<bst_idx_t>(row_slot) < valid_rows_in_tail;
     }
   }
-
-  [[nodiscard]] XGBOOST_DEV_INLINE bool Participates() const { return point < MaxPoints; }
 
   [[nodiscard]] XGBOOST_DEV_INLINE bool RowActive() const {
     if constexpr (kHasRowMask) {
@@ -324,19 +337,19 @@ struct SubgroupOps {
   [[nodiscard]] XGBOOST_DEV_INLINE T Broadcast(T value) const {
     // Each row uses an independent quadrature-point-wide subgroup inside the warp.
     if constexpr (kHasRowMask) {
-      return __shfl_sync(subgroup_mask, value, 0, MaxPoints);
+      return __shfl_sync(subgroup_mask, value, 0, kGpuQuadraturePoints);
     } else {
-      return __shfl_sync(kFullMask, value, 0, MaxPoints);
+      return __shfl_sync(kFullWarpMask, value, 0, kGpuQuadraturePoints);
     }
   }
 
   template <typename T>
   [[nodiscard]] XGBOOST_DEV_INLINE T Sum(T value) const {
-    for (int offset = MaxPoints / 2; offset > 0; offset /= 2) {
+    for (int offset = kGpuQuadraturePoints / 2; offset > 0; offset /= 2) {
       if constexpr (kHasRowMask) {
-        value += __shfl_down_sync(subgroup_mask, value, offset, MaxPoints);
+        value += __shfl_down_sync(subgroup_mask, value, offset, kGpuQuadraturePoints);
       } else {
-        value += __shfl_down_sync(kFullMask, value, offset, MaxPoints);
+        value += __shfl_down_sync(kFullWarpMask, value, offset, kGpuQuadraturePoints);
       }
     }
     return value;
@@ -353,17 +366,18 @@ struct SubgroupOps {
 
 // Wrap the shared-memory layout in semantic accessors so the task runner talks in terms of path
 // state instead of raw multidimensional indexing.
-template <int MaxPoints, int RowsPerWarp, int DepthCap, int kWarpsPerBlock, bool kUseQPrevCache>
+template <int DepthCap, bool kUseQPrevCache>
 struct QuadratureSharedState {
-  bst_node_t nodes[kWarpsPerBlock][DepthCap];
-  std::uint8_t stages[kWarpsPerBlock][DepthCap];
-  std::uint8_t goes_left[kWarpsPerBlock][RowsPerWarp][DepthCap];
+  bst_node_t nodes[kGpuQuadratureWarpsPerBlock][DepthCap];
+  std::uint8_t stages[kGpuQuadratureWarpsPerBlock][DepthCap];
+  std::uint8_t goes_left[kGpuQuadratureWarpsPerBlock][kGpuQuadratureRowsPerWarp][DepthCap];
   // q_d(t): path probability at depth d for one row-slot evaluated at quadrature point t.
-  float path_prob[kWarpsPerBlock][RowsPerWarp][DepthCap];
+  float path_prob[kGpuQuadratureWarpsPerBlock][kGpuQuadratureRowsPerWarp][DepthCap];
   // G_d(t): multiplicative basis carried down the path before the leaf value is applied.
-  float basis[kWarpsPerBlock][RowsPerWarp][DepthCap][MaxPoints];
-  float q_prev_cache[kUseQPrevCache ? kWarpsPerBlock : 1][kUseQPrevCache ? RowsPerWarp : 1]
-                    [kUseQPrevCache ? DepthCap : 1];
+  float basis[kGpuQuadratureWarpsPerBlock][kGpuQuadratureRowsPerWarp][DepthCap]
+             [kGpuQuadraturePoints];
+  float q_prev_cache[kUseQPrevCache ? kGpuQuadratureWarpsPerBlock : 1]
+                    [kUseQPrevCache ? kGpuQuadratureRowsPerWarp : 1][kUseQPrevCache ? DepthCap : 1];
 
   [[nodiscard]] XGBOOST_DEV_INLINE bst_node_t& Node(int warp, int depth) {
     return nodes[warp][depth];
@@ -568,6 +582,8 @@ struct QuadratureShapTaskRunner {
     float q_prev = 1.0f;
     if (subgroup.is_leader) {
       if (subgroup.RowActive()) {
+        // For repeated feature splits, replace the default q_prev with the path probability from
+        // the nearest previous split on the same feature.
         q_prev = PreviousPathProbability(node.prev_same_offset_plus1, depth,
                                          shared.PathProbabilityRow(warp, subgroup.row_slot));
       }
@@ -609,7 +625,7 @@ struct QuadratureShapTaskRunner {
   XGBOOST_DEV_INLINE void RunTask(std::size_t task) {
     auto tree_idx = task / row_tiles;
     auto row_tile = task % row_tiles;
-    auto ridx = (row_tile_begin + row_tile) * SubgroupT::kRowsPerWarpValue + subgroup.row_slot;
+    auto ridx = (row_tile_begin + row_tile) * kGpuQuadratureRowsPerWarp + subgroup.row_slot;
     auto row_idx = base_rowid + static_cast<bst_idx_t>(ridx);
     auto tree = trees[tree_idx];
     auto nodes_for_tree = nodes + tree.node_begin;
@@ -865,7 +881,7 @@ struct QuadratureShapInteractionTaskRunner {
   XGBOOST_DEV_INLINE void RunTask(std::size_t task) {
     auto tree_idx = task / row_tiles;
     auto row_tile = task % row_tiles;
-    auto ridx = (row_tile_begin + row_tile) * SubgroupT::kRowsPerWarpValue + subgroup.row_slot;
+    auto ridx = (row_tile_begin + row_tile) * kGpuQuadratureRowsPerWarp + subgroup.row_slot;
     auto row_idx = base_rowid + static_cast<bst_idx_t>(ridx);
     auto tree = trees[tree_idx];
     auto nodes_for_tree = nodes + tree.node_begin;
@@ -888,9 +904,8 @@ struct QuadratureShapInteractionTaskRunner {
   }
 };
 
-template <int MaxPoints, int RowsPerWarp, int BlockThreads, int DepthCap, bool kHasRowMask,
-          typename Loader>
-__global__ void __launch_bounds__(BlockThreads, 9)
+template <int DepthCap, bool kHasRowMask, typename Loader>
+__global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
     QuadratureShapTaskKernel(Loader loader, bst_idx_t base_rowid, bst_target_t n_groups,
                              bst_feature_t n_columns, std::size_t row_tile_begin,
                              std::size_t row_tiles, bst_idx_t valid_rows_in_tail,
@@ -898,33 +913,28 @@ __global__ void __launch_bounds__(BlockThreads, 9)
                              CompressedNode const* __restrict__ nodes,
                              std::uint32_t const* __restrict__ categories, QuadratureRule rule,
                              float* __restrict__ phis) {
-  static_assert(MaxPoints == detail::kQuadratureTreeShapPoints);
   static_assert(DepthCap <= static_cast<int>(kMaxGpuQuadratureDepth));
-  static_assert(dh::WarpThreads() % RowsPerWarp == 0);
-  static_assert(BlockThreads % dh::WarpThreads() == 0);
-  using SubgroupT = SubgroupOps<kHasRowMask, RowsPerWarp, MaxPoints>;
-  constexpr int kSegmentWidth = SubgroupT::kSegmentWidth;
+  static_assert(dh::WarpThreads() % kGpuQuadratureRowsPerWarp == 0);
+  static_assert(kGpuQuadratureTreeBlockThreads % dh::WarpThreads() == 0);
+  using SubgroupT = SubgroupOps<kHasRowMask>;
   if constexpr (!kHasRowMask) {
-    static_assert(kSegmentWidth == MaxPoints,
+    static_assert(kGpuQuadratureSegmentWidth == kGpuQuadraturePoints,
                   "Full-tile specialization assumes every warp lane participates.");
   }
-  constexpr int kWarpsPerBlock = BlockThreads / dh::WarpThreads();
   constexpr bool kUseQPrevCache = IsSparsePageLoaderNoShared<Loader>::value;
-  using SharedT =
-      QuadratureSharedState<MaxPoints, RowsPerWarp, DepthCap, kWarpsPerBlock, kUseQPrevCache>;
+  using SharedT = QuadratureSharedState<DepthCap, kUseQPrevCache>;
 
   __shared__ SharedT shared;
 
   int warp = static_cast<int>(threadIdx.x) / dh::WarpThreads();
   int lane = static_cast<int>(threadIdx.x) % dh::WarpThreads();
   auto subgroup = SubgroupT{lane, valid_rows_in_tail};
-  if (!subgroup.Participates()) {
-    return;
-  }
 
   auto global_warp =
-      (static_cast<std::size_t>(blockIdx.x) * BlockThreads + threadIdx.x) / dh::WarpThreads();
-  auto warp_stride = (static_cast<std::size_t>(gridDim.x) * BlockThreads) / dh::WarpThreads();
+      (static_cast<std::size_t>(blockIdx.x) * kGpuQuadratureTreeBlockThreads + threadIdx.x) /
+      dh::WarpThreads();
+  auto warp_stride =
+      (static_cast<std::size_t>(gridDim.x) * kGpuQuadratureTreeBlockThreads) / dh::WarpThreads();
   auto n_tasks = n_trees * row_tiles;
 
   auto runner = QuadratureShapTaskRunner<Loader, SubgroupT, SharedT>{loader,
@@ -948,15 +958,13 @@ __global__ void __launch_bounds__(BlockThreads, 9)
   }
 }
 
-template <int MaxPoints, int RowsPerWarp, int BlockThreads, int DepthCap, bool kHasRowMask,
-          typename Loader>
+template <int DepthCap, bool kHasRowMask, typename Loader>
 void LaunchQuadratureShapTasks(Context const* ctx, Loader loader, bst_idx_t base_rowid,
                                bst_target_t n_groups, bst_feature_t n_columns,
                                std::size_t row_tile_begin, std::size_t row_tiles,
                                bst_idx_t valid_rows_in_tail, CompressedModel const& compressed,
                                QuadratureRule rule, HostDeviceVector<float>* out_contribs) {
-  static_assert(BlockThreads % dh::WarpThreads() == 0);
-  constexpr int kWarpsPerBlock = BlockThreads / dh::WarpThreads();
+  static_assert(kGpuQuadratureTreeBlockThreads % dh::WarpThreads() == 0);
   if (compressed.trees.empty() || row_tiles == 0) {
     return;
   }
@@ -965,35 +973,36 @@ void LaunchQuadratureShapTasks(Context const* ctx, Loader loader, bst_idx_t base
   auto categories = thrust::raw_pointer_cast(compressed.categories.data());
   auto phis = out_contribs->DeviceSpan().data();
   auto n_tasks = compressed.trees.size() * row_tiles;
-  auto grids = common::DivRoundUp(n_tasks, static_cast<std::size_t>(kWarpsPerBlock));
-  QuadratureShapTaskKernel<MaxPoints, RowsPerWarp, BlockThreads, DepthCap, kHasRowMask>
-      <<<static_cast<uint32_t>(grids), static_cast<uint32_t>(BlockThreads), 0,
+  auto grids = common::DivRoundUp(n_tasks, static_cast<std::size_t>(kGpuQuadratureWarpsPerBlock));
+  QuadratureShapTaskKernel<DepthCap, kHasRowMask>
+      <<<static_cast<uint32_t>(grids), static_cast<uint32_t>(kGpuQuadratureTreeBlockThreads), 0,
          ctx->CUDACtx()->Stream()>>>(loader, base_rowid, n_groups, n_columns, row_tile_begin,
                                      row_tiles, valid_rows_in_tail, compressed.trees.size(), trees,
                                      nodes, categories, rule, phis);
   dh::safe_cuda(cudaGetLastError());
 }
 
-template <int MaxPoints, int RowsPerWarp, int BlockThreads, int DepthCap, typename Loader>
+template <int DepthCap, typename Loader>
 void LaunchQuadratureShapBuckets(Context const* ctx, Loader loader, bst_idx_t base_rowid,
                                  bst_target_t n_groups, bst_feature_t n_columns,
                                  CompressedModel const& compressed, QuadratureRule rule,
                                  HostDeviceVector<float>* out_contribs) {
-  auto full_row_tiles = static_cast<std::size_t>(loader.NumRows() / RowsPerWarp);
-  auto tail_rows = static_cast<bst_idx_t>(loader.NumRows() % RowsPerWarp);
-  LaunchQuadratureShapTasks<MaxPoints, RowsPerWarp, BlockThreads, DepthCap, false>(
+  auto full_row_tiles = static_cast<std::size_t>(loader.NumRows() / kGpuQuadratureRowsPerWarp);
+  auto tail_rows = static_cast<bst_idx_t>(loader.NumRows() % kGpuQuadratureRowsPerWarp);
+  // Full row tiles can use the cheaper specialization where every row subgroup is active. Only
+  // the final partial tile needs row masking to keep inactive subgroups from writing past the end.
+  LaunchQuadratureShapTasks<DepthCap, false>(
       ctx, loader, base_rowid, n_groups, n_columns, /*row_tile_begin=*/0, full_row_tiles,
-      /*valid_rows_in_tail=*/RowsPerWarp, compressed, rule, out_contribs);
+      /*valid_rows_in_tail=*/kGpuQuadratureRowsPerWarp, compressed, rule, out_contribs);
   if (tail_rows != 0) {
-    LaunchQuadratureShapTasks<MaxPoints, RowsPerWarp, BlockThreads, DepthCap, true>(
+    LaunchQuadratureShapTasks<DepthCap, true>(
         ctx, loader, base_rowid, n_groups, n_columns, /*row_tile_begin=*/full_row_tiles,
         /*row_tiles=*/1, tail_rows, compressed, rule, out_contribs);
   }
 }
 
-template <int MaxPoints, int RowsPerWarp, int BlockThreads, int DepthCap, bool kHasRowMask,
-          typename Loader>
-__global__ void __launch_bounds__(BlockThreads, 9)
+template <int DepthCap, bool kHasRowMask, typename Loader>
+__global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
     QuadratureShapInteractionTaskKernel(Loader loader, bst_idx_t base_rowid, bst_target_t n_groups,
                                         bst_feature_t n_columns, std::size_t row_tile_begin,
                                         std::size_t row_tiles, bst_idx_t valid_rows_in_tail,
@@ -1002,33 +1011,28 @@ __global__ void __launch_bounds__(BlockThreads, 9)
                                         CompressedNode const* __restrict__ nodes,
                                         std::uint32_t const* __restrict__ categories,
                                         QuadratureRule rule, float* __restrict__ phis) {
-  static_assert(MaxPoints == detail::kQuadratureTreeShapPoints);
   static_assert(DepthCap <= static_cast<int>(kMaxGpuQuadratureDepth));
-  static_assert(dh::WarpThreads() % RowsPerWarp == 0);
-  static_assert(BlockThreads % dh::WarpThreads() == 0);
-  using SubgroupT = SubgroupOps<kHasRowMask, RowsPerWarp, MaxPoints>;
-  constexpr int kSegmentWidth = SubgroupT::kSegmentWidth;
+  static_assert(dh::WarpThreads() % kGpuQuadratureRowsPerWarp == 0);
+  static_assert(kGpuQuadratureTreeBlockThreads % dh::WarpThreads() == 0);
+  using SubgroupT = SubgroupOps<kHasRowMask>;
   if constexpr (!kHasRowMask) {
-    static_assert(kSegmentWidth == MaxPoints,
+    static_assert(kGpuQuadratureSegmentWidth == kGpuQuadraturePoints,
                   "Full-tile specialization assumes every warp lane participates.");
   }
-  constexpr int kWarpsPerBlock = BlockThreads / dh::WarpThreads();
   constexpr bool kUseQPrevCache = IsSparsePageLoaderNoShared<Loader>::value;
-  using SharedT =
-      QuadratureSharedState<MaxPoints, RowsPerWarp, DepthCap, kWarpsPerBlock, kUseQPrevCache>;
+  using SharedT = QuadratureSharedState<DepthCap, kUseQPrevCache>;
 
   __shared__ SharedT shared;
 
   int warp = static_cast<int>(threadIdx.x) / dh::WarpThreads();
   int lane = static_cast<int>(threadIdx.x) % dh::WarpThreads();
   auto subgroup = SubgroupT{lane, valid_rows_in_tail};
-  if (!subgroup.Participates()) {
-    return;
-  }
 
   auto global_warp =
-      (static_cast<std::size_t>(blockIdx.x) * BlockThreads + threadIdx.x) / dh::WarpThreads();
-  auto warp_stride = (static_cast<std::size_t>(gridDim.x) * BlockThreads) / dh::WarpThreads();
+      (static_cast<std::size_t>(blockIdx.x) * kGpuQuadratureTreeBlockThreads + threadIdx.x) /
+      dh::WarpThreads();
+  auto warp_stride =
+      (static_cast<std::size_t>(gridDim.x) * kGpuQuadratureTreeBlockThreads) / dh::WarpThreads();
   auto n_tasks = n_trees * row_tiles;
 
   auto runner =
@@ -1053,16 +1057,14 @@ __global__ void __launch_bounds__(BlockThreads, 9)
   }
 }
 
-template <int MaxPoints, int RowsPerWarp, int BlockThreads, int DepthCap, bool kHasRowMask,
-          typename Loader>
+template <int DepthCap, bool kHasRowMask, typename Loader>
 void LaunchQuadratureShapInteractionTasks(Context const* ctx, Loader loader, bst_idx_t base_rowid,
                                           bst_target_t n_groups, bst_feature_t n_columns,
                                           std::size_t row_tile_begin, std::size_t row_tiles,
                                           bst_idx_t valid_rows_in_tail,
                                           CompressedModel const& compressed, QuadratureRule rule,
                                           HostDeviceVector<float>* out_contribs) {
-  static_assert(BlockThreads % dh::WarpThreads() == 0);
-  constexpr int kWarpsPerBlock = BlockThreads / dh::WarpThreads();
+  static_assert(kGpuQuadratureTreeBlockThreads % dh::WarpThreads() == 0);
   if (compressed.trees.empty() || row_tiles == 0) {
     return;
   }
@@ -1071,27 +1073,27 @@ void LaunchQuadratureShapInteractionTasks(Context const* ctx, Loader loader, bst
   auto categories = thrust::raw_pointer_cast(compressed.categories.data());
   auto phis = out_contribs->DeviceSpan().data();
   auto n_tasks = compressed.trees.size() * row_tiles;
-  auto grids = common::DivRoundUp(n_tasks, static_cast<std::size_t>(kWarpsPerBlock));
-  QuadratureShapInteractionTaskKernel<MaxPoints, RowsPerWarp, BlockThreads, DepthCap, kHasRowMask>
-      <<<static_cast<uint32_t>(grids), static_cast<uint32_t>(BlockThreads), 0,
+  auto grids = common::DivRoundUp(n_tasks, static_cast<std::size_t>(kGpuQuadratureWarpsPerBlock));
+  QuadratureShapInteractionTaskKernel<DepthCap, kHasRowMask>
+      <<<static_cast<uint32_t>(grids), static_cast<uint32_t>(kGpuQuadratureTreeBlockThreads), 0,
          ctx->CUDACtx()->Stream()>>>(loader, base_rowid, n_groups, n_columns, row_tile_begin,
                                      row_tiles, valid_rows_in_tail, compressed.trees.size(), trees,
                                      nodes, categories, rule, phis);
   dh::safe_cuda(cudaGetLastError());
 }
 
-template <int MaxPoints, int RowsPerWarp, int BlockThreads, int DepthCap, typename Loader>
+template <int DepthCap, typename Loader>
 void LaunchQuadratureShapInteractionBuckets(Context const* ctx, Loader loader, bst_idx_t base_rowid,
                                             bst_target_t n_groups, bst_feature_t n_columns,
                                             CompressedModel const& compressed, QuadratureRule rule,
                                             HostDeviceVector<float>* out_contribs) {
-  auto full_row_tiles = static_cast<std::size_t>(loader.NumRows() / RowsPerWarp);
-  auto tail_rows = static_cast<bst_idx_t>(loader.NumRows() % RowsPerWarp);
-  LaunchQuadratureShapInteractionTasks<MaxPoints, RowsPerWarp, BlockThreads, DepthCap, false>(
+  auto full_row_tiles = static_cast<std::size_t>(loader.NumRows() / kGpuQuadratureRowsPerWarp);
+  auto tail_rows = static_cast<bst_idx_t>(loader.NumRows() % kGpuQuadratureRowsPerWarp);
+  LaunchQuadratureShapInteractionTasks<DepthCap, false>(
       ctx, loader, base_rowid, n_groups, n_columns, /*row_tile_begin=*/0, full_row_tiles,
-      /*valid_rows_in_tail=*/RowsPerWarp, compressed, rule, out_contribs);
+      /*valid_rows_in_tail=*/kGpuQuadratureRowsPerWarp, compressed, rule, out_contribs);
   if (tail_rows != 0) {
-    LaunchQuadratureShapInteractionTasks<MaxPoints, RowsPerWarp, BlockThreads, DepthCap, true>(
+    LaunchQuadratureShapInteractionTasks<DepthCap, true>(
         ctx, loader, base_rowid, n_groups, n_columns, /*row_tile_begin=*/full_row_tiles,
         /*row_tiles=*/1, tail_rows, compressed, rule, out_contribs);
   }
@@ -1165,18 +1167,12 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   auto group_root_mean_sums = prepared.GroupRootMeanSums();
 
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
-    LaunchQuadratureShapBuckets<detail::kQuadratureTreeShapPoints, kGpuQuadratureRowsPerWarp,
-                                kGpuQuadratureTreeBlockThreads, 16>(
-        ctx, loader, base_rowid, ngroup, ncolumns, prepared.compressed[0], prepared.rule,
-        out_contribs);
-    LaunchQuadratureShapBuckets<detail::kQuadratureTreeShapPoints, kGpuQuadratureRowsPerWarp,
-                                kGpuQuadratureTreeBlockThreads, 32>(
-        ctx, loader, base_rowid, ngroup, ncolumns, prepared.compressed[1], prepared.rule,
-        out_contribs);
-    LaunchQuadratureShapBuckets<detail::kQuadratureTreeShapPoints, kGpuQuadratureRowsPerWarp,
-                                kGpuQuadratureTreeBlockThreads, 64>(
-        ctx, loader, base_rowid, ngroup, ncolumns, prepared.compressed[2], prepared.rule,
-        out_contribs);
+    LaunchQuadratureShapBuckets<16>(ctx, loader, base_rowid, ngroup, ncolumns,
+                                    prepared.compressed[0], prepared.rule, out_contribs);
+    LaunchQuadratureShapBuckets<32>(ctx, loader, base_rowid, ngroup, ncolumns,
+                                    prepared.compressed[1], prepared.rule, out_contribs);
+    LaunchQuadratureShapBuckets<64>(ctx, loader, base_rowid, ngroup, ncolumns,
+                                    prepared.compressed[2], prepared.rule, out_contribs);
   });
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
@@ -1220,21 +1216,12 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   auto group_root_mean_sums = prepared.GroupRootMeanSums();
 
   LaunchShap(ctx, p_fmat, new_enc, model, [&](auto&& loader, bst_idx_t base_rowid) {
-    LaunchQuadratureShapInteractionBuckets<detail::kQuadratureTreeShapPoints,
-                                           kGpuQuadratureRowsPerWarp,
-                                           kGpuQuadratureTreeBlockThreads, 16>(
-        ctx, loader, base_rowid, ngroup, ncolumns, prepared.compressed[0], prepared.rule,
-        out_contribs);
-    LaunchQuadratureShapInteractionBuckets<detail::kQuadratureTreeShapPoints,
-                                           kGpuQuadratureRowsPerWarp,
-                                           kGpuQuadratureTreeBlockThreads, 32>(
-        ctx, loader, base_rowid, ngroup, ncolumns, prepared.compressed[1], prepared.rule,
-        out_contribs);
-    LaunchQuadratureShapInteractionBuckets<detail::kQuadratureTreeShapPoints,
-                                           kGpuQuadratureRowsPerWarp,
-                                           kGpuQuadratureTreeBlockThreads, 64>(
-        ctx, loader, base_rowid, ngroup, ncolumns, prepared.compressed[2], prepared.rule,
-        out_contribs);
+    LaunchQuadratureShapInteractionBuckets<16>(ctx, loader, base_rowid, ngroup, ncolumns,
+                                               prepared.compressed[0], prepared.rule, out_contribs);
+    LaunchQuadratureShapInteractionBuckets<32>(ctx, loader, base_rowid, ngroup, ncolumns,
+                                               prepared.compressed[1], prepared.rule, out_contribs);
+    LaunchQuadratureShapInteractionBuckets<64>(ctx, loader, base_rowid, ngroup, ncolumns,
+                                               prepared.compressed[2], prepared.rule, out_contribs);
   });
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());

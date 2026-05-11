@@ -21,10 +21,17 @@ constexpr float kQuadratureTreeShapUnseen = -999.0f;
 constexpr float kQuadratureTreeShapMinChildWeight = 1e-12f;
 
 XGBOOST_DEVICE inline float BranchWeight(float cover, float parent_cover) {
+  // In a well-formed tree, split-node cover is positive and each child cover is a valid
+  // fraction of the parent cover. Zero cover can still appear after model refresh or when
+  // loading externally produced models, so fall back to a neutral branch probability instead
+  // of allowing NaN/Inf weights to propagate through SHAP.
   if (parent_cover <= 0.0f) {
     return 0.5f;
   }
   auto weight = cover / parent_cover;
+  // A zero-cover child is not expected for a normally trained split, but can occur in
+  // refreshed trees. Keep the path reachable with a tiny probability so quadrature remains
+  // numerically well-defined while preserving ordinary nonzero cover ratios unchanged.
   if (weight < kQuadratureTreeShapMinChildWeight) {
     return kQuadratureTreeShapMinChildWeight;
   }
