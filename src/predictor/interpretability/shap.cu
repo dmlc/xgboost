@@ -216,6 +216,9 @@ GpuQuadratureModelData PrepareGpuQuadratureModel(Context const* ctx, gbm::GBTree
                                                  bst_tree_t tree_end, bst_target_t n_groups,
                                                  std::vector<float> const* tree_weights,
                                                  char const* prediction_kind) {
+  if (tree_weights != nullptr) {
+    CHECK_GE(tree_weights->size(), static_cast<std::size_t>(tree_end));
+  }
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   bst_node_t max_depth = 0;
   std::array<std::vector<bst_tree_t>, kGpuQuadratureDepthBuckets.size()> tree_buckets;
@@ -1139,11 +1142,14 @@ void LaunchShap(Context const* ctx, DMatrix* p_fmat, enc::DeviceColumnsView cons
     DispatchByBatchLoader(ctx, p_fmat, n_features, NoOpAccessor{}, fn);
   }
 }
+
+void SetShapDevice(Context const* ctx) { curt::SetDevice(ctx->Ordinal()); }
 }  // namespace
 void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                 gbm::GBTreeModel const& model, bst_tree_t tree_end,
                 std::vector<float> const* tree_weights, int condition, unsigned condition_feature) {
   xgboost_NVTX_FN_RANGE();
+  SetShapDevice(ctx);
   CHECK_EQ(condition, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
   CHECK_EQ(condition_feature, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
   CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
@@ -1191,6 +1197,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
                            bst_tree_t tree_end, std::vector<float> const* tree_weights,
                            bool approximate) {
   xgboost_NVTX_FN_RANGE();
+  SetShapDevice(ctx);
   if (approximate) {
     LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use CPU instead.";
   }
