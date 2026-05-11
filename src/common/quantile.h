@@ -233,17 +233,18 @@ struct WQSummary {
     }
     // Use raw pointers in this hot loop to avoid per-access Span bounds checks.
     auto const *src_data = this->data_.data();
-    auto *dst_data = data_.data();
     if (maxsize == 1) {
-      dst_data[0] = src_data[0];
+      data_[0] = src_data[0];
       this->current_elements_ = 1;
       return;
     }
+    std::vector<Entry> pruned(maxsize);
+    auto *dst_data = pruned.data();
     const RType begin = src_data[0].rmax;
     const RType range = src_data[src_size - 1].rmin - src_data[0].rmax;
     const size_t n = maxsize - 1;
     dst_data[0] = src_data[0];
-    this->current_elements_ = 1;
+    size_t current_elements = 1;
     // lastidx is used to avoid duplicated records
     size_t i = 1, lastidx = 0;
     for (size_t k = 1; k < n; ++k) {
@@ -255,19 +256,21 @@ struct WQSummary {
       if (i == src_size - 1) break;
       if (dx2 < src_data[i].RMinNext() + src_data[i + 1].RMaxPrev()) {
         if (i != lastidx) {
-          dst_data[current_elements_++] = src_data[i];
+          dst_data[current_elements++] = src_data[i];
           lastidx = i;
         }
       } else {
         if (i + 1 != lastidx) {
-          dst_data[current_elements_++] = src_data[i + 1];
+          dst_data[current_elements++] = src_data[i + 1];
           lastidx = i + 1;
         }
       }
     }
     if (lastidx != src_size - 1) {
-      dst_data[current_elements_++] = src_data[src_size - 1];
+      dst_data[current_elements++] = src_data[src_size - 1];
     }
+    std::copy_n(pruned.data(), current_elements, this->data_.data());
+    this->current_elements_ = current_elements;
   }
 
   /*!

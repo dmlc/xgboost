@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>    // for array
 #include <cstdint>  // for int64_t
 
 #include "../../../src/collective/allreduce.h"
@@ -151,6 +152,33 @@ INSTANTIATE_TEST_SUITE_P(Anchors, QuantileSummaryTest, ::testing::ValuesIn(Summa
                          SummaryCaseName);
 INSTANTIATE_TEST_SUITE_P(RandomSamples, QuantileSummaryTest,
                          ::testing::ValuesIn(SummaryRandomCases(100)), SummaryCaseName);
+
+TEST(Quantile, SetPrunePreservesIncreasingValuesWithAliasingGeometry) {
+  using Entry = WQSummary<>::Entry;
+  WQSummaryContainer summary;
+  summary.Reserve(7);
+
+  summary.space[0] = Entry{0.0f, 0.0f, 0.0f, 1.0f};
+  summary.space[1] = Entry{0.0f, 4.0f, 0.0f, 2.0f};
+  summary.space[2] = Entry{4.0f, 5.0f, 1.0f, 3.0f};
+  summary.space[3] = Entry{5.0f, 6.0f, 1.0f, 4.0f};
+  summary.space[4] = Entry{8.0f, 9.0f, 1.0f, 5.0f};
+  summary.space[5] = Entry{9.0f, 10.0f, 1.0f, 6.0f};
+  summary.space[6] = Entry{10.0f, 10.0f, 0.0f, 7.0f};
+  summary.SetSize(7);
+
+  summary.SetPrune(6);
+  auto entries = summary.Entries();
+
+  ASSERT_EQ(entries.size(), 5u);
+  std::array<float, 5> expected_values{1.0f, 3.0f, 4.0f, 5.0f, 7.0f};
+  for (std::size_t i = 0; i < entries.size(); ++i) {
+    EXPECT_FLOAT_EQ(entries[i].value, expected_values[i]);
+  }
+  for (std::size_t i = 1; i < entries.size(); ++i) {
+    EXPECT_LT(entries[i - 1].value, entries[i].value);
+  }
+}
 
 TEST_P(QuantileContainerTest, Invariants) {
   auto c = GetParam();
