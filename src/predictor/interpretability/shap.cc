@@ -58,37 +58,6 @@ void FillNodeMeanValues(tree::ScalarTreeView const &tree, std::vector<float> *me
   FillNodeMeanValues(tree, 0, mean_values);
 }
 
-double FillRootMeanValue(tree::ScalarTreeView const &tree, bst_node_t nidx) {
-  if (tree.IsLeaf(nidx)) {
-    return tree.LeafValue(nidx);
-  }
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
-  result += FillRootMeanValue(tree, right) * tree.SumHess(right);
-  result /= tree.SumHess(nidx);
-  return result;
-}
-
-void ValidateQuadratureTreeShapCovers(tree::ScalarTreeView const &tree, bst_node_t nidx) {
-  if (tree.IsLeaf(nidx)) {
-    return;
-  }
-
-  CHECK_GT(tree.SumHess(nidx), 0.0f)
-      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at split nodes.";
-
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  CHECK_GT(tree.SumHess(left), 0.0f)
-      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
-  CHECK_GT(tree.SumHess(right), 0.0f)
-      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
-
-  ValidateQuadratureTreeShapCovers(tree, left);
-  ValidateQuadratureTreeShapCovers(tree, right);
-}
-
 void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVec const &feats,
                                   std::vector<float> *mean_values,
                                   std::vector<bst_float> *out_contribs) {
@@ -116,29 +85,11 @@ void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVe
 
 // Keep the CPU quadrature recurrence on the same fixed 8-point rule as the GPU path so the hot
 // loops stay small and the compiler can fully unroll the basis update and extraction work.
-constexpr std::size_t kQuadratureTreeShapPoints = 8;
-constexpr double kQuadratureTreeShapBuildQeps = 1e-15;
-constexpr float kQuadratureTreeShapUnseen = -999.0f;
+constexpr std::size_t kQuadratureTreeShapPoints = detail::kQuadratureTreeShapPoints;
+constexpr float kQuadratureTreeShapUnseen = detail::kQuadratureTreeShapUnseen;
 
-struct QuadratureRule {
-  std::array<float, kQuadratureTreeShapPoints> nodes{};
-  std::array<float, kQuadratureTreeShapPoints> weights{};
-};
+using QuadratureRule = detail::QuadratureRule;
 using QuadratureBuffer = std::array<float, kQuadratureTreeShapPoints>;
-
-QuadratureRule const &GetQuadratureRule() {
-  static QuadratureRule const kRule = [] {
-    auto const rule_d =
-        detail::MakeEndpointQuadrature<kQuadratureTreeShapPoints>(kQuadratureTreeShapBuildQeps);
-    QuadratureRule out;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      out.nodes[i] = static_cast<float>(rule_d.nodes[i]);
-      out.weights[i] = static_cast<float>(rule_d.weights[i]);
-    }
-    return out;
-  }();
-  return kRule;
-}
 
 void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs) {
   for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
@@ -395,8 +346,9 @@ struct QuadratureTreeShapRunner {
 
   [[nodiscard]] float ChildWeight(bst_node_t parent, bst_node_t child) const {
     auto parent_cover = tree.Stat(parent).sum_hess;
-    CHECK_GT(parent_cover, 0.0f);
-    return tree.Stat(child).sum_hess / parent_cover;
+    CHECK_GE(parent_cover, 0.0f);
+    CHECK_GE(tree.Stat(child).sum_hess, 0.0f);
+    return detail::BranchWeight(tree.Stat(child).sum_hess, parent_cover);
   }
 
   void VisitChild(bst_node_t split_node, bst_node_t child_node, float child_weight, bool satisfies,
@@ -485,7 +437,6 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
   out.trees.reserve(n_trees);
   out.trees_by_group.resize(n_groups);
   out.weights.resize(n_trees, 1.0f);
-  out.group_root_mean_sums.resize(n_groups, 0.0f);
 
   for (std::size_t i = 0; i < n_trees; ++i) {
     out.trees.emplace_back(model.trees[i].get());
@@ -495,10 +446,10 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
     out.trees_by_group[gid].push_back(i);
     out.weights[i] = weight;
-    ValidateQuadratureTreeShapCovers(out.trees[i], RegTree::kRoot);
-    out.group_root_mean_sums[gid] +=
-        static_cast<float>(FillRootMeanValue(out.trees[i], RegTree::kRoot) * weight);
   }
+  out.group_root_mean_sums = detail::MakeGroupRootMeanSums(
+      h_tree_groups, n_groups, tree_end, tree_weights,
+      [&](bst_tree_t tree_idx) -> tree::ScalarTreeView const & { return out.trees[tree_idx]; });
   return out;
 }
 
@@ -576,7 +527,7 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
   std::fill(contribs.begin(), contribs.end(), 0.0f);
   CHECK_NE(n_groups, 0);
-  auto const &rule = GetQuadratureRule();
+  auto const &rule = detail::GetQuadratureRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
@@ -656,7 +607,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   contribs.resize(info.num_row_ * row_chunk);
   std::fill(contribs.begin(), contribs.end(), 0.0f);
 
-  auto const &rule = GetQuadratureRule();
+  auto const &rule = detail::GetQuadratureRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);

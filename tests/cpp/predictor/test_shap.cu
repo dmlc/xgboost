@@ -89,4 +89,14 @@ TEST(GPUPredictor, DartShapOutputGPU) {
   auto ctx = MakeCUDACtx(0);
   CheckDartShapOutput(&ctx);
 }
+
+TEST(GPUPredictor, ShapHandlesZeroCoverChild) {
+  auto ctx = MakeCUDACtx(0);
+  CheckShapHandlesZeroCover(&ctx, false);
+}
+
+TEST(GPUPredictor, ShapHandlesZeroCoverParent) {
+  auto ctx = MakeCUDACtx(0);
+  CheckShapHandlesZeroCover(&ctx, true);
+}
 }  // namespace xgboost

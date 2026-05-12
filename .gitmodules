@@ -2,6 +2,3 @@
 	path = dmlc-core
 	url = https://github.com/dmlc/dmlc-core
 	branch = main
-[submodule "gputreeshap"]
-	path = gputreeshap
-	url = https://github.com/rapidsai/gputreeshap.git

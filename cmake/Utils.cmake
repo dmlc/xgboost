@@ -185,10 +185,6 @@ function(xgboost_set_cuda_flags target)
     target_link_libraries(${target} PRIVATE CCCL::CCCL CUDA::cudart_static)
   endif()
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
-  target_include_directories(
-    ${target} PRIVATE
-    ${xgboost_SOURCE_DIR}/gputreeshap)
-
   if(MSVC)
     xgboost_cuda_wrap_host_compiler_options(cuda_utf8_flags /utf-8)
     target_compile_options(${target} PRIVATE ${cuda_utf8_flags})

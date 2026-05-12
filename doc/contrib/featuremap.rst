@@ -45,7 +45,7 @@ XGBoost includes features designed to improve understanding of the model. Here's
 - Tree visualization.
 - Tree as dataframe.
 
-For GPU support, the SHAP value uses the `GPUTreeShap <https://github.com/rapidsai/gputreeshap/tree/main>`_ project in rapidsai. They all support categorical features, while vector-leaf is still in progress.
+For GPU support, the SHAP value uses XGBoost's in-tree ``QuadratureTreeSHAP`` implementation. It supports categorical features, while vector-leaf is still in progress.
 
 ----------
 Evaluation
@@ -66,4 +66,4 @@ Inference normally doesn't require any special treatment since we are using samp
 *****************
 Language Bindings
 *****************
-We have a list of bindings for various languages. Inside the XGBoost repository, there's Python, R, Java, Scala, and C. All language bindings are built on top of the C version. Some others, like Julia and Rust, have their own repository. For guideline on adding a new binding, please see :doc:`/contrib/consistency`.
+We have a list of bindings for various languages. Inside the XGBoost repository, there's Python, R, Java, Scala, and C. All language bindings are built on top of the C version. Some others, like Julia and Rust, have their own repository. For guidance on adding a new binding, please see :doc:`/contrib/consistency`.

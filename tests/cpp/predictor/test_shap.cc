@@ -13,9 +13,12 @@
 #include <xgboost/objective.h>           // for ObjFunction
 
 #include <algorithm>
+#include <cmath>
 #include <memory>  // for unique_ptr
 #include <sstream>
-#include <string>  // for to_string
+#include <string>   // for to_string
+#include <utility>  // for as_const
+#include <vector>
 
 #include "../../../src/common/param_array.h"
 #include "../../../src/gbm/gbtree_model.h"
@@ -292,32 +295,53 @@ TEST(Predictor, DartShapOutputCPU) {
   CheckDartShapOutput(&ctx);
 }
 
-TEST(Predictor, ShapRejectsZeroCoverChild) {
-  Context ctx;
+void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   std::size_t shape[1]{1};
-  linalg::Vector<float> base_score{shape, ctx.Device()};
+  linalg::Vector<float> base_score{shape, ctx->Device()};
   base_score.Data()->HostVector()[0] = 0.0f;
+  std::as_const(base_score).HostView();
+  if (!ctx->Device().IsCPU()) {
+    std::as_const(base_score).View(ctx->Device());
+  }
   LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
-  gbm::GBTreeModel model{&mparam, &ctx};
+  gbm::GBTreeModel model{&mparam, ctx};
 
   gbm::TreesOneGroup trees;
   trees.emplace_back(std::make_unique<RegTree>());
-  trees.front()->ExpandNode(RegTree::kRoot, 0, 0.5f, true, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f,
-                            1.0f);
+  auto const parent_cover = zero_parent_cover ? 0.0f : 1.0f;
+  auto const left_cover = parent_cover;
+  trees.front()->ExpandNode(RegTree::kRoot, 0, 0.5f, true, 0.0f, 0.0f, 1.0f, 1.0f, parent_cover,
+                            left_cover, 0.0f);
   model.CommitModelGroup(std::move(trees), 0);
 
   auto dmat = GetDMatrixFromData(std::vector<float>{0.0f, 1.0f}, 2, 1);
+  HostDeviceVector<float> margin_predt{std::vector<float>{0.0f, 1.0f}, ctx->Device()};
+
   HostDeviceVector<float> out;
-  auto msg = "non-positive cover at child nodes";
-  ASSERT_THAT(
-      [&] { interpretability::ShapValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr, 0, 0); },
-      GMockThrow(msg));
-  ASSERT_THAT(
-      [&] {
-        interpretability::ShapInteractionValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr,
-                                                false);
-      },
-      GMockThrow(msg));
+  ASSERT_NO_THROW(interpretability::ShapValues(ctx, dmat.get(), &out, model, 0, nullptr, 0, 0));
+  ASSERT_EQ(out.HostVector().size(), 2 * (1 + 1));
+  for (auto v : out.HostVector()) {
+    ASSERT_TRUE(std::isfinite(v));
+  }
+  CheckShapAdditivity(2, 1, out, margin_predt);
+
+  ASSERT_NO_THROW(
+      interpretability::ShapInteractionValues(ctx, dmat.get(), &out, model, 0, nullptr, false));
+  ASSERT_EQ(out.HostVector().size(), 2 * (1 + 1) * (1 + 1));
+  for (auto v : out.HostVector()) {
+    ASSERT_TRUE(std::isfinite(v));
+  }
+  CheckShapAdditivity(2, 1, out, margin_predt);
+}
+
+TEST(Predictor, ShapHandlesZeroCoverChild) {
+  Context ctx;
+  CheckShapHandlesZeroCover(&ctx, false);
+}
+
+TEST(Predictor, ShapHandlesZeroCoverParent) {
+  Context ctx;
+  CheckShapHandlesZeroCover(&ctx, true);
 }
 
 TEST(Predictor, ApproxContribsBasic) {
