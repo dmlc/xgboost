@@ -39,3 +39,38 @@ def test_shap_values_rejects_background_data() -> None:
 
     with pytest.raises(NotImplementedError, match="X_background"):
         interpret.shap_values(booster, X, X_background=X)
+
+
+def test_shap_values_device_override_restores_config() -> None:
+    rng = np.random.RandomState(1997)
+    X = rng.randn(16, 4)
+    y = rng.randn(16)
+    booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, label=y), 4)
+    config = booster.save_config()
+
+    values = interpret.shap_values(booster, X, device="cpu")
+    contribs = booster.predict(xgb.DMatrix(X), pred_contribs=True)
+
+    np.testing.assert_allclose(values, contribs[:, :-1])
+    assert booster.save_config() == config
+
+
+def test_shap_values_device_override_restores_config_on_error() -> None:
+    rng = np.random.RandomState(1998)
+    X = rng.randn(16, 4)
+    y = rng.randn(16)
+    booster = xgb.train(
+        {"tree_method": "hist"},
+        xgb.DMatrix(X, label=y, feature_names=["a", "b", "c", "d"]),
+        4,
+    )
+    config = booster.save_config()
+
+    with pytest.raises(ValueError, match="feature_names mismatch"):
+        interpret.shap_values(
+            booster,
+            xgb.DMatrix(X, feature_names=["q", "b", "c", "d"]),
+            device="cpu",
+        )
+
+    assert booster.save_config() == config

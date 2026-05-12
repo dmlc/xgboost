@@ -51,11 +51,30 @@ def _as_prediction_dmatrix(
     )
 
 
+def _predict_contribs(
+    booster: Booster,
+    data: DMatrix,
+    *,
+    device: Optional[str],
+    kwargs: dict,
+) -> np.ndarray:
+    if device is None:
+        return booster.predict(data, **kwargs)
+
+    config = booster.save_config()
+    try:
+        booster.set_param({"device": device})
+        return booster.predict(data, **kwargs)
+    finally:
+        booster.load_config(config)
+
+
 def shap_values(  # pylint: disable=too-many-arguments
     model: object,
     X: Union[DMatrix, ArrayLike],
     *,
     X_background: Optional[Union[DMatrix, ArrayLike]] = None,
+    device: Optional[str] = None,
     output_margin: bool = False,
     iteration_range: Optional[IterationRange] = None,
     approx: bool = False,
@@ -79,6 +98,10 @@ def shap_values(  # pylint: disable=too-many-arguments
     X_background :
         Background data for interventional SHAP values. This is reserved for a
         future implementation and is currently unsupported.
+    device :
+        Optional prediction device override, such as ``"cpu"``, ``"cuda"``, or
+        ``"cuda:0"``. The model's original configuration is restored after
+        prediction.
     output_margin :
         Accepted for API compatibility. SHAP contributions currently correspond
         to the model margin, matching ``Booster.predict(pred_contribs=True)``.
@@ -108,12 +131,16 @@ def shap_values(  # pylint: disable=too-many-arguments
 
     booster = _as_booster(model)
     data = _as_prediction_dmatrix(model, X, feature_names)
-    contribs = booster.predict(
+    contribs = _predict_contribs(
+        booster,
         data,
-        pred_contribs=True,
-        approx_contribs=approx,
-        validate_features=validate_features,
-        iteration_range=_get_iteration_range(model, iteration_range),
+        device=device,
+        kwargs={
+            "pred_contribs": True,
+            "approx_contribs": approx,
+            "validate_features": validate_features,
+            "iteration_range": _get_iteration_range(model, iteration_range),
+        },
     )
 
     values = contribs[..., :-1]
