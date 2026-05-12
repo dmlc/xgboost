@@ -25,7 +25,7 @@ void CheckShapAdditivity(size_t rows, size_t cols, HostDeviceVector<float> const
                          HostDeviceVector<float> const& margin_predt);
 
 using ShapTestCase = std::pair<std::shared_ptr<DMatrix>, Args>;
-std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx);
+std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx, bool include_vector_leaf);
 
 }  // namespace xgboost
 
