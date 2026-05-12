@@ -36,8 +36,9 @@ The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :do
 GPU-Accelerated SHAP values
 =============================
 XGBoost uses its in-tree ``QuadratureTreeSHAP`` implementation for computing SHAP values
-on both CPU and GPU. The GPU path uses this same Quadrature-TreeSHAP formulation
-(Wettenstein et al. 2026) for exact TreeSHAP feature attributions when the GPU is selected.
+on both CPU and GPU. The GPU path uses the same Quadrature-TreeSHAP formulation described
+by Wettenstein et al. (2026) for exact TreeSHAP feature attributions when the GPU is
+selected.
 
 .. code-block:: python
 
