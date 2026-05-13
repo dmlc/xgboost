@@ -148,37 +148,6 @@ float LeafValue(tree::MultiTargetTreeView const& tree, bst_node_t nidx, bst_targ
   return leaf_value(target_idx);
 }
 
-void FillRootMeanValues(tree::MultiTargetTreeView const& tree, bst_node_t nidx, double path_weight,
-                        std::vector<double>* p_out) {
-  auto& out = *p_out;
-  if (tree.IsLeaf(nidx)) {
-    auto leaf_value = tree.LeafValue(nidx);
-    auto const n_targets = static_cast<bst_target_t>(leaf_value.Size());
-    CHECK_EQ(static_cast<std::size_t>(n_targets), out.size());
-    for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
-      out[target_idx] += path_weight * leaf_value(target_idx);
-    }
-    return;
-  }
-
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  CHECK_GE(tree.SumHess(nidx), 0.0f)
-      << "QuadratureTreeSHAP is undefined for trees with negative cover at split nodes.";
-  CHECK_GE(tree.SumHess(left), 0.0f)
-      << "QuadratureTreeSHAP is undefined for trees with negative child cover.";
-  CHECK_GE(tree.SumHess(right), 0.0f)
-      << "QuadratureTreeSHAP is undefined for trees with negative child cover.";
-  auto const parent_cover = tree.SumHess(nidx);
-  if (parent_cover == 0.0f) {
-    FillRootMeanValues(tree, left, path_weight * 0.5, p_out);
-    FillRootMeanValues(tree, right, path_weight * 0.5, p_out);
-  } else {
-    FillRootMeanValues(tree, left, path_weight * tree.SumHess(left) / parent_cover, p_out);
-    FillRootMeanValues(tree, right, path_weight * tree.SumHess(right) / parent_cover, p_out);
-  }
-}
-
 template <typename Tree>
 void CompressTree(Tree const& tree, std::vector<CompressedNode>* p_nodes,
                   std::vector<float>* p_leaf_values, std::vector<std::uint32_t>* p_categories,
@@ -331,7 +300,7 @@ GpuQuadratureModelData PrepareGpuQuadratureModel(Context const* ctx, gbm::GBTree
       CHECK_EQ(n_targets, n_groups)
           << prediction_kind << " expects one vector-leaf target per output group.";
       std::vector<double> root_means(n_targets, 0.0);
-      FillRootMeanValues(tree, RegTree::kRoot, 1.0, &root_means);
+      detail::FillRootMeanValues(tree, RegTree::kRoot, 1.0, &root_means);
       for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
         group_root_mean_sums[target_idx] += root_means[target_idx] * weight;
       }
