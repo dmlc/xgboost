@@ -43,6 +43,17 @@ void SetLabels(DMatrix* dmat, bst_target_t n_classes) {
   }
 }
 
+void SetMultiTargetLabels(DMatrix* dmat, bst_target_t n_targets) {
+  size_t const rows = dmat->Info().num_row_;
+  dmat->Info().labels.Reshape(rows, n_targets);
+  auto& h_labels = dmat->Info().labels.Data()->HostVector();
+  for (size_t r = 0; r < rows; ++r) {
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      h_labels[r * n_targets + t] = static_cast<float>((r + 1) * (t + 1));
+    }
+  }
+}
+
 Args BaseParams(Context const* ctx, std::string objective, std::string max_depth) {
   return Args{{"objective", std::move(objective)},
               {"max_depth", std::move(max_depth)},
@@ -104,8 +115,16 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
   auto n_classes = static_cast<bst_target_t>(std::stol(num_class));
   auto n_targets = static_cast<bst_target_t>(std::stol(num_target));
   auto n_groups = static_cast<uint32_t>(std::max(n_classes, n_targets));
-  LearnerModelParam tmp{n_features, std::move(base_score_vec), n_groups, n_targets,
-                        MultiStrategy::kOneOutputPerTree};
+  auto multi_strategy = MultiStrategy::kOneOutputPerTree;
+  for (auto const& kv : model_args) {
+    if (kv.first == "multi_strategy") {
+      CHECK(kv.second == "one_output_per_tree" || kv.second == "multi_output_tree");
+      multi_strategy = kv.second == "multi_output_tree" ? MultiStrategy::kMultiOutputTree
+                                                        : MultiStrategy::kOneOutputPerTree;
+      break;
+    }
+  }
+  LearnerModelParam tmp{n_features, std::move(base_score_vec), n_groups, n_targets, multi_strategy};
   out_param->Copy(tmp);
 
   auto gbtree = std::make_unique<gbm::GBTreeModel>(out_param, ctx);
@@ -115,7 +134,7 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
 }
 }  // namespace
 
-std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
+std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx, bool include_vector_leaf) {
   std::vector<ShapTestCase> cases;
   auto device = ctx->Device();
 
@@ -175,6 +194,18 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
     SetLabels(dmat.get(), n_classes);
     auto args = BaseParams(ctx, "multi:softprob", "3");
     args.emplace_back("num_class", std::to_string(n_classes));
+    cases.emplace_back(dmat, std::move(args));
+  }
+
+  if (include_vector_leaf) {
+    // multi-target vector-leaf tree
+    bst_target_t constexpr n_targets{2};
+    auto dmat = RandomDataGenerator(64, 6, 0.0).Device(device).GenerateDMatrix(true);
+    SetMultiTargetLabels(dmat.get(), n_targets);
+    auto args = BaseParams(ctx, "reg:squarederror", "3");
+    args.emplace_back("tree_method", "hist");
+    args.emplace_back("num_target", std::to_string(n_targets));
+    args.emplace_back("multi_strategy", "multi_output_tree");
     cases.emplace_back(dmat, std::move(args));
   }
 
@@ -284,7 +315,7 @@ void CheckShapAdditivity(size_t rows, size_t cols, HostDeviceVector<float> const
 
 TEST(Predictor, ShapOutputCasesCPU) {
   Context ctx;
-  auto cases = BuildShapTestCases(&ctx);
+  auto cases = BuildShapTestCases(&ctx, true);
   for (auto const& [dmat, args] : cases) {
     CheckShapOutput(dmat.get(), args);
   }

@@ -102,10 +102,10 @@ inline QuadratureRule const& GetQuadratureRule() {
   return kRule;
 }
 
-template <typename Tree>
-double FillRootMeanValue(Tree const& tree, bst_node_t nidx) {
+template <typename Tree, typename LeafValueFn>
+double FillRootMeanValue(Tree const& tree, bst_node_t nidx, LeafValueFn const& leaf_value) {
   if (tree.IsLeaf(nidx)) {
-    return tree.LeafValue(nidx);
+    return leaf_value(nidx);
   }
   auto left = tree.LeftChild(nidx);
   auto right = tree.RightChild(nidx);
@@ -116,12 +116,17 @@ double FillRootMeanValue(Tree const& tree, bst_node_t nidx) {
   CHECK_GE(tree.SumHess(right), 0.0f)
       << "QuadratureTreeSHAP is undefined for trees with negative child cover.";
   auto const parent_cover = tree.SumHess(nidx);
-  auto const left_mean = FillRootMeanValue(tree, left);
-  auto const right_mean = FillRootMeanValue(tree, right);
+  auto const left_mean = FillRootMeanValue(tree, left, leaf_value);
+  auto const right_mean = FillRootMeanValue(tree, right, leaf_value);
   if (parent_cover == 0.0f) {
     return 0.5 * (left_mean + right_mean);
   }
   return (left_mean * tree.SumHess(left) + right_mean * tree.SumHess(right)) / parent_cover;
+}
+
+template <typename Tree>
+double FillRootMeanValue(Tree const& tree, bst_node_t nidx) {
+  return FillRootMeanValue(tree, nidx, [&](bst_node_t leaf) { return tree.LeafValue(leaf); });
 }
 
 template <typename TreeGroups, typename GetTree>
