@@ -45,7 +45,8 @@ XGBoost includes features designed to improve understanding of the model. Here's
 - Tree visualization.
 - Tree as dataframe.
 
-For GPU support, the SHAP value uses XGBoost's in-tree ``QuadratureTreeSHAP`` implementation. It supports categorical features, while vector-leaf is still in progress.
+SHAP values use XGBoost's in-tree ``QuadratureTreeSHAP`` implementation on both CPU and
+GPU. It supports categorical features, while vector-leaf is still in progress.
 
 ----------
 Evaluation

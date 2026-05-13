@@ -35,7 +35,10 @@ The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :do
 
 GPU-Accelerated SHAP values
 =============================
-XGBoost provides an in-tree GPU implementation of ``QuadratureTreeSHAP`` for computing SHAP values when the GPU is used.
+XGBoost uses its in-tree ``QuadratureTreeSHAP`` implementation for computing SHAP values
+on both CPU and GPU. The GPU path uses the same Quadrature-TreeSHAP formulation described
+by Wettenstein et al. (2026) for exact TreeSHAP feature attributions when the GPU is
+selected.
 
 .. code-block:: python
 
@@ -91,6 +94,10 @@ The application may be profiled with annotations by specifying ``USE_NTVX`` to c
 References
 **********
 `Mitchell R, Frank E. (2017) Accelerating the XGBoost algorithm using GPU computing. PeerJ Computer Science 3:e127 https://doi.org/10.7717/peerj-cs.127 <https://peerj.com/articles/cs-127/>`_
+
+`Lundberg SM, Erion GG, Lee S-I. (2018) Consistent Individualized Feature Attribution for Tree Ensembles. arXiv:1802.03888 <https://arxiv.org/abs/1802.03888>`_
+
+`Wettenstein R, Mitchell R, Yu P. (2026) Quadrature-TreeSHAP: Depth-Independent TreeSHAP and Shapley Interactions. arXiv:2605.04497 <https://arxiv.org/abs/2605.04497>`_
 
 `NVIDIA Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
 
