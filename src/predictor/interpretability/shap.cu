@@ -148,6 +148,37 @@ float LeafValue(tree::MultiTargetTreeView const& tree, bst_node_t nidx, bst_targ
   return leaf_value(target_idx);
 }
 
+void FillRootMeanValues(tree::MultiTargetTreeView const& tree, bst_node_t nidx, double path_weight,
+                        std::vector<double>* p_out) {
+  auto& out = *p_out;
+  if (tree.IsLeaf(nidx)) {
+    auto leaf_value = tree.LeafValue(nidx);
+    auto const n_targets = static_cast<bst_target_t>(leaf_value.Size());
+    CHECK_EQ(static_cast<std::size_t>(n_targets), out.size());
+    for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+      out[target_idx] += path_weight * leaf_value(target_idx);
+    }
+    return;
+  }
+
+  auto left = tree.LeftChild(nidx);
+  auto right = tree.RightChild(nidx);
+  CHECK_GE(tree.SumHess(nidx), 0.0f)
+      << "QuadratureTreeSHAP is undefined for trees with negative cover at split nodes.";
+  CHECK_GE(tree.SumHess(left), 0.0f)
+      << "QuadratureTreeSHAP is undefined for trees with negative child cover.";
+  CHECK_GE(tree.SumHess(right), 0.0f)
+      << "QuadratureTreeSHAP is undefined for trees with negative child cover.";
+  auto const parent_cover = tree.SumHess(nidx);
+  if (parent_cover == 0.0f) {
+    FillRootMeanValues(tree, left, path_weight * 0.5, p_out);
+    FillRootMeanValues(tree, right, path_weight * 0.5, p_out);
+  } else {
+    FillRootMeanValues(tree, left, path_weight * tree.SumHess(left) / parent_cover, p_out);
+    FillRootMeanValues(tree, right, path_weight * tree.SumHess(right) / parent_cover, p_out);
+  }
+}
+
 template <typename Tree>
 void CompressTree(Tree const& tree, std::vector<CompressedNode>* p_nodes,
                   std::vector<float>* p_leaf_values, std::vector<std::uint32_t>* p_categories,
@@ -168,8 +199,12 @@ void CompressTree(Tree const& tree, std::vector<CompressedNode>* p_nodes,
       if (tree.NumTargets() == 1) {
         out.leaf = LeafPayload{LeafValue(tree, nidx, 0) * weight};
       } else {
-        CHECK_LE(h_leaf_values.size(),
-                 static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
+        auto const n_targets = static_cast<std::size_t>(tree.NumTargets());
+        auto constexpr kMaxOffset =
+            static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max());
+        CHECK_LE(n_targets, kMaxOffset);
+        CHECK_LE(h_leaf_values.size(), kMaxOffset - n_targets)
+            << "Compressed GPU SHAP leaf value offsets exceed uint32_t range.";
         out.leaf = LeafPayload{static_cast<std::uint32_t>(h_leaf_values.size())};
         for (bst_target_t target_idx = 0; target_idx < tree.NumTargets(); ++target_idx) {
           h_leaf_values.push_back(LeafValue(tree, nidx, target_idx) * weight);
@@ -193,10 +228,12 @@ void CompressTree(Tree const& tree, std::vector<CompressedNode>* p_nodes,
     out.right_weight = detail::BranchWeight(tree.SumHess(right), parent_cover);
     if (common::IsCat(tree.cats.split_type, nidx)) {
       auto node_cats = tree.NodeCats(nidx);
-      CHECK_LE(node_cats.size(),
-               static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
-      CHECK_LE(h_categories.size(),
-               static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
+      auto constexpr kMaxOffset =
+          static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max());
+      CHECK_LE(node_cats.size(), kMaxOffset)
+          << "Compressed GPU SHAP category segment exceeds uint32_t range.";
+      CHECK_LE(h_categories.size(), kMaxOffset - node_cats.size())
+          << "Compressed GPU SHAP category offsets exceed uint32_t range.";
       out.cat_begin = static_cast<std::uint32_t>(h_categories.size());
       out.cat_size = static_cast<std::uint32_t>(node_cats.size());
       out.is_categorical = 1;
@@ -293,11 +330,10 @@ GpuQuadratureModelData PrepareGpuQuadratureModel(Context const* ctx, gbm::GBTree
       auto const n_targets = tree.NumTargets();
       CHECK_EQ(n_targets, n_groups)
           << prediction_kind << " expects one vector-leaf target per output group.";
+      std::vector<double> root_means(n_targets, 0.0);
+      FillRootMeanValues(tree, RegTree::kRoot, 1.0, &root_means);
       for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
-        auto root_mean = detail::FillRootMeanValue(tree, RegTree::kRoot, [&](bst_node_t leaf) {
-          return LeafValue(tree, leaf, target_idx);
-        });
-        group_root_mean_sums[target_idx] += root_mean * weight;
+        group_root_mean_sums[target_idx] += root_means[target_idx] * weight;
       }
     } else {
       auto const tree = model.trees[tree_idx]->HostScView();
