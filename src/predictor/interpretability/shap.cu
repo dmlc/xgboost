@@ -65,7 +65,6 @@ constexpr unsigned kFullWarpMask = 0xffffffffu;
 // occupancy for shallower buckets.
 constexpr int kGpuQuadratureTreeBlockThreads = 64;
 constexpr int kGpuQuadratureWarpsPerBlock = kGpuQuadratureTreeBlockThreads / dh::WarpThreads();
-constexpr std::uint32_t kInvalidLeafBegin = std::numeric_limits<std::uint32_t>::max();
 
 // The traversal stack lives in shared memory and is sized at compile time. Group trees by depth so
 // shallow models use smaller stack/basis arrays, while deeper trees still get a bounded fallback
@@ -73,15 +72,25 @@ constexpr std::uint32_t kInvalidLeafBegin = std::numeric_limits<std::uint32_t>::
 constexpr std::array<std::size_t, 3> kGpuQuadratureDepthBuckets{{16, 32, 64}};
 constexpr std::size_t kMaxGpuQuadratureDepth = kGpuQuadratureDepthBuckets.back();
 using QuadratureRule = detail::QuadratureRule;
+// Leaf payload is interpreted by CompressedTree::is_vector_leaf: scalar trees keep the weighted
+// leaf value inline, while vector-leaf trees store an offset into CompressedModel::leaf_values.
+union LeafPayload {
+  float value;
+  std::uint32_t begin;
+
+  XGBOOST_DEVICE constexpr LeafPayload() : value{0.0f} {}
+  explicit constexpr LeafPayload(float value) : value{value} {}
+  explicit constexpr LeafPayload(std::uint32_t begin) : begin{begin} {}
+};
+
 struct CompressedNode {
   bst_node_t left{RegTree::kInvalidNodeId};
   bst_node_t right{RegTree::kInvalidNodeId};
   bst_feature_t split_global{0};
   float split_cond{0};
-  float leaf_value{0};
+  LeafPayload leaf{};
   float left_weight{0};
   float right_weight{0};
-  std::uint32_t leaf_begin{kInvalidLeafBegin};
   std::uint32_t cat_begin{0};
   std::uint32_t cat_size{0};
   std::uint8_t default_left{0};
@@ -97,6 +106,7 @@ struct CompressedTree {
   std::uint32_t node_begin{0};
   bst_target_t group_idx{0};
   bst_target_t target_idx{0};
+  std::uint8_t is_vector_leaf{0};
 };
 
 struct CompressedModel {
@@ -156,11 +166,11 @@ void CompressTree(Tree const& tree, std::vector<CompressedNode>* p_nodes,
     if (tree.IsLeaf(nidx)) {
       out.is_leaf = 1;
       if (tree.NumTargets() == 1) {
-        out.leaf_value = LeafValue(tree, nidx, 0) * weight;
+        out.leaf = LeafPayload{LeafValue(tree, nidx, 0) * weight};
       } else {
         CHECK_LE(h_leaf_values.size(),
                  static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
-        out.leaf_begin = static_cast<std::uint32_t>(h_leaf_values.size());
+        out.leaf = LeafPayload{static_cast<std::uint32_t>(h_leaf_values.size())};
         for (bst_target_t target_idx = 0; target_idx < tree.NumTargets(); ++target_idx) {
           h_leaf_values.push_back(LeafValue(tree, nidx, target_idx) * weight);
         }
@@ -240,12 +250,12 @@ CompressedModel CompressTreeBucket(gbm::GBTreeModel const& model,
       CHECK_EQ(n_targets, n_groups);
       CompressTree(tree, &h_nodes, &h_leaf_values, &h_categories, weight, &node_begin);
       for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
-        h_trees.push_back(CompressedTree{node_begin, target_idx, target_idx});
+        h_trees.push_back(CompressedTree{node_begin, target_idx, target_idx, true});
       }
     } else {
       auto const tree = model.trees.at(tree_idx)->HostScView();
       CompressTree(tree, &h_nodes, &h_leaf_values, &h_categories, weight, &node_begin);
-      h_trees.push_back(CompressedTree{node_begin, h_tree_groups[tree_idx], 0});
+      h_trees.push_back(CompressedTree{node_begin, h_tree_groups[tree_idx], 0, false});
     }
   }
 
@@ -629,9 +639,8 @@ struct QuadratureShapTaskRunner {
     int depth = *stack_size - 1;
     auto const& node = nodes_for_tree[shared.Node(warp, depth)];
     if (node.is_leaf) {
-      auto leaf_value = node.leaf_begin == kInvalidLeafBegin
-                            ? node.leaf_value
-                            : leaf_values[node.leaf_begin + tree.target_idx];
+      auto leaf_value =
+          tree.is_vector_leaf ? leaf_values[node.leaf.begin + tree.target_idx] : node.leaf.value;
       *ret_val = shared.Basis(warp, subgroup.row_slot, depth, subgroup.point) * leaf_value;
       (*stack_size)--;
       *have_return = true;
@@ -897,9 +906,8 @@ struct QuadratureShapInteractionTaskRunner {
     int depth = *stack_size - 1;
     auto const& node = nodes_for_tree[shared.Node(warp, depth)];
     if (node.is_leaf) {
-      auto leaf_value = node.leaf_begin == kInvalidLeafBegin
-                            ? node.leaf_value
-                            : leaf_values[node.leaf_begin + tree.target_idx];
+      auto leaf_value =
+          tree.is_vector_leaf ? leaf_values[node.leaf.begin + tree.target_idx] : node.leaf.value;
       *ret_val = shared.Basis(warp, subgroup.row_slot, depth, subgroup.point) * leaf_value;
       (*stack_size)--;
       *have_return = true;
