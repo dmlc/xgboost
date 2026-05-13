@@ -31,8 +31,24 @@ def test_shap_values_accepts_sklearn_model() -> None:
     np.testing.assert_allclose(values, contribs[:, :-1])
 
 
-def test_shap_values_rejects_background_data() -> None:
+def test_shap_values_uses_sklearn_iteration_range() -> None:
     rng = np.random.RandomState(1996)
+    X = rng.randn(64, 4)
+    y = rng.randn(64)
+    reg = xgb.XGBRegressor(n_estimators=8, tree_method="hist")
+    reg.fit(X, y)
+    reg.get_booster().set_attr(best_iteration="3")
+
+    values = interpret.shap_values(reg, X, iteration_range=(0, 0))
+    contribs = reg.get_booster().predict(
+        xgb.DMatrix(X), pred_contribs=True, iteration_range=(0, 4)
+    )
+
+    np.testing.assert_allclose(values, contribs[:, :-1])
+
+
+def test_shap_values_rejects_background_data() -> None:
+    rng = np.random.RandomState(1997)
     X = rng.randn(16, 4)
     y = rng.randn(16)
     booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, label=y), 4)
@@ -42,7 +58,7 @@ def test_shap_values_rejects_background_data() -> None:
 
 
 def test_shap_values_device_override_restores_config() -> None:
-    rng = np.random.RandomState(1997)
+    rng = np.random.RandomState(1998)
     X = rng.randn(16, 4)
     y = rng.randn(16)
     booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, label=y), 4)
@@ -56,7 +72,7 @@ def test_shap_values_device_override_restores_config() -> None:
 
 
 def test_shap_values_device_override_restores_config_on_error() -> None:
-    rng = np.random.RandomState(1998)
+    rng = np.random.RandomState(1999)
     X = rng.randn(16, 4)
     y = rng.randn(16)
     booster = xgb.train(

@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 
-from ._typing import ArrayLike, FeatureNames, IterationRange
+from ._typing import ArrayLike, IterationRange
 from .core import Booster, DMatrix
 
 
@@ -25,27 +25,22 @@ def _as_booster(model: object) -> Booster:
 def _get_iteration_range(
     model: object, iteration_range: Optional[IterationRange]
 ) -> IterationRange:
+    get_iteration_range = getattr(model, "_get_iteration_range", None)
+    if get_iteration_range is not None:
+        return get_iteration_range(iteration_range)
     if iteration_range is None:
-        get_iteration_range = getattr(model, "_get_iteration_range", None)
-        if get_iteration_range is not None:
-            return get_iteration_range(iteration_range)
         return (0, 0)
     return iteration_range
 
 
-def _as_prediction_dmatrix(
-    model: object, X: Union[DMatrix, ArrayLike], feature_names: Optional[FeatureNames]
-) -> DMatrix:
+def _as_prediction_dmatrix(model: object, X: Union[DMatrix, ArrayLike]) -> DMatrix:
     if isinstance(X, DMatrix):
-        if feature_names is not None:
-            X.feature_names = feature_names
         return X
 
     return DMatrix(
         X,
         missing=getattr(model, "missing", None),
         nthread=getattr(model, "n_jobs", None),
-        feature_names=feature_names,
         feature_types=getattr(model, "feature_types", None),
         enable_categorical=getattr(model, "enable_categorical", False),
     )
@@ -79,7 +74,6 @@ def shap_values(  # pylint: disable=too-many-arguments
     iteration_range: Optional[IterationRange] = None,
     approx: bool = False,
     validate_features: bool = True,
-    feature_names: Optional[FeatureNames] = None,
     return_bias: bool = False,
 ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """Return SHAP values for an XGBoost model.
@@ -101,7 +95,8 @@ def shap_values(  # pylint: disable=too-many-arguments
     device :
         Optional prediction device override, such as ``"cpu"``, ``"cuda"``, or
         ``"cuda:0"``. The model's original configuration is restored after
-        prediction.
+        prediction. This option temporarily mutates the underlying Booster and
+        is not safe for concurrent use of the same model.
     output_margin :
         Accepted for API compatibility. SHAP contributions currently correspond
         to the model margin, matching ``Booster.predict(pred_contribs=True)``.
@@ -111,8 +106,6 @@ def shap_values(  # pylint: disable=too-many-arguments
         Use approximate SHAP contributions.
     validate_features :
         Validate feature names between the model and input data.
-    feature_names :
-        Optional feature names used when constructing a DMatrix.
     return_bias :
         When True, return ``(values, bias)``.
 
@@ -130,7 +123,7 @@ def shap_values(  # pylint: disable=too-many-arguments
     _ = output_margin
 
     booster = _as_booster(model)
-    data = _as_prediction_dmatrix(model, X, feature_names)
+    data = _as_prediction_dmatrix(model, X)
     contribs = _predict_contribs(
         booster,
         data,
