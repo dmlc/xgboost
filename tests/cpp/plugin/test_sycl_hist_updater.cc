@@ -590,7 +590,7 @@ TEST(SyclHistUpdater, BuildHistogramsLossGuide) {
 
 TEST(SyclHistUpdater, InitNewNode) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(Args{{"max_depth", "3"}});
+  param.UpdateAllowUnknown(Args{{"max_depth", "3"}, {"subsample", "1"}});
 
   TestHistUpdaterInitNewNode<float>(param, 0.0);
   TestHistUpdaterInitNewNode<float>(param, 0.5);
@@ -600,7 +600,7 @@ TEST(SyclHistUpdater, InitNewNode) {
 
 TEST(SyclHistUpdater, EvaluateSplits) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(Args{{"max_depth", "3"}});
+  param.UpdateAllowUnknown(Args{{"max_depth", "3"}, {"subsample", "1"}});
 
   TestHistUpdaterEvaluateSplits<float>(param);
   TestHistUpdaterEvaluateSplits<double>(param);
@@ -608,7 +608,7 @@ TEST(SyclHistUpdater, EvaluateSplits) {
 
 TEST(SyclHistUpdater, ApplySplitSparce) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(Args{{"max_depth", "3"}});
+  param.UpdateAllowUnknown(Args{{"max_depth", "3"}, {"subsample", "1"}});
 
   TestHistUpdaterApplySplit<float>(param, 0.3, 256);
   TestHistUpdaterApplySplit<double>(param, 0.3, 256);
@@ -616,7 +616,7 @@ TEST(SyclHistUpdater, ApplySplitSparce) {
 
 TEST(SyclHistUpdater, ApplySplitDence) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(Args{{"max_depth", "3"}});
+  param.UpdateAllowUnknown(Args{{"max_depth", "3"}, {"subsample", "1"}});
 
   TestHistUpdaterApplySplit<float>(param, 0.0, 256);
   TestHistUpdaterApplySplit<float>(param, 0.0, 256 + 1);
@@ -628,7 +628,8 @@ TEST(SyclHistUpdater, ApplySplitDence) {
 
 TEST(SyclHistUpdater, ExpandWithLossGuide) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(Args{{"max_depth", "2"}, {"grow_policy", "lossguide"}});
+  param.UpdateAllowUnknown(
+      Args{{"max_depth", "2"}, {"grow_policy", "lossguide"}, {"subsample", "1"}});
 
   TestHistUpdaterExpandWithLossGuide<float>(param);
   TestHistUpdaterExpandWithLossGuide<double>(param);
@@ -636,7 +637,7 @@ TEST(SyclHistUpdater, ExpandWithLossGuide) {
 
 TEST(SyclHistUpdater, ExpandWithDepthWise) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(Args{{"max_depth", "2"}});
+  param.UpdateAllowUnknown(Args{{"max_depth", "2"}, {"subsample", "1"}});
 
   TestHistUpdaterExpandWithDepthWise<float>(param);
   TestHistUpdaterExpandWithDepthWise<double>(param);

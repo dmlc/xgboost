@@ -19,15 +19,18 @@ class TestTrainingContinuation:
     def generate_parameters(self):
         xgb_params_01_binary = {
             "nthread": 1,
+            **tm.legacy_tree_params(),
         }
 
         xgb_params_02_binary = {
             "nthread": 1,
+            **tm.legacy_tree_params(),
             "num_parallel_tree": self.num_parallel_tree,
         }
 
         xgb_params_03_binary = {
             "nthread": 1,
+            **tm.legacy_tree_params(),
             "num_class": 5,
             "num_parallel_tree": self.num_parallel_tree,
         }

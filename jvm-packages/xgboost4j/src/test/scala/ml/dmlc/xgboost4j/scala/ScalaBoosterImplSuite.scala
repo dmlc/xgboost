@@ -25,6 +25,11 @@ import org.scalatest.funsuite.AnyFunSuite
 import ml.dmlc.xgboost4j.java.XGBoostError
 
 class ScalaBoosterImplSuite extends AnyFunSuite {
+  private val legacyTreeDefaults = Map(
+    "eta" -> "0.3",
+    "min_child_weight" -> "1",
+    "subsample" -> "1",
+    "colsample_bytree" -> "1")
 
   private class EvalError extends EvalTrait {
 
@@ -150,9 +155,9 @@ class ScalaBoosterImplSuite extends AnyFunSuite {
   test("test with quantile histo depthwise") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
-    val paramMap = List("max_depth" -> "3", "silent" -> "0",
+    val paramMap = (legacyTreeDefaults ++ List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
-      "grow_policy" -> "depthwise", "eval_metric" -> "auc").toMap
+      "grow_policy" -> "depthwise", "eval_metric" -> "auc").toMap)
     trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
       round = 10, paramMap, 0.95f)
   }
@@ -160,39 +165,39 @@ class ScalaBoosterImplSuite extends AnyFunSuite {
   test("test with quantile histo lossguide") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
-    val paramMap = List("max_depth" -> "3", "silent" -> "0",
+    val paramMap = (legacyTreeDefaults ++ List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
-      "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "auc").toMap
+      "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "auc").toMap)
     trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
       round = 10, paramMap, 0.95f)
   }
 
   test("test with quantile histo lossguide with max bin") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
-    val paramMap = List("max_depth" -> "3", "silent" -> "0",
+    val paramMap = (legacyTreeDefaults ++ List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
-      "eval_metric" -> "auc").toMap
+      "eval_metric" -> "auc").toMap)
     trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat),
       round = 10, paramMap, 0.95f)
   }
 
   test("test with quantile histo depthwidth with max depth") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
-    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+    val paramMap = (legacyTreeDefaults ++ List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
-      "eval_metric" -> "auc").toMap
+      "eval_metric" -> "auc").toMap)
     trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat),
       round = 10, paramMap, 0.95f)
   }
 
   test("test with quantile histo depthwidth with max depth and max bin") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
-    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+    val paramMap = (legacyTreeDefaults ++ List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
-      "eval_metric" -> "auc").toMap
+      "eval_metric" -> "auc").toMap)
     trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat),
       round = 10, paramMap, 0.95f)
   }
