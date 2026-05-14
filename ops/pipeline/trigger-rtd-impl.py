@@ -32,7 +32,7 @@ def trigger_build(token: str) -> None:
 
     URL = f"https://readthedocs.org/api/v3/projects/xgboost/versions/{branch}/builds/"
     HEADERS = {"Authorization": f"token {token}"}
-    response = requests.post(URL, headers=HEADERS)
+    response = requests.post(URL, headers=HEADERS, timeout=30)
     # 202 means the build is successfully triggered.
     if response.status_code != 202:
         status_text = http_responses[response.status_code]
