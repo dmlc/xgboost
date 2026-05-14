@@ -16,6 +16,7 @@ legacy_sampling_params <- list(
   subsample = 1,
   colsample_bytree = 1
 )
+legacy_tree_params <- c(list(learning_rate = 0.3), legacy_sampling_params)
 
 
 test_that("train and predict binary classification", {
@@ -460,11 +461,11 @@ test_that("xgb.cv works with stratified folds", {
     data = dtrain,
     nfold = 5,
     nrounds = 2,
-    params = xgb.params(
+    params = c(xgb.params(
       max_depth = 2,
       nthread = n_threads,
       objective = "binary:logistic"
-    ),
+    ), legacy_sampling_params),
     verbose = FALSE, stratified = TRUE
   )
   # Stratified folds should result in a different evaluation logs
@@ -700,7 +701,7 @@ test_that("Quantile regression accepts multiple quantiles", {
       tree_method = "exact",
       quantile_alpha = c(0.05, 0.5, 0.95),
       nthread = n_threads
-    ), legacy_sampling_params),
+    ), legacy_tree_params),
     nrounds = 15
   )
   pred <- predict(model, x)
@@ -727,7 +728,7 @@ test_that("Can use multi-output labels with built-in objectives", {
       multi_strategy = "multi_output_tree",
       objective = "reg:squarederror",
       nthread = n_threads
-    ), legacy_sampling_params),
+    ), legacy_tree_params),
     data = dm,
     nrounds = 5
   )
@@ -756,7 +757,7 @@ test_that("Can use multi-output labels with custom objectives", {
         return(list(grad = grad, hess = hess))
       },
       nthread = n_threads
-    ), legacy_sampling_params),
+    ), legacy_tree_params),
     data = dm,
     nrounds = 5
   )

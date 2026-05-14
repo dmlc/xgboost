@@ -29,6 +29,7 @@ evalerror <- function(preds, dtrain) {
 }
 
 param <- list(max_depth = 2, learning_rate = 1, nthread = n_threads,
+              min_child_weight = 1, subsample = 1, colsample_bytree = 1,
               objective = logregobj, eval_metric = evalerror)
 num_round <- 2
 

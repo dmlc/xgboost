@@ -600,7 +600,7 @@ TEST(SyclHistUpdater, InitNewNode) {
 
 TEST(SyclHistUpdater, EvaluateSplits) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(Args{{"max_depth", "3"}, {"subsample", "1"}});
+  param.UpdateAllowUnknown(Args{{"max_depth", "3"}, {"min_child_weight", "1"}, {"subsample", "1"}});
 
   TestHistUpdaterEvaluateSplits<float>(param);
   TestHistUpdaterEvaluateSplits<double>(param);
@@ -628,8 +628,10 @@ TEST(SyclHistUpdater, ApplySplitDence) {
 
 TEST(SyclHistUpdater, ExpandWithLossGuide) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(
-      Args{{"max_depth", "2"}, {"grow_policy", "lossguide"}, {"subsample", "1"}});
+  param.UpdateAllowUnknown(Args{{"max_depth", "2"},
+                                {"grow_policy", "lossguide"},
+                                {"min_child_weight", "1"},
+                                {"subsample", "1"}});
 
   TestHistUpdaterExpandWithLossGuide<float>(param);
   TestHistUpdaterExpandWithLossGuide<double>(param);
@@ -637,7 +639,7 @@ TEST(SyclHistUpdater, ExpandWithLossGuide) {
 
 TEST(SyclHistUpdater, ExpandWithDepthWise) {
   xgboost::tree::TrainParam param;
-  param.UpdateAllowUnknown(Args{{"max_depth", "2"}, {"subsample", "1"}});
+  param.UpdateAllowUnknown(Args{{"max_depth", "2"}, {"min_child_weight", "1"}, {"subsample", "1"}});
 
   TestHistUpdaterExpandWithDepthWise<float>(param);
   TestHistUpdaterExpandWithDepthWise<double>(param);
