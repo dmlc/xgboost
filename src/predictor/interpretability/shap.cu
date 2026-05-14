@@ -41,7 +41,6 @@
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"  // for UnravelIndex
 #include "xgboost/logging.h"
-#include "xgboost/multi_target_tree_model.h"  // for MTNotImplemented
 
 namespace xgboost::interpretability::cuda_impl {
 namespace {
@@ -73,12 +72,23 @@ constexpr int kGpuQuadratureWarpsPerBlock = kGpuQuadratureTreeBlockThreads / dh:
 constexpr std::array<std::size_t, 3> kGpuQuadratureDepthBuckets{{16, 32, 64}};
 constexpr std::size_t kMaxGpuQuadratureDepth = kGpuQuadratureDepthBuckets.back();
 using QuadratureRule = detail::QuadratureRule;
+// Leaf payload is interpreted by CompressedTree::is_vector_leaf: scalar trees keep the weighted
+// leaf value inline, while vector-leaf trees store an offset into CompressedModel::leaf_values.
+union LeafPayload {
+  float value;
+  std::uint32_t begin;
+
+  XGBOOST_DEVICE constexpr LeafPayload() : value{0.0f} {}
+  explicit constexpr LeafPayload(float value) : value{value} {}
+  explicit constexpr LeafPayload(std::uint32_t begin) : begin{begin} {}
+};
+
 struct CompressedNode {
   bst_node_t left{RegTree::kInvalidNodeId};
   bst_node_t right{RegTree::kInvalidNodeId};
   bst_feature_t split_global{0};
   float split_cond{0};
-  float leaf_value{0};
+  LeafPayload leaf{};
   float left_weight{0};
   float right_weight{0};
   std::uint32_t cat_begin{0};
@@ -94,12 +104,15 @@ struct CompressedNode {
 
 struct CompressedTree {
   std::uint32_t node_begin{0};
-  bst_target_t group{0};
+  bst_target_t group_idx{0};
+  bst_target_t target_idx{0};
+  std::uint8_t is_vector_leaf{0};
 };
 
 struct CompressedModel {
   dh::device_vector<CompressedTree> trees;
   dh::device_vector<CompressedNode> nodes;
+  dh::device_vector<float> leaf_values;
   dh::device_vector<std::uint32_t> categories;
 };
 
@@ -124,90 +137,138 @@ std::size_t DepthBucketIndex(std::size_t path_depth) {
   return kGpuQuadratureDepthBuckets.size() - 1;
 }
 
+float LeafValue(tree::ScalarTreeView const& tree, bst_node_t nidx, bst_target_t target_idx) {
+  CHECK_EQ(target_idx, 0);
+  return tree.LeafValue(nidx);
+}
+
+float LeafValue(tree::MultiTargetTreeView const& tree, bst_node_t nidx, bst_target_t target_idx) {
+  auto leaf_value = tree.LeafValue(nidx);
+  CHECK_LT(target_idx, leaf_value.Size());
+  return leaf_value(target_idx);
+}
+
+template <typename Tree>
+void CompressTree(Tree const& tree, std::vector<CompressedNode>* p_nodes,
+                  std::vector<float>* p_leaf_values, std::vector<std::uint32_t>* p_categories,
+                  float weight, std::uint32_t* p_node_begin) {
+  auto& h_nodes = *p_nodes;
+  auto& h_leaf_values = *p_leaf_values;
+  auto& h_categories = *p_categories;
+
+  auto node_begin = h_nodes.size();
+  CHECK_LE(node_begin, static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
+  *p_node_begin = static_cast<std::uint32_t>(node_begin);
+  h_nodes.resize(node_begin + tree.Size());
+
+  for (bst_node_t nidx = 0; nidx < tree.Size(); ++nidx) {
+    auto& out = h_nodes[node_begin + nidx];
+    if (tree.IsLeaf(nidx)) {
+      out.is_leaf = 1;
+      if (tree.NumTargets() == 1) {
+        out.leaf = LeafPayload{LeafValue(tree, nidx, 0) * weight};
+      } else {
+        auto const n_targets = static_cast<std::size_t>(tree.NumTargets());
+        auto constexpr kMaxOffset =
+            static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max());
+        CHECK_LE(n_targets, kMaxOffset);
+        CHECK_LE(h_leaf_values.size(), kMaxOffset - n_targets)
+            << "Compressed GPU SHAP leaf value offsets exceed uint32_t range.";
+        out.leaf = LeafPayload{static_cast<std::uint32_t>(h_leaf_values.size())};
+        for (bst_target_t target_idx = 0; target_idx < tree.NumTargets(); ++target_idx) {
+          h_leaf_values.push_back(LeafValue(tree, nidx, target_idx) * weight);
+        }
+      }
+      continue;
+    }
+
+    auto left = tree.LeftChild(nidx);
+    auto right = tree.RightChild(nidx);
+    auto parent_cover = tree.SumHess(nidx);
+    CHECK_GE(parent_cover, 0.0f);
+    CHECK_GE(tree.SumHess(left), 0.0f);
+    CHECK_GE(tree.SumHess(right), 0.0f);
+
+    out.left = left;
+    out.right = right;
+    out.split_global = tree.SplitIndex(nidx);
+    out.split_cond = tree.SplitCond(nidx);
+    out.left_weight = detail::BranchWeight(tree.SumHess(left), parent_cover);
+    out.right_weight = detail::BranchWeight(tree.SumHess(right), parent_cover);
+    if (common::IsCat(tree.cats.split_type, nidx)) {
+      auto node_cats = tree.NodeCats(nidx);
+      auto constexpr kMaxOffset =
+          static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max());
+      CHECK_LE(node_cats.size(), kMaxOffset)
+          << "Compressed GPU SHAP category segment exceeds uint32_t range.";
+      CHECK_LE(h_categories.size(), kMaxOffset - node_cats.size())
+          << "Compressed GPU SHAP category offsets exceed uint32_t range.";
+      out.cat_begin = static_cast<std::uint32_t>(h_categories.size());
+      out.cat_size = static_cast<std::uint32_t>(node_cats.size());
+      out.is_categorical = 1;
+      h_categories.insert(h_categories.end(), node_cats.begin(), node_cats.end());
+    }
+    out.default_left = tree.DefaultLeft(nidx);
+    out.is_leaf = 0;
+  }
+
+  for (bst_node_t nidx = 0; nidx < tree.Size(); ++nidx) {
+    auto& out = h_nodes[node_begin + nidx];
+    if (out.is_leaf) {
+      continue;
+    }
+
+    // Repeated feature splits need q_prev from the previous occurrence of the same feature,
+    // not the default probability 1.0. Compute that ancestor distance once during compression
+    // and keep the GPU traversal stack purely array-index based.
+    std::uint8_t prev_same_offset_plus1 = 0;
+    std::uint16_t distance = 0;
+    auto ancestor = nidx;
+    while (!tree.IsRoot(ancestor)) {
+      ancestor = tree.Parent(ancestor);
+      ++distance;
+      auto const& ancestor_node = h_nodes[node_begin + ancestor];
+      if (!ancestor_node.is_leaf && ancestor_node.split_global == out.split_global) {
+        prev_same_offset_plus1 = static_cast<std::uint8_t>(distance + 1);
+        break;
+      }
+    }
+    out.prev_same_offset_plus1 = prev_same_offset_plus1;
+  }
+}
+
 CompressedModel CompressTreeBucket(gbm::GBTreeModel const& model,
                                    std::vector<bst_tree_t> const& tree_indices,
                                    common::Span<bst_target_t const> h_tree_groups,
-                                   std::vector<float> const* tree_weights) {
+                                   bst_target_t n_groups, std::vector<float> const* tree_weights) {
   std::vector<CompressedTree> h_trees;
   std::vector<CompressedNode> h_nodes;
+  std::vector<float> h_leaf_values;
   std::vector<std::uint32_t> h_categories;
 
-  h_trees.reserve(tree_indices.size());
+  h_trees.reserve(tree_indices.size() * std::max<bst_target_t>(n_groups, 1));
   for (auto tree_idx : tree_indices) {
     auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[tree_idx];
-    auto const tree = model.trees.at(tree_idx)->HostScView();
-
-    auto node_begin = h_nodes.size();
-    CHECK_LE(node_begin, static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
-    h_nodes.resize(node_begin + tree.Size());
-
-    for (bst_node_t nidx = 0; nidx < tree.Size(); ++nidx) {
-      auto& out = h_nodes[node_begin + nidx];
-      if (tree.IsLeaf(nidx)) {
-        out.is_leaf = 1;
-        out.leaf_value = tree.LeafValue(nidx) * weight;
-        continue;
+    std::uint32_t node_begin{0};
+    if (model.trees.at(tree_idx)->IsMultiTarget()) {
+      auto const tree = model.trees.at(tree_idx)->HostMtView();
+      auto const n_targets = tree.NumTargets();
+      CHECK_EQ(n_targets, n_groups);
+      CompressTree(tree, &h_nodes, &h_leaf_values, &h_categories, weight, &node_begin);
+      for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+        h_trees.push_back(CompressedTree{node_begin, target_idx, target_idx, true});
       }
-
-      auto left = tree.LeftChild(nidx);
-      auto right = tree.RightChild(nidx);
-      auto parent_cover = tree.SumHess(nidx);
-      CHECK_GE(parent_cover, 0.0f);
-      CHECK_GE(tree.SumHess(left), 0.0f);
-      CHECK_GE(tree.SumHess(right), 0.0f);
-
-      out.left = left;
-      out.right = right;
-      out.split_global = tree.SplitIndex(nidx);
-      out.split_cond = tree.SplitCond(nidx);
-      out.left_weight = detail::BranchWeight(tree.SumHess(left), parent_cover);
-      out.right_weight = detail::BranchWeight(tree.SumHess(right), parent_cover);
-      if (common::IsCat(tree.cats.split_type, nidx)) {
-        auto node_cats = tree.NodeCats(nidx);
-        CHECK_LE(node_cats.size(),
-                 static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
-        CHECK_LE(h_categories.size(),
-                 static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()));
-        out.cat_begin = static_cast<std::uint32_t>(h_categories.size());
-        out.cat_size = static_cast<std::uint32_t>(node_cats.size());
-        out.is_categorical = 1;
-        h_categories.insert(h_categories.end(), node_cats.begin(), node_cats.end());
-      }
-      out.default_left = tree.DefaultLeft(nidx);
-      out.is_leaf = 0;
+    } else {
+      auto const tree = model.trees.at(tree_idx)->HostScView();
+      CompressTree(tree, &h_nodes, &h_leaf_values, &h_categories, weight, &node_begin);
+      h_trees.push_back(CompressedTree{node_begin, h_tree_groups[tree_idx], 0, false});
     }
-
-    for (bst_node_t nidx = 0; nidx < tree.Size(); ++nidx) {
-      auto& out = h_nodes[node_begin + nidx];
-      if (out.is_leaf) {
-        continue;
-      }
-
-      // Repeated feature splits need q_prev from the previous occurrence of the same feature,
-      // not the default probability 1.0. Compute that ancestor distance once during compression
-      // and keep the GPU traversal stack purely array-index based.
-      std::uint8_t prev_same_offset_plus1 = 0;
-      std::uint16_t distance = 0;
-      auto ancestor = nidx;
-      while (!tree.IsRoot(ancestor)) {
-        ancestor = tree.Parent(ancestor);
-        ++distance;
-        auto const& ancestor_node = h_nodes[node_begin + ancestor];
-        if (!ancestor_node.is_leaf && ancestor_node.split_global == out.split_global) {
-          prev_same_offset_plus1 = static_cast<std::uint8_t>(distance + 1);
-          break;
-        }
-      }
-      out.prev_same_offset_plus1 = prev_same_offset_plus1;
-    }
-
-    h_trees.push_back(
-        CompressedTree{static_cast<std::uint32_t>(node_begin), h_tree_groups[tree_idx]});
   }
 
   CompressedModel out;
   out.trees = dh::device_vector<CompressedTree>(h_trees.cbegin(), h_trees.cend());
   out.nodes = dh::device_vector<CompressedNode>(h_nodes.cbegin(), h_nodes.cend());
+  out.leaf_values = dh::device_vector<float>(h_leaf_values.cbegin(), h_leaf_values.cend());
   out.categories = dh::device_vector<std::uint32_t>(h_categories.cbegin(), h_categories.cend());
   return out;
 }
@@ -222,9 +283,9 @@ GpuQuadratureModelData PrepareGpuQuadratureModel(Context const* ctx, gbm::GBTree
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   bst_node_t max_depth = 0;
   std::array<std::vector<bst_tree_t>, kGpuQuadratureDepthBuckets.size()> tree_buckets;
+  std::vector<double> group_root_mean_sums(n_groups, 0.0);
 
   for (bst_tree_t tree_idx = 0; tree_idx < tree_end; ++tree_idx) {
-    CHECK(!model.trees[tree_idx]->IsMultiTarget()) << prediction_kind << MTNotImplemented();
     auto tree_depth = model.trees[tree_idx]->MaxDepth();
     max_depth = std::max(max_depth, tree_depth);
     // MaxDepth counts edges, while the iterative traversal stack stores nodes along the active
@@ -232,21 +293,38 @@ GpuQuadratureModelData PrepareGpuQuadratureModel(Context const* ctx, gbm::GBTree
     auto path_depth = static_cast<std::size_t>(tree_depth) + 1;
     auto bucket_idx = DepthBucketIndex(path_depth);
     tree_buckets[bucket_idx].push_back(tree_idx);
+    auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[tree_idx];
+    if (model.trees[tree_idx]->IsMultiTarget()) {
+      auto const tree = model.trees[tree_idx]->HostMtView();
+      auto const n_targets = tree.NumTargets();
+      CHECK_EQ(n_targets, n_groups)
+          << prediction_kind << " expects one vector-leaf target per output group.";
+      std::vector<double> root_means(n_targets, 0.0);
+      detail::FillRootMeanValues(tree, RegTree::kRoot, 1.0, &root_means);
+      for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+        group_root_mean_sums[target_idx] += root_means[target_idx] * weight;
+      }
+    } else {
+      auto const tree = model.trees[tree_idx]->HostScView();
+      group_root_mean_sums[h_tree_groups[tree_idx]] +=
+          detail::FillRootMeanValue(tree, RegTree::kRoot) * weight;
+    }
   }
   CHECK_LE(max_depth + 1, static_cast<bst_node_t>(kMaxGpuQuadratureDepth))
       << "GPU QuadratureSHAP currently supports trees of depth up to "
       << (kMaxGpuQuadratureDepth - 1) << ".";
 
-  auto h_group_root_mean_sums = detail::MakeGroupRootMeanSums(
-      h_tree_groups, n_groups, tree_end, tree_weights,
-      [&](bst_tree_t tree_idx) { return model.trees.at(tree_idx)->HostScView(); });
+  std::vector<float> h_group_root_mean_sums(group_root_mean_sums.size());
+  std::transform(group_root_mean_sums.cbegin(), group_root_mean_sums.cend(),
+                 h_group_root_mean_sums.begin(), [](double v) { return static_cast<float>(v); });
 
   GpuQuadratureModelData out;
   out.rule = detail::GetQuadratureRule();
   out.group_root_mean_sums =
       dh::device_vector<float>(h_group_root_mean_sums.cbegin(), h_group_root_mean_sums.cend());
   for (std::size_t i = 0; i < tree_buckets.size(); ++i) {
-    out.compressed[i] = CompressTreeBucket(model, tree_buckets[i], h_tree_groups, tree_weights);
+    out.compressed[i] =
+        CompressTreeBucket(model, tree_buckets[i], h_tree_groups, n_groups, tree_weights);
   }
   return out;
 }
@@ -442,6 +520,7 @@ struct QuadratureShapTaskRunner {
   SharedT& shared;
   CompressedTree const* trees;
   CompressedNode const* nodes;
+  float const* leaf_values;
   std::uint32_t const* categories;
   float* phis;
   bst_idx_t base_rowid;
@@ -559,12 +638,15 @@ struct QuadratureShapTaskRunner {
     return true;
   }
 
-  XGBOOST_DEV_INLINE void Descend(CompressedNode const* nodes_for_tree, bst_idx_t ridx,
-                                  int* stack_size, bool* have_return, float* ret_val) {
+  XGBOOST_DEV_INLINE void Descend(CompressedTree const& tree, CompressedNode const* nodes_for_tree,
+                                  bst_idx_t ridx, int* stack_size, bool* have_return,
+                                  float* ret_val) {
     int depth = *stack_size - 1;
     auto const& node = nodes_for_tree[shared.Node(warp, depth)];
     if (node.is_leaf) {
-      *ret_val = shared.Basis(warp, subgroup.row_slot, depth, subgroup.point) * node.leaf_value;
+      auto leaf_value =
+          tree.is_vector_leaf ? leaf_values[node.leaf.begin + tree.target_idx] : node.leaf.value;
+      *ret_val = shared.Basis(warp, subgroup.row_slot, depth, subgroup.point) * leaf_value;
       (*stack_size)--;
       *have_return = true;
       return;
@@ -640,13 +722,13 @@ struct QuadratureShapTaskRunner {
     float ret_val = 0.0f;
     while (stack_size > 0 || have_return) {
       if (have_return) {
-        if (!this->HandleReturn(row_idx, tree.group, nodes_for_tree, &stack_size, &have_return,
+        if (!this->HandleReturn(row_idx, tree.group_idx, nodes_for_tree, &stack_size, &have_return,
                                 &ret_val)) {
           break;
         }
         continue;
       }
-      this->Descend(nodes_for_tree, ridx, &stack_size, &have_return, &ret_val);
+      this->Descend(tree, nodes_for_tree, ridx, &stack_size, &have_return, &ret_val);
     }
   }
 };
@@ -658,6 +740,7 @@ struct QuadratureShapInteractionTaskRunner {
   SharedT& shared;
   CompressedTree const* trees;
   CompressedNode const* nodes;
+  float const* leaf_values;
   std::uint32_t const* categories;
   float* phis;
   bst_idx_t base_rowid;
@@ -822,12 +905,15 @@ struct QuadratureShapInteractionTaskRunner {
     return true;
   }
 
-  XGBOOST_DEV_INLINE void Descend(CompressedNode const* nodes_for_tree, bst_idx_t ridx,
-                                  int* stack_size, bool* have_return, float* ret_val) {
+  XGBOOST_DEV_INLINE void Descend(CompressedTree const& tree, CompressedNode const* nodes_for_tree,
+                                  bst_idx_t ridx, int* stack_size, bool* have_return,
+                                  float* ret_val) {
     int depth = *stack_size - 1;
     auto const& node = nodes_for_tree[shared.Node(warp, depth)];
     if (node.is_leaf) {
-      *ret_val = shared.Basis(warp, subgroup.row_slot, depth, subgroup.point) * node.leaf_value;
+      auto leaf_value =
+          tree.is_vector_leaf ? leaf_values[node.leaf.begin + tree.target_idx] : node.leaf.value;
+      *ret_val = shared.Basis(warp, subgroup.row_slot, depth, subgroup.point) * leaf_value;
       (*stack_size)--;
       *have_return = true;
       return;
@@ -896,13 +982,13 @@ struct QuadratureShapInteractionTaskRunner {
     float ret_val = 0.0f;
     while (stack_size > 0 || have_return) {
       if (have_return) {
-        if (!this->HandleReturn(row_idx, tree.group, nodes_for_tree, &stack_size, &have_return,
+        if (!this->HandleReturn(row_idx, tree.group_idx, nodes_for_tree, &stack_size, &have_return,
                                 &ret_val)) {
           break;
         }
         continue;
       }
-      this->Descend(nodes_for_tree, ridx, &stack_size, &have_return, &ret_val);
+      this->Descend(tree, nodes_for_tree, ridx, &stack_size, &have_return, &ret_val);
     }
   }
 };
@@ -914,6 +1000,7 @@ __global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
                              std::size_t row_tiles, bst_idx_t valid_rows_in_tail,
                              std::size_t n_trees, CompressedTree const* __restrict__ trees,
                              CompressedNode const* __restrict__ nodes,
+                             float const* __restrict__ leaf_values,
                              std::uint32_t const* __restrict__ categories, QuadratureRule rule,
                              float* __restrict__ phis) {
   static_assert(DepthCap <= static_cast<int>(kMaxGpuQuadratureDepth));
@@ -945,6 +1032,7 @@ __global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
                                                                      shared,
                                                                      trees,
                                                                      nodes,
+                                                                     leaf_values,
                                                                      categories,
                                                                      phis,
                                                                      base_rowid,
@@ -973,6 +1061,7 @@ void LaunchQuadratureShapTasks(Context const* ctx, Loader loader, bst_idx_t base
   }
   auto trees = thrust::raw_pointer_cast(compressed.trees.data());
   auto nodes = thrust::raw_pointer_cast(compressed.nodes.data());
+  auto leaf_values = thrust::raw_pointer_cast(compressed.leaf_values.data());
   auto categories = thrust::raw_pointer_cast(compressed.categories.data());
   auto phis = out_contribs->DeviceSpan().data();
   auto n_tasks = compressed.trees.size() * row_tiles;
@@ -981,7 +1070,7 @@ void LaunchQuadratureShapTasks(Context const* ctx, Loader loader, bst_idx_t base
       <<<static_cast<uint32_t>(grids), static_cast<uint32_t>(kGpuQuadratureTreeBlockThreads), 0,
          ctx->CUDACtx()->Stream()>>>(loader, base_rowid, n_groups, n_columns, row_tile_begin,
                                      row_tiles, valid_rows_in_tail, compressed.trees.size(), trees,
-                                     nodes, categories, rule, phis);
+                                     nodes, leaf_values, categories, rule, phis);
   dh::safe_cuda(cudaGetLastError());
 }
 
@@ -1012,6 +1101,7 @@ __global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
                                         std::size_t n_trees,
                                         CompressedTree const* __restrict__ trees,
                                         CompressedNode const* __restrict__ nodes,
+                                        float const* __restrict__ leaf_values,
                                         std::uint32_t const* __restrict__ categories,
                                         QuadratureRule rule, float* __restrict__ phis) {
   static_assert(DepthCap <= static_cast<int>(kMaxGpuQuadratureDepth));
@@ -1044,6 +1134,7 @@ __global__ void __launch_bounds__(kGpuQuadratureTreeBlockThreads, 9)
                                                                       shared,
                                                                       trees,
                                                                       nodes,
+                                                                      leaf_values,
                                                                       categories,
                                                                       phis,
                                                                       base_rowid,
@@ -1073,6 +1164,7 @@ void LaunchQuadratureShapInteractionTasks(Context const* ctx, Loader loader, bst
   }
   auto trees = thrust::raw_pointer_cast(compressed.trees.data());
   auto nodes = thrust::raw_pointer_cast(compressed.nodes.data());
+  auto leaf_values = thrust::raw_pointer_cast(compressed.leaf_values.data());
   auto categories = thrust::raw_pointer_cast(compressed.categories.data());
   auto phis = out_contribs->DeviceSpan().data();
   auto n_tasks = compressed.trees.size() * row_tiles;
@@ -1081,7 +1173,7 @@ void LaunchQuadratureShapInteractionTasks(Context const* ctx, Loader loader, bst
       <<<static_cast<uint32_t>(grids), static_cast<uint32_t>(kGpuQuadratureTreeBlockThreads), 0,
          ctx->CUDACtx()->Stream()>>>(loader, base_rowid, n_groups, n_columns, row_tile_begin,
                                      row_tiles, valid_rows_in_tail, compressed.trees.size(), trees,
-                                     nodes, categories, rule, phis);
+                                     nodes, leaf_values, categories, rule, phis);
   dh::safe_cuda(cudaGetLastError());
 }
 
@@ -1152,7 +1244,6 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   SetShapDevice(ctx);
   CHECK_EQ(condition, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
   CHECK_EQ(condition_feature, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
-  CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
 
@@ -1201,8 +1292,6 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   if (approximate) {
     LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use CPU instead.";
   }
-  CHECK(!model.learner_model_param->IsVectorLeaf())
-      << "Predict interaction contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
                                             "column-wise data split is not yet implemented.";
 

@@ -474,15 +474,22 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     }
   }
   std::vector<double> group_root_mean_sums(n_groups, 0.0);
-  for (auto const &entry : out.entries) {
-    auto root_mean = std::visit(
-        [&](auto const &tree) {
-          return detail::FillRootMeanValue(tree, RegTree::kRoot, [&](bst_node_t leaf) {
-            return LeafValue(tree, leaf, entry.target_idx);
-          });
-        },
-        out.trees[entry.tree_idx]);
-    group_root_mean_sums[entry.group_idx] += root_mean * entry.weight;
+  for (bst_tree_t i = 0; i < tree_end; ++i) {
+    auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
+    if (model.trees[i]->IsMultiTarget()) {
+      auto const tree = model.trees[i]->HostMtView();
+      auto const n_targets = tree.NumTargets();
+      CHECK_EQ(n_targets, n_groups);
+      std::vector<double> root_means(n_targets, 0.0);
+      detail::FillRootMeanValues(tree, RegTree::kRoot, 1.0, &root_means);
+      for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+        group_root_mean_sums[target_idx] += root_means[target_idx] * weight;
+      }
+    } else {
+      auto const tree = model.trees[i]->HostScView();
+      group_root_mean_sums[h_tree_groups[i]] +=
+          detail::FillRootMeanValue(tree, RegTree::kRoot) * weight;
+    }
   }
   out.group_root_mean_sums.resize(group_root_mean_sums.size());
   std::transform(group_root_mean_sums.cbegin(), group_root_mean_sums.cend(),

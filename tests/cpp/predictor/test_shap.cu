@@ -79,7 +79,7 @@ TEST(GPUPredictor, CompareCPUShap) {
 
 TEST(GPUPredictor, ShapOutputCasesGPU) {
   auto ctx = MakeCUDACtx(0);
-  auto cases = BuildShapTestCases(&ctx, false);
+  auto cases = BuildShapTestCases(&ctx);
   for (auto const& [dmat, args] : cases) {
     CheckShapOutput(dmat.get(), args);
   }

@@ -134,7 +134,7 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
 }
 }  // namespace
 
-std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx, bool include_vector_leaf) {
+std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
   std::vector<ShapTestCase> cases;
   auto device = ctx->Device();
 
@@ -197,17 +197,15 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx, bool include_ve
     cases.emplace_back(dmat, std::move(args));
   }
 
-  if (include_vector_leaf) {
-    // multi-target vector-leaf tree
-    bst_target_t constexpr n_targets{2};
-    auto dmat = RandomDataGenerator(64, 6, 0.0).Device(device).GenerateDMatrix(true);
-    SetMultiTargetLabels(dmat.get(), n_targets);
-    auto args = BaseParams(ctx, "reg:squarederror", "3");
-    args.emplace_back("tree_method", "hist");
-    args.emplace_back("num_target", std::to_string(n_targets));
-    args.emplace_back("multi_strategy", "multi_output_tree");
-    cases.emplace_back(dmat, std::move(args));
-  }
+  // multi-target vector-leaf tree
+  bst_target_t constexpr n_targets{2};
+  auto dmat = RandomDataGenerator(64, 6, 0.0).Device(device).GenerateDMatrix(true);
+  SetMultiTargetLabels(dmat.get(), n_targets);
+  auto args = BaseParams(ctx, "reg:squarederror", "3");
+  args.emplace_back("tree_method", "hist");
+  args.emplace_back("num_target", std::to_string(n_targets));
+  args.emplace_back("multi_strategy", "multi_output_tree");
+  cases.emplace_back(dmat, std::move(args));
 
   {
     // compact dense classification case to keep runtime bounded
@@ -315,7 +313,7 @@ void CheckShapAdditivity(size_t rows, size_t cols, HostDeviceVector<float> const
 
 TEST(Predictor, ShapOutputCasesCPU) {
   Context ctx;
-  auto cases = BuildShapTestCases(&ctx, true);
+  auto cases = BuildShapTestCases(&ctx);
   for (auto const& [dmat, args] : cases) {
     CheckShapOutput(dmat.get(), args);
   }
