@@ -57,8 +57,13 @@ bst <- xgb.train(
   nrounds = 1,
   params = xgb.params(
     objective = "binary:logistic",
-    nthread = 2,
-    max_depth = 1
+    nthread = 1,
+    max_depth = 1,
+    eta = 0.3,
+    min_child_weight = 1,
+    subsample = 1,
+    colsample_bytree = 1,
+    seed = 0
   )
 )
 ```

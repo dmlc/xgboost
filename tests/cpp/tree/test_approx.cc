@@ -100,8 +100,11 @@ TEST(Approx, InteractionConstraint) {
 
     std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
     TrainParam param;
-    param.UpdateAllowUnknown(
-        Args{{"interaction_constraints", "[[0, 1]]"}, {"num_feature", std::to_string(kCols)}});
+    param.UpdateAllowUnknown(Args{{"interaction_constraints", "[[0, 1]]"},
+                                  {"num_feature", std::to_string(kCols)},
+                                  {"min_child_weight", "1"},
+                                  {"subsample", "1"},
+                                  {"colsample_bytree", "1"}});
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     updater->Configure(Args{});
     updater->Update(&param, &gpair, p_dmat.get(), position, {&tree});
@@ -119,7 +122,7 @@ TEST(Approx, InteractionConstraint) {
     std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     TrainParam param;
-    param.Init(Args{});
+    param.Init(Args{{"min_child_weight", "1"}, {"subsample", "1"}, {"colsample_bytree", "1"}});
     updater->Configure(Args{});
     updater->Update(&param, &gpair, p_dmat.get(), position, {&tree});
 

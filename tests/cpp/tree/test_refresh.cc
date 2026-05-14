@@ -33,11 +33,12 @@ TEST(Updater, Refresh) {
                                              ctx.Device()};
 
   std::shared_ptr<DMatrix> p_dmat{
-    RandomDataGenerator{kRows, kCols, 0.4f}.Seed(3).GenerateDMatrix()};
-  std::vector<std::pair<std::string, std::string>> cfg{
-      {"reg_alpha", "0.0"},
-      {"num_feature", std::to_string(kCols)},
-      {"reg_lambda", "1"}};
+      RandomDataGenerator{kRows, kCols, 0.4f}.Seed(3).GenerateDMatrix()};
+  std::vector<std::pair<std::string, std::string>> cfg{{"reg_alpha", "0.0"},
+                                                       {"num_feature", std::to_string(kCols)},
+                                                       {"reg_lambda", "1"},
+                                                       {"min_child_weight", "1"},
+                                                       {"learning_rate", "0.3"}};
 
   RegTree tree = RegTree{1u, kCols};
   std::vector<RegTree*> trees{&tree};
