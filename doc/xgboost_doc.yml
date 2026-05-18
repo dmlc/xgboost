@@ -5,6 +5,7 @@ dependencies:
   - pygraphviz
   - sphinx
   - sphinx-gallery
+  - sphinx-tabs
   - recommonmark
   - mock
   - sh
@@ -17,6 +18,8 @@ dependencies:
   - pip:
     - breathe
     - sphinx_rtd_theme
+    - sphinx-issues
+    - sphinxcontrib-jquery
     - pydot-ng
     - graphviz
     - ray[train]

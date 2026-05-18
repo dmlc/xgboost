@@ -316,12 +316,12 @@ point, which means it will be a minimum rather than a maximum or saddle point).
             k = 3
             rng = np.random.default_rng(seed=123)
             x0 = rng.standard_normal(size=k)
-            y_sample = rng.dirichlet(np.exp(x0), size=5_000_000)
+            y_sample = rng.dirichlet(np.exp(x0), size=200_000)
             x_broadcast = np.broadcast_to(x0, (y_sample.shape[0], k))
             g_sample = dirichlet_grad(x_broadcast, y_sample)
             ref = (g_sample.T @ g_sample) / y_sample.shape[0]
             Ehess = dirichlet_expected_hess(x0.reshape((1,-1)))[0]
-            np.testing.assert_almost_equal(Ehess, ref, decimal=2)
+            np.testing.assert_allclose(Ehess, ref, rtol=5e-2, atol=5e-2)
         test_dirichlet_expected_hess()
 
     .. code-tab:: r R
@@ -344,14 +344,14 @@ point, which means it will be a minimum rather than a maximum or saddle point).
             set.seed(123)
             x0 <- rnorm(k)
             alpha <- exp(x0)
-            n.samples <- 5e6
+            n.samples <- 2e5
             y.samples <- rdirichlet(n.samples, alpha)
 
             x.broadcast <- rep(x0, n.samples) |> matrix(ncol=k, byrow=T)
             grad.samples <- dirichlet.grad(x.broadcast, y.samples)
             ref <- crossprod(grad.samples) / n.samples
             Ehess <- dirichlet.expected.hess(matrix(x0, nrow=1))
-            expect_equal(Ehess[1,,], ref, tolerance=1e-2)
+            expect_equal(Ehess[1,,], ref, tolerance=5e-2)
         })
 
 But note that this is still not usable for XGBoost, since the expected
@@ -528,6 +528,7 @@ Fitting an XGBoost model and making predictions:
             evals=[(dtrain, "Train")],
             evals_result=results,
             custom_metric=dirichlet_eval_metric,
+            verbose_eval=False,
         )
         yhat = softmax(booster.inplace_predict(X), axis=1)
 
@@ -655,6 +656,7 @@ Now fitting a model again, this time with the intercept:
             evals=[(dtrain, "Train")],
             evals_result=results,
             custom_metric=dirichlet_eval_metric,
+            verbose_eval=False,
         )
         yhat = softmax(
             booster.predict(

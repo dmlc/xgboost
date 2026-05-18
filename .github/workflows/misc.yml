@@ -133,9 +133,31 @@ jobs:
             --prefix ${BRANCH_NAME}/${{ github.event.pull_request.head.sha || github.sha }} --make-public \
             r-docs-${BRANCH_NAME}.tar.bz2
 
+  test-docs:
+    name: Test Sphinx documentation snippets
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          submodules: "true"
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: xgboost_docs
+          environment-file: doc/xgboost_doc.yml
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - name: Test Sphinx documentation snippets
+        run: bash ops/pipeline/test-docs.sh
+      - run: sccache --show-stats
+
   trigger-rtd-build:
     name: Trigger Read The Docs build
-    needs: [build-jvm-docs, build-r-docs]
+    needs: [build-jvm-docs, build-r-docs, test-docs]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu

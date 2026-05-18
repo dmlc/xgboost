@@ -252,6 +252,7 @@ extensions = [
     "sphinxcontrib.jquery",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
+    "sphinx.ext.doctest",
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
     "sphinx_gallery.gen_gallery",
@@ -259,7 +260,22 @@ extensions = [
     "sphinx_tabs.tabs",
     "breathe",
     "myst_parser",
+    "xgboost_doc_doctest",
 ]
+
+sphinx_tabs_valid_builders = ["doctest"]
+
+# We need to real XGBoost library for running tests.
+doctest_global_setup = """
+import os
+import sys
+
+os.environ.pop("XGBOOST_BUILD_DOC", None)
+for name in list(sys.modules):
+    if name == "xgboost" or name.startswith("xgboost."):
+        del sys.modules[name]
+"""
+doctest_test_doctest_blocks = ""
 
 sphinx_gallery_conf = {
     # path to your example scripts
