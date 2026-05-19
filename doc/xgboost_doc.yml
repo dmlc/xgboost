@@ -12,6 +12,7 @@ dependencies:
   - numpy
   - scipy
   - scikit-learn
+  - dask
   - myst-parser
   - pyspark
   - pip:
