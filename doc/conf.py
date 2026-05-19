@@ -265,7 +265,7 @@ extensions = [
 
 sphinx_tabs_valid_builders = ["html", "doctest"]
 
-# We need to real XGBoost library for running tests.
+# We need the real XGBoost library for running tests.
 doctest_global_setup = """
 import os
 import sys
