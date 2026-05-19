@@ -2,11 +2,9 @@ name: xgboost_docs
 dependencies:
   - python=3.12
   - pip
-  - setuptools                  # pkg_resources used by sphinx-tabs
   - pygraphviz
   - sphinx
   - sphinx-gallery
-  - sphinx-tabs
   - recommonmark
   - mock
   - sh
@@ -20,6 +18,7 @@ dependencies:
     - breathe
     - sphinx_rtd_theme
     - sphinx-issues
+    - sphinx-tabs
     - sphinxcontrib-jquery
     - pydot-ng
     - graphviz
