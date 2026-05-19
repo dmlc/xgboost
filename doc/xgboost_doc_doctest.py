@@ -31,6 +31,7 @@ class RSession:
         )
 
     def run(self, code: str) -> None:
+        """Run a snippet of code."""
         if self._proc.poll() is not None:
             raise RuntimeError(f"R process exited with code {self._proc.returncode}.")
         assert self._proc.stdin is not None
@@ -66,6 +67,7 @@ flush.console()
         raise RuntimeError("\n".join(msg))
 
     def close(self) -> None:
+        """Close the R session."""
         if self._proc.poll() is None:
             # quit if R is still running.
             assert self._proc.stdin is not None
@@ -189,6 +191,7 @@ def mark_doctest_nodes(app: Sphinx, doctree: nodes.document) -> None:
 
 
 def setup(app: Sphinx) -> dict[str, bool]:
+    """Entry point for sphinx app setup."""
     app.connect("doctree-read", mark_doctest_nodes)
     atexit.register(close_all_r_sessions)
     return {
