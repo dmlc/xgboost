@@ -1321,7 +1321,9 @@ xgboost <- function(
 #'
 #' Note that this check might add some sizable latency to the predictions, so it's
 #' recommended to disable it for performance-sensitive applications.
-#' @param ... Not used.
+#' @param ... Legacy boolean flags (e.g., \code{predcontrib}) are supported for
+#'   backward compatibility but are deprecated and map to the \code{type} argument.
+#'   Any other arguments passed to \code{...} will cause an error.
 #' @return Either a numeric vector (for 1D outputs), numeric matrix (for 2D outputs), numeric array
 #' (for 3D and higher), or `factor` (for class predictions). See documentation for parameter `type`
 #' for details about what the output type and shape will be.
@@ -1362,26 +1364,33 @@ predict.xgboost <- function(
       predinteraction = "interaction"
     )
     found_legacy <- intersect(names(dots), names(mapping))
-    
+
     if (length(found_legacy) > 0) {
-      legacy_arg <- found_legacy[1]
-      if (isTRUE(dots[[legacy_arg]])) {
-        type <- mapping[[legacy_arg]]
-        warning(
-          sprintf(
-            "Argument '%s' is deprecated. Please use type = '%s' instead.",
-            legacy_arg, type
-          ),
-          call. = FALSE
-        )
+      for (legacy_arg in found_legacy) {
+        if (isTRUE(dots[[legacy_arg]])) {
+          type <- mapping[[legacy_arg]]
+          warning(
+            sprintf(
+              "Argument '%s' is deprecated. Please use type = '%s' instead.",
+              legacy_arg, type
+            ),
+            call. = FALSE
+          )
+          break
+        }
       }
-      dots <- dots[setdiff(names(dots), names(mapping))]
+      dots[found_legacy] <- NULL
     }
-    
+
     if (length(dots) > 0) {
+      dot_names <- names(dots)
+      if (is.null(dot_names)) {
+        dot_names <- rep("<unnamed>", length(dots))
+      }
+      dot_names[dot_names == ""] <- "<unnamed>"
       stop(
         "predict.xgboost: arguments in '...' are not supported (",
-        paste(names(dots), collapse = ", "), ")."
+        paste(dot_names, collapse = ", "), ")."
       )
     }
   }
