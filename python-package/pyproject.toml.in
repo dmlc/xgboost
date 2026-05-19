@@ -1,10 +1,6 @@
 [build-system]
-requires = [
-    "hatchling>=1.12.1",
-    "packaging>=21.3",
-]
-backend-path = ["."]
-build-backend = "packager.pep517"
+requires = ["scikit-build-core>=0.10.0"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "{{ name }}"
@@ -45,7 +41,21 @@ dask = ["dask", "pandas", "distributed"]
 plotting = ["graphviz", "matplotlib"]
 pyspark = ["pyspark>=4.0", "scikit-learn", "cloudpickle"]
 
-[tool.hatch.build.targets.wheel.hooks.custom]
+[tool.scikit-build]
+cmake.version = ">=3.18"
+cmake.build-type = "Release"
+build-dir = "build/{wheel_tag}"
+ninja.make-fallback = true
+# The wheel contains only Python sources + a precompiled shared library
+# (libxgboost.so / .dylib / .dll) with a stable C ABI; there is no Python
+# C extension. So we tag wheels as py3-none-<platform>.
+wheel.py-api = "py3"
+wheel.packages = ["xgboost"]
+# Source distributions ship the C++ tree under cpp_src/, staged by
+# ops/script/prepare_sdist.py before `python -m build --sdist`.
+sdist.include = ["cpp_src/**"]
+sdist.exclude = ["build/", "dist/", "wheelhouse/", "*.pyc", "__pycache__"]
+sdist.reproducible = true
 
 [tool.isort]
 profile = "black"
@@ -75,9 +85,6 @@ disable = [
 ]
 dummy-variables-rgx = "(unused|)_.*"
 reports = false
-
-[tool.hatch.build.targets.wheel]
-packages = ["xgboost/"]
 
 [tool.pylint.basic]
 # Enforce naming convention

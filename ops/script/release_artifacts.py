@@ -15,11 +15,11 @@ from urllib.request import urlretrieve
 
 import tqdm
 from packaging import version
+from prepare_sdist import stage as stage_cpp_src_tree
 from pypi_variants import make_pyproject
 from sh.contrib import git
-from test_utils import PY_PACKAGE
+from test_utils import PY_PACKAGE, DirectoryExcursion
 from test_utils import ROOT as root_path
-from test_utils import DirectoryExcursion
 
 # S3 bucket hosting the release artifacts
 S3_BUCKET_URL = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
@@ -108,6 +108,10 @@ def make_python_sdist(
     """Make Python source distribution."""
     dist_dir = outdir / "dist"
     dist_dir.mkdir(exist_ok=True)
+
+    # Stage the C++ source tree under python-package/cpp_src/ so that the
+    # scikit-build-core sdist includes a self-contained C++ build.
+    stage_cpp_src_tree(clean=True)
 
     # Build sdist for `xgboost-cpu`, `xgboost`.
     for suffix, nccl_dep in [("cpu", "na"), ("na", "na")]:
