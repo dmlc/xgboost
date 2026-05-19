@@ -71,7 +71,7 @@ if (.Platform$OS.type == "unix") {
     pkgs,
     repos = "https://cloud.r-project.org",
     dependencies = c("Depends", "Imports", "LinkingTo"),
-    Ncpus = parallel::detectCores()
+    Ncpus = ncpus
   )
 } else {
   print("Installing binary packages on Windows.")
@@ -79,7 +79,7 @@ if (.Platform$OS.type == "unix") {
     pkgs,
     repos = "https://cloud.r-project.org",
     dependencies = c("Depends", "Imports", "LinkingTo"),
-    Ncpus = parallel::detectCores(),
+    Ncpus = ncpus,
     type = "binary"
   )
 }
