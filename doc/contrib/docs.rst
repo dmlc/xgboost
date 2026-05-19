@@ -127,9 +127,9 @@ Examples
   tutorials, or code solutions using XGBoost, please tell us, and we will add
   a link in the example pages.
 
-=========
+*********
 Doc Tests
-=========
+*********
 
 We use Sphinx doctest to test selected snippets in the documentation. At the moment, this
 only covers Python and R snippets written with ``.. code-tab:: python`` or ``.. code-tab::
