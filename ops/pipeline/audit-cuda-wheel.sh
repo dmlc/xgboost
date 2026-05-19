@@ -41,7 +41,7 @@ set -x
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 auditwheel repair --only-plat --plat ${WHEEL_TAG} python-package/dist/*.whl
-python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
+python3 -m wheel tags --python-tag cp312 --abi-tag abi3 --platform ${WHEEL_TAG} --remove \
   wheelhouse/*.whl
 mv -v wheelhouse/*.whl python-package/dist/
 

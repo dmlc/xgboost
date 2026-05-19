@@ -59,11 +59,19 @@ if(XGBOOST_USE_SYSTEM_LIBXGBOOST)
 endif()
 
 if(EXISTS "${XGBOOST_PREBUILT_LIB_DIR}/${_XGB_LIBNAME}")
+  # If lib/libxgboost.so is a symlink (the usual layout when CMake has just
+  # built libxgboost with SOVERSION-based linking: .so -> .so.3 -> .so.3.3.0),
+  # resolve it to the underlying file before install. install(FILES <symlink>)
+  # would otherwise preserve the symlink itself, which becomes a dangling link
+  # in the wheel staging dir and gets silently dropped by the wheel packer.
+  file(REAL_PATH "${XGBOOST_PREBUILT_LIB_DIR}/${_XGB_LIBNAME}" _XGB_LIB_RESOLVED)
   message(STATUS
-    "xgboost-python: bundling prebuilt "
-    "${XGBOOST_PREBUILT_LIB_DIR}/${_XGB_LIBNAME} into the wheel")
-  install(FILES "${XGBOOST_PREBUILT_LIB_DIR}/${_XGB_LIBNAME}"
-          DESTINATION xgboost/lib)
+    "xgboost-python: bundling prebuilt ${_XGB_LIB_RESOLVED} into the wheel "
+    "as xgboost/lib/${_XGB_LIBNAME}")
+  install(FILES "${_XGB_LIB_RESOLVED}"
+          DESTINATION xgboost/lib
+          RENAME "${_XGB_LIBNAME}"
+          COMPONENT XGBoostPython)
 else()
   message(STATUS "xgboost-python: building libxgboost from sources at ${_XGB_CPP_SRC}")
   # Suppress the top-level CMakeLists.txt's default install() rules — they
@@ -72,7 +80,13 @@ else()
   # below, to its wheel-specific destination.
   set(XGBOOST_FOR_PYTHON_WHEEL ON CACHE BOOL "" FORCE)
   add_subdirectory("${_XGB_CPP_SRC}" xgboost_cpp_build)
+  # All install() rules below are tagged with COMPONENT XGBoostPython.
+  # scikit-build-core is configured (via [tool.scikit-build] install.components)
+  # to install only that component, so any install() rules from C++
+  # subprojects (notably dmlc-core, which has its own install() blocks for
+  # headers / .a / cmake config) get cleanly filtered out of the wheel.
   install(TARGETS xgboost
           LIBRARY DESTINATION xgboost/lib
-          RUNTIME DESTINATION xgboost/lib)
+          RUNTIME DESTINATION xgboost/lib
+          COMPONENT XGBoostPython)
 endif()
