@@ -1131,3 +1131,25 @@ test_that("Linear booster importance uses class names", {
   expect_true(is.factor(imp$Class))
   expect_equal(levels(imp$Class), levels(y))
 })
+
+test_that("predict.xgboost maps legacy boolean flags to type", {
+  y <- mtcars$mpg
+  x <- as.matrix(mtcars[, -1L])
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 1L)
+
+  expect_warning(
+    pred <- predict(model, x, predcontrib = TRUE),
+    paste0(
+      "Argument 'predcontrib' is deprecated. ",
+      "Please use type = 'contrib' instead."
+    ),
+    fixed = TRUE
+  )
+  expect_equal(dim(pred), c(nrow(x), ncol(x) + 1L))
+
+  expect_error(
+    predict(model, x, foobar = TRUE),
+    "predict.xgboost: arguments in '...' are not supported (foobar).",
+    fixed = TRUE
+  )
+})

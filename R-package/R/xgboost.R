@@ -1352,6 +1352,40 @@ predict.xgboost <- function(
   validate_features = TRUE,
   ...
 ) {
+  dots <- list(...)
+  if (length(dots) > 0) {
+    mapping <- list(
+      outputmargin = "raw",
+      predleaf = "leaf",
+      predcontrib = "contrib",
+      approxcontrib = "contrib",
+      predinteraction = "interaction"
+    )
+    found_legacy <- intersect(names(dots), names(mapping))
+    
+    if (length(found_legacy) > 0) {
+      legacy_arg <- found_legacy[1]
+      if (isTRUE(dots[[legacy_arg]])) {
+        type <- mapping[[legacy_arg]]
+        warning(
+          sprintf(
+            "Argument '%s' is deprecated. Please use type = '%s' instead.",
+            legacy_arg, type
+          ),
+          call. = FALSE
+        )
+      }
+      dots <- dots[setdiff(names(dots), names(mapping))]
+    }
+    
+    if (length(dots) > 0) {
+      stop(
+        "predict.xgboost: arguments in '...' are not supported (",
+        paste(names(dots), collapse = ", "), ")."
+      )
+    }
+  }
+
   if (inherits(newdata, "xgb.DMatrix")) {
     stop(
       "Predictions on 'xgb.DMatrix' objects are not supported with 'xgboost' class.",
