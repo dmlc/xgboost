@@ -19,6 +19,7 @@ class RSession:
     """A persistent R process for doctest snippets from one document."""
 
     def __init__(self) -> None:
+        # pylint: disable=consider-using-with
         self._tmpdir = tempfile.TemporaryDirectory()
         self._proc = subprocess.Popen(
             ["R", "--vanilla", "--slave"],
