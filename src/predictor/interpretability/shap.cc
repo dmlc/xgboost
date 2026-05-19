@@ -9,11 +9,12 @@
 #include <cstdint>      // for uint32_t
 #include <limits>       // for numeric_limits
 #include <type_traits>  // for remove_const_t
+#include <variant>      // for variant
 #include <vector>       // for vector
 
 #include "../../common/threading_utils.h"  // for ParallelFor
 #include "../../gbm/gbtree_model.h"        // for GBTreeModel
-#include "../../tree/tree_view.h"          // for ScalarTreeView
+#include "../../tree/tree_view.h"          // for MultiTargetTreeView, ScalarTreeView
 #include "../data_accessor.h"              // for GHistIndexMatrixView
 #include "../predict_fn.h"                 // for GetTreeLimit
 #include "dmlc/omp.h"                      // for omp_get_thread_num
@@ -25,11 +26,24 @@
 
 namespace xgboost::interpretability {
 namespace {
+using TreeView = std::variant<tree::ScalarTreeView, tree::MultiTargetTreeView>;
+
 void ValidateTreeWeights(std::vector<float> const *tree_weights, bst_tree_t tree_end) {
   if (tree_weights == nullptr) {
     return;
   }
   CHECK_GE(tree_weights->size(), static_cast<std::size_t>(tree_end));
+}
+
+float LeafValue(tree::ScalarTreeView const &tree, bst_node_t nidx, bst_target_t target_idx) {
+  CHECK_EQ(target_idx, 0);
+  return tree.LeafValue(nidx);
+}
+
+float LeafValue(tree::MultiTargetTreeView const &tree, bst_node_t nidx, bst_target_t target_idx) {
+  auto leaf_value = tree.LeafValue(nidx);
+  CHECK_LT(target_idx, leaf_value.Size());
+  return leaf_value(target_idx);
 }
 
 float FillNodeMeanValues(tree::ScalarTreeView const &tree, bst_node_t nidx,
@@ -56,37 +70,6 @@ void FillNodeMeanValues(tree::ScalarTreeView const &tree, std::vector<float> *me
   }
   mean_values->resize(n_nodes);
   FillNodeMeanValues(tree, 0, mean_values);
-}
-
-double FillRootMeanValue(tree::ScalarTreeView const &tree, bst_node_t nidx) {
-  if (tree.IsLeaf(nidx)) {
-    return tree.LeafValue(nidx);
-  }
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  double result = FillRootMeanValue(tree, left) * tree.SumHess(left);
-  result += FillRootMeanValue(tree, right) * tree.SumHess(right);
-  result /= tree.SumHess(nidx);
-  return result;
-}
-
-void ValidateQuadratureTreeShapCovers(tree::ScalarTreeView const &tree, bst_node_t nidx) {
-  if (tree.IsLeaf(nidx)) {
-    return;
-  }
-
-  CHECK_GT(tree.SumHess(nidx), 0.0f)
-      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at split nodes.";
-
-  auto left = tree.LeftChild(nidx);
-  auto right = tree.RightChild(nidx);
-  CHECK_GT(tree.SumHess(left), 0.0f)
-      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
-  CHECK_GT(tree.SumHess(right), 0.0f)
-      << "CPU QuadratureTreeSHAP is undefined for trees with non-positive cover at child nodes.";
-
-  ValidateQuadratureTreeShapCovers(tree, left);
-  ValidateQuadratureTreeShapCovers(tree, right);
 }
 
 void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVec const &feats,
@@ -116,29 +99,11 @@ void CalculateApproxContributions(tree::ScalarTreeView const &tree, RegTree::FVe
 
 // Keep the CPU quadrature recurrence on the same fixed 8-point rule as the GPU path so the hot
 // loops stay small and the compiler can fully unroll the basis update and extraction work.
-constexpr std::size_t kQuadratureTreeShapPoints = 8;
-constexpr double kQuadratureTreeShapBuildQeps = 1e-15;
-constexpr float kQuadratureTreeShapUnseen = -999.0f;
+constexpr std::size_t kQuadratureTreeShapPoints = detail::kQuadratureTreeShapPoints;
+constexpr float kQuadratureTreeShapUnseen = detail::kQuadratureTreeShapUnseen;
 
-struct QuadratureRule {
-  std::array<float, kQuadratureTreeShapPoints> nodes{};
-  std::array<float, kQuadratureTreeShapPoints> weights{};
-};
+using QuadratureRule = detail::QuadratureRule;
 using QuadratureBuffer = std::array<float, kQuadratureTreeShapPoints>;
-
-QuadratureRule const &GetQuadratureRule() {
-  static QuadratureRule const kRule = [] {
-    auto const rule_d =
-        detail::MakeEndpointQuadrature<kQuadratureTreeShapPoints>(kQuadratureTreeShapBuildQeps);
-    QuadratureRule out;
-    for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
-      out.nodes[i] = static_cast<float>(rule_d.nodes[i]);
-      out.weights[i] = static_cast<float>(rule_d.weights[i]);
-    }
-    return out;
-  }();
-  return kRule;
-}
 
 void AddInPlace(QuadratureBuffer *lhs, QuadratureBuffer const &rhs) {
   for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
@@ -190,10 +155,11 @@ float ExtractQuadratureInteractionDelta(QuadratureRule const &rule, QuadratureBu
   return acc;
 }
 
-void WriteWeightedLeafReturn(tree::ScalarTreeView const &tree, QuadratureRule const &rule,
-                             bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
+template <typename Tree>
+void WriteWeightedLeafReturn(Tree const &tree, QuadratureRule const &rule, bst_node_t nidx,
+                             bst_target_t target_idx, QuadratureBuffer const &c_vals, float w_prod,
                              QuadratureBuffer *out_h) {
-  auto const leaf_scale = w_prod * tree.LeafValue(nidx);
+  auto const leaf_scale = w_prod * LeafValue(tree, nidx, target_idx);
   for (std::size_t i = 0; i < kQuadratureTreeShapPoints; ++i) {
     (*out_h)[i] = c_vals[i] * leaf_scale * rule.weights[i];
   }
@@ -297,11 +263,6 @@ struct AdditiveContributionFormulation {
   }
   void PopPathSplit(bst_feature_t split_index) const { path_state.Pop(split_index); }
 
-  void HandleLeaf(tree::ScalarTreeView const &tree, QuadratureRule const &rule, bst_node_t nidx,
-                  QuadratureBuffer const &c_vals, float w_prod, QuadratureBuffer *out_h) const {
-    WriteWeightedLeafReturn(tree, rule, nidx, c_vals, w_prod, out_h);
-  }
-
   void HandleReturn(QuadratureRule const &rule, bst_feature_t split_index,
                     QuadratureBuffer const &h_vals, float p_enter, float p_exit) const {
     phi[split_index] += ExtractQuadratureDelta(rule, h_vals, p_enter, p_exit);
@@ -331,13 +292,6 @@ struct InteractionContributionFormulation {
     path_state.Push(split_index, p_child);
   }
   void PopPathSplit(bst_feature_t split_index) const { path_state.Pop(split_index); }
-
-  // Traversal still needs a weighted subtree return, so the interaction path shares the additive
-  // leaf behavior and changes only the return-edge algebra.
-  void HandleLeaf(tree::ScalarTreeView const &tree, QuadratureRule const &rule, bst_node_t nidx,
-                  QuadratureBuffer const &c_vals, float w_prod, QuadratureBuffer *out_h) const {
-    WriteWeightedLeafReturn(tree, rule, nidx, c_vals, w_prod, out_h);
-  }
 
   // Walk the live unique path excluding the current split. A pairwise formulation can distribute
   // the current edge effect across these partner features without reimplementing duplicate logic.
@@ -377,9 +331,10 @@ struct InteractionContributionFormulation {
 
 // Tree-walk engine for quadrature formulations. It owns feature evaluation, child descent, and
 // the live path-probability state, then hands leaf/return events to the selected formulation.
-template <typename ContributionFormulation>
+template <typename Tree, typename ContributionFormulation>
 struct QuadratureTreeShapRunner {
-  tree::ScalarTreeView const &tree;
+  Tree const &tree;
+  bst_target_t target_idx;
   RegTree::FVec const &feat;
   QuadratureRule const &rule;
   std::vector<float> *path_prob;
@@ -394,9 +349,10 @@ struct QuadratureTreeShapRunner {
   }
 
   [[nodiscard]] float ChildWeight(bst_node_t parent, bst_node_t child) const {
-    auto parent_cover = tree.Stat(parent).sum_hess;
-    CHECK_GT(parent_cover, 0.0f);
-    return tree.Stat(child).sum_hess / parent_cover;
+    auto parent_cover = tree.SumHess(parent);
+    CHECK_GE(parent_cover, 0.0f);
+    CHECK_GE(tree.SumHess(child), 0.0f);
+    return detail::BranchWeight(tree.SumHess(child), parent_cover);
   }
 
   void VisitChild(bst_node_t split_node, bst_node_t child_node, float child_weight, bool satisfies,
@@ -438,7 +394,7 @@ struct QuadratureTreeShapRunner {
   void RunNode(bst_node_t nidx, QuadratureBuffer const &c_vals, float w_prod,
                QuadratureBuffer *out_h) {
     if (tree.IsLeaf(nidx)) {
-      formulation.HandleLeaf(tree, rule, nidx, c_vals, w_prod, out_h);
+      WriteWeightedLeafReturn(tree, rule, nidx, target_idx, c_vals, w_prod, out_h);
       return;
     }
 
@@ -469,9 +425,16 @@ struct QuadratureTreeShapRunner {
 };
 
 struct QuadratureTreeShapModelData {
-  std::vector<tree::ScalarTreeView> trees;
-  std::vector<std::vector<bst_tree_t>> trees_by_group;
-  std::vector<float> weights;
+  struct TreeEntry {
+    bst_tree_t tree_idx;
+    bst_target_t target_idx;
+    bst_target_t group_idx;
+    float weight;
+  };
+
+  std::vector<TreeView> trees;
+  std::vector<TreeEntry> entries;
+  std::vector<std::vector<std::size_t>> entries_by_group;
   std::vector<float> group_root_mean_sums;
 };
 
@@ -483,22 +446,54 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
 
   QuadratureTreeShapModelData out;
   out.trees.reserve(n_trees);
-  out.trees_by_group.resize(n_groups);
-  out.weights.resize(n_trees, 1.0f);
-  out.group_root_mean_sums.resize(n_groups, 0.0f);
+  out.entries_by_group.resize(n_groups);
 
   for (std::size_t i = 0; i < n_trees; ++i) {
-    out.trees.emplace_back(model.trees[i].get());
+    if (model.trees[i]->IsMultiTarget()) {
+      out.trees.emplace_back(model.trees[i]->HostMtView());
+    } else {
+      out.trees.emplace_back(model.trees[i]->HostScView());
+    }
   }
   for (bst_tree_t i = 0; i < tree_end; ++i) {
-    auto gid = h_tree_groups[i];
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
-    out.trees_by_group[gid].push_back(i);
-    out.weights[i] = weight;
-    ValidateQuadratureTreeShapCovers(out.trees[i], RegTree::kRoot);
-    out.group_root_mean_sums[gid] +=
-        static_cast<float>(FillRootMeanValue(out.trees[i], RegTree::kRoot) * weight);
+    if (model.trees[i]->IsMultiTarget()) {
+      auto const n_targets = model.trees[i]->GetMultiTargetTree()->NumTargets();
+      CHECK_EQ(n_targets, n_groups);
+      for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+        auto entry_idx = out.entries.size();
+        out.entries.push_back(
+            QuadratureTreeShapModelData::TreeEntry{i, target_idx, target_idx, weight});
+        out.entries_by_group[target_idx].push_back(entry_idx);
+      }
+    } else {
+      auto gid = h_tree_groups[i];
+      auto entry_idx = out.entries.size();
+      out.entries.push_back(QuadratureTreeShapModelData::TreeEntry{i, 0, gid, weight});
+      out.entries_by_group[gid].push_back(entry_idx);
+    }
   }
+  std::vector<double> group_root_mean_sums(n_groups, 0.0);
+  for (bst_tree_t i = 0; i < tree_end; ++i) {
+    auto const weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
+    if (model.trees[i]->IsMultiTarget()) {
+      auto const tree = model.trees[i]->HostMtView();
+      auto const n_targets = tree.NumTargets();
+      CHECK_EQ(n_targets, n_groups);
+      std::vector<double> root_means(n_targets, 0.0);
+      detail::FillRootMeanValues(tree, RegTree::kRoot, 1.0, &root_means);
+      for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+        group_root_mean_sums[target_idx] += root_means[target_idx] * weight;
+      }
+    } else {
+      auto const tree = model.trees[i]->HostScView();
+      group_root_mean_sums[h_tree_groups[i]] +=
+          detail::FillRootMeanValue(tree, RegTree::kRoot) * weight;
+    }
+  }
+  out.group_root_mean_sums.resize(group_root_mean_sums.size());
+  std::transform(group_root_mean_sums.cbegin(), group_root_mean_sums.cend(),
+                 out.group_root_mean_sums.begin(), [](double v) { return static_cast<float>(v); });
   return out;
 }
 
@@ -558,7 +553,6 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
                               HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
                               bst_tree_t tree_end, std::vector<float> const *tree_weights,
                               std::size_t quadrature_points) {
-  CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
   CHECK_EQ(quadrature_points, kQuadratureTreeShapPoints)
@@ -576,7 +570,7 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
   contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
   std::fill(contribs.begin(), contribs.end(), 0.0f);
   CHECK_NE(n_groups, 0);
-  auto const &rule = GetQuadratureRule();
+  auto const &rule = detail::GetQuadratureRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
@@ -601,13 +595,19 @@ void QuadratureTreeShapValues(Context const *ctx, DMatrix *p_fmat,
       feats.HasMissing(n_valid != feats.Size());
       for (bst_target_t gid = 0; gid < n_groups; ++gid) {
         float *p_contribs = &contribs[(row_idx * n_groups + gid) * ncolumns];
-        for (auto j : model_data.trees_by_group[gid]) {
+        for (auto entry_idx : model_data.entries_by_group[gid]) {
+          auto const &entry = model_data.entries[entry_idx];
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0.0f);
           auto formulation = AdditiveContributionFormulation{{this_tree_contribs.data(), ncolumns}};
-          auto runner = QuadratureTreeShapRunner<AdditiveContributionFormulation>{
-              model_data.trees[j], feats, rule, &path_prob, formulation};
-          runner.Run();
-          auto const weight = model_data.weights[j];
+          std::visit(
+              [&](auto const &tree) {
+                auto runner = QuadratureTreeShapRunner<std::decay_t<decltype(tree)>,
+                                                       AdditiveContributionFormulation>{
+                    tree, entry.target_idx, feats, rule, &path_prob, formulation};
+                runner.Run();
+              },
+              model_data.trees[entry.tree_idx]);
+          auto const weight = entry.weight;
           for (size_t ci = 0; ci + 1 < ncolumns; ++ci) {
             p_contribs[ci] += this_tree_contribs[ci] * weight;
           }
@@ -632,8 +632,6 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
                                          gbm::GBTreeModel const &model, bst_tree_t tree_end,
                                          std::vector<float> const *tree_weights,
                                          std::size_t quadrature_points) {
-  CHECK(!model.learner_model_param->IsVectorLeaf())
-      << "Predict interaction contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
                                             "column-wise data split is not yet implemented.";
   CHECK_EQ(quadrature_points, kQuadratureTreeShapPoints)
@@ -656,7 +654,7 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
   contribs.resize(info.num_row_ * row_chunk);
   std::fill(contribs.begin(), contribs.end(), 0.0f);
 
-  auto const &rule = GetQuadratureRule();
+  auto const &rule = detail::GetQuadratureRule();
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto model_data = MakeQuadratureTreeShapModelData(model, tree_end, tree_weights);
   std::vector<RegTree::FVec> feats_tloc(n_threads);
@@ -687,14 +685,18 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
         auto matrix = DenseInteractionMatrixView<bst_float>{contribs.data() + offset, ncolumns};
         std::fill(diag.begin(), diag.end(), 0.0f);
 
-        for (auto j : model_data.trees_by_group[gid]) {
-          auto formulation = InteractionContributionFormulation{{&path},
-                                                                {diag.data(), ncolumns},
-                                                                {matrix.data, matrix.ncolumns},
-                                                                model_data.weights[j]};
-          auto runner = QuadratureTreeShapRunner<InteractionContributionFormulation>{
-              model_data.trees[j], feats, rule, &path_prob, formulation};
-          runner.Run();
+        for (auto entry_idx : model_data.entries_by_group[gid]) {
+          auto const &entry = model_data.entries[entry_idx];
+          auto formulation = InteractionContributionFormulation{
+              {&path}, {diag.data(), ncolumns}, {matrix.data, matrix.ncolumns}, entry.weight};
+          std::visit(
+              [&](auto const &tree) {
+                auto runner = QuadratureTreeShapRunner<std::decay_t<decltype(tree)>,
+                                                       InteractionContributionFormulation>{
+                    tree, entry.target_idx, feats, rule, &path_prob, formulation};
+                runner.Run();
+              },
+              model_data.trees[entry.tree_idx]);
         }
 
         diag[ncolumns - 1] += model_data.group_root_mean_sums[gid];

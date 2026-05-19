@@ -657,6 +657,11 @@ def _transform_pandas_df(
 ) -> Tuple[PandasTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
+    if data.columns.has_duplicates:
+        duplicates = data.columns[data.columns.duplicated()].unique().tolist()
+        raise ValueError(
+            f"Duplicate column names are not supported. Duplicates found: {duplicates}"
+        )
 
     feature_types, ref_categories = get_ref_categories(feature_types)
     feature_names, feature_types = pandas_feature_info(

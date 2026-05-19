@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>    // for array
 #include <cstdint>  // for int64_t
 
 #include "../../../src/collective/allreduce.h"
@@ -121,6 +122,118 @@ void AssertSameOnAllWorkers(Context const* ctx, HistogramCuts const& cuts) {
   }
 }
 
+auto ReferencePrune(Span<WQSummary<>::Entry const> src, std::size_t maxsize)
+    -> std::vector<WQSummary<>::Entry> {
+  using Entry = WQSummary<>::Entry;
+
+  if (maxsize == 0) {
+    return {};
+  }
+  if (src.size() <= maxsize) {
+    return {src.cbegin(), src.cend()};
+  }
+  if (maxsize == 1) {
+    return {src[0]};
+  }
+
+  std::vector<Entry> out(maxsize);
+  auto current_elements = std::size_t{1};
+  auto const begin = src[0].rmax;
+  auto const range = src[src.size() - 1].rmin - src[0].rmax;
+  auto const n = maxsize - 1;
+  out[0] = src[0];
+
+  std::size_t i = 1, lastidx = 0;
+  for (std::size_t k = 1; k < n; ++k) {
+    auto dx2 = 2 * ((k * range) / n + begin);
+    while (i < src.size() - 1 && dx2 >= src[i + 1].rmax + src[i + 1].rmin) {
+      ++i;
+    }
+    if (i == src.size() - 1) {
+      break;
+    }
+    if (dx2 < src[i].RMinNext() + src[i + 1].RMaxPrev()) {
+      if (i != lastidx) {
+        out[current_elements++] = src[i];
+        lastidx = i;
+      }
+    } else {
+      if (i + 1 != lastidx) {
+        out[current_elements++] = src[i + 1];
+        lastidx = i + 1;
+      }
+    }
+  }
+  if (lastidx != src.size() - 1) {
+    out[current_elements++] = src[src.size() - 1];
+  }
+  out.resize(current_elements);
+  return out;
+}
+
+void ExpectEntriesEq(Span<WQSummary<>::Entry const> entries,
+                     std::vector<WQSummary<>::Entry> const& expected) {
+  ASSERT_EQ(entries.size(), expected.size());
+  for (std::size_t i = 0; i < entries.size(); ++i) {
+    EXPECT_FLOAT_EQ(entries[i].rmin, expected[i].rmin) << "i=" << i;
+    EXPECT_FLOAT_EQ(entries[i].rmax, expected[i].rmax) << "i=" << i;
+    EXPECT_FLOAT_EQ(entries[i].wmin, expected[i].wmin) << "i=" << i;
+    EXPECT_FLOAT_EQ(entries[i].value, expected[i].value) << "i=" << i;
+  }
+}
+
+void ExpectPruneMatchesReference(std::vector<WQSummary<>::Entry> const& source,
+                                 std::size_t maxsize) {
+  auto expected = ReferencePrune({source.data(), source.size()}, maxsize);
+
+  WQSummaryContainer actual;
+  actual.Reserve(source.size());
+  std::copy(source.cbegin(), source.cend(), actual.space.begin());
+  actual.SetSize(source.size());
+  actual.SetPrune(maxsize);
+
+  ExpectEntriesEq(actual.Entries(), expected);
+}
+
+auto RandomSummaryEntries(std::size_t size, std::uint32_t seed) -> std::vector<WQSummary<>::Entry> {
+  using Entry = WQSummary<>::Entry;
+
+  SimpleLCG lcg{seed};
+  std::vector<Entry> entries(size);
+  auto cursor = 0.0f;
+  for (std::size_t i = 0; i < size; ++i) {
+    auto wmin = static_cast<float>((lcg() % 5 == 0) ? 0 : 1 + lcg() % 7);
+    auto slack = static_cast<float>(lcg() % 8);
+    entries[i] = Entry{cursor, cursor + wmin + slack, wmin, static_cast<float>(i)};
+    cursor = entries[i].RMinNext() + static_cast<float>(lcg() % 4);
+  }
+  return entries;
+}
+
+auto EnumeratedSummaryEntries(std::size_t size, std::uint64_t code)
+    -> std::vector<WQSummary<>::Entry> {
+  using Entry = WQSummary<>::Entry;
+
+  std::vector<Entry> entries(size);
+  auto cursor = 0.0f;
+  for (std::size_t i = 0; i < size; ++i) {
+    auto wmin = static_cast<float>(code % 3);
+    code /= 3;
+    auto slack = static_cast<float>((code % 3) * 2);
+    code /= 3;
+    entries[i] = Entry{cursor, cursor + wmin + slack, wmin, static_cast<float>(i)};
+    cursor = entries[i].RMinNext();
+  }
+  return entries;
+}
+
+auto RepresentativePruneBudgets(std::size_t size) -> std::vector<std::size_t> {
+  std::vector<std::size_t> budgets{0, 1, 2, size / 4, size / 2, size - 1, size, size + 1};
+  std::sort(budgets.begin(), budgets.end());
+  budgets.erase(std::unique(budgets.begin(), budgets.end()), budgets.end());
+  return budgets;
+}
+
 }  // namespace
 
 TEST_P(QuantileSummaryTest, Invariants) {
@@ -151,6 +264,87 @@ INSTANTIATE_TEST_SUITE_P(Anchors, QuantileSummaryTest, ::testing::ValuesIn(Summa
                          SummaryCaseName);
 INSTANTIATE_TEST_SUITE_P(RandomSamples, QuantileSummaryTest,
                          ::testing::ValuesIn(SummaryRandomCases(100)), SummaryCaseName);
+
+TEST(Quantile, SetPrunePreservesIncreasingValuesWithAliasingGeometry) {
+  using Entry = WQSummary<>::Entry;
+  WQSummaryContainer summary;
+  summary.Reserve(7);
+
+  summary.space[0] = Entry{0.0f, 0.0f, 0.0f, 1.0f};
+  summary.space[1] = Entry{0.0f, 4.0f, 0.0f, 2.0f};
+  summary.space[2] = Entry{4.0f, 5.0f, 1.0f, 3.0f};
+  summary.space[3] = Entry{5.0f, 6.0f, 1.0f, 4.0f};
+  summary.space[4] = Entry{8.0f, 9.0f, 1.0f, 5.0f};
+  summary.space[5] = Entry{9.0f, 10.0f, 1.0f, 6.0f};
+  summary.space[6] = Entry{10.0f, 10.0f, 0.0f, 7.0f};
+  summary.SetSize(7);
+
+  summary.SetPrune(6);
+  auto entries = summary.Entries();
+
+  ASSERT_EQ(entries.size(), 5u);
+  std::array<float, 5> expected_values{1.0f, 3.0f, 4.0f, 5.0f, 7.0f};
+  for (std::size_t i = 0; i < entries.size(); ++i) {
+    EXPECT_FLOAT_EQ(entries[i].value, expected_values[i]);
+  }
+  for (std::size_t i = 1; i < entries.size(); ++i) {
+    EXPECT_LT(entries[i - 1].value, entries[i].value);
+  }
+}
+
+TEST(Quantile, SetPruneInPlaceMatchesOutOfPlaceReferenceOnSmallIntegerGeometries) {
+  for (std::size_t size = 3; size <= 5; ++size) {
+    auto const n_cases = static_cast<std::uint64_t>(std::pow(9.0, static_cast<double>(size)));
+    for (std::uint64_t code = 0; code < n_cases; ++code) {
+      auto source = EnumeratedSummaryEntries(size, code);
+      for (std::size_t maxsize = 0; maxsize <= size + 1; ++maxsize) {
+        ExpectPruneMatchesReference(source, maxsize);
+      }
+    }
+  }
+}
+
+TEST(Quantile, SetPruneInPlaceMatchesOutOfPlaceReferenceOnRandomGeometries) {
+  for (auto size : {3, 4, 5, 7, 8, 15, 16, 31, 32, 63, 64, 127, 256}) {
+    auto budgets = RepresentativePruneBudgets(size);
+    for (std::uint32_t seed = 0; seed < 16; ++seed) {
+      auto source = RandomSummaryEntries(size, seed);
+      for (auto maxsize : budgets) {
+        SCOPED_TRACE(::testing::Message()
+                     << "size=" << size << ", seed=" << seed << ", maxsize=" << maxsize);
+        ExpectPruneMatchesReference(source, maxsize);
+      }
+    }
+  }
+}
+
+TEST(Quantile, SetPruneInPlaceMatchesOutOfPlaceReferenceOnBoundaryGeometries) {
+  using Entry = WQSummary<>::Entry;
+
+  for (std::size_t size = 3; size <= 12; ++size) {
+    for (std::size_t pivot = 1; pivot + 1 < size; ++pivot) {
+      for (float left_wmin : {0.0f, 1.0f, 4.0f}) {
+        for (float right_wmin : {0.0f, 1.0f, 4.0f}) {
+          std::vector<Entry> source(size);
+          for (std::size_t i = 0; i < size; ++i) {
+            auto rmin = static_cast<float>(i * 4);
+            source[i] = Entry{rmin, rmin + 2.0f, 1.0f, static_cast<float>(i)};
+          }
+          source[pivot].wmin = left_wmin;
+          source[pivot].rmax = source[pivot].rmin + left_wmin + 4.0f;
+          source[pivot + 1].wmin = right_wmin;
+          source[pivot + 1].rmax = source[pivot + 1].rmin + right_wmin + 4.0f;
+
+          for (std::size_t maxsize = 0; maxsize <= size + 1; ++maxsize) {
+            SCOPED_TRACE(::testing::Message()
+                         << "size=" << size << ", pivot=" << pivot << ", maxsize=" << maxsize);
+            ExpectPruneMatchesReference(source, maxsize);
+          }
+        }
+      }
+    }
+  }
+}
 
 TEST_P(QuantileContainerTest, Invariants) {
   auto c = GetParam();
