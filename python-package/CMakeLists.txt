@@ -79,14 +79,13 @@ else()
   # otherwise leak into the wheel. We install only the shared library target,
   # below, to its wheel-specific destination.
   set(XGBOOST_FOR_PYTHON_WHEEL ON CACHE BOOL "" FORCE)
+  set(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR ON CACHE BOOL "" FORCE)
   add_subdirectory("${_XGB_CPP_SRC}" xgboost_cpp_build)
-  # All install() rules below are tagged with COMPONENT XGBoostPython.
-  # scikit-build-core is configured (via [tool.scikit-build] install.components)
-  # to install only that component, so any install() rules from C++
-  # subprojects (notably dmlc-core, which has its own install() blocks for
-  # headers / .a / cmake config) get cleanly filtered out of the wheel.
-  install(TARGETS xgboost
-          LIBRARY DESTINATION xgboost/lib
-          RUNTIME DESTINATION xgboost/lib
+  # Install the resolved target file as the unversioned library name used by
+  # xgboost/libpath.py. This mirrors the prebuilt-library path above and avoids
+  # putting versioned-library symlinks into the wheel.
+  install(FILES "$<TARGET_FILE:xgboost>"
+          DESTINATION xgboost/lib
+          RENAME "${_XGB_LIBNAME}"
           COMPONENT XGBoostPython)
 endif()
