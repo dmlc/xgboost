@@ -263,7 +263,7 @@ extensions = [
     "xgboost_doc_doctest",
 ]
 
-sphinx_tabs_valid_builders = ["doctest"]
+sphinx_tabs_valid_builders = ["html", "doctest"]
 
 # We need to real XGBoost library for running tests.
 doctest_global_setup = """
