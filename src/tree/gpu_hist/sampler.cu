@@ -11,6 +11,8 @@
 #include <thrust/transform.h>
 #include <thrust/version.h>
 
+#include <cuda/std/random>
+
 #include "../../common/nvtx_utils.h"
 
 #if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 2)
@@ -38,8 +40,8 @@ class RandomWeight {
   explicit RandomWeight(std::size_t seed) : seed_(seed) {}
 
   XGBOOST_DEVICE float operator()(std::size_t i) const {
-    thrust::default_random_engine rng(seed_);
-    thrust::uniform_real_distribution<float> dist;
+    cuda::std::philox4x64 rng{seed_};
+    cuda::std::uniform_real_distribution<float> dist;
     rng.discard(i);
     return dist(rng);
   }
