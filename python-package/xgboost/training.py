@@ -53,7 +53,7 @@ _RefError = (
 def train(
     params: Dict[str, Any],
     dtrain: DMatrix,
-    num_boost_round: int = 10,
+    num_boost_round: int = 300,
     *,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
     obj: Optional[PlainObj] = None,
@@ -435,7 +435,7 @@ def mknfold(
 def cv(
     params: BoosterParam,
     dtrain: DMatrix,
-    num_boost_round: int = 10,
+    num_boost_round: int = 300,
     *,
     nfold: int = 3,
     stratified: bool = False,

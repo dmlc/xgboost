@@ -179,10 +179,10 @@ range: \eqn{[0, \infty)}}
 Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and \code{learning_rate} shrinks the feature weights to make the boosting process more conservative.
 \itemize{
 \item range: \eqn{[0,1]}
-\item default value: 0.3 for tree-based boosters, 0.5 for linear booster.
+\item default value: 0.1 for tree-based boosters, 0.5 for linear booster.
 }}
 
-\item{min_child_weight}{(for Tree Booster) (default=1)
+\item{min_child_weight}{(for Tree Booster) (default=2)
 Minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than \code{min_child_weight}, then the building process will give up further partitioning. In linear regression task, this simply corresponds to minimum number of instances needed to be in each node. The larger \code{min_child_weight} is, the more conservative the algorithm will be.
 
 range: \eqn{[0, \infty)}}
@@ -379,7 +379,7 @@ Maximum number of nodes to be added.  Not used by \code{"exact"} tree method.}
 \item{booster}{(default= \code{"gbtree"})
 Which booster to use. Can be \code{"gbtree"}, \code{"gblinear"} or \code{"dart"}; \code{"gbtree"} and \code{"dart"} use tree based models while \code{"gblinear"} uses linear functions.}
 
-\item{subsample}{(for Tree Booster) (default=1)
+\item{subsample}{(for Tree Booster) (default=0.8)
 Subsample ratio of the training instances. Setting it to 0.5 means that XGBoost would randomly sample half of the training data prior to growing trees. and this will prevent overfitting. Subsampling will occur once in every boosting iteration.
 
 range: \eqn{(0,1]}}
@@ -404,10 +404,10 @@ named vector, will try to match the entries to column names of \code{x} by name.
 
 If \code{NULL} (the default), all columns will have the same weight.}
 
-\item{colsample_bytree, colsample_bylevel, colsample_bynode}{(for Tree Booster) (default=1)
+\item{colsample_bytree, colsample_bylevel, colsample_bynode}{(for Tree Booster) (\code{colsample_bytree} default=0.8, \code{colsample_bylevel} and \code{colsample_bynode} default=1)
 This is a family of parameters for subsampling of columns.
 \itemize{
-\item All \code{"colsample_by*"} parameters have a range of \eqn{(0, 1]}, the default value of 1, and specify the fraction of columns to be subsampled.
+\item All \code{"colsample_by*"} parameters have a range of \eqn{(0, 1]} and specify the fraction of columns to be subsampled.
 \item \code{"colsample_bytree"} is the subsample ratio of columns when constructing each tree. Subsampling occurs once for every tree constructed.
 \item \code{"colsample_bylevel"} is the subsample ratio of columns for each level. Subsampling occurs once for every new depth level reached in a tree. Columns are subsampled from the set of columns chosen for the current tree.
 \item \code{"colsample_bynode"} is the subsample ratio of columns for each node (split). Subsampling occurs once every time a new split is evaluated. Columns are subsampled from the set of columns chosen for the current level. This is not supported by the exact tree method.

@@ -822,6 +822,10 @@ public class BoosterImplTest {
         put("max_depth", 2);
         put("silent", 1);
         put("objective", "binary:logistic");
+        put("seed", 0);
+        put("min_child_weight", 1);
+        put("subsample", 1);
+        put("colsample_bytree", 1);
       }
     };
 

@@ -832,7 +832,7 @@ def train(  # pylint: disable=unused-argument
     client: "distributed.Client",
     params: Dict[str, Any],
     dtrain: DaskDMatrix,
-    num_boost_round: int = 10,
+    num_boost_round: int = 300,
     *,
     evals: Optional[Sequence[Tuple[DaskDMatrix, str]]] = None,
     obj: Optional[PlainObj] = None,

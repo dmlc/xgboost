@@ -110,7 +110,10 @@ class TestSplitWithEta : public ::testing::Test {
 
       auto grad = GenerateRandomGradients(ctx, Xy->Info().num_row_, n_targets);
       CHECK_EQ(grad.gpair.Shape(1), n_targets);
-      auto args = Args{{"learning_rate", std::to_string(eta)}};
+      auto args = Args{{"learning_rate", std::to_string(eta)},
+                       {"min_child_weight", "1"},
+                       {"subsample", "1"},
+                       {"colsample_bytree", "1"}};
 
       BuildTree(ctx, Xy.get(), &grad, name, args, tree.get());
 
@@ -309,7 +312,9 @@ class TestRegularization : public ::testing::Test {
 
     RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
                    static_cast<bst_target_t>(p_fmat->Info().num_col_)};
-    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{p, "0.0"}}, &tree_0);
+    auto args =
+        Args{{p, "0.0"}, {"min_child_weight", "1"}, {"subsample", "1"}, {"colsample_bytree", "1"}};
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, args, &tree_0);
     // not exact, just checking the tree can be built
     if (n_targets > 1) {
       ASSERT_GE(tree_0.NumNodes(), 40);
@@ -319,7 +324,8 @@ class TestRegularization : public ::testing::Test {
 
     RegTree tree_1{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
                    static_cast<bst_target_t>(p_fmat->Info().num_col_)};
-    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{p, "1024.0"}}, &tree_1);
+    args[0].second = "1024.0";
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, args, &tree_1);
     ASSERT_EQ(tree_1.NumNodes(), 1);
   }
 };
@@ -415,7 +421,8 @@ class TestMaxDeltaStep : public ::testing::Test {
 
     RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
                    static_cast<bst_target_t>(p_fmat->Info().num_col_)};
-    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}}, &tree_0);
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}},
+              &tree_0);
     ASSERT_EQ(tree_0.NumNodes(), 1);
   }
 };

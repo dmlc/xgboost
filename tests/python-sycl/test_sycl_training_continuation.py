@@ -1,6 +1,7 @@
+import json
+
 import numpy as np
 import xgboost as xgb
-import json
 
 rng = np.random.RandomState(1994)
 
@@ -17,6 +18,9 @@ class TestSYCLTrainingContinuation:
             "max_depth": "2",
             "gamma": "0.1",
             "alpha": "0.01",
+            "seed": 1994,
+            "subsample": 1,
+            "colsample_bytree": 1,
             "enable_experimental_json_serialization": use_json,
         }
         bst_0 = xgb.train(params, dtrain, num_boost_round=64)

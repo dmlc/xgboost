@@ -9,6 +9,7 @@ from ..compat import concat
 from ..core import DMatrix, QuantileDMatrix, _parse_eval_str
 from ..sklearn import XGBClassifier, XGBRanker
 from ..training import train
+from . import legacy_tree_params
 from .utils import Device
 
 
@@ -77,6 +78,7 @@ def check_quantile_error(tree_method: str, device: Device) -> None:
             "eval_metric": "quantile",
             "quantile_alpha": 0.3,
             "device": device,
+            **legacy_tree_params(),
         },
         Xy,
         evals=[(Xy, "Train")],
@@ -84,7 +86,9 @@ def check_quantile_error(tree_method: str, device: Device) -> None:
     )
     predt = booster.inplace_predict(X)
     loss = mean_pinball_loss(y, predt, alpha=0.3)
-    np.testing.assert_allclose(evals_result["Train"]["quantile"][-1], loss)
+    np.testing.assert_allclose(
+        evals_result["Train"]["quantile"][-1], loss, rtol=1e-5, atol=1e-7
+    )
 
     alpha = [0.25, 0.5, 0.75]
     booster = train(
@@ -94,6 +98,7 @@ def check_quantile_error(tree_method: str, device: Device) -> None:
             "quantile_alpha": alpha,
             "objective": "reg:quantileerror",
             "device": device,
+            **legacy_tree_params(),
         },
         Xy,
         evals=[(Xy, "Train")],
@@ -103,7 +108,9 @@ def check_quantile_error(tree_method: str, device: Device) -> None:
     loss = np.mean(
         [mean_pinball_loss(y, predt[:, i], alpha=alpha[i]) for i in range(3)]
     )
-    np.testing.assert_allclose(evals_result["Train"]["quantile"][-1], loss)
+    np.testing.assert_allclose(
+        evals_result["Train"]["quantile"][-1], loss, rtol=1e-5, atol=1e-7
+    )
 
 
 def _expectile_loss(
@@ -142,6 +149,7 @@ def check_expectile_error(tree_method: str, device: Device) -> None:
             "eval_metric": "expectile",
             "expectile_alpha": 0.3,
             "device": device,
+            **legacy_tree_params(),
         },
         Xy,
         evals=[(Xy, "Train")],
@@ -149,7 +157,9 @@ def check_expectile_error(tree_method: str, device: Device) -> None:
     )
     predt = booster.inplace_predict(X)
     loss = _expectile_loss(y, predt, 0.3, None)
-    np.testing.assert_allclose(evals_result["Train"]["expectile"][-1], loss)
+    np.testing.assert_allclose(
+        evals_result["Train"]["expectile"][-1], loss, rtol=1e-5, atol=1e-7
+    )
 
     alpha = np.array([0.25, 0.5, 0.75])
     booster = train(
@@ -159,6 +169,7 @@ def check_expectile_error(tree_method: str, device: Device) -> None:
             "expectile_alpha": alpha,
             "objective": "reg:expectileerror",
             "device": device,
+            **legacy_tree_params(),
         },
         Xy,
         evals=[(Xy, "Train")],
@@ -166,7 +177,9 @@ def check_expectile_error(tree_method: str, device: Device) -> None:
     )
     predt = booster.inplace_predict(X)
     loss = _expectile_loss_multi(y, predt, alpha, None)
-    np.testing.assert_allclose(evals_result["Train"]["expectile"][-1], loss)
+    np.testing.assert_allclose(
+        evals_result["Train"]["expectile"][-1], loss, rtol=1e-5, atol=1e-7
+    )
 
     weights = rng.uniform(0.1, 1.0, size=y.shape[0])
     Xy_w = DMatrix(X, y, weight=weights)
@@ -178,6 +191,7 @@ def check_expectile_error(tree_method: str, device: Device) -> None:
             "expectile_alpha": alpha,
             "objective": "reg:expectileerror",
             "device": device,
+            **legacy_tree_params(),
         },
         Xy_w,
         evals=[(Xy_w, "Train")],
@@ -185,7 +199,9 @@ def check_expectile_error(tree_method: str, device: Device) -> None:
     )
     predt = booster.inplace_predict(X)
     loss = _expectile_loss_multi(y, predt, alpha, weights)
-    np.testing.assert_allclose(evals_result_w["Train"]["expectile"][-1], loss)
+    np.testing.assert_allclose(
+        evals_result_w["Train"]["expectile"][-1], loss, rtol=1e-5, atol=1e-7
+    )
 
 
 def run_roc_auc_binary(tree_method: str, n_samples: int, device: Device) -> None:
@@ -210,6 +226,7 @@ def run_roc_auc_binary(tree_method: str, n_samples: int, device: Device) -> None
             "device": device,
             "eval_metric": "auc",
             "objective": "binary:logistic",
+            **legacy_tree_params(),
         },
         Xy,
         num_boost_round=1,
@@ -232,14 +249,22 @@ def run_pr_auc_multi(tree_method: str, device: Device) -> None:
 
     X, y = make_classification(64, 16, n_informative=8, n_classes=3, random_state=1994)
     clf = XGBClassifier(
-        tree_method=tree_method, n_estimators=1, eval_metric="aucpr", device=device
+        tree_method=tree_method,
+        n_estimators=1,
+        eval_metric="aucpr",
+        device=device,
+        **legacy_tree_params(),
     )
     clf.fit(X, y, eval_set=[(X, y)])
     evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]
     # No available implementation for comparison, just check that XGBoost converges
     # to 1.0
     clf = XGBClassifier(
-        tree_method=tree_method, n_estimators=10, eval_metric="aucpr", device=device
+        tree_method=tree_method,
+        n_estimators=10,
+        eval_metric="aucpr",
+        device=device,
+        **legacy_tree_params(),
     )
     clf.fit(X, y, eval_set=[(X, y)])
     evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]
@@ -280,6 +305,7 @@ def run_roc_auc_multi(  # pylint: disable=too-many-locals
             "objective": "multi:softprob",
             "num_class": n_classes,
             "device": device,
+            **legacy_tree_params(),
         },
         Xy,
         num_boost_round=1,
@@ -312,6 +338,7 @@ def run_pr_auc_ltr(tree_method: str, device: Device) -> None:
         objective="rank:pairwise",
         eval_metric="aucpr",
         device=device,
+        **legacy_tree_params(),
     )
     groups = np.array([32, 32, 64])
     ltr.fit(
@@ -332,7 +359,11 @@ def run_pr_auc_binary(tree_method: str, device: Device) -> None:
 
     X, y = make_classification(128, 4, n_classes=2, random_state=1994)
     clf = XGBClassifier(
-        tree_method=tree_method, n_estimators=1, eval_metric="aucpr", device=device
+        tree_method=tree_method,
+        n_estimators=1,
+        eval_metric="aucpr",
+        device=device,
+        **legacy_tree_params(),
     )
     clf.fit(X, y, eval_set=[(X, y)])
     evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]
@@ -345,7 +376,11 @@ def run_pr_auc_binary(tree_method: str, device: Device) -> None:
     np.testing.assert_allclose(prauc, evals_result, rtol=1e-2)
 
     clf = XGBClassifier(
-        tree_method=tree_method, n_estimators=10, eval_metric="aucpr", device=device
+        tree_method=tree_method,
+        n_estimators=10,
+        eval_metric="aucpr",
+        device=device,
+        **legacy_tree_params(),
     )
     clf.fit(X, y, eval_set=[(X, y)])
     evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]

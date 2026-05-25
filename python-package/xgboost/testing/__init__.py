@@ -63,6 +63,20 @@ datasets = pytest.importorskip("sklearn.datasets")
 PytestSkip = TypedDict("PytestSkip", {"condition": bool, "reason": str})
 
 
+def legacy_sampling_params() -> Dict[str, float]:
+    """Sampling parameters used by tests that assert deterministic tree behavior."""
+    return {
+        "min_child_weight": 1.0,
+        "subsample": 1.0,
+        "colsample_bytree": 1.0,
+    }
+
+
+def legacy_tree_params() -> Dict[str, float]:
+    """Tree parameters used by tests that assert pre-RFC model behavior."""
+    return {"learning_rate": 0.3, **legacy_sampling_params()}
+
+
 def has_ipv6() -> bool:
     """Check whether IPv6 is enabled on this host."""
     # connection error in macos, still need some fixes.

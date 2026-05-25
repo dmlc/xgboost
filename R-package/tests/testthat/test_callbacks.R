@@ -154,7 +154,8 @@ test_that("xgb.cb.evaluation.log works as expected for xgb.cv", {
 
 params <- xgb.params(
   objective = "binary:logistic", eval_metric = "error",
-  max_depth = 4, nthread = n_threads
+  max_depth = 4, nthread = n_threads,
+  min_child_weight = 1, subsample = 1, colsample_bytree = 1
 )
 
 test_that("can store evaluation_log without printing", {

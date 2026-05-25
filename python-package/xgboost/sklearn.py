@@ -796,7 +796,7 @@ def _wrap_evaluation_matrices(
     return train_dmatrix, evals
 
 
-DEFAULT_N_ESTIMATORS = 100
+DEFAULT_N_ESTIMATORS = 300
 
 
 @xgboost_model_doc(

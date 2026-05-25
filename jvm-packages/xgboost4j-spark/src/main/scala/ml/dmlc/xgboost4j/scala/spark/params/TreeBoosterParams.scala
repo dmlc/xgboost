@@ -221,8 +221,8 @@ private[spark] trait TreeBoosterParams extends Params {
 
   final def getMaxCachedHistNode: Int = $(maxCachedHistNode)
 
-  setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6, minChildWeight -> 1, maxDeltaStep -> 0,
-    subsample -> 1, samplingMethod -> "uniform", colsampleBytree -> 1, colsampleBylevel -> 1,
+  setDefault(eta -> 0.1, gamma -> 0, maxDepth -> 6, minChildWeight -> 2, maxDeltaStep -> 0,
+    subsample -> 0.8, samplingMethod -> "uniform", colsampleBytree -> 0.8, colsampleBylevel -> 1,
     colsampleBynode -> 1, lambda -> 1, alpha -> 0, treeMethod -> "auto", scalePosWeight -> 1,
     processType -> "default", growPolicy -> "depthwise", maxLeaves -> 0, maxBins -> 256,
     numParallelTree -> 1, maxCachedHistNode -> 65536)

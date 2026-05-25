@@ -188,6 +188,7 @@ def check_quantile_loss_rf(
         "device": device,
         "quantile_alpha": alpha,
         "multi_strategy": multi_strategy,
+        **tm.legacy_tree_params(),
     }
     run(params, "quantile")
 
@@ -216,11 +217,13 @@ def check_quantile_loss_extmem(
         "objective": "reg:quantileerror",
         "device": device,
         "quantile_alpha": [0.2, 0.8],
+        "seed": 1994,
+        **tm.legacy_tree_params(),
     }
-    booster_it = train(params, Xy_it)
+    booster_it = train(params, Xy_it, num_boost_round=1)
     X, y, w = it.as_arrays()
     Xy = DMatrix(X, y, weight=w)
-    booster = train(params, Xy)
+    booster = train(params, Xy, num_boost_round=1)
 
     predt_it = booster_it.predict(Xy_it)
     predt = booster.predict(Xy)
@@ -466,6 +469,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
         # Use one-hot exclusively
         "max_cat_to_onehot": USE_ONEHOT,
         "device": device,
+        **tm.legacy_tree_params(),
     }
 
     if multi_target:

@@ -397,7 +397,7 @@ class TestRegressor:
         assert py_reg.n_estimators.parent == py_reg.uid
         assert not hasattr(py_reg, "gpu_id")
         assert hasattr(py_reg, "device")
-        assert py_reg.getOrDefault(py_reg.n_estimators) == 100
+        assert py_reg.getOrDefault(py_reg.n_estimators) == 300
         assert py_reg.getOrDefault(getattr(py_reg, "objective")) == "reg:squarederror"
         py_reg2 = SparkXGBRegressor(n_estimators=200)
         assert py_reg2.getOrDefault(getattr(py_reg2, "n_estimators")) == 200
@@ -679,7 +679,7 @@ class TestClassifier:
         assert not hasattr(py_clf, "gpu_id")
         assert hasattr(py_clf, "device")
 
-        assert py_clf.getOrDefault(py_clf.n_estimators) == 100
+        assert py_clf.getOrDefault(py_clf.n_estimators) == 300
         assert py_clf.getOrDefault(getattr(py_clf, "objective")) is None
         py_clf2 = SparkXGBClassifier(n_estimators=200)
         assert py_clf2.getOrDefault(getattr(py_clf2, "n_estimators")) == 200

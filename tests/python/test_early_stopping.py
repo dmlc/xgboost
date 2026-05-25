@@ -2,7 +2,6 @@ from typing import Tuple
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.updater import get_basescore
@@ -63,6 +62,7 @@ class TestEarlyStopping:
             "eta": 1,
             "objective": "binary:logistic",
             "eval_metric": "error",
+            **tm.legacy_sampling_params(),
         }
 
         def evalerror(preds: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:

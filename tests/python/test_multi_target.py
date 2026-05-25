@@ -57,6 +57,7 @@ def test_shap_multi_output_tree() -> None:
             "num_target": 2,
             "multi_strategy": "multi_output_tree",
             "objective": "reg:squarederror",
+            **tm.legacy_tree_params(),
         },
         Xy,
         num_boost_round=3,

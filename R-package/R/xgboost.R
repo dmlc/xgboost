@@ -1052,7 +1052,7 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' @param learning_rate (alias: `eta`)
 #' Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and `learning_rate` shrinks the feature weights to make the boosting process more conservative.
 #' - range: \eqn{[0,1]}
-#' - default value: 0.3 for tree-based boosters, 0.5 for linear booster.
+#' - default value: 0.1 for tree-based boosters, 0.5 for linear booster.
 #' @param reg_lambda (alias: `lambda`)
 #' - For tree-based boosters:
 #'   - L2 regularization term on weights. Increasing this value will make model more conservative.

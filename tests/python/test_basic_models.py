@@ -104,15 +104,16 @@ class TestModels:
     def test_boost_from_prediction(self):
         # Re-construct dtrain here to avoid modification
         margined, _ = tm.load_agaricus(__file__)
-        bst = xgb.train({"tree_method": "hist"}, margined, 1)
+        params = {"tree_method": "hist", **tm.legacy_tree_params()}
+        bst = xgb.train(params, margined, 1)
         predt_0 = bst.predict(margined, output_margin=True)
         margined.set_base_margin(predt_0)
-        bst = xgb.train({"tree_method": "hist"}, margined, 1)
+        bst = xgb.train(params, margined, 1)
         predt_1 = bst.predict(margined)
 
         assert np.any(np.abs(predt_1 - predt_0) > 1e-6)
         dtrain, _ = tm.load_agaricus(__file__)
-        bst = xgb.train({"tree_method": "hist"}, dtrain, 2)
+        bst = xgb.train(params, dtrain, 2)
         predt_2 = bst.predict(dtrain)
         assert np.all(np.abs(predt_2 - predt_1) < 1e-6)
 
@@ -241,7 +242,11 @@ class TestModels:
         bst.predict(dm2)  # success
 
     def test_special_model_dump_characters(self) -> None:
-        params = {"objective": "reg:squarederror", "max_depth": 3}
+        params = {
+            "objective": "reg:squarederror",
+            "max_depth": 3,
+            **tm.legacy_tree_params(),
+        }
         feature_names = ['"feature 0"', "\tfeature\n1", """feature "2"."""]
         X, y, w = tm.make_regression(n_samples=128, n_features=3, use_cupy=False)
         Xy = xgb.DMatrix(X, label=y, feature_names=feature_names)

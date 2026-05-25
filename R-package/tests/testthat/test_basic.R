@@ -11,6 +11,12 @@ windows_flag <- .Platform$OS.type == "windows" &&
   .Machine$sizeof.pointer != 8
 solaris_flag <- (Sys.info()["sysname"] == "SunOS")
 n_threads <- 1
+legacy_sampling_params <- list(
+  min_child_weight = 1,
+  subsample = 1,
+  colsample_bytree = 1
+)
+legacy_tree_params <- c(list(learning_rate = 0.3), legacy_sampling_params)
 
 
 test_that("train and predict binary classification", {
@@ -159,10 +165,10 @@ test_that("train and predict softprob", {
     bst <- xgb.train(
       data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb, nthread = 1),
       nrounds = 5,
-      params = xgb.params(
+      params = c(xgb.params(
         max_depth = 3, learning_rate = 0.5, nthread = n_threads,
         objective = "multi:softprob", num_class = 3, eval_metric = "merror"
-      ),
+      ), legacy_sampling_params),
       evals = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb, nthread = 1))
     ),
     "train-merror"
@@ -218,10 +224,10 @@ test_that("train and predict softmax", {
     bst <- xgb.train(
       data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb, nthread = 1),
       nrounds = 5,
-      params = xgb.params(
+      params = c(xgb.params(
         max_depth = 3, learning_rate = 0.5, nthread = n_threads,
         objective = "multi:softmax", num_class = 3, eval_metric = "merror"
-      ),
+      ), legacy_sampling_params),
       evals = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb, nthread = 1))
     ),
     "train-merror"
@@ -339,9 +345,9 @@ test_that("use of multiple eval metrics works", {
 test_that("training continuation works", {
   dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = n_threads)
   evals <- list(train = dtrain)
-  params <- xgb.params(
+  params <- c(xgb.params(
     objective = "binary:logistic", max_depth = 2, learning_rate = 1, nthread = n_threads
-  )
+  ), legacy_sampling_params)
 
   # for the reference, use 4 iterations at once:
   set.seed(11)
@@ -380,13 +386,13 @@ test_that("xgb.cv works", {
       data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
       nfold = 5,
       nrounds = 2,
-      params = xgb.params(
+      params = c(xgb.params(
         max_depth = 2,
         learning_rate = 1.,
         nthread = n_threads,
         objective = "binary:logistic",
         eval_metric = "error"
-      ),
+      ), legacy_sampling_params),
       verbose = TRUE
     ),
     "train-error:"
@@ -443,11 +449,11 @@ test_that("xgb.cv works with stratified folds", {
     data = dtrain,
     nrounds = 2,
     nfold = 5,
-    params = xgb.params(
+    params = c(xgb.params(
       max_depth = 2,
       nthread = n_threads,
       objective = "binary:logistic"
-    ),
+    ), legacy_sampling_params),
     verbose = FALSE, stratified = FALSE
   )
   set.seed(314159)
@@ -455,11 +461,11 @@ test_that("xgb.cv works with stratified folds", {
     data = dtrain,
     nfold = 5,
     nrounds = 2,
-    params = xgb.params(
+    params = c(xgb.params(
       max_depth = 2,
       nthread = n_threads,
       objective = "binary:logistic"
-    ),
+    ), legacy_sampling_params),
     verbose = FALSE, stratified = TRUE
   )
   # Stratified folds should result in a different evaluation logs
@@ -488,11 +494,11 @@ test_that("train and predict with non-strict classes", {
     bst <- xgb.train(
       data = xgb.DMatrix(train_dense, label = train$label, nthread = 1),
       nrounds = 2,
-      params = xgb.params(
+      params = c(xgb.params(
         max_depth = 2,
         nthread = n_threads,
         objective = "binary:logistic"
-      ),
+      ), legacy_sampling_params),
       verbose = 0
     ),
     regexp = NA
@@ -507,11 +513,11 @@ test_that("train and predict with non-strict classes", {
     bst <- xgb.train(
       data = xgb.DMatrix(train_dense, label = train$label, nthread = 1),
       nrounds = 2,
-      params = xgb.params(
+      params = c(xgb.params(
         max_depth = 2,
         nthread = n_threads,
         objective = "binary:logistic"
-      ),
+      ), legacy_sampling_params),
       verbose = 0
     ),
     regexp = NA
@@ -559,11 +565,11 @@ test_that("colsample_bytree works", {
   evals <- list(train = dtrain, eval = dtest)
   ## Use colsample_bytree = 0.01, so that roughly one out of 100 features is chosen for
   ## each tree
-  params <- xgb.params(
+  params <- c(xgb.params(
     max_depth = 2, learning_rate = 0, nthread = n_threads,
     colsample_bytree = 0.01, objective = "binary:logistic",
     eval_metric = "auc"
-  )
+  ), list(min_child_weight = 1, subsample = 1))
   set.seed(2)
   bst <- xgb.train(params, dtrain, nrounds = 100, evals = evals, verbose = 0)
   xgb.importance(model = bst)
@@ -690,12 +696,12 @@ test_that("Quantile regression accepts multiple quantiles", {
   dm <- xgb.DMatrix(data = x, label = y, nthread = 1)
   model <- xgb.train(
     data = dm,
-    params = xgb.params(
+    params = c(xgb.params(
       objective = "reg:quantileerror",
       tree_method = "exact",
       quantile_alpha = c(0.05, 0.5, 0.95),
       nthread = n_threads
-    ),
+    ), legacy_tree_params),
     nrounds = 15
   )
   pred <- predict(model, x)
@@ -717,12 +723,12 @@ test_that("Can use multi-output labels with built-in objectives", {
   y_mirrored <- cbind(y, -y)
   dm <- xgb.DMatrix(x, label = y_mirrored, nthread = n_threads)
   model <- xgb.train(
-    params = xgb.params(
+    params = c(xgb.params(
       tree_method = "hist",
       multi_strategy = "multi_output_tree",
       objective = "reg:squarederror",
       nthread = n_threads
-    ),
+    ), legacy_tree_params),
     data = dm,
     nrounds = 5
   )
@@ -739,7 +745,7 @@ test_that("Can use multi-output labels with custom objectives", {
   y_mirrored <- cbind(y, -y)
   dm <- xgb.DMatrix(x, label = y_mirrored, nthread = n_threads)
   model <- xgb.train(
-    params = xgb.params(
+    params = c(xgb.params(
       tree_method = "hist",
       multi_strategy = "multi_output_tree",
       base_score = 0,
@@ -751,7 +757,7 @@ test_that("Can use multi-output labels with custom objectives", {
         return(list(grad = grad, hess = hess))
       },
       nthread = n_threads
-    ),
+    ), legacy_tree_params),
     data = dm,
     nrounds = 5
   )
