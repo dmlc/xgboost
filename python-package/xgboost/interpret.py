@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 
-from ._typing import ArrayLike, IterationRange
+from ._typing import ArrayLike, FloatCompatible, IterationRange
 from .core import Booster, DMatrix
 
 
@@ -12,7 +12,7 @@ def _as_booster(model: object) -> Booster:
     if isinstance(model, Booster):
         return model
     get_booster = getattr(model, "get_booster", None)
-    if get_booster is None:
+    if not callable(get_booster):
         raise TypeError(
             "`model` must be an xgboost.Booster or an object with get_booster()."
         )
@@ -33,13 +33,17 @@ def _get_iteration_range(
     return iteration_range
 
 
-def _as_prediction_dmatrix(model: object, X: Union[DMatrix, ArrayLike]) -> DMatrix:
+def _as_prediction_dmatrix(
+    model: object, X: Union[DMatrix, ArrayLike], missing: Optional[FloatCompatible]
+) -> DMatrix:
     if isinstance(X, DMatrix):
+        if missing is not None:
+            raise ValueError("`missing` must not be specified when `X` is a DMatrix.")
         return X
 
     return DMatrix(
         X,
-        missing=getattr(model, "missing", None),
+        missing=missing if missing is not None else getattr(model, "missing", None),
         nthread=getattr(model, "n_jobs", None),
         feature_types=getattr(model, "feature_types", None),
         enable_categorical=getattr(model, "enable_categorical", False),
@@ -72,14 +76,14 @@ def shap_values(  # pylint: disable=too-many-arguments
     device: Optional[str] = None,
     output_margin: bool = False,
     iteration_range: Optional[IterationRange] = None,
+    missing: Optional[FloatCompatible] = None,
     validate_features: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Return SHAP values for an XGBoost model.
 
     This function accepts either a :py:class:`xgboost.Booster` or an sklearn-style
-    XGBoost model and wraps :py:meth:`xgboost.Booster.predict` with
-    ``pred_contribs=True``. The final bias column returned by ``predict`` is
-    returned separately from the feature contributions.
+    XGBoost model and returns feature contributions together with the separated
+    bias term.
 
     Parameters
     ----------
@@ -97,15 +101,23 @@ def shap_values(  # pylint: disable=too-many-arguments
         is not safe for concurrent use of the same model.
     output_margin :
         Accepted for API compatibility. SHAP contributions currently correspond
-        to the model margin, matching ``Booster.predict(pred_contribs=True)``.
+        to the model margin.
     iteration_range :
         Specifies which layer of trees are used in prediction.
+    missing :
+        Value in array-like ``X`` to treat as missing. When None, use the
+        model's missing value if available, otherwise ``np.nan``. This must not
+        be specified when ``X`` is already a DMatrix.
     validate_features :
         Validate feature names between the model and input data.
+
     Returns
     -------
     values, bias :
-        Feature SHAP values, excluding the bias term.
+        ``values`` contains feature SHAP values with the bias term removed.
+        ``bias`` contains the separated bias term. For multi-target models, the
+        output shape follows the corresponding prediction shape with the final
+        feature dimension split into ``values`` and ``bias``.
     """
     if X_background is not None:
         raise NotImplementedError("`X_background` is not yet supported.")
@@ -114,7 +126,7 @@ def shap_values(  # pylint: disable=too-many-arguments
     _ = output_margin
 
     booster = _as_booster(model)
-    data = _as_prediction_dmatrix(model, X)
+    data = _as_prediction_dmatrix(model, X, missing)
     contribs = _predict_contribs(
         booster,
         data,

@@ -58,6 +58,36 @@ def test_shap_values_rejects_background_data() -> None:
         interpret.shap_values(booster, X, X_background=X)
 
 
+def test_shap_values_validates_get_booster() -> None:
+    class InvalidModel:
+        get_booster = "booster"
+
+    with pytest.raises(TypeError, match="get_booster"):
+        interpret.shap_values(InvalidModel(), np.empty((1, 1)))
+
+
+def test_shap_values_uses_missing_for_array_like_data() -> None:
+    X = np.array([[0.0, 1.0], [2.0, 0.0], [3.0, 4.0]])
+    y = np.array([0.0, 1.0, 1.0])
+    booster = xgb.train(
+        {"tree_method": "hist"}, xgb.DMatrix(X, label=y, missing=0.0), 4
+    )
+
+    values, bias = interpret.shap_values(booster, X, missing=0.0)
+    contribs = booster.predict(xgb.DMatrix(X, missing=0.0), pred_contribs=True)
+
+    np.testing.assert_allclose(values, contribs[:, :-1])
+    np.testing.assert_allclose(bias, contribs[:, -1])
+
+
+def test_shap_values_rejects_missing_with_dmatrix() -> None:
+    X = xgb.DMatrix(np.array([[0.0, 1.0]]), label=np.array([0.0]), missing=0.0)
+    booster = xgb.train({"tree_method": "hist"}, X, 1)
+
+    with pytest.raises(ValueError, match="DMatrix"):
+        interpret.shap_values(booster, X, missing=0.0)
+
+
 def test_shap_values_device_override_restores_config() -> None:
     rng = np.random.RandomState(1998)
     X = rng.randn(16, 4)
