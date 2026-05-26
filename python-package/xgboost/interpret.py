@@ -51,7 +51,7 @@ def _predict_contribs(
     data: DMatrix,
     *,
     device: Optional[str],
-    kwargs: dict,
+    **kwargs: object,
 ) -> np.ndarray:
     if device is None:
         return booster.predict(data, **kwargs)
@@ -72,16 +72,14 @@ def shap_values(  # pylint: disable=too-many-arguments
     device: Optional[str] = None,
     output_margin: bool = False,
     iteration_range: Optional[IterationRange] = None,
-    approx: bool = False,
     validate_features: bool = True,
-    return_bias: bool = False,
-) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+) -> Tuple[np.ndarray, np.ndarray]:
     """Return SHAP values for an XGBoost model.
 
     This function accepts either a :py:class:`xgboost.Booster` or an sklearn-style
     XGBoost model and wraps :py:meth:`xgboost.Booster.predict` with
     ``pred_contribs=True``. The final bias column returned by ``predict`` is
-    removed from the default return value.
+    returned separately from the feature contributions.
 
     Parameters
     ----------
@@ -102,19 +100,12 @@ def shap_values(  # pylint: disable=too-many-arguments
         to the model margin, matching ``Booster.predict(pred_contribs=True)``.
     iteration_range :
         Specifies which layer of trees are used in prediction.
-    approx :
-        Use approximate SHAP contributions.
     validate_features :
         Validate feature names between the model and input data.
-    return_bias :
-        When True, return ``(values, bias)``.
-
     Returns
     -------
-    values :
-        Feature SHAP values, excluding the bias term.
     values, bias :
-        Returned when ``return_bias`` is True.
+        Feature SHAP values, excluding the bias term.
     """
     if X_background is not None:
         raise NotImplementedError("`X_background` is not yet supported.")
@@ -128,19 +119,14 @@ def shap_values(  # pylint: disable=too-many-arguments
         booster,
         data,
         device=device,
-        kwargs={
-            "pred_contribs": True,
-            "approx_contribs": approx,
-            "validate_features": validate_features,
-            "iteration_range": _get_iteration_range(model, iteration_range),
-        },
+        pred_contribs=True,
+        validate_features=validate_features,
+        iteration_range=_get_iteration_range(model, iteration_range),
     )
 
     values = contribs[..., :-1]
     bias = contribs[..., -1]
-    if return_bias:
-        return values, bias
-    return values
+    return values, bias
 
 
 __all__ = ["shap_values"]

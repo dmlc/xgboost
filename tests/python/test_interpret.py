@@ -10,12 +10,11 @@ def test_shap_values_matches_predict() -> None:
     y = rng.randn(16)
     booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, label=y), 4)
 
-    values, bias = interpret.shap_values(booster, X, return_bias=True)
+    values, bias = interpret.shap_values(booster, X)
     contribs = booster.predict(xgb.DMatrix(X), pred_contribs=True)
 
     np.testing.assert_allclose(values, contribs[:, :-1])
     np.testing.assert_allclose(bias, contribs[:, -1])
-    np.testing.assert_allclose(interpret.shap_values(booster, X), contribs[:, :-1])
 
 
 def test_shap_values_accepts_sklearn_model() -> None:
@@ -25,10 +24,11 @@ def test_shap_values_accepts_sklearn_model() -> None:
     reg = xgb.XGBRegressor(n_estimators=4, tree_method="hist")
     reg.fit(X, y)
 
-    values = interpret.shap_values(reg, X)
+    values, bias = interpret.shap_values(reg, X)
     contribs = reg.get_booster().predict(xgb.DMatrix(X), pred_contribs=True)
 
     np.testing.assert_allclose(values, contribs[:, :-1])
+    np.testing.assert_allclose(bias, contribs[:, -1])
 
 
 def test_shap_values_uses_sklearn_iteration_range() -> None:
@@ -39,12 +39,13 @@ def test_shap_values_uses_sklearn_iteration_range() -> None:
     reg.fit(X, y)
     reg.get_booster().set_attr(best_iteration="3")
 
-    values = interpret.shap_values(reg, X, iteration_range=(0, 0))
+    values, bias = interpret.shap_values(reg, X, iteration_range=(0, 0))
     contribs = reg.get_booster().predict(
         xgb.DMatrix(X), pred_contribs=True, iteration_range=(0, 4)
     )
 
     np.testing.assert_allclose(values, contribs[:, :-1])
+    np.testing.assert_allclose(bias, contribs[:, -1])
 
 
 def test_shap_values_rejects_background_data() -> None:
@@ -64,10 +65,11 @@ def test_shap_values_device_override_restores_config() -> None:
     booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, label=y), 4)
     config = booster.save_config()
 
-    values = interpret.shap_values(booster, X, device="cpu")
+    values, bias = interpret.shap_values(booster, X, device="cpu")
     contribs = booster.predict(xgb.DMatrix(X), pred_contribs=True)
 
     np.testing.assert_allclose(values, contribs[:, :-1])
+    np.testing.assert_allclose(bias, contribs[:, -1])
     assert booster.save_config() == config
 
 
