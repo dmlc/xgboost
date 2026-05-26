@@ -25,7 +25,7 @@ by \code{\link[=xgb.model.dt.tree]{xgb.model.dt.tree()}}.}
 
 \item{plot}{Should the plot be shown? Default is \code{TRUE}.}
 
-\item{...}{Other parameters passed to \code{\link[graphics:barplot]{graphics::barplot()}} or \code{\link[graphics:plot.default]{graphics::plot()}}.}
+\item{...}{Other parameters passed to \code{\link[graphics:barplot]{graphics::barplot()}} or \code{\link[graphics:plot]{graphics::plot()}}.}
 }
 \value{
 The return value of the two functions is as follows:

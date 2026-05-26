@@ -12,11 +12,15 @@ dependencies:
   - numpy
   - scipy
   - scikit-learn
+  - dask
   - myst-parser
   - pyspark
   - pip:
     - breathe
     - sphinx_rtd_theme
+    - sphinx-issues
+    - sphinx-tabs
+    - sphinxcontrib-jquery
     - pydot-ng
     - graphviz
     - ray[train]
