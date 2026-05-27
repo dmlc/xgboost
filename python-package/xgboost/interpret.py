@@ -50,30 +50,11 @@ def _as_prediction_dmatrix(
     )
 
 
-def _predict_contribs(
-    booster: Booster,
-    data: DMatrix,
-    *,
-    device: Optional[str],
-    **kwargs: object,
-) -> np.ndarray:
-    if device is None:
-        return booster.predict(data, **kwargs)
-
-    config = booster.save_config()
-    try:
-        booster.set_param({"device": device})
-        return booster.predict(data, **kwargs)
-    finally:
-        booster.load_config(config)
-
-
 def shap_values(  # pylint: disable=too-many-arguments
     model: object,
     X: Union[DMatrix, ArrayLike],
     *,
     X_background: Optional[Union[DMatrix, ArrayLike]] = None,
-    device: Optional[str] = None,
     output_margin: bool = False,
     iteration_range: Optional[IterationRange] = None,
     missing: Optional[FloatCompatible] = None,
@@ -94,11 +75,6 @@ def shap_values(  # pylint: disable=too-many-arguments
     X_background :
         Background data for interventional SHAP values. This is reserved for a
         future implementation and is currently unsupported.
-    device :
-        Optional prediction device override, such as ``"cpu"``, ``"cuda"``, or
-        ``"cuda:0"``. The model's original configuration is restored after
-        prediction. This option temporarily mutates the underlying Booster and
-        is not safe for concurrent use of the same model.
     output_margin :
         Accepted for API compatibility. SHAP contributions currently correspond
         to the model margin.
@@ -118,19 +94,22 @@ def shap_values(  # pylint: disable=too-many-arguments
         ``bias`` contains the separated bias term. For multi-target models, the
         output shape follows the corresponding prediction shape with the final
         feature dimension split into ``values`` and ``bias``.
+
+    Notes
+    -----
+    To use GPU algorithms, configure the model before calling this function, for
+    example with ``booster.set_param({"device": "cuda"})``.
     """
     if X_background is not None:
         raise NotImplementedError("`X_background` is not yet supported.")
-    # Existing SHAP prediction always returns margin contributions. Keep this
+    # SHAP contributions currently correspond to the model margin. Keep this
     # argument in the initial API so callers can use the proposed signature.
     _ = output_margin
 
     booster = _as_booster(model)
     data = _as_prediction_dmatrix(model, X, missing)
-    contribs = _predict_contribs(
-        booster,
+    contribs = booster.predict(
         data,
-        device=device,
         pred_contribs=True,
         validate_features=validate_features,
         iteration_range=_get_iteration_range(model, iteration_range),
