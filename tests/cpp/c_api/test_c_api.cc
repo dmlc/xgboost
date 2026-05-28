@@ -742,7 +742,6 @@ TEST(CAPI, InterpretShapValues) {
   shap_config["algorithm"] = String{"auto"};
   shap_config["iteration_begin"] = Integer{0};
   shap_config["iteration_end"] = Integer{0};
-  shap_config["strict_shape"] = Boolean{false};
   auto sshap_config = Json::Dump(shap_config);
 
   bst_ulong const *values_shape{nullptr};
@@ -755,11 +754,13 @@ TEST(CAPI, InterpretShapValues) {
                                          &values_shape, &values_dim, &values, &bias_shape,
                                          &bias_dim, &bias),
             0);
-  ASSERT_EQ(values_dim, 2);
+  ASSERT_EQ(values_dim, 3);
   ASSERT_EQ(values_shape[0], n_samples);
   ASSERT_EQ(values_shape[1], n_features);
-  ASSERT_EQ(bias_dim, 1);
+  ASSERT_EQ(values_shape[2], 1);
+  ASSERT_EQ(bias_dim, 2);
   ASSERT_EQ(bias_shape[0], n_samples);
+  ASSERT_EQ(bias_shape[1], 1);
 
   Json pred_config{Object{}};
   pred_config["type"] = Integer{2};

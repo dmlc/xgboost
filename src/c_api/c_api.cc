@@ -1389,7 +1389,6 @@ XGB_DLL int XGBoosterInterpretShapValues(
   auto p_m = *static_cast<std::shared_ptr<DMatrix> *>(dmat);
   auto iteration_begin = OptionalArg<Integer>(config, "iteration_begin", Integer::Int{0});
   auto iteration_end = OptionalArg<Integer>(config, "iteration_end", Integer::Int{0});
-  bool strict_shape = OptionalArg<Boolean>(config, "strict_shape", false);
 
   learner->Predict(p_m, false, &entry.predictions, iteration_begin, iteration_end, false, false,
                    true, false, false);
@@ -1407,29 +1406,23 @@ XGB_DLL int XGBoosterInterpretShapValues(
   for (std::size_t row = 0; row < rows; ++row) {
     for (std::size_t group = 0; group < groups; ++group) {
       std::size_t contrib_offset = row * groups * (cols + 1) + group * (cols + 1);
-      std::size_t value_offset = row * groups * cols + group * cols;
-      std::copy_n(contribs.cbegin() + contrib_offset, cols, values.begin() + value_offset);
+      for (std::size_t col = 0; col < cols; ++col) {
+        std::size_t value_offset = row * cols * groups + col * groups + group;
+        values[value_offset] = contribs[contrib_offset + col];
+      }
       bias[row * groups + group] = contribs[contrib_offset + cols];
     }
   }
 
   auto &values_shape = local.prediction_shape;
   auto &bias_shape = local.prediction_shape_1;
-  if (groups == 1 && !strict_shape) {
-    values_shape.resize(2);
-    values_shape[0] = rows;
-    values_shape[1] = cols;
-    bias_shape.resize(1);
-    bias_shape[0] = rows;
-  } else {
-    values_shape.resize(3);
-    values_shape[0] = rows;
-    values_shape[1] = groups;
-    values_shape[2] = cols;
-    bias_shape.resize(2);
-    bias_shape[0] = rows;
-    bias_shape[1] = groups;
-  }
+  values_shape.resize(3);
+  values_shape[0] = rows;
+  values_shape[1] = cols;
+  values_shape[2] = groups;
+  bias_shape.resize(2);
+  bias_shape[0] = rows;
+  bias_shape[1] = groups;
 
   xgboost_CHECK_C_ARG_PTR(out_values_dim);
   xgboost_CHECK_C_ARG_PTR(out_values_shape);

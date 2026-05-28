@@ -76,7 +76,6 @@ def _capi_shap_values(
         "algorithm": "auto",
         "iteration_begin": int(iteration_range[0]),
         "iteration_end": int(iteration_range[1]),
-        "strict_shape": False,
     }
     _check_call(
         _LIB.XGBoosterInterpretShapValues(
@@ -92,10 +91,12 @@ def _capi_shap_values(
             ctypes.byref(bias),
         )
     )
-    return (
-        _prediction_output(values_shape, values_dim, values, False),
-        _prediction_output(bias_shape, bias_dim, bias, False),
-    )
+    values_out = _prediction_output(values_shape, values_dim, values, False)
+    bias_out = _prediction_output(bias_shape, bias_dim, bias, False)
+    if values_out.shape[-1] == 1:
+        values_out = values_out[..., 0]
+        bias_out = bias_out[..., 0]
+    return values_out, bias_out
 
 
 def shap_values(  # pylint: disable=too-many-arguments

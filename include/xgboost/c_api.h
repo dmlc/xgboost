@@ -1243,9 +1243,6 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
  *      Beginning iteration.
  *    "iteration_end": int
  *      End iteration.  Set to 0 to use all trees.
- *    "strict_shape": bool
- *      Whether output shapes should include the output-group dimension even when
- *      there is only one output group.
  *
  * @param out_values_shape Shape of feature SHAP values (copy before use).
  * @param out_values_dim Dimension of feature SHAP values.
