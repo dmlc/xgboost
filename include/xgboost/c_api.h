@@ -1222,6 +1222,46 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle, DMatrixHandle dmat, int optio
 XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat,
                                         char const *config, bst_ulong const **out_shape,
                                         bst_ulong *out_dim, float const **out_result);
+
+/**
+ * @brief Compute SHAP values for a DMatrix.
+ *
+ * This function is the public C API entry point for interpretability algorithms.
+ * It returns feature SHAP values and the bias term as separate buffers.  The
+ * optional background DMatrix is reserved for interventional SHAP algorithms.
+ *
+ * @param handle Booster handle.
+ * @param dmat Foreground DMatrix handle.
+ * @param background Optional background DMatrix handle. Pass NULL when not used.
+ * @param config String encoded interpretability configuration in JSON format, with following
+ *                      available fields in the JSON object:
+ *
+ *    "algorithm": string
+ *      SHAP algorithm. Supported values are "auto" and "tree_path_dependent".
+ *      "interventional" is reserved for use with the background DMatrix.
+ *    "iteration_begin": int
+ *      Beginning iteration.
+ *    "iteration_end": int
+ *      End iteration.  Set to 0 to use all trees.
+ *    "strict_shape": bool
+ *      Whether output shapes should include the output-group dimension even when
+ *      there is only one output group.
+ *
+ * @param out_values_shape Shape of feature SHAP values (copy before use).
+ * @param out_values_dim Dimension of feature SHAP values.
+ * @param out_values Buffer storing feature SHAP values (copy before use).
+ * @param out_bias_shape Shape of the bias term (copy before use).
+ * @param out_bias_dim Dimension of the bias term.
+ * @param out_bias Buffer storing the bias term (copy before use).
+ *
+ * @return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterInterpretShapValues(BoosterHandle handle, DMatrixHandle dmat,
+                                         DMatrixHandle background, char const *config,
+                                         bst_ulong const **out_values_shape,
+                                         bst_ulong *out_values_dim, float const **out_values,
+                                         bst_ulong const **out_bias_shape, bst_ulong *out_bias_dim,
+                                         float const **out_bias);
 /**
  * @example inference.c
  */

@@ -1360,6 +1360,93 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   API_END();
 }
 
+XGB_DLL int XGBoosterInterpretShapValues(
+    BoosterHandle handle, DMatrixHandle dmat, DMatrixHandle background, char const *c_json_config,
+    xgboost::bst_ulong const **out_values_shape, xgboost::bst_ulong *out_values_dim,
+    bst_float const **out_values, xgboost::bst_ulong const **out_bias_shape,
+    xgboost::bst_ulong *out_bias_dim, bst_float const **out_bias) {
+  API_BEGIN();
+  if (handle == nullptr) {
+    LOG(FATAL) << "Booster has not been initialized or has already been disposed.";
+  }
+  if (dmat == nullptr) {
+    LOG(FATAL) << "DMatrix has not been initialized or has already been disposed.";
+  }
+  xgboost_CHECK_C_ARG_PTR(c_json_config);
+  auto config = Json::Load(StringView{c_json_config});
+
+  auto algorithm = OptionalArg<String>(config, "algorithm", std::string{"auto"});
+  if (algorithm != "auto" && algorithm != "tree_path_dependent" && algorithm != "interventional") {
+    LOG(FATAL) << "Unknown SHAP algorithm: `" << algorithm << "`.";
+  }
+  if (background != nullptr || algorithm == "interventional") {
+    LOG(FATAL) << "Interventional SHAP is not yet implemented.";
+  }
+
+  auto *learner = static_cast<Learner *>(handle);
+  auto &local = learner->GetThreadLocal();
+  auto &entry = local.prediction_entry;
+  auto p_m = *static_cast<std::shared_ptr<DMatrix> *>(dmat);
+  auto iteration_begin = OptionalArg<Integer>(config, "iteration_begin", Integer::Int{0});
+  auto iteration_end = OptionalArg<Integer>(config, "iteration_end", Integer::Int{0});
+  bool strict_shape = OptionalArg<Boolean>(config, "strict_shape", false);
+
+  learner->Predict(p_m, false, &entry.predictions, iteration_begin, iteration_end, false, false,
+                   true, false, false);
+
+  std::size_t rows = p_m->Info().num_row_;
+  std::size_t cols = p_m->Info().num_col_;
+  std::size_t groups = learner->Groups();
+  auto const &contribs = entry.predictions.ConstHostVector();
+
+  auto &values = local.ret_vec_float;
+  auto &bias = local.ret_vec_float_1;
+  values.resize(rows * groups * cols);
+  bias.resize(rows * groups);
+
+  for (std::size_t row = 0; row < rows; ++row) {
+    for (std::size_t group = 0; group < groups; ++group) {
+      std::size_t contrib_offset = row * groups * (cols + 1) + group * (cols + 1);
+      std::size_t value_offset = row * groups * cols + group * cols;
+      std::copy_n(contribs.cbegin() + contrib_offset, cols, values.begin() + value_offset);
+      bias[row * groups + group] = contribs[contrib_offset + cols];
+    }
+  }
+
+  auto &values_shape = local.prediction_shape;
+  auto &bias_shape = local.prediction_shape_1;
+  if (groups == 1 && !strict_shape) {
+    values_shape.resize(2);
+    values_shape[0] = rows;
+    values_shape[1] = cols;
+    bias_shape.resize(1);
+    bias_shape[0] = rows;
+  } else {
+    values_shape.resize(3);
+    values_shape[0] = rows;
+    values_shape[1] = groups;
+    values_shape[2] = cols;
+    bias_shape.resize(2);
+    bias_shape[0] = rows;
+    bias_shape[1] = groups;
+  }
+
+  xgboost_CHECK_C_ARG_PTR(out_values_dim);
+  xgboost_CHECK_C_ARG_PTR(out_values_shape);
+  xgboost_CHECK_C_ARG_PTR(out_values);
+  xgboost_CHECK_C_ARG_PTR(out_bias_dim);
+  xgboost_CHECK_C_ARG_PTR(out_bias_shape);
+  xgboost_CHECK_C_ARG_PTR(out_bias);
+
+  *out_values_dim = values_shape.size();
+  *out_values_shape = dmlc::BeginPtr(values_shape);
+  *out_values = dmlc::BeginPtr(values);
+  *out_bias_dim = bias_shape.size();
+  *out_bias_shape = dmlc::BeginPtr(bias_shape);
+  *out_bias = dmlc::BeginPtr(bias);
+  API_END();
+}
+
 void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config, Learner *learner,
                         xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
                         const float **out_result) {

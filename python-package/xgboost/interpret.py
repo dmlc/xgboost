@@ -1,11 +1,21 @@
 """Interpretability functions for XGBoost models."""
 
+import ctypes
+import json
 from typing import Optional, Tuple, Union
 
 import numpy as np
 
 from ._typing import ArrayLike, FloatCompatible, IterationRange
-from .core import Booster, DMatrix
+from .core import (
+    _LIB,
+    Booster,
+    DMatrix,
+    _check_call,
+    _prediction_output,
+    c_bst_ulong,
+    from_pystr_to_cstr,
+)
 
 
 def _as_booster(model: object) -> Booster:
@@ -47,6 +57,44 @@ def _as_prediction_dmatrix(
         nthread=getattr(model, "n_jobs", None),
         feature_types=getattr(model, "feature_types", None),
         enable_categorical=getattr(model, "enable_categorical", False),
+    )
+
+
+def _capi_shap_values(
+    booster: Booster,
+    data: DMatrix,
+    background: Optional[DMatrix],
+    iteration_range: IterationRange,
+) -> Tuple[np.ndarray, np.ndarray]:
+    values_shape = ctypes.POINTER(c_bst_ulong)()
+    values_dim = c_bst_ulong()
+    values = ctypes.POINTER(ctypes.c_float)()
+    bias_shape = ctypes.POINTER(c_bst_ulong)()
+    bias_dim = c_bst_ulong()
+    bias = ctypes.POINTER(ctypes.c_float)()
+    config = {
+        "algorithm": "auto",
+        "iteration_begin": int(iteration_range[0]),
+        "iteration_end": int(iteration_range[1]),
+        "strict_shape": False,
+    }
+    _check_call(
+        _LIB.XGBoosterInterpretShapValues(
+            booster.handle,
+            data.handle,
+            background.handle if background is not None else None,
+            from_pystr_to_cstr(json.dumps(config)),
+            ctypes.byref(values_shape),
+            ctypes.byref(values_dim),
+            ctypes.byref(values),
+            ctypes.byref(bias_shape),
+            ctypes.byref(bias_dim),
+            ctypes.byref(bias),
+        )
+    )
+    return (
+        _prediction_output(values_shape, values_dim, values, False),
+        _prediction_output(bias_shape, bias_dim, bias, False),
     )
 
 
@@ -100,24 +148,26 @@ def shap_values(  # pylint: disable=too-many-arguments
     To use GPU algorithms, configure the model before calling this function, for
     example with ``booster.set_param({"device": "cuda"})``.
     """
-    if X_background is not None:
-        raise NotImplementedError("`X_background` is not yet supported.")
     # SHAP contributions currently correspond to the model margin. Keep this
     # argument in the initial API so callers can use the proposed signature.
     _ = output_margin
 
     booster = _as_booster(model)
     data = _as_prediction_dmatrix(model, X, missing)
-    contribs = booster.predict(
-        data,
-        pred_contribs=True,
-        validate_features=validate_features,
-        iteration_range=_get_iteration_range(model, iteration_range),
+    if validate_features:
+        validate = getattr(booster, "_validate_features")
+        validate(data.feature_names)
+    background = (
+        _as_prediction_dmatrix(model, X_background, missing=None)
+        if X_background is not None
+        else None
     )
-
-    values = contribs[..., :-1]
-    bias = contribs[..., -1]
-    return values, bias
+    return _capi_shap_values(
+        booster,
+        data,
+        background,
+        _get_iteration_range(model, iteration_range),
+    )
 
 
 __all__ = ["shap_values"]
