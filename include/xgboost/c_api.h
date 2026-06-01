@@ -1227,8 +1227,10 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
  * @brief Compute SHAP values for a DMatrix.
  *
  * This function is the public C API entry point for interpretability algorithms.
- * It returns feature SHAP values and the bias term as separate buffers.  The
- * optional background DMatrix is reserved for interventional SHAP algorithms.
+ * It returns feature SHAP values and the bias term as separate array-interface
+ * objects.  The optional background DMatrix is reserved for interventional SHAP
+ * algorithms.  The returned array-interface objects reference internal storage.
+ * The arrays are read-only and should be copied before the next XGBoost call.
  *
  * @param handle Booster handle.
  * @param dmat Foreground DMatrix handle.
@@ -1244,21 +1246,14 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
  *    "iteration_end": int
  *      End iteration.  Set to 0 to use all trees.
  *
- * @param out_values_shape Shape of feature SHAP values (copy before use).
- * @param out_values_dim Dimension of feature SHAP values.
- * @param out_values Buffer storing feature SHAP values (copy before use).
- * @param out_bias_shape Shape of the bias term (copy before use).
- * @param out_bias_dim Dimension of the bias term.
- * @param out_bias Buffer storing the bias term (copy before use).
+ * @param out_values JSON encoded __(cuda)_array_interface__ for feature SHAP values.
+ * @param out_bias JSON encoded __(cuda)_array_interface__ for the bias term.
  *
  * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterInterpretShapValues(BoosterHandle handle, DMatrixHandle dmat,
                                          DMatrixHandle background, char const *config,
-                                         bst_ulong const **out_values_shape,
-                                         bst_ulong *out_values_dim, float const **out_values,
-                                         bst_ulong const **out_bias_shape, bst_ulong *out_bias_dim,
-                                         float const **out_bias);
+                                         char const **out_values, char const **out_bias);
 /**
  * @example inference.c
  */

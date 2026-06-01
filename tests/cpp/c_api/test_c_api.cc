@@ -744,23 +744,25 @@ TEST(CAPI, InterpretShapValues) {
   shap_config["iteration_end"] = Integer{0};
   auto sshap_config = Json::Dump(shap_config);
 
-  bst_ulong const *values_shape{nullptr};
-  bst_ulong values_dim{0};
-  float const *values{nullptr};
-  bst_ulong const *bias_shape{nullptr};
-  bst_ulong bias_dim{0};
-  float const *bias{nullptr};
+  char const *values{nullptr};
+  char const *bias{nullptr};
   ASSERT_EQ(XGBoosterInterpretShapValues(booster_hdl, fmat_hdl, nullptr, sshap_config.c_str(),
-                                         &values_shape, &values_dim, &values, &bias_shape,
-                                         &bias_dim, &bias),
+                                         &values, &bias),
             0);
-  ASSERT_EQ(values_dim, 3);
-  ASSERT_EQ(values_shape[0], n_samples);
-  ASSERT_EQ(values_shape[1], n_features);
-  ASSERT_EQ(values_shape[2], 1);
-  ASSERT_EQ(bias_dim, 2);
-  ASSERT_EQ(bias_shape[0], n_samples);
-  ASSERT_EQ(bias_shape[1], 1);
+  ArrayInterface<3, false> values_interface{StringView{values}};
+  ASSERT_EQ(values_interface.type, ArrayInterfaceHandler::kF4);
+  ASSERT_EQ(values_interface.Shape<0>(), n_samples);
+  ASSERT_EQ(values_interface.Shape<1>(), n_features);
+  ASSERT_EQ(values_interface.Shape<2>(), 1);
+  auto values_data = static_cast<float const *>(values_interface.data);
+  ASSERT_TRUE(values_data);
+
+  ArrayInterface<2, false> bias_interface{StringView{bias}};
+  ASSERT_EQ(bias_interface.type, ArrayInterfaceHandler::kF4);
+  ASSERT_EQ(bias_interface.Shape<0>(), n_samples);
+  ASSERT_EQ(bias_interface.Shape<1>(), 1);
+  auto bias_data = static_cast<float const *>(bias_interface.data);
+  ASSERT_TRUE(bias_data);
 
   Json pred_config{Object{}};
   pred_config["type"] = Integer{2};
@@ -782,21 +784,20 @@ TEST(CAPI, InterpretShapValues) {
 
   for (bst_idx_t row = 0; row < n_samples; ++row) {
     for (bst_idx_t feature = 0; feature < n_features; ++feature) {
-      ASSERT_EQ(values[row * n_features + feature], contribs[row * (n_features + 1) + feature]);
+      ASSERT_EQ(values_data[row * n_features + feature],
+                contribs[row * (n_features + 1) + feature]);
     }
-    ASSERT_EQ(bias[row], contribs[row * (n_features + 1) + n_features]);
+    ASSERT_EQ(bias_data[row], contribs[row * (n_features + 1) + n_features]);
   }
 
   ASSERT_EQ(XGBoosterInterpretShapValues(booster_hdl, fmat_hdl, fmat_hdl, sshap_config.c_str(),
-                                         &values_shape, &values_dim, &values, &bias_shape,
-                                         &bias_dim, &bias),
+                                         &values, &bias),
             -1);
 
   shap_config["algorithm"] = String{"interventional"};
   sshap_config = Json::Dump(shap_config);
   ASSERT_EQ(XGBoosterInterpretShapValues(booster_hdl, fmat_hdl, nullptr, sshap_config.c_str(),
-                                         &values_shape, &values_dim, &values, &bias_shape,
-                                         &bias_dim, &bias),
+                                         &values, &bias),
             -1);
 
   ASSERT_EQ(XGDMatrixFree(fmat_hdl), 0);

@@ -4,16 +4,13 @@ import ctypes
 import json
 from typing import Optional, Tuple, Union
 
-import numpy as np
-
-from ._typing import ArrayLike, FloatCompatible, IterationRange
+from ._data_utils import from_array_interface
+from ._typing import ArrayLike, FloatCompatible, IterationRange, NumpyOrCupy
 from .core import (
     _LIB,
     Booster,
     DMatrix,
     _check_call,
-    _prediction_output,
-    c_bst_ulong,
     from_pystr_to_cstr,
 )
 
@@ -65,13 +62,9 @@ def _capi_shap_values(
     data: DMatrix,
     background: Optional[DMatrix],
     iteration_range: IterationRange,
-) -> Tuple[np.ndarray, np.ndarray]:
-    values_shape = ctypes.POINTER(c_bst_ulong)()
-    values_dim = c_bst_ulong()
-    values = ctypes.POINTER(ctypes.c_float)()
-    bias_shape = ctypes.POINTER(c_bst_ulong)()
-    bias_dim = c_bst_ulong()
-    bias = ctypes.POINTER(ctypes.c_float)()
+) -> Tuple[NumpyOrCupy, NumpyOrCupy]:
+    values = ctypes.c_char_p()
+    bias = ctypes.c_char_p()
     config = {
         "algorithm": "auto",
         "iteration_begin": int(iteration_range[0]),
@@ -83,16 +76,14 @@ def _capi_shap_values(
             data.handle,
             background.handle if background is not None else None,
             from_pystr_to_cstr(json.dumps(config)),
-            ctypes.byref(values_shape),
-            ctypes.byref(values_dim),
             ctypes.byref(values),
-            ctypes.byref(bias_shape),
-            ctypes.byref(bias_dim),
             ctypes.byref(bias),
         )
     )
-    values_out = _prediction_output(values_shape, values_dim, values, False)
-    bias_out = _prediction_output(bias_shape, bias_dim, bias, False)
+    assert values.value is not None
+    assert bias.value is not None
+    values_out = from_array_interface(json.loads(values.value))
+    bias_out = from_array_interface(json.loads(bias.value))
     if values_out.shape[-1] == 1:
         values_out = values_out[..., 0]
         bias_out = bias_out[..., 0]
@@ -108,7 +99,7 @@ def shap_values(  # pylint: disable=too-many-arguments
     iteration_range: Optional[IterationRange] = None,
     missing: Optional[FloatCompatible] = None,
     validate_features: bool = True,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[NumpyOrCupy, NumpyOrCupy]:
     """Return SHAP values for an XGBoost model.
 
     This function accepts either a :py:class:`xgboost.Booster` or an sklearn-style
@@ -142,7 +133,8 @@ def shap_values(  # pylint: disable=too-many-arguments
         ``values`` contains feature SHAP values with the bias term removed.
         ``bias`` contains the separated bias term. For multi-target models, the
         output shape follows the corresponding prediction shape with the final
-        feature dimension split into ``values`` and ``bias``.
+        feature dimension split into ``values`` and ``bias``. Returns NumPy
+        arrays on CPU and CuPy arrays on CUDA.
 
     Notes
     -----

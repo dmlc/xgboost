@@ -6,8 +6,9 @@
 #include <string>  // std::string
 #include <vector>  // std::vector
 
-#include "xgboost/base.h"       // GradientPair,bst_ulong
-#include "xgboost/predictor.h"  // PredictionCacheEntry
+#include "xgboost/base.h"                // GradientPair,bst_ulong
+#include "xgboost/host_device_vector.h"  // HostDeviceVector
+#include "xgboost/predictor.h"           // PredictionCacheEntry
 
 namespace xgboost {
 /**
@@ -24,8 +25,10 @@ struct XGBAPIThreadLocalEntry {
   std::vector<const char *> ret_vec_charp;
   /*! \brief returning float vector. */
   std::vector<float> ret_vec_float;
-  /*! \brief secondary returning float vector. */
-  std::vector<float> ret_vec_float_1;
+  /*! \brief returning device-capable float vector. */
+  HostDeviceVector<float> ret_hdv_float;
+  /*! \brief secondary returning device-capable float vector. */
+  HostDeviceVector<float> ret_hdv_float_1;
   /*! \brief returning uint vector. */
   std::vector<std::uint64_t> ret_vec_u64;
   /*! \brief temp variable of gradient pairs. */
@@ -34,8 +37,6 @@ struct XGBAPIThreadLocalEntry {
   PredictionCacheEntry prediction_entry;
   /*! \brief Temp variable for returning prediction shape. */
   std::vector<bst_ulong> prediction_shape;
-  /*! \brief Secondary temp variable for returning prediction shape. */
-  std::vector<bst_ulong> prediction_shape_1;
 };
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_API_ENTRY_H_
