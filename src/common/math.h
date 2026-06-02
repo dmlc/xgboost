@@ -86,6 +86,15 @@ XGBOOST_DEVICE void Softmax(Iterator start, Iterator end) {
   }
 }
 
+/** @brief softplus \f$ln(1 + e^x)\f$ */
+template <typename F>
+XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<F>, F> SoftPlus(F x) {
+  if (x > 0.0) {
+    return x + std::log1p(std::exp(-x));
+  }
+  return std::log1p(std::exp(x));
+}
+
 /*!
  * \brief Find the maximum iterator within the iterators
  * \param begin The beginning iterator.
