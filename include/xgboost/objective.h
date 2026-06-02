@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  *
  * @brief interface of objective function used by xgboost.
  * @author Tianqi Chen, Kailong Chen
@@ -87,8 +87,8 @@ class ObjFunction : public Configurable {
   /**
    * @brief Obtain the initial estimation of prediction (intercept).
    *
-   *   The output in `base_score` represents prediction after apply the inverse link function
-   *   (valid prediction instead of raw).
+   *   The output in `base_score` represents prediction after applying the inverse link
+   *   function (valid prediction instead of raw).
    *
    * @param info MetaInfo that contains label.
    * @param base_score Output estimation.

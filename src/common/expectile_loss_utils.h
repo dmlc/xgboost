@@ -25,6 +25,8 @@ struct ExpectileLossParam : public XGBoostParameter<ExpectileLossParam> {
     auto valid =
         std::all_of(array.cbegin(), array.cend(), [](auto q) { return q >= 0.0 && q <= 1.0; });
     CHECK(valid) << "expectile alpha must be in the range [0.0, 1.0].";
+    CHECK(std::is_sorted(array.cbegin(), array.cend()))
+        << "expectile alpha must be sorted in ascending order.";
   }
 };
 }  // namespace xgboost::common
