@@ -143,9 +143,7 @@ class ObjFunction : public Configurable {
  * \brief Registry entry for objective factory functions.
  */
 struct ObjFunctionReg
-    : public dmlc::FunctionRegEntryBase<ObjFunctionReg,
-                                        std::function<ObjFunction* ()> > {
-};
+    : public dmlc::FunctionRegEntryBase<ObjFunctionReg, std::function<ObjFunction*()> > {};
 
 /*!
  * \brief Macro to register objective function.
@@ -159,9 +157,9 @@ struct ObjFunctionReg
  *   });
  * \endcode
  */
-#define XGBOOST_REGISTER_OBJECTIVE(UniqueId, Name)                      \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::ObjFunctionReg &              \
-  __make_ ## ObjFunctionReg ## _ ## UniqueId ## __ =                    \
-      ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_OBJECTIVE(UniqueId, Name)        \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::ObjFunctionReg& \
+      __make_##ObjFunctionReg##_##UniqueId##__ =          \
+          ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost
 #endif  // XGBOOST_OBJECTIVE_H_
