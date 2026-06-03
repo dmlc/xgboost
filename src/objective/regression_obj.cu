@@ -118,6 +118,16 @@ void ProbToMarginImpl(Context const* ctx, linalg::Vector<float>* base_score, Fn&
     intercept(i) = fn(intercept(i));
   });
 }
+
+template <typename Predt>
+XGBOOST_DEVICE void TransformExpectilePredt(Predt predt, std::size_t i, std::size_t n_alphas) {
+  auto point = predt.Slice(i, linalg::All());
+  float pred = point(0);
+  for (std::size_t j = 1; j < n_alphas; ++j) {
+    pred += kRtEps + common::SoftPlus(point(j));
+    point(j) = pred;
+  }
+}
 }  // anonymous namespace
 
 #if defined(XGBOOST_USE_CUDA)
@@ -532,16 +542,13 @@ class ExpectileRegression : public FitIntercept {
     CHECK_NE(n_alphas, 0);
     CHECK_EQ(io_preds->Size() % n_alphas, 0);
     auto n_samples = io_preds->Size() / n_alphas;
-    io_preds->SetDevice(ctx_->Device());
-    auto predt = linalg::MakeTensorView(ctx_, io_preds, n_samples, n_alphas);
+    auto device = io_preds->Device();
+    auto predt = linalg::MakeTensorView(
+        device, device.IsCPU() ? io_preds->HostSpan() : io_preds->DeviceSpan(), n_samples,
+        n_alphas);
     auto rows = predt.Slice(linalg::All(), 0);
-    linalg::ElementWiseKernel(ctx_, rows, [=] XGBOOST_DEVICE(std::size_t i) mutable {
-      auto point = predt.Slice(i, linalg::All());
-      float pred = point(0);
-      for (std::size_t j = 1; j < n_alphas; ++j) {
-        pred += kRtEps + common::SoftPlus(point(j));
-        point(j) = pred;
-      }
+    linalg::ElementWiseKernel(ctx_, device, rows, [=] XGBOOST_DEVICE(std::size_t i) mutable {
+      TransformExpectilePredt(predt, i, n_alphas);
     });
   }
 
