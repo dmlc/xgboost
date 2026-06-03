@@ -97,8 +97,8 @@ XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<F>, F> SoftPlus(F x) {
 
 template <typename F>
 XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<F>, F> SoftPlusInv(F x) {
-  auto v = std::max(x, kRtEps);
-  return std::log(std::expm1(v));
+  x = std::max(x, kRtEps);
+  return x + std::log(-std::expm1(-x));
 }
 
 /*!
