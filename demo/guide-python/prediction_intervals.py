@@ -21,11 +21,14 @@ conditional mean.
 """
 
 import argparse
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 import xgboost as xgb
 from sklearn.model_selection import train_test_split
+
+Data = Tuple[xgb.QuantileDMatrix, xgb.QuantileDMatrix]
+Predictions = Dict[str, np.ndarray]
 
 
 def f(x: np.ndarray) -> np.ndarray:
@@ -33,38 +36,30 @@ def f(x: np.ndarray) -> np.ndarray:
     return x * np.sin(x)
 
 
-def make_dataset(rng: np.random.RandomState) -> tuple[np.ndarray, np.ndarray]:
+def make_dataset(rng: np.random.RandomState) -> Tuple[np.ndarray, np.ndarray]:
     """Generate heteroscedastic data with asymmetric noise."""
-    # The data generating process is adapted from the sklearn example.
-    X = np.atleast_2d(rng.uniform(0, 10.0, size=1000)).T
-    expected_y = f(X).ravel()
+    features = np.atleast_2d(rng.uniform(0, 10.0, size=1000)).T
+    expected_y = f(features).ravel()
 
-    sigma = 0.5 + X.ravel() / 10.0
+    sigma = 0.5 + features.ravel() / 10.0
     noise = rng.lognormal(sigma=sigma) - np.exp(sigma**2.0 / 2.0)
-    y = expected_y + noise
-    return X, y
+    target = expected_y + noise
+    return features, target
 
 
 def train_interval_model(
-    objective: str,
+    params: Dict[str, object],
     alpha_name: str,
     alpha: np.ndarray,
-    dtrain: xgb.QuantileDMatrix,
-    dtest: xgb.QuantileDMatrix,
-    args: argparse.Namespace,
-) -> tuple[xgb.Booster, Dict[str, Dict]]:
+    data: Data,
+) -> Tuple[xgb.Booster, Dict[str, Dict]]:
     """Train a multi-output interval model."""
+    dtrain, dtest = data
     evals_result: Dict[str, Dict] = {}
+    params = params.copy()
+    params[alpha_name] = alpha
     booster = xgb.train(
-        {
-            "objective": objective,
-            "tree_method": "hist",
-            alpha_name: alpha,
-            "learning_rate": 0.04,
-            "max_depth": 5,
-            "multi_strategy": args.multi_strategy,
-            "device": args.device,
-        },
+        params,
         dtrain,
         num_boost_round=64,
         early_stopping_rounds=4,
@@ -74,18 +69,13 @@ def train_interval_model(
     return booster, evals_result
 
 
-def squared_error_model(
-    dtrain: xgb.QuantileDMatrix, dtest: xgb.QuantileDMatrix, args: argparse.Namespace
-) -> xgb.Booster:
+def squared_error_model(params: Dict[str, object], data: Data) -> xgb.Booster:
     """Train a squared-error model for comparison."""
+    dtrain, dtest = data
+    params = params.copy()
+    params["objective"] = "reg:squarederror"
     return xgb.train(
-        {
-            "objective": "reg:squarederror",
-            "tree_method": "hist",
-            "learning_rate": 0.04,
-            "max_depth": 5,
-            "device": args.device,
-        },
+        params,
         dtrain,
         num_boost_round=64,
         early_stopping_rounds=4,
@@ -93,86 +83,132 @@ def squared_error_model(
     )
 
 
-def prediction_intervals(args: argparse.Namespace) -> None:
-    """Train quantile and expectile interval models."""
-    rng = np.random.RandomState(1994)
-    X, y = make_dataset(rng)
-    alpha = np.array([0.05, 0.5, 0.95])
+def base_params(cli_args: argparse.Namespace) -> Dict[str, object]:
+    """Parameters shared by the three models in the demo."""
+    return {
+        "tree_method": "hist",
+        "learning_rate": 0.04,
+        "max_depth": 5,
+        "multi_strategy": cli_args.multi_strategy,
+        "device": cli_args.device,
+    }
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=rng)
-    # We will be using the `hist` tree method, quantile DMatrix can be used to preserve
-    # memory (which has nothing to do with quantile regression itself, see its document
-    # for details).
-    # Do not use the `exact` tree method for quantile regression, otherwise the
-    # performance might drop.
-    Xy = xgb.QuantileDMatrix(X_train, y_train)
-    # use Xy as a reference
-    Xy_test = xgb.QuantileDMatrix(X_test, y_test, ref=Xy)
 
+def train_models(
+    data: Data, alpha: np.ndarray, params: Dict[str, object]
+) -> Tuple[Dict[str, xgb.Booster], Dict[str, Dict[str, Dict]]]:
+    """Train quantile, expectile, and squared-error models."""
     quantile_model, quantile_evals = train_interval_model(
-        "reg:quantileerror", "quantile_alpha", alpha, Xy, Xy_test, args
+        {**params, "objective": "reg:quantileerror"}, "quantile_alpha", alpha, data
     )
     expectile_model, expectile_evals = train_interval_model(
-        "reg:expectileerror", "expectile_alpha", alpha, Xy, Xy_test, args
+        {**params, "objective": "reg:expectileerror"}, "expectile_alpha", alpha, data
     )
-    mean_model = squared_error_model(Xy, Xy_test, args)
+    models = {
+        "quantile": quantile_model,
+        "expectile": expectile_model,
+        "mean": squared_error_model(params, data),
+    }
+    return models, {"quantile": quantile_evals, "expectile": expectile_evals}
 
-    xx = np.atleast_2d(np.linspace(0, 10, 1000)).T
-    quantile_pred = quantile_model.inplace_predict(xx)
-    expectile_pred = expectile_model.inplace_predict(xx)
-    mean_pred = mean_model.inplace_predict(xx)
 
-    assert quantile_pred.shape == (xx.shape[0], alpha.shape[0])
-    assert expectile_pred.shape == (xx.shape[0], alpha.shape[0])
+def make_predictions(models: Dict[str, xgb.Booster]) -> Tuple[np.ndarray, Predictions]:
+    """Predict on a dense grid for plotting."""
+    grid = np.atleast_2d(np.linspace(0, 10, 1000)).T
+    predictions = {
+        "quantile": models["quantile"].inplace_predict(grid),
+        "expectile": models["expectile"].inplace_predict(grid),
+        "mean": models["mean"].inplace_predict(grid),
+    }
+    return grid, predictions
 
-    print("Quantile test metric:", quantile_evals["Test"]["quantile"][-1])
-    print("Expectile test metric:", expectile_evals["Test"]["expectile"][-1])
 
-    if args.plot:
-        from matplotlib import pyplot as plt
+def make_matrices(
+    rng: np.random.RandomState,
+) -> Tuple[Data, Tuple[np.ndarray, np.ndarray]]:
+    """Create train/test DMatrices and return held-out data for plotting."""
+    features, target = make_dataset(rng)
+    split = train_test_split(features, target, random_state=rng)
+    train_features, test_features, train_target, test_target = split
+    train = xgb.QuantileDMatrix(train_features, train_target)
+    test = xgb.QuantileDMatrix(test_features, test_target, ref=train)
+    return (train, test), (test_features, test_target)
 
-        fig, axes = plt.subplots(2, 1, figsize=(10, 12), sharex=True, sharey=True)
 
-        def plot_band(
-            ax: "plt.Axes", pred: np.ndarray, title: str, center_label: str
-        ) -> None:
-            ax.plot(xx, f(xx), "g:", linewidth=3, label=r"$f(x) = x\,\sin(x)$")
-            ax.plot(
-                X_test,
-                y_test,
-                "b.",
-                markersize=5,
-                alpha=0.35,
-                label="Test observations",
-            )
-            ax.plot(xx, pred[:, 1], "r-", label=center_label)
-            ax.plot(xx, mean_pred, "m--", label="Squared-error mean")
-            ax.plot(xx, pred[:, 0], "k-")
-            ax.plot(xx, pred[:, 2], "k-")
-            ax.fill_between(
-                xx.ravel(), pred[:, 0], pred[:, 2], alpha=0.3, label="90% band"
-            )
-            ax.set_title(title)
-            ax.set_ylabel("$y$")
-            ax.set_ylim(-10, 25)
-            ax.legend(loc="upper left")
+def plot_prediction_intervals(
+    grid: np.ndarray,
+    test_data: Tuple[np.ndarray, np.ndarray],
+    predictions: Predictions,
+    output: str,
+) -> None:
+    """Plot quantile interval and expectile band."""
+    from matplotlib import pyplot as plt
 
-        plot_band(
-            axes[0], quantile_pred, "Quantile regression interval", "Predicted median"
+    features, target = test_data
+    fig, axes = plt.subplots(2, 1, figsize=(10, 12), sharex=True, sharey=True)
+
+    def plot_band(
+        ax: "plt.Axes", pred: np.ndarray, title: str, center_label: str
+    ) -> None:
+        ax.plot(grid, f(grid), "g:", linewidth=3, label=r"$f(x) = x\,\sin(x)$")
+        ax.plot(
+            features,
+            target,
+            "b.",
+            markersize=5,
+            alpha=0.35,
+            label="Test observations",
         )
-        plot_band(
-            axes[1],
-            expectile_pred,
-            "Expectile regression band",
-            "Predicted 0.5 expectile",
+        ax.plot(grid, pred[:, 1], "r-", label=center_label)
+        ax.plot(grid, predictions["mean"], "m--", label="Squared-error mean")
+        ax.plot(grid, pred[:, 0], "k-")
+        ax.plot(grid, pred[:, 2], "k-")
+        ax.fill_between(
+            grid.ravel(), pred[:, 0], pred[:, 2], alpha=0.3, label="90% band"
         )
-        axes[1].set_xlabel("$x$")
-        fig.tight_layout()
+        ax.set_title(title)
+        ax.set_ylabel("$y$")
+        ax.set_ylim(-10, 25)
+        ax.legend(loc="upper left")
 
-        if args.output:
-            fig.savefig(args.output, dpi=150)
-        else:
-            plt.show()
+    plot_band(
+        axes[0],
+        predictions["quantile"],
+        "Quantile regression interval",
+        "Predicted median",
+    )
+    plot_band(
+        axes[1],
+        predictions["expectile"],
+        "Expectile regression band",
+        "Predicted 0.5 expectile",
+    )
+    axes[1].set_xlabel("$x$")
+    fig.tight_layout()
+
+    if output:
+        fig.savefig(output, dpi=150)
+    else:
+        plt.show()
+
+
+def prediction_intervals(cli_args: argparse.Namespace) -> None:
+    """Train quantile and expectile interval models."""
+    rng = np.random.RandomState(1994)
+    alpha = np.array([0.05, 0.5, 0.95])
+
+    data, test_data = make_matrices(rng)
+    models, evals = train_models(data, alpha, base_params(cli_args))
+    grid, predictions = make_predictions(models)
+
+    assert predictions["quantile"].shape == (grid.shape[0], alpha.shape[0])
+    assert predictions["expectile"].shape == (grid.shape[0], alpha.shape[0])
+
+    print("Quantile test metric:", evals["quantile"]["Test"]["quantile"][-1])
+    print("Expectile test metric:", evals["expectile"]["Test"]["expectile"][-1])
+
+    if cli_args.plot:
+        plot_prediction_intervals(grid, test_data, predictions, cli_args.output)
 
 
 if __name__ == "__main__":
@@ -195,5 +231,4 @@ if __name__ == "__main__":
         help="See the parameter `multi_strategy` for more info. (Experimental)",
     )
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
-    args = parser.parse_args()
-    prediction_intervals(args)
+    prediction_intervals(parser.parse_args())
