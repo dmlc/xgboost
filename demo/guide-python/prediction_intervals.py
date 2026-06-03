@@ -24,9 +24,8 @@ import argparse
 from typing import Dict
 
 import numpy as np
-from sklearn.model_selection import train_test_split
-
 import xgboost as xgb
+from sklearn.model_selection import train_test_split
 
 
 def f(x: np.ndarray) -> np.ndarray:
@@ -138,7 +137,14 @@ def prediction_intervals(args: argparse.Namespace) -> None:
             ax: "plt.Axes", pred: np.ndarray, title: str, center_label: str
         ) -> None:
             ax.plot(xx, f(xx), "g:", linewidth=3, label=r"$f(x) = x\,\sin(x)$")
-            ax.plot(X_test, y_test, "b.", markersize=5, alpha=0.35, label="Test observations")
+            ax.plot(
+                X_test,
+                y_test,
+                "b.",
+                markersize=5,
+                alpha=0.35,
+                label="Test observations",
+            )
             ax.plot(xx, pred[:, 1], "r-", label=center_label)
             ax.plot(xx, mean_pred, "m--", label="Squared-error mean")
             ax.plot(xx, pred[:, 0], "k-")
@@ -151,8 +157,15 @@ def prediction_intervals(args: argparse.Namespace) -> None:
             ax.set_ylim(-10, 25)
             ax.legend(loc="upper left")
 
-        plot_band(axes[0], quantile_pred, "Quantile regression interval", "Predicted median")
-        plot_band(axes[1], expectile_pred, "Expectile regression band", "Predicted 0.5 expectile")
+        plot_band(
+            axes[0], quantile_pred, "Quantile regression interval", "Predicted median"
+        )
+        plot_band(
+            axes[1],
+            expectile_pred,
+            "Expectile regression band",
+            "Predicted 0.5 expectile",
+        )
         axes[1].set_xlabel("$x$")
         fig.tight_layout()
 
