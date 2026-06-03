@@ -61,7 +61,7 @@ dmat.set_float_info("label_lower_bound", y_lower)
 dmat.set_float_info("label_upper_bound", y_upper)
 params = {"max_depth": 3, "objective": "survival:aft", "min_child_weight": 0}
 
-accuracy_history = []
+accuracy_history: list[np.float64] = []
 
 
 class PlotIntermediateModel(xgb.callback.TrainingCallback):
