@@ -35,7 +35,7 @@ struct CatContainerImpl {
       auto const& col_v = that.columns[f_idx];
       auto dispatch = enc::Overloaded{
           [this, f_idx, &h_columns_v, stream](enc::CatStrArrayView const& str) {
-            this->columns[f_idx].emplace<CatStrArray>();
+            this->columns[f_idx].template emplace<CatStrArray>();
             auto& col = std::get<CatStrArray>(this->columns[f_idx]);
             // Handle the offsets
             col.offsets.resize(str.offsets.size());
@@ -59,7 +59,7 @@ struct CatContainerImpl {
           [this, f_idx, &h_columns_v, stream](auto&& values) {
             using T = std::remove_cv_t<typename std::decay_t<decltype(values)>::value_type>;
 
-            this->columns[f_idx].emplace<dh::device_vector<T>>();
+            this->columns[f_idx].template emplace<dh::device_vector<T>>();
             auto& col = std::get<dh::device_vector<T>>(this->columns[f_idx]);
 
             col.resize(values.size());
