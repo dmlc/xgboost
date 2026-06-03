@@ -86,7 +86,7 @@ Supported values are:
 \item \code{"reg:absoluteerror"}: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
 
 Version added: 1.7.0
-\item \code{"reg:quantileerror"}: Quantile loss, also known as "pinball loss". See later sections for its parameter and \href{https://xgboost.readthedocs.io/en/latest/python/examples/quantile_regression.html#sphx-glr-python-examples-quantile-regression-py}{Quantile Regression} for a worked example.
+\item \code{"reg:quantileerror"}: Quantile loss, also known as "pinball loss". See later sections for its parameter and \href{https://xgboost.readthedocs.io/en/latest/python/examples/prediction_intervals.html#sphx-glr-python-examples-prediction-intervals-py}{Prediction Intervals} for a worked example.
 
 Version added: 2.0.0
 \item \code{"reg:expectileerror"}: Expectile loss. See later sections for its parameter.
