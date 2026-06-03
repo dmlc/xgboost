@@ -14,6 +14,7 @@ import xgboost as xgb
 plt.rcParams.update({"font.size": 13})
 
 
+# pylint: disable=redefined-outer-name
 def plot_censored_labels(
     X: np.ndarray, y_lower: np.ndarray, y_upper: np.ndarray
 ) -> None:
