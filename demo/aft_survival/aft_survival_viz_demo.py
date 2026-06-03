@@ -14,10 +14,11 @@ import xgboost as xgb
 plt.rcParams.update({"font.size": 13})
 
 
-# Function to visualize censored labels
 def plot_censored_labels(
     X: np.ndarray, y_lower: np.ndarray, y_upper: np.ndarray
 ) -> None:
+    """Function to visualize censored labels"""
+
     def replace_inf(x: np.ndarray, target_value: float) -> np.ndarray:
         x[np.isinf(x)] = target_value
         return x
@@ -66,9 +67,6 @@ accuracy_history: list[np.float64] = []
 class PlotIntermediateModel(xgb.callback.TrainingCallback):
     """Custom callback to plot intermediate models."""
 
-    def __init__(self) -> None:
-        super().__init__()
-
     def after_iteration(
         self,
         model: xgb.Booster,
@@ -93,7 +91,7 @@ class PlotIntermediateModel(xgb.callback.TrainingCallback):
         plt.plot(
             grid_pts, y_pred_grid_pts, "r-", label="XGBoost AFT model", linewidth=4
         )
-        plt.title("Iteration {}".format(epoch), x=0.5, y=0.8)
+        plt.title(f"Iteration {epoch}", x=0.5, y=0.8)
         plt.xlim((0.8, 5.2))
         plt.ylim((1 if np.min(y_pred) < 6 else 6, 200))
         plt.yscale("log")
