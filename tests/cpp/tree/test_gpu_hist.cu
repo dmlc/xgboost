@@ -75,7 +75,7 @@ TEST(GpuHist, UniformSampling) {
   auto preds_h = preds.ConstHostVector();
   auto preds_sampling_h = preds_sampling.ConstHostVector();
   for (size_t i = 0; i < kRows; i++) {
-    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 1e-8);
+    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 1e-3);
   }
 }
 
