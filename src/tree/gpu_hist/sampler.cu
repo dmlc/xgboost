@@ -11,8 +11,6 @@
 #include <thrust/transform.h>
 #include <thrust/version.h>
 
-#include <cuda/std/random>
-
 #include "../../common/nvtx_utils.h"
 
 #if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 2)
@@ -27,8 +25,8 @@
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
-#include "../../common/random.h"
-#include "../hist/sampler.h"  // for kDefaultMvsLambda
+#include "../../common/random.cuh"          // for DefaultRng, UniformRealDistribution
+#include "../hist/sampler.h"                // for kDefaultMvsLambda
 #include "../param.h"
 #include "quantiser.cuh"  // for GradientQuantiser
 #include "sampler.cuh"
@@ -40,8 +38,8 @@ class RandomWeight {
   explicit RandomWeight(std::size_t seed) : seed_(seed) {}
 
   XGBOOST_DEVICE float operator()(std::size_t i) const {
-    cuda::std::philox4x64 rng{seed_};
-    cuda::std::uniform_real_distribution<float> dist;
+    common::cuda_impl::DefaultRng rng{seed_};
+    common::cuda_impl::UniformRealDistribution<float> dist;
     rng.discard(i);
     return dist(rng);
   }
