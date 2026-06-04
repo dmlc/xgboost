@@ -5,6 +5,11 @@
 
 #include <cstdint>  // for uint64_t
 
+#if !defined(__x86_64__) && defined(__linux__)
+#include <fstream>  // for ifstream
+#include <string>   // for string, getline, stoll
+#endif  // !defined(__x86_64__) && defined(__linux__)
+
 #if defined(__x86_64__)
 
 void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
@@ -87,6 +92,67 @@ void DetectDataCaches(int64_t* cache_sizes) {
     cache_sizes[cache_sizes_idx++] = size;
   }
 }
+
+#elif defined(__linux__)  // non-x86 Linux (e.g. aarch64): read cache sizes from sysfs
+
+namespace {
+
+// Parse a sysfs cache "size" string like "64K", "2048K", "36864K", "2M".
+int64_t ParseCacheSize(const std::string &s) {
+  if (s.empty()) return -1;  // kUninitCache
+  int64_t mult = 1;
+  std::string num = s;
+  switch (num.back()) {
+    case 'K': case 'k': mult = 1024; num.pop_back(); break;
+    case 'M': case 'm': mult = 1024 * 1024; num.pop_back(); break;
+    case 'G': case 'g': mult = 1024 * 1024 * 1024; num.pop_back(); break;
+    default: break;
+  }
+  try {
+    return static_cast<int64_t>(std::stoll(num)) * mult;
+  } catch (...) {
+    return -1;  // kUninitCache
+  }
+}
+
+// Walk /sys/devices/system/cpu/cpu0/cache/index*/, skipping the instruction
+// cache (as the x86 CPUID path does), filling the data/unified caches in order:
+// L1d -> [0], L2 -> [1], L3 -> [2].
+template <std::int32_t kMaxCacheSize>
+void DetectDataCachesSysfs(int64_t* cache_sizes) {
+  const std::string base = "/sys/devices/system/cpu/cpu0/cache/index";
+
+  for (int i = 0; i < 16; ++i) {
+    const std::string dir = base + std::to_string(i);
+
+    std::ifstream type_f(dir + "/type");
+    if (!type_f) break;
+
+    std::string type;
+    std::getline(type_f, type);
+
+    if (type == "Instruction") continue;
+    if (type != "Data" && type != "Unified") continue;
+
+    std::ifstream level_f(dir + "/level");
+    int level = 0;
+    level_f >> level;
+
+    if (level <= 0 || level > kMaxCacheSize) continue;
+
+    std::ifstream size_f(dir + "/size");
+    std::string size_s;
+    std::getline(size_f, size_s);
+
+    const int64_t sz = ParseCacheSize(size_s);
+    if (sz > 0) {
+      cache_sizes[level - 1] = sz;
+    }
+  }
+}
+
+}  // namespace
+
 #endif  // defined(__x86_64__)
 
 namespace xgboost::common {
@@ -101,6 +167,8 @@ namespace xgboost::common {
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
   DetectDataCaches<kMaxCacheSize>(cache_size_.data());
+#elif defined(__linux__)
+  DetectDataCachesSysfs<kMaxCacheSize>(cache_size_.data());
 #else
   SetDefaultCaches();
 #endif  // defined(__x86_64__)
