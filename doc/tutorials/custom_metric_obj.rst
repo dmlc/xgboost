@@ -106,9 +106,10 @@ namely prediction and labels.  For implementing ``SLE``, we define:
         }
 
 
-In the above code snippet, ``squared_log`` is the objective function we want.  It accepts a
-numpy array ``predt`` as model prediction, and the training DMatrix for obtaining required
-information, including labels and weights (not used here).  This objective is then used as
+In the above code snippet, ``squared_log`` is the objective function we want.  It accepts
+model predictions (represented as a numpy array in Python or as a vector/matrix in R)
+and the training DMatrix for obtaining required information, including labels and weights
+(not used here).  This objective is then used as
 a callback function for XGBoost during training by passing it as an argument to
 ``xgb.train``:
 
@@ -182,7 +183,6 @@ a floating point value as the result.  After passing it into XGBoost as argument
 
     .. code-tab:: r R
 
-        results <- list()
         model <- xgb.train(
           params = list(tree_method = "hist", seed = 1994,
                         disable_default_eval_metric = TRUE,
@@ -190,8 +190,7 @@ a floating point value as the result.  After passing it into XGBoost as argument
           data = dtrain,
           nrounds = 10,
           custom_metric = rmsle,
-          evals = list(dtrain = dtrain, dtest = dtest),
-          evals_result = results
+          evals = list(dtrain = dtrain, dtest = dtest)
         )
 
 We will be able to see XGBoost printing something like:
@@ -304,7 +303,8 @@ function is:
           # For multi-class custom metrics in R, preds contains per-class scores.
           labels <- getinfo(dtrain, "label")
           n_samples <- length(labels)
-          pred_matrix <- matrix(preds, nrow = n_samples, ncol = length(preds) / n_samples, byrow = TRUE)
+          pred_matrix <- preds
+          stopifnot(is.matrix(pred_matrix), nrow(pred_matrix) == n_samples)
           out <- max.col(pred_matrix) - 1
           err <- sum(labels != out) / n_samples
           return(list(metric = "RMError", value = err))
