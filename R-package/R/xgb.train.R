@@ -445,7 +445,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' - `"reg:absoluteerror"`: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
 #'
 #'   Version added: 1.7.0
-#' - `"reg:quantileerror"`: Quantile loss, also known as "pinball loss". See later sections for its parameter and [Quantile Regression](https://xgboost.readthedocs.io/en/latest/python/examples/quantile_regression.html#sphx-glr-python-examples-quantile-regression-py) for a worked example.
+#' - `"reg:quantileerror"`: Quantile loss, also known as "pinball loss". See later sections for its parameter and [Prediction Intervals](https://xgboost.readthedocs.io/en/latest/python/examples/prediction_intervals.html#sphx-glr-python-examples-prediction-intervals-py) for a worked example.
 #'
 #'   Version added: 2.0.0
 #' - `"reg:expectileerror"`: Expectile loss. See later sections for its parameter.

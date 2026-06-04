@@ -14,6 +14,7 @@ from xgboost.testing.multi_target import (
     run_absolute_error,
     run_column_sampling,
     run_eta,
+    run_expectile_loss,
     run_feature_importance_strategy_compare,
     run_gradient_based_sampling_accuracy,
     run_grow_policy,
@@ -157,6 +158,10 @@ def test_multilabel() -> None:
 @pytest.mark.parametrize("weighted", [True, False])
 def test_quantile_loss(weighted: bool) -> None:
     run_quantile_loss("cpu", weighted)
+
+
+def test_expectile_loss() -> None:
+    run_expectile_loss("cpu")
 
 
 def test_absolute_error() -> None:

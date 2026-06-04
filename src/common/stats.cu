@@ -106,6 +106,7 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split,
       dh::Reduce(cuctx->CTP(), d_w.data(), d_w.data() + d_w.size(), 0.0, thrust::plus<double>{});
   auto cpu = ctx->MakeCPU();
   SafeColl(collective::GlobalSum(&cpu, is_column_split, linalg::MakeVec(&sum_w, 1)));
+  CHECK_GT(sum_w, 0.0) << "weights must contain at least one non-zero value.";
   auto val_it = dh::MakeTransformIterator<double>(thrust::make_counting_iterator(0ul),
                                                   [=] XGBOOST_DEVICE(std::size_t i) -> double {
                                                     auto cidx = i / n_rows;

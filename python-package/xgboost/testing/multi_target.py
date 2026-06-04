@@ -107,6 +107,37 @@ def run_quantile_loss(device: Device, weighted: bool) -> None:
     assert non_increasing(evals_result["train"]["quantile"])
 
 
+def run_expectile_loss(device: Device) -> None:
+    """Check that reparameterized expectile regression produces non-crossing curves."""
+    params = {
+        "objective": "reg:expectileerror",
+        "device": device,
+        "expectile_alpha": [0.45, 0.5, 0.55],
+        "multi_strategy": "multi_output_tree",
+        "tree_method": "hist",
+    }
+    n_samples = 2048
+    rng = np.random.default_rng(2027)
+    X = rng.normal(size=(n_samples, 16))
+    y = X[:, 0] - 0.5 * X[:, 1] + rng.normal(size=n_samples)
+
+    Xy = QuantileDMatrix(X, y)
+    evals_result: Dict[str, Dict] = {}
+    booster = train(
+        params,
+        Xy,
+        evals=[(Xy, "Train")],
+        evals_result=evals_result,
+        num_boost_round=10,
+    )
+
+    y_predt = booster.predict(Xy)
+    assert y_predt.shape == (n_samples, 3)
+    assert (y_predt[:, 0] <= y_predt[:, 1]).all()
+    assert (y_predt[:, 1] <= y_predt[:, 2]).all()
+    assert non_increasing(evals_result["Train"]["expectile"])
+
+
 def run_absolute_error(device: Device) -> None:
     """Test mean absolute error with vector leaf."""
     params = {
