@@ -402,11 +402,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
     .. versionadded:: 1.7.0
 
-  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. See later sections for its parameter and :ref:`sphx_glr_python_examples_quantile_regression.py` for a worked example.
+  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. See later sections for its parameter and :ref:`sphx_glr_python_examples_prediction_intervals.py` for a worked example.
 
     .. versionadded:: 2.0.0
 
-  - ``reg:expectileerror``: Expectile loss (asymmetric squared error). See later sections for its parameter.
+  - ``reg:expectileerror``: Expectile loss (asymmetric squared error). See later sections for its parameter and properties.
 
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
@@ -535,7 +535,7 @@ Parameter for using Expectile Loss (``reg:expectileerror``)
 
     .. versionadded:: 3.3.0
 
-    .. note:: Multi-target labels are not supported for expectile loss.
+    .. note:: Multiple alphas must be sorted in ascending order. Unlike the quantile objective, expectile does not suffer from curve crossing.
 
 Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likelihood of AFT metric (``aft-nloglik``)
 ====================================================================================================================

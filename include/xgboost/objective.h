@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  *
  * @brief interface of objective function used by xgboost.
  * @author Tianqi Chen, Kailong Chen
@@ -87,8 +87,8 @@ class ObjFunction : public Configurable {
   /**
    * @brief Obtain the initial estimation of prediction (intercept).
    *
-   *   The output in `base_score` represents prediction after apply the inverse link function
-   *   (valid prediction instead of raw).
+   *   The output in `base_score` represents prediction after applying the inverse link
+   *   function (valid prediction instead of raw).
    *
    * @param info MetaInfo that contains label.
    * @param base_score Output estimation.
@@ -143,9 +143,7 @@ class ObjFunction : public Configurable {
  * \brief Registry entry for objective factory functions.
  */
 struct ObjFunctionReg
-    : public dmlc::FunctionRegEntryBase<ObjFunctionReg,
-                                        std::function<ObjFunction* ()> > {
-};
+    : public dmlc::FunctionRegEntryBase<ObjFunctionReg, std::function<ObjFunction*()> > {};
 
 /*!
  * \brief Macro to register objective function.
@@ -159,9 +157,9 @@ struct ObjFunctionReg
  *   });
  * \endcode
  */
-#define XGBOOST_REGISTER_OBJECTIVE(UniqueId, Name)                      \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::ObjFunctionReg &              \
-  __make_ ## ObjFunctionReg ## _ ## UniqueId ## __ =                    \
-      ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_OBJECTIVE(UniqueId, Name)        \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::ObjFunctionReg& \
+      __make_##ObjFunctionReg##_##UniqueId##__ =          \
+          ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost
 #endif  // XGBOOST_OBJECTIVE_H_
