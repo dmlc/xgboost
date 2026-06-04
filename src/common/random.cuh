@@ -21,3 +21,7 @@ template <typename T>
 using UniformRealDistribution = thrust::uniform_real_distribution<T>;
 #endif
 }  // namespace xgboost::common::cuda_impl
+
+#if defined(xgboost_HAS_CUDA_STD_RANDOM)
+#undef xgboost_HAS_CUDA_STD_RANDOM
+#endif
