@@ -138,7 +138,7 @@ Supported values are:
 \item \code{"reg:squaredlogerror"}: regression with squared log loss \eqn{\frac{1}{2}[log(pred + 1) - log(label + 1)]^2}.  All input labels are required to be greater than -1.  Also, see metric \code{rmsle} for possible issue  with this objective.
 \item \code{"reg:pseudohubererror"}: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
 \item \code{"reg:absoluteerror"}: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
-\item \code{"reg:quantileerror"}: Quantile loss, also known as "pinball loss". See later sections for its parameter and \href{https://xgboost.readthedocs.io/en/latest/python/examples/quantile_regression.html#sphx-glr-python-examples-quantile-regression-py}{Quantile Regression} for a worked example.
+\item \code{"reg:quantileerror"}: Quantile loss, also known as "pinball loss". See later sections for its parameter and \href{https://xgboost.readthedocs.io/en/latest/python/examples/prediction_intervals.html#sphx-glr-python-examples-prediction-intervals-py}{Prediction Intervals} for a worked example.
 \item \code{"reg:expectileerror"}: Expectile loss. See later sections for its parameter.
 \item \code{"binary:logistic"}: logistic regression for binary classification, output probability
 \item \code{"binary:hinge"}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.

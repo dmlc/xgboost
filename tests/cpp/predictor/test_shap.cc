@@ -13,9 +13,12 @@
 #include <xgboost/objective.h>           // for ObjFunction
 
 #include <algorithm>
+#include <cmath>
 #include <memory>  // for unique_ptr
 #include <sstream>
-#include <string>  // for to_string
+#include <string>   // for to_string
+#include <utility>  // for as_const
+#include <vector>
 
 #include "../../../src/common/param_array.h"
 #include "../../../src/gbm/gbtree_model.h"
@@ -36,6 +39,17 @@ void SetLabels(DMatrix* dmat, bst_target_t n_classes) {
   } else {
     for (size_t i = 0; i < rows; ++i) {
       h_labels[i] = static_cast<float>(i % 2);
+    }
+  }
+}
+
+void SetMultiTargetLabels(DMatrix* dmat, bst_target_t n_targets) {
+  size_t const rows = dmat->Info().num_row_;
+  dmat->Info().labels.Reshape(rows, n_targets);
+  auto& h_labels = dmat->Info().labels.Data()->HostVector();
+  for (size_t r = 0; r < rows; ++r) {
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      h_labels[r * n_targets + t] = static_cast<float>((r + 1) * (t + 1));
     }
   }
 }
@@ -101,8 +115,16 @@ std::unique_ptr<gbm::GBTreeModel> LoadGBTreeModel(Learner* learner, Context cons
   auto n_classes = static_cast<bst_target_t>(std::stol(num_class));
   auto n_targets = static_cast<bst_target_t>(std::stol(num_target));
   auto n_groups = static_cast<uint32_t>(std::max(n_classes, n_targets));
-  LearnerModelParam tmp{n_features, std::move(base_score_vec), n_groups, n_targets,
-                        MultiStrategy::kOneOutputPerTree};
+  auto multi_strategy = MultiStrategy::kOneOutputPerTree;
+  for (auto const& kv : model_args) {
+    if (kv.first == "multi_strategy") {
+      CHECK(kv.second == "one_output_per_tree" || kv.second == "multi_output_tree");
+      multi_strategy = kv.second == "multi_output_tree" ? MultiStrategy::kMultiOutputTree
+                                                        : MultiStrategy::kOneOutputPerTree;
+      break;
+    }
+  }
+  LearnerModelParam tmp{n_features, std::move(base_score_vec), n_groups, n_targets, multi_strategy};
   out_param->Copy(tmp);
 
   auto gbtree = std::make_unique<gbm::GBTreeModel>(out_param, ctx);
@@ -174,6 +196,16 @@ std::vector<ShapTestCase> BuildShapTestCases(Context const* ctx) {
     args.emplace_back("num_class", std::to_string(n_classes));
     cases.emplace_back(dmat, std::move(args));
   }
+
+  // multi-target vector-leaf tree
+  bst_target_t constexpr n_targets{2};
+  auto dmat = RandomDataGenerator(64, 6, 0.0).Device(device).GenerateDMatrix(true);
+  SetMultiTargetLabels(dmat.get(), n_targets);
+  auto args = BaseParams(ctx, "reg:squarederror", "3");
+  args.emplace_back("tree_method", "hist");
+  args.emplace_back("num_target", std::to_string(n_targets));
+  args.emplace_back("multi_strategy", "multi_output_tree");
+  cases.emplace_back(dmat, std::move(args));
 
   {
     // compact dense classification case to keep runtime bounded
@@ -292,32 +324,53 @@ TEST(Predictor, DartShapOutputCPU) {
   CheckDartShapOutput(&ctx);
 }
 
-TEST(Predictor, ShapRejectsZeroCoverChild) {
-  Context ctx;
+void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   std::size_t shape[1]{1};
-  linalg::Vector<float> base_score{shape, ctx.Device()};
+  linalg::Vector<float> base_score{shape, ctx->Device()};
   base_score.Data()->HostVector()[0] = 0.0f;
+  std::as_const(base_score).HostView();
+  if (!ctx->Device().IsCPU()) {
+    std::as_const(base_score).View(ctx->Device());
+  }
   LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
-  gbm::GBTreeModel model{&mparam, &ctx};
+  gbm::GBTreeModel model{&mparam, ctx};
 
   gbm::TreesOneGroup trees;
   trees.emplace_back(std::make_unique<RegTree>());
-  trees.front()->ExpandNode(RegTree::kRoot, 0, 0.5f, true, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f,
-                            1.0f);
+  auto const parent_cover = zero_parent_cover ? 0.0f : 1.0f;
+  auto const left_cover = parent_cover;
+  trees.front()->ExpandNode(RegTree::kRoot, 0, 0.5f, true, 0.0f, 0.0f, 1.0f, 1.0f, parent_cover,
+                            left_cover, 0.0f);
   model.CommitModelGroup(std::move(trees), 0);
 
   auto dmat = GetDMatrixFromData(std::vector<float>{0.0f, 1.0f}, 2, 1);
+  HostDeviceVector<float> margin_predt{std::vector<float>{0.0f, 1.0f}, ctx->Device()};
+
   HostDeviceVector<float> out;
-  auto msg = "non-positive cover at child nodes";
-  ASSERT_THAT(
-      [&] { interpretability::ShapValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr, 0, 0); },
-      GMockThrow(msg));
-  ASSERT_THAT(
-      [&] {
-        interpretability::ShapInteractionValues(dmat->Ctx(), dmat.get(), &out, model, 0, nullptr,
-                                                false);
-      },
-      GMockThrow(msg));
+  ASSERT_NO_THROW(interpretability::ShapValues(ctx, dmat.get(), &out, model, 0, nullptr, 0, 0));
+  ASSERT_EQ(out.HostVector().size(), 2 * (1 + 1));
+  for (auto v : out.HostVector()) {
+    ASSERT_TRUE(std::isfinite(v));
+  }
+  CheckShapAdditivity(2, 1, out, margin_predt);
+
+  ASSERT_NO_THROW(
+      interpretability::ShapInteractionValues(ctx, dmat.get(), &out, model, 0, nullptr, false));
+  ASSERT_EQ(out.HostVector().size(), 2 * (1 + 1) * (1 + 1));
+  for (auto v : out.HostVector()) {
+    ASSERT_TRUE(std::isfinite(v));
+  }
+  CheckShapAdditivity(2, 1, out, margin_predt);
+}
+
+TEST(Predictor, ShapHandlesZeroCoverChild) {
+  Context ctx;
+  CheckShapHandlesZeroCover(&ctx, false);
+}
+
+TEST(Predictor, ShapHandlesZeroCoverParent) {
+  Context ctx;
+  CheckShapHandlesZeroCover(&ctx, true);
 }
 
 TEST(Predictor, ApproxContribsBasic) {

@@ -24,7 +24,7 @@ sys.path.append(os.path.join(PROJECT_ROOT, "python-package"))
 os.environ["XGBOOST_BUILD_DOC"] = "1"
 
 # Version information.
-import xgboost  # NOQA
+import xgboost  # NOQA  # pylint: disable=wrong-import-position
 
 version = xgboost.__version__
 release = xgboost.__version__
@@ -48,11 +48,7 @@ def run_doxygen() -> None:
         if not os.path.exists(DOX_DIR):
             os.mkdir(DOX_DIR)
         os.chdir(os.path.join(PROJECT_ROOT, DOX_DIR))
-        print(
-            "Build doxygen at {}".format(
-                os.path.join(PROJECT_ROOT, DOX_DIR, "doc_doxygen")
-            )
-        )
+        print(f"Build doxygen at {os.path.join(PROJECT_ROOT, DOX_DIR, 'doc_doxygen')}")
         subprocess.check_call(["cmake", "..", "-DBUILD_C_DOC=ON", "-GNinja"])
         subprocess.check_call(["ninja", "doc_doxygen"])
 
@@ -61,7 +57,7 @@ def run_doxygen() -> None:
         print(f"Copy directory {src} -> {dest}")
         shutil.copytree(src, dest)
     except OSError as e:
-        sys.stderr.write("doxygen execution failed: %s" % e)
+        sys.stderr.write(f"doxygen execution failed: {e}")
     finally:
         os.chdir(curdir)
 
@@ -97,14 +93,19 @@ def get_branch() -> str:
 
 
 def get_sha(branch: str) -> str | None:
+    """Get the commit hash for the current documentation build."""
     sha = os.getenv("READTHEDOCS_GIT_COMMIT_HASH", default=None)
     if sha is not None:
         return sha
 
     if branch == "master":
-        res = subprocess.run(["git", "rev-parse", "master"], stdout=subprocess.PIPE)
+        res = subprocess.run(
+            ["git", "rev-parse", "master"], stdout=subprocess.PIPE, check=False
+        )
     else:
-        res = subprocess.run(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE)
+        res = subprocess.run(
+            ["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE, check=False
+        )
     if res.returncode != 0:
         return None
     return res.stdout.decode("utf-8").strip()
@@ -195,9 +196,7 @@ def download_r_docs() -> None:
             with tarfile.open(filename, "r:bz2") as t:
                 t.extractall(r_doc_dir)
 
-            for root, subdir, files in os.walk(
-                os.path.join(r_doc_dir, "doc", "R-package")
-            ):
+            for root, _, files in os.walk(os.path.join(r_doc_dir, "doc", "R-package")):
                 for f in files:
                     assert f.endswith(".md")
                     src = os.path.join(root, f)
@@ -213,6 +212,7 @@ def download_r_docs() -> None:
 
 
 def is_readthedocs_build():
+    """Return whether this is a Read the Docs build."""
     if os.environ.get("READTHEDOCS", None) == "True":
         return True
     warnings.warn(
@@ -241,8 +241,8 @@ sys.path.insert(0, CURR_PATH)
 
 # General information about the project.
 project = "xgboost"
-author = "%s developers" % project
-copyright = "2025, %s" % author
+author = f"{project} developers"
+copyright = f"2026, {author}"  # pylint: disable=redefined-builtin
 github_doc_root = "https://github.com/dmlc/xgboost/tree/master/doc/"
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -252,6 +252,7 @@ extensions = [
     "sphinxcontrib.jquery",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
+    "sphinx.ext.doctest",
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
     "sphinx_gallery.gen_gallery",
@@ -259,7 +260,22 @@ extensions = [
     "sphinx_tabs.tabs",
     "breathe",
     "myst_parser",
+    "xgboost_doc_doctest",
 ]
+
+sphinx_tabs_valid_builders = ["html", "doctest"]
+
+# We need the real XGBoost library for running tests.
+doctest_global_setup = """
+import os
+import sys
+
+os.environ.pop("XGBOOST_BUILD_DOC", None)
+for name in list(sys.modules):
+    if name == "xgboost" or name.startswith("xgboost."):
+        del sys.modules[name]
+"""
+doctest_test_doctest_blocks = ""
 
 sphinx_gallery_conf = {
     # path to your example scripts
@@ -389,11 +405,11 @@ latex_elements = {}
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "%s.tex" % project, project, author, "manual"),
+    (master_doc, f"{project}.tex", project, author, "manual"),
 ]
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3.10", None),
+    "python": ("https://docs.python.org/3.12", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
@@ -406,4 +422,5 @@ intersphinx_mapping = {
 
 
 def setup(app):
+    """Set up custom Sphinx assets."""
     app.add_css_file("custom.css")

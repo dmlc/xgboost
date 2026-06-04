@@ -19,6 +19,7 @@ mamba create -y -n rmm_test -c conda-forge -c rapidsai-nightly python=3.13 \
   gtest nccl "rmm=${rmm_version%.*}.*,>=0.0.0a0"
 
 source activate rmm_test
+export CUDAHOSTCXX="${CXX}"
 
 if [[ "${BUILD_ONLY_SM75:-}" == 1 ]]
 then

@@ -27,14 +27,14 @@ jobs:
     name: Build wheel for Windows ARM64
     runs-on: windows-11-arm
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: 'true'
 
       - name: Setup Python
         uses: actions/setup-python@v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install build dependencies
         run: |

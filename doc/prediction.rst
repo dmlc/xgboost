@@ -39,8 +39,13 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
 
   Output is a 3-dim array, with ``(rows, groups, columns + 1)`` as shape.  Whether
   ``approx_contribs`` is used does not change the output shape. If the strict shape
-  parameter is not set, it can be a 2 or 3 dimension array depending on whether
-  multi-class model is being used.
+  parameter is not set, it can be a 2 or 3 dimension array depending on whether multi-class
+  model is being used. See `Lundberg et al. (2018)`_ for the original TreeSHAP feature
+  attribution method. When ``approx_contribs`` is ``False``, XGBoost uses the
+  ``QuadratureTreeSHAP`` implementation described by `Wettenstein et al. (2026)`_ for exact
+  TreeSHAP feature attributions on both CPU and GPU. When ``approx_contribs`` is ``True``,
+  XGBoost uses an approximate contribution method on CPU; the GPU predictor does not
+  implement approximated contributions.
 
 - When using ``pred_interactions`` with ``strict_shape`` set to ``True``:
 
@@ -191,3 +196,5 @@ More information and examples are given in the `Concrete ML documentation`_.
 .. _Zama: https://www.zama.ai/
 .. _Concrete ML: https://github.com/zama-ai/concrete-ml
 .. _Concrete ML documentation: https://docs.zama.ai/concrete-ml
+.. _Lundberg et al. (2018): https://arxiv.org/abs/1802.03888
+.. _Wettenstein et al. (2026): https://arxiv.org/abs/2605.04497

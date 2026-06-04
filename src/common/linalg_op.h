@@ -156,6 +156,21 @@ void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
       [&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
       [&] { cuda_impl::ElementWiseKernel(t, std::forward<Fn>(fn), ctx->CUDACtx()->Stream()); });
 }
+
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
+void ElementWiseKernel(Context const* ctx, DeviceOrd device, TensorView<T, D> t, Fn&& fn) {
+  CHECK_EQ(device, t.Device());
+  if (device.IsCPU()) {
+    cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn));
+  } else if (device.IsCUDA()) {
+    CHECK(ctx->IsCUDA());
+    CHECK_EQ(ctx->Device(), device);
+    cuda_impl::ElementWiseKernel(t, std::forward<Fn>(fn), ctx->CUDACtx()->Stream());
+  } else {
+    LOG(FATAL) << "Unsupported device:" << device;
+  }
+}
+
 #elif defined(SYCL_LANGUAGE_VERSION)
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
@@ -163,12 +178,32 @@ void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
                       [&] { LOG(FATAL) << "Invalid TU"; },
                       [&] { ::xgboost::sycl::linalg::ElementWiseKernel(t, std::forward<Fn>(fn)); });
 }
+
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
+void ElementWiseKernel(Context const* ctx, DeviceOrd device, TensorView<T, D> t, Fn&& fn) {
+  CHECK_EQ(device, t.Device());
+  if (device.IsCPU()) {
+    cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn));
+  } else if (device.IsSycl()) {
+    CHECK(ctx->Device() == device);
+    ::xgboost::sycl::linalg::ElementWiseKernel(t, std::forward<Fn>(fn));
+  } else {
+    LOG(FATAL) << "Unsupported device:" << device;
+  }
+}
 #else
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
   CHECK(ctx->IsCPU());
   ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
                       [&] { LOG(FATAL) << "Invalid TU"; });
+}
+
+template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
+void ElementWiseKernel(Context const* ctx, DeviceOrd device, TensorView<T, D> t, Fn&& fn) {
+  CHECK_EQ(device, t.Device());
+  CHECK(device.IsCPU());
+  cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn));
 }
 #endif
 

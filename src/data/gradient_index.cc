@@ -115,6 +115,16 @@ GHistIndexMatrix::GHistIndexMatrix(Context const *ctx, SparsePage const &batch,
   if (!std::isnan(sparse_thresh)) {
     this->columns_->InitFromSparse(batch, *this, sparse_thresh, n_threads);
   }
+  // Enforce global bin indices are sorted per row. This is required
+  // to construct histogram efficiently.
+  if (!isDense_) {
+    auto *index_data = index.data<uint32_t>();
+    common::ParallelFor(batch.Size(), n_threads, [&](size_t i) {
+      auto *begin = index_data + row_ptr[i];
+      auto *end = index_data + row_ptr[i + 1];
+      std::sort(begin, end);
+    });
+  }
 }
 
 template <typename Batch>
@@ -122,6 +132,19 @@ void GHistIndexMatrix::PushAdapterBatchColumns(Context const *ctx, Batch const &
                                                float missing, size_t rbegin) {
   CHECK(columns_);
   this->columns_->PushBatch(ctx->Threads(), batch, missing, *this, rbegin);
+  // Enforce global bin indices are sorted per row. This is required
+  // to construct histogram efficiently.
+  if (!isDense_) {
+    auto n_threads = ctx->Threads();
+    auto batch_threads =
+        std::max(static_cast<size_t>(1), std::min(batch.Size(), static_cast<size_t>(n_threads)));
+    auto *index_data = index.data<uint32_t>();
+    common::ParallelFor(batch.Size(), batch_threads, [&](size_t i) {
+      auto *begin = index_data + row_ptr[rbegin + i];
+      auto *end = index_data + row_ptr[rbegin + i + 1];
+      std::sort(begin, end);
+    });
+  }
 }
 
 #define INSTANTIATION_PUSH(BatchT)                                 \
