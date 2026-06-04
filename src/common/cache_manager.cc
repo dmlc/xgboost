@@ -8,20 +8,20 @@
 #if !defined(__x86_64__) && defined(__linux__)
 #include <fstream>  // for ifstream
 #include <string>   // for string, getline, stoll
-#endif  // !defined(__x86_64__) && defined(__linux__)
+#endif              // !defined(__x86_64__) && defined(__linux__)
 
 #if defined(__x86_64__)
 
-void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
+void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (&abcd)[4]) {
 #if defined(_MSC_VER)
-    __cpuidex(reinterpret_cast<int*>(abcd), eax, ecx);
+  __cpuidex(reinterpret_cast<int*>(abcd), eax, ecx);
 #else
-    uint32_t ebx = 0, edx = 0;
-    __asm__("cpuid" : "+b"(ebx), "+a"(eax), "+c"(ecx), "=d"(edx));
-    abcd[0] = eax;
-    abcd[1] = ebx;
-    abcd[2] = ecx;
-    abcd[3] = edx;
+  uint32_t ebx = 0, edx = 0;
+  __asm__("cpuid" : "+b"(ebx), "+a"(eax), "+c"(ecx), "=d"(edx));
+  abcd[0] = eax;
+  abcd[1] = ebx;
+  abcd[2] = ecx;
+  abcd[3] = edx;
 #endif
 }
 
@@ -46,9 +46,9 @@ void RunCpuid(uint32_t eax, uint32_t ecx, uint32_t (& abcd)[4]) {
 #define _CPUID_VENDOR_ID_AMD 0x68747541
 
 // Run CPUID and collect raw output.
-void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
-                  int* line_size, int* partitions, int* ways) {
-// Leaf 0x0 returns Vendor ID in EBX, EDX, ECX
+void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets, int* line_size,
+                  int* partitions, int* ways) {
+  // Leaf 0x0 returns Vendor ID in EBX, EDX, ECX
   uint32_t vendor_reg[4];
   RunCpuid(0, 0, vendor_reg);
   bool is_amd = (vendor_reg[1] == _CPUID_VENDOR_ID_AMD);
@@ -61,12 +61,12 @@ void GetCacheInfo(int cache_num, int* type, int* level, int64_t* sets,
   const uint32_t ebx = abcd[1];
   const uint32_t ecx = abcd[2];
   // const uint32_t edx = abcd[3];  // Not used
-  *type              = _CPUID_GET_TYPE(eax);
-  *level             = _CPUID_GET_LEVEL(eax);
-  *sets              = _CPUID_GET_SETS(ecx);
-  *line_size         = _CPUID_GET_LINE_SIZE(ebx);
-  *partitions        = _CPUID_GET_PARTITIONS(ebx);
-  *ways              = _CPUID_GET_WAYS(ebx);
+  *type = _CPUID_GET_TYPE(eax);
+  *level = _CPUID_GET_LEVEL(eax);
+  *sets = _CPUID_GET_SETS(ecx);
+  *line_size = _CPUID_GET_LINE_SIZE(ebx);
+  *partitions = _CPUID_GET_PARTITIONS(ebx);
+  *ways = _CPUID_GET_WAYS(ebx);
 }
 
 constexpr int kCpuidTypeNull = 0;
@@ -74,7 +74,8 @@ constexpr int kCpuidTypeData = 1;  // NOLINT
 constexpr int kCpuidTypeInst = 2;
 constexpr int kCpuidTypeUnif = 3;  // NOLINT
 
-// Interpret the raw CPUID results and extract actual (or unified) cache parameters.
+// Interpret the raw CPUID results and extract actual (or unified) cache
+// parameters.
 template <std::int32_t kMaxCacheSize>
 void DetectDataCaches(int64_t* cache_sizes) {
   (void)kCpuidTypeData;
@@ -98,15 +99,28 @@ void DetectDataCaches(int64_t* cache_sizes) {
 namespace {
 
 // Parse a sysfs cache "size" string like "64K", "2048K", "36864K", "2M".
-int64_t ParseCacheSize(const std::string &s) {
+int64_t ParseCacheSize(const std::string& s) {
   if (s.empty()) return -1;  // kUninitCache
   int64_t mult = 1;
   std::string num = s;
   switch (num.back()) {
-    case 'K': case 'k': mult = 1024; num.pop_back(); break;
-    case 'M': case 'm': mult = 1024 * 1024; num.pop_back(); break;
-    case 'G': case 'g': mult = 1024 * 1024 * 1024; num.pop_back(); break;
-    default: break;
+    case 'K':
+    case 'k':
+      mult = 1024;
+      num.pop_back();
+      break;
+    case 'M':
+    case 'm':
+      mult = 1024 * 1024;
+      num.pop_back();
+      break;
+    case 'G':
+    case 'g':
+      mult = 1024 * 1024 * 1024;
+      num.pop_back();
+      break;
+    default:
+      break;
   }
   try {
     return static_cast<int64_t>(std::stoll(num)) * mult;
