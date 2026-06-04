@@ -166,8 +166,8 @@ def test_multioutput_reg() -> None:
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_quantile_reg() -> None:
-    script = os.path.join(PYTHON_DEMO_DIR, "quantile_regression.py")
+def test_prediction_intervals() -> None:
+    script = os.path.join(PYTHON_DEMO_DIR, "prediction_intervals.py")
     cmd = [PYTHON, script]
     subprocess.check_call(cmd)
 

@@ -14,6 +14,7 @@
 #include <utility>  // for pair
 
 #include "../../../src/common/linalg_op.h"  // for begin, end
+#include "../../../src/common/math.h"       // for SoftPlus
 #include "../../../src/tree/param.h"        // for TrainParam
 #include "../../../src/tree/tree_view.h"    // for MultiTargetTreeView
 #include "../helpers.h"
@@ -457,8 +458,10 @@ void TestExpectileRegressionMultiAlpha(const Context* ctx) {
 
   std::vector<float> predts{0.0f, 0.0f, 0.0f, 0.0f};
   std::vector<float> labels{1.0f, 2.0f};
-  std::vector<float> grad{-0.2f, -0.8f, -0.4f, -1.6f};
-  std::vector<float> hess{0.2f, 0.8f, 0.2f, 0.8f};
+  auto gap = kRtEps + common::SoftPlus(0.0f);
+  std::vector<float> grad{-0.2f + 0.8f * (gap - 1.0f), 0.5f * 0.8f * (gap - 1.0f),
+                          -0.4f + 0.8f * (gap - 2.0f), 0.5f * 0.8f * (gap - 2.0f)};
+  std::vector<float> hess{1.0f, 0.2f, 1.0f, 0.2f};
   CheckObjFunction(obj, predts, labels, {}, grad, hess);
 }
 
