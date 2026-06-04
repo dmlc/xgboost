@@ -78,8 +78,7 @@ struct SegmentedSearchSortedStrOp {
     auto candidate_idx = f_sorted_idx[sorted_idx];
     auto candidate_beg = haystack.offsets[candidate_idx];
     auto candidate_end = haystack.offsets[candidate_idx + 1];
-    auto candidate =
-        haystack.values.subspan(candidate_beg, candidate_end - candidate_beg);
+    auto candidate = haystack.values.subspan(candidate_beg, candidate_end - candidate_beg);
     return candidate == needle ? sorted_idx : detail::NotFound();
   }
 };
@@ -289,16 +288,15 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         f_mapping[i - f_beg] = idx;
       });
 
-  auto err_it = thrust::find_if(
-      exec, dh::tcbegin(mapping), dh::tcend(mapping),
-      [=] __device__(std::int32_t v) -> bool { return v == detail::NotFound(); });
+  auto err_it =
+      thrust::find_if(exec, dh::tcbegin(mapping), dh::tcend(mapping),
+                      [=] __device__(std::int32_t v) -> bool { return v == detail::NotFound(); });
 
   if (err_it != dh::tcend(mapping)) {
     // Report missing cat.
     std::vector<decltype(mapping)::value_type> h_mapping(mapping.size());
     thrust::copy_n(dh::tcbegin(mapping), mapping.size(), h_mapping.begin());
-    std::vector<std::int32_t> h_feature_segments(
-        new_enc.feature_segments.size());
+    std::vector<DeviceColumnsView::SegIdxT> h_feature_segments(new_enc.feature_segments.size());
     thrust::copy(dh::tcbegin(new_enc.feature_segments), dh::tcend(new_enc.feature_segments),
                  h_feature_segments.begin());
     auto h_idx = std::distance(dh::tcbegin(mapping), err_it);
