@@ -94,7 +94,7 @@ void DetectDataCaches(int64_t* cache_sizes) {
   }
 }
 
-#elif defined(__linux__)  // non-x86 Linux (e.g. aarch64): read cache sizes from sysfs
+#elif defined(__linux__)  // non-x86_64 Linux (e.g. aarch64): read cache sizes from sysfs
 
 namespace {
 
@@ -129,9 +129,8 @@ int64_t ParseCacheSize(const std::string& s) {
   }
 }
 
-// Walk /sys/devices/system/cpu/cpu0/cache/index*/, skipping the instruction
-// cache (as the x86 CPUID path does), filling the data/unified caches in order:
-// L1d -> [0], L2 -> [1], L3 -> [2].
+// Read data/unified cache sizes from sysfs, storing each at its level:
+// L1 -> [0], L2 -> [1], L3 -> [2]. Indexing by level is robust to sysfs ordering.
 template <std::int32_t kMaxCacheSize>
 void DetectDataCachesSysfs(int64_t* cache_sizes) {
   const std::string base = "/sys/devices/system/cpu/cpu0/cache/index";
@@ -140,18 +139,21 @@ void DetectDataCachesSysfs(int64_t* cache_sizes) {
     const std::string dir = base + std::to_string(i);
 
     std::ifstream type_f(dir + "/type");
-    if (!type_f) break;
+    if (!type_f) break;  // indices are contiguous; no more cache levels exposed
 
     std::string type;
     std::getline(type_f, type);
 
-    if (type == "Instruction") continue;
+    // Keep only data and unified caches (this also skips the instruction cache,
+    // as the x86 CPUID path does).
     if (type != "Data" && type != "Unified") continue;
 
     std::ifstream level_f(dir + "/level");
     int level = 0;
     level_f >> level;
 
+    // cache_sizes has kMaxCacheSize slots addressed by (level - 1); a missing or
+    // out-of-range level is skipped, leaving that slot at its kUninitCache default.
     if (level <= 0 || level > kMaxCacheSize) continue;
 
     std::ifstream size_f(dir + "/size");
@@ -171,12 +173,8 @@ void DetectDataCachesSysfs(int64_t* cache_sizes) {
 
 namespace xgboost::common {
 
-/* Detect CPU cache sizes at runtime using CPUID.
- * CPUID cannot be used reliably on:
- * 1. non-x86_64 architectures
- * 2. some virtualized environments
- *
- * In these cases, fallback L1/L2/L3 defaults are used.
+/* Detect CPU cache sizes at runtime: CPUID on x86_64, sysfs on non-x86_64 Linux,
+ * and compiled L1/L2/L3 defaults otherwise (or for any size detection leaves unset).
  */
 CacheManager::CacheManager() {
 #if defined(__x86_64__)
