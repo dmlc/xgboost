@@ -143,6 +143,7 @@ def native_build(cli_args: argparse.Namespace) -> None:
         "Windows": ("xgboost4j.dll", "windows"),
         "Darwin": ("libxgboost4j.dylib", "macos"),
         "Linux": ("libxgboost4j.so", "linux"),
+        "FreeBSD": ("libxgboost4j.so", "freebsd"),
         "SunOS": ("libxgboost4j.so", "solaris"),
     }[platform.system()]
     arch_folder = {
