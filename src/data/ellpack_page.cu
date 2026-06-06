@@ -5,6 +5,7 @@
 #include <thrust/extrema.h>                             // for max_element
 #include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for transform_output_iterator
+#include <thrust/tuple.h>                               // for tuple
 
 #include <algorithm>          // for copy
 #include <cuda/std/iterator>  // for distance
