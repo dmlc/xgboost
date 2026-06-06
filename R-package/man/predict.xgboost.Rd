@@ -109,7 +109,9 @@ Be aware that this only applies to column names and not to factor levels in cate
 Note that this check might add some sizable latency to the predictions, so it's
 recommended to disable it for performance-sensitive applications.}
 
-\item{...}{Not used.}
+\item{...}{Legacy boolean flags (e.g., \code{predcontrib}) are supported for
+backward compatibility but are deprecated and map to the \code{type} argument.
+Any other arguments passed to \code{...} will cause an error.}
 }
 \value{
 Either a numeric vector (for 1D outputs), numeric matrix (for 2D outputs), numeric array
