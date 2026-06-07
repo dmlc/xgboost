@@ -288,8 +288,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
     // Report missing cat.
     std::vector<decltype(mapping)::value_type> h_mapping(mapping.size());
     thrust::copy_n(dh::tcbegin(mapping), mapping.size(), h_mapping.begin());
-    std::vector<decltype(new_enc.feature_segments)::value_type> h_feature_segments(
-        new_enc.feature_segments.size());
+    std::vector<DeviceColumnsView::SegIdxT> h_feature_segments(new_enc.feature_segments.size());
     thrust::copy(dh::tcbegin(new_enc.feature_segments), dh::tcend(new_enc.feature_segments),
                  h_feature_segments.begin());
     auto h_idx = std::distance(dh::tcbegin(mapping), err_it);

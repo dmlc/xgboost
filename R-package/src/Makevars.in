@@ -13,7 +13,8 @@ XGB_RFLAGS = \
     -DDMLC_LOG_BEFORE_THROW=0 \
     -DDMLC_ENABLE_STD_THREAD=$(ENABLE_STD_THREAD) \
     -DDMLC_DISABLE_STDIN=1 \
-    -DDMLC_LOG_CUSTOMIZE=1
+    -DDMLC_LOG_CUSTOMIZE=1 \
+    -D_LIBCPP_DISABLE_AVAILABILITY
 
 # disable the use of thread_local for 32 bit windows:
 ifeq ($(R_OSTYPE)$(WIN),windows)

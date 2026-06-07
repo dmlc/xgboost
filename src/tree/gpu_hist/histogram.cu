@@ -5,9 +5,10 @@
 #include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
 
 #include <algorithm>
-#include <cstdint>          // uint32_t, int32_t
-#include <cuda/functional>  // for proclaim_copyable_arguments
-#include <memory>           // for unique_ptr
+#include <cstdint>               // uint32_t, int32_t
+#include <cuda/functional>       // for proclaim_copyable_arguments
+#include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
+#include <memory>                // for unique_ptr
 
 #include "../../collective/aggregator.h"
 #include "../../common/cuda_context.cuh"  // for CUDAContext
