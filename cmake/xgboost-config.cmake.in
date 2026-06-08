@@ -13,7 +13,7 @@ if (XGBOOST_BUILD_STATIC_LIB)
     find_dependency(OpenMP)
   endif()
   if(USE_CUDA)
-    find_dependency(CUDA)
+    find_dependency(CUDAToolkit)
   endif()
   # nccl should be linked statically if xgboost is built as static library.
 endif (XGBOOST_BUILD_STATIC_LIB)
