@@ -1961,3 +1961,25 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *config,
   *out_features = dmlc::BeginPtr(feature_names_c);
   API_END();
 }
+
+XGB_DLL int XGBoosterGetLeafSimilarityWeights(BoosterHandle handle, char const *config,
+                                              bst_ulong *out_len, float const **out_weights) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  xgboost_CHECK_C_ARG_PTR(config);
+  auto *learner = static_cast<Learner *>(handle);
+  auto jconfig = Json::Load(StringView{config});
+
+  auto weight_type = RequiredArg<String>(jconfig, "weight_type", __func__);
+  auto iteration_begin = RequiredArg<Integer>(jconfig, "iteration_begin", __func__);
+  auto iteration_end = RequiredArg<Integer>(jconfig, "iteration_end", __func__);
+
+  auto &weights = learner->GetThreadLocal().ret_vec_float;
+  learner->CalcLeafSimilarityWeights(weight_type, iteration_begin, iteration_end, &weights);
+
+  xgboost_CHECK_C_ARG_PTR(out_len);
+  xgboost_CHECK_C_ARG_PTR(out_weights);
+  *out_len = weights.size();
+  *out_weights = dmlc::BeginPtr(weights);
+  API_END();
+}

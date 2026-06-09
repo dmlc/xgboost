@@ -1274,6 +1274,14 @@ class LearnerImpl : public LearnerIO {
     gbm_->FeatureScore(importance_type, trees, features, scores);
   }
 
+  void CalcLeafSimilarityWeights(std::string const& weight_type, bst_layer_t iteration_begin,
+                                 bst_layer_t iteration_end, std::vector<float>* weights) override {
+    this->Configure();
+    this->CheckModelInitialized();
+
+    gbm_->LeafSimilarityWeights(weight_type, iteration_begin, iteration_end, weights);
+  }
+
   const std::map<std::string, std::string>& GetConfigurationArguments() const override {
     return cfg_;
   }
