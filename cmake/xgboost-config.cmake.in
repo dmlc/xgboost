@@ -14,6 +14,7 @@ if (XGBOOST_BUILD_STATIC_LIB)
   endif()
   if(USE_CUDA)
     find_dependency(CUDAToolkit)
+    find_dependency(CCCL)
   endif()
   # nccl should be linked statically if xgboost is built as static library.
 endif (XGBOOST_BUILD_STATIC_LIB)
