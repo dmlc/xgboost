@@ -900,6 +900,7 @@ bool MetaInfo::ShouldHaveLabels() const {
 [[nodiscard]] std::shared_ptr<CatContainer const> MetaInfo::CatsShared() const {
   return this->cats_;
 }
+[[nodiscard]] std::shared_ptr<CatContainer> MetaInfo::CatsShared() { return this->cats_; }
 
 void MetaInfo::Cats(std::shared_ptr<CatContainer> cats) {
   this->cats_ = std::move(cats);

@@ -58,7 +58,7 @@ namespace cuda_impl {
   common::AssertGPUSupport();
   return 0;
 }
-[[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const *) {
+[[nodiscard]] bst_feature_t BatchColumns(DMatrixProxy const *) {
   common::AssertGPUSupport();
   return 0;
 }

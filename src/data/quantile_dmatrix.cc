@@ -3,6 +3,8 @@
  */
 #include "quantile_dmatrix.h"
 
+#include <array>    // for array
+#include <cstdint>  // for int32_t, uint64_t
 #include <numeric>  // for accumulate
 
 #include "../collective/allreduce.h"         // for Allreduce
@@ -10,12 +12,51 @@
 #include "../common/error_msg.h"             // for InconsistentCategories
 #include "../common/threading_utils.h"       // for ParallelFor
 #include "cat_container.h"                   // for CatContainer
+#include "cat_container_hash.h"              // for HashCatHostContent
 #include "gradient_index.h"                  // for GHistIndexMatrix
 #include "proxy_dmatrix.h"                   // for DispatchAny
 #include "xgboost/collective/result.h"       // for SafeColl
 #include "xgboost/linalg.h"                  // for Tensor
 
 namespace xgboost::data {
+[[nodiscard]] bool AllreduceRefAgreement(Context const* ctx, bool has_ref, bool has_cats) {
+  CHECK(collective::IsDistributed());
+  // pack [has_ref, has_cats] into one payload, exchanged as kMin then kMax (two
+  // collectives); asymmetric workers fail on CHECK_EQ instead of deadlocking later
+  std::array<std::int32_t, 2> lo{has_ref ? 1 : 0, has_cats ? 1 : 0};
+  std::array<std::int32_t, 2> hi{lo};
+  collective::SafeColl(
+      collective::Allreduce(ctx, linalg::MakeVec(lo.data(), 2), collective::Op::kMin));
+  collective::SafeColl(
+      collective::Allreduce(ctx, linalg::MakeVec(hi.data(), 2), collective::Op::kMax));
+  CHECK_EQ(lo[0], hi[0])
+      << "Inconsistent ref DMatrix presence across workers; every worker must pass"
+         " the same ref (or none) to QuantileDMatrix construction.";
+  CHECK_EQ(lo[1], hi[1])
+      << "Inconsistent ref categorical state across workers; every worker's ref"
+         " DMatrix must carry the same categorical dictionary (or none).";
+  bool const all_workers_have_cats = (lo[1] == 1);
+  return all_workers_have_cats;
+}
+
+void AllreduceDigestAndCheck(Context const* ctx, CatContentDigest digest) {
+  CHECK(collective::IsDistributed());
+  std::array<std::uint64_t, 2> lo{digest.primary, digest.secondary};
+  std::array<std::uint64_t, 2> hi{lo};
+  collective::SafeColl(
+      collective::Allreduce(ctx, linalg::MakeVec(lo.data(), 2), collective::Op::kMin));
+  collective::SafeColl(
+      collective::Allreduce(ctx, linalg::MakeVec(hi.data(), 2), collective::Op::kMax));
+  CHECK_EQ(lo[0], hi[0])
+      << "Reference DMatrix categorical dictionary primary hash differs across"
+         " workers. Check that all workers built the reference from the same"
+         " source DataFrame (e.g. same polars StringCache scope).";
+  CHECK_EQ(lo[1], hi[1])
+      << "Reference DMatrix categorical dictionary secondary hash differs across"
+         " workers. Check that all workers built the reference from the same"
+         " source DataFrame (e.g. same polars StringCache scope).";
+}
+
 void GetCutsFromRef(Context const* ctx, std::shared_ptr<DMatrix> ref, bst_feature_t n_features,
                     BatchParam p, common::HistogramCuts* p_cuts) {
   CHECK(ref);
@@ -86,7 +127,7 @@ void SyncFeatureType(Context const* ctx, std::vector<FeatureType>* p_h_ft) {
 
 void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>* iter, float missing,
-                  ExternalDataInfo* p_info) {
+                  std::shared_ptr<DMatrix> const& ref, ExternalDataInfo* p_info) {
   auto& info = *p_info;
 
   auto const is_valid = data::IsValidFunctor{missing};
@@ -127,8 +168,22 @@ void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
       collective::SafeColl(collective::Allreduce(ctx, &info.n_features, collective::Op::kMax));
       info.column_sizes.clear();
       info.column_sizes.resize(info.n_features, 0);
+      // build the per-batch dictionary unconditionally; the predictor's Recode flow
+      // requires p_info->cats to be the proxy's own dictionary so MakeCatAccessor can
+      // map predict-side codes against the (separate) ref-side dictionary held in the
+      // model. Aliasing p_info->cats to ref->Info().CatsShared() collapses the two
+      // dictionaries and breaks Recode (test_ordinal.py::test_recode_dmatrix_predict
+      // and ::test_cat_shap surface this immediately).
       p_info->cats =
           std::make_shared<CatContainer>(cpu_impl::BatchCats(proxy), BatchCatsIsRef(proxy));
+      if (collective::IsDistributed()) {
+        bool const has_cats =
+            ref && p_info->cats && p_info->cats->HasCategorical();
+        if (AllreduceRefAgreement(ctx, ref != nullptr, has_cats)) {
+          // hash the ref dictionary directly to detect cross-worker divergence
+          AllreduceDigestAndCheck(ctx, HashCatHostContent(ref->Info().CatsShared()->HostView()));
+        }
+      }
     } else {
       CHECK_EQ(info.n_features, BatchColumns(proxy)) << "Inconsistent number of columns.";
       auto cats = cpu_impl::BatchCats(proxy);
