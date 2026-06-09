@@ -71,6 +71,7 @@ from .data import (
     _is_pandas_df,
     _is_polars_lazyframe,
 )
+from .objective import _BuiltInObjective
 from .training import train
 
 
@@ -1360,11 +1361,13 @@ class XGBModel(XGBModelBase):
                 feature_types=feature_types,
             )
 
-            if callable(self.objective):
-                obj: Optional[PlainObj] = _objective_decorator(self.objective)
+            obj: Optional[Union[PlainObj, _BuiltInObjective]] = None
+            if isinstance(self.objective, _BuiltInObjective):
+                obj = self.objective
+                params["objective"] = self.objective.name
+            elif callable(self.objective):
+                obj = _objective_decorator(self.objective)
                 params["objective"] = "reg:squarederror"
-            else:
-                obj = None
 
             self._Booster = train(
                 params,
@@ -1766,12 +1769,13 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
 
             params = self.get_xgb_params()
 
-            if callable(self.objective):
-                obj: Optional[PlainObj] = _objective_decorator(self.objective)
-                # Use default value. Is it really not used ?
+            obj: Optional[Union[PlainObj, _BuiltInObjective]] = None
+            if isinstance(self.objective, _BuiltInObjective):
+                obj = self.objective
+                params["objective"] = self.objective.name
+            elif callable(self.objective):
+                obj = _objective_decorator(self.objective)
                 params["objective"] = "binary:logistic"
-            else:
-                obj = None
 
             if self.n_classes_ > 2:
                 # Switch to using a multiclass objective in the underlying XGB instance
