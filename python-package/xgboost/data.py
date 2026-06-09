@@ -937,6 +937,18 @@ def _check_pyarrow_for_polars() -> None:
         raise ImportError("`pyarrow` is required for polars.")
 
 
+def _reject_polars_categorical(data: DataType) -> None:
+    pl = import_polars()
+
+    for name, dtype in zip(data.columns, data.dtypes):
+        if isinstance(dtype, pl.Categorical):
+            raise ValueError(
+                "XGBoost does not support `polars.Categorical` because its "
+                "encoding can be sparse. Use `polars.Enum` instead. "
+                f"Invalid column: {name}",
+            )
+
+
 def _transform_polars_df(
     data: DataType,
     enable_categorical: bool,
@@ -954,6 +966,7 @@ def _transform_polars_df(
         df = data
 
     _check_pyarrow_for_polars()
+    _reject_polars_categorical(df)
     table = df.to_arrow()
     return _transform_arrow_table(
         table, enable_categorical, feature_names, feature_types

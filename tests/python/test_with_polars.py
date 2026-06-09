@@ -1,4 +1,4 @@
-"""Copyright 2024, XGBoost contributors"""
+"""Copyright 2024-2026, XGBoost contributors"""
 
 import json
 from pathlib import Path
@@ -140,25 +140,23 @@ def test_regressor() -> None:
 
 
 def test_categorical() -> None:
-    import polars as pl
-
     cats = ["aa", "cc", "bb", "ee", "ee"]
     df = pl.DataFrame(
         {"f0": [1, 3, 2, 4, 4], "f1": cats},
-        schema=[("f0", pl.Int64()), ("f1", pl.Categorical(ordering="lexical"))],
+        schema=[("f0", pl.Int64()), ("f1", pl.Categorical())],
     )
 
-    data = xgb.DMatrix(df)
-    categories = data.get_categories(export_to_arrow=True)
-    assert dict(categories.to_arrow())["f0"] is None
-    f1 = dict(categories.to_arrow())["f1"]
-    assert f1 is not None
-    assert f1.to_pylist() == cats[:4]
+    with pytest.raises(ValueError, match="polars.Categorical.*polars.Enum"):
+        xgb.DMatrix(df)
 
     df = pl.DataFrame(
         {"f0": [1, 3, 2, 4, 4], "f1": cats},
         schema=[("f0", pl.Int64()), ("f1", pl.Enum(cats[:4]))],
     )
+    arr = df["f1"].to_arrow()
+    assert arr.dictionary.to_pylist() == cats[:4]
+    assert arr.indices.to_pylist() == [0, 1, 2, 3, 3]
+
     data = xgb.DMatrix(df)
     categories = data.get_categories(export_to_arrow=True)
     assert dict(categories.to_arrow())["f0"] is None
