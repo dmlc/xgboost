@@ -71,6 +71,12 @@ option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" OFF)
 option(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR "Output build artifacts in CMake binary dir" OFF)
+# When ON, suppress install() rules intended for system installs (headers,
+# xgboost-config.cmake, XGBoostTargets, xgboost.pc, default lib install).
+# Used by python-package/CMakeLists.txt so the Python wheel's install layout
+# is fully controlled there.
+option(XGBOOST_FOR_PYTHON_WHEEL
+  "Building libxgboost embedded inside the Python wheel; skip default installs" OFF)
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
@@ -457,48 +463,50 @@ endif()
 include(CPack)
 
 include(GNUInstallDirs)
-# Install all headers.  Please note that currently the C++ headers does not form an "API".
-install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+if(NOT XGBOOST_FOR_PYTHON_WHEEL)
+  # Install all headers.  Please note that currently the C++ headers does not form an "API".
+  install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-# Install libraries. If `xgboost` is a static lib, specify `objxgboost` also, to avoid the
-# following error:
-#
-#  > install(EXPORT ...) includes target "xgboost" which requires target "objxgboost" that is not
-#  > in any export set.
-#
-# https://github.com/dmlc/xgboost/issues/6085
-if(BUILD_STATIC_LIB)
-  set(INSTALL_TARGETS xgboost objxgboost dmlc)
-else()
-  set(INSTALL_TARGETS xgboost)
+  # Install libraries. If `xgboost` is a static lib, specify `objxgboost` also, to avoid the
+  # following error:
+  #
+  #  > install(EXPORT ...) includes target "xgboost" which requires target "objxgboost" that is not
+  #  > in any export set.
+  #
+  # https://github.com/dmlc/xgboost/issues/6085
+  if(BUILD_STATIC_LIB)
+    set(INSTALL_TARGETS xgboost objxgboost dmlc)
+  else()
+    set(INSTALL_TARGETS xgboost)
+  endif()
+
+  install(TARGETS ${INSTALL_TARGETS}
+    EXPORT XGBoostTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${LIBLEGACY_INCLUDE_DIRS})
+  install(EXPORT XGBoostTargets
+    FILE XGBoostTargets.cmake
+    NAMESPACE xgboost::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
+
+  include(CMakePackageConfigHelpers)
+  configure_package_config_file(
+    ${CMAKE_CURRENT_LIST_DIR}/cmake/xgboost-config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/xgboost-config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
+  write_basic_package_version_file(
+    ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
+    VERSION ${XGBOOST_VERSION}
+    COMPATIBILITY AnyNewerVersion)
+  install(
+    FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/xgboost-config.cmake
+    ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
 endif()
-
-install(TARGETS ${INSTALL_TARGETS}
-  EXPORT XGBoostTargets
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  INCLUDES DESTINATION ${LIBLEGACY_INCLUDE_DIRS})
-install(EXPORT XGBoostTargets
-  FILE XGBoostTargets.cmake
-  NAMESPACE xgboost::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
-
-include(CMakePackageConfigHelpers)
-configure_package_config_file(
-  ${CMAKE_CURRENT_LIST_DIR}/cmake/xgboost-config.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/cmake/xgboost-config.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
-write_basic_package_version_file(
-  ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
-  VERSION ${XGBOOST_VERSION}
-  COMPATIBILITY AnyNewerVersion)
-install(
-  FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/cmake/xgboost-config.cmake
-  ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
 
 #-- Test
 if(GOOGLE_TEST)
@@ -519,7 +527,7 @@ if(GOOGLE_TEST)
 endif()
 
 # Add xgboost.pc
-if(ADD_PKGCONFIG)
+if(ADD_PKGCONFIG AND NOT XGBOOST_FOR_PYTHON_WHEEL)
   configure_file(${xgboost_SOURCE_DIR}/cmake/xgboost.pc.in ${xgboost_BINARY_DIR}/xgboost.pc @ONLY)
 
   install(

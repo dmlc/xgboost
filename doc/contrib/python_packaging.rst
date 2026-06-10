@@ -75,7 +75,7 @@ completes quickly:
 
 .. code-block:: console
 
-  $ pip install xgboost-2.0.0-py3-none-linux_x86_64.whl  # Completes quickly
+  $ pip install xgboost-2.0.0-cp312-abi3-linux_x86_64.whl  # Completes quickly
 
 .. rubric:: Footnotes
 
