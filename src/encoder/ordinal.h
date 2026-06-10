@@ -124,11 +124,12 @@ constexpr std::int32_t NotFound() { return -1; }
 template <typename Variant>
 struct ColumnsViewImpl {
   using VariantT = Variant;
+  using SegIdxT = std::int32_t;
 
   Span<Variant const> columns;
 
   // Segment pointer for features, each segment represents the number of categories in a feature.
-  Span<std::int32_t const> feature_segments;
+  Span<SegIdxT const> feature_segments;
   // The total number of cats in all features, equals feature_segments.back()
   std::int32_t n_total_cats{0};
 

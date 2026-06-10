@@ -32,7 +32,7 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -51,7 +51,7 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
@@ -69,7 +69,7 @@ jobs:
       - runner=linux-amd64-cpu
       - tag=misc-build-i386
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -90,7 +90,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -119,7 +119,7 @@ jobs:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -133,14 +133,40 @@ jobs:
             --prefix ${BRANCH_NAME}/${{ github.event.pull_request.head.sha || github.sha }} --make-public \
             r-docs-${BRANCH_NAME}.tar.bz2
 
+  test-docs:
+    name: Test Sphinx documentation snippets
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with:
+          submodules: "true"
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libuv1-dev
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: xgboost_docs
+          environment-file: doc/xgboost_doc.yml
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+      - name: Test Sphinx documentation snippets
+        run: bash ops/pipeline/test-docs.sh
+      - run: sccache --show-stats
+
   trigger-rtd-build:
     name: Trigger Read The Docs build
-    needs: [build-jvm-docs, build-r-docs]
+    needs: [build-jvm-docs, build-r-docs, test-docs]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
       - tag=misc-trigger-rtd-build
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
       - name: Trigger RTD
         run: bash ops/pipeline/trigger-rtd.sh

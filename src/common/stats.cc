@@ -100,6 +100,7 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split, linalg::Matrix
     auto h_w = w.ConstHostSpan();
     auto sum_w = std::accumulate(h_w.data(), h_w.data() + h_w.size(), 0.0);
     SafeColl(collective::GlobalSum(ctx, is_column_split, linalg::MakeVec(&sum_w, 1)));
+    CHECK_GT(sum_w, 0.0) << "weights must contain at least one non-zero value.";
     auto h_out = out->HostView();
     for (std::size_t j = 0; j < v.Shape(1); ++j) {
       MemStackAllocator<double, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0);

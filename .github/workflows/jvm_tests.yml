@@ -43,7 +43,7 @@ jobs:
         - arch: x86_64
           runner: linux-amd64-cpu
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -65,7 +65,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -93,7 +93,7 @@ jobs:
             libname: libxgboost4j_intel.dylib
             runner: macos-15-intel
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -133,7 +133,7 @@ jobs:
       SCALA_VERSION: ${{ matrix.scala_version }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "true"
       - name: Build and test JVM packages (Scala ${{ matrix.scala_version }})
@@ -155,7 +155,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-15-intel]
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: 'true'
       - uses: actions/setup-java@v5
@@ -217,7 +217,7 @@ jobs:
       USE_CUDA: "1"
       SKIP_NATIVE_BUILD: "1"
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "true"
       - name: Unstash files
@@ -254,7 +254,7 @@ jobs:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "true"
       - name: Unstash files

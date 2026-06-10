@@ -15,6 +15,7 @@ from xgboost.testing.multi_target import (
     run_column_sampling,
     run_deterministic,
     run_eta,
+    run_expectile_loss,
     run_feature_importance_strategy_compare,
     run_gradient_based_sampling_accuracy,
     run_grow_policy,
@@ -44,6 +45,10 @@ def test_multilabel(learning_rate: Optional[float]) -> None:
 @pytest.mark.parametrize("weighted", [True, False])
 def test_quantile_loss(weighted: bool) -> None:
     run_quantile_loss("cuda", weighted)
+
+
+def test_expectile_loss() -> None:
+    run_expectile_loss("cuda")
 
 
 @pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])

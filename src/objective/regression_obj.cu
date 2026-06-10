@@ -21,6 +21,7 @@
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "../common/utils.h"  // for NoOp
+#include "../tree/fit_stump.h"
 #include "./regression_loss.h"
 #include "adaptive.h"
 #include "init_estimation.h"  // FitIntercept
@@ -440,8 +441,7 @@ class ExpectileRegression : public FitIntercept {
     auto gpair = out_gpair->View(ctx_->Device());
 
     info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
+    auto weights = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
 
     preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
@@ -449,18 +449,32 @@ class ExpectileRegression : public FitIntercept {
     alpha_.SetDevice(ctx_->Device());
     auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
 
-    linalg::ElementWiseKernel(ctx_, gpair,
-                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
-                                auto pred = predt(i, j);
-                                auto label = labels(i, 0);
-                                auto expectile = alpha[j];
-                                auto diff = pred - label;
-                                auto weight_scale = diff >= 0.0f ? (1.0f - expectile) : expectile;
-                                auto sample_weight = weight[i];
-                                auto grad = weight_scale * diff * sample_weight;
-                                auto hess = weight_scale * sample_weight;
-                                gpair(i, j) = GradientPair{grad, hess};
-                              });
+    linalg::ElementWiseKernel(
+        ctx_, gpair, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+          auto label = labels(i, 0);
+          auto sample_weight = weights[i];
+          float pred = predt(i, 0);
+          float grad_sum{0.0f};
+          float hess_sum{0.0f};
+          for (std::size_t k = 0; k < n_alphas; ++k) {
+            if (k > 0) {
+              pred += kRtEps + common::SoftPlus(predt(i, k));
+            }
+            if (k >= j) {
+              auto diff = pred - label;
+              auto expectile = alpha[k];
+              auto weight_scale = diff >= 0.0f ? (1.0f - expectile) : expectile;
+              grad_sum += weight_scale * diff * sample_weight;
+              hess_sum += weight_scale * sample_weight;
+            }
+          }
+
+          auto scale = j == 0 ? 1.0f : common::Sigmoid(predt(i, j));
+          auto grad = scale * grad_sum;
+          // Diagonal Gauss-Newton approximation for the transformed margin.
+          auto hess = scale * scale * hess_sum;
+          gpair(i, j) = GradientPair{grad, hess};
+        });
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
@@ -478,38 +492,67 @@ class ExpectileRegression : public FitIntercept {
     }
     CHECK_EQ(label_mean.Size(), 1);
 
-    auto mean_host = label_mean.HostView();
-    auto h_labels = info.labels.HostView();
-    auto h_weights = info.weights_.ConstHostSpan();
-    auto const& alpha = param_.expectile_alpha.Get();
+    auto mean = label_mean.HostView()(0);
 
-    std::vector<double> sums(2 * n_targets, 0.0);
-    for (std::size_t i = 0; i < info.num_row_; ++i) {
-      auto label = h_labels(i, 0);
-      auto diff = mean_host(0) - label;
-      for (std::size_t j = 0; j < n_targets; ++j) {
-        auto expectile = alpha[j];
-        auto weight_scale = diff >= 0.0f ? (1.0f - expectile) : expectile;
-        double w = weight_scale;
-        if (!h_weights.empty()) {
-          w *= h_weights[i];
-        }
-        sums[2 * j] += w * label;
-        sums[2 * j + 1] += w;
-      }
-    }
+    linalg::Matrix<GradientPair> gpair;
+    gpair.SetDevice(ctx_->Device());
+    gpair.Reshape(info.num_row_, n_targets);
+    auto gpair_view = gpair.View(ctx_->Device());
 
-    collective::SafeColl(
-        collective::GlobalSum(ctx_, info, linalg::MakeVec(sums.data(), sums.size())));
+    auto labels = info.labels.View(ctx_->Device());
+    info.weights_.SetDevice(ctx_->Device());
+    auto weights = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
+    alpha_.SetDevice(ctx_->Device());
+    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+
+    linalg::ElementWiseKernel(ctx_, gpair_view,
+                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+                                auto diff = mean - labels(i, 0);
+                                auto expectile = alpha[j];
+                                auto weight_scale = diff >= 0.0f ? (1.0f - expectile) : expectile;
+                                auto sample_weight = weights[i];
+                                auto grad = weight_scale * diff * sample_weight;
+                                auto hess = weight_scale * sample_weight;
+                                gpair_view(i, j) = GradientPair{grad, hess};
+                              });
+
+    tree::FitStump(ctx_, info, gpair, n_targets, base_score);
 
     auto out = base_score->HostView();
     for (std::size_t j = 0; j < n_targets; ++j) {
-      auto denom = sums[2 * j + 1];
-      if (common::CloseTo(denom, 0.0)) {
-        out(j) = mean_host(0);
-      } else {
-        out(j) = sums[2 * j] / denom;
+      out(j) += mean;
+    }
+    for (std::size_t j = 1; j < n_targets; ++j) {
+      out(j) = std::max(out(j), out(j - 1));
+    }
+  }
+
+  void PredTransform(HostDeviceVector<float>* io_preds) const override {
+    auto n_alphas = alpha_.Size();
+    CHECK_NE(n_alphas, 0);
+    CHECK_EQ(io_preds->Size() % n_alphas, 0);
+    auto n_samples = io_preds->Size() / n_alphas;
+    auto device = io_preds->Device();
+    auto predt = linalg::MakeTensorView(
+        device, device.IsCPU() ? io_preds->HostSpan() : io_preds->DeviceSpan(), n_samples,
+        n_alphas);
+    auto rows = predt.Slice(linalg::All(), 0);
+    linalg::ElementWiseKernel(ctx_, device, rows, [=] XGBOOST_DEVICE(std::size_t i) mutable {
+      auto point = predt.Slice(i, linalg::All());
+      float pred = point(0);
+      for (std::size_t j = 1; j < n_alphas; ++j) {
+        pred += kRtEps + common::SoftPlus(point(j));
+        point(j) = pred;
       }
+    });
+  }
+
+  void ProbToMargin(linalg::Vector<float>* base_score) const override {
+    CHECK_EQ(base_score->Size(), alpha_.Size());
+    auto margin = base_score->HostView();
+    for (std::size_t j = margin.Size() - 1; j > 0; --j) {
+      auto gap = margin(j) - margin(j - 1);
+      margin(j) = common::SoftPlusInv(gap - kRtEps);
     }
   }
 
