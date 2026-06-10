@@ -1360,6 +1360,110 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   API_END();
 }
 
+namespace xgboost::c_api {
+namespace cuda_impl {
+#if defined(XGBOOST_USE_CUDA)
+void SplitShapValues(Context const *ctx, HostDeviceVector<float> const &contribs, std::size_t rows,
+                     std::size_t cols, std::size_t groups, HostDeviceVector<float> *out_values,
+                     HostDeviceVector<float> *out_bias);
+#endif  // defined(XGBOOST_USE_CUDA)
+}  // namespace cuda_impl
+
+void SplitShapValues(Context const *ctx, HostDeviceVector<float> const &contribs, std::size_t rows,
+                     std::size_t cols, std::size_t groups, HostDeviceVector<float> *out_values,
+                     HostDeviceVector<float> *out_bias) {
+  auto out_device = ctx->IsCUDA() ? ctx->Device() : DeviceOrd::CPU();
+  out_values->SetDevice(out_device);
+  out_bias->SetDevice(out_device);
+  out_values->Resize(rows * groups * cols);
+  out_bias->Resize(rows * groups);
+
+#if defined(XGBOOST_USE_CUDA)
+  if (ctx->IsCUDA()) {
+    cuda_impl::SplitShapValues(ctx, contribs, rows, cols, groups, out_values, out_bias);
+    return;
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
+
+  auto const &contribs_h = contribs.ConstHostVector();
+  auto &values_h = out_values->HostVector();
+  auto &bias_h = out_bias->HostVector();
+
+  for (std::size_t row = 0; row < rows; ++row) {
+    for (std::size_t group = 0; group < groups; ++group) {
+      std::size_t contrib_offset = row * groups * (cols + 1) + group * (cols + 1);
+      for (std::size_t col = 0; col < cols; ++col) {
+        std::size_t value_offset = row * cols * groups + col * groups + group;
+        values_h[value_offset] = contribs_h[contrib_offset + col];
+      }
+      bias_h[row * groups + group] = contribs_h[contrib_offset + cols];
+    }
+  }
+}
+}  // namespace xgboost::c_api
+
+XGB_DLL int XGBoosterInterpretShapValues(BoosterHandle handle, DMatrixHandle dmat,
+                                         DMatrixHandle background, char const *c_json_config,
+                                         char const **out_values, char const **out_bias) {
+  API_BEGIN();
+  if (handle == nullptr) {
+    LOG(FATAL) << "Booster has not been initialized or has already been disposed.";
+  }
+  if (dmat == nullptr) {
+    LOG(FATAL) << "DMatrix has not been initialized or has already been disposed.";
+  }
+  xgboost_CHECK_C_ARG_PTR(c_json_config);
+  xgboost_CHECK_C_ARG_PTR(out_values);
+  xgboost_CHECK_C_ARG_PTR(out_bias);
+  auto config = Json::Load(StringView{c_json_config});
+
+  auto algorithm = OptionalArg<String>(config, "algorithm", std::string{"auto"});
+  if (algorithm != "auto" && algorithm != "tree_path_dependent" && algorithm != "interventional") {
+    LOG(FATAL) << "Unknown SHAP algorithm: `" << algorithm << "`.";
+  }
+  if (background != nullptr || algorithm == "interventional") {
+    LOG(FATAL) << "Interventional SHAP is not yet implemented.";
+  }
+
+  auto *learner = static_cast<Learner *>(handle);
+  auto &local = learner->GetThreadLocal();
+  auto &entry = local.prediction_entry;
+  auto p_m = *static_cast<std::shared_ptr<DMatrix> *>(dmat);
+  auto iteration_begin = OptionalArg<Integer>(config, "iteration_begin", Integer::Int{0});
+  auto iteration_end = OptionalArg<Integer>(config, "iteration_end", Integer::Int{0});
+
+  learner->Predict(p_m, false, &entry.predictions, iteration_begin, iteration_end, false, false,
+                   true, false, false);
+
+  std::size_t rows = p_m->Info().num_row_;
+  std::size_t cols = p_m->Info().num_col_;
+  std::size_t groups = learner->Groups();
+
+  auto *ctx = learner->Ctx();
+  auto out_ctx = ctx->IsCUDA() ? *ctx : ctx->MakeCPU();
+  auto &values = local.ret_hdv_float;
+  auto &bias = local.ret_hdv_float_1;
+  c_api::SplitShapValues(ctx, entry.predictions, rows, cols, groups, &values, &bias);
+
+  auto const &values_ref = values;
+  auto const &bias_ref = bias;
+  auto &ret_vec_str = local.ret_vec_str;
+  ret_vec_str.clear();
+  ret_vec_str.emplace_back(
+      linalg::ArrayInterfaceStr(linalg::MakeTensorView(&out_ctx, &values_ref, rows, cols, groups)));
+  ret_vec_str.emplace_back(
+      linalg::ArrayInterfaceStr(linalg::MakeTensorView(&out_ctx, &bias_ref, rows, groups)));
+
+  auto &ret_vec_charp = local.ret_vec_charp;
+  ret_vec_charp.resize(ret_vec_str.size());
+  std::transform(ret_vec_str.cbegin(), ret_vec_str.cend(), ret_vec_charp.begin(),
+                 [](auto const &str) { return str.c_str(); });
+
+  *out_values = ret_vec_charp[0];
+  *out_bias = ret_vec_charp[1];
+  API_END();
+}
+
 void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config, Learner *learner,
                         xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
                         const float **out_result) {
