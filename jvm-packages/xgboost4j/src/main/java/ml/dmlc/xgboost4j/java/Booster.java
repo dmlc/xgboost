@@ -346,7 +346,7 @@ public class Booster implements Serializable, KryoSerializable {
       DMatrix evalMat = evalMatrixs[i];
       float evalResult = eval.eval(predict(evalMat), evalMat);
       String evalMetric = eval.getMetric();
-      evalInfo += String.format("\t%s-%s:%f", evalName, evalMetric, evalResult);
+      evalInfo += "\t" + evalName + "-" + evalMetric + ":" + Float.toString(evalResult);
       metricsOut[i] = evalResult;
     }
     return evalInfo;
