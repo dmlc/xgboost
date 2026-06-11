@@ -1010,7 +1010,7 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
   auto const& h_split_types = this->split_types_.ConstHostVector();
   auto const& h_split_categories_segments = this->split_categories_segments_.ConstHostVector();
 
-  for (size_t i = 0; i < nodes_.Size(); ++i) {
+  for (size_t i = 0; i < this->Size(); ++i) {
     split_type.Set(i, static_cast<std::underlying_type_t<FeatureType>>(h_split_types[i]));
     if (h_split_types[i] == FeatureType::kCategorical) {
       categories_nodes.GetArray().emplace_back(static_cast<std::int32_t>(i));
