@@ -75,6 +75,33 @@ struct ScanHistogramAgent {
     this->ScanFeature(node_histogram, scan_result.data(), t,
                       [&](bst_bin_t bin_idx) { return RevBinIdx(gidx_begin, gidx_end, bin_idx); });
   }
+
+  // One-hot pass for categorical features.
+  //
+  // For categorical features the two scan-buffer regions are not a forward/backward scan
+  // duality; they hold the two independent missing-direction candidates. We write the
+  // *non-missing child sum for* each direction.:
+  //   - region_others: the matching category goes right with missing (missing-right). The
+  //     written non-missing child is the left.
+  //   - region_match: the matching category goes right without missing (missing-left). The
+  //     written non-missing child is the right..
+  __device__ void OneHot(GradientPairInt64 const *node_histogram,
+                         common::Span<GradientPairInt64> region_others,
+                         common::Span<GradientPairInt64> region_match, bst_target_t t) {
+    auto lane_id = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
+    // Feature sum across all bins for this target.
+    GradientPairInt64 local{};
+    for (auto bin_idx = gidx_begin + lane_id; bin_idx < gidx_end; bin_idx += dh::WarpThreads()) {
+      local += node_histogram[bin_idx];
+    }
+    auto feature_sum = WarpSum(local);
+    // Per-bin child sums, written in the bin-major layout: [bins][targets].
+    for (auto bin_idx = gidx_begin + lane_id; bin_idx < gidx_end; bin_idx += dh::WarpThreads()) {
+      auto bin = node_histogram[bin_idx];
+      region_others[bin_idx * n_targets + t] = feature_sum - bin;
+      region_match[bin_idx * n_targets + t] = bin;
+    }
+  }
 };
 }  // namespace
 
@@ -118,6 +145,15 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
   ScanHistogramAgent agent{&tmp_storage[warp_id_in_blk], gidx_begin, gidx_end, n_targets};
   auto t_hist = node.histogram.subspan(n_bins_per_target * target_idx, n_bins_per_target);
 
+  if (shared.IsCategorical(fidx)) {
+    // One-hot encoding. Both regions are always required (independent missing-directions),
+    // so `one_pass` does not apply to categorical features.
+    auto region_others = out.subspan(0, node.histogram.size());
+    auto region_match = out.subspan(node.histogram.size(), node.histogram.size());
+    agent.OneHot(t_hist.data(), region_others, region_match, target_idx);
+    return;
+  }
+
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
     auto forward = out.subspan(0, node.histogram.size());
     agent.Forward(t_hist.data(), forward, target_idx);
@@ -137,6 +173,30 @@ struct EvaluateSplitAgent {
   typename MaxReduceT::TempStorage *temp_storage;
   bst_feature_t fidx;
 
+  // Calculate the split gain for one bin. `child_scan` has the bin-major layout
+  // [bins][targets] and stores the non-missing child sum. The sibling (containing missing
+  // values) is recovered as parent - child. The gain is symmetric in the two children, so
+  // this helper is shared by the numerical and one-hot paths.
+  static __device__ double ComputeGain(MultiEvaluateSplitInputs const &node,
+                                       MultiEvaluateSplitSharedInputs const &shared,
+                                       common::Span<GradientPairInt64 const> child_scan,
+                                       bst_bin_t bin_idx, bst_target_t n_targets) {
+    auto roundings = shared.roundings.data();
+    auto offset = bin_idx * n_targets;
+    double gain = 0;
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      auto parent_sum = roundings[t].ToFloatingPoint(node.parent_sum[t]);
+      auto child_sum = roundings[t].ToFloatingPoint(child_scan[offset + t]);
+      auto sibling_sum = parent_sum - child_sum;
+      auto cw = ::xgboost::tree::CalcWeight(shared.param, child_sum.GetGrad(), child_sum.GetHess());
+      auto sw =
+          ::xgboost::tree::CalcWeight(shared.param, sibling_sum.GetGrad(), sibling_sum.GetHess());
+      gain += -cw * ThresholdL1(child_sum.GetGrad(), shared.param.reg_alpha);
+      gain += -sw * ThresholdL1(sibling_sum.GetGrad(), shared.param.reg_alpha);
+    }
+    return gain;
+  }
+
   template <std::int32_t d_step>
   __device__ void Numerical(MultiEvaluateSplitInputs const &node,
                             MultiEvaluateSplitSharedInputs const &shared,
@@ -145,7 +205,6 @@ struct EvaluateSplitAgent {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
     // Calculate split gain for each bin
     auto n_targets = shared.Targets();
-    auto roundings = shared.roundings.data();
     auto lane_id = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
 
     bst_bin_t gidx_begin = shared.feature_segments[fidx];
@@ -156,30 +215,11 @@ struct EvaluateSplitAgent {
       bool thread_active = bin_idx < gidx_end;
 
       auto constexpr kNullGain = -std::numeric_limits<double>::infinity();
-      double gain = thread_active ? 0 : kNullGain;
-
-      if (thread_active) {
-        // Scan result layout: [bins][targets]
-        // bin_idx is the global bin index
-        auto scan_bin_offset = bin_idx * n_targets;
-        for (bst_target_t t = 0; t < n_targets; ++t) {
-          auto parent_sum = roundings[t].ToFloatingPoint(node.parent_sum[t]);
-          // left
-          auto left_sum = roundings[t].ToFloatingPoint(node_scan[scan_bin_offset + t]);
-          auto lw_t =
-              ::xgboost::tree::CalcWeight(shared.param, left_sum.GetGrad(), left_sum.GetHess());
-          // right
-          auto right_sum = parent_sum - left_sum;
-          auto rw_t =
-              ::xgboost::tree::CalcWeight(shared.param, right_sum.GetGrad(), right_sum.GetHess());
-
-          gain += -lw_t * ThresholdL1(left_sum.GetGrad(), shared.param.reg_alpha);
-          gain += -rw_t * ThresholdL1(right_sum.GetGrad(), shared.param.reg_alpha);
-        }
-      }
+      double gain =
+          thread_active ? ComputeGain(node, shared, node_scan, bin_idx, n_targets) : kNullGain;
 
       auto best = MaxReduceT(*temp_storage).Reduce({threadIdx.x, gain}, cub::ArgMax{});
-      auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
+      auto best_thread = __shfl_sync(dh::WarpFullMask(), best.key, 0);
 
       if (threadIdx.x == best_thread && !isinf(gain)) {
         // Update
@@ -204,6 +244,47 @@ struct EvaluateSplitAgent {
         // Missing values go to right in the forward pass, go to left in the backward pass.
         best_split->Update(gain, d_step == 1 ? kRightDir : kLeftDir, fvalue, fidx, scan_bin, false,
                            shared.param, shared.roundings);
+      }
+
+      __syncwarp();
+    }
+  }
+
+  // One-hot split for a categorical feature. `region` holds the non-missing child sum for
+  // one missing-direction (see ScanHistogramAgent::OneHot). Unlike the numerical backward
+  // pass there is no reverse indexing, and the split value is the category id stored at the
+  // bin. `d_dir` is the default (missing) direction: kRightDir pairs with `region_others`,
+  // kLeftDir pairs with `region_match`.
+  template <DefaultDirection d_dir>
+  __device__ void OneHot(MultiEvaluateSplitInputs const &node,
+                         MultiEvaluateSplitSharedInputs const &shared,
+                         common::Span<GradientPairInt64 const> region,
+                         MultiSplitCandidate *best_split) {
+    auto n_targets = shared.Targets();
+    auto lane_id = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
+
+    bst_bin_t gidx_begin = shared.feature_segments[fidx];
+    bst_bin_t gidx_end = shared.feature_segments[fidx + 1];
+
+    for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += dh::WarpThreads()) {
+      auto bin_idx = scan_begin + lane_id;
+      bool thread_active = bin_idx < gidx_end;
+
+      auto constexpr kNullGain = -std::numeric_limits<double>::infinity();
+      double gain =
+          thread_active ? ComputeGain(node, shared, region, bin_idx, n_targets) : kNullGain;
+
+      auto best = MaxReduceT(*temp_storage).Reduce({threadIdx.x, gain}, cub::ArgMax{});
+      auto best_thread = __shfl_sync(dh::WarpFullMask(), best.key, 0);
+
+      if (threadIdx.x == best_thread && !isinf(gain)) {
+        // The split value is the category id (the cut value at this bin).
+        float fvalue = shared.feature_values[bin_idx];
+        // The scan_bin is directionless, `d_dir` is the carrier of the missing
+        // direction. We use it to recover the bin value and sibling value later.
+        auto scan_bin = region.subspan(bin_idx * n_targets, n_targets);
+        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, /*cat=*/true, shared.param,
+                           shared.roundings);
       }
 
       __syncwarp();
@@ -247,6 +328,16 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
   AgentT agent{&temp_storage[warp_id_in_blk], fidx};
   // The number of candidates is allocated using active features
   auto candidate_idx = nidx * shared.max_active_feature + fidx_in_set;
+
+  if (shared.IsCategorical(fidx)) {
+    // One-hot encoding. Both regions are always evaluated (independent missing-directions),
+    // so `one_pass` does not apply to categorical features.
+    auto region_others = bin_scans[nidx].subspan(0, node.histogram.size());
+    auto region_match = bin_scans[nidx].subspan(node.histogram.size(), node.histogram.size());
+    agent.template OneHot<kRightDir>(node, shared, region_others, &out_candidates[candidate_idx]);
+    agent.template OneHot<kLeftDir>(node, shared, region_match, &out_candidates[candidate_idx]);
+    return;
+  }
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
     auto forward = bin_scans[nidx].subspan(0, node.histogram.size());

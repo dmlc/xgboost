@@ -133,4 +133,44 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
 }
 
 TEST_F(GpuMultiHistEvaluatorBasicTest, EmptyHess) { this->TestEmptyHess(); }
+
+TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
+  // Reuse the dense histogram from the fixture, but treat the single feature as
+  // categorical with category ids {0, 1, 2, 3} as the cut values. Since the histogram is
+  // dense (feature_sum == parent_sum), there are no missing values, so the one-hot split
+  // separates the chosen category from the rest. The best partition is category 3 (bin
+  // 3), which is the same partition the numerical `Root` test finds, hence the identical
+  // loss_chg / child weights.
+  dh::device_vector<float> cat_values{0.0f, 1.0f, 2.0f, 3.0f};
+  dh::device_vector<FeatureType> ft(1, FeatureType::kCategorical);
+
+  auto shared = this->shared_inputs;
+  shared.feature_values = dh::ToSpan(cat_values).data();
+  shared.feature_types = dh::ToSpan(ft);
+
+  MultiHistEvaluator evaluator;
+  auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
+
+  ASSERT_TRUE(candidate.split.is_cat);
+  ASSERT_NEAR(candidate.split.loss_chg, 3.04239, 1e-5);
+  // The matching category goes right with the missing values; the chosen child sum stored
+  // is the non-missing "other categories" (left child), so dir is kRightDir.
+  ASSERT_EQ(candidate.split.dir, kRightDir);
+  ASSERT_EQ(static_cast<bst_cat_t>(candidate.split.fvalue), 3);
+
+  // child_sum is the "other categories" = parent - hist[bin 3].
+  std::vector<GradientPairInt64> exp_child_sum{{36, 24}, {57, 87}};
+  AssertDeviceVecEq(candidate.split.child_sum, exp_child_sum);
+
+  std::vector<float> base, left, right;
+  evaluator.CopyNodeWeightsToHost(candidate.nidx, candidate.base_weight.size(), &base, &left,
+                                  &right);
+  // Left child = other categories {36,24},{57,87}; right child = category 3 {20,16},{39,41}.
+  std::vector<float> exp_base_weight{-1.4, -0.75};
+  std::vector<float> exp_left_weight{-1.5, -0.655172};
+  std::vector<float> exp_right_weight{-1.25, -0.951219};
+  AssertVecEq(base, exp_base_weight);
+  AssertVecEq(left, exp_left_weight);
+  AssertVecEq(right, exp_right_weight);
+}
 }  // namespace xgboost::tree::cuda_impl

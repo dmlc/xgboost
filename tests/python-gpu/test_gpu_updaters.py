@@ -133,6 +133,16 @@ class TestGPUUpdaters:
             tree_method="hist",
             extmem=False,
         )
+        check_categorical_ohe(
+            rows=rows,
+            cols=cols,
+            rounds=rounds,
+            cats=cats,
+            device="cuda",
+            tree_method="hist",
+            extmem=False,
+            multi_target=True,
+        )
 
     @given(
         tm.categorical_dataset_strategy,
