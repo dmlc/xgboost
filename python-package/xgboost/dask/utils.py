@@ -18,7 +18,7 @@ LOGGER = logging.getLogger("[xgboost.dask]")
 def get_n_threads(local_param: Dict[str, Any], worker: "distributed.Worker") -> int:
     """Get the number of threads from a worker and the user-supplied parameters."""
     # dask worker nthreads, "state" is available in 2022.6.1
-    dwnt = worker.state.nthreads if hasattr(worker, "state") else worker.nthreads
+    dwnt = worker.state.nthreads if hasattr(worker, "state") else worker.nthreads  # type: ignore[attr-defined]
     n_threads = None
     for p in ["nthread", "n_jobs"]:
         if local_param.get(p, None) is not None and local_param.get(p, dwnt) != dwnt:
