@@ -649,7 +649,7 @@ def get_model_categories(
 
 
 def pick_ref_categories(
-    X: Any,
+    X: ArrayLike,
     model_cats: Optional[Union[FeatureTypes, Categories]],
     Xy_cats: Optional[Categories],
 ) -> Optional[Union[FeatureTypes, Categories]]:
@@ -682,18 +682,18 @@ def pick_ref_categories(
 def _wrap_evaluation_matrices(
     *,
     missing: float,
-    X: Any,
-    y: Any,
-    group: Optional[Any],
-    qid: Optional[Any],
-    sample_weight: Optional[Any],
-    base_margin: Optional[Any],
+    X: ArrayLike,
+    y: ArrayLike,
+    group: Optional[ArrayLike],
+    qid: Optional[ArrayLike],
+    sample_weight: Optional[ArrayLike],
+    base_margin: Optional[ArrayLike],
     feature_weights: Optional[ArrayLike],
-    eval_set: Optional[Sequence[Tuple[Any, Any]]],
-    sample_weight_eval_set: Optional[Sequence[Any]],
-    base_margin_eval_set: Optional[Sequence[Any]],
-    eval_group: Optional[Sequence[Any]],
-    eval_qid: Optional[Sequence[Any]],
+    eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]],
+    sample_weight_eval_set: Optional[Sequence[ArrayLike]],
+    base_margin_eval_set: Optional[Sequence[ArrayLike]],
+    eval_group: Optional[Sequence[ArrayLike]],
+    eval_qid: Optional[Sequence[ArrayLike]],
     create_dmatrix: Callable,
     enable_categorical: bool,
     feature_types: Optional[Union[FeatureTypes, Categories]],
@@ -1211,7 +1211,7 @@ class XGBModel(XGBModelBase):
                 wrapped = _metric_decorator(m)
             return wrapped
 
-        def invalid_type(m: Any) -> None:
+        def invalid_type(m: object) -> None:
             msg = f"Invalid type for the `eval_metric`: {type(m)}"
             raise TypeError(msg)
 
