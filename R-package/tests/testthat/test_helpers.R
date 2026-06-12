@@ -334,6 +334,30 @@ test_that("xgb.model.dt.tree throws error for gblinear", {
   expect_error(xgb.model.dt.tree(model = bst.GLM))
 })
 
+test_that("xgb.model.dt.tree works with splits on inf", {
+  tree.dump <- c(
+    "booster[0]",
+    "0:[f1<inf] yes=1,no=3,missing=3,gain=0.1,cover=3",
+    "1:[f2<-inf] yes=2,no=3,missing=3,gain=0.1,cover=1",
+    "2:[f1<2] yes=4,no=3,missing=3,gain=0.3,cover=4",
+    "3:leaf=0.2,cover=1",
+    "4:leaf=0.5,cover=1"
+  )
+  expect_equal(xgb.model.dt.tree(text = tree.dump)$Split, c(Inf, -Inf, 2, NA, NA))
+})
+
+test_that("xgb.model.dt.tree works with splits on nan", {
+  tree.dump <- c(
+    "booster[0]",
+    "0:[f1<nan] yes=1,no=3,missing=3,gain=0.1,cover=3",
+    "1:[f2<nan] yes=2,no=3,missing=3,gain=0.1,cover=1",
+    "2:[f1<2] yes=4,no=3,missing=3,gain=0.3,cover=4",
+    "3:leaf=0.2,cover=1",
+    "4:leaf=0.5,cover=1"
+  )
+  expect_equal(xgb.model.dt.tree(text = tree.dump)$Split, c(NaN, NaN, 2, NA, NA))
+})
+
 test_that("xgb.importance works with and without feature names", {
   .skip_if_vcd_not_available()
   importance.Tree <- xgb.importance(feature_names = feature.names, model = bst.Tree.unnamed)
