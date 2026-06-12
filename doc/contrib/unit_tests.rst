@@ -95,7 +95,10 @@ To run Python unit tests, first install `pytest <https://docs.pytest.org/en/late
 
   pip3 install pytest
 
-Then compile XGBoost according to instructions in :ref:`build_shared_lib`. Finally, invoke pytest at the project root directory:
+Then compile XGBoost according to instructions in :ref:`build_shared_lib`. When
+compiling, be sure to enable the build flag ``BUILD_DEPRECATED_CLI`` to build
+the CLI, which is used in some of the python tests.
+Finally, invoke pytest at the project root directory:
 
 .. code:: bash
 
