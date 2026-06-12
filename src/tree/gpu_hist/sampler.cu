@@ -25,8 +25,8 @@
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
-#include "../../common/random.h"
-#include "../hist/sampler.h"  // for kDefaultMvsLambda
+#include "../../common/random.cuh"          // for DefaultRng, UniformRealDistribution
+#include "../hist/sampler.h"                // for kDefaultMvsLambda
 #include "../param.h"
 #include "quantiser.cuh"  // for GradientQuantiser
 #include "sampler.cuh"
@@ -38,8 +38,8 @@ class RandomWeight {
   explicit RandomWeight(std::size_t seed) : seed_(seed) {}
 
   XGBOOST_DEVICE float operator()(std::size_t i) const {
-    thrust::default_random_engine rng(seed_);
-    thrust::uniform_real_distribution<float> dist;
+    common::cuda_impl::DefaultRng rng{seed_};
+    common::cuda_impl::UniformRealDistribution<float> dist;
     rng.discard(i);
     return dist(rng);
   }
