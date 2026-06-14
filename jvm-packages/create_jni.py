@@ -69,7 +69,10 @@ def cmake_config(options: argparse.Namespace) -> dict[str, str]:
 
 def cmake_args(config: dict[str, str]) -> list[str]:
     """Create CMake command line arguments."""
-    args = [f"-D{k}:BOOL={v}" if v in ("ON", "OFF") else f"-D{k}:STRING={v}" for k, v in config.items()]
+    args = [
+        f"-D{k}:BOOL={v}" if v in ("ON", "OFF") else f"-D{k}:STRING={v}"
+        for k, v in config.items()
+    ]
 
     if sys.platform != "win32" and shutil.which("ninja"):
         args.append("-GNinja")
