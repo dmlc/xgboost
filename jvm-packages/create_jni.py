@@ -75,8 +75,7 @@ def cmake_args(config: dict[str, str]) -> list[str]:
         args.append("-GNinja")
 
     # Set GPU_ARCH_FLAG to override the CUDA architectures.
-    gpu_arch_flag = os.getenv("GPU_ARCH_FLAG")
-    if gpu_arch_flag:
+    if gpu_arch_flag := os.getenv("GPU_ARCH_FLAG"):
         args.append(f"-DCMAKE_CUDA_ARCHITECTURES={gpu_arch_flag}")
 
     return args
@@ -115,8 +114,7 @@ def configure(config_args: list[str], build_dir: Path) -> None:
 
 def build(config: dict[str, str], build_dir: Path) -> None:
     """Build the native library."""
-    lib_dir = ROOT / "lib"
-    if lib_dir.exists():
+    if (lib_dir := ROOT / "lib").exists():
         shutil.rmtree(lib_dir)
 
     configure(cmake_args(config), build_dir)
