@@ -120,6 +120,7 @@ def native_build(cli_args: argparse.Namespace) -> None:
             if sys.platform == "win32":
                 supported_generators = (
                     "",  # empty, decided by cmake
+                    '-G"Visual Studio 18 2026" -A x64',
                     '-G"Visual Studio 17 2022" -A x64',
                     '-G"Visual Studio 16 2019" -A x64',
                     '-G"Visual Studio 15 2017" -A x64',
