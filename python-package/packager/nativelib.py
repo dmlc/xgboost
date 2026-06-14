@@ -67,6 +67,7 @@ def build_libxgboost(
 
     if system() == "Windows":
         supported_generators = (
+            "-GVisual Studio 18 2026",
             "-GVisual Studio 17 2022",
             "-GVisual Studio 16 2019",
             "-GVisual Studio 15 2017",
