@@ -71,12 +71,8 @@ def cmake_args(config: dict[str, str]) -> list[str]:
     """Create CMake command line arguments."""
     args = [f"-D{k}:BOOL={v}" for k, v in config.items()]
 
-    if sys.platform != "win32":
-        try:
-            subprocess.check_call(["ninja", "--version"])
-            args.append("-GNinja")
-        except FileNotFoundError:
-            pass
+    if sys.platform != "win32" and shutil.which("ninja"):
+        args.append("-GNinja")
 
     # Set GPU_ARCH_FLAG to override the CUDA architectures.
     gpu_arch_flag = os.getenv("GPU_ARCH_FLAG")
