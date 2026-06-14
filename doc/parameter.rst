@@ -538,7 +538,7 @@ Parameter for using Expectile Loss (``reg:expectileerror``)
     .. note::
 
         Multiple alphas must be sorted in ascending order. Unlike the quantile objective, expectile does not suffer from curve crossing.
-        When predicting with ``output_margin=True`` and multiple alphas, the first margin corresponds to the smallest alpha; subsequent margins are reparameterized (inverse-softplus) gaps between consecutive expectile predictions (use normal prediction to obtain the actual expectile values).
+        When predicting with ``output_margin=True`` and multiple alphas, the first margin corresponds to the smallest alpha; subsequent margins are reparameterized gaps between consecutive expectile predictions, use normal prediction to obtain the actual expectile values.
 
 Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likelihood of AFT metric (``aft-nloglik``)
 ====================================================================================================================
