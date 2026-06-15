@@ -378,6 +378,9 @@ todo_include_todos = False
 
 # -- Options for HTML output ----------------------------------------------
 
+# See RTD document for the effect of using canonical URL on SEO.
+html_baseurl: str = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
+
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme = "sphinx_rtd_theme"
