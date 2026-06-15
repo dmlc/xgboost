@@ -40,28 +40,10 @@ WHEEL_TAG=manylinux_2_28_${arch}
 set -x
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
-raw_wheels=(python-package/dist/*.whl)
-if [[ ${#raw_wheels[@]} -ne 1 || ! -f "${raw_wheels[0]}" ]]; then
-  echo "error: expected exactly one raw wheel in python-package/dist"
-  exit 1
-fi
-raw_wheel="${raw_wheels[0]}"
-
-auditwheel repair --only-plat --plat ${WHEEL_TAG} "${raw_wheel}"
-repaired_wheels=(wheelhouse/*.whl)
-if [[ ${#repaired_wheels[@]} -ne 1 || ! -f "${repaired_wheels[0]}" ]]; then
-  echo "error: expected exactly one repaired wheel in wheelhouse"
-  exit 1
-fi
+auditwheel repair --only-plat --plat ${WHEEL_TAG} python-package/dist/*.whl
 python3 -m wheel tags --python-tag cp312 --abi-tag abi3 --platform ${WHEEL_TAG} --remove \
-  "${repaired_wheels[0]}"
-tagged_wheels=(wheelhouse/*.whl)
-if [[ ${#tagged_wheels[@]} -ne 1 || ! -f "${tagged_wheels[0]}" ]]; then
-  echo "error: expected exactly one tagged wheel in wheelhouse"
-  exit 1
-fi
-rm -v "${raw_wheel}"
-mv -v "${tagged_wheels[0]}" python-package/dist/
+  wheelhouse/*.whl
+mv -v wheelhouse/*.whl python-package/dist/
 
 final_wheels=(python-package/dist/*.whl)
 if [[ ${#final_wheels[@]} -ne 1 || ! -f "${final_wheels[0]}" ]]; then
