@@ -62,6 +62,10 @@ def shap_values(  # pylint: disable=too-many-arguments
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Return SHAP values for an XGBoost model.
 
+    .. warning::
+
+      This function is still working in progress.
+
     This function accepts either a :py:class:`xgboost.Booster` or an sklearn-style
     XGBoost model and returns feature contributions together with the separated
     bias term.
