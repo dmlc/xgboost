@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 # scikit-build-core entry point for the XGBoost Python wheel.
 #
-# Three build modes are supported, mirroring what the old custom
-# PEP 517 backend (python-package/packager/) did in Python:
+# Three build modes are supported:
 #
 #   1. Reuse a prebuilt libxgboost.{so,dylib,dll} that already lives in
 #      ${XGBOOST_PREBUILT_LIB_DIR} (default: ${C++ source}/lib). This is
