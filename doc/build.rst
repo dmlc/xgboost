@@ -190,11 +190,15 @@ There are several ways to build and install the package from source:
   .. code-block:: console
 
     $ cd python-package/
-    $ pip install -v . # Builds the shared object automatically.
+    $ pip install -v .
 
-  which will compile XGBoost's native (C++) code using default CMake flags.  To enable
-  additional compilation options, pass them as CMake defines through
-  ``scikit-build-core``'s ``--config-settings``:
+  which will invoke CMake underneath to build the shared library
+  (``libxgboost.so`` on Linux). To customize the CMake options,
+  add the command-line argument
+  ``--config-settings cmake.define.[CMAKE_OPTION]=[OPTION_VALUE]``.
+  (Pip 22.1+ is required.)
+
+  For example:
 
   .. code-block:: console
 
@@ -202,9 +206,7 @@ There are several ways to build and install the package from source:
         --config-settings cmake.define.USE_CUDA=ON \
         --config-settings cmake.define.USE_NCCL=ON
 
-  Use Pip 22.1 or later to use ``--config-settings`` option.
-
-  Common CMake options the Python wheel forwards to the libxgboost build
+  Common CMake options
   (see :ref:`building-the-shared-library` for the full list):
 
   - ``USE_CUDA`` — build with CUDA / GPU acceleration
@@ -257,7 +259,7 @@ There are several ways to build and install the package from source:
     libpath = pathlib.Path(sys.base_prefix).joinpath("lib", "libxgboost.so")
     assert libpath.exists()
 
-  Then pass ``XGBOOST_USE_SYSTEM_LIBXGBOOST=ON`` to ``pip install`` as a CMake define:
+  Then pass ``cmake.define.XGBOOST_USE_SYSTEM_LIBXGBOOST=ON`` to ``pip install``:
 
   .. code-block:: bash
 
