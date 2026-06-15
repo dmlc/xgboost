@@ -38,15 +38,16 @@ def test_polars_basic(
     if isinstance(Xy, xgb.QuantileDMatrix):
         # skip min values in the cut.
         np.testing.assert_allclose(res[1:, :], res1[1:, :])
+        m = np.nextafter(np.float32(1), -np.inf)  # min_val
     else:
         np.testing.assert_allclose(res, res1)
+        m = np.float32(0)
 
     # boolean
     df = pl.DataFrame({"a": [True, False, False], "b": [False, False, True]})
     Xy = DMatrixT(df)
-    np.testing.assert_allclose(
-        Xy.get_data().data, np.array([1, 0, 0, 0, 0, 1]), atol=1e-5
-    )
+
+    np.testing.assert_equal(Xy.get_data().data, np.array([1, m, m, m, m, 1]))
 
 
 def test_polars_missing() -> None:
