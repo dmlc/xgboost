@@ -17,7 +17,6 @@ import shutil
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 STAGING_DIR = REPO_ROOT / "python-package" / "cpp_src"
 
-# Mirrors the old packager/sdist.py:copy_cpp_src_tree.
 CPP_SUBDIRS = ["src", "include", "dmlc-core", "cmake", "plugin"]
 CPP_FILES = ["CMakeLists.txt", "LICENSE"]
 
