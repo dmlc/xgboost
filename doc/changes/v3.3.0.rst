@@ -1,0 +1,128 @@
+###################
+3.3.0 (2026 Jun 17)
+###################
+
+XGBoost 3.3 adds expectile regression, enables categorical feature support by default,
+expands SHAP support for vector-leaf models, and includes optimizations for histogram
+building, quantile sketching, and distributed GPU training.
+
+********
+Features
+********
+
+- Add expectile regression with the ``reg:expectileerror`` objective, the ``expectile``
+  metric, and the ``expectile_alpha`` parameter. Multiple expectiles are
+  supported. (:pr:`11988`, :pr:`12228`, :pr:`12243`)
+- Enable categorical feature support by default while keeping ``enable_categorical``
+  available for users who need to disable it. CPU ``hist`` also gained one-hot categorical
+  split support for vector leaf. (:pr:`12015`, :pr:`12072`)
+- Deprecate the ``gblinear`` booster. Support will be removed in a future
+  release. (:pr:`12030`)
+- Use a local RNG and serialize RNG state. Training multiple models with sampling within
+  the same session is now reproducible. (:pr:`12083`)
+
+************
+SHAP Support
+************
+
+- Upgrade the TreeSHAP implementation for better accuracy and faster execution. The GPU
+  exact TreeSHAP path now uses ``QuadratureTreeSHAP`` and shares core quadrature logic
+  with the CPU implementation. (:pr:`12179`, :pr:`12192`, :pr:`12207`)
+- Add exact SHAP contribution and interaction prediction for vector-leaf multi-output
+  trees on both CPU and GPU. (:pr:`12209`, :pr:`12210`, :pr:`12244`, :pr:`12247`,
+  :pr:`11985`, :pr:`12208`)
+
+*******************************************
+Quantile Sketching and Distributed Training
+*******************************************
+
+- Simplify quantile sketch internals and improve the weighted quantile sketch
+  implementation. This includes expanded property tests, more accurate handling of
+  weighted values.  (:pr:`12033`, :pr:`12046`, :pr:`12048`, :pr:`12049`, :pr:`12054`,
+  :pr:`12146`, :pr:`12148`, :pr:`12150`, :pr:`12151`, :pr:`12155`)
+- Reduce memory use in the GPU quantile sketch and external-memory paths. (:pr:`12047`,
+  :pr:`12079`, :pr:`12090`, :pr:`12099`, :pr:`12104`, :pr:`12105`, :pr:`12118`, :pr:`12147`,
+  :pr:`12159`, :pr:`12160`)
+- Improve distributed quantile construction by using tree reductions. (:pr:`12061`,
+  :pr:`12128`, :pr:`12171`)
+- Support customizing worker port for distributed training. In addition, XGBoost now
+  doesn't need all-to-all collective connections for improved scalability. (:pr:`12010`,
+  :pr:`12075`, :pr:`12171`, :pr:`12082`)
+
+*************
+Optimizations
+*************
+
+- Optimize CPU histogram building for wide datasets with column block tiling and detect
+  CPU cache sizes via Linux sysfs on aarch64. (:pr:`12158`, :pr:`12233`)
+- Use Philox for faster GPU sampling. (:pr:`12223`)
+
+**************
+Python Package
+**************
+
+- Bump the minimum supported Python version to 3.12. (:pr:`12195`)
+- Add PySpark support for Spark Connect ML. (:pr:`11970`)
+- Require ``Enum`` support from Polars and validate unique pandas column names.
+  (:pr:`12240`, :pr:`12199`)
+- Fix the default verbose behavior mismatch between ``XGBClassifier.fit`` and
+  ``XGBRegressor.fit``. (:pr:`12184`)
+- Fix ``python -OO`` crashes caused by assigning to missing docstrings (:pr:`12094`)
+- Handle boolean indicator features in ``trees_to_dataframe``. (:pr:`12089`)
+- Improve validation and error messages for feature information and deprecated
+  functions. (:pr:`12142`, :pr:`12200`)
+
+************
+JVM Packages
+************
+
+- Document Spark 4.0 compatibility for JVM packages. (:pr:`12136`)
+- Support regressor and ranker pipelines with columnar input. (:pr:`12058`)
+- Add automatic module names for Java packages and support xgboost4j on FreeBSD.
+  (:pr:`12114`, :pr:`12222`)
+
+******************
+Build and Platform
+******************
+
+- Support Visual Studio 2026. (:pr:`12245`)
+- Update CUDA Toolkit support, including CUDA Toolkit 13.3 type updates and default
+  architecture alignment for recent CUDA versions. (:pr:`12230`, :pr:`12204`)
+- Fix CMake export targets and builds with system-installed ``dmlc-core``.  (:pr:`12238`,
+  :pr:`12123`)
+- Fix macOS build and packaging issues. (:pr:`12187`, :pr:`12108`)
+
+*****
+Fixes
+*****
+
+- Fix out-of-vocabulary categorical encoding and categorical splits with vector-leaf
+  models. (:pr:`12193`, :pr:`12244`)
+- Fix SYCL multiclass objective calculation. (:pr:`12041`)
+- Fix in-place prune aliasing and assorted prediction/documentation typos.
+  (:pr:`12202`, :pr:`12076`, :pr:`12070`, :pr:`12003`)
+
+*********
+Documents
+*********
+
+- Add TreeSHAP references, distributed XGBoost on Kubernetes documentation, and updates to
+  competition-winning solution examples. (:pr:`12207`, :pr:`12080`, :pr:`12087`,
+  :pr:`12109`)
+- Add notes for pickling, expectile margin output, Spark 4.0 compatibility. (:pr:`12042`,
+  :pr:`12243`, :pr:`12136`, :pr:`12247`)
+
+******************
+CI and Maintenance
+******************
+
+- Unify CI configure workflows, document the clang-tidy flow, and keep CI images and
+  dependency pins up to date. (:pr:`12170`, :pr:`12175`, :pr:`12165`)
+- Continue test cleanup and refactoring across quantile sketching, PySpark, global
+  configuration, and RMM compatibility. (:pr:`12002`, :pr:`12007`, :pr:`12009`,
+  :pr:`12019`, :pr:`12141`, :pr:`12180`, :pr:`12190`)
+- Continue cleanup of prediction and DART internals, including moving DART state into
+  ``GBTree`` and unifying DART SHAP forwarding. (:pr:`12068`, :pr:`12071`, :pr:`12073`,
+  :pr:`12078`, :pr:`12081`)
+- Always save DART configuration. (:pr:`12098`)
+- Improved support for using clang-tidy with CUDA code. (:pr:`12165`, :pr:`12174`)
