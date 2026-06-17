@@ -34,19 +34,15 @@ SHAP Support
 Quantile Sketching and Distributed Training
 *******************************************
 
-- Simplify quantile sketch internals and improve the weighted quantile sketch
-  implementation. This includes expanded property tests, more accurate handling of
-  weighted values.  (:pr:`12033`, :pr:`12046`, :pr:`12048`, :pr:`12049`, :pr:`12054`,
-  :pr:`12067`, :pr:`12074`, :pr:`12146`, :pr:`12148`, :pr:`12150`, :pr:`12151`,
-  :pr:`12155`, :pr:`12167`)
-- Reduce memory use in the GPU quantile sketch and external-memory paths. (:pr:`12047`,
-  :pr:`12079`, :pr:`12090`, :pr:`12099`, :pr:`12104`, :pr:`12105`, :pr:`12118`, :pr:`12147`,
-  :pr:`12159`, :pr:`12160`)
-- Improve distributed quantile construction by using tree reductions. (:pr:`12061`,
-  :pr:`12128`, :pr:`12171`)
-- Support customizing worker port for distributed training. In addition, XGBoost now
-  doesn't need all-to-all collective connections for improved scalability. (:pr:`12010`,
-  :pr:`12075`, :pr:`12171`, :pr:`12082`)
+The quantile sketching went through some major refactoring and optimizations. XGBoost
+3.3.0 simplifies quantile sketch internals and improves the weighted quantile sketch
+implementation (:pr:`12033`, :pr:`12046`, :pr:`12048`, :pr:`12049`, :pr:`12054`,
+:pr:`12067`, :pr:`12074`, :pr:`12146`, :pr:`12148`, :pr:`12150`, :pr:`12151`, :pr:`12155`,
+:pr:`12167`), with significantly reduced memory use in the GPU quantile sketch
+. (:pr:`12047`, :pr:`12079`, :pr:`12090`, :pr:`12099`, :pr:`12104`, :pr:`12105`,
+:pr:`12118`, :pr:`12147`, :pr:`12159`, :pr:`12160`). Also, we have a more efficient
+distributed quantile construction using tree reductions. (:pr:`12061`, :pr:`12128`,
+:pr:`12171`)
 
 *************
 Optimizations
@@ -55,6 +51,9 @@ Optimizations
 - Optimize CPU histogram building for wide datasets with column block tiling and detect
   CPU cache sizes via Linux sysfs on aarch64. (:pr:`12158`, :pr:`12233`)
 - Use Philox for faster GPU sampling. (:pr:`12223`)
+- Support customizing worker port for distributed training. In addition, XGBoost now
+  doesn't need all-to-all collective connections for improved scalability. (:pr:`12010`,
+  :pr:`12075`, :pr:`12171`, :pr:`12082`)
 
 **************
 Python Package
