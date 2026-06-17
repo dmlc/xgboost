@@ -24,7 +24,7 @@ The quantile sketching went through some major refactoring and optimizations. XG
 implementation (:pr:`12033`, :pr:`12046`, :pr:`12048`, :pr:`12049`, :pr:`12054`,
 :pr:`12067`, :pr:`12074`, :pr:`12146`, :pr:`12148`, :pr:`12150`, :pr:`12151`, :pr:`12155`,
 :pr:`12167`), with significantly reduced memory use in the GPU quantile sketch
-. (:pr:`12047`, :pr:`12079`, :pr:`12090`, :pr:`12099`, :pr:`12104`, :pr:`12105`,
+(:pr:`12047`, :pr:`12079`, :pr:`12090`, :pr:`12099`, :pr:`12104`, :pr:`12105`,
 :pr:`12118`, :pr:`12147`, :pr:`12159`, :pr:`12160`). Also, we have a more efficient
 distributed quantile construction using tree reductions. (:pr:`12061`, :pr:`12128`,
 :pr:`12171`)
@@ -89,7 +89,7 @@ Build and Platform
 - Support Visual Studio 2026. (:pr:`12245`)
 - Update CUDA Toolkit support, including CUDA Toolkit 13.3 type updates and default
   architecture alignment for recent CUDA versions. (:pr:`12230`, :pr:`12204`)
-- Support latest rapids. (:pr:`12140`, :pr:`12013`, :pr:`12212`, :pr:`12144`)
+- Support latest RAPIDS. (:pr:`12140`, :pr:`12013`, :pr:`12212`, :pr:`12144`)
 - Fix CMake export targets and builds with system-installed ``dmlc-core``.  (:pr:`12238`,
   :pr:`12123`)
 - Fix macOS build and packaging issues. (:pr:`12187`, :pr:`12108`)
