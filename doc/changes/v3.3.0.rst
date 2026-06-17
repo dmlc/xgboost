@@ -19,7 +19,7 @@ Features
 - Deprecate the ``gblinear`` booster. Support will be removed in a future
   release. (:pr:`12030`)
 - Use a local RNG and serialize RNG state. Training multiple models with sampling within
-  the same session is now reproducible. (:pr:`12083`)
+  the same session is now reproducible. (:pr:`12043`, :pr:`12083`)
 
 ************
 SHAP Support
@@ -37,7 +37,8 @@ Quantile Sketching and Distributed Training
 - Simplify quantile sketch internals and improve the weighted quantile sketch
   implementation. This includes expanded property tests, more accurate handling of
   weighted values.  (:pr:`12033`, :pr:`12046`, :pr:`12048`, :pr:`12049`, :pr:`12054`,
-  :pr:`12146`, :pr:`12148`, :pr:`12150`, :pr:`12151`, :pr:`12155`)
+  :pr:`12067`, :pr:`12074`, :pr:`12146`, :pr:`12148`, :pr:`12150`, :pr:`12151`,
+  :pr:`12155`, :pr:`12167`)
 - Reduce memory use in the GPU quantile sketch and external-memory paths. (:pr:`12047`,
   :pr:`12079`, :pr:`12090`, :pr:`12099`, :pr:`12104`, :pr:`12105`, :pr:`12118`, :pr:`12147`,
   :pr:`12159`, :pr:`12160`)
@@ -63,12 +64,15 @@ Python Package
 - Add PySpark support for Spark Connect ML. (:pr:`11970`)
 - Require ``Enum`` support from Polars and validate unique pandas column names.
   (:pr:`12240`, :pr:`12199`)
+
 - Fix the default verbose behavior mismatch between ``XGBClassifier.fit`` and
   ``XGBRegressor.fit``. (:pr:`12184`)
 - Fix ``python -OO`` crashes caused by assigning to missing docstrings (:pr:`12094`)
 - Handle boolean indicator features in ``trees_to_dataframe``. (:pr:`12089`)
 - Improve validation and error messages for feature information and deprecated
   functions. (:pr:`12142`, :pr:`12200`)
+- Clean up imports, type checking comments, and legacy compatibility guards.
+  (:pr:`12027`, :pr:`12110`, :pr:`12163`)
 
 ************
 JVM Packages
@@ -86,9 +90,11 @@ Build and Platform
 - Support Visual Studio 2026. (:pr:`12245`)
 - Update CUDA Toolkit support, including CUDA Toolkit 13.3 type updates and default
   architecture alignment for recent CUDA versions. (:pr:`12230`, :pr:`12204`)
+- Support latest rapids. (:pr:`12140`, :pr:`12013`)
 - Fix CMake export targets and builds with system-installed ``dmlc-core``.  (:pr:`12238`,
   :pr:`12123`)
 - Fix macOS build and packaging issues. (:pr:`12187`, :pr:`12108`)
+- Improve Linux packaging with versioned shared object. (:pr:`12055`)
 
 *****
 Fixes
@@ -109,6 +115,8 @@ Documents
   :pr:`12109`)
 - Add notes for pickling, expectile margin output, Spark 4.0 compatibility. (:pr:`12042`,
   :pr:`12243`, :pr:`12136`, :pr:`12247`)
+- Update LightGBM links, the security disclosure, the ``xgboost-cpu`` package note, and
+  the Read the Docs canonical URL. (:pr:`12084`, :pr:`12113`, :pr:`12169`, :pr:`12246`)
 
 ******************
 CI and Maintenance
@@ -124,3 +132,6 @@ CI and Maintenance
   :pr:`12078`, :pr:`12081`)
 - Always save DART configuration. (:pr:`12098`)
 - Improved support for using clang-tidy with CUDA code. (:pr:`12165`, :pr:`12174`)
+- Various small cleanups. (:pr:`12053`, :pr:`12092`)
+- Improve CUDA resource handling and diagnostics, small cleanups for external
+  memory. (:pr:`12092`, :pr:`12127`, :pr:`12185`, :pr:`12191`, :pr:`12137`, :pr:`12069`)
