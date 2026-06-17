@@ -26,7 +26,7 @@ SHAP Support
 ************
 
 - Change the TreeSHAP implementation for improved numerical stability and faster execution
-  ``QuadratureTreeSHAP`` (:pr:`12179`, :pr:`12192`, :pr:`12207`)
+  with ``QuadratureTreeSHAP`` (:pr:`12179`, :pr:`12192`, :pr:`12207`)
 - Add exact SHAP contribution and interaction prediction for vector-leaf multi-output
   trees on both CPU and GPU. (:pr:`12209`, :pr:`12210`, :pr:`12247`, :pr:`11985`, :pr:`12208`)
 
