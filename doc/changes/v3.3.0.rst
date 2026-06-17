@@ -15,7 +15,7 @@ Features
   supported. (:pr:`11988`, :pr:`12228`, :pr:`12243`)
 - Enable categorical feature support by default while keeping ``enable_categorical``
   available for users who need to disable it. CPU ``hist`` also gained one-hot categorical
-  split support for vector leaf. (:pr:`12015`, :pr:`12072`)
+  split support for the working-in-progress vector leaf. (:pr:`12015`, :pr:`12072`, :pr:`12244`)
 - Deprecate the ``gblinear`` booster. Support will be removed in a future
   release. (:pr:`12030`)
 - Use a local RNG and serialize RNG state. Training multiple models with sampling within
@@ -28,8 +28,7 @@ SHAP Support
 - Change the TreeSHAP implementation for improved numerical stability and faster execution
   ``QuadratureTreeSHAP`` (:pr:`12179`, :pr:`12192`, :pr:`12207`)
 - Add exact SHAP contribution and interaction prediction for vector-leaf multi-output
-  trees on both CPU and GPU. (:pr:`12209`, :pr:`12210`, :pr:`12244`, :pr:`12247`,
-  :pr:`11985`, :pr:`12208`)
+  trees on both CPU and GPU. (:pr:`12209`, :pr:`12210`, :pr:`12247`, :pr:`11985`, :pr:`12208`)
 
 *******************************************
 Quantile Sketching and Distributed Training
