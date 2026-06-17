@@ -124,9 +124,15 @@ CI and Maintenance
 
 - Unify CI configure workflows, document the clang-tidy flow, and keep CI images and
   dependency pins up to date. (:pr:`12170`, :pr:`12175`, :pr:`12165`)
+- Keep GitHub Actions dependency groups and release bookkeeping up to date. (:pr:`12005`,
+  :pr:`12029`, :pr:`12034`, :pr:`12038`, :pr:`12057`, :pr:`12095`, :pr:`12124`,
+  :pr:`12134`, :pr:`12145`, :pr:`12161`, :pr:`12178`, :pr:`12188`, :pr:`12206`,
+  :pr:`12231`, :pr:`12249`)
+- Update CI jobs for ``cibuildwheel``, CRAN, R CI, and documentation tests. (:pr:`12066`,
+  :pr:`12125`, :pr:`12173`, :pr:`12216`)
 - Continue test cleanup and refactoring across quantile sketching, PySpark, global
-  configuration, and RMM compatibility. (:pr:`12002`, :pr:`12007`, :pr:`12009`,
-  :pr:`12019`, :pr:`12141`, :pr:`12180`, :pr:`12190`)
+  configuration. (:pr:`12002`, :pr:`12007`, :pr:`12009`, :pr:`12019`, :pr:`12141`,
+  :pr:`12164`, :pr:`12180`, :pr:`12190`)
 - Continue cleanup of prediction and DART internals, including moving DART state into
   ``GBTree`` and unifying DART SHAP forwarding. (:pr:`12068`, :pr:`12071`, :pr:`12073`,
   :pr:`12078`, :pr:`12081`, :pr:`12022`)
