@@ -90,7 +90,7 @@ Build and Platform
 - Support Visual Studio 2026. (:pr:`12245`)
 - Update CUDA Toolkit support, including CUDA Toolkit 13.3 type updates and default
   architecture alignment for recent CUDA versions. (:pr:`12230`, :pr:`12204`)
-- Support latest rapids. (:pr:`12140`, :pr:`12013`)
+- Support latest rapids. (:pr:`12140`, :pr:`12013`, :pr:`12212`, :pr:`12144`)
 - Fix CMake export targets and builds with system-installed ``dmlc-core``.  (:pr:`12238`,
   :pr:`12123`)
 - Fix macOS build and packaging issues. (:pr:`12187`, :pr:`12108`)
@@ -129,7 +129,7 @@ CI and Maintenance
   :pr:`12019`, :pr:`12141`, :pr:`12180`, :pr:`12190`)
 - Continue cleanup of prediction and DART internals, including moving DART state into
   ``GBTree`` and unifying DART SHAP forwarding. (:pr:`12068`, :pr:`12071`, :pr:`12073`,
-  :pr:`12078`, :pr:`12081`)
+  :pr:`12078`, :pr:`12081`, :pr:`12022`)
 - Always save DART configuration. (:pr:`12098`)
 - Improved support for using clang-tidy with CUDA code. (:pr:`12165`, :pr:`12174`)
 - Various small cleanups. (:pr:`12053`, :pr:`12092`)
