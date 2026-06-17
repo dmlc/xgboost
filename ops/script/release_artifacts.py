@@ -17,9 +17,8 @@ import tqdm
 from packaging import version
 from pypi_variants import make_pyproject
 from sh.contrib import git
-from test_utils import PY_PACKAGE
+from test_utils import PY_PACKAGE, DirectoryExcursion
 from test_utils import ROOT as root_path
-from test_utils import DirectoryExcursion
 
 # S3 bucket hosting the release artifacts
 S3_BUCKET_URL = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
