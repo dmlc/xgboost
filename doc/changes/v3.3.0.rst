@@ -6,21 +6,6 @@ XGBoost 3.3 adds expectile regression, enables categorical feature support by de
 expands SHAP support for vector-leaf models, and includes optimizations for histogram
 building, quantile sketching, and distributed GPU training.
 
-********
-Features
-********
-
-- Add expectile regression with the ``reg:expectileerror`` objective, the ``expectile``
-  metric, and the ``expectile_alpha`` parameter. Multiple expectiles are
-  supported. (:pr:`11988`, :pr:`12228`, :pr:`12243`)
-- Enable categorical feature support by default while keeping ``enable_categorical``
-  available for users who need to disable it. CPU ``hist`` also gained one-hot categorical
-  split support for the working-in-progress vector leaf. (:pr:`12015`, :pr:`12072`, :pr:`12244`)
-- Deprecate the ``gblinear`` booster. Support will be removed in a future
-  release. (:pr:`12030`)
-- Use a local RNG and serialize RNG state. Training multiple models with sampling within
-  the same session is now reproducible. (:pr:`12043`, :pr:`12083`)
-
 ************
 SHAP Support
 ************
@@ -43,6 +28,21 @@ implementation (:pr:`12033`, :pr:`12046`, :pr:`12048`, :pr:`12049`, :pr:`12054`,
 :pr:`12118`, :pr:`12147`, :pr:`12159`, :pr:`12160`). Also, we have a more efficient
 distributed quantile construction using tree reductions. (:pr:`12061`, :pr:`12128`,
 :pr:`12171`)
+
+********
+Features
+********
+
+- Add expectile regression with the ``reg:expectileerror`` objective, the ``expectile``
+  metric, and the ``expectile_alpha`` parameter. Multiple expectiles are
+  supported. (:pr:`11988`, :pr:`12228`, :pr:`12243`)
+- Enable categorical feature support by default while keeping ``enable_categorical``
+  available for users who need to disable it. CPU ``hist`` also gained one-hot categorical
+  split support for the working-in-progress vector leaf. (:pr:`12015`, :pr:`12072`, :pr:`12244`)
+- Deprecate the ``gblinear`` booster. Support will be removed in a future
+  release. (:pr:`12030`)
+- Use a local RNG and serialize RNG state. Training multiple models with sampling within
+  the same session is now reproducible. (:pr:`12043`, :pr:`12083`)
 
 *************
 Optimizations
