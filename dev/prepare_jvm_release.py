@@ -19,17 +19,17 @@ Maven Central.
    https://central.sonatype.org/publish/requirements/gpg/
 
 ## Making the release
+
 Run this script 4 times:
 
-python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant cpu
-python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant gpu
-python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant cpu
-python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant gpu
+python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant cpu --release=x.x.x
+python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant gpu --release=x.x.x
+python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant cpu --release=x.x.x
+python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant gpu --release=x.x.x
 
 """
 
 import argparse
-import errno
 import glob
 import os
 import re
@@ -38,7 +38,8 @@ import subprocess
 import sys
 import tempfile
 import zipfile
-from contextlib import contextmanager
+from contextlib import chdir
+from typing import Literal
 from urllib.request import urlretrieve
 
 
@@ -61,28 +62,22 @@ def cp(source, target):
 def maybe_makedirs(path):
     path = normpath(path)
     print("mkdir -p " + path)
-    try:
-        os.makedirs(path)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-
-
-@contextmanager
-def cd(path):
-    path = normpath(path)
-    cwd = os.getcwd()
-    os.chdir(path)
-    print("cd " + path)
-    try:
-        yield path
-    finally:
-        os.chdir(cwd)
+    os.makedirs(path, exist_ok=True)
 
 
 def run(command, **kwargs):
     print(command)
     subprocess.run(command, shell=True, check=True, **kwargs)
+
+
+def deploy(local: bool, profile: Literal["default", "gpu"], pl: str | None) -> None:
+    subcmd = "install" if local else "deploy"
+
+    cmd = f"mvn {subcmd} -P{profile},release -DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
+    if pl:
+        cmd += f" -pl {pl}"
+
+    run(cmd)
 
 
 def get_current_commit_hash():
@@ -103,15 +98,15 @@ def retrieve(url, filename=None):
     return urlretrieve(url, filename)
 
 
-def main():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "--release-version",
+        "--release",
         type=str,
         required=True,
-        help="Version of the release being prepared",
+        help="Version of the release being prepared, e.g. 3.3.0",
     )
     parser.add_argument(
         "--scala-version",
@@ -127,9 +122,20 @@ def main():
         choices=["cpu", "gpu"],
         help="JVM package variant to package and publish",
     )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Use `mvn install` instead of `mvn deploy`.",
+    )
 
     args = parser.parse_args()
-    version = args.release_version
+    return args
+
+
+def main() -> None:
+    args = parse_args()
+
+    version = args.release
     scala_version = args.scala_version
     use_cuda = args.variant == "gpu"
 
@@ -142,9 +148,9 @@ def main():
         f"--scala-version {scala_version} --purge-artifacts"
     )
 
-    with cd("jvm-packages/"):
+    with chdir("jvm-packages/"):
         print("====Copying resources for testing====")
-        with cd("../demo/data/regression"):
+        with chdir("../demo/data/regression"):
             run(f"{sys.executable} mapfeat.py")
             run(f"{sys.executable} mknfold.py machine.txt 1")
         xgboost4j_spark = "xgboost4j-spark-gpu" if use_cuda else "xgboost4j-spark"
@@ -199,10 +205,7 @@ def main():
                 "mvn --no-transfer-progress install -Pgpu "
                 "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
             )
-            run(
-                "mvn deploy -Pgpu,release -pl xgboost4j-spark-gpu "
-                "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
-            )
+            deploy(args.local, "gpu", "xgboost4j-spark-gpu")
         else:
             url_prefix = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
             for os_ident, arch, src_libname, dest_libname in [
@@ -224,10 +227,10 @@ def main():
                         f"{os_ident}/{arch}/{dest_libname}"
                     ),
                 )
-            run(
-                "mvn --no-transfer-progress deploy -Pdefault,release "
-                "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
-            )
+            deploy(args.local, "default", None)
+
+    if args.local:
+        return
 
     print("====Next Steps====")
     print(
