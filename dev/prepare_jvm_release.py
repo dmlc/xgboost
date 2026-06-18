@@ -48,44 +48,52 @@ def normpath(path):
     normalized = os.path.join(*path.split("/"))
     if os.path.isabs(path):
         return os.path.abspath("/") + normalized
-    else:
-        return normalized
+    return normalized
 
 
 def cp(source, target):
+    """Copy a file after normalizing both paths."""
     source = normpath(source)
     target = normpath(target)
-    print("cp {0} {1}".format(source, target))
+    print(f"cp {source} {target}")
     shutil.copy(source, target)
 
 
 def maybe_makedirs(path):
+    """Create a directory and its parents if needed."""
     path = normpath(path)
     print("mkdir -p " + path)
     os.makedirs(path, exist_ok=True)
 
 
 def run(command, **kwargs):
+    """Run a shell command and fail if it exits with an error."""
     print(command)
     subprocess.run(command, shell=True, check=True, **kwargs)
 
 
 def deploy(local: bool, profile: Literal["default", "gpu"], pl: str | None) -> None:
+    """Deploy JVM artifacts with the selected Maven profile."""
     subcmd = "install" if local else "deploy"
 
-    cmd = f"mvn {subcmd} -P{profile},release -DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
+    cmd = (
+        f"mvn {subcmd} -P{profile},release "
+        "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
+    )
     if pl:
         cmd += f" -pl {pl}"
 
     run(cmd)
 
 
-def get_current_commit_hash():
+def get_current_commit_hash() -> str:
+    """Get the last commit of the current branch."""
     out = subprocess.check_output(["git", "rev-parse", "HEAD"])
-    return out.decode().split("\n")[0]
+    return out.decode().split("\n", maxsplit=1)[0]
 
 
-def get_current_git_branch():
+def get_current_git_branch() -> str:
+    """Get the current branch."""
     out = subprocess.check_output(["git", "log", "-n", "1", "--pretty=%d", "HEAD"])
     m = re.search(r"release_[0-9\.]+", out.decode())
     if not m:
@@ -94,11 +102,13 @@ def get_current_git_branch():
 
 
 def retrieve(url, filename=None):
+    """Download a file from a URL and print the destination."""
     print(f"{url} -> {filename}")
     return urlretrieve(url, filename)
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
@@ -132,10 +142,36 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def deploy_cuda_pkg(local: bool, version: str) -> None:
+    """Deploy CUDA JVM packages."""
+    url_prefix = "https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/release/ml/dmlc"
+    with tempfile.TemporaryDirectory() as tempdir:
+        # libxgboost4j.so for Linux x86_64, GPU support
+        zip_path = os.path.join(tempdir, "xgboost4j-spark-gpu_2.12.jar")
+        extract_dir = os.path.join(tempdir, "xgboost4j-spark-gpu")
+        retrieve(
+            url=f"{url_prefix}/xgboost4j-spark-gpu_2.12/{version}/"
+            f"xgboost4j-spark-gpu_2.12-{version}.jar",
+            filename=zip_path,
+        )
+        os.mkdir(extract_dir)
+        with zipfile.ZipFile(zip_path, "r") as t:
+            t.extractall(extract_dir)
+        cp(
+            os.path.join(extract_dir, "lib", "linux", "x86_64", "libxgboost4j.so"),
+            "xgboost4j/src/main/resources/lib/linux/x86_64/libxgboost4j.so",
+        )
+    run(
+        "mvn --no-transfer-progress install -Pgpu "
+        "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
+    )
+    deploy(local, "gpu", "xgboost4j-spark-gpu")
+
+
 def main() -> None:
+    """Assemble and deploy the packages."""
     args = parse_args()
 
-    version = args.release
     scala_version = args.scala_version
     use_cuda = args.variant == "gpu"
 
@@ -180,32 +216,7 @@ def main() -> None:
 
         print("====Downloading native binaries from CI====")
         if use_cuda:
-            url_prefix = (
-                "https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/release/ml/dmlc"
-            )
-            with tempfile.TemporaryDirectory() as tempdir:
-                # libxgboost4j.so for Linux x86_64, GPU support
-                zip_path = os.path.join(tempdir, "xgboost4j-spark-gpu_2.12.jar")
-                extract_dir = os.path.join(tempdir, "xgboost4j-spark-gpu")
-                retrieve(
-                    url=f"{url_prefix}/xgboost4j-spark-gpu_2.12/{version}/"
-                    f"xgboost4j-spark-gpu_2.12-{version}.jar",
-                    filename=zip_path,
-                )
-                os.mkdir(extract_dir)
-                with zipfile.ZipFile(zip_path, "r") as t:
-                    t.extractall(extract_dir)
-                cp(
-                    os.path.join(
-                        extract_dir, "lib", "linux", "x86_64", "libxgboost4j.so"
-                    ),
-                    "xgboost4j/src/main/resources/lib/linux/x86_64/libxgboost4j.so",
-                )
-            run(
-                "mvn --no-transfer-progress install -Pgpu "
-                "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
-            )
-            deploy(args.local, "gpu", "xgboost4j-spark-gpu")
+            deploy_cuda_pkg(args.local, args.release)
         else:
             url_prefix = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
             for os_ident, arch, src_libname, dest_libname in [
