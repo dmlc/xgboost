@@ -211,7 +211,7 @@ endif()
 if(BUILD_DEPRECATED_CLI)
   message(SEND_ERROR  "The option `BUILD_DEPRECATED_CLI` is removed from XGBoost.")
 endif()
-if (USE_NCCL_LIB_PATH)
+if(USE_NCCL_LIB_PATH)
   message(SEND_ERROR "`USE_NCCL_LIB_PATH` has been removed, use other NCCL variables to specify the path.")
 endif()
 
