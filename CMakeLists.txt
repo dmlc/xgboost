@@ -211,6 +211,9 @@ endif()
 if(BUILD_DEPRECATED_CLI)
   message(SEND_ERROR  "The option `BUILD_DEPRECATED_CLI` is removed from XGBoost.")
 endif()
+if (USE_NCCL_LIB_PATH)
+  message(SEND_ERROR "`USE_NCCL_LIB_PATH` has been removed, use other NCCL variables to specify the path.")
+endif()
 
 #-- Sanitizer
 if(USE_SANITIZER)
@@ -499,6 +502,11 @@ install(
   ${CMAKE_CURRENT_BINARY_DIR}/cmake/xgboost-config.cmake
   ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
+if(USE_NCCL AND BUILD_STATIC_LIB)
+  install(
+    FILES ${CMAKE_CURRENT_LIST_DIR}/cmake/modules/FindNccl.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
+endif()
 
 #-- Test
 if(GOOGLE_TEST)
