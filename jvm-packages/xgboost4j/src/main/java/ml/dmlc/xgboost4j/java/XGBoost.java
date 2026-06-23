@@ -563,7 +563,7 @@ public class XGBoost {
         value += tvalue;
       }
       value /= cvMap.get(key).size();
-      aggResult += "\tcv-" + key + ":" + Float.toString(value);
+      aggResult += String.format(Locale.ROOT, "\tcv-%s:%f", key, value);
     }
 
     return aggResult;

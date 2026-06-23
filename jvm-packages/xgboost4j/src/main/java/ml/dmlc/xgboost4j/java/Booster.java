@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -346,7 +347,7 @@ public class Booster implements Serializable, KryoSerializable {
       DMatrix evalMat = evalMatrixs[i];
       float evalResult = eval.eval(predict(evalMat), evalMat);
       String evalMetric = eval.getMetric();
-      evalInfo += "\t" + evalName + "-" + evalMetric + ":" + Float.toString(evalResult);
+      evalInfo += String.format(Locale.ROOT, "\t%s-%s:%f", evalName, evalMetric, evalResult);
       metricsOut[i] = evalResult;
     }
     return evalInfo;
