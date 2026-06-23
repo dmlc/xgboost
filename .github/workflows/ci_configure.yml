@@ -38,7 +38,7 @@ jobs:
         with:
           mask-password: 'false'
           registries: '492475357299'
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Get image tag
         id: get-image-tag
         run: |

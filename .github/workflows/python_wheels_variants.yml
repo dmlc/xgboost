@@ -54,7 +54,7 @@ jobs:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -82,7 +82,7 @@ jobs:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
       - name: Pick Python
         run: |
           export PATH=/opt/python/cp312-cp312/bin/:$PATH
@@ -126,7 +126,7 @@ jobs:
         username: ${{ needs.ecr-login.outputs.docker_username }}
         password: ${{ needs.ecr-login.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: "true"
       - name: Unstash audited wheel
