@@ -5,6 +5,8 @@
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 #include <thrust/sequence.h>                    // for sequence
 
+#include <algorithm>  // for all_of
+#include <cstdint>    // for int32_t
 #include <numeric>  // for iota
 #include <thread>   // for thread
 
@@ -65,6 +67,31 @@ TEST(DeviceUVector, Basic) {
   uvec1.clear();
   ASSERT_EQ(uvec1.size(), 0);
   ASSERT_EQ(uvec1.Capacity(), 32);
+}
+
+TEST(DeviceUVector, Stream) {
+  auto ctx = xgboost::MakeCUDACtx(0);
+  xgboost::curt::Stream stream{ctx.Device().ordinal};
+  DeviceUVector<float> uvec{8, stream.View()};
+  uvec.resize(16, 1.0f, stream.View());
+
+  std::vector<float> h_vec(uvec.size());
+  dh::safe_cuda(cudaMemcpyAsync(h_vec.data(), uvec.data(), uvec.size() * sizeof(float),
+                                cudaMemcpyDeviceToHost, stream.View()));
+  stream.Sync();
+  ASSERT_TRUE(std::all_of(h_vec.cbegin() + 8, h_vec.cend(), [](float v) { return v == 1.0f; }));
+}
+
+TEST(TemporaryArray, Stream) {
+  auto ctx = xgboost::MakeCUDACtx(0);
+  xgboost::curt::Stream stream{ctx.Device().ordinal};
+  TemporaryArray<std::int32_t> arr{16, 3, stream.View()};
+
+  std::vector<std::int32_t> h_arr(arr.size());
+  dh::safe_cuda(cudaMemcpyAsync(h_arr.data(), arr.data().get(), arr.size() * sizeof(std::int32_t),
+                                cudaMemcpyDeviceToHost, stream.View()));
+  stream.Sync();
+  ASSERT_TRUE(std::all_of(h_arr.cbegin(), h_arr.cend(), [](std::int32_t v) { return v == 3; }));
 }
 
 #if defined(__linux__)

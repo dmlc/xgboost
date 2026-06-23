@@ -260,23 +260,30 @@ class TemporaryArray {
  public:
   using AllocT = XGBCachingDeviceAllocator<T>;
   using value_type = T;  // NOLINT
-  explicit TemporaryArray(size_t n) : size_(n) { ptr_ = AllocT().allocate(n); }
-  TemporaryArray(size_t n, T val) : size_(n) {
-    ptr_ = AllocT().allocate(n);
-    this->fill(val);
+  explicit TemporaryArray(
+      size_t n, xgboost::curt::StreamRef stream = xgboost::curt::DefaultStream())
+      : size_(n) {
+    alloc_.SetStream(stream);
+    ptr_ = alloc_.allocate(n);
   }
-  ~TemporaryArray() { AllocT().deallocate(ptr_, this->size()); }
-  void fill(T val)  // NOLINT
+  TemporaryArray(size_t n, T val,
+                 xgboost::curt::StreamRef stream = xgboost::curt::DefaultStream())
+      : TemporaryArray{n, stream} {
+    this->fill(val, stream);
+  }
+  ~TemporaryArray() { alloc_.deallocate(ptr_, this->size()); }
+  void fill(T val, xgboost::curt::StreamRef stream = xgboost::curt::DefaultStream())  // NOLINT
   {
     int device = 0;
     dh::safe_cuda(cudaGetDevice(&device));
     auto d_data = ptr_.get();
-    LaunchN(this->size(), [=] __device__(size_t idx) { d_data[idx] = val; });
+    LaunchN(this->size(), stream, [=] __device__(size_t idx) { d_data[idx] = val; });
   }
   thrust::device_ptr<T> data() { return ptr_; }  // NOLINT
   size_t size() { return size_; }  // NOLINT
 
  private:
+  AllocT alloc_;
   thrust::device_ptr<T> ptr_;
   size_t size_;
 };

@@ -273,6 +273,8 @@ class ThrustAllocMrAdapter : public rmm::mr::thrust_allocator<T> {
   ThrustAllocMrAdapter()
       : rmm::mr::thrust_allocator<T>{
             rmm::cuda_stream_view{cudaStream_t{xgboost::curt::DefaultStream()}}} {};
+
+  void SetStream([[maybe_unused]] ::xgboost::curt::StreamRef stream) {}
 };
 
 template <typename T>
@@ -290,6 +292,7 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
   // entirely on Windows.
   std::int32_t use_async_pool_;
 #endif
+  ::xgboost::curt::StreamRef stream_{::xgboost::curt::DefaultStream()};
 
  public:
   using Super = thrust::device_malloc_allocator<T>;
@@ -308,6 +311,8 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
     using other = XGBAsyncPoolAllocator<U>;  // NOLINT(readability-identifier-naming)
   };
 
+  void SetStream(::xgboost::curt::StreamRef stream) { this->stream_ = stream; }
+
   pointer allocate(std::size_t n) {  // NOLINT
 #if defined(xgboost_IS_WIN)
     return Super::allocate(n);
@@ -318,7 +323,7 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
 
     T *raw_ptr = nullptr;
     auto n_bytes = xgboost::common::SizeBytes<T>(n);
-    safe_cuda(cudaMallocAsync(&raw_ptr, n_bytes, xgboost::curt::DefaultStream()));
+    safe_cuda(cudaMallocAsync(&raw_ptr, n_bytes, this->stream_));
     return thrust::device_pointer_cast(raw_ptr);
 #endif
   }
@@ -331,7 +336,7 @@ class XGBAsyncPoolAllocator : public thrust::device_malloc_allocator<T> {
       return Super::deallocate(ptr, n);
     }
 
-    safe_cuda(cudaFreeAsync(thrust::raw_pointer_cast(ptr), xgboost::curt::DefaultStream()));
+    safe_cuda(cudaFreeAsync(thrust::raw_pointer_cast(ptr), this->stream_));
 #endif
   }
 
@@ -491,7 +496,10 @@ class DeviceUVectorImpl {
 
  public:
   DeviceUVectorImpl() = default;
-  explicit DeviceUVectorImpl(std::size_t n) { this->resize(n); }
+  explicit DeviceUVectorImpl(std::size_t n,
+                             ::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {
+    this->resize(n, stream);
+  }
   DeviceUVectorImpl(DeviceUVectorImpl const &that) = delete;
   DeviceUVectorImpl &operator=(DeviceUVectorImpl const &that) = delete;
   DeviceUVectorImpl(DeviceUVectorImpl &&that) = default;
@@ -500,7 +508,8 @@ class DeviceUVectorImpl {
   [[nodiscard]] std::size_t Capacity() const { return this->capacity_; }
 
   // Resize without init.
-  void resize(std::size_t n) {  // NOLINT
+  void resize(std::size_t n,
+              ::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {  // NOLINT
     using ::xgboost::common::SizeBytes;
 
     if (n <= this->Capacity()) {
@@ -510,6 +519,7 @@ class DeviceUVectorImpl {
     }
     CHECK_LE(this->size(), this->Capacity());
 
+    this->alloc_.SetStream(stream);
     Alloc alloc = this->alloc_;
     decltype(data_) new_ptr{thrust::raw_pointer_cast(this->alloc_.allocate(n)),
                             [=](T *ptr) mutable {
@@ -519,9 +529,8 @@ class DeviceUVectorImpl {
                             }};
     CHECK(new_ptr.get());
 
-    auto s = ::xgboost::curt::DefaultStream();
     safe_cuda(cudaMemcpyAsync(new_ptr.get(), this->data(), SizeBytes<T>(this->size()),
-                              cudaMemcpyDefault, s));
+                              cudaMemcpyDefault, stream));
     this->size_ = n;
     this->capacity_ = n;
 
@@ -530,17 +539,18 @@ class DeviceUVectorImpl {
     // std::swap(this->data_, new_ptr);
   }
   // Resize with init
-  void resize(std::size_t n, T const &v) {  // NOLINT
+  void resize(std::size_t n, T const &v,
+              ::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {  // NOLINT
     auto orig = this->size();
-    this->resize(n);
+    this->resize(n, stream);
     if (orig < n) {
-      auto exec = thrust::cuda::par_nosync.on(::xgboost::curt::DefaultStream());
+      auto exec = thrust::cuda::par_nosync.on(stream);
       thrust::fill(exec, this->begin() + orig, this->end(), v);
     }
   }
 
-  void clear() {  // NOLINT
-    this->resize(0);
+  void clear(::xgboost::curt::StreamRef stream = ::xgboost::curt::DefaultStream()) {  // NOLINT
+    this->resize(0, stream);
   }
 
   [[nodiscard]] std::size_t size() const { return this->size_; }  // NOLINT
