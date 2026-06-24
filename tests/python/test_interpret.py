@@ -54,7 +54,7 @@ def test_shap_values_rejects_background_data() -> None:
     y = rng.randn(16)
     booster = xgb.train({"tree_method": "hist"}, xgb.DMatrix(X, label=y), 4)
 
-    with pytest.raises(NotImplementedError, match="X_background"):
+    with pytest.raises(xgb.core.XGBoostError, match="Interventional SHAP"):
         interpret.shap_values(booster, X, X_background=X)
 
 
