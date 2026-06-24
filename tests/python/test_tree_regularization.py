@@ -1,7 +1,6 @@
 import numpy as np
-from numpy.testing import assert_approx_equal
-
 import xgboost as xgb
+from numpy.testing import assert_approx_equal
 
 train_data = xgb.DMatrix(np.array([[1]]), label=np.array([1]))
 
@@ -16,6 +15,7 @@ class TestTreeRegularization:
             "lambda": 0,
             "alpha": 0.1,
             "base_score": 0.5,
+            "min_child_weight": 1,
         }
 
         model = xgb.train(params, train_data, 1)
@@ -36,6 +36,7 @@ class TestTreeRegularization:
             "lambda": 1,
             "alpha": 0,
             "base_score": 0.5,
+            "min_child_weight": 1,
         }
 
         model = xgb.train(params, train_data, 1)
@@ -56,6 +57,7 @@ class TestTreeRegularization:
             "lambda": 1,
             "alpha": 0.1,
             "base_score": 0.5,
+            "min_child_weight": 1,
         }
 
         model = xgb.train(params, train_data, 1)
@@ -77,6 +79,9 @@ class TestTreeRegularization:
             tree_method="hist",
             grow_policy="lossguide",
             reg_lambda=0,
+            min_child_weight=1,
+            subsample=1,
+            colsample_bytree=1,
             max_leaves=128,
             max_depth=0,
         ).fit(x, y)

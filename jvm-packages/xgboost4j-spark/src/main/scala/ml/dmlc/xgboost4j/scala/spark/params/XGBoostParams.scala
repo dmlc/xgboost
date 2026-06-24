@@ -208,7 +208,7 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getCacheHostRatio: Float = $(cacheHostRatio)
 
-  setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
+  setDefault(numRound -> 300, numWorkers -> 1, inferBatchSize -> (32 << 10),
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
     featuresCols -> Array.empty, customObj -> null, customEval -> null,
     featureNames -> Array.empty, featureTypes -> Array.empty, useExternalMemory -> false,

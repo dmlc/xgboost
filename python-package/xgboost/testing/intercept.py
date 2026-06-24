@@ -14,6 +14,7 @@ from sklearn.datasets import (
 from ..core import Booster, DMatrix, QuantileDMatrix
 from ..sklearn import XGBClassifier, XGBRegressor
 from ..training import train
+from . import legacy_tree_params
 from .updater import get_basescore
 from .utils import Device, non_increasing
 
@@ -24,7 +25,11 @@ def run_init_estimation(tree_method: str, device: Device) -> None:
 
     def run_reg(X: np.ndarray, y: np.ndarray) -> None:  # pylint: disable=invalid-name
         reg = XGBRegressor(
-            tree_method=tree_method, max_depth=1, n_estimators=1, device=device
+            tree_method=tree_method,
+            max_depth=1,
+            n_estimators=1,
+            device=device,
+            **legacy_tree_params(),
         )
         reg.fit(X, y, eval_set=[(X, y)])
         base_score_0 = get_basescore(reg)
@@ -38,6 +43,7 @@ def run_init_estimation(tree_method: str, device: Device) -> None:
             max_depth=1,
             n_estimators=1,
             base_score=intercept,
+            **legacy_tree_params(),
         )
         reg.fit(X, y, eval_set=[(X, y)])
         base_score_1 = get_basescore(reg)
@@ -57,7 +63,11 @@ def run_init_estimation(tree_method: str, device: Device) -> None:
         X: np.ndarray, y: np.ndarray, w: Optional[np.ndarray] = None
     ) -> List[float]:
         clf = XGBClassifier(
-            tree_method=tree_method, max_depth=1, n_estimators=1, device=device
+            tree_method=tree_method,
+            max_depth=1,
+            n_estimators=1,
+            device=device,
+            **legacy_tree_params(),
         )
         if w is not None:
             clf.fit(
@@ -79,6 +89,7 @@ def run_init_estimation(tree_method: str, device: Device) -> None:
             n_estimators=1,
             device=device,
             base_score=intercept,
+            **legacy_tree_params(),
         )
         if w is not None:
             clf.fit(
@@ -159,6 +170,7 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
             "base_score": base_score,
             "objective": "reg:absoluteerror",
             "device": device,
+            **legacy_tree_params(),
         },
         Xy,
         num_boost_round=1,
@@ -168,6 +180,7 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
             "tree_method": tree_method,
             "objective": "reg:absoluteerror",
             "device": device,
+            **legacy_tree_params(),
         },
         Xy,
         num_boost_round=1,
@@ -190,6 +203,7 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
             "base_score": base_score + 1.0,
             "objective": "reg:absoluteerror",
             "device": device,
+            **legacy_tree_params(),
         },
         Xy,
         num_boost_round=1,

@@ -7,6 +7,7 @@ from scipy.special import logit  # pylint: disable=no-name-in-module
 
 from ..core import DMatrix
 from ..training import train
+from . import legacy_tree_params
 from .shared import validate_leaf_output
 from .updater import get_basescore
 from .utils import Device
@@ -30,6 +31,7 @@ def run_predict_leaf(device: Device, DMatrixT: Type[DMatrix]) -> np.ndarray:
             "num_parallel_tree": num_parallel_tree,
             "num_class": classes,
             "tree_method": "hist",
+            **legacy_tree_params(),
         },
         m,
         num_boost_round=num_boost_round,
@@ -60,7 +62,9 @@ def run_predict_leaf(device: Device, DMatrixT: Type[DMatrix]) -> np.ndarray:
     assert np.prod(first.shape) == classes * num_parallel_tree * n_iters
 
     # When there's only 1 tree, the output is a 1 dim vector
-    booster = train({"tree_method": "hist"}, num_boost_round=1, dtrain=m)
+    booster = train(
+        {"tree_method": "hist", **legacy_tree_params()}, num_boost_round=1, dtrain=m
+    )
     booster.set_param({"device": device})
     assert booster.predict(m, pred_leaf=True).shape == (rows,)
 

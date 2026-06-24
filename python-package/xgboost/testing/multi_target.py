@@ -38,6 +38,9 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
         n_estimators=10,
         device=device,
         learning_rate=learning_rate,
+        min_child_weight=1,
+        subsample=1,
+        colsample_bytree=1,
     )
     clf.fit(X, y, eval_set=[(X, y)])
     assert clf.objective == "multi:softprob"
@@ -59,6 +62,9 @@ def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
         n_estimators=10,
         device=device,
         learning_rate=learning_rate,
+        min_child_weight=1,
+        subsample=1,
+        colsample_bytree=1,
     )
     clf.fit(X, y, eval_set=[(X, y)])
     assert clf.objective == "binary:logistic"
@@ -77,6 +83,7 @@ def run_quantile_loss(device: Device, weighted: bool) -> None:
         "device": device,
         "quantile_alpha": [0.45, 0.5, 0.55],
         "multi_strategy": "multi_output_tree",
+        **tm.legacy_tree_params(),
     }
     n_samples = 2048
     X, y = make_regression(n_samples=n_samples, n_features=16, random_state=2026)
@@ -144,6 +151,7 @@ def run_absolute_error(device: Device) -> None:
         "objective": "reg:absoluteerror",
         "device": device,
         "multi_strategy": "multi_output_tree",
+        **tm.legacy_tree_params(),
     }
     n_samples = 1024
     X, y = make_regression(
@@ -247,6 +255,7 @@ def run_reduced_grad(device: Device) -> None:
                 "multi_strategy": "multi_output_tree",
                 "learning_rate": 1,
                 "base_score": base_score,
+                **tm.legacy_sampling_params(),
             },
             Xy,
             evals=[(Xy, "Train")],
@@ -289,6 +298,7 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         "learning_rate": 1.0,
         "base_score": intercept,
         "debug_synchronize": True,
+        **tm.legacy_sampling_params(),
     }
 
     Xs = []
@@ -371,6 +381,7 @@ def run_eta(device: Device) -> None:
             "learning_rate": 1.0,
             "debug_synchronize": True,
             "base_score": 0.0,
+            **tm.legacy_sampling_params(),
         }
         Xy = QuantileDMatrix(X, y)
         booster_0 = train(params, Xy, num_boost_round=1, obj=obj)
@@ -402,6 +413,7 @@ def run_deterministic(device: Device) -> None:
             "device": device,
             "multi_strategy": "multi_output_tree",
             "debug_synchronize": True,
+            **tm.legacy_tree_params(),
         }
         return train(params, Xy, num_boost_round=16)
 
@@ -428,6 +440,9 @@ def run_column_sampling(device: Device) -> None:
         "multi_strategy": "multi_output_tree",
         "debug_synchronize": True,
         "colsample_bynode": 0.4,
+        "min_child_weight": 1,
+        "subsample": 1,
+        "colsample_bytree": 1,
     }
     booster = train(params, Xy, num_boost_round=16)
 
@@ -455,6 +470,9 @@ def run_column_sampling(device: Device) -> None:
         importance_type="weight",
         device=device,
         colsample_bynode=0.2,
+        min_child_weight=1,
+        subsample=1,
+        colsample_bytree=1,
     )
     clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
     fi = clf.feature_importances_
@@ -477,6 +495,7 @@ def run_grow_policy(device: Device, grow_policy: str) -> None:
         "multi_strategy": "multi_output_tree",
         "debug_synchronize": True,
         "grow_policy": grow_policy,
+        **tm.legacy_tree_params(),
     }
 
     evals_result = train_result(params, Xy, num_rounds=10)

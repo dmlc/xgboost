@@ -4,7 +4,6 @@
 #pragma once
 
 #include <gtest/gtest.h>
-
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
 
@@ -12,7 +11,7 @@
 
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
-#include "xgboost/task.h"             // for ObjInfo
+#include "xgboost/task.h"  // for ObjInfo
 
 namespace xgboost {
 class TestPredictionCache : public ::testing::Test {
@@ -73,7 +72,7 @@ class TestPredictionCache : public ::testing::Test {
       std::vector<RegTree*> trees{&tree};
       auto gpair = GenerateRandomGradients(ctx, n_samples_, 1);
       tree::TrainParam param;
-      param.UpdateAllowUnknown(Args{{"max_bin", "64"}});
+      param.UpdateAllowUnknown(Args{{"max_bin", "64"}, {"subsample", "1"}});
 
       updater->Configure(Args{});
       std::vector<HostDeviceVector<bst_node_t>> position(1);

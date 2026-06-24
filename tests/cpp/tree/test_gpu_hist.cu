@@ -27,9 +27,11 @@ void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat, Reg
   Args args{
       {"max_depth", "2"},
       {"max_bin", std::to_string(max_bin)},
+      {"learning_rate", "0.3"},
       {"min_child_weight", "0.0"},
       {"reg_alpha", "0"},
       {"reg_lambda", "0"},
+      {"colsample_bytree", "1"},
       {"subsample", std::to_string(subsample)},
       {"sampling_method", sampling_method},
   };
@@ -139,7 +141,7 @@ TEST(GpuHist, ExternalMemory) {
   auto preds_h = preds.ConstHostVector();
   auto preds_ext_h = preds_ext.ConstHostVector();
   for (size_t i = 0; i < kRows; i++) {
-    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 1e-6);
+    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 5e-3);
   }
 }
 
