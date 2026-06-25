@@ -352,6 +352,19 @@ TEST(Histogram, Quantiser) {
     ASSERT_EQ(gh.GetGrad(), 1.0);
     ASSERT_EQ(gh.GetHess(), 1.0);
   }
+
+  GradientQuantiser hess_floor_quantiser{GradientPairPrecise{1.0, 10.0},
+                                         GradientPairPrecise{1.0, 0.1}};
+  auto tiny_hess = hess_floor_quantiser.ToFixedPoint(GradientPairPrecise{0.25, 0.05});
+  ASSERT_EQ(tiny_hess.GetQuantisedGrad(), 0);
+  ASSERT_EQ(tiny_hess.GetQuantisedHess(), 1);
+
+  auto zero_hess = hess_floor_quantiser.ToFixedPoint(GradientPairPrecise{0.25, 0.0});
+  ASSERT_EQ(zero_hess.GetQuantisedHess(), 0);
+
+  auto tiny_hess_float = hess_floor_quantiser.ToFixedPoint(GradientPair{0.25f, 0.05f});
+  ASSERT_EQ(tiny_hess_float.GetQuantisedGrad(), 0);
+  ASSERT_EQ(tiny_hess_float.GetQuantisedHess(), 1);
 }
 namespace {
 enum CacheMode {
