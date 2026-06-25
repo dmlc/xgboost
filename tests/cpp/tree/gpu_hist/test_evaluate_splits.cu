@@ -336,6 +336,34 @@ void TestEvaluateSingleSplit(bool is_categorical) {
 
 TEST(GpuHist, EvaluateSingleSplit) { TestEvaluateSingleSplit(false); }
 
+TEST(GpuHist, EvaluateSingleSplitCentersEmptyBinRange) {
+  auto ctx = MakeCUDACtx(0);
+  auto quantiser = DummyRoundingFactor(&ctx);
+  auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-1.0, 3.0});
+  TrainParam tparam = ZeroParam();
+  GPUTrainingParam param{tparam};
+
+  common::HistogramCuts cuts{MakeCutsForTest({0.0, 1.0, 2.0, 3.0, 4.0, 5.0}, {0, 6}, ctx.Device())};
+  thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0};
+  auto feature_histogram = ConvertToInteger(
+      &ctx, {{-1.0, 1.0}, {-1.0, 1.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 1.0}});
+  EvaluateSplitInputs input{0, 0, parent_sum, dh::ToSpan(feature_set),
+                            dh::ToSpan(feature_histogram)};
+  EvaluateSplitSharedInputs shared_inputs{
+      param, quantiser, {}, cuts.cut_ptrs_.ConstDeviceSpan(), cuts.cut_values_.ConstDeviceSpan(),
+      false};
+
+  GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
+  evaluator.Reset(&ctx, cuts, {}, feature_set.size(), tparam, false);
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
+
+  EXPECT_EQ(result.findex, 0);
+  EXPECT_EQ(result.dir, kRightDir);
+  EXPECT_EQ(result.fvalue, 3.0f);
+  EXPECT_EQ(result.left_sum, quantiser.ToFixedPoint(GradientPairPrecise(-2.0, 2.0)));
+  EXPECT_EQ(result.right_sum, quantiser.ToFixedPoint(GradientPairPrecise(1.0, 1.0)));
+}
+
 TEST(GpuHist, EvaluateSingleCategoricalSplit) { TestEvaluateSingleSplit(true); }
 
 TEST(GpuHist, EvaluateSingleSplitMissing) {

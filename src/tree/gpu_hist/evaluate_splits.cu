@@ -107,6 +107,31 @@ class EvaluateSplitAgent {
     return gpair;
   }
 
+  __device__ __forceinline__ bool IsEmptyBin(bst_bin_t gidx) const {
+    auto bin = LoadGpair(node_histogram + gidx);
+    return bin.GetQuantisedGrad() == 0 && bin.GetQuantisedHess() == 0;
+  }
+
+  __device__ __forceinline__ float CenterEmptyBinRange(int split_gidx) const {
+    int const begin = static_cast<int>(gidx_begin);
+    int const end = static_cast<int>(gidx_end);
+    if (split_gidx < begin) {
+      return -std::numeric_limits<float>::infinity();
+    }
+
+    auto range_begin = split_gidx;
+    auto range_end = split_gidx;
+    while (range_begin > begin && IsEmptyBin(range_begin)) {
+      --range_begin;
+    }
+    while (range_end + 1 < end - 1 && IsEmptyBin(range_end + 1)) {
+      ++range_end;
+    }
+
+    auto const range_mid = range_begin + (range_end - range_begin + 1) / 2;
+    return feature_values[range_mid];
+  }
+
   __device__ __forceinline__ void Numerical(DeviceSplitCandidate *best_split) {
     for (auto scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
@@ -130,11 +155,8 @@ class EvaluateSplitAgent {
 
       // Best thread updates the split
       if (threadIdx.x == best_thread) {
-        // Use pointer from cut to indicate begin and end of bins for each feature.
         int split_gidx = (scan_begin + threadIdx.x) - 1;
-        float fvalue = split_gidx < static_cast<int>(gidx_begin)
-                           ? -std::numeric_limits<float>::infinity()
-                           : feature_values[split_gidx];
+        float fvalue = CenterEmptyBinRange(split_gidx);
         GradientPairInt64 left = missing_left ? bin + missing : bin;
         GradientPairInt64 right = parent_sum - left;
         best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right,
