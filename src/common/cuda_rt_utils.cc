@@ -141,6 +141,12 @@ void GetUuid(xgboost::common::Span<unsigned char> uuid, std::int32_t device) {
   return ss.str();
 }
 
+[[nodiscard]] bool IsCoherentMemory(std::int32_t device) {
+  cudaDeviceProp prop{};
+  dh::safe_cuda(cudaGetDeviceProperties(&prop, device));
+  return prop.integrated == 1 && prop.pageableMemoryAccessUsesHostPageTables == 1;
+}
+
 void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream) {
   dh::safe_cuda(cudaMemcpyAsync(dst, src, count, cudaMemcpyDefault, stream));
 }

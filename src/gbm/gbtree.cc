@@ -738,9 +738,14 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
   if (tree_weights != nullptr) {
     CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
   }
+  auto access_host_from_cuda = [&] {
+    // Booster is on device, data is on the host, memory is coherent.
+    return this->ctx_->Device().IsCUDA() && p_m->Ctx()->IsCPU() &&
+           curt::IsCoherentMemory(ctx_->Ordinal());
+  };
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
-  if (p_m->Ctx()->Device() != this->ctx_->Device()) {
+  if (p_m->Ctx()->Device() != this->ctx_->Device() && !access_host_from_cuda()) {
     error::MismatchedDevices(this->ctx_, p_m->Ctx());
     CHECK_EQ(out_preds->version, 0);
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
