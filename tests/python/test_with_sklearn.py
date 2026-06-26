@@ -47,6 +47,26 @@ def test_binary_classification():
             assert err < 0.1
 
 
+def test_binary_logitraw_predict_proba_returns_probabilities():
+    # GH#11373: predict_proba must return probabilities for binary:logitraw.
+    rng_local = np.random.default_rng(seed=123)
+    X = rng_local.standard_normal(size=(100, 4))
+    y = rng_local.integers(2, size=X.shape[0])
+
+    model = xgb.XGBClassifier(objective="binary:logitraw").fit(X, y)
+    proba = model.predict_proba(X[:10])
+
+    assert proba.shape == (10, 2)
+    np.testing.assert_allclose(proba.sum(axis=1), np.ones(10), atol=1e-6)
+    assert ((proba >= 0.0) & (proba <= 1.0)).all()
+
+    # Sanity: the two columns must be sigmoid(raw) and 1 - sigmoid(raw).
+    raw = model.predict(X[:10], output_margin=True)
+    expected_class1 = 1.0 / (1.0 + np.exp(-raw))
+    np.testing.assert_allclose(proba[:, 1], expected_class1, atol=1e-6)
+    np.testing.assert_allclose(proba[:, 0], 1.0 - expected_class1, atol=1e-6)
+
+
 @pytest.mark.parametrize("objective", ["multi:softmax", "multi:softprob"])
 def test_multiclass_classification(objective):
     from sklearn.datasets import load_iris
