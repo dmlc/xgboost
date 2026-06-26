@@ -57,21 +57,29 @@ class GradientQuantiser {
   /* Convert fixed point representation back to floating point. */
   GradientPairPrecise to_floating_point_;
 
+  template <typename GradientPairT>
+  [[nodiscard]] XGBOOST_DEVICE GradientPairInt64
+  ToFixedPointImpl(GradientPairT const& gpair) const {
+    auto grad = static_cast<GradientPairInt64::ValueT>(gpair.GetGrad() * to_fixed_point_.GetGrad());
+    auto hess = static_cast<GradientPairInt64::ValueT>(gpair.GetHess() * to_fixed_point_.GetHess());
+    // Preserve positive curvature through fixed-point truncation.
+    if (gpair.GetHess() > 0.0 && hess == 0) {
+      hess = 1;
+    }
+    return {grad, hess};
+  }
+
  public:
   GradientQuantiser() = default;
   // Used for test
   GradientQuantiser(GradientPairPrecise to_fixed, GradientPairPrecise to_float)
       : to_fixed_point_{to_fixed}, to_floating_point_{to_float} {}
   [[nodiscard]] XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
-    auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
-                                      gpair.GetHess() * to_fixed_point_.GetHess());
-    return adjusted;
+    return this->ToFixedPointImpl(gpair);
   }
   [[nodiscard]] XGBOOST_DEVICE GradientPairInt64
   ToFixedPoint(GradientPairPrecise const& gpair) const {
-    auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
-                                      gpair.GetHess() * to_fixed_point_.GetHess());
-    return adjusted;
+    return this->ToFixedPointImpl(gpair);
   }
   [[nodiscard]] XGBOOST_DEVICE GradientPairPrecise
   ToFloatingPoint(const GradientPairInt64& gpair) const {
