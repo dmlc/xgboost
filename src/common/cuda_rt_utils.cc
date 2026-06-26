@@ -191,6 +191,8 @@ void GetUuid(xgboost::common::Span<unsigned char>, std::int32_t) { common::Asser
 
 [[nodiscard]] std::string PrintUuid(common::Span<unsigned char const, kUuidLength>) { return {}; }
 
+[[nodiscard]] bool IsCoherentMemory(std::int32_t) { return false; }
+
 void MemcpyAsync(void*, const void*, std::size_t, StreamRef) { common::AssertGPUSupport(); }
 
 #endif  // !defined(XGBOOST_USE_CUDA)
