@@ -24,7 +24,6 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
   dh::device_vector<bst_feature_t> feature_segments;
   dh::device_vector<bst_feature_t> feature_set;
   dh::device_vector<float> feature_values{.0f, .1f, .2f, .3f};
-  dh::device_vector<float> min_values{-1.0f};
 
   void SetUp() override {
     input.nidx = 0;
@@ -63,7 +62,6 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     input.feature_set = dh::ToSpan(feature_set);
 
     shared_inputs.feature_values = dh::ToSpan(feature_values).data();
-    shared_inputs.min_values = dh::ToSpan(min_values).data();
 
     shared_inputs.n_bins_per_feat_tar = n_bins_per_feat_tar;
     shared_inputs.max_active_feature = 1;

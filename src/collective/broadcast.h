@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #pragma once
 #include <cstdint>  // for int32_t, int8_t
@@ -37,7 +37,7 @@ template <typename T>
   CHECK(data.Contiguous());
   auto erased = common::EraseType(data.Values());
   auto backend = comm.Backend(data.Device());
-  return backend->Broadcast(comm.Ctx(ctx, data.Device()), erased, root);
+  return backend->Broadcast(ctx, comm.Ctx(ctx, data.Device()), erased, root);
 }
 
 template <typename T>

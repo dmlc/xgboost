@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024-2025 by Contributors
+ Copyright (c) 2024-2026 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import org.apache.spark.ml.functions.array_to_vector
 import org.apache.spark.ml.linalg.{SparseVector, Vector}
 import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.{DefaultParamsWritable, MLReader, MLWritable, MLWriter}
-import org.apache.spark.ml.xgboost.{SparkUtils, XGBProbabilisticClassifierParams}
+import org.apache.spark.ml.xgboost.{SparkUtils, XGBPredictorParams, XGBProbabilisticClassifierParams}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions.{array, col, udf}
@@ -725,7 +725,8 @@ private[spark] abstract class XGBoostModelReader[M <: XGBoostModel[M]] extends M
 }
 
 // Trait for Ranker and Regressor Model
-private[spark] trait RankerRegressorBaseModel[M <: XGBoostModel[M]] extends XGBoostModel[M] {
+private[spark] trait RankerRegressorBaseModel[M <: XGBoostModel[M]] extends XGBoostModel[M]
+  with XGBPredictorParams[M] {
 
   override protected[spark] def postTransform(dataset: Dataset[_],
                                               pred: PredictedColumns): Dataset[_] = {

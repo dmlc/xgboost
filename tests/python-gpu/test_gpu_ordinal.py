@@ -4,7 +4,6 @@ from typing import Type
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import make_categorical
@@ -15,6 +14,7 @@ from xgboost.testing.ordinal import (
     run_cat_container_mixed,
     run_cat_invalid,
     run_cat_leaf,
+    run_cat_oov_in_range,
     run_cat_predict,
     run_cat_shap,
     run_cat_thread_safety,
@@ -49,6 +49,10 @@ def test_cat_invalid() -> None:
     run_cat_invalid("cuda")
 
 
+def test_cat_oov_in_range() -> None:
+    run_cat_oov_in_range("cuda")
+
+
 def test_cat_thread_safety() -> None:
     run_cat_thread_safety("cuda")
 
@@ -67,10 +71,10 @@ def test_mixed_devices() -> None:
     X, y = make_categorical(n_samples, n_features, 7, onehot=False, device="cpu")
 
     def run_cpu_gpu(DMatrixT: Type) -> bool:
-        Xy = DMatrixT(X, y, enable_categorical=True)
+        Xy = DMatrixT(X, y)
         booster = xgb.train({"tree_method": "hist", "device": "cuda"}, Xy)
         predt0 = booster.inplace_predict(X)
-        predt1 = booster.predict(DMatrixT(X, y, enable_categorical=True))
+        predt1 = booster.predict(DMatrixT(X, y))
 
         np.testing.assert_allclose(predt0, predt1)
         return True
@@ -90,12 +94,12 @@ def test_mixed_devices() -> None:
     X, y = make_categorical(n_samples, n_features, 7, onehot=False, device="cuda")
 
     def run_gpu_cpu(DMatrixT: Type) -> bool:
-        Xy = DMatrixT(X, y, enable_categorical=True)
+        Xy = DMatrixT(X, y)
         booster = xgb.train({"tree_method": "hist", "device": "cpu"}, Xy)
         p = booster.inplace_predict(X)
         assert not isinstance(p, np.ndarray)
         predt0 = p.get()
-        predt1 = booster.predict(DMatrixT(X, y, enable_categorical=True))
+        predt1 = booster.predict(DMatrixT(X, y))
 
         np.testing.assert_allclose(predt0, predt1)
         return True

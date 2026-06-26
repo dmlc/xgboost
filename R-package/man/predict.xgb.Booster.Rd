@@ -69,8 +69,8 @@ instead of probabilities.}
 
 \item{predinteraction}{Whether to return contributions of feature interactions to individual predictions (see Details).}
 
-\item{training}{Whether the prediction result is used for training. For dart booster,
-training predicting will perform dropout.}
+\item{training}{Whether the prediction result is used for training. When enabled,
+XGBoost uses the training prediction path instead of inplace prediction.}
 
 \item{iterationrange}{Sequence of rounds/iterations from the model to use for prediction, specified by passing
 a two-dimensional vector with the start and end numbers in the sequence (same format as R's \code{seq} - i.e.

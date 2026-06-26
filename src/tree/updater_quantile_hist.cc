@@ -200,9 +200,6 @@ class MultiTargetHistBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      if (page.cut.HasCategorical()) {
-        LOG(FATAL) << "Categorical features" << MTNotImplemented();
-      }
       if (page_idx < partitioner_.size()) {
         partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
                                      p_fmat->Info().IsColumnSplit());
@@ -263,8 +260,9 @@ class MultiTargetHistBuilder {
     for (bst_target_t t{0}; t < n_targets; ++t) {
       hists.push_back(&(*histogram_builder_).Histogram(t));
     }
+    auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, &nodes);
+      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, ft, &nodes);
       break;
     }
     monitor_->Stop(__func__);
@@ -290,8 +288,9 @@ class MultiTargetHistBuilder {
     for (bst_target_t t{0}; t < n_targets; ++t) {
       hists.push_back(&(*histogram_builder_).Histogram(t));
     }
+    auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
-      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, best_splits);
+      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, ft, best_splits);
       break;
     }
     monitor_->Stop(__func__);
@@ -382,7 +381,7 @@ class MultiTargetHistBuilder {
   }
 
  public:
-  explicit MultiTargetHistBuilder(Context const *ctx, MetaInfo const &info, TrainParam const *param,
+  explicit MultiTargetHistBuilder(Context const *ctx, TrainParam const *param,
                                   HistMakerTrainParam const *hist_param,
                                   std::shared_ptr<common::ColumnSampler> column_sampler,
                                   common::Monitor *monitor)
@@ -390,7 +389,6 @@ class MultiTargetHistBuilder {
         param_{param},
         hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{std::make_unique<HistMultiEvaluator>(ctx, info, param, col_sampler_)},
         ctx_{ctx} {
     monitor_->Init(__func__);
   }
@@ -439,7 +437,6 @@ class HistUpdater {
         param_{param},
         hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{std::make_unique<HistEvaluator>(ctx, param, fmat->Info(), col_sampler_)},
         p_last_fmat_(fmat),
         histogram_builder_{new MultiHistogramBuilder},
         ctx_{ctx} {
@@ -606,7 +603,8 @@ class QuantileHistMaker : public TreeUpdater {
   HistMakerTrainParam hist_param_;
 
  public:
-  explicit QuantileHistMaker(Context const *ctx, ObjInfo const *) : TreeUpdater{ctx} {}
+  explicit QuantileHistMaker(Context const *ctx, ObjInfo const *)
+      : TreeUpdater{ctx}, column_sampler_{std::make_shared<common::ColumnSampler>()} {}
 
   void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
   void LoadConfig(Json const &in) override {
@@ -623,10 +621,6 @@ class QuantileHistMaker : public TreeUpdater {
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
-    if (!column_sampler_) {
-      column_sampler_ = common::MakeColumnSampler(ctx_);
-    }
-
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
       if (!param->monotone_constraints.empty()) {
@@ -636,8 +630,8 @@ class QuantileHistMaker : public TreeUpdater {
         LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
       }
       if (!p_mtimpl_) {
-        this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(
-            ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, &monitor_);
+        this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(ctx_, param, &hist_param_,
+                                                                   column_sampler_, &monitor_);
       }
     } else {
       CHECK(hist_param_.GetInitialised());

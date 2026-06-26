@@ -217,12 +217,11 @@ void TestGPUHistogramCategorical(size_t num_categories) {
 
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
   gpair.SetDevice(DeviceOrd::CUDA(0));
-  auto quantiser =
-      GradientQuantiser(&ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo());
-  dh::caching_device_vector<GradientQuantiser> dq{quantiser};
+  GradientQuantiserGroup quantiser_group{
+      &ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo()};
   linalg::Matrix<GradientPairInt64> gpairs_i64;
   CalcQuantizedGpairs(&ctx, linalg::MakeTensorView(&ctx, gpair.ConstDeviceSpan(), gpair.Size(), 1),
-                      dh::ToSpan(dq), &gpairs_i64);
+                      quantiser_group.DeviceSpan(), &gpairs_i64);
   /**
    * Generate hist with cat data.
    */
@@ -345,13 +344,27 @@ TEST(Histogram, Quantiser) {
   HostDeviceVector<GradientPair> gpair(n_samples, GradientPair{1.0, 1.0});
   gpair.SetDevice(ctx.Device());
 
-  auto quantiser =
-      GradientQuantiser(&ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo());
+  GradientQuantiserGroup quantiser_group{
+      &ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan()), MetaInfo()};
+  auto quantiser = quantiser_group[0];
   for (auto v : gpair.ConstHostVector()) {
     auto gh = quantiser.ToFloatingPoint(quantiser.ToFixedPoint(v));
     ASSERT_EQ(gh.GetGrad(), 1.0);
     ASSERT_EQ(gh.GetHess(), 1.0);
   }
+
+  GradientQuantiser hess_floor_quantiser{GradientPairPrecise{1.0, 10.0},
+                                         GradientPairPrecise{1.0, 0.1}};
+  auto tiny_hess = hess_floor_quantiser.ToFixedPoint(GradientPairPrecise{0.25, 0.05});
+  ASSERT_EQ(tiny_hess.GetQuantisedGrad(), 0);
+  ASSERT_EQ(tiny_hess.GetQuantisedHess(), 1);
+
+  auto zero_hess = hess_floor_quantiser.ToFixedPoint(GradientPairPrecise{0.25, 0.0});
+  ASSERT_EQ(zero_hess.GetQuantisedHess(), 0);
+
+  auto tiny_hess_float = hess_floor_quantiser.ToFixedPoint(GradientPair{0.25f, 0.05f});
+  ASSERT_EQ(tiny_hess_float.GetQuantisedGrad(), 0);
+  ASSERT_EQ(tiny_hess_float.GetQuantisedHess(), 1);
 }
 namespace {
 enum CacheMode {

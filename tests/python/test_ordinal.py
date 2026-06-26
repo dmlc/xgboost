@@ -1,5 +1,4 @@
 import pytest
-
 from xgboost import testing as tm
 from xgboost.testing.ordinal import (
     run_cat_container,
@@ -7,6 +6,7 @@ from xgboost.testing.ordinal import (
     run_cat_container_mixed,
     run_cat_invalid,
     run_cat_leaf,
+    run_cat_oov_in_range,
     run_cat_predict,
     run_cat_shap,
     run_cat_thread_safety,
@@ -39,6 +39,10 @@ def test_cat_predict() -> None:
 
 def test_cat_invalid() -> None:
     run_cat_invalid("cpu")
+
+
+def test_cat_oov_in_range() -> None:
+    run_cat_oov_in_range("cpu")
 
 
 def test_cat_thread_safety() -> None:

@@ -23,17 +23,29 @@ template <typename T>
 
 template <>
 inline __device__ std::uint16_t ByteSwap(std::uint16_t v) {
+#if defined(__clang__)
+  return __builtin_bswap16(v);
+#else
   return __nv_bswap16(v);
+#endif
 }
 
 template <>
 inline __device__ std::uint32_t ByteSwap(std::uint32_t v) {
+#if defined(__clang__)
+  return __builtin_bswap32(v);
+#else
   return __nv_bswap32(v);
+#endif
 }
 
 template <>
 inline __device__ std::uint64_t ByteSwap(std::uint64_t v) {
+#if defined(__clang__)
+  return __builtin_bswap64(v);
+#else
   return __nv_bswap64(v);
+#endif
 }
 
 #elif defined(__GLIBC__)

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_PAGE_SOURCE_H_
 #define XGBOOST_DATA_GRADIENT_INDEX_PAGE_SOURCE_H_
@@ -25,7 +25,7 @@ namespace xgboost::data {
 template <typename S>
 class GHistIndexFormatPolicy {
  protected:
-  common::HistogramCuts cuts_;
+  common::HistogramCuts cuts_{0};
 
  public:
   using FormatT = SparsePageFormat<GHistIndexMatrix>;
@@ -37,6 +37,7 @@ class GHistIndexFormatPolicy {
   }
 
   void SetCuts(common::HistogramCuts cuts) { std::swap(cuts_, cuts); }
+  static void DestroyPage(std::shared_ptr<S>* page) { page->reset(); }
 };
 
 class GradientIndexPageSource

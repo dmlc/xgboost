@@ -1,16 +1,14 @@
-import os
-import tempfile
 import weakref
+from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix
-
-import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.data import SingleBatchInternalIter as SingleBatch
+from xgboost.core import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
 from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
 from xgboost.testing.updater import (
@@ -65,10 +63,10 @@ def test_with_cat_single() -> None:
     X, y = tm.make_categorical(
         n_samples=128, n_features=3, n_categories=6, onehot=False
     )
-    Xy = xgb.DMatrix(SingleBatch(data=X, label=y), enable_categorical=True)
+    Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
     from_it = xgb.train({}, Xy, num_boost_round=3)
 
-    Xy = xgb.DMatrix(X, y, enable_categorical=True)
+    Xy = xgb.DMatrix(X, y)
     from_Xy = xgb.train({}, Xy, num_boost_round=3)
 
     jit = from_it.save_raw(raw_format="json")
@@ -102,9 +100,9 @@ def run_data_iterator(
             Xy = xgb.DMatrix(it)
         return
 
-    Xy = xgb.DMatrix(it)
-    assert Xy.num_row() == n_samples_per_batch * n_batches
-    assert Xy.num_col() == n_features
+    Xy_it = xgb.DMatrix(it)
+    assert Xy_it.num_row() == n_samples_per_batch * n_batches
+    assert Xy_it.num_col() == n_features
 
     parameters = {
         "tree_method": tree_method,
@@ -120,9 +118,9 @@ def run_data_iterator(
     results_from_it: Dict[str, Dict[str, List[float]]] = {}
     from_it = xgb.train(
         parameters,
-        Xy,
+        Xy_it,
         num_boost_round=n_rounds,
-        evals=[(Xy, "Train")],
+        evals=[(Xy_it, "Train")],
         evals_result=results_from_it,
         verbose_eval=False,
     )
@@ -134,30 +132,28 @@ def run_data_iterator(
         _y = y.get()
     else:
         _y = y
-    np.testing.assert_allclose(Xy.get_label(), _y)
+    np.testing.assert_allclose(Xy_it.get_label(), _y)
 
-    Xy = xgb.DMatrix(X, y, weight=w)
-    assert Xy.num_row() == n_samples_per_batch * n_batches
-    assert Xy.num_col() == n_features
+    Xy_arr = xgb.DMatrix(X, y, weight=w)
+    assert Xy_arr.num_row() == n_samples_per_batch * n_batches
+    assert Xy_arr.num_col() == n_features
 
     results_from_arrays: Dict[str, Dict[str, List[float]]] = {}
     from_arrays = xgb.train(
         parameters,
-        Xy,
+        Xy_arr,
         num_boost_round=n_rounds,
-        evals=[(Xy, "Train")],
+        evals=[(Xy_arr, "Train")],
         evals_result=results_from_arrays,
         verbose_eval=False,
     )
-    arr_predt = from_arrays.predict(Xy)
     if not subsample:
         assert non_increasing(results_from_arrays["Train"]["rmse"])
 
     rtol = 1e-2
-    # CPU sketching is more memory efficient but less consistent due to small chunks
-    it_predt = from_it.predict(Xy)
-    arr_predt = from_arrays.predict(Xy)
-    np.testing.assert_allclose(it_predt, arr_predt, rtol=rtol)
+    indptr_it, cuts_it = Xy_it.get_quantile_cut()
+    indptr_arr, cuts_arr = Xy_arr.get_quantile_cut()
+    np.testing.assert_array_equal(indptr_it, indptr_arr)
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],
@@ -251,7 +247,7 @@ def test_data_cache() -> None:
     xgb.data._proxy_transform = transform
 
 
-def test_cat_check() -> None:
+def test_cat_check(tmp_path: Path) -> None:
     n_batches = 3
     n_features = 2
     n_samples_per_batch = 16
@@ -269,22 +265,20 @@ def test_cat_check() -> None:
 
     X, y = list(zip(*batches))
     it = tm.IteratorForTest(X, y, None, cache=None, on_host=False)
-    Xy: xgb.DMatrix = xgb.QuantileDMatrix(it, enable_categorical=True)
+    Xy: xgb.DMatrix = xgb.QuantileDMatrix(it)
 
     with pytest.raises(ValueError, match="categorical features"):
         xgb.train({"tree_method": "exact"}, Xy)
 
-    Xy = xgb.DMatrix(X[0], y[0], enable_categorical=True)
+    Xy = xgb.DMatrix(X[0], y[0])
     with pytest.raises(ValueError, match="categorical features"):
         xgb.train({"tree_method": "exact"}, Xy)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = os.path.join(tmpdir, "cache")
-
-        it = tm.IteratorForTest(X, y, None, cache=cache_path, on_host=False)
-        Xy = xgb.DMatrix(it, enable_categorical=True)
-        with pytest.raises(ValueError, match="categorical features"):
-            xgb.train({"booster": "gblinear"}, Xy)
+    cache_path = tmp_path / "cache"
+    it = tm.IteratorForTest(X, y, None, cache=str(cache_path), on_host=False)
+    Xy = xgb.DMatrix(it, enable_categorical=True)
+    with pytest.raises(ValueError, match="categorical features"):
+        xgb.train({"booster": "gblinear"}, Xy)
 
 
 @given(

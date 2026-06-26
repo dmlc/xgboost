@@ -167,7 +167,7 @@ class DeviceHistogramStorage {
   }
 };
 
-class DeviceHistogramBuilderImpl;
+struct DeviceHistogramBuilderImpl;
 
 class DeviceHistogramBuilder {
   std::unique_ptr<DeviceHistogramBuilderImpl> p_impl_;

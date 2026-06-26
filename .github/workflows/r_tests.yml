@@ -1,6 +1,11 @@
 name: R Tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+      - 'release_*'
+  pull_request:
 
 env:
   GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -34,17 +39,17 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev librsvg2-dev librsvg2-2
+          sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev librsvg2-dev librsvg2-2 libuv1-dev
         if: matrix.os == 'ubuntu-latest'
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: 'true'
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: ${{ matrix.r }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6.2.0
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           architecture: 'x64'
       - uses: r-lib/actions/setup-tinytex@v2
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -75,11 +80,13 @@ jobs:
       - name: Install system dependencies
         run: |
           # Must run before checkout to have the latest git installed.
-          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 pandoc -y
+          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 pandoc libuv1-dev -y
+          # cmake is required by the R `fs` package if it builds its bundled libuv.
+          apt install cmake -y
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: 'true'
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -92,7 +99,7 @@ jobs:
         shell: bash -l {0}
         run: |
           python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --build-tool=autotools --task=check
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         # Run the document check if there are changes in the R package.
         id: changes
         with:

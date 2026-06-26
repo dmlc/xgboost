@@ -3,6 +3,8 @@
  */
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
+#include <cuda/std/tuple>  // for tuple
+
 #include <xgboost/span.h>
 
 #include "../../common/categorical.h"
@@ -35,7 +37,6 @@ struct EvaluateSplitSharedInputs {
   common::Span<FeatureType const> feature_types;
   common::Span<const uint32_t> feature_segments;
   common::Span<const float> feature_values;
-  common::Span<const float> min_fvalue;
   bool is_dense;
   [[nodiscard]] XGBOOST_DEVICE auto Features() const { return feature_segments.size() - 1; }
   [[nodiscard]] __device__ std::uint32_t FeatureBins(bst_feature_t fidx) const {
@@ -70,7 +71,7 @@ class GPUHistEvaluator {
   // storage for sorted index of feature histogram, used for sort based splits.
   dh::device_vector<bst_feature_t> cat_sorted_idx_;
   // cached input for sorting the histogram, used for sort based splits.
-  using SortPair = thrust::tuple<uint32_t, float>;
+  using SortPair = cuda::std::tuple<std::uint32_t, float>;
   dh::device_vector<SortPair> sort_input_;
   // cache for feature index
   dh::device_vector<bst_feature_t> feature_idx_;
@@ -222,8 +223,6 @@ struct MultiEvaluateSplitSharedInputs {
   common::Span<std::uint32_t const> feature_segments;
   // cut values
   float const *feature_values;
-  // min cut values
-  float const *min_values;
   // Number of bins for one feature and one target
   bst_bin_t n_bins_per_feat_tar;
   bst_feature_t max_active_feature;

@@ -1,10 +1,12 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
-#ifndef XGBOOST_TEST_REGRESSION_OBJ_H_
-#define XGBOOST_TEST_REGRESSION_OBJ_H_
+#pragma once
 
 #include <xgboost/context.h>  // for Context
+
+#include <string>  // for string
+#include <vector>  // for vector
 
 namespace xgboost {
 
@@ -42,6 +44,10 @@ void TestVectorLeafObj(Context const* ctx, std::string name, Args const& args, b
 
 void TestPseudoHuber(const Context* ctx);
 
-}  // namespace xgboost
+void TestExpectileRegressionGPair(const Context* ctx);
 
-#endif  // XGBOOST_TEST_REGRESSION_OBJ_H_
+void TestExpectileRegressionMultiAlpha(const Context* ctx);
+
+void TestExpectileRegressionInitEstimation(const Context* ctx);
+
+}  // namespace xgboost

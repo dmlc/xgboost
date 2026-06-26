@@ -92,7 +92,8 @@ struct FeatureInteractionConstraintDevice {
   common::Span<bst_feature_t const> Query(common::Span<bst_feature_t const> feature_list,
                                           bst_node_t nidx);
   /*! \brief Apply split for node_id. */
-  void Split(bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id);
+  void Split(Context const* ctx, bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id,
+             bst_node_t right_id);
 };
 
 }      // namespace xgboost

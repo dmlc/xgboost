@@ -19,17 +19,17 @@ Maven Central.
    https://central.sonatype.org/publish/requirements/gpg/
 
 ## Making the release
+
 Run this script 4 times:
 
-python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant cpu
-python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant gpu
-python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant cpu
-python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant gpu
+python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant cpu --release=x.x.x
+python3 dev/prepare_jvm_release.py --scala-version 2.12 --variant gpu --release=x.x.x
+python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant cpu --release=x.x.x
+python3 dev/prepare_jvm_release.py --scala-version 2.13 --variant gpu --release=x.x.x
 
 """
 
 import argparse
-import errno
 import glob
 import os
 import re
@@ -38,7 +38,8 @@ import subprocess
 import sys
 import tempfile
 import zipfile
-from contextlib import contextmanager
+from contextlib import chdir
+from typing import Literal
 from urllib.request import urlretrieve
 
 
@@ -47,50 +48,52 @@ def normpath(path):
     normalized = os.path.join(*path.split("/"))
     if os.path.isabs(path):
         return os.path.abspath("/") + normalized
-    else:
-        return normalized
+    return normalized
 
 
 def cp(source, target):
+    """Copy a file after normalizing both paths."""
     source = normpath(source)
     target = normpath(target)
-    print("cp {0} {1}".format(source, target))
+    print(f"cp {source} {target}")
     shutil.copy(source, target)
 
 
 def maybe_makedirs(path):
+    """Create a directory and its parents if needed."""
     path = normpath(path)
     print("mkdir -p " + path)
-    try:
-        os.makedirs(path)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-
-
-@contextmanager
-def cd(path):
-    path = normpath(path)
-    cwd = os.getcwd()
-    os.chdir(path)
-    print("cd " + path)
-    try:
-        yield path
-    finally:
-        os.chdir(cwd)
+    os.makedirs(path, exist_ok=True)
 
 
 def run(command, **kwargs):
+    """Run a shell command and fail if it exits with an error."""
     print(command)
     subprocess.run(command, shell=True, check=True, **kwargs)
 
 
-def get_current_commit_hash():
+def deploy(local: bool, profile: Literal["default", "gpu"], pl: str | None) -> None:
+    """Deploy JVM artifacts with the selected Maven profile."""
+    subcmd = "install" if local else "deploy"
+
+    cmd = (
+        f"mvn {subcmd} -P{profile},release "
+        "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
+    )
+    if pl:
+        cmd += f" -pl {pl}"
+
+    run(cmd)
+
+
+def get_current_commit_hash() -> str:
+    """Get the last commit of the current branch."""
     out = subprocess.check_output(["git", "rev-parse", "HEAD"])
-    return out.decode().split("\n")[0]
+    return out.decode().split("\n", maxsplit=1)[0]
 
 
-def get_current_git_branch():
+def get_current_git_branch() -> str:
+    """Get the current branch."""
     out = subprocess.check_output(["git", "log", "-n", "1", "--pretty=%d", "HEAD"])
     m = re.search(r"release_[0-9\.]+", out.decode())
     if not m:
@@ -99,19 +102,21 @@ def get_current_git_branch():
 
 
 def retrieve(url, filename=None):
+    """Download a file from a URL and print the destination."""
     print(f"{url} -> {filename}")
     return urlretrieve(url, filename)
 
 
-def main():
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "--release-version",
+        "--release",
         type=str,
         required=True,
-        help="Version of the release being prepared",
+        help="Version of the release being prepared, e.g. 3.3.0",
     )
     parser.add_argument(
         "--scala-version",
@@ -127,9 +132,46 @@ def main():
         choices=["cpu", "gpu"],
         help="JVM package variant to package and publish",
     )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Use `mvn install` instead of `mvn deploy`.",
+    )
 
     args = parser.parse_args()
-    version = args.release_version
+    return args
+
+
+def deploy_cuda_pkg(local: bool, version: str) -> None:
+    """Deploy CUDA JVM packages."""
+    url_prefix = "https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/release/ml/dmlc"
+    with tempfile.TemporaryDirectory() as tempdir:
+        # libxgboost4j.so for Linux x86_64, GPU support
+        zip_path = os.path.join(tempdir, "xgboost4j-spark-gpu_2.12.jar")
+        extract_dir = os.path.join(tempdir, "xgboost4j-spark-gpu")
+        retrieve(
+            url=f"{url_prefix}/xgboost4j-spark-gpu_2.12/{version}/"
+            f"xgboost4j-spark-gpu_2.12-{version}.jar",
+            filename=zip_path,
+        )
+        os.mkdir(extract_dir)
+        with zipfile.ZipFile(zip_path, "r") as t:
+            t.extractall(extract_dir)
+        cp(
+            os.path.join(extract_dir, "lib", "linux", "x86_64", "libxgboost4j.so"),
+            "xgboost4j/src/main/resources/lib/linux/x86_64/libxgboost4j.so",
+        )
+    run(
+        "mvn --no-transfer-progress install -Pgpu "
+        "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
+    )
+    deploy(local, "gpu", "xgboost4j-spark-gpu")
+
+
+def main() -> None:
+    """Assemble and deploy the packages."""
+    args = parse_args()
+
     scala_version = args.scala_version
     use_cuda = args.variant == "gpu"
 
@@ -142,9 +184,9 @@ def main():
         f"--scala-version {scala_version} --purge-artifacts"
     )
 
-    with cd("jvm-packages/"):
+    with chdir("jvm-packages/"):
         print("====Copying resources for testing====")
-        with cd("../demo/data/regression"):
+        with chdir("../demo/data/regression"):
             run(f"{sys.executable} mapfeat.py")
             run(f"{sys.executable} mknfold.py machine.txt 1")
         xgboost4j_spark = "xgboost4j-spark-gpu" if use_cuda else "xgboost4j-spark"
@@ -174,35 +216,7 @@ def main():
 
         print("====Downloading native binaries from CI====")
         if use_cuda:
-            url_prefix = (
-                "https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/release/ml/dmlc"
-            )
-            with tempfile.TemporaryDirectory() as tempdir:
-                # libxgboost4j.so for Linux x86_64, GPU support
-                zip_path = os.path.join(tempdir, "xgboost4j-spark-gpu_2.12.jar")
-                extract_dir = os.path.join(tempdir, "xgboost4j-spark-gpu")
-                retrieve(
-                    url=f"{url_prefix}/xgboost4j-spark-gpu_2.12/{version}/"
-                    f"xgboost4j-spark-gpu_2.12-{version}.jar",
-                    filename=zip_path,
-                )
-                os.mkdir(extract_dir)
-                with zipfile.ZipFile(zip_path, "r") as t:
-                    t.extractall(extract_dir)
-                cp(
-                    os.path.join(
-                        extract_dir, "lib", "linux", "x86_64", "libxgboost4j.so"
-                    ),
-                    "xgboost4j/src/main/resources/lib/linux/x86_64/libxgboost4j.so",
-                )
-            run(
-                "mvn --no-transfer-progress install -Pgpu "
-                "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
-            )
-            run(
-                "mvn deploy -Pgpu,release -pl xgboost4j-spark-gpu "
-                "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
-            )
+            deploy_cuda_pkg(args.local, args.release)
         else:
             url_prefix = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
             for os_ident, arch, src_libname, dest_libname in [
@@ -224,10 +238,10 @@ def main():
                         f"{os_ident}/{arch}/{dest_libname}"
                     ),
                 )
-            run(
-                "mvn --no-transfer-progress deploy -Pdefault,release "
-                "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
-            )
+            deploy(args.local, "default", None)
+
+    if args.local:
+        return
 
     print("====Next Steps====")
     print(

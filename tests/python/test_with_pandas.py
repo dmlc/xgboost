@@ -2,7 +2,6 @@ from typing import Type
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import is_dataframe
@@ -244,7 +243,7 @@ class TestPandas:
         X = pd.Series(X, dtype="category")
         X = pd.DataFrame({"f0": X})
         y = rng.randn(rows)
-        m = xgb.DMatrix(X, y, enable_categorical=True, data_split_mode=data_split_mode)
+        m = xgb.DMatrix(X, y, data_split_mode=data_split_mode)
         assert m.feature_types[0] == "c"
 
         X_0 = ["f", "o", "o"]
@@ -266,10 +265,8 @@ class TestPandas:
 
         X = X["f0"]
         y = y[: X.shape[0]]
-        with pytest.raises(ValueError, match=r".*enable_categorical.*"):
-            xgb.DMatrix(X, y, data_split_mode=data_split_mode)
 
-        Xy = xgb.DMatrix(X, y, enable_categorical=True, data_split_mode=data_split_mode)
+        Xy = xgb.DMatrix(X, y, data_split_mode=data_split_mode)
         assert Xy.num_row() == 3
         if data_split_mode == DataSplitMode.ROW:
             assert Xy.num_col() == 1
@@ -518,8 +515,8 @@ class TestPandas:
                 y_orig = f0_orig.fillna(0, inplace=False)
                 y = f0.fillna(0, inplace=False)
 
-            m_orig = DMatrixT(orig, enable_categorical=True, label=y_orig)
-            m_etype = DMatrixT(df, enable_categorical=True, label=y)
+            m_orig = DMatrixT(orig, label=y_orig)
+            m_etype = DMatrixT(df, label=y)
 
             assert predictor_equal(m_orig, m_etype)
             if y is not None:
@@ -569,7 +566,6 @@ class TestPandas:
             data_split_mode=DataSplitMode.COL,
         )
 
-    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
     def test_pandas_sparse_column_split(self):
         rows = 100
         X = pd.DataFrame(
@@ -583,20 +579,11 @@ class TestPandas:
         )
         y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
 
-        def verify_pandas_sparse():
-            with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
-                dtrain = xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
-            booster = xgb.train({}, dtrain, num_boost_round=4)
-            with pytest.warns(UserWarning, match="Sparse arrays from pandas"):
-                predt_sparse = booster.predict(
-                    xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-                )
-                predt_dense = booster.predict(
-                    xgb.DMatrix(X.sparse.to_dense(), data_split_mode=DataSplitMode.COL)
-                )
-            np.testing.assert_allclose(predt_sparse, predt_dense)
-
-        tm.run_with_rabit(world_size=3, test_fn=verify_pandas_sparse)
+        match_sparse = r"Column split does not support pandas sparse array\."
+        with pytest.raises(ValueError, match=match_sparse):
+            xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
+        with pytest.raises(ValueError, match=match_sparse):
+            xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
 
     @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
     def test_pandas_label_column_split(self):

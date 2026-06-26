@@ -32,9 +32,9 @@ Build the Python Docs using pip and Conda
 
    .. code-block:: bash
 
-     conda create -n xgboost-docs --yes python=3.10
+     conda create -n xgboost-docs --yes python=3.12
 
-   .. note:: Python 3.10 is required by `xgboost_ray <https://github.com/ray-project/xgboost_ray>`__ package.
+   .. note:: Python is required to match XGBoost's minimum supported Python version.
 
 #. Activate the environment
 
@@ -126,3 +126,22 @@ Examples
 * We are super excited to hear about your story. If you have blog posts,
   tutorials, or code solutions using XGBoost, please tell us, and we will add
   a link in the example pages.
+
+*********
+Doc Tests
+*********
+
+We use Sphinx doctest to test selected snippets in the documentation. At the moment, this
+only covers Python and R snippets written with ``.. code-tab:: python`` or ``.. code-tab::
+r``. Regular code blocks are rendered as examples but are not executed by the doctest job.
+
+The doctest job runs snippets from each ``.rst`` file as an independent group. Snippets in
+the same document share state, while snippets from different documents do not. To skip a
+tabbed snippet, add the ``no-doctest`` class:
+
+.. code-block:: rst
+
+  .. code-tab:: python
+     :class: no-doctest
+
+     # This snippet is rendered but not tested.

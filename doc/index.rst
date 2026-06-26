@@ -32,5 +32,6 @@ Contents
   Julia Package <julia>
   C Package <c>
   C++ Interface <c++>
+  security
   contrib/index
   changes/index

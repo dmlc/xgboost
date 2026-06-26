@@ -409,7 +409,7 @@ test_that("xgb.cv invalid inputs", {
 
   expect_error(
     cv <- xgb.cv(
-      data = xgb.QuantileDMatrix(x_df, label = y),
+      data = xgb.QuantileDMatrix(x_df, label = y, nthread = n_threads),
       nfold = 5,
       nrounds = 2,
       params = xgb.params(
@@ -421,7 +421,7 @@ test_that("xgb.cv invalid inputs", {
   )
   expect_error(
     cv <- xgb.cv(
-      data = xgb.DMatrix(x_df, label = y),
+      data = xgb.DMatrix(x_df, label = y, nthread = n_threads),
       nfold = 5,
       nrounds = 2,
       params = xgb.params(
@@ -986,6 +986,7 @@ test_that("Seed in params override PRNG from R", {
       max_depth = 3L,
       subsample = 0.1,
       colsample_bytree = 0.1,
+      nthread = n_threads,
       seed = 111L
     ),
     nrounds = 3L
@@ -1002,6 +1003,7 @@ test_that("Seed in params override PRNG from R", {
       max_depth = 3L,
       subsample = 0.1,
       colsample_bytree = 0.1,
+      nthread = n_threads,
       seed = 111L
     ),
     nrounds = 3L
@@ -1023,6 +1025,7 @@ test_that("Seed in params override PRNG from R", {
       max_depth = 3L,
       subsample = 0.1,
       colsample_bytree = 0.1,
+      nthread = n_threads,
       seed = 222L
     ),
     nrounds = 3L
@@ -1137,7 +1140,7 @@ test_that("Row names are preserved in outputs", {
 
 test_that("xgb.train works with nrounds=0 (serialization, continuation, callbacks)", {
   # Reuse global data variable 'train' defined at the top of test_basic.R
-  dtrain <- xgb.DMatrix(train$data, label = train$label)
+  dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = 1)
   watchlist <- list(train = dtrain)
 
   # --- Case 1: Basic check & Serialization symmetry ---

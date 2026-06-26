@@ -119,6 +119,7 @@ class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
         onehot: bool,
         device: str,
         cache: Optional[str],
+        n_targets: int = 1,
     ) -> None:
         super().__init__(cache_prefix=cache)
         self.n_batches = n_batches
@@ -132,6 +133,7 @@ class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
             onehot=onehot,
             cat_ratio=cat_ratio,
             sparsity=sparsity,
+            n_targets=n_targets,
         )
         xs, ys = [], []
 

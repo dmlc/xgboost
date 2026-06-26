@@ -93,8 +93,8 @@ struct BitFieldContainer {
       : bits_{bits.data()}, n_values_{bits.size()} {}
   BitFieldContainer(BitFieldContainer const& other) = default;
   BitFieldContainer(BitFieldContainer&& other) = default;
-  BitFieldContainer &operator=(BitFieldContainer const &that) = default;
-  BitFieldContainer &operator=(BitFieldContainer &&that) = default;
+  BitFieldContainer& operator=(BitFieldContainer const& that) = default;
+  BitFieldContainer& operator=(BitFieldContainer&& that) = default;
 
   XGBOOST_DEVICE auto Bits() { return common::Span<value_type>{bits_, NumValues()}; }
   XGBOOST_DEVICE auto Bits() const { return common::Span<value_type const>{bits_, NumValues()}; }
@@ -105,8 +105,8 @@ struct BitFieldContainer {
   XGBOOST_DEVICE static size_t ComputeStorageSize(index_type size) {
     return common::DivRoundUp(size, kValueSize);
   }
+  XGBOOST_DEVICE BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
 #if defined(__CUDA_ARCH__)
-  __device__ BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
     std::size_t min_size = std::min(this->Capacity(), rhs.Capacity());
     if (tid < min_size) {
@@ -115,19 +115,17 @@ struct BitFieldContainer {
       }
     }
     return *this;
-  }
 #else
-  BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
     size_t min_size = std::min(NumValues(), rhs.NumValues());
     for (size_t i = 0; i < min_size; ++i) {
       Data()[i] |= rhs.Data()[i];
     }
     return *this;
-  }
 #endif  // #if defined(__CUDA_ARCH__)
+  }
 
+  XGBOOST_DEVICE BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
 #if defined(__CUDA_ARCH__)
-  __device__ BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
     std::size_t min_size = std::min(this->Capacity(), rhs.Capacity());
     if (tid < min_size) {
@@ -138,46 +136,43 @@ struct BitFieldContainer {
       }
     }
     return *this;
-  }
 #else
-  BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
     std::size_t min_size = std::min(NumValues(), rhs.NumValues());
     for (size_t i = 0; i < min_size; ++i) {
       Data()[i] &= rhs.Data()[i];
     }
     return *this;
-  }
 #endif  // defined(__CUDA_ARCH__)
+  }
 
+  XGBOOST_DEVICE void Set(index_type pos) noexcept(true) {
 #if defined(__CUDA_ARCH__)
-  __device__ auto Set(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
     value_type& value = Data()[pos_v.int_pos];
     value_type set_bit = kOne << pos_v.bit_pos;
     using Type = typename dh::detail::AtomicDispatcher<sizeof(value_type)>::Type;
-    atomicOr(reinterpret_cast<Type *>(&value), set_bit);
-  }
-  __device__ void Clear(index_type pos) noexcept(true) {
-    Pos pos_v = Direction::Shift(ToBitPos(pos));
-    value_type& value = Data()[pos_v.int_pos];
-    value_type clear_bit = ~(kOne << pos_v.bit_pos);
-    using Type = typename dh::detail::AtomicDispatcher<sizeof(value_type)>::Type;
-    atomicAnd(reinterpret_cast<Type *>(&value), clear_bit);
-  }
+    atomicOr(reinterpret_cast<Type*>(&value), set_bit);
 #else
-  void Set(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
     value_type& value = Data()[pos_v.int_pos];
     value_type set_bit = kOne << pos_v.bit_pos;
     value |= set_bit;
+#endif
   }
-  void Clear(index_type pos) noexcept(true) {
+  XGBOOST_DEVICE void Clear(index_type pos) noexcept(true) {
+#if defined(__CUDA_ARCH__)
+    Pos pos_v = Direction::Shift(ToBitPos(pos));
+    value_type& value = Data()[pos_v.int_pos];
+    value_type clear_bit = ~(kOne << pos_v.bit_pos);
+    using Type = typename dh::detail::AtomicDispatcher<sizeof(value_type)>::Type;
+    atomicAnd(reinterpret_cast<Type*>(&value), clear_bit);
+#else
     Pos pos_v = Direction::Shift(ToBitPos(pos));
     value_type& value = Data()[pos_v.int_pos];
     value_type clear_bit = ~(kOne << pos_v.bit_pos);
     value &= clear_bit;
+#endif
   }
-#endif  // defined(__CUDA_ARCH__)
 
   XGBOOST_DEVICE bool Check(Pos pos_v) const noexcept(true) {
     pos_v = Direction::Shift(pos_v);
@@ -238,9 +233,7 @@ struct RBitsPolicy : public BitFieldContainer<VT, RBitsPolicy<VT>> {
   using Pos = typename Container::Pos;
   using value_type = typename Container::value_type;  // NOLINT
 
-  XGBOOST_DEVICE static Pos Shift(Pos pos) {
-    return pos;
-  }
+  XGBOOST_DEVICE static Pos Shift(Pos pos) { return pos; }
 };
 
 // Format: <Const><Direction>BitField<size of underlying type in bits>, underlying type
@@ -278,6 +271,6 @@ inline std::uint32_t TrailingZeroBits(std::uint32_t value) {
   return detail::TrailingZeroBitsImpl(value);
 #endif  //  __GNUC__
 }
-}       // namespace xgboost
+}  // namespace xgboost
 
 #endif  // XGBOOST_COMMON_BITFIELD_H_

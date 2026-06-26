@@ -5,7 +5,6 @@
 #define XGBOOST_TREE_HIST_SAMPLER_H_
 
 #include <cstdint>  // for uint64_t
-#include <limits>   // for numeric_limits
 #include <random>   // for bernoulli_distribution, linear_congruential_engine
 #include <vector>   // for vector
 

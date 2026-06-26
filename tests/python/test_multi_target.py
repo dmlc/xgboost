@@ -4,7 +4,9 @@
 # pylint: disable=missing-function-docstring
 from typing import Any, Callable, Dict
 
+import numpy as np
 import pytest
+import xgboost as xgb
 from hypothesis import given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
@@ -12,6 +14,7 @@ from xgboost.testing.multi_target import (
     run_absolute_error,
     run_column_sampling,
     run_eta,
+    run_expectile_loss,
     run_feature_importance_strategy_compare,
     run_gradient_based_sampling_accuracy,
     run_grow_policy,
@@ -38,6 +41,44 @@ def test_quantile_loss_rf(multi_strategy: str) -> None:
     check_quantile_loss_rf("cpu", "hist", multi_strategy)
     if multi_strategy == "one_output_per_tree":
         check_quantile_loss_rf("cpu", "approx", multi_strategy)
+
+
+def test_shap_multi_output_tree() -> None:
+    X = np.array(
+        [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [2.0, 1.0], [1.0, 2.0]],
+        dtype=np.float32,
+    )
+    y = np.stack([X[:, 0] + 2 * X[:, 1], -X[:, 0] + 0.5 * X[:, 1]], axis=1)
+    Xy = xgb.DMatrix(X, y)
+
+    booster = xgb.train(
+        {
+            "tree_method": "hist",
+            "max_depth": 2,
+            "num_target": 2,
+            "multi_strategy": "multi_output_tree",
+            "objective": "reg:squarederror",
+        },
+        Xy,
+        num_boost_round=3,
+    )
+
+    margin = booster.predict(Xy, output_margin=True, strict_shape=True)
+    contribs = booster.predict(Xy, pred_contribs=True, strict_shape=True)
+    interactions = booster.predict(Xy, pred_interactions=True, strict_shape=True)
+
+    assert margin.shape == (X.shape[0], y.shape[1])
+    assert contribs.shape == (X.shape[0], y.shape[1], X.shape[1] + 1)
+    assert interactions.shape == (
+        X.shape[0],
+        y.shape[1],
+        X.shape[1] + 1,
+        X.shape[1] + 1,
+    )
+    np.testing.assert_allclose(contribs.sum(axis=2), margin, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(
+        interactions.sum(axis=(2, 3)), margin, rtol=1e-4, atol=1e-4
+    )
 
 
 class TestTreeMethodMulti:
@@ -117,6 +158,10 @@ def test_multilabel() -> None:
 @pytest.mark.parametrize("weighted", [True, False])
 def test_quantile_loss(weighted: bool) -> None:
     run_quantile_loss("cpu", weighted)
+
+
+def test_expectile_loss() -> None:
+    run_expectile_loss("cpu")
 
 
 def test_absolute_error() -> None:

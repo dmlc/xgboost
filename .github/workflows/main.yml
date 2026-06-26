@@ -1,6 +1,11 @@
 name: XGBoost CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+      - 'release_*'
+  pull_request:
 
 permissions:
   contents: read  # to fetch code (actions/checkout)
@@ -16,29 +21,9 @@ env:
 jobs:
   ci-configure:
     name: Configure variables for CI
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
-      - tag=main-ci-configure
-    steps:
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2.0.1
-        with:
-          mask-password: 'false'
-          registries: '492475357299'
-      - uses: actions/checkout@v6.0.1
-      - name: Get image tag
-        id: get-image-tag
-        run: |
-          source ops/pipeline/get-image-tag.sh
-          echo "Using image tag $IMAGE_TAG"
-          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
-    outputs:
-      docker_registry: ${{ steps.login-ecr.outputs.registry }}
-      docker_username: ${{ steps.login-ecr.outputs.docker_username_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
-      docker_password: ${{ steps.login-ecr.outputs.docker_password_492475357299_dkr_ecr_us_west_2_amazonaws_com }}
-      image_tag: ${{ steps.get-image-tag.outputs.image_tag }}
+    uses: ./.github/workflows/ci_configure.yml
+    with:
+      tag-prefix: main
 
   build-cpu:
     name: Build CPU (${{ matrix.variant }})
@@ -68,7 +53,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
       options: ${{ matrix.container_options }}
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: "true"
       # Remove default build config to ensure CMake-configured header is used
@@ -134,7 +119,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -152,6 +137,30 @@ jobs:
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/build-cuda${{ matrix.cuda_version }}-${{ matrix.arch }} \
             build/testxgboost python-package/dist/*.whl
+
+  build-cuda-clang:
+    name: Build CUDA with clang 21.1.8 (x86_64)
+    needs: ci-configure
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cuda-clang
+      - extras=s3-cache
+    container:
+      image: ${{ needs.ci-configure.outputs.docker_registry }}/xgb-ci.gpu_build_rockylinux8:${{ needs.ci-configure.outputs.image_tag }}
+      credentials:
+        username: ${{ needs.ci-configure.outputs.docker_username }}
+        password: ${{ needs.ci-configure.outputs.docker_password }}
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v7.0.0
+        with:
+          submodules: "true"
+      - uses: dmlc/xgboost-devops/actions/sccache@main
+        with:
+          cache-key-prefix: ${{ github.job }}-clang21-cuda12
+      - run: bash ops/pipeline/build-cuda-clang.sh --clang-version 21.1.8
+      - run: sccache --show-stats
 
   audit-cuda-wheel:
     name: Audit CUDA ${{ matrix.cuda_version }} wheel for manylinux_2_28_${{ matrix.arch }}
@@ -188,10 +197,10 @@ jobs:
         username: ${{ needs.ci-configure.outputs.docker_username }}
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
       - name: Pick Python
         run: |
-          export PATH=/opt/python/cp310-cp310/bin/:$PATH
+          export PATH=/opt/python/cp312-cp312/bin/:$PATH
           echo ${PATH} >> $GITHUB_PATH
       - name: Install dependencies
         run: |
@@ -227,7 +236,7 @@ jobs:
         password: ${{ needs.ci-configure.outputs.docker_password }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -262,7 +271,7 @@ jobs:
           arch: x86_64
           runner: linux-amd64-cpu
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
@@ -289,7 +298,7 @@ jobs:
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: "true"
       - uses: dmlc/xgboost-devops/actions/sccache@main
@@ -345,7 +354,7 @@ jobs:
             image_repo: xgb-ci.gpu
             artifact_from: build-cuda-with-rmm
             container_options: "--gpus all --privileged"
-            test_args: "--use-rmm-pool"
+            test_args: "--use-rmm-pool --gtest_filter=-*DeathTest*"
           - cuda_version: 12
             suite: mgpu
             arch: x86_64
@@ -380,7 +389,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
       - name: Unstash gtest
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -452,7 +461,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -475,10 +484,12 @@ jobs:
             --train --model-path cross_platform_model.ubj
       - name: Upload cross-platform model artifact
         if: matrix.cuda_version == 12 && matrix.suite == 'gpu'
-        uses: actions/upload-artifact@v6.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: cross-platform-model
-          path: cross_platform_model.ubj
+          path: |
+            cross_platform_model.ubj
+            cross_platform_model.pkl
           retention-days: 1
 
   test-python-wheel-cpu:
@@ -515,7 +526,7 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
       - uses: runs-on/action@v2
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
       - name: Unstash Python wheel
         run: |
           python3 ops/pipeline/manage-artifacts.py download \
@@ -541,7 +552,7 @@ jobs:
         - os: macos-14
           platform_id: macosx_arm64
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: 'true'
       - name: Set up homebrew
@@ -558,7 +569,7 @@ jobs:
         run: |
           python -m pip install -vvv wheelhouse/*.whl
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v6.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: python-wheel-${{ matrix.platform_id }}
           path: wheelhouse/*.whl
@@ -590,14 +601,14 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
       - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: macos_test
           environment-file: ops/conda_env/minimal.yml
       - run: conda install scikit-learn numpy -y
       - name: Download macOS wheel artifact
-        uses: actions/download-artifact@v7.0.0
+        uses: actions/download-artifact@v8.0.1
         with:
           name: python-wheel-${{ matrix.platform_id }}
           path: wheelhouse
@@ -605,7 +616,7 @@ jobs:
         run: |
           python -m pip install -v wheelhouse/*.whl
       - name: Download cross-platform model artifact
-        uses: actions/download-artifact@v7.0.0
+        uses: actions/download-artifact@v8.0.1
         with:
           name: cross-platform-model
           path: .

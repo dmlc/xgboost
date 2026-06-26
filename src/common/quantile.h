@@ -12,9 +12,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
-#include <iostream>
+#include <limits>
 #include <set>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "categorical.h"
@@ -30,7 +31,7 @@ namespace xgboost::common {
  * \tparam DType type of data content
  * \tparam RType type of rank
  */
-template <typename DType, typename RType>
+template <typename DType = bst_float, typename RType = bst_float>
 struct WQSummary {
   /*! \brief an entry in the sketch summary */
   struct Entry {
@@ -47,219 +48,339 @@ struct WQSummary {
     // constructor
     XGBOOST_DEVICE Entry(RType rmin, RType rmax, RType wmin, DType value)
         : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}
-    /*!
-     * \brief debug function,  check Valid
-     * \param eps the tolerate level for violating the relation
-     */
-    inline void CheckValid(RType eps = 0) const {
-      CHECK(rmin >= 0 && rmax >= 0 && wmin >= 0) << "nonneg constraint";
-      CHECK(rmax - rmin - wmin > -eps) << "relation constraint: min/max";
-    }
     /*! \return rmin estimation for v strictly bigger than value */
-    XGBOOST_DEVICE inline RType RMinNext() const { return rmin + wmin; }
+    XGBOOST_DEVICE RType RMinNext() const { return rmin + wmin; }
     /*! \return rmax estimation for v strictly smaller than value */
-    XGBOOST_DEVICE inline RType RMaxPrev() const { return rmax - wmin; }
-
-    friend std::ostream &operator<<(std::ostream &os, Entry const &e) {
-      os << "rmin: " << e.rmin << ", "
-         << "rmax: " << e.rmax << ", "
-         << "wmin: " << e.wmin << ", "
-         << "value: " << e.value;
-      return os;
-    }
+    XGBOOST_DEVICE RType RMaxPrev() const { return rmax - wmin; }
   };
-  /*! \brief input data queue before entering the summary */
-  struct Queue {
-    // entry in the queue
-    struct QEntry {
-      // value of the instance
-      DType value;
-      // weight of instance
-      RType weight;
-      // default constructor
-      QEntry() = default;
-      // constructor
-      QEntry(DType value, RType weight) : value(value), weight(weight) {}
-      // comparator on value
-      inline bool operator<(const QEntry &b) const { return value < b.value; }
-    };
-    // the input queue
-    std::vector<QEntry> queue;
-    // end of the queue
-    size_t qtail;
-    // push data to the queue
-    inline void Push(DType x, RType w) {
-      if (qtail == 0 || queue[qtail - 1].value != x) {
-        queue[qtail++] = QEntry(x, w);
-      } else {
-        queue[qtail - 1].weight += w;
-      }
-    }
-    inline void MakeSummary(WQSummary *out) {
-      std::sort(queue.begin(), queue.begin() + qtail);
-      out->size = 0;
-      // start update sketch
-      RType wsum = 0;
-      // construct data with unique weights
-      for (size_t i = 0; i < qtail;) {
-        size_t j = i + 1;
-        RType w = queue[i].weight;
-        while (j < qtail && queue[j].value == queue[i].value) {
-          w += queue[j].weight;
-          ++j;
-        }
-        out->data[out->size++] = Entry(wsum, wsum + w, w, queue[i].value);
-        wsum += w;
-        i = j;
-      }
-    }
-  };
-  /*! \brief data field */
-  Entry *data;
-  /*! \brief number of elements in the summary */
-  size_t size;
   // constructor
-  WQSummary(Entry *data, size_t size) : data(data), size(size) {}
-  /*!
-   * \return the maximum error of the Summary
-   */
-  inline RType MaxError() const {
-    RType res = data[0].rmax - data[0].rmin - data[0].wmin;
-    for (size_t i = 1; i < size; ++i) {
-      res = std::max(data[i].RMaxPrev() - data[i - 1].RMinNext(), res);
-      res = std::max(data[i].rmax - data[i].rmin - data[i].wmin, res);
-    }
-    return res;
+  WQSummary(Span<Entry> data, size_t current_elements)
+      : data_{data}, current_elements_{current_elements} {}
+  /*! \brief Return the number of valid entries in this summary. */
+  [[nodiscard]] size_t Size() const { return current_elements_; }
+  /*! \brief Return true if this summary has no valid entries. */
+  [[nodiscard]] bool Empty() const { return this->Size() == 0; }
+  /*! \brief Return a const span over valid entries [0, Size()). */
+  [[nodiscard]] Span<Entry const> Entries() const { return {data_.data(), current_elements_}; }
+  /*! \brief Set the number of valid entries in this summary. */
+  void SetSize(size_t n) {
+    CHECK_LE(n, data_.size());
+    current_elements_ = n;
   }
-  /*!
-   * \brief query qvalue, start from istart
-   * \param qvalue the value we query for
-   * \param istart starting position
-   */
-  inline Entry Query(DType qvalue, size_t &istart) const {  // NOLINT(*)
-    while (istart < size && qvalue > data[istart].value) {
-      ++istart;
-    }
-    if (istart == size) {
-      RType rmax = data[size - 1].rmax;
-      return Entry(rmax, rmax, 0.0f, qvalue);
-    }
-    if (qvalue == data[istart].value) {
-      return data[istart];
-    } else {
-      if (istart == 0) {
-        return Entry(0.0f, 0.0f, 0.0f, qvalue);
-      } else {
-        return Entry(data[istart - 1].RMinNext(), data[istart].RMaxPrev(), 0.0f, qvalue);
-      }
-    }
-  }
-  /*! \return maximum rank in the summary */
-  inline RType MaxRank() const { return data[size - 1].rmax; }
+  /*! \brief Clear summary contents while keeping allocated storage. */
+  void Clear() { current_elements_ = 0; }
   /*!
    * \brief copy content from src
    * \param src source sketch
    */
-  inline void CopyFrom(const WQSummary &src) {
-    if (!src.data) {
-      CHECK_EQ(src.size, 0);
-      size = 0;
+  void CopyFrom(const WQSummary &src) {
+    if (!src.data_.data()) {
+      CHECK_EQ(src.current_elements_, 0);
+      this->Clear();
       return;
     }
-    if (!data) {
-      CHECK_EQ(this->size, 0);
-      CHECK_EQ(src.size, 0);
+    if (!data_.data()) {
+      CHECK_EQ(this->current_elements_, 0);
+      CHECK_EQ(src.current_elements_, 0);
       return;
     }
-    size = src.size;
-    std::memcpy(data, src.data, sizeof(Entry) * size);
+    current_elements_ = src.current_elements_;
+    std::copy(src.data_.data(), src.data_.data() + current_elements_, data_.data());
   }
-  inline void MakeFromSorted(const Entry *entries, size_t n) {
-    size = 0;
-    for (size_t i = 0; i < n;) {
+
+  void SetFromSorted(std::vector<std::pair<DType, RType>> const &queue) {
+    this->Clear();
+    RType wsum = 0;
+    for (size_t i = 0; i < queue.size();) {
       size_t j = i + 1;
-      // ignore repeated values
-      for (; j < n && entries[j].value == entries[i].value; ++j) {
+      RType w = queue[i].second;
+      while (j < queue.size() && queue[j].first == queue[i].first) {
+        w += queue[j].second;
+        ++j;
       }
-      data[size++] = Entry(entries[i].rmin, entries[i].rmax, entries[i].wmin, entries[i].value);
+      data_[current_elements_++] = Entry{wsum, wsum + w, w, queue[i].first};
+      wsum += w;
       i = j;
-    }
-  }
-  /*!
-   * \brief debug function, validate whether the summary
-   *  run consistency check to check if it is a valid summary
-   * \param eps the tolerate error level, used when RType is floating point and
-   *        some inconsistency could occur due to rounding error
-   */
-  inline void CheckValid(RType eps) const {
-    for (size_t i = 0; i < size; ++i) {
-      data[i].CheckValid(eps);
-      if (i != 0) {
-        CHECK(data[i].rmin >= data[i - 1].rmin + data[i - 1].wmin) << "rmin range constraint";
-        CHECK(data[i].rmax >= data[i - 1].rmax + data[i].wmin) << "rmax range constraint";
-      }
     }
   }
 
   /*!
-   * \brief set current summary to be pruned summary of src
-   *        assume data field is already allocated to be at least maxsize
-   * \param src source summary
-   * \param maxsize size we can afford in the pruned sketch
+   * \brief Set this summary from sorted column entries and prune by max_size.
+   *
+   * The input column must be sorted by feature value.
    */
-  void SetPrune(const WQSummary &src, size_t maxsize) {
-    if (src.size <= maxsize) {
-      this->CopyFrom(src);
+  void SetPruneSorted(common::Span<::xgboost::Entry const> column,
+                      std::vector<float> const &weights, size_t max_size) {
+    CHECK_GE(max_size, 1);
+    CHECK_GE(data_.size(), max_size + 1);
+
+    this->Clear();
+    auto const *col_data = column.data();
+    auto const col_size = column.size();
+    double sum_total{0.0};
+    std::size_t unique_values{0};
+    double rmin{0.0};
+    double wmin{0.0};
+    bst_float last_fvalue{0.0f};
+    double next_goal{-1.0f};
+
+    // first pass
+    for (size_t i = 0; i < col_size; ++i) {
+      if (i == 0 || col_data[i - 1].fvalue != col_data[i].fvalue) {
+        ++unique_values;
+      }
+      auto const &c = col_data[i];
+      sum_total += weights[c.index];
+    }
+
+    if (unique_values <= max_size) {
+      // When we have enough budget to keep every unique feature value, emit the exact
+      // weighted summary instead of running the weighted goal-selection logic below.
+      for (size_t i = 0; i < col_size; ++i) {
+        auto const &c = col_data[i];
+        if (i == 0) {
+          last_fvalue = c.fvalue;
+          wmin = weights[c.index];
+          continue;
+        }
+        if (last_fvalue == c.fvalue) {
+          wmin += weights[c.index];
+          continue;
+        }
+
+        auto rmax = rmin + wmin;
+        data_[this->Size()] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                    static_cast<bst_float>(wmin), last_fvalue);
+        this->SetSize(this->Size() + 1);
+        rmin = rmax;
+        last_fvalue = c.fvalue;
+        wmin = weights[c.index];
+      }
+
+      if (col_size != 0) {
+        auto rmax = rmin + wmin;
+        data_[this->Size()] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                    static_cast<bst_float>(wmin), last_fvalue);
+        this->SetSize(this->Size() + 1);
+      }
       return;
     }
-    const RType begin = src.data[0].rmax;
-    const RType range = src.data[src.size - 1].rmin - src.data[0].rmax;
+
+    // second pass
+    for (size_t i = 0; i < col_size; ++i) {
+      auto const &c = col_data[i];
+      if (next_goal == -1.0f) {
+        next_goal = 0.0f;
+        last_fvalue = c.fvalue;
+        wmin = weights[c.index];
+        continue;
+      }
+      if (last_fvalue != c.fvalue) {
+        double rmax = rmin + wmin;
+        auto summary_size = this->Size();
+        if (rmax >= next_goal && summary_size != max_size) {
+          if (summary_size == 0 || last_fvalue > data_[summary_size - 1].value) {
+            CHECK_LT(summary_size, max_size) << "invalid maximum size max_size=" << max_size
+                                             << ", stemp.current_elements=" << summary_size;
+            data_[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                        static_cast<bst_float>(wmin), last_fvalue);
+            ++summary_size;
+            this->SetSize(summary_size);
+          }
+          if (summary_size == max_size) {
+            next_goal = sum_total * 2.0f + 1e-5f;
+          } else {
+            next_goal = static_cast<bst_float>(summary_size * sum_total / max_size);
+          }
+        } else if (rmax >= next_goal) {
+          LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
+                     << ", next_goal=" << next_goal << ", size=" << summary_size;
+        }
+        rmin = rmax;
+        wmin = weights[c.index];
+        last_fvalue = c.fvalue;
+      } else {
+        wmin += weights[c.index];
+      }
+    }
+
+    if (col_size != 0) {
+      auto summary_size = this->Size();
+      double rmax = rmin + wmin;
+      if (summary_size == 0 || last_fvalue > data_[summary_size - 1].value) {
+        CHECK_LE(summary_size, max_size) << "Finalize: invalid maximum size, max_size=" << max_size
+                                         << ", stemp.current_elements=" << summary_size;
+        data_[summary_size] = Entry(static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
+                                    static_cast<bst_float>(wmin), last_fvalue);
+        ++summary_size;
+        this->SetSize(summary_size);
+      }
+    }
+  }
+  /*!
+   * \brief prune current summary in place.
+   *
+   * \param maxsize size we can afford in the pruned sketch
+   */
+  void SetPrune(size_t maxsize) {
+    if (maxsize == 0) {
+      this->current_elements_ = 0;
+      return;
+    }
+    auto const src_size = this->current_elements_;
+    if (src_size <= maxsize) {
+      return;
+    }
+    // Use raw pointers in this hot loop to avoid per-access Span bounds checks.
+    auto const *src_data = this->data_.data();
+    if (maxsize == 1) {
+      data_[0] = src_data[0];
+      this->current_elements_ = 1;
+      return;
+    }
+    const RType begin = src_data[0].rmax;
+    const RType range = src_data[src_size - 1].rmin - src_data[0].rmax;
     const size_t n = maxsize - 1;
-    data[0] = src.data[0];
-    this->size = 1;
+    Entry const tail = src_data[src_size - 1];
+    Entry left = src_data[1];
+    Entry right = src_data[2];
+    data_[0] = src_data[0];
+    size_t current_elements = 1;
     // lastidx is used to avoid duplicated records
     size_t i = 1, lastidx = 0;
     for (size_t k = 1; k < n; ++k) {
       RType dx2 = 2 * ((k * range) / n + begin);
       // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2
-      while (i < src.size - 1 && dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
-      if (i == src.size - 1) break;
-      if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
+      while (i < src_size - 1 && dx2 >= right.rmax + right.rmin) {
+        ++i;
+        left = right;
+        if (i < src_size - 1) {
+          right = src_data[i + 1];
+        }
+      }
+      if (i == src_size - 1) break;
+      if (dx2 < left.RMinNext() + right.RMaxPrev()) {
         if (i != lastidx) {
-          data[size++] = src.data[i];
+          data_[current_elements++] = left;
           lastidx = i;
         }
       } else {
         if (i + 1 != lastidx) {
-          data[size++] = src.data[i + 1];
+          data_[current_elements++] = right;
           lastidx = i + 1;
         }
       }
     }
-    if (lastidx != src.size - 1) {
-      data[size++] = src.data[src.size - 1];
+    if (lastidx != src_size - 1) {
+      data_[current_elements++] = tail;
     }
+    this->current_elements_ = current_elements;
+  }
+
+  /*!
+   * \brief Materialize histogram cut values from this summary.
+   *
+   * If the summary already fits within max_bin, this reuses the exact retained values. Otherwise
+   * it answers evenly spaced interior rank queries from the summary, forces the resulting cuts to
+   * be strictly increasing, and appends the final sentinel upper bound required by HistogramCuts.
+   */
+  [[nodiscard]] std::vector<DType> QueryCutValues(std::size_t max_bin) const {
+    if (this->Empty()) {
+      return {static_cast<DType>(1e-5f)};
+    }
+
+    auto n_entries = this->Size();
+    std::vector<DType> cut_values;
+    cut_values.reserve(std::min(n_entries, max_bin) + 1);
+
+    auto advance_to_next_distinct = [&](std::size_t cursor, DType value) {
+      while (cursor < n_entries && this->data_[cursor].value <= value) {
+        ++cursor;
+      }
+      return cursor;
+    };
+
+    auto last_cut = this->data_[0].value;
+    auto next_value_cursor = advance_to_next_distinct(1, last_cut);
+
+    if (n_entries <= max_bin) {
+      while (next_value_cursor < n_entries) {
+        auto cpt = this->data_[next_value_cursor].value;
+        cut_values.push_back(cpt);
+        last_cut = cpt;
+        next_value_cursor = advance_to_next_distinct(next_value_cursor + 1, last_cut);
+      }
+    } else {
+      auto total = static_cast<double>(this->data_[n_entries - 1].rmax);
+      std::size_t query_cursor = 0;
+      for (std::size_t i = 1; i < max_bin; ++i) {
+        auto rank = static_cast<double>(i) * total / static_cast<double>(max_bin);
+        auto rank2 = static_cast<double>(2.0) * rank;
+        while (query_cursor < n_entries - 2 &&
+               rank2 >= static_cast<double>(this->data_[query_cursor + 1].rmin +
+                                            this->data_[query_cursor + 1].rmax)) {
+          ++query_cursor;
+        }
+        auto const &queried = rank2 < static_cast<double>(this->data_[query_cursor].RMinNext() +
+                                                          this->data_[query_cursor + 1].RMaxPrev())
+                                  ? this->data_[query_cursor]
+                                  : this->data_[query_cursor + 1];
+        auto cpt = queried.value;
+        if (cpt <= last_cut) {
+          next_value_cursor = advance_to_next_distinct(next_value_cursor, last_cut);
+          if (next_value_cursor == n_entries) {
+            break;
+          }
+          cpt = this->data_[next_value_cursor].value;
+        } else if (next_value_cursor < n_entries && this->data_[next_value_cursor].value <= cpt) {
+          next_value_cursor = advance_to_next_distinct(next_value_cursor + 1, cpt);
+        }
+        cut_values.push_back(cpt);
+        last_cut = cpt;
+      }
+    }
+
+    auto cpt = this->data_[n_entries - 1].value;
+    cut_values.push_back(cpt + (std::fabs(cpt) + static_cast<DType>(1e-5f)));
+    return cut_values;
   }
   /*!
-   * \brief set current summary to be merged summary of sa and sb
-   * \param sa first input summary to be merged
-   * \param sb second input summary to be merged
+   * \brief combine `other` into `this`.
+   *
+   * \param other Input summary to combine with `this`.
+   * \param workspace Optional entry buffer for temporary merged entries.
    */
-  inline void SetCombine(const WQSummary &sa, const WQSummary &sb) {
-    if (sa.size == 0) {
-      this->CopyFrom(sb);
+  void SetCombine(const WQSummary &other, std::vector<Entry> *workspace = nullptr) {
+    if (other.Empty()) {
       return;
     }
-    if (sb.size == 0) {
-      this->CopyFrom(sa);
+    if (this->data_.size() == 0) {
+      this->current_elements_ = 0;
       return;
     }
-    CHECK(sa.size > 0 && sb.size > 0);
-    const Entry *a = sa.data, *a_end = sa.data + sa.size;
-    const Entry *b = sb.data, *b_end = sb.data + sb.size;
+    if (this->Empty()) {
+      CHECK_GE(this->data_.size(), other.current_elements_);
+      this->CopyFrom(other);
+      return;
+    }
+    size_t const merged_size = this->current_elements_ + other.current_elements_;
+    CHECK_GE(this->data_.size(), merged_size);
+
+    std::vector<Entry> owned_workspace;
+    if (workspace == nullptr) {
+      workspace = &owned_workspace;
+    }
+    if (workspace->size() < merged_size) {
+      workspace->resize(merged_size);
+    }
+
+    WQSummary<DType, RType> merged{Span<Entry>{workspace->data(), merged_size}, 0};
+    // Merge with raw pointers to avoid Span bounds checks inside the tight loop.
+    const Entry *a = this->data_.data(), *a_end = this->data_.data() + this->current_elements_;
+    const Entry *b = other.data_.data(), *b_end = other.data_.data() + other.current_elements_;
     // extended rmin value
     RType aprev_rmin = 0, bprev_rmin = 0;
-    Entry *dst = this->data;
+    Entry *dst = merged.data_.data();
     while (a != a_end && b != b_end) {
       // duplicated value entry
       if (a->value == b->value) {
@@ -297,244 +418,181 @@ struct WQSummary {
         ++b;
       } while (b != b_end);
     }
-    this->size = dst - data;
+    merged.current_elements_ = dst - merged.data_.data();
+
     const RType tol = 10;
     RType err_mingap, err_maxgap, err_wgap;
-    this->FixError(&err_mingap, &err_maxgap, &err_wgap);
+    merged.FixError(&err_mingap, &err_maxgap, &err_wgap);
     if (err_mingap > tol || err_maxgap > tol || err_wgap > tol) {
       LOG(INFO) << "mingap=" << err_mingap << ", maxgap=" << err_maxgap << ", wgap=" << err_wgap;
     }
-    CHECK(size <= sa.size + sb.size) << "bug in combine";
+    CHECK(merged.current_elements_ <= this->current_elements_ + other.current_elements_)
+        << "bug in combine";
+
+    std::copy_n(merged.data_.data(), merged.current_elements_, this->data_.data());
+    this->current_elements_ = merged.current_elements_;
   }
-  // helper function to print the current content of sketch
-  inline void Print() const {
-    for (size_t i = 0; i < this->size; ++i) {
-      LOG(CONSOLE) << "[" << i << "] rmin=" << data[i].rmin << ", rmax=" << data[i].rmax
-                   << ", wmin=" << data[i].wmin << ", v=" << data[i].value;
-    }
+
+ protected:
+  /*!
+   * \brief Rebind underlying storage span while preserving current logical size.
+   */
+  void SetStorage(Span<Entry> storage) {
+    data_ = storage;
+    CHECK_LE(current_elements_, data_.size());
   }
+  /*!
+   * \brief Reset storage binding and clear logical size.
+   */
+  void ResetStorage() {
+    data_ = Span<Entry>{};
+    current_elements_ = 0;
+  }
+
+ private:
+  /*! \brief data field */
+  Span<Entry> data_;
+  /*! \brief number of elements in the summary */
+  size_t current_elements_;
   // try to fix rounding error
   // and re-establish invariance
-  inline void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
+  void FixError(RType *err_mingap, RType *err_maxgap, RType *err_wgap) const {
     *err_mingap = 0;
     *err_maxgap = 0;
     *err_wgap = 0;
     RType prev_rmin = 0, prev_rmax = 0;
-    for (size_t i = 0; i < this->size; ++i) {
-      if (data[i].rmin < prev_rmin) {
-        data[i].rmin = prev_rmin;
-        *err_mingap = std::max(*err_mingap, prev_rmin - data[i].rmin);
+    // Use raw pointer for the correction pass to avoid Span bounds checks.
+    auto *entries = data_.data();
+    for (size_t i = 0; i < this->current_elements_; ++i) {
+      if (entries[i].rmin < prev_rmin) {
+        entries[i].rmin = prev_rmin;
+        *err_mingap = std::max(*err_mingap, prev_rmin - entries[i].rmin);
       } else {
-        prev_rmin = data[i].rmin;
+        prev_rmin = entries[i].rmin;
       }
-      if (data[i].rmax < prev_rmax) {
-        data[i].rmax = prev_rmax;
-        *err_maxgap = std::max(*err_maxgap, prev_rmax - data[i].rmax);
+      if (entries[i].rmax < prev_rmax) {
+        entries[i].rmax = prev_rmax;
+        *err_maxgap = std::max(*err_maxgap, prev_rmax - entries[i].rmax);
       }
-      RType rmin_next = data[i].RMinNext();
-      if (data[i].rmax < rmin_next) {
-        data[i].rmax = rmin_next;
-        *err_wgap = std::max(*err_wgap, data[i].rmax - rmin_next);
+      RType rmin_next = entries[i].RMinNext();
+      if (entries[i].rmax < rmin_next) {
+        entries[i].rmax = rmin_next;
+        *err_wgap = std::max(*err_wgap, entries[i].rmax - rmin_next);
       }
-      prev_rmax = data[i].rmax;
+      prev_rmax = entries[i].rmax;
     }
   }
 };
 
-/*! \brief try to do efficient pruning */
-template <typename DType, typename RType>
-struct WXQSummary : public WQSummary<DType, RType> {
-  // redefine entry type
-  using Entry = typename WQSummary<DType, RType>::Entry;
-  // constructor
-  WXQSummary(Entry *data, size_t size) : WQSummary<DType, RType>(data, size) {}
-  // check if the block is large chunk
-  inline static bool CheckLarge(const Entry &e, RType chunk) {
-    return e.RMinNext() > e.RMaxPrev() + chunk;
+template <typename DType = bst_float, typename RType = bst_float>
+struct Queue {
+  using QEntry = std::pair<DType, RType>;  // value, weight
+
+  std::vector<QEntry> queue;
+  size_t max_size{1};
+
+  explicit Queue(size_t max_size_in = 1) {
+    CHECK_GE(max_size_in, 1);
+    max_size = max_size_in;
+    queue.reserve(1);
   }
-  // set prune
-  inline void SetPrune(const WQSummary<DType, RType> &src, size_t maxsize) {
-    if (src.size <= maxsize) {
-      this->CopyFrom(src);
-      return;
-    }
-    RType begin = src.data[0].rmax;
-    // n is number of points exclude the min/max points
-    size_t n = maxsize - 2, nbig = 0;
-    // these is the range of data exclude the min/max point
-    RType range = src.data[src.size - 1].rmin - begin;
-    // prune off zero weights
-    if (range == 0.0f || maxsize <= 2) {
-      // special case, contain only two effective data pts
-      this->data[0] = src.data[0];
-      this->data[1] = src.data[src.size - 1];
-      this->size = 2;
-      return;
-    } else {
-      range = std::max(range, static_cast<RType>(1e-3f));
-    }
-    // Get a big enough chunk size, bigger than range / n
-    // (multiply by 2 is a safe factor)
-    const RType chunk = 2 * range / n;
-    // minimized range
-    RType mrange = 0;
-    {
-      // first scan, grab all the big chunk
-      // moving block index, exclude the two ends.
-      size_t bid = 0;
-      for (size_t i = 1; i < src.size - 1; ++i) {
-        // detect big chunk data point in the middle
-        // always save these data points.
-        if (CheckLarge(src.data[i], chunk)) {
-          if (bid != i - 1) {
-            // accumulate the range of the rest points
-            mrange += src.data[i].RMaxPrev() - src.data[bid].RMinNext();
-          }
-          bid = i;
-          ++nbig;
-        }
+
+  auto Size() const { return queue.size(); }
+
+  // push element to the queue, return false if the queue is full and need to be flushed
+  bool Push(DType x, RType w) {
+    if (queue.empty() || queue.back().first != x) {
+      // Keep capacity at 1 for tiny queues, reserve max capacity lazily.
+      if (queue.size() == 1 && queue.capacity() == 1) {
+        queue.reserve(max_size);
       }
-      if (bid != src.size - 2) {
-        mrange += src.data[src.size - 1].RMaxPrev() - src.data[bid].RMinNext();
+      if (queue.size() == max_size) {
+        return false;
       }
+      queue.emplace_back(x, w);
+      return true;
     }
-    // assert: there cannot be more than n big data points
-    if (nbig >= n) {
-      // see what was the case
-      LOG(INFO) << " check quantile stats, nbig=" << nbig << ", n=" << n;
-      LOG(INFO) << " srcsize=" << src.size << ", maxsize=" << maxsize << ", range=" << range
-                << ", chunk=" << chunk;
-      src.Print();
-      CHECK(nbig < n) << "quantile: too many large chunk";
-    }
-    this->data[0] = src.data[0];
-    this->size = 1;
-    // The counter on the rest of points, to be selected equally from small chunks.
-    n = n - nbig;
-    // find the rest of point
-    size_t bid = 0, k = 1, lastidx = 0;
-    for (size_t end = 1; end < src.size; ++end) {
-      if (end == src.size - 1 || CheckLarge(src.data[end], chunk)) {
-        if (bid != end - 1) {
-          size_t i = bid;
-          RType maxdx2 = src.data[end].RMaxPrev() * 2;
-          for (; k < n; ++k) {
-            RType dx2 = 2 * ((k * mrange) / n + begin);
-            if (dx2 >= maxdx2) break;
-            while (i < end && dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
-            if (i == end) break;
-            if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
-              if (i != lastidx) {
-                this->data[this->size++] = src.data[i];
-                lastidx = i;
-              }
-            } else {
-              if (i + 1 != lastidx) {
-                this->data[this->size++] = src.data[i + 1];
-                lastidx = i + 1;
-              }
-            }
-          }
-        }
-        if (lastidx != end) {
-          this->data[this->size++] = src.data[end];
-          lastidx = end;
-        }
-        bid = end;
-        // shift base by the gap
-        begin += src.data[bid].RMinNext() - src.data[bid].RMaxPrev();
-      }
-    }
+    queue.back().second += w;
+    return true;
+  }
+
+  template <typename Summary>
+  void PopSummary(Summary *out) {
+    CHECK(out);
+    out->Reserve(queue.size());
+    std::sort(queue.begin(), queue.end(),
+              [](QEntry const &l, QEntry const &r) { return l.first < r.first; });
+    out->SetFromSorted(queue);
+    queue.clear();
   }
 };
-/*!
- * \brief template for all quantile sketch algorithm
- *        that uses merge/prune scheme
- * \tparam DType type of data content
- * \tparam RType type of rank
- * \tparam TSummary actual summary data structure it uses
- */
-template <typename DType, typename RType, class TSummary>
-class QuantileSketchTemplate {
- public:
-  static float constexpr kFactor = 8.0;
 
- public:
-  /*! \brief type of summary type */
-  using Summary = TSummary;
-  /*! \brief the entry type */
-  using Entry = typename Summary::Entry;
-  /*! \brief same as summary, but use STL to backup the space */
-  struct SummaryContainer : public Summary {
-    std::vector<Entry> space;
-    SummaryContainer(const SummaryContainer &src) : Summary(nullptr, src.size) {
-      this->space = src.space;
-      this->data = dmlc::BeginPtr(this->space);
-    }
-    SummaryContainer() : Summary(nullptr, 0) {}
-    /*! \brief reserve space for summary */
-    inline void Reserve(size_t size) {
-      if (size > space.size()) {
-        space.resize(size);
-        this->data = dmlc::BeginPtr(space);
-      }
-    }
-    /*!
-     * \brief do elementwise combination of summary array
-     *        this[i] = combine(this[i], src[i]) for each i
-     * \param src the source summary
-     * \param max_nbyte maximum number of byte allowed in here
-     */
-    inline void Reduce(const Summary &src, size_t max_nbyte) {
-      this->Reserve((max_nbyte - sizeof(this->size)) / sizeof(Entry));
-      SummaryContainer temp;
-      temp.Reserve(this->size + src.size);
-      temp.SetCombine(*this, src);
-      this->SetPrune(temp, space.size());
-    }
-    /*! \brief return the number of bytes this data structure cost in serialization */
-    inline static size_t CalcMemCost(size_t nentry) {
-      return sizeof(size_t) + sizeof(Entry) * nentry;
-    }
-    /*! \brief save the data structure into stream */
-    template <typename TStream>
-    inline void Save(TStream &fo) const {  // NOLINT(*)
-      fo.Write(&(this->size), sizeof(this->size));
-      if (this->size != 0) {
-        fo.Write(this->data, this->size * sizeof(Entry));
-      }
-    }
-    /*! \brief load data structure from input stream */
-    template <typename TStream>
-    inline void Load(TStream &fi) {  // NOLINT(*)
-      CHECK_EQ(fi.Read(&this->size, sizeof(this->size)), sizeof(this->size));
-      this->Reserve(this->size);
-      if (this->size != 0) {
-        CHECK_EQ(fi.Read(this->data, this->size * sizeof(Entry)), this->size * sizeof(Entry));
-      }
-    }
-  };
-  /*!
-   * \brief initialize the quantile sketch, given the performance specification
-   * \param maxn maximum number of data points can be feed into sketch
-   * \param eps accuracy level of summary
-   */
-  inline void Init(size_t maxn, double eps) {
-    LimitSizeLevel(maxn, eps, &nlevel, &limit_size);
-    // lazy reserve the space, if there is only one value, no need to allocate space
-    inqueue.queue.resize(1);
-    inqueue.qtail = 0;
-    data.clear();
-    level.clear();
+struct WQSummaryContainer : public WQSummary<> {
+  std::vector<WQSummary<>::Entry> space;
+  WQSummaryContainer() : WQSummary<>(Span<WQSummary<>::Entry>{}, 0) {}
+
+  WQSummaryContainer(WQSummaryContainer const &src) = delete;
+
+  WQSummaryContainer(WQSummaryContainer &&src) noexcept
+      : WQSummary<>(Span<WQSummary<>::Entry>{}, 0), space{std::move(src.space)} {
+    this->SetStorage({dmlc::BeginPtr(this->space), this->space.size()});
+    this->SetSize(src.Size());
+    src.ResetStorage();
   }
 
-  inline static void LimitSizeLevel(size_t maxn, double eps, size_t *out_nlevel,
-                                    size_t *out_limit_size) {
-    size_t &nlevel = *out_nlevel;
-    size_t &limit_size = *out_limit_size;
-    nlevel = 1;
+  WQSummaryContainer &operator=(WQSummaryContainer const &src) = delete;
+
+  WQSummaryContainer &operator=(WQSummaryContainer &&src) noexcept {
+    if (this == &src) {
+      return *this;
+    }
+    this->space = std::move(src.space);
+    this->SetStorage({dmlc::BeginPtr(this->space), this->space.size()});
+    this->SetSize(src.Size());
+    src.ResetStorage();
+    return *this;
+  }
+
+  void Reserve(size_t size) {
+    if (size > space.size()) {
+      space.resize(size);
+    }
+    this->SetStorage({dmlc::BeginPtr(space), space.size()});
+  }
+};
+
+/*! \brief Weighted quantile sketch algorithm using merge/prune. */
+class WQuantileSketch {
+ public:
+  // Safety factor used to oversample the internal sketch relative to the target rank
+  // resolution. User-facing epsilon remains the target rank guarantee; `kFactor`
+  // only affects how much summary storage we reserve to achieve it.
+  static float constexpr kFactor = 2.0;
+
+ public:
+  using Summary = WQSummary<>;
+  using Entry = typename WQSummary<>::Entry;
+  using SummaryContainer = WQSummaryContainer;
+  WQuantileSketch() = default;
+  WQuantileSketch(size_t maxn, double eps) {
+    limit_size_ = LimitSizeLevel(maxn, eps);
+    inqueue_ = Queue<>(limit_size_ * 2);
+    data_.clear();
+    level_.clear();
+  }
+
+  [[nodiscard]] size_t NumElements() const { return num_elements_; }
+
+  static size_t LimitSizeLevel(size_t maxn, double eps) {
+    if (maxn == 0) {
+      // Empty columns can appear in distributed column-split settings.
+      return 1;
+    }
+    auto const internal_eps = eps / kFactor;
+    size_t nlevel = 1;
+    size_t limit_size = 1;
     while (true) {
-      limit_size = static_cast<size_t>(ceil(nlevel / eps)) + 1;
+      limit_size = static_cast<size_t>(ceil(nlevel / internal_eps)) + 1;
       limit_size = std::min(maxn, limit_size);
       size_t n = (1ULL << nlevel);
       if (n * limit_size >= maxn) break;
@@ -543,8 +601,10 @@ class QuantileSketchTemplate {
     // check invariant
     size_t n = (1ULL << nlevel);
     CHECK(n * limit_size >= maxn) << "invalid init parameter";
-    CHECK(nlevel <= std::max(static_cast<size_t>(1), static_cast<size_t>(limit_size * eps)))
+    CHECK(nlevel <=
+          std::max(static_cast<size_t>(1), static_cast<size_t>(limit_size * internal_eps)))
         << "invalid init parameter";
+    return limit_size;
   }
 
   /*!
@@ -552,151 +612,167 @@ class QuantileSketchTemplate {
    * \param x The element added to the sketch
    * \param w The weight of the element.
    */
-  inline void Push(DType x, RType w = 1) {
-    if (w == static_cast<RType>(0)) return;
-    if (inqueue.qtail == inqueue.queue.size() && inqueue.queue[inqueue.qtail - 1].value != x) {
-      // jump from lazy one value to limit_size * 2
-      if (inqueue.queue.size() == 1) {
-        inqueue.queue.resize(limit_size * 2);
-      } else {
-        temp.Reserve(limit_size * 2);
-        inqueue.MakeSummary(&temp);
-        // cleanup queue
-        inqueue.qtail = 0;
-        this->PushTemp();
-      }
+  void Push(bst_float x, bst_float w = 1) {
+    if (w == static_cast<bst_float>(0)) return;
+    ++num_elements_;
+    if (!inqueue_.Push(x, w)) {
+      inqueue_.PopSummary(&temp_);
+      this->PushSummary(&temp_);
+      inqueue_.Push(x, w);
     }
-    inqueue.Push(x, w);
   }
 
-  inline void PushSummary(const Summary &summary) {
-    temp.Reserve(limit_size * 2);
-    temp.SetPrune(summary, limit_size * 2);
-    PushTemp();
+  /*!
+   * \brief Add sorted column entries into this sketch.
+   *
+   * \param column Sorted column entries in ascending order by feature value.
+   * \param weights Row weights.
+   * \param num_retained_items Target number of summary items to retain from sorted input.
+   */
+  void PushSorted(common::Span<::xgboost::Entry const> column, std::vector<float> const &weights,
+                  size_t num_retained_items) {
+    CHECK_GE(num_retained_items, 1);
+    if (weights.empty()) {
+      num_elements_ += column.size();
+    } else {
+      num_elements_ +=
+          std::count_if(column.cbegin(), column.cend(), [&](::xgboost::Entry const &entry) {
+            return weights[entry.index] != static_cast<float>(0);
+          });
+    }
+    auto const max_size = num_retained_items;
+    this->temp_.Reserve(max_size + 1);
+    this->temp_.SetPruneSorted(column, weights, max_size);
+    if (!column.empty()) {
+      this->PushSummary(&temp_);
+    }
   }
 
-  /*! \brief push up temp */
-  inline void PushTemp() {
-    temp.Reserve(limit_size * 2);
-    for (size_t l = 1; true; ++l) {
-      this->InitLevel(l + 1);
-      // check if level l is empty
-      if (level[l].size == 0) {
-        level[l].SetPrune(temp, limit_size);
+  /*! \brief push up a prepared summary */
+  void PushSummary(WQSummaryContainer *summary) {
+    CHECK(summary);
+    summary->Reserve(limit_size_ * 2);
+    size_t l = 0;
+    // Level-wise merge/prune with carry propagation.
+    //
+    // Reference:
+    //   Greenwald, M. and Khanna, S. "Space-efficient Online Computation of
+    //   Quantile Summaries", SIGMOD 2001.
+    while (true) {
+      this->LazyInitLevel(l + 1);
+      // Clamp the incoming summary to per-level capacity before combining.
+      summary->SetPrune(limit_size_);
+      // Merge with the resident level summary.
+      summary->SetCombine(level_[l], &combine_workspace_);
+      // Level[l] is consumed into `summary`. Clear it before carry propagation.
+      level_[l].Clear();
+      // If merged summary fits, store at this level. Otherwise carry upward.
+      if (summary->Size() <= limit_size_) {
         break;
-      } else {
-        // level 0 is actually temp space
-        level[0].SetPrune(temp, limit_size);
-        temp.SetCombine(level[0], level[l]);
-        if (temp.size > limit_size) {
-          // try next level
-          level[l].size = 0;
-        } else {
-          // if merged record is still smaller, no need to send to next level
-          level[l].CopyFrom(temp);
-          break;
-        }
       }
+      ++l;
     }
+
+    // First level where merged summary fits.
+    level_[l].CopyFrom(*summary);
   }
+
+ public:
   /*! \brief get the summary after finalize */
-  inline void GetSummary(SummaryContainer *out) {
-    if (level.size() != 0) {
-      out->Reserve(limit_size * 2);
-    } else {
-      out->Reserve(inqueue.queue.size());
+  [[nodiscard]] WQSummaryContainer GetSummary(size_t max_size) {
+    // Flush pending queue into level summaries first.
+    inqueue_.PopSummary(&temp_);
+    this->PushSummary(&temp_);
+
+    auto const prune_size = std::max(max_size, limit_size_);
+    // Reserve based on observed live storage after local merge.
+    // This keeps memory use small when the sketch has very few entries (e.g. sparse
+    // columns / few local instances) while still reserving enough for immediate merges.
+    std::size_t observed_level_entries = 0;
+    for (auto const &level_summary : level_) {
+      observed_level_entries += level_summary.Size();
     }
-    inqueue.MakeSummary(out);
-    if (level.size() != 0) {
-      level[0].SetPrune(*out, limit_size);
-      for (size_t l = 1; l < level.size(); ++l) {
-        if (level[l].size == 0) continue;
-        if (level[0].size == 0) {
-          level[0].CopyFrom(level[l]);
-        } else {
-          out->SetCombine(level[0], level[l]);
-          level[0].SetPrune(*out, limit_size);
-        }
+    auto initial_reserve = std::min<std::size_t>(observed_level_entries, prune_size + limit_size_);
+    WQSummaryContainer out;
+    if (initial_reserve > 0) {
+      out.Reserve(initial_reserve);
+    }
+
+    // Merge all levels into out.
+    for (auto &level_summary : level_) {
+      auto combine_needed = out.Size() + level_summary.Size();
+      if (combine_needed > out.space.size()) {
+        out.Reserve(combine_needed);
       }
-      out->CopyFrom(level[0]);
-    } else {
-      if (out->size > limit_size) {
-        temp.Reserve(limit_size);
-        temp.SetPrune(*out, limit_size);
-        out->CopyFrom(temp);
-      }
+      out.SetCombine(level_summary, &combine_workspace_);
+      out.SetPrune(prune_size);
     }
+    out.SetPrune(max_size);
+    return out;
   }
-  // used for debug, check if the sketch is valid
-  inline void CheckValid(RType eps) const {
-    for (size_t l = 1; l < level.size(); ++l) {
-      level[l].CheckValid(eps);
-    }
-  }
+
+ private:
   // initialize level space to at least nlevel
-  inline void InitLevel(size_t nlevel) {
-    if (level.size() >= nlevel) return;
-    data.resize(limit_size * nlevel);
-    level.resize(nlevel, Summary(nullptr, 0));
-    for (size_t l = 0; l < level.size(); ++l) {
-      level[l].data = dmlc::BeginPtr(data) + l * limit_size;
+  void LazyInitLevel(size_t nlevel) {
+    if (level_.size() >= nlevel) return;
+    data_.resize(limit_size_ * nlevel);
+    level_.clear();
+    level_.reserve(nlevel);
+    for (size_t l = 0; l < nlevel; ++l) {
+      level_.emplace_back(Span<Entry>{data_.data() + l * limit_size_, limit_size_}, 0);
     }
   }
   // input data queue
-  typename Summary::Queue inqueue;
-  // number of levels
-  size_t nlevel;
+  Queue<> inqueue_{1};
   // size of summary in each level
-  size_t limit_size;
+  size_t limit_size_{1};
   // the level of each summaries
-  std::vector<Summary> level;
+  std::vector<WQSummary<>> level_;
   // content of the summary
-  std::vector<Entry> data;
+  std::vector<WQSummary<>::Entry> data_;
   // temporal summary, used for temp-merge
-  SummaryContainer temp;
+  WQSummaryContainer temp_;
+  // reusable workspace for combine-prune operations
+  std::vector<Entry> combine_workspace_;
+  // Number of source elements represented by this sketch.
+  size_t num_elements_{0};
 };
 
-/*!
- * \brief Quantile sketch use WQSummary
- * \tparam DType type of data content
- * \tparam RType type of rank
- */
-template <typename DType, typename RType = unsigned>
-class WQuantileSketch : public QuantileSketchTemplate<DType, RType, WQSummary<DType, RType>> {};
+[[nodiscard]] inline double SketchEpsilon(bst_bin_t max_bins, std::size_t num_samples) {
+  auto const n = std::max<std::size_t>(1, num_samples);
+  auto const n_bins = std::min<std::size_t>(static_cast<std::size_t>(max_bins), n);
+  return 1.0 / static_cast<double>(n_bins);
+}
 
-/*!
- * \brief Quantile sketch use WXQSummary
- * \tparam DType type of data content
- * \tparam RType type of rank
- */
-template <typename DType, typename RType = unsigned>
-class WXQuantileSketch : public QuantileSketchTemplate<DType, RType, WXQSummary<DType, RType>> {};
+// Per-feature summary size for a sketch that represents `num_samples`. `num_samples`
+// can be an exact per-feature count or a conservative approximation when a tighter count
+// is not available on the current path.
+[[nodiscard]] inline std::size_t SketchSummaryBudget(bst_bin_t max_bins, std::size_t num_samples) {
+  return WQuantileSketch::LimitSizeLevel(num_samples, SketchEpsilon(max_bins, num_samples));
+}
 
 namespace detail {
 inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
-  std::vector<float> const &group_weights = info.weights_.HostVector();
+  auto const &group_weights = info.weights_.HostVector();
   if (group_weights.empty()) {
     return group_weights;
   }
 
   auto const &group_ptr = info.group_ptr_;
   CHECK_GE(group_ptr.size(), 2);
-
-  auto n_groups = group_ptr.size() - 1;
-  CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
-
-  bst_idx_t n_samples = info.num_row_;
-  std::vector<float> results(n_samples);
-  CHECK_EQ(group_ptr.back(), n_samples)
+  CHECK_EQ(group_weights.size(), group_ptr.size() - 1) << error::GroupWeight();
+  CHECK_EQ(group_ptr.back(), info.num_row_)
       << error::GroupSize() << " the number of rows from the data.";
+
+  std::vector<float> out(info.num_row_);
   size_t cur_group = 0;
-  for (bst_idx_t i = 0; i < n_samples; ++i) {
-    results[i] = group_weights[cur_group];
-    if (i == group_ptr[cur_group + 1]) {
-      cur_group++;
+  for (bst_idx_t i = 0; i < info.num_row_; ++i) {
+    while (cur_group + 1 < group_ptr.size() && i >= group_ptr[cur_group + 1]) {
+      ++cur_group;
     }
+    out[i] = group_weights[cur_group];
   }
-  return results;
+  return out;
 }
 }  // namespace detail
 
@@ -768,9 +844,9 @@ std::vector<bst_feature_t> LoadBalance(Batch const &batch, size_t nnz, bst_featu
 /*!
  * A sketch matrix storing sketches for each feature.
  */
-template <typename WQSketch>
-class SketchContainerImpl {
+class HostSketchContainer {
  protected:
+  using WQSketch = WQuantileSketch;
   std::vector<WQSketch> sketches_;
   std::vector<std::set<float>> categories_;
   std::vector<FeatureType> const feature_types_;
@@ -789,8 +865,9 @@ class SketchContainerImpl {
    * \param max_bin maximum number of bins for each feature.
    * \param use_group whether is assigned to group to data instance.
    */
-  SketchContainerImpl(Context const *ctx, std::vector<bst_idx_t> columns_size, bst_bin_t max_bin,
-                      common::Span<FeatureType const> feature_types, bool use_group);
+  HostSketchContainer(Context const *ctx, bst_bin_t max_bin,
+                      common::Span<FeatureType const> feature_types,
+                      std::vector<bst_idx_t> columns_size, bool use_group);
 
   static bool UseGroup(MetaInfo const &info) {
     size_t const num_groups = info.group_ptr_.size() == 0 ? 0 : info.group_ptr_.size() - 1;
@@ -799,25 +876,20 @@ class SketchContainerImpl {
     return use_group_ind;
   }
 
-  static uint32_t SearchGroupIndFromRow(std::vector<bst_uint> const &group_ptr,
-                                        size_t const base_rowid) {
-    CHECK_LT(base_rowid, group_ptr.back())
-        << "Row: " << base_rowid << " is not found in any group.";
-    bst_group_t group_ind = std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid) -
-                            group_ptr.cbegin() - 1;
-    return group_ind;
-  }
-  // Gather sketches from all workers.
-  void GatherSketchInfo(Context const *ctx, MetaInfo const &info,
-                        std::vector<typename WQSketch::SummaryContainer> const &reduced,
-                        std::vector<bst_idx_t> *p_worker_segments,
-                        std::vector<bst_idx_t> *p_sketches_scan,
-                        std::vector<typename WQSketch::Entry> *p_global_sketches);
-  // Merge sketches from all workers.
-  void AllReduce(Context const *ctx, MetaInfo const &info,
-                 std::vector<typename WQSketch::SummaryContainer> *p_reduced,
-                 std::vector<int32_t> *p_num_cuts);
+  /* \brief Push a CSR matrix. */
+  void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
 
+  template <typename Batch>
+  void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
+
+  /**
+   * \brief Push a sorted CSC page.
+   */
+  void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
+
+  [[nodiscard]] HistogramCuts MakeCuts(Context const *ctx, MetaInfo const &info);
+
+ protected:
   template <typename Batch, typename IsValid>
   void PushRowPageImpl(Batch const &batch, std::size_t base_rowid, OptionalWeights weights,
                        size_t nnz, size_t n_features, bool is_dense, IsValid is_valid) {
@@ -859,136 +931,16 @@ class SketchContainerImpl {
     });
   }
 
-  /* \brief Push a CSR matrix. */
-  void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
-
-  void MakeCuts(Context const *ctx, MetaInfo const &info, HistogramCuts *cuts);
-
  private:
-  // Merge all categories from other workers.
-  void AllreduceCategories(Context const *ctx, MetaInfo const &info);
-};
+  // Merge categorical values from all workers.
+  [[nodiscard]] auto AllreduceCategories(Context const *ctx, MetaInfo const &info,
+                                         common::Span<bst_feature_t const> categorical_features)
+      -> std::vector<std::set<float>>;
 
-class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, float>> {
- public:
-  using WQSketch = WQuantileSketch<float, float>;
-
- public:
-  HostSketchContainer(Context const *ctx, bst_bin_t max_bins, common::Span<FeatureType const> ft,
-                      std::vector<bst_idx_t> columns_size, bool use_group);
-
-  template <typename Batch>
-  void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
-};
-
-/**
- * \brief Quantile structure accepts sorted data, extracted from histmaker.
- */
-struct SortedQuantile {
-  /*! \brief total sum of amount to be met */
-  double sum_total{0.0};
-  /*! \brief statistics used in the sketch */
-  double rmin, wmin;
-  /*! \brief last seen feature value */
-  bst_float last_fvalue;
-  /*! \brief current size of sketch */
-  double next_goal;
-  // pointer to the sketch to put things in
-  common::WXQuantileSketch<bst_float, bst_float> *sketch;
-  // initialize the space
-  inline void Init(unsigned max_size) {
-    next_goal = -1.0f;
-    rmin = wmin = 0.0f;
-    sketch->temp.Reserve(max_size + 1);
-    sketch->temp.size = 0;
-  }
-  /*!
-   * \brief push a new element to sketch
-   * \param fvalue feature value, comes in sorted ascending order
-   * \param w weight
-   * \param max_size
-   */
-  inline void Push(bst_float fvalue, bst_float w, unsigned max_size) {
-    if (next_goal == -1.0f) {
-      next_goal = 0.0f;
-      last_fvalue = fvalue;
-      wmin = w;
-      return;
-    }
-    if (last_fvalue != fvalue) {
-      double rmax = rmin + wmin;
-      if (rmax >= next_goal && sketch->temp.size != max_size) {
-        if (sketch->temp.size == 0 ||
-            last_fvalue > sketch->temp.data[sketch->temp.size - 1].value) {
-          // push to sketch
-          sketch->temp.data[sketch->temp.size] =
-              common::WXQuantileSketch<bst_float, bst_float>::Entry(
-                  static_cast<bst_float>(rmin), static_cast<bst_float>(rmax),
-                  static_cast<bst_float>(wmin), last_fvalue);
-          CHECK_LT(sketch->temp.size, max_size) << "invalid maximum size max_size=" << max_size
-                                                << ", stemp.size" << sketch->temp.size;
-          ++sketch->temp.size;
-        }
-        if (sketch->temp.size == max_size) {
-          next_goal = sum_total * 2.0f + 1e-5f;
-        } else {
-          next_goal = static_cast<bst_float>(sketch->temp.size * sum_total / max_size);
-        }
-      } else {
-        if (rmax >= next_goal) {
-          LOG(DEBUG) << "INFO: rmax=" << rmax << ", sum_total=" << sum_total
-                     << ", naxt_goal=" << next_goal << ", size=" << sketch->temp.size;
-        }
-      }
-      rmin = rmax;
-      wmin = w;
-      last_fvalue = fvalue;
-    } else {
-      wmin += w;
-    }
-  }
-
-  /*! \brief push final unfinished value to the sketch */
-  inline void Finalize(unsigned max_size) {
-    double rmax = rmin + wmin;
-    if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size - 1].value) {
-      CHECK_LE(sketch->temp.size, max_size)
-          << "Finalize: invalid maximum size, max_size=" << max_size
-          << ", stemp.size=" << sketch->temp.size;
-      // push to sketch
-      sketch->temp.data[sketch->temp.size] = common::WXQuantileSketch<bst_float, bst_float>::Entry(
-          static_cast<bst_float>(rmin), static_cast<bst_float>(rmax), static_cast<bst_float>(wmin),
-          last_fvalue);
-      ++sketch->temp.size;
-    }
-    sketch->PushTemp();
-  }
-};
-
-class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float, float>> {
-  std::vector<SortedQuantile> sketches_;
-  using Super = SketchContainerImpl<WXQuantileSketch<float, float>>;
-
- public:
-  explicit SortedSketchContainer(Context const *ctx, int32_t max_bins,
-                                 common::Span<FeatureType const> ft,
-                                 std::vector<bst_idx_t> columns_size, bool use_group)
-      : SketchContainerImpl{ctx, columns_size, max_bins, ft, use_group} {
-    monitor_.Init(__func__);
-    sketches_.resize(columns_size.size());
-    size_t i = 0;
-    for (auto &sketch : sketches_) {
-      sketch.sketch = &Super::sketches_[i];
-      sketch.Init(max_bins_);
-      auto eps = 2.0 / max_bins;
-      sketch.sketch->Init(columns_size_[i], eps);
-      ++i;
-    }
-  }
-  /**
-   * \brief Push a sorted CSC page.
-   */
-  void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
+  // Merge numeric sketches from all workers.
+  [[nodiscard]] auto AllReduce(Context const *ctx, MetaInfo const &info,
+                               common::Span<bst_feature_t const> numeric_features)
+      -> std::vector<WQSketch::SummaryContainer>;
 };
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_QUANTILE_H_

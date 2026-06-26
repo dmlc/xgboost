@@ -94,7 +94,7 @@ The smoothing is only done for features with more than 5 distinct values.}
 \item{plot}{Should the plot be drawn? (Default is \code{TRUE}).
 If \code{FALSE}, only a list of matrices is returned.}
 
-\item{...}{Other parameters passed to \code{\link[graphics:plot.default]{graphics::plot()}}.}
+\item{...}{Other parameters passed to \code{\link[graphics:plot]{graphics::plot()}}.}
 }
 \value{
 In addition to producing plots (when \code{plot = TRUE}), it silently returns a list of two matrices:

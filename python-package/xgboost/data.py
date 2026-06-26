@@ -23,6 +23,7 @@ from typing import (
 
 import numpy as np
 
+from ._c_api import _LIB, _check_call, c_str, make_jcargs
 from ._data_utils import (
     AifType,
     Categories,
@@ -45,6 +46,7 @@ from ._data_utils import (
 )
 from ._typing import (
     CupyT,
+    DataSplitMode,
     DataType,
     FeatureNames,
     FeatureTypes,
@@ -74,21 +76,13 @@ from .compat import (
     is_pyarrow_available,
     lazy_isinstance,
 )
-from .core import (
-    _LIB,
-    DataIter,
-    DataSplitMode,
-    DMatrix,
-    _check_call,
-    _ProxyDMatrix,
-    c_str,
-    make_jcargs,
-)
 
 if TYPE_CHECKING:
     import pyarrow as pa
     from pandas import DataFrame as PdDataFrame
     from pandas import Series as PdSeries
+
+    from .core import DMatrix, _ProxyDMatrix
 
 
 DispatchedDataBackendReturnType: TypeAlias = Tuple[
@@ -457,7 +451,7 @@ def _lazy_load_pd_is_cat() -> Callable[[PandasDType], bool]:
                 return isinstance(dtype, CategoricalDtype)
 
             return pd_is_cat_210
-    from pandas.api.types import is_categorical_dtype  # type: ignore
+    from pandas.api.types import is_categorical_dtype  # type: ignore[attr-defined]
 
     return is_categorical_dtype
 
@@ -482,7 +476,7 @@ def _lazy_load_pd_is_sparse() -> Callable[[PandasDType], bool]:
 
             return pd_is_sparse_210
 
-    from pandas.api.types import is_sparse  # type: ignore
+    from pandas.api.types import is_sparse  # type: ignore[attr-defined]
 
     return is_sparse
 
@@ -506,7 +500,7 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     # No copy, callstack:
     # pandas.core.internals.managers.SingleBlockManager.array_values()
     # pandas.core.internals.blocks.EABackedBlock.values
-    d_array: pd.arrays.ArrowExtensionArray = ser.array  # type: ignore
+    d_array: pd.arrays.ArrowExtensionArray = ser.array  # type: ignore[name-defined]
     # no copy in __arrow_array__
     # ArrowExtensionArray._data is a chunked array
     aa: "pa.ChunkedArray" = d_array.__arrow_array__()
@@ -567,9 +561,9 @@ def pandas_transform_data(
             ser.dtype,
             (
                 # pylint: disable=no-member
-                np.dtypes.Float32DType,  # type: ignore
+                np.dtypes.Float32DType,  # type: ignore[attr-defined]
                 # pylint: disable=no-member
-                np.dtypes.Float64DType,  # type: ignore
+                np.dtypes.Float64DType,  # type: ignore[attr-defined]
             ),
         )
 
@@ -650,7 +644,7 @@ class PandasTransformed(TransformedDf):
             n_samples = self.columns[0].codes.shape[0]
         else:
             # Anything else, TypeGuard is ignored by mypy 1.15.0 for some reason
-            n_samples = self.columns[0].shape[0]  # type: ignore
+            n_samples = self.columns[0].shape[0]  # type: ignore[union-attr]
         return n_samples, len(self.columns)
 
 
@@ -663,6 +657,11 @@ def _transform_pandas_df(
 ) -> Tuple[PandasTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
+    if data.columns.has_duplicates:
+        duplicates = data.columns[data.columns.duplicated()].unique().tolist()
+        raise ValueError(
+            f"Duplicate column names are not supported. Duplicates found: {duplicates}"
+        )
 
     feature_types, ref_categories = get_ref_categories(feature_types)
     feature_names, feature_types = pandas_feature_info(
@@ -693,6 +692,17 @@ def _meta_from_pandas_df(
     _meta_from_numpy(array, name, dtype, handle)
 
 
+def _reject_pd_sparse_col_split(
+    data: "PdDataFrame", data_split_mode: DataSplitMode
+) -> None:
+    """Sparse pandas columns are not supported with column-wise data split."""
+    if data_split_mode != DataSplitMode.COL:
+        return
+    for _, dtype in zip(data.columns, data.dtypes):
+        if is_pd_sparse_dtype(dtype):
+            raise ValueError("Column split does not support pandas sparse array.")
+
+
 def _from_pandas_df(
     *,
     data: "PdDataFrame",
@@ -703,6 +713,7 @@ def _from_pandas_df(
     feature_types: Optional[Union[FeatureTypes, Categories]],
     data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
+    _reject_pd_sparse_col_split(data, data_split_mode)
     df, feature_names, feature_types = _transform_pandas_df(
         data, enable_categorical, feature_names, feature_types
     )
@@ -732,7 +743,7 @@ def _meta_from_pandas_series(
         data = data.to_numpy(np.float32, na_value=np.nan)
 
     if is_pd_sparse_dtype(getattr(data, "dtype", data)):
-        data = data.to_dense()  # type: ignore
+        data = data.to_dense()  # type: ignore[union-attr]
     assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
     _meta_from_numpy(data, name, dtype, handle)
 
@@ -926,6 +937,18 @@ def _check_pyarrow_for_polars() -> None:
         raise ImportError("`pyarrow` is required for polars.")
 
 
+def _reject_polars_categorical(data: DataType) -> None:
+    pl = import_polars()
+
+    for name, dtype in zip(data.columns, data.dtypes):
+        if isinstance(dtype, pl.Categorical):
+            raise ValueError(
+                "XGBoost does not support `polars.Categorical` because its "
+                "encoding can be sparse. Use `polars.Enum` instead. "
+                f"Invalid column: {name}",
+            )
+
+
 def _transform_polars_df(
     data: DataType,
     enable_categorical: bool,
@@ -943,6 +966,7 @@ def _transform_polars_df(
         df = data
 
     _check_pyarrow_for_polars()
+    _reject_polars_categorical(df)
     table = df.to_arrow()
     return _transform_arrow_table(
         table, enable_categorical, feature_names, feature_types
@@ -984,9 +1008,13 @@ def _lazy_load_cudf_is_cat() -> Callable[[Any], bool]:
 
     except ImportError:
         try:
-            from cudf.api.types import is_categorical_dtype  # type: ignore
+            from cudf.api.types import (  # type: ignore[no-redef]
+                is_categorical_dtype,
+            )
         except ImportError:
-            from cudf.utils.dtypes import is_categorical_dtype  # type: ignore
+            from cudf.utils.dtypes import (  # type: ignore[no-redef]
+                is_categorical_dtype,
+            )
 
     return is_categorical_dtype
 
@@ -1039,7 +1067,7 @@ class CudfTransformed(TransformedDf):
         if _is_df_cat(self.columns[0]):
             n_samples = self.columns[0].codes.shape[0]
         else:
-            n_samples = self.columns[0].shape[0]  # type: ignore
+            n_samples = self.columns[0].shape[0]  # type: ignore[union-attr]
         return n_samples, len(self.columns)
 
 
@@ -1099,7 +1127,7 @@ def _transform_cudf_df(
         # unlike pandas, cuDF uses NA for missing data.
         if is_categorical_dtype(data.dtype) and enable_categorical:
             result.append(data.cat)
-        elif enable_categorical:
+        elif is_categorical_dtype(data.dtype) and not enable_categorical:
             raise ValueError(_ENABLE_CAT_ERR)
         else:
             result.append(data)
@@ -1277,10 +1305,6 @@ def _from_tuple(
         feature_types=feature_types,
         data_split_mode=data_split_mode,
     )
-
-
-def _is_iter(data: DataType) -> TypeGuard[DataIter]:
-    return isinstance(data, DataIter)
 
 
 def _has_array_protocol(data: DataType) -> bool:
@@ -1556,7 +1580,7 @@ def _meta_from_cupy_array(data: DataType, field: str, handle: ctypes.c_void_p) -
 
 
 def dispatch_meta_backend(
-    matrix: DMatrix, data: DataType, name: str, dtype: Optional[NumpyDType] = None
+    matrix: "DMatrix", data: DataType, name: str, dtype: Optional[NumpyDType] = None
 ) -> None:
     """Dispatch for meta info."""
     handle = matrix.handle
@@ -1617,33 +1641,6 @@ def dispatch_meta_backend(
         _meta_from_numpy(array, name, dtype, handle)
         return
     raise TypeError("Unsupported type for " + name, str(type(data)))
-
-
-class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
-    """An iterator for single batch data to help creating device DMatrix.
-    Transforming input directly to histogram with normal single batch data API
-    can not access weight for sketching.  So this iterator acts as a staging
-    area for meta info.
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        self.kwargs = kwargs
-        self.it = 0
-
-        # This does not necessarily increase memory usage as the data transformation
-        # might use memory.
-        super().__init__(release_data=False)
-
-    def next(self, input_data: Callable) -> bool:
-        if self.it == 1:
-            return False
-        self.it += 1
-        input_data(**self.kwargs)
-        return True
-
-    def reset(self) -> None:
-        self.it = 0
 
 
 def _proxy_transform(
@@ -1714,7 +1711,7 @@ def is_on_cuda(data: Any) -> bool:
 
 
 def dispatch_proxy_set_data(
-    proxy: _ProxyDMatrix,
+    proxy: "_ProxyDMatrix",
     data: DataType,
 ) -> None:
     """Dispatch for QuantileDMatrix."""

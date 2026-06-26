@@ -4,11 +4,11 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
+#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
 #include "../../../src/data/ellpack_page.cuh"           // for EllpackPage, GetRowStride
 #include "../../../src/data/ellpack_page_raw_format.h"  // for EllpackPageRawFormat
 #include "../../../src/data/ellpack_page_source.h"      // for EllpackFormatStreamPolicy
 #include "../../../src/tree/param.h"                    // for TrainParam
-#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
 #include "../filesystem.h"                              // for TemporaryDirectory
 #include "../helpers.h"
 
@@ -56,7 +56,7 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
 
     auto row_stride = GetRowStride(m.get());
     EllpackCacheInfo cinfo = CInfoForTest(&ctx, m.get(), row_stride, param, cuts);
-    policy.SetCuts(cuts, ctx.Device(), cinfo);
+    policy.SetCuts(&ctx, cuts, ctx.Device(), cinfo);
 
     std::unique_ptr<EllpackPageRawFormat> format{policy.CreatePageFormat(param)};
 
@@ -76,7 +76,6 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
       auto loaded = page.Impl();
       auto orig = ellpack.Impl();
       ASSERT_EQ(loaded->Cuts().Ptrs(), orig->Cuts().Ptrs());
-      ASSERT_EQ(loaded->Cuts().MinValues(), orig->Cuts().MinValues());
       ASSERT_EQ(loaded->Cuts().Values(), orig->Cuts().Values());
       ASSERT_EQ(loaded->base_rowid, orig->base_rowid);
       ASSERT_EQ(loaded->info.row_stride, orig->info.row_stride);
@@ -131,7 +130,7 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
             cinfo.buffer_bytes.push_back(page.Impl()->MemCostBytes());
             cinfo.buffer_rows.push_back(page.Impl()->n_rows);
           }
-          policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
+          policy.SetCuts(&ctx, page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
           format = policy.CreatePageFormat(param);
         }
         auto writer = policy.CreateWriter({}, i);
@@ -203,7 +202,7 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
       } else {
         EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
       }
-      policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
+      policy.SetCuts(&ctx, page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
     }
 
     auto format = policy.CreatePageFormat(param);

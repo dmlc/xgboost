@@ -2,7 +2,7 @@ name: aarch64_test
 channels:
 - conda-forge
 dependencies:
-- python=3.10
+- python=3.12
 - pip
 - wheel
 - pytest
@@ -26,7 +26,7 @@ dependencies:
 - llvmlite
 - loky>=3.5.1
 - pyarrow
-- pyspark>=3.4.0
+- pyspark>=4.0.0
 - cloudpickle
 - pip:
   - awscli

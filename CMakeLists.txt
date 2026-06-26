@@ -4,7 +4,7 @@ if(PLUGIN_SYCL)
   string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-project(xgboost LANGUAGES CXX C VERSION 3.2.0)
+project(xgboost LANGUAGES CXX C VERSION 3.4.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 
@@ -54,6 +54,7 @@ option(BUILD_STATIC_LIB "Build static library" OFF)
 option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
 option(BUILD_WITH_GIT_HASH "Add a short git hash to the build info." OFF)
+option(BUILD_WITH_SYSTEM_DMLC "Use system package for dmlc." OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -210,6 +211,9 @@ endif()
 if(BUILD_DEPRECATED_CLI)
   message(SEND_ERROR  "The option `BUILD_DEPRECATED_CLI` is removed from XGBoost.")
 endif()
+if(USE_NCCL_LIB_PATH)
+  message(SEND_ERROR "`USE_NCCL_LIB_PATH` has been removed, use other NCCL variables to specify the path.")
+endif()
 
 #-- Sanitizer
 if(USE_SANITIZER)
@@ -232,14 +236,19 @@ if(USE_CUDA)
   endif()
 
   enable_language(CUDA)
-  if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 12.9)
+  if(CMAKE_CUDA_COMPILER_TOOLKIT_VERSION)
+    set(xgboost_cuda_toolkit_version ${CMAKE_CUDA_COMPILER_TOOLKIT_VERSION})
+  else()
+    set(xgboost_cuda_toolkit_version ${CMAKE_CUDA_COMPILER_VERSION})
+  endif()
+  if("${xgboost_cuda_toolkit_version}" VERSION_LESS "12.9")
     message(FATAL_ERROR "CUDA version must be at least 12.9!")
   endif()
   if(DEFINED GPU_COMPUTE_VER)
     compute_cmake_cuda_archs("${GPU_COMPUTE_VER}")
   endif()
 
-  find_package(CUDAToolkit 12.8 REQUIRED)
+  find_package(CUDAToolkit 12.9 REQUIRED)
 endif()
 
 if(USE_NVCOMP)
@@ -289,7 +298,12 @@ endif()
 
 # dmlc-core
 set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
-add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+if(BUILD_WITH_SYSTEM_DMLC)
+  find_package(dmlc REQUIRED)
+else()
+  set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
+  add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
+endif()
 
 if(MSVC)
   if(TARGET dmlc_unit_tests)
@@ -302,7 +316,12 @@ endif()
 
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
-target_link_libraries(objxgboost PUBLIC dmlc)
+# dmlc-core
+if(BUILD_WTIH_SYSTEM_DMLC)
+  target_link_libraries(objxgboost PUBLIC ${dmlc-LIBRARIES})
+else()
+  target_link_libraries(objxgboost PUBLIC dmlc)
+endif()
 
 # Link -lstdc++fs for GCC 8.x
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
@@ -336,21 +355,24 @@ if(PLUGIN_RMM)
   # Pick up patched CCCL from RMM
 elseif(USE_CUDA)
   # If using CUDA and not RMM, search for CCCL.
-  find_package(CCCL CONFIG)
+  # Use HINTS to prioritize CCCL from the same CUDA toolkit as nvcc (e.g., in conda environments).
+  # CUDAToolkit_TARGET_DIR points to the target-specific directory (e.g., targets/x86_64-linux).
+  find_package(CCCL CONFIG
+    HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
   if(CCCL_FOUND)
     message(STATUS "Standalone CCCL found.")
   else()
     message(STATUS "Standalone CCCL not found. Attempting to use CCCL from CUDA Toolkit...")
     find_package(CCCL CONFIG
-      HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+      HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
     if(NOT CCCL_FOUND)
       message(STATUS "Could not locate CCCL from CUDA Toolkit. Using Thrust and CUB from CUDA Toolkit...")
       find_package(libcudacxx CONFIG REQUIRED
-        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+        HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
       find_package(CUB CONFIG REQUIRED
-        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+        HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
       find_package(Thrust CONFIG REQUIRED
-        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+        HINTS ${CUDAToolkit_TARGET_DIR}/lib/cmake ${CUDAToolkit_LIBRARY_DIR}/cmake)
       thrust_create_target(Thrust HOST CPP DEVICE CUDA)
       add_library(CCCL::CCCL INTERFACE IMPORTED GLOBAL)
       target_link_libraries(CCCL::CCCL INTERFACE libcudacxx::libcudacxx CUB::CUB Thrust)
@@ -375,7 +397,11 @@ endif()
 if(BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
 else()
+  # Provide versioned shared object
   add_library(xgboost SHARED)
+  set_target_properties(xgboost PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR})
 endif()
 target_link_libraries(xgboost PRIVATE objxgboost)
 target_include_directories(xgboost
@@ -385,11 +411,16 @@ target_include_directories(xgboost
 #-- End shared library
 
 # Common setup for all targets
-foreach(target xgboost objxgboost dmlc)
+foreach(target xgboost objxgboost)
   xgboost_target_properties(${target})
   xgboost_target_link_libraries(${target})
   xgboost_target_defs(${target})
 endforeach()
+if(NOT BUILD_WITH_SYSTEM_DMLC)
+  xgboost_target_properties(dmlc)
+  xgboost_target_link_libraries(dmlc)
+  xgboost_target_defs(dmlc)
+endif()
 
 if(JVM_BINDINGS)
   xgboost_target_properties(xgboost4j)
@@ -471,6 +502,11 @@ install(
   ${CMAKE_CURRENT_BINARY_DIR}/cmake/xgboost-config.cmake
   ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
+if(USE_NCCL AND BUILD_STATIC_LIB)
+  install(
+    FILES ${CMAKE_CURRENT_LIST_DIR}/cmake/modules/FindNccl.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
+endif()
 
 #-- Test
 if(GOOGLE_TEST)

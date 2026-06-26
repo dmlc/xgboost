@@ -460,7 +460,7 @@ test_that("xgb.plot.tree works with and without feature names", {
   setinfo(dm, "feature_type", c("c", "c", "c"))
   model <- xgb.train(
     data = dm,
-    params = list(tree_method = "hist"),
+    params = list(tree_method = "hist", nthread = 1),
     nrounds = 2
   )
   expect_silent(xgb.plot.tree(model = model))

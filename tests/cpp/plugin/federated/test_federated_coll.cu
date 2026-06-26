@@ -39,7 +39,8 @@ void TestAllreduce(std::shared_ptr<FederatedComm> comm, std::int32_t rank, std::
   thrust::transform(buffer.cbegin(), buffer.cend(), expected.begin(),
                     [=] XGBOOST_DEVICE(std::int32_t i) { return i * n_workers; });
 
-  auto rc = w.coll->Allreduce(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)),
+  auto ctx = MakeCUDACtx(rank);
+  auto rc = w.coll->Allreduce(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(buffer)),
                               ArrayInterfaceHandler::kI4, Op::kSum);
   SafeColl(rc);
   for (auto i = 0; i < 5; i++) {
@@ -53,14 +54,15 @@ void TestBroadcast(std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
   auto rc = Success();
   std::vector<std::int32_t> expect{0, 1, 2, 3};
 
+  auto ctx = MakeCUDACtx(rank);
   if (comm->Rank() == 0) {
     dh::device_vector<std::int32_t> buffer{expect};
-    rc = w.coll->Broadcast(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)), 0);
+    rc = w.coll->Broadcast(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(buffer)), 0);
     std::vector<std::int32_t> expect{0, 1, 2, 3};
     ASSERT_EQ(buffer, expect);
   } else {
     dh::device_vector<std::int32_t> buffer(std::vector<std::int32_t>{4, 5, 6, 7});
-    rc = w.coll->Broadcast(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)), 0);
+    rc = w.coll->Broadcast(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(buffer)), 0);
     ASSERT_EQ(buffer, expect);
   }
   SafeColl(rc);
@@ -71,7 +73,8 @@ void TestAllgather(std::shared_ptr<FederatedComm> comm, std::int32_t rank, std::
 
   dh::device_vector<std::int32_t> buffer(n_workers, 0);
   buffer[comm->Rank()] = comm->Rank();
-  auto rc = w.coll->Allgather(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)));
+  auto ctx = MakeCUDACtx(rank);
+  auto rc = w.coll->Allgather(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(buffer)));
   SafeColl(rc);
   for (auto i = 0; i < n_workers; i++) {
     ASSERT_EQ(buffer[i], i);
@@ -89,9 +92,11 @@ void TestAllgatherV(std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
                                   static_cast<std::int64_t>(inputs[1].size())};
   r.resize(sizes[0] + sizes[1]);
 
-  auto rc = w.coll->AllgatherV(*w.nccl_comm, common::EraseType(dh::ToSpan(inputs[comm->Rank()])),
-                               common::Span{sizes.data(), sizes.size()}, recv_segments,
-                               common::EraseType(dh::ToSpan(r)), AllgatherVAlgo::kRing);
+  auto ctx = MakeCUDACtx(rank);
+  auto rc =
+      w.coll->AllgatherV(&ctx, *w.nccl_comm, common::EraseType(dh::ToSpan(inputs[comm->Rank()])),
+                         common::Span{sizes.data(), sizes.size()}, recv_segments,
+                         common::EraseType(dh::ToSpan(r)), AllgatherVAlgo::kRing);
   SafeColl(rc);
 
   ASSERT_EQ(r[0], 1);

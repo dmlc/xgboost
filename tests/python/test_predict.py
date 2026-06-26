@@ -6,9 +6,8 @@ from typing import List, Type, Union
 import numpy as np
 import pandas as pd
 import pytest
-from scipy import sparse
-
 import xgboost as xgb
+from scipy import sparse
 from xgboost import testing as tm
 from xgboost.testing.data import get_california_housing, np_dtypes, pd_dtypes
 from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
@@ -213,7 +212,7 @@ class TestInplacePredict:
             if isinstance(orig, pd.DataFrame) and is_bool_dtype(dtypes.iloc[0]):
                 continue
             y = np.arange(x.shape[0])
-            Xy = xgb.DMatrix(orig, y, enable_categorical=True)
+            Xy = xgb.DMatrix(orig, y)
             booster = xgb.train({"tree_method": "hist"}, Xy, num_boost_round=1)
             predt_orig = booster.inplace_predict(orig)
             predt = booster.inplace_predict(x)

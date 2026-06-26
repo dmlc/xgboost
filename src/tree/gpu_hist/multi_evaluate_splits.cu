@@ -8,7 +8,8 @@
 #include <cub/warp/warp_reduce.cuh>  // for WarpReduce
 #include <cuda/ptx>                  // for get_sreg_laneid
 #include <cuda/std/functional>       // for identity
-#include <vector>                    // for vector
+#include <limits>
+#include <vector>  // for vector
 
 #include "../../common/cuda_context.cuh"
 #include "../tree_view.h"             // for MultiTargetTreeView
@@ -41,7 +42,7 @@ struct ScanHistogramAgent {
   __device__ void ScanFeature(GradientPairInt64 const *node_histogram,
                               GradientPairInt64 *scan_result, bst_target_t t,
                               BinIndexFn &&bin_idx_fn) {
-    auto lane_id = cuda::ptx::get_sreg_laneid();
+    auto lane_id = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
     // The forward pass and the backward pass differs in where the bin is read, which is
     // specified by the callback bin_idx_fn(). They write to the same output location.
     GradientPairInt64 warp_aggregate;
@@ -145,7 +146,7 @@ struct EvaluateSplitAgent {
     // Calculate split gain for each bin
     auto n_targets = shared.Targets();
     auto roundings = shared.roundings.data();
-    auto lane_id = cuda::ptx::get_sreg_laneid();
+    auto lane_id = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
 
     bst_bin_t gidx_begin = shared.feature_segments[fidx];
     bst_bin_t gidx_end = shared.feature_segments[fidx + 1];
@@ -186,13 +187,12 @@ struct EvaluateSplitAgent {
         if (d_step == -1) {
           split_gidx = RevBinIdx(gidx_begin, gidx_end, bin_idx);
         }
-        float min_fvalue = shared.min_values[fidx];
         float fvalue;
         if (d_step == +1) {
           fvalue = shared.feature_values[split_gidx];
         } else {
           if (split_gidx == gidx_begin) {
-            fvalue = min_fvalue;
+            fvalue = -std::numeric_limits<float>::infinity();
           } else {
             fvalue = shared.feature_values[split_gidx - 1];
           }

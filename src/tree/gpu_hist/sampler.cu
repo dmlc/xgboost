@@ -25,8 +25,8 @@
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
-#include "../../common/random.h"
-#include "../hist/sampler.h"  // for kDefaultMvsLambda
+#include "../../common/random.cuh"          // for DefaultRng, UniformRealDistribution
+#include "../hist/sampler.h"                // for kDefaultMvsLambda
 #include "../param.h"
 #include "quantiser.cuh"  // for GradientQuantiser
 #include "sampler.cuh"
@@ -38,8 +38,8 @@ class RandomWeight {
   explicit RandomWeight(std::size_t seed) : seed_(seed) {}
 
   XGBOOST_DEVICE float operator()(std::size_t i) const {
-    thrust::default_random_engine rng(seed_);
-    thrust::uniform_real_distribution<float> dist;
+    common::cuda_impl::DefaultRng rng{seed_};
+    common::cuda_impl::UniformRealDistribution<float> dist;
     rng.discard(i);
     return dist(rng);
   }
@@ -162,7 +162,7 @@ void UniformSampling::Sample(Context const* ctx, linalg::MatrixView<GradientPair
   // Set gradient pair to 0 with p = 1 - subsample
   auto cuctx = ctx->CUDACtx();
   auto n_targets = gpair.Shape(1);
-  BernoulliTrial trial{common::GlobalRandom()(), subsample_};
+  BernoulliTrial trial{ctx->Rng()(), subsample_};
   thrust::replace_if(
       cuctx->CTP(), linalg::tbegin(gpair), linalg::tend(gpair), thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) {
@@ -300,7 +300,7 @@ void GradientBasedSampling::Sample(Context const* ctx, linalg::MatrixView<Gradie
   auto threshold_index = CalcThresholdIndex(ctx, dh::ToSpan(reg_abs_grad_), dh::ToSpan(thresholds_),
                                             dh::ToSpan(grad_csum_), sample_rows);
 
-  auto seed = common::GlobalRandom()();
+  auto seed = ctx->Rng()();
   // Perform sequential Poisson sampling in place.
   // Only the threshold_[threshold_index] is used. (that is the \mu in the paper)
   thrust::transform(cuctx->CTP(), linalg::tcbegin(gpair), linalg::tcend(gpair),

@@ -3,6 +3,7 @@
 
 import ctypes
 import os
+from enum import IntEnum, unique
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -41,7 +42,7 @@ ArrowCatList: TypeAlias = List[Tuple[str, Optional[ArrowCatCol]]]
 
 CupyT = ArrayLike  # maybe need a stub for cupy arrays
 NumpyOrCupy = Union[np.ndarray, Any]
-NumpyDType = Union[str, Type[np.number]]
+NumpyDType = Union[str, Type[np.number], np.dtype[Any]]
 PandasDType = Any  # real type is pandas.core.dtypes.base.ExtensionDtype
 
 FloatCompatible = Union[float, np.float32, np.float64]
@@ -123,3 +124,11 @@ _F = TypeVar("_F", bound=Callable[..., Any])
 
 _ScoreList = Union[List[float], List[Tuple[float, float]]]
 EvalsLog: TypeAlias = Dict[str, Dict[str, _ScoreList]]
+
+
+@unique
+class DataSplitMode(IntEnum):
+    """Supported data split mode for DMatrix."""
+
+    ROW = 0
+    COL = 1

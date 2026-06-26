@@ -41,7 +41,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
     Context const *ctx,
     std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
     DMatrixHandle proxy_handle, BatchParam const &p, std::shared_ptr<DMatrix> ref,
-    std::int64_t max_quantile_blocks, ExtMemConfig const &config) {
+    ExtMemConfig const &config) {
   xgboost_NVTX_FN_RANGE();
 
   // A handle passed to external iterator.
@@ -51,10 +51,10 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   /**
    * Generate quantiles
    */
-  auto cuts = std::make_shared<common::HistogramCuts>();
+  auto cuts = std::make_shared<common::HistogramCuts>(0);
   ExternalDataInfo ext_info;
   cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, config.missing, cuts, this->info_,
-                          max_quantile_blocks, &ext_info);
+                          &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
 
   /**
@@ -113,9 +113,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
 }
 
 [[nodiscard]] BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackPageImpl() {
-  auto batch_set =
-      std::visit([this](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
-                 this->ellpack_page_source_);
+  auto batch_set = std::visit([](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
+                              this->ellpack_page_source_);
   return batch_set;
 }
 
@@ -127,7 +126,7 @@ BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *,
   }
 
   std::visit(
-      [this, param](auto &&ptr) {
+      [param](auto &&ptr) {
         CHECK(ptr)
             << "The `ExtMemQuantileDMatrix` is initialized using CPU data, cannot be used for GPU.";
         ptr->Reset(param);

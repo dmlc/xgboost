@@ -5,15 +5,525 @@
 
 #include <gtest/gtest.h>
 
+#include <array>    // for array
 #include <cstdint>  // for int64_t
 
 #include "../../../src/collective/allreduce.h"
-#include "../../../src/common/hist_util.h"
 #include "../../../src/data/adapter.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "xgboost/context.h"
 
 namespace xgboost::common {
+namespace quantile_test {
+class QuantileSummaryTest : public ::testing::TestWithParam<SummaryCase> {};
+class QuantileContainerTest : public ::testing::TestWithParam<ContainerCase> {};
+class QuantileDistributedContainerTest : public ::testing::TestWithParam<ContainerCase> {};
+class QuantileSketchOnDMatrixTest : public ::testing::TestWithParam<ContainerCase> {};
+
+namespace {
+void TestSummaryInvariants(SummaryCase const& c, WQSummaryContainer const& summary,
+                           GeneratedColumn const& col) {
+  auto entries = summary.Entries();
+  auto ref = AggregateReferenceColumn(col);
+  auto nonzero_samples = NonZeroWeightCount(col);
+  auto budget = SketchSummaryBudget(c.max_bin, c.rows);
+  // An empty sketch should remain empty after finalization.
+  if (EmptyReference(ref)) {
+    ASSERT_TRUE(entries.empty()) << "case=" << c.name;
+    return;
+  }
+
+  // A numerical summary should remain a strictly increasing support set.
+  ASSERT_FALSE(entries.empty()) << "case=" << c.name;
+  for (std::size_t i = 1; i < entries.size(); ++i) {
+    EXPECT_LT(entries[i - 1].value, entries[i].value) << "case=" << c.name;
+  }
+
+  // Large-n anchors should exercise actual compression rather than exact retention.
+  if (c.rows > static_cast<std::size_t>(c.max_bin) * 8) {
+    ASSERT_LT(summary.Size(), nonzero_samples)
+        << "case=" << c.name << " should exercise sketch compression.";
+  }
+
+  // The summary query rule should satisfy the target rank bound plus the final prune term.
+  auto total = TotalWeight(ref);
+  auto max_error = MaxSummaryQueryRankError(summary, ref, c.max_bin);
+  auto eps = SketchEpsilon(c.max_bin, c.rows);
+  auto bound = (eps + 1.0 / static_cast<double>(budget)) * total;
+
+  EXPECT_LE(max_error, bound) << "case=" << c.name << ", total=" << total << ", budget=" << budget
+                              << ", eps=" << eps;
+
+  // If the target bin count can already represent all distinct values, the summary should
+  // preserve the exact support instead of approximating it.
+  if (UniqueValueCount(ref) <= static_cast<std::size_t>(c.max_bin)) {
+    auto exact_values = ExactValues(ref);
+    ASSERT_EQ(entries.size(), exact_values.size()) << "case=" << c.name;
+    for (std::size_t i = 0; i < exact_values.size(); ++i) {
+      EXPECT_FLOAT_EQ(entries[i].value, exact_values[i]) << "case=" << c.name;
+    }
+  }
+}
+void AssertSameOnAllWorkers(Context const* ctx, HistogramCuts const& cuts) {
+  auto const world = collective::GetWorldSize();
+  if (world <= 1) {
+    return;
+  }
+
+  auto const rank = collective::GetRank();
+  auto const local_value_size = static_cast<std::int64_t>(cuts.Values().size());
+  auto const local_ptr_size = static_cast<std::int64_t>(cuts.Ptrs().size());
+
+  std::vector<std::int64_t> value_sizes(world, 0);
+  std::vector<std::int64_t> ptr_sizes(world, 0);
+  value_sizes.at(rank) = local_value_size;
+  ptr_sizes.at(rank) = local_ptr_size;
+
+  auto rc = collective::Success() << [&] {
+    return collective::Allreduce(ctx, linalg::MakeVec(value_sizes.data(), value_sizes.size()),
+                                 collective::Op::kSum);
+  } << [&] {
+    return collective::Allreduce(ctx, linalg::MakeVec(ptr_sizes.data(), ptr_sizes.size()),
+                                 collective::Op::kSum);
+  };
+  collective::SafeColl(rc);
+
+  auto const max_value_size = *std::max_element(value_sizes.cbegin(), value_sizes.cend());
+  auto const max_ptr_size = *std::max_element(ptr_sizes.cbegin(), ptr_sizes.cend());
+  std::vector<float> cut_values(static_cast<std::size_t>(max_value_size) * world, 0.0f);
+  std::vector<typename std::remove_reference_t<decltype(cuts.Ptrs())>::value_type> cut_ptrs(
+      static_cast<std::size_t>(max_ptr_size) * world, 0);
+
+  auto const value_offset = static_cast<std::size_t>(max_value_size) * rank;
+  auto const ptr_offset = static_cast<std::size_t>(max_ptr_size) * rank;
+  std::copy(cuts.Values().cbegin(), cuts.Values().cend(), cut_values.begin() + value_offset);
+  std::copy(cuts.Ptrs().cbegin(), cuts.Ptrs().cend(), cut_ptrs.begin() + ptr_offset);
+
+  rc = collective::Success() << [&] {
+    return collective::Allreduce(ctx, linalg::MakeVec(cut_values.data(), cut_values.size()),
+                                 collective::Op::kSum);
+  } << [&] {
+    return collective::Allreduce(ctx, linalg::MakeVec(cut_ptrs.data(), cut_ptrs.size()),
+                                 collective::Op::kSum);
+  };
+  collective::SafeColl(rc);
+
+  for (std::int32_t worker = 0; worker < world; ++worker) {
+    ASSERT_EQ(value_sizes.at(worker), local_value_size);
+    ASSERT_EQ(ptr_sizes.at(worker), local_ptr_size);
+    for (std::int64_t j = 0; j < local_value_size; ++j) {
+      auto idx = static_cast<std::size_t>(worker) * max_value_size + static_cast<std::size_t>(j);
+      ASSERT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
+    }
+    for (std::int64_t j = 0; j < local_ptr_size; ++j) {
+      auto idx = static_cast<std::size_t>(worker) * max_ptr_size + static_cast<std::size_t>(j);
+      ASSERT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
+    }
+  }
+}
+
+auto ReferencePrune(Span<WQSummary<>::Entry const> src, std::size_t maxsize)
+    -> std::vector<WQSummary<>::Entry> {
+  using Entry = WQSummary<>::Entry;
+
+  if (maxsize == 0) {
+    return {};
+  }
+  if (src.size() <= maxsize) {
+    return {src.cbegin(), src.cend()};
+  }
+  if (maxsize == 1) {
+    return {src[0]};
+  }
+
+  std::vector<Entry> out(maxsize);
+  auto current_elements = std::size_t{1};
+  auto const begin = src[0].rmax;
+  auto const range = src[src.size() - 1].rmin - src[0].rmax;
+  auto const n = maxsize - 1;
+  out[0] = src[0];
+
+  std::size_t i = 1, lastidx = 0;
+  for (std::size_t k = 1; k < n; ++k) {
+    auto dx2 = 2 * ((k * range) / n + begin);
+    while (i < src.size() - 1 && dx2 >= src[i + 1].rmax + src[i + 1].rmin) {
+      ++i;
+    }
+    if (i == src.size() - 1) {
+      break;
+    }
+    if (dx2 < src[i].RMinNext() + src[i + 1].RMaxPrev()) {
+      if (i != lastidx) {
+        out[current_elements++] = src[i];
+        lastidx = i;
+      }
+    } else {
+      if (i + 1 != lastidx) {
+        out[current_elements++] = src[i + 1];
+        lastidx = i + 1;
+      }
+    }
+  }
+  if (lastidx != src.size() - 1) {
+    out[current_elements++] = src[src.size() - 1];
+  }
+  out.resize(current_elements);
+  return out;
+}
+
+void ExpectEntriesEq(Span<WQSummary<>::Entry const> entries,
+                     std::vector<WQSummary<>::Entry> const& expected) {
+  ASSERT_EQ(entries.size(), expected.size());
+  for (std::size_t i = 0; i < entries.size(); ++i) {
+    EXPECT_FLOAT_EQ(entries[i].rmin, expected[i].rmin) << "i=" << i;
+    EXPECT_FLOAT_EQ(entries[i].rmax, expected[i].rmax) << "i=" << i;
+    EXPECT_FLOAT_EQ(entries[i].wmin, expected[i].wmin) << "i=" << i;
+    EXPECT_FLOAT_EQ(entries[i].value, expected[i].value) << "i=" << i;
+  }
+}
+
+void ExpectPruneMatchesReference(std::vector<WQSummary<>::Entry> const& source,
+                                 std::size_t maxsize) {
+  auto expected = ReferencePrune({source.data(), source.size()}, maxsize);
+
+  WQSummaryContainer actual;
+  actual.Reserve(source.size());
+  std::copy(source.cbegin(), source.cend(), actual.space.begin());
+  actual.SetSize(source.size());
+  actual.SetPrune(maxsize);
+
+  ExpectEntriesEq(actual.Entries(), expected);
+}
+
+auto RandomSummaryEntries(std::size_t size, std::uint32_t seed) -> std::vector<WQSummary<>::Entry> {
+  using Entry = WQSummary<>::Entry;
+
+  SimpleLCG lcg{seed};
+  std::vector<Entry> entries(size);
+  auto cursor = 0.0f;
+  for (std::size_t i = 0; i < size; ++i) {
+    auto wmin = static_cast<float>((lcg() % 5 == 0) ? 0 : 1 + lcg() % 7);
+    auto slack = static_cast<float>(lcg() % 8);
+    entries[i] = Entry{cursor, cursor + wmin + slack, wmin, static_cast<float>(i)};
+    cursor = entries[i].RMinNext() + static_cast<float>(lcg() % 4);
+  }
+  return entries;
+}
+
+auto EnumeratedSummaryEntries(std::size_t size, std::uint64_t code)
+    -> std::vector<WQSummary<>::Entry> {
+  using Entry = WQSummary<>::Entry;
+
+  std::vector<Entry> entries(size);
+  auto cursor = 0.0f;
+  for (std::size_t i = 0; i < size; ++i) {
+    auto wmin = static_cast<float>(code % 3);
+    code /= 3;
+    auto slack = static_cast<float>((code % 3) * 2);
+    code /= 3;
+    entries[i] = Entry{cursor, cursor + wmin + slack, wmin, static_cast<float>(i)};
+    cursor = entries[i].RMinNext();
+  }
+  return entries;
+}
+
+auto RepresentativePruneBudgets(std::size_t size) -> std::vector<std::size_t> {
+  std::vector<std::size_t> budgets{0, 1, 2, size / 4, size / 2, size - 1, size, size + 1};
+  std::sort(budgets.begin(), budgets.end());
+  budgets.erase(std::unique(budgets.begin(), budgets.end()), budgets.end());
+  return budgets;
+}
+
+}  // namespace
+
+TEST_P(QuantileSummaryTest, Invariants) {
+  auto c = GetParam();
+  auto col = GenerateSummaryColumn(c);
+
+  WQuantileSketch row_sketch{c.rows, SketchEpsilon(c.max_bin, c.rows)};
+  for (std::size_t i = 0; i < col.values.size(); ++i) {
+    row_sketch.Push(col.values[i], col.weights[i]);
+  }
+  auto row_summary = row_sketch.GetSummary(SketchSummaryBudget(c.max_bin, c.rows));
+  TestSummaryInvariants(c, row_summary, col);
+
+  WQuantileSketch sorted_sketch{c.rows, SketchEpsilon(c.max_bin, c.rows)};
+  std::vector<::xgboost::Entry> sorted_col;
+  sorted_col.reserve(col.values.size());
+  for (std::size_t i = 0; i < col.values.size(); ++i) {
+    sorted_col.emplace_back(i, col.values[i]);
+  }
+  std::sort(sorted_col.begin(), sorted_col.end(), ::xgboost::Entry::CmpValue);
+  sorted_sketch.PushSorted(Span<::xgboost::Entry const>{sorted_col.data(), sorted_col.size()},
+                           col.weights, c.max_bin);
+  auto sorted_summary = sorted_sketch.GetSummary(SketchSummaryBudget(c.max_bin, c.rows));
+  TestSummaryInvariants(c, sorted_summary, col);
+}
+
+INSTANTIATE_TEST_SUITE_P(Anchors, QuantileSummaryTest, ::testing::ValuesIn(SummaryAnchorCases()),
+                         SummaryCaseName);
+INSTANTIATE_TEST_SUITE_P(RandomSamples, QuantileSummaryTest,
+                         ::testing::ValuesIn(SummaryRandomCases(100)), SummaryCaseName);
+
+TEST(Quantile, SetPrunePreservesIncreasingValuesWithAliasingGeometry) {
+  using Entry = WQSummary<>::Entry;
+  WQSummaryContainer summary;
+  summary.Reserve(7);
+
+  summary.space[0] = Entry{0.0f, 0.0f, 0.0f, 1.0f};
+  summary.space[1] = Entry{0.0f, 4.0f, 0.0f, 2.0f};
+  summary.space[2] = Entry{4.0f, 5.0f, 1.0f, 3.0f};
+  summary.space[3] = Entry{5.0f, 6.0f, 1.0f, 4.0f};
+  summary.space[4] = Entry{8.0f, 9.0f, 1.0f, 5.0f};
+  summary.space[5] = Entry{9.0f, 10.0f, 1.0f, 6.0f};
+  summary.space[6] = Entry{10.0f, 10.0f, 0.0f, 7.0f};
+  summary.SetSize(7);
+
+  summary.SetPrune(6);
+  auto entries = summary.Entries();
+
+  ASSERT_EQ(entries.size(), 5u);
+  std::array<float, 5> expected_values{1.0f, 3.0f, 4.0f, 5.0f, 7.0f};
+  for (std::size_t i = 0; i < entries.size(); ++i) {
+    EXPECT_FLOAT_EQ(entries[i].value, expected_values[i]);
+  }
+  for (std::size_t i = 1; i < entries.size(); ++i) {
+    EXPECT_LT(entries[i - 1].value, entries[i].value);
+  }
+}
+
+TEST(Quantile, SetPruneInPlaceMatchesOutOfPlaceReferenceOnSmallIntegerGeometries) {
+  for (std::size_t size = 3; size <= 5; ++size) {
+    auto const n_cases = static_cast<std::uint64_t>(std::pow(9.0, static_cast<double>(size)));
+    for (std::uint64_t code = 0; code < n_cases; ++code) {
+      auto source = EnumeratedSummaryEntries(size, code);
+      for (std::size_t maxsize = 0; maxsize <= size + 1; ++maxsize) {
+        ExpectPruneMatchesReference(source, maxsize);
+      }
+    }
+  }
+}
+
+TEST(Quantile, SetPruneInPlaceMatchesOutOfPlaceReferenceOnRandomGeometries) {
+  for (auto size : {3, 4, 5, 7, 8, 15, 16, 31, 32, 63, 64, 127, 256}) {
+    auto budgets = RepresentativePruneBudgets(size);
+    for (std::uint32_t seed = 0; seed < 16; ++seed) {
+      auto source = RandomSummaryEntries(size, seed);
+      for (auto maxsize : budgets) {
+        SCOPED_TRACE(::testing::Message()
+                     << "size=" << size << ", seed=" << seed << ", maxsize=" << maxsize);
+        ExpectPruneMatchesReference(source, maxsize);
+      }
+    }
+  }
+}
+
+TEST(Quantile, SetPruneInPlaceMatchesOutOfPlaceReferenceOnBoundaryGeometries) {
+  using Entry = WQSummary<>::Entry;
+
+  for (std::size_t size = 3; size <= 12; ++size) {
+    for (std::size_t pivot = 1; pivot + 1 < size; ++pivot) {
+      for (float left_wmin : {0.0f, 1.0f, 4.0f}) {
+        for (float right_wmin : {0.0f, 1.0f, 4.0f}) {
+          std::vector<Entry> source(size);
+          for (std::size_t i = 0; i < size; ++i) {
+            auto rmin = static_cast<float>(i * 4);
+            source[i] = Entry{rmin, rmin + 2.0f, 1.0f, static_cast<float>(i)};
+          }
+          source[pivot].wmin = left_wmin;
+          source[pivot].rmax = source[pivot].rmin + left_wmin + 4.0f;
+          source[pivot + 1].wmin = right_wmin;
+          source[pivot + 1].rmax = source[pivot + 1].rmin + right_wmin + 4.0f;
+
+          for (std::size_t maxsize = 0; maxsize <= size + 1; ++maxsize) {
+            SCOPED_TRACE(::testing::Message()
+                         << "size=" << size << ", pivot=" << pivot << ", maxsize=" << maxsize);
+            ExpectPruneMatchesReference(source, maxsize);
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST_P(QuantileContainerTest, Invariants) {
+  auto c = GetParam();
+  Context ctx;
+  auto ft = FeatureTypes(c);
+  auto m = RandomDataGenerator{c.rows, c.cols, c.sparsity}
+               .Seed(c.seed)
+               .Lower(.0f)
+               .Upper(1.0f)
+               .Type(ft)
+               .MaxCategory(13)
+               .GenerateDMatrix();
+  if (c.weights == WeightKind::kRow) {
+    m->Info().weights_.HostVector() = GenerateWeights(c.rows, c.seed + 1024);
+  }
+
+  std::vector<bst_idx_t> column_size(c.cols, c.rows);
+  std::vector<float> hessian(c.rows, 1.0f);
+  auto hess = Span<float const>{hessian};
+
+  HostSketchContainer row_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
+                                 column_size, false);
+  for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+    row_sketch.PushRowPage(page, m->Info(), hess);
+  }
+  auto row_cuts = row_sketch.MakeCuts(&ctx, m->Info());
+  auto columns = CollectWeightedColumns(m.get());
+  ValidateContainerCuts(c, row_cuts, m.get(), columns);
+
+  HostSketchContainer sorted_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
+                                    column_size, false);
+  for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
+    sorted_sketch.PushColPage(page, m->Info(), hess);
+  }
+  auto sorted_cuts = sorted_sketch.MakeCuts(&ctx, m->Info());
+  ValidateContainerCuts(c, sorted_cuts, m.get(), columns);
+}
+
+TEST_P(QuantileSketchOnDMatrixTest, Invariants) {
+  auto c = GetParam();
+  Context ctx;
+  auto ft = FeatureTypes(c);
+  auto m = RandomDataGenerator{c.rows, c.cols, c.sparsity}
+               .Seed(c.seed)
+               .Lower(.0f)
+               .Upper(1.0f)
+               .Type(ft)
+               .MaxCategory(13)
+               .GenerateDMatrix();
+  if (c.weights == WeightKind::kRow) {
+    m->Info().weights_.HostVector() = GenerateWeights(c.rows, c.seed + 2048);
+  }
+
+  auto columns = CollectWeightedColumns(m.get());
+  std::vector<float> hessian(c.rows, 1.0f);
+  auto hess = Span<float const>{hessian};
+  auto row_cuts = SketchOnDMatrix(&ctx, m.get(), c.max_bin, false, hess);
+  ValidateContainerCuts(c, row_cuts, m.get(), columns);
+
+  auto sorted_cuts = SketchOnDMatrix(&ctx, m.get(), c.max_bin, true, hess);
+  ValidateContainerCuts(c, sorted_cuts, m.get(), columns);
+}
+
+namespace {
+void DoPropertyDistributedQuantile(ContainerCase const& c) {
+  Context ctx;
+  auto const world = collective::GetWorldSize();
+  auto ft = FeatureTypes(c);
+  auto rank = collective::GetRank();
+  auto full_m = RandomDataGenerator{c.rows * static_cast<std::size_t>(world), c.cols, c.sparsity}
+                    .Seed(c.seed)
+                    .Lower(.0f)
+                    .Upper(1.0f)
+                    .Type(ft)
+                    .MaxCategory(13)
+                    .GenerateDMatrix();
+  if (c.weights == WeightKind::kRow) {
+    full_m->Info().weights_.HostVector() =
+        GenerateWeights(c.rows * static_cast<std::size_t>(world), c.seed + 4096);
+  }
+  std::vector<std::int32_t> ridxs(c.rows);
+  auto row_begin = static_cast<std::size_t>(rank) * c.rows;
+  std::iota(ridxs.begin(), ridxs.end(), static_cast<std::int32_t>(row_begin));
+  std::shared_ptr<DMatrix> m{full_m->Slice(Span<std::int32_t const>{ridxs.data(), ridxs.size()})};
+
+  std::vector<bst_idx_t> column_size(c.cols, c.rows);
+  std::vector<float> hessian(c.rows, 1.0f);
+  auto hess = Span<float const>{hessian};
+  HostSketchContainer row_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
+                                 column_size, false);
+  for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+    row_sketch.PushRowPage(page, m->Info(), hess);
+  }
+  auto row_cuts = row_sketch.MakeCuts(&ctx, m->Info());
+
+  HostSketchContainer sorted_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
+                                    column_size, false);
+  for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
+    sorted_sketch.PushColPage(page, m->Info(), hess);
+  }
+  auto sorted_cuts = sorted_sketch.MakeCuts(&ctx, m->Info());
+
+  collective::Finalize();
+  CHECK_EQ(collective::GetWorldSize(), 1);
+  auto columns = CollectWeightedColumns(full_m.get());
+  ValidateContainerCuts(c, row_cuts, full_m.get(), columns);
+  ValidateContainerCuts(c, sorted_cuts, full_m.get(), columns);
+}
+
+void DoSameOnAllWorkersDistributedQuantile(ContainerCase const& c) {
+  Context ctx;
+  auto const world = collective::GetWorldSize();
+  auto ft = FeatureTypes(c);
+  auto rank = collective::GetRank();
+  auto full_m = RandomDataGenerator{c.rows * static_cast<std::size_t>(world), c.cols, c.sparsity}
+                    .Seed(c.seed)
+                    .Lower(.0f)
+                    .Upper(1.0f)
+                    .Type(ft)
+                    .MaxCategory(13)
+                    .GenerateDMatrix();
+  if (c.weights == WeightKind::kRow) {
+    full_m->Info().weights_.HostVector() =
+        GenerateWeights(c.rows * static_cast<std::size_t>(world), c.seed + 4096);
+  }
+  std::vector<std::int32_t> ridxs(c.rows);
+  auto row_begin = static_cast<std::size_t>(rank) * c.rows;
+  std::iota(ridxs.begin(), ridxs.end(), static_cast<std::int32_t>(row_begin));
+  std::shared_ptr<DMatrix> m{full_m->Slice(Span<std::int32_t const>{ridxs.data(), ridxs.size()})};
+
+  std::vector<bst_idx_t> column_size(c.cols, c.rows);
+  std::vector<float> hessian(c.rows, 1.0f);
+  auto hess = Span<float const>{hessian};
+  HostSketchContainer row_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
+                                 column_size, false);
+  for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+    row_sketch.PushRowPage(page, m->Info(), hess);
+  }
+  auto row_cuts = row_sketch.MakeCuts(&ctx, m->Info());
+  AssertSameOnAllWorkers(&ctx, row_cuts);
+
+  HostSketchContainer sorted_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
+                                    column_size, false);
+  for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
+    sorted_sketch.PushColPage(page, m->Info(), hess);
+  }
+  auto sorted_cuts = sorted_sketch.MakeCuts(&ctx, m->Info());
+  AssertSameOnAllWorkers(&ctx, sorted_cuts);
+
+  collective::Finalize();
+}
+}  // namespace
+
+TEST_P(QuantileDistributedContainerTest, Invariants) {
+  auto c = GetParam();
+  collective::TestDistributedGlobal(4, [&] { DoPropertyDistributedQuantile(c); }, false);
+}
+
+TEST(Quantile, SameOnAllWorkers) {
+  auto c = ContainerCase{};
+  c.name = "same_on_all_workers";
+  c.rows = 1024;
+  c.cols = 8;
+  c.sparsity = 0.2f;
+  c.max_bin = 256;
+  c.weights = WeightKind::kRow;
+  c.features = FeatureKind::kNumerical;
+  c.seed = 11;
+  collective::TestDistributedGlobal(4, [&] { DoSameOnAllWorkersDistributedQuantile(c); }, false);
+}
+
+INSTANTIATE_TEST_SUITE_P(Anchors, QuantileContainerTest,
+                         ::testing::ValuesIn(ContainerAnchorCases()), ContainerCaseName);
+INSTANTIATE_TEST_SUITE_P(Anchors, QuantileDistributedContainerTest,
+                         ::testing::ValuesIn(ContainerAnchorCases()), ContainerCaseName);
+INSTANTIATE_TEST_SUITE_P(Anchors, QuantileSketchOnDMatrixTest,
+                         ::testing::ValuesIn(ContainerAnchorCases()), ContainerCaseName);
+}  // namespace quantile_test
+
 TEST(Quantile, LoadBalance) {
   size_t constexpr kRows = 1000, kCols = 100;
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
@@ -30,173 +540,51 @@ TEST(Quantile, LoadBalance) {
   CHECK_EQ(n_cols, kCols);
 }
 
+TEST(Quantile, TrackSketchElements) {
+  WQuantileSketch sketch{16, 0.1};
+  ASSERT_EQ(sketch.NumElements(), 0);
+
+  sketch.Push(0.1f);
+  sketch.Push(0.2f, 0.0f);
+  sketch.Push(0.3f, 2.0f);
+  sketch.Push(0.9f);
+
+  ASSERT_EQ(sketch.NumElements(), 3);
+  auto out = sketch.GetSummary(4);
+  ASSERT_GT(out.Size(), 0);
+  ASSERT_EQ(sketch.NumElements(), 3);
+}
+
+TEST(Quantile, TrackSketchElementsSorted) {
+  WQuantileSketch sketch{16, 0.1};
+  std::vector<::xgboost::Entry> column{{0, 0.1f}, {1, 0.2f}, {2, 0.8f}, {3, 0.9f}};
+  std::vector<float> weights{1.0f, 0.0f, 1.0f, 1.0f};
+
+  sketch.PushSorted(Span<::xgboost::Entry const>{column.data(), column.size()}, weights, 2);
+
+  ASSERT_EQ(sketch.NumElements(), 3);
+  auto out = sketch.GetSummary(4);
+  ASSERT_GT(out.Size(), 0);
+  ASSERT_EQ(sketch.NumElements(), 3);
+}
 namespace {
-template <bool use_column>
-using ContainerType = std::conditional_t<use_column, SortedSketchContainer, HostSketchContainer>;
-
-// Dispatch for push page.
-void PushPage(SortedSketchContainer* container, SparsePage const& page, MetaInfo const& info,
-              Span<float const> hessian) {
-  container->PushColPage(page, info, hessian);
-}
-void PushPage(HostSketchContainer* container, SparsePage const& page, MetaInfo const& info,
-              Span<float const> hessian) {
-  container->PushRowPage(page, info, hessian);
-}
-
-template <bool use_column>
-void DoTestDistributedQuantile(size_t rows, size_t cols) {
+void DoPropertyColumnSplitQuantile(size_t rows, size_t cols) {
   Context ctx;
   auto const world = collective::GetWorldSize();
-  std::vector<MetaInfo> infos(2);
-  auto& h_weights = infos.front().weights_.HostVector();
-  h_weights.resize(rows);
-  SimpleLCG lcg;
-  SimpleRealUniformDistribution<float> dist(3, 1000);
-  std::generate(h_weights.begin(), h_weights.end(), [&]() { return dist(&lcg); });
-  std::vector<bst_idx_t> column_size(cols, rows);
-  bst_bin_t n_bins = 64;
-
-  // Generate cuts for distributed environment.
+  auto const rank = collective::GetRank();
   auto sparsity = 0.5f;
-  auto rank = collective::GetRank();
   std::vector<FeatureType> ft(cols);
   for (size_t i = 0; i < ft.size(); ++i) {
     ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
   }
-
-  auto m = RandomDataGenerator{rows, cols, sparsity}
-               .Seed(rank)
-               .Lower(.0f)
-               .Upper(1.0f)
-               .Type(ft)
-               .MaxCategory(13)
-               .GenerateDMatrix();
-
-  std::vector<float> hessian(rows, 1.0);
-  auto hess = Span<float const>{hessian};
-
-  ContainerType<use_column> sketch_distributed(
-      &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
-
-  if (use_column) {
-    for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-      PushPage(&sketch_distributed, page, m->Info(), hess);
-    }
-  } else {
-    for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-      PushPage(&sketch_distributed, page, m->Info(), hess);
-    }
-  }
-
-  HistogramCuts distributed_cuts;
-  sketch_distributed.MakeCuts(&ctx, m->Info(), &distributed_cuts);
-
-  // Generate cuts for single node environment
-  collective::Finalize();
-
-  CHECK_EQ(collective::GetWorldSize(), 1);
-  std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
-  m->Info().num_row_ = world * rows;
-  ContainerType<use_column> sketch_on_single_node(
-      &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
-  m->Info().num_row_ = rows;
-
-  for (auto rank = 0; rank < world; ++rank) {
-    auto m = RandomDataGenerator{rows, cols, sparsity}
-                 .Seed(rank)
-                 .Type(ft)
-                 .MaxCategory(13)
-                 .Lower(.0f)
-                 .Upper(1.0f)
-                 .GenerateDMatrix();
-    if (use_column) {
-      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    } else {
-      for (auto const& page : m->GetBatches<SparsePage>()) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    }
-  }
-
-  HistogramCuts single_node_cuts;
-  sketch_on_single_node.MakeCuts(&ctx, m->Info(), &single_node_cuts);
-
-  auto const& sptrs = single_node_cuts.Ptrs();
-  auto const& dptrs = distributed_cuts.Ptrs();
-  auto const& svals = single_node_cuts.Values();
-  auto const& dvals = distributed_cuts.Values();
-  auto const& smins = single_node_cuts.MinValues();
-  auto const& dmins = distributed_cuts.MinValues();
-
-  ASSERT_EQ(sptrs.size(), dptrs.size());
-  for (size_t i = 0; i < sptrs.size(); ++i) {
-    ASSERT_EQ(sptrs[i], dptrs[i]) << i;
-  }
-
-  ASSERT_EQ(svals.size(), dvals.size());
-  for (size_t i = 0; i < svals.size(); ++i) {
-    ASSERT_NEAR(svals[i], dvals[i], 2e-2f);
-  }
-
-  ASSERT_EQ(smins.size(), dmins.size());
-  for (size_t i = 0; i < smins.size(); ++i) {
-    ASSERT_FLOAT_EQ(smins[i], dmins[i]);
-  }
-}
-
-template <bool use_column>
-void TestDistributedQuantile(size_t const rows, size_t const cols) {
-  auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(
-      kWorkers, [=] { DoTestDistributedQuantile<use_column>(rows, cols); }, false);
-}
-}  // anonymous namespace
-
-TEST(Quantile, DistributedBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestDistributedQuantile<false>(kRows, kCols);
-}
-
-TEST(Quantile, Distributed) {
-  constexpr size_t kRows = 4000, kCols = 200;
-  TestDistributedQuantile<false>(kRows, kCols);
-}
-
-TEST(Quantile, SortedDistributedBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestDistributedQuantile<true>(kRows, kCols);
-}
-
-TEST(Quantile, SortedDistributed) {
-  constexpr size_t kRows = 4000, kCols = 200;
-  TestDistributedQuantile<true>(kRows, kCols);
-}
-
-namespace {
-template <bool use_column>
-void DoTestColSplitQuantile(size_t rows, size_t cols) {
-  Context ctx;
-  auto const world = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-
-  auto m = std::unique_ptr<DMatrix>{[=]() {
-    auto sparsity = 0.5f;
-    std::vector<FeatureType> ft(cols);
-    for (size_t i = 0; i < ft.size(); ++i) {
-      ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
-    }
-    auto dmat = RandomDataGenerator{rows, cols, sparsity}
+  auto full_m = RandomDataGenerator{rows, cols, sparsity}
                     .Seed(0)
                     .Lower(.0f)
                     .Upper(1.0f)
                     .Type(ft)
                     .MaxCategory(13)
                     .GenerateDMatrix();
-    return dmat->SliceCol(world, rank);
-  }()};
+  auto m = std::shared_ptr<DMatrix>{full_m->SliceCol(world, rank)};
 
   std::vector<bst_idx_t> column_size(cols, 0);
   auto const slice_size = cols / world;
@@ -207,188 +595,50 @@ void DoTestColSplitQuantile(size_t rows, size_t cols) {
   }
 
   auto const n_bins = 64;
+  quantile_test::ContainerCase c;
+  c.name = rows == 10 ? "column_split_basic" : "column_split_large";
+  c.rows = rows;
+  c.cols = cols;
+  c.sparsity = sparsity;
+  c.max_bin = n_bins;
+  c.weights = quantile_test::WeightKind::kNone;
+  c.features = quantile_test::FeatureKind::kMixed;
+  c.seed = 0;
+  auto columns = quantile_test::CollectWeightedColumns(full_m.get());
+  std::vector<float> hessian(rows, 1.0f);
+  auto hess = Span<float const>{hessian};
 
-  // Generate cuts for distributed environment.
-  HistogramCuts distributed_cuts;
+  HistogramCuts row_cuts{0};
   {
-    ContainerType<use_column> sketch_distributed(
-        &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
-
-    std::vector<float> hessian(rows, 1.0);
-    auto hess = Span<float const>{hessian};
-    if (use_column) {
-      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage(&sketch_distributed, page, m->Info(), hess);
-      }
-    } else {
-      for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-        PushPage(&sketch_distributed, page, m->Info(), hess);
-      }
+    HostSketchContainer sketch_distributed(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                           column_size, false);
+    for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
+      sketch_distributed.PushRowPage(page, m->Info(), hess);
     }
-
-    sketch_distributed.MakeCuts(&ctx, m->Info(), &distributed_cuts);
+    row_cuts = sketch_distributed.MakeCuts(&ctx, m->Info());
   }
 
-  // Generate cuts for single node environment
+  HistogramCuts sorted_cuts{0};
+  {
+    HostSketchContainer sketch_distributed(&ctx, n_bins, m->Info().feature_types.ConstHostSpan(),
+                                           column_size, false);
+    for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
+      sketch_distributed.PushColPage(page, m->Info(), hess);
+    }
+    sorted_cuts = sketch_distributed.MakeCuts(&ctx, m->Info());
+  }
+
   collective::Finalize();
   CHECK_EQ(collective::GetWorldSize(), 1);
-  HistogramCuts single_node_cuts;
-  {
-    ContainerType<use_column> sketch_on_single_node(
-        &ctx, n_bins, m->Info().feature_types.ConstHostSpan(), column_size, false);
-
-    std::vector<float> hessian(rows, 1.0);
-    auto hess = Span<float const>{hessian};
-    if (use_column) {
-      for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    } else {
-      for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
-        PushPage(&sketch_on_single_node, page, m->Info(), hess);
-      }
-    }
-
-    sketch_on_single_node.MakeCuts(&ctx, m->Info(), &single_node_cuts);
-  }
-
-  auto const& sptrs = single_node_cuts.Ptrs();
-  auto const& dptrs = distributed_cuts.Ptrs();
-  auto const& svals = single_node_cuts.Values();
-  auto const& dvals = distributed_cuts.Values();
-  auto const& smins = single_node_cuts.MinValues();
-  auto const& dmins = distributed_cuts.MinValues();
-
-  EXPECT_EQ(sptrs.size(), dptrs.size());
-  for (size_t i = 0; i < sptrs.size(); ++i) {
-    EXPECT_EQ(sptrs[i], dptrs[i]) << "rank: " << rank << ", i: " << i;
-  }
-
-  EXPECT_EQ(svals.size(), dvals.size());
-  for (size_t i = 0; i < svals.size(); ++i) {
-    EXPECT_NEAR(svals[i], dvals[i], 2e-2f) << "rank: " << rank << ", i: " << i;
-  }
-
-  EXPECT_EQ(smins.size(), dmins.size());
-  for (size_t i = 0; i < smins.size(); ++i) {
-    EXPECT_FLOAT_EQ(smins[i], dmins[i]) << "rank: " << rank << ", i: " << i;
-  }
-}
-
-template <bool use_column>
-void TestColSplitQuantile(size_t rows, size_t cols) {
-  auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers,
-                                    [=] { DoTestColSplitQuantile<use_column>(rows, cols); });
+  quantile_test::ValidateContainerCuts(c, row_cuts, full_m.get(), columns, slice_start, slice_end);
+  quantile_test::ValidateContainerCuts(c, sorted_cuts, full_m.get(), columns, slice_start,
+                                       slice_end);
 }
 }  // anonymous namespace
-
-TEST(Quantile, ColumnSplitBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestColSplitQuantile<false>(kRows, kCols);
-}
 
 TEST(Quantile, ColumnSplit) {
   constexpr size_t kRows = 4000, kCols = 200;
-  TestColSplitQuantile<false>(kRows, kCols);
+  collective::TestDistributedGlobal(4, [&] { DoPropertyColumnSplitQuantile(kRows, kCols); });
 }
 
-TEST(Quantile, ColumnSplitSortedBasic) {
-  constexpr size_t kRows = 10, kCols = 10;
-  TestColSplitQuantile<true>(kRows, kCols);
-}
-
-TEST(Quantile, ColumnSplitSorted) {
-  constexpr size_t kRows = 4000, kCols = 200;
-  TestColSplitQuantile<true>(kRows, kCols);
-}
-
-namespace {
-void TestSameOnAllWorkers() {
-  auto const world = collective::GetWorldSize();
-  constexpr size_t kRows = 1000, kCols = 100;
-  Context ctx;
-
-  RunWithSeedsAndBins(
-      kRows, [=, &ctx](int32_t seed, size_t n_bins, MetaInfo const&) {
-        auto rank = collective::GetRank();
-        HostDeviceVector<float> storage;
-        std::vector<FeatureType> ft(kCols);
-        for (size_t i = 0; i < ft.size(); ++i) {
-          ft[i] = (i % 2 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
-        }
-
-        auto m = RandomDataGenerator{kRows, kCols, 0}
-                     .Device(DeviceOrd::CPU())
-                     .Type(ft)
-                     .MaxCategory(17)
-                     .Seed(rank + seed)
-                     .GenerateDMatrix();
-        auto cuts = SketchOnDMatrix(&ctx, m.get(), n_bins);
-        std::vector<float> cut_values(cuts.Values().size() * world, 0);
-        std::vector<
-            typename std::remove_reference_t<decltype(cuts.Ptrs())>::value_type>
-            cut_ptrs(cuts.Ptrs().size() * world, 0);
-        std::vector<float> cut_min_values(cuts.MinValues().size() * world, 0);
-
-        std::int64_t value_size = cuts.Values().size();
-        std::int64_t ptr_size = cuts.Ptrs().size();
-        std::int64_t min_value_size = cuts.MinValues().size();
-
-        auto rc = collective::Success() << [&] {
-          return collective::Allreduce(&ctx, &value_size, collective::Op::kMax);
-        } << [&] {
-          return collective::Allreduce(&ctx, &ptr_size, collective::Op::kMax);
-        } << [&] {
-          return collective::Allreduce(&ctx, &min_value_size, collective::Op::kMax);
-        };
-        collective::SafeColl(rc);
-        ASSERT_EQ(ptr_size, kCols + 1);
-        ASSERT_EQ(min_value_size, kCols);
-
-        std::size_t value_offset = value_size * rank;
-        std::copy(cuts.Values().begin(), cuts.Values().end(), cut_values.begin() + value_offset);
-        std::size_t ptr_offset = ptr_size * rank;
-        std::copy(cuts.Ptrs().cbegin(), cuts.Ptrs().cend(), cut_ptrs.begin() + ptr_offset);
-        std::size_t min_values_offset = min_value_size * rank;
-        std::copy(cuts.MinValues().cbegin(), cuts.MinValues().cend(),
-                  cut_min_values.begin() + min_values_offset);
-
-        rc = std::move(rc) << [&] {
-          return collective::Allreduce(&ctx, linalg::MakeVec(cut_values.data(), cut_values.size()),
-                                       collective::Op::kSum);
-        } << [&] {
-          return collective::Allreduce(&ctx, linalg::MakeVec(cut_ptrs.data(), cut_ptrs.size()),
-                                       collective::Op::kSum);
-        } << [&] {
-          return collective::Allreduce(
-              &ctx, linalg::MakeVec(cut_min_values.data(), cut_min_values.size()),
-              collective::Op::kSum);
-        };
-        collective::SafeColl(rc);
-
-        for (std::int32_t i = 0; i < world; i++) {
-          for (std::int64_t j = 0; j < value_size; ++j) {
-            size_t idx = i * value_size + j;
-            ASSERT_NEAR(cuts.Values().at(j), cut_values.at(idx), kRtEps);
-          }
-
-          for (std::int64_t j = 0; j < ptr_size; ++j) {
-            size_t idx = i * ptr_size + j;
-            EXPECT_EQ(cuts.Ptrs().at(j), cut_ptrs.at(idx));
-          }
-
-          for (std::int64_t j = 0; j < min_value_size; ++j) {
-            size_t idx = i * min_value_size + j;
-            ASSERT_EQ(cuts.MinValues().at(j), cut_min_values.at(idx));
-          }
-        }
-      });
-}
-}  // anonymous namespace
-
-TEST(Quantile, SameOnAllWorkers) {
-  auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers, [] { TestSameOnAllWorkers(); });
-}
 }  // namespace xgboost::common

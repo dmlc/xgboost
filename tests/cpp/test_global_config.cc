@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost Contributors
+ * Copyright 2020-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
@@ -7,8 +7,12 @@
 #include <xgboost/json.h>
 #include <xgboost/logging.h>
 
+#include "../../src/common/utils.h"  // for MakeCleanup
+
 namespace xgboost {
 TEST(GlobalConfiguration, Verbosity) {
+  auto guard = common::MakeCleanup(
+      [cfg = *GlobalConfigThreadLocalStore::Get()] { *GlobalConfigThreadLocalStore::Get() = cfg; });
   // Configure verbosity via global configuration
   Json config{JsonObject()};
   config["verbosity"] = String("0");
@@ -23,6 +27,8 @@ TEST(GlobalConfiguration, Verbosity) {
 }
 
 TEST(GlobalConfiguration, UseRMM) {
+  auto guard = common::MakeCleanup(
+      [cfg = *GlobalConfigThreadLocalStore::Get()] { *GlobalConfigThreadLocalStore::Get() = cfg; });
   Json config{JsonObject()};
   config["use_rmm"] = String("true");
   auto& global_config = *GlobalConfigThreadLocalStore::Get();

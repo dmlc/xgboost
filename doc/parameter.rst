@@ -55,6 +55,11 @@ General Parameters
 * ``booster`` [default= ``gbtree``]
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
+  - Dropout parameters like ``rate_drop`` can be used directly with tree models. ``booster=dart`` remains supported for compatibility.
+
+  .. deprecated:: 3.3.0
+
+    ``booster=gblinear`` is deprecated and support will be removed in a future release.
 
 * ``device`` [default= ``cpu``]
 
@@ -300,19 +305,8 @@ These parameters are only used for training with categorical data. See
   - Maximum number of categories considered for each split. Used only by partition-based
     splits for preventing over-fitting.
 
-Additional parameters for Dart Booster (``booster=dart``)
-=========================================================
-
-.. note:: Using ``predict()`` with DART booster
-
-  If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
-  some of the trees will be evaluated. This will produce incorrect results if ``data`` is
-  not the training data. To obtain correct results on test sets, set ``iteration_range`` to
-  a nonzero value, e.g.
-
-  .. code-block:: python
-
-    preds = bst.predict(dtest, iteration_range=(0, num_round))
+Additional dropout parameters for tree boosters
+================================================
 
 * ``sample_type`` [default= ``uniform``]
 
@@ -355,6 +349,10 @@ Additional parameters for Dart Booster (``booster=dart``)
 
 Parameters for Linear Booster (``booster=gblinear``)
 ====================================================
+.. deprecated:: 3.3.0
+
+  ``booster=gblinear`` is deprecated and support will be removed in a future release.
+
 * ``lambda`` [default=0, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative. Normalised to number of training examples.
@@ -404,9 +402,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
     .. versionadded:: 1.7.0
 
-  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. See later sections for its parameter and :ref:`sphx_glr_python_examples_quantile_regression.py` for a worked example.
+  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. See later sections for its parameter and :ref:`sphx_glr_python_examples_prediction_intervals.py` for a worked example.
 
     .. versionadded:: 2.0.0
+
+  - ``reg:expectileerror``: Expectile loss (asymmetric squared error). See later sections for its parameter and properties.
 
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
@@ -454,6 +454,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``mae``: `mean absolute error <https://en.wikipedia.org/wiki/Mean_absolute_error>`_
     - ``mape``: `mean absolute percentage error <https://en.wikipedia.org/wiki/Mean_absolute_percentage_error>`_
     - ``mphe``: `mean Pseudo Huber error <https://en.wikipedia.org/wiki/Huber_loss>`_. Default metric of ``reg:pseudohubererror`` objective.
+    - ``expectile``: Expectile regression error (asymmetric squared error). Default metric of ``reg:expectileerror`` objective.
     - ``logloss``: `negative log-likelihood <https://en.wikipedia.org/wiki/Log-likelihood>`_
     - ``error``: Binary classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
     - ``error@t``: a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
@@ -525,6 +526,19 @@ Parameter for using Quantile Loss (``reg:quantileerror``)
 * ``quantile_alpha``: A scalar or a list of targeted quantiles.
 
     .. versionadded:: 2.0.0
+
+Parameter for using Expectile Loss (``reg:expectileerror``)
+===========================================================
+
+* ``expectile_alpha``: A scalar or a list of targeted expectiles. Range: [0, 1]. Required for
+  ``reg:expectileerror``.
+
+    .. versionadded:: 3.3.0
+
+    .. note::
+
+        Multiple alphas must be sorted in ascending order. Unlike the quantile objective, expectile does not suffer from curve crossing.
+        When predicting with ``output_margin=True`` and multiple alphas, the first margin corresponds to the smallest alpha; subsequent margins are reparameterized gaps between consecutive expectile predictions, use normal prediction to obtain the actual expectile values.
 
 Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likelihood of AFT metric (``aft-nloglik``)
 ====================================================================================================================

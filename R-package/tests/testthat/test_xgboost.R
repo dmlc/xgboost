@@ -319,6 +319,30 @@ test_that("Process base_margin", {
     process.y.margin.and.objective(y, bm_good[c(1, 2, 3), ], "reg:quantileerror", params)
   })
 
+  params <- list(expectile_alpha = c(0.1, 0.5, 0.9))
+  for (bm in list(bm_good, as.data.frame(bm_good))) {
+    res <- process.y.margin.and.objective(y, bm, "reg:expectileerror", params)
+    expect_equal(
+      res$dmatrix_args$base_margin |> unname(),
+      matrix(seq(1, 30), ncol = 3)
+    )
+  }
+  expect_error({
+    process.y.margin.and.objective(y, as.numeric(bm_good), "reg:expectileerror", params)
+  })
+  expect_error({
+    process.y.margin.and.objective(y, 5, "reg:expectileerror", params)
+  })
+  expect_error({
+    process.y.margin.and.objective(y, bm_good[, 1], "reg:expectileerror", params)
+  })
+  expect_error({
+    process.y.margin.and.objective(y, bm_good[, c(1, 2)], "reg:expectileerror", params)
+  })
+  expect_error({
+    process.y.margin.and.objective(y, bm_good[c(1, 2, 3), ], "reg:expectileerror", params)
+  })
+
   y <- matrix(seq(101, 130), ncol = 3)
   for (bm in list(bm_good, as.data.frame(bm_good))) {
     res <- process.y.margin.and.objective(y, bm, "reg:squarederror", params)
@@ -625,6 +649,24 @@ test_that("Whole function works", {
   expect_true(any(grepl("Number of features: 8", txt, fixed = TRUE)))
 })
 
+test_that("Print shows expectile metadata", {
+  y <- mtcars$mpg
+  x <- mtcars[, -1L]
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 2L,
+    max_depth = 2L,
+    objective = "reg:expectileerror",
+    expectile_alpha = c(0.25, 0.5)
+  )
+  txt <- capture.output({
+    print(model)
+  })
+  expect_true(any(grepl("Prediction expectile", txt, fixed = TRUE)))
+})
+
 test_that("Can predict probabilities and raw scores", {
   y <- ToothGrowth$supp
   x <- ToothGrowth[, -2L]
@@ -798,6 +840,34 @@ test_that("Column names from multiquantile are added to predictions", {
   }
 })
 
+test_that("Column names from multiexpectile are added to predictions", {
+  y <- mtcars$mpg
+  x <- mtcars[, -1L]
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 3L,
+    max_depth = 2L,
+    objective = "reg:expectileerror",
+    expectile_alpha = c(0.25, 0.5, 0.75)
+  )
+
+  pred_types_with_colnames <- c(
+    "response",
+    "raw",
+    "contrib",
+    "interaction"
+  )
+
+  for (pred_type in pred_types_with_colnames) {
+    pred <- predict(model, x, type = pred_type)
+    expect_equal(nrow(pred), nrow(x))
+    expect_equal(ncol(pred), 3L)
+    expect_equal(colnames(pred), c("e0.25", "e0.5", "e0.75"))
+  }
+})
+
 test_that("Leaf predictions have multiple dimensions when needed", {
   # single score, multiple trees
   y <- mtcars$mpg
@@ -944,6 +1014,37 @@ test_that("Column names from multiquantile are added to leaf predictions", {
   pred <- predict(model, x, type = "leaf")
   expect_equal(dim(pred), c(nrow(x), 1L, 3L))
   expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
+})
+
+test_that("Column names from multiexpectile are added to leaf predictions", {
+  y <- mtcars$mpg
+  x <- mtcars[, -1L]
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 4L,
+    max_depth = 2L,
+    objective = "reg:expectileerror",
+    expectile_alpha = c(0.25, 0.5, 0.75)
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 4L, 3L))
+  expect_equal(dimnames(pred)[[3L]], c("e0.25", "e0.5", "e0.75"))
+
+  # Check also for a single tree
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 1L,
+    max_depth = 2L,
+    objective = "reg:expectileerror",
+    expectile_alpha = c(0.25, 0.5, 0.75)
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L, 3L))
+  expect_equal(dimnames(pred)[[3L]], c("e0.25", "e0.5", "e0.75"))
 })
 
 test_that("Evaluation fraction leaves examples of all classes for training", {

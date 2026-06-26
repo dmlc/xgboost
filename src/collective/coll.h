@@ -8,6 +8,7 @@
 #include "../data/array_interface.h"    // for ArrayInterfaceHandler
 #include "comm.h"                       // for Comm
 #include "xgboost/collective/result.h"  // for Result
+#include "xgboost/context.h"            // for Context
 #include "xgboost/span.h"               // for Span
 
 namespace xgboost::collective {
@@ -34,22 +35,24 @@ class Coll : public std::enable_shared_from_this<Coll> {
    * @param [in] op Reduce operation. For custom operation, user needs to reach down to
    *             the CPU implementation.
    */
-  [[nodiscard]] virtual Result Allreduce(Comm const& comm, common::Span<std::int8_t> data,
+  [[nodiscard]] virtual Result Allreduce(Context const* ctx, Comm const& comm,
+                                         common::Span<std::int8_t> data,
                                          ArrayInterfaceHandler::Type type, Op op);
   /**
    * @brief Broadcast
    *
    * @param [in,out] data Data buffer for input and output.
-   * @param [in] root Root rank for broadcast.
+   * @param [in]     root Root rank for broadcast.
    */
-  [[nodiscard]] virtual Result Broadcast(Comm const& comm, common::Span<std::int8_t> data,
-                                         std::int32_t root);
+  [[nodiscard]] virtual Result Broadcast(Context const* ctx, Comm const& comm,
+                                         common::Span<std::int8_t> data, std::int32_t root);
   /**
    * @brief Allgather
    *
    * @param [in,out] data Data buffer for input and output.
    */
-  [[nodiscard]] virtual Result Allgather(Comm const& comm, common::Span<std::int8_t> data);
+  [[nodiscard]] virtual Result Allgather(Context const* ctx, Comm const& comm,
+                                         common::Span<std::int8_t> data);
   /**
    * @brief Allgather with variable length.
    *
@@ -60,7 +63,8 @@ class Coll : public std::enable_shared_from_this<Coll> {
    *              doesn't use the buffer.
    * @param [out] recv pre-allocated buffer for output.
    */
-  [[nodiscard]] virtual Result AllgatherV(Comm const& comm, common::Span<std::int8_t const> data,
+  [[nodiscard]] virtual Result AllgatherV(Context const* ctx, Comm const& comm,
+                                          common::Span<std::int8_t const> data,
                                           common::Span<std::int64_t const> sizes,
                                           common::Span<std::int64_t> recv_segments,
                                           common::Span<std::int8_t> recv, AllgatherVAlgo algo);

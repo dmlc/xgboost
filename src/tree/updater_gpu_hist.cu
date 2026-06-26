@@ -23,7 +23,7 @@
 #include "../common/device_helpers.cuh"
 #include "../common/device_vector.cuh"  // for device_vector
 #include "../common/hist_util.h"        // for HistogramCuts
-#include "../common/random.h"           // for ColumnSampler, GlobalRandom
+#include "../common/random.h"           // for ColumnSampler
 #include "../common/timer.h"
 #include "../data/batch_utils.h"     // for StaticBatch
 #include "../data/ellpack_page.cuh"  // for EllpackPageImpl
@@ -130,7 +130,7 @@ struct GPUHistMakerDevice {
 
   TrainParam const param;
 
-  std::unique_ptr<GradientQuantiser> quantiser;
+  std::unique_ptr<GradientQuantiserGroup> quantiser;
 
   dh::PinnedMemory pinned;
   dh::PinnedMemory pinned2;
@@ -175,18 +175,17 @@ struct GPUHistMakerDevice {
 
     auto const& info = p_fmat->Info();
 
-    this->quantiser = std::make_unique<GradientQuantiser>(
+    this->quantiser = std::make_unique<GradientQuantiserGroup>(
         ctx_, linalg::MakeVec(this->ctx_->Device(), dh_gpair->ConstDeviceSpan()), p_fmat->Info());
     auto gpair =
         linalg::MakeTensorView(this->ctx_, dh_gpair->ConstDeviceSpan(), dh_gpair->Size(), 1);
-    dh::caching_device_vector<GradientQuantiser> dq{*this->quantiser};
-    CalcQuantizedGpairs(this->ctx_, gpair, dh::ToSpan(dq), &this->d_gpair);
+    CalcQuantizedGpairs(this->ctx_, gpair, this->quantiser->DeviceSpan(), &this->d_gpair);
 
     /**
      * Sampling
      */
     auto gpairs = this->d_gpair.View(this->ctx_->Device());
-    this->sampler->Sample(ctx_, gpairs, dh::ToSpan(dq));
+    this->sampler->Sample(ctx_, gpairs, this->quantiser->DeviceSpan());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
     /**
@@ -215,17 +214,16 @@ struct GPUHistMakerDevice {
   GPUExpandEntry EvaluateRootSplit(DMatrix const* p_fmat, GradientPairInt64 root_sum) {
     bst_node_t nidx = RegTree::kRoot;
     GPUTrainingParam gpu_param(param);
-    auto sampled_features = column_sampler_->GetFeatureSet(0);
+    auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
     sampled_features->SetDevice(ctx_->Device());
     common::Span<bst_feature_t const> feature_set =
         interaction_constraints.Query(sampled_features->ConstDeviceSpan(), nidx);
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, histogram_.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{gpu_param,
-                                            *quantiser,
+                                            (*quantiser)[0],
                                             p_fmat->Info().feature_types.ConstDeviceSpan(),
                                             cuts_->cut_ptrs_.ConstDeviceSpan(),
                                             cuts_->cut_values_.ConstDeviceSpan(),
-                                            cuts_->min_vals_.ConstDeviceSpan(),
                                             p_fmat->IsDense() && !collective::IsDistributed()};
     auto split = this->evaluator_.EvaluateSingleSplit(ctx_, inputs, shared_inputs);
     return split;
@@ -242,9 +240,8 @@ struct GPUHistMakerDevice {
     std::vector<bst_node_t> nidx(2 * candidates.size());
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     EvaluateSplitSharedInputs shared_inputs{
-        GPUTrainingParam{param}, *quantiser, p_fmat->Info().feature_types.ConstDeviceSpan(),
+        GPUTrainingParam{param}, (*quantiser)[0], p_fmat->Info().feature_types.ConstDeviceSpan(),
         cuts_->cut_ptrs_.ConstDeviceSpan(), cuts_->cut_values_.ConstDeviceSpan(),
-        cuts_->min_vals_.ConstDeviceSpan(),
         // is_dense represents the local data
         p_fmat->IsDense() && !collective::IsDistributed()};
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
@@ -257,11 +254,11 @@ struct GPUHistMakerDevice {
       bst_node_t right_nidx = sc_tree.RightChild(candidate.nidx);
       nidx[i * 2] = left_nidx;
       nidx[i * 2 + 1] = right_nidx;
-      auto left_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(left_nidx));
+      auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(left_nidx));
       feature_sets.emplace_back(left_sampled_features);
       common::Span<bst_feature_t const> left_feature_set =
           interaction_constraints.Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
-      auto right_sampled_features = column_sampler_->GetFeatureSet(tree.GetDepth(right_nidx));
+      auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, tree.GetDepth(right_nidx));
       feature_sets.emplace_back(right_sampled_features);
       common::Span<bst_feature_t const> right_feature_set =
           interaction_constraints.Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
@@ -353,7 +350,7 @@ struct GPUHistMakerDevice {
     auto d_split_data = dh::ToSpan(split_data_storage);
 
     dh::LaunchN(d_matrix.n_rows, cuctx->Stream(), [=] __device__(std::size_t ridx) mutable {
-      for (auto i = 0; i < num_candidates; i++) {
+      for (std::size_t i = 0; i < num_candidates; i++) {
         auto const& data = d_split_data[i];
         auto const cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
         if (isnan(cut_value)) {
@@ -462,8 +459,9 @@ struct GPUHistMakerDevice {
     auto const& tree = p_tree->HostScView();
     cuda_impl::AssignNodes(tree, candidates, build_nidx, subtraction_nidx,
                            [&](GPUExpandEntry const& e) {
-                             auto left_sum = this->quantiser->ToFloatingPoint(e.split.left_sum);
-                             auto right_sum = this->quantiser->ToFloatingPoint(e.split.right_sum);
+                             auto const& q = (*this->quantiser)[0];
+                             auto left_sum = q.ToFloatingPoint(e.split.left_sum);
+                             auto right_sum = q.ToFloatingPoint(e.split.right_sum);
                              bool fewer_right = right_sum.GetHess() < left_sum.GetHess();
                              return fewer_right;
                            });
@@ -621,10 +619,11 @@ struct GPUHistMakerDevice {
     auto base_weight = candidate.base_weight;
     auto left_weight = candidate.left_weight * param.learning_rate;
     auto right_weight = candidate.right_weight * param.learning_rate;
+    auto const& q = (*quantiser)[0];
     auto parent_hess =
-        quantiser->ToFloatingPoint(candidate.split.left_sum + candidate.split.right_sum).GetHess();
-    auto left_hess = quantiser->ToFloatingPoint(candidate.split.left_sum).GetHess();
-    auto right_hess = quantiser->ToFloatingPoint(candidate.split.right_sum).GetHess();
+        q.ToFloatingPoint(candidate.split.left_sum + candidate.split.right_sum).GetHess();
+    auto left_hess = q.ToFloatingPoint(candidate.split.left_sum).GetHess();
+    auto right_hess = q.ToFloatingPoint(candidate.split.right_sum).GetHess();
 
     auto is_cat = candidate.split.is_cat;
     if (is_cat) {
@@ -651,7 +650,7 @@ struct GPUHistMakerDevice {
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 
     const auto& parent = tree[candidate.nidx];
-    interaction_constraints.Split(candidate.nidx, parent.SplitIndex(), parent.LeftChild(),
+    interaction_constraints.Split(ctx_, candidate.nidx, parent.SplitIndex(), parent.LeftChild(),
                                   parent.RightChild());
   }
 
@@ -678,7 +677,7 @@ struct GPUHistMakerDevice {
     this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), kRootNIdx, 1);
 
     // Remember root stats
-    auto root_sum = this->quantiser->ToFloatingPoint(root_sum_quantised);
+    auto root_sum = (*this->quantiser)[0].ToFloatingPoint(root_sum_quantised);
     p_tree->Stat(kRootNIdx).sum_hess = root_sum.GetHess();
     auto weight = CalcWeight(param, root_sum);
     p_tree->Stat(kRootNIdx).base_weight = weight;
@@ -758,7 +757,10 @@ std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
 
 class GPUHistMaker : public TreeUpdater {
  public:
-  explicit GPUHistMaker(Context const* ctx, ObjInfo const* task) : TreeUpdater(ctx), task_{task} {};
+  explicit GPUHistMaker(Context const* ctx, ObjInfo const* task)
+      : TreeUpdater(ctx),
+        task_{task},
+        column_sampler_{std::make_shared<common::ColumnSampler>()} {};
   void Configure(const Args& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Hist]: Configure";
@@ -804,9 +806,6 @@ class GPUHistMaker : public TreeUpdater {
   void InitDataOnce(TrainParam const* param, DMatrix* p_fmat) {
     monitor_.Start(__func__);
     CHECK_GE(ctx_->Ordinal(), 0) << "Must have at least one device";
-
-    // Synchronise the column sampling seed
-    this->column_sampler_ = common::MakeColumnSampler(ctx_);
 
     curt::SetDevice(ctx_->Ordinal());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
@@ -894,7 +893,9 @@ XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
 class GPUGlobalApproxMaker : public TreeUpdater {
  public:
   explicit GPUGlobalApproxMaker(Context const* ctx, ObjInfo const* task)
-      : TreeUpdater(ctx), task_{task} {};
+      : TreeUpdater(ctx),
+        column_sampler_{std::make_shared<common::ColumnSampler>()},
+        task_{task} {};
   void Configure(Args const& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Approx]: Configure";
@@ -961,7 +962,6 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     monitor_.Start(__func__);
     CHECK(ctx_->IsCUDA()) << error::InvalidCUDAOrdinal();
-    this->column_sampler_ = common::MakeColumnSampler(ctx_);
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;

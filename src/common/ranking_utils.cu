@@ -1,27 +1,27 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #include <thrust/functional.h>                  // for maximum
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 #include <thrust/logical.h>                     // for none_of, all_of
-#include <thrust/pair.h>                        // for pair, make_pair
 #include <thrust/reduce.h>                      // for reduce
 #include <thrust/scan.h>                        // for inclusive_scan
 
-#include <cstddef>                              // for size_t
+#include <cstddef>           // for size_t
+#include <cuda/std/utility>  // for pair
 
-#include "algorithm.cuh"                        // for SegmentedArgSort
-#include "cuda_context.cuh"                     // for CUDAContext
-#include "device_helpers.cuh"                   // for MakeTransformIterator, LaunchN
-#include "optional_weight.h"                    // for MakeOptionalWeights, OptionalWeights
-#include "ranking_utils.cuh"                    // for ThreadsForMean
+#include "algorithm.cuh"       // for SegmentedArgSort
+#include "cuda_context.cuh"    // for CUDAContext
+#include "device_helpers.cuh"  // for MakeTransformIterator, LaunchN
+#include "optional_weight.h"   // for MakeOptionalWeights, OptionalWeights
+#include "ranking_utils.cuh"   // for ThreadsForMean
 #include "ranking_utils.h"
-#include "threading_utils.cuh"                  // for SegmentedTrapezoidThreads
-#include "xgboost/base.h"                       // for XGBOOST_DEVICE, bst_group_t
-#include "xgboost/context.h"                    // for Context
-#include "xgboost/linalg.h"                     // for VectorView, All, Range
-#include "xgboost/logging.h"                    // for CHECK
-#include "xgboost/span.h"                       // for Span
+#include "threading_utils.cuh"  // for SegmentedTrapezoidThreads
+#include "xgboost/base.h"       // for XGBOOST_DEVICE, bst_group_t
+#include "xgboost/context.h"    // for Context
+#include "xgboost/linalg.h"     // for VectorView, All, Range
+#include "xgboost/logging.h"    // for CHECK
+#include "xgboost/span.h"       // for Span
 
 namespace xgboost::ltr {
 namespace cuda_impl {
@@ -30,10 +30,10 @@ void CalcQueriesDCG(Context const* ctx, linalg::VectorView<float const> d_labels
                     common::Span<bst_group_t const> d_group_ptr, std::size_t k,
                     linalg::VectorView<double> out_dcg) {
   CHECK_EQ(d_group_ptr.size() - 1, out_dcg.Size());
-  using IdxGroup = thrust::pair<std::size_t, std::size_t>;
+  using IdxGroup = cuda::std::pair<std::size_t, std::size_t>;
   auto group_it = dh::MakeTransformIterator<IdxGroup>(
       thrust::make_counting_iterator(0ull), [=] XGBOOST_DEVICE(std::size_t idx) {
-        return thrust::make_pair(idx, dh::SegmentId(d_group_ptr, idx));  // NOLINT
+        return cuda::std::make_pair(idx, dh::SegmentId(d_group_ptr, idx));
       });
   auto value_it = dh::MakeTransformIterator<double>(
       group_it,

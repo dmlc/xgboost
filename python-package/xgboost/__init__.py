@@ -3,15 +3,18 @@
 Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 """
 
-from . import tracker  # noqa
-from . import collective
+from . import (
+    collective,
+    interpret,
+    tracker,  # noqa
+)
+from ._c_api import _py_version
 from .core import (
     Booster,
     DataIter,
     DMatrix,
     ExtMemQuantileDMatrix,
     QuantileDMatrix,
-    _py_version,
     build_info,
 )
 from .tracker import RabitTracker  # noqa
@@ -62,4 +65,6 @@ __all__ = [
     "XGBRFRegressor",
     # collective
     "collective",
+    # interpretability
+    "interpret",
 ]

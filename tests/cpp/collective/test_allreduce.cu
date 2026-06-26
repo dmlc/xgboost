@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2026, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <gtest/gtest.h>
@@ -15,6 +15,11 @@
 namespace xgboost::collective {
 namespace {
 class MGPUAllreduceTest : public SocketTest {};
+
+bool HasNcclTimeout(std::string const& report) {
+  return report.find("NCCL timeout:") != std::string::npos ||
+         report.find("NCCL future timeout:") != std::string::npos;
+}
 
 class Worker : public NCCLWorkerForTest {
  public:
@@ -36,7 +41,7 @@ class Worker : public NCCLWorkerForTest {
   void BitOr() {
     dh::device_vector<std::uint32_t> data(comm_.World(), 0);
     data[comm_.Rank()] = ~std::uint32_t{0};
-    auto rc = nccl_coll_->Allreduce(*nccl_comm_, common::EraseType(dh::ToSpan(data)),
+    auto rc = nccl_coll_->Allreduce(&ctx_, *nccl_comm_, common::EraseType(dh::ToSpan(data)),
                                     ArrayInterfaceHandler::kU4, Op::kBitwiseOR);
     SafeColl(rc);
     thrust::host_vector<std::uint32_t> h_data(data.size());
@@ -48,7 +53,7 @@ class Worker : public NCCLWorkerForTest {
 
   void Acc() {
     dh::device_vector<double> data(314, 1.5);
-    auto rc = nccl_coll_->Allreduce(*nccl_comm_, common::EraseType(dh::ToSpan(data)),
+    auto rc = nccl_coll_->Allreduce(&ctx_, *nccl_comm_, common::EraseType(dh::ToSpan(data)),
                                     ArrayInterfaceHandler::kF8, Op::kSum);
     SafeColl(rc);
     for (std::size_t i = 0; i < data.size(); ++i) {
@@ -59,7 +64,7 @@ class Worker : public NCCLWorkerForTest {
 
   Result NoCheck() {
     dh::device_vector<double> data(314, 1.5);
-    auto rc = nccl_coll_->Allreduce(*nccl_comm_, common::EraseType(dh::ToSpan(data)),
+    auto rc = nccl_coll_->Allreduce(&ctx_, *nccl_comm_, common::EraseType(dh::ToSpan(data)),
                                     ArrayInterfaceHandler::kF8, Op::kSum);
     return rc;
   }
@@ -111,7 +116,7 @@ TEST_F(MGPUAllreduceTest, Timeout) {
         auto rc = w->NoCheck();
         if (r == 1) {
           auto rep = rc.Report();
-          ASSERT_NE(rep.find("NCCL timeout:"), std::string::npos) << rep;
+          ASSERT_TRUE(HasNcclTimeout(rep)) << rep;
         }
 
         w.reset();
@@ -131,7 +136,7 @@ TEST_F(MGPUAllreduceTest, Timeout) {
         // Only one of the workers is doing allreduce.
         if (r == 0) {
           auto rc = w->NoCheck();
-          ASSERT_NE(rc.Report().find("NCCL timeout:"), std::string::npos) << rc.Report();
+          ASSERT_TRUE(HasNcclTimeout(rc.Report())) << rc.Report();
         }
 
         w.reset();

@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
@@ -8,9 +8,11 @@
 #include <numeric>  // for iota
 #include <thread>   // for thread
 
+#include "../../../src/common/cuda_context.cuh"    // for CUDAContext
 #include "../../../src/common/cuda_rt_utils.h"     // for DrVersion
-#include "../../../src/common/device_helpers.cuh"  // for CachingThrustPolicy, PinnedMemory
+#include "../../../src/common/device_helpers.cuh"  // for PinnedMemory
 #include "../../../src/common/device_vector.cuh"
+#include "../helpers.h"             // for MakeCUDACtx
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
 #include "xgboost/windefs.h"        // for xgboost_IS_WIN
 
@@ -33,6 +35,7 @@ TEST(AsyncPoolAllocator, Basic) {
 #endif  // !defined(XGBOOST_USE_RMM)
 
 TEST(DeviceUVector, Basic) {
+  auto ctx = xgboost::MakeCUDACtx(0);
   GlobalMemoryLogger().Clear();
   std::int32_t verbosity{3};
   std::swap(verbosity, xgboost::GlobalConfigThreadLocalStore::Get()->verbosity);
@@ -51,11 +54,11 @@ TEST(DeviceUVector, Basic) {
   ASSERT_EQ(std::distance(uvec1.begin(), uvec1.end()), uvec1.size());
   auto orig = uvec1.size();
 
-  thrust::sequence(dh::CachingThrustPolicy(), uvec1.begin(), uvec1.end(), 0);
+  thrust::sequence(ctx.CUDACtx()->CTP(), uvec1.begin(), uvec1.end(), 0);
   uvec1.resize(32);
   ASSERT_EQ(uvec1.size(), 32);
   ASSERT_EQ(uvec1.Capacity(), 32);
-  auto eq = thrust::equal(dh::CachingThrustPolicy(), uvec1.cbegin(), uvec1.cbegin() + orig,
+  auto eq = thrust::equal(ctx.CUDACtx()->CTP(), uvec1.cbegin(), uvec1.cbegin() + orig,
                           thrust::make_counting_iterator(0));
   ASSERT_TRUE(eq);
 
@@ -69,6 +72,7 @@ namespace {
 class TestVirtualMem : public ::testing::TestWithParam<CUmemLocationType> {
  public:
   void Run() {
+    auto ctx = xgboost::MakeCUDACtx(0);
     auto type = this->GetParam();
     detail::GrowOnlyVirtualMemVec vec{type};
     auto prop = xgboost::cudr::MakeAllocProp(type);
@@ -86,7 +90,7 @@ class TestVirtualMem : public ::testing::TestWithParam<CUmemLocationType> {
     };
     auto fill = [&](std::int32_t n_orig, xgboost::common::Span<std::int32_t> data) {
       if (type == CU_MEM_LOCATION_TYPE_DEVICE) {
-        thrust::sequence(dh::CachingThrustPolicy(), data.data() + n_orig, data.data() + data.size(),
+        thrust::sequence(ctx.CUDACtx()->CTP(), data.data() + n_orig, data.data() + data.size(),
                          n_orig);
         dh::safe_cuda(cudaMemcpy(h_data.data(), data.data(), data.size_bytes(), cudaMemcpyDefault));
       } else {
@@ -151,7 +155,7 @@ TEST(TestVirtualMem, Version) {
   PinnedMemory pinned;
 #if defined(xgboost_IS_WIN)
   ASSERT_FALSE(pinned.IsVm());
-#else  // defined(xgboost_IS_WIN)
+#else   // defined(xgboost_IS_WIN)
   if (major == 12 && minor >= 5 || major > 12) {
     ASSERT_TRUE(pinned.IsVm());
   } else {

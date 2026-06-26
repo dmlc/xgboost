@@ -73,7 +73,13 @@ struct SegmentedSearchSortedStrOp {
     if (ret_it == it + f_sorted_idx.size()) {
       return detail::NotFound();
     }
-    return *ret_it;
+    // Handle OOV category
+    auto sorted_idx = *ret_it;
+    auto candidate_idx = f_sorted_idx[sorted_idx];
+    auto candidate_beg = haystack.offsets[candidate_idx];
+    auto candidate_end = haystack.offsets[candidate_idx + 1];
+    auto candidate = haystack.values.subspan(candidate_beg, candidate_end - candidate_beg);
+    return candidate == needle ? sorted_idx : detail::NotFound();
   }
 };
 
@@ -105,7 +111,9 @@ struct SegmentedSearchSortedNumOp {
     if (ret_it == it + f_sorted_idx.size()) {
       return detail::NotFound();
     }
-    return *ret_it;
+    auto sorted_idx = *ret_it;
+    auto candidate = haystack[f_sorted_idx[sorted_idx]];
+    return candidate == needle ? sorted_idx : detail::NotFound();
   }
 };
 
@@ -280,16 +288,15 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         f_mapping[i - f_beg] = idx;
       });
 
-  auto err_it = thrust::find_if(
-      exec, dh::tcbegin(mapping), dh::tcend(mapping),
-      [=] XGBOOST_DEVICE(std::int32_t v) -> bool { return v == detail::NotFound(); });
+  auto err_it =
+      thrust::find_if(exec, dh::tcbegin(mapping), dh::tcend(mapping),
+                      [=] __device__(std::int32_t v) -> bool { return v == detail::NotFound(); });
 
   if (err_it != dh::tcend(mapping)) {
     // Report missing cat.
     std::vector<decltype(mapping)::value_type> h_mapping(mapping.size());
     thrust::copy_n(dh::tcbegin(mapping), mapping.size(), h_mapping.begin());
-    std::vector<decltype(new_enc.feature_segments)::value_type> h_feature_segments(
-        new_enc.feature_segments.size());
+    std::vector<DeviceColumnsView::SegIdxT> h_feature_segments(new_enc.feature_segments.size());
     thrust::copy(dh::tcbegin(new_enc.feature_segments), dh::tcend(new_enc.feature_segments),
                  h_feature_segments.begin());
     auto h_idx = std::distance(dh::tcbegin(mapping), err_it);

@@ -244,7 +244,6 @@ class TestTreeMethod:
             cats=cats,
             device="cpu",
             tree_method="approx",
-            extmem=False,
         )
         check_categorical_ohe(
             rows=rows,
@@ -253,7 +252,15 @@ class TestTreeMethod:
             cats=cats,
             device="cpu",
             tree_method="hist",
-            extmem=False,
+        )
+        check_categorical_ohe(
+            rows=rows,
+            cols=cols,
+            rounds=rounds,
+            cats=cats,
+            device="cpu",
+            tree_method="hist",
+            multi_target=True,
         )
 
     @given(

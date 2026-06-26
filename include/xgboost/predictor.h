@@ -107,7 +107,8 @@ class Predictor {
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
                             gbm::GBTreeModel const& model, bst_tree_t tree_begin,
-                            bst_tree_t tree_end = 0) const = 0;
+                            bst_tree_t tree_end = 0,
+                            std::vector<float> const* tree_weights = nullptr) const = 0;
 
   /**
    * \brief Inplace prediction.
@@ -124,7 +125,8 @@ class Predictor {
    */
   virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
                               float missing, PredictionCacheEntry* out_preds,
-                              bst_tree_t tree_begin = 0, bst_tree_t tree_end = 0) const = 0;
+                              bst_tree_t tree_begin = 0, bst_tree_t tree_end = 0,
+                              std::vector<float> const* tree_weights = nullptr) const = 0;
 
   /**
    * \brief predict the leaf index of each tree, the output will be nsample *
@@ -181,8 +183,7 @@ class Predictor {
 struct PredictorReg
     : public dmlc::FunctionRegEntryBase<PredictorReg, std::function<Predictor*(Context const*)>> {};
 
-#define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)      \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& \
-      __make_##PredictorReg##_##UniqueId##__ =          \
-          ::dmlc::Registry<::xgboost::PredictorReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)                                               \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& __make_##PredictorReg##_##UniqueId##__ = \
+      ::dmlc::Registry<::xgboost::PredictorReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost

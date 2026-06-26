@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <algorithm>  // for max
 #include <cstddef>    // for size_t
@@ -56,7 +56,7 @@ EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers)
 #if defined(__linux__)
         std::int32_t major = -1, minor = -1;
         curt::GetDrVersionGlobal(&major, &minor);
-        if (major >= 12 && minor >= 5 || major > 12) {
+        if ((major >= 12 && minor >= 5) || major > 12) {
           return std::make_shared<dc::HostPinnedMemPool>();
         }
         return std::shared_ptr<dc::HostPinnedMemPool>{nullptr};
@@ -145,9 +145,8 @@ class EllpackHostCacheStreamImpl {
     ptr_ = k;
   }
 
-  [[nodiscard]] bool Write(EllpackPage const& page) {
+  [[nodiscard]] bool Write(Context const* ctx, EllpackPage const& page) {
     auto impl = page.Impl();
-    auto ctx = Context{}.MakeCUDA(dh::CurrentDevice());
 
     this->cache_->sizes_orig.push_back(page.Impl()->MemCostBytes());
     auto orig_ptr = this->cache_->sizes_orig.size() - 1;
@@ -219,10 +218,10 @@ class EllpackHostCacheStreamImpl {
       dc::CuMemParams c_out;
       std::size_t constexpr kChunkSize = 1ul << 21;
       auto params = dc::CompressSnappy(
-          &ctx, old_impl->gidx_buffer.ToSpan().subspan(n_h_bytes, n_comp_bytes), &tmp, kChunkSize);
+          ctx, old_impl->gidx_buffer.ToSpan().subspan(n_h_bytes, n_comp_bytes), &tmp, kChunkSize);
       common::RefResourceView<std::uint8_t> c_buf = dc::CoalesceCompressedBuffersToHost(
-          ctx.CUDACtx()->Stream(), this->cache_->pool, params, tmp, &c_out);
-      auto c_page = dc::MakeSnappyDecomprMgr(ctx.CUDACtx()->Stream(), this->cache_->pool,
+          ctx->CUDACtx()->Stream(), this->cache_->pool, params, tmp, &c_out);
+      auto c_page = dc::MakeSnappyDecomprMgr(ctx->CUDACtx()->Stream(), this->cache_->pool,
                                              std::move(c_out), c_buf.ToSpan());
       CHECK_EQ(c_page.DecompressedBytes() + new_impl->gidx_buffer.size_bytes(), n_bytes);
 
@@ -264,13 +263,13 @@ class EllpackHostCacheStreamImpl {
       // Push a new page
       auto n_bytes = this->cache_->buffer_bytes.at(this->cache_->h_pages.size());
       auto n_samples = this->cache_->buffer_rows.at(this->cache_->h_pages.size());
-      auto new_impl = std::make_unique<EllpackPageImpl>(&ctx, impl->CutsShared(), impl->IsDense(),
+      auto new_impl = std::make_unique<EllpackPageImpl>(ctx, impl->CutsShared(), impl->IsDense(),
                                                         impl->info.row_stride, n_samples);
       new_impl->SetBaseRowId(impl->base_rowid);
       new_impl->SetNumSymbols(impl->NumSymbols());
       new_impl->gidx_buffer =
-          common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(&ctx, n_bytes, 0);
-      auto offset = new_impl->Copy(&ctx, impl, 0);
+          common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(ctx, n_bytes, 0);
+      auto offset = new_impl->Copy(ctx, impl, 0);
 
       this->cache_->offsets.push_back(offset);
 
@@ -284,7 +283,7 @@ class EllpackHostCacheStreamImpl {
       CHECK(!this->cache_->h_pages.empty());
       CHECK_EQ(cache_idx, this->cache_->h_pages.size() - 1);
       auto& new_impl = this->cache_->h_pages.back();
-      auto offset = new_impl->Copy(&ctx, impl, this->cache_->offsets.back());
+      auto offset = new_impl->Copy(ctx, impl, this->cache_->offsets.back());
       this->cache_->offsets.back() += offset;
     }
 
@@ -382,9 +381,23 @@ void EllpackHostCacheStream::Read(Context const* ctx, EllpackPage* page, bool pr
   this->p_impl_->Read(ctx, page, prefetch_copy);
 }
 
-[[nodiscard]] bool EllpackHostCacheStream::Write(EllpackPage const& page) {
-  return this->p_impl_->Write(page);
+[[nodiscard]] bool EllpackHostCacheStream::Write(Context const* ctx, EllpackPage const& page) {
+  return this->p_impl_->Write(ctx, page);
 }
+
+/**
+ * EllpackFormatPolicy
+ */
+template <typename S>
+void EllpackFormatPolicy<S>::DestroyPage(std::shared_ptr<S>* page) const {
+  if (page && ctx_) {
+    ctx_->CUDACtx()->Stream().Sync();
+  }
+  page->reset();
+}
+
+template void EllpackFormatPolicy<EllpackPage>::DestroyPage(
+    std::shared_ptr<EllpackPage>* page) const;
 
 /**
  * EllpackCacheStreamPolicy
@@ -528,13 +541,14 @@ void EllpackPageSourceImpl<F>::Fetch() {
     // This is not read from cache so we still need it to be synced with sparse page source.
     CHECK_EQ(this->Iter(), this->source_->Iter());
     auto const& csr = this->source_->Page();
+    this->DestroyPage(&this->page_);
     this->page_.reset(new EllpackPage{});
     auto* impl = this->page_->Impl();
-    Context ctx = Context{}.MakeCUDA(this->Device().ordinal);
     if (this->GetCuts()->HasCategorical()) {
       CHECK(!this->feature_types_.empty());
     }
-    *impl = EllpackPageImpl{&ctx, this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
+    *impl =
+        EllpackPageImpl{this->Ctx(), this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
     this->page_->SetBaseRowId(csr->base_rowid);
     LOG(INFO) << "Generated an Ellpack page with size: "
               << common::HumanMemUnit(impl->MemCostBytes())
@@ -573,6 +587,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
       bst_idx_t row_stride = GetRowCounts(this->ctx_, value, row_counts_span,
                                           dh::GetDevice(this->ctx_), this->missing_);
       CHECK_LE(row_stride, this->ext_info_.row_stride);
+      this->DestroyPage(&this->page_);
       this->page_.reset(new EllpackPage{});
       *this->page_->Impl() = EllpackPageImpl{this->ctx_,
                                              value,

@@ -10,8 +10,9 @@
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/ellpack_page.h"
 #include "../../../src/data/iterative_dmatrix.h"
-#include "../../../src/tree/param.h"  // TrainParam
-#include "../filesystem.h"            // for TemporaryDirectory
+#include "../../../src/tree/param.h"   // TrainParam
+#include "../common/test_hist_util.h"  // for ValidateCuts
+#include "../filesystem.h"             // for TemporaryDirectory
 #include "../helpers.h"
 #include "test_iterative_dmatrix.h"
 
@@ -20,9 +21,8 @@ void TestEquivalent(float sparsity) {
   auto ctx = MakeCUDACtx(0);
 
   CudaArrayIterForTest iter{sparsity};
-  IterativeDMatrix m{&iter, iter.Proxy(), nullptr,
-                     Reset, Next,         std::numeric_limits<float>::quiet_NaN(),
-                     0,     256,          std::numeric_limits<std::int64_t>::max()};
+  IterativeDMatrix m{
+      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, 256};
   std::size_t offset = 0;
   auto first = (*m.GetEllpackBatches(&ctx, {}).begin()).Impl();
   std::unique_ptr<EllpackPageImpl> page_concatenated{new EllpackPageImpl{
@@ -48,20 +48,12 @@ void TestEquivalent(float sparsity) {
 
     std::visit(
         [](auto&& from_iter, auto&& from_data) {
-          ASSERT_EQ(from_iter.gidx_fvalue_map.size(), from_data.gidx_fvalue_map.size());
-          for (size_t i = 0; i < from_iter.gidx_fvalue_map.size(); ++i) {
-            EXPECT_NEAR(from_iter.gidx_fvalue_map[i], from_data.gidx_fvalue_map[i], kRtEps);
-          }
-          ASSERT_EQ(from_iter.min_fvalue.size(), from_data.min_fvalue.size());
-          for (size_t i = 0; i < from_iter.min_fvalue.size(); ++i) {
-            ASSERT_NEAR(from_iter.min_fvalue[i], from_data.min_fvalue[i], kRtEps);
-          }
           ASSERT_EQ(from_iter.NumFeatures(), from_data.NumFeatures());
-          for (size_t i = 0; i < from_iter.NumFeatures() + 1; ++i) {
-            ASSERT_EQ(from_iter.feature_segments[i], from_data.feature_segments[i]);
-          }
         },
         from_iter, from_data);
+
+    common::ValidateCuts(page_concatenated->Cuts(), dm.get(), 256);
+    common::ValidateCuts(ellpack.Impl()->Cuts(), dm.get(), 256);
 
     std::vector<common::CompressedByteT> buffer_from_iter, buffer_from_data;
     auto data_iter = page_concatenated->GetHostEllpack(&ctx, &buffer_from_iter);
@@ -70,17 +62,14 @@ void TestEquivalent(float sparsity) {
     ASSERT_NE(buffer_from_iter.size(), 0);
     CHECK_EQ(ellpack.Impl()->NumSymbols(), page_concatenated->NumSymbols());
 
-    std::visit(
-        [](auto&& from_iter, auto&& from_data) {
-          CHECK_EQ(from_data.n_rows * from_data.row_stride,
-                   from_data.n_rows * from_iter.row_stride);
-        },
-        from_iter, from_data);
+    std::visit([](auto&& from_iter,
+                  auto&& from_data) { CHECK_EQ(from_data.row_stride, from_iter.row_stride); },
+               from_iter, from_data);
     std::visit(
         [](auto&& from_data, auto&& data_buf, auto&& data_iter) {
-          for (size_t i = 0; i < from_data.n_rows * from_data.row_stride; ++i) {
-            CHECK_EQ(data_buf.gidx_iter[i], data_iter.gidx_iter[i]);
-          }
+          ASSERT_EQ(data_buf.row_stride, data_iter.row_stride);
+          ASSERT_EQ(data_buf.NullValue(), data_iter.NullValue());
+          ASSERT_EQ(from_data.n_rows * from_data.row_stride, data_buf.n_rows * data_buf.row_stride);
         },
         from_data, data_buf, data_iter);
   }
@@ -93,9 +82,8 @@ TEST(IterativeDeviceDMatrix, Basic) {
 
 TEST(IterativeDeviceDMatrix, RowMajor) {
   CudaArrayIterForTest iter(0.0f);
-  IterativeDMatrix m{&iter, iter.Proxy(), nullptr,
-                     Reset, Next,         std::numeric_limits<float>::quiet_NaN(),
-                     0,     256,          std::numeric_limits<std::int64_t>::max()};
+  IterativeDMatrix m{
+      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, 256};
   size_t n_batches = 0;
   std::string interface_str = iter.AsArray();
   Context ctx{MakeCUDACtx(0)};
@@ -148,9 +136,8 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
   auto ptr =
       thrust::device_ptr<float>(reinterpret_cast<float*>(get<Integer>(j_interface["data"][0])));
   thrust::copy(h_data.cbegin(), h_data.cend(), ptr);
-  IterativeDMatrix m{&iter, iter.Proxy(), nullptr,
-                     Reset, Next,         std::numeric_limits<float>::quiet_NaN(),
-                     0,     256,          std::numeric_limits<std::int64_t>::max()};
+  IterativeDMatrix m{
+      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, 256};
   auto ctx = MakeCUDACtx(0);
   auto& ellpack =
       *m.GetBatches<EllpackPage>(&ctx, BatchParam{256, tree::TrainParam::DftSparseThreshold()})
@@ -176,8 +163,7 @@ TEST(IterativeDeviceDMatrix, IsDense) {
   auto test = [num_bins](float sparsity) {
     CudaArrayIterForTest iter(sparsity);
     IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
-                       std::numeric_limits<float>::quiet_NaN(), 0, num_bins,
-                       std::numeric_limits<std::int64_t>::max());
+                       std::numeric_limits<float>::quiet_NaN(), 0, num_bins);
     if (sparsity == 0.0) {
       ASSERT_TRUE(m.IsDense());
     } else {
@@ -212,7 +198,7 @@ TEST(IterativeDeviceDMatrix, IO) {
   }
   auto fsize = std::filesystem::file_size(path);
   auto fi = std::make_unique<common::MemBufFileReadStream>(path.string(), 0ul, fsize);
-  auto loaded = std::shared_ptr<IterativeDMatrix>(IterativeDMatrix::Load(fi.get()));
+  auto loaded = std::shared_ptr<IterativeDMatrix>(IterativeDMatrix::Load(&ctx, fi.get()));
   for (auto const& orig_page : qdm->GetBatches<EllpackPage>(&ctx, {})) {
     for (auto const& new_page : loaded->GetBatches<EllpackPage>(&ctx, {})) {
       std::vector<common::CompressedByteT> h_orig, h_new;
@@ -223,7 +209,6 @@ TEST(IterativeDeviceDMatrix, IO) {
       auto new_cuts = new_page.Impl()->Cuts();
       ASSERT_EQ(orig_cuts.Ptrs(), new_cuts.Ptrs());
       ASSERT_EQ(orig_cuts.Values(), new_cuts.Values());
-      ASSERT_EQ(orig_cuts.MinValues(), new_cuts.MinValues());
     }
   }
 }

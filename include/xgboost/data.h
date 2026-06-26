@@ -673,7 +673,7 @@ class DMatrix {
             typename XGDMatrixCallbackNext>
   static DMatrix* Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
                          DataIterResetCallback* reset, XGDMatrixCallbackNext* next, float missing,
-                         std::int32_t nthread, bst_bin_t max_bin, std::int64_t max_quantile_blocks);
+                         std::int32_t nthread, bst_bin_t max_bin);
 
   /**
    * @brief Create an external memory DMatrix with callbacks.
@@ -707,8 +707,7 @@ class DMatrix {
             typename XGDMatrixCallbackNext>
   static DMatrix* Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
                          DataIterResetCallback* reset, XGDMatrixCallbackNext* next,
-                         bst_bin_t max_bin, std::int64_t max_quantile_blocks,
-                         ExtMemConfig const& config);
+                         bst_bin_t max_bin, ExtMemConfig const& config);
 
   virtual DMatrix* Slice(common::Span<int32_t const> ridxs) = 0;
 

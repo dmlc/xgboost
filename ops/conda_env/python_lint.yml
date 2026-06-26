@@ -2,7 +2,7 @@ name: python_lint
 channels:
 - conda-forge
 dependencies:
-- python=3.10
+- python=3.12
 - pylint
 - wheel
 - setuptools
@@ -20,4 +20,4 @@ dependencies:
 - pytest
 - hypothesis
 - hatchling
-- pyspark>=3.4.0
+- pyspark>=4.0.0

@@ -2,7 +2,7 @@ name: linux_cpu_test
 channels:
 - conda-forge
 dependencies:
-- python=3.10
+- python=3.12
 - cmake>=3.26.4
 - c-compiler
 - cxx-compiler
@@ -38,4 +38,4 @@ dependencies:
 - protobuf
 - cloudpickle
 - modin
-- pyspark>=3.4.0
+- pyspark>=4.0.0

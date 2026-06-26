@@ -1,6 +1,11 @@
 name: Build Python wheels targeting Windows ARM64
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+      - 'release_*'
+  pull_request:
 
 permissions:
   contents: read  # to fetch code (actions/checkout)
@@ -22,14 +27,14 @@ jobs:
     name: Build wheel for Windows ARM64
     runs-on: windows-11-arm
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: 'true'
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install build dependencies
         run: |

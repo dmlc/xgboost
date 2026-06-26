@@ -210,11 +210,10 @@ __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
  *   specification.
  */
 class LaunchKernel {
-  size_t shmem_size_;
-  cudaStream_t stream_;
-
   dim3 grids_;
   dim3 blocks_;
+  size_t shmem_size_;
+  cudaStream_t stream_;
 
  public:
   LaunchKernel(uint32_t _grids, uint32_t _blk, size_t _shmem=0, cudaStream_t _s=nullptr) :
@@ -765,11 +764,6 @@ template <cudaMemcpyKind kind, typename T, typename U>
 #endif  // CUDART_VERSION >= 12080
 }
 
-inline auto CachingThrustPolicy() {
-  XGBCachingDeviceAllocator<char> alloc;
-  return thrust::cuda::par_nosync(alloc).on(::xgboost::curt::DefaultStream());
-}
-
 // Force nvcc to load data as constant
 template <typename T>
 class LDGIterator {
@@ -784,7 +778,7 @@ class LDGIterator {
     DeviceWordT tmp[kNumWords];
     static_assert(sizeof(tmp) == sizeof(T), "Expect sizes to be equal.");
 #pragma unroll
-    for (int i = 0; i < kNumWords; i++) {
+    for (std::size_t i = 0; i < kNumWords; i++) {
       tmp[i] = __ldg(reinterpret_cast<const DeviceWordT *>(ptr_ + idx) + i);
     }
     return *reinterpret_cast<const T *>(tmp);

@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #ifndef XGBOOST_USE_CUDA
 

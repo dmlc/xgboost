@@ -17,9 +17,8 @@ import tqdm
 from packaging import version
 from pypi_variants import make_pyproject
 from sh.contrib import git
-from test_utils import PY_PACKAGE
+from test_utils import PY_PACKAGE, DirectoryExcursion
 from test_utils import ROOT as root_path
-from test_utils import DirectoryExcursion
 
 # S3 bucket hosting the release artifacts
 S3_BUCKET_URL = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
@@ -280,7 +279,12 @@ def release_note(
     hash_note = "\n".join(artifact_hashes)
 
     end_note = f"""
-### Additional artifacts:
+
+### Release notes
+
+https://xgboost.readthedocs.io/en/latest/changes/v{release}.html
+
+### Additional artifacts
 
 You can verify the downloaded packages by running the following command on your Unix shell:
 
@@ -293,7 +297,7 @@ echo "<hash> <artifact>" | shasum -a 256 --check
 ```
 
 **Experimental binary packages for R with CUDA enabled**
-* xgboost_r_gpu_linux_{release}.tar.gz: [Download]({r_gpu_linux_url})
+* xgboost_r_gpu_linux.tar.gz: [Download]({r_gpu_linux_url})
 
 **Source tarball**
 * {tarball_name}: [Download]({src_tarball})"""

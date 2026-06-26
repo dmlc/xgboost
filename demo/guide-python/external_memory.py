@@ -40,9 +40,8 @@ import tempfile
 from typing import TYPE_CHECKING, Callable, List, Literal, Tuple
 
 import numpy as np
-from sklearn.datasets import make_regression
-
 import xgboost
+from sklearn.datasets import make_regression
 
 if TYPE_CHECKING:
     from cuda.bindings.runtime import cudaError_t
@@ -59,7 +58,7 @@ def device_mem_total() -> int:
     """The total number of bytes of memory this GPU has."""
     import cuda.bindings.runtime as cudart
 
-    status, free, total = cudart.cudaMemGetInfo()
+    status, _, total = cudart.cudaMemGetInfo()
     _checkcu(status)
     return total
 
@@ -68,14 +67,15 @@ def make_batches(
     n_samples_per_batch: int,
     n_features: int,
     n_batches: int,
-    tmpdir: str,
+    work_dir: str,
 ) -> List[Tuple[str, str]]:
+    """Write ``n_batches`` synthetic regression batches as `.npy` pairs under ``work_dir``."""
     files: List[Tuple[str, str]] = []
     rng = np.random.RandomState(1994)
     for i in range(n_batches):
         X, y = make_regression(n_samples_per_batch, n_features, random_state=rng)
-        X_path = os.path.join(tmpdir, "X-" + str(i) + ".npy")
-        y_path = os.path.join(tmpdir, "y-" + str(i) + ".npy")
+        X_path = os.path.join(work_dir, "X-" + str(i) + ".npy")
+        y_path = os.path.join(work_dir, "y-" + str(i) + ".npy")
         np.save(X_path, X)
         np.save(y_path, y)
         files.append((X_path, y_path))
@@ -105,6 +105,8 @@ class Iterator(xgboost.DataIter):
             X = np.load(X_path)
             y = np.load(y_path)
         else:
+            import cupy as cp  # pylint: disable=import-outside-toplevel
+
             X = cp.load(X_path)
             y = cp.load(y_path)
 
@@ -168,14 +170,14 @@ def approx_train(it: Iterator) -> None:
     booster.predict(Xy)
 
 
-def main(tmpdir: str, args: argparse.Namespace) -> None:
+def main(work_dir: str, cli_args: argparse.Namespace) -> None:
     """Entry point for training."""
 
     # generate some random data for demo
     files = make_batches(
-        n_samples_per_batch=1024, n_features=17, n_batches=31, tmpdir=tmpdir
+        n_samples_per_batch=1024, n_features=17, n_batches=31, work_dir=work_dir
     )
-    it = Iterator(args.device, files)
+    it = Iterator(cli_args.device, files)
 
     hist_train(it)
     approx_train(it)
@@ -189,8 +191,9 @@ def setup_async_pool() -> None:
     .. versionadded:: 3.2.0
 
     """
-    import cuda.bindings.driver as driver
     import cuda.bindings.runtime as cudart
+    import cupy as cp  # pylint: disable=import-outside-toplevel
+    from cuda.bindings import driver
     from cupy.cuda import MemoryAsyncPool
 
     status, dft_pool = cudart.cudaDeviceGetDefaultMemPool(0)
@@ -225,9 +228,11 @@ def setup_rmm() -> None:
     if not xgboost.build_info()["USE_RMM"]:
         return
 
+    import cupy as cp  # pylint: disable=import-outside-toplevel
+
     total = device_mem_total()
 
-    mr = rmm.mr.CudaMemoryResource()
+    mr: rmm.mr.DeviceMemoryResource = rmm.mr.CudaMemoryResource()
     mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))
 
     rmm.mr.set_current_device_resource(mr)
@@ -246,8 +251,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     if args.device == "cuda":
-        import cupy as cp
-
         if args.memory_pool == "rmm":
             setup_rmm()
         elif args.memory_pool == "cuda":

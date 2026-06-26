@@ -1,10 +1,6 @@
 /**
  * Copyright 2020-2026, XGBoost Contributors
  */
-#include <thrust/copy.h>                         // for copy_n
-#include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
-
-#include <algorithm>
 #include <cstdint>               // uint32_t, int32_t
 #include <cuda/functional>       // for proclaim_copyable_arguments
 #include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
@@ -13,25 +9,14 @@
 #include "../../collective/aggregator.h"
 #include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/cuda_rt_utils.h"   // for GetMpCnt
-#include "../../common/deterministic.cuh"
 #include "../../common/device_helpers.cuh"
-#include "../../common/linalg_op.cuh"  // for tbegin
 #include "../../data/ellpack_page.cuh"
 #include "histogram.cuh"
-#include "quantiser.cuh"
 #include "row_partitioner.cuh"
 #include "xgboost/base.h"
 
 namespace xgboost::tree {
 namespace {
-struct Pair {
-  GradientPairPrecise first;
-  GradientPairPrecise second;
-};
-__host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
-  return {lhs.first + rhs.first, lhs.second + rhs.second};
-}
-
 template <typename IterT>
 XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
                                      RowPartitioner::RowIndexT ridx, bst_feature_t fidx) {
@@ -48,111 +33,6 @@ XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
   return (ridx - matrix.base_rowid) * matrix.row_stride + fidx;
 }
 }  // anonymous namespace
-
-struct Clip {
-  static XGBOOST_DEV_INLINE float Pclip(float v) { return v > 0 ? v : 0; }
-  static XGBOOST_DEV_INLINE float Nclip(float v) { return v < 0 ? abs(v) : 0; }
-
-  XGBOOST_DEV_INLINE Pair operator()(GradientPair x) const {
-    auto pg = Pclip(x.GetGrad());
-    auto ph = Pclip(x.GetHess());
-
-    auto ng = Nclip(x.GetGrad());
-    auto nh = Nclip(x.GetHess());
-
-    return {GradientPairPrecise{pg, ph}, GradientPairPrecise{ng, nh}};
-  }
-};
-
-/**
- * In algorithm 5 (see common::CreateRoundingFactor) the bound is calculated as
- * $max(|v_i|) * n$.  Here we use the bound:
- *
- * \begin{equation}
- *   max( fl(\sum^{V}_{v_i>0}{v_i}), fl(\sum^{V}_{v_i<0}|v_i|) )
- * \end{equation}
- *
- * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
- */
-GradientQuantiser::GradientQuantiser(Context const* ctx,
-                                     linalg::VectorView<GradientPair const> gpair,
-                                     MetaInfo const& info) {
-  using GradientSumT = GradientPairPrecise;
-  using T = typename GradientSumT::ValueT;
-
-  auto beg = thrust::make_transform_iterator(linalg::tcbegin(gpair), Clip());
-  Pair p =
-      dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + gpair.Size(), Pair{}, cuda::std::plus<Pair>{});
-  // Treat pair as array of 4 primitive types to allreduce
-  using ReduceT = typename decltype(p.first)::ValueT;
-  static_assert(sizeof(Pair) == sizeof(ReduceT) * 4, "Expected to reduce four elements.");
-  auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(reinterpret_cast<ReduceT*>(&p), 4));
-  collective::SafeColl(rc);
-
-  GradientSumT positive_sum{p.first}, negative_sum{p.second};
-
-  std::size_t total_rows = gpair.Size();
-  rc = collective::GlobalSum(ctx, info, linalg::MakeVec(&total_rows, 1));
-  collective::SafeColl(rc);
-
-  auto histogram_rounding =
-      GradientSumT{common::CreateRoundingFactor<T>(
-                       std::max(positive_sum.GetGrad(), negative_sum.GetGrad()), total_rows),
-                   common::CreateRoundingFactor<T>(
-                       std::max(positive_sum.GetHess(), negative_sum.GetHess()), total_rows)};
-
-  using IntT = typename GradientPairInt64::ValueT;
-
-  /**
-   * Factor for converting gradients from fixed-point to floating-point.
-   */
-  to_floating_point_ =
-      histogram_rounding /
-      static_cast<T>(static_cast<IntT>(1)
-                     << (sizeof(typename GradientSumT::ValueT) * 8 - 2));  // keep 1 for sign bit
-  /**
-   * Factor for converting gradients from floating-point to fixed-point. For
-   * f64:
-   *
-   *   Precision = 64 - 1 - log2(rounding)
-   *
-   * rounding is calcuated as exp(m), see the rounding factor calcuation for
-   * details.
-   */
-  to_fixed_point_ = GradientSumT{static_cast<T>(1) / to_floating_point_.GetGrad(),
-                                 static_cast<T>(1) / to_floating_point_.GetHess()};
-}
-
-MultiGradientQuantiser::MultiGradientQuantiser(Context const* ctx,
-                                               linalg::MatrixView<GradientPair const> gpair,
-                                               MetaInfo const& info) {
-  std::vector<GradientQuantiser> h_quantizers;
-  // TODO(jiamingy): We need to merge this into a single call for improved distributed training.
-  for (bst_target_t t = 0, n_targets = gpair.Shape(1); t < n_targets; ++t) {
-    h_quantizers.emplace_back(ctx, gpair.Slice(linalg::All(), t), info);
-  }
-  this->quantizers_ = h_quantizers;
-}
-
-void CalcQuantizedGpairs(Context const* ctx, linalg::MatrixView<GradientPair const> gpairs,
-                         common::Span<GradientQuantiser const> roundings,
-                         linalg::Matrix<GradientPairInt64>* p_out) {
-  auto shape = gpairs.Shape();
-  if (p_out->Empty()) {
-    *p_out = linalg::Matrix<GradientPairInt64>{shape, ctx->Device(), linalg::kF};
-  } else {
-    p_out->Reshape(shape);
-  }
-
-  auto out_gpair = p_out->View(ctx->Device());
-  CHECK(out_gpair.FContiguous());
-  auto it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) {
-    auto [ridx, target_idx] = linalg::UnravelIndex(i, gpairs.Shape());
-    auto g = gpairs(ridx, target_idx);
-    return roundings[target_idx].ToFixedPoint(g);
-  });
-  thrust::copy_n(ctx->CUDACtx()->CTP(), it, gpairs.Size(), linalg::tbegin(out_gpair));
-}
 
 XGBOOST_DEV_INLINE void AtomicAddGpairShared(xgboost::GradientPairInt64* dest,
                                              xgboost::GradientPairInt64 const& gpair) {
@@ -291,7 +171,7 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
     auto fidx = fidx_in_set + group.start_feature;
 
     bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
-    if (Policy::kDense || compressed_bin != matrix.NullValue()) {
+    if (Policy::kDense || compressed_bin != static_cast<bst_bin_t>(matrix.NullValue())) {
       auto g = LoadGpair(gpair + ridx);
       if constexpr (Policy::kCompressed) {
         compressed_bin += matrix.feature_segments[fidx];
@@ -348,7 +228,7 @@ __global__ __launch_bounds__(StHistBound::kBlockThreads, StHistBound::kMinBlocks
     Accessor const matrix, FeatureGroupsAccessor const feature_groups,
     common::Span<cuda_impl::RowIndexT const> d_ridx_iter,
     common::Span<GradientPairInt64 const> d_gpair, common::Span<GradientPairInt64> node_hist) {
-  extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
+  extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
 
   // Privatized histogram
   auto smem_hist = reinterpret_cast<GradientPairInt64*>(shmem);
@@ -384,7 +264,7 @@ __global__ __launch_bounds__(MtHistBound::kBlockThreads, MtHistBound::kMinBlocks
   Idx nidx_in_set = dh::SegmentId(p_blk_ptr, p_blk_ptr + blk_ptr.size(), blockIdx.x);
   Idx starting_blk = p_blk_ptr[nidx_in_set];
 
-  extern __align__(cuda::std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
+  extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
 
   // Privatized histogram
   auto smem_hist = reinterpret_cast<GradientPairInt64*>(shmem);
@@ -644,7 +524,6 @@ class DeviceHistogramDispatchAccessor {
       this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx_iters.data().get(), hists,
                               h_sizes_csum);
     } else {
-      using RidxIter = cuda_impl::RowIndexT const;
       this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridxs.data(), hists,
                               h_sizes_csum);
     }

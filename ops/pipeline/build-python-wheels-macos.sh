@@ -14,12 +14,12 @@ commit_id=$2
 if [[ "$platform_id" == macosx_* ]]; then
     if [[ "$platform_id" == macosx_arm64 ]]; then
         # MacOS, Apple Silicon
-        cpython_ver=310
+        cpython_ver=312
         cibw_archs=arm64
         export MACOSX_DEPLOYMENT_TARGET=12.0
     elif [[ "$platform_id" == macosx_x86_64 ]]; then
         # MacOS, Intel
-        cpython_ver=310
+        cpython_ver=312
         cibw_archs=x86_64
         export MACOSX_DEPLOYMENT_TARGET=10.15
     else
@@ -39,11 +39,7 @@ fi
 # Tell delocate-wheel to not vendor libomp.dylib into the wheel
 export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --exclude libomp.dylib"
 
+brew unlink llvm@18 || true
+
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse
-
-# List dependencies of libxgboost.dylib
-mkdir tmp
-unzip -j wheelhouse/xgboost-*.whl xgboost/lib/libxgboost.dylib -d tmp
-otool -L tmp/libxgboost.dylib
-rm -rf tmp

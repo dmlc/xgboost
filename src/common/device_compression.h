@@ -92,7 +92,7 @@ struct CuMemParams {
   }
 };
 
-class SnappyDecomprMgrImpl;
+struct SnappyDecomprMgrImpl;
 
 /**
  * @brief Help create and cache all decompression related meta data.

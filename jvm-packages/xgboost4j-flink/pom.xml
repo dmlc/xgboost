@@ -6,12 +6,12 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm_2.12</artifactId>
-        <version>3.2.0-SNAPSHOT</version>
+        <version>3.4.0-SNAPSHOT</version>
     </parent>
 
     <name>xgboost4j-flink</name>
     <artifactId>xgboost4j-flink_2.12</artifactId>
-    <version>3.2.0-SNAPSHOT</version>
+    <version>3.4.0-SNAPSHOT</version>
     <properties>
       <flink-ml.version>2.2.0</flink-ml.version>
     </properties>
@@ -23,6 +23,18 @@
                 <configuration>
                     <skipAssembly>false</skipAssembly>
                 </configuration>
+            </plugin>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-jar-plugin</artifactId>
+              <version>3.4.2</version>
+              <configuration>
+                <archive>
+                  <manifestEntries>
+                    <Automatic-Module-Name>ml.dmlc.xgboost4j.flink</Automatic-Module-Name>
+                  </manifestEntries>
+                </archive>
+              </configuration>
             </plugin>
         </plugins>
     </build>
