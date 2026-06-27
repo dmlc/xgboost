@@ -46,25 +46,41 @@ use a combination of random forest and gradient boosting strategy. It will perfo
 each round. If early stopping is not enabled, the final model will consist of
 ``num_parallel_tree`` * ``num_boost_round`` trees.
 
-Here is a sample parameter dictionary for training a random forest on a GPU using
-xgboost::
+Here is a sample parameter dictionary for training a random forest on a GPU using XGBoost:
 
-  params = {
-    "colsample_bynode": 0.8,
-    "learning_rate": 1,
-    "max_depth": 5,
-    "num_parallel_tree": 100,
-    "objective": "binary:logistic",
-    "subsample": 0.8,
-    "tree_method": "hist",
-    "device": "cuda",
-  }
+.. tabs::
 
-A random forest model can then be trained as follows::
+    .. code-tab:: py
 
-  bst = train(params, dmatrix, num_boost_round=1)
+        params = {
+            "colsample_bynode": 0.8,
+            "learning_rate": 1,
+            "max_depth": 5,
+            "num_parallel_tree": 100,
+            "objective": "binary:logistic",
+            "subsample": 0.8,
+            "tree_method": "hist",
+            "device": "cuda",
+        }
 
+        bst = train(params, dmatrix, num_boost_round=1)
 
+    .. code-tab:: r R
+
+        dmatrix <- xgb.DMatrix(data, label = label)
+
+        bst <- xgboost(
+          data = dmatrix,
+          objective = "binary:logistic",
+          colsample_bynode = 0.8,
+          learning_rate = 1,
+          max_depth = 5,
+          num_parallel_tree = 100,
+          subsample = 0.8,
+          tree_method = "hist",
+          device = "cuda",
+          nrounds = 1
+        )
 ***************************************************
 Standalone Random Forest With Scikit-Learn-Like API
 ***************************************************
