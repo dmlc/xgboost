@@ -29,7 +29,7 @@ void GetGradient(Context const* ctx, MetaInfo const& info,
 }
 
 struct FoldInfos {
-  std::vector<HostDeviceVector<std::size_t const>> ridxs;
+  std::vector<HostDeviceVector<std::size_t>> ridxs;
 };
 }  // namespace xgboost
 
