@@ -52,6 +52,12 @@ Here is a sample parameter dictionary for training a random forest on a GPU usin
 
     .. code-tab:: py
 
+        import xgboost as xgb
+        from sklearn.datasets import load_breast_cancer
+
+        X, y = load_breast_cancer(return_X_y=True)
+        dmatrix = xgb.DMatrix(X, label=y)
+
         params = {
             "colsample_bynode": 0.8,
             "learning_rate": 1,
@@ -63,14 +69,17 @@ Here is a sample parameter dictionary for training a random forest on a GPU usin
             "device": "cuda",
         }
 
-        bst = train(params, dmatrix, num_boost_round=1)
+        bst = xgb.train(params, dmatrix, num_boost_round=1)
 
     .. code-tab:: r R
 
-        dmatrix <- xgb.DMatrix(data, label = label)
+        library(xgboost)
+
+        data(agaricus.train, package = "xgboost")
 
         bst <- xgboost(
-          data = dmatrix,
+          x = agaricus.train$data,
+          y = factor(agaricus.train$label),
           objective = "binary:logistic",
           colsample_bynode = 0.8,
           learning_rate = 1,
