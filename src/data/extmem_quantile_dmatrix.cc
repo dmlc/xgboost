@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #include "extmem_quantile_dmatrix.h"
 
@@ -84,6 +84,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   ext_info.SetInfo(ctx, true, &this->info_);
 
   this->n_batches_ = ext_info.n_batches;
+  this->batch_ptr_ = ext_info.base_rowids;
 
   /**
    * Generate quantiles
