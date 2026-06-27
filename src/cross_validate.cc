@@ -5,9 +5,17 @@
 #include "xgboost/objective.h"
 
 namespace xgboost {
-void GetGradient(Context const* ctx, MetaInfo const& info,
-                 std::vector<common::Span<std::size_t const>> ridxs_folds, std::int32_t iter) {
-  auto k_folds = ridxs_folds.size();
+struct FoldInfos {
+  std::vector<HostDeviceVector<std::size_t>> ridxs;
+
+ public:
+  [[nodiscard]] auto TrainingFold(std::size_t k) const { return ridxs.at(k).ConstDeviceSpan(); }
+  [[nodiscard]] auto KFolds() const noexcept(true) { return this->ridxs.size(); }
+};
+
+void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfos const& finfo,
+                 std::int32_t iter) {
+  auto k_folds = finfo.KFolds();
   CHECK(info.num_nonzero_) << "Missing data is not yet supported.";
   std::string obj_name = "reg:squarederror";  // fixme
   std::vector<std::unique_ptr<ObjFunction>> objs;
@@ -18,7 +26,7 @@ void GetGradient(Context const* ctx, MetaInfo const& info,
     objs.emplace_back(ObjFunction::Create(obj_name, ctx));
     objs.back()->Configure(Args{});
 
-    auto ridxs = ridxs_folds[k];
+    auto ridxs = finfo.TrainingFold(k);
     constexpr std::size_t kNnz = 0;  // fixme
     auto fold_info = info.Slice(ctx, ridxs, kNnz);
 
@@ -27,10 +35,6 @@ void GetGradient(Context const* ctx, MetaInfo const& info,
     objs.back()->GetGradient(preds, fold_info, iter, &gpairs.back());
   }
 }
-
-struct FoldInfos {
-  std::vector<HostDeviceVector<std::size_t>> ridxs;
-};
 
 // The model part of the cross validation result, containing the trees and objectives.
 //
@@ -52,9 +56,6 @@ class CvFolds {
   }
   [[nodiscard]] auto KFolds() const noexcept(true) { return this->objs_.size(); }
 
-  void SetCUDADevice(bst_d_ordinal_t ordinal) {
-    this->ctx_.Init({{"device", "cuda:" + std::to_string(ordinal)}});
-  }
   [[nodiscard]] Context const* Ctx() const { return &this->ctx_; }
   [[nodiscard]] ObjFunction* Objective(std::size_t fold_idx) const {
     CHECK_LT(fold_idx, this->objs_.size());
