@@ -1,3 +1,5 @@
+#include "./c_api/c_api_error.h"
+#include "./c_api/c_api_utils.h"  // for CastDMatrixHandle
 #include "xgboost/context.h"
 #include "xgboost/data.h"
 #include "xgboost/objective.h"
@@ -25,4 +27,24 @@ void GetGradient(Context const* ctx, MetaInfo const& info,
     objs.back()->GetGradient(preds, fold_info, iter, &gpairs.back());
   }
 }
+
+struct FoldInfos {
+  std::vector<HostDeviceVector<std::size_t const>> ridxs;
+};
 }  // namespace xgboost
+
+int XGBCvGetGradient(DMatrixHandle dtrain, xgboost::FoldInfos* fold_info, int iter) {
+  API_BEGIN();
+  using namespace xgboost;  // NOLINT
+
+  auto p_fmat = CastDMatrixHandle(dtrain);
+  auto const& info = p_fmat->Info();
+  auto const& ridxs_folds = fold_info->ridxs;
+  CHECK(!ridxs_folds.empty());
+  std::vector<common::Span<std::size_t const>> ridxs_view;
+  for (auto const& v : ridxs_folds) {
+    ridxs_view.emplace_back(v.ConstDeviceSpan());
+  }
+  GetGradient(p_fmat->Ctx(), info, ridxs_view, iter);
+  API_END();
+}
