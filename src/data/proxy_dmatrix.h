@@ -8,6 +8,7 @@
 #include <any>          // for any, any_cast
 #include <cstdint>      // for uint32_t, int32_t
 #include <memory>       // for shared_ptr
+#include <numeric>      // for inclusive_scan
 #include <type_traits>  // for invoke_result_t, declval
 #include <utility>      // for forward
 #include <vector>       // for vector
@@ -151,14 +152,10 @@ struct ExternalDataInfo {
   bst_idx_t row_stride{0};                // Used by ellpack, maximum row stride for all batches
   std::shared_ptr<CatContainer> cats;     // Categories from one of the batches
 
-  [[nodiscard]] std::vector<bst_idx_t> CalcBatchPtr(
-      std::vector<bst_idx_t> const& buffer_rows) const {
+  [[nodiscard]] auto CalcBatchPtr(std::vector<bst_idx_t> const& buffer_rows) const {
     CHECK(!buffer_rows.empty());
     std::vector<bst_idx_t> batch_ptr{0};
-    for (auto n_rows : buffer_rows) {
-      CHECK_GE(n_rows, 0);
-      batch_ptr.push_back(batch_ptr.back() + n_rows);
-    }
+    std::inclusive_scan(buffer_rows.cbegin(), buffer_rows.cend(), std::back_inserter(batch_ptr));
     CHECK_EQ(batch_ptr.back(), this->accumulated_rows);
     return batch_ptr;
   }
