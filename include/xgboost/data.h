@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file data.h
  * \brief The input data structure of xgboost.
  * \author Tianqi Chen
@@ -614,6 +614,12 @@ class DMatrix {
    */
   [[nodiscard]] bool SingleColBlock() const { return this->NumBatches() == 1; }
   [[nodiscard]] virtual std::int32_t NumBatches() const { return 1; }
+  /**
+   * @return Row boundaries for batches returned by this DMatrix.
+   */
+  [[nodiscard]] virtual std::vector<bst_idx_t> BatchPtr() const {
+    return {0, this->Info().num_row_};
+  }
 
   virtual ~DMatrix();
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2025, XGBoost Contributors
+ * Copyright 2024-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>  // for BatchParam
@@ -93,6 +93,10 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
       ASSERT_EQ(p_ext_fmat->NumBatches(), n_batches / 2);
     }
     ASSERT_EQ(p_fmat->Info().num_row_, p_ext_fmat->Info().num_row_);
+    auto batch_ptr = p_ext_fmat->BatchPtr();
+    ASSERT_EQ(batch_ptr.front(), 0);
+    ASSERT_EQ(batch_ptr.back(), p_ext_fmat->Info().num_row_);
+    ASSERT_EQ(batch_ptr.size(), static_cast<std::size_t>(p_ext_fmat->NumBatches()) + 1);
     for (auto const& page_s : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
       auto impl_s = page_s.Impl();
       auto cuts_s = impl_s->CutsShared();
@@ -100,10 +104,16 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
                                                         impl_s->info.row_stride, impl_s->n_rows);
       new_impl->CopyInfo(impl_s);
       bst_idx_t offset = 0;
+      std::size_t k = 0;
       for (auto const& page_m : p_ext_fmat->GetBatches<EllpackPage>(&ctx, param)) {
+        ASSERT_LT(k + 1, batch_ptr.size());
+        ASSERT_EQ(page_m.BaseRowId(), batch_ptr[k]);
+        ASSERT_EQ(page_m.Size(), batch_ptr[k + 1] - batch_ptr[k]);
         auto impl_m = page_m.Impl();
         offset += new_impl->Copy(&ctx, impl_m, offset);
+        ++k;
       }
+      ASSERT_EQ(k, static_cast<std::size_t>(p_ext_fmat->NumBatches()));
       AssertEllpackEq(&ctx, impl_s, new_impl.get());
     }
   }

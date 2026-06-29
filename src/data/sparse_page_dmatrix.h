@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file sparse_page_dmatrix.h
  * \brief External-memory version of DMatrix.
  * \author Tianqi Chen
@@ -12,6 +12,7 @@
 #include <memory>   // for shared_ptr
 #include <string>   // for string
 #include <variant>  // for variant, visit
+#include <vector>   // for vector
 
 #include "ellpack_page_source.h"         // for EllpackPageSource, EllpackPageHostSource
 #include "gradient_index_page_source.h"  // for GradientIndexPageSource
@@ -93,6 +94,9 @@ class SparsePageDMatrix : public DMatrix {
   [[nodiscard]] const MetaInfo &Info() const override;
   [[nodiscard]] Context const *Ctx() const override { return &fmat_ctx_; }
   [[nodiscard]] std::int32_t NumBatches() const override { return ext_info_.n_batches; }
+  [[nodiscard]] std::vector<bst_idx_t> BatchPtr() const override {
+    return this->ext_info_.base_rowids;
+  }
   DMatrix *Slice(common::Span<std::int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;

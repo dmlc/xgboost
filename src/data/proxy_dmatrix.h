@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2025, XGBoost contributors
+ * Copyright 2020-2026, XGBoost contributors
  */
 #ifndef XGBOOST_DATA_PROXY_DMATRIX_H_
 #define XGBOOST_DATA_PROXY_DMATRIX_H_
@@ -8,6 +8,7 @@
 #include <any>          // for any, any_cast
 #include <cstdint>      // for uint32_t, int32_t
 #include <memory>       // for shared_ptr
+#include <numeric>      // for inclusive_scan
 #include <type_traits>  // for invoke_result_t, declval
 #include <utility>      // for forward
 #include <vector>       // for vector
@@ -150,6 +151,14 @@ struct ExternalDataInfo {
   std::vector<bst_idx_t> base_rowids{0};  // base_rowid
   bst_idx_t row_stride{0};                // Used by ellpack, maximum row stride for all batches
   std::shared_ptr<CatContainer> cats;     // Categories from one of the batches
+
+  [[nodiscard]] auto CalcBatchPtr(std::vector<bst_idx_t> const& buffer_rows) const {
+    CHECK(!buffer_rows.empty());
+    std::vector<bst_idx_t> batch_ptr{0};
+    std::inclusive_scan(buffer_rows.cbegin(), buffer_rows.cend(), std::back_inserter(batch_ptr));
+    CHECK_EQ(batch_ptr.back(), this->accumulated_rows);
+    return batch_ptr;
+  }
 
   void Validate() const {
     CHECK(std::none_of(this->column_sizes.cbegin(), this->column_sizes.cend(), [&](auto f) {
