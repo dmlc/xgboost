@@ -7,10 +7,11 @@
 #include <xgboost/json.h>                // for Json, Object
 #include <xgboost/learner.h>             // for Learner
 
-#include <limits>    // for numeric_limits
-#include <memory>    // for shared_ptr
-#include <optional>  // for optional
-#include <string>    // for string
+#include <algorithm>  // for fill
+#include <limits>     // for numeric_limits
+#include <memory>     // for shared_ptr
+#include <optional>   // for optional
+#include <string>     // for string
 
 #include "../../../src/data/proxy_dmatrix.h"  // for DMatrixProxy
 #include "../../../src/gbm/gbtree.h"
@@ -378,8 +379,8 @@ TEST(GBTree, LoadLegacyDartJson) {
   Json legacy_model{Object{}};
   legacy_model["name"] = String{"dart"};
   legacy_model["gbtree"] = model;
-  legacy_model["weight_drop"] = model["weight_drop"];
-  get<Object>(legacy_model["gbtree"]).erase("weight_drop");
+  legacy_model["weight_drop"] = model["model"]["weight_drop"];
+  get<Object>(legacy_model["gbtree"]["model"]).erase("weight_drop");
 
   Json legacy_config{Object{}};
   legacy_config["name"] = String{"dart"};
@@ -398,7 +399,7 @@ TEST(GBTree, LoadLegacyDartJson) {
 
   ASSERT_EQ(get<String>(canonical_model["name"]), "gbtree");
   ASSERT_EQ(get<String>(canonical_config["name"]), "gbtree");
-  ASSERT_NE(get<Array>(canonical_model["weight_drop"]).size(), 0ul);
+  ASSERT_NE(get<Array>(canonical_model["model"]["weight_drop"]).size(), 0ul);
   ASSERT_TRUE(IsA<Object>(canonical_config["dart_train_param"]));
 }
 
@@ -422,8 +423,28 @@ TEST(GBTree, DropoutJsonIO) {
 
   ASSERT_EQ(get<String>(model["model"]["name"]), "gbtree") << model;
   ASSERT_EQ(get<String>(model["config"]["name"]), "gbtree");
-  ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0ul);
+  ASSERT_NE(get<Array>(model["model"]["model"]["weight_drop"]).size(), 0ul);
   ASSERT_TRUE(IsA<Object>(model["config"]["dart_train_param"]));
+
+  std::string malformed_str = Json::Dump(j_model);
+  auto malformed_model = Json::Load(StringView{malformed_str});
+  auto n_trees = get<Array const>(malformed_model["model"]["trees"]).size();
+  std::vector<Json> wrong_weights(n_trees + 1);
+  for (auto& weight : wrong_weights) {
+    weight = Number{1.0};
+  }
+  malformed_model["model"]["weight_drop"] = Array{std::move(wrong_weights)};
+  std::unique_ptr<GradientBooster> invalid{GradientBooster::Create("gbtree", &ctx, &mparam)};
+  EXPECT_ANY_THROW(invalid->LoadModel(malformed_model));
+
+  auto legacy_model = j_model;
+  legacy_model["weight_drop"] = legacy_model["model"]["weight_drop"];
+  get<Object>(legacy_model["model"]).erase("weight_drop");
+  std::unique_ptr<GradientBooster> loaded{GradientBooster::Create("gbtree", &ctx, &mparam)};
+  loaded->LoadModel(legacy_model);
+  Json canonical_model{Object{}};
+  loaded->SaveModel(&canonical_model);
+  ASSERT_NE(get<Array>(canonical_model["model"]["weight_drop"]).size(), 0ul);
 }
 
 namespace {
@@ -628,7 +649,8 @@ TEST(GBTree, Slice) { TestModelSlice("gbtree"); }
 TEST(Dart, Slice) {
   Json model, sliced_model;
   std::tie(model, sliced_model) = TestModelSlice("dart");
-  auto const& weights = get<Array const>(model["learner"]["gradient_booster"]["weight_drop"]);
+  auto const& weights =
+      get<Array const>(model["learner"]["gradient_booster"]["model"]["weight_drop"]);
   auto const& trees = get<Array const>(model["learner"]["gradient_booster"]["model"]["trees"]);
   ASSERT_EQ(weights.size(), trees.size());
 }

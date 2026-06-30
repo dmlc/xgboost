@@ -669,7 +669,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts, const gbm::GBTreeModel& model,
                     bst_tree_t tree_begin, bst_tree_t tree_end = 0,
-                    std::vector<float> const* tree_weights = nullptr) const override {
+                    std::vector<float> const* tree_weights_override = nullptr) const override {
     xgboost_NVTX_FN_RANGE();
     CHECK(ctx_->Device().IsCUDA()) << "Set `device' to `cuda` for processing GPU data.";
     auto* out_preds = &predts->predictions;
@@ -678,6 +678,8 @@ class GPUPredictor : public xgboost::Predictor {
     }
     HostDeviceVector<float> weights;
     auto pred_weights = common::OptionalWeights{1.0f};
+    auto const* tree_weights =
+        tree_weights_override == nullptr ? model.TreeWeights() : tree_weights_override;
     if (tree_weights != nullptr) {
       weights.SetDevice(ctx_->Device());
       weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
@@ -733,8 +735,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,
                                     float missing, PredictionCacheEntry* out_preds,
-                                    bst_tree_t tree_begin, bst_tree_t tree_end,
-                                    std::vector<float> const* tree_weights) const override {
+                                    bst_tree_t tree_begin, bst_tree_t tree_end) const override {
     xgboost_NVTX_FN_RANGE();
     auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
@@ -743,6 +744,7 @@ class GPUPredictor : public xgboost::Predictor {
     }
     HostDeviceVector<float> weights;
     auto pred_weights = common::OptionalWeights{1.0f};
+    auto const* tree_weights = model.TreeWeights();
     if (tree_weights != nullptr) {
       weights.SetDevice(ctx_->Device());
       weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
@@ -762,9 +764,9 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                           const gbm::GBTreeModel& model, bst_tree_t tree_end,
-                           std::vector<float> const* tree_weights, bool approximate, int,
-                           unsigned) const override {
+                           const gbm::GBTreeModel& model, bst_tree_t tree_end, bool approximate,
+                           int, unsigned) const override {
+    auto const* tree_weights = model.TreeWeights();
     xgboost_NVTX_FN_RANGE();
     if (approximate) {
       LOG(FATAL) << "Approximated contribution is not implemented in the GPU predictor, use CPU "
@@ -775,9 +777,10 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                                        gbm::GBTreeModel const& model, bst_tree_t tree_end,
-                                       std::vector<float> const* tree_weights,
                                        bool approximate) const override {
     xgboost_NVTX_FN_RANGE();
+    auto const* tree_weights = model.TreeWeights();
+
     if (approximate) {
       LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use cpu "
                     "instead.";

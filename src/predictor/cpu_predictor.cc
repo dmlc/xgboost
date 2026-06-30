@@ -747,13 +747,15 @@ class CPUPredictor : public Predictor {
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts, gbm::GBTreeModel const &model,
                     bst_tree_t tree_begin, bst_tree_t tree_end = 0,
-                    std::vector<float> const *tree_weights = nullptr) const override {
+                    std::vector<float> const *tree_weights_override = nullptr) const override {
     auto *out_preds = &predts->predictions;
     // This is actually already handled in gbm, but large amount of tests rely on the
     // behaviour.
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
+    auto const *tree_weights =
+        tree_weights_override == nullptr ? model.TreeWeights() : tree_weights_override;
     auto weights = tree_weights == nullptr ? common::OptionalWeights{1.0f}
                                            : common::OptionalWeights{common::Span<float const>{
                                                  tree_weights->data() + tree_begin,
@@ -763,8 +765,7 @@ class CPUPredictor : public Predictor {
 
   [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const &model,
                                     float missing, PredictionCacheEntry *out_preds,
-                                    bst_tree_t tree_begin, bst_tree_t tree_end,
-                                    std::vector<float> const *tree_weights) const override {
+                                    bst_tree_t tree_begin, bst_tree_t tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
     if (tree_end == 0) {
@@ -781,6 +782,7 @@ class CPUPredictor : public Predictor {
     bst_idx_t n_groups = model.learner_model_param->OutputLength();
     auto const h_model =
         HostModel{DeviceOrd::CPU(), model, false, tree_begin, tree_end, CopyViews{}};
+    auto const *tree_weights = model.TreeWeights();
     auto weights = tree_weights == nullptr ? common::OptionalWeights{1.0f}
                                            : common::OptionalWeights{common::Span<float const>{
                                                  tree_weights->data() + tree_begin,
@@ -862,9 +864,9 @@ class CPUPredictor : public Predictor {
   }
 
   void PredictContribution(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
-                           const gbm::GBTreeModel &model, bst_tree_t ntree_limit,
-                           std::vector<float> const *tree_weights, bool approximate, int condition,
-                           unsigned condition_feature) const override {
+                           const gbm::GBTreeModel &model, bst_tree_t ntree_limit, bool approximate,
+                           int condition, unsigned condition_feature) const override {
+    auto const *tree_weights = model.TreeWeights();
     if (approximate) {
       interpretability::ApproxFeatureImportance(this->ctx_, p_fmat, out_contribs, model,
                                                 ntree_limit, tree_weights);
@@ -876,8 +878,8 @@ class CPUPredictor : public Predictor {
 
   void PredictInteractionContributions(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                                        gbm::GBTreeModel const &model, bst_tree_t ntree_limit,
-                                       std::vector<float> const *tree_weights,
                                        bool approximate) const override {
+    auto const *tree_weights = model.TreeWeights();
     interpretability::ShapInteractionValues(this->ctx_, p_fmat, out_contribs, model, ntree_limit,
                                             tree_weights, approximate);
   }
