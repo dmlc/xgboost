@@ -2765,6 +2765,127 @@ class Booster:
             "Data type:" + str(type(data)) + " not supported by inplace prediction."
         )
 
+    def compute_leaf_similarity(
+        self,
+        data: DMatrix,
+        reference: DMatrix,
+        weight_type: str = "uniform",
+    ) -> np.ndarray:
+        """Compute similarity between observations based on leaf node co-occurrence.
+
+        Two samples are similar if they land in the same leaf nodes across trees.
+        This is similar to Random Forest proximity matrices.
+
+        Parameters
+        ----------
+        data :
+            Query dataset (m samples).
+        reference :
+            Reference dataset (n samples).
+        weight_type :
+            How to weight trees: "uniform" (equal tree weights), "gain"
+            (by loss improvement), or "cover" (by hessian sum, approximately
+            sample count for regression).
+
+        Returns
+        -------
+        similarity : ndarray of shape (m, n)
+            Similarity scores in [0, 1].
+        """
+        if weight_type not in ("uniform", "gain", "cover"):
+            raise ValueError(
+                "weight_type must be 'uniform', 'gain', or 'cover', "
+                f"got '{weight_type}'"
+            )
+
+        config = json.loads(self.save_config())["learner"]
+        booster = config["gradient_booster"]["name"]
+        if booster == "gblinear":
+            raise XGBoostError(
+                "Leaf similarity is only defined for tree boosters, got gblinear."
+            )
+
+        if config["learner_train_param"]["multi_strategy"] == "multi_output_tree":
+            raise XGBoostError("Leaf similarity does not support multi_output_tree.")
+
+        query_leaves = self.predict(data, pred_leaf=True, strict_shape=True)
+        ref_leaves = self.predict(reference, pred_leaf=True, strict_shape=True)
+
+        query_leaves = np.asarray(query_leaves, dtype=np.int64).reshape(
+            query_leaves.shape[0], -1
+        )
+        ref_leaves = np.asarray(ref_leaves, dtype=np.int64).reshape(
+            ref_leaves.shape[0], -1
+        )
+
+        m, n = query_leaves.shape[0], ref_leaves.shape[0]
+        if query_leaves.shape[1] != ref_leaves.shape[1]:
+            raise ValueError(
+                "Query and reference leaf predictions have different shapes."
+            )
+
+        n_trees = query_leaves.shape[1]
+        if m == 0 or n == 0 or n_trees == 0:
+            return np.zeros((m, n), dtype=np.float32)
+
+        if weight_type == "uniform":
+            weights = np.ones(n_trees, dtype=np.float32)
+        else:
+            out_len = c_bst_ulong()
+            out_weights = ctypes.POINTER(ctypes.c_float)()
+            _check_call(
+                _LIB.XGBoosterGetLeafSimilarityWeights(
+                    self.handle,
+                    make_jcargs(
+                        weight_type=weight_type,
+                        iteration_begin=0,
+                        iteration_end=0,
+                    ),
+                    ctypes.byref(out_len),
+                    ctypes.byref(out_weights),
+                )
+            )
+            weights = ctypes2numpy(out_weights, out_len.value, np.float32)
+            if weights.shape[0] != n_trees:
+                raise ValueError(
+                    "Tree weight count does not match leaf prediction shape: "
+                    f"{weights.shape[0]} != {n_trees}"
+                )
+
+            if weights.sum() == 0:
+                weights = np.ones(n_trees, dtype=np.float32)
+
+        total_weight = weights.sum()
+        if total_weight == 0:
+            weights = np.ones(n_trees, dtype=np.float32)
+            total_weight = weights.sum()
+
+        leaf_upper = np.maximum(query_leaves.max(axis=0), ref_leaves.max(axis=0)) + 1
+        offsets = np.zeros(n_trees, dtype=np.int64)
+        if n_trees > 1:
+            offsets[1:] = np.cumsum(leaf_upper[:-1], dtype=np.int64)
+
+        weight_values = np.sqrt(weights / total_weight, dtype=np.float32)
+        q_cols = (query_leaves + offsets).reshape(-1)
+        r_cols = (ref_leaves + offsets).reshape(-1)
+        q_rows = np.repeat(np.arange(m), n_trees)
+        r_rows = np.repeat(np.arange(n), n_trees)
+        feature_dim = int(offsets[-1] + leaf_upper[-1])
+
+        query_matrix = scipy.sparse.csr_matrix(
+            (np.tile(weight_values, m), (q_rows, q_cols)),
+            shape=(m, feature_dim),
+            dtype=np.float32,
+        )
+        ref_matrix = scipy.sparse.csr_matrix(
+            (np.tile(weight_values, n), (r_rows, r_cols)),
+            shape=(n, feature_dim),
+            dtype=np.float32,
+        )
+
+        similarity = query_matrix @ ref_matrix.T
+        return similarity.toarray()
+
     def save_model(self, fname: PathLike) -> None:
         """Save the model to a file.
 

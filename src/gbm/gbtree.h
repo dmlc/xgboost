@@ -287,6 +287,44 @@ class GBTree : public GradientBooster {
     }
   }
 
+  void LeafSimilarityWeights(std::string const& weight_type, bst_layer_t iteration_begin,
+                             bst_layer_t iteration_end,
+                             std::vector<float>* weights) const override {
+    auto [tree_begin, tree_end] = detail::LayerToTree(model_, iteration_begin, iteration_end);
+    weights->clear();
+    weights->reserve(tree_end - tree_begin);
+
+    auto const get_weight = [&](RegTree const& tree) {
+      CHECK(!tree.IsMultiTarget())
+          << "Leaf similarity weights for multi-target tree " << MTNotImplemented();
+      tree::ScalarTreeView view{&tree};
+
+      if (weight_type == "uniform") {
+        return 1.0f;
+      }
+
+      float weight = 0.0f;
+      for (bst_node_t nidx = 0; nidx < view.Size(); ++nidx) {
+        if (!view.IsLeaf(nidx)) {
+          if (weight_type == "gain") {
+            weight += view.LossChg(nidx);
+          } else if (weight_type == "cover") {
+            weight += view.SumHess(nidx);
+          } else {
+            LOG(FATAL) << "Unknown leaf similarity weight type, expected one of: "
+                       << R"({"uniform", "gain", "cover"}, got: )" << weight_type;
+          }
+        }
+      }
+      return weight;
+    };
+
+    for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
+      auto const& tree = *model_.trees.at(tree_idx);
+      weights->push_back(get_weight(tree));
+    }
+  }
+
   [[nodiscard]] CatContainer const* Cats() const override { return this->model_.Cats(); }
 
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds, uint32_t layer_begin,
