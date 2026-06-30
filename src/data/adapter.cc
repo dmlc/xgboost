@@ -19,11 +19,12 @@
 
 namespace xgboost::data {
 namespace {
-auto GetRefCats(Json handle) {
-  auto cats = reinterpret_cast<CatContainer const*>(get<Integer const>(handle));
+// Pair the owning ref CatContainer pointer with its host view
+[[nodiscard]] std::pair<CatContainer*, enc::HostColumnsView> GetRefCats(Json handle) {
+  auto cats = reinterpret_cast<CatContainer*>(get<Integer const>(handle));
   CHECK(cats);
   auto h_cats = cats->HostView();
-  return h_cats;
+  return {cats, h_cats};
 }
 }  // anonymous namespace
 
@@ -32,7 +33,9 @@ ColumnarAdapter::ColumnarAdapter(StringView columns) {
 
   if (IsA<Object>(jdf)) {
     // Has reference categories.
-    this->ref_cats_ = GetRefCats(jdf["ref_categories"]);
+    auto [ref_cats_ptr, ref_cats_view] = GetRefCats(jdf["ref_categories"]);
+    this->ref_cats_ptr_ = ref_cats_ptr;
+    this->ref_cats_ = ref_cats_view;
     jdf = jdf["columns"];
   }
 

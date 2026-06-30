@@ -7,6 +7,7 @@
 #include <algorithm>    // for none_of
 #include <any>          // for any, any_cast
 #include <cstdint>      // for uint32_t, int32_t
+#include <limits>       // for numeric_limits
 #include <memory>       // for shared_ptr
 #include <numeric>      // for inclusive_scan
 #include <type_traits>  // for invoke_result_t, declval
@@ -216,7 +217,7 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn&& fn, bool* type_e
       return fn(value);
     } else {
       auto value = std::any_cast<AddPtrT<DenseAdapter>>(x);
-      fn(value);
+      return fn(value);
     }
   } else if (x.type() == typeid(AddPtrT<ArrayAdapter>)) {
     has_type();
@@ -242,7 +243,7 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn&& fn, bool* type_e
     if constexpr (get_value) {
       auto value = adapter->Value();
       if (adapter->HasRefCategorical()) {
-        auto [batch, mapping] = MakeEncColumnarBatch(ctx, adapter);
+        auto batch = MakeEncColumnarBatch(ctx, adapter);
         return fn(batch);
       }
       return fn(value);
@@ -298,40 +299,43 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
 
 namespace cuda_impl {
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const*);
-[[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const*);
+[[nodiscard]] bst_feature_t BatchColumns(DMatrixProxy const*);
 #if defined(XGBOOST_USE_CUDA)
 [[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const*);
 [[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const*);
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
-/**
- * @brief Get the number of samples for the current batch.
- */
+/** @brief Get the number of samples for the current batch. */
 [[nodiscard]] inline bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
   bool type_error = false;
-  auto n_samples =
-      cpu_impl::DispatchAny(proxy, [](auto const& value) { return value.NumRows(); }, &type_error);
+  auto n_samples = cpu_impl::DispatchAny<false>(
+      proxy, [](auto const& adapter) -> bst_idx_t { return adapter->NumRows(); }, &type_error);
   if (type_error) {
     n_samples = cuda_impl::BatchSamples(proxy);
   }
   return n_samples;
 }
 
-/**
- * @brief Get the number of features for the current batch.
- */
+/** @brief Get the number of features for the current batch. */
 [[nodiscard]] inline bst_feature_t BatchColumns(DMatrixProxy const* proxy) {
   bool type_error = false;
-  auto n_features =
-      cpu_impl::DispatchAny(proxy, [](auto const& value) { return value.NumCols(); }, &type_error);
+  auto n_features = cpu_impl::DispatchAny<false>(
+      proxy,
+      [](auto const& adapter) -> bst_feature_t {
+        auto const cols = adapter->NumColumns();
+        CHECK_LE(cols, static_cast<bst_idx_t>(std::numeric_limits<bst_feature_t>::max()))
+            << "Number of features exceeds bst_feature_t range; reduce the column"
+               " count or update the producing library.";
+        return static_cast<bst_feature_t>(cols);
+      },
+      &type_error);
   if (type_error) {
     n_features = cuda_impl::BatchColumns(proxy);
   }
   return n_features;
 }
 
-namespace cpu_impl {}  // namespace cpu_impl
 [[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const* proxy);
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_PROXY_DMATRIX_H_

@@ -32,7 +32,7 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn&& fn, bool* type_e
     if constexpr (get_value) {
       auto value = adapter->Value();
       if (adapter->HasRefCategorical()) {
-        auto [batch, mapping] = MakeEncColumnarBatch(ctx, adapter);
+        auto batch = MakeEncColumnarBatch(ctx, adapter);
         return fn(batch);
       }
       return fn(value);

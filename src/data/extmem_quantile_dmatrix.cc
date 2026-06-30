@@ -80,7 +80,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
 
   common::HistogramCuts cuts{0};
   ExternalDataInfo ext_info;
-  cpu_impl::GetDataShape(ctx, proxy, iter.get(), missing, &ext_info);
+  cpu_impl::GetDataShape(ctx, proxy, iter.get(), missing, ref, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
 
   this->n_batches_ = ext_info.n_batches;

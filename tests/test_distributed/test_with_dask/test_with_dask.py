@@ -297,6 +297,35 @@ def test_categorical(client: "Client", tmp_path: Path) -> None:
     assert reg.get_booster().feature_types == ft
 
 
+def test_categorical_ref_quantile_dmatrix(client: "Client") -> None:
+    """Smoke-test that ref-cats-aliased QuantileDMatrix construction + train succeeds
+    end-to-end in distributed mode. The cross-worker content-hash Allreduce runs as a
+    side effect of construction; its negative path is covered by the C++
+    CatContainerHash suite under a multi-process gtest harness.
+    """
+    X, y = make_categorical(client, 3000, 16, 4)
+    X_val, y_val = make_categorical(client, 1000, 16, 4)
+
+    train = dxgb.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
+    valid = dxgb.DaskQuantileDMatrix(
+        client, X_val, y_val, ref=train, enable_categorical=True
+    )
+    out = dxgb.train(
+        client,
+        {"tree_method": "hist", "seed": 0},
+        train,
+        num_boost_round=8,
+        evals=[(train, "Train"), (valid, "Valid")],
+    )
+    train_rmse = np.asarray(out["history"]["Train"]["rmse"], dtype=np.float64)
+    valid_rmse = np.asarray(out["history"]["Valid"]["rmse"], dtype=np.float64)
+    assert np.isfinite(train_rmse).all() and np.isfinite(valid_rmse).all()
+    # use ratio form so a future synthetic-data tweak that pushes initial RMSE near
+    # zero does not silently make the bound trivially true
+    assert train_rmse[-1] / train_rmse[0] < 0.5, train_rmse.tolist()
+    assert valid_rmse[-1] / valid_rmse[0] < 0.85, valid_rmse.tolist()
+
+
 def test_recode(client: "Client") -> None:
     run_recode(client, "cpu")
 

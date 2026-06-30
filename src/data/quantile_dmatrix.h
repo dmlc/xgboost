@@ -6,15 +6,40 @@
 #include <memory>   // for shared_ptr
 #include <vector>   // for vector
 
-#include "proxy_dmatrix.h"  // for DataIterProxy
-#include "xgboost/data.h"   // for DMatrix, BatchIterator, SparsePage
-#include "xgboost/span.h"   // for Span
+#include "cat_container_hash.h"  // for CatContentDigest
+#include "proxy_dmatrix.h"       // for DataIterProxy
+#include "xgboost/data.h"        // for DMatrix, BatchIterator, SparsePage
+#include "xgboost/span.h"        // for Span
 
 namespace xgboost::common {
 class HistogramCuts;
 }  // namespace xgboost::common
 
 namespace xgboost::data {
+/**
+ * @brief Allreduce ref-presence and ref-cats-populated across workers; CHECK_EQ on
+ * disagreement.
+ *
+ * @pre @c collective::IsDistributed() is true.
+ * @param ctx Distributed context.
+ * @param has_ref Whether this worker received a non-null @c ref DMatrix.
+ * @param has_cats Whether this worker's ref CatContainer is populated.
+ * @return True iff every worker reports populated ref-cats; caller should then run
+ *         the dictionary digest exchange.
+ */
+[[nodiscard]] bool AllreduceRefAgreement(Context const* ctx, bool has_ref, bool has_cats);
+
+/**
+ * @brief Allreduce a dual-component digest across workers and CHECK_EQ on either
+ * stream diverging.
+ *
+ * @pre @c collective::IsDistributed() is true.
+ * @param ctx Distributed context.
+ * @param digest Local dual-component digest from @c HashCatHostContent or
+ *               @c HashCatDeviceContent.
+ */
+void AllreduceDigestAndCheck(Context const* ctx, CatContentDigest digest);
+
 /**
  * @brief Base class for quantile-based DMatrix.
  *
@@ -89,10 +114,19 @@ void SyncFeatureType(Context const *ctx, std::vector<FeatureType> *p_h_ft);
 
 /**
  * @brief Fetch the external data shape.
+ *
+ * `p_info->cats` is always built from the per-batch proxy dictionary, never aliased to
+ * `ref->Info().CatsShared()`. The predictor's Recode flow needs the predict-side and
+ * ref-side dictionaries to be distinct objects; aliasing collapses the Recode mapping
+ * to identity and silently mis-routes categorical splits at predict time.
+ *
+ * When `ref` is set and the cluster is distributed, this function additionally hashes
+ * `ref->Info().CatsShared()` and Allreduces the digest so divergent ref dictionaries
+ * across workers fail fast on the matching CHECK_EQ.
  */
 void GetDataShape(Context const *ctx, DMatrixProxy *proxy,
                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> *iter, float missing,
-                  ExternalDataInfo *p_info);
+                  std::shared_ptr<DMatrix> const &ref, ExternalDataInfo *p_info);
 
 /**
  * @brief Create quantile sketch for CPU from an external iterator or from a reference

@@ -21,6 +21,19 @@ XGBOOST_DEVICE bst_cat_t AsCat(T const& v) {
   return static_cast<bst_cat_t>(v);
 }
 
+/**
+ * @brief Storage size for a CatBitField whose largest valid bit is @p max_code.
+ *
+ * Widens to size_t before +1 so max_code near INT32_MAX cannot trigger signed-overflow
+ * UB on bst_cat_t = int32_t.
+ *
+ * @return Storage size in @c CatBitField::value_type units.
+ */
+[[nodiscard]] inline std::size_t SizeCatBitsForMaxCode(bst_cat_t max_code) {
+  CHECK_GE(max_code, 0);
+  return CatBitField::ComputeStorageSize(static_cast<std::size_t>(max_code) + 1);
+}
+
 /* \brief Whether is fidx a categorical feature.
  *
  * \param ft   Feature type for all features.

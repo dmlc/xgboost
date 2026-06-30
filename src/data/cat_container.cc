@@ -6,6 +6,7 @@
 #include <algorithm>  // for copy
 #include <cstddef>    // for size_t
 #include <memory>     // for make_unique
+#include <mutex>      // for lock_guard, scoped_lock
 #include <utility>    // for move
 #include <vector>     // for vector
 
@@ -16,6 +17,37 @@
 #include "xgboost/json.h"                    // for Json
 
 namespace xgboost {
+namespace {
+// Validate Arrow StringArray offset invariants before the copy; malformed offsets cause
+// SortNames to compute OOB substrings and break stable_sort's strict-weak-ordering.
+void ValidateCatStrArrayOffsets(enc::CatStrArrayView const& str) {
+  if (str.offsets.empty()) {
+    return;
+  }
+  constexpr auto kHint =
+      " The producing dataframe library is emitting inconsistent Arrow data; update it"
+      " to the latest version.";
+  CHECK_EQ(str.offsets.front(), 0)
+      << "Malformed Arrow categorical dictionary: offsets[0] must be 0." << kHint;
+  auto const n = str.offsets.size();
+  for (std::size_t i = 0; i < n; ++i) {
+    auto const off = str.offsets[i];
+    CHECK_GE(off, 0)
+        << "Malformed Arrow categorical dictionary: offsets[" << i << "] = " << off
+        << " is negative." << kHint;
+    if (i + 1 < n) {
+      CHECK_LE(off, str.offsets[i + 1])
+          << "Malformed Arrow categorical dictionary: offsets not monotonic at i=" << i
+          << "." << kHint;
+    }
+  }
+  auto last = static_cast<std::size_t>(str.offsets.back());
+  CHECK_LE(last, str.values.size())
+      << "Malformed Arrow categorical dictionary: last offset " << last
+      << " exceeds values buffer size " << str.values.size() << "." << kHint;
+}
+}  // namespace
+
 CatContainer::CatContainer(enc::HostColumnsView const& df, bool is_ref) : CatContainer{} {
   this->is_ref_ = is_ref;
   this->n_total_cats_ = df.n_total_cats;
@@ -30,6 +62,7 @@ CatContainer::CatContainer(enc::HostColumnsView const& df, bool is_ref) : CatCon
   for (auto const& col : df.columns) {
     std::visit(enc::Overloaded{
                    [this](enc::CatStrArrayView str) {
+                     ValidateCatStrArrayOffsets(str);
                      using T = typename cpu_impl::ViewToStorageImpl<enc::CatStrArrayView>::Type;
                      this->cpu_impl_->columns.emplace_back();
                      this->cpu_impl_->columns.back().emplace<T>();
@@ -116,6 +149,8 @@ struct PrimToUbj<double> {
 }  // anonymous namespace
 
 void CatContainer::Save(Json* p_out) const {
+  // serializes the full container snapshot against Sort()/Copy()
+  std::lock_guard guard{sort_mu_};
   [[maybe_unused]] auto _ = this->HostView();
   auto& out = *p_out;
 
@@ -166,6 +201,9 @@ void CatContainer::Save(Json* p_out) const {
   out["sorted_idx"] = std::move(jsorted_index);
   out["feature_segments"] = std::move(jf_segments);
   out["enc"] = arr;
+  // persist is_ref_ and sorted_; optional fields for back-compat with pre-field models
+  out["is_ref"] = Boolean{this->is_ref_};
+  out["sorted"] = Boolean{this->sorted_};
 }
 
 namespace {
@@ -187,6 +225,8 @@ void LoadJson(Json jvalues, Vec* p_out) {
 }  // namespace
 
 void CatContainer::Load(Json const& in) {
+  // serializes the full container snapshot against Sort()/Copy()
+  std::lock_guard guard{sort_mu_};
   auto array = get<Array const>(in["enc"]);
   auto n_features = array.size();
 
@@ -266,6 +306,19 @@ void CatContainer::Load(Json const& in) {
   auto& h_sorted_idx = this->sorted_idx_.HostVector();
   LoadJson<std::int32_t>(in["sorted_idx"], &h_sorted_idx);
 
+  // back-compat: missing fields default to is_ref=false, sorted=!sorted_idx.empty()
+  auto const& obj = get<Object const>(in);
+  if (auto it = obj.find("is_ref"); it != obj.cend()) {
+    this->is_ref_ = get<Boolean const>(it->second);
+  } else {
+    this->is_ref_ = false;
+  }
+  if (auto it = obj.find("sorted"); it != obj.cend()) {
+    this->sorted_ = get<Boolean const>(it->second);
+  } else {
+    this->sorted_ = !h_sorted_idx.empty();
+  }
+
   this->cpu_impl_->Finalize();
 }
 
@@ -275,6 +328,12 @@ CatContainer::CatContainer() : cpu_impl_{std::make_unique<cpu_impl::CatContainer
 CatContainer::~CatContainer() = default;
 
 void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
+  if (&that == this) {
+    return;
+  }
+  // scoped_lock serializes concurrent a.Copy(b)+b.Copy(a); this->device_mu_ guards
+  // destination writes against a concurrent this->HostView() on another thread
+  std::scoped_lock guard{this->sort_mu_, that.sort_mu_, this->device_mu_};
   [[maybe_unused]] auto h_view = that.HostView();
   this->CopyCommon(ctx, that);
   this->cpu_impl_->Copy(that.cpu_impl_.get());
@@ -290,9 +349,16 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
 
 void CatContainer::Sort(Context const* ctx) {
   CHECK(ctx->IsCPU());
+  // sort_mu_ serializes Sort()/Copy(); HasCategorical() reads n_total_cats_ which
+  // Copy() writes under sort_mu_, so check inside the lock
+  std::lock_guard guard{sort_mu_};
+  if (!this->HasCategorical() || this->sorted_) {
+    return;
+  }
   auto view = this->HostView();
   this->sorted_idx_.HostVector().resize(view.n_total_cats);
   enc::SortNames(enc::Policy<EncErrorPolicy>{}, view, this->sorted_idx_.HostSpan());
+  this->sorted_ = true;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 

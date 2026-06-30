@@ -705,16 +705,23 @@ HistogramCuts SketchContainer::MakeCuts(Context const *ctx, bool is_column_split
     auto column = Span<SketchEntry const>{h_entries.data() + begin, end - begin};
 
     if (IsCat(h_feature_types, i)) {
-      auto column_size = std::max(static_cast<std::size_t>(1), column.size());
-      auto feature_max = column.empty() ? 0.0f : column.back().value;
-      if (std::any_of(column.cbegin(), column.cend(),
-                      [](auto const &entry) { return InvalidCat(entry.value); })) {
-        InvalidCategory();
-      }
-      CheckMaxCat(feature_max, column_size);
-      max_cat = std::max(max_cat, feature_max);
-      for (std::size_t cat = 0; cat <= static_cast<std::size_t>(feature_max); ++cat) {
-        h_out_cut_values.push_back(cat);
+      if (column.empty()) {
+        // column-split worker with no rows: emit a placeholder cut and treat the
+        // synthetic 0.0f as observed max so MaxCategory() is never -1
+        h_out_cut_values.push_back(0.0f);
+        max_cat = std::max(max_cat, 0.0f);
+      } else {
+        auto feature_max = column.back().value;
+        if (std::any_of(column.cbegin(), column.cend(),
+                        [](auto const &entry) { return InvalidCat(entry.value); })) {
+          InvalidCategory();
+        }
+        CheckMaxCat(feature_max, column.size());
+        max_cat = std::max(max_cat, feature_max);
+        // one cut per observed physical code; column sorted ascending
+        for (auto const &entry : column) {
+          h_out_cut_values.push_back(entry.value);
+        }
       }
     } else {
       summary.Reserve(column.size());

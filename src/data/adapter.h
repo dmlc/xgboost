@@ -11,7 +11,8 @@
 #include <cstdint>    // for uint8_t
 #include <limits>     // for numeric_limits
 #include <memory>     // for unique_ptr, make_unique
-#include <utility>    // for move
+#include <mutex>      // for once_flag, call_once
+#include <utility>    // for move, forward
 #include <variant>    // for variant
 #include <vector>     // for vector
 
@@ -437,6 +438,11 @@ using EncColumnarAdapterBatch = EncColumnarAdapterBatchImpl<CatAccessor>;
 class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch> {
   std::vector<ArrayInterface<1>> columns_;
   enc::HostColumnsView ref_cats_;
+  // non-owning; pointee outlives the adapter (caller keeps the ref DMatrix alive)
+  CatContainer* ref_cats_ptr_{nullptr};
+  // cached Recode mapping; write-once via CachedRefMapping()
+  mutable std::once_flag cache_once_;
+  mutable std::vector<std::int32_t> cached_ref_mapping_;
   std::vector<enc::HostCatIndexView> cats_;
   std::vector<std::int32_t> cat_segments_;
   ColumnarAdapterBatch batch_;
@@ -453,6 +459,12 @@ class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch>
    * @brief JSON-encoded array of columns.
    */
   explicit ColumnarAdapter(StringView columns);
+
+  // non-copyable and non-movable (owns std::once_flag)
+  ColumnarAdapter(ColumnarAdapter const&) = delete;
+  ColumnarAdapter& operator=(ColumnarAdapter const&) = delete;
+  ColumnarAdapter(ColumnarAdapter&&) = delete;
+  ColumnarAdapter& operator=(ColumnarAdapter&&) = delete;
 
   [[nodiscard]] ColumnarAdapterBatch const& Value() const override { return batch_; }
 
@@ -474,18 +486,44 @@ class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch>
             static_cast<std::int32_t>(this->cat_segments_.back())};
   }
   [[nodiscard]] enc::HostColumnsView RefCats() const { return this->ref_cats_; }
+  // non-owning; pointee outlives the adapter; non-const so dispatchers can call Sort()
+  // on the ref CatContainer through a const adapter
+  [[nodiscard]] CatContainer* RefCatsPtr() const { return this->ref_cats_ptr_; }
   [[nodiscard]] common::Span<ArrayInterface<1> const> Columns() const { return this->columns_; }
+
+  /** @brief Cached Recode mapping; first call wins, later calls ignore @p builder.
+   *
+   * @warning The returned span aliases adapter storage; lifetime <= adapter.
+   */
+  template <typename Fn>
+  [[nodiscard]] common::Span<std::int32_t const> CachedRefMapping(Fn&& builder) const {
+    std::call_once(this->cache_once_,
+                   [&] { this->cached_ref_mapping_ = std::forward<Fn>(builder)(); });
+    return common::Span<std::int32_t const>{this->cached_ref_mapping_};
+  }
 };
 
-inline auto MakeEncColumnarBatch(Context const* ctx, ColumnarAdapter const* adapter) {
-  auto cats = std::make_unique<CatContainer>(adapter->RefCats(), true);
-  cats->Sort(ctx);
-  auto [acc, mapping] = cpu_impl::MakeCatAccessor(ctx, adapter->Cats(), cats.get());
-  return std::tuple{EncColumnarAdapterBatch{adapter->Columns(), acc}, std::move(mapping)};
+inline EncColumnarAdapterBatch MakeEncColumnarBatch(Context const* ctx,
+                                                    ColumnarAdapter const* adapter) {
+  // alias the reference dictionary when available; Sort() is idempotent under sort_mu_
+  auto* ref_cats_ptr = adapter->RefCatsPtr();
+  if (ref_cats_ptr != nullptr) {
+    ref_cats_ptr->Sort(ctx);
+    auto cached = adapter->CachedRefMapping([&] {
+      [[maybe_unused]] auto [acc, mapping] =
+          cpu_impl::MakeCatAccessor(ctx, adapter->Cats(), ref_cats_ptr);
+      return std::move(mapping);
+    });
+    auto cats_mapping = enc::MappingView{adapter->Cats().feature_segments, cached};
+    return EncColumnarAdapterBatch{adapter->Columns(), CatAccessor{cats_mapping}};
+  }
+  CHECK(!adapter->HasRefCategorical())
+      << "ColumnarAdapter has reference categorical view but no CatContainer pointer.";
+  return EncColumnarAdapterBatch{adapter->Columns(), CatAccessor{}};
 }
 
-inline auto MakeEncColumnarBatch(Context const* ctx,
-                                 std::shared_ptr<ColumnarAdapter> const& adapter) {
+inline EncColumnarAdapterBatch MakeEncColumnarBatch(
+    Context const* ctx, std::shared_ptr<ColumnarAdapter> const& adapter) {
   return MakeEncColumnarBatch(ctx, adapter.get());
 }
 
