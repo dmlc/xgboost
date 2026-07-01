@@ -116,6 +116,12 @@ struct GBTreeModel : public Model {
    * @brief Number of trees accumulated for each iteration.
    */
   std::vector<bst_tree_t> iteration_indptr{0};
+  /*! \brief Per-tree weights. An empty vector represents unit weights. */
+  std::vector<bst_float> weight_drop;
+
+  [[nodiscard]] std::vector<bst_float> const* TreeWeights() const {
+    return weight_drop.empty() ? nullptr : &weight_drop;
+  }
 
   [[nodiscard]] CatContainer const* Cats() const { return this->cats_.get(); }
   [[nodiscard]] CatContainer* Cats() { return this->cats_.get(); }

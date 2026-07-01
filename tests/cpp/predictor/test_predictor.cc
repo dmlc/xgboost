@@ -80,11 +80,11 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
     (*trees.back()).Stat(0).sum_hess = 1.0f;
     model->CommitModelGroup(std::move(trees), 0);
   }
-  std::vector<float> tree_weights{0.5f, 2.0f};
+  model->weight_drop = {0.5f, 2.0f};
 
   PredictionCacheEntry weighted_predictions;
   predictor->InitOutPredictions(dmat->Info(), &weighted_predictions.predictions, *model);
-  predictor->PredictBatch(dmat.get(), &weighted_predictions, *model, 0, 0, &tree_weights);
+  predictor->PredictBatch(dmat.get(), &weighted_predictions, *model, 0, 0);
 
   auto const &h_predt = weighted_predictions.predictions.ConstHostVector();
   for (auto v : h_predt) {
@@ -93,7 +93,7 @@ void TestBatchPredictionWithWeights(Context const *ctx) {
 
   PredictionCacheEntry ranged_predictions;
   predictor->InitOutPredictions(dmat->Info(), &ranged_predictions.predictions, *model);
-  predictor->PredictBatch(dmat.get(), &ranged_predictions, *model, 1, 2, &tree_weights);
+  predictor->PredictBatch(dmat.get(), &ranged_predictions, *model, 1, 2);
 
   auto const &h_ranged = ranged_predictions.predictions.ConstHostVector();
   for (auto v : h_ranged) {
@@ -122,7 +122,7 @@ void TestInplacePredictionWithWeights(Context const *ctx) {
     (*trees.back()).Stat(0).sum_hess = 1.0f;
     model->CommitModelGroup(std::move(trees), 0);
   }
-  std::vector<float> tree_weights{0.5f, 2.0f};
+  model->weight_drop = {0.5f, 2.0f};
 
   if (ctx->IsCUDA()) {
     data.SetDevice(ctx->Device());
@@ -140,7 +140,7 @@ void TestInplacePredictionWithWeights(Context const *ctx) {
 
   PredictionCacheEntry weighted_predictions;
   predictor->InplacePredict(proxy, *model, std::numeric_limits<float>::quiet_NaN(),
-                            &weighted_predictions, 0, 0, &tree_weights);
+                            &weighted_predictions, 0, 0);
   auto const &h_predt = weighted_predictions.predictions.ConstHostVector();
   for (auto v : h_predt) {
     ASSERT_EQ(v, 4.75f);
@@ -148,7 +148,7 @@ void TestInplacePredictionWithWeights(Context const *ctx) {
 
   PredictionCacheEntry ranged_predictions;
   predictor->InplacePredict(proxy, *model, std::numeric_limits<float>::quiet_NaN(),
-                            &ranged_predictions, 1, 2, &tree_weights);
+                            &ranged_predictions, 1, 2);
   auto const &h_ranged = ranged_predictions.predictions.ConstHostVector();
   for (auto v : h_ranged) {
     ASSERT_EQ(v, 4.0f);
