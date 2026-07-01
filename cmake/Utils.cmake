@@ -65,7 +65,11 @@ function(compute_cmake_cuda_archs archs)
   elseif(CMAKE_CUDA_COMPILER_VERSION MATCHES "^([0-9]+\\.[0-9]+)")
     set(CUDA_VERSION "${CMAKE_MATCH_1}")
   endif()
-  list(SORT archs)
+  # NATURAL sort is needed so that 3-digit archs (100, 120) sort *after*
+  # 2-digit ones (70, 90). With the default STRING sort, "100" precedes "70"
+  # alphabetically, which caused the -virtual (PTX) entry below — applied to
+  # the AT -1 position — to land on the wrong architecture.
+  list(SORT archs COMPARE NATURAL)
   unset(CMAKE_CUDA_ARCHITECTURES CACHE)
   set(CMAKE_CUDA_ARCHITECTURES ${archs})
 

@@ -15,6 +15,7 @@ from urllib.request import urlretrieve
 
 import tqdm
 from packaging import version
+from prepare_sdist import stage as stage_cpp_src_tree
 from pypi_variants import make_pyproject
 from sh.contrib import git
 from test_utils import PY_PACKAGE, DirectoryExcursion
@@ -108,6 +109,10 @@ def make_python_sdist(
     dist_dir = outdir / "dist"
     dist_dir.mkdir(exist_ok=True)
 
+    # Stage the C++ source tree under python-package/cpp_src/ so that the
+    # scikit-build-core sdist includes a self-contained C++ build.
+    stage_cpp_src_tree()
+
     # Build sdist for `xgboost-cpu`, `xgboost`.
     for suffix, nccl_dep in [("cpu", "na"), ("na", "na")]:
         with DirectoryExcursion(ROOT):
@@ -162,7 +167,7 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
         "manylinux_2_28_aarch64",
     ]
 
-    # https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/release_3.0.0/4bfd4bf60d32e2d62426cc4070ccb5a5ba1ed078/xgboost-3.0.0rc1-py3-none-manylinux_2_28_x86_64.whl
+    # https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/master/f872422eb4a3b11e949f205398ccaa1f98aeb304/xgboost-3.3.0.dev0-py3-none-manylinux_2_28_x86_64.whl
     dir_url = f"{S3_BUCKET_URL}/{branch}/{commit_hash}/"
     wheels = []
     for pkg_name, platforms in [
