@@ -19,5 +19,4 @@ dependencies:
 - cloudpickle
 - pytest
 - hypothesis
-- hatchling
 - pyspark>=4.0.0

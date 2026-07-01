@@ -102,9 +102,11 @@ jobs:
         run: |
           WHEEL_TAG=manylinux_2_28_x86_64
           echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
-          auditwheel repair --only-plat --plat ${WHEEL_TAG} python-package/dist/*.whl
+          auditwheel repair --only-plat --plat ${WHEEL_TAG} python-package/dist/*.whl \
+            --wheel-dir wheelhouse/
           python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
             wheelhouse/*.whl
+          rm -v python-package/dist/*.whl
           mv -v wheelhouse/*.whl python-package/dist/
       - name: Stash files
         run: |
