@@ -111,7 +111,7 @@ def make_python_sdist(
 
     # Stage the C++ source tree under python-package/cpp_src/ so that the
     # scikit-build-core sdist includes a self-contained C++ build.
-    stage_cpp_src_tree(clean=True)
+    stage_cpp_src_tree()
 
     # Build sdist for `xgboost-cpu`, `xgboost`.
     for suffix, nccl_dep in [("cpu", "na"), ("na", "na")]:
