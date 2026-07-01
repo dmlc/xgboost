@@ -29,10 +29,10 @@ project(xgboost_python LANGUAGES NONE)
 #  - sdist install:  cpp_src/ next to this CMakeLists.txt (staged by
 #                    ops/script/prepare_sdist.py before `python -m build --sdist`).
 #  - in-repo build:  parent directory of python-package/ (the repo root).
-if(EXISTS "${PROJECT_SOURCE_DIR}/cpp_src/CMakeLists.txt")
-  set(_XGB_CPP_SRC "${PROJECT_SOURCE_DIR}/cpp_src")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cpp_src/CMakeLists.txt")
+  set(_XGB_CPP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/cpp_src")
 else()
-  set(_XGB_CPP_SRC "${PROJECT_SOURCE_DIR}/..")
+  set(_XGB_CPP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/..")
 endif()
 get_filename_component(_XGB_CPP_SRC "${_XGB_CPP_SRC}" ABSOLUTE)
 
@@ -77,7 +77,7 @@ else()
   # are for system installs (headers, xgboost-config.cmake, etc.) and would
   # otherwise leak into the wheel. We install only the shared library target,
   # below, to its wheel-specific destination.
-  set(XGBOOST_FOR_PYTHON_WHEEL ON CACHE BOOL "" FORCE)
+  set(__XGBOOST_FOR_PYTHON_WHEEL ON CACHE BOOL "" FORCE)
   set(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR ON CACHE BOOL "" FORCE)
   add_subdirectory("${_XGB_CPP_SRC}" xgboost_cpp_build)
   # Install the resolved target file as the unversioned library name used by

@@ -75,7 +75,7 @@ option(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR "Output build artifacts in CMake binar
 # xgboost-config.cmake, XGBoostTargets, xgboost.pc, default lib install).
 # Used by python-package/CMakeLists.txt so the Python wheel's install layout
 # is fully controlled there.
-option(XGBOOST_FOR_PYTHON_WHEEL
+option(__XGBOOST_FOR_PYTHON_WHEEL
   "Building libxgboost embedded inside the Python wheel; skip default installs" OFF)
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
@@ -466,7 +466,8 @@ endif()
 include(CPack)
 
 include(GNUInstallDirs)
-if(NOT XGBOOST_FOR_PYTHON_WHEEL)
+mark_as_advanced(__XGBOOST_FOR_PYTHON_WHEEL)
+if(NOT __XGBOOST_FOR_PYTHON_WHEEL)
   # Install all headers.  Please note that currently the C++ headers does not form an "API".
   install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
@@ -535,7 +536,7 @@ if(GOOGLE_TEST)
 endif()
 
 # Add xgboost.pc
-if(ADD_PKGCONFIG AND NOT XGBOOST_FOR_PYTHON_WHEEL)
+if(ADD_PKGCONFIG AND NOT __XGBOOST_FOR_PYTHON_WHEEL)
   configure_file(${xgboost_SOURCE_DIR}/cmake/xgboost.pc.in ${xgboost_BINARY_DIR}/xgboost.pc @ONLY)
 
   install(
