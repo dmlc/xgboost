@@ -3,13 +3,14 @@
  */
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
-#include <cuda/std/tuple>  // for tuple
-
 #include <xgboost/span.h>
+
+#include <cuda/std/tuple>  // for tuple
 
 #include "../../common/categorical.h"
 #include "../../common/cuda_pinned_allocator.h"
-#include "../../common/cuda_stream.h"  // for Stream
+#include "../../common/cuda_stream.h"       // for Stream
+#include "../../common/device_helpers.cuh"  // for WarpThreads
 #include "../split_evaluator.h"
 #include "../updater_gpu_common.cuh"  // for DeviceSplitCandidate
 #include "expand_entry.cuh"
@@ -20,6 +21,16 @@ class HistogramCuts;
 }
 
 namespace tree {
+// Butterfly all-reduce within a warp. Every lane receives the full sum.
+XGBOOST_DEV_INLINE
+GradientPairInt64 WarpSum(GradientPairInt64 v) {
+  for (std::int32_t offset = dh::WarpThreads() / 2; offset > 0; offset >>= 1) {
+    auto g = __shfl_xor_sync(dh::WarpFullMask(), v.GetQuantisedGrad(), offset);
+    auto h = __shfl_xor_sync(dh::WarpFullMask(), v.GetQuantisedHess(), offset);
+    v += GradientPairInt64{g, h};
+  }
+  return v;
+}
 
 // Inputs specific to each node
 struct EvaluateSplitInputs {
@@ -223,8 +234,9 @@ struct MultiEvaluateSplitSharedInputs {
   common::Span<std::uint32_t const> feature_segments;
   // cut values
   float const *feature_values;
-  // Number of bins for one feature and one target
-  bst_bin_t n_bins_per_feat_tar;
+  common::Span<FeatureType const> feature_types;
+  // Number of histogram bins for one target, across all features.
+  bst_bin_t n_total_bins_per_tar;
   bst_feature_t max_active_feature;
   GPUTrainingParam param;
 
@@ -238,6 +250,9 @@ struct MultiEvaluateSplitSharedInputs {
   [[nodiscard]] XGBOOST_DEVICE bst_target_t Targets() const { return roundings.size(); }
   [[nodiscard]] XGBOOST_DEVICE bst_feature_t Features() const {
     return this->feature_segments.size() - 1;
+  }
+  [[nodiscard]] XGBOOST_DEVICE bool IsCategorical(bst_feature_t fidx) const {
+    return common::IsCat(this->feature_types, fidx);
   }
 };
 }  // namespace tree

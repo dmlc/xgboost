@@ -786,4 +786,6 @@ class LDGIterator {
 };
 
 constexpr std::int32_t WarpThreads() { return 32; }
+
+constexpr std::uint32_t WarpFullMask() { return 0xffffffffu; }
 }  // namespace dh

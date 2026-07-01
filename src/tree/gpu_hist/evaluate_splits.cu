@@ -44,12 +44,10 @@ class EvaluateSplitAgent {
   using ArgMaxT = cub::KeyValuePair<std::uint32_t, float>;
   using BlockScanT = cub::BlockScan<GradientPairInt64, kBlockSize>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
-  using SumReduceT = cub::WarpReduce<GradientPairInt64>;
 
   struct TempStorage {
     typename BlockScanT::TempStorage scan;
     typename MaxReduceT::TempStorage max_reduce;
-    typename SumReduceT::TempStorage sum_reduce;
   };
 
   const int fidx;
@@ -92,10 +90,7 @@ class EvaluateSplitAgent {
     for (auto idx = gidx_begin + threadIdx.x; idx < gidx_end; idx += kBlockSize) {
       local_sum += LoadGpair(node_histogram + idx);
     }
-    local_sum = SumReduceT(temp_storage->sum_reduce).Sum(local_sum);  // NOLINT
-    // Broadcast result from thread 0
-    return {__shfl_sync(0xffffffff, local_sum.GetQuantisedGrad(), 0),
-            __shfl_sync(0xffffffff, local_sum.GetQuantisedHess(), 0)};
+    return WarpSum(local_sum);
   }
 
   // Load using efficient 128 vector load instruction
@@ -126,7 +121,7 @@ class EvaluateSplitAgent {
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
       // This reduce result is only valid in thread 0
       // broadcast to the rest of the warp
-      auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
+      auto best_thread = __shfl_sync(dh::WarpFullMask(), best.key, 0);
 
       // Best thread updates the split
       if (threadIdx.x == best_thread) {
@@ -162,7 +157,7 @@ class EvaluateSplitAgent {
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
       // This reduce result is only valid in thread 0
       // broadcast to the rest of the warp
-      auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
+      auto best_thread = __shfl_sync(dh::WarpFullMask(), best.key, 0);
       // Best thread updates the split
       if (threadIdx.x == best_thread) {
         auto split_gidx = scan_begin + threadIdx.x;

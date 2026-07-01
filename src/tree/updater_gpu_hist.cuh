@@ -9,6 +9,7 @@
 #include <vector>  // for vector
 
 #include "../collective/communicator-inl.h"    // for IsDistributed
+#include "../common/categorical.h"             // for CatBitField
 #include "../common/device_helpers.cuh"        // for MakeTransformIterator
 #include "../common/nvtx_utils.h"              // for xgboost_NVTX_FN_RANGE
 #include "../common/random.h"                  // for ColumnSampler
@@ -123,6 +124,9 @@ class MultiTargetHistMaker {
   MultiHistEvaluator evaluator_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   std::unique_ptr<FeatureInteractionConstraintDevice> interaction_constraints_;
+  // Feature types on device for categorical detection, cached in Reset. Empty when there
+  // are no categorical features.
+  common::Span<FeatureType const> feature_types_;
 
   // Gradient used for building the tree structure
   linalg::Matrix<GradientPairInt64> split_gpair_;
@@ -180,7 +184,8 @@ class MultiTargetHistMaker {
     return MultiEvaluateSplitSharedInputs{d_roundings,
                                           this->cuts_->cut_ptrs_.ConstDeviceSpan(),
                                           this->cuts_->cut_values_.ConstDevicePointer(),
-                                          this->param_.max_bin,
+                                          this->feature_types_,
+                                          this->cuts_->TotalBins(),
                                           max_active_feature,
                                           d_param};
   }
@@ -195,6 +200,10 @@ class MultiTargetHistMaker {
     auto const& info = p_fmat->Info();
     this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_.colsample_bynode,
                                 param_.colsample_bylevel, param_.colsample_bytree);
+
+    // Cache feature types on device for categorical one-hot split detection.
+    p_fmat->Info().feature_types.SetDevice(ctx_->Device());
+    this->feature_types_ = p_fmat->Info().feature_types.ConstDeviceSpan();
 
     /**
      * Initialize the gradient matrix
@@ -223,7 +232,7 @@ class MultiTargetHistMaker {
     bst_idx_t n_split_targets = gpair_all->Shape(1);
     auto n_total_bins = cuts_->TotalBins() * static_cast<bst_idx_t>(n_split_targets);
     CHECK_LT(n_total_bins, std::numeric_limits<bst_bin_t>::max())
-        << "Too many histogram bins: n_total_bins = max_bin * n_features * n_targets";
+        << "Too many histogram bins: n_total_bins = total_bins * n_targets";
     histogram_.Reset(this->ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
                      cuts_->TotalBins() * n_split_targets, force_global);
   }
@@ -286,10 +295,26 @@ class MultiTargetHistMaker {
       float left_sum = static_cast<float>(candidate.left_sum);
       float right_sum = static_cast<float>(candidate.right_sum);
       float sum_hess = left_sum + right_sum;
-      p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
-                         candidate.split.dir == kLeftDir, linalg::MakeVec(h_base_weight),
-                         linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight), loss_chg,
-                         sum_hess, left_sum, right_sum);
+      bool default_left = candidate.split.dir == kLeftDir;
+      if (candidate.split.is_cat) {
+        // One-hot categorical split: build a single-bit category field for the chosen
+        // category (carried in fvalue), mirroring the CPU HistMultiEvaluator.
+        auto fidx = candidate.split.findex;
+        auto const& cut_ptrs = this->cuts_->cut_ptrs_.ConstHostVector();
+        bst_bin_t n_bins = cut_ptrs[fidx + 1] - cut_ptrs[fidx];
+        std::vector<std::uint32_t> cat_bits(common::CatBitField::ComputeStorageSize(n_bins + 1), 0);
+        common::CatBitField bits{cat_bits};
+        bits.Set(static_cast<bst_cat_t>(candidate.split.fvalue));
+        p_tree->ExpandCategorical(candidate.nidx, fidx, cat_bits, default_left,
+                                  linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_weight),
+                                  linalg::MakeVec(h_right_weight), loss_chg, sum_hess, left_sum,
+                                  right_sum);
+      } else {
+        p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
+                           default_left, linalg::MakeVec(h_base_weight),
+                           linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight),
+                           loss_chg, sum_hess, left_sum, right_sum);
+      }
     }
 
     dh::device_vector<MultiExpandEntry> candidates{h_candidates};
@@ -601,10 +626,8 @@ class MultiTargetHistMaker {
       LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
     }
     if (collective::IsDistributed()) {
-      CHECK(!gpair->HasValueGrad()) << "Distributed training with vector leaf" << MTNotImplemented();
-    }
-    if (this->cuts_->HasCategorical()) {
-      LOG(FATAL) << "Categorical features" << MTNotImplemented();
+      CHECK(!gpair->HasValueGrad())
+          << "Distributed training with vector leaf" << MTNotImplemented();
     }
 
     auto* split_grad = gpair->Grad();
