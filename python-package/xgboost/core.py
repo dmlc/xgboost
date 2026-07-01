@@ -87,7 +87,7 @@ from .compat import (
     is_pyarrow_available,
     py_str,
 )
-from .objective import Objective, TreeObjective, _grad_arrinf
+from .objective import Objective, _BuiltInObjective, _grad_arrinf, _stringify
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
@@ -2162,13 +2162,11 @@ class Booster:
         elif isinstance(params, str) and value is not None:
             params = [(params, value)]
         for key, val in cast(Iterable[Tuple[str, str]], params):
-            if isinstance(val, np.ndarray):
-                val = val.tolist()
-            elif hasattr(val, "__cuda_array_interface__") and hasattr(val, "tolist"):
-                val = val.tolist()
             if val is not None:
                 _check_call(
-                    _LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val)))
+                    _LIB.XGBoosterSetParam(
+                        self.handle, c_str(key), c_str(_stringify(val))
+                    )
                 )
 
     def update(
@@ -2198,7 +2196,7 @@ class Booster:
             raise TypeError(f"Invalid training matrix: {type(dtrain).__name__}")
         self._assign_dmatrix_features(dtrain)
 
-        if fobj is None:
+        if fobj is None or isinstance(fobj, _BuiltInObjective):
             _check_call(
                 _LIB.XGBoosterUpdateOneIter(
                     self.handle, ctypes.c_int(iteration), dtrain.handle
@@ -2280,21 +2278,14 @@ class Booster:
         vgrad: Optional[ArrayLike]
         vhess: Optional[ArrayLike]
 
-        if isinstance(fobj, TreeObjective):
-            # full gradient for leaf values
+        if isinstance(fobj, Objective):
             vgrad, vhess = fobj(iteration, y_pred, dtrain)
-            # Reduced gradient for split nodes
             split_grad = fobj.split_grad(iteration, vgrad, vhess)
-            # Switch the role of gradient if there's no split gradient but the tree
-            # objective is used.
             if split_grad is not None:
                 sgrad, shess = split_grad
             else:
                 sgrad, shess = vgrad, vhess
                 vgrad, vhess = None, None
-        elif isinstance(fobj, Objective):
-            sgrad, shess = fobj(iteration, y_pred, dtrain)
-            vgrad, vhess = None, None
         else:
             # Plain callable
             sgrad, shess = fobj(y_pred, dtrain)
