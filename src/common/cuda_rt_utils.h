@@ -50,6 +50,8 @@ void GetUuid(common::Span<unsigned char> uuid, std::int32_t device);
 
 [[nodiscard]] std::string PrintUuid(common::Span<unsigned char const, kUuidLength> uuid);
 
+[[nodiscard]] bool IsCoherentMemory(std::int32_t device);
+
 // cudaMemcpyAsync
 void MemcpyAsync(void* dst, const void* src, std::size_t count, StreamRef stream);
 }  // namespace xgboost::curt
