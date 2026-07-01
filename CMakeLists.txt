@@ -4,7 +4,7 @@ if(PLUGIN_SYCL)
   string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-project(xgboost LANGUAGES CXX C VERSION 3.3.0)
+project(xgboost LANGUAGES CXX C VERSION 3.4.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 
@@ -216,6 +216,9 @@ if(PLUGIN_DENSE_PARSER)
 endif()
 if(BUILD_DEPRECATED_CLI)
   message(SEND_ERROR  "The option `BUILD_DEPRECATED_CLI` is removed from XGBoost.")
+endif()
+if(USE_NCCL_LIB_PATH)
+  message(SEND_ERROR "`USE_NCCL_LIB_PATH` has been removed, use other NCCL variables to specify the path.")
 endif()
 
 #-- Sanitizer
@@ -506,6 +509,11 @@ if(NOT XGBOOST_FOR_PYTHON_WHEEL)
     ${CMAKE_CURRENT_BINARY_DIR}/cmake/xgboost-config.cmake
     ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
+  if(USE_NCCL AND BUILD_STATIC_LIB)
+    install(
+      FILES ${CMAKE_CURRENT_LIST_DIR}/cmake/modules/FindNccl.cmake
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
+  endif()
 endif()
 
 #-- Test

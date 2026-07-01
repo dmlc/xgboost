@@ -284,7 +284,12 @@ def release_note(
     hash_note = "\n".join(artifact_hashes)
 
     end_note = f"""
-### Additional artifacts:
+
+### Release notes
+
+https://xgboost.readthedocs.io/en/latest/changes/v{release}.html
+
+### Additional artifacts
 
 You can verify the downloaded packages by running the following command on your Unix shell:
 
@@ -297,7 +302,7 @@ echo "<hash> <artifact>" | shasum -a 256 --check
 ```
 
 **Experimental binary packages for R with CUDA enabled**
-* xgboost_r_gpu_linux_{release}.tar.gz: [Download]({r_gpu_linux_url})
+* xgboost_r_gpu_linux.tar.gz: [Download]({r_gpu_linux_url})
 
 **Source tarball**
 * {tarball_name}: [Download]({src_tarball})"""

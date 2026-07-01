@@ -177,6 +177,7 @@ test_that("custom metric with multi-target passes reshaped data to feval", {
       disable_default_eval_metric = TRUE,
       eval_metric = multinomial.ll,
       max_depth = 123,
+      nthread = 1,
       seed = 123
     ),
     data = dtrain,
@@ -192,6 +193,7 @@ test_that("custom metric with multi-target passes reshaped data to feval", {
       base_score = 0,
       disable_default_eval_metric = TRUE,
       max_depth = 123,
+      nthread = 1,
       seed = 123
     ),
     data = dtrain,

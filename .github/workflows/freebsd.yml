@@ -20,12 +20,12 @@ jobs:
     timeout-minutes: 20
     name: A job to run test in FreeBSD
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
         with:
           submodules: 'true'
       - name: Test in FreeBSD
         id: test
-        uses: vmactions/freebsd-vm@v1.4.6
+        uses: vmactions/freebsd-vm@v1.5.0
         with:
           usesh: true
           prepare: |

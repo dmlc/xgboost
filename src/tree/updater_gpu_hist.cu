@@ -8,7 +8,6 @@
 #include <cstdint>          // for int32_t, uint32_t
 #include <cuda/functional>  // for plus
 #include <memory>           // for unique_ptr, make_unique
-#include <numeric>          // for partial_sum
 #include <string>           // for string
 #include <type_traits>      // for is_trivially_copyable_v
 #include <utility>          // for move
@@ -733,15 +732,11 @@ struct GPUHistMakerDevice {
 };
 
 std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
-    Context const* ctx, DMatrix* p_fmat, BatchParam const& batch,
-    std::vector<bst_idx_t>* p_batch_ptr) {
-  std::vector<bst_idx_t>& batch_ptr = *p_batch_ptr;
-  batch_ptr = {0};
+    Context const* ctx, DMatrix* p_fmat, BatchParam const& batch) {
   std::shared_ptr<common::HistogramCuts const> cuts;
 
   std::int32_t dense_compressed = -1;
   for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx, batch)) {
-    batch_ptr.push_back(page.Size());
     cuts = page.Impl()->CutsShared();
     CHECK(cuts->cut_values_.DeviceCanRead());
     if (dense_compressed != -1) {
@@ -750,8 +745,6 @@ std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
     dense_compressed = page.Impl()->IsDenseCompressed();
   }
   CHECK(cuts);
-  CHECK_EQ(p_fmat->NumBatches(), batch_ptr.size() - 1);
-  std::partial_sum(batch_ptr.cbegin(), batch_ptr.cend(), batch_ptr.begin());
   return {cuts, static_cast<bool>(dense_compressed)};
 }
 
@@ -810,9 +803,9 @@ class GPUHistMaker : public TreeUpdater {
     curt::SetDevice(ctx_->Ordinal());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
-    std::vector<bst_idx_t> batch_ptr;
     auto batch = HistBatch(*param);
-    auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
+    auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch);
+    auto batch_ptr = p_fmat->BatchPtr();
 
     this->p_scimpl_ =
         std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_, column_sampler_,
@@ -936,9 +929,9 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     auto const& info = p_fmat->Info();
     info.feature_types.SetDevice(ctx_->Device());
 
-    std::vector<bst_idx_t> batch_ptr;
     auto batch = ApproxBatch(*param, hess, *task_);
-    auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
+    auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch);
+    auto batch_ptr = p_fmat->BatchPtr();
     batch.regen = false;  // Regen only at the beginning of the iteration.
 
     this->maker_ =

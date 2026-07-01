@@ -1,7 +1,9 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include <xgboost/data.h>  // for DMatrix
+
+#include <vector>  // for vector
 
 #include "../../../src/common/compressed_iterator.h"
 #include "../../../src/data/ellpack_page.cuh"
