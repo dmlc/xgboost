@@ -235,8 +235,8 @@ struct MultiEvaluateSplitSharedInputs {
   // cut values
   float const *feature_values;
   common::Span<FeatureType const> feature_types;
-  // Number of bins for one feature and one target
-  bst_bin_t n_bins_per_feat_tar;
+  // Number of histogram bins for one target, across all features.
+  bst_bin_t n_total_bins_per_tar;
   bst_feature_t max_active_feature;
   GPUTrainingParam param;
 

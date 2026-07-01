@@ -117,11 +117,12 @@ class TestGPUUpdaters:
         strategies.integers(3, 8),
         strategies.integers(1, 2),
         strategies.integers(4, 7),
+        strategies.integers(5, 16),
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(
-        self, rows: int, cols: int, rounds: int, cats: int
+        self, rows: int, cols: int, rounds: int, cats: int, max_bin: int
     ) -> None:
         check_categorical_ohe(
             rows=rows,
@@ -131,6 +132,7 @@ class TestGPUUpdaters:
             device="cuda",
             tree_method="hist",
             extmem=False,
+            max_bin=max_bin,
         )
         check_categorical_ohe(
             rows=rows,
@@ -141,6 +143,7 @@ class TestGPUUpdaters:
             tree_method="hist",
             extmem=False,
             multi_target=True,
+            max_bin=max_bin,
         )
 
     @given(

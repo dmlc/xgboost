@@ -137,13 +137,11 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
   bst_bin_t gidx_begin = shared.feature_segments[fidx];
   bst_bin_t gidx_end = shared.feature_segments[fidx + 1];
 
-  // Get total bins from feature_segments (last element)
-  bst_bin_t n_bins_per_target = shared.feature_segments.back();
-
   using AgentT = ScanHistogramAgent;
   __shared__ typename AgentT::WarpScanT::TempStorage tmp_storage[kWarpsPerBlk];
   ScanHistogramAgent agent{&tmp_storage[warp_id_in_blk], gidx_begin, gidx_end, n_targets};
-  auto t_hist = node.histogram.subspan(n_bins_per_target * target_idx, n_bins_per_target);
+  auto t_hist =
+      node.histogram.subspan(shared.n_total_bins_per_tar * target_idx, shared.n_total_bins_per_tar);
 
   if (shared.IsCategorical(fidx)) {
     // One-hot encoding. Both regions are always required (independent missing-directions),
@@ -375,8 +373,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                                         bst_node_t max_nidx,
                                         common::Span<MultiExpandEntry> out_splits) {
   auto n_targets = shared_inputs.Targets();
-  auto n_bins_per_feat_tar = shared_inputs.n_bins_per_feat_tar;
-  CHECK_GE(n_bins_per_feat_tar, 1);
+  CHECK_GE(shared_inputs.n_total_bins_per_tar, 1);
   auto n_features = shared_inputs.max_active_feature;
   CHECK_GE(n_features, 1);
   CHECK_LT(n_features, shared_inputs.feature_segments.size());
@@ -393,7 +390,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   this->split_sums_.Alloc(max_nidx, n_targets);
 
   // Calculate total scan buffer size needed for all nodes
-  auto node_hist_size = n_targets * shared_inputs.Features() * n_bins_per_feat_tar;
+  auto node_hist_size = shared_inputs.n_total_bins_per_tar * n_targets;
   std::size_t total_hist_size = node_hist_size * n_nodes;
 
   // Scan the histograms. One for forward and the other for backward.

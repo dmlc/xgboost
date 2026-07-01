@@ -3,7 +3,7 @@
 import json
 from functools import partial, update_wrapper
 from string import ascii_lowercase
-from typing import Any, Dict, List, Union, overload
+from typing import Any, Dict, List, Optional, Union, overload
 
 import numpy as np
 import pytest
@@ -454,6 +454,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     tree_method: str,
     extmem: bool = False,
     multi_target: bool = False,
+    max_bin: Optional[int] = None,
 ) -> None:
     "Test for one-hot encoding with categorical data."
     pd = pytest.importorskip("pandas")
@@ -467,6 +468,8 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
         "max_cat_to_onehot": USE_ONEHOT,
         "device": device,
     }
+    if max_bin is not None:
+        parameters["max_bin"] = max_bin
 
     if multi_target:
         n_targets = 3

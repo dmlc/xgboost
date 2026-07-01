@@ -185,7 +185,7 @@ class MultiTargetHistMaker {
                                           this->cuts_->cut_ptrs_.ConstDeviceSpan(),
                                           this->cuts_->cut_values_.ConstDevicePointer(),
                                           this->feature_types_,
-                                          this->param_.max_bin,
+                                          this->cuts_->TotalBins(),
                                           max_active_feature,
                                           d_param};
   }
@@ -232,7 +232,7 @@ class MultiTargetHistMaker {
     bst_idx_t n_split_targets = gpair_all->Shape(1);
     auto n_total_bins = cuts_->TotalBins() * static_cast<bst_idx_t>(n_split_targets);
     CHECK_LT(n_total_bins, std::numeric_limits<bst_bin_t>::max())
-        << "Too many histogram bins: n_total_bins = max_bin * n_features * n_targets";
+        << "Too many histogram bins: n_total_bins = total_bins * n_targets";
     histogram_.Reset(this->ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
                      cuts_->TotalBins() * n_split_targets, force_global);
   }
