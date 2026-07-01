@@ -1,6 +1,6 @@
 [build-system]
-requires = ["scikit-build-core>=0.10.0"]
-build-backend = "scikit_build_core.build"
+requires = ["hatchling>=1.12.1"]
+build-backend = "hatchling.build"
 
 [project]
 name = "{{ name }}"
@@ -22,19 +22,14 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "xgboost=={{ version }}",
 ]
 
-# Stub packages (e.g. xgboost-cu12) carry no code — they only redeclare
-# `xgboost` as a runtime dependency so users who `pip install xgboost-cu12`
-# pull in the canonical `xgboost` package. The CMake project is a no-op.
-[tool.scikit-build]
-cmake.version = ">=3.18"
-cmake.source-dir = "stub-cmake"
-build-dir = "build/{wheel_tag}"
-ninja.make-fallback = true
-wheel.py-api = "py3"
-wheel.platlib = false
-wheel.packages = []
+[tool.hatch.build.targets.sdist]
+only-include = ["pyproject.toml"]
+
+[tool.hatch.build.targets.wheel]
+only-include = ["pyproject.toml"]
