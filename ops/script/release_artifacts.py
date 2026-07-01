@@ -167,7 +167,7 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
         "manylinux_2_28_aarch64",
     ]
 
-    # https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/master/f872422eb4a3b11e949f205398ccaa1f98aeb304/xgboost-3.3.0.dev0-cp312-abi3-manylinux_2_28_x86_64.whl
+    # https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/master/f872422eb4a3b11e949f205398ccaa1f98aeb304/xgboost-3.3.0.dev0-py3-none-manylinux_2_28_x86_64.whl
     dir_url = f"{S3_BUCKET_URL}/{branch}/{commit_hash}/"
     wheels = []
     for pkg_name, platforms in [
@@ -175,8 +175,8 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
         ("xgboost_cpu", minimal_platforms),
         ("xgboost_cu13", cu13_platforms),
     ]:
-        src_filename_prefix = f"{pkg_name}-{args.release}-cp312-abi3-"
-        target_filename_prefix = f"{pkg_name}-{args.release}-cp312-abi3-"
+        src_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
+        target_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
         wheels.extend(
             _download_python_wheels(
                 platforms, dir_url, src_filename_prefix, target_filename_prefix, outdir

@@ -59,7 +59,7 @@ jobs:
           mkdir -p wheelhouse
           pip wheel --no-deps -v . --wheel-dir wheelhouse/
           $wheelFile = Get-ChildItem wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
-          python -m wheel tags --python-tag cp312 --abi-tag abi3 --platform win_arm64 --remove $wheelFile
+          python -m wheel tags --python-tag py3 --abi-tag none --platform win_arm64 --remove $wheelFile
 
       - name: Upload Python wheel xgboost
         if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
@@ -85,7 +85,7 @@ jobs:
           cd python-package
           pip wheel --no-deps -v . --wheel-dir wheelhouse/
           $wheelFile = Get-ChildItem wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
-          python -m wheel tags --python-tag cp312 --abi-tag abi3 --platform win_arm64 --remove $wheelFile
+          python -m wheel tags --python-tag py3 --abi-tag none --platform win_arm64 --remove $wheelFile
 
       - name: Upload Python wheel xgboost-cpu
         if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
