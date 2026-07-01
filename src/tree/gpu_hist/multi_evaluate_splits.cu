@@ -80,11 +80,11 @@ struct ScanHistogramAgent {
   //
   // For categorical features the two scan-buffer regions are not a forward/backward scan
   // duality; they hold the two independent missing-direction candidates. We write the
-  // *non-missing child sum for* each direction.:
+  // *non-missing child sum* for each direction:
   //   - region_others: the matching category goes right with missing (missing-right). The
   //     written non-missing child is the left.
   //   - region_match: the matching category goes right without missing (missing-left). The
-  //     written non-missing child is the right..
+  //     written non-missing child is the right.
   __device__ void OneHot(GradientPairInt64 const *node_histogram,
                          common::Span<GradientPairInt64> region_others,
                          common::Span<GradientPairInt64> region_match, bst_target_t t) {
