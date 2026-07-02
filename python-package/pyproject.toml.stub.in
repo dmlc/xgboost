@@ -1,7 +1,5 @@
 [build-system]
-requires = [
-    "hatchling>=1.12.1",
-]
+requires = ["hatchling>=1.12.1"]
 build-backend = "hatchling.build"
 
 [project]
@@ -17,7 +15,6 @@ requires-python = ">=3.12"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 classifiers = [
-    "License :: OSI Approved :: Apache Software License",
     "Development Status :: 5 - Production/Stable",
     "Operating System :: OS Independent",
     "Typing :: Typed",
@@ -25,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "xgboost=={{ version }}",

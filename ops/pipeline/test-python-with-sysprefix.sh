@@ -15,9 +15,10 @@ popd
 cp -v lib/* "$(python -c 'import sys; print(sys.base_prefix)')/lib"
 
 # Now configure Python XGBoost to use libxgboost.so from the system prefix
+python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu12
 cd python-package
 pip install virtualenv
 virtualenv venv
 source venv/bin/activate && \
-  pip install -v . --config-settings use_system_libxgboost=True && \
+  pip install -v . --config-settings cmake.define.XGBOOST_USE_SYSTEM_LIBXGBOOST=ON && \
   python -c 'import xgboost'

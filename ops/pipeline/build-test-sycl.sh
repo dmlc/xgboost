@@ -24,6 +24,7 @@ case "$suite" in
     ./build/testxgboost
     ;;
   pytest)
+    python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu12
     cd python-package
     python --version
     pip install -v .

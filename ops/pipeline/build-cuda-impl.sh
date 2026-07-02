@@ -52,6 +52,7 @@ time ninja -v
 popd
 
 echo "--- Build binary wheel"
+python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu12
 pushd python-package
 rm -rfv dist/*
 pip wheel --no-deps -v . --wheel-dir dist/
