@@ -55,6 +55,7 @@ jobs:
 
       - name: Build Python wheel xgboost for Win-ARM64
         run: |
+          python ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=cu12
           cd python-package
           mkdir -p wheelhouse
           pip wheel --no-deps -v . --wheel-dir wheelhouse/

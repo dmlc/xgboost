@@ -12,9 +12,9 @@ authors = [
 ]
 version = "3.4.0-dev"
 requires-python = ">=3.12"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 classifiers = [
-    "License :: OSI Approved :: Apache Software License",
     "Development Status :: 5 - Production/Stable",
     "Operating System :: OS Independent",
     "Typing :: Typed",
@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["pyproject.toml"]
+only-include = ["pyproject.toml", "LICENSE"]
 
 [tool.hatch.build.targets.wheel]
-only-include = ["pyproject.toml"]
+only-include = ["pyproject.toml", "LICENSE"]

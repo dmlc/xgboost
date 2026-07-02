@@ -10,6 +10,9 @@ from test_utils import PY_PACKAGE
 IN_PATH = os.path.join(PY_PACKAGE, "pyproject.toml.in")
 STUB_IN_PATH = os.path.join(PY_PACKAGE, "pyproject.toml.stub.in")
 OUT_PATH = os.path.join(PY_PACKAGE, "pyproject.toml")
+REPO_ROOT = os.path.dirname(PY_PACKAGE)
+LICENSE_PATH = os.path.join(REPO_ROOT, "LICENSE")
+PY_PACKAGE_LICENSE_PATH = os.path.join(PY_PACKAGE, "LICENSE")
 
 NCCL_WHL = """    \"nvidia-nccl-{0} ; platform_system == 'Linux'\","""
 
@@ -62,6 +65,7 @@ def make_pyproject(
     pyproject = pyproject.replace(
         NAME, f"xgboost-{use_suffix}" if use_suffix != "na" else "xgboost"
     )
+    copyfile(LICENSE_PATH, PY_PACKAGE_LICENSE_PATH)
     if create_stub:
         copyfile(readme_stub, readme)
         pyproject_parsed = tomllib.loads(pyproject)
