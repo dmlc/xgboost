@@ -16,6 +16,8 @@ XGB_DLL int XGBCvFoldInfoCreate(DMatrixHandle dtrain, FoldInfoHandle* out) {
   API_BEGIN();
   auto p_fmat = CastDMatrixHandle(dtrain);
   CHECK(std::dynamic_pointer_cast<std::shared_ptr<data::ExtMemQuantileDMatrix>>(p_fmat));
+  xgboost_CHECK_C_ARG_PTR(out);
+  *out = new FoldInfoHandle{};
   for (auto const& page :
        p_fmat->GetBatches<EllpackPage>(p_fmat->Ctx(), cuda_impl::StaticBatch(true))) {
   }
@@ -24,6 +26,7 @@ XGB_DLL int XGBCvFoldInfoCreate(DMatrixHandle dtrain, FoldInfoHandle* out) {
 
 XGB_DLL int XGBCvFoldInfoFree(FoldInfoHandle hdl) {
   API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
   delete static_cast<FoldInfo*>(hdl);
   API_END();
 }
