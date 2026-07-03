@@ -10,6 +10,49 @@
 
 using namespace xgboost;  // NOLINT
 
+namespace xgboost {
+CvFolds::CvFolds(std::size_t k_folds) {
+  CHECK_GT(k_folds, 0);
+  std::string obj_name = "reg:squarederror";  // FIXME(jiamingy): Support more objs.
+  ctx_.Init({{"device", "cuda"}});
+  for (std::size_t i = 0; i < k_folds; ++i) {
+    objs_.emplace_back(ObjFunction::Create(obj_name, &ctx_));
+    objs_.back()->Configure(Args{});
+  }
+}
+
+std::size_t CvFolds::KFolds() const noexcept(true) { return this->objs_.size(); }
+
+Context const* CvFolds::Ctx() const { return &this->ctx_; }
+
+ObjFunction* CvFolds::Objective(std::size_t fold_idx) const {
+  CHECK_LT(fold_idx, this->objs_.size());
+  return this->objs_[fold_idx].get();
+}
+
+void CvFolds::InitPrediction(MetaInfo const& info, FoldInfoBatches const& finfo) {
+  CHECK_EQ(this->KFolds(), finfo.KFolds());
+  auto n_targets = info.labels.Shape(1);
+  CHECK_GT(n_targets, 0);
+
+  predts_.resize(this->KFolds());
+  for (std::size_t k = 0; k < this->KFolds(); ++k) {
+    auto n_samples = finfo.FoldSize(k);
+    auto& predt = predts_.at(k);
+    predt.SetDevice(ctx_.Device());
+    if (predt.Size() != n_samples * n_targets) {
+      predt.Resize(n_samples * n_targets);
+      predt.Fill(0.0f);
+    }
+    CHECK_EQ(predt.Size(), n_samples * n_targets);
+  }
+}
+
+HostDeviceVector<float> const& CvFolds::Prediction(std::size_t fold_idx) const {
+  return predts_.at(fold_idx);
+}
+}  // namespace xgboost
+
 XGB_DLL int XGBCvFoldsCreate(size_t k_folds, CvFoldsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
