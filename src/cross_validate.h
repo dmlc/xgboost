@@ -25,6 +25,13 @@ struct FoldInfoBatches {
   std::vector<FoldInfo> batches;
 
   [[nodiscard]] std::size_t Size() const { return batches.size(); }
+  [[nodiscard]] std::size_t FoldSize(std::size_t k) const {
+    std::size_t acc = 0;
+    for (auto const& batch : this->batches) {
+      acc += batch.TrainingFold(k).size();
+    }
+    return acc;
+  }
   [[nodiscard]] bool Empty() const { return batches.empty(); }
   [[nodiscard]] auto KFolds() const noexcept(true) {
     CHECK(!this->Empty());

@@ -50,7 +50,7 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
   }
   CHECK_EQ(gpairs.size(), k_folds);
 
-  std::size_t cursor = 0;
+  std::vector<bst_idx_t> cursors(k_folds, 0ul);
 
   for (std::size_t i = 0, n = finfo.Size(); i < n; ++i) {
     auto const& batch = finfo.batches.at(i);
@@ -71,19 +71,23 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
       objs.at(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
 
       auto& out_gpairs = gpairs.at(k);
-      auto prev = cursor;
-      cursor += ridxs.Size();
+      auto prev = cursors[k];
+      cursors[k] += ridxs.Size();
       CHECK_EQ(ridxs.Size(), batch_gpair.Shape(0));
       CHECK(batch_gpair.Shape(1) == out_gpairs.Shape(1) || out_gpairs.Shape(1) <= 1);
 
-      if (out_gpairs.Shape(0) < cursor) {
-        out_gpairs.Reshape(cursor, batch_gpair.Shape(1));
+      if (out_gpairs.Shape(0) < cursors[k]) {
+        out_gpairs.Reshape(cursors[k], batch_gpair.Shape(1));
       }
       auto d_batch_gpair = batch_gpair.View(ctx->Device());
-      auto d_out = out_gpairs.Slice(linalg::Range(prev, cursor), linalg::All());
+      auto d_out = out_gpairs.Slice(linalg::Range(prev, cursors[k]), linalg::All());
       thrust::copy(ctx->CUDACtx()->CTP(), linalg::tcbegin(d_batch_gpair),
                    linalg::tcend(d_batch_gpair), linalg::tbegin(d_out));
     }
+  }
+
+  for (std::size_t k = 0; k < k_folds; ++k) {
+    CHECK_EQ(finfo.FoldSize(k), p_gpairs->at(k).Size());
   }
 }
 }  // namespace xgboost
