@@ -1,8 +1,9 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026, XGBoost Contributers.
+# SPDX-FileCopyrightText: Copyright (c) 2026, XGBoost Contributors.
 # SPDX-License-Identifier: Apache-2.0
 """Working-in-progress support for cross-validation."""
 
 import ctypes
+from typing import Optional
 
 from ._c_api import _LIB, _check_call
 from .core import ExtMemQuantileDMatrix
@@ -22,6 +23,20 @@ _LIB.XGBCvFoldInfoBatchesCreate.argtypes = [
 
 _LIB.XGBCvFoldInfoBatchesFree.restype = ctypes.c_int
 _LIB.XGBCvFoldInfoBatchesFree.argtypes = [ctypes.c_void_p]
+
+_LIB.XGBCvFoldGpairsCreate.restype = ctypes.c_int
+_LIB.XGBCvFoldGpairsCreate.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
+
+_LIB.XGBCvFoldGpairsFree.restype = ctypes.c_int
+_LIB.XGBCvFoldGpairsFree.argtypes = [ctypes.c_void_p]
+
+_LIB.XGBCvGetGradient.restype = ctypes.c_int
+_LIB.XGBCvGetGradient.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_int,
+]
 
 
 class CvFolds:
@@ -62,6 +77,19 @@ class CvFoldInfoBatches:
             hdl = self.handle
             del self.handle
             _check_call(_LIB.XGBCvFoldInfoBatchesFree(hdl))
+
+
+class CvFoldGpairs:
+    def __init__(self) -> None:
+        hdl = ctypes.c_void_p()
+        _check_call(_LIB.XGBCvFoldGpairsCreate(ctypes.byref(hdl)))
+        self.handle = hdl
+
+    def __del__(self) -> None:
+        if hasattr(self, "handle"):
+            hdl = self.handle
+            del self.handle
+            _check_call(_LIB.XGBCvFoldGpairsFree(hdl))
 
 
 def cross_validate(data: ExtMemQuantileDMatrix, k_folds: int) -> CvFoldInfoBatches:

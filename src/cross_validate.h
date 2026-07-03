@@ -14,7 +14,7 @@
 
 namespace xgboost {
 struct FoldInfo {
-  std::vector<HostDeviceVector<std::size_t>> ridxs;
+  std::vector<HostDeviceVector<bst_idx_t>> ridxs;
 
  public:
   [[nodiscard]] auto TrainingFold(std::size_t k) const { return ridxs.at(k).ConstDeviceSpan(); }

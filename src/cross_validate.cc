@@ -98,14 +98,14 @@ XGB_DLL int XGBCvFoldsFree(CvFoldsHandle hdl) {
   API_END();
 }
 
-XGB_DLL int FoldGpairsCreate(FoldGpairsHandle* out) {
+XGB_DLL int XGBCvFoldGpairsCreate(FoldGpairsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new FoldGpairs{};
   API_END();
 }
 
-XGB_DLL int FoldGpairsFree(FoldGpairsHandle hdl) {
+XGB_DLL int XGBCvFoldGpairsFree(FoldGpairsHandle hdl) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
   delete static_cast<FoldGpairs*>(hdl);
