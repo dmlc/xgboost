@@ -9,7 +9,6 @@
 #include "common/cuda_context.cuh"  // for CUDAContext
 #include "common/linalg_op.cuh"     // for tcbegin, tcend, tbegin
 #include "cross_validate.h"
-#include "xgboost/objective.h"
 
 namespace xgboost {
 namespace {
@@ -26,21 +25,14 @@ namespace {
 }
 }  // namespace
 
-void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const& finfo,
-                 std::vector<bst_idx_t> const& batch_ptr, std::int32_t iter,
-                 std::vector<linalg::Matrix<GradientPair>>* p_gpairs) {
+void GetGradient(Context const* ctx, MetaInfo const& info, CvFolds const& cv_folds,
+                 FoldInfoBatches const& finfo, std::vector<bst_idx_t> const& batch_ptr,
+                 std::int32_t iter, std::vector<linalg::Matrix<GradientPair>>* p_gpairs) {
   CHECK(!finfo.Empty());
   CHECK_EQ(batch_ptr.size(), finfo.Size() + 1);
 
-  std::string obj_name = "reg:squarederror";  // fixme
-  std::vector<std::unique_ptr<ObjFunction>> objs;
-
   auto k_folds = finfo.KFolds();
-  // fixme
-  for (std::size_t k = 0; k < k_folds; ++k) {
-    objs.emplace_back(ObjFunction::Create(obj_name, ctx));
-    objs.back()->Configure(Args{});
-  }
+  CHECK_EQ(cv_folds.KFolds(), k_folds);
 
   auto& gpairs = *p_gpairs;
   if (gpairs.empty()) {
@@ -65,7 +57,7 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
       HostDeviceVector<float> preds(ridxs.Size(), 0.0f, ctx->Device());  // fixme
 
       linalg::Matrix<GradientPair> batch_gpair;
-      objs.at(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
+      cv_folds.Objective(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
 
       auto& out_gpairs = gpairs.at(k);
       auto prev = cursors[k];
@@ -92,19 +84,22 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGBCvGetGradient(DMatrixHandle dtrain, FoldInfoBatchesHandle c_fold_info,
-                             FoldGpairsHandle hdl, int iter) {
+XGB_DLL int XGBCvGetGradient(DMatrixHandle dtrain, CvFoldsHandle c_cv_folds,
+                             FoldInfoBatchesHandle c_fold_info, FoldGpairsHandle hdl, int iter) {
   API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(c_fold_info);
   xgboost_CHECK_C_ARG_PTR(hdl);
   auto p_fmat = CastDMatrixHandle(dtrain);
+  auto cv_folds = static_cast<CvFolds*>(c_cv_folds);
   auto fold_info = static_cast<FoldInfoBatches*>(c_fold_info);
   auto const& info = p_fmat->Info();
   auto const& batch_ptr = p_fmat->BatchPtr();
   CHECK(!fold_info->batches.empty());
+  CHECK_EQ(cv_folds->KFolds(), fold_info->KFolds());
 
   auto fold_gpairs = static_cast<FoldGpairs*>(hdl);
-  GetGradient(p_fmat->Ctx(), info, *fold_info, batch_ptr, iter, &fold_gpairs->gpairs);
+  GetGradient(p_fmat->Ctx(), info, *cv_folds, *fold_info, batch_ptr, iter, &fold_gpairs->gpairs);
 
   API_END();
 }

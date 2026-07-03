@@ -5,6 +5,8 @@
 #pragma once
 
 #include <cstddef>  // for size_t
+#include <memory>   // for unique_ptr
+#include <string>   // for string
 #include <vector>   // for vector
 
 #include "xgboost/base.h"                // for GradientPair

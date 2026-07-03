@@ -34,6 +34,7 @@ _LIB.XGBCvGetGradient.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
+    ctypes.c_void_p,
     ctypes.c_int,
 ]
 
@@ -97,6 +98,7 @@ def cross_validate(data: ExtMemQuantileDMatrix, k_folds: int) -> CvFoldInfoBatch
 
 def get_gradient(
     data: ExtMemQuantileDMatrix,
+    cv_folds: CvFolds,
     fold_info: CvFoldInfoBatches,
     iteration: int,
     out: CvFoldGpairs,
@@ -104,6 +106,7 @@ def get_gradient(
     _check_call(
         _LIB.XGBCvGetGradient(
             data.handle,
+            cv_folds.handle,
             fold_info.handle,
             out.handle,
             ctypes.c_int(iteration),
