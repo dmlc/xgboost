@@ -7,7 +7,10 @@
 #include <cstddef>  // for size_t
 #include <vector>   // for vector
 
+#include "xgboost/base.h"                // for GradientPair
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/linalg.h"              // for Matrix
+#include "xgboost/logging.h"
 
 namespace xgboost {
 struct FoldInfo {
@@ -20,8 +23,19 @@ struct FoldInfo {
 
 struct FoldInfoBatches {
   std::vector<FoldInfo> batches;
+
+  [[nodiscard]] std::size_t Size() const { return batches.size(); }
+  [[nodiscard]] bool Empty() const { return batches.empty(); }
+  [[nodiscard]] auto KFolds() const noexcept(true) {
+    CHECK(!this->Empty());
+    return this->batches.front().KFolds();
+  }
+};
+
+struct FoldGpairs {
+  std::vector<linalg::Matrix<GradientPair>> gpairs;
 };
 }  // namespace xgboost
 
 using FoldInfoBatchesHandle = void*;
-using FoldInfoHandle = void*;
+using FoldGpairsHandle = void*;
