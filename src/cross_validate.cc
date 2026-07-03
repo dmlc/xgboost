@@ -31,6 +31,20 @@ XGB_DLL int XGBCvFoldGpairsCreate(FoldGpairsHandle* out) {
   API_END();
 }
 
+XGB_DLL int XGBCvFoldGpairsGet(FoldGpairsHandle hdl, size_t k, float const** out_data,
+                               size_t const** out_shape, size_t* out_len) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(out_shape);
+  xgboost_CHECK_C_ARG_PTR(out_len);
+  xgboost_CHECK_C_ARG_PTR(out_data);
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  auto gpairs = static_cast<FoldGpairs*>(hdl);
+  *out_shape = gpairs->gpairs.at(k).Shape().data();
+  *out_len = gpairs->gpairs.at(k).Shape().size();
+  *out_data = reinterpret_cast<float const*>(gpairs->gpairs.at(k).Data()->ConstDevicePointer());
+  API_END();
+}
+
 XGB_DLL int XGBCvFoldGpairsFree(FoldGpairsHandle hdl) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
