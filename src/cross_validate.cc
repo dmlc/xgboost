@@ -5,7 +5,7 @@
 #include "xgboost/objective.h"
 
 namespace xgboost {
-struct FoldInfos {
+struct FoldInfo {
   std::vector<HostDeviceVector<std::size_t>> ridxs;
 
  public:
@@ -13,7 +13,7 @@ struct FoldInfos {
   [[nodiscard]] auto KFolds() const noexcept(true) { return this->ridxs.size(); }
 };
 
-void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfos const& finfo,
+void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfo const& finfo,
                  std::int32_t iter) {
   auto k_folds = finfo.KFolds();
   CHECK(info.num_nonzero_) << "Missing data is not yet supported.";
@@ -64,34 +64,32 @@ class CvFolds {
 };
 
 using CvFoldsHandle = void*;
+using FoldInfosHandle = void*;
 }  // namespace xgboost
 
-XGB_DLL int XGBCvFoldsCreate(size_t k_folds, xgboost::CvFoldsHandle* out) {
+using namespace xgboost;  // NOLINT
+
+XGB_DLL int XGBCvFoldsCreate(size_t k_folds, CvFoldsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new xgboost::CvFolds{k_folds};
+  *out = new CvFolds{k_folds};
   API_END();
 }
 
-XGB_DLL int XGBCvFoldsFree(xgboost::CvFoldsHandle hdl) {
+XGB_DLL int XGBCvFoldsFree(CvFoldsHandle hdl) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
-  delete static_cast<xgboost::CvFolds*>(hdl);
+  delete static_cast<CvFolds*>(hdl);
   API_END();
 }
 
-XGB_DLL int XGBCvGetGradient(DMatrixHandle dtrain, xgboost::FoldInfos* fold_info, int iter) {
+XGB_DLL int XGBCvGetGradient(DMatrixHandle dtrain, FoldInfosHandle c_fold_info, int iter) {
   API_BEGIN();
-  using namespace xgboost;  // NOLINT
 
   auto p_fmat = CastDMatrixHandle(dtrain);
+  auto fold_info = static_cast<FoldInfo*>(c_fold_info);
   auto const& info = p_fmat->Info();
-  auto const& ridxs_folds = fold_info->ridxs;
-  CHECK(!ridxs_folds.empty());
-  std::vector<common::Span<std::size_t const>> ridxs_view;
-  for (auto const& v : ridxs_folds) {
-    ridxs_view.emplace_back(v.ConstDeviceSpan());
-  }
-  GetGradient(p_fmat->Ctx(), info, ridxs_view, iter);
+  CHECK(!fold_info->ridxs.empty());
+  GetGradient(p_fmat->Ctx(), info, *fold_info, iter);
   API_END();
 }
