@@ -19,12 +19,12 @@ namespace {
                                                              FoldInfo const& batch,
                                                              std::size_t fold,
                                                              bst_idx_t batch_begin) {
-  auto const& h_local = batch.ridxs.at(fold).ConstHostVector();
-  std::vector<bst_idx_t> h_global(h_local.size());
-  for (std::size_t i = 0; i < h_local.size(); ++i) {
-    h_global[i] = batch_begin + h_local[i];
-  }
-  return HostDeviceVector<bst_idx_t>{h_global, ctx->Device()};
+  auto d_local = batch.ridxs.at(fold).ConstDeviceSpan();
+  HostDeviceVector<bst_idx_t> d_global(d_local.size(), 0ul, ctx->Device());
+  thrust::transform(ctx->CUDACtx()->CTP(), dh::tcbegin(d_local), dh::tcend(d_local),
+                    dh::tbegin(d_global.DeviceSpan()),
+                    [=] __device__(std::size_t i) { return i + batch_begin; });
+  return d_global;
 }
 }  // namespace
 
