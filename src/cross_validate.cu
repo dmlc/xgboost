@@ -62,10 +62,9 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
       auto ridxs = GlobalTrainingRows(ctx, batch, k, batch_begin);
 
       constexpr std::size_t kNnz = 0;  // fixme
-      auto fold_info =
-          info.Slice(ctx, ctx->IsCUDA() ? ridxs.ConstDeviceSpan() : ridxs.ConstHostSpan(), kNnz);
+      auto fold_info = info.Slice(ctx, ridxs.ConstDeviceSpan(), kNnz);
 
-      HostDeviceVector<float> preds(ridxs.Size(), 0.0f, ctx->Device());
+      HostDeviceVector<float> preds(ridxs.Size(), 0.0f, ctx->Device());  // fixme
 
       linalg::Matrix<GradientPair> batch_gpair;
       objs.at(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
@@ -80,14 +79,15 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
         out_gpairs.Reshape(cursors[k], batch_gpair.Shape(1));
       }
       auto d_batch_gpair = batch_gpair.View(ctx->Device());
-      auto d_out = out_gpairs.Slice(linalg::Range(prev, cursors[k]), linalg::All());
+      auto d_out =
+          out_gpairs.View(ctx->Device()).Slice(linalg::Range(prev, cursors[k]), linalg::All());
       thrust::copy(ctx->CUDACtx()->CTP(), linalg::tcbegin(d_batch_gpair),
                    linalg::tcend(d_batch_gpair), linalg::tbegin(d_out));
     }
   }
 
   for (std::size_t k = 0; k < k_folds; ++k) {
-    CHECK_EQ(finfo.FoldSize(k), p_gpairs->at(k).Size());
+    CHECK_EQ(finfo.FoldSize(k), p_gpairs->at(k).Shape(0));
   }
 }
 }  // namespace xgboost
