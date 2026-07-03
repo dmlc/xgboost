@@ -1,3 +1,9 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026, XGBoost Contributors.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#include "cross_validate.h"
+
 #include "./c_api/c_api_error.h"
 #include "./c_api/c_api_utils.h"  // for CastDMatrixHandle
 #include "xgboost/context.h"
@@ -5,14 +11,6 @@
 #include "xgboost/objective.h"
 
 namespace xgboost {
-struct FoldInfo {
-  std::vector<HostDeviceVector<std::size_t>> ridxs;
-
- public:
-  [[nodiscard]] auto TrainingFold(std::size_t k) const { return ridxs.at(k).ConstDeviceSpan(); }
-  [[nodiscard]] auto KFolds() const noexcept(true) { return this->ridxs.size(); }
-};
-
 void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfo const& finfo,
                  std::int32_t iter) {
   auto k_folds = finfo.KFolds();
@@ -64,7 +62,6 @@ class CvFolds {
 };
 
 using CvFoldsHandle = void*;
-using FoldInfosHandle = void*;
 }  // namespace xgboost
 
 using namespace xgboost;  // NOLINT
@@ -83,9 +80,8 @@ XGB_DLL int XGBCvFoldsFree(CvFoldsHandle hdl) {
   API_END();
 }
 
-XGB_DLL int XGBCvGetGradient(DMatrixHandle dtrain, FoldInfosHandle c_fold_info, int iter) {
+XGB_DLL int XGBCvGetGradient(DMatrixHandle dtrain, FoldInfoHandle c_fold_info, int iter) {
   API_BEGIN();
-
   auto p_fmat = CastDMatrixHandle(dtrain);
   auto fold_info = static_cast<FoldInfo*>(c_fold_info);
   auto const& info = p_fmat->Info();
