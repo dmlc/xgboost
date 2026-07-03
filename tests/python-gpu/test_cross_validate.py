@@ -9,33 +9,54 @@ from xgboost import testing as tm
 
 
 @pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_sklearn())
 def test_cv_fold_info_batches() -> None:
-    it = tm.IteratorForTest(
-        *tm.make_batches(16, 4, 2, use_cupy=True),
-        cache=None,
-        on_host=True,
-    )
+    import cupy as cp
+    from sklearn.model_selection import KFold
+
+    k_folds = 3
+    X, y, w = tm.make_batches(16, 4, 2, use_cupy=True)
+    it = tm.IteratorForTest(X, y, w, cache=None, min_cache_page_bytes=0, on_host=True)
     Xy = xgb.ExtMemQuantileDMatrix(it)
 
-    folds = xcv.cross_validate(Xy, k_folds=3)
+    folds = xcv.cross_validate(Xy, k_folds=k_folds)
 
     assert isinstance(folds.handle, ctypes.c_void_p)
     assert folds.handle.value is not None
-    assert folds.k_folds == 3
+    assert folds.k_folds == k_folds
 
-    cv_folds = xcv.CvFolds(k_folds=3)
+    cv_folds = xcv.CvFolds(k_folds=k_folds)
     gpairs = xcv.CvFoldGpairs()
     assert xcv.get_gradient(Xy, cv_folds, folds, iteration=0, out=gpairs) is gpairs
 
     assert isinstance(gpairs.handle, ctypes.c_void_p)
     assert gpairs.handle.value is not None
-    grad, hess = gpairs.get(0)
-    assert grad.shape == hess.shape
-    assert grad.dtype == hess.dtype
-    assert grad.data.ptr + ctypes.sizeof(ctypes.c_float) == hess.data.ptr
-    assert grad.strides == hess.strides
-    assert grad.strides == (
-        2 * ctypes.sizeof(ctypes.c_float),
-        2 * ctypes.sizeof(ctypes.c_float),
-    )
+    for k in range(k_folds):
+        grad, hess = gpairs.get(k)
+        assert grad.shape == hess.shape
+        assert grad.dtype == hess.dtype
+        assert grad.data.ptr + ctypes.sizeof(ctypes.c_float) == hess.data.ptr
+        assert grad.strides == hess.strides
+        assert grad.strides == (
+            2 * ctypes.sizeof(ctypes.c_float),
+            2 * ctypes.sizeof(ctypes.c_float),
+        )
+
+        expected_labels = []
+        expected_weights = []
+        for batch_y, batch_w in zip(y, w):
+            train_idx, _ = list(KFold(n_splits=k_folds).split(batch_y))[k]
+            idx = cp.asarray(train_idx)
+            expected_labels.append(batch_y[idx])
+            expected_weights.append(batch_w[idx])
+
+        expected_labels = (
+            cp.concatenate(expected_labels).astype(cp.float32).reshape(grad.shape)
+        )
+        expected_weights = (
+            cp.concatenate(expected_weights).astype(cp.float32).reshape(hess.shape)
+        )
+        cp.testing.assert_allclose(grad, -expected_labels * expected_weights)
+        cp.testing.assert_allclose(hess, expected_weights)
+
     assert xcv.get_gradient(Xy, cv_folds, folds, iteration=1, out=gpairs) is gpairs

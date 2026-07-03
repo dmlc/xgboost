@@ -34,9 +34,7 @@ TEST(KFold, TrainingIndices) {
   CheckKFold(10, 3, 2, {0, 1, 2, 3, 4, 5, 6});
 }
 
-TEST(KFold, BatchLocalIndices) {
-  CheckKFold(9, 4, 2, {0, 1, 2, 3, 4, 7, 8}, 10);
-}
+TEST(KFold, BatchLocalIndices) { CheckKFold(9, 4, 2, {0, 1, 2, 3, 4, 7, 8}, 10); }
 
 TEST(KFold, EmptyOutput) {
   CheckKFold(0, 3, 0, {});
