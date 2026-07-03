@@ -4,45 +4,9 @@
  */
 #include "cross_validate.h"
 
-#include <memory>  // for unique_ptr
-#include <string>  // for string
-#include <vector>  // for vector
-
 #include "./c_api/c_api_error.h"
-#include "xgboost/context.h"
-#include "xgboost/data.h"
-#include "xgboost/objective.h"
-
-namespace xgboost {
-// The model part of the cross validation result, containing the trees and objectives.
-//
-// Tree updaters should not be part of it as they are considered "optimizers" and not part
-// of the model.
-class CvFolds {
-  std::vector<std::unique_ptr<ObjFunction>> objs_;
-  Context ctx_;
-
- public:
-  explicit CvFolds(std::size_t k_folds) {
-    CHECK_GT(k_folds, 0);
-    std::string obj_name = "reg:squarederror";  // FIXME(jiamingy): Support more objs.
-    ctx_.Init({{"device", "cuda"}});
-    for (std::size_t i = 0; i < k_folds; ++i) {
-      objs_.emplace_back(ObjFunction::Create(obj_name, &ctx_));
-      objs_.back()->Configure(Args{});
-    }
-  }
-  [[nodiscard]] auto KFolds() const noexcept(true) { return this->objs_.size(); }
-
-  [[nodiscard]] Context const* Ctx() const { return &this->ctx_; }
-  [[nodiscard]] ObjFunction* Objective(std::size_t fold_idx) const {
-    CHECK_LT(fold_idx, this->objs_.size());
-    return this->objs_[fold_idx].get();
-  }
-};
-
-using CvFoldsHandle = void*;
-}  // namespace xgboost
+#include "./data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
+#include "cross_validate/kfolds.h"
 
 using namespace xgboost;  // NOLINT
 
@@ -71,5 +35,42 @@ XGB_DLL int XGBCvFoldGpairsFree(FoldGpairsHandle hdl) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
   delete static_cast<FoldGpairs*>(hdl);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldInfoBatchesCreate(DMatrixHandle dtrain, size_t k_folds,
+                                       FoldInfoBatchesHandle* out) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(out);
+  CHECK_GT(k_folds, 0);
+
+  auto p_fmat = CastDMatrixHandle(dtrain);
+  auto p_ext_fmat = std::dynamic_pointer_cast<data::ExtMemQuantileDMatrix>(p_fmat);
+  CHECK(p_ext_fmat) << "Fold info batches require an ExtMemQuantileDMatrix.";
+
+  auto p_out = std::make_unique<FoldInfoBatches>();
+  auto const& batch_ptr = p_ext_fmat->BatchPtr();
+  auto const& info = p_ext_fmat->Info();
+
+  for (std::size_t i = 1, n = batch_ptr.size(); i < n; ++i) {
+    auto begin = batch_ptr[i - 1];
+    auto end = batch_ptr.at(i);
+    CHECK_LE(end, info.num_row_);
+    p_out->batches.emplace_back();
+    FoldInfo& batch = p_out->batches.back();
+    for (std::size_t k = 0; k < k_folds; ++k) {
+      batch.ridxs.emplace_back();
+      cv::KFold(p_ext_fmat->Ctx(), k_folds, begin, end, k, &batch.ridxs.back());
+    }
+  }
+
+  *out = p_out.release();
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldInfoBatchesFree(FoldInfoBatchesHandle hdl) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  delete static_cast<FoldInfoBatches*>(hdl);
   API_END();
 }
