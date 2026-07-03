@@ -5,11 +5,11 @@
 #pragma once
 #include <cstddef>  // for size_t
 
-#include "xgboost/data.h"  // for MetaInfo
-#include "xgboost/host_device_vector.h"
+#include "xgboost/data.h"                // for MetaInfo
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
 
 namespace xgboost::cv {
 // k-fold split based on labels.
-void KFold(Context const* ctx, ::size_t k_folds, MetaInfo const& info, std::int32_t k,
+void KFold(Context const* ctx, ::size_t k_folds, bst_idx_t begin, bst_idx_t end, std::int32_t k,
            HostDeviceVector<bst_idx_t>* out);
 }  // namespace xgboost::cv

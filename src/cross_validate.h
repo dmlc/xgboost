@@ -17,6 +17,11 @@ struct FoldInfo {
   [[nodiscard]] auto TrainingFold(std::size_t k) const { return ridxs.at(k).ConstDeviceSpan(); }
   [[nodiscard]] auto KFolds() const noexcept(true) { return this->ridxs.size(); }
 };
+
+struct FoldInfoBatches {
+  std::vector<FoldInfo> batches;
+};
 }  // namespace xgboost
 
+using FoldInfoBatchesHandle = void*;
 using FoldInfoHandle = void*;

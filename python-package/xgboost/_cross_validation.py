@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, XGBoost Contributers.
+# SPDX-License-Identifier: Apache-2.0
 """Working-in-progress support for cross-validation."""
 
 import ctypes
@@ -10,6 +12,16 @@ _LIB.XGBCvFoldsCreate.argtypes = [ctypes.c_size_t, ctypes.POINTER(ctypes.c_void_
 
 _LIB.XGBCvFoldsFree.restype = ctypes.c_int
 _LIB.XGBCvFoldsFree.argtypes = [ctypes.c_void_p]
+
+_LIB.XGBCvFoldInfoBatchesCreate.restype = ctypes.c_int
+_LIB.XGBCvFoldInfoBatchesCreate.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_size_t,
+    ctypes.POINTER(ctypes.c_void_p),
+]
+
+_LIB.XGBCvFoldInfoBatchesFree.restype = ctypes.c_int
+_LIB.XGBCvFoldInfoBatchesFree.argtypes = [ctypes.c_void_p]
 
 
 class CvFolds:
@@ -25,5 +37,32 @@ class CvFolds:
             _check_call(_LIB.XGBCvFoldsFree(hdl))
 
 
-def cross_validate(data: ExtMemQuantileDMatrix) -> CvFolds:
-    pass
+class CvFoldInfoBatches:
+    def __init__(self, data: ExtMemQuantileDMatrix, k_folds: int) -> None:
+        if not isinstance(data, ExtMemQuantileDMatrix):
+            raise TypeError(
+                "`data` must be an ExtMemQuantileDMatrix for fused cross-validation."
+            )
+
+        k_folds = int(k_folds)
+        if k_folds <= 0:
+            raise ValueError("`k_folds` must be positive.")
+
+        hdl = ctypes.c_void_p()
+        _check_call(
+            _LIB.XGBCvFoldInfoBatchesCreate(
+                data.handle, ctypes.c_size_t(k_folds), ctypes.byref(hdl)
+            )
+        )
+        self.handle = hdl
+        self.k_folds = k_folds
+
+    def __del__(self) -> None:
+        if hasattr(self, "handle"):
+            hdl = self.handle
+            del self.handle
+            _check_call(_LIB.XGBCvFoldInfoBatchesFree(hdl))
+
+
+def cross_validate(data: ExtMemQuantileDMatrix, k_folds: int) -> CvFoldInfoBatches:
+    return CvFoldInfoBatches(data, k_folds)
