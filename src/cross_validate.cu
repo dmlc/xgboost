@@ -6,8 +6,9 @@
 
 #include "./c_api/c_api_error.h"
 #include "./c_api/c_api_utils.h"             // for CastDMatrixHandle
-#include "./c_api/c_api_utils.h"             // for CastDMatrixHandle
 #include "./data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
+#include "common/cuda_context.cuh"           // for CUDAContext
+#include "common/linalg_op.cuh"              // for tcbegin, tcend, tbegin
 #include "cross_validate.h"
 #include "cross_validate/kfolds.h"
 #include "xgboost/objective.h"
@@ -37,6 +38,7 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
   std::vector<std::unique_ptr<ObjFunction>> objs;
 
   auto k_folds = finfo.KFolds();
+  // fixme
   for (std::size_t k = 0; k < k_folds; ++k) {
     objs.emplace_back(ObjFunction::Create(obj_name, ctx));
     objs.back()->Configure(Args{});
@@ -48,6 +50,8 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
   }
   CHECK_EQ(gpairs.size(), k_folds);
 
+  std::size_t cursor = 0;
+
   for (std::size_t i = 0, n = finfo.Size(); i < n; ++i) {
     auto const& batch = finfo.batches.at(i);
     CHECK_EQ(batch.KFolds(), k_folds);
@@ -56,6 +60,7 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
 
     for (std::size_t k = 0; k < k_folds; ++k) {
       auto ridxs = GlobalTrainingRows(ctx, batch, k, batch_begin);
+
       constexpr std::size_t kNnz = 0;  // fixme
       auto fold_info =
           info.Slice(ctx, ctx->IsCUDA() ? ridxs.ConstDeviceSpan() : ridxs.ConstHostSpan(), kNnz);
@@ -66,11 +71,18 @@ void GetGradient(Context const* ctx, MetaInfo const& info, FoldInfoBatches const
       objs.at(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
 
       auto& out_gpairs = gpairs.at(k);
-      if (i == 0) {
-        out_gpairs = std::move(batch_gpair);
-      } else {
-        linalg::Stack(&out_gpairs, batch_gpair);
+      auto prev = cursor;
+      cursor += ridxs.Size();
+      CHECK_EQ(ridxs.Size(), batch_gpair.Shape(0));
+      CHECK(batch_gpair.Shape(1) == out_gpairs.Shape(1) || out_gpairs.Shape(1) <= 1);
+
+      if (out_gpairs.Shape(0) < cursor) {
+        out_gpairs.Reshape(cursor, batch_gpair.Shape(1));
       }
+      auto d_batch_gpair = batch_gpair.View(ctx->Device());
+      auto d_out = out_gpairs.Slice(linalg::Range(prev, cursor), linalg::All());
+      thrust::copy(ctx->CUDACtx()->CTP(), linalg::tcbegin(d_batch_gpair),
+                   linalg::tcend(d_batch_gpair), linalg::tbegin(d_out));
     }
   }
 }
