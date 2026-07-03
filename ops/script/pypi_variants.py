@@ -4,7 +4,6 @@ import argparse
 import os
 
 import tomllib
-from packaging.version import Version
 from test_utils import PY_PACKAGE
 
 IN_PATH = os.path.join(PY_PACKAGE, "pyproject.toml.in")
@@ -70,7 +69,7 @@ def make_pyproject(
         copyfile(readme_stub, readme)
         pyproject_parsed = tomllib.loads(pyproject)
         pyproject = pyproject.replace(
-            VERSION, str(Version(pyproject_parsed["project"]["version"]))
+            VERSION, pyproject_parsed["project"]["version"]
         )
     elif use_suffix == "cpu":
         copyfile(readme_cpu, readme)
