@@ -23,3 +23,10 @@ def test_cv_fold_info_batches() -> None:
     assert isinstance(folds.handle, ctypes.c_void_p)
     assert folds.handle.value is not None
     assert folds.k_folds == 3
+
+    gpairs = xcv.CvFoldGpairs()
+    assert xcv.get_gradient(Xy, folds, iteration=0, out=gpairs) is gpairs
+
+    assert isinstance(gpairs.handle, ctypes.c_void_p)
+    assert gpairs.handle.value is not None
+    assert xcv.get_gradient(Xy, folds, iteration=1, out=gpairs) is gpairs

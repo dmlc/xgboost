@@ -3,7 +3,6 @@
 """Working-in-progress support for cross-validation."""
 
 import ctypes
-from typing import Optional
 
 from ._c_api import _LIB, _check_call
 from .core import ExtMemQuantileDMatrix
@@ -94,3 +93,20 @@ class CvFoldGpairs:
 
 def cross_validate(data: ExtMemQuantileDMatrix, k_folds: int) -> CvFoldInfoBatches:
     return CvFoldInfoBatches(data, k_folds)
+
+
+def get_gradient(
+    data: ExtMemQuantileDMatrix,
+    fold_info: CvFoldInfoBatches,
+    iteration: int,
+    out: CvFoldGpairs,
+) -> CvFoldGpairs:
+    _check_call(
+        _LIB.XGBCvGetGradient(
+            data.handle,
+            fold_info.handle,
+            out.handle,
+            ctypes.c_int(iteration),
+        )
+    )
+    return out
