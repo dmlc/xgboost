@@ -9,7 +9,7 @@
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 
 namespace xgboost::cv {
-// k-fold split based on labels.
+// k-fold split.
 void KFold(Context const* ctx, ::size_t k_folds, bst_idx_t begin, bst_idx_t end, std::int32_t k,
            HostDeviceVector<bst_idx_t>* out);
 }  // namespace xgboost::cv
