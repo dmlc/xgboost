@@ -64,6 +64,8 @@ struct FoldInfoBatches {
 
 struct FoldGpairs {
   std::vector<linalg::Matrix<GradientPair>> gpairs;
+
+  [[nodiscard]] auto KFolds() const noexcept(true) { return this->gpairs.size(); }
 };
 }  // namespace xgboost
 
