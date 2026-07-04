@@ -19,7 +19,7 @@ def test_cv_fold_info_batches() -> None:
     it = tm.IteratorForTest(X, y, w, cache=None, min_cache_page_bytes=0, on_host=True)
     Xy = xgb.ExtMemQuantileDMatrix(it)
 
-    folds = xcv.cross_validate(Xy, k_folds=k_folds)
+    folds = xcv.CvFoldInfoBatches(Xy, k_folds=k_folds)
 
     assert isinstance(folds.handle, ctypes.c_void_p)
     assert folds.handle.value is not None
