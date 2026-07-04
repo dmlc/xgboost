@@ -1,3 +1,7 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026, XGBoost Contributors.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include "updater_gpu_hist.cuh"
 
 namespace xgboost::tree::cuda_impl {

@@ -57,6 +57,8 @@ _LIB.XGBCvGetGradient.argtypes = [
 
 
 class CvFolds:
+    """Result of training cross validation."""
+
     def __init__(self, k_folds: int) -> None:
         hdl = ctypes.c_void_p()
         _check_call(_LIB.XGBCvFoldsCreate(int(k_folds), ctypes.byref(hdl)))
@@ -70,6 +72,8 @@ class CvFolds:
 
 
 class CvFoldInfoBatches:
+    """Meta information used during cross validation."""
+
     def __init__(self, data: ExtMemQuantileDMatrix, k_folds: int) -> None:
         if not isinstance(data, ExtMemQuantileDMatrix):
             raise TypeError(
@@ -97,6 +101,8 @@ class CvFoldInfoBatches:
 
 
 class CvFoldGpairs:
+    """Gradient from objective functions."""
+
     def __init__(self) -> None:
         hdl = ctypes.c_void_p()
         _check_call(_LIB.XGBCvFoldGpairsCreate(ctypes.byref(hdl)))
@@ -108,7 +114,8 @@ class CvFoldGpairs:
             del self.handle
             _check_call(_LIB.XGBCvFoldGpairsFree(hdl))
 
-    def get(self, k: int) -> tuple[cp.ndarray, cp.ndarray]:
+    def get(self, k: int) -> tuple[cp.ndarray, cp.ndarray]:  # pylint: disable=too-many-locals
+        """Retrieve the gradient for the k^th fold."""
         import cupy as cp
 
         data = ctypes.POINTER(ctypes.c_float)()
@@ -146,7 +153,7 @@ class CvFoldGpairs:
 
         mem = cp.cuda.UnownedMemory(data_ptr, n_elems * pair_size, self)
         grad, hess = [
-            cp.ndarray(
+            cp.ndarray(  # pylint: disable=unexpected-keyword-arg
                 array_shape,
                 dtype=cp.float32,
                 memptr=cp.cuda.MemoryPointer(mem, off),
@@ -157,10 +164,6 @@ class CvFoldGpairs:
         return grad, hess
 
 
-def cross_validate(data: ExtMemQuantileDMatrix, k_folds: int) -> CvFoldInfoBatches:
-    return CvFoldInfoBatches(data, k_folds)
-
-
 def get_gradient(
     data: ExtMemQuantileDMatrix,
     cv_folds: CvFolds,
@@ -168,6 +171,7 @@ def get_gradient(
     iteration: int,
     out: CvFoldGpairs,
 ) -> CvFoldGpairs:
+    """Calculate the gradient."""
     _check_call(
         _LIB.XGBCvGetGradient(
             data.handle,
