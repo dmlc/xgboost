@@ -23,7 +23,7 @@ struct FoldInfoBatches;
 //
 // Tree updaters should not be part of it as they are considered "optimizers" and not part
 // of the model.
-class CvFolds {
+class CvFolds : public Model {
   std::vector<std::unique_ptr<ObjFunction>> objs_;
   std::vector<std::unique_ptr<gbm::GBTreeModel>> models_;
   std::vector<HostDeviceVector<float>> predts_;
@@ -36,6 +36,11 @@ class CvFolds {
   [[nodiscard]] ObjFunction* Objective(std::size_t fold_idx) const;
   void InitPrediction(MetaInfo const& info, FoldInfoBatches const& finfo);
   [[nodiscard]] HostDeviceVector<float> const& Prediction(std::size_t fold_idx) const;
+
+  void CommitModel(std::vector<gbm::TreesOneIter>&& new_trees);
+
+  void LoadModel(Json const& in) final;
+  void SaveModel(Json* out) const final;
 };
 
 struct FoldInfo {
