@@ -46,6 +46,21 @@ void CvFolds::InitPrediction(MetaInfo const& info, FoldInfoBatches const& finfo)
   }
 }
 
+void CvFolds::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
+  CHECK_EQ(new_trees.size(), this->KFolds());
+}
+
+void CvFolds::LoadModel(Json const& in) {
+  CHECK(this->models_.empty());
+}
+
+void CvFolds::SaveModel(Json* out) const {
+  if (this->models_.empty()) {
+    *out = Null{};
+    return;
+  }
+}
+
 HostDeviceVector<float> const& CvFolds::Prediction(std::size_t fold_idx) const {
   return predts_.at(fold_idx);
 }
