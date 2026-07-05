@@ -8,7 +8,7 @@
 #include "common/linalg_op.cuh"     // for tcbegin, tcend, tbegin
 #include "cross_validate.h"
 
-namespace xgboost {
+namespace xgboost::cv {
 namespace {
 [[nodiscard]] HostDeviceVector<bst_idx_t> GlobalTrainingRows(Context const* ctx,
                                                              FoldInfo const& batch,
@@ -96,27 +96,28 @@ void GetGradient(Context const* ctx, MetaInfo const& info, CvFolds const& cv_fol
     CHECK_EQ(finfo.FoldSize(k), p_gpairs->at(k).Shape(0));
   }
 }
-}  // namespace xgboost
+}  // namespace xgboost::cv
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGBCvGetGradient(DMatrixHandle dtrain, CvFoldsHandle c_cv_folds,
+XGB_DLL int XGBCvGetGradient(CvFoldsHandle c_cv_folds, DMatrixHandle dtrain,
                              FoldInfoBatchesHandle c_fold_info, FoldGpairsHandle hdl, int iter) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(c_fold_info);
   xgboost_CHECK_C_ARG_PTR(hdl);
   auto p_fmat = CastDMatrixHandle(dtrain);
-  auto cv_folds = static_cast<CvFolds*>(c_cv_folds);
-  auto fold_info = static_cast<FoldInfoBatches*>(c_fold_info);
+  auto cv_folds = static_cast<cv::CvFolds*>(c_cv_folds);
+  auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
   auto const& info = p_fmat->Info();
   auto const& batch_ptr = p_fmat->BatchPtr();
   CHECK(!fold_info->batches.empty());
   CHECK_EQ(cv_folds->KFolds(), fold_info->KFolds());
   cv_folds->InitPrediction(info, *fold_info);
 
-  auto fold_gpairs = static_cast<FoldGpairs*>(hdl);
-  GetGradient(p_fmat->Ctx(), info, *cv_folds, *fold_info, batch_ptr, iter, &fold_gpairs->gpairs);
+  auto fold_gpairs = static_cast<cv::FoldGpairs*>(hdl);
+  cv::GetGradient(p_fmat->Ctx(), info, *cv_folds, *fold_info, batch_ptr, iter,
+                  &fold_gpairs->gpairs);
 
   API_END();
 }

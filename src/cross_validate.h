@@ -8,6 +8,7 @@
 #include <memory>   // for unique_ptr
 #include <vector>   // for vector
 
+#include "./gbm/gbtree_model.h"
 #include "xgboost/base.h"                // for GradientPair
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
@@ -15,7 +16,7 @@
 #include "xgboost/logging.h"
 #include "xgboost/objective.h"
 
-namespace xgboost {
+namespace xgboost::cv {
 struct FoldInfoBatches;
 
 // The model part of the cross validation result, containing the trees and objectives.
@@ -24,6 +25,7 @@ struct FoldInfoBatches;
 // of the model.
 class CvFolds {
   std::vector<std::unique_ptr<ObjFunction>> objs_;
+  std::vector<std::unique_ptr<gbm::GBTreeModel>> models_;
   std::vector<HostDeviceVector<float>> predts_;
   Context ctx_;
 
@@ -67,7 +69,7 @@ struct FoldGpairs {
 
   [[nodiscard]] auto KFolds() const noexcept(true) { return this->gpairs.size(); }
 };
-}  // namespace xgboost
+}  // namespace xgboost::cv
 
 using CvFoldsHandle = void*;
 using FoldInfoBatchesHandle = void*;

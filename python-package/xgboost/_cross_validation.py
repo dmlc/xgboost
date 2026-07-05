@@ -172,10 +172,11 @@ def get_gradient(
     out: CvFoldGpairs,
 ) -> CvFoldGpairs:
     """Calculate the gradient."""
+
     _check_call(
         _LIB.XGBCvGetGradient(
-            data.handle,
             cv_folds.handle,
+            data.handle,
             fold_info.handle,
             out.handle,
             ctypes.c_int(iteration),
