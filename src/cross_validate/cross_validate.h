@@ -27,14 +27,14 @@ class CvFolds : public Model {
   std::vector<std::unique_ptr<ObjFunction>> objs_;
   std::vector<std::unique_ptr<gbm::GBTreeModel>> models_;
   std::vector<HostDeviceVector<float>> predts_;
-  Context ctx_;
+  std::vector<LearnerModelParam> properties_;
 
  public:
-  explicit CvFolds(std::size_t k_folds);
+  explicit CvFolds(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain);
   [[nodiscard]] std::size_t KFolds() const noexcept(true);
-  [[nodiscard]] Context const* Ctx() const;
+  [[nodiscard]] bst_target_t OutputLength(std::size_t fold_idx) const;
   [[nodiscard]] ObjFunction* Objective(std::size_t fold_idx) const;
-  void InitPrediction(MetaInfo const& info, FoldInfoBatches const& finfo);
+  void InitPrediction(Context const* ctx, MetaInfo const& info, FoldInfoBatches const& finfo);
   [[nodiscard]] HostDeviceVector<float> const& Prediction(std::size_t fold_idx) const;
 
   void CommitModel(std::vector<gbm::TreesOneIter>&& new_trees);
@@ -58,7 +58,7 @@ struct FoldInfoBatches {
   [[nodiscard]] std::size_t FoldSize(std::size_t k) const {
     std::size_t acc = 0;
     for (auto const& batch : this->batches) {
-      acc += batch.TrainingFold(k).size();
+      acc += batch.ridxs.at(k).Size();
     }
     return acc;
   }

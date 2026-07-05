@@ -236,6 +236,17 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 }  // namespace xgboost
 
 namespace xgboost {
+namespace {
+void EnsureBaseScoreReadAccess(Context const* ctx, linalg::Vector<float>* base_score) {
+  std::as_const(*base_score).HostView();
+  auto device = ctx ? ctx->Device() : base_score->Device();
+  if (!device.IsCPU()) {
+    std::as_const(*base_score).View(device);
+  }
+  CHECK(std::as_const(*base_score).Data()->HostCanRead());
+}
+}  // namespace
+
 LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
                                      MultiStrategy multi_strategy)
     : num_feature{user_param.num_feature},
@@ -254,11 +265,18 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
     : LearnerModelParam{user_param, t, multi_strategy} {
   std::swap(base_score_, base_score);
   // Make sure read access everywhere for thread-safe prediction.
-  std::as_const(base_score_).HostView();
-  if (!ctx->IsCPU()) {
-    std::as_const(base_score_).View(ctx->Device());
-  }
-  CHECK(std::as_const(base_score_).Data()->HostCanRead());
+  EnsureBaseScoreReadAccess(ctx, &base_score_);
+}
+
+LearnerModelParam::LearnerModelParam(bst_feature_t n_features, linalg::Vector<float> base_score,
+                                     std::uint32_t n_groups, bst_target_t n_targets,
+                                     MultiStrategy multi_strategy, Context const* ctx, ObjInfo t)
+    : base_score_{std::move(base_score)},
+      num_feature{n_features},
+      num_output_group{std::max(n_groups, n_targets)},
+      task{t},
+      multi_strategy{multi_strategy} {
+  EnsureBaseScoreReadAccess(ctx, &base_score_);
 }
 
 linalg::VectorView<float const> LearnerModelParam::BaseScore(DeviceOrd device) const {

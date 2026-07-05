@@ -78,8 +78,11 @@ void GetGradient(Context const* ctx, MetaInfo const& info, CvFolds const& cv_fol
       auto fold_info = info.Slice(ctx, ridxs.ConstDeviceSpan(), kNnz);
 
       auto const& fold_preds = cv_folds.Prediction(k);
-      auto n_predts = fold_info.labels.Size();
-      auto pred_begin = cursors[k] * fold_info.labels.Shape(1);
+      auto output_length = cv_folds.OutputLength(k);
+      CHECK_EQ(fold_info.labels.Shape(1), output_length);
+      auto n_predts = ridxs.Size() * output_length;
+      CHECK_EQ(fold_info.labels.Size(), n_predts);
+      auto pred_begin = cursors[k] * output_length;
       CHECK_LE(pred_begin + n_predts, fold_preds.Size());
       auto preds = BatchPrediction(ctx, fold_preds, pred_begin, n_predts);
 
@@ -113,7 +116,7 @@ XGB_DLL int XGBCvGetGradient(CvFoldsHandle c_cv_folds, DMatrixHandle dtrain,
   auto const& batch_ptr = p_fmat->BatchPtr();
   CHECK(!fold_info->batches.empty());
   CHECK_EQ(cv_folds->KFolds(), fold_info->KFolds());
-  cv_folds->InitPrediction(info, *fold_info);
+  cv_folds->InitPrediction(p_fmat->Ctx(), info, *fold_info);
 
   auto fold_gpairs = static_cast<cv::FoldGpairs*>(hdl);
   cv::GetGradient(p_fmat->Ctx(), info, *cv_folds, *fold_info, batch_ptr, iter,

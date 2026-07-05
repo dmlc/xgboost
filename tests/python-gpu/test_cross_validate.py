@@ -25,7 +25,7 @@ def test_cv_fold_info_batches() -> None:
     assert folds.handle.value is not None
     assert folds.k_folds == k_folds
 
-    cv_folds = xcv.CvFolds(k_folds=k_folds)
+    cv_folds = xcv.CvFolds(data=Xy, k_folds=k_folds)
     gpairs = xcv.CvFoldGpairs()
     assert xcv.get_gradient(Xy, cv_folds, folds, iteration=0, out=gpairs) is gpairs
 
@@ -56,7 +56,7 @@ def test_cv_fold_info_batches() -> None:
         expected_weights = (
             cp.concatenate(expected_weights).astype(cp.float32).reshape(hess.shape)
         )
-        cp.testing.assert_allclose(grad, -expected_labels * expected_weights)
+        cp.testing.assert_allclose(grad, (0.5 - expected_labels) * expected_weights)
         cp.testing.assert_allclose(hess, expected_weights)
 
     assert xcv.get_gradient(Xy, cv_folds, folds, iteration=1, out=gpairs) is gpairs

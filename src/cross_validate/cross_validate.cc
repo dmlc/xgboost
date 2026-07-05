@@ -5,61 +5,117 @@
 #include "cross_validate.h"
 
 #include "../c_api/c_api_error.h"
+#include "../common/error_msg.h"              // for MaxFeatureSize
 #include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
 #include "./kfolds.h"
+#include "xgboost/predictor.h"  // for Predictor
 
 namespace xgboost::cv {
-CvFolds::CvFolds(std::size_t k_folds) {
+namespace {
+[[nodiscard]] bst_feature_t GetNumFeatures(MetaInfo const& info) {
+  error::MaxFeatureSize(info.num_col_);
+  auto n_features = static_cast<bst_feature_t>(info.num_col_);
+  CHECK_NE(n_features, 0) << "0 feature is supplied.";
+  return n_features;
+}
+
+[[nodiscard]] linalg::Vector<float> DefaultBaseScore(Context const* ctx, bst_target_t n_targets) {
+  CHECK_GT(n_targets, 0);
+  std::vector<float> h_base_score(n_targets, ObjFunction::DefaultBaseScore());
+  std::size_t shape[] = {h_base_score.size()};
+  return linalg::Vector<float>{h_base_score.cbegin(), h_base_score.cend(), shape, ctx->Device()};
+}
+
+[[nodiscard]] std::unique_ptr<Predictor> CreatePredictor(Context const* ctx) {
+  CHECK(ctx->IsCUDA()) << "Fused cross-validation requires CUDA.";
+  auto predictor = std::unique_ptr<Predictor>{Predictor::Create("gpu_predictor", ctx)};
+  predictor->Configure(Args{});
+  return predictor;
+}
+}  // namespace
+
+CvFolds::CvFolds(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
+  auto ctx = dtrain->Ctx();
+  auto const& info = dtrain->Info();
+  auto n_features = GetNumFeatures(info);
+
   CHECK_GT(k_folds, 0);
+  objs_.reserve(k_folds);
+  properties_.reserve(k_folds);
+  models_.reserve(k_folds);
+  predts_.resize(k_folds);
+
   std::string obj_name = "reg:squarederror";  // FIXME(jiamingy): Support more objs.
-  ctx_.Init({{"device", "cuda"}});
   for (std::size_t i = 0; i < k_folds; ++i) {
-    objs_.emplace_back(ObjFunction::Create(obj_name, &ctx_));
-    objs_.back()->Configure(Args{});
+    objs_.emplace_back(ObjFunction::Create(obj_name, ctx));
+    auto& obj = objs_.back();
+    obj->Configure(Args{});
+
+    auto n_targets = obj->Targets(info);
+    auto multi_strategy = MultiStrategy::kMultiOutputTree;  // FIXME(jiamingy): Support scalar-leaf.
+    properties_.emplace_back(n_features, DefaultBaseScore(ctx, n_targets), n_targets, n_targets,
+                             multi_strategy, ctx, obj->Task());
+    models_.emplace_back(std::make_unique<gbm::GBTreeModel>(&properties_.back(), ctx));
+    models_.back()->Configure(Args{});
   }
+  CHECK_EQ(objs_.size(), k_folds);
+  CHECK_EQ(properties_.size(), k_folds);
+  CHECK_EQ(models_.size(), k_folds);
+  CHECK_EQ(predts_.size(), k_folds);
 }
 
 std::size_t CvFolds::KFolds() const noexcept(true) { return this->objs_.size(); }
 
-Context const* CvFolds::Ctx() const { return &this->ctx_; }
+bst_target_t CvFolds::OutputLength(std::size_t fold_idx) const {
+  CHECK_LT(fold_idx, this->properties_.size());
+  return this->properties_[fold_idx].OutputLength();
+}
 
 ObjFunction* CvFolds::Objective(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->objs_.size());
   return this->objs_[fold_idx].get();
 }
 
-void CvFolds::InitPrediction(MetaInfo const& info, FoldInfoBatches const& finfo) {
+void CvFolds::InitPrediction(Context const* ctx, MetaInfo const& info,
+                             FoldInfoBatches const& finfo) {
   CHECK_EQ(this->KFolds(), finfo.KFolds());
-  auto n_targets = info.labels.Shape(1);
-  CHECK_GT(n_targets, 0);
+  CHECK_EQ(this->predts_.size(), this->KFolds());
 
-  predts_.resize(this->KFolds());
+  auto predictor = CreatePredictor(ctx);
   for (std::size_t k = 0; k < this->KFolds(); ++k) {
-    auto n_samples = finfo.FoldSize(k);
+    auto output_length = this->OutputLength(k);
+    CHECK_EQ(info.labels.Shape(1), output_length);
+
+    // FIXME(jiamingy): Unify the code paths.
+    MetaInfo fold_info;
+    fold_info.num_row_ = finfo.FoldSize(k);
+    fold_info.num_col_ = info.num_col_;
+
     auto& predt = predts_.at(k);
-    predt.SetDevice(ctx_.Device());
-    if (predt.Size() != n_samples * n_targets) {
-      predt.Resize(n_samples * n_targets);
-      predt.Fill(0.0f);
-    }
-    CHECK_EQ(predt.Size(), n_samples * n_targets);
+    predictor->InitOutPredictions(fold_info, &predt, *models_.at(k));
+    CHECK_EQ(predt.Device(), ctx->Device());
+    CHECK_EQ(predt.Size(), fold_info.num_row_ * output_length);
   }
 }
 
 void CvFolds::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
   CHECK_EQ(new_trees.size(), this->KFolds());
-}
+  CHECK_EQ(this->models_.size(), this->KFolds());
 
-void CvFolds::LoadModel(Json const& in) {
-  CHECK(this->models_.empty());
-}
-
-void CvFolds::SaveModel(Json* out) const {
-  if (this->models_.empty()) {
-    *out = Null{};
-    return;
+  for (std::size_t k = 0; k < this->KFolds(); ++k) {
+    auto const& property = properties_.at(k);
+    if (property.IsVectorLeaf()) {
+      CHECK_EQ(new_trees[k].size(), 1);
+    } else {
+      CHECK_EQ(new_trees[k].size(), property.OutputLength());
+    }
+    models_.at(k)->CommitModel(std::move(new_trees[k]));
   }
 }
+
+void CvFolds::LoadModel(Json const& in) { CHECK(this->models_.empty()); }
+
+void CvFolds::SaveModel(Json* out) const { *out = Null{}; }
 
 HostDeviceVector<float> const& CvFolds::Prediction(std::size_t fold_idx) const {
   return predts_.at(fold_idx);
@@ -68,10 +124,11 @@ HostDeviceVector<float> const& CvFolds::Prediction(std::size_t fold_idx) const {
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGBCvFoldsCreate(size_t k_folds, CvFoldsHandle* out) {
+XGB_DLL int XGBCvFoldsCreate(size_t k_folds, DMatrixHandle dtrain, CvFoldsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new cv::CvFolds{k_folds};
+  auto p_fmat = CastDMatrixHandle(dtrain);
+  *out = new cv::CvFolds{k_folds, p_fmat};
   API_END();
 }
 
