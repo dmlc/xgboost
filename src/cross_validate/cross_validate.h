@@ -9,7 +9,9 @@
 #include <vector>   // for vector
 
 #include "../gbm/gbtree_model.h"
+#include "../learner_model_param_legacy.h"
 #include "xgboost/base.h"                // for GradientPair
+#include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/linalg.h"              // for Matrix
@@ -23,11 +25,17 @@ struct FoldInfoBatches;
 //
 // Tree updaters should not be part of it as they are considered "optimizers" and not part
 // of the model.
-class CvFolds : public Model {
+class CvFolds {
+  Context ctx_;
+  std::vector<LearnerModelParamLegacy> model_params_;
+  std::vector<LearnerModelParam> properties_;
   std::vector<std::unique_ptr<ObjFunction>> objs_;
   std::vector<std::unique_ptr<gbm::GBTreeModel>> models_;
   std::vector<HostDeviceVector<float>> predts_;
-  std::vector<LearnerModelParam> properties_;
+
+  void Resize(std::size_t k_folds);
+  void InitFold(std::size_t fold_idx, std::unique_ptr<ObjFunction> obj);
+  CvFolds() = default;
 
  public:
   explicit CvFolds(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain);
@@ -39,8 +47,8 @@ class CvFolds : public Model {
 
   void CommitModel(std::vector<gbm::TreesOneIter>&& new_trees);
 
-  void LoadModel(Json const& in) final;
-  void SaveModel(Json* out) const final;
+  [[nodiscard]] static CvFolds LoadModel(Json const& in);
+  void SaveModel(Json* out) const;
 };
 
 struct FoldInfo {

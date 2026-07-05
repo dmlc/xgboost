@@ -6,8 +6,10 @@
 
 #include "../c_api/c_api_error.h"
 #include "../common/error_msg.h"              // for MaxFeatureSize
+#include "../common/version.h"                // for Version
 #include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
 #include "./kfolds.h"
+#include "xgboost/json.h"       // for Json, Array, Object, String, get
 #include "xgboost/predictor.h"  // for Predictor
 
 namespace xgboost::cv {
@@ -26,6 +28,16 @@ namespace {
   return linalg::Vector<float>{h_base_score.cbegin(), h_base_score.cend(), shape, ctx->Device()};
 }
 
+[[nodiscard]] linalg::Vector<float> BaseScore(Context const* ctx, LearnerModelParamLegacy const& p,
+                                              ObjFunction* obj) {
+  std::vector<float> h_base_score{p.base_score.cbegin(), p.base_score.cend()};
+  std::size_t shape[] = {h_base_score.size()};
+  linalg::Vector<float> base_score{h_base_score.cbegin(), h_base_score.cend(), shape,
+                                   ctx->Device()};
+  obj->ProbToMargin(&base_score);
+  return base_score;
+}
+
 [[nodiscard]] std::unique_ptr<Predictor> CreatePredictor(Context const* ctx) {
   CHECK(ctx->IsCUDA()) << "Fused cross-validation requires CUDA.";
   auto predictor = std::unique_ptr<Predictor>{Predictor::Create("gpu_predictor", ctx)};
@@ -34,31 +46,59 @@ namespace {
 }
 }  // namespace
 
+void CvFolds::Resize(std::size_t k_folds) {
+  model_params_.resize(k_folds);
+  properties_.resize(k_folds);
+  objs_.resize(k_folds);
+  models_.resize(k_folds);
+  predts_.resize(k_folds);
+}
+
+void CvFolds::InitFold(std::size_t fold_idx, std::unique_ptr<ObjFunction> obj) {
+  CHECK_LT(fold_idx, this->model_params_.size());
+  CHECK_LT(fold_idx, this->properties_.size());
+  CHECK_LT(fold_idx, this->objs_.size());
+  CHECK_LT(fold_idx, this->models_.size());
+  CHECK(obj);
+
+  auto& param = this->model_params_.at(fold_idx);
+  param.HandleOldFormat();
+  param.Validate(&ctx_);
+
+  auto base_score = BaseScore(&ctx_, param, obj.get());
+  this->properties_.at(fold_idx) = LearnerModelParam{&ctx_, param, std::move(base_score),
+                                                     obj->Task(), MultiStrategy::kMultiOutputTree};
+  this->objs_.at(fold_idx) = std::move(obj);
+  this->models_.at(fold_idx) =
+      std::make_unique<gbm::GBTreeModel>(&this->properties_.at(fold_idx), &ctx_);
+  this->models_.at(fold_idx)->Configure(Args{});
+}
+
 CvFolds::CvFolds(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
-  auto ctx = dtrain->Ctx();
+  CHECK(dtrain);
+  this->ctx_.FromJson(dtrain->Ctx()->ToJson());
   auto const& info = dtrain->Info();
   auto n_features = GetNumFeatures(info);
 
   CHECK_GT(k_folds, 0);
-  objs_.reserve(k_folds);
-  properties_.reserve(k_folds);
-  models_.reserve(k_folds);
-  predts_.resize(k_folds);
+  this->Resize(k_folds);
 
   std::string obj_name = "reg:squarederror";  // FIXME(jiamingy): Support more objs.
   for (std::size_t i = 0; i < k_folds; ++i) {
-    objs_.emplace_back(ObjFunction::Create(obj_name, ctx));
-    auto& obj = objs_.back();
+    auto obj = std::unique_ptr<ObjFunction>{ObjFunction::Create(obj_name, &ctx_)};
     obj->Configure(Args{});
 
     auto n_targets = obj->Targets(info);
-    auto multi_strategy = MultiStrategy::kMultiOutputTree;  // FIXME(jiamingy): Support scalar-leaf.
-    properties_.emplace_back(n_features, DefaultBaseScore(ctx, n_targets), n_targets, n_targets,
-                             multi_strategy, ctx, obj->Task());
-    models_.emplace_back(std::make_unique<gbm::GBTreeModel>(&properties_.back(), ctx));
-    models_.back()->Configure(Args{});
+    auto& param = model_params_.at(i);
+    param.num_feature = n_features;
+    param.num_target = n_targets;
+    param.boost_from_average = false;
+    auto base_score = DefaultBaseScore(&ctx_, n_targets);
+    param.base_score = base_score.Data()->ConstHostVector();
+    this->InitFold(i, std::move(obj));
   }
   CHECK_EQ(objs_.size(), k_folds);
+  CHECK_EQ(model_params_.size(), k_folds);
   CHECK_EQ(properties_.size(), k_folds);
   CHECK_EQ(models_.size(), k_folds);
   CHECK_EQ(predts_.size(), k_folds);
@@ -100,6 +140,8 @@ void CvFolds::InitPrediction(Context const* ctx, MetaInfo const& info,
 
 void CvFolds::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
   CHECK_EQ(new_trees.size(), this->KFolds());
+  CHECK_EQ(this->model_params_.size(), this->KFolds());
+  CHECK_EQ(this->properties_.size(), this->KFolds());
   CHECK_EQ(this->models_.size(), this->KFolds());
 
   for (std::size_t k = 0; k < this->KFolds(); ++k) {
@@ -113,9 +155,65 @@ void CvFolds::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
   }
 }
 
-void CvFolds::LoadModel(Json const& in) { CHECK(this->models_.empty()); }
+CvFolds CvFolds::LoadModel(Json const& in) {
+  CHECK(IsA<Object>(in));
+  Version::Load(in);
 
-void CvFolds::SaveModel(Json* out) const { *out = Null{}; }
+  auto const& j_folds = get<Array const>(in["cv_folds"]);
+  CvFolds out;
+  out.ctx_ = Context{};
+  out.Resize(j_folds.size());
+
+  for (std::size_t k = 0; k < j_folds.size(); ++k) {
+    auto const& fold = j_folds.at(k);
+    auto const& j_fold = get<Object const>(fold);
+
+    auto& param = out.model_params_.at(k);
+    param.FromJson(j_fold.at("learner_model_param"));
+
+    auto const& objective = j_fold.at("objective");
+    auto obj_name = get<String const>(objective["name"]);
+    auto obj = std::unique_ptr<ObjFunction>{ObjFunction::Create(obj_name, &out.ctx_)};
+    obj->LoadConfig(objective);
+    out.InitFold(k, std::move(obj));
+
+    auto const& booster = j_fold.at("gradient_booster");
+    CHECK_EQ(get<String const>(booster["name"]), "gbtree");
+    out.models_.at(k)->LoadModel(booster["model"]);
+  }
+  return out;
+}
+
+void CvFolds::SaveModel(Json* out) const {
+  CHECK(out);
+  CHECK_EQ(this->model_params_.size(), this->KFolds());
+  CHECK_EQ(this->properties_.size(), this->KFolds());
+  CHECK_EQ(this->models_.size(), this->KFolds());
+  CHECK_EQ(this->predts_.size(), this->KFolds());
+
+  Version::Save(out);
+  (*out)["cv_folds"] = Array{};
+  auto& j_folds = get<Array>((*out)["cv_folds"]);
+  j_folds.resize(this->KFolds());
+
+  for (std::size_t k = 0; k < this->KFolds(); ++k) {
+    CHECK(this->objs_.at(k));
+    CHECK(this->models_.at(k));
+
+    j_folds[k] = Object{};
+    auto& fold = j_folds[k];
+    fold["learner_model_param"] = this->model_params_.at(k).ToJson();
+
+    fold["objective"] = Object{};
+    this->objs_.at(k)->SaveConfig(&fold["objective"]);
+
+    fold["gradient_booster"] = Object{};
+    auto& booster = fold["gradient_booster"];
+    booster["name"] = String{"gbtree"};
+    booster["model"] = Object{};
+    this->models_.at(k)->SaveModel(&booster["model"]);
+  }
+}
 
 HostDeviceVector<float> const& CvFolds::Prediction(std::size_t fold_idx) const {
   return predts_.at(fold_idx);

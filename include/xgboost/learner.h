@@ -305,9 +305,6 @@ struct LearnerModelParam {
    */
   linalg::Vector<float> base_score_;
 
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
-                    MultiStrategy multi_strategy);
-
  public:
   /**
    * @brief The number of features.
