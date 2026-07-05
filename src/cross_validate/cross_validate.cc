@@ -4,9 +4,9 @@
  */
 #include "cross_validate.h"
 
-#include "./c_api/c_api_error.h"
-#include "./data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
-#include "cross_validate/kfolds.h"
+#include "../c_api/c_api_error.h"
+#include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
+#include "./kfolds.h"
 
 namespace xgboost::cv {
 CvFolds::CvFolds(std::size_t k_folds) {

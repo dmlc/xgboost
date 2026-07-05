@@ -8,7 +8,7 @@
 #include <memory>   // for unique_ptr
 #include <vector>   // for vector
 
-#include "./gbm/gbtree_model.h"
+#include "../gbm/gbtree_model.h"
 #include "xgboost/base.h"                // for GradientPair
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector

@@ -2,10 +2,10 @@
  * SPDX-FileCopyrightText: Copyright (c) 2026, XGBoost Contributors.
  * SPDX-License-Identifier: Apache-2.0
  */
-#include "./c_api/c_api_error.h"
-#include "./c_api/c_api_utils.h"    // for CastDMatrixHandle
-#include "common/cuda_context.cuh"  // for CUDAContext
-#include "common/linalg_op.cuh"     // for tcbegin, tcend, tbegin
+#include "../c_api/c_api_error.h"
+#include "../c_api/c_api_utils.h"      // for CastDMatrixHandle
+#include "../common/cuda_context.cuh"  // for CUDAContext
+#include "../common/linalg_op.cuh"     // for tcbegin, tcend, tbegin
 #include "cross_validate.h"
 
 namespace xgboost::cv {
