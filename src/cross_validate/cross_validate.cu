@@ -2,11 +2,18 @@
  * SPDX-FileCopyrightText: Copyright (c) 2026, XGBoost Contributors.
  * SPDX-License-Identifier: Apache-2.0
  */
+
+#include <memory>   // for make_shared, make_unique, unique_ptr
+#include <sstream>  // for ostringstream
+#include <utility>  // for move
+
 #include "../c_api/c_api_error.h"
-#include "../c_api/c_api_utils.h"      // for CastDMatrixHandle
-#include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../common/linalg_op.cuh"     // for tcbegin, tcend, tbegin
+#include "../c_api/c_api_utils.h"        // for CastDMatrixHandle
+#include "../common/cuda_context.cuh"    // for CUDAContext
+#include "../common/linalg_op.cuh"       // for tcbegin, tcend, tbegin
+#include "../tree/updater_gpu_hist.cuh"  // for HistBatch, InitBatchCuts
 #include "cross_validate.h"
+#include "xgboost/json.h"  // for Json
 
 namespace xgboost::cv {
 namespace {
@@ -45,6 +52,33 @@ void CopyBatchGpair(Context const* ctx, linalg::Matrix<GradientPair> const& batc
   auto d_out = out_gpairs->View(ctx->Device()).Slice(linalg::Range(begin, end), linalg::All());
   thrust::copy(ctx->CUDACtx()->CTP(), linalg::tcbegin(d_batch_gpair), linalg::tcend(d_batch_gpair),
                linalg::tbegin(d_out));
+}
+
+[[nodiscard]] Args JsonToArgs(Json const& config) {
+  CHECK(config.GetValue().Type() == Value::ValueKind::kObject)
+      << "CV tree method configuration must be a JSON object.";
+
+  Args args;
+  for (auto const& kv : get<Object const>(config)) {
+    args.emplace_back(kv.first, JsonScalarToString(kv.second));
+  }
+  return args;
+}
+
+void CheckNoUnknownParams(Args const& unknown) {
+  if (unknown.empty()) {
+    return;
+  }
+  std::stringstream ss;
+  ss << "Unknown CV tree method parameters: { ";
+  for (std::size_t i = 0; i < unknown.size(); ++i) {
+    ss << unknown[i].first;
+    if (i + 1 != unknown.size()) {
+      ss << ", ";
+    }
+  }
+  ss << " }";
+  LOG(FATAL) << ss.str();
 }
 }  // namespace
 
@@ -102,6 +136,78 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
     CHECK_EQ(finfo.FoldSize(k), out->gpairs.at(k).Shape(0));
   }
 }
+
+class FoldTreeMethod {
+  std::shared_ptr<DMatrix> p_fmat_;
+  Context const* ctx_{nullptr};
+  tree::TrainParam param_;
+  tree::HistMakerTrainParam hist_param_;
+  std::shared_ptr<common::ColumnSampler> column_sampler_;
+  bool initialized_{false};
+
+ public:
+  explicit FoldTreeMethod(std::shared_ptr<DMatrix> p_fmat)
+      : p_fmat_{std::move(p_fmat)}, column_sampler_{std::make_shared<common::ColumnSampler>()} {
+    CHECK(p_fmat_);
+    ctx_ = p_fmat_->Ctx();
+    CHECK(ctx_);
+  }
+
+  void Configure(Args args) {
+    CHECK(ctx_->IsCUDA()) << "CV tree method `hist` requires a CUDA device.";
+
+    auto unknown = param_.UpdateAllowUnknown(args);
+    unknown = hist_param_.UpdateAllowUnknown(unknown);
+    CheckNoUnknownParams(unknown);
+  }
+
+  void InitDataOnce() {
+    CHECK(ctx_->IsCUDA()) << "CV tree method `hist` requires a CUDA device.";
+    auto* p_fmat = p_fmat_.get();
+    CHECK(p_fmat);
+    p_fmat->Info().feature_types.SetDevice(ctx_->Device());
+
+    auto batch = tree::cuda_impl::HistBatch(param_);
+    auto [cuts, dense_compressed] = tree::InitBatchCuts(ctx_, p_fmat, batch);
+    auto batch_ptr = p_fmat->BatchPtr();
+
+    initialized_ = true;
+  }
+
+  void Update(FoldModels* folds, DMatrix* p_fmat, FoldInfoBatches const& finfo,
+              FoldGpairs const& gpairs) {
+    CHECK(folds);
+    CHECK(p_fmat);
+    CHECK_EQ(p_fmat, p_fmat_.get())
+        << "CV tree method update must use the training DMatrix supplied at construction.";
+    CHECK_EQ(folds->KFolds(), finfo.KFolds());
+    CHECK_EQ(folds->KFolds(), gpairs.KFolds());
+
+    if (!initialized_) {
+      this->InitDataOnce();
+    }
+
+    std::vector<gbm::TreesOneIter> new_trees(folds->KFolds());
+    std::vector<RegTree*> tree_ptrs;
+    tree_ptrs.reserve(folds->KFolds());
+    for (std::size_t k = 0; k < folds->KFolds(); ++k) {
+      new_trees[k].resize(1);
+      auto tree = std::make_unique<RegTree>(folds->LeafLength(k), folds->NumFeatures(k), true);
+      tree_ptrs.push_back(tree.get());
+      new_trees[k].front().push_back(std::move(tree));
+    }
+
+    for (std::size_t k = 0, k_folds = folds->KFolds(); k < k_folds; ++k) {
+      auto* tree = tree_ptrs.at(k);
+      // FIXME(jiamingy): dummy values
+      std::vector<float> leaf_weights(folds->LeafLength(k), 0.0f);
+      tree->SetLeaves({0}, common::Span<float const>{leaf_weights.data(), leaf_weights.size()});
+      hist_param_.CheckTreesSynchronized(ctx_, tree);
+    }
+
+    folds->CommitModel(std::move(new_trees));
+  }
+};
 }  // namespace xgboost::cv
 
 using namespace xgboost;  // NOLINT
@@ -127,5 +233,45 @@ XGB_DLL int XGBCvFoldModelsGetGradient(FoldModelsHandle c_cv_folds, DMatrixHandl
   auto fold_gpairs = static_cast<cv::FoldGpairs*>(hdl);
   cv_folds->GetGradient(p_fmat->Ctx(), info, *predt, *fold_info, batch_ptr, iter, fold_gpairs);
 
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldTreeMethodCreate(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
+                                      char const* c_config, TreeMethodHandle* out) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(c_cv_folds);
+  xgboost_CHECK_C_ARG_PTR(dtrain);
+  xgboost_CHECK_C_ARG_PTR(c_config);
+  xgboost_CHECK_C_ARG_PTR(out);
+  auto p_fmat = CastDMatrixHandle(dtrain);
+  Json config{Json::Load(StringView{c_config})};
+  auto args = cv::JsonToArgs(config);
+  auto ptr = std::make_unique<cv::FoldTreeMethod>(std::move(p_fmat));
+  ptr->Configure(std::move(args));
+  *out = ptr.release();
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldTreeMethodFree(TreeMethodHandle hdl) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  delete static_cast<cv::FoldTreeMethod*>(hdl);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldTreeMethodUpdate(TreeMethodHandle hdl, FoldModelsHandle c_cv_folds,
+                                      DMatrixHandle dtrain, FoldInfoBatchesHandle c_fold_info,
+                                      FoldGpairsHandle c_gpairs) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  xgboost_CHECK_C_ARG_PTR(c_cv_folds);
+  xgboost_CHECK_C_ARG_PTR(c_fold_info);
+  xgboost_CHECK_C_ARG_PTR(c_gpairs);
+  auto tree_method = static_cast<cv::FoldTreeMethod*>(hdl);
+  auto cv_folds = static_cast<cv::FoldModels*>(c_cv_folds);
+  auto p_fmat = CastDMatrixHandle(dtrain);
+  auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
+  auto gpairs = static_cast<cv::FoldGpairs*>(c_gpairs);
+  tree_method->Update(cv_folds, p_fmat.get(), *fold_info, *gpairs);
   API_END();
 }

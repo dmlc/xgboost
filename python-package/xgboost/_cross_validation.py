@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 import ctypes
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ._c_api import _LIB, _check_call
+from ._c_api import _LIB, _check_call, make_jcargs
 from .core import ExtMemQuantileDMatrix
 
 if TYPE_CHECKING:
@@ -72,6 +72,26 @@ _LIB.XGBCvFoldModelsGetGradient.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_int,
+]
+
+_LIB.XGBCvFoldTreeMethodCreate.restype = ctypes.c_int
+_LIB.XGBCvFoldTreeMethodCreate.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_char_p,
+    ctypes.POINTER(ctypes.c_void_p),
+]
+
+_LIB.XGBCvFoldTreeMethodFree.restype = ctypes.c_int
+_LIB.XGBCvFoldTreeMethodFree.argtypes = [ctypes.c_void_p]
+
+_LIB.XGBCvFoldTreeMethodUpdate.restype = ctypes.c_int
+_LIB.XGBCvFoldTreeMethodUpdate.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
 ]
 
 
@@ -143,6 +163,49 @@ class FoldModels:
             )
         )
         return out
+
+
+class TreeMethod:
+    """Optimizer used for fused cross-validation."""
+
+    def __init__(
+        self, cv_folds: FoldModels, data: ExtMemQuantileDMatrix, params: dict[str, Any]
+    ) -> None:
+        hdl = ctypes.c_void_p()
+        _check_call(
+            _LIB.XGBCvFoldTreeMethodCreate(
+                cv_folds.handle,
+                data.handle,
+                make_jcargs(**(params or {})),
+                ctypes.byref(hdl),
+            )
+        )
+        self.handle = hdl
+
+    def __del__(self) -> None:
+        if hasattr(self, "handle"):
+            hdl = self.handle
+            del self.handle
+            _check_call(_LIB.XGBCvFoldTreeMethodFree(hdl))
+
+    def update(
+        self,
+        cv_folds: FoldModels,
+        data: ExtMemQuantileDMatrix,
+        fold_info: FoldInfoBatches,
+        gpairs: FoldGpairs,
+    ) -> None:
+        """Grow and commit one fused CV tree for each fold."""
+
+        _check_call(
+            _LIB.XGBCvFoldTreeMethodUpdate(
+                self.handle,
+                cv_folds.handle,
+                data.handle,
+                fold_info.handle,
+                gpairs.handle,
+            )
+        )
 
 
 class FoldInfoBatches:
