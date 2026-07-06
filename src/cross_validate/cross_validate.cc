@@ -196,7 +196,7 @@ void CvFolds::SaveModel(Json* out) const {
   auto& j_folds = get<Array>((*out)["cv_folds"]);
   j_folds.resize(this->KFolds());
 
-  for (std::size_t k = 0; k < this->KFolds(); ++k) {
+  for (std::size_t k = 0, n_folds = this->KFolds(); k < n_folds; ++k) {
     CHECK(this->objs_.at(k));
     CHECK(this->models_.at(k));
 
