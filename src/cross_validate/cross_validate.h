@@ -97,7 +97,7 @@ struct FoldGpairs {
 };
 }  // namespace xgboost::cv
 
-using FoldsHandle = void*;
+using FoldModelsHandle = void*;
 using FoldInfoBatchesHandle = void*;
 using FoldPredictionsHandle = void*;
 using FoldGpairsHandle = void*;

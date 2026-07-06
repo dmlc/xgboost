@@ -106,9 +106,10 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGBCvGetGradient(FoldsHandle c_cv_folds, DMatrixHandle dtrain,
-                             FoldInfoBatchesHandle c_fold_info, FoldPredictionsHandle c_predt,
-                             FoldGpairsHandle hdl, int iter) {
+XGB_DLL int XGBCvFoldModelsGetGradient(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
+                                       FoldInfoBatchesHandle c_fold_info,
+                                       FoldPredictionsHandle c_predt, FoldGpairsHandle hdl,
+                                       int iter) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(c_fold_info);

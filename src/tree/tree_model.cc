@@ -883,6 +883,7 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
 
 void RegTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
   CHECK(IsMultiTarget());
+  CHECK_GE(param_.size_leaf_vector, 1);
 
   xgboost_NVTX_FN_RANGE();
 
@@ -1152,7 +1153,7 @@ void RegTree::LoadModel(Json const& in) {
     }
   }
   // multi-target
-  if (param_.size_leaf_vector > 1) {
+  if (param_.size_leaf_vector > 1 || in_obj.find(tf::kLeafWeight) != in_obj.cend()) {
     this->p_mt_tree_.reset(new MultiTargetTree{&param_});
     this->GetMultiTargetTree()->LoadModel(in);
     return;
@@ -1204,7 +1205,7 @@ void RegTree::SaveModel(Json* p_out) const {
   this->SaveCategoricalSplit(p_out);
   // multi-target
   if (this->IsMultiTarget()) {
-    CHECK_GT(param_.size_leaf_vector, 1);
+    CHECK_GE(param_.size_leaf_vector, 1);
     this->GetMultiTargetTree()->SaveModel(p_out);
     return;
   }
