@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>  // for unique_ptr
+#include <numeric>  // for accumulate
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -780,11 +781,16 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
    * Create array interface.
    */
   namespace linalg = xgboost::linalg;
-  jfloat *data = jenv->GetFloatArrayElements(jdata, nullptr);
+  std::unique_ptr<jfloat, Deleter<jfloat>> data{
+      jenv->GetFloatArrayElements(jdata, nullptr), [&](jfloat *ptr) {
+        if (ptr) {
+          jenv->ReleaseFloatArrayElements(jdata, ptr, 0);
+        }
+      }};
   xgboost::Context ctx;
   auto t_data = linalg::MakeTensorView(
       ctx.Device(),
-      xgboost::common::Span{data, static_cast<std::size_t>(num_rows * num_features)}, num_rows,
+      xgboost::common::Span{data.get(), static_cast<std::size_t>(num_rows * num_features)}, num_rows,
       num_features);
   auto s_array = linalg::ArrayInterfaceStr(t_data);
 
@@ -804,13 +810,24 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
   /**
    * Handle base margin
    */
-  BoosterHandle proxy{nullptr};
-
-  float *margin{nullptr};
+  std::unique_ptr<jfloat, Deleter<jfloat>> margin{
+      nullptr, [&](jfloat *ptr) {
+        if (ptr) {
+          jenv->ReleaseFloatArrayElements(jmargin, ptr, 0);
+        }
+      }};
+  DMatrixHandle proxy{nullptr};
+  std::unique_ptr<void, Deleter<void>> proxy_guard{
+      nullptr, [](void *ptr) {
+        if (ptr) {
+          XGDMatrixFree(ptr);
+        }
+      }};
   if (jmargin) {
-    margin = jenv->GetFloatArrayElements(jmargin, nullptr);
+    margin.reset(jenv->GetFloatArrayElements(jmargin, nullptr));
     JVM_CHECK_CALL(XGProxyDMatrixCreate(&proxy));
-    auto str = xgboost::linalg::Make1dInterface(margin, jenv->GetArrayLength(jmargin));
+    proxy_guard.reset(proxy);
+    auto str = xgboost::linalg::Make1dInterface(margin.get(), jenv->GetArrayLength(jmargin));
     JVM_CHECK_CALL(XGDMatrixSetInfoFromInterface(proxy, "base_margin", str.c_str()));
   }
 
@@ -820,20 +837,14 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFr
   auto ret = XGBoosterPredictFromDense(handle, s_array.c_str(), s_config.c_str(), proxy, &out_shape,
                                        &out_dim, &result);
 
-  jenv->ReleaseFloatArrayElements(jdata, data, 0);
-  if (proxy) {
-    XGDMatrixFree(proxy);
-    jenv->ReleaseFloatArrayElements(jmargin, margin, 0);
-  }
-
   if (ret != 0) {
     return ret;
   }
 
-  std::size_t n{1};
-  for (std::size_t i = 0; i < out_dim; ++i) {
-    n *= out_shape[i];
-  }
+  auto n = std::accumulate(out_shape, out_shape + out_dim, std::size_t{1},
+                           [](std::size_t acc, bst_ulong dim) {
+                             return acc * static_cast<std::size_t>(dim);
+                           });
 
   jfloatArray jarray = jenv->NewFloatArray(n);
 
