@@ -20,7 +20,7 @@ type XywExtQdm = tuple[cp.ndarray, cp.ndarray, cp.ndarray, xgb.ExtMemQuantileDMa
 
 
 @fixture(scope="module")
-def xy_extqdm() -> XywExtQdm:
+def xyw_extqdm() -> XywExtQdm:
     X, y, w = tm.make_batches(16, 4, 2, use_cupy=True)
     it = tm.IteratorForTest(X, y, w, cache=None, min_cache_page_bytes=0, on_host=True)
     Xy = xgb.ExtMemQuantileDMatrix(it)
@@ -29,11 +29,11 @@ def xy_extqdm() -> XywExtQdm:
 
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_cv_fold_info_batches(xy_extqdm: XywExtQdm) -> None:
+def test_cv_fold_info_batches(xyw_extqdm: XywExtQdm) -> None:
     import cupy as cp
     from sklearn.model_selection import KFold
 
-    X, y, w, Xy = xy_extqdm
+    X, y, w, Xy = xyw_extqdm
     k_folds = 3
 
     folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
@@ -81,8 +81,8 @@ def test_cv_fold_info_batches(xy_extqdm: XywExtQdm) -> None:
     assert cv_folds.get_gradient(Xy, 1, folds, predts, out=gpairs) is gpairs
 
 
-def test_tree_method(xy_extqdm: XywExtQdm) -> None:
-    X, y, w, Xy = xy_extqdm
+def test_tree_method(xyw_extqdm: XywExtQdm) -> None:
+    X, y, w, Xy = xyw_extqdm
     k_folds = 3
 
     cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
