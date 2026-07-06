@@ -2,13 +2,13 @@
  * SPDX-FileCopyrightText: Copyright (c) 2026, XGBoost Contributors.
  * SPDX-License-Identifier: Apache-2.0
  */
-#include "./c_api/c_api_error.h"
-#include "./c_api/c_api_utils.h"    // for CastDMatrixHandle
-#include "common/cuda_context.cuh"  // for CUDAContext
-#include "common/linalg_op.cuh"     // for tcbegin, tcend, tbegin
+#include "../c_api/c_api_error.h"
+#include "../c_api/c_api_utils.h"      // for CastDMatrixHandle
+#include "../common/cuda_context.cuh"  // for CUDAContext
+#include "../common/linalg_op.cuh"     // for tcbegin, tcend, tbegin
 #include "cross_validate.h"
 
-namespace xgboost {
+namespace xgboost::cv {
 namespace {
 [[nodiscard]] HostDeviceVector<bst_idx_t> GlobalTrainingRows(Context const* ctx,
                                                              FoldInfo const& batch,
@@ -48,16 +48,19 @@ void CopyBatchGpair(Context const* ctx, linalg::Matrix<GradientPair> const& batc
 }
 }  // namespace
 
-void GetGradient(Context const* ctx, MetaInfo const& info, CvFolds const& cv_folds,
-                 FoldInfoBatches const& finfo, std::vector<bst_idx_t> const& batch_ptr,
-                 std::int32_t iter, std::vector<linalg::Matrix<GradientPair>>* p_gpairs) {
+void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
+                             FoldPredictions const& predts, FoldInfoBatches const& finfo,
+                             std::vector<bst_idx_t> const& batch_ptr, std::int32_t iter,
+                             FoldGpairs* out) const {
   CHECK(!finfo.Empty());
+  CHECK(out);
   CHECK_EQ(batch_ptr.size(), finfo.Size() + 1);
 
   auto k_folds = finfo.KFolds();
-  CHECK_EQ(cv_folds.KFolds(), k_folds);
+  CHECK_EQ(this->KFolds(), k_folds);
+  CHECK_EQ(predts.KFolds(), k_folds);
 
-  auto& gpairs = *p_gpairs;
+  auto& gpairs = out->gpairs;
   if (gpairs.empty()) {
     gpairs.resize(k_folds);
   }
@@ -77,14 +80,17 @@ void GetGradient(Context const* ctx, MetaInfo const& info, CvFolds const& cv_fol
       constexpr std::size_t kNnz = 0;  // fixme
       auto fold_info = info.Slice(ctx, ridxs.ConstDeviceSpan(), kNnz);
 
-      auto const& fold_preds = cv_folds.Prediction(k);
-      auto n_predts = fold_info.labels.Size();
-      auto pred_begin = cursors[k] * fold_info.labels.Shape(1);
+      auto const& fold_preds = predts.Prediction(k);
+      auto output_length = this->OutputLength(k);
+      CHECK_EQ(fold_info.labels.Shape(1), output_length);
+      auto n_predts = ridxs.Size() * output_length;
+      CHECK_EQ(fold_info.labels.Size(), n_predts);
+      auto pred_begin = cursors[k] * output_length;
       CHECK_LE(pred_begin + n_predts, fold_preds.Size());
       auto preds = BatchPrediction(ctx, fold_preds, pred_begin, n_predts);
 
       linalg::Matrix<GradientPair> batch_gpair;
-      cv_folds.Objective(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
+      this->Objective(k)->GetGradient(preds, fold_info, iter, &batch_gpair);
 
       auto prev = cursors[k];
       cursors[k] += ridxs.Size();
@@ -93,30 +99,32 @@ void GetGradient(Context const* ctx, MetaInfo const& info, CvFolds const& cv_fol
   }
 
   for (std::size_t k = 0; k < k_folds; ++k) {
-    CHECK_EQ(finfo.FoldSize(k), p_gpairs->at(k).Shape(0));
+    CHECK_EQ(finfo.FoldSize(k), out->gpairs.at(k).Shape(0));
   }
 }
-}  // namespace xgboost
+}  // namespace xgboost::cv
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGBCvGetGradient(DMatrixHandle dtrain, CvFoldsHandle c_cv_folds,
-                             FoldInfoBatchesHandle c_fold_info, FoldGpairsHandle hdl, int iter) {
+XGB_DLL int XGBCvGetGradient(FoldsHandle c_cv_folds, DMatrixHandle dtrain,
+                             FoldInfoBatchesHandle c_fold_info, FoldPredictionsHandle c_predt,
+                             FoldGpairsHandle hdl, int iter) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(c_fold_info);
+  xgboost_CHECK_C_ARG_PTR(c_predt);
   xgboost_CHECK_C_ARG_PTR(hdl);
   auto p_fmat = CastDMatrixHandle(dtrain);
-  auto cv_folds = static_cast<CvFolds*>(c_cv_folds);
-  auto fold_info = static_cast<FoldInfoBatches*>(c_fold_info);
+  auto cv_folds = static_cast<cv::FoldModels*>(c_cv_folds);
+  auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
+  auto predt = static_cast<cv::FoldPredictions*>(c_predt);
   auto const& info = p_fmat->Info();
   auto const& batch_ptr = p_fmat->BatchPtr();
   CHECK(!fold_info->batches.empty());
   CHECK_EQ(cv_folds->KFolds(), fold_info->KFolds());
-  cv_folds->InitPrediction(info, *fold_info);
 
-  auto fold_gpairs = static_cast<FoldGpairs*>(hdl);
-  GetGradient(p_fmat->Ctx(), info, *cv_folds, *fold_info, batch_ptr, iter, &fold_gpairs->gpairs);
+  auto fold_gpairs = static_cast<cv::FoldGpairs*>(hdl);
+  cv_folds->GetGradient(p_fmat->Ctx(), info, *predt, *fold_info, batch_ptr, iter, fold_gpairs);
 
   API_END();
 }

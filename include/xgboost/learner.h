@@ -305,9 +305,6 @@ struct LearnerModelParam {
    */
   linalg::Vector<float> base_score_;
 
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
-                    MultiStrategy multi_strategy);
-
  public:
   /**
    * @brief The number of features.
@@ -329,13 +326,9 @@ struct LearnerModelParam {
   LearnerModelParam() = default;
   LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
                     linalg::Vector<float> base_score, ObjInfo t, MultiStrategy multi_strategy);
-  // This ctor is only used by tests.
   LearnerModelParam(bst_feature_t n_features, linalg::Vector<float> base_score,
-                    std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy)
-      : base_score_{std::move(base_score)},
-        num_feature{n_features},
-        num_output_group{std::max(n_groups, n_targets)},
-        multi_strategy{multi_strategy} {}
+                    std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy,
+                    Context const* ctx = nullptr, ObjInfo t = ObjInfo{ObjInfo::kRegression});
 
   linalg::VectorView<float const> BaseScore(Context const* ctx) const;
   [[nodiscard]] linalg::VectorView<float const> BaseScore(DeviceOrd device) const;
