@@ -139,15 +139,18 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
 }
 
 class TreeMethod {
-  Context const* ctx_;
+  std::shared_ptr<DMatrix> p_fmat_;
+  Context const* ctx_{nullptr};
   tree::TrainParam param_;
   tree::HistMakerTrainParam hist_param_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
-  DMatrix* p_last_fmat_{nullptr};
+  bool initialized_{false};
 
  public:
-  explicit TreeMethod(Context const* ctx)
-      : ctx_{ctx}, column_sampler_{std::make_shared<common::ColumnSampler>()} {
+  explicit TreeMethod(std::shared_ptr<DMatrix> p_fmat)
+      : p_fmat_{std::move(p_fmat)}, column_sampler_{std::make_shared<common::ColumnSampler>()} {
+    CHECK(p_fmat_);
+    ctx_ = p_fmat_->Ctx();
     CHECK(ctx_);
   }
 
@@ -159,8 +162,9 @@ class TreeMethod {
     CheckNoUnknownParams(unknown);
   }
 
-  void InitDataOnce(DMatrix* p_fmat, std::size_t k_folds) {
+  void InitDataOnce() {
     CHECK(ctx_->IsCUDA()) << "CV tree method `hist` requires a CUDA device.";
+    auto* p_fmat = p_fmat_.get();
     CHECK(p_fmat);
     curt::SetDevice(ctx_->Ordinal());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
@@ -169,18 +173,20 @@ class TreeMethod {
     auto [cuts, dense_compressed] = tree::InitBatchCuts(ctx_, p_fmat, batch);
     auto batch_ptr = p_fmat->BatchPtr();
 
-    p_last_fmat_ = p_fmat;
+    initialized_ = true;
   }
 
   void Update(FoldModels* folds, DMatrix* p_fmat, FoldInfoBatches const& finfo,
               FoldGpairs const& gpairs) {
     CHECK(folds);
     CHECK(p_fmat);
+    CHECK_EQ(p_fmat, p_fmat_.get())
+        << "CV tree method update must use the training DMatrix supplied at construction.";
     CHECK_EQ(folds->KFolds(), finfo.KFolds());
     CHECK_EQ(folds->KFolds(), gpairs.KFolds());
 
-    if (p_last_fmat_ != p_fmat) {
-      this->InitDataOnce(p_fmat, folds->KFolds());
+    if (!initialized_) {
+      this->InitDataOnce();
     }
 
     std::vector<gbm::TreesOneIter> new_trees(folds->KFolds());
@@ -193,8 +199,11 @@ class TreeMethod {
       new_trees[k].front().push_back(std::move(tree));
     }
 
-    for (auto* tree : tree_ptrs) {
-      tree->GetMultiTargetTree()->SetLeaves();
+    for (std::size_t k = 0, k_folds = folds->KFolds(); k < k_folds; ++k) {
+      auto* tree = tree_ptrs.at(k);
+      // FIXME(jiamingy): dummy values
+      std::vector<float> leaf_weights(folds->LeafLength(k), 0.0f);
+      tree->SetLeaves({0}, common::Span<float const>{leaf_weights.data(), leaf_weights.size()});
       hist_param_.CheckTreesSynchronized(ctx_, tree);
     }
 
@@ -229,16 +238,17 @@ XGB_DLL int XGBCvFoldModelsGetGradient(FoldModelsHandle c_cv_folds, DMatrixHandl
   API_END();
 }
 
-XGB_DLL int XGBCvTreeMethodCreate(FoldModelsHandle c_cv_folds, char const* c_config,
-                                  TreeMethodHandle* out) {
+XGB_DLL int XGBCvTreeMethodCreate(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
+                                  char const* c_config, TreeMethodHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
+  xgboost_CHECK_C_ARG_PTR(dtrain);
   xgboost_CHECK_C_ARG_PTR(c_config);
   xgboost_CHECK_C_ARG_PTR(out);
-  auto cv_folds = static_cast<cv::FoldModels*>(c_cv_folds);
+  auto p_fmat = CastDMatrixHandle(dtrain);
   Json config{Json::Load(StringView{c_config})};
   auto args = cv::JsonToArgs(config);
-  auto ptr = std::make_unique<cv::TreeMethod>(cv_folds->Ctx());
+  auto ptr = std::make_unique<cv::TreeMethod>(std::move(p_fmat));
   ptr->Configure(std::move(args));
   *out = ptr.release();
   API_END();

@@ -77,6 +77,7 @@ _LIB.XGBCvFoldModelsGetGradient.argtypes = [
 _LIB.XGBCvTreeMethodCreate.restype = ctypes.c_int
 _LIB.XGBCvTreeMethodCreate.argtypes = [
     ctypes.c_void_p,
+    ctypes.c_void_p,
     ctypes.c_char_p,
     ctypes.POINTER(ctypes.c_void_p),
 ]
@@ -170,15 +171,21 @@ class TreeMethod:
     def __init__(
         self,
         cv_folds: FoldModels,
+        data: ExtMemQuantileDMatrix,
         params: dict[str, Any] | None = None,
     ) -> None:
         if not isinstance(cv_folds, FoldModels):
             raise TypeError("`cv_folds` must be a CvFolds.")
+        if not isinstance(data, ExtMemQuantileDMatrix):
+            raise TypeError(
+                "`data` must be an ExtMemQuantileDMatrix for fused cross-validation."
+            )
 
         hdl = ctypes.c_void_p()
         _check_call(
             _LIB.XGBCvTreeMethodCreate(
                 cv_folds.handle,
+                data.handle,
                 make_jcargs(**(params or {})),
                 ctypes.byref(hdl),
             )

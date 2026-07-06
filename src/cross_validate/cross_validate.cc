@@ -245,13 +245,6 @@ XGB_DLL int XGBCvFoldModelsFree(FoldModelsHandle hdl) {
   API_END();
 }
 
-XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
-  API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = new cv::FoldPredictions{};
-  API_END();
-}
-
 XGB_DLL int XGBCvFoldModelsInitPrediction(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
                                           FoldInfoBatchesHandle c_fold_info,
                                           FoldPredictionsHandle c_predt) {
@@ -264,6 +257,13 @@ XGB_DLL int XGBCvFoldModelsInitPrediction(FoldModelsHandle c_cv_folds, DMatrixHa
   auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
   auto predt = static_cast<cv::FoldPredictions*>(c_predt);
   cv_folds->InitPrediction(p_fmat->Ctx(), p_fmat->Info(), *fold_info, predt);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(out);
+  *out = new cv::FoldPredictions{};
   API_END();
 }
 
