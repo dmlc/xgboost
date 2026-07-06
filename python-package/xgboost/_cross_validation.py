@@ -35,6 +35,20 @@ _LIB.XGBCvFoldInfoBatchesCreate.argtypes = [
 _LIB.XGBCvFoldInfoBatchesFree.restype = ctypes.c_int
 _LIB.XGBCvFoldInfoBatchesFree.argtypes = [ctypes.c_void_p]
 
+_LIB.XGBCvFoldPredictionsCreate.restype = ctypes.c_int
+_LIB.XGBCvFoldPredictionsCreate.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
+
+_LIB.XGBCvInitPrediction.restype = ctypes.c_int
+_LIB.XGBCvInitPrediction.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+]
+
+_LIB.XGBCvFoldPredictionsFree.restype = ctypes.c_int
+_LIB.XGBCvFoldPredictionsFree.argtypes = [ctypes.c_void_p]
+
 _LIB.XGBCvFoldGpairsCreate.restype = ctypes.c_int
 _LIB.XGBCvFoldGpairsCreate.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
 
@@ -52,6 +66,7 @@ _LIB.XGBCvFoldGpairsFree.argtypes = [ctypes.c_void_p]
 
 _LIB.XGBCvGetGradient.restype = ctypes.c_int
 _LIB.XGBCvGetGradient.argtypes = [
+    ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
@@ -88,6 +103,46 @@ class FoldModels:
             del self.handle
             _check_call(_LIB.XGBCvFoldsFree(hdl))
 
+    def init_prediction(
+        self,
+        data: ExtMemQuantileDMatrix,
+        fold_info: FoldInfoBatches,
+        out: FoldPredictions,
+    ) -> FoldPredictions:
+        """Initialize prediction buffers."""
+
+        _check_call(
+            _LIB.XGBCvInitPrediction(
+                self.handle,
+                data.handle,
+                fold_info.handle,
+                out.handle,
+            )
+        )
+        return out
+
+    def get_gradient(
+        self,
+        data: ExtMemQuantileDMatrix,
+        fold_info: FoldInfoBatches,
+        predt: FoldPredictions,
+        iteration: int,
+        out: FoldGpairs,
+    ) -> FoldGpairs:
+        """Calculate the gradient."""
+
+        _check_call(
+            _LIB.XGBCvGetGradient(
+                self.handle,
+                data.handle,
+                fold_info.handle,
+                predt.handle,
+                out.handle,
+                ctypes.c_int(iteration),
+            )
+        )
+        return out
+
 
 class FoldInfoBatches:
     """Meta information used during cross validation."""
@@ -116,6 +171,21 @@ class FoldInfoBatches:
             hdl = self.handle
             del self.handle
             _check_call(_LIB.XGBCvFoldInfoBatchesFree(hdl))
+
+
+class FoldPredictions:
+    """Prediction buffers for each fold."""
+
+    def __init__(self) -> None:
+        hdl = ctypes.c_void_p()
+        _check_call(_LIB.XGBCvFoldPredictionsCreate(ctypes.byref(hdl)))
+        self.handle = hdl
+
+    def __del__(self) -> None:
+        if hasattr(self, "handle"):
+            hdl = self.handle
+            del self.handle
+            _check_call(_LIB.XGBCvFoldPredictionsFree(hdl))
 
 
 class FoldGpairs:
@@ -180,24 +250,3 @@ class FoldGpairs:
             for off in (0, float_size)
         ]
         return grad, hess
-
-
-def get_gradient(
-    data: ExtMemQuantileDMatrix,
-    cv_folds: FoldModels,
-    fold_info: FoldInfoBatches,
-    iteration: int,
-    out: FoldGpairs,
-) -> FoldGpairs:
-    """Calculate the gradient."""
-
-    _check_call(
-        _LIB.XGBCvGetGradient(
-            cv_folds.handle,
-            data.handle,
-            fold_info.handle,
-            out.handle,
-            ctypes.c_int(iteration),
-        )
-    )
-    return out

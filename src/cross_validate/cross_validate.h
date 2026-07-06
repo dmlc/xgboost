@@ -20,6 +20,8 @@
 
 namespace xgboost::cv {
 struct FoldInfoBatches;
+struct FoldPredictions;
+struct FoldGpairs;
 
 // The model part of the cross validation result, containing the trees and objectives.
 //
@@ -31,7 +33,6 @@ class FoldModels {
   std::vector<LearnerModelParam> properties_;
   std::vector<std::unique_ptr<ObjFunction>> objs_;
   std::vector<std::unique_ptr<gbm::GBTreeModel>> models_;
-  std::vector<HostDeviceVector<float>> predts_;
 
   void Resize(std::size_t k_folds);
   void InitFold(std::size_t fold_idx, std::unique_ptr<ObjFunction> obj);
@@ -42,8 +43,11 @@ class FoldModels {
   [[nodiscard]] std::size_t KFolds() const noexcept(true);
   [[nodiscard]] bst_target_t OutputLength(std::size_t fold_idx) const;
   [[nodiscard]] ObjFunction* Objective(std::size_t fold_idx) const;
-  void InitPrediction(Context const* ctx, MetaInfo const& info, FoldInfoBatches const& finfo);
-  [[nodiscard]] HostDeviceVector<float> const& Prediction(std::size_t fold_idx) const;
+  void InitPrediction(Context const* ctx, MetaInfo const& info, FoldInfoBatches const& finfo,
+                      FoldPredictions* out) const;
+  void GetGradient(Context const* ctx, MetaInfo const& info, FoldPredictions const& predts,
+                   FoldInfoBatches const& finfo, std::vector<bst_idx_t> const& batch_ptr,
+                   std::int32_t iter, FoldGpairs* out) const;
 
   void CommitModel(std::vector<gbm::TreesOneIter>&& new_trees);
 
@@ -77,6 +81,15 @@ struct FoldInfoBatches {
   }
 };
 
+struct FoldPredictions {
+  std::vector<HostDeviceVector<float>> predts;
+
+  [[nodiscard]] auto KFolds() const noexcept(true) { return this->predts.size(); }
+  [[nodiscard]] HostDeviceVector<float> const& Prediction(std::size_t fold_idx) const {
+    return predts.at(fold_idx);
+  }
+};
+
 struct FoldGpairs {
   std::vector<linalg::Matrix<GradientPair>> gpairs;
 
@@ -86,4 +99,5 @@ struct FoldGpairs {
 
 using FoldsHandle = void*;
 using FoldInfoBatchesHandle = void*;
+using FoldPredictionsHandle = void*;
 using FoldGpairsHandle = void*;

@@ -51,7 +51,6 @@ void FoldModels::Resize(std::size_t k_folds) {
   properties_.resize(k_folds);
   objs_.resize(k_folds);
   models_.resize(k_folds);
-  predts_.resize(k_folds);
 }
 
 void FoldModels::InitFold(std::size_t fold_idx, std::unique_ptr<ObjFunction> obj) {
@@ -101,7 +100,6 @@ FoldModels::FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
   CHECK_EQ(model_params_.size(), k_folds);
   CHECK_EQ(properties_.size(), k_folds);
   CHECK_EQ(models_.size(), k_folds);
-  CHECK_EQ(predts_.size(), k_folds);
 }
 
 std::size_t FoldModels::KFolds() const noexcept(true) { return this->objs_.size(); }
@@ -117,9 +115,13 @@ ObjFunction* FoldModels::Objective(std::size_t fold_idx) const {
 }
 
 void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
-                                FoldInfoBatches const& finfo) {
+                                FoldInfoBatches const& finfo, FoldPredictions* out) const {
+  CHECK(out);
   CHECK_EQ(this->KFolds(), finfo.KFolds());
-  CHECK_EQ(this->predts_.size(), this->KFolds());
+  if (out->predts.empty()) {
+    out->predts.resize(this->KFolds());
+  }
+  CHECK_EQ(out->predts.size(), this->KFolds());
 
   auto predictor = CreatePredictor(ctx);
   for (std::size_t k = 0; k < this->KFolds(); ++k) {
@@ -131,7 +133,7 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
     fold_info.num_row_ = finfo.FoldSize(k);
     fold_info.num_col_ = info.num_col_;
 
-    auto& predt = predts_.at(k);
+    auto& predt = out->predts.at(k);
     predictor->InitOutPredictions(fold_info, &predt, *models_.at(k));
     CHECK_EQ(predt.Device(), ctx->Device());
     CHECK_EQ(predt.Size(), fold_info.num_row_ * output_length);
@@ -189,7 +191,6 @@ void FoldModels::SaveModel(Json* out) const {
   CHECK_EQ(this->model_params_.size(), this->KFolds());
   CHECK_EQ(this->properties_.size(), this->KFolds());
   CHECK_EQ(this->models_.size(), this->KFolds());
-  CHECK_EQ(this->predts_.size(), this->KFolds());
 
   Version::Save(out);
   (*out)["cv_folds"] = Array{};
@@ -215,9 +216,6 @@ void FoldModels::SaveModel(Json* out) const {
   }
 }
 
-HostDeviceVector<float> const& FoldModels::Prediction(std::size_t fold_idx) const {
-  return predts_.at(fold_idx);
-}
 }  // namespace xgboost::cv
 
 using namespace xgboost;  // NOLINT
@@ -234,6 +232,35 @@ XGB_DLL int XGBCvFoldsFree(FoldsHandle hdl) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
   delete static_cast<cv::FoldModels*>(hdl);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(out);
+  *out = new cv::FoldPredictions{};
+  API_END();
+}
+
+XGB_DLL int XGBCvInitPrediction(FoldsHandle c_cv_folds, DMatrixHandle dtrain,
+                                FoldInfoBatchesHandle c_fold_info,
+                                FoldPredictionsHandle c_predt) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(c_cv_folds);
+  xgboost_CHECK_C_ARG_PTR(c_fold_info);
+  xgboost_CHECK_C_ARG_PTR(c_predt);
+  auto p_fmat = CastDMatrixHandle(dtrain);
+  auto cv_folds = static_cast<cv::FoldModels*>(c_cv_folds);
+  auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
+  auto predt = static_cast<cv::FoldPredictions*>(c_predt);
+  cv_folds->InitPrediction(p_fmat->Ctx(), p_fmat->Info(), *fold_info, predt);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldPredictionsFree(FoldPredictionsHandle hdl) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(hdl);
+  delete static_cast<cv::FoldPredictions*>(hdl);
   API_END();
 }
 
