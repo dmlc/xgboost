@@ -169,18 +169,8 @@ class TreeMethod:
     """Optimizer used for fused cross-validation."""
 
     def __init__(
-        self,
-        cv_folds: FoldModels,
-        data: ExtMemQuantileDMatrix,
-        params: dict[str, Any] | None = None,
+        self, cv_folds: FoldModels, data: ExtMemQuantileDMatrix, params: dict[str, Any]
     ) -> None:
-        if not isinstance(cv_folds, FoldModels):
-            raise TypeError("`cv_folds` must be a CvFolds.")
-        if not isinstance(data, ExtMemQuantileDMatrix):
-            raise TypeError(
-                "`data` must be an ExtMemQuantileDMatrix for fused cross-validation."
-            )
-
         hdl = ctypes.c_void_p()
         _check_call(
             _LIB.XGBCvTreeMethodCreate(
