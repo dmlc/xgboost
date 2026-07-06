@@ -96,8 +96,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param data_names name of each dataset
    * \return a string corresponding to the evaluation result
    */
-  virtual std::string EvalOneIter(int iter,
-                                  const std::vector<std::shared_ptr<DMatrix>>& data_sets,
+  virtual std::string EvalOneIter(int iter, const std::vector<std::shared_ptr<DMatrix>>& data_sets,
                                   const std::vector<std::string>& data_names) = 0;
   /*!
    * \brief get prediction given the model.
@@ -206,7 +205,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \brief Set the feature names for current booster.
    * \param fn Input feature names
    */
-  virtual  void SetFeatureNames(std::vector<std::string> const& fn) = 0;
+  virtual void SetFeatureNames(std::vector<std::string> const& fn) = 0;
   /*!
    * \brief Get the feature names for current booster.
    * \param fn Output feature names
@@ -245,8 +244,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param format the format to dump the model in
    * \return a vector of dump for boosters.
    */
-  virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
-                                             bool with_stats,
+  virtual std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                              std::string format) = 0;
 
   virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
@@ -259,7 +257,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param cache_data The matrix to cache the prediction.
    * \return Created learner.
    */
-  static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
+  static Learner* Create(const std::vector<std::shared_ptr<DMatrix>>& cache_data);
   /**
    * \brief Return the context object of this Booster.
    */
@@ -276,7 +274,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /*! \brief The gradient booster used by the model*/
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
-  std::vector<std::unique_ptr<Metric> > metrics_;
+  std::vector<std::unique_ptr<Metric>> metrics_;
   /*! \brief Training parameter. */
   Context ctx_;
 };
@@ -305,9 +303,6 @@ struct LearnerModelParam {
    */
   linalg::Vector<float> base_score_;
 
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
-                    MultiStrategy multi_strategy);
-
  public:
   /**
    * @brief The number of features.
@@ -329,13 +324,9 @@ struct LearnerModelParam {
   LearnerModelParam() = default;
   LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
                     linalg::Vector<float> base_score, ObjInfo t, MultiStrategy multi_strategy);
-  // This ctor is only used by tests.
   LearnerModelParam(bst_feature_t n_features, linalg::Vector<float> base_score,
-                    std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy)
-      : base_score_{std::move(base_score)},
-        num_feature{n_features},
-        num_output_group{std::max(n_groups, n_targets)},
-        multi_strategy{multi_strategy} {}
+                    std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy,
+                    Context const* ctx = nullptr, ObjInfo t = ObjInfo{ObjInfo::kRegression});
 
   linalg::VectorView<float const> BaseScore(Context const* ctx) const;
   [[nodiscard]] linalg::VectorView<float const> BaseScore(DeviceOrd device) const;

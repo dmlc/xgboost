@@ -40,21 +40,22 @@
 #include "common/param_array.h"           // for ParamArray
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
-#include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
-#include "xgboost/context.h"              // for Context
-#include "xgboost/data.h"                 // for DMatrix, MetaInfo
-#include "xgboost/gbm.h"                  // for GradientBooster
-#include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
-#include "xgboost/host_device_vector.h"   // for HostDeviceVector
-#include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
-#include "xgboost/linalg.h"               // for Vector, VectorView
-#include "xgboost/logging.h"              // for CHECK, LOG, CHECK_EQ
-#include "xgboost/metric.h"               // for Metric
-#include "xgboost/objective.h"            // for ObjFunction
-#include "xgboost/parameter.h"            // for DECLARE_FIELD_ENUM_CLASS, XGBoostParameter
-#include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
-#include "xgboost/string_view.h"          // for operator<<, StringView
-#include "xgboost/task.h"                 // for ObjInfo
+#include "learner_model_param_legacy.h"
+#include "xgboost/base.h"                // for Args, GradientPair, bst_feature_t
+#include "xgboost/context.h"             // for Context
+#include "xgboost/data.h"                // for DMatrix, MetaInfo
+#include "xgboost/gbm.h"                 // for GradientBooster
+#include "xgboost/global_config.h"       // for GlobalConfiguration, GlobalConfigThreadLocalStore
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/json.h"                // for Json, get, Object, String, IsA, Array, ToJson
+#include "xgboost/linalg.h"              // for Vector, VectorView
+#include "xgboost/logging.h"             // for CHECK, LOG, CHECK_EQ
+#include "xgboost/metric.h"              // for Metric
+#include "xgboost/objective.h"           // for ObjFunction
+#include "xgboost/parameter.h"           // for DECLARE_FIELD_ENUM_CLASS, XGBoostParameter
+#include "xgboost/predictor.h"           // for PredictionContainer, PredictionCacheEntry
+#include "xgboost/string_view.h"         // for operator<<, StringView
+#include "xgboost/task.h"                // for ObjInfo
 
 namespace {
 const char* kMaxDeltaStepDefaultValue = "0.7";
@@ -74,171 +75,108 @@ T& UsePtr(T& ptr) {  // NOLINT
 }
 }  // anonymous namespace
 
-/*! \brief training parameter for regression
- *
- * Should be deprecated, but still used for being compatible with binary IO.
- * Once it's gone, `LearnerModelParam` should handle transforming `base_score`
- * with objective by itself.
- */
-struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy> {
-  /** @brief Global bias/intercept. */
-  common::ParamArray<float> base_score{"base_score"};
-  /** @brief number of features  */
-  bst_feature_t num_feature{0};
-  /** @brief number of classes, if it is multi-class classification, 0 otherwise.  */
-  std::int32_t num_class{0};
-  /**! @brief the version of XGBoost. */
-  std::int32_t major_version{std::get<0>(Version::Self())};
-  std::int32_t minor_version{std::get<1>(Version::Self())};
-  /**
-   * @brief Number of target variables.
-   */
-  bst_target_t num_target{1};
-  /**
-   * @brief Whether we should calculate the base score from training data.
-   *
-   *   This is a private parameter as we can't expose it as boolean due to binary model
-   *   format. Exposing it as integer creates inconsistency with other parameters.
-   *
-   *   Automatically disabled when base_score is specifed by user. int32 is used instead
-   *   of bool for the ease of serialization.
-   */
-  std::int32_t boost_from_average{true};
+Json LearnerModelParamLegacy::ToJson() const {
+  Json obj{Object{}};
+  std::stringstream ss;
+  ss << base_score;
+  obj["base_score"] = ss.str();
 
-  LearnerModelParamLegacy() = default;
+  char integers[NumericLimits<int64_t>::kToCharsSize];
+  auto ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
+                      static_cast<int64_t>(num_feature));
+  CHECK(ret.ec == std::errc());
+  obj["num_feature"] = std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+  ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
+                 static_cast<int64_t>(num_class));
+  CHECK(ret.ec == std::errc());
+  obj["num_class"] = std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
 
-  [[nodiscard]] Json ToJson() const {
-    Json obj{Object{}};
-    std::stringstream ss;
-    ss << base_score;
-    obj["base_score"] = ss.str();
+  ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
+                 static_cast<int64_t>(num_target));
+  obj["num_target"] = std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
 
-    char integers[NumericLimits<int64_t>::kToCharsSize];
-    auto ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
-                        static_cast<int64_t>(num_feature));
-    CHECK(ret.ec == std::errc());
-    obj["num_feature"] =
-        std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
-    ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
-                   static_cast<int64_t>(num_class));
-    CHECK(ret.ec == std::errc());
-    obj["num_class"] = std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+  ret = to_chars(integers, integers + NumericLimits<std::int64_t>::kToCharsSize,
+                 static_cast<std::int64_t>(boost_from_average));
+  obj["boost_from_average"] =
+      std::string{integers, static_cast<std::size_t>(std::distance(integers, ret.ptr))};
 
-    ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
-                   static_cast<int64_t>(num_target));
-    obj["num_target"] =
-        std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+  return obj;
+}
 
-    ret = to_chars(integers, integers + NumericLimits<std::int64_t>::kToCharsSize,
-                   static_cast<std::int64_t>(boost_from_average));
-    obj["boost_from_average"] =
-        std::string{integers, static_cast<std::size_t>(std::distance(integers, ret.ptr))};
-
-    return obj;
+void LearnerModelParamLegacy::FromJson(Json const& obj) {
+  auto const& j_param = get<Object const>(obj);
+  std::map<std::string, std::string> m;
+  m["num_feature"] = get<String const>(j_param.at("num_feature"));
+  m["num_class"] = get<String const>(j_param.at("num_class"));
+  auto n_targets_it = j_param.find("num_target");
+  if (n_targets_it != j_param.cend()) {
+    m["num_target"] = get<String const>(n_targets_it->second);
   }
-  void FromJson(Json const& obj) {
-    auto const& j_param = get<Object const>(obj);
-    std::map<std::string, std::string> m;
-    m["num_feature"] = get<String const>(j_param.at("num_feature"));
-    m["num_class"] = get<String const>(j_param.at("num_class"));
-    auto n_targets_it = j_param.find("num_target");
-    if (n_targets_it != j_param.cend()) {
-      m["num_target"] = get<String const>(n_targets_it->second);
-    }
-    auto bse_it = j_param.find("boost_from_average");
-    if (bse_it != j_param.cend()) {
-      m["boost_from_average"] = get<String const>(bse_it->second);
-    }
-    std::string str = get<String const>(j_param.at("base_score"));
-    m["base_score"] = str;
-    this->Init(m);
-    this->HandleOldFormat();
+  auto bse_it = j_param.find("boost_from_average");
+  if (bse_it != j_param.cend()) {
+    m["boost_from_average"] = get<String const>(bse_it->second);
   }
-  // Handle old model formats, before 3.1, the intercept was always a scalar.
-  void HandleOldFormat() {
-    if (this->base_score.size() == 1 && this->OutputLength() > 1) {
-      this->base_score.Resize(this->OutputLength(), this->base_score[0]);
-    }
+  std::string str = get<String const>(j_param.at("base_score"));
+  m["base_score"] = str;
+  this->Init(m);
+  this->HandleOldFormat();
+}
+
+void LearnerModelParamLegacy::HandleOldFormat() {
+  if (this->base_score.size() == 1 && this->OutputLength() > 1) {
+    this->base_score.Resize(this->OutputLength(), this->base_score[0]);
+  }
+}
+
+void LearnerModelParamLegacy::Validate(Context const* ctx) const {
+  this->ValidateLength();
+  CHECK(std::none_of(base_score.cbegin(), base_score.cend(),
+                     [](float v) { return std::isnan(v) || std::isinf(v); }));
+
+  if (!collective::IsDistributed()) {
+    return;
   }
 
-  template <typename Container>
-  Args UpdateAllowUnknown(Container const& kwargs) {
-    // Detect whether user has made their own base score.
-    auto has_key = [&kwargs](char const* key) {
-      return std::find_if(kwargs.cbegin(), kwargs.cend(),
-                          [key](auto const& kv) { return kv.first == key; }) != kwargs.cend();
-    };
-    if (has_key("base_score")) {
-      this->boost_from_average = false;
-    }
-    return dmlc::Parameter<LearnerModelParamLegacy>::UpdateAllowUnknown(kwargs);
+  std::vector<char> data;
+  Json::Dump(this->ToJson(), &data, std::ios::binary);
+  std::vector<char> sync{data};
+
+  auto rc = collective::Broadcast(ctx, linalg::MakeVec(sync.data(), sync.size()), 0);
+  collective::SafeColl(rc);
+
+  CHECK(std::equal(data.cbegin(), data.cend(), sync.cbegin()))
+      << "Different model parameter across workers:\n\t"
+      << Json::Load(StringView{data.data(), data.size()}, std::ios::binary) << "\nvs.\n\t"
+      << Json::Load(StringView{sync.data(), sync.size()}, std::ios::binary);
+}
+
+void LearnerModelParamLegacy::ValidateLength() const {
+  CHECK_GE(this->base_score.size(), 1);
+  std::size_t n_classes = static_cast<std::size_t>(num_class),
+              n_targets = static_cast<std::size_t>(num_target);
+  if (!(base_score.size() == n_classes || base_score.size() == n_targets)) {
+    error::InvalidIntercept(n_classes, n_targets, base_score.size());
   }
-  // The number of outputs of the model.
-  [[nodiscard]] bst_target_t OutputLength() const noexcept {
-    return std::max({this->num_target, static_cast<bst_target_t>(this->num_class),
-                     static_cast<bst_target_t>(1)});
-  }
-
-  // Sanity checks
-  void Validate(Context const* ctx) const {
-    this->ValidateLength();
-    CHECK(std::none_of(base_score.cbegin(), base_score.cend(),
-                       [](float v) { return std::isnan(v) || std::isinf(v); }));
-
-    if (!collective::IsDistributed()) {
-      return;
-    }
-
-    std::vector<char> data;
-    Json::Dump(this->ToJson(), &data, std::ios::binary);
-    std::vector<char> sync{data};
-
-    auto rc = collective::Broadcast(ctx, linalg::MakeVec(sync.data(), sync.size()), 0);
-    collective::SafeColl(rc);
-
-    CHECK(std::equal(data.cbegin(), data.cend(), sync.cbegin()))
-        << "Different model parameter across workers:\n\t"
-        << Json::Load(StringView{data.data(), data.size()}, std::ios::binary) << "\nvs.\n\t"
-        << Json::Load(StringView{sync.data(), sync.size()}, std::ios::binary);
-  }
-
-  void ValidateLength() const {
-    CHECK_GE(this->base_score.size(), 1);
-    std::size_t n_classes = static_cast<std::size_t>(num_class),
-                n_targets = static_cast<std::size_t>(num_target);
-    if (!(base_score.size() == n_classes || base_score.size() == n_targets)) {
-      error::InvalidIntercept(n_classes, n_targets, base_score.size());
-    }
-  }
-
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(LearnerModelParamLegacy) {
-    DMLC_DECLARE_FIELD(base_score)
-        .describe("Global bias of the model.")
-        .set_default(common::ParamArray<float>{"base_score"});
-    DMLC_DECLARE_FIELD(num_feature)
-        .set_default(0)
-        .describe(
-            "Number of features in training data, this parameter will be automatically detected by "
-            "learner.");
-    DMLC_DECLARE_FIELD(num_class).set_default(0).set_lower_bound(0).describe(
-        "Number of class option for multi-class classifier. "
-        " By default equals 0 and corresponds to binary classifier.");
-    DMLC_DECLARE_FIELD(num_target)
-        .set_default(1)
-        .set_lower_bound(1)
-        .describe("Number of output targets. Can be set automatically if not specified.");
-    DMLC_DECLARE_FIELD(boost_from_average)
-        .set_default(true)
-        .describe("Whether we should calculate the base score from training data.");
-  }
-};
+}
 }  // namespace xgboost
 
 namespace xgboost {
-LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
+namespace {
+void EnsureBaseScoreReadAccess(Context const* ctx, linalg::Vector<float>* base_score) {
+  std::as_const(*base_score).HostView();
+  auto device = ctx ? ctx->Device() : base_score->Device();
+  if (!device.IsCPU()) {
+    std::as_const(*base_score).View(device);
+  }
+  CHECK(std::as_const(*base_score).Data()->HostCanRead());
+}
+}  // namespace
+
+LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
+                                     linalg::Vector<float> base_score, ObjInfo t,
                                      MultiStrategy multi_strategy)
-    : num_feature{user_param.num_feature},
+    : base_score_{std::move(base_score)},
+      num_feature{user_param.num_feature},
       num_output_group{user_param.OutputLength()},
       task{t},
       multi_strategy{multi_strategy} {
@@ -246,19 +184,19 @@ LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, 
     LOG(FATAL) << "multi-target-multi-class is not yet supported. Output classes:"
                << user_param.num_class << ", output targets:" << user_param.num_target;
   }
+  // Make sure read access everywhere for thread-safe prediction.
+  EnsureBaseScoreReadAccess(ctx, &base_score_);
 }
 
-LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                                     linalg::Vector<float> base_score, ObjInfo t,
-                                     MultiStrategy multi_strategy)
-    : LearnerModelParam{user_param, t, multi_strategy} {
-  std::swap(base_score_, base_score);
-  // Make sure read access everywhere for thread-safe prediction.
-  std::as_const(base_score_).HostView();
-  if (!ctx->IsCPU()) {
-    std::as_const(base_score_).View(ctx->Device());
-  }
-  CHECK(std::as_const(base_score_).Data()->HostCanRead());
+LearnerModelParam::LearnerModelParam(bst_feature_t n_features, linalg::Vector<float> base_score,
+                                     std::uint32_t n_groups, bst_target_t n_targets,
+                                     MultiStrategy multi_strategy, Context const* ctx, ObjInfo t)
+    : base_score_{std::move(base_score)},
+      num_feature{n_features},
+      num_output_group{std::max(n_groups, n_targets)},
+      task{t},
+      multi_strategy{multi_strategy} {
+  EnsureBaseScoreReadAccess(ctx, &base_score_);
 }
 
 linalg::VectorView<float const> LearnerModelParam::BaseScore(DeviceOrd device) const {
