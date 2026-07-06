@@ -121,12 +121,13 @@ class FoldModels:
         )
         return out
 
+    # pylint: disable=too-many-arguments, too-many-positional-arguments
     def get_gradient(
         self,
         data: ExtMemQuantileDMatrix,
+        iteration: int,
         fold_info: FoldInfoBatches,
         predt: FoldPredictions,
-        iteration: int,
         out: FoldGpairs,
     ) -> FoldGpairs:
         """Calculate the gradient."""

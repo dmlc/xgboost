@@ -48,8 +48,8 @@ void CopyBatchGpair(Context const* ctx, linalg::Matrix<GradientPair> const& batc
 }
 }  // namespace
 
-void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info, FoldPredictions const& predts,
-                             FoldInfoBatches const& finfo,
+void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
+                             FoldPredictions const& predts, FoldInfoBatches const& finfo,
                              std::vector<bst_idx_t> const& batch_ptr, std::int32_t iter,
                              FoldGpairs* out) const {
   CHECK(!finfo.Empty());
@@ -107,8 +107,8 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info, FoldPredi
 using namespace xgboost;  // NOLINT
 
 XGB_DLL int XGBCvGetGradient(FoldsHandle c_cv_folds, DMatrixHandle dtrain,
-                             FoldInfoBatchesHandle c_fold_info,
-                             FoldPredictionsHandle c_predt, FoldGpairsHandle hdl, int iter) {
+                             FoldInfoBatchesHandle c_fold_info, FoldPredictionsHandle c_predt,
+                             FoldGpairsHandle hdl, int iter) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(c_fold_info);

@@ -21,6 +21,7 @@ namespace {
   return n_features;
 }
 
+// FIXME(jiamingy): Calculate intercepts.
 [[nodiscard]] linalg::Vector<float> DefaultBaseScore(Context const* ctx, bst_target_t n_targets) {
   CHECK_GT(n_targets, 0);
   std::vector<float> h_base_score(n_targets, ObjFunction::DefaultBaseScore());
@@ -37,7 +38,7 @@ namespace {
   obj->ProbToMargin(&base_score);
   return base_score;
 }
-
+// FIXME(jiamingy): Make predictor stateless.
 [[nodiscard]] std::unique_ptr<Predictor> CreatePredictor(Context const* ctx) {
   CHECK(ctx->IsCUDA()) << "Fused cross-validation requires CUDA.";
   auto predictor = std::unique_ptr<Predictor>{Predictor::Create("gpu_predictor", ctx)};
@@ -215,7 +216,6 @@ void FoldModels::SaveModel(Json* out) const {
     this->models_.at(k)->SaveModel(&booster["model"]);
   }
 }
-
 }  // namespace xgboost::cv
 
 using namespace xgboost;  // NOLINT
@@ -243,8 +243,7 @@ XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
 }
 
 XGB_DLL int XGBCvInitPrediction(FoldsHandle c_cv_folds, DMatrixHandle dtrain,
-                                FoldInfoBatchesHandle c_fold_info,
-                                FoldPredictionsHandle c_predt) {
+                                FoldInfoBatchesHandle c_fold_info, FoldPredictionsHandle c_predt) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(c_fold_info);

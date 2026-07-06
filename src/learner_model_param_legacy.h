@@ -104,4 +104,3 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   }
 };
 }  // namespace xgboost
-

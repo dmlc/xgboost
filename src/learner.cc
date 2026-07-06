@@ -6,8 +6,6 @@
  */
 #include "xgboost/learner.h"
 
-#include "learner_model_param_legacy.h"
-
 #include <dmlc/io.h>            // for Stream
 #include <dmlc/parameter.h>     // for FieldEntry, DMLC_DECLARE_FIELD, Parameter, DMLC...
 #include <dmlc/thread_local.h>  // for ThreadLocalStore
@@ -42,21 +40,22 @@
 #include "common/param_array.h"           // for ParamArray
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
-#include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
-#include "xgboost/context.h"              // for Context
-#include "xgboost/data.h"                 // for DMatrix, MetaInfo
-#include "xgboost/gbm.h"                  // for GradientBooster
-#include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
-#include "xgboost/host_device_vector.h"   // for HostDeviceVector
-#include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
-#include "xgboost/linalg.h"               // for Vector, VectorView
-#include "xgboost/logging.h"              // for CHECK, LOG, CHECK_EQ
-#include "xgboost/metric.h"               // for Metric
-#include "xgboost/objective.h"            // for ObjFunction
-#include "xgboost/parameter.h"            // for DECLARE_FIELD_ENUM_CLASS, XGBoostParameter
-#include "xgboost/predictor.h"            // for PredictionContainer, PredictionCacheEntry
-#include "xgboost/string_view.h"          // for operator<<, StringView
-#include "xgboost/task.h"                 // for ObjInfo
+#include "learner_model_param_legacy.h"
+#include "xgboost/base.h"                // for Args, GradientPair, bst_feature_t
+#include "xgboost/context.h"             // for Context
+#include "xgboost/data.h"                // for DMatrix, MetaInfo
+#include "xgboost/gbm.h"                 // for GradientBooster
+#include "xgboost/global_config.h"       // for GlobalConfiguration, GlobalConfigThreadLocalStore
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/json.h"                // for Json, get, Object, String, IsA, Array, ToJson
+#include "xgboost/linalg.h"              // for Vector, VectorView
+#include "xgboost/logging.h"             // for CHECK, LOG, CHECK_EQ
+#include "xgboost/metric.h"              // for Metric
+#include "xgboost/objective.h"           // for ObjFunction
+#include "xgboost/parameter.h"           // for DECLARE_FIELD_ENUM_CLASS, XGBoostParameter
+#include "xgboost/predictor.h"           // for PredictionContainer, PredictionCacheEntry
+#include "xgboost/string_view.h"         // for operator<<, StringView
+#include "xgboost/task.h"                // for ObjInfo
 
 namespace {
 const char* kMaxDeltaStepDefaultValue = "0.7";
@@ -86,8 +85,7 @@ Json LearnerModelParamLegacy::ToJson() const {
   auto ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
                       static_cast<int64_t>(num_feature));
   CHECK(ret.ec == std::errc());
-  obj["num_feature"] =
-      std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+  obj["num_feature"] = std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
   ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
                  static_cast<int64_t>(num_class));
   CHECK(ret.ec == std::errc());
@@ -95,8 +93,7 @@ Json LearnerModelParamLegacy::ToJson() const {
 
   ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
                  static_cast<int64_t>(num_target));
-  obj["num_target"] =
-      std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+  obj["num_target"] = std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
 
   ret = to_chars(integers, integers + NumericLimits<std::int64_t>::kToCharsSize,
                  static_cast<std::int64_t>(boost_from_average));

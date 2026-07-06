@@ -29,7 +29,7 @@ def test_cv_fold_info_batches() -> None:
     predts = xcv.FoldPredictions()
     assert cv_folds.init_prediction(Xy, folds, out=predts) is predts
     gpairs = xcv.FoldGpairs()
-    assert cv_folds.get_gradient(Xy, folds, predts, iteration=0, out=gpairs) is gpairs
+    assert cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs) is gpairs
 
     assert isinstance(gpairs.handle, ctypes.c_void_p)
     assert gpairs.handle.value is not None
@@ -61,4 +61,4 @@ def test_cv_fold_info_batches() -> None:
         cp.testing.assert_allclose(grad, (0.5 - expected_labels) * expected_weights)
         cp.testing.assert_allclose(hess, expected_weights)
 
-    assert cv_folds.get_gradient(Xy, folds, predts, iteration=1, out=gpairs) is gpairs
+    assert cv_folds.get_gradient(Xy, 1, folds, predts, out=gpairs) is gpairs

@@ -28,7 +28,7 @@ struct FoldGpairs;
 // Tree updaters should not be part of it as they are considered "optimizers" and not part
 // of the model.
 class FoldModels {
-  Context ctx_;
+  Context ctx_;  // FIXME(jiamingy): Remove ctx reference from obj.
   std::vector<LearnerModelParamLegacy> model_params_;
   std::vector<LearnerModelParam> properties_;
   std::vector<std::unique_ptr<ObjFunction>> objs_;
