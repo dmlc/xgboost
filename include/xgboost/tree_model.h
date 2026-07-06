@@ -239,12 +239,13 @@ class RegTree : public Model {
     }
   }
   /**
-   * \brief Constructor that initializes the tree model with shape.
+   * @brief Constructor that initializes the tree model with shape.
    */
-  explicit RegTree(bst_target_t n_targets, bst_feature_t n_features) : RegTree{} {
+  explicit RegTree(bst_target_t n_targets, bst_feature_t n_features, bool force_mt = false)
+      : RegTree{} {
     param_.num_feature = n_features;
     param_.size_leaf_vector = n_targets;
-    if (n_targets > 1) {
+    if (n_targets > 1 || force_mt) {
       this->p_mt_tree_.reset(new MultiTargetTree{&param_});
     }
   }
