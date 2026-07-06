@@ -656,7 +656,7 @@ struct GPUHistMakerDevice {
   }
 };
 
-std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
+[[nodiscard]] std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
     Context const* ctx, DMatrix* p_fmat, BatchParam const& batch) {
   std::shared_ptr<common::HistogramCuts const> cuts;
 

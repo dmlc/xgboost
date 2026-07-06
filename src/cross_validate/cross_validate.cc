@@ -110,6 +110,16 @@ bst_target_t FoldModels::OutputLength(std::size_t fold_idx) const {
   return this->properties_[fold_idx].OutputLength();
 }
 
+bst_target_t FoldModels::LeafLength(std::size_t fold_idx) const {
+  CHECK_LT(fold_idx, this->properties_.size());
+  return this->properties_[fold_idx].LeafLength();
+}
+
+bst_feature_t FoldModels::NumFeatures(std::size_t fold_idx) const {
+  CHECK_LT(fold_idx, this->properties_.size());
+  return this->properties_[fold_idx].num_feature;
+}
+
 ObjFunction* FoldModels::Objective(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->objs_.size());
   return this->objs_[fold_idx].get();
@@ -198,7 +208,7 @@ void FoldModels::SaveModel(Json* out) const {
   auto& j_folds = get<Array>((*out)["cv_folds"]);
   j_folds.resize(this->KFolds());
 
-  for (std::size_t k = 0, n_folds = this->KFolds(); k < n_folds; ++k) {
+  for (std::size_t k = 0, k_folds = this->KFolds(); k < k_folds; ++k) {
     CHECK(this->objs_.at(k));
     CHECK(this->models_.at(k));
 
@@ -235,13 +245,6 @@ XGB_DLL int XGBCvFoldModelsFree(FoldModelsHandle hdl) {
   API_END();
 }
 
-XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
-  API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = new cv::FoldPredictions{};
-  API_END();
-}
-
 XGB_DLL int XGBCvFoldModelsInitPrediction(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
                                           FoldInfoBatchesHandle c_fold_info,
                                           FoldPredictionsHandle c_predt) {
@@ -254,6 +257,13 @@ XGB_DLL int XGBCvFoldModelsInitPrediction(FoldModelsHandle c_cv_folds, DMatrixHa
   auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
   auto predt = static_cast<cv::FoldPredictions*>(c_predt);
   cv_folds->InitPrediction(p_fmat->Ctx(), p_fmat->Info(), *fold_info, predt);
+  API_END();
+}
+
+XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(out);
+  *out = new cv::FoldPredictions{};
   API_END();
 }
 
@@ -309,7 +319,7 @@ XGB_DLL int XGBCvFoldInfoBatchesCreate(DMatrixHandle dtrain, size_t k_folds,
 
   for (std::size_t i = 1, n = batch_ptr.size(); i < n; ++i) {
     auto begin = batch_ptr[i - 1];
-    auto end = batch_ptr.at(i);
+    auto end = batch_ptr[i];
     CHECK_LE(end, info.num_row_);
     p_out->batches.emplace_back();
     cv::FoldInfo& batch = p_out->batches.back();
