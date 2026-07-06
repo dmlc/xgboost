@@ -1,8 +1,11 @@
+import json
+
 import numpy as np
 import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.parse_tree import (
+    integer_round,
     run_split_value_histograms,
     run_tree_to_df_categorical,
 )
@@ -91,3 +94,38 @@ class TestTreesToDataFrame:
 
     def test_split_value_histograms(self):
         run_split_value_histograms("approx", "cpu")
+
+    def test_trees_to_dataframe_integer_overflow(self) -> None:
+        # Regression test for dmlc/xgboost#10035, trees_to_dataframe() side
+        # (AC-3): this is a mechanical consequence of the text-dump fix
+        # since trees_to_dataframe() parses the text dump, but is asserted
+        # independently since it is a distinct public API.
+        data = np.array([[2e10], [3e10]])
+        label = np.array([0, 1])
+        dm = xgb.DMatrix(data, label=label, feature_types=["int"])
+        params = {
+            "objective": "binary:logistic",
+            "max_depth": 1,
+            "min_child_weight": 0,
+            "reg_lambda": 0,
+            "eta": 1,
+        }
+        bst = xgb.train(params, dm, num_boost_round=1)
+
+        raw = json.loads(bst.save_raw("json"))
+        split_cond = raw["learner"]["gradient_booster"]["model"]["trees"][0][
+            "split_conditions"
+        ][0]
+        # Round-trip through float32 to recover the exact bits the C++ dump
+        # formatter sees (the JSON prints a rounded decimal).
+        expected = integer_round(float(np.float32(split_cond)))
+
+        df = bst.trees_to_dataframe()
+        root = df[df["ID"] == "0-0"]
+        assert len(root) == 1
+        split_val = root["Split"].iloc[0]
+        assert abs(split_val - expected) <= 1, (
+            f"trees_to_dataframe() reported Split={split_val}, expected "
+            f"~{expected}; must not be INT32_MIN/INT32_MAX truncation "
+            "garbage"
+        )

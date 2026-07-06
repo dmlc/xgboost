@@ -28,6 +28,37 @@ def test_type_check() -> None:
     assert is_dataframe(df.a)
 
 
+def test_get_dump_large_int64_column() -> None:
+    # Exact reproduction of dmlc/xgboost#10035 as filed: a plain pandas
+    # int64 column with values exceeding INT32_MAX, using automatic
+    # feature_types inference (no explicit feature_types passed), matching
+    # the issue's real-world trigger path via _pandas_dtype_mapper ->
+    # "int" -> kInteger.
+    df = pd.DataFrame({"very_large_number": [2 * 10**10, 3 * 10**10]})
+    labels = pd.Series([0, 1])
+    dm = xgb.DMatrix(df, label=labels)
+    bst = xgb.train(
+        {
+            "objective": "binary:logistic",
+            "max_depth": 1,
+            "min_child_weight": 0,
+            "reg_lambda": 0,
+            "eta": 1,
+        },
+        dm,
+        num_boost_round=1,
+    )
+
+    dumped = float(bst.get_dump()[0].split("<")[1].split("]")[0])
+    assert dumped not in (-2147483648, 2147483647), (
+        "dump reported an INT32_MIN/INT32_MAX truncation artifact for a "
+        "large int64-typed pandas column feature"
+    )
+    # The split lands between the two rows; allow float32 quantization
+    # (spacing ~2048 at this magnitude) around the 3e10 upper value.
+    assert 1.9 * 10**10 < dumped < 3.1 * 10**10
+
+
 class TestPandas:
     def test_pandas(self, data_split_mode=DataSplitMode.ROW):
         world_size = xgb.collective.get_world_size()

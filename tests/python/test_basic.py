@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -6,6 +7,7 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost._c_api import _parse_version
+from xgboost.testing.parse_tree import integer_round
 
 dpath = "demo/data/"
 rng = np.random.RandomState(1994)
@@ -145,6 +147,194 @@ class TestBasic:
 
         with pytest.raises(ValueError):
             bst.get_dump(fmap="foo")
+
+    def test_dump_integer_overflow(self) -> None:
+        # Regression test for dmlc/xgboost#10035: a split threshold on a
+        # kInteger-typed feature that exceeds INT32_MAX/INT32_MIN in
+        # magnitude used to be reported via an unchecked
+        # static_cast<int32_t>, which is UB (architecture-dependent
+        # garbage: INT32_MIN on x86_64, INT32_MAX on arm64).
+        for lo, hi in [(2e10, 3e10), (-3e10, -2e10)]:
+            data = np.array([[lo], [hi]])
+            label = np.array([0, 1])
+            dm = xgb.DMatrix(data, label=label, feature_types=["int"])
+            # min_child_weight/reg_lambda/eta forced so the two-row tree
+            # actually learns the split (default regularization leaves it a
+            # single leaf).
+            params = {
+                "objective": "binary:logistic",
+                "max_depth": 1,
+                "min_child_weight": 0,
+                "reg_lambda": 0,
+                "eta": 1,
+            }
+            bst = xgb.train(params, dm, num_boost_round=1)
+
+            # Ground truth: the raw split condition from the lossless model
+            # JSON, a path structurally disjoint from
+            # TreeGenerator/Integer()/FeatureMap. The JSON prints the float32
+            # as a rounded decimal, so round-trip through float32 to recover
+            # the exact bits the C++ formatter sees before applying the same
+            # integer rounding convention.
+            raw = json.loads(bst.save_raw("json"))
+            split_cond = raw["learner"]["gradient_booster"]["model"]["trees"][0][
+                "split_conditions"
+            ][0]
+            expected = integer_round(float(np.float32(split_cond)))
+
+            # Text dump.
+            text_dump = bst.get_dump(dump_format="text")[0]
+            dumped = float(text_dump.split("<")[1].split("]")[0])
+            assert abs(dumped - expected) <= 1, (
+                f"text dump reported {dumped}, expected ~{expected} "
+                f"(lo={lo}, hi={hi}); must not be INT32_MIN/INT32_MAX "
+                "truncation garbage"
+            )
+            assert dumped not in (-2147483648, 2147483647) or abs(
+                expected - dumped
+            ) <= 1
+
+            # JSON dump.
+            json_dump = json.loads(bst.get_dump(dump_format="json")[0])
+            assert abs(json_dump["split_condition"] - expected) <= 1
+            assert math.isfinite(json_dump["split_condition"])
+
+            # predict() must remain internally consistent and untouched by
+            # the fix: two probe rows straddling the true threshold must
+            # route to different leaves.
+            probe = xgb.DMatrix(
+                np.array([[lo - 1e9], [hi + 1e9]]), feature_types=["int"]
+            )
+            preds = bst.predict(probe)
+            assert preds[0] != preds[1], (
+                "predict() must route the two probe rows to different "
+                "leaves; if this fails the model itself (not just the "
+                "dump) is broken"
+            )
+
+    def test_dump_integer_boundary_no_regression(self) -> None:
+        # A split threshold that legitimately sits at/near the existing
+        # INT32_MAX boundary must continue to dump correctly; guards
+        # against the overflow fix over-correcting (e.g. an off-by-one in
+        # a new bounds check).
+        # Large but comfortably in-range integer split (below INT32_MAX,
+        # exactly representable in float32) that dumps correctly today;
+        # guards against the overflow fix regressing normal integers.
+        lo, hi = 2.0e9, 2.1e9
+        data = np.array([[lo], [hi]])
+        label = np.array([0, 1])
+        dm = xgb.DMatrix(data, label=label, feature_types=["int"])
+        params = {
+            "objective": "binary:logistic",
+            "max_depth": 1,
+            "min_child_weight": 0,
+            "reg_lambda": 0,
+            "eta": 1,
+        }
+        bst = xgb.train(params, dm, num_boost_round=1)
+
+        raw = json.loads(bst.save_raw("json"))
+        split_cond = raw["learner"]["gradient_booster"]["model"]["trees"][0][
+            "split_conditions"
+        ][0]
+        expected = integer_round(float(np.float32(split_cond)))
+
+        text_dump = bst.get_dump(dump_format="text")[0]
+        dumped = float(text_dump.split("<")[1].split("]")[0])
+        assert abs(dumped - expected) <= 1
+
+        json_dump = json.loads(bst.get_dump(dump_format="json")[0])
+        assert abs(json_dump["split_condition"] - expected) <= 1
+
+    def test_dump_integer_beyond_int64_saturates(self) -> None:
+        # Residual to dmlc/xgboost#10035: widening the dump cast from
+        # int32 to int64 moved the overflow boundary from ~2.1e9 to
+        # ~9.22e18 but did not remove it -- static_cast<int64_t>(double)
+        # is itself UB when the value is outside the int64 range. The
+        # clamp makes that boundary deterministic: a split threshold whose
+        # magnitude exceeds INT64_MAX/INT64_MIN must dump the saturation
+        # bound (INT64_MAX / INT64_MIN), the same value on every platform
+        # and optimization level, instead of architecture-dependent UB
+        # garbage.
+        #
+        # Reaching this requires a genuinely-integer feature with a value
+        # beyond int64, which a real trained model never produces; it is
+        # only reachable by mislabeling a >9.2e18 float feature as "int".
+        int64_max = 9223372036854775807
+        int64_min = -9223372036854775808
+        params = {
+            "objective": "binary:logistic",
+            "max_depth": 1,
+            "min_child_weight": 0,
+            "reg_lambda": 0,
+            "eta": 1,
+        }
+        for lo, hi, bound in [
+            (1e19, 2e19, int64_max),
+            (-2e19, -1e19, int64_min),
+        ]:
+            dm = xgb.DMatrix(
+                np.array([[lo], [hi]]),
+                label=np.array([0, 1]),
+                feature_types=["int"],
+            )
+            bst = xgb.train(params, dm, num_boost_round=1)
+
+            # Sanity: the split really does fall outside int64 range, so
+            # this test exercises the clamp and is not a no-op.
+            raw = json.loads(bst.save_raw("json"))
+            split_cond = float(
+                np.float32(
+                    raw["learner"]["gradient_booster"]["model"]["trees"][0][
+                        "split_conditions"
+                    ][0]
+                )
+            )
+            assert abs(split_cond) > int64_max
+
+            # Text dump: deterministic saturation bound, exact string.
+            text_dump = bst.get_dump(dump_format="text")[0]
+            dumped = int(text_dump.split("<")[1].split("]")[0])
+            assert dumped == bound, (
+                f"text dump reported {dumped}, expected deterministic "
+                f"saturation bound {bound} for an out-of-int64 threshold "
+                f"(lo={lo}, hi={hi}); a non-bound value means the cast "
+                "invoked UB instead of clamping"
+            )
+
+            # JSON dump: same bound, and still a finite JSON number.
+            json_dump = json.loads(bst.get_dump(dump_format="json")[0])
+            assert json_dump["split_condition"] == bound
+            assert math.isfinite(json_dump["split_condition"])
+
+    def test_dump_float_precision_unaffected(self) -> None:
+        # Regression fence for AC-9: the kQuantitive/kFloat path (unrelated
+        # float-precision sub-thread on #10035, e.g. "0.200000003" vs
+        # "0.2") must be untouched by the int32-overflow fix. This test
+        # only needs to pass both before AND after the fix -- it is not a
+        # RED test for the overflow bug, it is a scope fence proving the
+        # fix does not touch Quantitive().
+        data = np.array([[0.1], [0.2], [0.3], [0.4]])
+        label = np.array([0, 1, 0, 1])
+        dm = xgb.DMatrix(data, label=label, feature_types=["float"])
+        params = {
+            "objective": "binary:logistic",
+            "max_depth": 1,
+            "min_child_weight": 0,
+            "reg_lambda": 0,
+            "eta": 1,
+        }
+        bst = xgb.train(params, dm, num_boost_round=1)
+        dump = bst.get_dump(dump_format="text")[0]
+        # The kFloat/kQuantitive path renders the raw float via ToStr with
+        # no cast; the split line must contain a fractional float, not an
+        # integer-rounded value. This is the fence that proves the int
+        # overflow fix does not leak into Quantitive().
+        root = dump.splitlines()[0]
+        assert "<" in root
+        split_val = float(root.split("<")[1].split("]")[0])
+        assert 0.0 < split_val < 1.0
+        assert split_val != int(split_val)
 
     def test_feature_score(self):
         rng = np.random.RandomState(0)
