@@ -1,5 +1,6 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * SPDX-FileCopyrightText: Copyright (c) 2014-2026, XGBoost Contributors.
+ * SPDX-License-Identifier: Apache-2.0
  */
 #include "xgboost/c_api.h"
 
@@ -178,26 +179,12 @@ XGB_DLL int XGBSetGlobalConfig(const char *json_str) {
 
   for (auto &items : obj) {
     switch (items.second.GetValue().Type()) {
-      case xgboost::Value::ValueKind::kInteger: {
-        items.second = String{std::to_string(get<Integer const>(items.second))};
+      case xgboost::Value::ValueKind::kString:
+      case xgboost::Value::ValueKind::kInteger:
+      case xgboost::Value::ValueKind::kBoolean:
+      case xgboost::Value::ValueKind::kNumber:
+        items.second = String{JsonScalarToString(items.second)};
         break;
-      }
-      case xgboost::Value::ValueKind::kBoolean: {
-        if (get<Boolean const>(items.second)) {
-          items.second = String{"true"};
-        } else {
-          items.second = String{"false"};
-        }
-        break;
-      }
-      case xgboost::Value::ValueKind::kNumber: {
-        auto n = get<Number const>(items.second);
-        char chars[NumericLimits<float>::kToCharsSize];
-        auto ec = to_chars(chars, chars + sizeof(chars), n).ec;
-        CHECK(ec == std::errc());
-        items.second = String{chars};
-        break;
-      }
       default:
         break;
     }
