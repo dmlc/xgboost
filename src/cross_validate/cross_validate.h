@@ -25,7 +25,7 @@ struct FoldInfoBatches;
 //
 // Tree updaters should not be part of it as they are considered "optimizers" and not part
 // of the model.
-class CvFolds {
+class FoldModels {
   Context ctx_;
   std::vector<LearnerModelParamLegacy> model_params_;
   std::vector<LearnerModelParam> properties_;
@@ -35,10 +35,10 @@ class CvFolds {
 
   void Resize(std::size_t k_folds);
   void InitFold(std::size_t fold_idx, std::unique_ptr<ObjFunction> obj);
-  CvFolds() = default;
+  FoldModels() = default;
 
  public:
-  explicit CvFolds(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain);
+  explicit FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain);
   [[nodiscard]] std::size_t KFolds() const noexcept(true);
   [[nodiscard]] bst_target_t OutputLength(std::size_t fold_idx) const;
   [[nodiscard]] ObjFunction* Objective(std::size_t fold_idx) const;
@@ -47,7 +47,7 @@ class CvFolds {
 
   void CommitModel(std::vector<gbm::TreesOneIter>&& new_trees);
 
-  [[nodiscard]] static CvFolds LoadModel(Json const& in);
+  [[nodiscard]] static FoldModels LoadModel(Json const& in);
   void SaveModel(Json* out) const;
 };
 
@@ -84,6 +84,6 @@ struct FoldGpairs {
 };
 }  // namespace xgboost::cv
 
-using CvFoldsHandle = void*;
+using FoldsHandle = void*;
 using FoldInfoBatchesHandle = void*;
 using FoldGpairsHandle = void*;

@@ -46,7 +46,7 @@ namespace {
 }
 }  // namespace
 
-void CvFolds::Resize(std::size_t k_folds) {
+void FoldModels::Resize(std::size_t k_folds) {
   model_params_.resize(k_folds);
   properties_.resize(k_folds);
   objs_.resize(k_folds);
@@ -54,7 +54,7 @@ void CvFolds::Resize(std::size_t k_folds) {
   predts_.resize(k_folds);
 }
 
-void CvFolds::InitFold(std::size_t fold_idx, std::unique_ptr<ObjFunction> obj) {
+void FoldModels::InitFold(std::size_t fold_idx, std::unique_ptr<ObjFunction> obj) {
   CHECK_LT(fold_idx, this->model_params_.size());
   CHECK_LT(fold_idx, this->properties_.size());
   CHECK_LT(fold_idx, this->objs_.size());
@@ -74,7 +74,7 @@ void CvFolds::InitFold(std::size_t fold_idx, std::unique_ptr<ObjFunction> obj) {
   this->models_.at(fold_idx)->Configure(Args{});
 }
 
-CvFolds::CvFolds(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
+FoldModels::FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
   CHECK(dtrain);
   this->ctx_.FromJson(dtrain->Ctx()->ToJson());
   auto const& info = dtrain->Info();
@@ -104,20 +104,20 @@ CvFolds::CvFolds(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
   CHECK_EQ(predts_.size(), k_folds);
 }
 
-std::size_t CvFolds::KFolds() const noexcept(true) { return this->objs_.size(); }
+std::size_t FoldModels::KFolds() const noexcept(true) { return this->objs_.size(); }
 
-bst_target_t CvFolds::OutputLength(std::size_t fold_idx) const {
+bst_target_t FoldModels::OutputLength(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->properties_.size());
   return this->properties_[fold_idx].OutputLength();
 }
 
-ObjFunction* CvFolds::Objective(std::size_t fold_idx) const {
+ObjFunction* FoldModels::Objective(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->objs_.size());
   return this->objs_[fold_idx].get();
 }
 
-void CvFolds::InitPrediction(Context const* ctx, MetaInfo const& info,
-                             FoldInfoBatches const& finfo) {
+void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
+                                FoldInfoBatches const& finfo) {
   CHECK_EQ(this->KFolds(), finfo.KFolds());
   CHECK_EQ(this->predts_.size(), this->KFolds());
 
@@ -138,7 +138,7 @@ void CvFolds::InitPrediction(Context const* ctx, MetaInfo const& info,
   }
 }
 
-void CvFolds::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
+void FoldModels::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
   CHECK_EQ(new_trees.size(), this->KFolds());
   CHECK_EQ(this->model_params_.size(), this->KFolds());
   CHECK_EQ(this->properties_.size(), this->KFolds());
@@ -155,12 +155,12 @@ void CvFolds::CommitModel(std::vector<gbm::TreesOneIter>&& new_trees) {
   }
 }
 
-CvFolds CvFolds::LoadModel(Json const& in) {
+FoldModels FoldModels::LoadModel(Json const& in) {
   CHECK(IsA<Object>(in));
   Version::Load(in);
 
   auto const& j_folds = get<Array const>(in["cv_folds"]);
-  CvFolds out;
+  FoldModels out;
   out.ctx_ = Context{};
   out.Resize(j_folds.size());
 
@@ -184,7 +184,7 @@ CvFolds CvFolds::LoadModel(Json const& in) {
   return out;
 }
 
-void CvFolds::SaveModel(Json* out) const {
+void FoldModels::SaveModel(Json* out) const {
   CHECK(out);
   CHECK_EQ(this->model_params_.size(), this->KFolds());
   CHECK_EQ(this->properties_.size(), this->KFolds());
@@ -215,25 +215,25 @@ void CvFolds::SaveModel(Json* out) const {
   }
 }
 
-HostDeviceVector<float> const& CvFolds::Prediction(std::size_t fold_idx) const {
+HostDeviceVector<float> const& FoldModels::Prediction(std::size_t fold_idx) const {
   return predts_.at(fold_idx);
 }
 }  // namespace xgboost::cv
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGBCvFoldsCreate(size_t k_folds, DMatrixHandle dtrain, CvFoldsHandle* out) {
+XGB_DLL int XGBCvFoldsCreate(size_t k_folds, DMatrixHandle dtrain, FoldsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
   auto p_fmat = CastDMatrixHandle(dtrain);
-  *out = new cv::CvFolds{k_folds, p_fmat};
+  *out = new cv::FoldModels{k_folds, p_fmat};
   API_END();
 }
 
-XGB_DLL int XGBCvFoldsFree(CvFoldsHandle hdl) {
+XGB_DLL int XGBCvFoldsFree(FoldsHandle hdl) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
-  delete static_cast<cv::CvFolds*>(hdl);
+  delete static_cast<cv::FoldModels*>(hdl);
   API_END();
 }
 

@@ -60,7 +60,7 @@ _LIB.XGBCvGetGradient.argtypes = [
 ]
 
 
-class CvFolds:
+class FoldModels:
     """Result of training cross validation."""
 
     def __init__(self, data: ExtMemQuantileDMatrix, k_folds: int) -> None:
@@ -89,7 +89,7 @@ class CvFolds:
             _check_call(_LIB.XGBCvFoldsFree(hdl))
 
 
-class CvFoldInfoBatches:
+class FoldInfoBatches:
     """Meta information used during cross validation."""
 
     def __init__(self, data: ExtMemQuantileDMatrix, k_folds: int) -> None:
@@ -118,7 +118,7 @@ class CvFoldInfoBatches:
             _check_call(_LIB.XGBCvFoldInfoBatchesFree(hdl))
 
 
-class CvFoldGpairs:
+class FoldGpairs:
     """Gradient from objective functions."""
 
     def __init__(self) -> None:
@@ -184,11 +184,11 @@ class CvFoldGpairs:
 
 def get_gradient(
     data: ExtMemQuantileDMatrix,
-    cv_folds: CvFolds,
-    fold_info: CvFoldInfoBatches,
+    cv_folds: FoldModels,
+    fold_info: FoldInfoBatches,
     iteration: int,
-    out: CvFoldGpairs,
-) -> CvFoldGpairs:
+    out: FoldGpairs,
+) -> FoldGpairs:
     """Calculate the gradient."""
 
     _check_call(

@@ -32,13 +32,13 @@ namespace {
 }
 }  // namespace
 
-TEST(CvFolds, JsonIO) {
+TEST(FoldModels, JsonIO) {
   std::size_t constexpr kFolds = 3;
   bst_idx_t constexpr kRows = 16;
   bst_feature_t constexpr kCols = 4;
 
   auto dmat = RandomDataGenerator{kRows, kCols, 0.0f}.GenerateDMatrix(true);
-  CvFolds folds{kFolds, dmat};
+  FoldModels folds{kFolds, dmat};
   ASSERT_EQ(folds.KFolds(), kFolds);
   ASSERT_EQ(folds.OutputLength(0), 1);
 
@@ -56,7 +56,7 @@ TEST(CvFolds, JsonIO) {
     ASSERT_EQ(NumTrees(fold), 1);
   }
 
-  auto loaded = CvFolds::LoadModel(model);
+  auto loaded = FoldModels::LoadModel(model);
   ASSERT_EQ(loaded.KFolds(), kFolds);
   ASSERT_EQ(loaded.OutputLength(0), 1);
 

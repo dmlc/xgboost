@@ -19,14 +19,14 @@ def test_cv_fold_info_batches() -> None:
     it = tm.IteratorForTest(X, y, w, cache=None, min_cache_page_bytes=0, on_host=True)
     Xy = xgb.ExtMemQuantileDMatrix(it)
 
-    folds = xcv.CvFoldInfoBatches(Xy, k_folds=k_folds)
+    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
 
     assert isinstance(folds.handle, ctypes.c_void_p)
     assert folds.handle.value is not None
     assert folds.k_folds == k_folds
 
-    cv_folds = xcv.CvFolds(data=Xy, k_folds=k_folds)
-    gpairs = xcv.CvFoldGpairs()
+    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
+    gpairs = xcv.FoldGpairs()
     assert xcv.get_gradient(Xy, cv_folds, folds, iteration=0, out=gpairs) is gpairs
 
     assert isinstance(gpairs.handle, ctypes.c_void_p)

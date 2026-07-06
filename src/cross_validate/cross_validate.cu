@@ -48,7 +48,7 @@ void CopyBatchGpair(Context const* ctx, linalg::Matrix<GradientPair> const& batc
 }
 }  // namespace
 
-void GetGradient(Context const* ctx, MetaInfo const& info, CvFolds const& cv_folds,
+void GetGradient(Context const* ctx, MetaInfo const& info, FoldModels const& cv_folds,
                  FoldInfoBatches const& finfo, std::vector<bst_idx_t> const& batch_ptr,
                  std::int32_t iter, std::vector<linalg::Matrix<GradientPair>>* p_gpairs) {
   CHECK(!finfo.Empty());
@@ -103,14 +103,14 @@ void GetGradient(Context const* ctx, MetaInfo const& info, CvFolds const& cv_fol
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGBCvGetGradient(CvFoldsHandle c_cv_folds, DMatrixHandle dtrain,
+XGB_DLL int XGBCvGetGradient(FoldsHandle c_cv_folds, DMatrixHandle dtrain,
                              FoldInfoBatchesHandle c_fold_info, FoldGpairsHandle hdl, int iter) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(c_fold_info);
   xgboost_CHECK_C_ARG_PTR(hdl);
   auto p_fmat = CastDMatrixHandle(dtrain);
-  auto cv_folds = static_cast<cv::CvFolds*>(c_cv_folds);
+  auto cv_folds = static_cast<cv::FoldModels*>(c_cv_folds);
   auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);
   auto const& info = p_fmat->Info();
   auto const& batch_ptr = p_fmat->BatchPtr();
