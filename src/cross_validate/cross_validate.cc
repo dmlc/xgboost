@@ -319,7 +319,7 @@ XGB_DLL int XGBCvFoldInfoBatchesCreate(DMatrixHandle dtrain, size_t k_folds,
 
   for (std::size_t i = 1, n = batch_ptr.size(); i < n; ++i) {
     auto begin = batch_ptr[i - 1];
-    auto end = batch_ptr.at(i);
+    auto end = batch_ptr[i];
     CHECK_LE(end, info.num_row_);
     p_out->batches.emplace_back();
     cv::FoldInfo& batch = p_out->batches.back();
