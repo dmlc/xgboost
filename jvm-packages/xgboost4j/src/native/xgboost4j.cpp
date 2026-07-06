@@ -43,7 +43,7 @@
 // set handle
 void setHandle(JNIEnv *jenv, jlongArray jhandle, void *handle) {
 #ifdef __APPLE__
-  jlong out = (long)handle;
+  jlong out = (long)handle;  // NOLINT
 #else
   int64_t out = (int64_t)handle;
 #endif
@@ -163,7 +163,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(DataIterHandle data_handle,
                                                      }};
       if (jlabel.get() != nullptr) {
         label.reset(jenv->GetFloatArrayElements(jlabel.get(), nullptr));
-        CHECK_EQ(jenv->GetArrayLength(jlabel.get()), static_cast<long>(cbatch.size))
+        CHECK_EQ(jenv->GetArrayLength(jlabel.get()), static_cast<long>(cbatch.size))  // NOLINT
             << "batch.label.length must equal batch.numRows()";
       }
       cbatch.label = label.get();
@@ -176,7 +176,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(DataIterHandle data_handle,
                                                       }};
       if (jweight.get() != nullptr) {
         weight.reset(jenv->GetFloatArrayElements(jweight.get(), nullptr));
-        CHECK_EQ(jenv->GetArrayLength(jweight.get()), static_cast<long>(cbatch.size))
+        CHECK_EQ(jenv->GetArrayLength(jweight.get()), static_cast<long>(cbatch.size))  // NOLINT
             << "batch.weight.length must equal batch.numRows()";
       }
       cbatch.weight = weight.get();
@@ -271,8 +271,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 }
 
 namespace {
-using JavaIndT =
-    std::conditional_t<std::is_convertible_v<jint *, std::int32_t *>, std::int32_t, long>;
+using JavaIndT = std::conditional_t<std::is_convertible_v<jint *, std::int32_t *>, std::int32_t,
+                                    long>;  // NOLINT
 /**
  * \brief Create from sparse matrix.
  *
@@ -300,7 +300,8 @@ jint MakeJVMSparseInput(JNIEnv *jenv, jlongArray jindptr, jintArray jindices, jf
 
   std::string sindptr, sindices, sdata;
   CHECK_EQ(indptr.get()[nindptr - 1], nelem);
-  using IndPtrT = std::conditional_t<std::is_convertible_v<jlong *, long *>, long, long long>;
+  using IndPtrT =
+      std::conditional_t<std::is_convertible_v<jlong *, long *>, long, long long>;  // NOLINT
   xgboost::detail::MakeSparseFromPtr(
       static_cast<IndPtrT const *>(indptr.get()), static_cast<JavaIndT const *>(indices.get()),
       static_cast<float const *>(data.get()), nindptr, &sindptr, &sindices, &sdata);
@@ -406,7 +407,7 @@ auto SliceDMatrixWinWar(DMatrixHandle handle, T *ptr, std::size_t len, DMatrixHa
 }
 
 template <>
-auto SliceDMatrixWinWar<long>(DMatrixHandle handle, long *ptr, std::size_t len,
+auto SliceDMatrixWinWar<long>(DMatrixHandle handle, long *ptr, std::size_t len,  // NOLINT
                               DMatrixHandle *result) {
   std::vector<std::int32_t> copy(len);
   std::copy_n(ptr, len, copy.begin());
