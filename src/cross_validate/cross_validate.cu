@@ -137,7 +137,7 @@ void FoldModels::GetGradient(Context const* ctx, MetaInfo const& info,
   }
 }
 
-class TreeMethod {
+class FoldTreeMethod {
   std::shared_ptr<DMatrix> p_fmat_;
   Context const* ctx_{nullptr};
   tree::TrainParam param_;
@@ -146,7 +146,7 @@ class TreeMethod {
   bool initialized_{false};
 
  public:
-  explicit TreeMethod(std::shared_ptr<DMatrix> p_fmat)
+  explicit FoldTreeMethod(std::shared_ptr<DMatrix> p_fmat)
       : p_fmat_{std::move(p_fmat)}, column_sampler_{std::make_shared<common::ColumnSampler>()} {
     CHECK(p_fmat_);
     ctx_ = p_fmat_->Ctx();
@@ -236,8 +236,8 @@ XGB_DLL int XGBCvFoldModelsGetGradient(FoldModelsHandle c_cv_folds, DMatrixHandl
   API_END();
 }
 
-XGB_DLL int XGBCvTreeMethodCreate(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
-                                  char const* c_config, TreeMethodHandle* out) {
+XGB_DLL int XGBCvFoldTreeMethodCreate(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
+                                      char const* c_config, TreeMethodHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(dtrain);
@@ -246,28 +246,28 @@ XGB_DLL int XGBCvTreeMethodCreate(FoldModelsHandle c_cv_folds, DMatrixHandle dtr
   auto p_fmat = CastDMatrixHandle(dtrain);
   Json config{Json::Load(StringView{c_config})};
   auto args = cv::JsonToArgs(config);
-  auto ptr = std::make_unique<cv::TreeMethod>(std::move(p_fmat));
+  auto ptr = std::make_unique<cv::FoldTreeMethod>(std::move(p_fmat));
   ptr->Configure(std::move(args));
   *out = ptr.release();
   API_END();
 }
 
-XGB_DLL int XGBCvTreeMethodFree(TreeMethodHandle hdl) {
+XGB_DLL int XGBCvFoldTreeMethodFree(TreeMethodHandle hdl) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
-  delete static_cast<cv::TreeMethod*>(hdl);
+  delete static_cast<cv::FoldTreeMethod*>(hdl);
   API_END();
 }
 
-XGB_DLL int XGBCvTreeMethodUpdate(TreeMethodHandle hdl, FoldModelsHandle c_cv_folds,
-                                  DMatrixHandle dtrain, FoldInfoBatchesHandle c_fold_info,
-                                  FoldGpairsHandle c_gpairs) {
+XGB_DLL int XGBCvFoldTreeMethodUpdate(TreeMethodHandle hdl, FoldModelsHandle c_cv_folds,
+                                      DMatrixHandle dtrain, FoldInfoBatchesHandle c_fold_info,
+                                      FoldGpairsHandle c_gpairs) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(c_fold_info);
   xgboost_CHECK_C_ARG_PTR(c_gpairs);
-  auto tree_method = static_cast<cv::TreeMethod*>(hdl);
+  auto tree_method = static_cast<cv::FoldTreeMethod*>(hdl);
   auto cv_folds = static_cast<cv::FoldModels*>(c_cv_folds);
   auto p_fmat = CastDMatrixHandle(dtrain);
   auto fold_info = static_cast<cv::FoldInfoBatches*>(c_fold_info);

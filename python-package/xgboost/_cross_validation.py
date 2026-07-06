@@ -74,19 +74,19 @@ _LIB.XGBCvFoldModelsGetGradient.argtypes = [
     ctypes.c_int,
 ]
 
-_LIB.XGBCvTreeMethodCreate.restype = ctypes.c_int
-_LIB.XGBCvTreeMethodCreate.argtypes = [
+_LIB.XGBCvFoldTreeMethodCreate.restype = ctypes.c_int
+_LIB.XGBCvFoldTreeMethodCreate.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_char_p,
     ctypes.POINTER(ctypes.c_void_p),
 ]
 
-_LIB.XGBCvTreeMethodFree.restype = ctypes.c_int
-_LIB.XGBCvTreeMethodFree.argtypes = [ctypes.c_void_p]
+_LIB.XGBCvFoldTreeMethodFree.restype = ctypes.c_int
+_LIB.XGBCvFoldTreeMethodFree.argtypes = [ctypes.c_void_p]
 
-_LIB.XGBCvTreeMethodUpdate.restype = ctypes.c_int
-_LIB.XGBCvTreeMethodUpdate.argtypes = [
+_LIB.XGBCvFoldTreeMethodUpdate.restype = ctypes.c_int
+_LIB.XGBCvFoldTreeMethodUpdate.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
@@ -173,7 +173,7 @@ class TreeMethod:
     ) -> None:
         hdl = ctypes.c_void_p()
         _check_call(
-            _LIB.XGBCvTreeMethodCreate(
+            _LIB.XGBCvFoldTreeMethodCreate(
                 cv_folds.handle,
                 data.handle,
                 make_jcargs(**(params or {})),
@@ -186,7 +186,7 @@ class TreeMethod:
         if hasattr(self, "handle"):
             hdl = self.handle
             del self.handle
-            _check_call(_LIB.XGBCvTreeMethodFree(hdl))
+            _check_call(_LIB.XGBCvFoldTreeMethodFree(hdl))
 
     def update(
         self,
@@ -198,7 +198,7 @@ class TreeMethod:
         """Grow and commit one fused CV tree for each fold."""
 
         _check_call(
-            _LIB.XGBCvTreeMethodUpdate(
+            _LIB.XGBCvFoldTreeMethodUpdate(
                 self.handle,
                 cv_folds.handle,
                 data.handle,
