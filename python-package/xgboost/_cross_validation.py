@@ -15,15 +15,15 @@ from .core import ExtMemQuantileDMatrix
 if TYPE_CHECKING:
     import cupy as cp
 
-_LIB.XGBCvFoldsCreate.restype = ctypes.c_int
-_LIB.XGBCvFoldsCreate.argtypes = [
+_LIB.XGBCvFoldModelsCreate.restype = ctypes.c_int
+_LIB.XGBCvFoldModelsCreate.argtypes = [
     ctypes.c_size_t,
     ctypes.c_void_p,
     ctypes.POINTER(ctypes.c_void_p),
 ]
 
-_LIB.XGBCvFoldsFree.restype = ctypes.c_int
-_LIB.XGBCvFoldsFree.argtypes = [ctypes.c_void_p]
+_LIB.XGBCvFoldModelsFree.restype = ctypes.c_int
+_LIB.XGBCvFoldModelsFree.argtypes = [ctypes.c_void_p]
 
 _LIB.XGBCvFoldInfoBatchesCreate.restype = ctypes.c_int
 _LIB.XGBCvFoldInfoBatchesCreate.argtypes = [
@@ -38,8 +38,8 @@ _LIB.XGBCvFoldInfoBatchesFree.argtypes = [ctypes.c_void_p]
 _LIB.XGBCvFoldPredictionsCreate.restype = ctypes.c_int
 _LIB.XGBCvFoldPredictionsCreate.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
 
-_LIB.XGBCvInitPrediction.restype = ctypes.c_int
-_LIB.XGBCvInitPrediction.argtypes = [
+_LIB.XGBCvFoldModelsInitPrediction.restype = ctypes.c_int
+_LIB.XGBCvFoldModelsInitPrediction.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
@@ -64,8 +64,8 @@ _LIB.XGBCvFoldGpairsGet.argtypes = [
 _LIB.XGBCvFoldGpairsFree.restype = ctypes.c_int
 _LIB.XGBCvFoldGpairsFree.argtypes = [ctypes.c_void_p]
 
-_LIB.XGBCvGetGradient.restype = ctypes.c_int
-_LIB.XGBCvGetGradient.argtypes = [
+_LIB.XGBCvFoldModelsGetGradient.restype = ctypes.c_int
+_LIB.XGBCvFoldModelsGetGradient.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_void_p,
@@ -90,7 +90,7 @@ class FoldModels:
 
         hdl = ctypes.c_void_p()
         _check_call(
-            _LIB.XGBCvFoldsCreate(
+            _LIB.XGBCvFoldModelsCreate(
                 ctypes.c_size_t(k_folds), data.handle, ctypes.byref(hdl)
             )
         )
@@ -101,7 +101,7 @@ class FoldModels:
         if hasattr(self, "handle"):
             hdl = self.handle
             del self.handle
-            _check_call(_LIB.XGBCvFoldsFree(hdl))
+            _check_call(_LIB.XGBCvFoldModelsFree(hdl))
 
     def init_prediction(
         self,
@@ -112,7 +112,7 @@ class FoldModels:
         """Initialize prediction buffers."""
 
         _check_call(
-            _LIB.XGBCvInitPrediction(
+            _LIB.XGBCvFoldModelsInitPrediction(
                 self.handle,
                 data.handle,
                 fold_info.handle,
@@ -133,7 +133,7 @@ class FoldModels:
         """Calculate the gradient."""
 
         _check_call(
-            _LIB.XGBCvGetGradient(
+            _LIB.XGBCvFoldModelsGetGradient(
                 self.handle,
                 data.handle,
                 fold_info.handle,
@@ -206,6 +206,7 @@ class FoldGpairs:
     # pylint: disable=too-many-locals
     def get(self, k: int, copy: bool = True) -> tuple[cp.ndarray, cp.ndarray]:
         """Retrieve the gradient for the k^th fold."""
+
         import cupy as cp
 
         data = ctypes.POINTER(ctypes.c_float)()

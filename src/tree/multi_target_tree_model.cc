@@ -30,7 +30,7 @@ MultiTargetTree::MultiTargetTree(TreeParam const* param)
       split_conds_(1ul, DftBadValue()),
       loss_chg_(1ul, 0.0f),
       sum_hess_(1ul, 0.0f) {
-  CHECK_GT(param_->size_leaf_vector, 1);
+  CHECK_GE(param_->size_leaf_vector, 1);
 }
 
 MultiTargetTree::MultiTargetTree(MultiTargetTree const& that)
