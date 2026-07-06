@@ -203,7 +203,8 @@ class FoldGpairs:
             del self.handle
             _check_call(_LIB.XGBCvFoldGpairsFree(hdl))
 
-    def get(self, k: int) -> tuple[cp.ndarray, cp.ndarray]:  # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals
+    def get(self, k: int, copy: bool = True) -> tuple[cp.ndarray, cp.ndarray]:
         """Retrieve the gradient for the k^th fold."""
         import cupy as cp
 
@@ -250,4 +251,6 @@ class FoldGpairs:
             )
             for off in (0, float_size)
         ]
+        if copy:
+            grad, hess = grad.copy(), hess.copy()
         return grad, hess
