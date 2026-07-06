@@ -5,8 +5,9 @@
 #include <thrust/reduce.h>   // for reduce_by_key
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
-#include <memory>  // for unique_ptr
-#include <vector>  // for vector
+#include <memory>   // for unique_ptr
+#include <utility>  // for pair
+#include <vector>   // for vector
 
 #include "../collective/communicator-inl.h"    // for IsDistributed
 #include "../common/categorical.h"             // for CatBitField
@@ -29,6 +30,13 @@
 #include "xgboost/gradient.h"                  // for GradientContainer
 #include "xgboost/host_device_vector.h"        // for HostDeviceVector
 #include "xgboost/tree_model.h"                // for RegTree
+
+namespace xgboost::tree {
+// Collect the shared histogram cuts and whether the data is dense-compressed by iterating
+// the Ellpack pages once. Defined in updater_gpu_hist.cu.
+[[nodiscard]] std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
+    Context const* ctx, DMatrix* p_fmat, BatchParam const& batch);
+}  // namespace xgboost::tree
 
 namespace xgboost::tree::cuda_impl {
 // Use a large number to handle external memory with deep trees.
