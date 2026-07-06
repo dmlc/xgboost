@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 import ctypes
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ._c_api import _LIB, _check_call, make_jcargs
+from ._c_api import _LIB, _check_call
 from .core import ExtMemQuantileDMatrix
 
 if TYPE_CHECKING:
