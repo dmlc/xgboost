@@ -68,9 +68,7 @@ def make_pyproject(
     if create_stub:
         copyfile(readme_stub, readme)
         pyproject_parsed = tomllib.loads(pyproject)
-        pyproject = pyproject.replace(
-            VERSION, pyproject_parsed["project"]["version"]
-        )
+        pyproject = pyproject.replace(VERSION, pyproject_parsed["project"]["version"])
     elif use_suffix == "cpu":
         copyfile(readme_cpu, readme)
     else:
