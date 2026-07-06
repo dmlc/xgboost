@@ -34,7 +34,7 @@ def test_cv_fold_info_batches() -> None:
     assert isinstance(gpairs.handle, ctypes.c_void_p)
     assert gpairs.handle.value is not None
     for k in range(k_folds):
-        grad, hess = gpairs.get(k)
+        grad, hess = gpairs.get(k, copy=False)
         assert grad.shape == hess.shape
         assert grad.dtype == hess.dtype
         assert grad.data.ptr + ctypes.sizeof(ctypes.c_float) == hess.data.ptr
