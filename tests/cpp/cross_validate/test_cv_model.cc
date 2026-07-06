@@ -20,7 +20,11 @@ namespace {
   std::vector<gbm::TreesOneIter> trees{k_folds};
   for (auto& fold_trees : trees) {
     fold_trees.resize(1);
-    fold_trees.front().emplace_back(std::make_unique<RegTree>(1, n_features));
+    auto tree = std::make_unique<RegTree>(1, n_features, true);
+    std::vector<float> weight{0.0f};
+    tree->SetRoot(linalg::MakeVec(weight), 0.0f);
+    tree->GetMultiTargetTree()->SetLeaves();
+    fold_trees.front().emplace_back(std::move(tree));
   }
   return trees;
 }

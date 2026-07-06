@@ -220,7 +220,7 @@ void FoldModels::SaveModel(Json* out) const {
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGBCvFoldsCreate(size_t k_folds, DMatrixHandle dtrain, FoldsHandle* out) {
+XGB_DLL int XGBCvFoldModelsCreate(size_t k_folds, DMatrixHandle dtrain, FoldModelsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
   auto p_fmat = CastDMatrixHandle(dtrain);
@@ -228,7 +228,7 @@ XGB_DLL int XGBCvFoldsCreate(size_t k_folds, DMatrixHandle dtrain, FoldsHandle* 
   API_END();
 }
 
-XGB_DLL int XGBCvFoldsFree(FoldsHandle hdl) {
+XGB_DLL int XGBCvFoldModelsFree(FoldModelsHandle hdl) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(hdl);
   delete static_cast<cv::FoldModels*>(hdl);
@@ -242,8 +242,9 @@ XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
   API_END();
 }
 
-XGB_DLL int XGBCvInitPrediction(FoldsHandle c_cv_folds, DMatrixHandle dtrain,
-                                FoldInfoBatchesHandle c_fold_info, FoldPredictionsHandle c_predt) {
+XGB_DLL int XGBCvFoldModelsInitPrediction(FoldModelsHandle c_cv_folds, DMatrixHandle dtrain,
+                                          FoldInfoBatchesHandle c_fold_info,
+                                          FoldPredictionsHandle c_predt) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(c_cv_folds);
   xgboost_CHECK_C_ARG_PTR(c_fold_info);
