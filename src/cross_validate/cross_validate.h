@@ -42,6 +42,8 @@ class FoldModels {
   explicit FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain);
   [[nodiscard]] std::size_t KFolds() const noexcept(true);
   [[nodiscard]] bst_target_t OutputLength(std::size_t fold_idx) const;
+  [[nodiscard]] bst_target_t LeafLength(std::size_t fold_idx) const;
+  [[nodiscard]] bst_feature_t NumFeatures(std::size_t fold_idx) const;
   [[nodiscard]] ObjFunction* Objective(std::size_t fold_idx) const;
   void InitPrediction(Context const* ctx, MetaInfo const& info, FoldInfoBatches const& finfo,
                       FoldPredictions* out) const;
@@ -101,3 +103,4 @@ using FoldModelsHandle = void*;
 using FoldInfoBatchesHandle = void*;
 using FoldPredictionsHandle = void*;
 using FoldGpairsHandle = void*;
+using TreeMethodHandle = void*;

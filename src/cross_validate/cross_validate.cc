@@ -110,6 +110,16 @@ bst_target_t FoldModels::OutputLength(std::size_t fold_idx) const {
   return this->properties_[fold_idx].OutputLength();
 }
 
+bst_target_t FoldModels::LeafLength(std::size_t fold_idx) const {
+  CHECK_LT(fold_idx, this->properties_.size());
+  return this->properties_[fold_idx].LeafLength();
+}
+
+bst_feature_t FoldModels::NumFeatures(std::size_t fold_idx) const {
+  CHECK_LT(fold_idx, this->properties_.size());
+  return this->properties_[fold_idx].num_feature;
+}
+
 ObjFunction* FoldModels::Objective(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->objs_.size());
   return this->objs_[fold_idx].get();
