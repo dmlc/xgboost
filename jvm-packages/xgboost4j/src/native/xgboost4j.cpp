@@ -31,7 +31,6 @@
 #include <numeric>     // for accumulate
 #include <string>
 #include <type_traits>
-#include <utility>  // for move
 #include <vector>
 
 #include "../../../../src/c_api/c_api_error.h"
@@ -95,126 +94,123 @@ jobjectArray MakeJStringArray(JNIEnv *jenv, jsize len, ValuesT values) {
 }
 }  // anonymous namespace
 
-XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
-    DataIterHandle data_handle,
-    XGBCallbackSetData* set_function,
-    DataHolderHandle set_function_handle) {
+XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(DataIterHandle data_handle,
+                                               XGBCallbackSetData *set_function,
+                                               DataHolderHandle set_function_handle) {
   jobject jiter = static_cast<jobject>(data_handle);
-  JNIEnv* jenv;
-  int jni_status = GlobalJvm()->GetEnv((void **)&jenv, JNI_VERSION_1_6);
+  JNIEnv *jenv;
+  int jni_status = GlobalJvm()->GetEnv(reinterpret_cast<void **>(&jenv), JNI_VERSION_1_6);
   if (jni_status == JNI_EDETACHED) {
     GlobalJvm()->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
   } else {
     CHECK(jni_status == JNI_OK);
   }
+  std::unique_ptr<JavaVM, Deleter<JavaVM>> detach_guard{
+      jni_status == JNI_EDETACHED ? GlobalJvm() : nullptr, [](JavaVM *vm) {
+        if (vm) {
+          vm->DetachCurrentThread();
+        }
+      }};
   try {
-    jclass iterClass = jenv->FindClass("java/util/Iterator");
-    jmethodID hasNext = jenv->GetMethodID(iterClass,
-                                          "hasNext", "()Z");
-    jmethodID next = jenv->GetMethodID(iterClass,
-                                       "next", "()Ljava/lang/Object;");
+    auto iterClass = MakeJniLocalRef(jenv, jenv->FindClass("java/util/Iterator"));
+    jmethodID hasNext = jenv->GetMethodID(iterClass.get(), "hasNext", "()Z");
+    jmethodID next = jenv->GetMethodID(iterClass.get(), "next", "()Ljava/lang/Object;");
     int ret_value;
     if (jenv->CallBooleanMethod(jiter, hasNext)) {
       ret_value = 1;
-      jobject batch = jenv->CallObjectMethod(jiter, next);
-      if (batch == nullptr) {
+      auto batch = MakeJniLocalRef(jenv, jenv->CallObjectMethod(jiter, next));
+      if (batch.get() == nullptr) {
         CHECK(jenv->ExceptionOccurred());
         jenv->ExceptionDescribe();
         return -1;
       }
 
-      jclass batchClass = jenv->GetObjectClass(batch);
-      jlongArray joffset = (jlongArray)jenv->GetObjectField(
-          batch, jenv->GetFieldID(batchClass, "rowOffset", "[J"));
-      jfloatArray jlabel = (jfloatArray)jenv->GetObjectField(
-          batch, jenv->GetFieldID(batchClass, "label", "[F"));
-      jfloatArray jweight = (jfloatArray)jenv->GetObjectField(
-          batch, jenv->GetFieldID(batchClass, "weight", "[F"));
-      jintArray jindex = (jintArray)jenv->GetObjectField(
-          batch, jenv->GetFieldID(batchClass, "featureIndex", "[I"));
-      jfloatArray jvalue = (jfloatArray)jenv->GetObjectField(
-          batch, jenv->GetFieldID(batchClass, "featureValue", "[F"));
-      jint jcols = jenv->GetIntField(
-          batch, jenv->GetFieldID(batchClass, "featureCols", "I"));
+      auto batchClass = MakeJniLocalRef(jenv, jenv->GetObjectClass(batch.get()));
+      auto joffset = MakeJniLocalRef(
+          jenv, static_cast<jlongArray>(jenv->GetObjectField(
+                    batch.get(), jenv->GetFieldID(batchClass.get(), "rowOffset", "[J"))));
+      auto jlabel = MakeJniLocalRef(
+          jenv, static_cast<jfloatArray>(jenv->GetObjectField(
+                    batch.get(), jenv->GetFieldID(batchClass.get(), "label", "[F"))));
+      auto jweight = MakeJniLocalRef(
+          jenv, static_cast<jfloatArray>(jenv->GetObjectField(
+                    batch.get(), jenv->GetFieldID(batchClass.get(), "weight", "[F"))));
+      auto jindex = MakeJniLocalRef(
+          jenv, static_cast<jintArray>(jenv->GetObjectField(
+                    batch.get(), jenv->GetFieldID(batchClass.get(), "featureIndex", "[I"))));
+      auto jvalue = MakeJniLocalRef(
+          jenv, static_cast<jfloatArray>(jenv->GetObjectField(
+                    batch.get(), jenv->GetFieldID(batchClass.get(), "featureValue", "[F"))));
+      jint jcols =
+          jenv->GetIntField(batch.get(), jenv->GetFieldID(batchClass.get(), "featureCols", "I"));
 
-      std::unique_ptr<XGBoostBatchCSR, Deleter<XGBoostBatchCSR>> cbatch{
-          [&] {
-            auto ptr = new XGBoostBatchCSR;
-            auto &cbatch = *ptr;
-
-            // Init
-            cbatch.size = jenv->GetArrayLength(joffset) - 1;
-            cbatch.columns = jcols;
-            cbatch.offset = reinterpret_cast<jlong *>(jenv->GetLongArrayElements(joffset, nullptr));
-
-            if (jlabel != nullptr) {
-              cbatch.label = jenv->GetFloatArrayElements(jlabel, nullptr);
-              CHECK_EQ(jenv->GetArrayLength(jlabel), static_cast<long>(cbatch.size))
-                  << "batch.label.length must equal batch.numRows()";
-            } else {
-              cbatch.label = nullptr;
+      XGBoostBatchCSR cbatch;
+      cbatch.size = jenv->GetArrayLength(joffset.get()) - 1;
+      cbatch.columns = jcols;
+      std::unique_ptr<jlong, Deleter<jlong>> offset{
+          jenv->GetLongArrayElements(joffset.get(), nullptr), [&](jlong *ptr) {
+            if (ptr) {
+              jenv->ReleaseLongArrayElements(joffset.get(), ptr, 0);
             }
-
-            if (jweight != nullptr) {
-              cbatch.weight = jenv->GetFloatArrayElements(jweight, nullptr);
-              CHECK_EQ(jenv->GetArrayLength(jweight), static_cast<long>(cbatch.size))
-                  << "batch.weight.length must equal batch.numRows()";
-            } else {
-              cbatch.weight = nullptr;
-            }
-
-            auto max_elem = cbatch.offset[cbatch.size];
-            cbatch.index = (int *)jenv->GetIntArrayElements(jindex, nullptr);
-            cbatch.value = jenv->GetFloatArrayElements(jvalue, nullptr);
-            CHECK_EQ(jenv->GetArrayLength(jindex), max_elem)
-                << "batch.index.length must equal batch.offset.back()";
-            CHECK_EQ(jenv->GetArrayLength(jvalue), max_elem)
-                << "batch.index.length must equal batch.offset.back()";
-            return ptr;
-          }(),
-          [&](XGBoostBatchCSR *ptr) {
-            auto &cbatch = *ptr;
-            jenv->ReleaseLongArrayElements(joffset, reinterpret_cast<jlong *>(cbatch.offset), 0);
-            jenv->DeleteLocalRef(joffset);
-
-            if (jlabel) {
-              jenv->ReleaseFloatArrayElements(jlabel, cbatch.label, 0);
-              jenv->DeleteLocalRef(jlabel);
-            }
-            if (jweight) {
-              jenv->ReleaseFloatArrayElements(jweight, cbatch.weight, 0);
-              jenv->DeleteLocalRef(jweight);
-            }
-
-            jenv->ReleaseIntArrayElements(jindex, (jint *)cbatch.index, 0);
-            jenv->DeleteLocalRef(jindex);
-
-            jenv->ReleaseFloatArrayElements(jvalue, cbatch.value, 0);
-            jenv->DeleteLocalRef(jvalue);
-
-            delete ptr;
           }};
+      cbatch.offset = reinterpret_cast<decltype(cbatch.offset)>(offset.get());
 
-      CHECK_EQ((*set_function)(set_function_handle, *cbatch), 0) << XGBGetLastError();
+      std::unique_ptr<jfloat, Deleter<jfloat>> label{nullptr, [&](jfloat *ptr) {
+                                                       if (ptr) {
+                                                         jenv->ReleaseFloatArrayElements(
+                                                             jlabel.get(), ptr, 0);
+                                                       }
+                                                     }};
+      if (jlabel.get() != nullptr) {
+        label.reset(jenv->GetFloatArrayElements(jlabel.get(), nullptr));
+        CHECK_EQ(jenv->GetArrayLength(jlabel.get()), static_cast<long>(cbatch.size))
+            << "batch.label.length must equal batch.numRows()";
+      }
+      cbatch.label = label.get();
 
-      jenv->DeleteLocalRef(batch);
-      jenv->DeleteLocalRef(batchClass);
+      std::unique_ptr<jfloat, Deleter<jfloat>> weight{nullptr, [&](jfloat *ptr) {
+                                                        if (ptr) {
+                                                          jenv->ReleaseFloatArrayElements(
+                                                              jweight.get(), ptr, 0);
+                                                        }
+                                                      }};
+      if (jweight.get() != nullptr) {
+        weight.reset(jenv->GetFloatArrayElements(jweight.get(), nullptr));
+        CHECK_EQ(jenv->GetArrayLength(jweight.get()), static_cast<long>(cbatch.size))
+            << "batch.weight.length must equal batch.numRows()";
+      }
+      cbatch.weight = weight.get();
+
+      auto max_elem = cbatch.offset[cbatch.size];
+      std::unique_ptr<jint, Deleter<jint>> index{
+          jenv->GetIntArrayElements(jindex.get(), nullptr), [&](jint *ptr) {
+            if (ptr) {
+              jenv->ReleaseIntArrayElements(jindex.get(), ptr, 0);
+            }
+          }};
+      cbatch.index = reinterpret_cast<int *>(index.get());
+      std::unique_ptr<jfloat, Deleter<jfloat>> value{
+          jenv->GetFloatArrayElements(jvalue.get(), nullptr), [&](jfloat *ptr) {
+            if (ptr) {
+              jenv->ReleaseFloatArrayElements(jvalue.get(), ptr, 0);
+            }
+          }};
+      cbatch.value = value.get();
+      CHECK_EQ(jenv->GetArrayLength(jindex.get()), max_elem)
+          << "batch.index.length must equal batch.offset.back()";
+      CHECK_EQ(jenv->GetArrayLength(jvalue.get()), max_elem)
+          << "batch.index.length must equal batch.offset.back()";
+
+      CHECK_EQ((*set_function)(set_function_handle, cbatch), 0) << XGBGetLastError();
 
       ret_value = 1;
     } else {
       ret_value = 0;
     }
-    jenv->DeleteLocalRef(iterClass);
-    // only detach if it is a async call.
-    if (jni_status == JNI_EDETACHED) {
-      GlobalJvm()->DetachCurrentThread();
-    }
     return ret_value;
-  } catch(dmlc::Error const& e) {
+  } catch (dmlc::Error const &e) {
     // only detach if it is a async call.
-    if (jni_status == JNI_EDETACHED) {
-      GlobalJvm()->DetachCurrentThread();
-    }
+    detach_guard.reset();
     LOG(FATAL) << e.what();
     return -1;
   }
@@ -227,7 +223,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
  */
 JNIEXPORT jstring JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetLastError(JNIEnv *jenv,
                                                                                  jclass jcls) {
-  jstring jresult = 0;
+  jstring jresult = nullptr;
   const char *result = XGBGetLastError();
   if (result) {
     jresult = jenv->NewStringUTF(result);
@@ -276,7 +272,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 
 namespace {
 using JavaIndT =
-    std::conditional_t<std::is_convertible<jint *, std::int32_t *>::value, std::int32_t, long>;
+    std::conditional_t<std::is_convertible_v<jint *, std::int32_t *>, std::int32_t, long>;
 /**
  * \brief Create from sparse matrix.
  *
@@ -304,7 +300,7 @@ jint MakeJVMSparseInput(JNIEnv *jenv, jlongArray jindptr, jintArray jindices, jf
 
   std::string sindptr, sindices, sdata;
   CHECK_EQ(indptr.get()[nindptr - 1], nelem);
-  using IndPtrT = std::conditional_t<std::is_convertible<jlong *, long *>::value, long, long long>;
+  using IndPtrT = std::conditional_t<std::is_convertible_v<jlong *, long *>, long, long long>;
   xgboost::detail::MakeSparseFromPtr(
       static_cast<IndPtrT const *>(indptr.get()), static_cast<JavaIndT const *>(indices.get()),
       static_cast<float const *>(data.get()), nindptr, &sindptr, &sindices, &sdata);
@@ -388,11 +384,11 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
     jlongArray jout) {
   DMatrixHandle result;
   std::unique_ptr<jfloat, Deleter<jfloat>> data{
-      jenv->GetFloatArrayElements(jdata, 0),
+      jenv->GetFloatArrayElements(jdata, nullptr),
       [&](jfloat *ptr) { jenv->ReleaseFloatArrayElements(jdata, ptr, 0); }};
 
-  bst_ulong nrow = (bst_ulong)jnrow;
-  bst_ulong ncol = (bst_ulong)jncol;
+  bst_ulong nrow = static_cast<bst_ulong>(jnrow);
+  bst_ulong ncol = static_cast<bst_ulong>(jncol);
   jint ret =
       XGDMatrixCreateFromMat(static_cast<float const *>(data.get()), nrow, ncol, jmiss, &result);
   JVM_CHECK_CALL(ret);
@@ -489,7 +485,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetFloatI
       jenv->GetFloatArrayElements(jarray, nullptr),
       [&](jfloat *ptr) { jenv->ReleaseFloatArrayElements(jarray, ptr, 0); }};
 
-  bst_ulong len = (bst_ulong)jenv->GetArrayLength(jarray);
+  bst_ulong len = static_cast<bst_ulong>(jenv->GetArrayLength(jarray));
   auto str = xgboost::linalg::Make1dInterface(array.get(), len);
   return XGDMatrixSetInfoFromInterface(handle, field.get(), str.c_str());
 }
@@ -511,7 +507,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetUIntIn
   std::unique_ptr<jint, Deleter<jint>> array{
       jenv->GetIntArrayElements(jarray, nullptr),
       [&](jint *ptr) { jenv->ReleaseIntArrayElements(jarray, ptr, 0); }};
-  bst_ulong len = (bst_ulong)jenv->GetArrayLength(jarray);
+  bst_ulong len = static_cast<bst_ulong>(jenv->GetArrayLength(jarray));
   auto str = xgboost::linalg::Make1dInterface(array.get(), len);
   return XGDMatrixSetInfoFromInterface(handle, field.get(), str.c_str());
 }
@@ -531,14 +527,14 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetFloatI
         }
       }};
   bst_ulong len;
-  float *result;
-  int ret = XGDMatrixGetFloatInfo(handle, field.get(), &len, (const float **)&result);
+  float const *result;
+  int ret = XGDMatrixGetFloatInfo(handle, field.get(), &len, &result);
   JVM_CHECK_CALL(ret);
 
-  jsize jlen = (jsize)len;
+  jsize jlen = static_cast<jsize>(len);
   jfloatArray jarray = jenv->NewFloatArray(jlen);
-  jenv->SetFloatArrayRegion(jarray, 0, jlen, (jfloat *)result);
-  jenv->SetObjectArrayElement(jout, 0, (jobject)jarray);
+  jenv->SetFloatArrayRegion(jarray, 0, jlen, static_cast<jfloat const *>(result));
+  jenv->SetObjectArrayElement(jout, 0, reinterpret_cast<jobject>(jarray));
 
   return ret;
 }
@@ -558,13 +554,13 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetUIntIn
         }
       }};
   bst_ulong len;
-  unsigned int *result;
-  int ret = (jint)XGDMatrixGetUIntInfo(handle, field.get(), &len, (const unsigned int **)&result);
+  unsigned int const *result;
+  int ret = static_cast<jint>(XGDMatrixGetUIntInfo(handle, field.get(), &len, &result));
   JVM_CHECK_CALL(ret);
 
-  jsize jlen = (jsize)len;
+  jsize jlen = static_cast<jsize>(len);
   jintArray jarray = jenv->NewIntArray(jlen);
-  jenv->SetIntArrayRegion(jarray, 0, jlen, (jint *)result);
+  jenv->SetIntArrayRegion(jarray, 0, jlen, reinterpret_cast<jint const *>(result));
   jenv->SetObjectArrayElement(jout, 0, jarray);
   return ret;
 }
@@ -773,16 +769,16 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict(
   auto handle = reinterpret_cast<BoosterHandle>(jhandle);
   auto dmat = reinterpret_cast<DMatrixHandle>(jdmat);
   bst_ulong len;
-  float *result;
+  float const *result;
   int ret =
       XGBoosterPredict(handle, dmat, joption_mask, (unsigned int)jntree_limit,
                        /* training = */ 0,  // Currently this parameter is not supported by JVM
-                       &len, (const float **)&result);
+                       &len, &result);
   JVM_CHECK_CALL(ret);
   if (len) {
-    jsize jlen = (jsize)len;
+    jsize jlen = static_cast<jsize>(len);
     jfloatArray jarray = jenv->NewFloatArray(jlen);
-    jenv->SetFloatArrayRegion(jarray, 0, jlen, (jfloat *)result);
+    jenv->SetFloatArrayRegion(jarray, 0, jlen, result);
     jenv->SetObjectArrayElement(jout, 0, jarray);
   }
   return ret;
@@ -949,7 +945,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSaveModel
   JVM_CHECK_CALL(ret);
   if (result) {
     jbyteArray jarray = jenv->NewByteArray(len);
-    jenv->SetByteArrayRegion(jarray, 0, len, (jbyte *)result);
+    jenv->SetByteArrayRegion(jarray, 0, len, reinterpret_cast<jbyte const *>(result));
     jenv->SetObjectArrayElement(jout, 0, jarray);
   }
   return ret;
@@ -1095,7 +1091,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetAttr(
   }
 
   return ret;
-};
+}
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -1319,7 +1315,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorGetWor
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorAllreduce(
     JNIEnv *jenv, jclass jcls, jobject jsendrecvbuf, jint jcount, jint jenum_dtype, jint jenum_op) {
   void *ptr_sendrecvbuf = jenv->GetDirectBufferAddress(jsendrecvbuf);
-  JVM_CHECK_CALL(XGCommunicatorAllreduce(ptr_sendrecvbuf, (size_t)jcount, jenum_dtype, jenum_op));
+  JVM_CHECK_CALL(
+      XGCommunicatorAllreduce(ptr_sendrecvbuf, static_cast<size_t>(jcount), jenum_dtype, jenum_op));
   return 0;
 }
 
@@ -1467,7 +1464,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetStrFea
   std::unique_ptr<char const, Deleter<char const>> field{
       jenv->GetStringUTFChars(jfield, nullptr),
       [&](char const *ptr) { jenv->ReleaseStringUTFChars(jfield, ptr); }};
-  bst_ulong feature_num = (bst_ulong)jenv->GetArrayLength(jfeatures);
+  bst_ulong feature_num = static_cast<bst_ulong>(jenv->GetArrayLength(jfeatures));
 
   std::vector<std::string> features;
   std::vector<char const *> features_char;
@@ -1484,8 +1481,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetStrFea
     features.emplace_back(s.get(), jenv->GetStringLength(jfeature.get()));
   }
 
-  for (size_t i = 0; i < features.size(); ++i) {
-    features_char.push_back(features[i].c_str());
+  for (auto const &feature : features) {
+    features_char.push_back(feature.c_str());
   }
 
   return XGBoosterSetStrFeatureInfo(handle, field.get(), dmlc::BeginPtr(features_char),
@@ -1504,7 +1501,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetStrFea
       jenv->GetStringUTFChars(jfield, nullptr),
       [&](char const *ptr) { jenv->ReleaseStringUTFChars(jfield, ptr); }};
 
-  bst_ulong feature_num = (bst_ulong)jenv->GetArrayLength(jout);
+  bst_ulong feature_num = static_cast<bst_ulong>(jenv->GetArrayLength(jout));
 
   const char **features;
   std::vector<char *> features_char;
