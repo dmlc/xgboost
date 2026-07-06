@@ -10,7 +10,6 @@
 #include "../c_api/c_api_error.h"
 #include "../c_api/c_api_utils.h"        // for CastDMatrixHandle
 #include "../common/cuda_context.cuh"    // for CUDAContext
-#include "../common/cuda_rt_utils.h"     // for SetDevice
 #include "../common/linalg_op.cuh"       // for tcbegin, tcend, tbegin
 #include "../tree/updater_gpu_hist.cuh"  // for HistBatch, InitBatchCuts
 #include "cross_validate.h"
@@ -166,7 +165,6 @@ class TreeMethod {
     CHECK(ctx_->IsCUDA()) << "CV tree method `hist` requires a CUDA device.";
     auto* p_fmat = p_fmat_.get();
     CHECK(p_fmat);
-    curt::SetDevice(ctx_->Ordinal());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
     auto batch = tree::cuda_impl::HistBatch(param_);
