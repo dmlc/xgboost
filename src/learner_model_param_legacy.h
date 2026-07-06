@@ -47,7 +47,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
    *   This is a private parameter as we can't expose it as boolean due to binary model
    *   format. Exposing it as integer creates inconsistency with other parameters.
    *
-   *   Automatically disabled when base_score is specifed by user. int32 is used instead
+   *   Automatically disabled when base_score is specified by user. int32 is used instead
    *   of bool for the ease of serialization.
    */
   std::int32_t boost_from_average{true};
