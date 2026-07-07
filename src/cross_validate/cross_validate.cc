@@ -273,7 +273,7 @@ XGB_DLL int XGBCvFoldModelsInitPrediction(FoldModelsHandle c_cv_folds, DMatrixHa
 XGB_DLL int XGBCvFoldPredictionsCreate(FoldPredictionsHandle* out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new cv::FoldPredictions{};
+  *out = new cv::FoldPredictions;
   API_END();
 }
 
