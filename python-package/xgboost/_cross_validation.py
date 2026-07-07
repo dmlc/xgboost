@@ -165,7 +165,7 @@ class FoldModels:
         return out
 
 
-class TreeMethod:
+class FoldTreeMethod:
     """Optimizer used for fused cross-validation."""
 
     def __init__(

@@ -17,6 +17,7 @@
 #include "xgboost/linalg.h"              // for Matrix
 #include "xgboost/logging.h"
 #include "xgboost/objective.h"
+#include "xgboost/predictor.h"  // for PredictionCacheEntry
 
 namespace xgboost::cv {
 struct FoldInfoBatches;
@@ -84,11 +85,18 @@ struct FoldInfoBatches {
 };
 
 struct FoldPredictions {
-  std::vector<HostDeviceVector<float>> predts;
+  std::vector<PredictionCacheEntry> train;
+  PredictionCacheEntry valid;
 
-  [[nodiscard]] auto KFolds() const noexcept(true) { return this->predts.size(); }
+  [[nodiscard]] auto KFolds() const noexcept(true) { return this->train.size(); }
+  [[nodiscard]] PredictionCacheEntry& Training(std::size_t fold_idx) { return train.at(fold_idx); }
+  [[nodiscard]] PredictionCacheEntry const& Training(std::size_t fold_idx) const {
+    return train.at(fold_idx);
+  }
+  [[nodiscard]] PredictionCacheEntry& Validation() { return valid; }
+  [[nodiscard]] PredictionCacheEntry const& Validation() const { return valid; }
   [[nodiscard]] HostDeviceVector<float> const& Prediction(std::size_t fold_idx) const {
-    return predts.at(fold_idx);
+    return this->Training(fold_idx).predictions;
   }
 };
 
