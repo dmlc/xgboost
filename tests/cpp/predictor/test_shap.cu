@@ -90,6 +90,11 @@ TEST(GPUPredictor, DartShapOutputGPU) {
   CheckDartShapOutput(&ctx);
 }
 
+TEST(GPUPredictor, ShapHandlesDeepTree) {
+  auto ctx = MakeCUDACtx(0);
+  CheckShapHandlesDeepTree(&ctx);
+}
+
 TEST(GPUPredictor, ShapHandlesZeroCoverChild) {
   auto ctx = MakeCUDACtx(0);
   CheckShapHandlesZeroCover(&ctx, false);
