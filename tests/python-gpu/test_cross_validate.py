@@ -39,7 +39,7 @@ def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
     assert cv_folds.init_prediction(Xy, folds, out=predts) is predts
     gpairs = xcv.FoldGpairs()
     assert cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs) is gpairs
-    tree_method = xcv.TreeMethod(cv_folds, Xy, params={"max_depth": 1})
+    tree_method = xcv.FoldTreeMethod(cv_folds, Xy, params={"max_depth": 1})
     tree_method.update(cv_folds, Xy, folds, gpairs)
 
 
