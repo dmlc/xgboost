@@ -103,24 +103,24 @@ FoldModels::FoldModels(std::size_t k_folds, std::shared_ptr<DMatrix> dtrain) {
   CHECK_EQ(models_.size(), k_folds);
 }
 
-std::size_t FoldModels::KFolds() const noexcept(true) { return this->objs_.size(); }
+[[nodiscard]] std::size_t FoldModels::KFolds() const noexcept(true) { return this->objs_.size(); }
 
-bst_target_t FoldModels::OutputLength(std::size_t fold_idx) const {
+[[nodiscard]] bst_target_t FoldModels::OutputLength(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->properties_.size());
   return this->properties_[fold_idx].OutputLength();
 }
 
-bst_target_t FoldModels::LeafLength(std::size_t fold_idx) const {
+[[nodiscard]] bst_target_t FoldModels::LeafLength(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->properties_.size());
   return this->properties_[fold_idx].LeafLength();
 }
 
-bst_feature_t FoldModels::NumFeatures(std::size_t fold_idx) const {
+[[nodiscard]] bst_feature_t FoldModels::NumFeatures(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->properties_.size());
   return this->properties_[fold_idx].num_feature;
 }
 
-ObjFunction* FoldModels::Objective(std::size_t fold_idx) const {
+[[nodiscard]] ObjFunction* FoldModels::Objective(std::size_t fold_idx) const {
   CHECK_LT(fold_idx, this->objs_.size());
   return this->objs_[fold_idx].get();
 }
@@ -129,14 +129,23 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
                                 FoldInfoBatches const& finfo, FoldPredictions* out) const {
   CHECK(out);
   CHECK_EQ(this->KFolds(), finfo.KFolds());
-  if (out->predts.empty()) {
-    out->predts.resize(this->KFolds());
+  if (out->train.empty()) {
+    out->train.resize(this->KFolds());
   }
-  CHECK_EQ(out->predts.size(), this->KFolds());
+  CHECK_EQ(out->train.size(), this->KFolds());
 
+  // Init validation prediction vector
   auto predictor = CreatePredictor(ctx);
-  for (std::size_t k = 0; k < this->KFolds(); ++k) {
-    auto output_length = this->OutputLength(k);
+  CHECK_GT(this->KFolds(), 0);
+  auto output_length = this->OutputLength(0);
+  predictor->InitOutPredictions(info, &out->valid.predictions, *models_.front());
+  out->valid.Reset();
+  CHECK_EQ(out->valid.predictions.Device(), ctx->Device());
+  CHECK_EQ(out->valid.predictions.Size(), info.num_row_ * output_length);
+
+  // Init training prediction vector.
+  for (std::size_t k = 0, k_folds = this->KFolds(); k < k_folds; ++k) {
+    output_length = this->OutputLength(k);
     CHECK_EQ(info.labels.Shape(1), output_length);
 
     // FIXME(jiamingy): Unify the code paths.
@@ -144,10 +153,11 @@ void FoldModels::InitPrediction(Context const* ctx, MetaInfo const& info,
     fold_info.num_row_ = finfo.FoldSize(k);
     fold_info.num_col_ = info.num_col_;
 
-    auto& predt = out->predts.at(k);
-    predictor->InitOutPredictions(fold_info, &predt, *models_.at(k));
-    CHECK_EQ(predt.Device(), ctx->Device());
-    CHECK_EQ(predt.Size(), fold_info.num_row_ * output_length);
+    auto& predt = out->train.at(k);
+    predt.Reset();
+    predictor->InitOutPredictions(fold_info, &predt.predictions, *models_.at(k));
+    CHECK_EQ(predt.predictions.Device(), ctx->Device());
+    CHECK_EQ(predt.predictions.Size(), fold_info.num_row_ * output_length);
   }
 }
 

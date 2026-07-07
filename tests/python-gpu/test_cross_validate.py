@@ -28,6 +28,22 @@ def xyw_extqdm() -> XywExtQdm:
 
 
 @pytest.mark.skipif(**tm.no_cupy())
+def test_cv_tree_method(xyw_extqdm: XywExtQdm) -> None:
+    X, y, w, Xy = xyw_extqdm
+    k_folds = 3
+
+    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
+
+    predts = xcv.FoldPredictions()
+    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
+    assert cv_folds.init_prediction(Xy, folds, out=predts) is predts
+    gpairs = xcv.FoldGpairs()
+    assert cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs) is gpairs
+    tree_method = xcv.TreeMethod(cv_folds, Xy, params={"max_depth": 1})
+    tree_method.update(cv_folds, Xy, folds, gpairs)
+
+
+@pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_cv_fold_info_batches(xyw_extqdm: XywExtQdm) -> None:
     import cupy as cp
@@ -79,18 +95,3 @@ def test_cv_fold_info_batches(xyw_extqdm: XywExtQdm) -> None:
         cp.testing.assert_allclose(hess, expected_weights)
 
     assert cv_folds.get_gradient(Xy, 1, folds, predts, out=gpairs) is gpairs
-
-
-def test_tree_method(xyw_extqdm: XywExtQdm) -> None:
-    X, y, w, Xy = xyw_extqdm
-    k_folds = 3
-
-    cv_folds = xcv.FoldModels(data=Xy, k_folds=k_folds)
-
-    predts = xcv.FoldPredictions()
-    folds = xcv.FoldInfoBatches(Xy, k_folds=k_folds)
-    assert cv_folds.init_prediction(Xy, folds, out=predts) is predts
-    gpairs = xcv.FoldGpairs()
-    assert cv_folds.get_gradient(Xy, 0, folds, predts, out=gpairs) is gpairs
-    tree_method = xcv.TreeMethod(cv_folds, Xy, params={"max_depth": 1})
-    tree_method.update(cv_folds, Xy, folds, gpairs)
