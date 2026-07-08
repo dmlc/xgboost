@@ -26,9 +26,7 @@ from .ordinal import make_recoded
 from .utils import Device, assert_allclose
 
 
-def check_init_estimation_clf(
-    tree_method: str, device: Literal["cpu", "cuda"], client: Client
-) -> None:
+def check_init_estimation_clf(tree_method: str, device: Device, client: Client) -> None:
     """Test init estimation for classsifier."""
     X, y = make_classification(n_samples=4096 * 2, n_features=32, random_state=1994)
     clf = xgb.XGBClassifier(
@@ -51,9 +49,7 @@ def check_init_estimation_clf(
     np.testing.assert_allclose(base_score, dbase_score)
 
 
-def check_init_estimation_reg(
-    tree_method: str, device: Literal["cpu", "cuda"], client: Client
-) -> None:
+def check_init_estimation_reg(tree_method: str, device: Device, client: Client) -> None:
     """Test init estimation for regressor."""
     # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_regression(n_samples=4096 * 2, n_features=32, random_state=1994)
@@ -74,16 +70,14 @@ def check_init_estimation_reg(
     np.testing.assert_allclose(base_score, dbase_score)
 
 
-def check_init_estimation(
-    tree_method: str, device: Literal["cpu", "cuda"], client: Client
-) -> None:
+def check_init_estimation(tree_method: str, device: Device, client: Client) -> None:
     """Test init estimation."""
     check_init_estimation_reg(tree_method, device, client)
     check_init_estimation_clf(tree_method, device, client)
 
 
 def check_uneven_nan(
-    client: Client, tree_method: str, device: Literal["cpu", "cuda"], n_workers: int
+    client: Client, tree_method: str, device: Device, n_workers: int
 ) -> None:
     """Issue #9271, not every worker has missing value."""
     assert n_workers >= 2
