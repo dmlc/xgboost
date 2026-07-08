@@ -15,8 +15,15 @@ from hypothesis._settings import duration
 from packaging.version import parse as parse_version
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
-from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
-from xgboost.testing.params import hist_parameter_strategy
+from xgboost.testing.dask import (
+    get_rabit_args,
+    make_categorical,
+    run_recode
+)
+from xgboost.testing.params import (
+    hist_multi_parameter_strategy,
+    hist_parameter_strategy
+)
 
 from ..test_with_dask.test_with_dask import (
     generate_array,
@@ -47,7 +54,12 @@ from dask import array as da
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
 from xgboost import dask as dxgb
-from xgboost.testing.dask import check_init_estimation, check_uneven_nan
+from xgboost.testing.dask import (
+    check_init_estimation,
+    check_multi_output_tree_dask_regressor,
+    check_multi_output_tree_dask_train,
+    check_uneven_nan,
+)
 
 dask_version_ge110 = dask_version and parse_version(dask_version) >= parse_version(
     "2024.11.0"
@@ -270,6 +282,38 @@ class TestDistributedGPU:
     ) -> None:
         params["tree_method"] = "hist"
         run_gpu_hist(params, num_rounds, dataset, dmatrix_type, local_cuda_client)
+
+    @given(
+        params=hist_multi_parameter_strategy,
+        num_rounds=strategies.integers(1, 3),
+        dataset=tm.multi_dataset_strategy,
+    )
+    @settings(
+        deadline=duration(seconds=120),
+        max_examples=10,
+        suppress_health_check=suppress,
+        print_blob=True,
+    )
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_gpu_hist_multi(
+        self,
+        params: Dict,
+        num_rounds: int,
+        dataset: tm.TestDataset,
+        local_cuda_client: Client,
+    ) -> None:
+        params["tree_method"] = "hist"
+        run_gpu_hist(params, num_rounds, dataset, dxgb.DaskQuantileDMatrix, local_cuda_client)
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_gpu_hist_multi_absolute_error(self, local_cuda_client: Client) -> None:
+        check_multi_output_tree_dask_train(
+            local_cuda_client, "cuda", tolerance=1e-3, strict_history=False
+        )
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_dask_regressor_multi_output_tree(self, local_cuda_client: Client) -> None:
+        check_multi_output_tree_dask_regressor(local_cuda_client, "cuda")
 
     @given(
         params=hist_parameter_strategy,

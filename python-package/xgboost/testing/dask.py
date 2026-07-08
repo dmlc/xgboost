@@ -1,5 +1,6 @@
 """Tests for dask shared by different test modules."""
 
+import json
 from typing import Any, List, Literal, Tuple, Type, Union, cast, overload
 
 import numpy as np
@@ -8,7 +9,7 @@ from dask import array as da
 from dask import dataframe as dd
 from distributed import Client, get_worker
 from packaging.version import parse as parse_version
-from sklearn.datasets import make_classification
+from sklearn.datasets import make_classification, make_regression
 
 import xgboost as xgb
 import xgboost.testing as tm
@@ -102,6 +103,111 @@ def check_uneven_nan(
             dd.from_pandas(X, npartitions=n_workers),
             dd.from_pandas(y, npartitions=n_workers),
         )
+
+
+def make_multi_output_regression(
+    device: Device,
+    *,
+    n_samples: int = 512,
+    n_features: int = 8,
+    n_targets: int = 3,
+    chunksize: int = 64,
+    random_state: int = 1994,
+) -> Tuple[da.Array, da.Array]:
+    """Make a Dask array multi-output regression dataset for CPU or CUDA tests."""
+    X, y = make_regression(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_targets=n_targets,
+        random_state=random_state,
+    )
+    X = X.astype(np.float32)
+    y = y.astype(np.float32)
+    if device == "cuda":
+        import cupy as cp
+
+        X = cp.asarray(X)
+        y = cp.asarray(y)
+    return (
+        da.from_array(X, chunks=(chunksize, n_features)),
+        da.from_array(y, chunks=(chunksize, n_targets)),
+    )
+
+
+def check_multi_output_tree_dask_train(
+    client: Client,
+    device: Device,
+    *,
+    tolerance: float,
+    strict_history: bool,
+) -> None:
+    """Train vector-leaf Dask hist with a value-gradient objective."""
+    n_targets = 3
+    X, y = make_multi_output_regression(
+        device, n_targets=n_targets, random_state=2026
+    )
+    Xy = dxgb.DaskDMatrix(client, X, y)
+    result = dxgb.train(
+        client,
+        {
+            "device": device,
+            "tree_method": "hist",
+            "objective": "reg:absoluteerror",
+            "eval_metric": "mae",
+            "multi_strategy": "multi_output_tree",
+            "num_target": n_targets,
+            "max_depth": 2,
+            "max_bin": 64,
+            "debug_synchronize": True,
+        },
+        Xy,
+        num_boost_round=4,
+        evals=[(Xy, "train")],
+    )
+
+    history = result["history"]["train"]["mae"]
+    assert np.isfinite(np.asarray(history)).all()
+    if strict_history:
+        assert tm.non_increasing(history, tolerance=tolerance)
+    else:
+        assert history[-1] <= history[0] + tolerance
+
+    predt = dxgb.predict(client, result["booster"], Xy).compute()
+    if hasattr(predt, "get"):
+        predt = predt.get()
+    assert predt.shape == (X.shape[0], n_targets)
+    assert np.isfinite(predt).all()
+
+
+def check_multi_output_tree_dask_regressor(client: Client, device: Device) -> None:
+    """Smoke-test sklearn-style Dask vector-leaf hist regression."""
+    n_targets = 3
+    X, y = make_multi_output_regression(
+        device, n_targets=n_targets, random_state=1994
+    )
+
+    reg = dxgb.DaskXGBRegressor(
+        n_estimators=4,
+        device=device,
+        tree_method="hist",
+        objective="reg:absoluteerror",
+        multi_strategy="multi_output_tree",
+        max_depth=2,
+        max_bin=64,
+    )
+    reg.client = client
+    reg.fit(X, y, eval_set=[(X, y)])
+
+    predt = reg.predict(X).compute()
+    if hasattr(predt, "get"):
+        predt = predt.get()
+    assert predt.shape == (X.shape[0], n_targets)
+    assert np.isfinite(predt).all()
+
+    config = json.loads(reg.get_booster().save_config())
+    assert config["learner"]["learner_train_param"]["multi_strategy"] == (
+        "multi_output_tree"
+    )
 
 
 def check_external_memory(  # pylint: disable=too-many-locals
