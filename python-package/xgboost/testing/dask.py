@@ -132,11 +132,7 @@ def make_multi_output_regression(
 
 
 def check_multi_output_tree_dask_train(
-    client: Client,
-    device: Device,
-    *,
-    tolerance: float,
-    strict_history: bool,
+    client: Client, device: Device, *, tolerance: float
 ) -> None:
     """Train vector-leaf Dask hist with a value-gradient objective."""
     n_targets = 3
@@ -151,7 +147,7 @@ def check_multi_output_tree_dask_train(
             "eval_metric": "mae",
             "multi_strategy": "multi_output_tree",
             "num_target": n_targets,
-            "max_depth": 2,
+            "max_depth": 4,
             "max_bin": 64,
             "debug_synchronize": True,
         },
@@ -162,20 +158,17 @@ def check_multi_output_tree_dask_train(
 
     history = result["history"]["train"]["mae"]
     assert np.isfinite(np.asarray(history)).all()
-    if strict_history:
-        assert tm.non_increasing(history, tolerance=tolerance)
-    else:
-        assert history[-1] <= history[0] + tolerance
+    assert tm.non_increasing(history, tolerance=tolerance)
 
     predt = dxgb.predict(client, result["booster"], Xy).compute()
     if hasattr(predt, "get"):
         predt = predt.get()
     assert predt.shape == (X.shape[0], n_targets)
-    assert np.isfinite(predt).all()
+    assert np.isfinite(predt).all(), predt
 
 
 def check_multi_output_tree_dask_regressor(client: Client, device: Device) -> None:
-    """Smoke-test sklearn-style Dask vector-leaf hist regression."""
+    """Test Dask regression with vector-leaf."""
     n_targets = 3
     X, y = make_multi_output_regression(device, n_targets=n_targets, random_state=1994)
 

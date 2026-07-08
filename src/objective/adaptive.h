@@ -39,11 +39,13 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
   auto const& h_node_idx = nidx;
+  auto n_targets = tree.IsMultiTarget() ? tree.NumTargets() : 1;
 
   bst_idx_t n_leaf = collective::GlobalMax(ctx, info, static_cast<bst_idx_t>(h_node_idx.size()));
-  CHECK(quantiles.empty() || quantiles.size() == n_leaf);
+  auto n_values = n_leaf * n_targets;
+  CHECK(quantiles.empty() || quantiles.size() == n_values);
   if (quantiles.empty()) {
-    quantiles.resize(n_leaf, std::numeric_limits<float>::quiet_NaN());
+    quantiles.resize(n_values, std::numeric_limits<float>::quiet_NaN());
   }
 
   // number of workers that have valid quantiles
@@ -60,19 +62,30 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   collective::SafeColl(rc);
 
   for (size_t i = 0; i < n_leaf; ++i) {
-    if (n_valids[i] > 0) {
-      quantiles[i] /= static_cast<float>(n_valids[i]);
-    } else {
-      // Use original leaf value if no worker can provide the quantile.
-      quantiles[i] = tree[h_node_idx[i]].LeafValue();
+    for (bst_target_t t = 0; t < n_targets; ++t) {
+      auto idx = i * n_targets + t;
+      if (n_valids[idx] > 0) {
+        quantiles[idx] = quantiles[idx] / static_cast<float>(n_valids[idx]) * learning_rate;
+      } else {
+        // Use original leaf value if no worker can provide the quantile.
+        if (tree.IsMultiTarget()) {
+          quantiles[idx] = tree.GetMultiTargetTree()->LeafValue(h_node_idx[i])(t);
+        } else {
+          quantiles[idx] = tree[h_node_idx[i]].LeafValue() * learning_rate;
+        }
+      }
     }
   }
 
-  for (size_t i = 0; i < nidx.size(); ++i) {
-    auto nidx = h_node_idx[i];
-    auto q = quantiles[i];
-    CHECK(tree[nidx].IsLeaf());
-    tree[nidx].SetLeaf(q * learning_rate);
+  if (tree.IsMultiTarget()) {
+    tree.SetLeaves(h_node_idx, common::Span{quantiles});
+  } else {
+    for (size_t i = 0; i < nidx.size(); ++i) {
+      auto nidx = h_node_idx[i];
+      auto q = quantiles[i];
+      CHECK(tree[nidx].IsLeaf());
+      tree[nidx].SetLeaf(q);
+    }
   }
 }
 

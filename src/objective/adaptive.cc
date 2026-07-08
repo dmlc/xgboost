@@ -176,12 +176,7 @@ void UpdateTreeLeaf(Context const* ctx, std::vector<bst_node_t> const& position,
         });
       });
 
-  if (p_tree->IsMultiTarget()) {
-    linalg::VecScaMul(ctx, linalg::MakeVec(ctx->Device(), common::Span{quantiles}), learning_rate);
-    p_tree->SetLeaves(nidx, common::Span{quantiles});
-  } else {
-    detail::UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
-  }
+  detail::UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
 }
 }  // namespace cpu_impl
 

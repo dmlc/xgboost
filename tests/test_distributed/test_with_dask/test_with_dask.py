@@ -1464,7 +1464,7 @@ class TestWithDask:
         dataset=tm.multi_dataset_strategy,
     )
     @settings(
-        deadline=None, max_examples=3, suppress_health_check=suppress, print_blob=True
+        deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True
     )
     def test_hist_multi(
         self,
@@ -1478,9 +1478,7 @@ class TestWithDask:
         self.run_updater_test(client, params, num_rounds, dataset, "hist")
 
     def test_hist_multi_absolute_error(self, client: "Client") -> None:
-        check_multi_output_tree_dask_train(
-            client, "cpu", tolerance=1e-3, strict_history=True
-        )
+        check_multi_output_tree_dask_train(client, "cpu", tolerance=1e-3)
 
     def test_dask_regressor_multi_output_tree(self, client: "Client") -> None:
         check_multi_output_tree_dask_regressor(client, "cpu")

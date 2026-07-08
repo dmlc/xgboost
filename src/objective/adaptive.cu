@@ -158,6 +158,7 @@ void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
   if (nptr.Empty()) {
     std::vector<float> quantiles;
     detail::UpdateLeafValues(ctx, &quantiles, nidx.ConstHostVector(), info, learning_rate, p_tree);
+    return;
   }
 
   predt.SetDevice(ctx->Device());
@@ -203,13 +204,8 @@ void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
     }
   });
 
-  if (p_tree->IsMultiTarget()) {
-    linalg::VecScaMul(ctx, linalg::MakeVec(ctx->Device(), quantiles.DeviceSpan()), learning_rate);
-    p_tree->SetLeaves(nidx.ConstHostVector(), quantiles.ConstHostSpan());
-  } else {
-    detail::UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info,
-                             learning_rate, p_tree);
-  }
+  detail::UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info, learning_rate,
+                           p_tree);
 }
 }  // namespace cuda_impl
 }  // namespace xgboost::obj
