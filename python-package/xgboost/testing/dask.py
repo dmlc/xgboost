@@ -104,24 +104,14 @@ def check_uneven_nan(
 
 
 def make_multi_output_regression(
-    device: Device,
-    *,
-    n_samples: int = 512,
-    n_features: int = 8,
-    n_targets: int = 3,
-    random_state: int = 1994,
+    device: Device, *, n_samples: int = 512, n_features: int = 8, n_targets: int = 3
 ) -> Tuple[da.Array, da.Array]:
     """Make a Dask array multi-output regression dataset for CPU or CUDA tests."""
     chunksize = 64
 
     X, y = make_regression(
-        n_samples=n_samples,
-        n_features=n_features,
-        n_targets=n_targets,
-        random_state=random_state,
+        n_samples, n_features, n_targets=n_targets, random_state=2026
     )
-    X = X.astype(np.float32)
-    y = y.astype(np.float32)
     dX, dy = (
         da.from_array(X, chunks=(chunksize, n_features)),
         da.from_array(y, chunks=(chunksize, n_targets)),
@@ -136,7 +126,7 @@ def check_multi_output_tree_dask_train(
 ) -> None:
     """Train vector-leaf Dask hist with a value-gradient objective."""
     n_targets = 3
-    X, y = make_multi_output_regression(device, n_targets=n_targets, random_state=2026)
+    X, y = make_multi_output_regression(device, n_targets=n_targets)
     Xy = dxgb.DaskDMatrix(client, X, y)
     result = dxgb.train(
         client,
@@ -164,13 +154,13 @@ def check_multi_output_tree_dask_train(
     if hasattr(predt, "get"):
         predt = predt.get()
     assert predt.shape == (X.shape[0], n_targets)
-    assert np.isfinite(predt).all(), predt
+    assert np.isfinite(predt).all()
 
 
 def check_multi_output_tree_dask_regressor(client: Client, device: Device) -> None:
     """Test Dask regression with vector-leaf."""
     n_targets = 3
-    X, y = make_multi_output_regression(device, n_targets=n_targets, random_state=1994)
+    X, y = make_multi_output_regression(device, n_targets=n_targets)
 
     reg = dxgb.DaskXGBRegressor(
         n_estimators=4,
