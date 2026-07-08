@@ -71,7 +71,7 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
         if (tree.IsMultiTarget()) {
           quantiles[idx] = tree.GetMultiTargetTree()->LeafValue(h_node_idx[i])(t);
         } else {
-          quantiles[idx] = tree[h_node_idx[i]].LeafValue() * learning_rate;
+          quantiles[idx] = tree[h_node_idx[i]].LeafValue();
         }
       }
     }
