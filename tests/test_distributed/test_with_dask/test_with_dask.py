@@ -33,8 +33,7 @@ from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import (
     check_init_estimation,
-    check_multi_output_tree_dask_regressor,
-    check_multi_output_tree_dask_train,
+    check_multi_output_tree,
     check_uneven_nan,
     get_rabit_args,
     make_categorical,
@@ -1478,10 +1477,7 @@ class TestWithDask:
         self.run_updater_test(client, params, num_rounds, dataset, "hist")
 
     def test_hist_multi_absolute_error(self, client: "Client") -> None:
-        check_multi_output_tree_dask_train(client, "cpu", tolerance=1e-3)
-
-    def test_dask_regressor_multi_output_tree(self, client: "Client") -> None:
-        check_multi_output_tree_dask_regressor(client, "cpu")
+        check_multi_output_tree(client, "cpu")
 
     def test_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 3000, 30, 13)

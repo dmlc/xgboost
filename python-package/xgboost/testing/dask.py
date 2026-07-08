@@ -115,10 +115,9 @@ def make_multi_output_regression(
     return dX, dy
 
 
-def check_multi_output_tree_dask_train(
-    client: Client, device: Device, *, tolerance: float
-) -> None:
-    """Train vector-leaf Dask hist with a value-gradient objective."""
+def check_multi_output_tree(client: Client, device: Device) -> None:
+    """Test Dask vector-leaf hist with train and sklearn-style APIs."""
+    tolerance = 1e-3
     n_targets = 3
     X, y = make_multi_output_regression(device, n_targets=n_targets)
     Xy = dxgb.DaskDMatrix(client, X, y)
@@ -150,19 +149,13 @@ def check_multi_output_tree_dask_train(
     assert predt.shape == (X.shape[0], n_targets)
     assert np.isfinite(predt).all()
 
-
-def check_multi_output_tree_dask_regressor(client: Client, device: Device) -> None:
-    """Test Dask regression with vector-leaf."""
-    n_targets = 3
-    X, y = make_multi_output_regression(device, n_targets=n_targets)
-
     reg = dxgb.DaskXGBRegressor(
         n_estimators=4,
         device=device,
         tree_method="hist",
         objective="reg:absoluteerror",
         multi_strategy="multi_output_tree",
-        max_depth=2,
+        max_depth=4,
         max_bin=64,
     )
     reg.client = client
