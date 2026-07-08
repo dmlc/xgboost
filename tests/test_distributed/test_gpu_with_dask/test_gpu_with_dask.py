@@ -15,14 +15,10 @@ from hypothesis._settings import duration
 from packaging.version import parse as parse_version
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
-from xgboost.testing.dask import (
-    get_rabit_args,
-    make_categorical,
-    run_recode
-)
+from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
 from xgboost.testing.params import (
     hist_multi_parameter_strategy,
-    hist_parameter_strategy
+    hist_parameter_strategy,
 )
 
 from ..test_with_dask.test_with_dask import (
@@ -303,7 +299,9 @@ class TestDistributedGPU:
         local_cuda_client: Client,
     ) -> None:
         params["tree_method"] = "hist"
-        run_gpu_hist(params, num_rounds, dataset, dxgb.DaskQuantileDMatrix, local_cuda_client)
+        run_gpu_hist(
+            params, num_rounds, dataset, dxgb.DaskQuantileDMatrix, local_cuda_client
+        )
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_gpu_hist_multi_absolute_error(self, local_cuda_client: Client) -> None:

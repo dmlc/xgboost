@@ -55,8 +55,6 @@ def check_init_estimation_reg(
     tree_method: str, device: Literal["cpu", "cuda"], client: Client
 ) -> None:
     """Test init estimation for regressor."""
-    from sklearn.datasets import make_regression
-
     # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_regression(n_samples=4096 * 2, n_features=32, random_state=1994)
     reg = xgb.XGBRegressor(
@@ -111,10 +109,11 @@ def make_multi_output_regression(
     n_samples: int = 512,
     n_features: int = 8,
     n_targets: int = 3,
-    chunksize: int = 64,
     random_state: int = 1994,
 ) -> Tuple[da.Array, da.Array]:
     """Make a Dask array multi-output regression dataset for CPU or CUDA tests."""
+    chunksize = 64
+
     X, y = make_regression(
         n_samples=n_samples,
         n_features=n_features,
@@ -123,15 +122,13 @@ def make_multi_output_regression(
     )
     X = X.astype(np.float32)
     y = y.astype(np.float32)
-    if device == "cuda":
-        import cupy as cp
-
-        X = cp.asarray(X)
-        y = cp.asarray(y)
-    return (
+    dX, dy = (
         da.from_array(X, chunks=(chunksize, n_features)),
         da.from_array(y, chunks=(chunksize, n_targets)),
     )
+    if device == "cuda":
+        dX, dy = dX.to_backend("cupy"), dy.to_backend("copy")
+    return dX, dy
 
 
 def check_multi_output_tree_dask_train(
@@ -143,9 +140,7 @@ def check_multi_output_tree_dask_train(
 ) -> None:
     """Train vector-leaf Dask hist with a value-gradient objective."""
     n_targets = 3
-    X, y = make_multi_output_regression(
-        device, n_targets=n_targets, random_state=2026
-    )
+    X, y = make_multi_output_regression(device, n_targets=n_targets, random_state=2026)
     Xy = dxgb.DaskDMatrix(client, X, y)
     result = dxgb.train(
         client,
@@ -182,9 +177,7 @@ def check_multi_output_tree_dask_train(
 def check_multi_output_tree_dask_regressor(client: Client, device: Device) -> None:
     """Smoke-test sklearn-style Dask vector-leaf hist regression."""
     n_targets = 3
-    X, y = make_multi_output_regression(
-        device, n_targets=n_targets, random_state=1994
-    )
+    X, y = make_multi_output_regression(device, n_targets=n_targets, random_state=1994)
 
     reg = dxgb.DaskXGBRegressor(
         n_estimators=4,
