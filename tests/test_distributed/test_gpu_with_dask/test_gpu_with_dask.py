@@ -45,7 +45,6 @@ pytestmark = [
 import cudf
 import dask
 import dask.dataframe as dd
-from dask import __version__ as dask_version
 from dask import array as da
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
@@ -54,10 +53,6 @@ from xgboost.testing.dask import (
     check_init_estimation,
     check_multi_output_tree,
     check_uneven_nan,
-)
-
-dask_version_ge110 = dask_version and parse_version(dask_version) >= parse_version(
-    "2024.11.0"
 )
 
 
@@ -401,9 +396,6 @@ class TestDistributedGPU:
         dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
-    @pytest.mark.xfail(
-        dask_version_ge110, reason="Test cannot pass with Dask 2024.11.0+"
-    )
     @pytest.mark.skipif(**tm.no_cudf())
     @pytest.mark.parametrize("model", ["boosting"])
     def test_dask_classifier(self, model: str, local_cuda_client: Client) -> None:
