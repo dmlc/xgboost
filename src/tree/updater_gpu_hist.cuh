@@ -157,9 +157,8 @@ class MultiTargetHistMaker {
     for (auto nidx : build_nodes) {
       auto d_ridx = this->partitioners_.At(k)->GetRows(nidx);
       if (d_ridx.empty()) {
-        // Node has no rows - can happen with external memory when all rows go to the
-        // sibling node.
-        CHECK_GT(this->batch_ptr_.size(), 2);
+        // A row-split worker can have no local rows for a globally valid node.
+        CHECK(this->batch_ptr_.size() > 2 || collective::IsDistributed());
         continue;
       }
       h_ridxs.push_back(d_ridx);
