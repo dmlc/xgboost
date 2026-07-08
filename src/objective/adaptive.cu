@@ -3,7 +3,7 @@
  */
 #include <thrust/sort.h>
 
-#include <cub/cub.cuh>         // NOLINT
+#include <cub/cub.cuh>  // NOLINT
 
 #include "../collective/aggregator.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
@@ -204,8 +204,8 @@ void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
     }
   });
 
-  detail::UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info, learning_rate,
-                           p_tree);
+  detail::UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info,
+                           learning_rate, p_tree);
 }
 }  // namespace cuda_impl
 }  // namespace xgboost::obj
