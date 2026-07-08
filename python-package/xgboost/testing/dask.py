@@ -127,7 +127,7 @@ def make_multi_output_regression(
         da.from_array(y, chunks=(chunksize, n_targets)),
     )
     if device == "cuda":
-        dX, dy = dX.to_backend("cupy"), dy.to_backend("copy")
+        dX, dy = dX.to_backend("cupy"), dy.to_backend("cupy")
     return dX, dy
 
 
