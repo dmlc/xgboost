@@ -55,6 +55,7 @@ option(BUILD_DEPRECATED_CLI "Build the deprecated command line interface" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
 option(BUILD_WITH_GIT_HASH "Add a short git hash to the build info." OFF)
 option(BUILD_WITH_SYSTEM_DMLC "Use system package for dmlc." OFF)
+option(USE_VEC_MATH_LIB "Enable vectorized math library" OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -95,6 +96,9 @@ if(USE_CUDA)
     unset(GPU_COMPUTE_VER CACHE)
   endif()
 endif()
+
+set(USE_VEC_MATH_LIB "OFF" CACHE STRING "Vector math library backend: OFF, SLEEF, ARMPL")
+set_property(CACHE USE_VEC_MATH_LIB PROPERTY STRINGS OFF SLEEF ARMPL)
 
 # CUDA device LTO was introduced in CMake v3.25 and requires host LTO to also be enabled but can still
 # be explicitly disabled allowing for LTO on host only, host and device, or neither, but device-only LTO
@@ -259,6 +263,14 @@ endif()
 
 if(USE_NVCOMP)
   find_package(nvcomp REQUIRED)
+endif()
+
+if(USE_VEC_MATH_LIB)
+  if(USE_VEC_MATH_LIB STREQUAL "SLEEF")
+    find_package(SLEEF REQUIRED)
+  elseif(USE_VEC_MATH_LIB STREQUAL "ARMPL")
+    find_package(ArmPL REQUIRED)
+  endif()
 endif()
 
 
