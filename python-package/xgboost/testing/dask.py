@@ -1,5 +1,6 @@
 """Tests for dask shared by different test modules."""
 
+import json
 from typing import Any, List, Literal, Tuple, Type, Union, cast, overload
 
 import numpy as np
@@ -8,7 +9,7 @@ from dask import array as da
 from dask import dataframe as dd
 from distributed import Client, get_worker
 from packaging.version import parse as parse_version
-from sklearn.datasets import make_classification
+from sklearn.datasets import make_classification, make_regression
 
 import xgboost as xgb
 import xgboost.testing as tm
@@ -25,9 +26,7 @@ from .ordinal import make_recoded
 from .utils import Device, assert_allclose
 
 
-def check_init_estimation_clf(
-    tree_method: str, device: Literal["cpu", "cuda"], client: Client
-) -> None:
+def check_init_estimation_clf(tree_method: str, device: Device, client: Client) -> None:
     """Test init estimation for classsifier."""
     X, y = make_classification(n_samples=4096 * 2, n_features=32, random_state=1994)
     clf = xgb.XGBClassifier(
@@ -50,12 +49,8 @@ def check_init_estimation_clf(
     np.testing.assert_allclose(base_score, dbase_score)
 
 
-def check_init_estimation_reg(
-    tree_method: str, device: Literal["cpu", "cuda"], client: Client
-) -> None:
+def check_init_estimation_reg(tree_method: str, device: Device, client: Client) -> None:
     """Test init estimation for regressor."""
-    from sklearn.datasets import make_regression
-
     # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_regression(n_samples=4096 * 2, n_features=32, random_state=1994)
     reg = xgb.XGBRegressor(
@@ -75,16 +70,14 @@ def check_init_estimation_reg(
     np.testing.assert_allclose(base_score, dbase_score)
 
 
-def check_init_estimation(
-    tree_method: str, device: Literal["cpu", "cuda"], client: Client
-) -> None:
+def check_init_estimation(tree_method: str, device: Device, client: Client) -> None:
     """Test init estimation."""
     check_init_estimation_reg(tree_method, device, client)
     check_init_estimation_clf(tree_method, device, client)
 
 
 def check_uneven_nan(
-    client: Client, tree_method: str, device: Literal["cpu", "cuda"], n_workers: int
+    client: Client, tree_method: str, device: Device, n_workers: int
 ) -> None:
     """Issue #9271, not every worker has missing value."""
     assert n_workers >= 2
@@ -102,6 +95,82 @@ def check_uneven_nan(
             dd.from_pandas(X, npartitions=n_workers),
             dd.from_pandas(y, npartitions=n_workers),
         )
+
+
+def make_multi_output_regression(
+    device: Device, *, n_samples: int = 512, n_features: int = 8, n_targets: int = 3
+) -> Tuple[da.Array, da.Array]:
+    """Make a Dask array multi-output regression dataset for CPU or CUDA tests."""
+    chunksize = 64
+
+    X, y = make_regression(
+        n_samples, n_features, n_targets=n_targets, random_state=2026
+    )
+    dX, dy = (
+        da.from_array(X, chunks=(chunksize, n_features)),
+        da.from_array(y, chunks=(chunksize, n_targets)),
+    )
+    if device == "cuda":
+        dX, dy = dX.to_backend("cupy"), dy.to_backend("cupy")
+    return dX, dy
+
+
+def check_multi_output_tree(client: Client, device: Device) -> None:
+    """Test Dask vector-leaf hist with train and sklearn-style APIs."""
+    tolerance = 1e-3
+    n_targets = 3
+    X, y = make_multi_output_regression(device, n_targets=n_targets)
+    Xy = dxgb.DaskDMatrix(client, X, y)
+    result = dxgb.train(
+        client,
+        {
+            "device": device,
+            "tree_method": "hist",
+            "objective": "reg:absoluteerror",
+            "eval_metric": "mae",
+            "multi_strategy": "multi_output_tree",
+            "num_target": n_targets,
+            "max_depth": 4,
+            "max_bin": 64,
+            "debug_synchronize": True,
+        },
+        Xy,
+        num_boost_round=4,
+        evals=[(Xy, "train")],
+    )
+
+    history = result["history"]["train"]["mae"]
+    assert np.isfinite(np.asarray(history)).all()
+    assert tm.non_increasing(history, tolerance=tolerance)
+
+    predt = dxgb.predict(client, result["booster"], Xy).compute()
+    if hasattr(predt, "get"):
+        predt = predt.get()
+    assert predt.shape == (X.shape[0], n_targets)
+    assert np.isfinite(predt).all()
+
+    reg = dxgb.DaskXGBRegressor(
+        n_estimators=4,
+        device=device,
+        tree_method="hist",
+        objective="reg:absoluteerror",
+        multi_strategy="multi_output_tree",
+        max_depth=4,
+        max_bin=64,
+    )
+    reg.client = client
+    reg.fit(X, y, eval_set=[(X, y)])
+
+    predt = reg.predict(X).compute()
+    if hasattr(predt, "get"):
+        predt = predt.get()
+    assert predt.shape == (X.shape[0], n_targets)
+    assert np.isfinite(predt).all()
+
+    config = json.loads(reg.get_booster().save_config())
+    assert config["learner"]["learner_train_param"]["multi_strategy"] == (
+        "multi_output_tree"
+    )
 
 
 def check_external_memory(  # pylint: disable=too-many-locals

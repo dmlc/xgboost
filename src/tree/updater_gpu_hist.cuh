@@ -8,7 +8,7 @@
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector
 
-#include "../collective/communicator-inl.h"    // for IsDistributed
+#include "../collective/aggregator.h"          // for GlobalSum
 #include "../common/categorical.h"             // for CatBitField
 #include "../common/device_helpers.cuh"        // for MakeTransformIterator
 #include "../common/nvtx_utils.h"              // for xgboost_NVTX_FN_RANGE
@@ -25,6 +25,7 @@
 #include "sample_position.h"                   // for SamplePosition
 #include "tree_view.h"                         // for MultiTargetTreeView
 #include "xgboost/base.h"                      // for bst_idx_t
+#include "xgboost/collective/result.h"         // for SafeColl
 #include "xgboost/context.h"                   // for Context
 #include "xgboost/gradient.h"                  // for GradientContainer
 #include "xgboost/host_device_vector.h"        // for HostDeviceVector
@@ -156,9 +157,8 @@ class MultiTargetHistMaker {
     for (auto nidx : build_nodes) {
       auto d_ridx = this->partitioners_.At(k)->GetRows(nidx);
       if (d_ridx.empty()) {
-        // Node has no rows - can happen with external memory when all rows go to the
-        // sibling node.
-        CHECK_GT(this->batch_ptr_.size(), 2);
+        // A row-split worker can have no local rows for a globally valid node.
+        CHECK(this->batch_ptr_.size() > 2 || collective::IsDistributed());
         continue;
       }
       h_ridxs.push_back(d_ridx);
@@ -247,6 +247,11 @@ class MultiTargetHistMaker {
     this->evaluator_.AllocNodeSum(RegTree::kRoot, n_targets);
     auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
     CalcRootSum(this->ctx_, d_gpair, d_root_sum);
+    using ReduceT = typename GradientPairInt64::ValueT;
+    auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
+                                    linalg::MakeVec(reinterpret_cast<ReduceT*>(d_root_sum.data()),
+                                                    d_root_sum.size() * 2, ctx_->Device()));
+    collective::SafeColl(rc);
 
     // Build the root histogram.
     histogram_.AllocateHistograms(ctx_, {RegTree::kRoot});
@@ -257,6 +262,7 @@ class MultiTargetHistMaker {
       this->BuildHist(page, k, RegTree::kRoot);
       ++k;
     }
+    this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), RegTree::kRoot, 1);
 
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
@@ -327,10 +333,14 @@ class MultiTargetHistMaker {
    * split gradient. This function replaces those weights with new weights calculated from
    * value gradient.
    */
-  void ExpandTreeLeaf(RegTree* p_tree) const {
+  void ExpandTreeLeaf(DMatrix* p_fmat, RegTree* p_tree) const {
+    CHECK(!this->value_gpair_.Empty());
+    CHECK(this->value_quantizer_);
+    CHECK_EQ(this->value_gpair_.Shape(1), p_tree->NumTargets());
     auto n_leaves = static_cast<bst_target_t>(p_tree->GetNumLeaves());
     auto out_sum = linalg::Constant(ctx_, GradientPairInt64{}, n_leaves, p_tree->NumTargets());
     auto d_out_sum = out_sum.View(this->ctx_->Device());
+    CHECK(d_out_sum.CContiguous());
 
     auto d_full_grad = this->value_gpair_.View(this->ctx_->Device());
     auto d_roundings = this->value_quantizer_->DeviceSpan();
@@ -360,6 +370,12 @@ class MultiTargetHistMaker {
       }
       ++batch_idx;
     }
+    using ReduceT = typename GradientPairInt64::ValueT;
+    auto rc =
+        collective::GlobalSum(ctx_, p_fmat->Info(),
+                              linalg::MakeVec(reinterpret_cast<ReduceT*>(d_out_sum.Values().data()),
+                                              d_out_sum.Size() * 2, ctx_->Device()));
+    collective::SafeColl(rc);
 
     auto param = GPUTrainingParam{this->param_};
     auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
@@ -442,6 +458,10 @@ class MultiTargetHistMaker {
 
     xgboost_NVTX_FN_RANGE();
 
+    if (!build_nidx.empty()) {
+      this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), build_nidx.front(), build_nidx.size());
+    }
+
     // Perform subtraction for sibling nodes
     auto need_build = this->histogram_.SubtractHist(ctx_, candidates, build_nidx, subtraction_nidx);
     if (need_build.empty()) {
@@ -453,6 +473,9 @@ class MultiTargetHistMaker {
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
       this->BuildHist(page, k, need_build);
       ++k;
+    }
+    for (auto nidx : need_build) {
+      this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), nidx, 1);
     }
   }
 
@@ -509,7 +532,7 @@ class MultiTargetHistMaker {
       ++k;
     }
 
-    this->ReduceHist(p_fmat, expand_set, build_nidx, subtraction_nidx);
+    this->ReduceHist(p_fmat, candidates, build_nidx, subtraction_nidx);
   }
 
   void EvaluateSplits(std::vector<MultiExpandEntry> const& candidates, RegTree const& tree,
@@ -625,11 +648,6 @@ class MultiTargetHistMaker {
     if (!param_.interaction_constraints.empty()) {
       LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
     }
-    if (collective::IsDistributed()) {
-      CHECK(!gpair->HasValueGrad())
-          << "Distributed training with vector leaf" << MTNotImplemented();
-    }
-
     auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {
       this->value_gpair_ = linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device()};
@@ -641,7 +659,7 @@ class MultiTargetHistMaker {
     this->GrowTree(split_grad, p_fmat, task, p_tree, p_out_position);
 
     if (gpair->HasValueGrad()) {
-      this->ExpandTreeLeaf(p_tree);
+      this->ExpandTreeLeaf(p_fmat, p_tree);
     } else {
       p_tree->GetMultiTargetTree()->SetLeaves();
     }

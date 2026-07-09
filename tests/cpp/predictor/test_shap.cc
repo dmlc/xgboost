@@ -324,6 +324,63 @@ TEST(Predictor, DartShapOutputCPU) {
   CheckDartShapOutput(&ctx);
 }
 
+void CheckShapHandlesDeepTree(Context const* ctx) {
+  std::size_t shape[1]{1};
+  linalg::Vector<float> base_score{shape, ctx->Device()};
+  base_score.Data()->HostVector()[0] = 0.0f;
+  std::as_const(base_score).HostView();
+  if (!ctx->Device().IsCPU()) {
+    std::as_const(base_score).View(ctx->Device());
+  }
+  LearnerModelParam mparam{1, std::move(base_score), 1, 1, MultiStrategy::kOneOutputPerTree};
+  gbm::GBTreeModel model{&mparam, ctx};
+
+  bst_node_t constexpr kDepth = 64;
+  auto tree = std::make_unique<RegTree>();
+  bst_node_t nidx = RegTree::kRoot;
+  float cover = 1.0f;
+  for (bst_node_t depth = 0; depth < kDepth; ++depth) {
+    float constexpr kLeftCoverRatio = 0.99f;
+    auto const left_cover = cover * kLeftCoverRatio;
+    auto const right_cover = cover - left_cover;
+    auto const left_leaf_weight = depth + 1 == kDepth ? 1.0f : 0.0f;
+    tree->ExpandNode(nidx, 0, 0.5f, true, 0.0f, left_leaf_weight, 0.0f, 0.0f, cover, left_cover,
+                     right_cover);
+    nidx = (*tree)[nidx].LeftChild();
+    cover = left_cover;
+  }
+  ASSERT_EQ(tree->MaxDepth(), kDepth);
+
+  gbm::TreesOneGroup trees;
+  trees.emplace_back(std::move(tree));
+  model.CommitModelGroup(std::move(trees), 0);
+
+  std::size_t constexpr kRows = 5;
+  auto dmat = GetDMatrixFromData(std::vector<float>(kRows, 0.0f), kRows, 1);
+  HostDeviceVector<float> margin_predt{std::vector<float>(kRows, 1.0f), ctx->Device()};
+
+  HostDeviceVector<float> out;
+  ASSERT_NO_THROW(interpretability::ShapValues(ctx, dmat.get(), &out, model, 0, nullptr, 0, 0));
+  ASSERT_EQ(out.HostVector().size(), kRows * (1 + 1));
+  for (auto v : out.HostVector()) {
+    ASSERT_TRUE(std::isfinite(v));
+  }
+  CheckShapAdditivity(kRows, 1, out, margin_predt);
+
+  ASSERT_NO_THROW(
+      interpretability::ShapInteractionValues(ctx, dmat.get(), &out, model, 0, nullptr, false));
+  ASSERT_EQ(out.HostVector().size(), kRows * (1 + 1) * (1 + 1));
+  for (auto v : out.HostVector()) {
+    ASSERT_TRUE(std::isfinite(v));
+  }
+  CheckShapAdditivity(kRows, 1, out, margin_predt);
+}
+
+TEST(Predictor, ShapHandlesDeepTree) {
+  Context ctx;
+  CheckShapHandlesDeepTree(&ctx);
+}
+
 void CheckShapHandlesZeroCover(Context const* ctx, bool zero_parent_cover) {
   std::size_t shape[1]{1};
   linalg::Vector<float> base_score{shape, ctx->Device()};
