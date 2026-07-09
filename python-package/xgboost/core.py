@@ -2,6 +2,8 @@
 # pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
 
+from __future__ import annotations
+
 import copy
 import ctypes
 import json
@@ -45,9 +47,7 @@ from ._c_api import (
     from_pystr_to_cstr,
     make_jcargs,
 )
-from ._c_api import (
-    XGBoostError as _XGBoostError,
-)
+from ._c_api import XGBoostError as _XGBoostError
 from ._data_utils import (
     Categories,
     TransformedDf,
@@ -92,6 +92,7 @@ from .objective import Objective, TreeObjective, _grad_arrinf
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
+
 
 XGBoostError = _XGBoostError
 
@@ -3080,12 +3081,11 @@ class Booster:
         return results
 
     # pylint: disable=too-many-locals, too-many-statements
-    def trees_to_dataframe(self, fmap: PathLike = "") -> "PdDataFrame":
-        """Parse a boosted tree model into a pandas DataFrame structure.
+    def trees_to_dataframe(self, fmap: PathLike = "") -> PdDataFrame:
+        """Parse a boosted tree model into a pandas DataFrame.
 
         This feature is only defined when the decision tree model is chosen as base
-        learner (`booster in {gbtree, dart}`). It is not defined for other base learner
-        types, such as linear learners (`booster=gblinear`).
+        learner (`booster in {gbtree, dart}`).
 
         Parameters
         ----------
@@ -3108,10 +3108,7 @@ class Booster:
                 f"This method is not defined for Booster type {gbm['name']}"
             )
         trees = gbm["model"]["trees"]
-        if trees and int(trees[0]["tree_param"]["size_leaf_vector"]) > 1:
-            raise NotImplementedError(
-                "trees_to_dataframe doesn't support vector leaf trees."
-            )
+        tree_info = gbm["model"]["tree_info"]
         if fmap:
             warnings.warn(
                 "`fmap` has been deprecated. XGBoost now uses the"
@@ -3122,6 +3119,7 @@ class Booster:
         ftypes = dict(enumerate(self.feature_types or []))
 
         tree_ids: List[int] = []
+        target_ids: List[Optional[int]] = []
         node_ids: List[int] = []
         fids: List[str] = []
         splits: List[float | None] = []
@@ -3141,6 +3139,14 @@ class Booster:
             stypes = tree["split_type"]
             loss_chg = tree["loss_changes"]
             sum_hess = tree["sum_hessian"]
+            # For vector-leaf trees the leaf output is a vector stored in
+            # ``leaf_weights`` rather than in ``split_conditions``. The right child is
+            # re-used to store the leaf index.
+            size_leaf_vector = int(tree["tree_param"]["size_leaf_vector"])
+            is_vector = size_leaf_vector > 1
+            leaf_weights = tree["leaf_weights"] if is_vector else None
+            # The output group this tree contributes to.
+            tree_target = int(tree_info[tid])
 
             # Node id -> category codes (as strings), stored CSR-style.
             node_cats: Dict[int, List[str]] = {}
@@ -3156,21 +3162,39 @@ class Booster:
             stack = [0]
             while stack:
                 nid = stack.pop()
-                tree_ids.append(tid)
-                node_ids.append(nid)
                 if left[nid] == -1:  # leaf
-                    fids.append("Leaf")
-                    splits.append(None)
-                    categories.append(None)
-                    y_directs.append(None)
-                    n_directs.append(None)
-                    missings.append(None)
-                    gains.append(sconds[nid])
-                    covers.append(sum_hess[nid])
+                    if is_vector:
+                        assert leaf_weights is not None
+                        beg = right[nid] * size_leaf_vector
+                        leaf_rows = list(
+                            enumerate(
+                                float(v)
+                                for v in leaf_weights[beg : beg + size_leaf_vector]
+                            )
+                        )
+                    else:
+                        leaf_rows = [(tree_target, float(sconds[nid]))]
+                    for target, value in leaf_rows:
+                        tree_ids.append(tid)
+                        target_ids.append(target)
+                        node_ids.append(nid)
+                        fids.append("Leaf")
+                        splits.append(None)
+                        categories.append(None)
+                        y_directs.append(None)
+                        n_directs.append(None)
+                        missings.append(None)
+                        gains.append(value)
+                        covers.append(sum_hess[nid])
                     continue
 
                 stack.append(left[nid])
                 stack.append(right[nid])
+                tree_ids.append(tid)
+                # A vector-leaf split is shared by all targets, so it has no single
+                # target; scalar-tree splits belong to the tree's target.
+                target_ids.append(None if is_vector else tree_target)
+                node_ids.append(nid)
                 fidx = sindex[nid]
                 fids.append(fnames.get(fidx, f"f{fidx}"))
                 dft_child = left[nid] if dft_left[nid] else right[nid]
@@ -3200,6 +3224,7 @@ class Booster:
         df = DataFrame(
             {
                 "Tree": tree_ids,
+                "Target": target_ids,
                 "Node": node_ids,
                 "ID": ids,
                 "Feature": fids,
@@ -3215,6 +3240,7 @@ class Booster:
         df = df.astype(
             {
                 "Tree": "Int64",
+                "Target": "Int64",
                 "Node": "Int64",
                 "ID": "string",
                 "Feature": "string",
@@ -3224,11 +3250,11 @@ class Booster:
                 "Missing": "string",
                 "Gain": "Float64",
                 "Cover": "Float64",
-                # `Category`  holds Python lists
+                # `Category` holds Python lists
             }
         )
 
-        return df.sort_values(["Tree", "Node"]).reset_index(drop=True)
+        return df.sort_values(["Tree", "Node", "Target"]).reset_index(drop=True)
 
     def _assign_dmatrix_features(self, data: DMatrix) -> None:
         if data.num_row() == 0:
@@ -3285,7 +3311,7 @@ class Booster:
         fmap: PathLike = "",
         bins: Optional[int] = None,
         as_pandas: bool = True,
-    ) -> Union[np.ndarray, "PdDataFrame"]:
+    ) -> Union[np.ndarray, PdDataFrame]:
         """Get split value histogram of a feature
 
         Parameters
