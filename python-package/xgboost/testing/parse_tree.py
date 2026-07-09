@@ -68,6 +68,8 @@ def _expected_leaf_vectors(booster: Booster) -> dict[tuple[int, int], list[float
 
 def run_tree_to_df_vector_leaf_mixed(device: Device) -> None:
     """Tests trees_to_dataframe on a mixed scalar + vector-leaf booster."""
+    import pandas as pd
+
     n_targets = 3
     X, y = make_regression(
         n_samples=512, n_features=10, n_targets=n_targets, random_state=2025
