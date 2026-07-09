@@ -200,6 +200,8 @@ class MultiTargetHistMaker {
     auto const& info = p_fmat->Info();
     this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights, param_.colsample_bynode,
                                 param_.colsample_bylevel, param_.colsample_bytree);
+    // Clear the per-node allowed-feature sets before growing a new tree.
+    this->interaction_constraints_->Reset(this->ctx_);
 
     // Cache feature types on device for categorical one-hot split detection.
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
@@ -321,6 +323,13 @@ class MultiTargetHistMaker {
                            linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight),
                            loss_chg, sum_hess, left_sum, right_sum);
       }
+    }
+
+    auto mt_tree = p_tree->HostMtView();
+    for (auto const& candidate : h_candidates) {
+      interaction_constraints_->Split(this->ctx_, candidate.nidx, candidate.split.findex,
+                                      mt_tree.LeftChild(candidate.nidx),
+                                      mt_tree.RightChild(candidate.nidx));
     }
 
     dh::device_vector<MultiExpandEntry> candidates{h_candidates};
@@ -645,9 +654,7 @@ class MultiTargetHistMaker {
     if (!param_.monotone_constraints.empty()) {
       LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
     }
-    if (!param_.interaction_constraints.empty()) {
-      LOG(FATAL) << "Interaction constraint" << MTNotImplemented();
-    }
+
     auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {
       this->value_gpair_ = linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device()};

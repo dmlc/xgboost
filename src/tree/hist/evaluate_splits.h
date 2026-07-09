@@ -768,6 +768,9 @@ class HistMultiEvaluator {
     auto right_child = mt_tree.RightChild(candidate.nid);
     CHECK_GT(right_child, candidate.nid);
 
+    interaction_constraints_.Split(candidate.nid, candidate.split.SplitIndex(), left_child,
+                                   right_child);
+
     std::size_t n_nodes = mt_tree.Size();
     gain_.resize(n_nodes);
     // Re-calculate weight without learning rate.
