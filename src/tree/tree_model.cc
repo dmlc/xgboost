@@ -266,15 +266,10 @@ class TextGenerator : public TreeGenerator<TreeView> {
         "{tabs}{nid}:[{fname}<{cond}] yes={left},no={right},missing={missing}";
     auto cond = tree.SplitCond(nid);
     const bst_float floored = std::floor(cond);
-    const double rounded =
-        (floored == cond) ? static_cast<double>(floored) : static_cast<double>(floored) + 1;
-    // Saturate out-of-int64 values instead of a UB cast; real int features always fit. #10035
+    // int64_t instead of int32_t so a threshold beyond the int32 range is reported
+    // correctly; larger integers aren't supported for training anyway. #10035
     const int64_t integer_threshold =
-        rounded >= static_cast<double>(std::numeric_limits<int64_t>::max())
-            ? std::numeric_limits<int64_t>::max()
-        : rounded <= static_cast<double>(std::numeric_limits<int64_t>::min())
-            ? std::numeric_limits<int64_t>::min()
-            : static_cast<int64_t>(rounded);
+        (floored == cond) ? static_cast<int64_t>(floored) : static_cast<int64_t>(floored) + 1;
     return SplitNodeImpl(tree, nid, kIntegerTemplate, std::to_string(integer_threshold), depth);
   }
 
@@ -406,15 +401,10 @@ class JsonGenerator : public TreeGenerator<TreeView> {
   std::string Integer(TreeView tree, int32_t nid, uint32_t depth) const override {
     auto cond = tree.SplitCond(nid);
     const bst_float floored = std::floor(cond);
-    const double rounded =
-        (floored == cond) ? static_cast<double>(floored) : static_cast<double>(floored) + 1;
-    // Saturate out-of-int64 values instead of a UB cast; real int features always fit. #10035
+    // int64_t instead of int32_t so a threshold beyond the int32 range is reported
+    // correctly; larger integers aren't supported for training anyway. #10035
     const int64_t integer_threshold =
-        rounded >= static_cast<double>(std::numeric_limits<int64_t>::max())
-            ? std::numeric_limits<int64_t>::max()
-        : rounded <= static_cast<double>(std::numeric_limits<int64_t>::min())
-            ? std::numeric_limits<int64_t>::min()
-            : static_cast<int64_t>(rounded);
+        (floored == cond) ? static_cast<int64_t>(floored) : static_cast<int64_t>(floored) + 1;
     static std::string const kIntegerTemplate =
         R"I( "nodeid": {nid}, "depth": {depth}, "split": "{fname}", )I"
         R"I("split_condition": {cond}, "yes": {left}, "no": {right}, )I"

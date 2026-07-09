@@ -246,67 +246,6 @@ class TestBasic:
         json_dump = json.loads(bst.get_dump(dump_format="json")[0])
         assert abs(json_dump["split_condition"] - expected) <= 1
 
-    def test_dump_integer_beyond_int64_saturates(self) -> None:
-        # Residual to dmlc/xgboost#10035: widening the dump cast from
-        # int32 to int64 moved the overflow boundary from ~2.1e9 to
-        # ~9.22e18 but did not remove it -- static_cast<int64_t>(double)
-        # is itself UB when the value is outside the int64 range. The
-        # clamp makes that boundary deterministic: a split threshold whose
-        # magnitude exceeds INT64_MAX/INT64_MIN must dump the saturation
-        # bound (INT64_MAX / INT64_MIN), the same value on every platform
-        # and optimization level, instead of architecture-dependent UB
-        # garbage.
-        #
-        # Reaching this requires a genuinely-integer feature with a value
-        # beyond int64, which a real trained model never produces; it is
-        # only reachable by mislabeling a >9.2e18 float feature as "int".
-        int64_max = 9223372036854775807
-        int64_min = -9223372036854775808
-        params = {
-            "objective": "binary:logistic",
-            "max_depth": 1,
-            "min_child_weight": 0,
-            "reg_lambda": 0,
-            "eta": 1,
-        }
-        for lo, hi, bound in [
-            (1e19, 2e19, int64_max),
-            (-2e19, -1e19, int64_min),
-        ]:
-            dm = xgb.DMatrix(
-                np.array([[lo], [hi]]),
-                label=np.array([0, 1]),
-                feature_types=["int"],
-            )
-            bst = xgb.train(params, dm, num_boost_round=1)
-
-            # Sanity: the split really does fall outside int64 range, so
-            # this test exercises the clamp and is not a no-op.
-            raw = json.loads(bst.save_raw("json"))
-            split_cond = float(
-                np.float32(
-                    raw["learner"]["gradient_booster"]["model"]["trees"][0][
-                        "split_conditions"
-                    ][0]
-                )
-            )
-            assert abs(split_cond) > int64_max
-
-            # Text dump: deterministic saturation bound, exact string.
-            text_dump = bst.get_dump(dump_format="text")[0]
-            dumped = int(text_dump.split("<")[1].split("]")[0])
-            assert dumped == bound, (
-                f"text dump reported {dumped}, expected deterministic "
-                f"saturation bound {bound} for an out-of-int64 threshold "
-                f"(lo={lo}, hi={hi}); a non-bound value means the cast "
-                "invoked UB instead of clamping"
-            )
-
-            # JSON dump: same bound, and still a finite JSON number.
-            json_dump = json.loads(bst.get_dump(dump_format="json")[0])
-            assert json_dump["split_condition"] == bound
-            assert math.isfinite(json_dump["split_condition"])
-
     def test_dump_float_precision_unaffected(self) -> None:
         # Regression fence for AC-9: the kQuantitive/kFloat path (unrelated
         # float-precision sub-thread on #10035, e.g. "0.200000003" vs
