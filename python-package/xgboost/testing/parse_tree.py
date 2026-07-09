@@ -47,39 +47,33 @@ def run_tree_to_df_categorical(tree_method: str, device: Device) -> None:
 
 
 def _expected_leaf_vectors(booster: Booster) -> dict[tuple[int, int], list[float]]:
-    """Map ``(tree_id, node_id) -> list[float]`` of leaf outputs from the raw JSON."""
+    """Map ``(tree_id, node_id) -> list[float]`` of leaf outputs."""
     model = json.loads(booster.save_raw(raw_format="json"))
     trees = model["learner"]["gradient_booster"]["model"]["trees"]
     out: dict[tuple[int, int], list[float]] = {}
     for tid, tree in enumerate(trees):
-        size = int(tree["tree_param"]["size_leaf_vector"])
-        if size <= 1:
+        n_targets = int(tree["tree_param"]["size_leaf_vector"])
+        if n_targets <= 1:
             continue
         left = tree["left_children"]
         right = tree["right_children"]
         leaf_weights = tree["leaf_weights"]
         for nid, lc in enumerate(left):
             if lc == -1:  # leaf
-                beg = right[nid] * size
-                out[(tid, nid)] = [float(v) for v in leaf_weights[beg : beg + size]]
+                beg = right[nid] * n_targets
+                out[(tid, nid)] = leaf_weights[beg : beg + n_targets]
     return out
 
 
-def run_tree_to_df_vector_leaf_mixed(tree_method: str, device: Device) -> None:
+def run_tree_to_df_vector_leaf_mixed(device: Device) -> None:
     """Tests trees_to_dataframe on a mixed scalar + vector-leaf booster."""
     n_targets = 3
     X, y = make_regression(
         n_samples=512, n_features=10, n_targets=n_targets, random_state=2025
     )
-    Xy = QuantileDMatrix(X, y)
     booster = train(
-        {
-            "tree_method": tree_method,
-            "device": device,
-            "multi_strategy": "multi_output_tree",
-            "max_depth": 3,
-        },
-        Xy,
+        {"device": device, "multi_strategy": "multi_output_tree", "max_depth": 3},
+        QuantileDMatrix(X, y),
         num_boost_round=6,
         callbacks=[ResetStrategy()],
     )
@@ -99,7 +93,7 @@ def run_tree_to_df_vector_leaf_mixed(tree_method: str, device: Device) -> None:
         tid = int(x["Tree"])
         key = (tid, int(x["Node"]))
         if x["Feature"] == "Leaf":
-            # Leaf rows never carry split information, regardless of tree type.
+            # Leaf rows don't carry split information
             assert pd.isna(x["Split"])
             assert x["Category"] is None
             assert pd.isna(x["Yes"])

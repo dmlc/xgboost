@@ -70,7 +70,7 @@ class TestTreesToDataFrame:
         run_tree_to_df_categorical("approx", "cpu")
 
     def test_tree_to_df_vector_leaf_mixed(self) -> None:
-        run_tree_to_df_vector_leaf_mixed("hist", "cpu")
+        run_tree_to_df_vector_leaf_mixed("cpu")
 
     def test_tree_to_df_indicator(self, tmp_path) -> None:
         """Test trees_to_dataframe with indicator (boolean) features."""
