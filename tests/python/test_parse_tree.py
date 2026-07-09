@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import pytest
 import xgboost as xgb
 from xgboost import testing as tm

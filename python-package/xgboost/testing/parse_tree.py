@@ -3,7 +3,6 @@
 import json
 
 import numpy as np
-import pandas as pd
 import pytest
 from sklearn.datasets import make_regression
 
@@ -17,6 +16,8 @@ from .utils import Device
 
 def run_tree_to_df_categorical(tree_method: str, device: Device) -> None:
     """Tests tree_to_df with categorical features."""
+
+    import pandas as pd
 
     X, y = make_categorical(100, 10, 31, onehot=False)
     Xy = DMatrix(X, y, enable_categorical=True)

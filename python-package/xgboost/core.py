@@ -3090,8 +3090,8 @@ class Booster:
         Parameters
         ----------
         fmap :
-            Deprecated and ignored. The methed uses :meth:`.feature_types` and
-            :meth:`.feature_names`.
+            Deprecated and ignored. The methed uses :attr:`.feature_types` and
+            :attr:`.feature_names`.
 
             .. deprecated:: 3.4.0
 
@@ -3123,7 +3123,7 @@ class Booster:
         node_ids: List[int] = []
         fids: List[str] = []
         splits: List[float | None] = []
-        categories: List[Union[Optional[float], List[str]]] = []
+        categories: List[None | List[int]] = []
         y_directs: List[str | None] = []
         n_directs: List[str | None] = []
         missings: List[str | None] = []
