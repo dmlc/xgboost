@@ -69,7 +69,7 @@ constexpr int kGpuQuadratureWarpsPerBlock = kGpuQuadratureTreeBlockThreads / dh:
 // The traversal stack lives in shared memory and is sized at compile time. Group trees by depth so
 // shallow models use smaller stack/basis arrays, while deeper trees still get a bounded fallback
 // specialization instead of forcing every model through the largest shared-memory footprint.
-constexpr std::array<std::size_t, 3> kGpuQuadratureDepthBuckets{{16, 32, 64}};
+constexpr std::array<std::size_t, 4> kGpuQuadratureDepthBuckets{{16, 32, 64, 128}};
 constexpr std::size_t kMaxGpuQuadratureDepth = kGpuQuadratureDepthBuckets.back();
 using QuadratureRule = detail::QuadratureRule;
 // Leaf payload is interpreted by CompressedTree::is_vector_leaf: scalar trees keep the weighted
@@ -1270,6 +1270,8 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
                                     prepared.compressed[1], prepared.rule, out_contribs);
     LaunchQuadratureShapBuckets<64>(ctx, loader, base_rowid, ngroup, ncolumns,
                                     prepared.compressed[2], prepared.rule, out_contribs);
+    LaunchQuadratureShapBuckets<128>(ctx, loader, base_rowid, ngroup, ncolumns,
+                                     prepared.compressed[3], prepared.rule, out_contribs);
   });
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
@@ -1318,6 +1320,9 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
                                                prepared.compressed[1], prepared.rule, out_contribs);
     LaunchQuadratureShapInteractionBuckets<64>(ctx, loader, base_rowid, ngroup, ncolumns,
                                                prepared.compressed[2], prepared.rule, out_contribs);
+    LaunchQuadratureShapInteractionBuckets<128>(ctx, loader, base_rowid, ngroup, ncolumns,
+                                                prepared.compressed[3], prepared.rule,
+                                                out_contribs);
   });
 
   p_fmat->Info().base_margin_.SetDevice(ctx->Device());
