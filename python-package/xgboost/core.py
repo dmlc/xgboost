@@ -3090,7 +3090,7 @@ class Booster:
         Parameters
         ----------
         fmap :
-            Deprecated and ignored. The methed uses :attr:`.feature_types` and
+            Deprecated and ignored. The method uses :attr:`.feature_types` and
             :attr:`.feature_names`.
 
             .. deprecated:: 3.4.0
