@@ -1,12 +1,17 @@
 """Tests for parsing trees."""
 
+import json
+
+import numpy as np
 import pandas as pd
 import pytest
+from sklearn.datasets import make_regression
 
-from ..core import DMatrix
+from ..core import Booster, DMatrix, QuantileDMatrix
 from ..sklearn import XGBRegressor
 from ..training import train
 from .data import make_categorical
+from .updater import ResetStrategy
 from .utils import Device
 
 
@@ -39,6 +44,90 @@ def run_tree_to_df_categorical(tree_method: str, device: Device) -> None:
             assert x["Yes"] in all_ids
             assert x["No"] in all_ids
             assert x["Missing"] in all_ids
+
+
+def _expected_leaf_vectors(booster: Booster) -> dict[tuple[int, int], list[float]]:
+    """Map ``(tree_id, node_id) -> list[float]`` of leaf outputs from the raw JSON."""
+    model = json.loads(booster.save_raw(raw_format="json"))
+    trees = model["learner"]["gradient_booster"]["model"]["trees"]
+    out: dict[tuple[int, int], list[float]] = {}
+    for tid, tree in enumerate(trees):
+        size = int(tree["tree_param"]["size_leaf_vector"])
+        if size <= 1:
+            continue
+        left = tree["left_children"]
+        right = tree["right_children"]
+        leaf_weights = tree["leaf_weights"]
+        for nid, lc in enumerate(left):
+            if lc == -1:  # leaf
+                beg = right[nid] * size
+                out[(tid, nid)] = [float(v) for v in leaf_weights[beg : beg + size]]
+    return out
+
+
+def run_tree_to_df_vector_leaf_mixed(tree_method: str, device: Device) -> None:
+    """Tests trees_to_dataframe on a mixed scalar + vector-leaf booster."""
+    n_targets = 3
+    X, y = make_regression(
+        n_samples=512, n_features=10, n_targets=n_targets, random_state=2025
+    )
+    Xy = QuantileDMatrix(X, y)
+    booster = train(
+        {
+            "tree_method": tree_method,
+            "device": device,
+            "multi_strategy": "multi_output_tree",
+            "max_depth": 3,
+        },
+        Xy,
+        num_boost_round=6,
+        callbacks=[ResetStrategy()],
+    )
+
+    df = booster.trees_to_dataframe()
+    assert str(df["Gain"].dtype) == "Float64"
+    assert "Target" in df.columns
+
+    expected = _expected_leaf_vectors(booster)
+    # Tree ids that use vector leaves (each such tree has at least one leaf).
+    vector_tids = {tid for tid, _ in expected}
+    assert len(vector_tids) > 0
+
+    all_ids = set(df["ID"])
+    n_vector_leaf_rows = 0
+    for _, x in df.iterrows():
+        tid = int(x["Tree"])
+        key = (tid, int(x["Node"]))
+        if x["Feature"] == "Leaf":
+            # Leaf rows never carry split information, regardless of tree type.
+            assert pd.isna(x["Split"])
+            assert x["Category"] is None
+            assert pd.isna(x["Yes"])
+            assert pd.isna(x["No"])
+            assert pd.isna(x["Missing"])
+            if key in expected:
+                # Vector-leaf leaf: expanded into one row per target, with the scalar
+                # Gain equal to the target-th entry of the leaf vector.
+                n_vector_leaf_rows += 1
+                target = int(x["Target"])
+                assert target in range(n_targets)
+                np.testing.assert_allclose(float(x["Gain"]), expected[key][target])
+            else:
+                # Scalar-tree leaf: a single row carrying the tree's concrete target.
+                assert not pd.isna(x["Target"])
+        else:
+            assert isinstance(float(x["Gain"]), float)
+            assert x["Yes"] in all_ids
+            assert x["No"] in all_ids
+            assert x["Missing"] in all_ids
+            if tid in vector_tids:
+                # A split node does not have a concept of target.
+                assert pd.isna(x["Target"])
+            else:
+                # A scalar-tree split belongs to that tree's target.
+                assert not pd.isna(x["Target"])
+    # Every vector-leaf node expands into exactly `n_targets` rows.
+    assert n_vector_leaf_rows == n_targets * len(expected)
 
 
 def run_split_value_histograms(tree_method: str, device: Device) -> None:
