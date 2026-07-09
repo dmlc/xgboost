@@ -10,7 +10,6 @@
 #include <vector>     // std::vector
 
 #include "../common/algorithm.h"           // ArgSort
-#include "../common/linalg_op.h"           // for VecScaMul
 #include "../common/numeric.h"             // RunLengthEncode
 #include "../common/stats.h"               // Quantile,WeightedQuantile
 #include "../common/threading_utils.h"     // ParallelFor

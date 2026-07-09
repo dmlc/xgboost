@@ -9,7 +9,6 @@
 #include "../common/cuda_context.cuh"  // CUDAContext
 #include "../common/cuda_stream.h"     // for Event, Stream
 #include "../common/device_helpers.cuh"
-#include "../common/linalg_op.h"  // for VecScaMul
 #include "../common/stats.cuh"
 #include "../tree/sample_position.h"  // for SamplePosition
 #include "../tree/tree_view.h"        // for WalkTree

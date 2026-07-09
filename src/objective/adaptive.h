@@ -39,7 +39,7 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
   auto const& h_node_idx = nidx;
-  auto n_targets = tree.IsMultiTarget() ? tree.NumTargets() : 1;
+  auto n_targets = tree.NumTargets();
 
   bst_idx_t n_leaf = collective::GlobalMax(ctx, info, static_cast<bst_idx_t>(h_node_idx.size()));
   auto n_values = n_leaf * n_targets;
@@ -61,17 +61,17 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   rc = collective::GlobalSum(ctx, info, linalg::MakeVec(quantiles.data(), quantiles.size()));
   collective::SafeColl(rc);
 
-  for (size_t i = 0; i < n_leaf; ++i) {
-    for (bst_target_t t = 0; t < n_targets; ++t) {
-      auto idx = i * n_targets + t;
+  for (std::size_t leaf_idx = 0; leaf_idx < n_leaf; ++leaf_idx) {
+    for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
+      auto idx = leaf_idx * n_targets + target_idx;
       if (n_valids[idx] > 0) {
         quantiles[idx] = quantiles[idx] / static_cast<float>(n_valids[idx]) * learning_rate;
       } else {
         // Use original leaf value if no worker can provide the quantile.
         if (tree.IsMultiTarget()) {
-          quantiles[idx] = tree.GetMultiTargetTree()->LeafValue(h_node_idx[i])(t);
+          quantiles[idx] = tree.GetMultiTargetTree()->LeafValue(h_node_idx[leaf_idx])(target_idx);
         } else {
-          quantiles[idx] = tree[h_node_idx[i]].LeafValue();
+          quantiles[idx] = tree[h_node_idx[leaf_idx]].LeafValue();
         }
       }
     }
@@ -80,7 +80,7 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   if (tree.IsMultiTarget()) {
     tree.SetLeaves(h_node_idx, common::Span{quantiles});
   } else {
-    for (size_t i = 0; i < nidx.size(); ++i) {
+    for (std::size_t i = 0; i < nidx.size(); ++i) {
       auto nidx = h_node_idx[i];
       auto q = quantiles[i];
       CHECK(tree[nidx].IsLeaf());
