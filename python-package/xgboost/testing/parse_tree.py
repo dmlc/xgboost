@@ -40,7 +40,7 @@ def run_tree_to_df_categorical(tree_method: str, device: Device) -> None:
             # integer category codes rendered as strings.
             assert pd.isna(x["Split"])
             assert isinstance(x["Category"], list) and len(x["Category"]) >= 1
-            assert all(isinstance(c, str) and int(c) >= 0 for c in x["Category"])
+            assert all(int(c) >= 0 for c in x["Category"])
             # Branch ids must reference existing nodes in the same frame.
             assert x["Yes"] in all_ids
             assert x["No"] in all_ids

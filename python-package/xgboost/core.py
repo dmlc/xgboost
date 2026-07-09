@@ -3148,14 +3148,14 @@ class Booster:
             # The output group this tree contributes to.
             tree_target = int(tree_info[tid])
 
-            # Node id -> category codes (as strings), stored CSR-style.
-            node_cats: Dict[int, List[str]] = {}
+            # Node id -> category codes, stored CSR-style.
+            node_cats: Dict[int, List[int]] = {}
             for nidx, beg, size in zip(
                 tree["categories_nodes"],
                 tree["categories_segments"],
                 tree["categories_sizes"],
             ):
-                node_cats[nidx] = [str(c) for c in tree["categories"][beg : beg + size]]
+                node_cats[nidx] = tree["categories"][beg : beg + size]
 
             # Depth-first traversal from the root so that pruned/deleted nodes, which
             # remain in the arrays but are unreachable, are skipped.
