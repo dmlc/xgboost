@@ -5,6 +5,7 @@
 import copy
 import ctypes
 import json
+import math
 import os
 import re
 import sys
@@ -3078,9 +3079,9 @@ class Booster:
                 results[feat] = float(score)
         return results
 
-    # pylint: disable=too-many-statements
+    # pylint: disable=too-many-locals, too-many-statements
     def trees_to_dataframe(self, fmap: PathLike = "") -> "PdDataFrame":
-        """Parse a boosted tree model text dump into a pandas DataFrame structure.
+        """Parse a boosted tree model into a pandas DataFrame structure.
 
         This feature is only defined when the decision tree model is chosen as base
         learner (`booster in {gbtree, dart}`). It is not defined for other base learner
@@ -3089,113 +3090,113 @@ class Booster:
         Parameters
         ----------
         fmap :
-           The name of feature map file.
+            Deprecated and ignored. The methed uses :meth:`.feature_types` and
+            :meth:`.feature_names`.
+
+            .. deprecated:: 3.4.0
+
         """
-        # pylint: disable=too-many-locals
+        if not is_pandas_available():
+            raise ImportError("pandas must be available to use this method.")
+
         from pandas import DataFrame
 
-        fmap = os.fspath(os.path.expanduser(fmap))
-        if not is_pandas_available():
-            raise ImportError(
-                (
-                    "pandas must be available to use this method."
-                    "Install pandas before calling again."
-                )
+        model = json.loads(self.save_raw(raw_format="json"))
+        gbm = model["learner"]["gradient_booster"]
+        if gbm["name"] not in {"gbtree", "dart"}:
+            raise ValueError(
+                f"This method is not defined for Booster type {gbm['name']}"
             )
-        booster = json.loads(self.save_config())["learner"]["gradient_booster"]["name"]
-        if booster not in {"gbtree", "dart"}:
-            raise ValueError(f"This method is not defined for Booster type {booster}")
+        trees = gbm["model"]["trees"]
+        if trees and int(trees[0]["tree_param"]["size_leaf_vector"]) > 1:
+            raise NotImplementedError(
+                "trees_to_dataframe doesn't support vector leaf trees."
+            )
+        if fmap:
+            warnings.warn(
+                "`fmap` has been deprecated. XGBoost now uses the"
+                " `Booster.feature_names` and `Booster.feature_types` by default.",
+                FutureWarning,
+            )
+        fnames = dict(enumerate(self.feature_names or []))
+        ftypes = dict(enumerate(self.feature_types or []))
 
-        tree_ids = []
-        node_ids = []
-        fids = []
-        splits: List[Union[float, str]] = []
+        tree_ids: List[int] = []
+        node_ids: List[int] = []
+        fids: List[str] = []
+        splits: List[float | None] = []
         categories: List[Union[Optional[float], List[str]]] = []
-        y_directs: List[Union[float, str]] = []
-        n_directs: List[Union[float, str]] = []
-        missings: List[Union[float, str]] = []
-        gains = []
-        covers = []
+        y_directs: List[str | None] = []
+        n_directs: List[str | None] = []
+        missings: List[str | None] = []
+        gains: List[float] = []
+        covers: List[float] = []
 
-        trees = self.get_dump(fmap, with_stats=True)
-        for i, tree in enumerate(trees):
-            for line in tree.split("\n"):
-                arr = line.split("[")
-                # Leaf node
-                if len(arr) == 1:
-                    # Last element of line.split is an empty string
-                    if arr == [""]:
-                        continue
-                    # parse string
-                    parse = arr[0].split(":")
-                    stats = re.split("=|,", parse[1])
+        for tid, tree in enumerate(trees):
+            left = tree["left_children"]
+            right = tree["right_children"]
+            sindex = tree["split_indices"]
+            sconds = tree["split_conditions"]
+            dft_left = tree["default_left"]
+            stypes = tree["split_type"]
+            loss_chg = tree["loss_changes"]
+            sum_hess = tree["sum_hessian"]
 
-                    # append to lists
-                    tree_ids.append(i)
-                    node_ids.append(int(re.findall(r"\b\d+\b", parse[0])[0]))
+            # Node id -> category codes (as strings), stored CSR-style.
+            node_cats: Dict[int, List[str]] = {}
+            for nidx, beg, size in zip(
+                tree["categories_nodes"],
+                tree["categories_segments"],
+                tree["categories_sizes"],
+            ):
+                node_cats[nidx] = [str(c) for c in tree["categories"][beg : beg + size]]
+
+            # Depth-first traversal from the root so that pruned/deleted nodes, which
+            # remain in the arrays but are unreachable, are skipped.
+            stack = [0]
+            while stack:
+                nid = stack.pop()
+                tree_ids.append(tid)
+                node_ids.append(nid)
+                if left[nid] == -1:  # leaf
                     fids.append("Leaf")
-                    splits.append(float("NAN"))
-                    categories.append(float("NAN"))
-                    y_directs.append(float("NAN"))
-                    n_directs.append(float("NAN"))
-                    missings.append(float("NAN"))
-                    gains.append(float(stats[1]))
-                    covers.append(float(stats[3]))
-                # Not a Leaf Node
-                else:
-                    # parse string
-                    fid = arr[1].split("]")
-                    if fid[0].find("<") != -1:
-                        # numerical
-                        parse = fid[0].split("<")
-                        splits.append(float(parse[1]))
-                        categories.append(None)
-                    elif fid[0].find(":{") != -1:
-                        # categorical
-                        parse = fid[0].split(":")
-                        cats = parse[1][1:-1]  # strip the {}
-                        cats_split = cats.split(",")
-                        splits.append(float("NAN"))
-                        categories.append(cats_split if cats_split else None)
-                    else:
-                        # indicator (boolean) feature: format is
-                        #   {nid}:[{fname}] yes={yes},no={no}
-                        # No split threshold or missing direction.
-                        bracket_expr = fid[0]
-                        remainder = fid[1] if len(fid) > 1 else ""
-                        if (
-                            "<" in bracket_expr
-                            or ":{" in bracket_expr
-                            or "yes=" not in remainder
-                            or "no=" not in remainder
-                        ):
-                            raise ValueError(
-                                f"Unrecognized split format: [{bracket_expr}]{remainder}"
-                            )
-                        parse = [bracket_expr]
-                        splits.append(float("NAN"))
-                        categories.append(None)
-                    stats = re.split("=|,", fid[1])
+                    splits.append(None)
+                    categories.append(None)
+                    y_directs.append(None)
+                    n_directs.append(None)
+                    missings.append(None)
+                    gains.append(sconds[nid])
+                    covers.append(sum_hess[nid])
+                    continue
 
-                    # append to lists
-                    tree_ids.append(i)
-                    node_ids.append(int(re.findall(r"\b\d+\b", arr[0])[0]))
-                    fids.append(parse[0])
-                    str_i = str(i)
-                    y_directs.append(str_i + "-" + stats[1])
-                    n_directs.append(str_i + "-" + stats[3])
-                    # Indicator nodes have no explicit missing= field;
-                    # the default (missing) child is the "no" direction.
-                    if len(stats) > 5 and stats[4] == "missing":
-                        missings.append(str_i + "-" + stats[5])
-                        gains.append(float(stats[7]))
-                        covers.append(float(stats[9]))
+                stack.append(left[nid])
+                stack.append(right[nid])
+                fidx = sindex[nid]
+                fids.append(fnames.get(fidx, f"f{fidx}"))
+                dft_child = left[nid] if dft_left[nid] else right[nid]
+                if stypes[nid] == 1:  # categorical
+                    yes, no = right[nid], left[nid]
+                    splits.append(None)
+                    categories.append(node_cats.get(nid))
+                elif ftypes.get(fidx, "q") == "i":  # indicator (boolean)
+                    # No split threshold; missing follows the "no" (default) branch.
+                    yes, no = (right[nid] if dft_left[nid] else left[nid]), dft_child
+                    splits.append(None)
+                    categories.append(None)
+                else:  # numerical
+                    yes, no = left[nid], right[nid]
+                    if ftypes.get(fidx, "q") == "int":
+                        splits.append(float(math.ceil(sconds[nid])))
                     else:
-                        missings.append(str_i + "-" + stats[3])
-                        gains.append(float(stats[5]))
-                        covers.append(float(stats[7]))
+                        splits.append(sconds[nid])
+                    categories.append(None)
+                y_directs.append(f"{tid}-{yes}")
+                n_directs.append(f"{tid}-{no}")
+                missings.append(f"{tid}-{dft_child}")
+                gains.append(loss_chg[nid])
+                covers.append(sum_hess[nid])
 
-        ids = [str(t_id) + "-" + str(n_id) for t_id, n_id in zip(tree_ids, node_ids)]
+        ids = [f"{t_id}-{n_id}" for t_id, n_id in zip(tree_ids, node_ids)]
         df = DataFrame(
             {
                 "Tree": tree_ids,
@@ -3209,6 +3210,21 @@ class Booster:
                 "Gain": gains,
                 "Cover": covers,
                 "Category": categories,
+            }
+        )
+        df = df.astype(
+            {
+                "Tree": "Int64",
+                "Node": "Int64",
+                "ID": "string",
+                "Feature": "string",
+                "Split": "Float64",
+                "Yes": "string",
+                "No": "string",
+                "Missing": "string",
+                "Gain": "Float64",
+                "Cover": "Float64",
+                # `Category`  holds Python lists
             }
         )
 

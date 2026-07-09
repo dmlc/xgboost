@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 import xgboost as xgb
 from xgboost import testing as tm
@@ -51,6 +52,47 @@ class TestTreesToDataFrame:
         cover_from_df = df.Cover.sum()
         assert np.allclose(cover_from_dump, cover_from_df)
 
+        # Structural checks on the JSON-derived frame: branch ids are well-formed and
+        # reference existing (reachable) nodes, and the missing direction always follows
+        # one of the two children.
+        all_ids = set(df["ID"])
+        non_leaf = df[df.Feature != "Leaf"]
+        assert non_leaf["Yes"].isin(all_ids).all()
+        assert non_leaf["No"].isin(all_ids).all()
+        assert non_leaf["Missing"].isin(all_ids).all()
+        assert (
+            (non_leaf["Missing"] == non_leaf["Yes"])
+            | (non_leaf["Missing"] == non_leaf["No"])
+        ).all()
+        # Numerical splits have a real threshold; leaves have a missing split.
+        assert non_leaf["Split"].notna().all()
+        assert df[df.Feature == "Leaf"]["Split"].isna().all()
+
+    def test_tree_to_df_mixed(self) -> None:
+        """Mixed numerical + categorical model: check ``Category`` column semantics."""
+        X, y = tm.make_categorical(256, 8, 17, onehot=False, cat_ratio=0.5)
+        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        bst = xgb.train({"tree_method": "hist"}, Xy, num_boost_round=4)
+        df = bst.trees_to_dataframe()
+
+        saw_numerical = saw_categorical = False
+        for _, x in df.iterrows():
+            if x["Feature"] == "Leaf":
+                # Leaves have no category and no split threshold.
+                assert x["Category"] is None
+                assert pd.isna(x["Split"])
+            elif isinstance(x["Category"], list):
+                # Categorical split: missing threshold, non-empty integer codes.
+                saw_categorical = True
+                assert pd.isna(x["Split"])
+                assert len(x["Category"]) >= 1
+            else:
+                # Numerical split: ``Category`` stays ``None`` and split is a number.
+                saw_numerical = True
+                assert x["Category"] is None
+                assert pd.notna(x["Split"])
+        assert saw_numerical and saw_categorical
+
     def test_tree_to_df_categorical(self) -> None:
         run_tree_to_df_categorical("approx", "cpu")
 
@@ -61,20 +103,15 @@ class TestTreesToDataFrame:
         X_int = rng.randint(0, 2, size=(n_samples, n_features))
         y = np.logical_xor(X_int[:, 0], X_int[:, 1]).astype(np.float32)
         X = X_int.astype(np.float32)
-        dtrain = xgb.DMatrix(X, label=y)
-
-        # Create a feature map with indicator type 'i'
-        fmap_path = str(tmp_path / "fmap.txt")
-        with open(fmap_path, "w", encoding="utf-8") as f:
-            for i in range(n_features):
-                f.write(f"{i}\tf{i}\ti\n")
+        # Use `i` as indicator
+        dtrain = xgb.DMatrix(X, label=y, feature_types=["i"] * n_features)
 
         bst = xgb.train(
             {"max_depth": 3, "objective": "binary:logistic", "verbosity": 0},
             dtrain,
             num_boost_round=5,
         )
-        df = bst.trees_to_dataframe(fmap=fmap_path)
+        df = bst.trees_to_dataframe()
 
         # Basic structure checks
         assert "Tree" in df.columns
