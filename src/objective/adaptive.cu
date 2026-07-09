@@ -3,13 +3,12 @@
  */
 #include <thrust/sort.h>
 
-#include <cub/cub.cuh>         // NOLINT
+#include <cub/cub.cuh>  // NOLINT
 
 #include "../collective/aggregator.h"
 #include "../common/cuda_context.cuh"  // CUDAContext
 #include "../common/cuda_stream.h"     // for Event, Stream
 #include "../common/device_helpers.cuh"
-#include "../common/linalg_op.h"  // for VecScaMul
 #include "../common/stats.cuh"
 #include "../tree/sample_position.h"  // for SamplePosition
 #include "../tree/tree_view.h"        // for WalkTree
@@ -158,6 +157,7 @@ void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
   if (nptr.Empty()) {
     std::vector<float> quantiles;
     detail::UpdateLeafValues(ctx, &quantiles, nidx.ConstHostVector(), info, learning_rate, p_tree);
+    return;
   }
 
   predt.SetDevice(ctx->Device());
@@ -203,13 +203,8 @@ void UpdateTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
     }
   });
 
-  if (p_tree->IsMultiTarget()) {
-    linalg::VecScaMul(ctx, linalg::MakeVec(ctx->Device(), quantiles.DeviceSpan()), learning_rate);
-    p_tree->SetLeaves(nidx.ConstHostVector(), quantiles.ConstHostSpan());
-  } else {
-    detail::UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info,
-                             learning_rate, p_tree);
-  }
+  detail::UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info,
+                           learning_rate, p_tree);
 }
 }  // namespace cuda_impl
 }  // namespace xgboost::obj

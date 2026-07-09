@@ -315,6 +315,8 @@ class MultiTargetHistBuilder {
    * calculated from value gradient.
    */
   void ExpandTreeLeaf(linalg::Matrix<GradientPair> const &full_grad, RegTree *p_tree) {
+    CHECK(p_last_fmat_);
+    CHECK_EQ(full_grad.Shape(1), p_tree->NumTargets());
     auto tree = p_tree->HostMtView();
     auto n_targets = p_tree->NumTargets();
     auto value_gpair = full_grad.HostView();
@@ -364,6 +366,12 @@ class MultiTargetHistBuilder {
     // Reduce thread-local sums: [n_threads, n_leaves, n_targets] -> [n_leaves, n_targets]
     auto leaf_sums = ReduceToRows(ctx_, h_leaf_sums_tloc);
     auto h_leaf_sums = leaf_sums.HostView();
+    CHECK(h_leaf_sums.CContiguous());
+    auto rc = collective::GlobalSum(
+        ctx_, p_last_fmat_->Info(),
+        linalg::MakeVec(reinterpret_cast<double *>(h_leaf_sums.Values().data()),
+                        h_leaf_sums.Size() * 2));
+    collective::SafeColl(rc);
 
     // Calculate weights for each leaf
     linalg::Matrix<float> weights = linalg::Empty<float>(ctx_, n_leaves, n_targets);

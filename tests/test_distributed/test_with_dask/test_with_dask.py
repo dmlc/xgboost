@@ -33,13 +33,18 @@ from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import (
     check_init_estimation,
+    check_multi_output_tree,
     check_uneven_nan,
     get_rabit_args,
     make_categorical,
     run_recode,
 )
 from xgboost.testing.data import get_california_housing
-from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
+from xgboost.testing.params import (
+    hist_cache_strategy,
+    hist_multi_parameter_strategy,
+    hist_parameter_strategy,
+)
 from xgboost.testing.shared import (
     get_feature_weights,
     validate_data_initialization,
@@ -1451,6 +1456,28 @@ class TestWithDask:
         num_rounds = 10
         params.update(cache_param)
         self.run_updater_test(client, params, num_rounds, dataset, "hist")
+
+    @given(
+        params=hist_multi_parameter_strategy,
+        cache_param=hist_cache_strategy,
+        dataset=tm.multi_dataset_strategy,
+    )
+    @settings(
+        deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True
+    )
+    def test_hist_multi(
+        self,
+        params: Dict[str, Any],
+        cache_param: Dict[str, Any],
+        dataset: tm.TestDataset,
+        client: "Client",
+    ) -> None:
+        num_rounds = 10
+        params.update(cache_param)
+        self.run_updater_test(client, params, num_rounds, dataset, "hist")
+
+    def test_hist_multi_absolute_error(self, client: "Client") -> None:
+        check_multi_output_tree(client, "cpu")
 
     def test_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 3000, 30, 13)
