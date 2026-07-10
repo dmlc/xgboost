@@ -264,20 +264,6 @@ XGB_DLL int XGBGetGlobalConfig(const char **json_str) {
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out) {
-  xgboost_CHECK_C_ARG_PTR(fname);
-  xgboost_CHECK_C_ARG_PTR(out);
-
-  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromURI");
-
-  Json config{Object()};
-  config["uri"] = std::string{fname};
-  config["silent"] = silent;
-  std::string config_str;
-  Json::Dump(config, &config_str);
-  return XGDMatrixCreateFromURI(config_str.c_str(), out);
-}
-
 XGB_DLL int XGDMatrixCreateFromURI(const char *config, DMatrixHandle *out) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(config);

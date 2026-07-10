@@ -35,6 +35,12 @@ static void MakeConfig(int n_threads, size_t length, char* out) {
   memset(out, '\0', length);
   sprintf(out, kTemplate, n_threads);
 }
+/* Make Json encoded DMatrix URI configuration. */
+static void MakeDMatrixConfig(char const* uri, int silent, size_t length, char* out) {
+  static char const kTemplate[] = "{\"uri\": \"%s\", \"silent\": %d}";
+  memset(out, '\0', length);
+  snprintf(out, length, kTemplate, uri, silent);
+}
 
 int main() {
   int silent = 0;
@@ -42,8 +48,13 @@ int main() {
 
   // load the data
   DMatrixHandle dtrain, dtest;
-  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.train?format=libsvm", silent, &dtrain));
-  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.test?format=libsvm", silent, &dtest));
+  char dmat_config[256];
+  MakeDMatrixConfig("../../data/agaricus.txt.train?format=libsvm", silent, sizeof(dmat_config),
+                    dmat_config);
+  safe_xgboost(XGDMatrixCreateFromURI(dmat_config, &dtrain));
+  MakeDMatrixConfig("../../data/agaricus.txt.test?format=libsvm", silent, sizeof(dmat_config),
+                    dmat_config);
+  safe_xgboost(XGDMatrixCreateFromURI(dmat_config, &dtest));
 
   // create the booster
   BoosterHandle booster;

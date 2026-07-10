@@ -17,10 +17,10 @@ JNIEXPORT jstring JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetLastError
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixCreateFromFile
+ * Method:    XGDMatrixCreateFromURI
  * Signature: (Ljava/lang/String;I[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromFile
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromURI
   (JNIEnv *, jclass, jstring, jint, jlongArray);
 
 /*

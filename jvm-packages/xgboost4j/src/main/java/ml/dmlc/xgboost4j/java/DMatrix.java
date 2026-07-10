@@ -73,7 +73,7 @@ public class DMatrix {
       throw new NullPointerException("dataPath: null");
     }
     long[] out = new long[1];
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromFile(dataPath, 1, out));
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromURI(dataPath, 1, out));
     handle = out[0];
   }
 

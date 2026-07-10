@@ -114,7 +114,7 @@ public class DMatrixTest {
   }
 
   @Test
-  public void testCreateFromFile() throws XGBoostError {
+  public void testCreateFromURI() throws XGBoostError {
     //create DMatrix from file
     String filePath = writeResourceIntoTempFile("/agaricus.txt.test");
     DMatrix dmat = new DMatrix(filePath + "?format=libsvm");

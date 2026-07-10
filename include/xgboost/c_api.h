@@ -135,19 +135,6 @@ XGB_DLL int XGBGetGlobalConfig(char const **out_config);
 /**
  * @brief load a data matrix
  *
- * @deprecated since 2.0.0
- * @see XGDMatrixCreateFromURI()
- * @param fname the name of the file
- * @param silent whether print messages during loading
- * @param out a loaded data matrix
- *
- * @return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out);
-
-/**
- * @brief load a data matrix
- *
  * @param config JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - uri: The URI of the input file. The URI parameter `format` is required when loading text data.
  *          @verbatim embed:rst:leading-asterisk

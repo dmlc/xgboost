@@ -255,16 +255,21 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixCreateFromFile
+ * Method:    XGDMatrixCreateFromURI
  * Signature: (Ljava/lang/String;I[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromFile(
-    JNIEnv *jenv, jclass jcls, jstring jfname, jint jsilent, jlongArray jout) {
-  std::unique_ptr<char const, Deleter<char const>> fname{
-      jenv->GetStringUTFChars(jfname, nullptr),
-      [&](char const *ptr) { jenv->ReleaseStringUTFChars(jfname, ptr); }};
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromURI(
+    JNIEnv *jenv, jclass jcls, jstring juri, jint jsilent, jlongArray jout) {
+  std::unique_ptr<char const, Deleter<char const>> uri{
+      jenv->GetStringUTFChars(juri, nullptr),
+      [&](char const *ptr) { jenv->ReleaseStringUTFChars(juri, ptr); }};
+  xgboost::Json config{xgboost::Object{}};
+  config["uri"] = std::string{uri.get()};
+  config["silent"] = xgboost::Integer{jsilent};
+  auto sconfig = xgboost::Json::Dump(config);
+
   DMatrixHandle result;
-  int ret = XGDMatrixCreateFromFile(fname.get(), jsilent, &result);
+  int ret = XGDMatrixCreateFromURI(sconfig.c_str(), &result);
   JVM_CHECK_CALL(ret);
   setHandle(jenv, jout, result);
   return ret;
