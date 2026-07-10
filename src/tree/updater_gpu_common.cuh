@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #pragma once
 #include <limits>   // for numeric_limits

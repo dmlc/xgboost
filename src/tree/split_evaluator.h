@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023 by Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  * \file split_evaluator.h
  * \brief Used for implementing a loss term specific to decision trees. Useful for custom regularisation.
  * \author Henry Gouk
