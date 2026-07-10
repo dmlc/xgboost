@@ -15,22 +15,34 @@ def run_interaction_constraints(  # pylint: disable=too-many-locals
     device: Device,
     feature_names: Optional[FeatureNames] = None,
     interaction_constraints: Union[str, Sequence] = "[[0, 1]]",
+    n_targets: int = 1,
 ) -> None:
-    """Tests interaction constraints on a synthetic dataset."""
-    x1 = np.random.normal(loc=1.0, scale=1.0, size=1000)
-    x2 = np.random.normal(loc=1.0, scale=1.0, size=1000)
-    x3 = np.random.choice([1, 2, 3], size=1000, replace=True)
-    y = (
+    """Tests interaction constraints on a synthetic dataset. Only x1 and x2 are allowed
+    to interact; x3 must stay additive.
+
+    """
+    rng = np.random.default_rng(2026)
+    n_samples = 1000
+    x1 = rng.normal(loc=1.0, scale=1.0, size=n_samples)
+    x2 = rng.normal(loc=1.0, scale=1.0, size=n_samples)
+    x3 = rng.choice([1, 2, 3], size=n_samples, replace=True)
+    X = np.column_stack((x1, x2, x3))
+
+    # The constraint must force x3's contribution to remain additive regardless.
+    shared = (
         x1
         + x2
-        + x3
         + x1 * x2 * x3
-        + np.random.normal(loc=0.001, scale=1.0, size=1000)
-        + 3 * np.sin(x1)
+        + 3.0 * np.sin(x1)
+        + rng.normal(loc=0.0, scale=1.0, size=n_samples)
     )
-    X = np.column_stack((x1, x2, x3))
-    dtrain = DMatrix(X, label=y, feature_names=feature_names)
+    # Each target gets a distinct, non-zero additive coef on x3.
+    slopes = np.arange(1, n_targets + 1, dtype=np.float64)
+    slopes[1::2] *= -1.0
+    targets = [shared + slope * x3 for slope in slopes]
+    y = targets[0] if n_targets == 1 else np.column_stack(targets)
 
+    dtrain = DMatrix(X, label=y, feature_names=feature_names)
     params = {
         "max_depth": 3,
         "eta": 0.1,
@@ -39,18 +51,24 @@ def run_interaction_constraints(  # pylint: disable=too-many-locals
         "tree_method": tree_method,
         "device": device,
     }
+    if n_targets > 1:
+        params["multi_strategy"] = "multi_output_tree"
+
     num_boost_round = 12
-    # Fit a model that only allows interaction between x1 and x2
+    # Fit a model that only allows interaction between x1 and x2.
     bst = train(params, dtrain, num_boost_round, evals=[(dtrain, "train")])
 
-    # Set all observations to have the same x3 values then increment by the same amount
+    # Set all observations to have the same x3 value then increment by the same amount.
     def f(x: int) -> np.ndarray:
         tmat = DMatrix(
-            np.column_stack((x1, x2, np.repeat(x, 1000))), feature_names=feature_names
+            np.column_stack((x1, x2, np.repeat(x, n_samples))),
+            feature_names=feature_names,
         )
         return bst.predict(tmat)
 
     preds = [f(x) for x in [1, 2, 3]]
+    expected_shape = (n_samples,) if n_targets == 1 else (n_samples, n_targets)
+    assert preds[0].shape == expected_shape
 
     # Check incrementing x3 has the same effect on all observations
     #   since x3 is constrained to be independent of x1 and x2
