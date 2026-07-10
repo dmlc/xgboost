@@ -13,13 +13,14 @@
 #include <string.h>
 #include <xgboost/c_api.h>
 
-#define safe_xgboost(call) {                                            \
-int err = (call);                                                       \
-if (err != 0) {                                                         \
-  fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError()); \
-  exit(1);                                                              \
-}                                                                       \
-}
+#define safe_xgboost(call)                                                                       \
+  {                                                                                              \
+    int err = (call);                                                                            \
+    if (err != 0) {                                                                              \
+      fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError()); \
+      exit(1);                                                                                   \
+    }                                                                                            \
+  }
 
 /* Make Json encoded array interface. */
 static void MakeArrayInterface(size_t data, size_t n, char const* typestr, size_t length,
@@ -120,12 +121,12 @@ int main() {
   {
     printf("Dense Matrix Example (XGDMatrixCreateFromMat): ");
 
-    const float values[] = {0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0,
-      1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-      0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
-      1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      1, 0, 0, 0, 0, 1, 0, 0, 0, 0};
+    const float values[] = {0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,
+                            0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+                            0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+                            1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0};
 
     DMatrixHandle dmat;
     safe_xgboost(XGDMatrixCreateFromMat(values, 1, 127, 0.0, &dmat));
