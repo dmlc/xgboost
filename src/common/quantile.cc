@@ -378,7 +378,6 @@ void HostSketchContainer::PushAdapterBatch(Batch const &batch, size_t base_rowid
 INSTANTIATE(ArrayAdapterBatch)
 INSTANTIATE(DenseAdapterBatch)
 INSTANTIATE(CSRArrayAdapterBatch)
-INSTANTIATE(CSCArrayAdapterBatch)
 INSTANTIATE(SparsePageAdapterBatch)
 INSTANTIATE(ColumnarAdapterBatch)
 INSTANTIATE(EncColumnarAdapterBatch)
