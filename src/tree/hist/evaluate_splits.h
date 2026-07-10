@@ -101,11 +101,6 @@ class HistEvaluator {
     }
   }
 
-  [[nodiscard]] bool IsValid(GradStats const &left, GradStats const &right) const {
-    return left.GetHess() >= param_->min_child_weight &&
-           right.GetHess() >= param_->min_child_weight;
-  }
-
   /**
    * \brief Use learned direction with one-hot split. Other implementations (LGB) create a
    *        pseudo-category for missing value but here we just do a complete scan to avoid
@@ -141,24 +136,18 @@ class HistEvaluator {
       // missing on left (treat missing as other categories)
       right_sum = GradStats{hist[i]};
       left_sum.SetSubstract(parent.stats, right_sum);
-      if (IsValid(left_sum, right_sum)) {
-        auto missing_left_chg =
-            static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
-                                                       GradStats{right_sum}) -
-                               parent.root_gain);
-        best.Update(missing_left_chg, fidx, split_pt, true, true, left_sum, right_sum);
-      }
+      auto missing_left_chg = static_cast<float>(
+          evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum}, GradStats{right_sum}) -
+          parent.root_gain);
+      best.Update(missing_left_chg, fidx, split_pt, true, true, left_sum, right_sum);
 
       // missing on right (treat missing as chosen category)
       right_sum.Add(missing);
       left_sum.SetSubstract(parent.stats, right_sum);
-      if (IsValid(left_sum, right_sum)) {
-        auto missing_right_chg =
-            static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
-                                                       GradStats{right_sum}) -
-                               parent.root_gain);
-        best.Update(missing_right_chg, fidx, split_pt, false, true, left_sum, right_sum);
-      }
+      auto missing_right_chg = static_cast<float>(
+          evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum}, GradStats{right_sum}) -
+          parent.root_gain);
+      best.Update(missing_right_chg, fidx, split_pt, false, true, left_sum, right_sum);
     }
 
     if (best.is_cat) {
@@ -229,15 +218,13 @@ class HistEvaluator {
         left_sum.Add(f_hist[sorted_idx[j]].GetGrad(), f_hist[sorted_idx[j]].GetHess());
         right_sum.SetSubstract(parent.stats, left_sum);  // missing on right
       }
-      if (IsValid(left_sum, right_sum)) {
-        auto loss_chg = evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
-                                                GradStats{right_sum}) -
-                        parent.root_gain;
-        // We don't have a numeric split point, nan here is a dummy split.
-        if (best.Update(loss_chg, fidx, std::numeric_limits<float>::quiet_NaN(), d_step == 1, true,
-                        left_sum, right_sum)) {
-          best_thresh = i;
-        }
+      auto loss_chg =
+          evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum}, GradStats{right_sum}) -
+          parent.root_gain;
+      // We don't have a numeric split point, nan here is a dummy split.
+      if (best.Update(loss_chg, fidx, std::numeric_limits<float>::quiet_NaN(), d_step == 1, true,
+                      left_sum, right_sum)) {
+        best_thresh = i;
       }
     }
 
@@ -296,26 +283,24 @@ class HistEvaluator {
       // try to find a split
       left_sum.Add(hist[i].GetGrad(), hist[i].GetHess());
       right_sum.SetSubstract(parent.stats, left_sum);
-      if (IsValid(left_sum, right_sum)) {
-        bst_float loss_chg;
-        bst_float split_pt;
-        if (d_step > 0) {
-          // forward enumeration: split at right bound of each bin
-          loss_chg =
-              static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
-                                                         GradStats{right_sum}) -
-                                 parent.root_gain);
-          split_pt = cut_val[i];  // not used for partition based
-          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
-        } else {
-          // backward enumeration: split at left bound of each bin
-          loss_chg =
-              static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
-                                                         GradStats{left_sum}) -
-                                 parent.root_gain);
-          split_pt = common::HistogramCuts::NumericBinLowerBound(cut_ptr, cut_val, fidx, i);
-          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
-        }
+      bst_float loss_chg;
+      bst_float split_pt;
+      if (d_step > 0) {
+        // forward enumeration: split at right bound of each bin
+        loss_chg =
+            static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{left_sum},
+                                                       GradStats{right_sum}) -
+                               parent.root_gain);
+        split_pt = cut_val[i];  // not used for partition based
+        best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
+      } else {
+        // backward enumeration: split at left bound of each bin
+        loss_chg =
+            static_cast<float>(evaluator.CalcSplitGain(*param_, nidx, fidx, GradStats{right_sum},
+                                                       GradStats{left_sum}) -
+                               parent.root_gain);
+        split_pt = common::HistogramCuts::NumericBinLowerBound(cut_ptr, cut_val, fidx, i);
+        best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
       }
     }
 

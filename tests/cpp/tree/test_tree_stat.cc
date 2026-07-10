@@ -95,6 +95,74 @@ void BuildTree(Context const* ctx, DMatrix* p_fmat, GradientContainer* grad,
 }
 }  // namespace
 
+class TestMinChildWeight : public ::testing::Test {
+  std::shared_ptr<DMatrix> p_fmat_;
+  GradientContainer grad_;
+
+ public:
+  void SetUp() override {
+    p_fmat_ = GetDMatrixFromData({0.0f, 1.0f, 2.0f, 3.0f}, 4, 1);
+    Context cpu_ctx;
+    grad_ = GenerateRandomGradients(&cpu_ctx, 4, 1);
+    {
+      auto h_grad = grad_.gpair.HostView();
+      h_grad(0, 0) = GradientPair{10.0f, 0.2f};
+      h_grad(1, 0) = GradientPair{-9.0f, 0.8f};
+      h_grad(2, 0) = GradientPair{-1.0f, 1.0f};
+      h_grad(3, 0) = GradientPair{0.0f, 1.0f};
+    }
+  }
+
+  void Run(Context const* ctx, std::string const& updater) {
+    RegTree tree{1u, 1u};
+    Args args{{"max_depth", "1"},
+              {"min_child_weight", "1"},
+              {"reg_alpha", "0"},
+              {"reg_lambda", "0"},
+              {"learning_rate", "1"}};
+    BuildTree(ctx, p_fmat_.get(), &grad_, updater, args, &tree);
+
+    ASSERT_EQ(tree.NumExtraNodes(), 2);
+    ASSERT_FALSE(tree[RegTree::kRoot].IsLeaf());
+    EXPECT_EQ(tree[RegTree::kRoot].SplitIndex(), 0);
+    auto cond = updater == "grow_colmaker" ? 1.5f : 2.0f;  // exact uses mid point.
+    EXPECT_FLOAT_EQ(tree[RegTree::kRoot].SplitCond(), cond);
+
+    auto left = tree[RegTree::kRoot].LeftChild();
+    auto right = tree[RegTree::kRoot].RightChild();
+    EXPECT_NEAR(tree.Stat(RegTree::kRoot).sum_hess, 3.0f, kRtEps);
+    EXPECT_NEAR(tree.Stat(left).sum_hess, 1.0f, kRtEps);
+    EXPECT_NEAR(tree.Stat(right).sum_hess, 2.0f, kRtEps);
+  }
+};
+
+TEST_F(TestMinChildWeight, Hist) {
+  Context ctx;
+  Run(&ctx, "grow_quantile_histmaker");
+}
+
+TEST_F(TestMinChildWeight, Approx) {
+  Context ctx;
+  Run(&ctx, "grow_histmaker");
+}
+
+TEST_F(TestMinChildWeight, Exact) {
+  Context ctx;
+  Run(&ctx, "grow_colmaker");
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestMinChildWeight, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  Run(&ctx, "grow_gpu_hist");
+}
+
+TEST_F(TestMinChildWeight, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  this->Run(&ctx, "grow_gpu_approx");
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
 /**
  * @brief Test changing learning rate doesn't change internal splits.
  */
@@ -415,7 +483,8 @@ class TestMaxDeltaStep : public ::testing::Test {
 
     RegTree tree_0{static_cast<bst_target_t>(gpairs.gpair.Shape(1)),
                    static_cast<bst_target_t>(p_fmat->Info().num_col_)};
-    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}}, &tree_0);
+    BuildTree(ctx, p_fmat.get(), &gpairs, updater, Args{{"max_delta_step", std::to_string(0.5)}},
+              &tree_0);
     ASSERT_EQ(tree_0.NumNodes(), 1);
   }
 };

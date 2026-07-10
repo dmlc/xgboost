@@ -73,13 +73,20 @@ class TreeEvaluator {
     template <typename GradientSumT>
     XGBOOST_DEVICE float CalcSplitGain(const ParamT& param, bst_node_t nidx, bst_feature_t fidx,
                                        GradientSumT const& left, GradientSumT const& right) const {
-      int constraint = has_constraint ? constraints[fidx] : 0;
       const float negative_infinity = -std::numeric_limits<float>::infinity();
+      auto left_hess = left.GetHess();
+      auto right_hess = right.GetHess();
+      if (!(left_hess > 0.0 && right_hess > 0.0 && left_hess >= param.min_child_weight &&
+            right_hess >= param.min_child_weight)) {
+        return negative_infinity;
+      }
+
+      int constraint = has_constraint ? constraints[fidx] : 0;
       float wleft = this->CalcWeight(nidx, param, left);
       float wright = this->CalcWeight(nidx, param, right);
 
       float gain = this->CalcGainGivenWeight(param, left, wleft) +
-                    this->CalcGainGivenWeight(param, right, wright);
+                   this->CalcGainGivenWeight(param, right, wright);
 
       if (constraint == 0) {
         // no constraint
@@ -92,7 +99,7 @@ class TreeEvaluator {
     }
 
     template <typename GradientSumT>
-    XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT &param,
+    XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT& param,
                                     GradientSumT const& stats) const {
       float w = ::xgboost::tree::CalcWeight(param, stats);
       if (!has_constraint) {
@@ -138,11 +145,10 @@ class TreeEvaluator {
         return Divide(common::Sqr(ThresholdL1(stats.GetGrad(), p.reg_alpha)),
                       (stats.GetHess() + p.reg_lambda));
       }
-      return tree::CalcGainGivenWeight<ParamT, float>(p, stats.GetGrad(),
-                                                      stats.GetHess(), w);
+      return tree::CalcGainGivenWeight<ParamT, float>(p, stats.GetGrad(), stats.GetHess(), w);
     }
     template <typename GradientSumT>
-    XGBOOST_DEVICE float CalcGain(bst_node_t nid, ParamT const &p,
+    XGBOOST_DEVICE float CalcGain(bst_node_t nid, ParamT const& p,
                                   GradientSumT const& stats) const {
       return this->CalcGainGivenWeight(p, stats, this->CalcWeight(nid, p, stats));
     }
@@ -150,7 +156,8 @@ class TreeEvaluator {
 
  public:
   /* Get a view to the evaluator that can be passed down to device. */
-  template <typename ParamT = TrainParam> auto GetEvaluator() const {
+  template <typename ParamT = TrainParam>
+  auto GetEvaluator() const {
     if (device_.IsCUDA()) {
       auto constraints = monotone_.ConstDevicePointer();
       return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDevicePointer(),
@@ -163,8 +170,8 @@ class TreeEvaluator {
   }
 
   template <bool CompiledWithCuda = WITH_CUDA()>
-  void AddSplit(bst_node_t nodeid, bst_node_t leftid, bst_node_t rightid,
-                bst_feature_t f, float left_weight, float right_weight) {
+  void AddSplit(bst_node_t nodeid, bst_node_t leftid, bst_node_t rightid, bst_feature_t f,
+                float left_weight, float right_weight) {
     if (!has_constraint_) {
       return;
     }
@@ -178,8 +185,7 @@ class TreeEvaluator {
     }
 
     common::Transform<>::Init(
-        [=] XGBOOST_DEVICE(size_t, common::Span<float> lower,
-                           common::Span<float> upper,
+        [=] XGBOOST_DEVICE(size_t, common::Span<float> lower, common::Span<float> upper,
                            common::Span<int> monotone) {
           lower[leftid] = lower[nodeid];
           upper[leftid] = upper[nodeid];
