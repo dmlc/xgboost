@@ -1,5 +1,7 @@
 """Tests for parsing trees."""
 
+import math
+
 import pytest
 
 from ..core import DMatrix
@@ -7,6 +9,19 @@ from ..sklearn import XGBRegressor
 from ..training import train
 from .data import make_categorical
 from .utils import Device
+
+
+def integer_round(x: float) -> int:
+    """Mirror the rounding convention used by TextGenerator::Integer and
+    JsonGenerator::Integer in tree_model.cc (floor, +1 if not exact) with
+    arbitrary-precision Python arithmetic instead of a narrowing C++ cast.
+
+    Used by tests to derive the expected dumped split condition for a
+    kInteger-typed feature from the model's raw (uncast) split condition,
+    independently of whatever the dump formatter actually produces.
+    """
+    floored = math.floor(x)
+    return int(floored) if floored == x else int(floored) + 1
 
 
 def run_tree_to_df_categorical(tree_method: str, device: Device) -> None:
