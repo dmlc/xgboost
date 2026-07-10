@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2026, XGBoost contributors
  */
 #pragma once
 #include <limits>   // for numeric_limits
@@ -67,11 +67,8 @@ struct DeviceSplitCandidate {
 
   XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in, float fvalue_in,
                              int findex_in, GradientPairInt64 left_sum_in,
-                             GradientPairInt64 right_sum_in, bool cat,
-                             const GPUTrainingParam& param, const GradientQuantiser& quantiser) {
-    if (loss_chg_in > loss_chg &&
-        quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
-        quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
+                             GradientPairInt64 right_sum_in, bool cat) {
+    if (loss_chg_in > loss_chg) {
       loss_chg = loss_chg_in;
       dir = dir_in;
       fvalue = fvalue_in;
@@ -87,11 +84,8 @@ struct DeviceSplitCandidate {
    */
   XGBOOST_DEVICE void UpdateCat(float loss_chg_in, DefaultDirection dir_in, bst_cat_t thresh_in,
                                 bst_feature_t findex_in, GradientPairInt64 left_sum_in,
-                                GradientPairInt64 right_sum_in, GPUTrainingParam const& param,
-                                const GradientQuantiser& quantiser) {
-    if (loss_chg_in > loss_chg &&
-        quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
-        quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
+                                GradientPairInt64 right_sum_in) {
+    if (loss_chg_in > loss_chg) {
       loss_chg = loss_chg_in;
       dir = dir_in;
       fvalue = std::numeric_limits<float>::quiet_NaN();

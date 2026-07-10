@@ -133,7 +133,7 @@ class EvaluateSplitAgent {
         GradientPairInt64 left = missing_left ? bin + missing : bin;
         GradientPairInt64 right = parent_sum - left;
         best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right,
-                           false, param, rounding);
+                           false);
       }
 
       __syncwarp();
@@ -165,7 +165,7 @@ class EvaluateSplitAgent {
         GradientPairInt64 left = missing_left ? bin + missing : bin;
         GradientPairInt64 right = parent_sum - left;
         best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir,
-                              static_cast<bst_cat_t>(fvalue), fidx, left, right, param, rounding);
+                              static_cast<bst_cat_t>(fvalue), fidx, left, right);
       }
 
       __syncwarp();
@@ -195,7 +195,7 @@ class EvaluateSplitAgent {
       // index of best threshold inside a feature.
       auto best_thresh = it - gidx_begin;
       best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir, best_thresh, fidx, left_sum,
-                            right_sum, param, rounding);
+                            right_sum);
     }
 
     __syncwarp();
