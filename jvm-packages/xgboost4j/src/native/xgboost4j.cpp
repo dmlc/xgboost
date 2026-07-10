@@ -265,7 +265,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
       [&](char const *ptr) { jenv->ReleaseStringUTFChars(juri, ptr); }};
   xgboost::Json config{xgboost::Object{}};
   config["uri"] = std::string{uri.get()};
-  config["silent"] = xgboost::Integer{jsilent};
+  config["silent"] = xgboost::Integer{static_cast<std::int32_t>(jsilent)};
   auto sconfig = xgboost::Json::Dump(config);
 
   DMatrixHandle result;
