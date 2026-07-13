@@ -776,10 +776,8 @@ class HistMultiEvaluator {
         std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](std::size_t l, std::size_t r) {
           for (decltype(n_targets) t = 0; t < n_targets; ++t) {
             auto f_hist = node_hist[t].subspan(cut_ptr[fidx], n_bins);
-            auto l_bin = f_hist[l];
-            auto r_bin = f_hist[r];
-            l_grads[t] = l_bin;
-            r_grads[t] = r_bin;
+            l_grads[t] = f_hist[l];
+            r_grads[t] = f_hist[r];
           }
 
           CalcWeight(*param_, linalg::MakeVec(l_grads), linalg::MakeVec(l_w.data(), l_w.size()));
