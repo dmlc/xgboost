@@ -11,6 +11,8 @@
 namespace xgboost::tree::cuda_impl {
 /** @brief Evaluator for vector leaf. */
 class MultiHistEvaluator {
+  using CatST = common::CatBitField::value_type;
+
  public:
   template <typename GradT>
   static XGBOOST_DEVICE common::Span<GradT> GetNodeSumImpl(common::Span<GradT> node_sums,
@@ -77,6 +79,21 @@ class MultiHistEvaluator {
   // buffer is needed because we don't have the child node index during evaluation, which
   // is only available after applying split to the tree.
   NodeSumBuffer split_sums_;
+  // Category bit fields for evaluated nodes, indexed by node id. They must remain valid
+  // while candidates are waiting in the loss-guide queue.
+  dh::DeviceUVector<CatST> split_cats_;
+  std::size_t node_cat_storage_size_{0};
+
+  void AllocNodeCats(bst_node_t nidx, std::size_t storage_size) {
+    if (this->node_cat_storage_size_ == 0) {
+      this->node_cat_storage_size_ = storage_size;
+    }
+    CHECK_EQ(this->node_cat_storage_size_, storage_size);
+    auto required = (nidx + 1) * storage_size;
+    if (this->split_cats_.size() < required) {
+      this->split_cats_.resize(required);
+    }
+  }
 
  public:
   /**
@@ -117,6 +134,13 @@ class MultiHistEvaluator {
   }
   [[nodiscard]] NodeWeightBuffer GetNodeWeights(bst_target_t n_targets) {
     return NodeWeightBuffer{dh::ToSpan(this->node_weights_), n_targets};
+  }
+  [[nodiscard]] std::vector<CatST> GetHostNodeCats(bst_node_t nidx) const {
+    std::vector<CatST> out(this->node_cat_storage_size_);
+    auto cats = dh::ToSpan(this->split_cats_)
+                    .subspan(nidx * this->node_cat_storage_size_, this->node_cat_storage_size_);
+    dh::CopyDeviceSpanToVector(&out, cats);
+    return out;
   }
   /**
    * @brief Copy weights for a node from device to host vectors.

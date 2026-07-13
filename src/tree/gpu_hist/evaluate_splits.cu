@@ -357,7 +357,7 @@ void GPUHistEvaluator::LaunchEvaluateSplits(
                                                                DeviceSplitCandidate());
 
   // One block for each feature
-  uint32_t constexpr kBlockThreads = 32;
+  std::uint32_t constexpr kBlockThreads = dh::WarpThreads();
   dh::LaunchKernel{static_cast<uint32_t>(combined_num_features), kBlockThreads, 0,  // NOLINT
                    ctx->CUDACtx()->Stream()}(
       EvaluateSplitsKernel<kBlockThreads>, max_active_features, d_inputs, shared_inputs,

@@ -4,8 +4,8 @@
  * @brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
  */
-#include <thrust/logical.h>  // thrust::any_of
-#include <thrust/sort.h>     // thrust::stable_sort
+#include <thrust/logical.h>  // for any_of
+#include <thrust/sort.h>     // for stable_sort_by_key
 
 #include <cuda/std/tuple>  // for make_tuple, get
 
@@ -124,6 +124,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
                                }
                                return li < ri;
                              });
+
   return dh::ToSpan(cat_sorted_idx_);
 }
 }  // namespace xgboost::tree

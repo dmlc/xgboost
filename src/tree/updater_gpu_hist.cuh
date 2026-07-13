@@ -5,6 +5,7 @@
 #include <thrust/reduce.h>   // for reduce_by_key
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
+#include <algorithm>  // for copy_if, max, transform
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector
 
@@ -181,10 +182,16 @@ class MultiTargetHistMaker {
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {
     common::Span<GradientQuantiser const> d_roundings = this->split_quantizer_->DeviceSpan();
     GPUTrainingParam d_param{this->param_};
+    std::size_t cat_storage_size = 0;
+    if (this->cuts_->HasCategorical()) {
+      cat_storage_size =
+          common::CatBitField::ComputeStorageSize(common::AsCat(this->cuts_->MaxCategory()) + 1);
+    }
     return MultiEvaluateSplitSharedInputs{d_roundings,
                                           this->cuts_->cut_ptrs_.ConstDeviceSpan(),
                                           this->cuts_->cut_values_.ConstDevicePointer(),
                                           this->feature_types_,
+                                          cat_storage_size,
                                           this->cuts_->TotalBins(),
                                           max_active_feature,
                                           d_param};
@@ -305,14 +312,15 @@ class MultiTargetHistMaker {
       float sum_hess = left_sum + right_sum;
       bool default_left = candidate.split.dir == kLeftDir;
       if (candidate.split.is_cat) {
-        // One-hot categorical split: build a single-bit category field for the chosen
-        // category (carried in fvalue), mirroring the CPU HistMultiEvaluator.
         auto fidx = candidate.split.findex;
-        auto const& cut_ptrs = this->cuts_->cut_ptrs_.ConstHostVector();
-        bst_bin_t n_bins = cut_ptrs[fidx + 1] - cut_ptrs[fidx];
-        std::vector<std::uint32_t> cat_bits(common::CatBitField::ComputeStorageSize(n_bins + 1), 0);
-        common::CatBitField bits{cat_bits};
-        bits.Set(static_cast<bst_cat_t>(candidate.split.fvalue));
+        auto cat_bits = this->evaluator_.GetHostNodeCats(candidate.nidx);
+        // The evaluator sizes this bit field from the maximum category value, which is the
+        // authoritative capacity for potentially sparse category codes. Remove only unused
+        // trailing words before storing it in the tree.
+        while (!cat_bits.empty() && cat_bits.back() == 0) {
+          cat_bits.pop_back();
+        }
+        CHECK(!cat_bits.empty());
         p_tree->ExpandCategorical(candidate.nidx, fidx, cat_bits, default_left,
                                   linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_weight),
                                   linalg::MakeVec(h_right_weight), loss_chg, sum_hess, left_sum,

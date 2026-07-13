@@ -243,9 +243,10 @@ __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
     OpT op) {
   for (auto idx : dh::GridStrideRange<std::size_t>(0, d_ridx.size())) {
     auto position = GetPositionFromSegments(idx, d_node_info.data());
-    cuda_impl::RowIndexT ridx = d_ridx[idx] - base_ridx;
-    bst_node_t new_position = op(ridx, position);
-    d_out_position[ridx] = new_position;
+    auto global_ridx = d_ridx[idx];
+    auto local_ridx = global_ridx - base_ridx;
+    bst_node_t new_position = op(global_ridx, position);
+    d_out_position[local_ridx] = new_position;
   }
 }
 
@@ -422,9 +423,9 @@ class RowPartitioner {
    * complete. Does not update any other meta information in this data structure, so
    * should only be used at the end of training.
    *
-   * @param p_out_position Node index for each row.
-   * @param op Device lambda. Should provide the row index and current position as an
-   *           argument and return the new position for this training instance.
+   * @param p_out_position Node index for each row in this batch.
+   * @param op Device lambda. Receives the global row index and current position, and returns the
+   *           new position for this training instance.
    */
   template <typename FinalisePositionOpT>
   void FinalisePosition(Context const* ctx, common::Span<bst_node_t> d_out_position,

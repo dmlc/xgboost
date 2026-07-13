@@ -12,6 +12,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_mixed,
     check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
@@ -262,6 +263,10 @@ class TestTreeMethod:
             tree_method="hist",
             multi_target=True,
         )
+
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_categorical_mixed(self) -> None:
+        check_categorical_mixed("cpu")
 
     @given(
         tm.categorical_dataset_strategy,
