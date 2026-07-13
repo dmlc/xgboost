@@ -2,9 +2,12 @@
 # pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
 
+from __future__ import annotations
+
 import copy
 import ctypes
 import json
+import math
 import os
 import re
 import sys
@@ -44,9 +47,7 @@ from ._c_api import (
     from_pystr_to_cstr,
     make_jcargs,
 )
-from ._c_api import (
-    XGBoostError as _XGBoostError,
-)
+from ._c_api import XGBoostError as _XGBoostError
 from ._data_utils import (
     Categories,
     TransformedDf,
@@ -91,6 +92,7 @@ from .objective import Objective, TreeObjective, _grad_arrinf
 
 if TYPE_CHECKING:
     from pandas import DataFrame as PdDataFrame
+
 
 XGBoostError = _XGBoostError
 
@@ -3078,127 +3080,151 @@ class Booster:
                 results[feat] = float(score)
         return results
 
-    # pylint: disable=too-many-statements
-    def trees_to_dataframe(self, fmap: PathLike = "") -> "PdDataFrame":
-        """Parse a boosted tree model text dump into a pandas DataFrame structure.
+    # pylint: disable=too-many-locals, too-many-statements
+    def trees_to_dataframe(self, fmap: PathLike = "") -> PdDataFrame:
+        """Parse a boosted tree model into a pandas DataFrame.
 
         This feature is only defined when the decision tree model is chosen as base
-        learner (`booster in {gbtree, dart}`). It is not defined for other base learner
-        types, such as linear learners (`booster=gblinear`).
+        learner (`booster in {gbtree, dart}`).
 
         Parameters
         ----------
         fmap :
-           The name of feature map file.
+            Deprecated and ignored. The method uses :attr:`.feature_types` and
+            :attr:`.feature_names`.
+
+            .. deprecated:: 3.4.0
+
         """
-        # pylint: disable=too-many-locals
+        if not is_pandas_available():
+            raise ImportError("pandas must be available to use this method.")
+
         from pandas import DataFrame
 
-        fmap = os.fspath(os.path.expanduser(fmap))
-        if not is_pandas_available():
-            raise ImportError(
-                (
-                    "pandas must be available to use this method."
-                    "Install pandas before calling again."
-                )
+        model = json.loads(self.save_raw(raw_format="json"))
+        gbm = model["learner"]["gradient_booster"]
+        if gbm["name"] not in {"gbtree", "dart"}:
+            raise ValueError(
+                f"This method is not defined for Booster type {gbm['name']}"
             )
-        booster = json.loads(self.save_config())["learner"]["gradient_booster"]["name"]
-        if booster not in {"gbtree", "dart"}:
-            raise ValueError(f"This method is not defined for Booster type {booster}")
+        trees = gbm["model"]["trees"]
+        tree_info = gbm["model"]["tree_info"]
+        if fmap:
+            warnings.warn(
+                "`fmap` has been deprecated. XGBoost now uses the"
+                " `Booster.feature_names` and `Booster.feature_types` by default.",
+                FutureWarning,
+            )
+        fnames = dict(enumerate(self.feature_names or []))
+        ftypes = dict(enumerate(self.feature_types or []))
 
-        tree_ids = []
-        node_ids = []
-        fids = []
-        splits: List[Union[float, str]] = []
-        categories: List[Union[Optional[float], List[str]]] = []
-        y_directs: List[Union[float, str]] = []
-        n_directs: List[Union[float, str]] = []
-        missings: List[Union[float, str]] = []
-        gains = []
-        covers = []
+        tree_ids: List[int] = []
+        target_ids: List[Optional[int]] = []
+        node_ids: List[int] = []
+        fids: List[str] = []
+        splits: List[float | None] = []
+        categories: List[None | List[int]] = []
+        y_directs: List[str | None] = []
+        n_directs: List[str | None] = []
+        missings: List[str | None] = []
+        gains: List[float] = []
+        covers: List[float] = []
 
-        trees = self.get_dump(fmap, with_stats=True)
-        for i, tree in enumerate(trees):
-            for line in tree.split("\n"):
-                arr = line.split("[")
-                # Leaf node
-                if len(arr) == 1:
-                    # Last element of line.split is an empty string
-                    if arr == [""]:
-                        continue
-                    # parse string
-                    parse = arr[0].split(":")
-                    stats = re.split("=|,", parse[1])
+        for tid, tree in enumerate(trees):
+            left = tree["left_children"]
+            right = tree["right_children"]
+            sindex = tree["split_indices"]
+            sconds = tree["split_conditions"]
+            dft_left = tree["default_left"]
+            stypes = tree["split_type"]
+            loss_chg = tree["loss_changes"]
+            sum_hess = tree["sum_hessian"]
+            # For vector-leaf trees the leaf output is a vector stored in
+            # ``leaf_weights`` rather than in ``split_conditions``. The right child is
+            # re-used to store the leaf index.
+            size_leaf_vector = int(tree["tree_param"]["size_leaf_vector"])
+            is_vector = size_leaf_vector > 1
+            leaf_weights = tree["leaf_weights"] if is_vector else None
+            # The output group this tree contributes to.
+            tree_target = int(tree_info[tid])
 
-                    # append to lists
-                    tree_ids.append(i)
-                    node_ids.append(int(re.findall(r"\b\d+\b", parse[0])[0]))
-                    fids.append("Leaf")
-                    splits.append(float("NAN"))
-                    categories.append(float("NAN"))
-                    y_directs.append(float("NAN"))
-                    n_directs.append(float("NAN"))
-                    missings.append(float("NAN"))
-                    gains.append(float(stats[1]))
-                    covers.append(float(stats[3]))
-                # Not a Leaf Node
-                else:
-                    # parse string
-                    fid = arr[1].split("]")
-                    if fid[0].find("<") != -1:
-                        # numerical
-                        parse = fid[0].split("<")
-                        splits.append(float(parse[1]))
-                        categories.append(None)
-                    elif fid[0].find(":{") != -1:
-                        # categorical
-                        parse = fid[0].split(":")
-                        cats = parse[1][1:-1]  # strip the {}
-                        cats_split = cats.split(",")
-                        splits.append(float("NAN"))
-                        categories.append(cats_split if cats_split else None)
-                    else:
-                        # indicator (boolean) feature: format is
-                        #   {nid}:[{fname}] yes={yes},no={no}
-                        # No split threshold or missing direction.
-                        bracket_expr = fid[0]
-                        remainder = fid[1] if len(fid) > 1 else ""
-                        if (
-                            "<" in bracket_expr
-                            or ":{" in bracket_expr
-                            or "yes=" not in remainder
-                            or "no=" not in remainder
-                        ):
-                            raise ValueError(
-                                f"Unrecognized split format: [{bracket_expr}]{remainder}"
+            # Node id -> category codes, stored CSR-style.
+            node_cats: Dict[int, List[int]] = {}
+            for nidx, beg, size in zip(
+                tree["categories_nodes"],
+                tree["categories_segments"],
+                tree["categories_sizes"],
+            ):
+                node_cats[nidx] = tree["categories"][beg : beg + size]
+
+            # Depth-first traversal from the root so that pruned/deleted nodes, which
+            # remain in the arrays but are unreachable, are skipped.
+            stack = [0]
+            while stack:
+                nid = stack.pop()
+                if left[nid] == -1:  # leaf
+                    if is_vector:
+                        assert leaf_weights is not None
+                        beg = right[nid] * size_leaf_vector
+                        leaf_rows = list(
+                            enumerate(
+                                float(v)
+                                for v in leaf_weights[beg : beg + size_leaf_vector]
                             )
-                        parse = [bracket_expr]
-                        splits.append(float("NAN"))
-                        categories.append(None)
-                    stats = re.split("=|,", fid[1])
-
-                    # append to lists
-                    tree_ids.append(i)
-                    node_ids.append(int(re.findall(r"\b\d+\b", arr[0])[0]))
-                    fids.append(parse[0])
-                    str_i = str(i)
-                    y_directs.append(str_i + "-" + stats[1])
-                    n_directs.append(str_i + "-" + stats[3])
-                    # Indicator nodes have no explicit missing= field;
-                    # the default (missing) child is the "no" direction.
-                    if len(stats) > 5 and stats[4] == "missing":
-                        missings.append(str_i + "-" + stats[5])
-                        gains.append(float(stats[7]))
-                        covers.append(float(stats[9]))
+                        )
                     else:
-                        missings.append(str_i + "-" + stats[3])
-                        gains.append(float(stats[5]))
-                        covers.append(float(stats[7]))
+                        leaf_rows = [(tree_target, float(sconds[nid]))]
+                    for target, value in leaf_rows:
+                        tree_ids.append(tid)
+                        target_ids.append(target)
+                        node_ids.append(nid)
+                        fids.append("Leaf")
+                        splits.append(None)
+                        categories.append(None)
+                        y_directs.append(None)
+                        n_directs.append(None)
+                        missings.append(None)
+                        gains.append(value)
+                        covers.append(sum_hess[nid])
+                    continue
 
-        ids = [str(t_id) + "-" + str(n_id) for t_id, n_id in zip(tree_ids, node_ids)]
+                stack.append(left[nid])
+                stack.append(right[nid])
+                tree_ids.append(tid)
+                # A vector-leaf split is shared by all targets, so it has no single
+                # target; scalar-tree splits belong to the tree's target.
+                target_ids.append(None if is_vector else tree_target)
+                node_ids.append(nid)
+                fidx = sindex[nid]
+                fids.append(fnames.get(fidx, f"f{fidx}"))
+                dft_child = left[nid] if dft_left[nid] else right[nid]
+                if stypes[nid] == 1:  # categorical
+                    yes, no = right[nid], left[nid]
+                    splits.append(None)
+                    categories.append(node_cats.get(nid))
+                elif ftypes.get(fidx, "q") == "i":  # indicator (boolean)
+                    # No split threshold; missing follows the "no" (default) branch.
+                    yes, no = (right[nid] if dft_left[nid] else left[nid]), dft_child
+                    splits.append(None)
+                    categories.append(None)
+                else:  # numerical
+                    yes, no = left[nid], right[nid]
+                    if ftypes.get(fidx, "q") == "int":
+                        splits.append(float(math.ceil(sconds[nid])))
+                    else:
+                        splits.append(sconds[nid])
+                    categories.append(None)
+                y_directs.append(f"{tid}-{yes}")
+                n_directs.append(f"{tid}-{no}")
+                missings.append(f"{tid}-{dft_child}")
+                gains.append(loss_chg[nid])
+                covers.append(sum_hess[nid])
+
+        ids = [f"{t_id}-{n_id}" for t_id, n_id in zip(tree_ids, node_ids)]
         df = DataFrame(
             {
                 "Tree": tree_ids,
+                "Target": target_ids,
                 "Node": node_ids,
                 "ID": ids,
                 "Feature": fids,
@@ -3211,8 +3237,24 @@ class Booster:
                 "Category": categories,
             }
         )
+        df = df.astype(
+            {
+                "Tree": "Int64",
+                "Target": "Int64",
+                "Node": "Int64",
+                "ID": "string",
+                "Feature": "string",
+                "Split": "Float64",
+                "Yes": "string",
+                "No": "string",
+                "Missing": "string",
+                "Gain": "Float64",
+                "Cover": "Float64",
+                # `Category` holds Python lists
+            }
+        )
 
-        return df.sort_values(["Tree", "Node"]).reset_index(drop=True)
+        return df.sort_values(["Tree", "Node", "Target"]).reset_index(drop=True)
 
     def _assign_dmatrix_features(self, data: DMatrix) -> None:
         if data.num_row() == 0:
@@ -3269,7 +3311,7 @@ class Booster:
         fmap: PathLike = "",
         bins: Optional[int] = None,
         as_pandas: bool = True,
-    ) -> Union[np.ndarray, "PdDataFrame"]:
+    ) -> Union[np.ndarray, PdDataFrame]:
         """Get split value histogram of a feature
 
         Parameters
