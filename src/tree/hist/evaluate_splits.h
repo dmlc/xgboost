@@ -161,7 +161,7 @@ class HistEvaluator {
   }
 
   /**
-   * \brief Enumerate with partition-based splits.
+   * @brief Enumerate with partition-based splits.
    *
    * The implementation is different from LightGBM. Firstly we don't have a
    * pseudo-cateogry for missing value, instead of we make 2 complete scans over the
