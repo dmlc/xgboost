@@ -630,9 +630,12 @@ class HistMultiEvaluator {
                      common::Span<common::ConstGHistRow> hist, bst_feature_t fidx, bst_node_t nidx,
                      SplitEntryContainer<std::vector<GradientPairPrecise>> *p_best) {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
+    auto n_targets = hist.size();
 
     auto const &cut_ptr = cut.Ptrs();
     auto const &cut_val = cut.Values();
+    auto parent_sum = stats_.Slice(nidx, linalg::All());
+    auto parent_gain = gain_[nidx];
 
     bst_bin_t f_begin = cut_ptr[fidx];
     bst_bin_t f_end = cut_ptr[fidx + 1];
@@ -647,6 +650,51 @@ class HistMultiEvaluator {
       it_begin = f_end - 1;
       it_end = it_begin - n_bins + 1;
     }
+
+    auto sum = linalg::Constant(ctx_, GradientPairPrecise{}, 2, n_targets);
+    auto left_sum = sum.Slice(0, linalg::All());
+    auto right_sum = sum.Slice(1, linalg::All());
+    auto weight = linalg::Empty<float>(ctx_, 2, n_targets);
+    auto left_weight = weight.Slice(0, linalg::All());
+    auto right_weight = weight.Slice(1, linalg::All());
+
+    SplitEntryContainer<std::vector<GradientPairPrecise>> best;
+    bst_bin_t best_thresh{-1};
+    for (bst_bin_t i = it_begin; i != it_end; i += d_step) {
+      auto j = i - f_begin;  // index local to current feature
+      for (bst_target_t t = 0; t < n_targets; ++t) {
+        auto f_hist = hist[t].subspan(f_begin, n_bins_feature);
+        if (d_step == 1) {
+          right_sum(t) += f_hist[sorted_idx[j]];
+          left_sum(t) = parent_sum(t) - right_sum(t);  // missing on left
+        } else {
+          left_sum(t) += f_hist[sorted_idx[j]];
+          right_sum(t) = parent_sum(t) - left_sum(t);  // missing on right
+        }
+      }
+
+      auto loss_chg =
+          MultiCalcSplitGain(*param_, left_sum, right_sum, left_weight, right_weight) - parent_gain;
+      // We don't have a numeric split point, nan here is a dummy split.
+      if (best.Update(loss_chg, fidx, std::numeric_limits<float>::quiet_NaN(), d_step == 1, true,
+                      left_sum, right_sum)) {
+        best_thresh = i;
+      }
+    }
+
+    if (best_thresh != -1) {
+      auto n = common::CatBitField::ComputeStorageSize(n_bins_feature);
+      best.cat_bits = decltype(best.cat_bits)(n, 0);
+      common::CatBitField cat_bits{best.cat_bits};
+      bst_bin_t partition = d_step == 1 ? (best_thresh - it_begin + 1) : (best_thresh - f_begin);
+      CHECK_GT(partition, 0);
+      std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition, [&](std::size_t c) {
+        auto cat = cut_val[c + f_begin];
+        cat_bits.Set(cat);
+      });
+    }
+
+    p_best->Update(best);
   }
 
  public:
@@ -721,8 +769,9 @@ class HistMultiEvaluator {
 
         // Partition split
         std::vector<size_t> sorted_idx(n_bins);
-        std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
+        std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
         std::vector<GradientPairPrecise> l_grads(n_targets), r_grads(n_targets);
+        std::vector<float> l_w(n_targets, .0f), r_w(n_targets, .0f);
 
         std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](std::size_t l, std::size_t r) {
           for (decltype(n_targets) t = 0; t < n_targets; ++t) {
@@ -732,8 +781,7 @@ class HistMultiEvaluator {
             l_grads[t] = l_bin;
             r_grads[t] = r_bin;
           }
-          std::vector<float> l_w(n_targets, 0);
-          std::vector<float> r_w(n_targets, 0);
+
           CalcWeight(*param_, linalg::MakeVec(l_grads), linalg::MakeVec(l_w.data(), l_w.size()));
           CalcWeight(*param_, linalg::MakeVec(r_grads), linalg::MakeVec(r_w.data(), r_w.size()));
           // Run proj, compare score l_s < r_s
