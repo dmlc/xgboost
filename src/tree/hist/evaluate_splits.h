@@ -766,18 +766,18 @@ class HistMultiEvaluator {
         // Project onto the parent's update direction to compare scores l_s < r_s
         // Since we care only about the ordering, no need to divide the norm.
         std::vector<double> scores(n_bins);
-        for (std::size_t i = 0; i < n_bins; ++i) {
-          for (decltype(n_targets) t = 0; t < n_targets; ++t) {
-            auto f_hist = node_hist[t].subspan(cut_ptr[fidx], n_bins);
-            h_grads(t) = f_hist[i];
+        for (std::size_t bin_idx = 0; bin_idx < n_bins; ++bin_idx) {
+          for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
+            auto f_hist = node_hist[t_idx].subspan(cut_ptr[fidx], n_bins);
+            h_grads(t_idx) = f_hist[bin_idx];
           }
 
           CalcWeight(*param_, h_grads, linalg::MakeVec(child_w.data(), child_w.size()));
           double sc = .0;
-          for (std::size_t i = 0; i < n_targets; ++i) {
-            sc += h_bw(i) * child_w[i];
+          for (std::size_t t_idx = 0; t_idx < n_targets; ++t_idx) {
+            sc += h_bw(t_idx) * child_w[t_idx];
           }
-          scores[i] = sc;
+          scores[bin_idx] = sc;
         }
 
         std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
