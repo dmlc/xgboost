@@ -636,6 +636,17 @@ class HistMultiEvaluator {
 
     bst_bin_t f_begin = cut_ptr[fidx];
     bst_bin_t f_end = cut_ptr[fidx + 1];
+    bst_bin_t n_bins_feature{f_end - f_begin};
+    auto n_bins = std::min(param_->max_cat_threshold, n_bins_feature);
+
+    bst_bin_t it_begin, it_end;
+    if (d_step > 0) {
+      it_begin = f_begin;
+      it_end = it_begin + n_bins - 1;
+    } else {
+      it_begin = f_end - 1;
+      it_end = it_begin - n_bins + 1;
+    }
   }
 
  public:
