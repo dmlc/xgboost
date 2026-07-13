@@ -97,30 +97,33 @@ void BuildTree(Context const* ctx, DMatrix* p_fmat, GradientContainer* grad,
 
 class TestMinChildWeight : public ::testing::Test {
   std::shared_ptr<DMatrix> p_fmat_;
-  GradientContainer grad_;
 
  public:
-  void SetUp() override {
-    p_fmat_ = GetDMatrixFromData({0.0f, 1.0f, 2.0f, 3.0f}, 4, 1);
+  void SetUp() override { p_fmat_ = GetDMatrixFromData({0.0f, 1.0f, 2.0f, 3.0f}, 4, 1); }
+
+  void Build(Context const* ctx, DMatrix* p_fmat, GradientContainer* grad,
+             std::string const& updater, char const* min_child_weight, RegTree* tree) {
+    Args args{{"max_depth", "1"},
+              {"min_child_weight", min_child_weight},
+              {"reg_alpha", "0"},
+              {"reg_lambda", "0"},
+              {"learning_rate", "1"}};
+    BuildTree(ctx, p_fmat, grad, updater, args, tree);
+  }
+
+  void RunScalarTree(Context const* ctx, std::string const& updater) {
     Context cpu_ctx;
-    grad_ = GenerateRandomGradients(&cpu_ctx, 4, 1);
+    auto grad = GenerateRandomGradients(&cpu_ctx, 4, 1);
     {
-      auto h_grad = grad_.gpair.HostView();
+      auto h_grad = grad.gpair.HostView();
       h_grad(0, 0) = GradientPair{10.0f, 0.2f};
       h_grad(1, 0) = GradientPair{-9.0f, 0.8f};
       h_grad(2, 0) = GradientPair{-1.0f, 1.0f};
       h_grad(3, 0) = GradientPair{0.0f, 1.0f};
     }
-  }
 
-  void Run(Context const* ctx, std::string const& updater) {
     RegTree tree{1u, 1u};
-    Args args{{"max_depth", "1"},
-              {"min_child_weight", "1"},
-              {"reg_alpha", "0"},
-              {"reg_lambda", "0"},
-              {"learning_rate", "1"}};
-    BuildTree(ctx, p_fmat_.get(), &grad_, updater, args, &tree);
+    Build(ctx, p_fmat_.get(), &grad, updater, "1", &tree);
 
     ASSERT_EQ(tree.NumExtraNodes(), 2);
     ASSERT_FALSE(tree[RegTree::kRoot].IsLeaf());
@@ -134,32 +137,88 @@ class TestMinChildWeight : public ::testing::Test {
     EXPECT_NEAR(tree.Stat(left).sum_hess, 1.0f, kRtEps);
     EXPECT_NEAR(tree.Stat(right).sum_hess, 2.0f, kRtEps);
   }
+
+  void RunVectorTree(Context const* ctx, std::string const& updater) {
+    constexpr bst_target_t kTargets{2};
+    auto p_fmat = GetDMatrixFromData({0.0f, 1.0f}, 2, 1);
+    Context cpu_ctx;
+    auto grad = GenerateRandomGradients(&cpu_ctx, 2, kTargets);
+    auto h_grad = grad.gpair.HostView();
+    h_grad(0, 0) = GradientPair{-1.0f, 1.0f};
+    h_grad(0, 1) = GradientPair{-3.0f, 3.0f};
+    h_grad(1, 0) = GradientPair{4.0f, 1.0f};
+    h_grad(1, 1) = GradientPair{12.0f, 3.0f};
+
+    // Each child has a Hessian diagonal of (1, 3), giving normalized coverage of 2.
+    RegTree accepted{kTargets, 1u};
+    Build(ctx, p_fmat.get(), &grad, updater, "2", &accepted);
+
+    ASSERT_TRUE(accepted.IsMultiTarget());
+    ASSERT_EQ(accepted.NumExtraNodes(), 2);
+    auto accepted_view = accepted.HostMtView();
+    ASSERT_FALSE(accepted_view.IsLeaf(RegTree::kRoot));
+    EXPECT_EQ(accepted_view.SplitIndex(RegTree::kRoot), 0);
+    EXPECT_FLOAT_EQ(accepted_view.SplitCond(RegTree::kRoot), 1.0f);
+
+    auto left = accepted_view.LeftChild(RegTree::kRoot);
+    auto right = accepted_view.RightChild(RegTree::kRoot);
+    EXPECT_NEAR(accepted_view.SumHess(RegTree::kRoot), 8.0f, kRtEps);
+    EXPECT_NEAR(accepted_view.LossChg(RegTree::kRoot), 33.0f, kRtEps);
+    EXPECT_NEAR(accepted_view.SumHess(left), 4.0f, kRtEps);
+    EXPECT_NEAR(accepted_view.SumHess(right), 4.0f, kRtEps);
+
+    auto left_weight = accepted_view.LeafValue(left);
+    auto right_weight = accepted_view.LeafValue(right);
+    ASSERT_EQ(left_weight.Size(), kTargets);
+    ASSERT_EQ(right_weight.Size(), kTargets);
+    EXPECT_FLOAT_EQ(left_weight(0), 0.0f);
+    EXPECT_FLOAT_EQ(left_weight(1), 1.0f);
+    EXPECT_FLOAT_EQ(right_weight(0), 0.0f);
+    EXPECT_FLOAT_EQ(right_weight(1), -4.0f);
+
+    // Raw child trace is 4, but normalized coverage is 2, so 2.5 rejects the split.
+    RegTree rejected{kTargets, 1u};
+    Build(ctx, p_fmat.get(), &grad, updater, "2.5", &rejected);
+    ASSERT_TRUE(rejected.IsMultiTarget());
+    ASSERT_EQ(rejected.NumExtraNodes(), 0);
+    ASSERT_TRUE(rejected.HostMtView().IsLeaf(RegTree::kRoot));
+  }
 };
 
 TEST_F(TestMinChildWeight, Hist) {
   Context ctx;
-  Run(&ctx, "grow_quantile_histmaker");
+  RunScalarTree(&ctx, "grow_quantile_histmaker");
+}
+
+TEST_F(TestMinChildWeight, MultiHist) {
+  Context ctx;
+  RunVectorTree(&ctx, "grow_quantile_histmaker");
 }
 
 TEST_F(TestMinChildWeight, Approx) {
   Context ctx;
-  Run(&ctx, "grow_histmaker");
+  RunScalarTree(&ctx, "grow_histmaker");
 }
 
 TEST_F(TestMinChildWeight, Exact) {
   Context ctx;
-  Run(&ctx, "grow_colmaker");
+  RunScalarTree(&ctx, "grow_colmaker");
 }
 
 #if defined(XGBOOST_USE_CUDA)
 TEST_F(TestMinChildWeight, GpuHist) {
   auto ctx = MakeCUDACtx(0);
-  Run(&ctx, "grow_gpu_hist");
+  RunScalarTree(&ctx, "grow_gpu_hist");
+}
+
+TEST_F(TestMinChildWeight, GpuMultiHist) {
+  auto ctx = MakeCUDACtx(0);
+  RunVectorTree(&ctx, "grow_gpu_hist");
 }
 
 TEST_F(TestMinChildWeight, GpuApprox) {
   auto ctx = MakeCUDACtx(0);
-  this->Run(&ctx, "grow_gpu_approx");
+  this->RunScalarTree(&ctx, "grow_gpu_approx");
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 

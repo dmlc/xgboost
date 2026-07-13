@@ -97,6 +97,7 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
     clf = XGBClassifier(
         debug_synchronize=True,
         multi_strategy="multi_output_tree",
+        min_child_weight=0.0,
         callbacks=[ResetStrategy()],
         n_estimators=10,
         device=device,
@@ -118,6 +119,7 @@ def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
     clf = XGBClassifier(
         debug_synchronize=True,
         multi_strategy="multi_output_tree",
+        min_child_weight=0.0,
         callbacks=[ResetStrategy()],
         n_estimators=10,
         device=device,
@@ -518,6 +520,7 @@ def run_column_sampling(device: Device) -> None:
         importance_type="weight",
         device=device,
         colsample_bynode=0.2,
+        min_child_weight=0.0,
     )
     clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
     fi = clf.feature_importances_

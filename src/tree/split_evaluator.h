@@ -76,8 +76,7 @@ class TreeEvaluator {
       const float negative_infinity = -std::numeric_limits<float>::infinity();
       auto left_hess = left.GetHess();
       auto right_hess = right.GetHess();
-      if (!(left_hess > 0.0 && right_hess > 0.0 && left_hess >= param.min_child_weight &&
-            right_hess >= param.min_child_weight)) {
+      if (!IsValidSplit(param, left_hess, right_hess, bst_target_t{1})) {
         return negative_infinity;
       }
 

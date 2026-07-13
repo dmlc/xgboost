@@ -204,14 +204,20 @@ struct EvaluateSplitAgent {
     auto roundings = shared.roundings.data();
     auto offset = bin_idx * n_targets;
     double gain = 0;
+    double child_hess{0.0}, sibling_hess{0.0};
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto parent_sum = roundings[t].ToFloatingPoint(node.parent_sum[t]);
       auto child_sum = roundings[t].ToFloatingPoint(child_scan[offset + t]);
       auto sibling_sum = parent_sum - child_sum;
+      child_hess += child_sum.GetHess();
+      sibling_hess += sibling_sum.GetHess();
       auto cw = CalcWeight(shared.param, child_sum.GetGrad(), child_sum.GetHess());
       auto sw = CalcWeight(shared.param, sibling_sum.GetGrad(), sibling_sum.GetHess());
       gain += -cw * ThresholdL1(child_sum.GetGrad(), shared.param.reg_alpha);
       gain += -sw * ThresholdL1(sibling_sum.GetGrad(), shared.param.reg_alpha);
+    }
+    if (!IsValidSplit(shared.param, child_hess, sibling_hess, n_targets)) {
+      return -std::numeric_limits<double>::infinity();
     }
     return gain;
   }
@@ -260,8 +266,7 @@ struct EvaluateSplitAgent {
         auto scan_bin_offset = bin_idx * n_targets;
         auto scan_bin = node_scan.subspan(scan_bin_offset, n_targets);
         // Missing values go to right in the forward pass, go to left in the backward pass.
-        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, false, shared.param,
-                           shared.roundings);
+        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, false);
       }
 
       __syncwarp();
@@ -301,8 +306,7 @@ struct EvaluateSplitAgent {
         // The scan_bin is directionless, `d_dir` is the carrier of the missing
         // direction. We use it to recover the bin value and sibling value later.
         auto scan_bin = region.subspan(bin_idx * n_targets, n_targets);
-        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, /*cat=*/true, shared.param,
-                           shared.roundings);
+        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, /*cat=*/true);
       }
 
       __syncwarp();

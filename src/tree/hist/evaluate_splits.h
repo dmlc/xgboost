@@ -484,6 +484,16 @@ class HistMultiEvaluator {
                                    linalg::VectorView<GradientPairPrecise const> right_sum,
                                    linalg::VectorView<float> left_weight,
                                    linalg::VectorView<float> right_weight) {
+    auto n_targets = left_sum.Size();
+    double left_hess{0.0}, right_hess{0.0};
+    for (decltype(n_targets) t = 0; t < n_targets; ++t) {
+      left_hess += left_sum(t).GetHess();
+      right_hess += right_sum(t).GetHess();
+    }
+    if (!IsValidSplit(param, left_hess, right_hess, n_targets)) {
+      return -std::numeric_limits<double>::infinity();
+    }
+
     CalcWeight(param, left_sum, left_weight);
     CalcWeight(param, right_sum, right_weight);
 
