@@ -758,30 +758,30 @@ class HistMultiEvaluator {
         // Partition split
         std::vector<size_t> sorted_idx(n_bins);
         std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
-        linalg::Vector<GradientPairPrecise> grads({n_targets * 2}, this->ctx_->Device());
-        auto l_grads = grads.Slice(linalg::Range(0ul, n_targets));
-        auto r_grads = grads.Slice(linalg::Range(n_targets, grads.Shape(0)));
-        std::vector<float> l_w(n_targets, .0f), r_w(n_targets, .0f);
+        linalg::Vector<GradientPairPrecise> grads({n_targets}, this->ctx_->Device());
+        auto h_grads = grads.HostView();
+        std::vector<float> child_w(n_targets, .0f);
 
         // Sort by s_c = w_p^T w_c
-        std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](std::size_t l, std::size_t r) {
+        // Project onto the parent's update direction to compare scores l_s < r_s
+        // Since we care only about the ordering, no need to divide the norm.
+        std::vector<double> scores(n_bins);
+        for (std::size_t i = 0; i < n_bins; ++i) {
           for (decltype(n_targets) t = 0; t < n_targets; ++t) {
             auto f_hist = node_hist[t].subspan(cut_ptr[fidx], n_bins);
-            l_grads(t) = f_hist[l];
-            r_grads(t) = f_hist[r];
+            h_grads(t) = f_hist[i];
           }
 
-          CalcWeight(*param_, l_grads, linalg::MakeVec(l_w.data(), l_w.size()));
-          CalcWeight(*param_, r_grads, linalg::MakeVec(r_w.data(), r_w.size()));
-          // Project onto the parent's update direction to compare score l_s < r_s
-          // Since we care only about the ordering, no need to divide the norm.
-          float l_s = .0f, r_s = .0f;
+          CalcWeight(*param_, h_grads, linalg::MakeVec(child_w.data(), child_w.size()));
+          double sc = .0;
           for (std::size_t i = 0; i < n_targets; ++i) {
-            l_s += h_bw(i) * l_w[i];
-            r_s += h_bw(i) * r_w[i];
+            sc += h_bw(i) * child_w[i];
           }
-          return l_s < r_s;
-        });
+          scores[i] = sc;
+        }
+
+        std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
+                         [&](std::size_t l, std::size_t r) { return scores[l] < scores[r]; });
 
         this->EnumeratePart<+1>(cut, sorted_idx, node_hist, fidx, entry->nid, best);
         this->EnumeratePart<-1>(cut, sorted_idx, node_hist, fidx, entry->nid, best);
