@@ -335,7 +335,7 @@ class HistEvaluator {
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const &cut_ptrs = cut.Ptrs();
 
-    common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
+    common::ParallelFor2d(space, n_threads, [&](std::size_t nidx_in_set, common::Range1d r) {
       auto tidx = omp_get_thread_num();
       auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
       auto best = &entry->split;
@@ -351,19 +351,19 @@ class HistEvaluator {
         if (is_cat) {
           auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
           if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
-            EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
+            this->EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
           } else {
             std::vector<size_t> sorted_idx(n_bins);
             std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
             auto feat_hist = histogram.subspan(cut_ptrs[fidx], n_bins);
             // Sort the histogram to get contiguous partitions.
-            std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](size_t l, size_t r) {
-              auto ret = evaluator.CalcWeightCat(*param_, feat_hist[l]) <
-                         evaluator.CalcWeightCat(*param_, feat_hist[r]);
-              return ret;
-            });
-            EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
-            EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+            std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
+                             [&](std::size_t l, std::size_t r) {
+                               return evaluator.CalcWeightCat(*param_, feat_hist[l]) <
+                                      evaluator.CalcWeightCat(*param_, feat_hist[r]);
+                             });
+            this->EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+            this->EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
           }
         } else {
           auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
@@ -630,9 +630,9 @@ class HistMultiEvaluator {
 
     std::int32_t n_threads = ctx_->Threads();
     std::size_t const grain_size = std::max<std::size_t>(1, features.front()->Size() / n_threads);
-    common::BlockedSpace2d space(
+    common::BlockedSpace2d space{
         entries.size(), [&](std::size_t nidx_in_set) { return features[nidx_in_set]->Size(); },
-        grain_size);
+        grain_size};
 
     std::vector<MultiExpandEntry> tloc_candidates(n_threads * entries.size());
     for (std::size_t i = 0; i < entries.size(); ++i) {
