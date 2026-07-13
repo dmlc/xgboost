@@ -402,6 +402,7 @@ class TestHistMultiEvaluator : public ::testing::Test {
     ASSERT_EQ(hist_data.size(), kNTargets);
     for (bst_target_t t = 0; t < kNTargets; ++t) {
       ASSERT_EQ(hist_data[t].size(), kNCats);
+      root_sum_(t) = GradientPairPrecise{};
       auto node_hist = histogram_[t][0];
       for (bst_bin_t b = 0; b < kNCats; ++b) {
         node_hist[b] = hist_data[t][b];

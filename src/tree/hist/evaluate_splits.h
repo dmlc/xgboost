@@ -774,8 +774,8 @@ class HistMultiEvaluator {
 
           CalcWeight(*param_, h_grads, linalg::MakeVec(child_w.data(), child_w.size()));
           double sc = .0;
-          for (std::size_t i = 0; i < n_targets; ++i) {
-            sc += h_bw(i) * child_w[i];
+          for (std::size_t t_idx = 0; t_idx < n_targets; ++t_idx) {
+            sc += h_bw(t_idx) * child_w[t_idx];
           }
           scores[i] = sc;
         }
