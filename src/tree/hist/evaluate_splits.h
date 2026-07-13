@@ -469,17 +469,6 @@ class HistEvaluator {
   }
 };
 
-inline void Norm(linalg::VectorView<float> value) {
-  double s = 0;
-  for (auto v : value) {
-    s += v * v;
-  }
-  auto norm = std::sqrt(s);
-  for (auto &v : value) {
-    v /= norm;
-  }
-}
-
 class HistMultiEvaluator {
   std::vector<double> gain_;
   linalg::Matrix<GradientPairPrecise> stats_;
@@ -733,7 +722,6 @@ class HistMultiEvaluator {
       auto base_weight = linalg::Zeros<float>(ctx_, parent_sum.Shape());
       auto h_bw = base_weight.HostView();
       CalcWeight(*param_, parent_sum, h_bw);
-      Norm(h_bw);
 
       std::vector<common::ConstGHistRow> node_hist;
       for (auto t_hist : hist) {
@@ -775,6 +763,7 @@ class HistMultiEvaluator {
         auto r_grads = grads.Slice(linalg::Range(n_targets, grads.Shape(0)));
         std::vector<float> l_w(n_targets, .0f), r_w(n_targets, .0f);
 
+        // Sort by s_c = w_p^T w_c
         std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](std::size_t l, std::size_t r) {
           for (decltype(n_targets) t = 0; t < n_targets; ++t) {
             auto f_hist = node_hist[t].subspan(cut_ptr[fidx], n_bins);
@@ -784,7 +773,8 @@ class HistMultiEvaluator {
 
           CalcWeight(*param_, l_grads, linalg::MakeVec(l_w.data(), l_w.size()));
           CalcWeight(*param_, r_grads, linalg::MakeVec(r_w.data(), r_w.size()));
-          // Run proj, compare score l_s < r_s
+          // Project onto the parent's update direction to compare score l_s < r_s
+          // Since we care only about the ordering, no need to divide the norm.
           float l_s = .0f, r_s = .0f;
           for (std::size_t i = 0; i < n_targets; ++i) {
             l_s += h_bw(i) * l_w[i];
