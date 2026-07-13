@@ -770,18 +770,20 @@ class HistMultiEvaluator {
         // Partition split
         std::vector<size_t> sorted_idx(n_bins);
         std::iota(sorted_idx.begin(), sorted_idx.end(), 0ul);
-        std::vector<GradientPairPrecise> l_grads(n_targets), r_grads(n_targets);
+        linalg::Vector<GradientPairPrecise> grads({n_targets * 2}, this->ctx_->Device());
+        auto l_grads = grads.Slice(linalg::Range(0ul, n_targets));
+        auto r_grads = grads.Slice(linalg::Range(n_targets, grads.Shape(0)));
         std::vector<float> l_w(n_targets, .0f), r_w(n_targets, .0f);
 
         std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](std::size_t l, std::size_t r) {
           for (decltype(n_targets) t = 0; t < n_targets; ++t) {
             auto f_hist = node_hist[t].subspan(cut_ptr[fidx], n_bins);
-            l_grads[t] = f_hist[l];
-            r_grads[t] = f_hist[r];
+            l_grads(t) = f_hist[l];
+            r_grads(t) = f_hist[r];
           }
 
-          CalcWeight(*param_, linalg::MakeVec(l_grads), linalg::MakeVec(l_w.data(), l_w.size()));
-          CalcWeight(*param_, linalg::MakeVec(r_grads), linalg::MakeVec(r_w.data(), r_w.size()));
+          CalcWeight(*param_, l_grads, linalg::MakeVec(l_w.data(), l_w.size()));
+          CalcWeight(*param_, r_grads, linalg::MakeVec(r_w.data(), r_w.size()));
           // Run proj, compare score l_s < r_s
           float l_s = .0f, r_s = .0f;
           for (std::size_t i = 0; i < n_targets; ++i) {
