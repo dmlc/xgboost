@@ -450,7 +450,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     cols: int,
     rounds: int,
     cats: int,
-    device: str,
+    device: Device,
     tree_method: str,
     extmem: bool = False,
     multi_target: bool = False,
@@ -537,7 +537,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     )
     assert non_increasing(by_builtin_results["Train"]["rmse"])
 
-    if not multi_target:
+    if device == "cpu" or (device == "cuda" and not multi_target):
         by_grouping: Dict[str, Dict[str, List[float]]] = {}
         # switch to partition-based splits
         parameters["max_cat_to_onehot"] = USE_PART
