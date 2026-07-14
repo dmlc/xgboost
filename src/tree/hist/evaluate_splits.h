@@ -771,10 +771,9 @@ class HistMultiEvaluator {
             auto f_hist = node_hist[t_idx].subspan(cut_ptr[fidx], n_bins);
             h_grads(t_idx) = f_hist[bin_idx];
           }
-
           CalcWeight(*param_, h_grads, linalg::MakeVec(child_w.data(), child_w.size()));
           double sc = .0;
-          for (std::size_t t_idx = 0; t_idx < n_targets; ++t_idx) {
+          for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
             sc += h_bw(t_idx) * child_w[t_idx];
           }
           scores[bin_idx] = sc;
