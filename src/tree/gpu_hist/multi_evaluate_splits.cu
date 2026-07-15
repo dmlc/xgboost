@@ -462,6 +462,71 @@ void MultiHistEvaluator::Reset(Context const *ctx,
   return outputs[0];
 }
 
+namespace {
+// Sort histogram based on projected score, see CPU implementation for details.
+void SortHistogram(Context const *ctx, MultiEvaluateSplitSharedInputs const &shared_inputs,
+                   common::Span<MultiEvaluateSplitInputs const> d_inputs,
+                   dh::device_vector<std::size_t> *p_sorted_idx) {
+  auto &sorted_idx = *p_sorted_idx;
+  auto n_nodes = d_inputs.size();
+
+  auto bins_per_tar = shared_inputs.n_total_bins_per_tar;
+  std::size_t total_bins = static_cast<std::size_t>(n_nodes) * bins_per_tar;
+
+  sorted_idx.resize(total_bins);
+  auto d_sorted_idx = dh::ToSpan(sorted_idx);
+
+  using SortKey = cuda::std::tuple<std::size_t, bst_feature_t, double>;
+  dh::device_vector<SortKey> keys(total_bins);
+
+  auto cnt_it = thrust::make_counting_iterator(0ul);
+  thrust::transform(
+      ctx->CUDACtx()->CTP(), cnt_it, cnt_it + total_bins, keys.begin(),
+      [=] XGBOOST_DEVICE(std::size_t i) {
+        d_sorted_idx[i] = i % bins_per_tar;  // segmented iota
+        auto [nidx_in_set, bin_idx] = linalg::UnravelIndex(i, n_nodes, bins_per_tar);
+        auto fidx =
+            static_cast<bst_feature_t>(dh::SegmentId(shared_inputs.feature_segments, bin_idx));
+        auto n_cats =
+            shared_inputs.feature_segments[fidx + 1] - shared_inputs.feature_segments[fidx];
+        bool is_partition = shared_inputs.IsCategorical(fidx) &&
+                            !common::UseOneHot(n_cats, shared_inputs.param.max_cat_to_onehot);
+
+        double sc = 0.0;
+        if (!is_partition) {
+          return cuda::std::make_tuple(nidx_in_set, fidx, sc);
+        }
+
+        auto const &node = d_inputs[nidx_in_set];
+        for (bst_target_t t = 0; t < shared_inputs.Targets(); ++t) {
+          auto quantizer = shared_inputs.roundings[t];
+          auto target_hist = node.histogram.subspan(t * bins_per_tar, bins_per_tar);
+          auto child_sum = quantizer.ToFloatingPoint(target_hist[bin_idx]);
+          auto parent_sum = quantizer.ToFloatingPoint(node.parent_sum[t]);
+          auto child_weight =
+              CalcWeight(shared_inputs.param, child_sum.GetGrad(), child_sum.GetHess());
+          auto parent_weight =
+              CalcWeight(shared_inputs.param, parent_sum.GetGrad(), parent_sum.GetHess());
+          sc += child_weight * parent_weight;
+        }
+        return cuda::std::make_tuple(nidx_in_set, fidx, sc);
+      });
+  thrust::stable_sort_by_key(ctx->CUDACtx()->CTP(), keys.begin(), keys.end(), sorted_idx.begin(),
+                             [] XGBOOST_DEVICE(SortKey const &l, SortKey const &r) {
+                               // nidx_in_set
+                               if (cuda::std::get<0>(l) != cuda::std::get<0>(r)) {
+                                 return cuda::std::get<0>(l) < cuda::std::get<0>(r);
+                               }
+                               // fidx
+                               if (cuda::std::get<1>(l) != cuda::std::get<1>(r)) {
+                                 return cuda::std::get<1>(l) < cuda::std::get<1>(r);
+                               }
+                               // score
+                               return cuda::std::get<2>(l) < cuda::std::get<2>(r);
+                             });
+}
+}  // namespace
+
 void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                                         common::Span<MultiEvaluateSplitInputs const> d_inputs,
                                         MultiEvaluateSplitSharedInputs const &shared_inputs,
@@ -508,59 +573,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   // The values are node-local bin indices. Sort by (node, feature, score)
   dh::device_vector<std::size_t> sorted_idx;
   if (this->need_sort_histogram_) {
-    auto bins_per_tar = shared_inputs.n_total_bins_per_tar;
-    std::size_t total_bins = static_cast<std::size_t>(n_nodes) * bins_per_tar;
-
-    sorted_idx.resize(total_bins);
-    auto d_sorted_idx = dh::ToSpan(sorted_idx);
-
-    using SortKey = cuda::std::tuple<std::size_t, bst_feature_t, double>;
-    dh::device_vector<SortKey> keys(total_bins);
-
-    thrust::transform(
-        ctx->CUDACtx()->CTP(), cnt_it, cnt_it + total_bins, keys.begin(),
-        [=] XGBOOST_DEVICE(std::size_t i) {
-          d_sorted_idx[i] = i % bins_per_tar;  // segmented iota
-          auto [nidx_in_set, bin_idx] = linalg::UnravelIndex(i, n_nodes, bins_per_tar);
-          auto fidx =
-              static_cast<bst_feature_t>(dh::SegmentId(shared_inputs.feature_segments, bin_idx));
-          auto n_cats =
-              shared_inputs.feature_segments[fidx + 1] - shared_inputs.feature_segments[fidx];
-          bool is_partition = shared_inputs.IsCategorical(fidx) &&
-                              !common::UseOneHot(n_cats, shared_inputs.param.max_cat_to_onehot);
-
-          double sc = 0.0;
-          if (!is_partition) {
-            return cuda::std::make_tuple(nidx_in_set, fidx, sc);
-          }
-
-          auto const &node = d_inputs[nidx_in_set];
-          for (bst_target_t t = 0; t < n_targets; ++t) {
-            auto quantizer = shared_inputs.roundings[t];
-            auto target_hist = node.histogram.subspan(t * bins_per_tar, bins_per_tar);
-            auto child_sum = quantizer.ToFloatingPoint(target_hist[bin_idx]);
-            auto parent_sum = quantizer.ToFloatingPoint(node.parent_sum[t]);
-            auto child_weight =
-                CalcWeight(shared_inputs.param, child_sum.GetGrad(), child_sum.GetHess());
-            auto parent_weight =
-                CalcWeight(shared_inputs.param, parent_sum.GetGrad(), parent_sum.GetHess());
-            sc += child_weight * parent_weight;
-          }
-          return cuda::std::make_tuple(nidx_in_set, fidx, sc);
-        });
-    thrust::stable_sort_by_key(ctx->CUDACtx()->CTP(), keys.begin(), keys.end(), sorted_idx.begin(),
-                               [] XGBOOST_DEVICE(SortKey const &l, SortKey const &r) {
-                                 // nidx_in_set
-                                 if (cuda::std::get<0>(l) != cuda::std::get<0>(r)) {
-                                   return cuda::std::get<0>(l) < cuda::std::get<0>(r);
-                                 }
-                                 // fidx
-                                 if (cuda::std::get<1>(l) != cuda::std::get<1>(r)) {
-                                   return cuda::std::get<1>(l) < cuda::std::get<1>(r);
-                                 }
-                                 // score
-                                 return cuda::std::get<2>(l) < cuda::std::get<2>(r);
-                               });
+    SortHistogram(ctx, shared_inputs, d_inputs, &sorted_idx);
   }
   auto d_sorted_idx = common::Span<std::size_t const>{dh::ToSpan(sorted_idx)};
 
