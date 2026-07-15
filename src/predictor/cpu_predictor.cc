@@ -399,15 +399,20 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
 
   /* Precalculate depth for each tree.
    * These values are required only for the ArrayLayout optimization,
-   * so we don't need them if kBlockOfRowsSize == 1
+   * so we don't need them if kBlockOfRowsSize == 1. They are equally unused
+   * when every block has size 1 (n_samples <= 1): DispatchArrayLayout only
+   * reads tree_depth when block_size > 1. Computing them walks every node of
+   * every tree, which would otherwise dominate single-row inplace prediction.
    */
   std::vector<int> tree_depth;
   if constexpr (kBlockOfRowsSize > 1) {
-    tree_depth.resize(model.tree_end - model.tree_begin);
-    CHECK_EQ(tree_depth.size(), model.Trees().size());
-    common::ParallelFor(model.tree_end - model.tree_begin, n_threads, [&](auto i) {
-      std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.Trees()[i]);
-    });
+    if (n_samples > 1) {
+      tree_depth.resize(model.tree_end - model.tree_begin);
+      CHECK_EQ(tree_depth.size(), model.Trees().size());
+      common::ParallelFor(model.tree_end - model.tree_begin, n_threads, [&](auto i) {
+        std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.Trees()[i]);
+      });
+    }
   }
   common::ParallelFor1d<kBlockOfRowsSize>(n_samples, n_threads, [&](auto &&block) {
     auto fvec_tloc = fvec.ThreadBuffer(block.Size());
