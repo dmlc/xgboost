@@ -510,15 +510,17 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   if (this->need_sort_histogram_) {
     auto bins_per_tar = shared_inputs.n_total_bins_per_tar;
     std::size_t total_bins = static_cast<std::size_t>(n_nodes) * bins_per_tar;
+
     sorted_idx.resize(total_bins);
-    thrust::transform(ctx->CUDACtx()->CTP(), cnt_it, cnt_it + total_bins, sorted_idx.begin(),
-                      [=] XGBOOST_DEVICE(std::size_t i) { return i % bins_per_tar; });
+    auto d_sorted_idx = dh::ToSpan(sorted_idx);
 
     using SortKey = cuda::std::tuple<std::size_t, bst_feature_t, double>;
     dh::device_vector<SortKey> keys(total_bins);
+
     thrust::transform(
         ctx->CUDACtx()->CTP(), cnt_it, cnt_it + total_bins, keys.begin(),
         [=] XGBOOST_DEVICE(std::size_t i) {
+          d_sorted_idx[i] = i % bins_per_tar;  // segmented iota
           auto [nidx_in_set, bin_idx] = linalg::UnravelIndex(i, n_nodes, bins_per_tar);
           auto fidx =
               static_cast<bst_feature_t>(dh::SegmentId(shared_inputs.feature_segments, bin_idx));
@@ -546,7 +548,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
           }
           return cuda::std::make_tuple(nidx_in_set, fidx, sc);
         });
-
     thrust::stable_sort_by_key(ctx->CUDACtx()->CTP(), keys.begin(), keys.end(), sorted_idx.begin(),
                                [] XGBOOST_DEVICE(SortKey const &l, SortKey const &r) {
                                  // nidx_in_set
