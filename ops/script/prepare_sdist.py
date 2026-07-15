@@ -14,6 +14,7 @@ import pathlib
 import shutil
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+PY_PACKAGE = REPO_ROOT / "python-package"
 STAGING_DIR = REPO_ROOT / "python-package" / "cpp_src"
 
 CPP_SUBDIRS = ["src", "include", "dmlc-core", "cmake", "plugin"]
@@ -21,6 +22,8 @@ CPP_FILES = ["CMakeLists.txt", "LICENSE"]
 
 
 def stage() -> None:
+    shutil.copy(REPO_ROOT / "LICENSE", PY_PACKAGE / "LICENSE")
+    print(f"Copy {REPO_ROOT / 'LICENSE'} -> {PY_PACKAGE / 'LICENSE'}")
     if STAGING_DIR.exists():
         shutil.rmtree(STAGING_DIR)
     STAGING_DIR.mkdir(parents=True)
