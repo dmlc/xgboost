@@ -565,7 +565,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   }
   dh::device_vector<common::Span<GradientPairInt64>> scans(h_scans);
 
-  auto cnt_it = thrust::make_counting_iterator(0ul);
   if (shared_inputs.cat_storage_size > 0) {
     this->AllocNodeCats(max_nidx, shared_inputs.cat_storage_size);
   }
