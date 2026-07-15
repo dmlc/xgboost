@@ -13,7 +13,6 @@ from xgboost.testing.params import (
 )
 from xgboost.testing.updater import (
     check_categorical_missing,
-    check_categorical_mixed,
     check_categorical_ohe,
     check_get_quantile_cut,
     check_quantile_loss,
@@ -144,10 +143,6 @@ class TestGPUUpdaters:
             multi_target=multi_target,
             max_bin=max_bin,
         )
-
-    @pytest.mark.skipif(**tm.no_pandas())
-    def test_categorical_mixed(self) -> None:
-        check_categorical_mixed("cuda")
 
     @given(
         tm.categorical_dataset_strategy,

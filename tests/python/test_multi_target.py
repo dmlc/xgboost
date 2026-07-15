@@ -11,6 +11,7 @@ from hypothesis import given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
     all_reg_objectives,
+    check_categorical_mixed,
     run_absolute_error,
     run_column_sampling,
     run_eta,
@@ -34,6 +35,11 @@ from xgboost.testing.params import (
 )
 from xgboost.testing.updater import check_quantile_loss_rf, train_result
 from xgboost.testing.utils import Device
+
+
+@pytest.mark.skipif(**tm.no_pandas())
+def test_categorical_mixed() -> None:
+    check_categorical_mixed("cpu")
 
 
 @pytest.mark.parametrize("multi_strategy", ["multi_output_tree", "one_output_per_tree"])

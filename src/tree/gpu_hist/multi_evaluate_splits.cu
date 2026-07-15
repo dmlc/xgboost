@@ -615,6 +615,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     common::Span<common::CatBitField::value_type> node_cats;
     if (!d_split_cats.empty()) {
       node_cats = d_split_cats.subspan(input.nidx * node_cat_storage_size, node_cat_storage_size);
+      // Clear the bits, we use it to store the best candidate.
       for (auto &node_cat : node_cats) {
         node_cat = 0;
       }
@@ -643,9 +644,9 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 
     if (best_split.is_cat) {
       common::CatBitField cats{node_cats};
-      if (!isnan(best_split.fvalue)) {
+      if (!isnan(best_split.fvalue)) {  // OHE
         cats.Set(common::AsCat(best_split.fvalue));
-      } else {
+      } else {  // Partition
         auto fidx = best_split.findex;
         auto f_begin = shared_inputs.feature_segments[fidx];
         auto n_bins =
