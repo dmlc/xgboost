@@ -1278,14 +1278,21 @@ def test_invalid_config(client: "Client") -> None:
         dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
 
 
-def test_worker_port(client_one_worker: "Client") -> None:
-    from xgboost.testing.collective import get_avail_port
-
+def test_worker_port(client_one_worker: "Client", tmp_path: Path) -> None:
     X, y, _ = generate_array()
     dtrain = DaskDMatrix(client_one_worker, X, y)
 
-    cfg = CollConfig(worker_port=get_avail_port)
+    marker = tmp_path / "worker-port-callback"
+
+    def worker_port() -> int:
+        marker.write_text(distributed.get_worker().address, encoding="utf-8")
+        # Let bind select and reserve the port atomically.
+        return 0
+
+    cfg = CollConfig(worker_port=worker_port)
     dxgb.train(client_one_worker, {}, dtrain, num_boost_round=4, coll_cfg=cfg)
+    worker_addr = marker.read_text(encoding="utf-8")
+    assert worker_addr in client_one_worker.scheduler_info()["workers"]
 
 
 class TestWithDask:
