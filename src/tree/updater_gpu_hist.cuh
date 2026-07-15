@@ -452,7 +452,7 @@ class MultiTargetHistMaker {
     Accessor d_matrix;
     MultiTargetTreeView tree;
     __device__ bool operator()(RowIndexT ridx, NodeSplitData const& data) const {
-      // given a row index, returns the node id it belongs to
+      // Given a global row index, returns the node id it belongs to
       float cut_value = d_matrix.GetFvalue(ridx, tree.SplitIndex(data.nidx));
       // Missing value
       bool go_left = true;

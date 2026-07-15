@@ -400,7 +400,7 @@ struct GPUHistMakerDevice {
 
     __device__ bool operator()(cuda_impl::RowIndexT ridx, NodeSplitData const& data) const {
       RegTree::Node const& node = data.split_node;
-      // given a row index, returns the node id it belongs to
+      // Given a global row index, returns the node id it belongs to
       float cut_value = d_matrix.GetFvalue(ridx, node.SplitIndex());
       // Missing value
       bool go_left = true;
