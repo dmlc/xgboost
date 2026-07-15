@@ -416,6 +416,8 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
     onehot: bool,
     extmem: bool,
     enable_categorical: bool,
+    n_targets: int = 1,
+    max_bin: Optional[int] = None,
 ) -> DMatrix:
     n_batches = max(min(2, n_samples), 1)
     it = CatIter(
@@ -428,11 +430,12 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
         onehot=onehot,
         device=device,
         cache="cache" if extmem else None,
+        n_targets=n_targets,
     )
     if extmem:
         if tree_method == "hist":
             Xy: DMatrix = ExtMemQuantileDMatrix(
-                it, enable_categorical=enable_categorical
+                it, enable_categorical=enable_categorical, max_bin=max_bin
             )
         elif tree_method == "approx":
             Xy = DMatrix(it, enable_categorical=enable_categorical)
@@ -457,8 +460,6 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     max_bin: Optional[int] = None,
 ) -> None:
     "Test for one-hot encoding with categorical data."
-    pd = pytest.importorskip("pandas")
-
     by_etl_results: Dict[str, Dict[str, List[float]]] = {}
     by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
 
@@ -472,45 +473,36 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     if max_bin is not None:
         parameters["max_bin"] = max_bin
 
+    n_targets = 3 if multi_target else 1
     if multi_target:
-        n_targets = 3
         parameters["multi_strategy"] = "multi_output_tree"
 
-        cat, label = make_categorical(
-            rows,
-            cols,
-            n_categories=cats,
-            onehot=False,
-            sparsity=0.0,
-            n_targets=n_targets,
-        )
-
-        # fixme: extmem
-        Xy_onehot = DMatrix(pd.get_dummies(cat), label)
-        Xy_cat = DMatrix(cat, label, enable_categorical=True)
-    else:
-        Xy_onehot = _create_dmatrix(
-            rows,
-            cols,
-            n_cats=cats,
-            device=device,
-            sparsity=0.0,
-            onehot=True,
-            tree_method=tree_method,
-            extmem=extmem,
-            enable_categorical=False,
-        )
-        Xy_cat = _create_dmatrix(
-            rows,
-            cols,
-            n_cats=cats,
-            device=device,
-            sparsity=0.0,
-            tree_method=tree_method,
-            onehot=False,
-            extmem=extmem,
-            enable_categorical=True,
-        )
+    Xy_onehot = _create_dmatrix(
+        rows,
+        cols,
+        n_cats=cats,
+        device=device,
+        sparsity=0.0,
+        onehot=True,
+        tree_method=tree_method,
+        extmem=extmem,
+        enable_categorical=False,
+        n_targets=n_targets,
+        max_bin=max_bin,
+    )
+    Xy_cat = _create_dmatrix(
+        rows,
+        cols,
+        n_cats=cats,
+        device=device,
+        sparsity=0.0,
+        tree_method=tree_method,
+        onehot=False,
+        extmem=extmem,
+        enable_categorical=True,
+        n_targets=n_targets,
+        max_bin=max_bin,
+    )
 
     train(
         parameters,
@@ -519,7 +511,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
         evals=[(Xy_onehot, "Train")],
         evals_result=by_etl_results,
     )
-    train(
+    booster_onehot = train(
         parameters,
         Xy_cat,
         num_boost_round=rounds,
@@ -542,18 +534,30 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     by_grouping: Dict[str, Dict[str, List[float]]] = {}
     # switch to partition-based splits
     parameters["max_cat_to_onehot"] = USE_PART
-    train(
+    booster_partition = train(
         parameters,
         Xy_cat,
         num_boost_round=rounds,
         evals=[(Xy_cat, "Train")],
         evals_result=by_grouping,
     )
-    rmse_oh = by_builtin_results["Train"]["rmse"]
     rmse_group = by_grouping["Train"]["rmse"]
-    # always better or equal to onehot when there's no regularization.
-    for a, b in zip(rmse_oh, rmse_group):
-        assert a >= b
+    assert non_increasing(rmse_group)
+
+    model_onehot = json.loads(booster_onehot.save_raw(raw_format="json"))
+    model_partition = json.loads(booster_partition.save_raw(raw_format="json"))
+    tree_onehot = model_onehot["learner"]["gradient_booster"]["model"]["trees"][0]
+    tree_partition = model_partition["learner"]["gradient_booster"]["model"]["trees"][0]
+    assert tree_onehot["categories_sizes"]
+    assert tree_partition["categories_sizes"]
+    assert all(size == 1 for size in tree_onehot["categories_sizes"])
+
+    if not multi_target:
+        # Scalar partition sorting finds the best split for a fixed node. Compare the
+        # common root instead of complete greedy trees, whose later paths can diverge.
+        gain_onehot = tree_onehot["loss_changes"][0]
+        gain_partition = tree_partition["loss_changes"][0]
+        assert gain_partition >= gain_onehot or np.isclose(gain_partition, gain_onehot)
 
     parameters["reg_lambda"] = 1.0
     by_grouping = {}
@@ -608,7 +612,7 @@ def check_categorical_mixed(device: Device) -> None:
             "base_score": 0,
         },
         Xy,
-        num_boost_round=1,
+        num_boost_round=4,
     )
     np.testing.assert_allclose(booster.predict(Xy), y)
 

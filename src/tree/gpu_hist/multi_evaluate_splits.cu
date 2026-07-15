@@ -601,8 +601,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     common::Span<common::CatBitField::value_type> node_cats;
     if (!d_split_cats.empty()) {
       node_cats = d_split_cats.subspan(input.nidx * node_cat_storage_size, node_cat_storage_size);
-      for (std::size_t i = 0; i < node_cats.size(); ++i) {
-        node_cats[i] = 0;
+      for (auto &node_cat : node_cats) {
+        node_cat = 0;
       }
     }
 

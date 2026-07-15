@@ -232,36 +232,27 @@ class TestTreeMethod:
         strategies.integers(3, 8),
         strategies.integers(1, 2),
         strategies.integers(4, 7),
+        strategies.sampled_from([("approx", False), ("hist", False), ("hist", True)]),
     )
     @settings(deadline=None, print_blob=True, max_examples=10)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(
-        self, rows: int, cols: int, rounds: int, cats: int
+        self,
+        rows: int,
+        cols: int,
+        rounds: int,
+        cats: int,
+        config: tuple[str, bool],
     ) -> None:
+        tree_method, multi_target = config
         check_categorical_ohe(
             rows=rows,
             cols=cols,
             rounds=rounds,
             cats=cats,
             device="cpu",
-            tree_method="approx",
-        )
-        check_categorical_ohe(
-            rows=rows,
-            cols=cols,
-            rounds=rounds,
-            cats=cats,
-            device="cpu",
-            tree_method="hist",
-        )
-        check_categorical_ohe(
-            rows=rows,
-            cols=cols,
-            rounds=rounds,
-            cats=cats,
-            device="cpu",
-            tree_method="hist",
-            multi_target=True,
+            tree_method=tree_method,
+            multi_target=multi_target,
         )
 
     @pytest.mark.skipif(**tm.no_pandas())
