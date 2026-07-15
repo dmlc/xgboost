@@ -83,6 +83,8 @@ class MultiHistEvaluator {
   // while candidates are waiting in the loss-guide queue.
   dh::DeviceUVector<CatST> split_cats_;
   std::size_t node_cat_storage_size_{0};
+  // Whether any categorical feature requires partition-based evaluation.
+  bool need_sort_histogram_{false};
 
   void AllocNodeCats(bst_node_t nidx, std::size_t storage_size) {
     if (this->node_cat_storage_size_ == 0) {
@@ -96,6 +98,9 @@ class MultiHistEvaluator {
   }
 
  public:
+  void Reset(Context const *ctx, common::Span<std::uint32_t const> feature_segments,
+             common::Span<FeatureType const> feature_types, TrainParam const &param);
+
   /**
    * @brief Run evaluation for the root node.
    */

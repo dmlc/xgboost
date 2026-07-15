@@ -158,6 +158,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
   shared.param = GPUTrainingParam{param};
 
   MultiHistEvaluator evaluator;
+  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param);
   auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(candidate.split.is_cat);
@@ -218,6 +219,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   shared.param = GPUTrainingParam{param};
 
   MultiHistEvaluator evaluator;
+  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param);
   auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(candidate.split.is_cat);
@@ -258,6 +260,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   shared.param = GPUTrainingParam{no_split_param};
 
   MultiHistEvaluator no_split_evaluator;
+  no_split_evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, no_split_param);
   auto no_split = no_split_evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(no_split.split.child_sum.empty());

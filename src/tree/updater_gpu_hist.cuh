@@ -210,9 +210,11 @@ class MultiTargetHistMaker {
     // Clear the per-node allowed-feature sets before growing a new tree.
     this->interaction_constraints_->Reset(this->ctx_);
 
-    // Cache feature types on device for categorical one-hot split detection.
+    // Cache feature types on device for categorical split detection.
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
     this->feature_types_ = p_fmat->Info().feature_types.ConstDeviceSpan();
+    this->evaluator_.Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(), this->feature_types_,
+                           this->param_);
 
     /**
      * Initialize the gradient matrix
