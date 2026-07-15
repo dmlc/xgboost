@@ -320,13 +320,10 @@ class MultiTargetHistMaker {
       if (candidate.split.is_cat) {
         auto fidx = candidate.split.findex;
         auto cat_bits = this->evaluator_.GetHostNodeCats(candidate.nidx);
-        // The evaluator sizes this bit field from the maximum category value, which is the
-        // authoritative capacity for potentially sparse category codes. Remove only unused
-        // trailing words before storing it in the tree.
-        while (!cat_bits.empty() && cat_bits.back() == 0) {
-          cat_bits.pop_back();
-        }
-        CHECK(!cat_bits.empty());
+        auto n_bins_feature = this->cuts_->FeatureBins(fidx);
+        auto n_words = common::CatBitField::ComputeStorageSize(n_bins_feature);
+        CHECK_LE(n_words, cat_bits.size());
+        cat_bits.resize(n_words);
         p_tree->ExpandCategorical(candidate.nidx, fidx, cat_bits, default_left,
                                   linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_weight),
                                   linalg::MakeVec(h_right_weight), loss_chg, sum_hess, left_sum,
