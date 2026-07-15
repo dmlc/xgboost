@@ -571,6 +571,29 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     assert non_increasing(by_grouping["Train"]["rmse"]), by_grouping
 
 
+def check_categorical_bitfield_boundaries(
+    device: Device, cats: int, multi_target: bool
+) -> None:
+    """Test scalar and vector categorical splits at bit-field word boundaries."""
+    n_targets = 3 if multi_target else 1
+    X, y = tm.make_categorical(
+        1000, 2, cats, onehot=False, n_targets=n_targets, sparsity=0.0
+    )
+    Xy = QuantileDMatrix(X, y, enable_categorical=True)
+    params: Dict[str, Any] = {"device": device, "tree_method": "hist"}
+    if multi_target:
+        params["multi_strategy"] = "multi_output_tree"
+
+    for max_cat_to_onehot in [1, 128]:
+        params["max_cat_to_onehot"] = max_cat_to_onehot
+        booster = train(params, Xy, num_boost_round=1)
+
+        assert booster.get_score(importance_type="weight")
+        predt = booster.predict(Xy)
+        assert predt.shape == y.shape
+        assert np.isfinite(predt).all()
+
+
 def check_categorical_missing(  # pylint: disable=too-many-arguments
     rows: int,
     cols: int,

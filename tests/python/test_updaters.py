@@ -12,6 +12,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_bitfield_boundaries,
     check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
@@ -314,6 +315,13 @@ class TestTreeMethod:
         check_categorical_missing(
             rows, cols, cats, device="cpu", tree_method="hist", extmem=False
         )
+
+    @pytest.mark.parametrize("cats", [32, 64])
+    @pytest.mark.parametrize("multi_target", [False, True])
+    def test_categorical_bitfield_boundaries(
+        self, cats: int, multi_target: bool
+    ) -> None:
+        check_categorical_bitfield_boundaries("cpu", cats, multi_target)
 
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:

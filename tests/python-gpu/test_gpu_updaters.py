@@ -12,6 +12,7 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
+    check_categorical_bitfield_boundaries,
     check_categorical_missing,
     check_categorical_ohe,
     check_get_quantile_cut,
@@ -232,24 +233,7 @@ class TestGPUUpdaters:
     def test_categorical_bitfield_boundaries(
         self, cats: int, multi_target: bool
     ) -> None:
-        """Test scalar and vector categorical splits at bit-field word boundaries."""
-        n_targets = 3 if multi_target else 1
-        X, y = tm.make_categorical(
-            1000, 2, cats, onehot=False, n_targets=n_targets, sparsity=0.0
-        )
-        Xy = xgb.DMatrix(X, y, enable_categorical=True)
-        params: Dict[str, Any] = {"device": "cuda", "tree_method": "hist"}
-        if multi_target:
-            params["multi_strategy"] = "multi_output_tree"
-
-        for max_cat_to_onehot in [1, 128]:
-            params["max_cat_to_onehot"] = max_cat_to_onehot
-            booster = xgb.train(params, Xy, num_boost_round=1)
-
-            assert booster.get_score(importance_type="weight")
-            predt = booster.predict(Xy)
-            assert predt.shape == y.shape
-            assert np.isfinite(predt).all()
+        check_categorical_bitfield_boundaries("cuda", cats, multi_target)
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
