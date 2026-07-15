@@ -287,6 +287,9 @@ class GlobalApproxUpdater : public TreeUpdater {
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *m,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
+    if (param->split_criterion == TrainParam::kTsallisIG) {
+      LOG(FATAL) << "Tsallis IG split criterion is only supported by the exact tree method (tree_method='exact').";
+    }
     CHECK(hist_param_.GetInitialised());
     pimpl_ = std::make_unique<GlobalApproxBuilder>(param, &hist_param_, m->Info(), ctx_,
                                                    column_sampler_, task_, &monitor_);

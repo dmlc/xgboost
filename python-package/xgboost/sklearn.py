@@ -848,6 +848,8 @@ class XGBModel(XGBModelBase):
         max_cat_to_onehot: Optional[int] = None,
         max_cat_threshold: Optional[int] = None,
         multi_strategy: Optional[str] = None,
+        split_criterion: Optional[str] = None,
+        tsallis_beta: Optional[float] = None,
         eval_metric: Optional[Union[str, List[Union[str, Callable]], Callable]] = None,
         early_stopping_rounds: Optional[int] = None,
         callbacks: Optional[List[TrainingCallback]] = None,
@@ -901,6 +903,8 @@ class XGBModel(XGBModelBase):
         self.max_cat_to_onehot = max_cat_to_onehot
         self.max_cat_threshold = max_cat_threshold
         self.multi_strategy = multi_strategy
+        self.split_criterion = split_criterion
+        self.tsallis_beta = tsallis_beta
         self.eval_metric = eval_metric
         self.early_stopping_rounds = early_stopping_rounds
         self.callbacks = callbacks

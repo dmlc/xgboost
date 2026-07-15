@@ -629,6 +629,9 @@ class QuantileHistMaker : public TreeUpdater {
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
+    if (param->split_criterion == TrainParam::kTsallisIG) {
+      LOG(FATAL) << "Tsallis IG split criterion is only supported by the exact tree method (tree_method='exact').";
+    }
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
       if (!param->monotone_constraints.empty()) {

@@ -109,6 +109,12 @@ class ColMaker : public TreeUpdater {
     if (param->colsample_bynode - 1.0 != 0.0) {
       LOG(FATAL) << "column sample by node is not yet supported by the exact tree method";
     }
+    if (param->split_criterion == TrainParam::kTsallisIG) {
+      CHECK_EQ(dmat->Info().labels.Shape(1), 1)
+          << "Tsallis IG split criterion only supports single-target regression.";
+      CHECK_GT(dmat->Info().labels.Size(), 0)
+          << "Tsallis IG split criterion requires labels.";
+    }
     this->LazyGetColumnDensity(dmat);
     // rescale learning rate according to size of trees
     interaction_constraints_.Configure(*param, dmat->Info().num_row_);
@@ -134,6 +140,8 @@ class ColMaker : public TreeUpdater {
   struct ThreadEntry {
     /*! \brief statistics of data */
     GradStats stats;
+    /*! \brief IG statistics for Tsallis entropy split criterion */
+    IGStats ig_stats;
     /*! \brief last feature value scanned */
     bst_float last_fvalue{0};
     /*! \brief current best solution */
@@ -170,6 +178,12 @@ class ColMaker : public TreeUpdater {
     // update one tree, growing
     virtual void Update(const std::vector<GradientPair> &gpair, DMatrix *p_fmat, RegTree *p_tree) {
       std::vector<int> newnodes;
+      auto const& h_labels = p_fmat->Info().labels;
+      if (param_.split_criterion == TrainParam::kTsallisIG) {
+        CHECK_EQ(h_labels.Shape(1), 1) << "Tsallis IG criterion only supports single-target.";
+        CHECK_GT(h_labels.Size(), 0) << "Tsallis IG criterion requires labels.";
+      }
+      labels_ptr_ = h_labels.Data()->ConstHostPointer();
       this->InitData(gpair, *p_fmat);
       this->InitNewNode(qexpand_, gpair, *p_fmat, *p_tree);
       // We can check max_leaves too, but might break some grid searching pipelines.
@@ -312,7 +326,7 @@ class ColMaker : public TreeUpdater {
 
     // update enumeration solution
     inline void UpdateEnumeration(
-        int nid, GradientPair gstats, bst_float fvalue, int d_step, bst_uint fid,
+        int nid, GradientPair gstats, bst_float fvalue, bst_float label, int d_step, bst_uint fid,
         GradStats &c,                    // NOLINT
         std::vector<ThreadEntry> &temp,  // NOLINT(*)
         TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
@@ -321,6 +335,7 @@ class ColMaker : public TreeUpdater {
       // test if first hit, this is fine, because we set 0 during init
       if (e.stats.Empty()) {
         e.stats.Add(gstats);
+        e.ig_stats.Add(fvalue, label);
         e.last_fvalue = fvalue;
       } else {
         // try to find a split
@@ -328,7 +343,19 @@ class ColMaker : public TreeUpdater {
           c.SetSubstract(snode_[nid].stats, e.stats);
           if (c.sum_hess >= param_.min_child_weight) {
             bst_float loss_chg{0};
-            if (d_step == -1) {
+            if (param_.split_criterion == TrainParam::kTsallisIG) {
+              IGStats right_ig;
+              right_ig.SetSubtract(parent_ig_[nid][fid], e.ig_stats);
+              loss_chg = IGStats::CalcTsallisIG(param_.tsallis_beta, e.ig_stats)
+                       + IGStats::CalcTsallisIG(param_.tsallis_beta, right_ig)
+                       - IGStats::CalcTsallisIG(param_.tsallis_beta, parent_ig_[nid][fid]);
+              bst_float proposed_split = (fvalue + e.last_fvalue) * 0.5f;
+              if (proposed_split == fvalue) {
+                e.best.Update(loss_chg, fid, e.last_fvalue, d_step == -1, false, e.stats, c);
+              } else {
+                e.best.Update(loss_chg, fid, proposed_split, d_step == -1, false, e.stats, c);
+              }
+            } else if (d_step == -1) {
               loss_chg = static_cast<bst_float>(
                   evaluator.CalcSplitGain(param_, nid, fid, c, e.stats) - snode_[nid].root_gain);
               bst_float proposed_split = (fvalue + e.last_fvalue) * 0.5f;
@@ -351,6 +378,7 @@ class ColMaker : public TreeUpdater {
         }
         // update the statistics
         e.stats.Add(gstats);
+        e.ig_stats.Add(fvalue, label);
         e.last_fvalue = fvalue;
       }
     }
@@ -363,6 +391,7 @@ class ColMaker : public TreeUpdater {
       // clear all the temp statistics
       for (auto nid : qexpand) {
         temp[nid].stats = GradStats();
+        temp[nid].ig_stats = IGStats();
       }
       // left statistics
       GradStats c;
@@ -370,6 +399,7 @@ class ColMaker : public TreeUpdater {
       constexpr int kBuffer = 32;
       int buf_position[kBuffer] = {};
       GradientPair buf_gpair[kBuffer] = {};
+      float buf_label[kBuffer] = {};
       // aligned ending position
       const Entry *align_end;
       if (d_step > 0) {
@@ -386,13 +416,14 @@ class ColMaker : public TreeUpdater {
         for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
           buf_position[i] = position_[p->index];
           buf_gpair[i] = gpair[p->index];
+          buf_label[i] = labels_ptr_[p->index];
         }
         for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
           const int nid = buf_position[i];
           if (nid < 0 || !interaction_constraints_.Query(nid, fid)) {
             continue;
           }
-          this->UpdateEnumeration(nid, buf_gpair[i], p->fvalue, d_step, fid, c, temp, evaluator);
+          this->UpdateEnumeration(nid, buf_gpair[i], p->fvalue, buf_label[i], d_step, fid, c, temp, evaluator);
         }
       }
 
@@ -400,13 +431,14 @@ class ColMaker : public TreeUpdater {
       for (it = align_end, i = 0; it != end; ++i, it += d_step) {
         buf_position[i] = position_[it->index];
         buf_gpair[i] = gpair[it->index];
+        buf_label[i] = labels_ptr_[it->index];
       }
       for (it = align_end, i = 0; it != end; ++i, it += d_step) {
         const int nid = buf_position[i];
         if (nid < 0 || !interaction_constraints_.Query(nid, fid)) {
           continue;
         }
-        this->UpdateEnumeration(nid, buf_gpair[i], it->fvalue, d_step, fid, c, temp, evaluator);
+        this->UpdateEnumeration(nid, buf_gpair[i], it->fvalue, buf_label[i], d_step, fid, c, temp, evaluator);
       }
       // finish updating all statistics, check if it is possible to include all sum statistics
       for (int nid : qexpand) {
@@ -416,13 +448,22 @@ class ColMaker : public TreeUpdater {
           bst_float loss_chg;
           const bst_float gap = std::abs(e.last_fvalue) + kRtEps;
           const bst_float delta = d_step == +1 ? gap : -gap;
-          if (d_step == -1) {
+          if (param_.split_criterion == TrainParam::kTsallisIG) {
+            IGStats right_ig;
+            right_ig.SetSubtract(parent_ig_[nid][fid], e.ig_stats);
+            loss_chg = IGStats::CalcTsallisIG(param_.tsallis_beta, e.ig_stats)
+                     + IGStats::CalcTsallisIG(param_.tsallis_beta, right_ig)
+                     - IGStats::CalcTsallisIG(param_.tsallis_beta, parent_ig_[nid][fid]);
+          } else if (d_step == -1) {
             loss_chg = static_cast<bst_float>(
                 evaluator.CalcSplitGain(param_, nid, fid, c, e.stats) - snode_[nid].root_gain);
-            e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1, false, c, e.stats);
           } else {
             loss_chg = static_cast<bst_float>(
                 evaluator.CalcSplitGain(param_, nid, fid, e.stats, c) - snode_[nid].root_gain);
+          }
+          if (d_step == -1) {
+            e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1, false, c, e.stats);
+          } else {
             e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1, false, e.stats, c);
           }
         }
@@ -463,6 +504,9 @@ class ColMaker : public TreeUpdater {
 
       auto feat_set = column_sampler_->GetFeatureSet(ctx_, depth);
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>(ctx_)) {
+        if (param_.split_criterion == TrainParam::kTsallisIG) {
+          ComputeParentIG(qexpand, p_fmat->Info().num_col_, batch);
+        }
         this->UpdateSolution(batch, feat_set->HostVector(), gpair);
       }
       // after this each thread's stemp will get the best candidates, aggregate results
@@ -524,6 +568,26 @@ class ColMaker : public TreeUpdater {
         }
       }
     }
+    // compute parent IG stats for Tsallis criterion
+    void ComputeParentIG(std::vector<int> const& qexpand, bst_feature_t n_features,
+                         SortedCSCPage const& page) {
+      if (param_.split_criterion != TrainParam::kTsallisIG) return;
+      auto view = page.GetView();
+      parent_ig_.resize(snode_.size());
+      for (auto nid : qexpand) {
+        parent_ig_[nid].assign(n_features, IGStats());
+      }
+      for (bst_feature_t fid = 0; fid < static_cast<bst_feature_t>(view.Size()); ++fid) {
+        auto col = view[fid];
+        for (size_t j = 0; j < col.size(); ++j) {
+          int nid = position_[col[j].index];
+          if (nid < 0) continue;
+          if (static_cast<size_t>(nid) < parent_ig_.size() && !parent_ig_[nid].empty()) {
+            parent_ig_[nid][fid].Add(col[j].fvalue, labels_ptr_[col[j].index]);
+          }
+        }
+      }
+    }
     virtual void SetNonDefaultPosition(const std::vector<int> &qexpand, DMatrix *p_fmat,
                                        const RegTree &tree) {
       // step 1, classify the non-default data into right places
@@ -581,6 +645,8 @@ class ColMaker : public TreeUpdater {
 
     FeatureInteractionConstraintHost interaction_constraints_;
     const std::vector<float> &column_densities_;
+    const float* labels_ptr_{nullptr};            // pointer to label data
+    std::vector<std::vector<IGStats>> parent_ig_; // parent_ig_[nid][fid]
   };
 };
 

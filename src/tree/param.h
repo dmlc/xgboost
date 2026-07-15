@@ -36,6 +36,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
+  // split criterion
+  enum SplitCriterion { kGain = 0, kTsallisIG = 1 };
+  int split_criterion;
+  float tsallis_beta;
 
   std::uint32_t max_cat_to_onehot{4};
 
@@ -106,6 +110,15 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
             "Tree growing policy. 0: favor splitting at nodes closest to the node, "
             "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
             "change. (cf. LightGBM)");
+    DMLC_DECLARE_FIELD(split_criterion)
+        .set_default(kGain)
+        .add_enum("gain", kGain)
+        .add_enum("tsallis_ig", kTsallisIG)
+        .describe("Split criterion for tree building.");
+    DMLC_DECLARE_FIELD(tsallis_beta)
+        .set_lower_bound(0.0f)
+        .set_default(0.5f)
+        .describe("Beta parameter for Tsallis entropy-based split criterion. Must be > 0 and != 1.");
     DMLC_DECLARE_FIELD(max_cat_to_onehot)
         .set_default(4)
         .set_lower_bound(1)
@@ -359,6 +372,45 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   inline void Add(GradType grad, GradType hess) {
     sum_grad += grad;
     sum_hess += hess;
+  }
+};
+
+/*! \brief Statistics for Tsallis entropy-based information gain split criterion */
+struct IGStats {
+  double sum_xy{0};   // sum of feature_value * label
+  double sum_x2{0};   // sum of feature_value^2
+  double sum_y2{0};   // sum of label^2
+  double count{0};    // number of instances
+
+  IGStats() = default;
+
+  void Add(float x, float y) {
+    sum_xy += static_cast<double>(x) * y;
+    sum_x2 += static_cast<double>(x) * x;
+    sum_y2 += static_cast<double>(y) * y;
+    count += 1.0;
+  }
+  void Add(IGStats const& b) {
+    sum_xy += b.sum_xy; sum_x2 += b.sum_x2;
+    sum_y2 += b.sum_y2; count += b.count;
+  }
+  void SetSubtract(IGStats const& a, IGStats const& b) {
+    sum_xy = a.sum_xy - b.sum_xy; sum_x2 = a.sum_x2 - b.sum_x2;
+    sum_y2 = a.sum_y2 - b.sum_y2; count = a.count - b.count;
+  }
+  [[nodiscard]] bool Empty() const { return count == 0.0; }
+
+  // Compute IG(X, Y) = 1/(1-beta) * (1/sigma^{beta-1} - 1)
+  // sigma = (sum_y2 - sum_xy^2 / sum_x2) / count
+  static float CalcTsallisIG(float beta, IGStats const& s) {
+    if (s.count <= 1.0 || s.sum_x2 <= 0.0) return 0.0f;
+    double a = s.sum_xy / s.sum_x2;
+    double sigma = (s.sum_y2 - 2.0 * a * s.sum_xy + a * a * s.sum_x2) / s.count;
+    if (sigma <= 0.0) return 0.0f;
+    double exp = 1.0 - static_cast<double>(beta);
+    double ig = (1.0 / exp) * (std::pow(sigma, exp) - 1.0);
+    if (!std::isfinite(ig)) return 0.0f;
+    return static_cast<float>(ig);
   }
 };
 
