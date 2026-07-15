@@ -12,8 +12,8 @@ from xgboost.testing.params import (
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
-    check_categorical_mixed,
     check_categorical_missing,
+    check_categorical_mixed,
     check_categorical_ohe,
     check_get_quantile_cut,
     check_quantile_loss,

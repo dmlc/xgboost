@@ -1,9 +1,9 @@
 /**
- * Copyright 2019-2025, XGBoost Contributors
+ * Copyright 2019-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
-#include <thrust/sort.h>    // for sort
+#include <thrust/sort.h>  // for sort
 #include <thrust/transform.h>
 #include <thrust/unique.h>  // for unique
 #include <xgboost/base.h>
@@ -17,7 +17,7 @@
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"  // for GPUExpandEntry
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
-#include "../../../../src/tree/param.h"    // for TrainParam
+#include "../../../../src/tree/param.h"  // for TrainParam
 #include "../../../../src/tree/sample_position.h"
 #include "../../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../../helpers.h"                 // for RandomDataGenerator
@@ -67,7 +67,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   auto op = [=] __device__(auto ridx, int split_index, int data) {
     return ridx % 2 == 0;
-  };
+  };  // NOLINT
   std::vector<int> op_data(segments.size());
   std::vector<PerNodeData<int>> h_batch_info(segments.size());
   dh::TemporaryArray<PerNodeData<int>> d_batch_info(segments.size());
@@ -87,7 +87,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   auto op_without_data = [=] __device__(auto ridx) {
     return ridx % 2 == 0;
-  };
+  };  // NOLINT
   for (size_t i = 0; i < segments.size(); i++) {
     auto begin = ridx.begin() + segments[i].begin;
     auto end = ridx.begin() + segments[i].end;
@@ -187,11 +187,9 @@ void TestExternalMemory() {
   }
 
   RegTree::Node node = tree[RegTree::kRoot];
-  auto n_left_pos =
-      thrust::count_if(position.cbegin(), position.cend(),
-                       [=] XGBOOST_DEVICE(bst_node_t v) {
-                         return SamplePosition::Decode(v) == node.LeftChild();
-                       });
+  auto n_left_pos = thrust::count_if(
+      position.cbegin(), position.cend(),
+      [=] XGBOOST_DEVICE(bst_node_t v) { return SamplePosition::Decode(v) == node.LeftChild(); });
   ASSERT_EQ(n_left, n_left_pos);
 
   std::vector<bst_node_t> h_position(position.size());

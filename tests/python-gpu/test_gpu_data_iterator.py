@@ -2,9 +2,8 @@ import sys
 
 import numpy as np
 import pytest
-from hypothesis import given, settings, strategies
-
 import xgboost as xgb
+from hypothesis import given, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing import no_cupy
 from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
