@@ -131,6 +131,16 @@ class TestGPUUpdaters:
             rounds=rounds,
             cats=cats,
             device="cuda",
+            tree_method="approx",
+            extmem=False,
+            max_bin=max_bin,
+        )
+        check_categorical_ohe(
+            rows=rows,
+            cols=cols,
+            rounds=rounds,
+            cats=cats,
+            device="cuda",
             tree_method="hist",
             extmem=False,
             max_bin=max_bin,
