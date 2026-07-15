@@ -213,6 +213,10 @@ class MultiTargetHistMaker {
     // Cache feature types on device for categorical split detection.
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
     this->feature_types_ = p_fmat->Info().feature_types.ConstDeviceSpan();
+
+    /**
+     * Evaluator
+     */
     this->evaluator_.Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(), this->feature_types_,
                            this->param_);
 
