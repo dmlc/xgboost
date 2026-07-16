@@ -235,6 +235,8 @@ struct MultiEvaluateSplitSharedInputs {
   // cut values
   float const *feature_values;
   common::Span<FeatureType const> feature_types;
+  // Number of bit-field storage elements required for one categorical split.
+  std::size_t cat_storage_size{0};
   // Number of histogram bins for one target, across all features.
   bst_bin_t n_total_bins_per_tar;
   bst_feature_t max_active_feature;

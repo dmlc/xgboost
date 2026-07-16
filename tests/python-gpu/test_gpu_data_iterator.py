@@ -2,9 +2,8 @@ import sys
 
 import numpy as np
 import pytest
-from hypothesis import given, settings, strategies
-
 import xgboost as xgb
+from hypothesis import given, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing import no_cupy
 from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
@@ -196,10 +195,13 @@ def test_categorical_missing(tree_method: str) -> None:
     )
 
 
-@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+@pytest.mark.parametrize(
+    "tree_method,multi_target",
+    [("hist", False), ("approx", False), ("hist", True)],
+)
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_cupy())
-def test_categorical_ohe(tree_method: str) -> None:
+def test_categorical_ohe(tree_method: str, multi_target: bool) -> None:
     check_categorical_ohe(
         rows=1024,
         cols=16,
@@ -208,6 +210,7 @@ def test_categorical_ohe(tree_method: str) -> None:
         device="cuda",
         tree_method=tree_method,
         extmem=True,
+        multi_target=multi_target,
     )
 
 

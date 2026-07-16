@@ -5,6 +5,7 @@
 #include <thrust/reduce.h>   // for reduce_by_key
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
+#include <algorithm>  // for copy_if, max, transform
 #include <memory>  // for unique_ptr
 #include <vector>  // for vector
 
@@ -181,10 +182,16 @@ class MultiTargetHistMaker {
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {
     common::Span<GradientQuantiser const> d_roundings = this->split_quantizer_->DeviceSpan();
     GPUTrainingParam d_param{this->param_};
+    std::size_t cat_storage_size = 0;
+    if (this->cuts_->HasCategorical()) {
+      cat_storage_size =
+          common::CatBitField::ComputeStorageSize(common::AsCat(this->cuts_->MaxCategory()) + 1);
+    }
     return MultiEvaluateSplitSharedInputs{d_roundings,
                                           this->cuts_->cut_ptrs_.ConstDeviceSpan(),
                                           this->cuts_->cut_values_.ConstDevicePointer(),
                                           this->feature_types_,
+                                          cat_storage_size,
                                           this->cuts_->TotalBins(),
                                           max_active_feature,
                                           d_param};
@@ -203,9 +210,15 @@ class MultiTargetHistMaker {
     // Clear the per-node allowed-feature sets before growing a new tree.
     this->interaction_constraints_->Reset(this->ctx_);
 
-    // Cache feature types on device for categorical one-hot split detection.
+    // Cache feature types on device for categorical split detection.
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
     this->feature_types_ = p_fmat->Info().feature_types.ConstDeviceSpan();
+
+    /**
+     * Evaluator
+     */
+    this->evaluator_.Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(), this->feature_types_,
+                           this->param_);
 
     /**
      * Initialize the gradient matrix
@@ -305,14 +318,12 @@ class MultiTargetHistMaker {
       float sum_hess = left_sum + right_sum;
       bool default_left = candidate.split.dir == kLeftDir;
       if (candidate.split.is_cat) {
-        // One-hot categorical split: build a single-bit category field for the chosen
-        // category (carried in fvalue), mirroring the CPU HistMultiEvaluator.
         auto fidx = candidate.split.findex;
-        auto const& cut_ptrs = this->cuts_->cut_ptrs_.ConstHostVector();
-        bst_bin_t n_bins = cut_ptrs[fidx + 1] - cut_ptrs[fidx];
-        std::vector<std::uint32_t> cat_bits(common::CatBitField::ComputeStorageSize(n_bins + 1), 0);
-        common::CatBitField bits{cat_bits};
-        bits.Set(static_cast<bst_cat_t>(candidate.split.fvalue));
+        auto cat_bits = this->evaluator_.GetHostNodeCats(candidate.nidx);
+        auto n_bins_feature = this->cuts_->FeatureBins(fidx);
+        auto n_words = common::CatBitField::ComputeStorageSize(n_bins_feature);
+        CHECK_LE(n_words, cat_bits.size());
+        cat_bits.resize(n_words);
         p_tree->ExpandCategorical(candidate.nidx, fidx, cat_bits, default_left,
                                   linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_weight),
                                   linalg::MakeVec(h_right_weight), loss_chg, sum_hess, left_sum,
@@ -441,7 +452,7 @@ class MultiTargetHistMaker {
     Accessor d_matrix;
     MultiTargetTreeView tree;
     __device__ bool operator()(RowIndexT ridx, NodeSplitData const& data) const {
-      // given a row index, returns the node id it belongs to
+      // Given a global row index, returns the node id it belongs to
       float cut_value = d_matrix.GetFvalue(ridx, tree.SplitIndex(data.nidx));
       // Missing value
       bool go_left = true;

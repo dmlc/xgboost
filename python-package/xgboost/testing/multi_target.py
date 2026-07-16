@@ -1,6 +1,7 @@
 """Tests for multi-target training."""
 
 # pylint: disable=unbalanced-tuple-unpacking
+import json
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -24,6 +25,68 @@ from ..training import train
 from .data import IteratorForTest
 from .updater import ResetStrategy, train_result
 from .utils import Device, assert_allclose, non_increasing
+
+
+def check_categorical_mixed(device: Device) -> None:  # pylint: disable=too-many-locals
+    """Test mixed numerical, one-hot, and partition-based splits."""
+    pd = pytest.importorskip("pandas")
+
+    features = np.stack(
+        [
+            np.repeat(np.arange(2), 16),
+            np.tile(np.repeat(np.arange(2), 8), 2),
+            np.tile(np.arange(8), 4),
+        ],
+        axis=1,
+    )
+    X = pd.DataFrame(
+        {
+            "numeric": features[:, 0].astype(np.float32),
+            "onehot": pd.Categorical(features[:, 1], categories=range(2)),
+            "partition": pd.Categorical(features[:, 2], categories=range(8)),
+        }
+    )
+    y = np.column_stack(
+        [
+            8.0 * features[:, 0],
+            6.0 * features[:, 1],
+            10.0 * (features[:, 2] >= 4),
+        ]
+    ).astype(np.float32)
+    Xy = DMatrix(X, y, enable_categorical=True)
+
+    booster = train(
+        {
+            "device": device,
+            "tree_method": "hist",
+            "multi_strategy": "multi_output_tree",
+            "max_cat_to_onehot": 4,
+            "max_depth": 3,
+            "learning_rate": 1.0,
+            "reg_lambda": 0,
+            "min_child_weight": 0,
+            "base_score": 0,
+        },
+        Xy,
+        num_boost_round=4,
+    )
+    np.testing.assert_allclose(booster.predict(Xy), y)
+
+    model = json.loads(booster.save_raw(raw_format="json"))
+    tree = model["learner"]["gradient_booster"]["model"]["trees"][0]
+    split_indices = np.asarray(tree["split_indices"])
+    split_types = np.asarray(tree["split_type"])
+    is_internal = np.asarray(tree["left_children"]) != -1
+    is_categorical = split_types.astype(bool)
+
+    numerical_features = split_indices[is_internal & ~is_categorical]
+    categorical_features = split_indices[is_internal & is_categorical]
+    category_sizes = np.asarray(tree["categories_sizes"])
+
+    assert set(numerical_features) == {0}
+    assert set(categorical_features) == {1, 2}
+    np.testing.assert_equal(category_sizes[categorical_features == 1], 1)
+    assert np.any(category_sizes[categorical_features == 2] > 1)
 
 
 def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:

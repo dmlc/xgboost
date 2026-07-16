@@ -400,7 +400,7 @@ struct GPUHistMakerDevice {
 
     __device__ bool operator()(cuda_impl::RowIndexT ridx, NodeSplitData const& data) const {
       RegTree::Node const& node = data.split_node;
-      // given a row index, returns the node id it belongs to
+      // Given a global row index, returns the node id it belongs to
       float cut_value = d_matrix.GetFvalue(ridx, node.SplitIndex());
       // Missing value
       bool go_left = true;
@@ -628,15 +628,13 @@ struct GPUHistMakerDevice {
     if (is_cat) {
       // should be set to nan in evaluation split.
       CHECK(common::CheckNAN(candidate.split.fvalue));
-      std::vector<common::CatBitField::value_type> split_cats;
-
-      auto h_cats = this->evaluator_.GetHostNodeCats(candidate.nidx);
+      auto cat_bits = this->evaluator_.GetHostNodeCats(candidate.nidx);
       auto n_bins_feature = cuts_->FeatureBins(candidate.split.findex);
-      split_cats.resize(common::CatBitField::ComputeStorageSize(n_bins_feature), 0);
-      CHECK_LE(split_cats.size(), h_cats.size());
-      std::copy(h_cats.data(), h_cats.data() + split_cats.size(), split_cats.data());
+      auto n_words = common::CatBitField::ComputeStorageSize(n_bins_feature);
+      CHECK_LE(n_words, cat_bits.size());
+      cat_bits = cat_bits.subspan(0, n_words);
 
-      tree.ExpandCategorical(candidate.nidx, candidate.split.findex, split_cats,
+      tree.ExpandCategorical(candidate.nidx, candidate.split.findex, cat_bits,
                              candidate.split.dir == kLeftDir, base_weight, left_weight,
                              right_weight, candidate.split.loss_chg, parent_hess, left_hess,
                              right_hess);
