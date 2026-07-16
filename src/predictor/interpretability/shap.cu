@@ -1306,7 +1306,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
   out_contribs->Fill(0.0f);
 
-  auto prepared = PrepareGpuQuadratureModel(ctx, model, tree_end, ngroup, tree_weights,
+  auto prepared = PrepareGpuQuadratureModel(model, tree_end, ngroup, tree_weights,
                                             "Predict interaction contribution");
 
   auto new_enc =
