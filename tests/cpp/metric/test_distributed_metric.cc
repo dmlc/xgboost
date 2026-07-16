@@ -102,10 +102,13 @@ constexpr bool UseFederated() {
 auto MakeParamsForTest() {
   std::vector<Param> cases;
 
-  auto push = [&](std::string name, auto fn) {
+  auto push = [&](std::string name, auto fn, bool cpu_only = false) {
     for (bool is_federated : {false, true}) {
       for (DataSplitMode m : {DataSplitMode::kCol, DataSplitMode::kRow}) {
         for (auto d : {DeviceOrd::CPU(), DeviceOrd::CUDA(0)}) {
+          if (cpu_only && d.IsCUDA()) {
+            continue;
+          }
           if (!is_federated && !UseNCCL() && d.IsCUDA()) {
             // Federated doesn't use nccl.
             continue;
@@ -135,9 +138,11 @@ auto MakeParamsForTest() {
   // AUC
   REFLECT_NAME(BinaryAUC);
   REFLECT_NAME(MultiClassAUC);
+  REFLECT_NAME(MultiLabelAUC);
   REFLECT_NAME(RankingAUC);
   REFLECT_NAME(PRAUC);
   REFLECT_NAME(MultiClassPRAUC);
+  REFLECT_NAME(MultiLabelPRAUC);
   REFLECT_NAME(RankingPRAUC);
   // Elementwise
   REFLECT_NAME(RMSE);
@@ -206,5 +211,19 @@ TEST(Metric, ExpectileLoadConfig) {
   auto result = GetMetricEval(loaded.get(), preds, {0.0f, 1.0f}, {}, {}, DataSplitMode::kRow);
   // alpha=0.8, diffs {0.1, -0.1} => losses {0.2*0.01, 0.8*0.01} -> mean 0.005.
   EXPECT_NEAR(result, 0.005f, 1e-6f);
+}
+
+TEST(AUC, MultiLabelEmptyWorker) {
+  collective::TestDistributedGlobal(2, [] {
+    VerifyMultiLabelAUCEmptyWorker("auc", DeviceOrd::CPU());
+    VerifyMultiLabelAUCEmptyWorker("aucpr", DeviceOrd::CPU());
+  });
+  if (UseCUDA() && UseNCCL() && curt::AllVisibleGPUs() >= 2) {
+    collective::TestDistributedGlobal(2, [] {
+      auto device = DeviceOrd::CUDA(collective::GetRank());
+      VerifyMultiLabelAUCEmptyWorker("auc", device);
+      VerifyMultiLabelAUCEmptyWorker("aucpr", device);
+    });
+  }
 }
 }  // namespace xgboost::metric

@@ -1,6 +1,6 @@
 """Tests for evaluation metrics."""
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pytest
@@ -226,45 +226,90 @@ def run_roc_auc_binary(tree_method: str, n_samples: int, device: Device) -> None
     np.testing.assert_allclose(skl_auc, auc, rtol=1e-6)
 
 
-def run_pr_auc_multi(tree_method: str, device: Device) -> None:
-    """Test for PR AUC metric on a multi-class classification problem."""
-    from sklearn.datasets import make_classification
+def run_pr_auc_multi(
+    tree_method: str,
+    device: Device,
+    *,
+    multi_label: bool = False,
+    multi_strategy: str = "one_output_per_tree",
+) -> None:
+    """Test PR AUC on a multi-class or multi-label classification problem."""
+    from sklearn.datasets import make_classification, make_multilabel_classification
 
-    X, y = make_classification(64, 16, n_informative=8, n_classes=3, random_state=1994)
+    if multi_label:
+        X, y = make_multilabel_classification(
+            128,
+            16,
+            n_classes=3,
+            n_labels=2,
+            allow_unlabeled=False,
+            random_state=1994,
+        )
+    else:
+        X, y = make_classification(
+            64, 16, n_informative=8, n_classes=3, random_state=1994
+        )
     clf = XGBClassifier(
-        tree_method=tree_method, n_estimators=1, eval_metric="aucpr", device=device
+        tree_method=tree_method,
+        n_estimators=1,
+        eval_metric="aucpr",
+        device=device,
+        multi_strategy=multi_strategy,
     )
     clf.fit(X, y, eval_set=[(X, y)])
     evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]
     # No available implementation for comparison, just check that XGBoost converges
     # to 1.0
     clf = XGBClassifier(
-        tree_method=tree_method, n_estimators=10, eval_metric="aucpr", device=device
+        tree_method=tree_method,
+        n_estimators=10,
+        eval_metric="aucpr",
+        device=device,
+        multi_strategy=multi_strategy,
     )
     clf.fit(X, y, eval_set=[(X, y)])
     evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]
     np.testing.assert_allclose(1.0, evals_result, rtol=1e-2)
 
 
-def run_roc_auc_multi(  # pylint: disable=too-many-locals
-    tree_method: str, n_samples: int, weighted: bool, device: Device
+# pylint: disable=too-many-locals, too-many-arguments
+def run_roc_auc_multi(
+    tree_method: str,
+    n_samples: int,
+    weighted: bool,
+    device: Device,
+    *,
+    multi_label: bool = False,
+    multi_strategy: str = "one_output_per_tree",
 ) -> None:
-    """Test for ROC AUC metric on a multi-class classification problem."""
-    from sklearn.datasets import make_classification
+    """Test ROC AUC on a multi-class or multi-label classification problem."""
+    from sklearn.datasets import make_classification, make_multilabel_classification
     from sklearn.metrics import roc_auc_score
 
     rng = np.random.RandomState(1994)
     n_features = 10
     n_classes = 4
 
-    X, y = make_classification(
-        n_samples,
-        n_features,
-        n_informative=n_features,
-        n_redundant=0,
-        n_classes=n_classes,
-        random_state=rng,
-    )
+    if multi_label:
+        X, y = make_multilabel_classification(
+            n_samples,
+            n_features,
+            n_classes=n_classes,
+            n_labels=2,
+            allow_unlabeled=False,
+            random_state=rng,
+        )
+        objective = "binary:logistic"
+    else:
+        X, y = make_classification(
+            n_samples,
+            n_features,
+            n_informative=n_features,
+            n_redundant=0,
+            n_classes=n_classes,
+            random_state=rng,
+        )
+        objective = "multi:softprob"
     if weighted:
         weights = rng.randn(n_samples)
         weights -= weights.min()
@@ -273,30 +318,39 @@ def run_roc_auc_multi(  # pylint: disable=too-many-locals
         weights = None
 
     Xy = DMatrix(X, y, weight=weights)
+    params: dict[str, Any] = {
+        "tree_method": tree_method,
+        "eval_metric": "auc",
+        "objective": objective,
+        "device": device,
+        "multi_strategy": multi_strategy,
+    }
+    if not multi_label:
+        params["num_class"] = n_classes
     booster = train(
-        {
-            "tree_method": tree_method,
-            "eval_metric": "auc",
-            "objective": "multi:softprob",
-            "num_class": n_classes,
-            "device": device,
-        },
+        params,
         Xy,
         num_boost_round=1,
     )
     score = booster.predict(Xy)
-    skl_auc = roc_auc_score(
-        y, score, average="weighted", sample_weight=weights, multi_class="ovr"
-    )
+    if multi_label:
+        skl_auc = roc_auc_score(y, score, average="macro", sample_weight=weights)
+    else:
+        skl_auc = roc_auc_score(
+            y, score, average="weighted", sample_weight=weights, multi_class="ovr"
+        )
     auc = float(booster.eval(Xy).split(":")[1])
     np.testing.assert_allclose(skl_auc, auc, rtol=1e-6)
 
     X = rng.randn(*X.shape)
 
     score = booster.predict(DMatrix(X, weight=weights))
-    skl_auc = roc_auc_score(
-        y, score, average="weighted", sample_weight=weights, multi_class="ovr"
-    )
+    if multi_label:
+        skl_auc = roc_auc_score(y, score, average="macro", sample_weight=weights)
+    else:
+        skl_auc = roc_auc_score(
+            y, score, average="weighted", sample_weight=weights, multi_class="ovr"
+        )
     auc = float(booster.eval(DMatrix(X, y, weight=weights)).split(":")[1])
     np.testing.assert_allclose(skl_auc, auc, rtol=1e-5)
 

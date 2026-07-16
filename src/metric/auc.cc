@@ -70,38 +70,47 @@ std::tuple<double, double, double> BinaryAUC(common::Span<float const> predts,
 }
 
 /**
- * Calculate AUC for multi-class classification problem using 1-vs-rest approach.
+ * Calculate AUC for multi-class classification using 1-vs-rest, or for multi-label
+ * classification by evaluating each target independently.
  *
- * TODO(jiaming): Use better algorithms like:
+ * TODO(jiaming): Use better algorithms for multi-class classification like:
  *
  * - Kleiman, Ross and Page, David. $AUC_{\mu}$: A Performance Metric for Multi-Class
  *   Machine Learning Models
  */
 template <typename BinaryAUC>
-double MultiClassOVR(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
-                     size_t n_classes, int32_t n_threads, BinaryAUC &&binary_auc) {
-  CHECK_NE(n_classes, 0);
+double MultiAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
+                std::size_t n_outputs, std::int32_t n_threads, MultiAUCType type,
+                BinaryAUC &&binary_auc) {
+  CHECK_NE(n_outputs, 0);
   auto const labels = info.labels.HostView();
   if (labels.Shape(0) != 0) {
-    CHECK_EQ(labels.Shape(1), 1) << "AUC doesn't support multi-target model.";
+    if (type == MultiAUCType::kMultiClass) {
+      CHECK_EQ(labels.Shape(1), 1);
+    } else {
+      CHECK_EQ(labels.Shape(1), n_outputs);
+    }
   }
+  auto n_samples = labels.Shape(0);
+  CHECK_EQ(predts.size(), n_samples * n_outputs);
 
-  std::vector<double> results_storage(n_classes * 3, 0);
-  auto results = linalg::MakeTensorView(ctx, results_storage, n_classes, 3);
+  std::vector<double> results_storage(n_outputs * 3, 0);
+  auto results = linalg::MakeTensorView(ctx, results_storage, n_outputs, 3);
   auto local_area = results.Slice(linalg::All(), 0);
   auto tp = results.Slice(linalg::All(), 1);
   auto auc = results.Slice(linalg::All(), 2);
 
   auto weights = common::OptionalWeights{info.weights_.ConstHostSpan()};
-  auto predts_t = linalg::MakeTensorView(ctx, predts, info.num_row_, n_classes);
+  auto predts_t = linalg::MakeTensorView(ctx, predts, n_samples, n_outputs);
 
-  if (info.labels.Size() != 0) {
-    common::ParallelFor(n_classes, n_threads, [&](auto c) {
-      std::vector<float> proba(info.labels.Size());
-      std::vector<float> response(info.labels.Size());
+  if (n_samples != 0) {
+    common::ParallelFor(n_outputs, n_threads, [&](auto c) {
+      std::vector<float> proba(n_samples);
+      std::vector<float> response(n_samples);
       for (size_t i = 0; i < proba.size(); ++i) {
         proba[i] = predts_t(i, c);
-        response[i] = labels(i) == c ? 1.0f : 0.0;
+        response[i] =
+            type == MultiAUCType::kMultiClass ? static_cast<float>(labels(i) == c) : labels(i, c);
       }
       double fp;
       std::tie(fp, tp(c), auc(c)) = binary_auc(
@@ -110,29 +119,32 @@ double MultiClassOVR(Context const *ctx, common::Span<float const> predts, MetaI
     });
   }
 
-  // we have 2 averages going in here, first is among workers, second is among
-  // classes. allreduce sums up fp/tp auc for each class.
+  // We have 2 averages going in here, first among workers, then among outputs.
+  // Allreduce sums up fp/tp/auc for each output.
   auto rc = collective::GlobalSum(ctx, info, results);
   collective::SafeColl(rc);
 
   double auc_sum{0};
-  double tp_sum{0};
-  for (size_t c = 0; c < n_classes; ++c) {
-    if (local_area(c) != 0) {
-      // normalize and weight it by prevalence.  After allreduce, `local_area`
-      // means the total covered area (not area under curve, rather it's the
-      // accessible area for each worker) for each class.
-      auc_sum += auc(c) / local_area(c) * tp(c);
-      tp_sum += tp(c);
+  // Sum of class prevalence for multiclass ROC, or the output count for macro averaging.
+  double weight_sum{0};
+  for (size_t c = 0; c < n_outputs; ++c) {
+    if (local_area(c) != 0 && !std::isnan(auc(c))) {
+      // Normalize each output. After allreduce, `local_area` means the total covered area
+      // (not area under curve, rather it's the accessible area for each
+      // worker). Multiclass uses the existing prevalence weight, while multi-label uses
+      // macro averaging.
+      auto weight = type == MultiAUCType::kMultiClass ? tp(c) : 1.0;
+      auc_sum += auc(c) / local_area(c) * weight;
+      weight_sum += weight;
     } else {
       auc_sum = std::numeric_limits<double>::quiet_NaN();
       break;
     }
   }
-  if (tp_sum == 0 || std::isnan(auc_sum)) {
+  if (weight_sum == 0 || std::isnan(auc_sum)) {
     auc_sum = std::numeric_limits<double>::quiet_NaN();
   } else {
-    auc_sum /= tp_sum;
+    auc_sum /= weight_sum;
   }
   return auc_sum;
 }
@@ -182,7 +194,7 @@ double GroupRankingROC(Context const *ctx, common::Span<float const> predts,
 }
 
 /**
- * \brief PR-AUC for binary classification.
+ * @brief PR-AUC for binary classification.
  *
  *   https://doi.org/10.1371/journal.pone.0092209
  */
@@ -266,8 +278,9 @@ class EvalAUC : public MetricNoCache {
       info.labels.SetDevice(ctx_->Device());
       info.weights_.SetDevice(ctx_->Device());
     }
-    //  We use the global size to handle empty dataset.
-    std::array<bst_idx_t, 2> meta{info.labels.Size(), preds.Size()};
+    // Use global metadata so empty workers enter the same metric path as nonempty workers.
+    std::array<bst_idx_t, 4> meta{info.labels.Size(), preds.Size(), info.labels.Shape(1),
+                                  !info.group_ptr_.empty()};
     if (!info.IsVerticalFederated()) {
       auto rc = collective::Allreduce(
           ctx_,
@@ -276,22 +289,31 @@ class EvalAUC : public MetricNoCache {
           collective::Op::kMax);
       collective::SafeColl(rc);
     }
-    if (meta[0] == 0) {
+    auto [n_labels, n_predts, n_targets, is_ranking] = meta;
+
+    if (n_labels == 0) {
       // Empty across all workers, which is not supported.
       auc = std::numeric_limits<double>::quiet_NaN();
-    } else if (!info.group_ptr_.empty()) {
+    } else if (is_ranking) {
       /**
        * learning to rank
        */
-      if (!info.weights_.Empty()) {
-        CHECK_EQ(info.weights_.Size(), info.group_ptr_.size() - 1);
+      if (n_targets > 1 || (n_predts > n_labels && n_predts % n_labels == 0)) {
+        LOG(FATAL) << "AUC and AUCPR do not support multi-output learning-to-rank.";
       }
+      CHECK_EQ(n_predts, n_labels) << "Invalid shape of labels and predictions for AUC.";
+
       uint32_t valid_groups = 0;
       if (info.labels.Size() != 0) {
-        CHECK_EQ(info.group_ptr_.back(), info.labels.Size());
+        CHECK_GE(info.group_ptr_.size(), 2);
+        if (!info.weights_.Empty()) {
+          CHECK_EQ(info.weights_.Size(), info.group_ptr_.size() - 1);
+        }
+        CHECK_EQ(info.group_ptr_.back(), info.labels.Shape(0));
         std::tie(auc, valid_groups) = static_cast<Curve *>(this)->EvalRanking(preds, info);
       }
-      if (valid_groups != info.group_ptr_.size() - 1) {
+      auto n_groups = info.group_ptr_.empty() ? 0 : info.group_ptr_.size() - 1;
+      if (valid_groups != n_groups) {
         InvalidGroupAUC();
       }
 
@@ -300,13 +322,21 @@ class EvalAUC : public MetricNoCache {
         CHECK_LE(auc, 1.0 + kRtEps) << "Total AUC across groups: " << auc * valid_groups
                                     << ", valid groups: " << valid_groups;
       }
-    } else if (meta[0] != meta[1] && meta[1] % meta[0] == 0) {
+    } else if (n_targets > 1) {
+      if (n_predts > n_labels && n_predts % n_labels == 0) {
+        LOG(FATAL) << "AUC and AUCPR do not support multi-target-multi-class classification.";
+      }
+      CHECK_EQ(n_predts, n_labels) << "Invalid shape of labels and predictions for AUC.";
+      CHECK(!info.IsColumnSplit())
+          << "AUC and AUCPR do not support column-split data for multi-label classification.";
+      auc = static_cast<Curve *>(this)->EvalMultiLabel(preds, info, n_targets);
+    } else if (n_predts != n_labels) {
       /**
        * multi class
        */
-      size_t n_classes = meta[1] / meta[0];
-      CHECK_NE(n_classes, 0);
-      auc = static_cast<Curve *>(this)->EvalMultiClass(preds, info, n_classes);
+      CHECK_GT(n_predts, n_labels) << "Invalid shape of labels and predictions for AUC.";
+      CHECK_EQ(n_predts % n_labels, 0) << "Invalid shape of labels and predictions for AUC.";
+      auc = static_cast<Curve *>(this)->EvalMultiClass(preds, info, n_predts / n_labels);
     } else {
       /**
        * binary classification
@@ -353,11 +383,24 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     auto n_threads = ctx_->Threads();
     CHECK_NE(n_classes, 0);
     if (ctx_->IsCUDA()) {
-      auc = GPUMultiClassROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_classes);
+      auc = GPUMultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_classes,
+                           MultiAUCType::kMultiClass);
     } else {
-      auc = MultiClassOVR(ctx_, predts.ConstHostVector(), info, n_classes, n_threads, BinaryROCAUC);
+      auc = MultiAUC(ctx_, predts.ConstHostVector(), info, n_classes, n_threads,
+                     MultiAUCType::kMultiClass, BinaryROCAUC);
     }
     return auc;
+  }
+
+  double EvalMultiLabel(HostDeviceVector<float> const &predts, MetaInfo const &info,
+                        size_t n_targets) {
+    if (ctx_->IsCUDA()) {
+      return GPUMultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_targets,
+                            MultiAUCType::kMultiLabel);
+    } else {
+      return MultiAUC(ctx_, predts.ConstHostVector(), info, n_targets, ctx_->Threads(),
+                      MultiAUCType::kMultiLabel, BinaryROCAUC);
+    }
   }
 
   std::tuple<double, double, double> EvalBinary(HostDeviceVector<float> const &predts,
@@ -390,8 +433,8 @@ std::tuple<double, double, double> GPUBinaryROCAUC(Context const *, common::Span
   return {};
 }
 
-double GPUMultiClassROCAUC(Context const *, common::Span<float const>, MetaInfo const &,
-                           std::shared_ptr<DeviceAUCCache> *, std::size_t) {
+double GPUMultiROCAUC(Context const *, common::Span<float const>, MetaInfo const &,
+                      std::shared_ptr<DeviceAUCCache> *, std::size_t, MultiAUCType) {
   common::AssertGPUSupport();
   return 0.0;
 }
@@ -425,10 +468,23 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_classes) {
     if (ctx_->IsCUDA()) {
-      return GPUMultiClassPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_classes);
+      return GPUMultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_classes,
+                           MultiAUCType::kMultiClass);
     } else {
       auto n_threads = this->ctx_->Threads();
-      return MultiClassOVR(ctx_, predts.ConstHostSpan(), info, n_classes, n_threads, BinaryPRAUC);
+      return MultiAUC(ctx_, predts.ConstHostSpan(), info, n_classes, n_threads,
+                      MultiAUCType::kMultiClass, BinaryPRAUC);
+    }
+  }
+
+  double EvalMultiLabel(HostDeviceVector<float> const &predts, MetaInfo const &info,
+                        size_t n_targets) {
+    if (ctx_->IsCUDA()) {
+      return GPUMultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_targets,
+                           MultiAUCType::kMultiLabel);
+    } else {
+      return MultiAUC(ctx_, predts.ConstHostSpan(), info, n_targets, ctx_->Threads(),
+                      MultiAUCType::kMultiLabel, BinaryPRAUC);
     }
   }
 
@@ -467,8 +523,8 @@ std::tuple<double, double, double> GPUBinaryPRAUC(Context const *, common::Span<
   return {};
 }
 
-double GPUMultiClassPRAUC(Context const *, common::Span<float const>, MetaInfo const &,
-                          std::shared_ptr<DeviceAUCCache> *, std::size_t) {
+double GPUMultiPRAUC(Context const *, common::Span<float const>, MetaInfo const &,
+                     std::shared_ptr<DeviceAUCCache> *, std::size_t, MultiAUCType) {
   common::AssertGPUSupport();
   return {};
 }

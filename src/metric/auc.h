@@ -4,6 +4,7 @@
 #ifndef XGBOOST_METRIC_AUC_H_
 #define XGBOOST_METRIC_AUC_H_
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -15,6 +16,8 @@
 #include "xgboost/span.h"
 
 namespace xgboost::metric {
+enum class MultiAUCType : std::uint8_t { kMultiClass, kMultiLabel };
+
 /***********
  * ROC AUC *
  ***********/
@@ -29,9 +32,9 @@ std::tuple<double, double, double> GPUBinaryROCAUC(Context const *ctx,
                                                    MetaInfo const &info,
                                                    std::shared_ptr<DeviceAUCCache> *p_cache);
 
-double GPUMultiClassROCAUC(Context const *ctx, common::Span<float const> predts,
-                           MetaInfo const &info, std::shared_ptr<DeviceAUCCache> *p_cache,
-                           std::size_t n_classes);
+double GPUMultiROCAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
+                      std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_outputs,
+                      MultiAUCType type);
 
 std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<float const> predts,
                                                MetaInfo const &info,
@@ -45,9 +48,9 @@ std::tuple<double, double, double> GPUBinaryPRAUC(Context const *ctx,
                                                   MetaInfo const &info,
                                                   std::shared_ptr<DeviceAUCCache> *p_cache);
 
-double GPUMultiClassPRAUC(Context const *ctx, common::Span<float const> predts,
-                          MetaInfo const &info, std::shared_ptr<DeviceAUCCache> *p_cache,
-                          std::size_t n_classes);
+double GPUMultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
+                     std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_outputs,
+                     MultiAUCType type);
 
 std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
                                                  common::Span<float const> predts,
@@ -55,8 +58,7 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
                                                  std::shared_ptr<DeviceAUCCache> *cache);
 
 namespace detail {
-XGBOOST_DEVICE inline double CalcH(double fp_a, double fp_b, double tp_a,
-                                   double tp_b) {
+XGBOOST_DEVICE inline double CalcH(double fp_a, double fp_b, double tp_a, double tp_b) {
   return (fp_b - fp_a) / (tp_b - tp_a);
 }
 
@@ -66,8 +68,7 @@ XGBOOST_DEVICE inline double CalcB(double fp_a, double h, double tp_a, double to
 
 XGBOOST_DEVICE inline double CalcA(double h) { return h + 1; }
 
-XGBOOST_DEVICE inline double CalcDeltaPRAUC(double fp_prev, double fp,
-                                            double tp_prev, double tp,
+XGBOOST_DEVICE inline double CalcDeltaPRAUC(double fp_prev, double fp, double tp_prev, double tp,
                                             double total_pos) {
   double pr_prev = tp_prev / total_pos;
   double pr = tp / total_pos;
@@ -85,9 +86,7 @@ XGBOOST_DEVICE inline double CalcDeltaPRAUC(double fp_prev, double fp,
 
   double area = 0;
   if (b != 0.0) {
-    area = (pr - pr_prev -
-            b / a * (std::log(a * pr + b) - std::log(a * pr_prev + b))) /
-           a;
+    area = (pr - pr_prev - b / a * (std::log(a * pr + b) - std::log(a * pr_prev + b))) / a;
   } else {
     area = (pr - pr_prev) / a;
   }
@@ -96,8 +95,8 @@ XGBOOST_DEVICE inline double CalcDeltaPRAUC(double fp_prev, double fp,
 }  // namespace detail
 
 inline void InvalidGroupAUC() {
-  LOG(INFO) << "Invalid group with less than 3 samples is found on worker "
-            << collective::GetRank() << ".  Calculating AUC value requires at "
+  LOG(INFO) << "Invalid group with less than 3 samples is found on worker " << collective::GetRank()
+            << ".  Calculating AUC value requires at "
             << "least 2 pairs of samples.";
 }
 

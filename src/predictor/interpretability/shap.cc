@@ -812,6 +812,9 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   };
 
   LaunchShap(ctx, p_fmat, model, process_view);
+  if (is_vector_leaf) {
+    LOG(FATAL) << "Approximate predict contribution " << MTNotImplemented();
+  }
 }
 
 void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
