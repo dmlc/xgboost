@@ -46,7 +46,7 @@ std::enable_if_t<std::is_floating_point_v<Float>, std::string> ToStr(
 
 template <typename Float>
 std::string ToStr(linalg::VectorView<Float> value, bst_target_t truncate_limit = 3) {
-  // Hardcoded limit to avoid dumping long arrays into dot graph.
+  // Truncate long arrays to keep dumps (e.g. dot graphs) reasonably sized.
   int32_t constexpr kFloatMaxPrecision = std::numeric_limits<float>::max_digits10;
   static_assert(std::is_floating_point_v<Float>,
                 "Use std::to_string instead for non-floating point values.");
