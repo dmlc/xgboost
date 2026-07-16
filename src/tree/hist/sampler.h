@@ -4,6 +4,7 @@
 #ifndef XGBOOST_TREE_HIST_SAMPLER_H_
 #define XGBOOST_TREE_HIST_SAMPLER_H_
 
+#include <cmath>    // for isinf
 #include <cstdint>  // for uint64_t
 #include <random>   // for bernoulli_distribution, linear_congruential_engine
 #include <vector>   // for vector
@@ -58,6 +59,10 @@ struct MvsGradOp {
 };
 
 XGBOOST_DEVICE inline float SamplingProbability(float u, float reg_abs_grad) {
+  // An infinite threshold represents an empty sampling budget exactly.
+  if (std::isinf(u)) {
+    return 0.0f;
+  }
   if (::fabs(u) < kRtEps) {
     u = ::copysign(kRtEps, u);
   }
@@ -65,7 +70,7 @@ XGBOOST_DEVICE inline float SamplingProbability(float u, float reg_abs_grad) {
 }
 
 template <typename T>
-XGBOOST_DEVICE inline detail::GradientPairInternal<T> RescaleGrad(
+XGBOOST_DEVICE detail::GradientPairInternal<T> RescaleGrad(
     float p, detail::GradientPairInternal<T> const& gpair) {
   if (p >= 1.0f) {
     return gpair;
@@ -87,13 +92,16 @@ class Sampler {
       : sampling_method_{param.sampling_method}, subsample_{param.subsample} {}
 
   void Sample(Context const* ctx, linalg::MatrixView<GradientPair> out);
-  void ApplySampling(Context const* ctx, linalg::MatrixView<GradientPair const> sampled_split_gpair,
+  /** Replay sampling on the value gradient using the original, unsampled split gradient. */
+  void ApplySampling(Context const* ctx, linalg::MatrixView<GradientPair const> split_gpair,
                      linalg::Matrix<GradientPair>* value_gpair) const;
 
  private:
   int sampling_method_{TrainParam::kUniform};
   float subsample_{1.0f};
   bool is_sampling_{false};
+  // Scalar state used to replay sampling without caching per-row probabilities or masks.
+  std::uint64_t initial_seed_{0};
 };
 }  // namespace cpu_impl
 }  // namespace xgboost::tree

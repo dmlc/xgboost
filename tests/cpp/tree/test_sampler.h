@@ -17,14 +17,14 @@ namespace xgboost::tree {
 inline bst_idx_t CheckSampledRows(linalg::MatrixView<GradientPair const> gpair_0,
                                   linalg::MatrixView<GradientPair const> gpair_1) {
   CHECK_EQ(gpair_0.Shape(0), gpair_1.Shape(0));
-  CHECK_GE(gpair_1.Shape(1), gpair_1.Shape(1));
+  CHECK_GE(gpair_1.Shape(1), gpair_0.Shape(1));
   auto n_samples = gpair_0.Shape(0);
   auto n_targets = gpair_1.Shape(1);
   bst_idx_t sampled_count = 0;
   for (std::size_t i = 0; i < n_samples; ++i) {
-    bool first_is_zero = gpair_0(i, 0).GetHess() == 0.0f;
+    bool first_is_zero = gpair_0(i, 0).GetGrad() == 0.0f && gpair_0(i, 0).GetHess() == 0.0f;
     for (bst_target_t t = 0; t < n_targets; ++t) {
-      bool is_zero = (gpair_1(i, t).GetGrad() == 0.0f && gpair_1(i, t).GetHess() == 0.0f);
+      bool is_zero = gpair_1(i, t).GetGrad() == 0.0f && gpair_1(i, t).GetHess() == 0.0f;
       EXPECT_EQ(first_is_zero, is_zero);
     }
     if (!first_is_zero) {
@@ -89,7 +89,14 @@ inline void CheckValueReweight(linalg::MatrixView<GradientPair const> sampled_sp
   auto n_samples = value_after.Shape(0);
   auto n_targets = value_after.Shape(1);
   for (bst_idx_t i = 0; i < n_samples; ++i) {
-    if (sampled_split(i, 0).GetHess() == 0.0f) {
+    bool is_sampled{false};
+    for (bst_target_t t = 0; t < sampled_split.Shape(1); ++t) {
+      if (sampled_split(i, t).GetGrad() != 0.0f || sampled_split(i, t).GetHess() != 0.0f) {
+        is_sampled = true;
+        break;
+      }
+    }
+    if (!is_sampled) {
       for (bst_target_t t = 0; t < n_targets; ++t) {
         ASSERT_EQ(value_after(i, t).GetGrad(), 0.0f);
         ASSERT_EQ(value_after(i, t).GetHess(), 0.0f);
