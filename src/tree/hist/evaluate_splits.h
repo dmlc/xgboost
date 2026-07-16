@@ -151,8 +151,7 @@ class HistEvaluator {
     }
 
     if (best.is_cat) {
-      auto n = common::CatBitField::ComputeStorageSize(n_bins + 1);
-      best.cat_bits.resize(n, 0);
+      best.cat_bits.resize(common::SizeCatBitsForMaxCode(common::AsCat(best.split_value)), 0);
       common::CatBitField cat_bits{best.cat_bits};
       cat_bits.Set(best.split_value);
     }
@@ -229,8 +228,10 @@ class HistEvaluator {
     }
 
     if (best_thresh != -1) {
-      auto n = common::CatBitField::ComputeStorageSize(n_bins_feature);
-      best.cat_bits = decltype(best.cat_bits)(n, 0);
+      // size by max observed physical code; cut_val[f_begin..f_end) is sorted ascending
+      CHECK_GT(f_end, f_begin);
+      auto max_code = common::AsCat(cut_val[f_end - 1]);
+      best.cat_bits = decltype(best.cat_bits)(common::SizeCatBitsForMaxCode(max_code), 0);
       common::CatBitField cat_bits{best.cat_bits};
       bst_bin_t partition = d_step == 1 ? (best_thresh - it_begin + 1) : (best_thresh - f_begin);
       CHECK_GT(partition, 0);
@@ -605,8 +606,7 @@ class HistMultiEvaluator {
     }
 
     if (best.is_cat) {
-      auto n = common::CatBitField::ComputeStorageSize(n_bins + 1);
-      best.cat_bits.resize(n, 0);
+      best.cat_bits.resize(common::SizeCatBitsForMaxCode(common::AsCat(best.split_value)), 0);
       common::CatBitField cat_bits{best.cat_bits};
       cat_bits.Set(best.split_value);
     }

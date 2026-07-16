@@ -230,6 +230,7 @@ class MetaInfo {
   [[nodiscard]] CatContainer const* Cats() const;
   [[nodiscard]] CatContainer* Cats();
   [[nodiscard]] std::shared_ptr<CatContainer const> CatsShared() const;
+  [[nodiscard]] std::shared_ptr<CatContainer> CatsShared();
   /**
    * @brief Setter for categories.
    */
@@ -732,6 +733,7 @@ class DMatrix {
   [[nodiscard]] std::shared_ptr<CatContainer const> CatsShared() const {
     return this->Info().CatsShared();
   }
+  [[nodiscard]] std::shared_ptr<CatContainer> CatsShared() { return this->Info().CatsShared(); }
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;

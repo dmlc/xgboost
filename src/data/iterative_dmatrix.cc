@@ -66,7 +66,7 @@ void IterativeDMatrix::InitFromCPU(
 
   common::HistogramCuts cuts{0};
   ExternalDataInfo ext_info;
-  cpu_impl::GetDataShape(ctx, proxy, &iter, missing, &ext_info);
+  cpu_impl::GetDataShape(ctx, proxy, &iter, missing, ref, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
 
   /**

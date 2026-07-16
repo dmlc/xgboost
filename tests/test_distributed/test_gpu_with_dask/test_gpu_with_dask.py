@@ -617,6 +617,37 @@ def test_categorical(tmp_path: Path, local_cuda_client: Client) -> None:
 
 
 @pytest.mark.skipif(**tm.no_dask_cudf())
+def test_categorical_ref_quantile_dmatrix(local_cuda_client: Client) -> None:
+    """GPU mirror of tests/test_distributed/test_with_dask::test_categorical_ref_quantile_dmatrix.
+
+    Smoke-test that ref-cats-aliased DaskQuantileDMatrix construction + GPU train
+    succeeds end-to-end. The cross-worker content-hash Allreduce runs as a side effect
+    of construction; the negative path is covered by the C++ CatContainerHash suite.
+    """
+    X, y = make_categorical(local_cuda_client, 3000, 16, 4)
+    X = X.to_backend("cudf")
+    X_val, y_val = make_categorical(local_cuda_client, 1000, 16, 4)
+    X_val = X_val.to_backend("cudf")
+
+    train = dxgb.DaskQuantileDMatrix(local_cuda_client, X, y, enable_categorical=True)
+    valid = dxgb.DaskQuantileDMatrix(
+        local_cuda_client, X_val, y_val, ref=train, enable_categorical=True
+    )
+    out = dxgb.train(
+        local_cuda_client,
+        {"tree_method": "hist", "device": "cuda", "seed": 0},
+        train,
+        num_boost_round=8,
+        evals=[(train, "Train"), (valid, "Valid")],
+    )
+    train_rmse = np.asarray(out["history"]["Train"]["rmse"], dtype=np.float64)
+    valid_rmse = np.asarray(out["history"]["Valid"]["rmse"], dtype=np.float64)
+    assert np.isfinite(train_rmse).all() and np.isfinite(valid_rmse).all()
+    assert train_rmse[-1] / train_rmse[0] < 0.5, train_rmse.tolist()
+    assert valid_rmse[-1] / valid_rmse[0] < 0.85, valid_rmse.tolist()
+
+
+@pytest.mark.skipif(**tm.no_dask_cudf())
 def test_recode(local_cuda_client: Client) -> None:
     with dask.config.set(
         {

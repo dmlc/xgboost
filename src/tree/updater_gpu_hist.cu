@@ -606,7 +606,9 @@ struct GPUHistMakerDevice {
     return true;
   }
 
-  void ApplySplit(const GPUExpandEntry& candidate, RegTree* p_tree) {
+  void ApplySplit(GPUExpandEntry const& candidate, RegTree* p_tree,
+                  std::vector<std::uint32_t> const& h_cut_ptrs,
+                  std::vector<float> const& h_cut_vals) {
     RegTree& tree = *p_tree;
 
     // Sanity check - have we created a leaf with no training instances?
@@ -631,9 +633,23 @@ struct GPUHistMakerDevice {
       std::vector<common::CatBitField::value_type> split_cats;
 
       auto h_cats = this->evaluator_.GetHostNodeCats(candidate.nidx);
-      auto n_bins_feature = cuts_->FeatureBins(candidate.split.findex);
-      split_cats.resize(common::CatBitField::ComputeStorageSize(n_bins_feature), 0);
-      CHECK_LE(split_cats.size(), h_cats.size());
+      // size by max observed physical code; cut_values is compact + sorted
+      auto f_end = h_cut_ptrs[candidate.split.findex + 1];
+      auto f_begin = h_cut_ptrs[candidate.split.findex];
+      // sketch invariant: a categorical split must have >= 1 cut for that feature
+      CHECK_GT(f_end, f_begin)
+          << "Categorical split on feature " << candidate.split.findex
+          << " but the feature has zero cuts; sketch invariant violated.";
+      auto max_code = common::AsCat(h_cut_vals[f_end - 1]);
+      // per-feature cuts are sorted ascending; bound is the global MaxCategory
+      CHECK_LE(max_code, common::AsCat(cuts_->MaxCategory()))
+          << "Per-feature max_code (" << max_code << ") exceeds global MaxCategory ("
+          << cuts_->MaxCategory() << "); cuts table out of sync with feature " << candidate.split.findex << ".";
+      split_cats.resize(common::SizeCatBitsForMaxCode(max_code), 0);
+      // h_cats is global-max-sized; per-feature is always <=
+      CHECK_LE(split_cats.size(), h_cats.size())
+          << "Saved-tree split_cats overruns evaluator h_cats; per-feature max_code="
+          << max_code << " exceeds the global MaxCategory the evaluator sized for.";
       std::copy(h_cats.data(), h_cats.data() + split_cats.size(), split_cats.data());
 
       tree.ExpandCategorical(candidate.nidx, candidate.split.findex, split_cats,
@@ -696,11 +712,17 @@ struct GPUHistMakerDevice {
     p_fmat = this->Reset(gpair_all, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
 
+    // hoist cuts host vectors out of the per-leaf hot path; cuts_ is fixed for the
+    // tree so ConstHostVector() may force a one-shot D->H migration here, never per
+    // categorical split
+    auto const& h_cut_ptrs = cuts_->cut_ptrs_.ConstHostVector();
+    auto const& h_cut_vals = cuts_->cut_values_.ConstHostVector();
+
     // The set of leaves that can be expanded asynchronously
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
       for (auto& candidate : expand_set) {
-        this->ApplySplit(candidate, p_tree);
+        this->ApplySplit(candidate, p_tree, h_cut_ptrs, h_cut_vals);
       }
       // Get the candidates we are allowed to expand further
       // e.g. We do not bother further processing nodes whose children are beyond max depth

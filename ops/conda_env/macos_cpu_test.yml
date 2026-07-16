@@ -28,4 +28,5 @@ dependencies:
 - awscli
 - loky>=3.5.1
 - pyarrow
+- polars
 - cloudpickle

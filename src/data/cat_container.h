@@ -108,9 +108,10 @@ struct CatContainerImpl;
  */
 class CatContainer {
   /**
-   * @brief Implementation of the Copy method, used by both CPU and GPU. Note that this
-   * method changes the permission in the HostDeviceVector as we need to pull data into
-   * targeted devices.
+   * @brief Implementation of the Copy method, used by both CPU and GPU. Changes the
+   * permission in the HostDeviceVector to pull data into the targeted device.
+   *
+   * @pre caller holds @c sort_mu_ on both @c *this and @c *that (see @ref Copy()).
    */
   void CopyCommon(Context const* ctx, CatContainer const& that) {
     auto device = ctx->Device();
@@ -126,6 +127,9 @@ class CatContainer {
     this->feature_segments_.Copy(that.feature_segments_);
 
     this->n_total_cats_ = that.n_total_cats_;
+    // sorted_idx_ already copied above; carry the flag so Sort() short-circuits
+    this->sorted_ = that.sorted_;
+    this->is_ref_ = that.is_ref_;
 
     if (!device.IsCPU()) {
       // Pull to device
@@ -180,9 +184,14 @@ class CatContainer {
   void Sort(Context const* ctx);
   /**
    * @brief Obtain a view to the sorted index created by the @ref Sort method.
+   *
+   * @warning Caller is responsible for serializing span use beyond construction.
    */
   [[nodiscard]] common::Span<bst_cat_t const> RefSortedIndex(Context const* ctx) const {
-    std::lock_guard guard{device_mu_};
+    // sort_mu_ excludes concurrent Sort(); device_mu_ excludes the SetDevice() /
+    // permission flip on sorted_idx_'s HostDeviceVector storage; both held atomically
+    // to follow the class-wide lock order (sort_mu_ then device_mu_)
+    std::scoped_lock guard{sort_mu_, device_mu_};
     if (ctx->IsCPU()) {
       return this->sorted_idx_.ConstHostSpan();
     } else {
@@ -212,16 +221,24 @@ class CatContainer {
 #endif  // defined(XGBOOST_USE_CUDA)
 
  private:
-  mutable std::mutex device_mu_;  // mutex for copying between devices.
+  // mutex for copying between devices; HostView/DeviceView take only this lock and
+  // do not touch sort_mu_; lock order: sort_mu_ then device_mu_
+  mutable std::mutex device_mu_;
+  // serializes Sort()/Copy()/Save()/Load() and Copy() flag propagation;
+  // lock order: sort_mu_ then device_mu_
+  mutable std::mutex sort_mu_;
   HostDeviceVector<std::int32_t> feature_segments_;
   bst_cat_t n_total_cats_{0};
 
   std::unique_ptr<cpu_impl::CatContainerImpl> cpu_impl_;
 
   HostDeviceVector<bst_cat_t> sorted_idx_;
+  // idempotency flag for Sort(); guarded by sort_mu_
+  bool sorted_{false};
 #if defined(XGBOOST_USE_CUDA)
   std::unique_ptr<cuda_impl::CatContainerImpl> cu_impl_;
 #endif  // defined(XGBOOST_USE_CUDA)
+  // Copy() propagates this from src under sort_mu_
   bool is_ref_{false};
 };
 
