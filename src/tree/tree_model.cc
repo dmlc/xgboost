@@ -807,7 +807,9 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
       [&](auto const& lhs, auto const& rhs, bst_node_t nidx) {
         auto res = lhs.LeftChild(nidx) == rhs.LeftChild(nidx) &&
                    lhs.RightChild(nidx) == rhs.RightChild(nidx) &&
+                   lhs.SplitIndex(nidx) == rhs.SplitIndex(nidx) &&
                    lhs.DefaultLeft(nidx) == rhs.DefaultLeft(nidx) &&
+                   (!this->HasCategoricalSplit() || lhs.SplitType(nidx) == rhs.SplitType(nidx)) &&
                    lhs.IsLeaf(nidx) == rhs.IsLeaf(nidx) &&
                    (lhs.IsLeaf(nidx) ? leaf_same(lhs, rhs, nidx)
                                      : float_eq(lhs.SplitCond(nidx), rhs.SplitCond(nidx)));
