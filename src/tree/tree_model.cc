@@ -744,7 +744,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
 }
 
 bool RegTree::Equal(const RegTree& b) const {
-  if (this->IsMultiTarget() != b.IsMultiTarget()) {
+  if (this->NumTargets() != b.NumTargets()) {
     return false;
   }
   if (this->HasCategoricalSplit() != b.HasCategoricalSplit()) {
@@ -806,11 +806,11 @@ bool RegTree::Equal(const RegTree& b) const {
           return false;
         }
         auto res = lhs.LeftChild(nidx) == rhs.LeftChild(nidx) &&
-                           lhs.RightChild(nidx) == rhs.RightChild(nidx) &&
-                           lhs.DefaultLeft(nidx) == rhs.DefaultLeft(nidx) &&
-                           lhs.IsLeaf(nidx) == rhs.IsLeaf(nidx) && lhs.IsLeaf(nidx)
-                       ? leaf_same(lhs, rhs, nidx)
-                       : float_eq(lhs.SplitCond(nidx), rhs.SplitCond(nidx));
+                   lhs.RightChild(nidx) == rhs.RightChild(nidx) &&
+                   lhs.DefaultLeft(nidx) == rhs.DefaultLeft(nidx) &&
+                   lhs.IsLeaf(nidx) == rhs.IsLeaf(nidx) &&
+                   (lhs.IsLeaf(nidx) ? leaf_same(lhs, rhs, nidx)
+                                     : float_eq(lhs.SplitCond(nidx), rhs.SplitCond(nidx)));
         equal = res;
         // Stop if two trees are not equal.
         return res;

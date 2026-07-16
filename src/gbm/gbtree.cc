@@ -230,7 +230,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
   }
   if (in_gpair->HasValueGrad()) {
     CHECK(model_.learner_model_param->IsVectorLeaf())
-        << "Reduced gradien must be used with vector leaf trees";
+        << "Reduced gradient must be used with vector leaf trees";
   }
 
   TreesOneIter new_trees;
