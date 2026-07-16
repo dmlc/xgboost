@@ -606,12 +606,12 @@ class GraphvizGenerator : public TreeGenerator<TreeView> {
     auto cats_str = PrintCatsAsSet(cats);
     auto split_index = tree.SplitIndex(nidx);
 
-    std::string result =
-        SuperT::Match(kLabelTemplate, {{"{nid}", std::to_string(nidx)},
-                                       {"{fname}", GetFeatureName(SuperT::fmap_, split_index)},
-                                       {"{cond}", cats_str},
-                                       {"{stat}", this->NodeStat(tree, nidx)},
-                                       {"{params}", param_.condition_node_params}});
+    std::string result = SuperT::Match(
+        kLabelTemplate, {{"{nid}", std::to_string(nidx)},
+                         {"{fname}", GetFeatureName(SuperT::fmap_, split_index)},
+                         {"{cond}", cats_str},
+                         {"{stat}", this->with_stats_ ? this->NodeStat(tree, nidx) : ""},
+                         {"{params}", param_.condition_node_params}});
 
     result += BuildEdge<true>(tree, nidx, tree.LeftChild(nidx), true);
     result += BuildEdge<true>(tree, nidx, tree.RightChild(nidx), false);
