@@ -273,8 +273,8 @@ CompressedModel CompressTreeBucket(gbm::GBTreeModel const& model,
   return out;
 }
 
-GpuQuadratureModelData PrepareGpuQuadratureModel(Context const* ctx, gbm::GBTreeModel const& model,
-                                                 bst_tree_t tree_end, bst_target_t n_groups,
+GpuQuadratureModelData PrepareGpuQuadratureModel(gbm::GBTreeModel const& model, bst_tree_t tree_end,
+                                                 bst_target_t n_groups,
                                                  std::vector<float> const* tree_weights,
                                                  char const* prediction_kind) {
   if (tree_weights != nullptr) {
@@ -1257,7 +1257,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   out_contribs->Fill(0.0f);
 
   auto prepared =
-      PrepareGpuQuadratureModel(ctx, model, tree_end, ngroup, tree_weights, "Predict contribution");
+      PrepareGpuQuadratureModel(model, tree_end, ngroup, tree_weights, "Predict contribution");
 
   auto new_enc =
       p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx) : enc::DeviceColumnsView{};
