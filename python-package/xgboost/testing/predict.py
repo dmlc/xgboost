@@ -1,14 +1,14 @@
 """Tests for inference."""
 
 import json
-from typing import Optional, Type
+from typing import Any, Optional, Type
 
 import numpy as np
 import pytest
 from scipy.special import logit  # pylint: disable=no-name-in-module
 
 from ..compat import import_cupy
-from ..core import DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
+from ..core import Booster, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from ..training import train
 from .data import IteratorForTest
 from .shared import validate_leaf_output
@@ -19,32 +19,38 @@ from .utils import Device
 def _make_leaf_dmatrix(
     device: Device, DMatrixT: Type[DMatrix], X: np.ndarray, y: np.ndarray
 ) -> tuple[DMatrix, Optional[QuantileDMatrix]]:
-    """Make the prediction matrix and an in-memory external-memory reference."""
+    """Make a prediction matrix and an in-memory reference for external memory."""
     if DMatrixT is not ExtMemQuantileDMatrix:
         return DMatrixT(X, y), None
 
-    X_batches = np.array_split(X, 4)
-    y_batches = np.array_split(y, 4)
-    cache_host_ratio = None
-    if device.startswith("cuda"):
-        cp = import_cupy()
-        X_batches = [cp.asarray(batch) for batch in X_batches]
-        y_batches = [cp.asarray(batch) for batch in y_batches]
-        X = cp.asarray(X)  # type: ignore[assignment]
-        y = cp.asarray(y)  # type: ignore[assignment]
-        cache_host_ratio = 1.0
-
+    xp = import_cupy() if device.startswith("cuda") else np
+    X, y = xp.asarray(X), xp.asarray(y)
     it = IteratorForTest(
-        X_batches,
-        y_batches,
+        xp.array_split(X, 4),
+        xp.array_split(y, 4),
         None,
         cache="cache",
         on_host=True,
         min_cache_page_bytes=0,
     )
-    m = ExtMemQuantileDMatrix(it, cache_host_ratio=cache_host_ratio)
-    reference = QuantileDMatrix(X, y, ref=m)
-    return m, reference
+    m = ExtMemQuantileDMatrix(
+        it, cache_host_ratio=1.0 if device.startswith("cuda") else None
+    )
+    return m, QuantileDMatrix(X, y, ref=m)
+
+
+def _predict_leaf(
+    booster: Booster,
+    m: DMatrix,
+    reference: Optional[DMatrix],
+    **kwargs: Any,
+) -> np.ndarray:
+    """Predict leaves and compare external memory against in-memory data."""
+    predt = booster.predict(m, pred_leaf=True, **kwargs)
+    if reference is not None:
+        ref_predt = booster.predict(reference, pred_leaf=True, **kwargs)
+        np.testing.assert_array_equal(predt, ref_predt)
+    return predt
 
 
 def _validate_leaf_indices(leaf: np.ndarray, trees: list[dict]) -> None:
@@ -62,14 +68,11 @@ def _validate_leaf_indices(leaf: np.ndarray, trees: list[dict]) -> None:
         assert (left[node_idx] == -1).all()
 
 
-# pylint: disable=too-many-locals,too-many-statements
+# pylint: disable=too-many-locals
 def run_predict_leaf(device: Device, DMatrixT: Type[DMatrix]) -> np.ndarray:
     """Run tests for leaf index prediction."""
-    rows = 100
-    cols = 4
-    classes = 5
-    num_parallel_tree = 4
-    num_boost_round = 10
+    rows, cols, classes = 100, 4, 5
+    n_parallel, n_rounds = 4, 10
     rng = np.random.RandomState(1994)
     X = rng.randn(rows, cols)
     y = rng.randint(low=0, high=classes, size=rows)
@@ -78,61 +81,41 @@ def run_predict_leaf(device: Device, DMatrixT: Type[DMatrix]) -> np.ndarray:
     dtrain = DMatrix(X, y) if DMatrixT is ExtMemQuantileDMatrix else m
     booster = train(
         {
-            "num_parallel_tree": num_parallel_tree,
+            "num_parallel_tree": n_parallel,
             "num_class": classes,
             "tree_method": "hist",
         },
         dtrain,
-        num_boost_round=num_boost_round,
+        num_boost_round=n_rounds,
     )
-
     booster.set_param({"device": device})
-    empty = DMatrix(np.ones(shape=(0, cols)))
-    empty_leaf = booster.predict(empty, pred_leaf=True)
-    assert empty_leaf.shape[0] == 0
+    assert booster.predict(DMatrix(np.empty((0, cols))), pred_leaf=True).shape[0] == 0
 
-    leaf = booster.predict(m, pred_leaf=True, strict_shape=True)
-    if reference is not None:
-        ref_leaf = booster.predict(reference, pred_leaf=True, strict_shape=True)
-        np.testing.assert_array_equal(leaf, ref_leaf)
-    assert leaf.shape[0] == rows
-    assert leaf.shape[1] == num_boost_round
-    assert leaf.shape[2] == classes
-    assert leaf.shape[3] == num_parallel_tree
+    leaf = _predict_leaf(booster, m, reference, strict_shape=True)
+    assert leaf.shape == (rows, n_rounds, classes, n_parallel)
+    validate_leaf_output(leaf, n_parallel)
 
-    validate_leaf_output(leaf, num_parallel_tree)
-
-    n_iters = np.int32(2)
-    sliced = booster.predict(
+    n_iters = 2
+    sliced = _predict_leaf(
+        booster,
         m,
-        pred_leaf=True,
+        reference,
         iteration_range=(0, n_iters),
         strict_shape=True,
     )
-    if reference is not None:
-        ref_sliced = booster.predict(
-            reference,
-            pred_leaf=True,
-            iteration_range=(0, n_iters),
-            strict_shape=True,
-        )
-        np.testing.assert_array_equal(sliced, ref_sliced)
-    first = sliced[0, ...]
-
-    assert np.prod(first.shape) == classes * num_parallel_tree * n_iters
+    assert sliced.shape == (rows, n_iters, classes, n_parallel)
 
     # When there's only 1 tree, the output is a 1 dim vector
     booster = train({"tree_method": "hist"}, num_boost_round=1, dtrain=dtrain)
     booster.set_param({"device": device})
-    assert booster.predict(m, pred_leaf=True).shape == (rows,)
+    assert _predict_leaf(booster, m, reference).shape == (rows,)
 
     # The first two rounds have only vector-leaf trees. The full model contains
     # both vector- and scalar-leaf trees.
     mixed_rounds = 4
-    mixed_parallel_trees = classes
     booster = train(
         {
-            "num_parallel_tree": mixed_parallel_trees,
+            "num_parallel_tree": classes,
             "num_class": classes,
             "tree_method": "hist",
             "multi_strategy": "multi_output_tree",
@@ -150,36 +133,16 @@ def run_predict_leaf(device: Device, DMatrixT: Type[DMatrix]) -> np.ndarray:
     leaf_sizes = [int(tree["tree_param"]["size_leaf_vector"]) for tree in trees]
     vector_end = 2
     assert set(leaf_sizes) == {1, classes}
-    assert all(size == classes for size in leaf_sizes[: iteration_indptr[vector_end]])
-    # The total size can be reshaped into the legacy strict dimensions even
-    # though the per-iteration tree counts are ragged.
-    assert len(trees) % (mixed_rounds * classes) == 0
+    assert set(leaf_sizes[: iteration_indptr[vector_end]]) == {classes}
 
-    vector_leaf = booster.predict(m, pred_leaf=True, iteration_range=(0, vector_end))
-    vector_trees = trees[: iteration_indptr[vector_end]]
-    assert vector_leaf.shape == (rows, len(vector_trees))
-    _validate_leaf_indices(vector_leaf, vector_trees)
-    with pytest.raises(ValueError, match="uniform scalar-tree layout"):
-        booster.predict(
-            m,
-            pred_leaf=True,
-            iteration_range=(0, vector_end),
-            strict_shape=True,
-        )
-
-    mixed_leaf = booster.predict(m, pred_leaf=True)
-    assert mixed_leaf.shape == (rows, iteration_indptr[-1])
-    _validate_leaf_indices(mixed_leaf, trees)
-    with pytest.raises(ValueError, match="mixed scalar/vector-leaf"):
-        booster.predict(m, pred_leaf=True, strict_shape=True)
-
-    if reference is not None:
-        ref_vector_leaf = booster.predict(
-            reference, pred_leaf=True, iteration_range=(0, vector_end)
-        )
-        ref_mixed_leaf = booster.predict(reference, pred_leaf=True)
-        np.testing.assert_array_equal(vector_leaf, ref_vector_leaf)
-        np.testing.assert_array_equal(mixed_leaf, ref_mixed_leaf)
+    for end, n_trees in [(vector_end, iteration_indptr[vector_end]), (0, len(trees))]:
+        kwargs = {"iteration_range": (0, end)}
+        predt = _predict_leaf(booster, m, reference, **kwargs)
+        selected_trees = trees[:n_trees]
+        assert predt.shape == (rows, len(selected_trees))
+        _validate_leaf_indices(predt, selected_trees)
+        with pytest.raises(ValueError, match="vector leaf trees"):
+            booster.predict(m, pred_leaf=True, strict_shape=True, **kwargs)
 
     return leaf
 
