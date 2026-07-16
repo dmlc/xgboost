@@ -1338,6 +1338,22 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   rounds = rounds == 0 ? learner->BoostedRounds() : rounds;
   // Determine shape
   bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
+  if (strict_shape && type == PredictionType::kLeaf && p_m->Info().num_row_ != 0) {
+    Json learner_config{Object()};
+    learner->SaveConfig(&learner_config);
+    auto const &booster_config = learner_config["learner"]["gradient_booster"];
+    auto const &booster = get<String const>(booster_config["name"]);
+    CHECK(booster == "gbtree" || booster == "dart");
+    auto const &gbtree_config = booster == "dart" ? booster_config["gbtree"] : booster_config;
+    auto const n_parallel_trees =
+        std::stoi(get<String const>(gbtree_config["gbtree_model_param"]["num_parallel_tree"]));
+    auto const expected =
+        static_cast<bst_ulong>(rounds) * learner->Groups() * n_parallel_trees;
+    CHECK_EQ(chunksize, expected)
+        << "`strict_shape=True` is not supported for `pred_leaf=True` when the selected "
+           "iterations do not have a uniform scalar-tree layout. This includes vector-leaf "
+           "trees and mixed scalar/vector-leaf models. Use `strict_shape=False` instead.";
+  }
 
   xgboost_CHECK_C_ARG_PTR(out_dim);
   xgboost_CHECK_C_ARG_PTR(out_shape);
