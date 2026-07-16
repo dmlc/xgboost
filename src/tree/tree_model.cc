@@ -743,14 +743,14 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
   }
 }
 
-bool RegTree::Equal(const RegTree& b) const {
+[[nodiscard]] bool RegTree::Equal(RegTree const& b) const {
   if (this->NumTargets() != b.NumTargets()) {
     return false;
   }
   if (this->HasCategoricalSplit() != b.HasCategoricalSplit()) {
     return false;
   }
-  if (NumExtraNodes() != b.NumExtraNodes()) {
+  if (this->NumExtraNodes() != b.NumExtraNodes()) {
     return false;
   }
   if (this->HasCategoricalSplit()) {
