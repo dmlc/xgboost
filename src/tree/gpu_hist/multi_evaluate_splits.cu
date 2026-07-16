@@ -216,12 +216,11 @@ struct EvaluateSplitAgent {
     return gain;
   }
 
-  template <std::int32_t d_step>
+  template <DefaultDirection d_dir>
   __device__ void Numerical(MultiEvaluateSplitInputs const &node,
                             MultiEvaluateSplitSharedInputs const &shared,
                             common::Span<GradientPairInt64 const> node_scan,
                             MultiSplitCandidate *best_split) {
-    static_assert(d_step == +1 || d_step == -1, "Invalid step.");
     // Calculate split gain for each bin
     auto n_targets = shared.Targets();
     auto lane_id = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
@@ -243,11 +242,11 @@ struct EvaluateSplitAgent {
       if (threadIdx.x == best_thread && !isinf(gain)) {
         // Update
         bst_bin_t split_gidx = bin_idx;
-        if (d_step == -1) {
+        if (d_dir == kLeftDir) {
           split_gidx = RevBinIdx(gidx_begin, gidx_end, bin_idx);
         }
         float fvalue;
-        if (d_step == +1) {
+        if (d_dir == kRightDir) {
           fvalue = shared.feature_values[split_gidx];
         } else {
           if (split_gidx == gidx_begin) {
@@ -261,8 +260,8 @@ struct EvaluateSplitAgent {
         auto scan_bin_offset = bin_idx * n_targets;
         auto scan_bin = node_scan.subspan(scan_bin_offset, n_targets);
         // Missing values go to right in the forward pass, go to left in the backward pass.
-        best_split->Update(gain, d_step == 1 ? kRightDir : kLeftDir, fvalue, fidx, scan_bin, false,
-                           shared.param, shared.roundings);
+        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, false, shared.param,
+                           shared.roundings);
       }
 
       __syncwarp();
@@ -310,12 +309,11 @@ struct EvaluateSplitAgent {
     }
   }
 
-  template <std::int32_t d_step>
+  template <DefaultDirection d_dir>
   __device__ void Partition(MultiEvaluateSplitInputs const &node,
                             MultiEvaluateSplitSharedInputs const &shared,
                             common::Span<GradientPairInt64 const> node_scan,
                             MultiSplitCandidate *best_split) {
-    static_assert(d_step == +1 || d_step == -1, "Invalid step.");
     auto n_targets = shared.Targets();
     auto lane_id = static_cast<bst_bin_t>(cuda::ptx::get_sreg_laneid());
 
@@ -342,12 +340,12 @@ struct EvaluateSplitAgent {
 
       if (threadIdx.x == best_thread && !isinf(gain)) {
         auto scan_offset = bin_idx - gidx_begin;
-        auto thresh =
-            d_step == +1 ? scan_offset : static_cast<bst_bin_t>(n_bins_feature - scan_offset - 1);
+        auto thresh = d_dir == kLeftDir ? scan_offset
+                                        : static_cast<bst_bin_t>(n_bins_feature - scan_offset - 1);
         auto scan_bin = node_scan.subspan(bin_idx * n_targets, n_targets);
         // The forward scan selects a right-child prefix with missing values on the
         // left. The backward scan selects a left-child suffix with missing on the right.
-        best_split->UpdateCat(gain, d_step == +1 ? kLeftDir : kRightDir,
+        best_split->UpdateCat(gain, d_dir,
                               static_cast<bst_cat_t>(thresh), fidx, scan_bin);
       }
 
@@ -403,19 +401,19 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
       agent.template OneHot<kRightDir>(node, shared, first, &out_candidates[candidate_idx]);
       agent.template OneHot<kLeftDir>(node, shared, second, &out_candidates[candidate_idx]);
     } else {
-      agent.template Partition<+1>(node, shared, first, &out_candidates[candidate_idx]);
-      agent.template Partition<-1>(node, shared, second, &out_candidates[candidate_idx]);
+      agent.template Partition<kLeftDir>(node, shared, first, &out_candidates[candidate_idx]);
+      agent.template Partition<kRightDir>(node, shared, second, &out_candidates[candidate_idx]);
     }
     return;
   }
 
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kBackward) {
     auto forward = bin_scans[nidx].subspan(0, node.histogram.size());
-    agent.template Numerical<+1>(node, shared, forward, &out_candidates[candidate_idx]);
+    agent.template Numerical<kRightDir>(node, shared, forward, &out_candidates[candidate_idx]);
   }
   if (shared.one_pass != MultiEvaluateSplitSharedInputs::kForward) {
     auto backward = bin_scans[nidx].subspan(node.histogram.size(), node.histogram.size());
-    agent.template Numerical<-1>(node, shared, backward, &out_candidates[candidate_idx]);
+    agent.template Numerical<kLeftDir>(node, shared, backward, &out_candidates[candidate_idx]);
   }
 }
 
