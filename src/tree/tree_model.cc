@@ -744,23 +744,79 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
 }
 
 bool RegTree::Equal(const RegTree& b) const {
-  CHECK(!IsMultiTarget());
+  if (this->IsMultiTarget() != b.IsMultiTarget()) {
+    return false;
+  }
+  if (this->HasCategoricalSplit() != b.HasCategoricalSplit()) {
+    return false;
+  }
   if (NumExtraNodes() != b.NumExtraNodes()) {
     return false;
   }
-  auto const& self = *this;
-  bool ret{true};
-  auto sc_tree = this->HostScView();
-  auto const& lhs = self.nodes_.ConstHostVector();
-  auto const& rhs = b.nodes_.ConstHostVector();
-  sc_tree.WalkTree([&](bst_node_t nidx) {
-    if (!(lhs.at(nidx) == rhs.at(nidx))) {
-      ret = false;
-      return false;
+  if (this->HasCategoricalSplit()) {
+    auto device = DeviceOrd::CPU();
+    auto res = [&] {
+      using Seg = CategoricalSplitMatrix::Segment;
+      auto l_ptr = this->GetSplitCategoriesPtr();
+      auto r_ptr = b.GetSplitCategoriesPtr();
+      return l_ptr.size() == r_ptr.size() &&
+             std::equal(
+                 l_ptr.cbegin(), l_ptr.cend(), r_ptr.cbegin(),
+                 [](Seg const& l, Seg const& r) { return l.size == r.size && l.beg == r.beg; });
+    }() && [&] {
+      auto l_typ = this->GetSplitTypes(device);
+      auto r_typ = b.GetSplitTypes(device);
+      return l_typ.size() == r_typ.size() &&
+             std::equal(l_typ.cbegin(), l_typ.cend(), r_typ.cbegin());
+    }() && [&] {
+      auto l_cats = this->GetSplitCategories(device);
+      auto r_cats = b.GetSplitCategories(device);
+      return l_cats.size() == r_cats.size() &&
+             std::equal(l_cats.cbegin(), l_cats.cend(), r_cats.cbegin());
+    }();
+    if (!res) {
+      return res;
     }
-    return true;
-  });
-  return ret;
+  }
+  auto const& self = *this;
+  auto n_targets = self.NumTargets();
+
+  auto float_eq = [](float l, float r) {
+    return std::abs(l - r) < kRtEps;
+  };
+  auto leaf_same = [=](auto lhs, auto rhs, bst_node_t nidx) {
+    if constexpr (tree::IsScalarTree(lhs)) {
+      return float_eq(lhs.LeafValue(nidx), rhs.LeafValue(nidx));
+    } else {
+      auto l_leaf = lhs.LeafValue(nidx);
+      auto r_leaf = rhs.LeafValue(nidx);
+      for (decltype(n_targets) t = 0; t < n_targets; ++t) {
+        if (!float_eq(l_leaf(t), r_leaf(t))) {
+          return false;
+        }
+      }
+      return true;
+    }
+  };
+  bool equal = false;
+  tree::WalkTree(
+      *this,
+      [&](auto lhs, auto rhs, bst_node_t nidx) {
+        if (lhs.Size() != rhs.Size()) {
+          return false;
+        }
+        auto res = lhs.LeftChild(nidx) == rhs.LeftChild(nidx) &&
+                           lhs.RightChild(nidx) == rhs.RightChild(nidx) &&
+                           lhs.DefaultLeft(nidx) == rhs.DefaultLeft(nidx) &&
+                           lhs.IsLeaf(nidx) == rhs.IsLeaf(nidx) && lhs.IsLeaf(nidx)
+                       ? leaf_same(lhs, rhs, nidx)
+                       : float_eq(lhs.SplitCond(nidx), rhs.SplitCond(nidx));
+        equal = res;
+        // Stop if two trees are not equal.
+        return res;
+      },
+      b);
+  return equal;
 }
 
 [[nodiscard]] bst_node_t RegTree::GetNumLeaves() const {

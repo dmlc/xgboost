@@ -398,7 +398,7 @@ TEST(Tree, JsonIO) {
   RegTree loaded_tree;
   loaded_tree.LoadModel(j_tree);
   ASSERT_EQ(loaded_tree.NumNodes(), 3);
-  ASSERT_TRUE(loaded_tree == tree);
+  ASSERT_TRUE(loaded_tree.Equal(tree));
 
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();

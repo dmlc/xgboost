@@ -1234,6 +1234,8 @@ XGB_DLL int XGBoosterTrainOneIterWithSplitGrad(BoosterHandle handle, DMatrixHand
   }
 
   auto p_fmat = CastDMatrixHandle(dtrain);
+  CHECK_EQ(gpair.gpair.Shape(0), p_fmat->Info().num_row_);
+  CHECK_EQ(gpair.value_gpair.Shape(0), p_fmat->Info().num_row_);
   learner->BoostOneIter(iter, p_fmat, &gpair);
 
   API_END();

@@ -228,6 +228,10 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
         << "Only the hist tree method is supported for building multi-target trees with vector "
            "leaf.";
   }
+  if (in_gpair->HasValueGrad()) {
+    CHECK(model_.learner_model_param->IsVectorLeaf())
+        << "Reduced gradien must be used with vector leaf trees";
+  }
 
   TreesOneIter new_trees;
   bst_target_t const n_groups = model_.learner_model_param->OutputLength();

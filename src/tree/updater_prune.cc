@@ -73,6 +73,7 @@ class TreePruner : public TreeUpdater {
   /*! \brief do pruning of a tree */
   void DoPrune(TrainParam const* param, RegTree* p_tree) {
     auto& tree = *p_tree;
+    CHECK(!tree.IsMultiTarget()) << "Pruning" << MTNotImplemented();
     bst_node_t npruned = 0;
     for (int nid = 0; nid < tree.NumNodes(); ++nid) {
       if (tree[nid].IsLeaf() && !tree[nid].IsDeleted()) {
