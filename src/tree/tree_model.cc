@@ -753,6 +753,9 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
   if (this->NumExtraNodes() != b.NumExtraNodes()) {
     return false;
   }
+  if (this->Size() != b.Size()) {
+    return false;
+  }
   if (this->HasCategoricalSplit()) {
     auto device = DeviceOrd::CPU();
     auto res = [&] {
@@ -801,10 +804,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
   bool equal = false;
   tree::WalkTree(
       *this,
-      [&](auto lhs, auto rhs, bst_node_t nidx) {
-        if (lhs.Size() != rhs.Size()) {
-          return false;
-        }
+      [&](auto const& lhs, auto const& rhs, bst_node_t nidx) {
         auto res = lhs.LeftChild(nidx) == rhs.LeftChild(nidx) &&
                    lhs.RightChild(nidx) == rhs.RightChild(nidx) &&
                    lhs.DefaultLeft(nidx) == rhs.DefaultLeft(nidx) &&
