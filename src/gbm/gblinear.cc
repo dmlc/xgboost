@@ -152,7 +152,8 @@ class GBLinear : public GradientBooster {
     monitor_.Stop("PredictBatch");
   }
 
-  void PredictLeaf(DMatrix *, HostDeviceVector<bst_float> *, unsigned, unsigned) override {
+  void PredictLeaf(DMatrix*, HostDeviceVector<bst_float>*, bst_layer_t, bst_layer_t,
+                   bool) override {
     LOG(FATAL) << "gblinear does not support prediction of leaf index";
   }
 

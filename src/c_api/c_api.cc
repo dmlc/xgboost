@@ -1276,7 +1276,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle, DMatrixHandle dmat, int optio
   learner->Predict(*static_cast<std::shared_ptr<DMatrix> *>(dmat), (option_mask & 1) != 0,
                    &entry.predictions, 0, iteration_end, static_cast<bool>(training),
                    (option_mask & 2) != 0, (option_mask & 4) != 0, (option_mask & 8) != 0,
-                   (option_mask & 16) != 0);
+                   (option_mask & 16) != 0, false);
 
   xgboost_CHECK_C_ARG_PTR(len);
   xgboost_CHECK_C_ARG_PTR(out_result);
@@ -1325,41 +1325,24 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat
   bool interactions =
       type == PredictionType::kInteraction || type == PredictionType::kApproxInteraction;
   bool training = RequiredArg<Boolean>(config, "training", __func__);
+  bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
   learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions, iteration_begin,
                    iteration_end, training, type == PredictionType::kLeaf, contribs, approximate,
-                   interactions);
+                   interactions, strict_shape);
 
   xgboost_CHECK_C_ARG_PTR(out_result);
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
 
   auto &shape = learner->GetThreadLocal().prediction_shape;
   auto chunksize = p_m->Info().num_row_ == 0 ? 0 : entry.predictions.Size() / p_m->Info().num_row_;
-  auto rounds = iteration_end - iteration_begin;
-  rounds = rounds == 0 ? learner->BoostedRounds() : rounds;
-  // Determine shape
-  bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
-  if (strict_shape && type == PredictionType::kLeaf && p_m->Info().num_row_ != 0) {
-    Json learner_config{Object()};
-    learner->SaveConfig(&learner_config);
-    auto const &booster_config = learner_config["learner"]["gradient_booster"];
-    auto const &booster = get<String const>(booster_config["name"]);
-    CHECK(booster == "gbtree" || booster == "dart");
-    auto const &gbtree_config = booster == "dart" ? booster_config["gbtree"] : booster_config;
-    auto const n_parallel_trees =
-        std::stoi(get<String const>(gbtree_config["gbtree_model_param"]["num_parallel_tree"]));
-    auto const expected =
-        static_cast<bst_ulong>(rounds) * learner->Groups() * n_parallel_trees;
-    CHECK_EQ(chunksize, expected)
-        << "`strict_shape=True` is not supported for `pred_leaf=True` when the selected "
-           "iterations do not have a uniform scalar-tree layout. This includes vector-leaf "
-           "trees and mixed scalar/vector-leaf models. Use `strict_shape=False` instead.";
-  }
+  auto n_rounds = iteration_end - iteration_begin;
+  n_rounds = n_rounds == 0 ? learner->BoostedRounds() : n_rounds;
 
   xgboost_CHECK_C_ARG_PTR(out_dim);
   xgboost_CHECK_C_ARG_PTR(out_shape);
 
   CalcPredictShape(strict_shape, type, p_m->Info().num_row_, p_m->Info().num_col_, chunksize,
-                   learner->Groups(), rounds, &shape, out_dim);
+                   learner->Groups(), n_rounds, &shape, out_dim);
   *out_shape = dmlc::BeginPtr(shape);
   API_END();
 }

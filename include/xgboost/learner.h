@@ -111,12 +111,14 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param pred_contribs whether to only predict the feature contributions
    * \param approx_contribs whether to approximate the feature contributions for speed
    * \param pred_interactions whether to compute the feature pair contributions
+   * @param strict_shape Used by predict leaf to validate whether it's actually possible
+   *        to have uniform shape.
    */
   virtual void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
                        HostDeviceVector<bst_float>* out_preds, bst_layer_t layer_begin,
                        bst_layer_t layer_end, bool training = false, bool pred_leaf = false,
                        bool pred_contribs = false, bool approx_contribs = false,
-                       bool pred_interactions = false) = 0;
+                       bool pred_interactions = false, bool strict_shape = false) = 0;
 
   /*!
    * \brief Inplace prediction.

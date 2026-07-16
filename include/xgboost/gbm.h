@@ -115,10 +115,10 @@ class GradientBooster : public Model, public Configurable {
    * \param out_preds output vector to hold the predictions
    * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
+   * @param strict_shape Validate whether it's actually possible to have uniform shape.
    */
-  virtual void PredictLeaf(DMatrix *dmat,
-                           HostDeviceVector<bst_float> *out_preds,
-                           unsigned layer_begin, unsigned layer_end) = 0;
+  virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
+                           bst_layer_t layer_begin, bst_layer_t layer_end, bool strict_shape) = 0;
 
   /*!
    * \brief feature contributions to individual predictions; the output will be a vector
