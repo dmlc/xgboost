@@ -10,7 +10,7 @@
 
 #include <cmath>
 #include <iomanip>
-#include <limits>
+#include <limits>  // for numeric_limits
 #include <sstream>
 #include <type_traits>  // for is_floating_point_v
 
@@ -30,9 +30,13 @@ DMLC_REGISTER_PARAMETER(TrainParam);
 }
 
 namespace {
+constexpr auto NoTruncate() { return std::numeric_limits<bst_target_t>::max(); }
+
 template <typename Float>
-std::enable_if_t<std::is_floating_point_v<Float>, std::string> ToStr(Float value) {
-  int32_t constexpr kFloatMaxPrecision = std::numeric_limits<float>::max_digits10;
+std::enable_if_t<std::is_floating_point_v<Float>, std::string> ToStr(
+    Float value, bst_target_t truncate_limit = NoTruncate()) {
+  (void)truncate_limit;
+  std::int32_t constexpr kFloatMaxPrecision = std::numeric_limits<float>::max_digits10;
   static_assert(std::is_floating_point_v<Float>,
                 "Use std::to_string instead for non-floating point values.");
   std::stringstream ss;
@@ -41,9 +45,8 @@ std::enable_if_t<std::is_floating_point_v<Float>, std::string> ToStr(Float value
 }
 
 template <typename Float>
-std::string ToStr(linalg::VectorView<Float> value) {
+std::string ToStr(linalg::VectorView<Float> value, bst_target_t truncate_limit = 3) {
   // Hardcoded limit to avoid dumping long arrays into dot graph.
-  constexpr bst_target_t kLimit = 3;
   int32_t constexpr kFloatMaxPrecision = std::numeric_limits<float>::max_digits10;
   static_assert(std::is_floating_point_v<Float>,
                 "Use std::to_string instead for non-floating point values.");
@@ -53,13 +56,13 @@ std::string ToStr(linalg::VectorView<Float> value) {
     ss << value(0);
     return ss.str();
   }
-  CHECK_GE(kLimit, 2);
-  auto n = std::min(static_cast<bst_target_t>(value.Size() - 1), kLimit - 1);
+  CHECK_GE(truncate_limit, 2);
+  auto n = std::min(static_cast<bst_target_t>(value.Size() - 1), truncate_limit - 1);
   ss << "[";
   for (std::size_t i = 0; i < n; ++i) {
     ss << value(i) << ", ";
   }
-  if (value.Size() > kLimit) {
+  if (value.Size() > truncate_limit) {
     ss << "..., ";
   }
   ss << value(value.Size() - 1) << "]";
@@ -343,7 +346,7 @@ class JsonGenerator : public TreeGenerator<TreeView> {
     std::string result = SuperT::Match(
         kLeafTemplate,
         {{"{nid}", std::to_string(nid)},
-         {"{leaf}", ToStr(tree.LeafValue(nid))},
+         {"{leaf}", ToStr(tree.LeafValue(nid), NoTruncate())},
          {"{stat}", SuperT::with_stats_
                         ? SuperT::Match(kStatTemplate, {{"{sum_hess}", ToStr(tree.SumHess(nid))}})
                         : ""}});
