@@ -41,7 +41,7 @@ test_that("interaction constraints for regression", {
   test2 <- all(abs(diff2 - diff2[1]) < 1e-4)
 
   expect_true({
-    test1 & test2
+    test1 && test2
   }, "Interaction Contraint Satisfied")
 })
 
