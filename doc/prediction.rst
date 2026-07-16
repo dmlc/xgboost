@@ -60,7 +60,10 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
   as shape.  ``n_trees_in_forest`` is specified by the ``numb_parallel_tree`` during
   training.  When strict shape is set to False, output is a 2-dim array with last 3 dims
   concatenated into 1.  Also the last dimension is dropped if it equals to 1. When using
-  ``apply`` method in scikit learn interface, this is set to False by default.
+  ``apply`` method in scikit learn interface, this is set to False by default. Strict
+  shape is not supported for vector-leaf trees or models that mix scalar- and vector-leaf
+  trees, since they can contain different numbers of trees in each iteration. Use
+  ``strict_shape=False`` for these models.
 
 
 For R package, when ``strict_shape`` is specified, an ``array`` is returned, with the same
