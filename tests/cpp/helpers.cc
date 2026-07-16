@@ -785,7 +785,7 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
   auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);
   for (int i = 0; i < ptr->n_gpu; ++i) {
 #if RMM_VERSION_MAJOR > 26 || (RMM_VERSION_MAJOR == 26 && RMM_VERSION_MINOR >= 6)
-    rmm::mr::set_per_device_resource_ref(rmm::cuda_device_id(i), ptr->pool_mr[i]);
+    rmm::mr::set_per_device_resource(rmm::cuda_device_id(i), ptr->pool_mr[i]);
 #else
     rmm::mr::set_per_device_resource(rmm::cuda_device_id(i), ptr->pool_mr[i].get());
 #endif
