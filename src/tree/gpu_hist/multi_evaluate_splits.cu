@@ -345,8 +345,7 @@ struct EvaluateSplitAgent {
         auto scan_bin = node_scan.subspan(bin_idx * n_targets, n_targets);
         // The forward scan selects a right-child prefix with missing values on the
         // left. The backward scan selects a left-child suffix with missing on the right.
-        best_split->UpdateCat(gain, d_dir,
-                              static_cast<bst_cat_t>(thresh), fidx, scan_bin);
+        best_split->UpdateCat(gain, d_dir, static_cast<bst_cat_t>(thresh), fidx, scan_bin);
       }
 
       __syncwarp();
