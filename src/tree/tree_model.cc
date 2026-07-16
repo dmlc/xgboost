@@ -580,25 +580,13 @@ class GraphvizGenerator : public TreeGenerator<TreeView> {
 
     bool has_less = (split_index >= SuperT::fmap_.Size()) ||
                     SuperT::fmap_.TypeOf(split_index) != FeatureMap::kIndicator;
-    std::string result;
-    if (this->with_stats_) {
-      CHECK(tree::IsScalarTree(tree)) << MTNotImplemented();
-      result =
-          SuperT::Match(kNodeTemplate, {{"{nid}", std::to_string(nidx)},
-                                        {"{fname}", GetFeatureName(SuperT::fmap_, split_index)},
-                                        {"{<}", has_less ? "<" : ""},
-                                        {"{cond}", has_less ? ToStr(cond) : ""},
-                                        {"{stat}", this->NodeStat(tree, nidx)},
-                                        {"{params}", param_.condition_node_params}});
-    } else {
-      result =
-          SuperT::Match(kNodeTemplate, {{"{nid}", std::to_string(nidx)},
-                                        {"{fname}", GetFeatureName(SuperT::fmap_, split_index)},
-                                        {"{<}", has_less ? "<" : ""},
-                                        {"{cond}", has_less ? ToStr(cond) : ""},
-                                        {"{stat}", ""},
-                                        {"{params}", param_.condition_node_params}});
-    }
+    std::string result = SuperT::Match(
+        kNodeTemplate, {{"{nid}", std::to_string(nidx)},
+                        {"{fname}", GetFeatureName(SuperT::fmap_, split_index)},
+                        {"{<}", has_less ? "<" : ""},
+                        {"{cond}", has_less ? ToStr(cond) : ""},
+                        {"{stat}", this->with_stats_ ? this->NodeStat(tree, nidx) : ""},
+                        {"{params}", param_.condition_node_params}});
 
     result += BuildEdge<false>(tree, nidx, tree.LeftChild(nidx), true);
     result += BuildEdge<false>(tree, nidx, tree.RightChild(nidx), false);
@@ -734,7 +722,6 @@ std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::str
     return result;
   };
   if (this->IsMultiTarget()) {
-    CHECK(!with_stats) << " Tree dump with statistic " << MTNotImplemented();
     return impl(CreateTreeGenerator<tree::MultiTargetTreeView>(format, fmap, with_stats),
                 this->HostMtView());
   } else {
