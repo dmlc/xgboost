@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.
@@ -147,8 +147,7 @@ class GradientBooster : public Model, public Configurable {
   [[nodiscard]] virtual std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                                            std::string format) const = 0;
 
-  virtual void FeatureScore(std::string const& importance_type,
-                            common::Span<int32_t const> trees,
+  virtual void FeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
                             std::vector<bst_feature_t>* features,
                             std::vector<float>* scores) const = 0;
   /**
@@ -190,10 +189,10 @@ struct GradientBoosterReg
  *   });
  * \endcode
  */
-#define XGBOOST_REGISTER_GBM(UniqueId, Name)                            \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::GradientBoosterReg &          \
-  __make_ ## GradientBoosterReg ## _ ## UniqueId ## __ =                \
-      ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->__REGISTER__(Name)
+#define XGBOOST_REGISTER_GBM(UniqueId, Name)                  \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::GradientBoosterReg& \
+      __make_##GradientBoosterReg##_##UniqueId##__ =          \
+          ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->__REGISTER__(Name)
 
 }  // namespace xgboost
 #endif  // XGBOOST_GBM_H_
