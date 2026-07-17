@@ -365,7 +365,7 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
     if (!gpair->HasValueGrad()) {
       CHECK_EQ(gpair->gpair.Size(), n_out) << msg;
     }
-    CHECK(!dparam_.HasDropout()) << "dart " << MTNotImplemented();
+    CHECK(!dparam_.HasDropout()) << "dart" << MTNotImplemented();
   }
 
   out_position->resize(new_trees.size());
