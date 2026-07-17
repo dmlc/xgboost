@@ -62,7 +62,7 @@ struct SamplingInfo {
   }
 
   XGBOOST_DEVICE bool IsSampled(std::size_t ridx, float p) const {
-    return p >= 1.0f || (p > 0.0f && RandomWeight{seed}(ridx) < p);
+    return p >= 1.0f || (p > 0.0f && RandomWeight{seed}(ridx) <= p);
   }
 
   XGBOOST_DEVICE bool IsSampled(std::size_t ridx) const {
