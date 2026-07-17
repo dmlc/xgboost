@@ -112,7 +112,8 @@ XGB_DLL int XGBSetGlobalConfig(char const *config);
 
 /**
  * @brief Get current global configuration (collection of parameters that apply globally).
- * @param out_config pointer to received returned global configuration, represented as a JSON string.
+ * @param out_config pointer to received returned global configuration, represented as a JSON
+ * string.
  * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBGetGlobalConfig(char const **out_config);
@@ -136,12 +137,14 @@ XGB_DLL int XGBGetGlobalConfig(char const **out_config);
  * @brief load a data matrix
  *
  * @param config JSON encoded parameters for DMatrix construction.  Accepted fields are:
- *   - uri: The URI of the input file. The URI parameter `format` is required when loading text data.
+ *   - uri: The URI of the input file. The URI parameter `format` is required when loading text
+ * data.
  *          @verbatim embed:rst:leading-asterisk
  *            See :doc:`/tutorials/input_format` for more info.
  *          @endverbatim
  *   - silent (optional): Whether to print message during loading. Default to true.
- *   - data_split_mode (optional): Whether the file was split by row or column beforehand for distributed computing. Default to row.
+ *   - data_split_mode (optional): Whether the file was split by row or column beforehand for
+ * distributed computing. Default to row.
  * @param out a loaded data matrix
  * @return 0 when success, -1 when failure happens
  */
@@ -230,7 +233,8 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr, char const *indices, char
  * @param config JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
+ *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default
+ * to row.
  * @param out The created DMatrix
  *
  * @return 0 when success, -1 when failure happens
@@ -297,7 +301,8 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data, char const *config
  * @param config JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
+ *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default
+ * to row.
  * @param out created dmatrix
  * @return 0 when success, -1 when failure happens
  */
@@ -480,7 +485,8 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle);  // NOLI
  * @param next    Callback function yielding the next batch of data.
  * @param config  JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - missing:      Which value to represent missing value
- *   - cache_prefix: The path of cache file, caller must initialize all the directories in this path.
+ *   - cache_prefix: The path of cache file, caller must initialize all the directories in this
+ * path.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
  * @param[out] out      The created external memory DMatrix
  *
@@ -545,7 +551,8 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
  * @param next     Callback function yielding the next batch of data.
  * @param config   JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - missing:      Which value to represent missing value
- *   - cache_prefix: The path of cache file, caller must initialize all the directories in this path.
+ *   - cache_prefix: The path of cache file, caller must initialize all the directories in this
+ * path.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
  *   - max_bin (optional): Maximum number of bins for building histogram. Must be consistent with
  *                         the corresponding booster training parameter.
@@ -1130,16 +1137,16 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle, int iter, DMatrixHandle d
  *          1:output margin instead of transformed value
  *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
  *          4:output feature contributions to individual predictions
- * @param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
- *    when the parameter is set to 0, we will use all the trees
+ * @param ntree_limit limit number of trees used for prediction, this is only valid for boosted
+ * trees when the parameter is set to 0, we will use all the trees
  * @param training Whether the prediction function is used as part of a training loop.
  *    Prediction can be run in 2 scenarios:
  *    1. Given data matrix X, obtain prediction y_pred from the model.
  *    2. Obtain the prediction for computing gradients. For example, DART booster performs dropout
- *       during training, and the prediction result will be different from the one obtained by normal
- *       inference step due to dropped trees.
- *    Set training=false for the first scenario. Set training=true for the second scenario.
- *    The second scenario applies when you are defining a custom objective function.
+ *       during training, and the prediction result will be different from the one obtained by
+ * normal inference step due to dropped trees. Set training=false for the first scenario. Set
+ * training=true for the second scenario. The second scenario applies when you are defining a custom
+ * objective function.
  * @param out_len used to store length of returning result
  * @param out_result used to set a pointer to array
  * @return 0 when success, -1 when failure happens
@@ -1170,21 +1177,17 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle, DMatrixHandle dmat, int optio
  *
  *      Prediction can be run in 2 scenarios:
  *        1. Given data matrix X, obtain prediction y_pred from the model.
- *        2. Obtain the prediction for computing gradients. For example, DART booster performs dropout
- *           during training, and the prediction result will be different from the one obtained by normal
- *           inference step due to dropped trees.
- *      Set training=false for the first scenario. Set training=true for the second
- *      scenario.  The second scenario applies when you are defining a custom objective
- *      function.
- *    "iteration_begin": int
- *      Beginning iteration of prediction.
+ *        2. Obtain the prediction for computing gradients. For example, DART booster performs
+ * dropout during training, and the prediction result will be different from the one obtained by
+ * normal inference step due to dropped trees. Set training=false for the first scenario. Set
+ * training=true for the second scenario.  The second scenario applies when you are defining a
+ * custom objective function. "iteration_begin": int Beginning iteration of prediction.
  *    "iteration_end": int
- *      End iteration of prediction.  Set to 0 this will become the size of tree model (all the trees).
- *    "strict_shape": bool
- *      Whether should we reshape the output with stricter rules.  If set to true,
- *      normal/margin/contrib/interaction predict will output consistent shape
- *      disregarding the use of multi-class model, and leaf prediction will output 4-dim
- *      array representing: (n_samples, n_iterations, n_classes, n_trees_in_forest)
+ *      End iteration of prediction.  Set to 0 this will become the size of tree model (all the
+ * trees). "strict_shape": bool Whether should we reshape the output with stricter rules.  If set to
+ * true, normal/margin/contrib/interaction predict will output consistent shape disregarding the use
+ * of multi-class model, and leaf prediction will output 4-dim array representing: (n_samples,
+ * n_iterations, n_classes, n_trees_in_forest)
  *
  *   Example JSON input for running a normal prediction with strict output shape, 2 dim
  *   for softprob , 1 dim for others.
@@ -1204,7 +1207,8 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle, DMatrixHandle dmat, int optio
  *
  * @return 0 when success, -1 when failure happens
  *
- * @see XGBoosterPredictFromDense XGBoosterPredictFromCSR XGBoosterPredictFromCudaArray XGBoosterPredictFromCudaColumnar
+ * @see XGBoosterPredictFromDense XGBoosterPredictFromCSR XGBoosterPredictFromCudaArray
+ * XGBoosterPredictFromCudaColumnar
  */
 XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat,
                                         char const *config, bst_ulong const **out_shape,
@@ -1636,6 +1640,33 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
                                   bst_ulong *out_n_features, char const ***out_features,
                                   bst_ulong *out_dim, bst_ulong const **out_shape,
                                   float const **out_scores);
+
+/**
+ * @brief Get per-tree weights for leaf similarity computation.
+ *
+ * @param config A JSON string with the following format:
+ *
+ *   {
+ *    "weight_type": str,
+ *    "iteration_begin": int,
+ *    "iteration_end": int
+ *   }
+ *
+ *   - weight_type: A JSON string with following possible values:
+ *       * 'uniform': assign equal weight to each tree.
+ *       * 'gain': sum split gain for each tree.
+ *       * 'cover': sum split cover for each tree.
+ *   - iteration_begin: Beginning iteration used when extracting tree weights.
+ *   - iteration_end: End iteration used when extracting tree weights. 0 means
+ *                    using all remaining iterations.
+ *
+ * @param out_len      Length of output tree weight array.
+ * @param out_weights  Pointer to the output tree weight array.
+ *
+ * @return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterGetLeafSimilarityWeights(BoosterHandle handle, const char *config,
+                                              bst_ulong *out_len, float const **out_weights);
 /**@}*/  // End of Booster
 
 /**
