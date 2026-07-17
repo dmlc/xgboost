@@ -16,74 +16,21 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v8
-        env:
-          DAYS_BEFORE_CLOSE: 180
-          DRY_RUN: ${{ github.event_name == 'pull_request' }}
-          EXEMPT_LABELS: do-not-close,blocked,in-progress,needs-maintainer,release,security
-          OPERATIONS_PER_RUN: 100
+      - uses: actions/stale@v10
         with:
-          script: |
-            const daysBeforeClose = Number(process.env.DAYS_BEFORE_CLOSE);
-            const operationsPerRun = Number(process.env.OPERATIONS_PER_RUN);
-            const dryRun = process.env.DRY_RUN === 'true';
-            const exemptLabels = process.env.EXEMPT_LABELS
-              .split(',')
-              .map((label) => label.trim())
-              .filter(Boolean);
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
 
-            const cutoff = new Date(
-              Date.now() - daysBeforeClose * 24 * 60 * 60 * 1000
-            ).toISOString().slice(0, 10);
+          days-before-pr-stale: 180
+          days-before-pr-close: 0
+          stale-pr-label: stale
+          exempt-pr-labels: do-not-close,blocked,in-progress,needs-maintainer,release,security
 
-            const excludedLabels = exemptLabels
-              .map((label) => `-label:"${label}"`)
-              .join(' ');
-            const query = [
-              `repo:${context.repo.owner}/${context.repo.repo}`,
-              'is:pr',
-              'is:open',
-              `updated:<${cutoff}`,
-              excludedLabels,
-            ].filter(Boolean).join(' ');
+          stale-pr-message: ""
+          close-pr-message: >
+            Closing this PR as stale due to inactivity. It can be reopened if
+            someone wants to continue it.
 
-            core.info(`Dry run: ${dryRun}`);
-            core.info(`Searching for stale PRs with: ${query}`);
-
-            const stalePrs = await github.paginate(
-              github.rest.search.issuesAndPullRequests,
-              {
-                q: query,
-                per_page: 100,
-              }
-            );
-
-            core.info(`Found ${stalePrs.length} stale PRs.`);
-
-            const prsToProcess = stalePrs.slice(0, operationsPerRun);
-            if (stalePrs.length > operationsPerRun) {
-              core.warning(
-                `Processing ${operationsPerRun} of ${stalePrs.length} stale PRs.`
-              );
-            }
-
-            for (const pr of prsToProcess) {
-              core.info(
-                `${dryRun ? 'Would close' : 'Closing'} PR #${pr.number}: ${pr.title}`
-              );
-
-              if (dryRun) {
-                continue;
-              }
-
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: pr.number,
-                body: 'Closing this PR as stale due to inactivity. It can be reopened if someone wants to continue it.',
-              });
-              await github.rest.pulls.update({
-                ...context.repo,
-                pull_number: pr.number,
-                state: 'closed',
-              });
-            }
+          remove-pr-stale-when-updated: true
+          operations-per-run: 1000
+          debug-only: ${{ github.event_name == 'pull_request' }}
