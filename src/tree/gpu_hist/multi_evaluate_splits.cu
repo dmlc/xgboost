@@ -213,8 +213,8 @@ struct EvaluateSplitAgent {
       sibling_hess += sibling_sum.GetHess();
       auto cw = CalcWeight(shared.param, child_sum.GetGrad(), child_sum.GetHess());
       auto sw = CalcWeight(shared.param, sibling_sum.GetGrad(), sibling_sum.GetHess());
-      gain += -cw * ThresholdL1(child_sum.GetGrad(), shared.param.reg_alpha);
-      gain += -sw * ThresholdL1(sibling_sum.GetGrad(), shared.param.reg_alpha);
+      gain += CalcGainWithWeight(shared.param, child_sum, static_cast<double>(cw));
+      gain += CalcGainWithWeight(shared.param, sibling_sum, static_cast<double>(sw));
     }
     if (!IsValidSplit(shared.param, child_hess, sibling_hess, n_targets)) {
       return -std::numeric_limits<double>::infinity();
@@ -644,7 +644,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto g = roundings[t].ToFloatingPoint(input.parent_sum[t]);
       base_weight[t] = CalcWeight(shared_inputs.param, g.GetGrad(), g.GetHess());
-      parent_gain += -base_weight[t] * ThresholdL1(g.GetGrad(), shared_inputs.param.reg_alpha);
+      parent_gain +=
+          CalcGainWithWeight(shared_inputs.param, g, static_cast<double>(base_weight[t]));
       parent_hess += g.GetHess();
     }
 

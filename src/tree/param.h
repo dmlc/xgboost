@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <type_traits>  // for is_same_v, is_floating_point_v, enable_if_t
 #include <vector>
 
 #include "../common/linalg_op.h"
@@ -234,8 +235,40 @@ XGBOOST_DEVICE bool IsValidSplit(TrainingParams const &p, T left_sum_hess, T rig
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad, T sum_hess, T w) {
+XGBOOST_DEVICE T CalcGainGivenWeight(const TrainingParams &p, T sum_grad, T sum_hess, T w) {
   return -(static_cast<T>(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w));
+}
+
+/**
+ * @brief Calculate gain using a weight returned by CalcWeight.
+ *
+ * The optimized gain formula is valid only when the weight is unconstrained. Evaluate the
+ * quadratic directly when max_delta_step or an external constraint can modify the weight.
+ */
+template <typename TrainingParams, typename T>
+XGBOOST_DEVICE double CalcGainWithWeight(TrainingParams const &p, T sum_grad, T sum_hess, T w,
+                                         bool has_constraint = false) {
+  if (sum_hess <= 0.0 || w == 0.0) {
+    return 0.0;
+  }
+  if (p.max_delta_step == 0.0f && !has_constraint) {
+    auto numerator = common::Sqr(ThresholdL1(sum_grad, p.reg_alpha));
+    auto denominator = sum_hess + p.reg_lambda;
+#ifdef __CUDA_ARCH__
+    if constexpr (std::is_same_v<T, float>) {
+      return __fdividef(numerator, denominator);
+    }
+#endif  // __CUDA_ARCH__
+    return numerator / denominator;
+  }
+  return CalcGainGivenWeight(p, sum_grad, sum_hess, w);
+}
+
+template <typename TrainingParams, typename GpairT, typename T>
+XGBOOST_DEVICE auto CalcGainWithWeight(TrainingParams const &p, GpairT const &sum, T w,
+                                       bool has_constraint = false) {
+  return CalcGainWithWeight(p, sum.GetGrad(), sum.GetHess(),
+                            static_cast<typename GpairT::ValueT>(w), has_constraint);
 }
 
 // calculate weight given the statistics
@@ -309,22 +342,22 @@ inline double CalcGainGivenWeight(TrainParam const &p,
                                   linalg::VectorView<float const> weight) {
   double gain{0};
   for (bst_target_t t = 0, n_targets = weight.Size(); t < n_targets; ++t) {
-    gain += -weight(t) * ThresholdL1(sum_grad(t).GetGrad(), p.reg_alpha);
+    gain += CalcGainWithWeight(p, sum_grad(t), static_cast<double>(weight(t)));
   }
   return gain;
 }
 
 /*! \brief core statistics used for tree construction */
 struct XGBOOST_ALIGNAS(16) GradStats {
-  using GradType = double;
+  using ValueT = double;
   /*! \brief sum gradient statistics */
-  GradType sum_grad{0};
+  ValueT sum_grad{0};
   /*! \brief sum hessian statistics */
-  GradType sum_hess{0};
+  ValueT sum_hess{0};
 
  public:
-  [[nodiscard]] XGBOOST_DEVICE GradType GetGrad() const { return sum_grad; }
-  [[nodiscard]] XGBOOST_DEVICE GradType GetHess() const { return sum_hess; }
+  [[nodiscard]] XGBOOST_DEVICE ValueT GetGrad() const { return sum_grad; }
+  [[nodiscard]] XGBOOST_DEVICE ValueT GetHess() const { return sum_hess; }
 
   friend std::ostream &operator<<(std::ostream &os, GradStats s) {
     os << s.GetGrad() << "/" << s.GetHess();
@@ -338,7 +371,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   template <typename GpairT>
   XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
       : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
-  explicit GradStats(const GradType grad, const GradType hess) : sum_grad(grad), sum_hess(hess) {}
+  explicit GradStats(const ValueT grad, const ValueT hess) : sum_grad(grad), sum_hess(hess) {}
   /*!
    * \brief accumulate statistics
    * \param p the gradient pair
@@ -362,7 +395,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \return whether the statistics is not used yet */
   [[nodiscard]] bool Empty() const { return sum_hess == 0.0; }
   /*! \brief add statistics to the data */
-  inline void Add(GradType grad, GradType hess) {
+  inline void Add(ValueT grad, ValueT hess) {
     sum_grad += grad;
     sum_hess += hess;
   }
