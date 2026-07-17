@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.plotting import run_categorical
@@ -18,6 +17,14 @@ pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_matplotlib(), tm.no_graph
 
 
 class TestPlotting:
+    @staticmethod
+    def _check_tree_plot(booster: xgb.Booster, with_stats: bool = False) -> None:
+        graph = xgb.to_graphviz(booster, tree_idx=0, with_stats=with_stats)
+        assert isinstance(graph, Source)
+
+        ax = xgb.plot_tree(booster, tree_idx=0, with_stats=with_stats)
+        assert isinstance(ax, Axes)
+
     def test_plotting(self):
         m, _ = tm.load_agaricus(__file__)
         booster = xgb.train(
@@ -55,11 +62,20 @@ class TestPlotting:
         assert ax.patches[2].get_facecolor() == (0, 0, 1.0, 1.0)  # blue
         assert ax.patches[3].get_facecolor() == (0, 0, 1.0, 1.0)  # blue
 
-        g = xgb.to_graphviz(booster, tree_idx=0)
-        assert isinstance(g, Source)
+        self._check_tree_plot(booster)
 
-        ax = xgb.plot_tree(booster, tree_idx=0)
-        assert isinstance(ax, Axes)
+        X = np.arange(64, dtype=np.float32).reshape(32, 2)
+        y = np.column_stack((X[:, 0], -X[:, 0]))
+        booster = xgb.train(
+            {
+                "max_depth": 1,
+                "multi_strategy": "multi_output_tree",
+                "tree_method": "hist",
+            },
+            xgb.DMatrix(X, y),
+            num_boost_round=1,
+        )
+        self._check_tree_plot(booster, with_stats=True)
 
     def test_importance_plot_lim(self):
         np.random.seed(1)
