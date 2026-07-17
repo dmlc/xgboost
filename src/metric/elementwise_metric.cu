@@ -47,6 +47,7 @@ namespace {
 template <typename Fn>
 PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
                           size_t num_preds = 1) {
+  CheckRowWeights(info);
   PackedReduceResult result;
   // This function doesn't have sycl-specific implementation yet.
   // For that reason we transfer data to host in case of sycl is used for propper execution.
@@ -420,6 +421,9 @@ class QuantileError : public MetricNoCache {
 
   double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
     CHECK(!alpha_.Empty());
+    CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
+    CHECK_EQ(preds.Size(), info.labels.Size() * alpha_.Size())
+        << "Prediction size must equal label size times the number of alpha values.";
     if (info.num_row_ == 0) {
       // empty DMatrix on distributed env
       std::array<double, 2> dat{0.0, 0.0};
@@ -434,7 +438,7 @@ class QuantileError : public MetricNoCache {
     preds.SetDevice(ctx->Device());
     alpha_.SetDevice(ctx->Device());
     auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
-    std::size_t n_targets = preds.Size() / info.num_row_ / alpha_.Size();
+    std::size_t n_targets = info.labels.Shape(1);
     CHECK_NE(n_targets, 0);
     auto y_predt = linalg::MakeTensorView(ctx, &preds, static_cast<std::size_t>(info.num_row_),
                                           alpha_.Size(), n_targets);
@@ -504,6 +508,9 @@ class ExpectileError : public MetricNoCache {
 
   double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
     CHECK(!alpha_.Empty());
+    CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
+    CHECK_EQ(preds.Size(), info.labels.Size() * alpha_.Size())
+        << "Prediction size must equal label size times the number of alpha values.";
     if (info.num_row_ == 0) {
       // empty DMatrix on distributed env
       std::array<double, 2> dat{0.0, 0.0};
@@ -518,7 +525,7 @@ class ExpectileError : public MetricNoCache {
     preds.SetDevice(ctx->Device());
     alpha_.SetDevice(ctx->Device());
     auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
-    std::size_t n_targets = preds.Size() / info.num_row_ / alpha_.Size();
+    std::size_t n_targets = info.labels.Shape(1);
     CHECK_NE(n_targets, 0);
     auto y_predt = linalg::MakeTensorView(ctx, &preds, static_cast<std::size_t>(info.num_row_),
                                           alpha_.Size(), n_targets);

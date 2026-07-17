@@ -6,8 +6,6 @@
 #include <algorithm>    // for copy, fill
 #include <array>        // for array
 #include <cmath>        // for abs
-#include <cstdint>      // for uint32_t
-#include <limits>       // for numeric_limits
 #include <type_traits>  // for remove_const_t
 #include <variant>      // for variant
 #include <vector>       // for vector
@@ -740,7 +738,6 @@ void QuadratureTreeShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
 void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
                              HostDeviceVector<float> *out_contribs, gbm::GBTreeModel const &model,
                              bst_tree_t tree_end, std::vector<float> const *tree_weights) {
-  CHECK(!model.learner_model_param->IsVectorLeaf()) << "Predict contribution" << MTNotImplemented();
   CHECK(!p_fmat->Info().IsColumnSplit())
       << "Predict contribution support for column-wise data split is not yet implemented.";
   MetaInfo const &info = p_fmat->Info();
@@ -763,11 +760,12 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   std::vector<RegTree::FVec> feats_tloc(n_threads);
-  std::vector<std::vector<bst_float>> contribs_tloc(n_threads, std::vector<bst_float>(ncolumns));
+  std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<bst_float>(ncolumns));
 
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
   auto base_margin = info.base_margin_.View(device);
 
+  bool is_vector_leaf = false;
   auto process_view = [&](auto &&view) {
     common::ParallelFor(view.Size(), n_threads, [&](auto i) {
       auto tid = omp_get_thread_num();
@@ -784,6 +782,10 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
         for (bst_tree_t j = 0; j < tree_end; ++j) {
           if (h_tree_groups[j] != gid) {
             continue;
+          }
+          if (model.trees[j]->IsMultiTarget()) {
+            is_vector_leaf = true;
+            return;
           }
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
           auto const sc_tree = model.trees[j]->HostScView();
@@ -805,6 +807,9 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   };
 
   LaunchShap(ctx, p_fmat, model, process_view);
+  if (is_vector_leaf) {
+    LOG(FATAL) << "Approximate predict contribution " << MTNotImplemented();
+  }
 }
 
 void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
