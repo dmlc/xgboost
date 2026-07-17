@@ -97,6 +97,14 @@ class JsonReader {
   virtual Json ParseBoolean();
   virtual Json ParseNull();
 
+  /**
+   * @brief Parse a JSON string literal into a plain std::string.
+   *
+   * Shared by ParseString and ParseObject (for keys), so object keys do not
+   * pay for a heap-allocated Json wrapper that is immediately unwrapped.
+   */
+  std::string ParseStringLiteral();
+
   Json Parse();
 
  public:

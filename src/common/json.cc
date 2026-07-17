@@ -437,8 +437,32 @@ void ParseStr(std::string const& str) {
   result.resize(end);
 }
 
-Json JsonReader::ParseString() {
+std::string JsonReader::ParseStringLiteral() {
   Char ch { GetConsecutiveChar('\"') };  // NOLINT
+
+  // Fast path: scan ahead for the closing quote. When the literal contains no
+  // escape sequence (the overwhelmingly common case), construct the string in
+  // one piece instead of character by character.
+  char const* data = raw_str_.c_str();
+  std::size_t const size = raw_str_.size();
+  std::size_t const begin = cursor_.Pos();
+  std::size_t pos = begin;
+  while (pos < size) {
+    char c = data[pos];
+    if (c == '\"') {
+      std::string str{data + begin, pos - begin};
+      cursor_.Forward(static_cast<uint32_t>(pos - begin + 1));  // literal + closing quote
+      return str;
+    }
+    if (c == '\\' || c == '\r' || c == '\n') {
+      break;  // escape sequence or malformed literal: handled by the loop below
+    }
+    ++pos;
+  }
+
+  // Slow path: handles escape sequences and reports malformed literals. The
+  // cursor was not advanced by the scan above, so this parses the whole
+  // literal exactly as the previous implementation did.
   std::string str;
   while (true) {
     ch = GetNextChar();
@@ -464,6 +488,11 @@ Json JsonReader::ParseString() {
       Expect('\"', ch);
     }
   }
+  return str;
+}
+
+Json JsonReader::ParseString() {
+  std::string str = this->ParseStringLiteral();
   return Json(std::move(str));
 }
 
@@ -488,8 +517,9 @@ Json JsonReader::ParseArray() {
       GetConsecutiveChar(']');
       return Json(std::move(data));
     }
-    auto obj = Parse();
-    data.emplace_back(obj);
+    // Move the parsed element in directly; the previous lvalue copy cost a
+    // reference-count round trip per element.
+    data.emplace_back(Parse());
     ch = GetNextNonSpaceChar();
     if (ch == ']') break;
     if (ch != ',') {
@@ -520,7 +550,11 @@ Json JsonReader::ParseObject() {
     if (ch != '"') {
       Expect('"', ch);
     }
-    Json key = ParseString();
+    // Parse the key as a plain string: wrapping it in a Json (as ParseString
+    // does) costs a heap-allocated value that is immediately unwrapped, and
+    // `data[key] = ...` would then copy the key and default-construct the
+    // mapped value. insert_or_assign preserves last-duplicate-wins semantics.
+    std::string key = this->ParseStringLiteral();
 
     ch = GetNextNonSpaceChar();
 
@@ -530,7 +564,7 @@ Json JsonReader::ParseObject() {
 
     Json value { Parse() };
 
-    data[get<String>(key)] = std::move(value);
+    data.insert_or_assign(std::move(key), std::move(value));
 
     ch = GetNextNonSpaceChar();
 
