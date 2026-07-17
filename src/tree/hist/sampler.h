@@ -4,7 +4,10 @@
 #ifndef XGBOOST_TREE_HIST_SAMPLER_H_
 #define XGBOOST_TREE_HIST_SAMPLER_H_
 
-#include <cmath>    // for isinf
+// ::isinf doesn't exist in cmath, and old CUDA Windows cannot handle std:: prefixed math
+// functions
+#include <math.h>  // NOLINT
+
 #include <cstdint>  // for uint64_t
 #include <random>   // for bernoulli_distribution, linear_congruential_engine
 #include <vector>   // for vector
@@ -60,7 +63,7 @@ struct MvsGradOp {
 
 XGBOOST_DEVICE inline float SamplingProbability(float u, float reg_abs_grad) {
   // An infinite threshold represents an empty sampling budget exactly.
-  if (std::isinf(u)) {
+  if (::isinf(u)) {
     return 0.0f;
   }
   if (::fabs(u) < kRtEps) {
