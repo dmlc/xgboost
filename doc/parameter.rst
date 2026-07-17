@@ -98,7 +98,7 @@ General Parameters
 
 Parameters for Tree Booster
 ===========================
-* ``eta`` [default=0.3, alias: ``learning_rate``]
+* ``eta`` [default=0.1, alias: ``learning_rate``]
 
   - Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and ``eta`` shrinks the feature weights to make the boosting process more conservative.
   - range: [0,1]
@@ -113,7 +113,7 @@ Parameters for Tree Booster
   - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree. ``exact`` tree method requires non-zero value.
   - range: [0,∞]
 
-* ``min_child_weight`` [default=1]
+* ``min_child_weight`` [default=2]
 
   - Minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than ``min_child_weight``, then the building process will give up further partitioning. In linear regression task, this simply corresponds to minimum number of instances needed to be in each node. The larger ``min_child_weight`` is, the more conservative the algorithm will be.
   - range: [0,∞]
@@ -123,7 +123,7 @@ Parameters for Tree Booster
   - Maximum delta step we allow each leaf output to be. If the value is set to 0, it means there is no constraint. If it is set to a positive value, it can help making the update step more conservative. Usually this parameter is not needed, but it might help in logistic regression when class is extremely imbalanced. Set it to value of 1-10 might help control the update.
   - range: [0,∞]
 
-* ``subsample`` [default=1]
+* ``subsample`` [default=0.8]
 
   - Subsample ratio of the training instances. Setting it to 0.5 means that XGBoost would randomly sample half of the training data prior to growing trees. and this will prevent overfitting. Subsampling will occur once in every boosting iteration.
   - range: (0,1]
@@ -150,10 +150,10 @@ Parameters for Tree Booster
      split gradient, which may not be optimal with the full gradient. Use uniform sampling
      as an alternative.
 
-* ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
+* ``colsample_bytree`` [default=0.8], ``colsample_bylevel``, ``colsample_bynode`` [default=1]
 
   - This is a family of parameters for subsampling of columns.
-  - All ``colsample_by*`` parameters have a range of (0, 1], the default value of 1, and specify the fraction of columns to be subsampled.
+  - All ``colsample_by*`` parameters have a range of (0, 1] and specify the fraction of columns to be subsampled.
   - ``colsample_bytree`` is the subsample ratio of columns when constructing each tree. Subsampling occurs once for every tree constructed.
   - ``colsample_bylevel`` is the subsample ratio of columns for each level. Subsampling occurs once for every new depth level reached in a tree. Columns are subsampled from the set of columns chosen for the current tree.
   - ``colsample_bynode`` is the subsample ratio of columns for each node (split). Subsampling occurs once every time a new split is evaluated. Columns are subsampled from the set of columns chosen for the current level. This is not supported by the exact tree method.

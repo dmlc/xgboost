@@ -142,7 +142,10 @@ class XGBoostRegressorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       "eta" -> "1",
       "max_depth" -> "6",
       "base_score" -> 0.5,
-      "max_bin" -> 16) ++ xgbParams
+      "max_bin" -> 16,
+      "min_child_weight" -> 1,
+      "subsample" -> 1,
+      "colsample_bytree" -> 1) ++ xgbParams
     val xgb4jModel = ScalaXGBoost.train(trainingDM, paramMap, round)
 
     val regressor = new XGBoostRegressor(paramMap)

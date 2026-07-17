@@ -8,6 +8,7 @@ from typing import Dict, List, Tuple
 from ..callback import LearningRateScheduler
 from ..core import Booster, DMatrix
 from ..training import cv, train
+from . import legacy_sampling_params
 from .utils import Device
 
 
@@ -29,6 +30,7 @@ def run_eta_decay(
         "eval_metric": "error",
         "tree_method": tree_method,
         "device": device,
+        **legacy_sampling_params(),
     }
     evals_result: Dict[str, Dict] = {}
     bst = train(
@@ -52,6 +54,7 @@ def run_eta_decay(
         "eval_metric": "error",
         "tree_method": tree_method,
         "device": device,
+        **legacy_sampling_params(),
     }
     evals_result = {}
 
@@ -75,6 +78,7 @@ def run_eta_decay(
         "eval_metric": "error",
         "tree_method": tree_method,
         "device": device,
+        **legacy_sampling_params(),
     }
     evals_result = {}
     bst = train(
@@ -144,6 +148,7 @@ def run_eta_decay_leaf_output(
         "eval_metric": "error",
         "tree_method": tree_method,
         "device": device,
+        **legacy_sampling_params(),
     }
     if objective == "reg:quantileerror":
         param["quantile_alpha"] = 0.3

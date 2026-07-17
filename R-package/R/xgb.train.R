@@ -480,7 +480,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' @param eta,learning_rate (two aliases for the same parameter)
 #' Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and `eta` shrinks the feature weights to make the boosting process more conservative.
 #' - range: \eqn{[0,1]}
-#' - default value: 0.3 for tree-based boosters, 0.5 for linear booster.
+#' - default value: 0.1 for tree-based boosters, 0.5 for linear booster.
 #'
 #' Note: should only pass one of `eta` or `learning_rate`. Both refer to the same parameter and there's thus no difference between one or the other.
 #' @param gamma,min_split_loss (two aliases for the same parameter) (for Tree Booster) (default=0, alias: `gamma`)
@@ -493,7 +493,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree. `"exact"` tree method requires non-zero value.
 #'
 #' range: \eqn{[0, \infty)}
-#' @param min_child_weight (for Tree Booster) (default=1)
+#' @param min_child_weight (for Tree Booster) (default=2)
 #' Minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than `min_child_weight`, then the building process will give up further partitioning. In linear regression task, this simply corresponds to minimum number of instances needed to be in each node. The larger `min_child_weight` is, the more conservative the algorithm will be.
 #'
 #' range: \eqn{[0, \infty)}
@@ -501,7 +501,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' Maximum delta step we allow each leaf output to be. If the value is set to 0, it means there is no constraint. If it is set to a positive value, it can help making the update step more conservative. Usually this parameter is not needed, but it might help in logistic regression when class is extremely imbalanced. Set it to value of 1-10 might help control the update.
 #'
 #' range: \eqn{[0, \infty)}
-#' @param subsample (for Tree Booster) (default=1)
+#' @param subsample (for Tree Booster) (default=0.8)
 #' Subsample ratio of the training instances. Setting it to 0.5 means that XGBoost would randomly sample half of the training data prior to growing trees. and this will prevent overfitting. Subsampling will occur once in every boosting iteration.
 #'
 #' range: \eqn{(0,1]}
@@ -514,9 +514,9 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #'   `"subsample"` may be set to as low as 0.1 without loss of model accuracy. Note that this
 #'   sampling method is only supported when `"tree_method"` is set to `"hist"`; other tree
 #'   methods only support `"uniform"` sampling.
-#' @param colsample_bytree,colsample_bylevel,colsample_bynode (for Tree Booster) (default=1)
+#' @param colsample_bytree,colsample_bylevel,colsample_bynode (for Tree Booster) (`colsample_bytree` default=0.8, `colsample_bylevel` and `colsample_bynode` default=1)
 #' This is a family of parameters for subsampling of columns.
-#' - All `"colsample_by*"` parameters have a range of \eqn{(0, 1]}, the default value of 1, and specify the fraction of columns to be subsampled.
+#' - All `"colsample_by*"` parameters have a range of \eqn{(0, 1]} and specify the fraction of columns to be subsampled.
 #' - `"colsample_bytree"` is the subsample ratio of columns when constructing each tree. Subsampling occurs once for every tree constructed.
 #' - `"colsample_bylevel"` is the subsample ratio of columns for each level. Subsampling occurs once for every new depth level reached in a tree. Columns are subsampled from the set of columns chosen for the current tree.
 #' - `"colsample_bynode"` is the subsample ratio of columns for each node (split). Subsampling occurs once every time a new split is evaluated. Columns are subsampled from the set of columns chosen for the current level. This is not supported by the exact tree method.

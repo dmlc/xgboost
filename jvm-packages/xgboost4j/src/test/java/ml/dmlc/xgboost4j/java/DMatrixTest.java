@@ -360,6 +360,9 @@ public class DMatrixTest {
       params.put("silent", 1);
       params.put("objective", "reg:linear");
       params.put("seed", 123);
+      params.put("min_child_weight", 1);
+      params.put("subsample", 1);
+      params.put("colsample_bytree", 1);
 
       HashMap<String, DMatrix> watches = new HashMap<>();
       watches.put("train", trainMat);

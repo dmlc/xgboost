@@ -169,7 +169,11 @@ TEST(HistMultiEvaluator, Evaluate) {
   ctx.nthread = 1;
 
   TrainParam param;
-  param.Init(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}});
+  param.Init(Args{
+      {"min_child_weight", "0"},
+      {"reg_lambda", "0"},
+      {"colsample_bytree", "1"},
+  });
   auto sampler = std::make_shared<common::ColumnSampler>();
 
   std::size_t n_samples = 3;

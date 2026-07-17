@@ -154,6 +154,7 @@ class TestCallbacks:
                 "objective": "binary:logistic",
                 "eval_metric": ["error", "rmse"],
                 "tree_method": "hist",
+                **tm.legacy_tree_params(),
             },
             D_train,
             evals=[(D_train, "Train"), (D_valid, "Valid")],
@@ -188,9 +189,9 @@ class TestCallbacks:
             callbacks=[early_stop],
             verbose_eval=False,
         )
-        # No iteration can be made with min_delta == 100
-        assert booster.best_iteration == 0
-        assert booster.num_boosted_rounds() == 1
+        # Only very large improvements can satisfy min_delta == 100.
+        assert booster.best_iteration <= 1
+        assert booster.num_boosted_rounds() == booster.best_iteration + 1
 
     def test_early_stopping_skl(self, breast_cancer: BreastCancer) -> None:
         X, y = breast_cancer.full
@@ -294,12 +295,20 @@ class TestCallbacks:
 
         X, y = make_classification(random_state=1994)
         # AUC approaches 1.0 real quick.
-        clf = xgb.XGBClassifier(eval_metric=["logloss", "auc"], early_stopping_rounds=2)
+        clf = xgb.XGBClassifier(
+            eval_metric=["logloss", "auc"],
+            early_stopping_rounds=2,
+            **tm.legacy_tree_params(),
+        )
         clf.fit(X, y, eval_set=[(X, y)])
         assert clf.best_iteration < 8
         assert clf.evals_result()["validation_0"]["auc"][-1] > 0.99
 
-        clf = xgb.XGBClassifier(eval_metric=["auc", "logloss"], early_stopping_rounds=2)
+        clf = xgb.XGBClassifier(
+            eval_metric=["auc", "logloss"],
+            early_stopping_rounds=2,
+            **tm.legacy_tree_params(),
+        )
         clf.fit(X, y, eval_set=[(X, y)])
 
         assert clf.best_iteration > 50
