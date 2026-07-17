@@ -769,7 +769,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   auto const base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU());
   auto const h_tree_groups = model.TreeGroups(DeviceOrd::CPU());
   std::vector<RegTree::FVec> feats_tloc(n_threads);
-  std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<bst_float>(ncolumns));
+  std::vector<std::vector<float>> contribs_tloc(n_threads, std::vector<float>(ncolumns));
 
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
   auto base_margin = info.base_margin_.View(device);
