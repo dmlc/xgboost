@@ -119,7 +119,7 @@ class TreeEvaluator {
     }
 
     inline GradType CalcWeight(GradType sum_grad, GradType sum_hess) const {
-      if (sum_hess < param.min_child_weight || sum_hess <= 0.0) {
+      if (sum_hess <= 0.0) {
         return 0.0;
       }
       GradType dw = -this->ThresholdL1(sum_grad, param.reg_alpha) / (sum_hess + param.reg_lambda);

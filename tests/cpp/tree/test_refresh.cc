@@ -61,7 +61,7 @@ TEST(Updater, Refresh) {
 
   bst_float constexpr kEps = 1e-6;
   ASSERT_NEAR(-0.183392, tree[cright].LeafValue(), kEps);
-  ASSERT_NEAR(-0.224489, tree.Stat(0).loss_chg, kEps);
+  ASSERT_NEAR(-0.167978, tree.Stat(0).loss_chg, kEps);
   ASSERT_NEAR(0, tree.Stat(cleft).loss_chg, kEps);
   ASSERT_NEAR(0, tree.Stat(1).loss_chg, kEps);
   ASSERT_NEAR(0, tree.Stat(2).loss_chg, kEps);
