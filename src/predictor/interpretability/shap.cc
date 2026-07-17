@@ -5,6 +5,7 @@
 
 #include <algorithm>    // for copy, fill
 #include <array>        // for array
+#include <atomic>       // for atomic
 #include <cmath>        // for abs
 #include <type_traits>  // for remove_const_t
 #include <variant>      // for variant
@@ -751,9 +752,17 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
   std::fill(contribs.begin(), contribs.end(), 0);
   std::vector<std::vector<float>> mean_values(n_trees);
+  std::atomic<bool> is_vector_leaf = false;
   common::ParallelFor(n_trees, n_threads, [&](auto i) {
+    if (model.trees[i]->IsMultiTarget()) {
+      is_vector_leaf = true;
+      return;
+    }
     FillNodeMeanValues(model.trees[i]->HostScView(), &(mean_values[i]));
   });
+  if (is_vector_leaf) {
+    LOG(FATAL) << "Approximate predict contribution " << MTNotImplemented();
+  }
 
   auto const n_groups = model.learner_model_param->num_output_group;
   CHECK_NE(n_groups, 0);
@@ -765,7 +774,6 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
   auto base_margin = info.base_margin_.View(device);
 
-  bool is_vector_leaf = false;
   auto process_view = [&](auto &&view) {
     common::ParallelFor(view.Size(), n_threads, [&](auto i) {
       auto tid = omp_get_thread_num();
@@ -783,10 +791,7 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
           if (h_tree_groups[j] != gid) {
             continue;
           }
-          if (model.trees[j]->IsMultiTarget()) {
-            is_vector_leaf = true;
-            return;
-          }
+
           std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
           auto const sc_tree = model.trees[j]->HostScView();
           CalculateApproxContributions(sc_tree, feats, &mean_values[j], &this_tree_contribs);
@@ -807,9 +812,6 @@ void ApproxFeatureImportance(Context const *ctx, DMatrix *p_fmat,
   };
 
   LaunchShap(ctx, p_fmat, model, process_view);
-  if (is_vector_leaf) {
-    LOG(FATAL) << "Approximate predict contribution " << MTNotImplemented();
-  }
 }
 
 void ShapInteractionValues(Context const *ctx, DMatrix *p_fmat,
