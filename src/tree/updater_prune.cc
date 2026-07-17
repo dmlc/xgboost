@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2025, XGBoost Contributors
+ * Copyright 2014-2026, XGBoost Contributors
  * \file updater_prune.cc
  * \brief prune a tree given the statistics
  * \author Tianqi Chen
@@ -55,12 +55,11 @@ class TreePruner : public TreeUpdater {
     }
     bst_node_t pid = tree[nid].Parent();
     CHECK(!tree[pid].IsLeaf());
-    RTreeNodeStat const &s = tree.Stat(pid);
+    RTreeNodeStat const& s = tree.Stat(pid);
     // Only prune when both child are leaf.
     auto left = tree[pid].LeftChild();
     auto right = tree[pid].RightChild();
-    bool balanced = tree[left].IsLeaf() &&
-                    right != RegTree::kInvalidNodeId && tree[right].IsLeaf();
+    bool balanced = tree[left].IsLeaf() && right != RegTree::kInvalidNodeId && tree[right].IsLeaf();
     if (balanced && param->NeedPrune(s.loss_chg, depth)) {
       // need to be pruned
       tree.ChangeToLeaf(pid, param->learning_rate * s.base_weight);
@@ -73,14 +72,14 @@ class TreePruner : public TreeUpdater {
   /*! \brief do pruning of a tree */
   void DoPrune(TrainParam const* param, RegTree* p_tree) {
     auto& tree = *p_tree;
+    CHECK(!tree.IsMultiTarget()) << "Pruning" << MTNotImplemented();
     bst_node_t npruned = 0;
     for (int nid = 0; nid < tree.NumNodes(); ++nid) {
       if (tree[nid].IsLeaf() && !tree[nid].IsDeleted()) {
         npruned = this->TryPruneLeaf(param, p_tree, nid, tree.GetDepth(nid), npruned);
       }
     }
-    LOG(INFO) << "tree pruning end, "
-              << tree.NumExtraNodes() << " extra nodes, " << npruned
+    LOG(INFO) << "tree pruning end, " << tree.NumExtraNodes() << " extra nodes, " << npruned
               << " pruned nodes, max_depth=" << tree.MaxDepth();
   }
 
@@ -92,7 +91,5 @@ class TreePruner : public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(TreePruner, "prune")
     .describe("Pruner that prune the tree according to statistics.")
-    .set_body([](Context const* ctx, ObjInfo const* task) {
-      return new TreePruner{ctx, task};
-    });
+    .set_body([](Context const* ctx, ObjInfo const* task) { return new TreePruner{ctx, task}; });
 }  // namespace xgboost::tree

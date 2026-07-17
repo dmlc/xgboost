@@ -1197,7 +1197,7 @@ class LearnerImpl : public LearnerIO {
   void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
                HostDeviceVector<float>* out_preds, bst_layer_t layer_begin, bst_layer_t layer_end,
                bool training, bool pred_leaf, bool pred_contribs, bool approx_contribs,
-               bool pred_interactions) override {
+               bool pred_interactions, bool strict_shape) override {
     int multiple_predictions = static_cast<int>(pred_leaf) + static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
     this->Configure();
@@ -1213,7 +1213,7 @@ class LearnerImpl : public LearnerIO {
       gbm_->PredictInteractionContributions(data.get(), out_preds, layer_begin, layer_end,
                                             approx_contribs);
     } else if (pred_leaf) {
-      gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end);
+      gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end, strict_shape);
     } else {
       auto predt = prediction_container_.Cache(data, ctx_.Device());
       this->PredictRaw(data.get(), predt.get(), training, layer_begin, layer_end);

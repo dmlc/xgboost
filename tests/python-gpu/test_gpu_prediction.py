@@ -425,7 +425,9 @@ class TestGPUPredict:
             np.sum(shap, axis=len(shap.shape) - 1), margin, rtol=1e-3
         )
 
-    @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+    @pytest.mark.parametrize(
+        "DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix, xgb.ExtMemQuantileDMatrix]
+    )
     def test_predict_leaf_basic(self, DMatrixT: Type[xgb.DMatrix]) -> None:
         gpu_leaf = run_predict_leaf("cuda", DMatrixT)
         cpu_leaf = run_predict_leaf("cpu", DMatrixT)

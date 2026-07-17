@@ -662,7 +662,7 @@ void SketchContainer::AllReduce(Context const *ctx, bool is_column_split) {
   pack_payload(&payload, stream);
   rc = collective::AllreduceV(
       ctx, &payload, &scratch,
-      [&](dh::device_vector<std::int8_t> const &lhs, dh::device_vector<std::int8_t> const &rhs,
+      [&](dh::device_vector<std::int8_t> const &, dh::device_vector<std::int8_t> const &rhs,
           dh::device_vector<std::int8_t> *out, cudaStream_t stream) {
         auto rhs_view = ParseDeviceSketchPayload(rhs, this->num_columns_);
         this->Merge(ctx, rhs_view.columns_ptr, rhs_view.entries);

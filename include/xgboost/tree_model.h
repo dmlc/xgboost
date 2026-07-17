@@ -273,18 +273,13 @@ class RegTree : public Model {
   void LoadModel(Json const& in) override;
   void SaveModel(Json* out) const override;
 
-  bool operator==(const RegTree& b) const {
-    return nodes_.ConstHostVector() == b.nodes_.ConstHostVector() &&
-           stats_.ConstHostVector() == b.stats_.ConstHostVector() &&
-           deleted_nodes_ == b.deleted_nodes_ && param_ == b.param_;
-  }
-  /*!
-   * \brief Compares whether 2 trees are equal from a user's perspective.  The equality
+  /**
+   * @brief Compares whether 2 trees are equal from a user's perspective.  The equality
    *        compares only non-deleted nodes.
    *
-   * \param b The other tree.
+   * @param b The other tree.
    */
-  [[nodiscard]] bool Equal(const RegTree& b) const;
+  [[nodiscard]] bool Equal(RegTree const& b) const;
 
   /**
    * \brief Expands a leaf node into two additional leaf nodes.

@@ -187,6 +187,7 @@ __global__ void PredictLeafKernel(Data data, common::Span<TreeViewVar const> d_t
     return;
   }
   Loader loader{std::move(data), use_shared, num_features, n_rows, missing, std::move(acc)};
+  auto const n_trees = tree_end - tree_begin;
   for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
     auto const& d_tree = d_trees[tree_idx - tree_begin];
     cuda::std::visit(
@@ -197,7 +198,7 @@ __global__ void PredictLeafKernel(Data data, common::Span<TreeViewVar const> d_t
           } else {
             leaf = GetLeafIndex<has_missing, false>(ridx, tree, &loader);
           }
-          d_out_predictions[ridx * (tree_end - tree_begin) + tree_idx] = leaf;
+          d_out_predictions[ridx * n_trees + tree_idx - tree_begin] = leaf;
         },
         d_tree);
   }
@@ -813,6 +814,7 @@ class GPUPredictor : public xgboost::Predictor {
 
     LaunchPredict(ctx_, p_fmat->IsDense(), new_enc, model, [&](auto&& cfg, auto&& acc) {
       bst_idx_t batch_offset = 0;
+      auto const n_trees = d_model.Trees().size();
       cfg.ForEachBatch(p_fmat, [&](auto&& loader_t, auto&& batch) {
         using Loader = typename common::GetValueT<decltype(loader_t)>;
         using Config = common::GetValueT<decltype(cfg)>;
@@ -825,7 +827,7 @@ class GPUPredictor : public xgboost::Predictor {
                                     cfg.UseShared(), std::numeric_limits<float>::quiet_NaN(),
                                     std::forward<typename Config::EncAccessorT>(acc));
 
-        batch_offset += n_rows;
+        batch_offset += n_rows * n_trees;
       });
     });
   }
