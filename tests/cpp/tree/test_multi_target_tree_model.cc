@@ -118,7 +118,11 @@ void TestTreeDump(std::string format, std::string leaf_key) {
                     /*left_sum=*/0.6f, /*right_sum=*/0.4f);
     tree.GetMultiTargetTree()->SetLeaves();
     auto str = tree.DumpModel(fmap, false, format);
-    ASSERT_NE(str.find(leaf_key + "[1, 2, ..., 4]"), std::string::npos);
+    if (format != "json") {
+      ASSERT_NE(str.find(leaf_key + "[1, 2, ..., 4]"), std::string::npos);
+    } else {
+      ASSERT_NE(str.find(leaf_key + "[1, 2, 3, 4]"), std::string::npos);
+    }
   }
 }
 }  // namespace
