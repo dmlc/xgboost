@@ -86,16 +86,14 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
     DMLC_DECLARE_FIELD(min_split_loss)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
-        .describe(
-            "Minimum loss reduction required to make a further partition.");
-    DMLC_DECLARE_FIELD(max_depth)
+        .describe("Minimum loss reduction required to make a further partition.");
+    DMLC_DECLARE_FIELD(max_depth).set_lower_bound(0).set_default(6).describe(
+        "Maximum depth of the tree; 0 indicates no limit; a limit is required "
+        "for depthwise policy");
+    DMLC_DECLARE_FIELD(max_leaves)
         .set_lower_bound(0)
-        .set_default(6)
-        .describe(
-            "Maximum depth of the tree; 0 indicates no limit; a limit is required "
-            "for depthwise policy");
-    DMLC_DECLARE_FIELD(max_leaves).set_lower_bound(0).set_default(0).describe(
-        "Maximum number of leaves; 0 indicates no limit.");
+        .set_default(0)
+        .describe("Maximum number of leaves; 0 indicates no limit.");
     DMLC_DECLARE_FIELD(max_bin).set_lower_bound(2).set_default(256).describe(
         "if using histogram-based algorithm, maximum number of bins per feature");
     DMLC_DECLARE_FIELD(grow_policy)
@@ -124,15 +122,14 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_lower_bound(0.0f)
         .set_default(1.0f)
         .describe("L2 regularization on leaf weight");
-    DMLC_DECLARE_FIELD(reg_alpha)
-        .set_lower_bound(0.0f)
-        .set_default(0.0f)
-        .describe("L1 regularization on leaf weight");
+    DMLC_DECLARE_FIELD(reg_alpha).set_lower_bound(0.0f).set_default(0.0f).describe(
+        "L1 regularization on leaf weight");
     DMLC_DECLARE_FIELD(max_delta_step)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
-        .describe("Maximum delta step we allow each tree's weight estimate to be. "\
-                  "If the value is set to 0, it means there is no constraint");
+        .describe(
+            "Maximum delta step we allow each tree's weight estimate to be. "
+            "If the value is set to 0, it means there is no constraint");
     DMLC_DECLARE_FIELD(subsample)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
@@ -165,11 +162,12 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .describe("Constraint of variable monotonicity");
     DMLC_DECLARE_FIELD(interaction_constraints)
         .set_default("")
-        .describe("Constraints for interaction representing permitted interactions."
-                  "The constraints must be specified in the form of a nest list,"
-                  "e.g. [[0, 1], [2, 3, 4]], where each inner list is a group of"
-                  "indices of features that are allowed to interact with each other."
-                  "See tutorial for more information");
+        .describe(
+            "Constraints for interaction representing permitted interactions."
+            "The constraints must be specified in the form of a nest list,"
+            "e.g. [[0, 1], [2, 3, 4]], where each inner list is a group of"
+            "indices of features that are allowed to interact with each other."
+            "See tutorial for more information");
 
     // ------ From cpu quantile histogram -------.
     DMLC_DECLARE_FIELD(sparse_threshold)
@@ -214,10 +212,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
 // functions for L1 cost
 template <typename T1, typename T2>
 XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 alpha) {
-  if (w > + alpha) {
+  if (w > +alpha) {
     return w - alpha;
   }
-  if (w < - alpha) {
+  if (w < -alpha) {
     return w + alpha;
   }
   return 0.0;
@@ -266,8 +264,7 @@ XGBOOST_DEVICE T CalcGain(TrainingParams const &p, T sum_grad, T sum_hess) {
   }
 }
 
-template <typename TrainingParams,
-          typename StatT, typename T = decltype(StatT().GetHess())>
+template <typename TrainingParams, typename StatT, typename T = decltype(StatT().GetHess())>
 XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, StatT stat) {
   return CalcGain(p, stat.GetGrad(), stat.GetHess());
 }
@@ -310,29 +307,27 @@ inline double CalcGainGivenWeight(TrainParam const &p,
 struct XGBOOST_ALIGNAS(16) GradStats {
   using GradType = double;
   /*! \brief sum gradient statistics */
-  GradType sum_grad { 0 };
+  GradType sum_grad{0};
   /*! \brief sum hessian statistics */
-  GradType sum_hess { 0 };
+  GradType sum_hess{0};
 
  public:
   [[nodiscard]] XGBOOST_DEVICE GradType GetGrad() const { return sum_grad; }
   [[nodiscard]] XGBOOST_DEVICE GradType GetHess() const { return sum_hess; }
 
-  friend std::ostream& operator<<(std::ostream& os, GradStats s) {
+  friend std::ostream &operator<<(std::ostream &os, GradStats s) {
     os << s.GetGrad() << "/" << s.GetHess();
     return os;
   }
 
   XGBOOST_DEVICE GradStats() {
-    static_assert(sizeof(GradStats) == 16,
-                  "Size of GradStats is not 16 bytes.");
+    static_assert(sizeof(GradStats) == 16, "Size of GradStats is not 16 bytes.");
   }
 
   template <typename GpairT>
   XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
       : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
-  explicit GradStats(const GradType grad, const GradType hess)
-      : sum_grad(grad), sum_hess(hess) {}
+  explicit GradStats(const GradType grad, const GradType hess) : sum_grad(grad), sum_hess(hess) {}
   /*!
    * \brief accumulate statistics
    * \param p the gradient pair
@@ -340,16 +335,16 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   inline void Add(GradientPair p) { this->Add(p.GetGrad(), p.GetHess()); }
 
   /*! \brief add statistics to the data */
-  inline void Add(const GradStats& b) {
+  inline void Add(const GradStats &b) {
     sum_grad += b.sum_grad;
     sum_hess += b.sum_hess;
   }
   /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(GradStats& a, const GradStats& b) { // NOLINT(*)
+  inline static void Reduce(GradStats &a, const GradStats &b) {  // NOLINT(*)
     a.Add(b);
   }
   /*! \brief set current value to a - b */
-  inline void SetSubstract(const GradStats& a, const GradStats& b) {
+  inline void SetSubstract(const GradStats &a, const GradStats &b) {
     sum_grad = a.sum_grad - b.sum_grad;
     sum_hess = a.sum_hess - b.sum_hess;
   }
@@ -379,10 +374,10 @@ inline GradStats &CopyStats(GradStats const &src, GradStats *dst) {  // NOLINT
  * \brief statistics that is helpful to store
  *   and represent a split solution for the tree
  */
-template<typename GradientT>
+template <typename GradientT>
 struct SplitEntryContainer {
   /*! \brief loss change after split this node */
-  bst_float loss_chg {0.0f};
+  bst_float loss_chg{0.0f};
   /*! \brief split index */
   bst_feature_t sindex{0};
   bst_float split_value{0.0f};
@@ -551,8 +546,8 @@ struct SplitEntryContainer {
   }
 
   /*! \brief same as update, used by AllReduce*/
-  inline static void Reduce(SplitEntryContainer &dst,         // NOLINT(*)
-                            const SplitEntryContainer &src) { // NOLINT(*)
+  inline static void Reduce(SplitEntryContainer &dst,          // NOLINT(*)
+                            const SplitEntryContainer &src) {  // NOLINT(*)
     dst.Update(src);
   }
 };
@@ -570,9 +565,8 @@ using SplitEntry = SplitEntryContainer<GradStats>;
  *
  * \param p_out Pointer to output
  */
-void ParseInteractionConstraint(
-    std::string const &constraint_str,
-    std::vector<std::vector<xgboost::bst_feature_t>> *p_out);
+void ParseInteractionConstraint(std::string const &constraint_str,
+                                std::vector<std::vector<xgboost::bst_feature_t>> *p_out);
 }  // namespace xgboost
 
 // define string serializer for vector, to get the arguments
