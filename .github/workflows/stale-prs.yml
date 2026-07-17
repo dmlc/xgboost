@@ -1,0 +1,36 @@
+name: Close stale PRs
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/stale-prs.yml"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v10
+        with:
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+
+          days-before-pr-stale: 180
+          days-before-pr-close: 0
+          stale-pr-label: stale
+          exempt-pr-labels: do-not-close,blocked,in-progress,needs-maintainer,release,security
+
+          stale-pr-message: ""
+          close-pr-message: >
+            Closing this PR as stale due to inactivity. It can be reopened if
+            someone wants to continue it.
+
+          remove-pr-stale-when-updated: true
+          operations-per-run: 100
+          debug-only: ${{ github.event_name == 'pull_request' }}
