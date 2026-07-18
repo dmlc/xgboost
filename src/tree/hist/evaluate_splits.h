@@ -374,7 +374,7 @@ class HistEvaluator {
       }
     });
 
-    for (unsigned nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+    for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       for (auto tidx = 0; tidx < n_threads; ++tidx) {
         entries[nidx_in_set].split.Update(tloc_candidates[n_threads * nidx_in_set + tidx].split);
       }
