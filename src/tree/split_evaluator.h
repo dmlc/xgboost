@@ -101,11 +101,12 @@ class TreeEvaluator {
     template <typename GradientSumT>
     XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT& param,
                                     GradientSumT const& stats) const {
+      // boxed by max_delta_step
       float w = ::xgboost::tree::CalcWeight(param, stats);
       if (!has_constraint) {
         return w;
       }
-      // Calculate bound weight
+      // Calculate bound weight, boxed by monotone constraint
       if (nodeid == kRootParentId) {
         return w;
       } else if (w < lower[nodeid]) {
@@ -125,28 +126,15 @@ class TreeEvaluator {
       return ::xgboost::tree::CalcWeight(param, stats);
     }
 
-    // Fast floating point division instruction on device
-    [[nodiscard]] XGBOOST_DEVICE float Divide(float a, float b) const {
-#ifdef __CUDA_ARCH__
-      return __fdividef(a, b);
-#else
-      return a / b;
-#endif
-    }
-
     template <typename GradientSumT>
     XGBOOST_DEVICE float CalcGainGivenWeight(ParamT const& p, GradientSumT const& stats,
                                              float w) const {
       if (stats.GetHess() <= 0) {
         return .0f;
       }
-      // Avoiding tree::CalcGainGivenWeight can significantly reduce avg floating point error.
-      if (p.max_delta_step == 0.0f && has_constraint == false) {
-        return Divide(common::Sqr(ThresholdL1(stats.GetGrad(), p.reg_alpha)),
-                      (stats.GetHess() + p.reg_lambda));
-      }
       return tree::CalcGainGivenWeight<ParamT, float>(p, stats.GetGrad(), stats.GetHess(), w);
     }
+
     template <typename GradientSumT>
     XGBOOST_DEVICE float CalcGain(bst_node_t nid, ParamT const& p,
                                   GradientSumT const& stats) const {

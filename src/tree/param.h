@@ -227,9 +227,11 @@ ThresholdL1(T1 sum_grad, T2 alpha) {
 }
 
 // calculate the cost of loss function
-template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad, T sum_hess, T w) {
-  return -(static_cast<T>(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w));
+template <typename TrainingParams, typename T0, typename T1>
+XGBOOST_DEVICE inline T0 CalcGainGivenWeight(TrainingParams const &p, T0 sum_grad, T0 sum_hess,
+                                             T1 w) {
+  return -(static_cast<T0>(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w) +
+           (static_cast<T0>(2.0) * p.reg_alpha * std::abs(w)));
 }
 
 // calculate weight given the statistics
@@ -260,12 +262,7 @@ XGBOOST_DEVICE T CalcGain(TrainingParams const &p, T sum_grad, T sum_hess) {
     }
   } else {
     T w = CalcWeight(p, sum_grad, sum_hess);
-    T ret = CalcGainGivenWeight(p, sum_grad, sum_hess, w);
-    if (p.reg_alpha == 0.0f) {
-      return ret;
-    } else {
-      return ret + p.reg_alpha * std::abs(w);
-    }
+    return CalcGainGivenWeight(p, sum_grad, sum_hess, w);
   }
 }
 

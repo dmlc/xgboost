@@ -103,3 +103,27 @@ TEST(Param, SplitEntry) {
 
   EXPECT_TRUE(se1.NeedReplace(3, 1));
 }
+
+TEST(Param, CalcGainWithL1AndMaxDeltaStep) {
+  xgboost::tree::TrainParam param;
+  param.UpdateAllowUnknown(xgboost::Args{{"reg_alpha", "1"}, {"reg_lambda", "1"}});
+
+  constexpr float kGrad = 4.0f;
+  constexpr float kHess = 1.0f;
+
+  // Gain at the delta-clipped weight includes the complete L1 penalty.
+  EXPECT_FLOAT_EQ(xgboost::tree::CalcGainGivenWeight(param, kGrad, kHess, -0.5f), 2.5f);
+
+  // A non-binding max_delta_step must not change the unconstrained weight or gain.
+  param.max_delta_step = 0.0f;
+  EXPECT_FLOAT_EQ(xgboost::tree::CalcWeight(param, kGrad, kHess), -1.5f);
+  EXPECT_FLOAT_EQ(xgboost::tree::CalcGain(param, kGrad, kHess), 4.5f);
+
+  param.max_delta_step = 10.0f;
+  EXPECT_FLOAT_EQ(xgboost::tree::CalcWeight(param, kGrad, kHess), -1.5f);
+  EXPECT_FLOAT_EQ(xgboost::tree::CalcGain(param, kGrad, kHess), 4.5f);
+
+  param.max_delta_step = 0.5f;
+  EXPECT_FLOAT_EQ(xgboost::tree::CalcWeight(param, kGrad, kHess), -0.5f);
+  EXPECT_FLOAT_EQ(xgboost::tree::CalcGain(param, kGrad, kHess), 2.5f);
+}
