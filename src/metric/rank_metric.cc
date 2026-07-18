@@ -56,6 +56,7 @@ struct EvalAMS : public MetricNoCache {
   }
 
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
+    CheckRowWeights(info);
     CHECK(!collective::IsDistributed()) << "metric AMS do not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
@@ -245,12 +246,16 @@ class EvalRankWithCache : public Metric {
     double result{0.0};
     auto const& info = p_fmat->Info();
     collective::ApplyWithLabels(ctx_, info, &result, sizeof(double), [&] {
+      if (!info.labels.Empty()) {
+        CHECK_EQ(info.labels.Shape(1), 1) << "Ranking metrics do not support multi-target labels.";
+      }
+      CHECK_EQ(preds.Size(), info.labels.Size());
+
       auto p_cache = cache_.CacheItem(p_fmat, ctx_, info, param_);
       if (p_cache->Param() != param_) {
         p_cache = cache_.ResetItem(p_fmat, ctx_, info, param_);
       }
       CHECK(p_cache->Param() == param_);
-      CHECK_EQ(preds.Size(), info.labels.Size());
 
       result = this->Eval(preds, info, p_cache);
     });

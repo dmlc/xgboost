@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2024, Contributors
+ * Copyright 2018-2026, XGBoost Contributors
  */
 #ifndef XGBOOST_METRIC_METRIC_COMMON_H_
 #define XGBOOST_METRIC_METRIC_COMMON_H_
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "../collective/aggregator.h"
+#include "xgboost/logging.h"
 #include "xgboost/metric.h"
 
 namespace xgboost {
@@ -28,6 +29,15 @@ class MetricNoCache : public Metric {
 };
 
 namespace metric {
+inline void CheckRowWeights(MetaInfo const &info) {
+  if (info.weights_.Empty()) {
+    return;
+  }
+  CHECK(info.group_ptr_.empty()) << "Row-wise metric does not support query group weights.";
+  CHECK_EQ(info.weights_.Size(), info.num_row_)
+      << "Number of weights should be equal to the number of data points.";
+}
+
 // Ranking config to be used on device and host
 struct EvalRankConfig {
  public:

@@ -117,6 +117,10 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
         .set_default(0.0f)
         .describe("Probability of skipping the dropout during a boosting iteration.");
   }
+
+  [[nodiscard]] bool HasDropout() const {
+    return this->rate_drop != 0.0f || this->one_drop || this->skip_drop != 0.0f;
+  }
 };
 
 namespace detail {

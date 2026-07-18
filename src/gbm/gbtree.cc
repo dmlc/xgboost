@@ -10,7 +10,7 @@
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
 
-#include <algorithm>  // for equal
+#include <algorithm>  // for equal, any_of
 #include <cstdint>    // for uint32_t
 #include <memory>
 #include <string>
@@ -365,6 +365,7 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
     if (!gpair->HasValueGrad()) {
       CHECK_EQ(gpair->gpair.Size(), n_out) << msg;
     }
+    CHECK(!dparam_.HasDropout()) << "dart" << MTNotImplemented();
   }
 
   out_position->resize(new_trees.size());
@@ -383,8 +384,7 @@ void GBTree::CommitModel(TreesOneIter&& new_trees) {
   monitor_.Start("CommitModel");
   auto n_old_trees = model_.trees.size();
   auto has_tree_weights = !model_.weight_drop.empty();
-  auto dropout_configured =
-      dparam_.rate_drop != 0.0f || dparam_.one_drop || dparam_.skip_drop != 0.0f;
+  auto dropout_configured = dparam_.HasDropout();
   auto track_tree_weights = has_tree_weights || dropout_configured;
   if (track_tree_weights && model_.weight_drop.size() < n_old_trees) {
     model_.weight_drop.insert(model_.weight_drop.cend(), n_old_trees - model_.weight_drop.size(),
@@ -734,10 +734,6 @@ void GBTree::PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool
 void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
                             PredictionCacheEntry* out_preds, bst_layer_t layer_begin,
                             bst_layer_t layer_end) const {
-  auto const* tree_weights = model_.TreeWeights();
-  if (tree_weights != nullptr) {
-    CHECK(!this->model_.learner_model_param->IsVectorLeaf()) << "dart" << MTNotImplemented();
-  }
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (p_m->Ctx()->Device() != this->ctx_->Device()) {

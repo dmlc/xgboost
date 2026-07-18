@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2026, XGBoost Contributors
  * \file multiclass_metric.cc
  * \brief evaluation metrics for multiclass classification.
  * \author Kailong Chen, Tianqi Chen
@@ -16,7 +16,7 @@
 #include "metric_common.h"  // MetricNoCache
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/functional.h>        // thrust::plus<>
+#include <thrust/functional.h>  // thrust::plus<>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/transform_reduce.h>
 
@@ -39,9 +39,9 @@ class MultiClassMetricsReduction {
  public:
   MultiClassMetricsReduction() = default;
 
-  [[nodiscard]] PackedReduceResult CpuReduceMetrics(const HostDeviceVector<bst_float>& weights,
-                                                    const HostDeviceVector<bst_float>& labels,
-                                                    const HostDeviceVector<bst_float>& preds,
+  [[nodiscard]] PackedReduceResult CpuReduceMetrics(const HostDeviceVector<float>& weights,
+                                                    const HostDeviceVector<float>& labels,
+                                                    const HostDeviceVector<float>& preds,
                                                     const size_t n_class, int32_t n_threads) const {
     size_t ndata = labels.Size();
 
@@ -49,33 +49,29 @@ class MultiClassMetricsReduction {
     const auto& h_weights = weights.HostVector();
     const auto& h_preds = preds.HostVector();
 
-    std::atomic<int> label_error {0};
+    std::atomic<int> label_error{0};
     bool const is_null_weight = weights.Size() == 0;
 
     std::vector<double> scores_tloc(n_threads, 0);
     std::vector<double> weights_tloc(n_threads, 0);
     common::ParallelFor(ndata, n_threads, [&](size_t idx) {
-        bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
-        auto label = static_cast<int>(h_labels[idx]);
-        if (label >= 0 && label < static_cast<int>(n_class)) {
-          auto t_idx = omp_get_thread_num();
-          scores_tloc[t_idx] +=
-              EvalRowPolicy::EvalRow(label, h_preds.data() + idx * n_class,
-                                     n_class) *
-              weight;
-          weights_tloc[t_idx] += weight;
-        } else {
-          label_error = label;
-        }
+      bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
+      auto label = static_cast<int>(h_labels[idx]);
+      if (label >= 0 && label < static_cast<int>(n_class)) {
+        auto t_idx = omp_get_thread_num();
+        scores_tloc[t_idx] +=
+            EvalRowPolicy::EvalRow(label, h_preds.data() + idx * n_class, n_class) * weight;
+        weights_tloc[t_idx] += weight;
+      } else {
+        label_error = label;
+      }
     });
 
-    double residue_sum =
-        std::accumulate(scores_tloc.cbegin(), scores_tloc.cend(), 0.0);
-    double weights_sum =
-        std::accumulate(weights_tloc.cbegin(), weights_tloc.cend(), 0.0);
+    double residue_sum = std::accumulate(scores_tloc.cbegin(), scores_tloc.cend(), 0.0);
+    double weights_sum = std::accumulate(weights_tloc.cbegin(), weights_tloc.cend(), 0.0);
 
     CheckLabelError(label_error, n_class);
-    PackedReduceResult res { residue_sum, weights_sum };
+    PackedReduceResult res{residue_sum, weights_sum};
 
     return res;
   }
@@ -101,22 +97,19 @@ class MultiClassMetricsReduction {
     s_label_error[0] = 0;
 
     PackedReduceResult result = thrust::transform_reduce(
-        ctx->CUDACtx()->CTP(),
-        begin, end,
+        ctx->CUDACtx()->CTP(), begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
           bst_float residue = 0;
           auto label = static_cast<int>(s_labels[idx]);
           if (label >= 0 && label < static_cast<int32_t>(n_class)) {
-            residue = EvalRowPolicy::EvalRow(
-                label, &s_preds[idx * n_class], n_class) * weight;
+            residue = EvalRowPolicy::EvalRow(label, &s_preds[idx * n_class], n_class) * weight;
           } else {
             s_label_error[0] = label;
           }
-          return PackedReduceResult{ residue, weight };
+          return PackedReduceResult{residue, weight};
         },
-        PackedReduceResult(),
-        thrust::plus<PackedReduceResult>());
+        PackedReduceResult(), thrust::plus<PackedReduceResult>());
     CheckLabelError(s_label_error[0], n_class);
 
     return result;
@@ -156,20 +149,22 @@ class MultiClassMetricsReduction {
  * \brief base class of multi-class evaluation
  * \tparam Derived the name of subclass
  */
-template<typename Derived>
+template <typename Derived>
 struct EvalMClassBase : public MetricNoCache {
-  double Eval(const HostDeviceVector<float> &preds, const MetaInfo &info) override {
+  double Eval(const HostDeviceVector<float>& preds, const MetaInfo& info) override {
+    CheckRowWeights(info);
     if (info.labels.Size() == 0) {
       CHECK_EQ(preds.Size(), 0);
     } else {
+      CHECK_EQ(info.labels.Shape(1), 1)
+          << "`merror` and `mlogloss` do not support multi-target labels.";
       CHECK(preds.Size() % info.labels.Size() == 0) << "label and prediction size not match";
     }
     std::array<double, 2> dat{0.0, 0.0};
     if (info.labels.Size() != 0) {
       const size_t nclass = preds.Size() / info.labels.Size();
-      CHECK_GE(nclass, 1U)
-          << "mlogloss and merror are only used for multi-class classification,"
-          << " use logloss for binary classification";
+      CHECK_GE(nclass, 1U) << "mlogloss and merror are only used for multi-class classification,"
+                           << " use logloss for binary classification";
       auto result = reducer_.Reduce(this->ctx_, nclass, info.weights_, *info.labels.Data(), preds);
       dat[0] = result.Residue();
       dat[1] = result.Weights();
@@ -185,41 +180,31 @@ struct EvalMClassBase : public MetricNoCache {
    * \param pred prediction value of current instance
    * \param nclass number of class in the prediction
    */
-  XGBOOST_DEVICE static bst_float EvalRow(int label,
-                                          const bst_float *pred,
-                                          size_t nclass);
+  XGBOOST_DEVICE static bst_float EvalRow(int label, const bst_float* pred, size_t nclass);
   /*!
    * \brief to be overridden by subclass, final transformation
    * \param esum the sum statistics returned by EvalRow
    * \param wsum sum of weight
    */
-  inline static double GetFinal(double esum, double wsum) {
-    return esum / wsum;
-  }
+  inline static double GetFinal(double esum, double wsum) { return esum / wsum; }
 
  private:
   MultiClassMetricsReduction<Derived> reducer_;
   // used to store error message
-  const char *error_msg_;
+  const char* error_msg_;
 };
 
 /*! \brief match error */
 struct EvalMatchError : public EvalMClassBase<EvalMatchError> {
-  const char* Name() const override {
-    return "merror";
-  }
-  XGBOOST_DEVICE static bst_float EvalRow(int label,
-                                          const bst_float *pred,
-                                          size_t nclass) {
+  const char* Name() const override { return "merror"; }
+  XGBOOST_DEVICE static bst_float EvalRow(int label, const bst_float* pred, size_t nclass) {
     return common::FindMaxIndex(pred, pred + nclass) != pred + static_cast<int>(label);
   }
 };
 
 /*! \brief match error */
 struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
-  const char* Name() const override {
-    return "mlogloss";
-  }
+  const char* Name() const override { return "mlogloss"; }
   XGBOOST_DEVICE static bst_float EvalRow(int label, const bst_float* pred, size_t /*nclass*/) {
     const bst_float eps = 1e-16f;
     auto k = static_cast<size_t>(label);
