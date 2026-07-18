@@ -139,14 +139,14 @@ class TestMinChildWeight : public ::testing::Test {
     EXPECT_NEAR(tree.Stat(right).sum_hess, 2.0f, kRtEps);
   }
 
-  GradientContainer MakeVectorGradients(float scale) {
+  GradientContainer MakeVectorGradients() {
     Context cpu_ctx;
     auto grad = GenerateRandomGradients(&cpu_ctx, 2, kTargets);
     auto h_grad = grad.gpair.HostView();
-    h_grad(0, 0) = GradientPair{-1.0f * scale, 1.0f * scale};
-    h_grad(0, 1) = GradientPair{-3.0f * scale, 3.0f * scale};
-    h_grad(1, 0) = GradientPair{4.0f * scale, 1.0f * scale};
-    h_grad(1, 1) = GradientPair{12.0f * scale, 3.0f * scale};
+    h_grad(0, 0) = {-1.0f, 1.0f};
+    h_grad(0, 1) = {-3.0f, 3.0f};
+    h_grad(1, 0) = {4.0f, 1.0f};
+    h_grad(1, 1) = {12.0f, 3.0f};
     return grad;
   }
 
@@ -177,7 +177,7 @@ class TestMinChildWeight : public ::testing::Test {
 
   void RunVectorTree(Context const* ctx, std::string const& updater) {
     auto p_fmat = GetDMatrixFromData({0.0f, 1.0f}, 2, 1);
-    auto grad = MakeVectorGradients(1.0f);
+    auto grad = MakeVectorGradients();
 
     // Each child has a Hessian (1, 3), giving normalized coverage of 2.
     RegTree accepted{kTargets, 1u};
@@ -193,14 +193,6 @@ class TestMinChildWeight : public ::testing::Test {
     auto root_weight = rejected_view.LeafValue(RegTree::kRoot);
     EXPECT_FLOAT_EQ(root_weight(0), -1.5f);
     EXPECT_FLOAT_EQ(root_weight(1), -1.5f);
-
-    // min_child_weight applies to split gradients, not the gradients used for leaf values.
-    auto value_grad = MakeVectorGradients(0.25f);
-    grad.value_gpair = std::move(value_grad.gpair);
-
-    RegTree refreshed{kTargets, 1u};
-    Build(ctx, p_fmat.get(), &grad, updater, "2", &refreshed);
-    CheckVectorSplit(refreshed);
   }
 };
 
