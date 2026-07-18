@@ -209,14 +209,19 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
 
 /*! \brief Loss functions */
 
-// functions for L1 cost
+/**
+ * @brief Function for L1 cost
+ *
+ *  @f$ L1(G, a) = sign(G) max(|G| - a, 0) @f$
+ */
 template <typename T1, typename T2>
-XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 alpha) {
-  if (w > +alpha) {
-    return w - alpha;
+XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>, T1>
+ThresholdL1(T1 sum_grad, T2 alpha) {
+  if (sum_grad > +alpha) {
+    return sum_grad - alpha;
   }
-  if (w < -alpha) {
-    return w + alpha;
+  if (sum_grad < -alpha) {
+    return sum_grad + alpha;
   }
   return 0.0;
 }
