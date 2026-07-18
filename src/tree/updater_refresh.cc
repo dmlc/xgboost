@@ -37,6 +37,9 @@ class TreeRefresher : public TreeUpdater {
     if (trees.size() == 0) {
       return;
     }
+    if (param->refresh_leaf && !param->monotone_constraints.empty()) {
+      LOG(FATAL) << "Monotonic constraint is not supported by the refresh updater.";
+    }
     auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     const std::vector<GradientPair> &gpair_h = gpair->Data()->ConstHostVector();
