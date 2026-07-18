@@ -163,3 +163,24 @@ TEST(Param, CalcGainWithL1AndMaxDeltaStep) {
   EXPECT_FLOAT_EQ(xgboost::tree::CalcWeight(param, kGrad, kHess), -0.5f);
   EXPECT_FLOAT_EQ(xgboost::tree::CalcGain(param, kGrad, kHess), 2.5f);
 }
+
+TEST(Param, CalcVectorGainWithMaxDeltaStep) {
+  xgboost::tree::TrainParam param;
+  param.UpdateAllowUnknown(
+      xgboost::Args{{"reg_alpha", "0"}, {"reg_lambda", "0"}, {"max_delta_step", "0.5"}});
+
+  xgboost::linalg::Vector<xgboost::GradientPairPrecise> stats(
+      {2}, xgboost::DeviceOrd::CPU());
+  auto h_stats = stats.HostView();
+  h_stats(0) = {8.0, 2.0};
+  h_stats(1) = {-2.0, 4.0};
+
+  xgboost::linalg::Vector<float> weight({2}, xgboost::DeviceOrd::CPU());
+  auto h_weight = weight.HostView();
+  xgboost::tree::CalcWeight(param, h_stats, h_weight);
+  ASSERT_FLOAT_EQ(h_weight(0), -0.5f);
+  ASSERT_FLOAT_EQ(h_weight(1), 0.5f);
+
+  // 7.5 from the first target and 1.0 from the second target.
+  EXPECT_DOUBLE_EQ(xgboost::tree::CalcGainGivenWeight(param, h_stats, h_weight), 8.5);
+}
