@@ -13,6 +13,7 @@
 #include "xgboost/base.h"
 #include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/json.h"
+#include "xgboost/task.h"  // for ObjInfo
 
 namespace xgboost::tree {
 DMLC_REGISTRY_FILE_TAG(updater_prune);
@@ -20,7 +21,7 @@ DMLC_REGISTRY_FILE_TAG(updater_prune);
 /*! \brief pruner that prunes a tree after growing finishes */
 class TreePruner : public TreeUpdater {
  public:
-  explicit TreePruner(Context const* ctx, ObjInfo const* task) : TreeUpdater(ctx) {
+  explicit TreePruner(Context const* ctx, ObjInfo const* task) : TreeUpdater{ctx}, task_{task} {
     syncher_.reset(TreeUpdater::Create("sync", ctx_, task));
     pruner_monitor_.Init("TreePruner");
   }
@@ -37,6 +38,9 @@ class TreePruner : public TreeUpdater {
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override {
     pruner_monitor_.Start("PrunerUpdate");
+    if (this->task_->UpdateTreeLeaf()) {
+      LOG(FATAL) << "The current objective is not supported by the `prune` updater.";
+    }
     for (auto tree : trees) {
       this->DoPrune(param, tree);
     }
@@ -86,6 +90,7 @@ class TreePruner : public TreeUpdater {
  private:
   // synchronizer
   std::unique_ptr<TreeUpdater> syncher_;
+  ObjInfo const* task_;
   common::Monitor pruner_monitor_;
 };
 
