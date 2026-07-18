@@ -284,7 +284,7 @@ class TestMinSplitLoss : public ::testing::Test {
     p_fmat_ =
         RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).Targets(n_targets).GenerateDMatrix();
     Context ctx;
-    gpair_ = GenerateRandomGradients(&ctx, kRows, n_targets);
+    gpair_ = GenerateRandomGradients(&ctx, kRows, n_targets, 0.1f, 1.0f);
   }
 
   bst_node_t Update(Context const* ctx, std::string updater, float gamma) {
