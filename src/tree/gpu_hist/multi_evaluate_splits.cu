@@ -614,7 +614,13 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       ctx->CUDACtx()->CTP(), key_it, key_it + s_d_splits.size(), dh::tcbegin(s_d_splits),
       thrust::make_discard_iterator(), best_splits.begin(), std::equal_to{},
       [=] XGBOOST_DEVICE(MultiSplitCandidate const &lhs, MultiSplitCandidate const &rhs) {
-        return lhs.loss_chg > rhs.loss_chg ? lhs : rhs;
+        if (lhs.loss_chg > rhs.loss_chg) {
+          return lhs;
+        }
+        if (rhs.loss_chg > lhs.loss_chg) {
+          return rhs;
+        }
+        return lhs.findex <= rhs.findex ? lhs : rhs;
       });
   auto d_best_splits = dh::ToSpan(best_splits);
 
