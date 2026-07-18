@@ -1,11 +1,10 @@
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.monotone_constraints import (
-    is_decreasing,
     is_correctly_constrained,
+    is_decreasing,
     is_increasing,
     run_parent_gain,
     training_dset,
