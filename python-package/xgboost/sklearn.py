@@ -94,6 +94,19 @@ def _check_rf_callback(
         )
 
 
+def _warn_rf_deprecated(name: str) -> None:
+    """Emit the deprecation warning for the random forest estimators."""
+    warnings.warn(
+        f"`{name}` is deprecated and will be removed in a future release. The"
+        " estimator is a thin wrapper over the boosting interface and does not"
+        " implement a conventional random forest; features like early stopping are"
+        " unsupported. Set `num_parallel_tree` along with `n_estimators=1` on the"
+        " corresponding boosting estimator instead, or use a dedicated random forest"
+        " implementation like those in `sklearn.ensemble`.",
+        FutureWarning,
+    )
+
+
 def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
     not_sycl = (device is None) or (not device.startswith("sycl"))
     return tree_method in ("hist", None, "auto") and not_sycl
@@ -1933,7 +1946,14 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
 
 
 @xgboost_model_doc(
-    "scikit-learn API for XGBoost random forest classification.",
+    """scikit-learn API for XGBoost random forest classification.
+
+    .. deprecated:: 3.4.0
+
+        This estimator is deprecated and will be removed in a future release. See
+        :doc:`/tutorials/rf` for alternatives.
+
+    """,
     ["model", "objective"],
     extra_parameters="""
     n_estimators : Optional[int]
@@ -1952,6 +1972,7 @@ class XGBRFClassifier(XGBClassifier):
         reg_lambda: float = 1e-5,
         **kwargs: Any,
     ):
+        _warn_rf_deprecated("XGBRFClassifier")
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,
@@ -2018,7 +2039,14 @@ class XGBRegressor(XGBRegressorBase, XGBModel):
 
 
 @xgboost_model_doc(
-    "scikit-learn API for XGBoost random forest regression.",
+    """scikit-learn API for XGBoost random forest regression.
+
+    .. deprecated:: 3.4.0
+
+        This estimator is deprecated and will be removed in a future release. See
+        :doc:`/tutorials/rf` for alternatives.
+
+    """,
     ["model", "objective"],
     extra_parameters="""
     n_estimators : Optional[int]
@@ -2037,6 +2065,7 @@ class XGBRFRegressor(XGBRegressor):
         reg_lambda: float = 1e-5,
         **kwargs: Any,
     ) -> None:
+        _warn_rf_deprecated("XGBRFRegressor")
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,

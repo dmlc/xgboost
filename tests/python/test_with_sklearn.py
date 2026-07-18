@@ -4,7 +4,7 @@ import pickle
 import re
 import warnings
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Type
 
 import numpy as np
 import pytest
@@ -409,6 +409,12 @@ def test_select_feature():
     selector = SelectFromModel(cls, prefit=True, max_features=1)
     X_selected = selector.transform(X)
     assert X_selected.shape[1] == 1
+
+
+@pytest.mark.parametrize("estimator", [xgb.XGBRFClassifier, xgb.XGBRFRegressor])
+def test_rf_deprecated(estimator: Type[xgb.XGBModel]) -> None:
+    with pytest.warns(FutureWarning, match="deprecated"):
+        estimator(n_estimators=2)
 
 
 def test_num_parallel_tree():
