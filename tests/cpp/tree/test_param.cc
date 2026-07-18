@@ -1,8 +1,18 @@
-// Copyright by Contributors
+/**
+ * Copyright 2014-2026, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 
 #include "../../../src/tree/param.h"
-#include "../helpers.h"
+namespace xgboost::tree {
+namespace {
+void Clear(std::vector<int> &vals, std::stringstream &ss) {  // NOLINT
+  vals.clear();
+  ss.flush();
+  ss.clear();
+  ss.str("");
+}
+}  // namespace
 
 TEST(Param, VectorIOStream) {
   std::vector<int> vals = {3, 2, 1};
@@ -15,10 +25,7 @@ TEST(Param, VectorIOStream) {
   ss >> vals_in;
   EXPECT_EQ(vals_in, vals);
 
-  vals.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals, ss);
   vals = {1};
   ss << vals;
   EXPECT_EQ(ss.str(), "(1,)");
@@ -29,90 +36,57 @@ TEST(Param, VectorStreamRead) {
   std::stringstream ss;
   std::vector<int> vals_in;
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << "(3, 2, 1)";
   ss >> vals_in;
   EXPECT_EQ(vals_in, vals);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << "(3L,2L,1L)";
   ss >> vals_in;
   EXPECT_EQ(vals_in, vals);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << " (3,2,1,)";
   ss >> vals_in;
   EXPECT_EQ(vals_in, vals);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << " ( 3, 2,1 )";
   ss >> vals_in;
   EXPECT_EQ(vals_in, vals);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << " ( 3, 2,1 ) ";
   ss >> vals_in;
   EXPECT_EQ(vals_in, vals);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << " 321 ";
   ss >> vals_in;
   EXPECT_EQ(vals_in[0], 321);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << "(3.0,2,1)";
   ss >> vals_in;
   EXPECT_NE(vals_in, vals);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << "1a";
   ss >> vals_in;
   EXPECT_NE(vals_in, vals);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << "abcde";
   ss >> vals_in;
   EXPECT_NE(vals_in, vals);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   ss << "(3,2,1";
   ss >> vals_in;
   EXPECT_NE(vals_in, vals);
 
-  vals_in.clear();
-  ss.flush();
-  ss.clear();
-  ss.str("");
+  Clear(vals_in, ss);
   vals_in.emplace_back(3);
   ss << "( )";
   ss >> vals_in;
@@ -120,19 +94,17 @@ TEST(Param, VectorStreamRead) {
 }
 
 TEST(Param, SplitEntry) {
-  xgboost::tree::SplitEntry se1;
+  SplitEntry se1;
   EXPECT_FALSE(se1.NeedReplace(-1, 100));
 
-  xgboost::tree::SplitEntry se2;
+  SplitEntry se2;
   EXPECT_FALSE(se1.Update(se2));
-  EXPECT_FALSE(
-      se2.Update(-1, 100, 0, true, false, xgboost::tree::GradStats(), xgboost::tree::GradStats()));
-  ASSERT_TRUE(
-      se2.Update(1, 100, 0, true, false, xgboost::tree::GradStats(), xgboost::tree::GradStats()));
+  EXPECT_FALSE(se2.Update(-1, 100, 0, true, false, GradStats(), GradStats()));
+  ASSERT_TRUE(se2.Update(1, 100, 0, true, false, GradStats(), GradStats()));
   ASSERT_TRUE(se1.Update(se2));
 
-  xgboost::tree::SplitEntry se3;
-  se3.Update(2, 101, 0, false, false, xgboost::tree::GradStats(), xgboost::tree::GradStats());
+  SplitEntry se3;
+  se3.Update(2, 101, 0, false, false, GradStats(), GradStats());
   se2.Update(se3);
   EXPECT_EQ(se2.SplitIndex(), 101);
   EXPECT_FALSE(se2.DefaultLeft());
@@ -141,31 +113,31 @@ TEST(Param, SplitEntry) {
 }
 
 TEST(Param, CalcGainWithL1AndMaxDeltaStep) {
-  xgboost::tree::TrainParam param;
+  TrainParam param;
   param.UpdateAllowUnknown(xgboost::Args{{"reg_alpha", "1"}, {"reg_lambda", "1"}});
 
   constexpr float kGrad = 4.0f;
   constexpr float kHess = 1.0f;
 
   // Gain at the delta-clipped weight includes the complete L1 penalty.
-  EXPECT_FLOAT_EQ(xgboost::tree::CalcGainGivenWeight(param, kGrad, kHess, -0.5f), 2.5f);
+  EXPECT_FLOAT_EQ(CalcGainGivenWeight(param, kGrad, kHess, -0.5f), 2.5f);
 
   // A non-binding max_delta_step must not change the unconstrained weight or gain.
   param.max_delta_step = 0.0f;
-  EXPECT_FLOAT_EQ(xgboost::tree::CalcWeight(param, kGrad, kHess), -1.5f);
-  EXPECT_FLOAT_EQ(xgboost::tree::CalcGain(param, kGrad, kHess), 4.5f);
+  EXPECT_FLOAT_EQ(CalcWeight(param, kGrad, kHess), -1.5f);
+  EXPECT_FLOAT_EQ(CalcGain(param, kGrad, kHess), 4.5f);
 
   param.max_delta_step = 10.0f;
-  EXPECT_FLOAT_EQ(xgboost::tree::CalcWeight(param, kGrad, kHess), -1.5f);
-  EXPECT_FLOAT_EQ(xgboost::tree::CalcGain(param, kGrad, kHess), 4.5f);
+  EXPECT_FLOAT_EQ(CalcWeight(param, kGrad, kHess), -1.5f);
+  EXPECT_FLOAT_EQ(CalcGain(param, kGrad, kHess), 4.5f);
 
   param.max_delta_step = 0.5f;
-  EXPECT_FLOAT_EQ(xgboost::tree::CalcWeight(param, kGrad, kHess), -0.5f);
-  EXPECT_FLOAT_EQ(xgboost::tree::CalcGain(param, kGrad, kHess), 2.5f);
+  EXPECT_FLOAT_EQ(CalcWeight(param, kGrad, kHess), -0.5f);
+  EXPECT_FLOAT_EQ(CalcGain(param, kGrad, kHess), 2.5f);
 }
 
 TEST(Param, CalcVectorGainWithMaxDeltaStep) {
-  xgboost::tree::TrainParam param;
+  TrainParam param;
   param.UpdateAllowUnknown(
       xgboost::Args{{"reg_alpha", "1"}, {"reg_lambda", "0"}, {"max_delta_step", "0.5"}});
 
@@ -176,10 +148,11 @@ TEST(Param, CalcVectorGainWithMaxDeltaStep) {
 
   xgboost::linalg::Vector<float> weight({2}, xgboost::DeviceOrd::CPU());
   auto h_weight = weight.HostView();
-  xgboost::tree::CalcWeight(param, h_stats, h_weight);
+  CalcWeight(param, h_stats, h_weight);
   ASSERT_FLOAT_EQ(h_weight(0), -0.5f);
   ASSERT_FLOAT_EQ(h_weight(1), 0.25f);
 
   // 6.5 from the clipped first target and 0.25 from the second target.
-  EXPECT_DOUBLE_EQ(xgboost::tree::CalcGainGivenWeight(param, h_stats, h_weight), 6.75);
+  EXPECT_DOUBLE_EQ(CalcGainGivenWeight(param, h_stats, h_weight), 6.75);
 }
+}  // namespace xgboost::tree
