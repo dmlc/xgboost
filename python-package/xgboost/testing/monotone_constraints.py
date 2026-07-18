@@ -1,11 +1,15 @@
 """Helpers for testing monotone constraints."""
 
+import json
 from typing import Optional
 
 import numpy as np
+import pytest
 
 from .._typing import FeatureNames
 from ..core import Booster, DMatrix
+from ..training import train
+from .utils import Device
 
 
 def is_increasing(v: np.ndarray) -> bool:
@@ -63,3 +67,38 @@ y = (
     + zs
 )
 training_dset = DMatrix(x, label=y)
+
+
+def run_parent_gain(device: Device) -> None:
+    """Test that parent gain uses the node's inherited monotonic bounds."""
+    X = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]],
+        dtype=np.float32,
+    )
+    gradients = np.array([3.0, -2.75, -0.125, 0.875], dtype=np.float32)
+    hessians = np.array([1.0, 0.5, 0.25, 0.25], dtype=np.float32)
+    dtrain = DMatrix(X, label=np.zeros(X.shape[0], dtype=np.float32))
+
+    def objective(
+        _predt: np.ndarray, _dtrain: DMatrix
+    ) -> tuple[np.ndarray, np.ndarray]:
+        return gradients, hessians
+
+    params = {
+        "tree_method": "hist",
+        "monotone_constraints": "(1, 0, 0)",
+        "reg_alpha": 0,
+        "reg_lambda": 0,
+        "max_delta_step": 0,
+        "min_child_weight": 0,
+        "max_depth": 3,
+        "eta": 1,
+        "base_score": 0,
+        "device": device,
+    }
+    model = train(params, dtrain, num_boost_round=1, obj=objective)
+    trees = json.loads(model.get_dump(dump_format="json", with_stats=True)[0])
+
+    constrained_parent = trees["children"][1]["children"][1]
+    assert constrained_parent["split"] == "f2"
+    assert constrained_parent["gain"] == pytest.approx(0.25)

@@ -5,17 +5,16 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.monotone_constraints import training_dset, x, y
+from xgboost.testing.monotone_constraints import (
+    is_decreasing,
+    is_increasing,
+    run_parent_gain,
+    training_dset,
+    x,
+    y,
+)
 
 dpath = "demo/data/"
-
-
-def is_increasing(y):
-    return np.count_nonzero(np.diff(y) < 0.0) == 0
-
-
-def is_decreasing(y):
-    return np.count_nonzero(np.diff(y) > 0.0) == 0
 
 
 def is_correctly_constrained(learner, feature_names=None):
@@ -140,3 +139,7 @@ class TestMonotoneConstraints:
         bst = xgb.train(params, dtrain, num_boost_round)
         pred_dtest = bst.predict(dtest) < 0.5
         assert accuracy_score(dtest.get_label(), pred_dtest) < 0.1
+
+
+def test_parent_gain() -> None:
+    run_parent_gain("cpu")
