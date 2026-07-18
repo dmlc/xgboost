@@ -132,7 +132,7 @@ class TreeEvaluator {
       if (stats.GetHess() <= 0) {
         return .0f;
       }
-      return tree::CalcGainGivenWeight<ParamT, float>(p, stats.GetGrad(), stats.GetHess(), w);
+      return tree::CalcGainGivenWeight<ParamT>(p, stats.GetGrad(), stats.GetHess(), w);
     }
 
     template <typename GradientSumT>
