@@ -216,8 +216,7 @@ struct EvaluateSplitAgent {
     }
 
     auto k = static_cast<double>(n_targets);
-    if (!(IsValidHess(shared.param, child_hess / k) &&
-          IsValidHess(shared.param, sibling_hess / k))) {
+    if (!IsValidSplit(shared.param, child_hess / k, sibling_hess / k)) {
       return -std::numeric_limits<double>::infinity();
     }
     return gain;

@@ -494,8 +494,7 @@ class HistMultiEvaluator {
     }
 
     auto n_targets = static_cast<double>(left_sum.Size());
-    if (!(IsValidHess(param, left_hess / n_targets) &&
-          IsValidHess(param, right_hess / n_targets))) {
+    if (!IsValidSplit(param, left_hess / n_targets, right_hess / n_targets)) {
       return -std::numeric_limits<double>::infinity();
     }
     return gain;

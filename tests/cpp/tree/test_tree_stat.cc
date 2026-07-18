@@ -96,6 +96,7 @@ void BuildTree(Context const* ctx, DMatrix* p_fmat, GradientContainer* grad,
 }  // namespace
 
 class TestMinChildWeight : public ::testing::Test {
+  static constexpr bst_target_t kTargets{2};
   std::shared_ptr<DMatrix> p_fmat_;
 
  public:
@@ -138,48 +139,53 @@ class TestMinChildWeight : public ::testing::Test {
     EXPECT_NEAR(tree.Stat(right).sum_hess, 2.0f, kRtEps);
   }
 
-  void RunVectorTree(Context const* ctx, std::string const& updater) {
-    constexpr bst_target_t kTargets{2};
-    auto p_fmat = GetDMatrixFromData({0.0f, 1.0f}, 2, 1);
+  GradientContainer MakeVectorGradients(float scale) {
     Context cpu_ctx;
     auto grad = GenerateRandomGradients(&cpu_ctx, 2, kTargets);
     auto h_grad = grad.gpair.HostView();
-    h_grad(0, 0) = GradientPair{-1.0f, 1.0f};
-    h_grad(0, 1) = GradientPair{-3.0f, 3.0f};
-    h_grad(1, 0) = GradientPair{4.0f, 1.0f};
-    h_grad(1, 1) = GradientPair{12.0f, 3.0f};
+    h_grad(0, 0) = GradientPair{-1.0f * scale, 1.0f * scale};
+    h_grad(0, 1) = GradientPair{-3.0f * scale, 3.0f * scale};
+    h_grad(1, 0) = GradientPair{4.0f * scale, 1.0f * scale};
+    h_grad(1, 1) = GradientPair{12.0f * scale, 3.0f * scale};
+    return grad;
+  }
 
-    // Each child has a Hessian diagonal of (1, 3), giving normalized coverage of 2.
-    RegTree accepted{kTargets, 1u};
-    Build(ctx, p_fmat.get(), &grad, updater, "2", &accepted);
+  void CheckVectorSplit(RegTree const& tree) {
+    ASSERT_TRUE(tree.IsMultiTarget());
+    ASSERT_EQ(tree.NumExtraNodes(), 2);
+    auto view = tree.HostMtView();
+    ASSERT_FALSE(view.IsLeaf(RegTree::kRoot));
+    EXPECT_EQ(view.SplitIndex(RegTree::kRoot), 0);
+    EXPECT_FLOAT_EQ(view.SplitCond(RegTree::kRoot), 1.0f);
 
-    ASSERT_TRUE(accepted.IsMultiTarget());
-    ASSERT_EQ(accepted.NumExtraNodes(), 2);
-    auto accepted_view = accepted.HostMtView();
-    ASSERT_FALSE(accepted_view.IsLeaf(RegTree::kRoot));
-    EXPECT_EQ(accepted_view.SplitIndex(RegTree::kRoot), 0);
-    EXPECT_FLOAT_EQ(accepted_view.SplitCond(RegTree::kRoot), 1.0f);
+    auto left = view.LeftChild(RegTree::kRoot);
+    auto right = view.RightChild(RegTree::kRoot);
+    EXPECT_NEAR(view.SumHess(RegTree::kRoot), 8.0f, kRtEps);
+    EXPECT_NEAR(view.LossChg(RegTree::kRoot), 50.0f, kRtEps);
+    EXPECT_NEAR(view.SumHess(left), 4.0f, kRtEps);
+    EXPECT_NEAR(view.SumHess(right), 4.0f, kRtEps);
 
-    auto left = accepted_view.LeftChild(RegTree::kRoot);
-    auto right = accepted_view.RightChild(RegTree::kRoot);
-    EXPECT_NEAR(accepted_view.SumHess(RegTree::kRoot), 8.0f, kRtEps);
-    EXPECT_NEAR(accepted_view.LossChg(RegTree::kRoot), 50.0f, kRtEps);
-    EXPECT_NEAR(accepted_view.SumHess(left), 4.0f, kRtEps);
-    EXPECT_NEAR(accepted_view.SumHess(right), 4.0f, kRtEps);
-
-    auto left_weight = accepted_view.LeafValue(left);
-    auto right_weight = accepted_view.LeafValue(right);
+    auto left_weight = view.LeafValue(left);
+    auto right_weight = view.LeafValue(right);
     ASSERT_EQ(left_weight.Size(), kTargets);
     ASSERT_EQ(right_weight.Size(), kTargets);
     EXPECT_FLOAT_EQ(left_weight(0), 1.0f);
     EXPECT_FLOAT_EQ(left_weight(1), 1.0f);
     EXPECT_FLOAT_EQ(right_weight(0), -4.0f);
     EXPECT_FLOAT_EQ(right_weight(1), -4.0f);
+  }
 
-    // The children have mean Hessian 2 and the root has mean Hessian 4. The threshold
-    // rejects the split without suppressing the existing root's weight.
+  void RunVectorTree(Context const* ctx, std::string const& updater) {
+    auto p_fmat = GetDMatrixFromData({0.0f, 1.0f}, 2, 1);
+    auto grad = MakeVectorGradients(1.0f);
+
+    // Each child has a Hessian diagonal of (1, 3), giving normalized coverage of 2.
+    RegTree accepted{kTargets, 1u};
+    Build(ctx, p_fmat.get(), &grad, updater, "2", &accepted);
+    CheckVectorSplit(accepted);
+
     RegTree rejected{kTargets, 1u};
-    Build(ctx, p_fmat.get(), &grad, updater, "5", &rejected);
+    Build(ctx, p_fmat.get(), &grad, updater, "3", &rejected);
     ASSERT_TRUE(rejected.IsMultiTarget());
     ASSERT_EQ(rejected.NumExtraNodes(), 0);
     auto rejected_view = rejected.HostMtView();
@@ -188,28 +194,13 @@ class TestMinChildWeight : public ::testing::Test {
     EXPECT_FLOAT_EQ(root_weight(0), -1.5f);
     EXPECT_FLOAT_EQ(root_weight(1), -1.5f);
 
-    // Refresh the existing leaves with value gradients whose mean Hessian is below
-    // min_child_weight. The threshold applies to tree construction, not leaf refresh.
-    auto value_grad = GenerateRandomGradients(&cpu_ctx, 2, kTargets);
-    auto h_value_grad = value_grad.gpair.HostView();
-    h_value_grad(0, 0) = GradientPair{-0.25f, 0.25f};
-    h_value_grad(0, 1) = GradientPair{-0.75f, 0.75f};
-    h_value_grad(1, 0) = GradientPair{1.0f, 0.25f};
-    h_value_grad(1, 1) = GradientPair{3.0f, 0.75f};
+    // min_child_weight applies to split gradients, not the gradients used for leaf values.
+    auto value_grad = MakeVectorGradients(0.25f);
     grad.value_gpair = std::move(value_grad.gpair);
 
     RegTree refreshed{kTargets, 1u};
     Build(ctx, p_fmat.get(), &grad, updater, "2", &refreshed);
-    auto refreshed_view = refreshed.HostMtView();
-    ASSERT_EQ(refreshed.NumExtraNodes(), 2);
-    auto refreshed_left = refreshed_view.LeftChild(RegTree::kRoot);
-    auto refreshed_right = refreshed_view.RightChild(RegTree::kRoot);
-    auto refreshed_left_weight = refreshed_view.LeafValue(refreshed_left);
-    auto refreshed_right_weight = refreshed_view.LeafValue(refreshed_right);
-    EXPECT_FLOAT_EQ(refreshed_left_weight(0), 1.0f);
-    EXPECT_FLOAT_EQ(refreshed_left_weight(1), 1.0f);
-    EXPECT_FLOAT_EQ(refreshed_right_weight(0), -4.0f);
-    EXPECT_FLOAT_EQ(refreshed_right_weight(1), -4.0f);
+    CheckVectorSplit(refreshed);
   }
 };
 

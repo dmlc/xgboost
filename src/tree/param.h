@@ -214,9 +214,16 @@ inline void NoMonotoneConstraints(TrainParam const *param, StringView name) {
     LOG(FATAL) << "Monotonic constraint is not supported by the " << name << ".";
   }
 }
+
+/**
+ * @brief Whether both children satisfy the Hessian requirement for a split.
+ *
+ * Vector-leaf callers pass the normalized Hessian trace for each child.
+ */
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE bool IsValidHess(TrainingParams const &p, T sum_hess) {
-  return sum_hess > 0.0 && sum_hess >= p.min_child_weight;
+XGBOOST_DEVICE bool IsValidSplit(TrainingParams const &p, T left_hess, T right_hess) {
+  return left_hess > 0.0 && right_hess > 0.0 && left_hess >= p.min_child_weight &&
+         right_hess >= p.min_child_weight;
 }
 
 /*! \brief Loss functions */
