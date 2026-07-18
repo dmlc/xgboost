@@ -179,7 +179,7 @@ class TestMinChildWeight : public ::testing::Test {
     auto p_fmat = GetDMatrixFromData({0.0f, 1.0f}, 2, 1);
     auto grad = MakeVectorGradients(1.0f);
 
-    // Each child has a Hessian diagonal of (1, 3), giving normalized coverage of 2.
+    // Each child has a Hessian (1, 3), giving normalized coverage of 2.
     RegTree accepted{kTargets, 1u};
     Build(ctx, p_fmat.get(), &grad, updater, "2", &accepted);
     CheckVectorSplit(accepted);
