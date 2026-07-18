@@ -102,3 +102,11 @@ specifying the constraints. Given a data frame with columns ``["f0", "f1", "f2"]
 monotonic constraint can be specified as ``{"f0": 1, "f2": -1}`` (Python) or as
 ``list(f0=1, f2=-1)`` (R, when using 'xgboost()', but not 'xgb.train'), and ``"f1"`` will
 default to ``0`` (no constraint).
+
+*******
+Caveats
+*******
+
+Monotonic constraints are not supported by adaptive tree builders used for MAE and
+quantile regression. These objectives don't have valid Hessian and the leaf value is
+directly derived from the data.
