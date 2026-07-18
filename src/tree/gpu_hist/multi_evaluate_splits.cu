@@ -691,7 +691,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     // so we store it persistently indexed by node id.
     auto split_sum_dest = GetNodeSumImpl(d_split_sums, nidx, n_targets);
 
-    bool l = true, r = true;
     double left_hess = 0, right_hess = 0;  // Sum of child hessians across all targets
     auto eta = shared_inputs.param.learning_rate;
 
@@ -700,10 +699,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       auto sibling_sum = input.parent_sum[t] - split_sum[t];
 
       split_sum_dest[t] = split_sum[t];
-
-      // Check for empty hessian
-      l = l && (split_sum[t].GetQuantisedHess() == 0);
-      r = r && (sibling_sum.GetQuantisedHess() == 0);
 
       // Left/right weights
       GradientPairPrecise lg, rg;
@@ -729,10 +724,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     out_splits[nidx_in_set] = {nidx, input.depth, best_split, base_weight};
     out_splits[nidx_in_set].split.loss_chg -= parent_gain;
     out_splits[nidx_in_set].UpdateHessian(left_hess, right_hess);
-
-    if (l || r) {
-      out_splits[nidx_in_set].split.loss_chg = -std::numeric_limits<float>::max();
-    }
   });
 }
 
