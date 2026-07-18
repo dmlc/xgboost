@@ -257,6 +257,9 @@ std::pair<double, uint32_t> RankingAUC(Context const *ctx, std::vector<float> co
 template <typename Curve>
 class EvalAUC : public MetricNoCache {
   double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info) override {
+    if (info.group_ptr_.empty()) {
+      CheckRowWeights(info);
+    }
     double auc {0};
     if (ctx_->Device().IsCUDA()) {
       preds.SetDevice(ctx_->Device());
