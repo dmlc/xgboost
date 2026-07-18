@@ -14,6 +14,7 @@
 #include "../split_evaluator.h"
 #include "../updater_gpu_common.cuh"  // for DeviceSplitCandidate
 #include "expand_entry.cuh"
+#include "quantiser.cuh"  // for GradientQuantiser
 
 namespace xgboost {
 namespace common {

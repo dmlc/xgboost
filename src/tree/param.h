@@ -207,6 +207,11 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   }
 };
 
+template <typename TrainingParams, typename T>
+XGBOOST_DEVICE bool IsValidHess(TrainingParams const &p, T sum_hess) {
+  return sum_hess > 0.0 && sum_hess >= p.min_child_weight;
+}
+
 /*! \brief Loss functions */
 
 /**

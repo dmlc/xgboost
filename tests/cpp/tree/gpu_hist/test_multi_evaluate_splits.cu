@@ -26,6 +26,33 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
   dh::device_vector<bst_feature_t> feature_segments;
   dh::device_vector<bst_feature_t> feature_set;
   dh::device_vector<float> feature_values{.0f, .1f, .2f, .3f};
+  dh::device_vector<float> cat_values{0.0f, 1.0f, 2.0f, 3.0f};
+  dh::device_vector<FeatureType> cat_feature =
+      dh::device_vector<FeatureType>(1, FeatureType::kCategorical);
+
+  TrainParam MakeParam(Args args = {}) {
+    TrainParam param;
+    param.UpdateAllowUnknown(
+        Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}, {"learning_rate", "1"}});
+    param.UpdateAllowUnknown(args);
+    return param;
+  }
+
+  MultiEvaluateSplitSharedInputs MakeCategoricalInputs(TrainParam const& param) {
+    auto shared = this->shared_inputs;
+    shared.feature_values = dh::ToSpan(cat_values).data();
+    shared.feature_types = dh::ToSpan(cat_feature);
+    shared.cat_storage_size = common::CatBitField::ComputeStorageSize(cat_values.size());
+    shared.param = GPUTrainingParam{param};
+    return shared;
+  }
+
+  void ZeroHistogramHess() {
+    thrust::transform(histogram.begin(), histogram.end(), histogram.begin(),
+                      [] XGBOOST_DEVICE(GradientPairInt64 const& bin) {
+                        return GradientPairInt64{bin.GetQuantisedGrad(), 0};
+                      });
+  }
 
   void SetUp() override {
     input.nidx = 0;
@@ -68,22 +95,8 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     shared_inputs.n_total_bins_per_tar = n_bins_per_feat_tar;
     shared_inputs.max_active_feature = 1;
 
-    TrainParam param;
-    param.Init(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}, {"learning_rate", "1"}});
+    auto param = this->MakeParam();
     shared_inputs.param = GPUTrainingParam{param};
-  }
-
-  void TestEmptyHess() {
-    // Turn all Hessian values into 0.
-    thrust::transform(histogram.begin(), histogram.end(), histogram.begin(),
-                      [] XGBOOST_DEVICE(GradientPairInt64 const& bin) {
-                        return GradientPairInt64{bin.GetQuantisedGrad(), 0};
-                      });
-    MultiHistEvaluator evaluator;
-    auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs);
-    TrainParam param;
-    param.Init(Args{});
-    ASSERT_FALSE(candidate.IsValid(param, 100));
   }
 };
 
@@ -132,9 +145,50 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
       AssertDeviceVecEq(candidate.split.child_sum, exp_right_sum);
     }
   }
+
+  auto param = this->MakeParam(Args{{"reg_alpha", "0.1"}, {"max_delta_step", "1.45"}});
+  auto shared = this->shared_inputs;
+  shared.param = GPUTrainingParam{param};
+  MultiHistEvaluator evaluator;
+  auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
+  ASSERT_NEAR(candidate.split.loss_chg, 2.55177, 1e-5);
 }
 
-TEST_F(GpuMultiHistEvaluatorBasicTest, EmptyHess) { this->TestEmptyHess(); }
+TEST_F(GpuMultiHistEvaluatorBasicTest, MinChildWeight) {
+  for (float min_child_weight : {28.5f, 30.0f}) {
+    auto param = this->MakeParam();
+    param.min_child_weight = min_child_weight;
+
+    auto shared = this->shared_inputs;
+    shared.param = GPUTrainingParam{param};
+    MultiHistEvaluator evaluator;
+    auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
+
+    if (min_child_weight == 28.5f) {
+      ASSERT_FALSE(candidate.split.child_sum.empty());
+      ASSERT_NEAR(candidate.split.loss_chg, 3.04239, 1e-5);
+      ASSERT_TRUE(candidate.IsValid(param, 100));
+    } else {
+      // The smaller child's trace is 57, but its normalized trace is 28.5.
+      ASSERT_TRUE(candidate.split.child_sum.empty());
+      ASSERT_EQ(candidate.base_weight.size(), n_targets);
+      ASSERT_EQ(candidate.left_sum, 168.0);
+      ASSERT_EQ(candidate.right_sum, 0.0);
+      ASSERT_FALSE(candidate.IsValid(param, 100));
+    }
+  }
+
+  // A zero-Hessian child must be rejected even when min_child_weight is zero.
+  this->ZeroHistogramHess();
+  MultiHistEvaluator evaluator;
+  auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs);
+  auto param = this->MakeParam();
+  ASSERT_TRUE(candidate.split.child_sum.empty());
+  ASSERT_EQ(candidate.base_weight.size(), n_targets);
+  ASSERT_EQ(candidate.left_sum, 168.0);
+  ASSERT_EQ(candidate.right_sum, 0.0);
+  ASSERT_FALSE(candidate.IsValid(param, 100));
+}
 
 TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
   // Reuse the dense histogram from the fixture, but treat the single feature as
@@ -143,19 +197,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
   // separates the chosen category from the rest. The best partition is category 3 (bin
   // 3), which is the same partition the numerical `Root` test finds, hence the identical
   // loss_chg / child weights.
-  dh::device_vector<float> cat_values{0.0f, 1.0f, 2.0f, 3.0f};
-  dh::device_vector<FeatureType> ft(1, FeatureType::kCategorical);
-
-  auto shared = this->shared_inputs;
-  shared.feature_values = dh::ToSpan(cat_values).data();
-  shared.feature_types = dh::ToSpan(ft);
-  shared.cat_storage_size = common::CatBitField::ComputeStorageSize(4);
-  TrainParam param;
-  param.Init(Args{{"min_child_weight", "0"},
-                  {"reg_lambda", "0"},
-                  {"learning_rate", "1"},
-                  {"max_cat_to_onehot", "100"}});
-  shared.param = GPUTrainingParam{param};
+  auto param = this->MakeParam(Args{{"max_cat_to_onehot", "100"}});
+  auto shared = this->MakeCategoricalInputs(param);
 
   MultiHistEvaluator evaluator;
   evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param);
@@ -204,19 +247,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   histogram[6] = GradientPairInt64{-1, 1};
   histogram[7] = GradientPairInt64{-1, 1};
 
-  dh::device_vector<float> cat_values{0.0f, 1.0f, 2.0f, 3.0f};
-  dh::device_vector<FeatureType> ft(1, FeatureType::kCategorical);
-
-  auto shared = this->shared_inputs;
-  shared.feature_values = dh::ToSpan(cat_values).data();
-  shared.feature_types = dh::ToSpan(ft);
-  shared.cat_storage_size = common::CatBitField::ComputeStorageSize(4);
-  TrainParam param;
-  param.Init(Args{{"min_child_weight", "0"},
-                  {"reg_lambda", "0"},
-                  {"learning_rate", "1"},
-                  {"max_cat_to_onehot", "1"}});
-  shared.param = GPUTrainingParam{param};
+  auto param = this->MakeParam(Args{{"max_cat_to_onehot", "1"}});
+  auto shared = this->MakeCategoricalInputs(param);
 
   MultiHistEvaluator evaluator;
   evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param);
@@ -251,12 +283,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
 
   // max_cat_threshold=1 does not enumerate a partition. The resulting root-only tree
   // must still retain its base weight and Hessian.
-  TrainParam no_split_param;
-  no_split_param.Init(Args{{"min_child_weight", "0"},
-                           {"reg_lambda", "0"},
-                           {"learning_rate", "1"},
-                           {"max_cat_to_onehot", "1"},
-                           {"max_cat_threshold", "1"}});
+  auto no_split_param =
+      this->MakeParam(Args{{"max_cat_to_onehot", "1"}, {"max_cat_threshold", "1"}});
   shared.param = GPUTrainingParam{no_split_param};
 
   MultiHistEvaluator no_split_evaluator;

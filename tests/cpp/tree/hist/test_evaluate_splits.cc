@@ -411,10 +411,21 @@ class TestHistMultiEvaluator : public ::testing::Test {
     }
   }
 
-  void EvaluateSplits(char const *max_cat_to_onehot) {
-    param_.Init(Args{
-        {"min_child_weight", "0"}, {"reg_lambda", "0"}, {"max_cat_to_onehot", max_cat_to_onehot}});
+  void SetOneHotData() {
+    this->SetHistData({{{1.0, 0.5}, {-0.5, 0.5}, {0.5, 0.5}},    // t-0
+                       {{0.5, 0.5}, {1.0, 0.5}, {-0.5, 0.5}}});  // t-1
+  }
+
+  void EvaluateSplits(Args args = {}) {
+    param_.UpdateAllowUnknown(Args{{"min_child_weight", "0"},
+                                   {"reg_alpha", "0"},
+                                   {"reg_lambda", "0"},
+                                   {"max_delta_step", "0"},
+                                   {"max_cat_to_onehot", "4"}});
+    param_.UpdateAllowUnknown(args);
     evaluator_ = std::make_unique<HistMultiEvaluator>(&ctx_, info_, &param_, sampler_);
+    entries_.clear();
+    entries_.emplace_back(0, 0);
 
     auto weight = evaluator_->InitRoot(root_sum_.HostView());
     float root_sum_hess = 0.0f;
@@ -439,15 +450,14 @@ class TestHistMultiEvaluator : public ::testing::Test {
 }  // anonymous namespace
 
 TEST_F(TestHistMultiEvaluator, CategoricalOneHot) {
-  // Per-target histograms with kNCats bins each.
-  this->SetHistData({{{1.0, 0.5}, {-0.5, 0.5}, {0.5, 0.5}},    // t-0
-                     {{0.5, 0.5}, {1.0, 0.5}, {-0.5, 0.5}}});  // t-1
-  this->EvaluateSplits("100");
+  this->SetOneHotData();
+  this->EvaluateSplits(Args{{"reg_alpha", "0.1"}, {"reg_lambda", "1"}, {"max_delta_step", "0.25"}});
 
   auto const &split = entries_.front().split;
   ASSERT_TRUE(split.is_cat);
   ASSERT_FALSE(split.cat_bits.empty());
-  ASSERT_GT(split.loss_chg, 0.0f);
+  ASSERT_EQ(split.split_value, 1.0f);
+  ASSERT_NEAR(split.loss_chg, 0.45f, 1e-6f);
 
   common::KCatBitField cat_bits{split.cat_bits};
   auto chosen_cat = static_cast<bst_cat_t>(split.split_value);
@@ -457,6 +467,27 @@ TEST_F(TestHistMultiEvaluator, CategoricalOneHot) {
   this->ApplyTreeSplit();
 }
 
+TEST_F(TestHistMultiEvaluator, MinChildWeight) {
+  this->SetOneHotData();
+  this->EvaluateSplits(Args{{"min_child_weight", "0.5"}});
+  ASSERT_GT(entries_.front().split.loss_chg, 0.0f);
+  ASSERT_FALSE(entries_.front().split.left_sum.empty());
+  ASSERT_FALSE(entries_.front().split.right_sum.empty());
+
+  // The smaller child's trace is 1.0, but its normalized trace is 0.5.
+  this->EvaluateSplits(Args{{"min_child_weight", "0.75"}});
+  ASSERT_TRUE(entries_.front().split.left_sum.empty());
+  ASSERT_TRUE(entries_.front().split.right_sum.empty());
+
+  // The first target has a positive split gain. The second target's negative Hessians cancel the
+  // normalized child traces to zero, so no candidate is valid even when min_child_weight is zero.
+  this->SetHistData(
+      {{{-4.0, 1.0}, {-1.0, 1.0}, {-1.0, 1.0}}, {{0.0, -1.0}, {0.0, -1.0}, {0.0, -1.0}}});
+  this->EvaluateSplits();
+  ASSERT_TRUE(entries_.front().split.left_sum.empty());
+  ASSERT_TRUE(entries_.front().split.right_sum.empty());
+}
+
 TEST_F(TestHistMultiEvaluator, CategoricalPartition) {
   this->SetHistData({{{-3.0, 1.0}, {-3.0, 1.0}, {-3.0, 1.0}},    // t-0
                      {{-3.0, 1.0}, {-3.0, 1.0}, {-2.0, 1.0}}});  // t-1
@@ -464,7 +495,7 @@ TEST_F(TestHistMultiEvaluator, CategoricalPartition) {
   // backward scan, with missing values assigned to the right child.
   root_sum_(0) += GradientPairPrecise{-3.0, 1.0};
   root_sum_(1) += GradientPairPrecise{-2.0, 1.0};
-  this->EvaluateSplits("1");
+  this->EvaluateSplits(Args{{"max_cat_to_onehot", "1"}});
 
   auto const &split = entries_.front().split;
   ASSERT_TRUE(split.is_cat);

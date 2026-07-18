@@ -481,15 +481,24 @@ class HistMultiEvaluator {
  private:
   static double MultiCalcSplitGain(TrainParam const &param,
                                    linalg::VectorView<GradientPairPrecise const> left_sum,
-                                   linalg::VectorView<GradientPairPrecise const> right_sum,
-                                   linalg::VectorView<float> left_weight,
-                                   linalg::VectorView<float> right_weight) {
-    CalcWeight(param, left_sum, left_weight);
-    CalcWeight(param, right_sum, right_weight);
+                                   linalg::VectorView<GradientPairPrecise const> right_sum) {
+    double left_hess{0.0}, right_hess{0.0};
+    double gain{0.0};
+    for (std::size_t t = 0; t < left_sum.Size(); ++t) {
+      auto const &left = left_sum(t);
+      auto const &right = right_sum(t);
+      left_hess += left.GetHess();
+      right_hess += right.GetHess();
+      gain += CalcGain(param, left.GetGrad(), left.GetHess());
+      gain += CalcGain(param, right.GetGrad(), right.GetHess());
+    }
 
-    auto left_gain = CalcGainGivenWeight(param, left_sum, left_weight);
-    auto right_gain = CalcGainGivenWeight(param, right_sum, right_weight);
-    return left_gain + right_gain;
+    auto n_targets = static_cast<double>(left_sum.Size());
+    if (!(IsValidHess(param, left_hess / n_targets) &&
+          IsValidHess(param, right_hess / n_targets))) {
+      return -std::numeric_limits<double>::infinity();
+    }
+    return gain;
   }
 
   template <bst_bin_t d_step>
@@ -513,9 +522,6 @@ class HistMultiEvaluator {
       iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
     }
     auto n_targets = hist.size();
-    auto weight = linalg::Empty<float>(ctx_, 2, n_targets);
-    auto left_weight = weight.Slice(0, linalg::All());
-    auto right_weight = weight.Slice(1, linalg::All());
 
     for (bst_bin_t i = ibegin; i != iend; i += d_step) {
       for (bst_target_t t = 0; t < n_targets; ++t) {
@@ -527,15 +533,11 @@ class HistMultiEvaluator {
 
       if (d_step > 0) {
         auto split_pt = cut_val[i];
-        auto loss_chg =
-            MultiCalcSplitGain(*param_, right_sum, left_sum, right_weight, left_weight) -
-            parent_gain;
+        auto loss_chg = MultiCalcSplitGain(*param_, right_sum, left_sum) - parent_gain;
         p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
       } else {
         auto split_pt = common::HistogramCuts::NumericBinLowerBound(cut_ptr, cut_val, fidx, i);
-        auto loss_chg =
-            MultiCalcSplitGain(*param_, right_sum, left_sum, left_weight, right_weight) -
-            parent_gain;
+        auto loss_chg = MultiCalcSplitGain(*param_, right_sum, left_sum) - parent_gain;
         p_best->Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
       }
     }
@@ -563,10 +565,6 @@ class HistMultiEvaluator {
     auto left_sum = sum.Slice(0, linalg::All());
     auto right_sum = sum.Slice(1, linalg::All());
 
-    auto weight = linalg::Empty<float>(ctx_, 2, n_targets);
-    auto left_weight = weight.Slice(0, linalg::All());
-    auto right_weight = weight.Slice(1, linalg::All());
-
     // Per-target missing gradient: parent_sum - sum_of_all_bins.
     auto missing_storage = linalg::Empty<GradientPairPrecise>(ctx_, n_targets);
     auto missing = missing_storage.HostView();
@@ -590,8 +588,7 @@ class HistMultiEvaluator {
         right_sum(t) = GradientPairPrecise{hist[t][i]};
         left_sum(t) = parent_sum(t) - right_sum(t);
       }
-      auto missing_left_gain =
-          MultiCalcSplitGain(*param_, left_sum, right_sum, left_weight, right_weight) - parent_gain;
+      auto missing_left_gain = MultiCalcSplitGain(*param_, left_sum, right_sum) - parent_gain;
       best.Update(missing_left_gain, fidx, split_pt, true, true, left_sum, right_sum);
 
       // Missing on right (missing grouped with chosen category).
@@ -599,8 +596,7 @@ class HistMultiEvaluator {
         right_sum(t) = GradientPairPrecise{hist[t][i]} + missing(t);  // NOLINT
         left_sum(t) = parent_sum(t) - right_sum(t);
       }
-      auto missing_right_gain =
-          MultiCalcSplitGain(*param_, left_sum, right_sum, left_weight, right_weight) - parent_gain;
+      auto missing_right_gain = MultiCalcSplitGain(*param_, left_sum, right_sum) - parent_gain;
       best.Update(missing_right_gain, fidx, split_pt, false, true, left_sum, right_sum);
     }
 
@@ -643,9 +639,6 @@ class HistMultiEvaluator {
     auto sum = linalg::Constant(ctx_, GradientPairPrecise{}, 2, n_targets);
     auto left_sum = sum.Slice(0, linalg::All());
     auto right_sum = sum.Slice(1, linalg::All());
-    auto weight = linalg::Empty<float>(ctx_, 2, n_targets);
-    auto left_weight = weight.Slice(0, linalg::All());
-    auto right_weight = weight.Slice(1, linalg::All());
 
     SplitEntryContainer<std::vector<GradientPairPrecise>> best;
     bst_bin_t best_thresh{-1};
@@ -662,8 +655,7 @@ class HistMultiEvaluator {
         }
       }
 
-      auto loss_chg =
-          MultiCalcSplitGain(*param_, left_sum, right_sum, left_weight, right_weight) - parent_gain;
+      auto loss_chg = MultiCalcSplitGain(*param_, left_sum, right_sum) - parent_gain;
       // We don't have a numeric split point, nan here is a dummy split.
       if (best.Update(loss_chg, fidx, std::numeric_limits<float>::quiet_NaN(), d_step == 1, true,
                       left_sum, right_sum)) {
@@ -692,6 +684,8 @@ class HistMultiEvaluator {
                       common::Span<FeatureType const> feature_types,
                       std::vector<MultiExpandEntry> *p_entries) {
     auto &entries = *p_entries;
+    CHECK_EQ(stats_.Shape(1), hist.size());
+    CHECK(!hist.empty());
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(entries.size());
 
     for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
