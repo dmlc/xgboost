@@ -300,7 +300,8 @@ inline double CalcGainGivenWeight(TrainParam const &p,
                                   linalg::VectorView<float const> weight) {
   double gain{0};
   for (bst_target_t t = 0, n_targets = weight.Size(); t < n_targets; ++t) {
-    gain += -weight(t) * ThresholdL1(sum_grad(t).GetGrad(), p.reg_alpha);
+    auto const &stats = sum_grad(t);
+    gain += CalcGainGivenWeight(p, stats.GetGrad(), stats.GetHess(), weight(t));
   }
   return gain;
 }
