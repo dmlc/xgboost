@@ -51,7 +51,7 @@ struct GoLeftWrapperOp {
 struct EncodeOp {
   linalg::MatrixView<GradientPairInt64 const> d_gpair;
   [[nodiscard]] __device__ bst_node_t operator()(RowIndexT ridx, bst_node_t nidx) const {
-    // Check the first target - all targets in a row have the same sampling decision
+    // Scalar tree sampling has one target.
     bool is_sampled = d_gpair(ridx, 0).GetQuantisedHess() != 0;
     return SamplePosition::Encode(nidx, is_sampled);
   }
@@ -237,7 +237,7 @@ class MultiTargetHistMaker {
     if (!this->value_gpair_.Empty()) {
       this->value_quantizer_ = std::make_unique<GradientQuantiserGroup>(
           this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
-      this->sampler_.ApplySampling(this->ctx_, this->split_gpair_, &this->value_gpair_);
+      this->sampler_.ApplySampling(this->ctx_, &this->value_gpair_);
     }
 
     /**
@@ -625,15 +625,17 @@ class MultiTargetHistMaker {
     p_out_position->SetDevice(ctx_->Device());
     p_out_position->Resize(p_fmat->Info().num_row_);
     auto d_out_position = p_out_position->DeviceSpan();
-    auto d_gpair = this->split_gpair_.View(this->ctx_->Device());
+    auto sampling = this->sampler_.GetSamplingInfo();
 
-    for (std::size_t k = 0; k < partitioners_.Size(); ++k) {
+    for (std::size_t k = 0, n = partitioners_.Size(); k < n; ++k) {
       auto& part = partitioners_.At(k);
       CHECK_EQ(part->GetNumNodes(), p_tree->NumNodes());
       auto base_rowid = batch_ptr_[k];
       auto n_samples = batch_ptr_.at(k + 1) - base_rowid;
       part->FinalisePosition(ctx_, d_out_position.subspan(base_rowid, n_samples), base_rowid,
-                             EncodeOp{d_gpair});
+                             [=] XGBOOST_DEVICE(RowIndexT ridx, bst_node_t nidx) -> bst_node_t {
+                               return SamplePosition::Encode(nidx, sampling.IsSampled(ridx));
+                             });
     }
   }
 

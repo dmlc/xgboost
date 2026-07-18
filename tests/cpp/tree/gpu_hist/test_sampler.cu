@@ -93,24 +93,30 @@ TEST(GpuSampler, ApplySampling) {
 
   // Generate and sample the split gradient
   auto [split_gpair, quantizer] = GenerateGradientsFixedPoint(&ctx, n_samples, n_split_targets);
-  Sampler sampler{n_samples, kSubsample, kSamplingMethod};
-  sampler.Sample(&ctx, split_gpair.View(ctx.Device()), quantizer.DeviceSpan());
   auto d_roundings = quantizer.DeviceSpan();
   std::vector<GradientQuantiser> h_roundings(d_roundings.size(), MakeDummyQuantizer());
   thrust::copy(dh::tcbegin(d_roundings), dh::tcend(d_roundings), h_roundings.begin());
+  linalg::Matrix<GradientPair> original_split;
+  CalcFloatGrad(split_gpair.HostView(), dh::ToSpan(h_roundings), &original_split);
+
+  Sampler sampler{n_samples, kSubsample, kSamplingMethod};
+  sampler.Sample(&ctx, split_gpair.View(ctx.Device()), quantizer.DeviceSpan());
 
   // Generate value gradient (more targets than split)
   auto value_gpair = GenerateRandomGradients(&ctx, n_samples, n_value_targets);
-  auto h_value_before = value_gpair.gpair.HostView();
+  linalg::Matrix<GradientPair> value_before{value_gpair.gpair.Shape(), ctx.Device()};
+  value_before.Data()->Copy(*value_gpair.gpair.Data());
   linalg::Matrix<GradientPair> sampled;
   CalcFloatGrad(split_gpair.HostView(), dh::ToSpan(h_roundings), &sampled);
 
-  sampler.ApplySampling(&ctx, split_gpair, &value_gpair.gpair);
+  sampler.ApplySampling(&ctx, &value_gpair.gpair);
   CheckSamplingMask(sampled.HostView(), value_gpair.gpair.HostView(), kSubsample);
 
+  auto h_value_before = value_before.HostView();
   auto h_value_after = value_gpair.gpair.HostView();
   std::vector<float> thresholds;
-  auto reg_abs_grad = ::xgboost::tree::cpu_impl::CalcRegAbsGrad(&ctx, h_value_before, &thresholds);
+  auto reg_abs_grad =
+      ::xgboost::tree::cpu_impl::CalcRegAbsGrad(&ctx, original_split.HostView(), &thresholds);
 
   dh::device_vector<float> d_sorted(thresholds);
   dh::device_vector<float> d_csum(n_samples);
@@ -121,6 +127,36 @@ TEST(GpuSampler, ApplySampling) {
 
   auto h_sampled_split = sampled.HostView();
   CheckValueReweight(h_sampled_split, h_value_before, h_value_after, reg_abs_grad, threshold);
+}
+
+TEST(GpuSampler, ZeroSampleRows) {
+  auto ctx = MakeCUDACtx(0);
+  constexpr bst_idx_t kRows = 64;
+  constexpr bst_target_t kSplitTargets = 2;
+  constexpr bst_target_t kValueTargets = 3;
+
+  for (float subsample : {0.0f, 0.01f}) {
+    for (auto sampling_method : {TrainParam::kUniform, TrainParam::kGradientBased}) {
+      if (subsample != 0.0f && sampling_method == TrainParam::kUniform) {
+        continue;
+      }
+      SCOPED_TRACE(subsample);
+      SCOPED_TRACE(sampling_method);
+      auto [split_gpair, quantizer] =
+          GenerateGradientsFixedPoint(&ctx, kRows, kSplitTargets, 1.0f, 2.0f);
+      auto value_gpair = GenerateRandomGradients(&ctx, kRows, kValueTargets, 1.0f, 2.0f);
+      Sampler sampler{kRows, subsample, sampling_method};
+      sampler.Sample(&ctx, split_gpair.View(ctx.Device()), quantizer.DeviceSpan());
+      sampler.ApplySampling(&ctx, &value_gpair.gpair);
+
+      for (auto const& gpair : split_gpair.Data()->ConstHostVector()) {
+        EXPECT_EQ(gpair, GradientPairInt64{});
+      }
+      for (auto const& gpair : value_gpair.gpair.Data()->ConstHostVector()) {
+        EXPECT_EQ(gpair, GradientPair{});
+      }
+    }
+  }
 }
 }  // namespace xgboost::tree::cuda_impl
 
@@ -136,7 +172,7 @@ TEST(CalculateThreshold, CpuGpuConsistency) {
       {0.1f, 0.5f, 1.0f, 2.0f, 5.0f, 10.0f},                         // Varied
   };
 
-  std::vector<float> subsample_rates = {0.3f, 0.5f, 0.8f};
+  std::vector<float> subsample_rates = {0.0f, 0.3f, 0.5f, 0.8f};
 
   for (auto const& rag : test_cases) {
     for (float subsample : subsample_rates) {

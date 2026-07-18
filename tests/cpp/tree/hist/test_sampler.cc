@@ -74,6 +74,32 @@ TEST(CpuSampler, GradientBasedSampling) {
   VerifySampling(kSubsample, kSamplingMethod, 3);
 }
 
+TEST(CpuSampler, ZeroSampleRows) {
+  Context ctx;
+  constexpr std::size_t kRows = 2;
+  std::size_t shape[2] = {kRows, 1};
+  linalg::Matrix<GradientPair> split_gpair{shape, ctx.Device()};
+  auto h_split = split_gpair.HostView();
+  std::fill(linalg::begin(h_split), linalg::end(h_split), GradientPair{1.0e20f, 1.0f});
+  linalg::Matrix<GradientPair> original_split{shape, ctx.Device()};
+  original_split.Data()->Copy(*split_gpair.Data());
+
+  linalg::Matrix<GradientPair> value_gpair{shape, ctx.Device()};
+  auto h_value = value_gpair.HostView();
+  std::fill(linalg::begin(h_value), linalg::end(h_value), GradientPair{1.0f, 1.0f});
+
+  TrainParam param;
+  param.UpdateAllowUnknown(Args{{"subsample", "0"}, {"sampling_method", "gradient_based"}});
+  Sampler sampler{param};
+  sampler.Sample(&ctx, split_gpair.HostView());
+  sampler.ApplySampling(&ctx, original_split.HostView(), &value_gpair);
+
+  for (std::size_t i = 0; i < kRows; ++i) {
+    EXPECT_EQ(h_split(i, 0), GradientPair{});
+    EXPECT_EQ(h_value(i, 0), GradientPair{});
+  }
+}
+
 TEST(CpuSampler, ApplySampling) {
   Context ctx;
 
@@ -104,13 +130,13 @@ TEST(CpuSampler, ApplySampling) {
   linalg::Matrix<GradientPair> value_gpair_before{value_shape, ctx.Device()};
   value_gpair_before.Data()->Copy(*value_gpair.Data());
 
-  sampler.ApplySampling(&ctx, split_gpair.HostView(), &value_gpair);
+  sampler.ApplySampling(&ctx, split_gpair_before.HostView(), &value_gpair);
   CheckSamplingMask(split_gpair.HostView(), value_gpair.HostView(), kSubsample);
   auto h_value_before = value_gpair_before.HostView();
 
   auto h_value_after = value_gpair.HostView();
   std::vector<float> thresholds;
-  auto reg_abs_grad = cpu_impl::CalcRegAbsGrad(&ctx, h_value_before, &thresholds);
+  auto reg_abs_grad = cpu_impl::CalcRegAbsGrad(&ctx, h_split_before, &thresholds);
 
   std::vector<float> grad_csum(n_samples);
   std::partial_sum(thresholds.begin(), thresholds.end() - 1, grad_csum.begin());

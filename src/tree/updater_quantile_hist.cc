@@ -653,7 +653,7 @@ class QuantileHistMaker : public TreeUpdater {
     linalg::Matrix<GradientPair> sample_out;
     auto h_sample_out = h_gpair;
     auto need_copy = [&] {
-      return trees.size() > 1 || n_targets > 1;
+      return trees.size() > 1 || n_targets > 1 || in_gpair->HasValueGrad();
     };
     if (need_copy()) {
       // allocate buffer
@@ -673,14 +673,14 @@ class QuantileHistMaker : public TreeUpdater {
         UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
                                      h_out_position, *tree_it);
         if (in_gpair->HasValueGrad()) {
-          // Copy the value gradient and apply sampling mask from split gradient
+          // Copy the value gradient and replay sampling from the original split gradient.
           auto value_grad = linalg::Empty<GradientPair>(ctx_, in_gpair->value_gpair.Shape(0),
                                                         in_gpair->value_gpair.Shape(1));
           auto h_value_grad = value_grad.HostView();
           auto h_value_grad_in = in_gpair->value_gpair.HostView();
           std::copy(linalg::cbegin(h_value_grad_in), linalg::cend(h_value_grad_in),
                     linalg::begin(h_value_grad));
-          sampler.ApplySampling(ctx_, h_sample_out, &value_grad);
+          sampler.ApplySampling(ctx_, h_gpair, &value_grad);
           // Refresh the leaf weights.
           p_mtimpl_->ExpandTreeLeaf(value_grad, *tree_it);
         } else {
