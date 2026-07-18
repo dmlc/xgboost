@@ -631,9 +631,7 @@ class QuantileHistMaker : public TreeUpdater {
               const std::vector<RegTree *> &trees) override {
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
-      if (!param->monotone_constraints.empty()) {
-        LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
-      }
+      NoMonotoneConstraints(param, "vector leaf");
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(ctx_, param, &hist_param_,
                                                                    column_sampler_, &monitor_);

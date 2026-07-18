@@ -664,9 +664,7 @@ class MultiTargetHistMaker {
                   HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
 
-    if (!param_.monotone_constraints.empty()) {
-      LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
-    }
+    NoMonotoneConstraints(&param_, "vector leaf");
 
     auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {

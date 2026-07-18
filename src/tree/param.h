@@ -207,6 +207,13 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   }
 };
 
+inline void NoMonotoneConstraints(TrainParam const *param, StringView name) {
+  if (!param->monotone_constraints.empty() &&
+      std::any_of(param->monotone_constraints.cbegin(), param->monotone_constraints.cend(),
+                  [](auto v) { return v != 0; })) {
+    LOG(FATAL) << "Monotonic constraint is not supported by the " << name << ".";
+  }
+}
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE bool IsValidHess(TrainingParams const &p, T sum_hess) {
   return sum_hess > 0.0 && sum_hess >= p.min_child_weight;
