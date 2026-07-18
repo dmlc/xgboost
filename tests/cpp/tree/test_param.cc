@@ -97,7 +97,7 @@ TEST(Param, SplitEntry) {
   xgboost::tree::SplitEntry se3;
   se3.Update(2, 101, 0, false, false, xgboost::tree::GradStats(),
              xgboost::tree::GradStats());
-  xgboost::tree::SplitEntry::Reduce(se2, se3);
+  se2.Update(se3);
   EXPECT_EQ(se2.SplitIndex(), 101);
   EXPECT_FALSE(se2.DefaultLeft());
 

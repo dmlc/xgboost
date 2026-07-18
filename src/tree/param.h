@@ -339,10 +339,6 @@ struct XGBOOST_ALIGNAS(16) GradStats {
     sum_grad += b.sum_grad;
     sum_hess += b.sum_hess;
   }
-  /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(GradStats &a, const GradStats &b) {  // NOLINT(*)
-    a.Add(b);
-  }
   /*! \brief set current value to a - b */
   inline void SetSubstract(const GradStats &a, const GradStats &b) {
     sum_grad = a.sum_grad - b.sum_grad;
@@ -543,12 +539,6 @@ struct SplitEntryContainer {
     } else {
       return false;
     }
-  }
-
-  /*! \brief same as update, used by AllReduce*/
-  inline static void Reduce(SplitEntryContainer &dst,          // NOLINT(*)
-                            const SplitEntryContainer &src) {  // NOLINT(*)
-    dst.Update(src);
   }
 };
 
