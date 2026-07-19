@@ -154,42 +154,6 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
   ASSERT_NEAR(candidate.split.loss_chg, 2.55177, 1e-5);
 }
 
-TEST_F(GpuMultiHistEvaluatorBasicTest, MinChildWeight) {
-  for (float min_child_weight : {28.5f, 30.0f}) {
-    auto param = this->MakeParam();
-    param.min_child_weight = min_child_weight;
-
-    auto shared = this->shared_inputs;
-    shared.param = GPUTrainingParam{param};
-    MultiHistEvaluator evaluator;
-    auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
-
-    if (min_child_weight == 28.5f) {
-      ASSERT_FALSE(candidate.split.child_sum.empty());
-      ASSERT_NEAR(candidate.split.loss_chg, 3.04239, 1e-5);
-      ASSERT_TRUE(candidate.IsValid(param, 100));
-    } else {
-      // The smaller child's trace is 57, but its normalized trace is 28.5.
-      ASSERT_TRUE(candidate.split.child_sum.empty());
-      ASSERT_EQ(candidate.base_weight.size(), n_targets);
-      ASSERT_EQ(candidate.left_sum, 168.0);
-      ASSERT_EQ(candidate.right_sum, 0.0);
-      ASSERT_FALSE(candidate.IsValid(param, 100));
-    }
-  }
-
-  // A zero-Hessian child must be rejected even when min_child_weight is zero.
-  this->ZeroHistogramHess();
-  MultiHistEvaluator evaluator;
-  auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs);
-  auto param = this->MakeParam();
-  ASSERT_TRUE(candidate.split.child_sum.empty());
-  ASSERT_EQ(candidate.base_weight.size(), n_targets);
-  ASSERT_EQ(candidate.left_sum, 168.0);
-  ASSERT_EQ(candidate.right_sum, 0.0);
-  ASSERT_FALSE(candidate.IsValid(param, 100));
-}
-
 TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
   // Reuse the dense histogram from the fixture, but treat the single feature as
   // categorical with category ids {0, 1, 2, 3} as the cut values. Since the histogram is

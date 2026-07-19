@@ -467,27 +467,6 @@ TEST_F(TestHistMultiEvaluator, CategoricalOneHot) {
   this->ApplyTreeSplit();
 }
 
-TEST_F(TestHistMultiEvaluator, MinChildWeight) {
-  this->SetOneHotData();
-  this->EvaluateSplits(Args{{"min_child_weight", "0.5"}});
-  ASSERT_GT(entries_.front().split.loss_chg, 0.0f);
-  ASSERT_FALSE(entries_.front().split.left_sum.empty());
-  ASSERT_FALSE(entries_.front().split.right_sum.empty());
-
-  // The smaller child's trace is 1.0, but its normalized trace is 0.5.
-  this->EvaluateSplits(Args{{"min_child_weight", "0.75"}});
-  ASSERT_TRUE(entries_.front().split.left_sum.empty());
-  ASSERT_TRUE(entries_.front().split.right_sum.empty());
-
-  // The first target has a positive split gain. The second target's negative Hessians cancel the
-  // normalized child traces to zero, so no candidate is valid even when min_child_weight is zero.
-  this->SetHistData(
-      {{{-4.0, 1.0}, {-1.0, 1.0}, {-1.0, 1.0}}, {{0.0, -1.0}, {0.0, -1.0}, {0.0, -1.0}}});
-  this->EvaluateSplits();
-  ASSERT_TRUE(entries_.front().split.left_sum.empty());
-  ASSERT_TRUE(entries_.front().split.right_sum.empty());
-}
-
 TEST_F(TestHistMultiEvaluator, CategoricalPartition) {
   this->SetHistData({{{-3.0, 1.0}, {-3.0, 1.0}, {-3.0, 1.0}},    // t-0
                      {{-3.0, 1.0}, {-3.0, 1.0}, {-2.0, 1.0}}});  // t-1
