@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2026, XGBoost Contributors
  */
 #include "auc.h"
 
@@ -73,7 +73,7 @@ std::tuple<double, double, double> BinaryAUC(common::Span<float const> predts,
  * Calculate AUC for multi-class classification using 1-vs-rest, or for multi-label
  * classification by evaluating each target independently.
  *
- * TODO(jiaming): Use better algorithms for multi-class classification like:
+ * TODO(jiaming): Use better algorithms like:
  *
  * - Kleiman, Ross and Page, David. $AUC_{\mu}$: A Performance Metric for Multi-Class
  *   Machine Learning Models
@@ -298,12 +298,12 @@ class EvalAUC : public MetricNoCache {
       /**
        * learning to rank
        */
-      if (n_targets > 1 || (n_predts > n_labels && n_predts % n_labels == 0)) {
+      if (n_targets > 1) {
         LOG(FATAL) << "AUC and AUCPR do not support multi-output learning-to-rank.";
       }
       CHECK_EQ(n_predts, n_labels) << "Invalid shape of labels and predictions for AUC.";
 
-      uint32_t valid_groups = 0;
+      std::uint32_t valid_groups = 0;
       if (info.labels.Size() != 0) {
         CHECK_GE(info.group_ptr_.size(), 2);
         if (!info.weights_.Empty()) {
@@ -359,7 +359,7 @@ class EvalAUC : public MetricNoCache {
 };
 
 class EvalROCAUC : public EvalAUC<EvalROCAUC> {
-  std::shared_ptr<DeviceAUCCache> d_cache_;
+  std::shared_ptr<cuda_impl::DeviceAUCCache> d_cache_;
 
  public:
   std::pair<double, uint32_t> EvalRanking(HostDeviceVector<float> const &predts,
@@ -369,7 +369,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     auto n_threads = ctx_->Threads();
     if (ctx_->IsCUDA()) {
       std::tie(auc, valid_groups) =
-          GPURankingAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
+          cuda_impl::RankingAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     } else {
       std::tie(auc, valid_groups) =
           RankingAUC<true>(ctx_, predts.ConstHostVector(), info, n_threads);
@@ -383,8 +383,8 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     auto n_threads = ctx_->Threads();
     CHECK_NE(n_classes, 0);
     if (ctx_->IsCUDA()) {
-      auc = GPUMultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_classes,
-                           MultiAUCType::kMultiClass);
+      auc = cuda_impl::MultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_classes,
+                                   MultiAUCType::kMultiClass);
     } else {
       auc = MultiAUC(ctx_, predts.ConstHostVector(), info, n_classes, n_threads,
                      MultiAUCType::kMultiClass, BinaryROCAUC);
@@ -395,8 +395,8 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   double EvalMultiLabel(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_targets) {
     if (ctx_->IsCUDA()) {
-      return GPUMultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_targets,
-                            MultiAUCType::kMultiLabel);
+      return cuda_impl::MultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_,
+                                    n_targets, MultiAUCType::kMultiLabel);
     } else {
       return MultiAUC(ctx_, predts.ConstHostVector(), info, n_targets, ctx_->Threads(),
                       MultiAUCType::kMultiLabel, BinaryROCAUC);
@@ -408,7 +408,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     double fp, tp, auc;
     if (ctx_->IsCUDA()) {
       std::tie(fp, tp, auc) =
-          GPUBinaryROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
+          cuda_impl::BinaryROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     } else {
       std::tie(fp, tp, auc) = BinaryROCAUC(ctx_, predts.ConstHostVector(),
                                            info.labels.HostView().Slice(linalg::All(), 0),
@@ -426,37 +426,39 @@ XGBOOST_REGISTER_METRIC(EvalAUC, "auc")
     .set_body([](const char *) { return new EvalROCAUC(); });
 
 #if !defined(XGBOOST_USE_CUDA)
-std::tuple<double, double, double> GPUBinaryROCAUC(Context const *, common::Span<float const>,
-                                                   MetaInfo const &,
-                                                   std::shared_ptr<DeviceAUCCache> *) {
+namespace cuda_impl {
+std::tuple<double, double, double> BinaryROCAUC(Context const *, common::Span<float const>,
+                                                MetaInfo const &,
+                                                std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
 
-double GPUMultiROCAUC(Context const *, common::Span<float const>, MetaInfo const &,
-                      std::shared_ptr<DeviceAUCCache> *, std::size_t, MultiAUCType) {
+double MultiROCAUC(Context const *, common::Span<float const>, MetaInfo const &,
+                   std::shared_ptr<DeviceAUCCache> *, std::size_t, MultiAUCType) {
   common::AssertGPUSupport();
   return 0.0;
 }
 
-std::pair<double, std::uint32_t> GPURankingAUC(Context const *, common::Span<float const>,
-                                               MetaInfo const &,
-                                               std::shared_ptr<DeviceAUCCache> *) {
+std::pair<double, std::uint32_t> RankingAUC(Context const *, common::Span<float const>,
+                                            MetaInfo const &, std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
 struct DeviceAUCCache {};
+}  // namespace cuda_impl
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 class EvalPRAUC : public EvalAUC<EvalPRAUC> {
-  std::shared_ptr<DeviceAUCCache> d_cache_;
+  std::shared_ptr<cuda_impl::DeviceAUCCache> d_cache_;
 
  public:
   std::tuple<double, double, double> EvalBinary(HostDeviceVector<float> const &predts,
                                                 MetaInfo const &info) {
     double pr, re, auc;
     if (ctx_->IsCUDA()) {
-      std::tie(pr, re, auc) = GPUBinaryPRAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
+      std::tie(pr, re, auc) =
+          cuda_impl::BinaryPRAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     } else {
       std::tie(pr, re, auc) =
           BinaryPRAUC(ctx_, predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
@@ -468,8 +470,8 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_classes) {
     if (ctx_->IsCUDA()) {
-      return GPUMultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_classes,
-                           MultiAUCType::kMultiClass);
+      return cuda_impl::MultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_classes,
+                                   MultiAUCType::kMultiClass);
     } else {
       auto n_threads = this->ctx_->Threads();
       return MultiAUC(ctx_, predts.ConstHostSpan(), info, n_classes, n_threads,
@@ -480,8 +482,8 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   double EvalMultiLabel(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_targets) {
     if (ctx_->IsCUDA()) {
-      return GPUMultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_targets,
-                           MultiAUCType::kMultiLabel);
+      return cuda_impl::MultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_targets,
+                                   MultiAUCType::kMultiLabel);
     } else {
       return MultiAUC(ctx_, predts.ConstHostSpan(), info, n_targets, ctx_->Threads(),
                       MultiAUCType::kMultiLabel, BinaryPRAUC);
@@ -495,7 +497,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     auto n_threads = ctx_->Threads();
     if (ctx_->IsCUDA()) {
       std::tie(auc, valid_groups) =
-          GPURankingPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_);
+          cuda_impl::RankingPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_);
     } else {
       auto labels = info.labels.Data()->ConstHostSpan();
       if (std::any_of(labels.cbegin(), labels.cend(), PRAUCLabelInvalid{})) {
@@ -516,24 +518,25 @@ XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
     .set_body([](char const *) { return new EvalPRAUC{}; });
 
 #if !defined(XGBOOST_USE_CUDA)
-std::tuple<double, double, double> GPUBinaryPRAUC(Context const *, common::Span<float const>,
-                                                  MetaInfo const &,
-                                                  std::shared_ptr<DeviceAUCCache> *) {
+namespace cuda_impl {
+std::tuple<double, double, double> BinaryPRAUC(Context const *, common::Span<float const>,
+                                               MetaInfo const &,
+                                               std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
 
-double GPUMultiPRAUC(Context const *, common::Span<float const>, MetaInfo const &,
-                     std::shared_ptr<DeviceAUCCache> *, std::size_t, MultiAUCType) {
+double MultiPRAUC(Context const *, common::Span<float const>, MetaInfo const &,
+                  std::shared_ptr<DeviceAUCCache> *, std::size_t, MultiAUCType) {
   common::AssertGPUSupport();
   return {};
 }
 
-std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *, common::Span<float const>,
-                                                 MetaInfo const &,
-                                                 std::shared_ptr<DeviceAUCCache> *) {
+std::pair<double, std::uint32_t> RankingPRAUC(Context const *, common::Span<float const>,
+                                              MetaInfo const &, std::shared_ptr<DeviceAUCCache> *) {
   common::AssertGPUSupport();
   return {};
 }
+}  // namespace cuda_impl
 #endif
 }  // namespace xgboost::metric

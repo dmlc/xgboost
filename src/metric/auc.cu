@@ -22,11 +22,12 @@
 #include "xgboost/data.h"
 #include "xgboost/span.h"
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(auc_gpu);
+}  // namespace xgboost::metric
 
+namespace xgboost::metric::cuda_impl {
 namespace {
 // Pair of FP/TP
 using Pair = cuda::std::pair<double, double>;
@@ -86,11 +87,10 @@ void InitCacheOnce(common::Span<float const> predts, std::shared_ptr<DeviceAUCCa
  * - Reduce the scan array into 1 AUC value.
  */
 template <typename Fn>
-std::tuple<double, double, double> GPUBinaryAUC(Context const *ctx,
-                                                common::Span<float const> predts,
-                                                MetaInfo const &info,
-                                                common::Span<size_t const> d_sorted_idx, Fn area_fn,
-                                                std::shared_ptr<DeviceAUCCache> cache) {
+std::tuple<double, double, double> BinaryAUC(Context const *ctx, common::Span<float const> predts,
+                                             MetaInfo const &info,
+                                             common::Span<size_t const> d_sorted_idx, Fn area_fn,
+                                             std::shared_ptr<DeviceAUCCache> cache) {
   auto labels = info.labels.View(ctx->Device());
   auto weights = info.weights_.ConstDeviceSpan();
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
@@ -169,10 +169,10 @@ std::tuple<double, double, double> GPUBinaryAUC(Context const *ctx,
   return std::make_tuple(last.first, last.second, auc);
 }
 
-std::tuple<double, double, double> GPUBinaryROCAUC(Context const *ctx,
-                                                   common::Span<float const> predts,
-                                                   MetaInfo const &info,
-                                                   std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::tuple<double, double, double> BinaryROCAUC(Context const *ctx,
+                                                common::Span<float const> predts,
+                                                MetaInfo const &info,
+                                                std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto &cache = *p_cache;
   InitCacheOnce<false>(predts, p_cache);
 
@@ -182,7 +182,7 @@ std::tuple<double, double, double> GPUBinaryROCAUC(Context const *ctx,
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
   common::ArgSort<false>(ctx, predts, d_sorted_idx);
   // Create lambda to avoid pass function pointer.
-  return GPUBinaryAUC(
+  return BinaryAUC(
       ctx, predts, info, d_sorted_idx,
       [] XGBOOST_DEVICE(double x0, double x1, double y0, double y1) -> double {
         return TrapezoidArea(x0, x1, y0, y1);
@@ -312,9 +312,9 @@ void SegmentedReduceAUC(Context const *ctx, common::Span<size_t const> d_unique_
  * up each output in all kernels.
  */
 template <bool is_roc, typename Fn>
-double GPUMultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t> d_output_ptr,
-                   std::size_t n_targets, MultiAUCType type, std::shared_ptr<DeviceAUCCache> cache,
-                   Fn area_fn) {
+double MultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t> d_output_ptr,
+                std::size_t n_targets, MultiAUCType type, std::shared_ptr<DeviceAUCCache> cache,
+                Fn area_fn) {
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   /**
    * Sorted idx
@@ -349,10 +349,10 @@ double GPUMultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32
     size_t idx = d_sorted_idx[i];
 
     size_t output_id = i / n_samples;
-    size_t row_id = idx % n_samples;
+    size_t ridx = idx % n_samples;
     float label =
-        type == MultiAUCType::kMultiClass ? labels(row_id) == output_id : labels(row_id, output_id);
-    float w = get_weight[row_id];
+        type == MultiAUCType::kMultiClass ? labels(ridx) == output_id : labels(ridx, output_id);
+    float w = get_weight[ridx];
     float fp = (1.0 - label) * w;
     float tp = label * w;
     return cuda::std::make_pair(fp, tp);
@@ -453,9 +453,9 @@ void MultiSortedIdx(Context const *ctx, common::Span<float const> predts,
   common::SegmentedArgSort<false, false>(ctx, d_predts_t, d_output_ptr, d_sorted_idx);
 }
 
-double GPUMultiROCAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
-                      std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_targets,
-                      MultiAUCType type) {
+double MultiROCAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
+                   std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_targets,
+                   MultiAUCType type) {
   auto &cache = *p_cache;
   InitCacheOnce<true>(predts, p_cache);
 
@@ -469,7 +469,7 @@ double GPUMultiROCAUC(Context const *ctx, common::Span<float const> predts, Meta
                               size_t /*output_id*/) {
     return TrapezoidArea(fp_prev, fp, tp_prev, tp);
   };
-  return GPUMultiAUC<true>(ctx, info, dh::ToSpan(output_ptr), n_targets, type, cache, fn);
+  return MultiAUC<true>(ctx, info, dh::ToSpan(output_ptr), n_targets, type, cache, fn);
 }
 
 namespace {
@@ -481,9 +481,9 @@ struct RankScanItem {
 };
 }  // anonymous namespace
 
-std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<float const> predts,
-                                               MetaInfo const &info,
-                                               std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<float const> predts,
+                                            MetaInfo const &info,
+                                            std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto &cache = *p_cache;
   InitCacheOnce<false>(predts, p_cache);
 
@@ -597,10 +597,9 @@ std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<
   return std::make_pair(auc, n_valid);
 }
 
-std::tuple<double, double, double> GPUBinaryPRAUC(Context const *ctx,
-                                                  common::Span<float const> predts,
-                                                  MetaInfo const &info,
-                                                  std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::tuple<double, double, double> BinaryPRAUC(Context const *ctx, common::Span<float const> predts,
+                                               MetaInfo const &info,
+                                               std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto &cache = *p_cache;
   InitCacheOnce<false>(predts, p_cache);
 
@@ -630,13 +629,13 @@ std::tuple<double, double, double> GPUBinaryPRAUC(Context const *ctx,
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, total_pos);
   };
   double fp, tp, auc;
-  std::tie(fp, tp, auc) = GPUBinaryAUC(ctx, predts, info, d_sorted_idx, fn, cache);
+  std::tie(fp, tp, auc) = BinaryAUC(ctx, predts, info, d_sorted_idx, fn, cache);
   return std::make_tuple(1.0, 1.0, auc);
 }
 
-double GPUMultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
-                     std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_targets,
-                     MultiAUCType type) {
+double MultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
+                  std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_targets,
+                  MultiAUCType type) {
   auto &cache = *p_cache;
   InitCacheOnce<true>(predts, p_cache);
 
@@ -663,16 +662,16 @@ double GPUMultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaI
   auto get_weight = common::OptionalWeights{d_weights};
   auto val_it = dh::MakeTransformIterator<cuda::std::pair<double, double>>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
-        auto row_id = d_sorted_idx[i] % n_samples;
-        auto w = get_weight[row_id];
+        auto ridx = d_sorted_idx[i] % n_samples;
+        auto w = get_weight[ridx];
         auto output_id = i / n_samples;
-        auto y = type == MultiAUCType::kMultiClass ? labels(row_id) == output_id
-                                                   : labels(row_id, output_id);
+        auto y =
+            type == MultiAUCType::kMultiClass ? labels(ridx) == output_id : labels(ridx, output_id);
         return cuda::std::make_pair(y * w, (1.0f - y) * w);
       });
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + predts.size(), val_it,
-                        thrust::make_discard_iterator(), totals.begin(), thrust::equal_to<size_t>{},
-                        PairPlus<double, double>{});
+                        thrust::make_discard_iterator(), totals.begin(),
+                        cuda::std::equal_to<size_t>{}, PairPlus<double, double>{});
 
   /**
    * Calculate AUC
@@ -686,15 +685,14 @@ double GPUMultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaI
     }
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, total.first);
   };
-  return GPUMultiAUC<false>(ctx, info, d_output_ptr, n_targets, type, cache, fn);
+  return MultiAUC<false>(ctx, info, d_output_ptr, n_targets, type, cache, fn);
 }
 
 template <typename Fn>
-std::pair<double, uint32_t> GPURankingPRAUCImpl(Context const *ctx,
-                                                common::Span<float const> predts,
-                                                MetaInfo const &info,
-                                                common::Span<uint32_t> d_group_ptr,
-                                                std::shared_ptr<DeviceAUCCache> cache, Fn area_fn) {
+std::pair<double, uint32_t> RankingPRAUCImpl(Context const *ctx, common::Span<float const> predts,
+                                             MetaInfo const &info,
+                                             common::Span<uint32_t> d_group_ptr,
+                                             std::shared_ptr<DeviceAUCCache> cache, Fn area_fn) {
   /**
    * Sorted idx
    */
@@ -801,10 +799,9 @@ std::pair<double, uint32_t> GPURankingPRAUCImpl(Context const *ctx,
   return std::make_pair(auc, n_groups - invalid_groups);
 }
 
-std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
-                                                 common::Span<float const> predts,
-                                                 MetaInfo const &info,
-                                                 std::shared_ptr<DeviceAUCCache> *p_cache) {
+std::pair<double, std::uint32_t> RankingPRAUC(Context const *ctx, common::Span<float const> predts,
+                                              MetaInfo const &info,
+                                              std::shared_ptr<DeviceAUCCache> *p_cache) {
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   if (predts.empty()) {
     return std::make_pair(0.0, static_cast<uint32_t>(0));
@@ -862,7 +859,6 @@ std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
                                       size_t group_id) {
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, d_totals[group_id].first);
   };
-  return GPURankingPRAUCImpl(ctx, predts, info, d_group_ptr, cache, fn);
+  return RankingPRAUCImpl(ctx, predts, info, d_group_ptr, cache, fn);
 }
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric::cuda_impl
