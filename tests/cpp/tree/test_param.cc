@@ -2,8 +2,13 @@
  * Copyright 2014-2026, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/linalg.h>  // for Vector
+
+#include <sstream>  // for stringstream
+#include <vector>   // for vector
 
 #include "../../../src/tree/param.h"
+
 namespace xgboost::tree {
 namespace {
 void Clear(std::vector<int> &vals, std::stringstream &ss) {  // NOLINT
@@ -141,12 +146,12 @@ TEST(Param, CalcVectorGainWithMaxDeltaStep) {
   param.UpdateAllowUnknown(
       xgboost::Args{{"reg_alpha", "1"}, {"reg_lambda", "0"}, {"max_delta_step", "0.5"}});
 
-  xgboost::linalg::Vector<xgboost::GradientPairPrecise> stats({2}, xgboost::DeviceOrd::CPU());
+  linalg::Vector<xgboost::GradientPairPrecise> stats({2}, xgboost::DeviceOrd::CPU());
   auto h_stats = stats.HostView();
   h_stats(0) = {8.0, 2.0};
   h_stats(1) = {-2.0, 4.0};
 
-  xgboost::linalg::Vector<float> weight({2}, xgboost::DeviceOrd::CPU());
+  linalg::Vector<float> weight({2}, xgboost::DeviceOrd::CPU());
   auto h_weight = weight.HostView();
   CalcWeight(param, h_stats, h_weight);
   ASSERT_FLOAT_EQ(h_weight(0), -0.5f);
