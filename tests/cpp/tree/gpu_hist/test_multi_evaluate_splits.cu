@@ -47,13 +47,6 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     return shared;
   }
 
-  void ZeroHistogramHess() {
-    thrust::transform(histogram.begin(), histogram.end(), histogram.begin(),
-                      [] XGBOOST_DEVICE(GradientPairInt64 const& bin) {
-                        return GradientPairInt64{bin.GetQuantisedGrad(), 0};
-                      });
-  }
-
   void SetUp() override {
     input.nidx = 0;
     input.depth = 0;
