@@ -102,13 +102,10 @@ constexpr bool UseFederated() {
 auto MakeParamsForTest() {
   std::vector<Param> cases;
 
-  auto push = [&](std::string name, auto fn, bool cpu_only = false) {
+  auto push = [&](std::string name, auto fn) {
     for (bool is_federated : {false, true}) {
       for (DataSplitMode m : {DataSplitMode::kCol, DataSplitMode::kRow}) {
         for (auto d : {DeviceOrd::CPU(), DeviceOrd::CUDA(0)}) {
-          if (cpu_only && d.IsCUDA()) {
-            continue;
-          }
           if (!is_federated && !UseNCCL() && d.IsCUDA()) {
             // Federated doesn't use nccl.
             continue;
