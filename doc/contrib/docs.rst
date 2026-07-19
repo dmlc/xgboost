@@ -11,8 +11,8 @@ Documentation and Examples
 *************
 Documentation
 *************
-* Python and C documentation is built using `Sphinx <http://www.sphinx-doc.org/en/master/>`_.
-* Each document is written in `reStructuredText <http://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html>`_.
+* Python and C documentation is built using `Sphinx <https://www.sphinx-doc.org/en/master/>`_.
+* Each document is written in `reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html>`_.
 * The documentation is the ``doc/`` directory.
 * You can build it locally using ``make html`` command.
 
