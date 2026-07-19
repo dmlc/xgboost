@@ -80,31 +80,31 @@ std::tuple<double, double, double> BinaryAUC(common::Span<float const> predts,
  */
 template <typename BinaryAUC>
 double MultiAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
-                std::size_t n_outputs, std::int32_t n_threads, MultiAUCType type,
+                std::size_t n_targets, std::int32_t n_threads, MultiAUCType type,
                 BinaryAUC &&binary_auc) {
-  CHECK_NE(n_outputs, 0);
+  CHECK_NE(n_targets, 0);
   auto const labels = info.labels.HostView();
   if (labels.Shape(0) != 0) {
     if (type == MultiAUCType::kMultiClass) {
       CHECK_EQ(labels.Shape(1), 1);
     } else {
-      CHECK_EQ(labels.Shape(1), n_outputs);
+      CHECK_EQ(labels.Shape(1), n_targets);
     }
   }
   auto n_samples = labels.Shape(0);
-  CHECK_EQ(predts.size(), n_samples * n_outputs);
+  CHECK_EQ(predts.size(), n_samples * n_targets);
 
-  std::vector<double> results_storage(n_outputs * 3, 0);
-  auto results = linalg::MakeTensorView(ctx, results_storage, n_outputs, 3);
+  std::vector<double> results_storage(n_targets * 3, 0);
+  auto results = linalg::MakeTensorView(ctx, results_storage, n_targets, 3);
   auto local_area = results.Slice(linalg::All(), 0);
   auto tp = results.Slice(linalg::All(), 1);
   auto auc = results.Slice(linalg::All(), 2);
 
   auto weights = common::OptionalWeights{info.weights_.ConstHostSpan()};
-  auto predts_t = linalg::MakeTensorView(ctx, predts, n_samples, n_outputs);
+  auto predts_t = linalg::MakeTensorView(ctx, predts, n_samples, n_targets);
 
   if (n_samples != 0) {
-    common::ParallelFor(n_outputs, n_threads, [&](auto c) {
+    common::ParallelFor(n_targets, n_threads, [&](auto c) {
       std::vector<float> proba(n_samples);
       std::vector<float> response(n_samples);
       for (size_t i = 0; i < proba.size(); ++i) {
@@ -127,7 +127,7 @@ double MultiAUC(Context const *ctx, common::Span<float const> predts, MetaInfo c
   double auc_sum{0};
   // Sum of class prevalence for multiclass ROC, or the output count for macro averaging.
   double weight_sum{0};
-  for (size_t c = 0; c < n_outputs; ++c) {
+  for (size_t c = 0; c < n_targets; ++c) {
     if (local_area(c) != 0 && !std::isnan(auc(c))) {
       // Normalize each output. After allreduce, `local_area` means the total covered area
       // (not area under curve, rather it's the accessible area for each

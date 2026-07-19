@@ -203,7 +203,7 @@ void Transpose(common::Span<float const> in, common::Span<float> out, size_t m, 
 
 double ScaleOutputs(Context const *ctx, bool is_column_split, common::Span<double> results,
                     common::Span<double> local_area, common::Span<double> output_weights,
-                    common::Span<double> auc, size_t n_outputs) {
+                    common::Span<double> auc, std::size_t n_targets) {
   // With vertical federated learning, only the root has label, other parties are not
   // evaluation metrics.
   if (collective::IsDistributed() && !(is_column_split && collective::IsFederated())) {
@@ -225,7 +225,7 @@ double ScaleOutputs(Context const *ctx, bool is_column_split, common::Span<doubl
   double weight_sum;
   double auc_sum;
   cuda::std::tie(auc_sum, weight_sum) =
-      thrust::reduce(ctx->CUDACtx()->CTP(), reduce_in, reduce_in + n_outputs, Pair{0.0, 0.0},
+      thrust::reduce(ctx->CUDACtx()->CTP(), reduce_in, reduce_in + n_targets, Pair{0.0, 0.0},
                      PairPlus<double, double>{});
   if (weight_sum != 0 && !std::isnan(auc_sum)) {
     auc_sum /= weight_sum;
@@ -313,7 +313,7 @@ void SegmentedReduceAUC(Context const *ctx, common::Span<size_t const> d_unique_
  */
 template <bool is_roc, typename Fn>
 double GPUMultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t> d_output_ptr,
-                   size_t n_outputs, MultiAUCType type, std::shared_ptr<DeviceAUCCache> cache,
+                   std::size_t n_targets, MultiAUCType type, std::shared_ptr<DeviceAUCCache> cache,
                    Fn area_fn) {
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   /**
@@ -329,20 +329,20 @@ double GPUMultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32
   size_t n_samples = labels.Shape(0);
 
   if (n_samples == 0) {
-    dh::TemporaryArray<double> results(n_outputs * 4, 0.0f);
+    dh::TemporaryArray<double> results(n_targets * 4, 0.0f);
     auto d_results = dh::ToSpan(results);
-    dh::LaunchN(n_outputs * 4, [=] XGBOOST_DEVICE(size_t i) { d_results[i] = 0.0f; });
-    auto local_area = d_results.subspan(0, n_outputs);
-    auto output_weights = d_results.subspan(2 * n_outputs, n_outputs);
-    auto auc = d_results.subspan(3 * n_outputs, n_outputs);
+    dh::LaunchN(n_targets * 4, [=] XGBOOST_DEVICE(size_t i) { d_results[i] = 0.0f; });
+    auto local_area = d_results.subspan(0, n_targets);
+    auto output_weights = d_results.subspan(2 * n_targets, n_targets);
+    auto auc = d_results.subspan(3 * n_targets, n_targets);
     return ScaleOutputs(ctx, info.IsColumnSplit(), d_results, local_area, output_weights, auc,
-                        n_outputs);
+                        n_targets);
   }
 
   /**
    * Linear scan
    */
-  dh::caching_device_vector<double> d_auc(n_outputs, 0);
+  dh::caching_device_vector<double> d_auc(n_targets, 0);
   auto get_weight = common::OptionalWeights{weights};
   auto d_fptp = dh::ToSpan(cache->fptp);
   auto get_fp_tp = [=] XGBOOST_DEVICE(size_t i) {
@@ -415,14 +415,14 @@ double GPUMultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32
   /**
    * Normalize each curve and assign its aggregation weight.
    */
-  dh::TemporaryArray<double> results(n_outputs * 4);
+  dh::TemporaryArray<double> results(n_targets * 4);
   auto d_results = dh::ToSpan(results);
-  auto local_area = d_results.subspan(0, n_outputs);
-  auto fp = d_results.subspan(n_outputs, n_outputs);
-  auto output_weights = d_results.subspan(2 * n_outputs, n_outputs);
-  auto auc = d_results.subspan(3 * n_outputs, n_outputs);
+  auto local_area = d_results.subspan(0, n_targets);
+  auto fp = d_results.subspan(n_targets, n_targets);
+  auto output_weights = d_results.subspan(2 * n_targets, n_targets);
+  auto auc = d_results.subspan(3 * n_targets, n_targets);
 
-  dh::LaunchN(n_outputs, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(size_t c) {
+  dh::LaunchN(n_targets, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(size_t c) {
     auc[c] = s_d_auc[c];
     auto last = d_fptp[n_samples * c + (n_samples - 1)];
     fp[c] = last.first;
@@ -435,26 +435,26 @@ double GPUMultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32
     }
   });
   return ScaleOutputs(ctx, info.IsColumnSplit(), d_results, local_area, output_weights, auc,
-                      n_outputs);
+                      n_targets);
 }
 
 void MultiSortedIdx(Context const *ctx, common::Span<float const> predts,
                     common::Span<uint32_t> d_output_ptr, std::shared_ptr<DeviceAUCCache> cache) {
-  size_t n_outputs = d_output_ptr.size() - 1;
+  size_t n_targets = d_output_ptr.size() - 1;
   auto d_predts_t = dh::ToSpan(cache->predts_t);
-  auto n_samples = d_predts_t.size() / n_outputs;
+  auto n_samples = d_predts_t.size() / n_targets;
   if (n_samples == 0) {
     return;
   }
-  Transpose(predts, d_predts_t, n_samples, n_outputs);
-  dh::LaunchN(n_outputs + 1, ctx->CUDACtx()->Stream(),
+  Transpose(predts, d_predts_t, n_samples, n_targets);
+  dh::LaunchN(n_targets + 1, ctx->CUDACtx()->Stream(),
               [=] XGBOOST_DEVICE(size_t i) { d_output_ptr[i] = i * n_samples; });
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
   common::SegmentedArgSort<false, false>(ctx, d_predts_t, d_output_ptr, d_sorted_idx);
 }
 
 double GPUMultiROCAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
-                      std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_outputs,
+                      std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_targets,
                       MultiAUCType type) {
   auto &cache = *p_cache;
   InitCacheOnce<true>(predts, p_cache);
@@ -462,14 +462,14 @@ double GPUMultiROCAUC(Context const *ctx, common::Span<float const> predts, Meta
   /**
    * Create sorted index for each output
    */
-  dh::TemporaryArray<uint32_t> output_ptr(n_outputs + 1, 0);
+  dh::TemporaryArray<uint32_t> output_ptr(n_targets + 1, 0);
   MultiSortedIdx(ctx, predts, dh::ToSpan(output_ptr), cache);
 
   auto fn = [] XGBOOST_DEVICE(double fp_prev, double fp, double tp_prev, double tp,
                               size_t /*output_id*/) {
     return TrapezoidArea(fp_prev, fp, tp_prev, tp);
   };
-  return GPUMultiAUC<true>(ctx, info, dh::ToSpan(output_ptr), n_outputs, type, cache, fn);
+  return GPUMultiAUC<true>(ctx, info, dh::ToSpan(output_ptr), n_targets, type, cache, fn);
 }
 
 namespace {
@@ -635,7 +635,7 @@ std::tuple<double, double, double> GPUBinaryPRAUC(Context const *ctx,
 }
 
 double GPUMultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaInfo const &info,
-                     std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_outputs,
+                     std::shared_ptr<DeviceAUCCache> *p_cache, std::size_t n_targets,
                      MultiAUCType type) {
   auto &cache = *p_cache;
   InitCacheOnce<true>(predts, p_cache);
@@ -643,7 +643,7 @@ double GPUMultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaI
   /**
    * Create sorted index for each output
    */
-  dh::TemporaryArray<uint32_t> output_ptr(n_outputs + 1, 0);
+  dh::TemporaryArray<uint32_t> output_ptr(n_targets + 1, 0);
   auto d_output_ptr = dh::ToSpan(output_ptr);
   MultiSortedIdx(ctx, predts, d_output_ptr, cache);
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
@@ -655,7 +655,7 @@ double GPUMultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaI
    */
   auto labels = info.labels.View(ctx->Device());
   auto n_samples = info.num_row_;
-  dh::caching_device_vector<Pair> totals(n_outputs);
+  dh::caching_device_vector<Pair> totals(n_targets);
   auto key_it = dh::MakeTransformIterator<size_t>(thrust::make_counting_iterator(0ul),
                                                   [n_samples] XGBOOST_DEVICE(size_t i) {
                                                     return i / n_samples;  // output id
@@ -686,7 +686,7 @@ double GPUMultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaI
     }
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, total.first);
   };
-  return GPUMultiAUC<false>(ctx, info, d_output_ptr, n_outputs, type, cache, fn);
+  return GPUMultiAUC<false>(ctx, info, d_output_ptr, n_targets, type, cache, fn);
 }
 
 template <typename Fn>
