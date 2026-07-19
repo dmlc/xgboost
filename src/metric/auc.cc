@@ -128,7 +128,7 @@ double MultiAUC(Context const *ctx, common::Span<float const> predts, MetaInfo c
   // Sum of class prevalence for multiclass ROC, or the output count for macro averaging.
   double weight_sum{0};
   for (size_t c = 0; c < n_targets; ++c) {
-    if (local_area(c) != 0 && !std::isnan(auc(c))) {
+    if (local_area(c) > 0 && !std::isnan(auc(c))) {
       // Normalize each output. After allreduce, `local_area` means the total covered area
       // (not area under curve, rather it's the accessible area for each
       // worker). Multiclass uses the existing prevalence weight, while multi-label uses
