@@ -13,7 +13,7 @@ compatibility.
 **************
 Original paper
 **************
-Rashmi Korlakai Vinayak, Ran Gilad-Bachrach. "DART: Dropouts meet Multiple Additive Regression Trees." [`PMLR <http://proceedings.mlr.press/v38/korlakaivinayak15.pdf>`_, `arXiv <https://arxiv.org/abs/1505.01866>`_].
+Rashmi Korlakai Vinayak, Ran Gilad-Bachrach. "DART: Dropouts meet Multiple Additive Regression Trees." [`PMLR <https://proceedings.mlr.press/v38/korlakaivinayak15.pdf>`_, `arXiv <https://arxiv.org/abs/1505.01866>`_].
 
 ********
 Features

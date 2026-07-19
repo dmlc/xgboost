@@ -4,8 +4,8 @@ XGBoost R Package
 
 .. raw:: html
 
-  <a href="http://cran.r-project.org/web/packages/xgboost"><img alt="CRAN Status Badge" src="http://www.r-pkg.org/badges/version/xgboost"></a>
-  <a href="http://cran.rstudio.com/web/packages/xgboost/index.html"><img alt="CRAN Downloads" src="http://cranlogs.r-pkg.org/badges/xgboost"></a>
+  <a href="https://cran.r-project.org/web/packages/xgboost"><img alt="CRAN Status Badge" src="https://www.r-pkg.org/badges/version/xgboost"></a>
+  <a href="https://cran.rstudio.com/web/packages/xgboost/index.html"><img alt="CRAN Downloads" src="https://cranlogs.r-pkg.org/badges/xgboost"></a>
 
 You have found the XGBoost R Package!
 
