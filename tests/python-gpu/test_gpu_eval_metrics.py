@@ -1,7 +1,6 @@
 import json
 
 import pytest
-
 import xgboost
 from xgboost import testing as tm
 from xgboost.testing.metrics import (
@@ -21,10 +20,32 @@ class TestGPUEvalMetrics:
         run_roc_auc_binary("hist", n_samples, "cuda")
 
     @pytest.mark.parametrize(
-        "n_samples,weighted", [(4, False), (100, False), (1000, False), (1000, True)]
+        "n_samples,weighted,multi_label,multi_strategy",
+        [
+            (4, False, False, "one_output_per_tree"),
+            (100, False, False, "one_output_per_tree"),
+            (1000, False, False, "one_output_per_tree"),
+            (1000, True, False, "one_output_per_tree"),
+            (100, False, False, "multi_output_tree"),
+            (100, False, True, "multi_output_tree"),
+            (1000, True, True, "multi_output_tree"),
+        ],
     )
-    def test_roc_auc_multi(self, n_samples: int, weighted: bool) -> None:
-        run_roc_auc_multi("hist", n_samples, weighted, "cuda")
+    def test_roc_auc_multi(
+        self,
+        n_samples: int,
+        weighted: bool,
+        multi_label: bool,
+        multi_strategy: str,
+    ) -> None:
+        run_roc_auc_multi(
+            "hist",
+            n_samples,
+            weighted,
+            "cuda",
+            multi_label=multi_label,
+            multi_strategy=multi_strategy,
+        )
 
     @pytest.mark.parametrize("n_samples", [4, 100, 1000])
     def test_roc_auc_ltr(self, n_samples: int) -> None:
@@ -61,8 +82,21 @@ class TestGPUEvalMetrics:
     def test_pr_auc_binary(self) -> None:
         run_pr_auc_binary("hist", "cuda")
 
-    def test_pr_auc_multi(self) -> None:
-        run_pr_auc_multi("hist", "cuda")
+    @pytest.mark.parametrize(
+        "multi_label,multi_strategy",
+        [
+            (False, "one_output_per_tree"),
+            (False, "multi_output_tree"),
+            (True, "multi_output_tree"),
+        ],
+    )
+    def test_pr_auc_multi(self, multi_label: bool, multi_strategy: str) -> None:
+        run_pr_auc_multi(
+            "hist",
+            "cuda",
+            multi_label=multi_label,
+            multi_strategy=multi_strategy,
+        )
 
     def test_pr_auc_ltr(self) -> None:
         run_pr_auc_ltr("hist", "cuda")

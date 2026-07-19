@@ -24,6 +24,7 @@ void Median(Context const* ctx, linalg::Matrix<float> const& t,
     auto opt_weights = OptionalWeights(weights.ConstDeviceSpan());
     auto t_v = t.View(ctx->Device());
     cuda_impl::Median(ctx, t_v, opt_weights, out);
+    return;
   }
 
   auto opt_weights = OptionalWeights(weights.ConstHostSpan());
