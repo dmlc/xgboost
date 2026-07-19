@@ -104,6 +104,7 @@ def _warn_rf_deprecated(name: str) -> None:
         " corresponding boosting estimator instead, or use a dedicated random forest"
         " implementation like those in `sklearn.ensemble`.",
         FutureWarning,
+        stacklevel=3,
     )
 
 
