@@ -590,4 +590,71 @@ TEST_F(TestMaxDeltaStep, GpuApprox) {
   this->RunTest(&ctx, "grow_gpu_approx", 1u);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
+
+/**
+ * @brief The split gain must include the L1 (reg_alpha) penalty even when the leaf weight
+ *        is clipped by max_delta_step.
+ */
+class TestMaxDeltaStepGain : public ::testing::Test {
+  std::shared_ptr<DMatrix> p_fmat_;
+
+ public:
+  void SetUp() override { p_fmat_ = GetDMatrixFromData({0.0f, 1.0f}, 2, 1); }
+
+  void RunTest(Context const* ctx, std::string const& updater) {
+    Context cpu_ctx;
+    auto grad = GenerateRandomGradients(&cpu_ctx, 2, 1);
+
+    auto h_grad = grad.gpair.HostView();
+    h_grad(0, 0) = GradientPair{4.0f, 1.0f};
+    h_grad(1, 0) = GradientPair{-4.0f, 1.0f};
+
+    // With reg_alpha=reg_lambda=1, the unclipped child weights are -/+1.5, so both are
+    // clipped to -/+ max_delta_step (0.5).
+    Args args{{"max_depth", "1"},  {"min_child_weight", "0"}, {"reg_alpha", "1"},
+              {"reg_lambda", "1"}, {"max_delta_step", "0.5"}, {"learning_rate", "1"}};
+    RegTree tree{1u, 1u};
+    BuildTree(ctx, p_fmat_.get(), &grad, updater, args, &tree);
+
+    ASSERT_EQ(tree.NumExtraNodes(), 2);
+    ASSERT_FALSE(tree[RegTree::kRoot].IsLeaf());
+
+    auto left = tree[RegTree::kRoot].LeftChild();
+    auto right = tree[RegTree::kRoot].RightChild();
+    // Confirm the max_delta_step clip is binding for both children.
+    EXPECT_FLOAT_EQ(tree[left].LeafValue(), -0.5f);
+    EXPECT_FLOAT_EQ(tree[right].LeafValue(), 0.5f);
+
+    // Gain at the clipped weight is 2.5 for each child and 0 for the root, so the split
+    // gain is 5.0.
+    EXPECT_NEAR(tree.Stat(RegTree::kRoot).loss_chg, 5.0f, kRtEps);
+  }
+};
+
+TEST_F(TestMaxDeltaStepGain, Hist) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_quantile_histmaker");
+}
+
+TEST_F(TestMaxDeltaStepGain, Approx) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_histmaker");
+}
+
+TEST_F(TestMaxDeltaStepGain, Exact) {
+  Context ctx;
+  this->RunTest(&ctx, "grow_colmaker");
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestMaxDeltaStepGain, GpuHist) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_hist");
+}
+
+TEST_F(TestMaxDeltaStepGain, GpuApprox) {
+  auto ctx = MakeCUDACtx(0);
+  this->RunTest(&ctx, "grow_gpu_approx");
+}
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost
