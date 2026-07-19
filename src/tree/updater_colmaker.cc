@@ -20,7 +20,6 @@
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/parameter.h"
-#include "xgboost/task.h"  // for ObjInfo
 #include "xgboost/tree_updater.h"
 
 namespace xgboost::tree {
@@ -60,8 +59,8 @@ DMLC_REGISTER_PARAMETER(ColMakerTrainParam);
 /*! \brief column-wise update to construct a tree */
 class ColMaker : public TreeUpdater {
  public:
-  explicit ColMaker(Context const *ctx, ObjInfo const *task)
-      : TreeUpdater{ctx}, column_sampler_{std::make_shared<common::ColumnSampler>()}, task_{task} {}
+  explicit ColMaker(Context const *ctx)
+      : TreeUpdater(ctx), column_sampler_{std::make_shared<common::ColumnSampler>()} {}
   void Configure(const Args &args) override { colmaker_param_.UpdateAllowUnknown(args); }
 
   void LoadConfig(Json const &in) override {
@@ -110,9 +109,6 @@ class ColMaker : public TreeUpdater {
     if (param->colsample_bynode - 1.0 != 0.0) {
       LOG(FATAL) << "column sample by node is not yet supported by the exact tree method";
     }
-    if (this->task_->UpdateTreeLeaf()) {
-      LOG(FATAL) << "The current objective is not supported by the `exact` tree method.";
-    }
     this->LazyGetColumnDensity(dmat);
     // rescale learning rate according to size of trees
     interaction_constraints_.Configure(*param, dmat->Info().num_row_);
@@ -131,7 +127,6 @@ class ColMaker : public TreeUpdater {
   ColMakerTrainParam colmaker_param_;
   std::vector<float> column_densities_;
   std::shared_ptr<common::ColumnSampler> column_sampler_;
-  ObjInfo const *task_;
 
   FeatureInteractionConstraintHost interaction_constraints_;
   // data structure
@@ -158,7 +153,6 @@ class ColMaker : public TreeUpdater {
     // constructor
     NodeEntry() = default;
   };
-
   // actual builder that runs the algorithm
   class Builder {
    public:
@@ -592,5 +586,5 @@ class ColMaker : public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(ColMaker, "grow_colmaker")
     .describe("Grow tree with parallelization over columns.")
-    .set_body([](Context const *ctx, ObjInfo const *task) { return new ColMaker{ctx, task}; });
+    .set_body([](Context const *ctx, auto) { return new ColMaker(ctx); });
 }  // namespace xgboost::tree
