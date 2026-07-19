@@ -50,7 +50,8 @@ from .data import (
 )
 
 # Used to be defined in this top level module.
-from .utils import non_decreasing, non_increasing  # NOLINT
+from .utils import non_decreasing as non_decreasing
+from .utils import non_increasing as non_increasing
 
 hypothesis = pytest.importorskip("hypothesis")
 
