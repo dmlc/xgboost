@@ -670,8 +670,8 @@ double MultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaInfo
         return cuda::std::make_pair(y * w, (1.0f - y) * w);
       });
   thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + predts.size(), val_it,
-                        thrust::make_discard_iterator(), totals.begin(),
-                        cuda::std::equal_to<size_t>{}, PairPlus<double, double>{});
+                        thrust::make_discard_iterator(), totals.begin(), std::equal_to<size_t>{},
+                        PairPlus<double, double>{});
 
   /**
    * Calculate AUC
