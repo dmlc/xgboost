@@ -438,7 +438,7 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
         None,
         cache="cache",
         on_host=True,
-        min_cache_page_bytes=X.shape[0] // n_batches * X.shape[1],
+        min_cache_page_bytes=0,  # disables page concatenation
     )
     Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0 if device == "cuda" else None)
     booster_ext = train(adaptive_params, Xy, num_boost_round=n_rounds)
