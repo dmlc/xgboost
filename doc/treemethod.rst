@@ -20,7 +20,7 @@ Exact means XGBoost considers all candidates from data for tree splitting, but u
 the objective is still interpreted as a Taylor expansion.
 
 1. ``exact``: The vanilla gradient boosting tree algorithm described in `reference paper
-   <http://arxiv.org/abs/1603.02754>`_.  During split-finding, it iterates over all
+   <https://arxiv.org/abs/1603.02754>`_.  During split-finding, it iterates over all
    entries of input data.  It's more accurate (among other greedy methods) but
    computationally slower in compared to other tree methods.  Further more, its feature
    set is limited. Features like distributed training and external memory that require
@@ -38,7 +38,7 @@ histogram for each node and iterate through the histogram instead of real datase
 we introduce the implementations in XGBoost.
 
 1. ``approx`` tree method: An approximation tree method described in `reference paper
-   <http://arxiv.org/abs/1603.02754>`_.  It runs sketching before building each tree
+   <https://arxiv.org/abs/1603.02754>`_.  It runs sketching before building each tree
    using all the rows (rows belonging to the root). Hessian is used as weights during
    sketch.  The algorithm can be accessed by setting ``tree_method`` to ``approx``.
 
@@ -106,7 +106,7 @@ solely for the interest of documentation.
    have any real practical impact.
 
 3. ``grow_local_histmaker`` updater: An approximation tree method described in `reference
-   paper <http://arxiv.org/abs/1603.02754>`_.  This updater was rarely used in practice so
+   paper <https://arxiv.org/abs/1603.02754>`_.  This updater was rarely used in practice so
    it was still an updater rather than tree method.  During split finding, it first runs a
    weighted GK sketching for data points belong to current node to find split candidates,
    using hessian as weights.  The histogram is built upon this per-node sketch.  It was

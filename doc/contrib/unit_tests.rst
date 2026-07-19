@@ -41,7 +41,7 @@ The JVM packages for XGBoost (XGBoost4J / XGBoost4J-Spark) use `the Maven Standa
 * `jvm-packages/xgboost4j-spark/src/test/ <https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-spark/src/test>`_
 
 To write a test for Java code, see `JUnit 5 tutorial <https://junit.org/junit5/docs/current/user-guide/>`_.
-To write a test for Scala, see `Scalatest tutorial <http://www.scalatest.org/user_guide/writing_your_first_test>`_.
+To write a test for Scala, see `Scalatest tutorial <https://www.scalatest.org/user_guide/writing_your_first_test>`_.
 
 You may try running your test by following instructions in :ref:`this section <running_jvm_tests>`.
 
