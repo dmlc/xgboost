@@ -422,6 +422,35 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     )
     assert_allclose(device, booster_0.inplace_predict(X), booster_2.inplace_predict(X))
 
+    # Distinct target scales make a wrong-row mask diverge loudly.
+    ys_adaptive = [y_i * nda.asarray([1.0, 20.0, 100.0]) for y_i in ys]
+    adaptive_params = {
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "objective": "reg:absoluteerror",
+        "subsample": 0.5,
+        "seed": 2026,
+        "debug_synchronize": True,
+    }
+    it = IteratorForTest(
+        Xs,
+        ys_adaptive,
+        None,
+        cache="cache",
+        on_host=True,
+        min_cache_page_bytes=X.shape[0] // n_batches * X.shape[1],
+    )
+    Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0 if device == "cuda" else None)
+    booster_ext = train(adaptive_params, Xy, num_boost_round=n_rounds)
+
+    it = IteratorForTest(Xs, ys_adaptive, None, cache=None)
+    Xy = QuantileDMatrix(it)
+    booster_in = train(adaptive_params, Xy, num_boost_round=n_rounds)
+
+    assert_allclose(
+        device, booster_ext.inplace_predict(X), booster_in.inplace_predict(X)
+    )
+
 
 def run_eta(device: Device) -> None:
     """Test for learning rate."""
