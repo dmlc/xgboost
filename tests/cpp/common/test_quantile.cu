@@ -122,10 +122,10 @@ void ValidateSketchInvariants(HostSketchView const& sketch, bool with_error = fa
     auto beg = sketch.columns_ptr[column_id];
     auto end = sketch.columns_ptr[i];
 
-    auto column = Span<SketchEntry const>{sketch.data}.subspan(beg, end - beg);
+    auto column = common::Span<common::SketchEntry const>{sketch.data}.subspan(beg, end - beg);
     ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
     ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
-                                   [](SketchEntry const& l, SketchEntry const& r) {
+                                   [](common::SketchEntry const& l, common::SketchEntry const& r) {
                                      return l.value == r.value;
                                    }) == column.end());
     for (size_t idx = 1; idx < column.size(); ++idx) {

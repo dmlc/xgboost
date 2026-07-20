@@ -59,7 +59,7 @@ TEST_F(TestCategoricalSplitWithMissing, GPUHistEvaluator) {
 
   GPUHistEvaluator evaluator{param_, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
 
-  evaluator.Reset(&ctx, cuts_, dh::ToSpan(feature_types), feature_set.size(), param_, false);
+  evaluator.Reset(&ctx, cuts_, dh::ToSpan(feature_types), feature_set.size(), param_);
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
 
   ASSERT_EQ(result.thresh, 1);
@@ -99,7 +99,7 @@ TEST(GpuHist, PartitionBasic) {
   };
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
-  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, false);
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
 
   {
     // -1.0s go right
@@ -209,7 +209,7 @@ TEST(GpuHist, PartitionTwoFeatures) {
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
-  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, false);
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
 
   {
     auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-6.0, 3.0});
@@ -267,7 +267,7 @@ TEST(GpuHist, PartitionTwoNodes) {
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
-  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, false);
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
 
   {
     auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-6.0, 3.0});
@@ -322,7 +322,7 @@ void TestEvaluateSingleSplit(bool is_categorical) {
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
-  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, false);
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 1);
@@ -479,7 +479,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   cuts_.cut_ptrs_.SetDevice(ctx.Device());
   cuts_.cut_values_.SetDevice(ctx.Device());
 
-  evaluator.Reset(&ctx, cuts_, dh::ToSpan(ft), info_.num_col_, param_, false);
+  evaluator.Reset(&ctx, cuts_, dh::ToSpan(ft), info_.num_col_, param_);
 
   // Convert the sample histogram to fixed point
   auto quantiser = DummyRoundingFactor(&ctx);

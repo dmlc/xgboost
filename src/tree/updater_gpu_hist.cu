@@ -15,10 +15,11 @@
 
 #include "../../src/collective/comm.h"  // for Op
 #include "../collective/aggregator.h"
-#include "../common/categorical.h"     // for KCatBitField
-#include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../common/cuda_rt_utils.h"   // for SetDevice
-#include "../common/cuda_stream.h"     // for DefaultStream
+#include "../collective/communicator-inl.h"  // for IsDistributed
+#include "../common/categorical.h"           // for KCatBitField
+#include "../common/cuda_context.cuh"        // for CUDAContext
+#include "../common/cuda_rt_utils.h"         // for SetDevice
+#include "../common/cuda_stream.h"           // for DefaultStream
 #include "../common/device_helpers.cuh"
 #include "../common/device_vector.cuh"  // for device_vector
 #include "../common/hist_util.h"        // for HistogramCuts

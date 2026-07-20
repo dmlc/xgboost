@@ -10,6 +10,7 @@
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"          // for GlobalSum
+#include "../collective/communicator-inl.h"    // for IsDistributed
 #include "../common/categorical.h"             // for CatBitField
 #include "../common/device_helpers.cuh"        // for MakeTransformIterator
 #include "../common/nvtx_utils.h"              // for xgboost_NVTX_FN_RANGE

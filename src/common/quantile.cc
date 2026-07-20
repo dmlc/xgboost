@@ -542,7 +542,7 @@ void AddCategories(std::set<float> const &categories, float *max_cat, HistogramC
   }
 }
 
-HistogramCuts HostSketchContainer::MakeCuts(Context const *ctx, MetaInfo const &info) {
+HistogramCuts HostSketchContainer::MakeCuts(Context const *ctx, MetaInfo const &) {
   monitor_.Start(__func__);
   HistogramCuts cuts{static_cast<bst_feature_t>(sketches_.size())};
   auto *p_cuts = &cuts;
