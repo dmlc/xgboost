@@ -247,8 +247,7 @@ ThresholdL1(T0 sum_grad, T1 alpha) {
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T0, typename T1>
-XGBOOST_DEVICE inline T0 CalcGainGivenWeight(TrainingParams const &p, T0 sum_grad, T0 sum_hess,
-                                             T1 w) {
+XGBOOST_DEVICE T0 CalcGainGivenWeight(TrainingParams const &p, T0 sum_grad, T0 sum_hess, T1 w) {
   return -(static_cast<T0>(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w) +
            (static_cast<T0>(2.0) * p.reg_alpha * std::abs(w)));
 }
@@ -286,13 +285,13 @@ XGBOOST_DEVICE T CalcGain(TrainingParams const &p, T sum_grad, T sum_hess) {
 }
 
 template <typename TrainingParams, typename StatT, typename T = decltype(StatT().GetHess())>
-XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, StatT stat) {
+XGBOOST_DEVICE T CalcGain(const TrainingParams &p, StatT stat) {
   return CalcGain(p, stat.GetGrad(), stat.GetHess());
 }
 
 // Used in GPU code where GradientPair is used for gradient sum, not GradStats.
 template <typename TrainingParams, typename GpairT>
-XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad) {
+XGBOOST_DEVICE float CalcWeight(const TrainingParams &p, GpairT sum_grad) {
   return CalcWeight(p, sum_grad.GetGrad(), sum_grad.GetHess());
 }
 

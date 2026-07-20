@@ -23,9 +23,6 @@
 
 namespace xgboost::tree {
 class TreeEvaluator {
-  // hist and exact use parent id to calculate constraints.
-  static constexpr bst_node_t kRootParentId = (-1 & static_cast<bst_node_t>((1U << 31) - 1));
-
   HostDeviceVector<float> lower_bounds_;
   HostDeviceVector<float> upper_bounds_;
   HostDeviceVector<int32_t> monotone_;
@@ -98,7 +95,7 @@ class TreeEvaluator {
     }
 
     template <typename GradientSumT>
-    XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT& param,
+    XGBOOST_DEVICE float CalcWeight(bst_node_t nidx, ParamT const& param,
                                     GradientSumT const& stats) const {
       // boxed by max_delta_step
       float w = ::xgboost::tree::CalcWeight(param, stats);
@@ -106,12 +103,10 @@ class TreeEvaluator {
         return w;
       }
       // Calculate bound weight, boxed by monotone constraint
-      if (nodeid == kRootParentId) {
-        return w;
-      } else if (w < lower[nodeid]) {
-        return lower[nodeid];
-      } else if (w > upper[nodeid]) {
-        return upper[nodeid];
+      if (w < lower[nidx]) {
+        return lower[nidx];
+      } else if (w > upper[nidx]) {
+        return upper[nidx];
       } else {
         return w;
       }
@@ -180,7 +175,7 @@ class TreeEvaluator {
           lower[rightid] = lower[nodeid];
           upper[rightid] = upper[nodeid];
           int32_t c = monotone[f];
-          bst_float mid = (left_weight + right_weight) / 2;
+          float mid = (left_weight + right_weight) / 2.0f;
 
           SPAN_CHECK(!common::CheckNAN(mid));
 
