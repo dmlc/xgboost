@@ -170,8 +170,8 @@ stages the cache on CPU memory by default. Users can change the backing storage 
 specifying the ``on_host`` parameter in the :py:class:`~xgboost.DataIter`. However, using
 the disk is not recommended as it's likely to make the GPU slower than the CPU. The option
 is here for experimentation purposes only. In addition,
-:py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``min_cache_page_bytes``, and
-``max_quantile_batches`` can help control the data placement and memory usage.
+:py:class:`~xgboost.ExtMemQuantileDMatrix` parameter ``min_cache_page_bytes`` controls the
+data placement and memory usage.
 
 Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) must be on
 the GPU. It's crucial to use an asynchronous memory pool for all memory allocations when
