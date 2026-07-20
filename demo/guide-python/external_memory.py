@@ -1,3 +1,4 @@
+# pylint: disable=duplicate-code
 """
 Experimental support for external memory
 ========================================
@@ -189,7 +190,7 @@ def setup_async_pool() -> None:
 
     """
     import cuda.bindings.runtime as cudart
-    import cupy as cp  # pylint: disable=import-outside-toplevel
+    import cupy as cp
     from cuda.bindings import driver
     from cupy.cuda import MemoryAsyncPool
 

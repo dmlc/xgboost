@@ -149,6 +149,7 @@ def setup_async_pool() -> None:
 
     """
     import cuda.bindings.runtime as cudart
+    import cupy as cp
     from cuda.bindings import driver
     from cupy.cuda import MemoryAsyncPool
 
@@ -165,7 +166,6 @@ def setup_async_pool() -> None:
     )
     _checkcu(status)
     # Set the allocator for cupy as well.
-    import cupy as cp
 
     cp.cuda.set_allocator(MemoryAsyncPool().malloc)
 
