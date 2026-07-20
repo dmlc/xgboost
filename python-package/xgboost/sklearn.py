@@ -2371,6 +2371,8 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
 
         """
         X, qid = _get_qid(X, None)
+        if qid is None:
+            raise ValueError("The special column `qid` is required in `X` for ranking task.")
         # fixme(jiamingy): base margin and group weight is not yet supported. We might
         # need to make extra special fields in the dataframe.
         Xyq = DMatrix(
