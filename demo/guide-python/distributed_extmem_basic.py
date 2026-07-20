@@ -143,9 +143,7 @@ def setup_numa() -> None:
 
 
 def setup_async_pool() -> None:
-    """Setup CUDA async pool. As an alternative, the RMM plugin can be used as well.
-    This is the same as using the `CudaAsyncMemoryResource` from RMM, but without the
-    RMM dependency.
+    """Set up the CUDA async pool for GPU-based external memory training.
 
     .. versionadded:: 3.2.0
 
