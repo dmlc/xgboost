@@ -203,15 +203,21 @@ struct EvaluateSplitAgent {
                                        bst_bin_t bin_idx, bst_target_t n_targets) {
     auto roundings = shared.roundings.data();
     auto offset = bin_idx * n_targets;
-    double gain = 0;
+    double child_hess{0.0}, sibling_hess{0.0};
+    double gain{0.0};
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto parent_sum = roundings[t].ToFloatingPoint(node.parent_sum[t]);
       auto child_sum = roundings[t].ToFloatingPoint(child_scan[offset + t]);
       auto sibling_sum = parent_sum - child_sum;
-      auto cw = CalcWeight(shared.param, child_sum.GetGrad(), child_sum.GetHess());
-      auto sw = CalcWeight(shared.param, sibling_sum.GetGrad(), sibling_sum.GetHess());
-      gain += -cw * ThresholdL1(child_sum.GetGrad(), shared.param.reg_alpha);
-      gain += -sw * ThresholdL1(sibling_sum.GetGrad(), shared.param.reg_alpha);
+      child_hess += child_sum.GetHess();
+      sibling_hess += sibling_sum.GetHess();
+      gain += CalcGain(shared.param, child_sum.GetGrad(), child_sum.GetHess());
+      gain += CalcGain(shared.param, sibling_sum.GetGrad(), sibling_sum.GetHess());
+    }
+
+    auto k = static_cast<double>(n_targets);
+    if (!IsValidSplit(shared.param, child_hess / k, sibling_hess / k)) {
+      return -std::numeric_limits<double>::infinity();
     }
     return gain;
   }
@@ -260,8 +266,7 @@ struct EvaluateSplitAgent {
         auto scan_bin_offset = bin_idx * n_targets;
         auto scan_bin = node_scan.subspan(scan_bin_offset, n_targets);
         // Missing values go to right in the forward pass, go to left in the backward pass.
-        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, false, shared.param,
-                           shared.roundings);
+        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, false);
       }
 
       __syncwarp();
@@ -301,8 +306,7 @@ struct EvaluateSplitAgent {
         // The scan_bin is directionless, `d_dir` is the carrier of the missing
         // direction. We use it to recover the bin value and sibling value later.
         auto scan_bin = region.subspan(bin_idx * n_targets, n_targets);
-        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, /*cat=*/true, shared.param,
-                           shared.roundings);
+        best_split->Update(gain, d_dir, fvalue, fidx, scan_bin, /*cat=*/true);
       }
 
       __syncwarp();
@@ -530,6 +534,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                                         bst_node_t max_nidx,
                                         common::Span<MultiExpandEntry> out_splits) {
   auto n_targets = shared_inputs.Targets();
+  CHECK_GT(n_targets, 0);
   CHECK_GE(shared_inputs.n_total_bins_per_tar, 1);
   auto n_features = shared_inputs.max_active_feature;
   CHECK_GE(n_features, 1);
@@ -614,7 +619,13 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       ctx->CUDACtx()->CTP(), key_it, key_it + s_d_splits.size(), dh::tcbegin(s_d_splits),
       thrust::make_discard_iterator(), best_splits.begin(), std::equal_to{},
       [=] XGBOOST_DEVICE(MultiSplitCandidate const &lhs, MultiSplitCandidate const &rhs) {
-        return lhs.loss_chg > rhs.loss_chg ? lhs : rhs;
+        if (lhs.loss_chg > rhs.loss_chg) {
+          return lhs;
+        }
+        if (rhs.loss_chg > lhs.loss_chg) {
+          return rhs;
+        }
+        return lhs.findex <= rhs.findex ? lhs : rhs;
       });
   auto d_best_splits = dh::ToSpan(best_splits);
 
@@ -635,12 +646,13 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     bst_node_t nidx = input.nidx;
     auto base_weight = d_weights.Base(nidx);
     auto roundings = shared_inputs.roundings;
-    float parent_gain = 0;
+    double parent_gain = 0;
     double parent_hess = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto g = roundings[t].ToFloatingPoint(input.parent_sum[t]);
       base_weight[t] = CalcWeight(shared_inputs.param, g.GetGrad(), g.GetHess());
-      parent_gain += -base_weight[t] * ThresholdL1(g.GetGrad(), shared_inputs.param.reg_alpha);
+      parent_gain +=
+          CalcGainGivenWeight(shared_inputs.param, g.GetGrad(), g.GetHess(), base_weight[t]);
       parent_hess += g.GetHess();
     }
 
@@ -685,7 +697,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     // so we store it persistently indexed by node id.
     auto split_sum_dest = GetNodeSumImpl(d_split_sums, nidx, n_targets);
 
-    bool l = true, r = true;
     double left_hess = 0, right_hess = 0;  // Sum of child hessians across all targets
     auto eta = shared_inputs.param.learning_rate;
 
@@ -694,10 +705,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
       auto sibling_sum = input.parent_sum[t] - split_sum[t];
 
       split_sum_dest[t] = split_sum[t];
-
-      // Check for empty hessian
-      l = l && (split_sum[t].GetQuantisedHess() == 0);
-      r = r && (sibling_sum.GetQuantisedHess() == 0);
 
       // Left/right weights
       GradientPairPrecise lg, rg;
@@ -723,10 +730,6 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     out_splits[nidx_in_set] = {nidx, input.depth, best_split, base_weight};
     out_splits[nidx_in_set].split.loss_chg -= parent_gain;
     out_splits[nidx_in_set].UpdateHessian(left_hess, right_hess);
-
-    if (l || r) {
-      out_splits[nidx_in_set].split.loss_chg = -std::numeric_limits<float>::max();
-    }
   });
 }
 

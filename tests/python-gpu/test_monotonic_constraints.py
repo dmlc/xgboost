@@ -1,19 +1,16 @@
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.monotone_constraints import is_correctly_constrained, training_dset
+from xgboost.testing.monotone_constraints import (
+    is_correctly_constrained,
+    is_decreasing,
+    is_increasing,
+    run_parent_gain,
+    training_dset,
+)
 
 rng = np.random.RandomState(1994)
-
-
-def non_decreasing(L: np.ndarray) -> bool:
-    return all((x - y) < 0.001 for x, y in zip(L, L[1:]))
-
-
-def non_increasing(L: np.ndarray) -> bool:
-    return all((y - x) < 0.001 for x, y in zip(L, L[1:]))
 
 
 def assert_constraint(constraint: int, tree_method: str) -> None:
@@ -31,9 +28,9 @@ def assert_constraint(constraint: int, tree_method: str) -> None:
     pred = bst.predict(dpredict)
 
     if constraint > 0:
-        assert non_decreasing(pred)
+        assert is_increasing(pred)
     elif constraint < 0:
-        assert non_increasing(pred)
+        assert is_decreasing(pred)
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
@@ -68,3 +65,7 @@ def test_gpu_hist_lossguide() -> None:
     }
     model = xgb.train(params, training_dset)
     is_correctly_constrained(model)
+
+
+def test_parent_gain() -> None:
+    run_parent_gain("cuda")

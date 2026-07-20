@@ -440,8 +440,8 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
     // Subtract parent gain here
     // As it is constant, this is more efficient than doing it during every
     // split evaluation
-    float parent_gain =
-        CalcGain(shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
+    float parent_gain = evaluator.CalcGain(
+        input.nidx, shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
     split.loss_chg -= parent_gain;
     auto fidx = out_splits[i].findex;
 

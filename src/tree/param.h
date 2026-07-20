@@ -207,24 +207,50 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   }
 };
 
+inline void NoMonotoneConstraints(TrainParam const *param, StringView name) {
+  if (!param->monotone_constraints.empty() &&
+      std::any_of(param->monotone_constraints.cbegin(), param->monotone_constraints.cend(),
+                  [](auto v) { return v != 0; })) {
+    LOG(FATAL) << "Monotonic constraint is not supported by the " << name << ".";
+  }
+}
+
+/**
+ * @brief Whether both children satisfy the Hessian requirement for a split.
+ *
+ * Vector-leaf callers pass the normalized Hessian trace for each child.
+ */
+template <typename TrainingParams, typename T>
+XGBOOST_DEVICE bool IsValidSplit(TrainingParams const &p, T left_hess, T right_hess) {
+  return left_hess > 0.0 && right_hess > 0.0 && left_hess >= p.min_child_weight &&
+         right_hess >= p.min_child_weight;
+}
+
 /*! \brief Loss functions */
 
-// functions for L1 cost
-template <typename T1, typename T2>
-XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 alpha) {
-  if (w > +alpha) {
-    return w - alpha;
+/**
+ * @brief Function for L1 cost
+ *
+ *  @f$ L1(G, a) = sign(G) max(|G| - a, 0) @f$
+ */
+template <typename T0, typename T1>
+XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T0> && std::is_floating_point_v<T1>, T0>
+ThresholdL1(T0 sum_grad, T1 alpha) {
+  if (sum_grad > +alpha) {
+    return sum_grad - alpha;
   }
-  if (w < -alpha) {
-    return w + alpha;
+  if (sum_grad < -alpha) {
+    return sum_grad + alpha;
   }
   return 0.0;
 }
 
 // calculate the cost of loss function
-template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad, T sum_hess, T w) {
-  return -(static_cast<T>(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w));
+template <typename TrainingParams, typename T0, typename T1>
+XGBOOST_DEVICE inline T0 CalcGainGivenWeight(TrainingParams const &p, T0 sum_grad, T0 sum_hess,
+                                             T1 w) {
+  return -(static_cast<T0>(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w) +
+           (static_cast<T0>(2.0) * p.reg_alpha * std::abs(w)));
 }
 
 // calculate weight given the statistics
@@ -255,12 +281,7 @@ XGBOOST_DEVICE T CalcGain(TrainingParams const &p, T sum_grad, T sum_hess) {
     }
   } else {
     T w = CalcWeight(p, sum_grad, sum_hess);
-    T ret = CalcGainGivenWeight(p, sum_grad, sum_hess, w);
-    if (p.reg_alpha == 0.0f) {
-      return ret;
-    } else {
-      return ret + p.reg_alpha * std::abs(w);
-    }
+    return CalcGainGivenWeight(p, sum_grad, sum_hess, w);
   }
 }
 
@@ -298,7 +319,8 @@ inline double CalcGainGivenWeight(TrainParam const &p,
                                   linalg::VectorView<float const> weight) {
   double gain{0};
   for (bst_target_t t = 0, n_targets = weight.Size(); t < n_targets; ++t) {
-    gain += -weight(t) * ThresholdL1(sum_grad(t).GetGrad(), p.reg_alpha);
+    auto const &stats = sum_grad(t);
+    gain += CalcGainGivenWeight(p, stats.GetGrad(), stats.GetHess(), weight(t));
   }
   return gain;
 }
@@ -338,10 +360,6 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   inline void Add(const GradStats &b) {
     sum_grad += b.sum_grad;
     sum_hess += b.sum_hess;
-  }
-  /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(GradStats &a, const GradStats &b) {  // NOLINT(*)
-    a.Add(b);
   }
   /*! \brief set current value to a - b */
   inline void SetSubstract(const GradStats &a, const GradStats &b) {
@@ -543,12 +561,6 @@ struct SplitEntryContainer {
     } else {
       return false;
     }
-  }
-
-  /*! \brief same as update, used by AllReduce*/
-  inline static void Reduce(SplitEntryContainer &dst,          // NOLINT(*)
-                            const SplitEntryContainer &src) {  // NOLINT(*)
-    dst.Update(src);
   }
 };
 
