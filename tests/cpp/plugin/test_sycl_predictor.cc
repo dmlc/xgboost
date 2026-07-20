@@ -85,7 +85,7 @@ TEST(SyclPredictor, GHistIndexTraining) {
 TEST(SyclPredictor, CategoricalPredictLeaf) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  TestCategoricalPredictLeaf(&ctx, false);
+  TestCategoricalPredictLeaf(&ctx);
 }
 
 TEST(SyclPredictor, LesserFeatures) {

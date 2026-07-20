@@ -47,8 +47,8 @@ void SumGradients(Context const* ctx, linalg::MatrixView<GradientPair const> gpa
   }
 }
 
-void FitStump(Context const* ctx, MetaInfo const& info,
-              linalg::MatrixView<GradientPair const> gpair, linalg::VectorView<float> out) {
+void FitStump(Context const* ctx, MetaInfo const&, linalg::MatrixView<GradientPair const> gpair,
+              linalg::VectorView<float> out) {
   auto n_targets = out.Size();
   CHECK_EQ(n_targets, gpair.Shape(1));
   auto sum = linalg::Empty<GradientPairPrecise>(ctx, n_targets);

@@ -268,7 +268,7 @@ class EvalRankWithCache : public Metric {
 };
 
 namespace {
-double Finalize(Context const* ctx, MetaInfo const& info, double score, double sw) {
+double Finalize(Context const* ctx, MetaInfo const&, double score, double sw) {
   std::array<double, 2> dat{score, sw};
   auto rc = collective::GlobalSum(ctx, linalg::MakeVec(dat.data(), 2));
   collective::SafeColl(rc);

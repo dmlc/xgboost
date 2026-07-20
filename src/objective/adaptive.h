@@ -34,7 +34,7 @@ inline void FillMissingLeaf(std::vector<bst_node_t> const& maybe_missing,
 }
 
 inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles,
-                             std::vector<bst_node_t> const& nidx, MetaInfo const& info,
+                             std::vector<bst_node_t> const& nidx, MetaInfo const&,
                              float learning_rate, RegTree* p_tree) {
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
