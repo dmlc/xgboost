@@ -6,7 +6,7 @@ from hypothesis import given, settings, strategies
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.data import check_inf
+from xgboost.testing.data import check_inf, make_ltr
 from xgboost.testing.data_iter import run_mixed_sparsity
 from xgboost.testing.quantile_dmatrix import (
     check_categorical_strings,
@@ -238,7 +238,7 @@ class TestQuantileDMatrix:
     def test_ltr(self) -> None:
         import cupy as cp
 
-        X, y, qid, w = tm.make_ltr(100, 3, 3, 5)
+        X, y, qid, w = make_ltr(100, 3, 3, 5)
         # make sure GPU is used to run sketching.
         cpX = cp.array(X)
         Xy_qdm = xgb.QuantileDMatrix(cpX, y, qid=qid, weight=w)

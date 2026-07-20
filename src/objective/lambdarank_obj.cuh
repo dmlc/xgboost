@@ -4,25 +4,25 @@
 #ifndef XGBOOST_OBJECTIVE_LAMBDARANK_OBJ_CUH_
 #define XGBOOST_OBJECTIVE_LAMBDARANK_OBJ_CUH_
 
-#include <thrust/binary_search.h>                      // for lower_bound, upper_bound
-#include <thrust/functional.h>                         // for greater
-#include <thrust/iterator/counting_iterator.h>         // for make_counting_iterator
-#include <thrust/random/linear_congruential_engine.h>  // for minstd_rand
-#include <thrust/random/uniform_int_distribution.h>    // for uniform_int_distribution
+#include <thrust/binary_search.h>                    // for lower_bound, upper_bound
+#include <thrust/functional.h>                       // for greater
+#include <thrust/iterator/counting_iterator.h>       // for make_counting_iterator
+#include <thrust/random/uniform_int_distribution.h>  // for uniform_int_distribution
 
-#include <cassert>                                     // for cassert
-#include <cstddef>                                     // for size_t
-#include <cstdint>                                     // for int32_t
-#include <tuple>                                       // for make_tuple, tuple
+#include <cassert>  // for cassert
+#include <cstddef>  // for size_t
+#include <cstdint>  // for uint32_t
+#include <tuple>    // for make_tuple, tuple
 
-#include "../common/device_helpers.cuh"                // for MakeTransformIterator
-#include "../common/ranking_utils.cuh"                 // for PairsForGroup
-#include "../common/ranking_utils.h"                   // for RankingCache
-#include "../common/threading_utils.cuh"               // for UnravelTrapeziodIdx
-#include "xgboost/base.h"    // for bst_group_t, GradientPair, XGBOOST_DEVICE
-#include "xgboost/data.h"    // for MetaInfo
-#include "xgboost/linalg.h"  // for VectorView, Range, UnravelIndex
-#include "xgboost/span.h"    // for Span
+#include "../common/device_helpers.cuh"   // for MakeTransformIterator
+#include "../common/random.cuh"           // for DefaultRng
+#include "../common/ranking_utils.cuh"    // for PairsForGroup
+#include "../common/ranking_utils.h"      // for RankingCache
+#include "../common/threading_utils.cuh"  // for UnravelTrapeziodIdx
+#include "xgboost/base.h"                 // for bst_group_t, GradientPair, XGBOOST_DEVICE
+#include "xgboost/data.h"                 // for MetaInfo
+#include "xgboost/linalg.h"               // for VectorView, Range, UnravelIndex
+#include "xgboost/span.h"                 // for Span
 
 namespace xgboost::obj::cuda_impl {
 /**
@@ -68,7 +68,7 @@ struct KernelInputs {
 
   common::Span<std::size_t const> d_y_sorted_idx;
 
-  std::int32_t iter;
+  std::uint32_t seed;
 };
 /**
  * @brief Functor for generating pairs
@@ -136,8 +136,7 @@ struct MakePairsOp {
     // The index pointing to the first element of the next bucket
     std::size_t right_bound = n_data - n_rights;
 
-    std::uint32_t seed = args.iter * (static_cast<std::uint32_t>(args.d_group_ptr.size()) - 1) + g;
-    thrust::minstd_rand rng(seed);
+    common::cuda_impl::DefaultRng rng{args.seed + static_cast<std::uint32_t>(g)};
     auto pair_idx = i;
     rng.discard(idx - args.d_threads_group_ptr[g]);  // idx within group
     thrust::uniform_int_distribution<std::size_t> dist(0, n_lefts + n_rights - 1);

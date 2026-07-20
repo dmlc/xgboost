@@ -1,13 +1,15 @@
 """Tests for training continuation."""
 
 import json
-from typing import Any, Dict, TypeVar
+from typing import Any, Dict, TypeVar, cast
 
 import numpy as np
 import pytest
 from hypothesis import strategies
 
 import xgboost as xgb
+
+from .data import make_ltr
 
 
 # pylint: disable=too-many-locals
@@ -71,6 +73,7 @@ def run_training_continuation_determinism(
     colsample_bylevel: float,
     num_class: int,
     seed_per_iteration: bool,
+    learning_to_rank: bool,
 ) -> None:
     """Check that 2-session training (4+4 iters) equals single-session (8 iters)."""
     datasets = pytest.importorskip("sklearn.datasets")
@@ -80,7 +83,15 @@ def run_training_continuation_determinism(
     total_rounds = 8
     split_at = 4
 
-    if num_class > 1:
+    if learning_to_rank:
+        X, y, qid, _ = make_ltr(
+            n_samples=n_samples,
+            n_features=n_features,
+            n_query_groups=8,
+            max_rel=4,
+        )
+        objective = "rank:ndcg"
+    elif num_class > 1:
         X, y = datasets.make_classification(
             n_samples=n_samples,
             n_features=n_features,
@@ -95,7 +106,10 @@ def run_training_continuation_determinism(
         )
         objective = "reg:squarederror"
 
-    dtrain = xgb.DMatrix(X, y)
+    if learning_to_rank:
+        dtrain = xgb.DMatrix(X, y, qid=qid)
+    else:
+        dtrain = xgb.DMatrix(X, y)
 
     params: Dict[str, Any] = {
         "device": device,
@@ -108,7 +122,9 @@ def run_training_continuation_determinism(
         "colsample_bylevel": colsample_bylevel,
         "seed_per_iteration": seed_per_iteration,
     }
-    if num_class > 1:
+    if learning_to_rank:
+        params["lambdarank_pair_method"] = "mean"
+    elif num_class > 1:
         params["num_class"] = num_class
 
     bst_single = xgb.train(params, dtrain, num_boost_round=total_rounds)
@@ -141,12 +157,14 @@ def make_determinism_strategy(tree_methods: list[str]) -> "strategies.SearchStra
             "tree_method": strategies.sampled_from(tree_methods),
             "num_class": strategies.sampled_from([1, 3]),
             "seed_per_iteration": strategies.booleans(),
+            "learning_to_rank": strategies.booleans(),
         }
     ).filter(
         lambda x: (
             not (
                 x["sampling_method"] == "gradient_based" and x["tree_method"] != "hist"
             )
+            and not (bool(x["learning_to_rank"]) and cast(int, x["num_class"]) > 1)
         )
     )
     return strategy
