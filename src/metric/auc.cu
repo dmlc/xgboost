@@ -333,8 +333,7 @@ double MultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t>
     auto local_area = d_results.subspan(0, n_targets);
     auto output_weights = d_results.subspan(2 * n_targets, n_targets);
     auto auc = d_results.subspan(3 * n_targets, n_targets);
-    return ScaleOutputs(ctx, false, d_results, local_area, output_weights, auc,
-                        n_targets);
+    return ScaleOutputs(ctx, false, d_results, local_area, output_weights, auc, n_targets);
   }
 
   /**
@@ -432,8 +431,7 @@ double MultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t>
       output_weights[c] = 1.0f;
     }
   });
-  return ScaleOutputs(ctx, false, d_results, local_area, output_weights, auc,
-                      n_targets);
+  return ScaleOutputs(ctx, false, d_results, local_area, output_weights, auc, n_targets);
 }
 
 void MultiSortedIdx(Context const *ctx, common::Span<float const> predts,

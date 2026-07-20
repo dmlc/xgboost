@@ -692,7 +692,6 @@ def _meta_from_pandas_df(
     _meta_from_numpy(array, name, dtype, handle)
 
 
-
 def _from_pandas_df(
     *,
     data: "PdDataFrame",

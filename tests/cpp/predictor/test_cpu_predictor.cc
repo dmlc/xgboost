@@ -117,13 +117,10 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   }
 }
 
-
-
 TEST(CpuPredictor, IterationRange) {
   Context ctx;
   TestIterationRange(&ctx);
 }
-
 
 TEST(CpuPredictor, ExternalMemory) {
   Context ctx;
@@ -224,12 +221,10 @@ TEST(CPUPredictor, GHistIndexTraining) {
 
 TEST(CPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(false); }
 
-
 TEST(CPUPredictor, CategoricalPredictLeaf) {
   Context ctx;
   TestCategoricalPredictLeaf(&ctx);
 }
-
 
 TEST(CpuPredictor, UpdatePredictionCache) {
   TestUpdatePredictionCache(false);
@@ -241,13 +236,11 @@ TEST(CpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures(&ctx);
 }
 
-
 TEST(CpuPredictor, Sparse) {
   Context ctx;
   TestSparsePrediction(&ctx, 0.2);
   TestSparsePrediction(&ctx, 0.8);
 }
-
 
 TEST(CpuPredictor, Multi) {
   Context ctx;

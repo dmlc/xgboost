@@ -70,8 +70,7 @@ void TestAddHistRows(bool is_distributed) {
 
   HistMakerTrainParam hist_param;
   HistogramBuilder histogram_builder;
-  histogram_builder.Reset(&ctx, gmat.cut.TotalBins(), {kMaxBins, 0.5}, is_distributed,
-                          &hist_param);
+  histogram_builder.Reset(&ctx, gmat.cut.TotalBins(), {kMaxBins, 0.5}, is_distributed, &hist_param);
   histogram_builder.AddHistRows(tree.HostScView(), &nodes_to_build, &nodes_to_sub, false);
 
   for (bst_node_t const &nidx : nodes_to_build) {
@@ -297,7 +296,6 @@ TEST(CPUHistogram, BuildHist) {
   TestBuildHistogram(&ctx, true, true);
   TestBuildHistogram(&ctx, false, true);
 }
-
 
 namespace {
 template <typename GradientSumT>
@@ -528,12 +526,10 @@ class OverflowTest : public ::testing::TestWithParam<bool> {
     RegTree tree;
     MultiHistogramBuilder hist_builder;
 
-    hist_builder.Reset(&ctx, n_total_bins, tree.NumTargets(), batch, is_distributed,
-                       &hist_param);
+    hist_builder.Reset(&ctx, n_total_bins, tree.NumTargets(), batch, is_distributed, &hist_param);
 
     std::vector<CommonRowPartitioner> partitioners;
-    partitioners.emplace_back(&ctx, Xy->Info().num_row_, /*base_rowid=*/0,
-                              false);
+    partitioners.emplace_back(&ctx, Xy->Info().num_row_, /*base_rowid=*/0, false);
 
     auto gpair = GenerateRandomGradients(Xy->Info().num_row_, 0.0, 1.0);
 
@@ -583,9 +579,7 @@ class OverflowTest : public ::testing::TestWithParam<bool> {
   }
 };
 
-auto MakeParamsForTest() {
-  return std::vector<bool>{true, false};
-}
+auto MakeParamsForTest() { return std::vector<bool>{true, false}; }
 }  // anonymous namespace
 
 TEST_P(OverflowTest, Overflow) { this->RunTest(); }

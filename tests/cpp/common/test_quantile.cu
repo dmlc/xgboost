@@ -111,6 +111,77 @@ auto CopySketchToHost(xgboost::common::Span<common::SketchEntry const> data,
   auto limit = common::WQSketch::LimitSizeLevel(num_rows, eps);
   return std::min(limit, num_rows);
 }
+
+void ValidateSketchInvariants(HostSketchView const& sketch, bool with_error = false) {
+  ASSERT_FALSE(sketch.columns_ptr.empty());
+  ASSERT_EQ(sketch.columns_ptr.front(), 0);
+  ASSERT_TRUE(std::is_sorted(sketch.columns_ptr.begin(), sketch.columns_ptr.end()));
+  ASSERT_EQ(static_cast<std::size_t>(sketch.columns_ptr.back()), sketch.data.size());
+  for (size_t i = 1; i < sketch.columns_ptr.size(); ++i) {
+    auto column_id = i - 1;
+    auto beg = sketch.columns_ptr[column_id];
+    auto end = sketch.columns_ptr[i];
+
+    auto column = Span<SketchEntry const>{sketch.data}.subspan(beg, end - beg);
+    ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
+    ASSERT_TRUE(std::adjacent_find(column.begin(), column.end(),
+                                   [](SketchEntry const& l, SketchEntry const& r) {
+                                     return l.value == r.value;
+                                   }) == column.end());
+    for (size_t idx = 1; idx < column.size(); ++idx) {
+      float prev_rmin = column[idx - 1].rmin;
+      float prev_rmax = column[idx - 1].rmax;
+      float rmin_next = column[idx].RMinNext();
+      if (with_error) {
+        ASSERT_GE(column[idx].rmin + column[idx].rmin * kRtEps, prev_rmin);
+        ASSERT_GE(column[idx].rmax + column[idx].rmin * kRtEps, prev_rmax);
+        ASSERT_GE(column[idx].rmax + column[idx].rmin * kRtEps, rmin_next);
+      } else {
+        ASSERT_GE(column[idx].rmin, prev_rmin);
+        ASSERT_GE(column[idx].rmax, prev_rmax);
+        ASSERT_GE(column[idx].rmax, rmin_next);
+      }
+    }
+  }
+}
+
+void AssertSameSketchOnAllWorkers(HostSketchView const& sketch) {
+  constexpr std::int32_t kRoot = 0;
+  Context cpu_ctx;
+
+  auto ptrs = sketch.columns_ptr;
+  auto ptr_size = static_cast<std::int64_t>(ptrs.size());
+  auto rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(&ptr_size, 1), kRoot);
+  SafeColl(rc);
+  if (collective::GetRank() != kRoot) {
+    ptrs.resize(ptr_size);
+  }
+  if (ptr_size != 0) {
+    rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(ptrs.data(), ptrs.size()), kRoot);
+    SafeColl(rc);
+  }
+  ASSERT_EQ(sketch.columns_ptr, ptrs);
+
+  auto data = sketch.data;
+  auto data_size = static_cast<std::int64_t>(data.size());
+  rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(&data_size, 1), kRoot);
+  SafeColl(rc);
+  if (collective::GetRank() != kRoot) {
+    data.resize(data_size);
+  }
+  if (data_size != 0) {
+    rc = collective::Broadcast(&cpu_ctx, linalg::MakeVec(data.data(), data.size()), kRoot);
+    SafeColl(rc);
+  }
+
+  ASSERT_EQ(sketch.data.size(), data.size());
+  for (size_t i = 0; i < sketch.data.size(); ++i) {
+    ASSERT_FLOAT_EQ(sketch.data[i].value, data[i].value);
+    ASSERT_FLOAT_EQ(sketch.data[i].rmin, data[i].rmin);
+    ASSERT_FLOAT_EQ(sketch.data[i].rmax, data[i].rmax);
+    ASSERT_FLOAT_EQ(sketch.data[i].wmin, data[i].wmin);
+  }
+}
 }  // namespace
 
 namespace common {

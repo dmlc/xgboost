@@ -2,7 +2,6 @@ import os
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import is_dataframe
@@ -101,4 +100,3 @@ class TestArrowTable:
         y_np_low = dtrain.get_float_info("label_lower_bound")
         np.testing.assert_equal(y_np_up, y_upper_bound.to_pandas().values)
         np.testing.assert_equal(y_np_low, y_lower_bound.to_pandas().values)
-

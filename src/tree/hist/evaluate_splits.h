@@ -12,20 +12,20 @@
 #include <utility>    // for move
 #include <vector>     // for vector
 
-#include "../../common/categorical.h"           // for CatBitField
-#include "../../common/hist_util.h"             // for GHistRow, HistogramCuts
-#include "../../common/linalg_op.h"             // for cbegin, cend, begin
-#include "../../common/random.h"                // for ColumnSampler
-#include "../constraints.h"                     // for FeatureInteractionConstraintHost
-#include "../param.h"                           // for TrainParam
-#include "../sample_position.h"                 // for SamplePosition
-#include "../split_evaluator.h"                 // for TreeEvaluator
-#include "../tree_view.h"                       // for MultiTargetTreeView
-#include "expand_entry.h"                       // for MultiExpandEntry
-#include "hist_cache.h"                         // for BoundedHistCollection
-#include "xgboost/base.h"                       // for bst_node_t, bst_target_t, bst_feature_t
-#include "xgboost/context.h"                    // for COntext
-#include "xgboost/linalg.h"                     // for Constants, Vector
+#include "../../common/categorical.h"  // for CatBitField
+#include "../../common/hist_util.h"    // for GHistRow, HistogramCuts
+#include "../../common/linalg_op.h"    // for cbegin, cend, begin
+#include "../../common/random.h"       // for ColumnSampler
+#include "../constraints.h"            // for FeatureInteractionConstraintHost
+#include "../param.h"                  // for TrainParam
+#include "../sample_position.h"        // for SamplePosition
+#include "../split_evaluator.h"        // for TreeEvaluator
+#include "../tree_view.h"              // for MultiTargetTreeView
+#include "expand_entry.h"              // for MultiExpandEntry
+#include "hist_cache.h"                // for BoundedHistCollection
+#include "xgboost/base.h"              // for bst_node_t, bst_target_t, bst_feature_t
+#include "xgboost/context.h"           // for COntext
+#include "xgboost/linalg.h"            // for Constants, Vector
 
 namespace xgboost::tree {
 class HistEvaluator {
@@ -825,9 +825,7 @@ class HistMultiEvaluator {
 
   explicit HistMultiEvaluator(Context const *ctx, MetaInfo const &info, TrainParam const *param,
                               std::shared_ptr<common::ColumnSampler> sampler)
-      : param_{param},
-        column_sampler_{std::move(sampler)},
-        ctx_{ctx} {
+      : param_{param}, column_sampler_{std::move(sampler)}, ctx_{ctx} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights, param_->colsample_bynode,
                           param_->colsample_bylevel, param_->colsample_bytree);

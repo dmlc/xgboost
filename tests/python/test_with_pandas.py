@@ -535,4 +535,3 @@ class TestPandas:
         p0 = booster.inplace_predict(df)
         p1 = booster.predict(m)
         np.testing.assert_allclose(p0, p1)
-

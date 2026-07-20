@@ -110,9 +110,7 @@ void TestCategoricalPredictLeaf(Context const* ctx);
 
 void TestIterationRange(Context const* ctx);
 
-
 void TestSparsePrediction(Context const* ctx, float sparsity);
-
 
 void TestVectorLeafPrediction(Context const* ctx);
 

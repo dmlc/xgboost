@@ -90,9 +90,8 @@ void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
   SafeColl(collective::GlobalSum(ctx, d_out));
 }
 
-void WeightedSampleMean(Context const* ctx,
-                        linalg::MatrixView<float const> d_v, common::Span<float const> d_w,
-                        linalg::VectorView<float> d_out) {
+void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
+                        common::Span<float const> d_w, linalg::VectorView<float> d_out) {
   CHECK(d_v.CContiguous());
   auto n_rows = d_v.Shape(0);
   // The use of `cidx = i / n_rows` does not imply the input is column-major, it simply

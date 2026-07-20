@@ -31,5 +31,5 @@ RegTree GetApproxTree(Context const* ctx, DMatrix* dmat) {
   return tree;
 }
 
-
+}  // namespace
 }  // namespace xgboost::tree

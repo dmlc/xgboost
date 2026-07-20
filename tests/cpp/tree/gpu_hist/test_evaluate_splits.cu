@@ -504,6 +504,4 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
 
 class MGPUHistTest : public collective::BaseMGPUTest {};
 
-namespace {
-
 }  // namespace xgboost::tree

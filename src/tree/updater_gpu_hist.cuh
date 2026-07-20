@@ -6,8 +6,8 @@
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
 #include <algorithm>  // for copy_if, max, transform
-#include <memory>  // for unique_ptr
-#include <vector>  // for vector
+#include <memory>     // for unique_ptr
+#include <vector>     // for vector
 
 #include "../collective/aggregator.h"          // for GlobalSum
 #include "../common/categorical.h"             // for CatBitField
@@ -263,8 +263,8 @@ class MultiTargetHistMaker {
     auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
     CalcRootSum(this->ctx_, d_gpair, d_root_sum);
     using ReduceT = typename GradientPairInt64::ValueT;
-    auto rc = collective::GlobalSum(ctx_,
-                                    linalg::MakeVec(reinterpret_cast<ReduceT*>(d_root_sum.data()),
+    auto rc =
+        collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<ReduceT*>(d_root_sum.data()),
                                                     d_root_sum.size() * 2, ctx_->Device()));
     collective::SafeColl(rc);
 
@@ -391,10 +391,9 @@ class MultiTargetHistMaker {
       ++batch_idx;
     }
     using ReduceT = typename GradientPairInt64::ValueT;
-    auto rc =
-        collective::GlobalSum(ctx_,
-                              linalg::MakeVec(reinterpret_cast<ReduceT*>(d_out_sum.Values().data()),
-                                              d_out_sum.Size() * 2, ctx_->Device()));
+    auto rc = collective::GlobalSum(
+        ctx_, linalg::MakeVec(reinterpret_cast<ReduceT*>(d_out_sum.Values().data()),
+                              d_out_sum.Size() * 2, ctx_->Device()));
     collective::SafeColl(rc);
 
     auto param = GPUTrainingParam{this->param_};

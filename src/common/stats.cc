@@ -65,8 +65,7 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::Vector<
   }
 }
 
-void SampleMean(Context const* ctx, linalg::Matrix<float> const& v,
-                linalg::Vector<float>* out) {
+void SampleMean(Context const* ctx, linalg::Matrix<float> const& v, linalg::Vector<float>* out) {
   *out = linalg::Zeros<float>(ctx, std::max(v.Shape(1), decltype(v.Shape(1)){1}));
   if (!ctx->IsCUDA()) {
     auto h_v = v.HostView();

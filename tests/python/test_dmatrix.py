@@ -399,7 +399,9 @@ class TestDMatrix:
 class TestDMatrixColumnSplitRemoved:
     def test_numpy(self) -> None:
         data = np.random.randn(5, 5)
-        with pytest.raises(xgb.core.XGBoostError, match="Column-wise data split has been removed"):
+        with pytest.raises(
+            xgb.core.XGBoostError, match="Column-wise data split has been removed"
+        ):
             xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
 
     def test_uri(self, tmp_path: Path) -> None:
@@ -409,5 +411,7 @@ class TestDMatrixColumnSplitRemoved:
             writer = csv.writer(file)
             writer.writerows(data)
 
-        with pytest.raises(xgb.core.XGBoostError, match="Column-wise data split has been removed"):
+        with pytest.raises(
+            xgb.core.XGBoostError, match="Column-wise data split has been removed"
+        ):
             xgb.DMatrix(f"{filename}?format=csv", data_split_mode=DataSplitMode.COL)

@@ -239,7 +239,6 @@ TEST(Stats, SampleMeanDist) {
   TestSampleMeanDistributed(&ctx);
 }
 
-
 TEST(Stats, WeightedSampleMean) {
   Context ctx;
   TestWeightedSampleMean(&ctx);

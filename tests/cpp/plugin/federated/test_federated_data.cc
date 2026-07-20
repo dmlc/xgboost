@@ -9,5 +9,4 @@
 #include "../../helpers.h"
 #include "test_worker.h"
 
-namespace xgboost {
-}  // namespace xgboost
+namespace xgboost {}  // namespace xgboost

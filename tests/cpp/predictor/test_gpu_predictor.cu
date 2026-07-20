@@ -67,6 +67,4 @@ TEST(GPUPredictor, InplacePredictionWithWeights) {
   TestInplacePredictionWithWeights(&ctx);
 }
 
-namespace {
-
 }  // namespace xgboost::predictor

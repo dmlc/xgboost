@@ -772,7 +772,6 @@ def run_with_rabit(
     tracker.wait_for()
 
 
-
 def is_windows() -> bool:
     """Check if the current platform is Windows."""
     return platform.system() == "Windows"

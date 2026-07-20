@@ -111,9 +111,8 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorV
 void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                 linalg::VectorView<float> d_out);
 
-void WeightedSampleMean(Context const* ctx,
-                        linalg::MatrixView<float const> d_v, common::Span<float const> d_w,
-                        linalg::VectorView<float> d_out);
+void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
+                        common::Span<float const> d_w, linalg::VectorView<float> d_out);
 
 #if !defined(XGBOOST_USE_CUDA)
 inline void Median(Context const*, linalg::TensorView<float const, 2>, OptionalWeights,
@@ -124,8 +123,7 @@ inline void Mean(Context const*, linalg::VectorView<float const>, linalg::Vector
   common::AssertGPUSupport();
 }
 
-inline void SampleMean(Context const*, linalg::MatrixView<float const>,
-                       linalg::VectorView<float>) {
+inline void SampleMean(Context const*, linalg::MatrixView<float const>, linalg::VectorView<float>) {
   common::AssertGPUSupport();
 }
 
@@ -162,8 +160,7 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::Vector<
 /**
  * @brief Calculate the mean value for the first axis.
  */
-void SampleMean(Context const* ctx, linalg::Matrix<float> const& v,
-                linalg::Vector<float>* out);
+void SampleMean(Context const* ctx, linalg::Matrix<float> const& v, linalg::Vector<float>* out);
 
 /**
  * @brief Calculate the weighted mean value for the first axis, weights are assumed to be
