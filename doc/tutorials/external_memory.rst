@@ -177,7 +177,7 @@ Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) 
 the GPU. It's crucial to use an asynchronous memory pool for all memory allocations when
 training with external memory. XGBoost relies on the asynchronous memory pool to reduce
 the overhead of data fetching. Use the CUDA driver's built-in async memory pool, which
-doesn't require additional dependencies.
+avoids additional dependencies such as RMM.
 
 =====================
 Using CUDA Async Pool
@@ -412,7 +412,7 @@ In addition, since the GPU implementation relies on an asynchronous memory pool,
 fragmentation can occur. You might want to start the training with a fresh pool instead of
 starting training right after the ETL process. If you run into out-of-memory errors and
 you are convinced that the pool is not full yet (pool memory usage can be profiled with
-``nsight-system``), use the latest NVIDIA kernel driver.
+``nsight-systems``), use the latest NVIDIA kernel driver.
 
 During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot. Other types of
 storage can be too slow for practical usage. However, your system will likely perform some
