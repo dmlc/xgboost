@@ -95,8 +95,6 @@ class GPUHistEvaluator {
   // Number of elements of categorical storage type
   // needed to hold categoricals for a single mode
   std::size_t node_categorical_storage_size_ = 0;
-  // Is the data split column-wise?
-  bool is_column_split_ = false;
   DeviceOrd device_;
 
   // Copy the categories from device to host asynchronously.
@@ -151,8 +149,7 @@ class GPUHistEvaluator {
    * \brief Reset the evaluator, should be called before any use.
    */
   void Reset(Context const *ctx, common::HistogramCuts const &cuts,
-             common::Span<FeatureType const> ft, bst_feature_t n_features, TrainParam const &param,
-             bool is_column_split);
+             common::Span<FeatureType const> ft, bst_feature_t n_features, TrainParam const &param);
 
   /**
    * \brief Get host category storage for nidx.  Different from the internal version, this

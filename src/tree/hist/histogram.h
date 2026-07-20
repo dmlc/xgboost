@@ -50,7 +50,6 @@ class HistogramBuilder {
   std::int32_t n_threads_{-1};
   // Whether XGBoost is running in distributed environment.
   bool is_distributed_{false};
-  bool is_col_split_{false};
 
  public:
   /**
@@ -61,13 +60,12 @@ class HistogramBuilder {
    *                         of using global rabit variable.
    */
   void Reset(Context const *ctx, bst_bin_t total_bins, BatchParam const &p, bool is_distributed,
-             bool is_col_split, HistMakerTrainParam const *param) {
+             HistMakerTrainParam const *param) {
     n_threads_ = ctx->Threads();
     param_ = p;
     hist_.Reset(total_bins, param->MaxCachedHistNodes(ctx->Device()));
     buffer_.Init(total_bins);
     is_distributed_ = is_distributed;
-    is_col_split_ = is_col_split;
   }
 
   template <bool any_missing>
@@ -186,7 +184,7 @@ class HistogramBuilder {
       // Merging histograms from each thread.
       this->buffer_.ReduceHist(node, r.begin(), r.end());
     });
-    if (is_distributed_ && !is_col_split_) {
+    if (is_distributed_) {
       // The cache is contiguous, we can perform allreduce for all nodes in one go.
       CHECK(!nodes_to_build.empty());
       auto first_nidx = nodes_to_build.front();
@@ -438,12 +436,12 @@ class MultiHistogramBuilder {
   [[nodiscard]] bst_target_t NumTargets() const { return target_builders_.size(); }
 
   void Reset(Context const *ctx, bst_bin_t total_bins, bst_target_t n_targets, BatchParam const &p,
-             bool is_distributed, bool is_col_split, HistMakerTrainParam const *param) {
+             bool is_distributed, HistMakerTrainParam const *param) {
     ctx_ = ctx;
     target_builders_.resize(n_targets);
     CHECK_GE(n_targets, 1);
     for (auto &v : target_builders_) {
-      v.Reset(ctx, total_bins, p, is_distributed, is_col_split, param);
+      v.Reset(ctx, total_bins, p, is_distributed, param);
     }
   }
 };

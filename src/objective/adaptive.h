@@ -41,7 +41,7 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   auto const& h_node_idx = nidx;
   auto n_targets = tree.NumTargets();
 
-  bst_idx_t n_leaf = collective::GlobalMax(ctx, info, static_cast<bst_idx_t>(h_node_idx.size()));
+  bst_idx_t n_leaf = collective::GlobalMax(ctx, static_cast<bst_idx_t>(h_node_idx.size()));
   auto n_values = n_leaf * n_targets;
   CHECK(quantiles.empty() || quantiles.size() == n_values);
   if (quantiles.empty()) {
@@ -52,13 +52,13 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   std::vector<int32_t> n_valids(quantiles.size());
   std::transform(quantiles.cbegin(), quantiles.cend(), n_valids.begin(),
                  [](float q) { return static_cast<int32_t>(!std::isnan(q)); });
-  auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(n_valids.data(), n_valids.size()));
+  auto rc = collective::GlobalSum(ctx, linalg::MakeVec(n_valids.data(), n_valids.size()));
   collective::SafeColl(rc);
 
   // convert to 0 for all reduce
   std::replace_if(quantiles.begin(), quantiles.end(), [](float q) { return std::isnan(q); }, 0.f);
   // use the mean value
-  rc = collective::GlobalSum(ctx, info, linalg::MakeVec(quantiles.data(), quantiles.size()));
+  rc = collective::GlobalSum(ctx, linalg::MakeVec(quantiles.data(), quantiles.size()));
   collective::SafeColl(rc);
 
   for (std::size_t leaf_idx = 0; leaf_idx < n_leaf; ++leaf_idx) {

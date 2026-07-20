@@ -30,8 +30,9 @@
 #include <utility>        // for pair, as_const, move, swap
 #include <vector>         // for vector
 
-#include "collective/aggregator.h"        // for ApplyWithLabels
-#include "collective/communicator-inl.h"  // for Allreduce, Broadcast, GetRank, IsDistributed
+#include "collective/allreduce.h"         // for Allreduce, SafeColl
+#include "collective/broadcast.h"         // for Broadcast
+#include "collective/communicator-inl.h"  // for GetRank, IsDistributed
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
@@ -39,6 +40,7 @@
 #include "common/observer.h"              // for TrainingObserver
 #include "common/param_array.h"           // for ParamArray
 #include "common/timer.h"                 // for Monitor
+#include "common/type.h"                  // for GetValueT
 #include "common/version.h"               // for Version
 #include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
 #include "xgboost/context.h"              // for Context
@@ -375,8 +377,7 @@ class Intercept : public Learner {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
     base_score->SetDevice(this->Ctx()->Device());
     base_score->Reshape(this->mparam_.OutputLength());
-    collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
-                                [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
+    UsePtr(obj_)->InitEstimation(info, base_score);
   }
 
   [[nodiscard]] bool NeedFit() const {
@@ -881,8 +882,7 @@ class LearnerConfiguration : public Intercept {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
     base_score->SetDevice(this->Ctx()->Device());
     base_score->Reshape(this->mparam_.OutputLength());
-    collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
-                                [&] { UsePtr(obj_)->InitEstimation(info, base_score); });
+    UsePtr(obj_)->InitEstimation(info, base_score);
   }
 };
 
@@ -1321,8 +1321,7 @@ class LearnerImpl : public LearnerIO {
   void GetGradient(HostDeviceVector<float> const& preds, MetaInfo const& info, std::int32_t iter,
                    linalg::Matrix<GradientPair>* out_gpair) {
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
-    collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
-                                [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
+    obj_->GetGradient(preds, info, iter, out_gpair);
   }
 
   /*! \brief random number transformation seed. */

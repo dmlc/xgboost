@@ -1244,8 +1244,6 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   SetShapDevice(ctx);
   CHECK_EQ(condition, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
   CHECK_EQ(condition_feature, 0) << "GPU QuadratureTreeSHAP does not support conditional SHAP.";
-  CHECK(!p_fmat->Info().IsColumnSplit())
-      << "Predict contribution support for column-wise data split is not yet implemented.";
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
   auto const ngroup = model.learner_model_param->num_output_group;
@@ -1294,8 +1292,6 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   if (approximate) {
     LOG(FATAL) << "Approximated contribution is not implemented in GPU predictor, use CPU instead.";
   }
-  CHECK(!p_fmat->Info().IsColumnSplit()) << "Predict interaction contribution support for "
-                                            "column-wise data split is not yet implemented.";
 
   tree_end = predictor::GetTreeLimit(model.trees, tree_end);
   auto const ngroup = model.learner_model_param->num_output_group;

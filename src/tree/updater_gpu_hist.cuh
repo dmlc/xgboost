@@ -263,7 +263,7 @@ class MultiTargetHistMaker {
     auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
     CalcRootSum(this->ctx_, d_gpair, d_root_sum);
     using ReduceT = typename GradientPairInt64::ValueT;
-    auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
+    auto rc = collective::GlobalSum(ctx_,
                                     linalg::MakeVec(reinterpret_cast<ReduceT*>(d_root_sum.data()),
                                                     d_root_sum.size() * 2, ctx_->Device()));
     collective::SafeColl(rc);
@@ -392,7 +392,7 @@ class MultiTargetHistMaker {
     }
     using ReduceT = typename GradientPairInt64::ValueT;
     auto rc =
-        collective::GlobalSum(ctx_, p_fmat->Info(),
+        collective::GlobalSum(ctx_,
                               linalg::MakeVec(reinterpret_cast<ReduceT*>(d_out_sum.Values().data()),
                                               d_out_sum.Size() * 2, ctx_->Device()));
     collective::SafeColl(rc);

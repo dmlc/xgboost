@@ -18,7 +18,8 @@
 #include <utility>     // for pair, make_pair
 #include <vector>      // for vector
 
-#include "../collective/aggregator.h"    // for ApplyWithLabels
+#include "../collective/aggregator.h"
+#include "../collective/communicator-inl.h"
 #include "../common/algorithm.h"         // for ArgSort, Sort
 #include "../common/linalg_op.h"         // for cbegin, cend
 #include "../common/optional_weight.h"   // for OptionalWeights, MakeOptionalWeights
@@ -138,7 +139,7 @@ struct EvalRank : public MetricNoCache, public EvalRankConfig {
       }
     });
     double sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
-    return collective::GlobalRatio(ctx_, info, sum_metric, static_cast<double>(ngroups));
+    return collective::GlobalRatio(ctx_, sum_metric, static_cast<double>(ngroups));
   }
 
   [[nodiscard]] const char* Name() const override { return name.c_str(); }
@@ -245,20 +246,18 @@ class EvalRankWithCache : public Metric {
   double Evaluate(HostDeviceVector<float> const& preds, std::shared_ptr<DMatrix> p_fmat) override {
     double result{0.0};
     auto const& info = p_fmat->Info();
-    collective::ApplyWithLabels(ctx_, info, &result, sizeof(double), [&] {
-      if (!info.labels.Empty()) {
-        CHECK_EQ(info.labels.Shape(1), 1) << "Ranking metrics do not support multi-target labels.";
-      }
-      CHECK_EQ(preds.Size(), info.labels.Size());
+    if (!info.labels.Empty()) {
+      CHECK_EQ(info.labels.Shape(1), 1) << "Ranking metrics do not support multi-target labels.";
+    }
+    CHECK_EQ(preds.Size(), info.labels.Size());
 
-      auto p_cache = cache_.CacheItem(p_fmat, ctx_, info, param_);
-      if (p_cache->Param() != param_) {
-        p_cache = cache_.ResetItem(p_fmat, ctx_, info, param_);
-      }
-      CHECK(p_cache->Param() == param_);
+    auto p_cache = cache_.CacheItem(p_fmat, ctx_, info, param_);
+    if (p_cache->Param() != param_) {
+      p_cache = cache_.ResetItem(p_fmat, ctx_, info, param_);
+    }
+    CHECK(p_cache->Param() == param_);
 
-      result = this->Eval(preds, info, p_cache);
-    });
+    result = this->Eval(preds, info, p_cache);
     return result;
   }
 
@@ -271,7 +270,7 @@ class EvalRankWithCache : public Metric {
 namespace {
 double Finalize(Context const* ctx, MetaInfo const& info, double score, double sw) {
   std::array<double, 2> dat{score, sw};
-  auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), 2));
+  auto rc = collective::GlobalSum(ctx, linalg::MakeVec(dat.data(), 2));
   collective::SafeColl(rc);
   std::tie(score, sw) = std::tuple_cat(dat);
   if (sw > 0.0) {

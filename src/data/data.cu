@@ -238,7 +238,9 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
   CHECK_EQ(cache_prefix.size(), 0)
       << "Device memory construction is not currently supported with external "
          "memory.";
-  return new data::SimpleDMatrix(adapter, missing, nthread, data_split_mode);
+  CHECK(data_split_mode == DataSplitMode::kRow)
+      << "Column-wise data split has been removed. Please use row-wise data split instead.";
+  return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 
 template DMatrix* DMatrix::Create<data::CudfAdapter>(data::CudfAdapter* adapter, float missing,

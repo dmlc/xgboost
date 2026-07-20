@@ -191,35 +191,11 @@ class MetaInfo {
    *                     columns.
    */
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
-  /**
-   * @brief Synchronize the number of columns across all workers.
-   *
-   * Normally we just need to find the maximum number of columns across all workers, but
-   * in vertical federated learning, since each worker loads its own list of columns,
-   * we need to sum them.
-   */
-  void SynchronizeNumberOfColumns(Context const* ctx, DataSplitMode split_mode);
-
-  /** @brief Whether the data is split row-wise. */
-  [[nodiscard]] bool IsRowSplit() const { return data_split_mode == DataSplitMode::kRow; }
-  /** @brief Whether the data is split column-wise. */
-  [[nodiscard]] bool IsColumnSplit() const { return data_split_mode == DataSplitMode::kCol; }
+  /** @brief Synchronize the number of columns across all workers. */
+  void SynchronizeNumberOfColumns(Context const* ctx);
   /** @brief Whether this is a learning to rank data. */
   [[nodiscard]] bool IsRanking() const { return !group_ptr_.empty(); }
 
-  /**
-   * @brief A convenient method to check if we are doing vertical federated learning, which requires
-   * some special processing.
-   */
-  [[nodiscard]] bool IsVerticalFederated() const;
-
-  /*!
-   * \brief A convenient method to check if the MetaInfo should contain labels.
-   *
-   * Normally we assume labels are available everywhere. The only exception is in vertical federated
-   * learning where labels are only available on worker 0.
-   */
-  bool ShouldHaveLabels() const;
   /**
    * @brief Flag for whether the DMatrix has categorical features.
    */
@@ -633,7 +609,8 @@ class DMatrix {
    *
    * @param uri The URI of input.
    * @param silent Whether print information during loading.
-   * @param data_split_mode Indicate how the data was split beforehand.
+   * @param data_split_mode Deprecated. Only row-wise split is supported; column-wise split
+   *                        has been removed and is rejected.
    * @return The created DMatrix.
    */
   static DMatrix* Load(const std::string& uri, bool silent = true,
@@ -647,7 +624,8 @@ class DMatrix {
    * @param           missing         Values to count as missing.
    * @param           nthread         Number of threads for construction.
    * @param           cache_prefix    (Optional) The cache prefix for external memory.
-   * @param           data_split_mode (Optional) Data split mode.
+   * @param           data_split_mode Deprecated. Only row-wise split is supported;
+   *                                     column-wise split has been removed and is rejected.
    *
    * @return  a Created DMatrix.
    */

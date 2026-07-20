@@ -175,9 +175,9 @@ class SketchContainer {
   }
 
   /* \brief Merge quantiles from other GPU workers. */
-  void AllReduce(Context const* ctx, bool is_column_split);
+  void AllReduce(Context const* ctx);
   /* \brief Create the final histogram cut values. */
-  [[nodiscard]] HistogramCuts MakeCuts(Context const* ctx, bool is_column_split);
+  [[nodiscard]] HistogramCuts MakeCuts(Context const* ctx);
 
   Span<SketchEntry const> Data() const { return {entries_.data().get(), entries_.size()}; }
   HostDeviceVector<FeatureType> const& FeatureTypes() const { return feature_types_; }

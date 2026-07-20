@@ -49,9 +49,4 @@ TEST(InitEstimation, GPUFitStump) {
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
-TEST(InitEstimation, FitStumpColumnSplit) {
-  Context ctx;
-  auto constexpr kWorldSize{3};
-  collective::TestDistributedGlobal(kWorldSize, [&] { TestFitStump(&ctx, DataSplitMode::kCol); });
-}
 }  // namespace xgboost::tree

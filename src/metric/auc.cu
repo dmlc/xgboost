@@ -201,12 +201,10 @@ void Transpose(common::Span<float const> in, common::Span<float> out, size_t m, 
   });
 }
 
-double ScaleOutputs(Context const *ctx, bool is_column_split, common::Span<double> results,
+double ScaleOutputs(Context const *ctx, bool, common::Span<double> results,
                     common::Span<double> local_area, common::Span<double> output_weights,
                     common::Span<double> auc, std::size_t n_targets) {
-  // With vertical federated learning, only the root has label, other parties are not
-  // evaluation metrics.
-  if (collective::IsDistributed() && !(is_column_split && collective::IsFederated())) {
+  if (collective::IsDistributed()) {
     std::int32_t device = dh::CurrentDevice();
     CHECK_EQ(dh::CudaGetPointerDevice(results.data()), device);
     auto rc = collective::Allreduce(
@@ -335,7 +333,7 @@ double MultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t>
     auto local_area = d_results.subspan(0, n_targets);
     auto output_weights = d_results.subspan(2 * n_targets, n_targets);
     auto auc = d_results.subspan(3 * n_targets, n_targets);
-    return ScaleOutputs(ctx, info.IsColumnSplit(), d_results, local_area, output_weights, auc,
+    return ScaleOutputs(ctx, false, d_results, local_area, output_weights, auc,
                         n_targets);
   }
 
@@ -434,7 +432,7 @@ double MultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t>
       output_weights[c] = 1.0f;
     }
   });
-  return ScaleOutputs(ctx, info.IsColumnSplit(), d_results, local_area, output_weights, auc,
+  return ScaleOutputs(ctx, false, d_results, local_area, output_weights, auc,
                       n_targets);
 }
 

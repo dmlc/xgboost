@@ -58,7 +58,7 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   auto as_double = linalg::MakeTensorView(
       ctx, common::Span{reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2},
       h_sum.Size() * 2);
-  auto rc = collective::GlobalSum(ctx, info, as_double);
+  auto rc = collective::GlobalSum(ctx, as_double);
   collective::SafeColl(rc);
 
   for (std::size_t i = 0; i < h_sum.Size(); ++i) {

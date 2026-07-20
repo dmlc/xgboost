@@ -394,7 +394,7 @@ TEST(SimpleDMatrix, SliceCol) {
     ASSERT_EQ(out->Info().num_col_, out->Info().num_col_);
     ASSERT_EQ(out->Info().num_row_, kRows);
     ASSERT_EQ(out->Info().num_nonzero_, kRows * kSliceSize);  // dense
-    ASSERT_EQ(out->Info().data_split_mode, DataSplitMode::kCol);
+    ASSERT_EQ(out->Info().data_split_mode, DataSplitMode::kRow);
   }
 }
 
@@ -439,19 +439,3 @@ TEST(SimpleDMatrix, Threads) {
   ASSERT_EQ(p_fmat->Ctx()->Threads(), AllThreadsForTest());
 }
 
-namespace {
-void VerifyColumnSplit() {
-  size_t constexpr kRows {16};
-  size_t constexpr kCols {8};
-  auto p_fmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(false, DataSplitMode::kCol);
-
-  ASSERT_EQ(p_fmat->Info().num_col_, kCols * collective::GetWorldSize());
-  ASSERT_EQ(p_fmat->Info().num_row_, kRows);
-  ASSERT_EQ(p_fmat->Info().data_split_mode, DataSplitMode::kCol);
-}
-}  // anonymous namespace
-
-TEST(SimpleDMatrix, ColumnSplit) {
-  auto constexpr kWorldSize{3};
-  collective::TestDistributedGlobal(kWorldSize, VerifyColumnSplit);
-}

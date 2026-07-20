@@ -108,10 +108,10 @@ void Median(Context const* ctx, linalg::TensorView<float const, 2> t, OptionalWe
 
 void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorView<float> out);
 
-void SampleMean(Context const* ctx, bool is_column_split, linalg::MatrixView<float const> d_v,
+void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                 linalg::VectorView<float> d_out);
 
-void WeightedSampleMean(Context const* ctx, bool is_column_split,
+void WeightedSampleMean(Context const* ctx,
                         linalg::MatrixView<float const> d_v, common::Span<float const> d_w,
                         linalg::VectorView<float> d_out);
 
@@ -124,12 +124,12 @@ inline void Mean(Context const*, linalg::VectorView<float const>, linalg::Vector
   common::AssertGPUSupport();
 }
 
-inline void SampleMean(Context const*, bool, linalg::MatrixView<float const>,
+inline void SampleMean(Context const*, linalg::MatrixView<float const>,
                        linalg::VectorView<float>) {
   common::AssertGPUSupport();
 }
 
-inline void WeightedSampleMean(Context const*, bool, linalg::MatrixView<float const>,
+inline void WeightedSampleMean(Context const*, linalg::MatrixView<float const>,
                                common::Span<float const>, linalg::VectorView<float>) {
   common::AssertGPUSupport();
 }
@@ -162,14 +162,14 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::Vector<
 /**
  * @brief Calculate the mean value for the first axis.
  */
-void SampleMean(Context const* ctx, bool is_column_split, linalg::Matrix<float> const& v,
+void SampleMean(Context const* ctx, linalg::Matrix<float> const& v,
                 linalg::Vector<float>* out);
 
 /**
  * @brief Calculate the weighted mean value for the first axis, weights are assumed to be
  *        equal to or greater than zero.
  */
-void WeightedSampleMean(Context const* ctx, bool is_column_split, linalg::Matrix<float> const& v,
+void WeightedSampleMean(Context const* ctx, linalg::Matrix<float> const& v,
                         HostDeviceVector<float> const& w, linalg::Vector<float>* out);
 }  // namespace common
 }  // namespace xgboost

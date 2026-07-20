@@ -125,12 +125,6 @@ inline void VerifyMultiLabelAUCImpl(char const* name, DataSplitMode data_split_m
   HostDeviceVector<float> predts{
       0.1f, 0.9f, 0.8f, 0.8f, 0.4f, 0.7f, 0.9f, 0.1f,
   };
-  // Multi-label AUC is intentionally unsupported for column-split data.
-  if (data_split_mode == DataSplitMode::kCol) {
-    ASSERT_THROW(GetMultiMetricEval(metric.get(), predts, labels, {}, {}, data_split_mode),
-                 dmlc::Error);
-    return;
-  }
 
   // Evaluate each target independently to form the expected macro average.
   std::vector<float> y0{0.0f, 0.0f, 1.0f, 1.0f};  // See the c-major `labels` above.

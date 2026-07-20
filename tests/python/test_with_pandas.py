@@ -41,9 +41,7 @@ class TestPandas:
             assert dm.feature_types == ["int", "float", "i"]
             assert dm.num_col() == 3
         else:
-            assert dm.feature_names == tm.column_split_feature_names(
-                ["a", "b", "c"], world_size
-            )
+            assert dm.feature_names == ["a", "b", "c"]
             assert dm.feature_types == ["int", "float", "i"] * world_size
             assert dm.num_col() == 3 * world_size
         np.testing.assert_array_equal(dm.get_label(), np.array([1, 2]))
@@ -62,9 +60,7 @@ class TestPandas:
             assert dm.feature_types == ["q", "q", "q"]
             assert dm.num_col() == 3
         else:
-            assert dm.feature_names == tm.column_split_feature_names(
-                ["x", "y", "z"], world_size
-            )
+            assert dm.feature_names == ["x", "y", "z"]
             assert dm.feature_types == ["q", "q", "q"] * world_size
             assert dm.num_col() == 3 * world_size
 
@@ -82,9 +78,7 @@ class TestPandas:
             assert dm.feature_types == ["int", "float", "i"]
             assert dm.num_col() == 3
         else:
-            assert dm.feature_names == tm.column_split_feature_names(
-                ["0", "1", "2"], world_size
-            )
+            assert dm.feature_names == ["0", "1", "2"]
             assert dm.feature_types == ["int", "float", "i"] * world_size
             assert dm.num_col() == 3 * world_size
         np.testing.assert_array_equal(dm.get_label(), np.array([1, 2]))
@@ -97,9 +91,7 @@ class TestPandas:
             assert dm.feature_types == ["int", "float", "int"]
             assert dm.num_col() == 3
         else:
-            assert dm.feature_names == tm.column_split_feature_names(
-                ["4", "5", "6"], world_size
-            )
+            assert dm.feature_names == ["4", "5", "6"]
             assert dm.feature_types == ["int", "float", "int"] * world_size
             assert dm.num_col() == 3 * world_size
 
@@ -124,9 +116,7 @@ class TestPandas:
                 assert dm.feature_types == ["int", "int", "int", "int"]
             assert dm.num_col() == 4
         else:
-            assert dm.feature_names == tm.column_split_feature_names(
-                ["B", "A_X", "A_Y", "A_Z"], world_size
-            )
+            assert dm.feature_names == ["B", "A_X", "A_Y", "A_Z"]
             if int(pd.__version__[0]) >= 2:
                 assert dm.feature_types == ["int", "i", "i", "i"] * world_size
             else:
@@ -141,9 +131,7 @@ class TestPandas:
             assert dm.feature_types == ["int", "int"]
             assert dm.num_col() == 2
         else:
-            assert dm.feature_names == tm.column_split_feature_names(
-                ["A=1", "A=2"], world_size
-            )
+            assert dm.feature_names == ["A=1", "A=2"]
             assert dm.feature_types == ["int", "int"] * world_size
             assert dm.num_col() == 2 * world_size
 
@@ -154,9 +142,7 @@ class TestPandas:
         if data_split_mode == DataSplitMode.ROW:
             assert dm_int.feature_names == ["9", "10"]  # assert not "9 "
         else:
-            assert dm_int.feature_names == tm.column_split_feature_names(
-                ["9", "10"], world_size
-            )
+            assert dm_int.feature_names == ["9", "10"]
         assert dm_int.feature_names == dm_range.feature_names
 
         # test MultiIndex as columns
@@ -180,9 +166,7 @@ class TestPandas:
             assert dm.feature_types == ["int", "int", "int", "int", "int", "int"]
             assert dm.num_col() == 6
         else:
-            assert dm.feature_names == tm.column_split_feature_names(
-                ["a 1", "a 2", "a 3", "b 1", "b 2", "b 3"], world_size
-            )
+            assert dm.feature_names == ["a 1", "a 2", "a 3", "b 1", "b 2", "b 3"]
             assert (
                 dm.feature_types
                 == ["int", "int", "int", "int", "int", "int"] * world_size
@@ -197,7 +181,7 @@ class TestPandas:
         else:
             np.testing.assert_equal(
                 np.array(Xy.feature_names),
-                np.array(tm.column_split_feature_names(["1", "2"], world_size)),
+                np.array(["1", "2"]),
             )
 
         # test pandas series
@@ -552,51 +536,3 @@ class TestPandas:
         p1 = booster.predict(m)
         np.testing.assert_allclose(p0, p1)
 
-    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
-    def test_pandas_column_split(self):
-        tm.run_with_rabit(
-            world_size=3, test_fn=self.test_pandas, data_split_mode=DataSplitMode.COL
-        )
-
-    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
-    def test_pandas_categorical_column_split(self):
-        tm.run_with_rabit(
-            world_size=3,
-            test_fn=self.test_pandas_categorical,
-            data_split_mode=DataSplitMode.COL,
-        )
-
-    def test_pandas_sparse_column_split(self):
-        rows = 100
-        X = pd.DataFrame(
-            {
-                "A": pd.arrays.SparseArray(np.random.randint(0, 10, size=rows)),
-                "B": pd.arrays.SparseArray(np.random.randn(rows)),
-                "C": pd.arrays.SparseArray(
-                    np.random.permutation([True, False] * (rows // 2))
-                ),
-            }
-        )
-        y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
-
-        match_sparse = r"Column split does not support pandas sparse array\."
-        with pytest.raises(ValueError, match=match_sparse):
-            xgb.DMatrix(X, y, data_split_mode=DataSplitMode.COL)
-        with pytest.raises(ValueError, match=match_sparse):
-            xgb.DMatrix(X, data_split_mode=DataSplitMode.COL)
-
-    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
-    def test_pandas_label_column_split(self):
-        tm.run_with_rabit(
-            world_size=3,
-            test_fn=self.test_pandas_label,
-            data_split_mode=DataSplitMode.COL,
-        )
-
-    @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")
-    def test_pandas_weight_column_split(self):
-        tm.run_with_rabit(
-            world_size=3,
-            test_fn=self.test_pandas_weight,
-            data_split_mode=DataSplitMode.COL,
-        )

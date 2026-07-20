@@ -104,7 +104,7 @@ auto MakeParamsForTest() {
 
   auto push = [&](std::string name, auto fn) {
     for (bool is_federated : {false, true}) {
-      for (DataSplitMode m : {DataSplitMode::kCol, DataSplitMode::kRow}) {
+      for (DataSplitMode m : {DataSplitMode::kRow}) {
         for (auto d : {DeviceOrd::CPU(), DeviceOrd::CUDA(0)}) {
           if (!is_federated && !UseNCCL() && d.IsCUDA()) {
             // Federated doesn't use nccl.

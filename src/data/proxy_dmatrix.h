@@ -177,7 +177,7 @@ struct ExternalDataInfo {
     info.num_col_ = this->n_features;
     info.num_nonzero_ = this->nnz;
     if (sync) {
-      info.SynchronizeNumberOfColumns(ctx, DataSplitMode::kRow);
+      info.SynchronizeNumberOfColumns(ctx);
     }
     info.Cats(this->cats);
     this->Validate();

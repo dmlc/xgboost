@@ -156,14 +156,14 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
 
 
 def _validate_feature_info(
-    feature_info: Sequence[str], n_features: int, is_column_split: bool, name: str
+    feature_info: Sequence[str], n_features: int, name: str
 ) -> List[str]:
     if not isinstance(feature_info, (str, Sequence, Categories)):
         raise TypeError(
             f"Expecting a sequence of strings for {name}, got: {type(feature_info)}"
         )
     feature_info = list(feature_info)
-    if len(feature_info) != n_features and n_features != 0 and not is_column_split:
+    if len(feature_info) != n_features and n_features != 0:
         msg = (
             f"{name} must have the same length as the number of data columns, "
             f"expected {n_features}, got {len(feature_info)}",
@@ -779,6 +779,13 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             XGBoost can remember the encoding of categories when the input is a
             dataframe.
 
+        data_split_mode :
+
+            .. deprecated:: 3.3.0
+
+            Only row-wise split is supported. Column-wise split has been removed
+            and is rejected during DMatrix construction.
+
         """
         if group is not None and qid is not None:
             raise ValueError("Either one of `group` or `qid` should be None.")
@@ -1272,7 +1279,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         feature_names = _validate_feature_info(
             feature_names,
             self.num_col(),
-            self.data_split_mode() == DataSplitMode.COL,
             "feature names",
         )
         if len(feature_names) != len(set(feature_names)):
@@ -1348,7 +1354,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         feature_types = _validate_feature_info(
             feature_types,
             self.num_col(),
-            self.data_split_mode() == DataSplitMode.COL,
             "feature types",
         )
 
@@ -1471,6 +1476,12 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         future release.
 
         .. versionadded:: 3.0.0
+
+        .. deprecated:: 3.3.0
+
+    data_split_mode :
+        Deprecated. Only row-wise split is supported. Column-wise split has been
+        removed and is rejected during DMatrix construction.
 
         .. deprecated:: 3.3.0
 

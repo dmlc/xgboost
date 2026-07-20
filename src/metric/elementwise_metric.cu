@@ -12,6 +12,7 @@
 #include <cmath>
 #include <numeric>  // for accumulate
 
+#include "../collective/aggregator.h"
 #include "../common/expectile_loss_utils.h"  // ExpectileLossParam
 #include "../common/math.h"
 #include "../common/nvtx_utils.h"       // for xgboost_NVTX_FN_RANGE
@@ -198,7 +199,7 @@ class PseudoErrorLoss : public MetricNoCache {
           return std::make_tuple(v, wt);
         });
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     return EvalRowMAPE::GetFinal(dat[0], dat[1]);
   }
@@ -353,7 +354,7 @@ struct EvalEWiseBase : public MetricNoCache {
         });
 
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     return Policy::GetFinal(dat[0], dat[1]);
   }
@@ -427,7 +428,7 @@ class QuantileError : public MetricNoCache {
     if (info.num_row_ == 0) {
       // empty DMatrix on distributed env
       std::array<double, 2> dat{0.0, 0.0};
-      auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+      auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
       collective::SafeColl(rc);
       CHECK_GT(dat[1], 0);
       return dat[0] / dat[1];
@@ -468,7 +469,7 @@ class QuantileError : public MetricNoCache {
         },
         alpha_.Size());
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     CHECK_GT(dat[1], 0);
     return dat[0] / dat[1];
@@ -514,7 +515,7 @@ class ExpectileError : public MetricNoCache {
     if (info.num_row_ == 0) {
       // empty DMatrix on distributed env
       std::array<double, 2> dat{0.0, 0.0};
-      auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+      auto rc = collective::GlobalSum(ctx_, linalg::MakeVec(dat.data(), dat.size()));
       collective::SafeColl(rc);
       CHECK_GT(dat[1], 0);
       return dat[0] / dat[1];
@@ -553,7 +554,7 @@ class ExpectileError : public MetricNoCache {
         },
         alpha_.Size());
     std::array<double, 2> dat{result.Residue(), result.Weights()};
-    auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), dat.size()));
+    auto rc = collective::GlobalSum(ctx, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
     CHECK_GT(dat[1], 0);
     return dat[0] / dat[1];

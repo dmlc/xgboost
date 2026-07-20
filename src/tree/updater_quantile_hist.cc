@@ -201,11 +201,9 @@ class MultiTargetHistBuilder {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
       if (page_idx < partitioner_.size()) {
-        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid,
-                                     p_fmat->Info().IsColumnSplit());
+        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid, false);
       } else {
-        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid,
-                                  p_fmat->Info().IsColumnSplit());
+        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, false);
       }
       page_idx++;
     }
@@ -214,8 +212,7 @@ class MultiTargetHistBuilder {
     bst_target_t n_targets = gpair.Shape(1);
     histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
-                              collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
-                              hist_param_);
+                              collective::IsDistributed(), hist_param_);
 
     evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
     p_last_tree_ = p_tree;
@@ -235,9 +232,8 @@ class MultiTargetHistBuilder {
     auto h_root_sum = root_sum.HostView();
     CHECK(h_root_sum.CContiguous());
     auto rc = collective::GlobalSum(
-        ctx_, p_fmat->Info(),
-        linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
-                        h_root_sum.Size() * 2));
+        ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_root_sum.Values().data()),
+                              h_root_sum.Size() * 2));
     collective::SafeColl(rc);
 
     histogram_builder_->BuildRootHist(p_fmat, p_tree->HostMtView(), partitioner_, gpair, best,
@@ -368,9 +364,8 @@ class MultiTargetHistBuilder {
     auto h_leaf_sums = leaf_sums.HostView();
     CHECK(h_leaf_sums.CContiguous());
     auto rc = collective::GlobalSum(
-        ctx_, p_last_fmat_->Info(),
-        linalg::MakeVec(reinterpret_cast<double *>(h_leaf_sums.Values().data()),
-                        h_leaf_sums.Size() * 2));
+        ctx_, linalg::MakeVec(reinterpret_cast<double *>(h_leaf_sums.Values().data()),
+                              h_leaf_sums.Size() * 2));
     collective::SafeColl(rc);
 
     // Calculate weights for each leaf
@@ -479,17 +474,15 @@ class HistUpdater {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
       if (page_idx < partitioner_.size()) {
-        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid,
-                                     fmat->Info().IsColumnSplit());
+        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid, false);
       } else {
-        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
-                                  fmat->Info().IsColumnSplit());
+        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid, false);
       }
       page_idx++;
     }
     partitioner_.resize(page_idx);
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
-                              fmat->Info().IsColumnSplit(), hist_param_);
+                              hist_param_);
     evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
@@ -542,8 +535,8 @@ class HistUpdater {
         for (auto const &grad : gpair_h) {
           grad_stat.Add(grad.GetGrad(), grad.GetHess());
         }
-        auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
-                                        linalg::MakeVec(reinterpret_cast<double *>(&grad_stat), 2));
+        auto rc =
+            collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<double *>(&grad_stat), 2));
         collective::SafeColl(rc);
       }
 

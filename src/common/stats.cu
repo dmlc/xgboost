@@ -65,12 +65,12 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorV
       cub::DeviceReduce::Sum(temp.data().get(), bytes, it, out.Values().data(), v.Size(), s));
 }
 
-void SampleMean(Context const* ctx, bool is_column_split, linalg::MatrixView<float const> d_v,
+void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                 linalg::VectorView<float> d_out) {
   auto n_samples = d_v.Shape(0);
   auto n_total_samples = n_samples;
   auto cpu = ctx->MakeCPU();
-  SafeColl(collective::GlobalSum(&cpu, is_column_split, linalg::MakeVec(&n_total_samples, 1)));
+  SafeColl(collective::GlobalSum(&cpu, linalg::MakeVec(&n_total_samples, 1)));
   auto column_it = dh::MakeTransformIterator<std::size_t>(thrust::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
                                                             auto cidx = i / n_samples;
@@ -87,10 +87,10 @@ void SampleMean(Context const* ctx, bool is_column_split, linalg::MatrixView<flo
   thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,
                         thrust::make_discard_iterator(), d_out.Values().data(), std::equal_to<>{},
                         cuda::std::plus<double>{});
-  SafeColl(collective::GlobalSum(ctx, is_column_split, d_out));
+  SafeColl(collective::GlobalSum(ctx, d_out));
 }
 
-void WeightedSampleMean(Context const* ctx, bool is_column_split,
+void WeightedSampleMean(Context const* ctx,
                         linalg::MatrixView<float const> d_v, common::Span<float const> d_w,
                         linalg::VectorView<float> d_out) {
   CHECK(d_v.CContiguous());
@@ -109,7 +109,7 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split,
   auto sum_w =
       dh::Reduce(cuctx->CTP(), d_w.data(), d_w.data() + d_w.size(), 0.0, cuda::std::plus<double>{});
   auto cpu = ctx->MakeCPU();
-  SafeColl(collective::GlobalSum(&cpu, is_column_split, linalg::MakeVec(&sum_w, 1)));
+  SafeColl(collective::GlobalSum(&cpu, linalg::MakeVec(&sum_w, 1)));
   CHECK_GT(sum_w, 0.0) << "weights must contain at least one non-zero value.";
   auto val_it = dh::MakeTransformIterator<double>(thrust::make_counting_iterator(0ul),
                                                   [=] XGBOOST_DEVICE(std::size_t i) -> double {
@@ -120,6 +120,6 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split,
   thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,
                         thrust::make_discard_iterator(), d_out.Values().data(), std::equal_to<>{},
                         cuda::std::plus<double>{});
-  SafeColl(collective::GlobalSum(ctx, is_column_split, d_out));
+  SafeColl(collective::GlobalSum(ctx, d_out));
 }
 }  // namespace xgboost::common::cuda_impl

@@ -117,35 +117,13 @@ TEST(CpuPredictor, ArrayTreeLayout) {
   }
 }
 
-namespace {
-void TestColumnSplit() {
-  Context ctx;
-  size_t constexpr kRows = 5;
-  size_t constexpr kCols = 5;
-  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  dmat = std::unique_ptr<DMatrix>{dmat->SliceCol(world_size, rank)};
-
-  TestBasic(dmat.get(), &ctx);
-}
-}  // anonymous namespace
-
-TEST(CpuPredictor, BasicColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  collective::TestDistributedGlobal(kWorldSize, TestColumnSplit);
-}
 
 TEST(CpuPredictor, IterationRange) {
   Context ctx;
   TestIterationRange(&ctx);
 }
 
-TEST(CpuPredictor, IterationRangeColmnSplit) {
-  auto constexpr kWorldSize = 2;
-  TestIterationRangeColumnSplit(kWorldSize, false);
-}
 
 TEST(CpuPredictor, ExternalMemory) {
   Context ctx;
@@ -244,23 +222,14 @@ TEST(CPUPredictor, GHistIndexTraining) {
   TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist);
 }
 
-TEST(CPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(false, false); }
+TEST(CPUPredictor, CategoricalPrediction) { TestCategoricalPrediction(false); }
 
-TEST(CPUPredictor, CategoricalPredictionColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  collective::TestDistributedGlobal(kWorldSize, [] { TestCategoricalPrediction(false, true); });
-}
 
 TEST(CPUPredictor, CategoricalPredictLeaf) {
   Context ctx;
-  TestCategoricalPredictLeaf(&ctx, false);
+  TestCategoricalPredictLeaf(&ctx);
 }
 
-TEST(CPUPredictor, CategoricalPredictLeafColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  Context ctx;
-  collective::TestDistributedGlobal(kWorldSize, [&] { TestCategoricalPredictLeaf(&ctx, true); });
-}
 
 TEST(CpuPredictor, UpdatePredictionCache) {
   TestUpdatePredictionCache(false);
@@ -272,11 +241,6 @@ TEST(CpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures(&ctx);
 }
 
-TEST(CpuPredictor, LesserFeaturesColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  collective::TestDistributedGlobal(kWorldSize,
-                                    [] { TestPredictionWithLesserFeaturesColumnSplit(false); });
-}
 
 TEST(CpuPredictor, Sparse) {
   Context ctx;
@@ -284,11 +248,6 @@ TEST(CpuPredictor, Sparse) {
   TestSparsePrediction(&ctx, 0.8);
 }
 
-TEST(CpuPredictor, SparseColumnSplit) {
-  auto constexpr kWorldSize = 2;
-  TestSparsePredictionColumnSplit(kWorldSize, false, 0.2);
-  TestSparsePredictionColumnSplit(kWorldSize, false, 0.8);
-}
 
 TEST(CpuPredictor, Multi) {
   Context ctx;

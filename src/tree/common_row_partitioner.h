@@ -29,116 +29,19 @@ namespace xgboost::tree {
 
 static constexpr size_t kPartitionBlockSize = 2048;
 
-class ColumnSplitHelper {
- public:
-  ColumnSplitHelper() = default;
-
-  ColumnSplitHelper(bst_idx_t num_row,
-                    common::PartitionBuilder<kPartitionBlockSize>* partition_builder,
-                    common::RowSetCollection* row_set_collection)
-      : partition_builder_{partition_builder}, row_set_collection_{row_set_collection} {
-    auto n_bytes = BitVector::ComputeStorageSize(num_row);
-    decision_storage_.resize(n_bytes);
-    decision_bits_ = BitVector{common::Span<BitVector::value_type>{decision_storage_}};
-    missing_storage_.resize(n_bytes);
-    missing_bits_ = BitVector{common::Span<BitVector::value_type>{missing_storage_}};
-  }
-
-  template <typename BinIdxType, bool any_missing, bool any_cat, typename ExpandEntry,
-            typename TreeView>
-  void Partition(Context const* ctx, common::BlockedSpace2d const& space, std::int32_t n_threads,
-                 GHistIndexMatrix const& gmat, common::ColumnMatrix const& column_matrix,
-                 std::vector<ExpandEntry> const& nodes,
-                 std::vector<std::int32_t> const& split_conditions, TreeView const& tree) {
-    // When data is split by column, we don't have all the feature values in the local worker, so
-    // we first collect all the decisions and whether the feature is missing into bit vectors.
-    std::fill(decision_storage_.begin(), decision_storage_.end(), 0);
-    std::fill(missing_storage_.begin(), missing_storage_.end(), 0);
-
-    this->tloc_decision_.resize(decision_storage_.size() * n_threads);
-    this->tloc_missing_.resize(decision_storage_.size() * n_threads);
-    std::fill_n(this->tloc_decision_.data(), this->tloc_decision_.size(), 0);
-    std::fill_n(this->tloc_missing_.data(), this->tloc_missing_.size(), 0);
-
-    // Make thread-local storage.
-    using T = decltype(decision_storage_)::value_type;
-    auto make_tloc = [&](std::vector<T>& storage, std::int32_t tidx) {
-      auto span = common::Span<T>{storage};
-      auto n = decision_storage_.size();
-      auto bitvec = BitVector{span.subspan(n * tidx, n)};
-      return bitvec;
-    };
-
-    common::ParallelFor2d(space, n_threads, [&](std::size_t node_in_set, common::Range1d r) {
-      bst_node_t const nid = nodes[node_in_set].nid;
-      auto tidx = omp_get_thread_num();
-      auto decision = make_tloc(this->tloc_decision_, tidx);
-      auto missing = make_tloc(this->tloc_missing_, tidx);
-      bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
-      partition_builder_->MaskRows<BinIdxType, any_missing, any_cat>(
-          node_in_set, nodes, r, split_cond, gmat, column_matrix, tree,
-          (*row_set_collection_)[nid].begin(), &decision, &missing);
-    });
-
-    // Reduce thread local
-    auto decision = make_tloc(this->tloc_decision_, 0);
-    auto missing = make_tloc(this->tloc_missing_, 0);
-    for (std::int32_t tidx = 1; tidx < n_threads; ++tidx) {
-      decision |= make_tloc(this->tloc_decision_, tidx);
-      missing |= make_tloc(this->tloc_missing_, tidx);
-    }
-    CHECK_EQ(decision_storage_.size(), decision.NumValues());
-    std::copy_n(decision.Data(), decision_storage_.size(), decision_storage_.data());
-    std::copy_n(missing.Data(), missing_storage_.size(), missing_storage_.data());
-
-    // Then aggregate the bit vectors across all the workers.
-    auto rc = collective::Success() << [&] {
-      return collective::Allreduce(ctx, &decision_storage_, collective::Op::kBitwiseOR);
-    } << [&] {
-      return collective::Allreduce(ctx, &missing_storage_, collective::Op::kBitwiseAND);
-    };
-    collective::SafeColl(rc);
-
-    // Finally use the bit vectors to partition the rows.
-    common::ParallelFor2d(space, n_threads, [&](size_t node_in_set, common::Range1d r) {
-      size_t begin = r.begin();
-      const int32_t nid = nodes[node_in_set].nid;
-      const size_t task_id = partition_builder_->GetTaskIdx(node_in_set, begin);
-      partition_builder_->AllocateForTask(task_id);
-      partition_builder_->PartitionByMask(node_in_set, nodes, r, gmat, tree,
-                                          (*row_set_collection_)[nid].begin(), decision_bits_,
-                                          missing_bits_);
-    });
-  }
-
- private:
-  using BitVector = RBitField8;
-  std::vector<BitVector::value_type> decision_storage_{};
-  BitVector decision_bits_{};
-  std::vector<BitVector::value_type> missing_storage_{};
-  BitVector missing_bits_{};
-
-  std::vector<BitVector::value_type> tloc_decision_;
-  std::vector<BitVector::value_type> tloc_missing_;
-
-  common::PartitionBuilder<kPartitionBlockSize>* partition_builder_;
-  common::RowSetCollection* row_set_collection_;
-};
-
 class CommonRowPartitioner {
  public:
   bst_idx_t base_rowid = 0;
 
   CommonRowPartitioner() = default;
   CommonRowPartitioner(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid,
-                       bool is_col_split)
-      : base_rowid{_base_rowid}, is_col_split_{is_col_split} {
-    Reset(ctx, num_row, _base_rowid, is_col_split);
+                       bool /*unused*/)
+      : base_rowid{_base_rowid} {
+    Reset(ctx, num_row, _base_rowid, false);
   }
 
-  void Reset(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid, bool is_col_split) {
+  void Reset(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid, bool /*unused*/) {
     base_rowid = _base_rowid;
-    is_col_split_ = is_col_split;
 
     std::vector<bst_idx_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(num_row);
@@ -148,10 +51,6 @@ class CommonRowPartitioner {
 
     row_set_collection_.Clear();
     row_set_collection_.Init();
-
-    if (is_col_split_) {
-      column_split_helper_ = ColumnSplitHelper{num_row, &partition_builder_, &row_set_collection_};
-    }
   }
 
   /* Making GHistIndexMatrix_t a templete parameter allows reuse this function for sycl-plugin */
@@ -271,21 +170,16 @@ class CommonRowPartitioner {
 
     // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
     // Store results in intermediate buffers from partition_builder_
-    if (is_col_split_) {
-      column_split_helper_.Partition<BinIdxType, any_missing, any_cat>(
-          ctx, space, ctx->Threads(), gmat, column_matrix, nodes, split_conditions, tree);
-    } else {
-      common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
-        size_t begin = r.begin();
-        const int32_t nid = nodes[node_in_set].nid;
-        const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
-        partition_builder_.AllocateForTask(task_id);
-        bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
-        partition_builder_.template Partition<BinIdxType, any_missing, any_cat>(
-            node_in_set, nodes, r, split_cond, gmat, column_matrix, tree,
-            row_set_collection_[nid].begin());
-      });
-    }
+    common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
+      size_t begin = r.begin();
+      const int32_t nid = nodes[node_in_set].nid;
+      const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
+      partition_builder_.AllocateForTask(task_id);
+      bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
+      partition_builder_.template Partition<BinIdxType, any_missing, any_cat>(
+          node_in_set, nodes, r, split_cond, gmat, column_matrix, tree,
+          row_set_collection_[nid].begin());
+    });
 
     // 3. Compute offsets to copy blocks of row-indexes
     // from partition_builder_ to row_set_collection_
@@ -341,8 +235,6 @@ class CommonRowPartitioner {
  private:
   common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
   common::RowSetCollection row_set_collection_;
-  bool is_col_split_;
-  ColumnSplitHelper column_split_helper_;
 };
 
 }  // namespace xgboost::tree

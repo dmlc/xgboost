@@ -763,9 +763,8 @@ own shard of the data:
        X_shard, y_shard = load_data_shard(rank)
        dtrain = xgb.QuantileDMatrix(X_shard, label=y_shard)
 
-Column-wise splitting (``DataSplitMode.COL``) is also supported, where each worker
-holds a different subset of features. This is typically used for vertical federated
-learning scenarios and is not the common distributed training pattern.
+Column-wise splitting has been removed; distributed training uses row-wise partitioning.
+
 
 Rank-Specific Logic
 ===================

@@ -394,234 +394,6 @@ __global__ void PredictByBitVectorKernel(
   }
 }
 
-class ColumnSplitHelper {
- public:
-  explicit ColumnSplitHelper(Context const* ctx) : ctx_{ctx} {}
-
-  void PredictBatch(DMatrix* dmat, HostDeviceVector<float>* out_preds,
-                    gbm::GBTreeModel const& model, DeviceModel const& d_model,
-                    common::OptionalWeights tree_weights) const {
-    CHECK(dmat->PageExists<SparsePage>()) << "Column split for external memory is not support.";
-    PredictDMatrix<false>(dmat, out_preds, d_model, model.learner_model_param->num_feature,
-                          model.learner_model_param->num_output_group, tree_weights);
-  }
-
-  void PredictLeaf(DMatrix* dmat, HostDeviceVector<float>* out_preds, gbm::GBTreeModel const& model,
-                   DeviceModel const& d_model) const {
-    CHECK(dmat->PageExists<SparsePage>()) << "Column split for external memory is not support.";
-    PredictDMatrix<true>(dmat, out_preds, d_model, model.learner_model_param->num_feature,
-                         model.learner_model_param->num_output_group,
-                         common::OptionalWeights{1.0f});
-  }
-
- private:
-  using BitType = BitVector::value_type;
-
-  template <bool predict_leaf>
-  void PredictDMatrix(DMatrix* dmat, HostDeviceVector<float>* out_preds, DeviceModel const& d_model,
-                      bst_feature_t num_features, std::uint32_t num_group,
-                      common::OptionalWeights tree_weights) const {
-    dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
-    dh::caching_device_vector<BitType> decision_storage{};
-    dh::caching_device_vector<BitType> missing_storage{};
-
-    auto constexpr kBlockThreads = 128;
-    auto const max_shared_memory_bytes = dh::MaxSharedMemory(ctx_->Ordinal());
-    auto const shared_memory_bytes =
-        SharedMemoryBytes<kBlockThreads>(num_features, max_shared_memory_bytes);
-    auto const use_shared = shared_memory_bytes != 0;
-
-    auto const num_nodes = d_model.n_nodes;
-    std::size_t batch_offset = 0;
-    for (auto const& batch : dmat->GetBatches<SparsePage>()) {
-      auto const num_rows = batch.Size();
-      ResizeBitVectors(&decision_storage, &missing_storage, num_rows * num_nodes);
-      BitVector decision_bits{dh::ToSpan(decision_storage)};
-      BitVector missing_bits{dh::ToSpan(missing_storage)};
-
-      SparsePageView data{ctx_, batch, num_features};
-      auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-      auto d_tree_groups = d_model.tree_groups;
-      dh::LaunchKernel{grid, kBlockThreads, shared_memory_bytes,  // NOLINT(whitespace/braces)
-                       ctx_->CUDACtx()->Stream()}(
-          MaskBitVectorKernel, data, d_model.Trees(), decision_bits, missing_bits,
-          d_model.tree_begin, d_model.tree_end, num_features, num_nodes, use_shared,
-          std::numeric_limits<float>::quiet_NaN());
-
-      AllReduceBitVectors(&decision_storage, &missing_storage);
-
-      dh::LaunchKernel{grid, kBlockThreads, 0,  // NOLINT(whitespace/braces)
-                       ctx_->CUDACtx()->Stream()}(
-          PredictByBitVectorKernel<predict_leaf>, d_model.Trees(),
-          out_preds->DeviceSpan().subspan(batch_offset), d_tree_groups, decision_bits, missing_bits,
-          d_model.tree_begin, d_model.tree_end, num_rows, num_nodes, num_group, tree_weights);
-
-      batch_offset += batch.Size() * num_group;
-    }
-  }
-
-  void AllReduceBitVectors(dh::caching_device_vector<BitType>* decision_storage,
-                           dh::caching_device_vector<BitType>* missing_storage) const {
-    auto rc = collective::Success() << [&] {
-      return collective::Allreduce(
-          ctx_,
-          linalg::MakeVec(decision_storage->data().get(), decision_storage->size(), ctx_->Device()),
-          collective::Op::kBitwiseOR);
-    } << [&] {
-      return collective::Allreduce(
-          ctx_,
-          linalg::MakeVec(missing_storage->data().get(), missing_storage->size(), ctx_->Device()),
-          collective::Op::kBitwiseAND);
-    };
-    collective::SafeColl(rc);
-  }
-
-  void ResizeBitVectors(dh::caching_device_vector<BitType>* decision_storage,
-                        dh::caching_device_vector<BitType>* missing_storage,
-                        std::size_t total_bits) const {
-    auto const size = BitVector::ComputeStorageSize(total_bits);
-    if (decision_storage->size() < size) {
-      decision_storage->resize(size);
-    }
-    thrust::fill(ctx_->CUDACtx()->CTP(), decision_storage->begin(), decision_storage->end(), 0);
-    if (missing_storage->size() < size) {
-      missing_storage->resize(size);
-    }
-    thrust::fill(ctx_->CUDACtx()->CTP(), missing_storage->begin(), missing_storage->end(), 0);
-  }
-
-  Context const* ctx_;
-};
-
-using cuda_impl::MakeCatAccessor;
-
-// Provide configuration for launching the predict kernel.
-template <typename IsDense, typename EncAccessor>
-class LaunchConfig {
- public:
-  static constexpr bool HasMissing() { return !IsDense::value; }
-  using EncAccessorT = EncAccessor;
-
-  template <typename T, std::uint32_t block_threads>
-  struct LoaderType {
-    using Type = T;
-    constexpr static std::uint32_t kBlockThreads = block_threads;
-
-    static std::size_t AllocShmem(Context const* ctx, bst_feature_t n_features) {
-      if constexpr (typename Type::SupportShmemLoad{}) {
-        return SharedMemoryBytes<kBlockThreads>(n_features, ConfigureDevice(ctx->Device()));
-      }
-      return 0;
-    }
-  };
-
- private:
-  static auto constexpr NotSet() { return std::numeric_limits<bst_idx_t>::max(); }
-
-  Context const* ctx_;
-  bst_feature_t n_features_;
-  std::size_t shared_memory_bytes_{0};
-
- public:
-  template <typename Loader, typename K, typename BatchT, typename... Args>
-  void Launch(K&& kernel, BatchT&& batch, Args&&... args) const {
-    auto grid = static_cast<uint32_t>(common::DivRoundUp(batch.NumRows(), Loader::kBlockThreads));
-    dh::LaunchKernel{grid, Loader::kBlockThreads, this->shared_memory_bytes_,  // NOLINT
-                     this->ctx_->CUDACtx()->Stream()}(kernel, std::forward<BatchT>(batch),
-                                                      std::forward<Args>(args)...);
-  }
-  template <typename Loader, typename Data>
-  void LaunchPredictKernel(Data batch, float missing, bst_feature_t n_features,
-                           DeviceModel const& d_model, EncAccessorT acc, bst_idx_t batch_offset,
-                           HostDeviceVector<float>* predictions,
-                           common::OptionalWeights tree_weights) {
-    auto kernel = PredictKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
-                                HasMissing(), EncAccessorT>;
-    auto d_tree_groups = d_model.tree_groups;
-    this->Launch<Loader>(
-        kernel, std::move(batch), d_model.Trees(), predictions->DeviceSpan().subspan(batch_offset),
-        d_tree_groups, tree_weights, n_features, this->UseShared(), d_model.n_groups, missing, acc);
-  }
-
-  [[nodiscard]] bool UseShared() const { return shared_memory_bytes_ != 0; }
-
-  [[nodiscard]] static std::size_t ConfigureDevice(DeviceOrd const& device) {
-    thread_local std::unordered_map<std::int32_t, std::size_t> max_shared;
-    auto it = max_shared.find(device.ordinal);
-    if (it == max_shared.cend()) {
-      max_shared[device.ordinal] = dh::MaxSharedMemory(device.ordinal);
-      it = max_shared.find(device.ordinal);
-    }
-    return it->second;
-  }
-
-  template <typename Loader>
-  void AllocShmem() {
-    this->shared_memory_bytes_ = Loader::AllocShmem(this->ctx_, this->n_features_);
-  }
-
- public:
-  LaunchConfig(Context const* ctx, bst_feature_t n_features) : ctx_{ctx}, n_features_{n_features} {}
-
-  template <typename Fn>
-  void ForEachBatch(DMatrix* p_fmat, Fn&& fn) {
-    if (p_fmat->PageExists<SparsePage>()) {
-      constexpr std::uint32_t kBlockThreads = 128;
-      using LoaderImpl = SparsePageLoader<EncAccessor>;
-      using Loader = LoaderType<LoaderImpl, kBlockThreads>;
-      this->AllocShmem<Loader>();
-      for (auto& page : p_fmat->GetBatches<SparsePage>()) {
-        SparsePageView batch{ctx_, page, n_features_};
-        fn(Loader{}, std::forward<SparsePageView>(batch));
-      }
-    } else {
-      p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
-
-      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
-          using Acc = std::remove_reference_t<decltype(batch)>;
-          // No shared memory use for ellpack
-          using Loader = EllpackLoader<Acc, EncAccessor>;
-          constexpr std::uint32_t kBlockThreads = 256;
-          fn(LoaderType<Loader, kBlockThreads>{},
-             std::forward<common::GetValueT<decltype(batch)>>(batch));
-        });
-      }
-    }
-  }
-};
-
-template <typename Kernel>
-void LaunchPredict(Context const* ctx, bool is_dense, enc::DeviceColumnsView const& new_enc,
-                   gbm::GBTreeModel const& model, Kernel&& launch) {
-  if (is_dense) {
-    if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
-      auto cfg =
-          LaunchConfig<std::true_type, decltype(acc)>{ctx, model.learner_model_param->num_feature};
-      launch(std::move(cfg), std::move(acc));
-    } else {
-      auto cfg =
-          LaunchConfig<std::true_type, NoOpAccessor>{ctx, model.learner_model_param->num_feature};
-      launch(std::move(cfg), NoOpAccessor{});
-    }
-  } else {
-    if (model.Cats() && model.Cats()->HasCategorical() && new_enc.HasCategorical()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
-      auto cfg =
-          LaunchConfig<std::false_type, decltype(acc)>{ctx, model.learner_model_param->num_feature};
-      launch(std::move(cfg), std::move(acc));
-    } else {
-      auto cfg =
-          LaunchConfig<std::false_type, NoOpAccessor>{ctx, model.learner_model_param->num_feature};
-      launch(std::move(cfg), NoOpAccessor{});
-    }
-  }
-}
-
-}  // anonymous namespace
-
 class GPUPredictor : public xgboost::Predictor {
  private:
   void PredictDMatrix(DMatrix* p_fmat, HostDeviceVector<float>* out_preds,
@@ -635,11 +407,6 @@ class GPUPredictor : public xgboost::Predictor {
 
     DeviceModel d_model{this->ctx_->Device(), model,    false,
                         tree_begin,           tree_end, CopyViews{this->ctx_}};
-
-    if (info.IsColumnSplit()) {
-      column_split_helper_.PredictBatch(p_fmat, out_preds, model, d_model, tree_weights);
-      return;
-    }
 
     CHECK_LE(p_fmat->Info().num_col_, model.learner_model_param->num_feature);
     auto n_features = model.learner_model_param->num_feature;
@@ -803,11 +570,6 @@ class GPUPredictor : public xgboost::Predictor {
 
     DeviceModel d_model{ctx_->Device(), model, false, 0, tree_end, CopyViews{this->ctx_}};
 
-    if (info.IsColumnSplit()) {
-      column_split_helper_.PredictLeaf(p_fmat, predictions, model, d_model);
-      return;
-    }
-
     bst_feature_t n_features = model.learner_model_param->num_feature;
     auto new_enc =
         p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
@@ -831,9 +593,6 @@ class GPUPredictor : public xgboost::Predictor {
       });
     });
   }
-
- private:
-  ColumnSplitHelper column_split_helper_;
 };
 
 XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")

@@ -86,23 +86,11 @@ TEST(CAPI, XGDMatrixCreateFromCSR) {
   Json::Dump(config, &sconfig);
 
   DMatrixHandle handle;
-  XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), 3, sconfig.c_str(),
-                         &handle);
-  bst_ulong n;
-  ASSERT_EQ(XGDMatrixNumRow(handle, &n), 0);
-  ASSERT_EQ(n, 1);
-  ASSERT_EQ(XGDMatrixNumCol(handle, &n), 0);
-  ASSERT_EQ(n, 3);
-  ASSERT_EQ(XGDMatrixNumNonMissing(handle, &n), 0);
-  ASSERT_EQ(n, 3);
-  ASSERT_EQ(XGDMatrixDataSplitMode(handle, &n), 0);
-  ASSERT_EQ(n, static_cast<int64_t>(DataSplitMode::kCol));
-
-  std::shared_ptr<xgboost::DMatrix> *pp_fmat =
-      static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  ASSERT_EQ((*pp_fmat)->Ctx()->Threads(), AllThreadsForTest());
-
-  XGDMatrixFree(handle);
+  ASSERT_NE(XGDMatrixCreateFromCSR(sindptr.c_str(), sindices.c_str(), sdata.c_str(), 3,
+                                   sconfig.c_str(), &handle),
+            0);
+  auto msg = std::string{XGBGetLastError()};
+  ASSERT_NE(msg.find("Column-wise data split has been removed"), std::string::npos);
 }
 
 TEST(CAPI, ConfigIO) {

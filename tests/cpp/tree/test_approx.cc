@@ -15,7 +15,6 @@
 #include "../../../src/tree/param.h"    // for TrainParam
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
-#include "test_column_split.h"  // for TestColumnSplit
 #include "test_partitioner.h"
 
 namespace xgboost::tree {
@@ -88,7 +87,7 @@ TEST(Approx, Partitioner) {
 TEST(Approx, InteractionConstraint) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
-  auto p_dmat = GenerateCatDMatrix(kRows, kCols, 0.6f, false);
+  auto p_dmat = RandomDataGenerator{kRows, kCols, 0.6f}.GenerateDMatrix();
   Context ctx;
 
   GradientContainer gpair = GenerateRandomGradients(&ctx, kRows, 1);
@@ -130,106 +129,4 @@ TEST(Approx, InteractionConstraint) {
     ASSERT_NE(tree[tree[0].RightChild()].SplitIndex(), 0);
   }
 }
-
-namespace {
-void TestColumnSplitPartitioner(size_t n_samples, size_t base_rowid, std::shared_ptr<DMatrix> Xy,
-                                std::vector<float>* hess, float min_value, float mid_value,
-                                CommonRowPartitioner const& expected_mid_partitioner) {
-  auto dmat =
-      std::unique_ptr<DMatrix>{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-  std::vector<CPUExpandEntry> candidates{{0, 0}};
-  candidates.front().split.loss_chg = 0.4;
-
-  Context ctx;
-  ctx.InitAllowUnknown(Args{});
-  for (auto const& page : dmat->GetBatches<GHistIndexMatrix>(&ctx, {64, *hess, true})) {
-    {
-      RegTree tree;
-      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
-      GetSplit(&tree, min_value, &candidates);
-      partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
-      ASSERT_EQ(partitioner.Size(), 3);
-      ASSERT_EQ(partitioner[1].Size(), 0);
-      ASSERT_EQ(partitioner[2].Size(), n_samples);
-    }
-    {
-      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
-      RegTree tree;
-      GetSplit(&tree, mid_value, &candidates);
-      partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
-      {
-        auto left_nidx = tree[RegTree::kRoot].LeftChild();
-        auto const& elem = partitioner[left_nidx];
-        ASSERT_LT(elem.Size(), n_samples);
-        ASSERT_GT(elem.Size(), 1);
-        auto const& expected_elem = expected_mid_partitioner[left_nidx];
-        ASSERT_EQ(elem.Size(), expected_elem.Size());
-        for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
-          ASSERT_EQ(*it, *eit);
-        }
-      }
-      {
-        auto right_nidx = tree[RegTree::kRoot].RightChild();
-        auto const& elem = partitioner[right_nidx];
-        auto const& expected_elem = expected_mid_partitioner[right_nidx];
-        ASSERT_EQ(elem.Size(), expected_elem.Size());
-        for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
-          ASSERT_EQ(*it, *eit);
-        }
-      }
-    }
-  }
-}
-}  // anonymous namespace
-
-TEST(Approx, PartitionerColumnSplit) {
-  size_t n_samples = 1024, n_features = 16, base_rowid = 0;
-  auto const Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
-  auto hess = GenerateHess(n_samples);
-  std::vector<CPUExpandEntry> candidates{{0, 0}};
-  candidates.front().split.loss_chg = 0.4;
-
-  float min_value, mid_value;
-  Context ctx;
-  ctx.InitAllowUnknown(Args{});
-  CommonRowPartitioner mid_partitioner{&ctx, n_samples, base_rowid, false};
-  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(&ctx, {64, hess, true})) {
-    bst_feature_t const split_ind = 0;
-    min_value = -std::numeric_limits<float>::infinity();
-
-    auto ptr = page.cut.Ptrs()[split_ind + 1];
-    mid_value = page.cut.Values().at(ptr / 2);
-    RegTree tree;
-    GetSplit(&tree, mid_value, &candidates);
-    mid_partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
-  }
-
-  auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers, [&] {
-    TestColumnSplitPartitioner(n_samples, base_rowid, Xy, &hess, min_value, mid_value,
-                               mid_partitioner);
-  });
-}
-
-namespace {
-class TestApproxColumnSplit : public ::testing::TestWithParam<std::tuple<bool, float>> {
- public:
-  void Run() {
-    auto [categorical, sparsity] = GetParam();
-    TestColumnSplit(1u, categorical, "grow_histmaker", sparsity);
-  }
-};
-}  // namespace
-
-TEST_P(TestApproxColumnSplit, Basic) { this->Run(); }
-
-INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestApproxColumnSplit, ::testing::ValuesIn([]() {
-                           std::vector<std::tuple<bool, float>> params;
-                           for (auto categorical : {true, false}) {
-                             for (auto sparsity : {0.0f, 0.6f}) {
-                               params.emplace_back(categorical, sparsity);
-                             }
-                           }
-                           return params;
-                         }()));
 }  // namespace xgboost::tree

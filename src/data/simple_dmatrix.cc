@@ -81,22 +81,7 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
     out->Info() = this->Info().Copy();
     out->Info().num_nonzero_ = h_offset.back();
   }
-  out->Info().data_split_mode = DataSplitMode::kCol;
   return out;
-}
-
-void SimpleDMatrix::ReindexFeatures(Context const* ctx, DataSplitMode split_mode) {
-  if (split_mode == DataSplitMode::kCol && collective::GetWorldSize() > 1) {
-    std::vector<std::uint64_t> buffer(collective::GetWorldSize());
-    buffer[collective::GetRank()] = this->info_.num_col_;
-    auto rc = collective::Allgather(ctx, linalg::MakeVec(buffer.data(), buffer.size()));
-    SafeColl(rc);
-    auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
-    if (offset == 0) {
-      return;
-    }
-    sparse_page_->Reindex(offset, ctx->Threads());
-  }
 }
 
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
@@ -225,8 +210,7 @@ BatchSet<ExtSparsePage> SimpleDMatrix::GetExtBatches(Context const*, BatchParam 
 }
 
 template <typename AdapterT>
-SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
-                             DataSplitMode data_split_mode) {
+SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   Context ctx;
   ctx.Init(Args{{"nthread", std::to_string(nthread)}});
   std::vector<uint64_t> qids;
@@ -309,8 +293,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   }
 
   // Must called before sync column
-  this->ReindexFeatures(&ctx, data_split_mode);
-  this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
+  this->info_.SynchronizeNumberOfColumns(&ctx);
 
   if (adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT =
@@ -366,9 +349,8 @@ void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
   fo->Write(sparse_page_->data.HostVector());
 }
 
-#define INSTANTIATE_SDCTOR(__ADAPTER_T)                                                            \
-  template SimpleDMatrix::SimpleDMatrix(__ADAPTER_T* adapter, float missing, std::int32_t nthread, \
-                                        DataSplitMode data_split_mode);
+#define INSTANTIATE_SDCTOR(__ADAPTER_T) \
+  template SimpleDMatrix::SimpleDMatrix(__ADAPTER_T* adapter, float missing, std::int32_t nthread);
 
 INSTANTIATE_SDCTOR(DenseAdapter)
 INSTANTIATE_SDCTOR(ArrayAdapter)

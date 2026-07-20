@@ -128,7 +128,11 @@ EvalsLog: TypeAlias = Dict[str, Dict[str, _ScoreList]]
 
 @unique
 class DataSplitMode(IntEnum):
-    """Supported data split mode for DMatrix."""
+    """Deprecated data split mode for DMatrix.
+
+    Only ``ROW`` is supported. ``COL`` is kept for compatibility and is rejected
+    during DMatrix construction.
+    """
 
     ROW = 0
     COL = 1

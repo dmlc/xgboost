@@ -684,42 +684,19 @@ void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
 }
 
 void MetaInfo::SetFeatureInfo(const char* key, const char** info, const bst_ulong size) {
-  bool is_col_split = this->IsColumnSplit();
-
-  if (size != 0 && this->num_col_ != 0 && !is_col_split) {
+  if (size != 0 && this->num_col_ != 0) {
     CHECK_EQ(size, this->num_col_) << "Length of " << key << " must be equal to number of columns.";
     CHECK(info);
   }
 
-  // Gather column info when data is split by columns
-  auto gather_columns = [is_col_split, key, n_columns = this->num_col_](auto const& inputs) {
-    if (is_col_split) {
-      std::remove_const_t<std::remove_reference_t<decltype(inputs)>> result;
-      auto rc = collective::AllgatherStrings(inputs, &result);
-      collective::SafeColl(rc);
-      CHECK_EQ(result.size(), n_columns)
-          << "Length of " << key << " must be equal to number of columns.";
-      return result;
-    }
-    return inputs;
-  };
-
   if (StringView{key} == "feature_type") {  // NOLINT
     this->feature_type_names.clear();
     std::copy(info, info + size, std::back_inserter(feature_type_names));
-    feature_type_names = gather_columns(feature_type_names);
     auto& h_feature_types = feature_types.HostVector();
     this->has_categorical_ = LoadFeatureType(feature_type_names, &h_feature_types);
   } else if (StringView{key} == "feature_name") {  // NOLINT
     feature_names.clear();
-    if (is_col_split) {
-      auto const rank = collective::GetRank();
-      std::transform(info, info + size, std::back_inserter(feature_names),
-                     [rank](char const* elem) { return std::to_string(rank) + "." + elem; });
-    } else {
-      std::copy(info, info + size, std::back_inserter(feature_names));
-    }
-    feature_names = gather_columns(feature_names);
+    std::copy(info, info + size, std::back_inserter(feature_names));
   } else {
     LOG(FATAL) << "Unknown feature info name: " << key;
   }
@@ -815,10 +792,9 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
 }
 
-void MetaInfo::SynchronizeNumberOfColumns(Context const* ctx, DataSplitMode split_mode) {
-  this->data_split_mode = split_mode;
-  auto op = IsColumnSplit() ? collective::Op::kSum : collective::Op::kMax;
-  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&num_col_, 1), op);
+void MetaInfo::SynchronizeNumberOfColumns(Context const* ctx) {
+  this->data_split_mode = DataSplitMode::kRow;
+  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&num_col_, 1), collective::Op::kMax);
   collective::SafeColl(rc);
 }
 
@@ -888,12 +864,6 @@ void MetaInfo::Validate(DeviceOrd device) const {
 void MetaInfo::SetInfoFromCUDA(Context const*, StringView, Json) { common::AssertGPUSupport(); }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
-bool MetaInfo::IsVerticalFederated() const { return collective::IsFederated() && IsColumnSplit(); }
-
-bool MetaInfo::ShouldHaveLabels() const {
-  return !IsVerticalFederated() || collective::GetRank() == 0;
-}
-
 [[nodiscard]] CatContainer const* MetaInfo::Cats() const { return this->cats_.get(); }
 [[nodiscard]] CatContainer* MetaInfo::Cats() { return this->cats_.get(); }
 
@@ -921,6 +891,11 @@ DMatrix::~DMatrix() {
 }
 
 namespace {
+void ValidateDataSplitMode(DataSplitMode data_split_mode) {
+  CHECK(data_split_mode == DataSplitMode::kRow)
+      << "Column-wise data split has been removed. Please use row-wise data split instead.";
+}
+
 DMatrix* TryLoadBinary(std::string fname, bool silent) {
   std::int32_t magic;
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
@@ -945,6 +920,7 @@ DMatrix* TryLoadBinary(std::string fname, bool silent) {
 }  // namespace
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode) {
+  ValidateDataSplitMode(data_split_mode);
   auto dlm_pos = uri.find('#');
   CHECK(dlm_pos == std::string::npos)
       << "External memory training with text input has been removed.";
@@ -1014,7 +990,8 @@ DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback, XGDMatrixC
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&,
                          DataSplitMode data_split_mode) {
-  return new data::SimpleDMatrix(adapter, missing, nthread, data_split_mode);
+  ValidateDataSplitMode(data_split_mode);
+  return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 
 // Instantiate the factory function for various adapters

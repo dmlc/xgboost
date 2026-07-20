@@ -100,10 +100,10 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
   auto rc = collective::Success() << [&]() {
     static_assert(sizeof(Pair) == sizeof(ReduceT) * 4);
     auto casted = linalg::MakeVec(reinterpret_cast<ReduceT*>(h_pairs.data()), 4 * n_targets);
-    return collective::GlobalSum(ctx, info, casted);
+    return collective::GlobalSum(ctx, casted);
   } << [&] {
     // Single GlobalSum for total_rows (shared across targets).
-    return collective::GlobalSum(ctx, info, linalg::MakeVec(&n_samples, 1));
+    return collective::GlobalSum(ctx, linalg::MakeVec(&n_samples, 1));
   };
   collective::SafeColl(rc);
 
