@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2025, XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  */
 #include "lambdarank_obj.h"
 
