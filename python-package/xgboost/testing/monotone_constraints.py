@@ -1,7 +1,7 @@
 """Helpers for testing monotone constraints."""
 
 import json
-from typing import Optional
+from typing import Optional, Sequence
 
 import numpy as np
 import pytest
@@ -13,13 +13,20 @@ from .utils import Device
 
 
 def is_increasing(v: np.ndarray) -> bool:
-    """Whether is v increasing."""
-    return np.count_nonzero(np.diff(v) < 0.0) == 0
+    """Whether ``v`` is nondecreasing along the sweep axis.
+
+    ``v`` can be a 1-D vector (scalar leaf) or a 2-D ``(grid, targets)`` matrix (vector
+    leaf).  For a matrix every output column must be nondecreasing.
+    """
+    return np.count_nonzero(np.diff(v, axis=0) < 0.0) == 0
 
 
 def is_decreasing(v: np.ndarray) -> bool:
-    """Whether is v decreasing."""
-    return np.count_nonzero(np.diff(v) > 0.0) == 0
+    """Whether ``v`` is nonincreasing along the sweep axis.
+
+    See :py:func:`is_increasing` for the handling of vector-leaf prediction matrices.
+    """
+    return np.count_nonzero(np.diff(v, axis=0) > 0.0) == 0
 
 
 def is_correctly_constrained(
@@ -68,6 +75,15 @@ y = (
 )
 training_dset = DMatrix(x, label=y)
 
+# Multi-output labels sharing the same ``(f0: increasing, f1: decreasing)`` structure as
+# ``y``. Each column is a positive-scale affine transform of ``y`` plus independent
+# noise, so every target must be increasing in ``f0`` and decreasing in ``f1`` while
+# still differing enough to exercise shared vector-leaf splits.
+_mt_noise = np.random.normal(loc=0.0, scale=0.01, size=(NUMBER_OF_DPOINTS, 2))
+y_mt = np.column_stack(
+    [y, 2.0 * y + _mt_noise[:, 0], 0.5 * y + _mt_noise[:, 1]]
+).astype(np.float32)
+
 
 def run_parent_gain(device: Device, multi_strategy: str) -> None:
     """Test that parent gain uses the node's inherited monotonic bounds."""
@@ -110,3 +126,96 @@ def run_parent_gain(device: Device, multi_strategy: str) -> None:
     constrained_parent = trees["children"][1]["children"][1]
     assert constrained_parent["split"] == "f2"
     assert constrained_parent["gain"] == pytest.approx(expected_gain)
+
+
+def run_monotone_constraints(
+    device: Device,
+    tree_method: str = "hist",
+    grow_policy: str = "depthwise",
+    multi_strategy: str = "one_output_per_tree",
+) -> None:
+    """Check for a positive (``f0``) and negative (``f1``) constraint."""
+    label = y_mt if multi_strategy == "multi_output_tree" else y
+    dtrain = DMatrix(x, label=label)
+    params = {
+        "tree_method": tree_method,
+        "grow_policy": grow_policy,
+        "device": device,
+        "multi_strategy": multi_strategy,
+        "monotone_constraints": "(1, -1)",
+    }
+    model = train(params, dtrain, num_boost_round=16)
+    assert is_correctly_constrained(model)
+
+
+def _assert_monotone(
+    booster: Booster,
+    constraints: Sequence[int],
+    *,
+    n_grid: int = 64,
+    n_ref: int = 32,
+    seed: int = 0,
+) -> None:
+    """Grid-check monotonicity per output column for every constrained feature.
+
+    For each feature with a nonzero constraint, sweep it over ``[0, 1]`` while holding
+    the remaining features fixed at random reference rows.
+
+    """
+    rng = np.random.RandomState(seed)
+    n_features = len(constraints)
+    grid = np.linspace(0.0, 1.0, n_grid, dtype=np.float32)
+    for fidx, direction in enumerate(constraints):
+        if direction == 0:
+            continue
+        for _ in range(n_ref):
+            base = rng.rand(n_features).astype(np.float32)
+            features = np.tile(base, (n_grid, 1))
+            features[:, fidx] = grid
+            pred = booster.predict(DMatrix(features))
+            if direction > 0:
+                assert is_increasing(pred), (fidx, "increasing")
+            else:
+                assert is_decreasing(pred), (fidx, "decreasing")
+
+
+def run_multi_output_monotone(
+    device: Device,
+    grow_policy: str = "depthwise",
+    multi_strategy: str = "multi_output_tree",
+    max_depth: int = 6,
+    seed: int = 1994,
+) -> None:
+    """Monotonicity check for deep trees with mixed feature constraints.
+
+    Uses more features than constraints so that constrained splits are followed by
+    splits on unconstrained features.
+
+    """
+    constraints = (1, -1, 0, 0, 0)
+    rng = np.random.RandomState(seed)
+    n_samples, n_features, n_targets = 2048, len(constraints), 3
+    features = rng.rand(n_samples, n_features).astype(np.float32)
+    labels = np.empty((n_samples, n_targets), dtype=np.float32)
+    for t in range(n_targets):
+        labels[:, t] = (
+            (t + 1) * features[:, 0]
+            - (t + 1) * features[:, 1]
+            + np.sin(6.0 * features[:, 2])
+            + 0.5 * features[:, 3] * features[:, 4]
+            + rng.normal(scale=0.05, size=n_samples)
+        )
+    params = {
+        "tree_method": "hist",
+        "device": device,
+        "grow_policy": grow_policy,
+        "multi_strategy": multi_strategy,
+        "monotone_constraints": constraints,
+        "max_depth": max_depth,
+        "eta": 0.3,
+        "reg_lambda": 1.0,
+        "reg_alpha": 0.1,
+        "min_child_weight": 0.0,
+    }
+    booster = train(params, DMatrix(features, label=labels), num_boost_round=40)
+    _assert_monotone(booster, constraints, seed=seed + 1)
