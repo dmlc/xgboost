@@ -7,7 +7,7 @@
 #ifndef XGBOOST_TREE_PARAM_H_
 #define XGBOOST_TREE_PARAM_H_
 
-#include <algorithm>  // for copy
+#include <algorithm>  // for copy, any_of
 #include <cmath>
 #include <cstring>
 #include <string>
@@ -204,6 +204,11 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
     }
     CHECK_GT(n_nodes, 0);
     return n_nodes;
+  }
+
+  [[nodiscard]] bool HasMonotone() const {
+    return std::any_of(this->monotone_constraints.cbegin(), this->monotone_constraints.cend(),
+                       [](auto v) { return v != 0; });
   }
 };
 

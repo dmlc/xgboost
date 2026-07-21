@@ -63,7 +63,7 @@ class TreeEvaluator {
  public:
   TreeEvaluator(TrainParam const& p, bst_feature_t n_features, DeviceOrd device,
                 bst_target_t n_targets)
-      : device_{device}, n_targets_{n_targets} {
+      : device_{device}, n_targets_{n_targets}, has_constraint_{p.HasMonotone()} {
     CHECK_GT(n_targets, 0);
     if (device.IsCUDA()) {
       lower_bounds_.SetDevice(device);
@@ -77,8 +77,7 @@ class TreeEvaluator {
     }
     monotone_.HostVector() = p.monotone_constraints;
     monotone_.HostVector().resize(n_features, 0);
-    has_constraint_ = std::any_of(p.monotone_constraints.cbegin(), p.monotone_constraints.cend(),
-                                  [](auto v) { return v != 0; });
+
     if (has_constraint_) {
       // Initialised to some small size, can grow if needed
       lower_bounds_.Resize(256 * n_targets, -std::numeric_limits<float>::max());

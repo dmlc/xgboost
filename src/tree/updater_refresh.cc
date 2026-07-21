@@ -4,7 +4,6 @@
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
  */
-#include <algorithm>  // for any_of
 #include <limits>
 #include <vector>
 
@@ -38,10 +37,8 @@ class TreeRefresher : public TreeUpdater {
     if (trees.size() == 0) {
       return;
     }
-    if (std::any_of(param->monotone_constraints.cbegin(), param->monotone_constraints.cend(),
-                    [](auto v) { return v != 0; })) {
-      LOG(FATAL) << "Monotonic constraint is not supported by the `refresh` updater.";
-    }
+    CHECK(!param->HasMonotone())
+        << "Monotonic constraint is not supported by the `refresh` updater.";
 
     auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
