@@ -236,11 +236,14 @@ def test_reduced_grad() -> None:
         "max_depth": 1,
         "monotone_constraints": "(1, 0)",
     }
-    with pytest.raises(xgb.core.XGBoostError, match="value gradient"):
-        xgb.train(params, Xy, num_boost_round=1, obj=LsObj2("cpu", False))
+    booster = xgb.train(params, Xy, num_boost_round=1, obj=LsObj2("cpu", False))
+    predt = booster.predict(Xy)
+    assert predt.shape == y.shape
 
+    # Reduced-gradient bounds must not be applied to the full-dimensional leaf refresh.
     params["monotone_constraints"] = "(0, 0)"
-    xgb.train(params, Xy, num_boost_round=1, obj=LsObj2("cpu", False))
+    reference = xgb.train(params, Xy, num_boost_round=1, obj=LsObj2("cpu", False))
+    np.testing.assert_allclose(predt, reference.predict(Xy))
 
 
 def test_with_iter() -> None:

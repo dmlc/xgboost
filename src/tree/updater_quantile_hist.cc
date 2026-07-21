@@ -377,7 +377,8 @@ class MultiTargetHistBuilder {
     linalg::Matrix<float> weights = linalg::Empty<float>(ctx_, n_leaves, n_targets);
     auto h_weights = weights.HostView();
     auto eta = this->param_->learning_rate;
-    auto evaluator = this->evaluator_->Evaluator();
+    // Reduced split-gradient bounds don't map to the full value-gradient coordinates.
+    auto evaluator = this->evaluator_->Evaluator(false);
 
     common::ParallelFor(n_leaves, n_threads, [&](auto leaf_idx) {
       auto grad_sum = h_leaf_sums.Slice(leaf_idx, linalg::All());
@@ -635,9 +636,6 @@ class QuantileHistMaker : public TreeUpdater {
               const std::vector<RegTree *> &trees) override {
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
-      if (in_gpair->HasValueGrad()) {
-        NoMonotoneConstraints(param, "vector leaf with a value gradient");
-      }
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(ctx_, param, &hist_param_,
                                                                    column_sampler_, &monitor_);

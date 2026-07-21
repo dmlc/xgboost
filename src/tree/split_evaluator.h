@@ -316,16 +316,16 @@ class TreeEvaluator {
  public:
   /* Get a view to the evaluator that can be passed down to device. */
   template <typename ParamT = TrainParam>
-  auto GetEvaluator() const {
+  auto GetEvaluator(bool use_constraint = true) const {
+    auto has_constraint = has_constraint_ && use_constraint;
     if (device_.IsCUDA()) {
       auto constraints = monotone_.ConstDevicePointer();
       return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDevicePointer(),
-                                    upper_bounds_.ConstDevicePointer(), has_constraint_,
-                                    n_targets_};
+                                    upper_bounds_.ConstDevicePointer(), has_constraint, n_targets_};
     } else {
       auto constraints = monotone_.ConstHostPointer();
       return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstHostPointer(),
-                                    upper_bounds_.ConstHostPointer(), has_constraint_, n_targets_};
+                                    upper_bounds_.ConstHostPointer(), has_constraint, n_targets_};
     }
   }
 
