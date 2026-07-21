@@ -3,7 +3,9 @@
  */
 #include <gtest/gtest.h>
 
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../../../src/tree/split_evaluator.h"
+#include "xgboost/linalg.h"  // for Vector
 
 namespace xgboost::tree {
 TEST(TreeEvaluator, CalcVectorGainWithMaxDeltaStep) {
@@ -28,4 +30,4 @@ TEST(TreeEvaluator, CalcVectorGainWithMaxDeltaStep) {
   EXPECT_DOUBLE_EQ(evaluator.CalcGainGivenWeight(param, h_stats, h_weight), 6.75);
   EXPECT_DOUBLE_EQ(evaluator.CalcGain(0, param, h_stats), 6.75);
 }
-}  // namespace xgboost
+}  // namespace xgboost::tree
