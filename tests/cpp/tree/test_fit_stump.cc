@@ -11,7 +11,7 @@
 
 namespace xgboost::tree {
 namespace {
-void TestFitStump(Context const *ctx, DataSplitMode split = DataSplitMode::kRow) {
+void TestFitStump(Context const *ctx, int split = 0) {
   std::size_t constexpr kRows = 16, kTargets = 2;
   linalg::Matrix<GradientPair> gpair;
   gpair.SetDevice(ctx->Device());

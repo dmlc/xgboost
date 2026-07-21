@@ -34,13 +34,12 @@ class CommonRowPartitioner {
   bst_idx_t base_rowid = 0;
 
   CommonRowPartitioner() = default;
-  CommonRowPartitioner(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid,
-                       bool /*unused*/)
+  CommonRowPartitioner(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid)
       : base_rowid{_base_rowid} {
-    Reset(ctx, num_row, _base_rowid, false);
+    Reset(ctx, num_row, _base_rowid);
   }
 
-  void Reset(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid, bool /*unused*/) {
+  void Reset(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid) {
     base_rowid = _base_rowid;
 
     std::vector<bst_idx_t>& row_indices = *row_set_collection_.Data();

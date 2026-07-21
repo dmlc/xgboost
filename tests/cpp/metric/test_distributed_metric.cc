@@ -3,7 +3,7 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for DeviceOrd
-#include <xgboost/data.h>     // for DataSplitMode
+#include <xgboost/data.h>     // for DMatrix
 
 #include <algorithm>   // for min
 #include <cstdint>     // for int32_t
@@ -26,20 +26,20 @@
 
 namespace xgboost::metric {
 namespace {
-using Verifier = std::function<void(DataSplitMode, DeviceOrd)>;
+using Verifier = std::function<void(int, DeviceOrd)>;
 struct Param {
-  bool is_dist;         // is distributed
-  bool is_fed;          // is federated learning
-  DataSplitMode split;  // how to split data
-  Verifier v;           // test function
-  std::string name;     // metric name
-  DeviceOrd device;     // device to run
+  bool is_dist;      // is distributed
+  bool is_fed;       // is federated learning
+  int split;         // how to split data
+  Verifier v;        // test function
+  std::string name;  // metric name
+  DeviceOrd device;  // device to run
 };
 
 class TestDistributedMetric : public ::testing::TestWithParam<Param> {
  protected:
   template <typename Fn>
-  void Run(bool is_dist, bool is_fed, DataSplitMode split_mode, Fn fn, DeviceOrd device) {
+  void Run(bool is_dist, bool is_fed, int split_mode, Fn fn, DeviceOrd device) {
     if (!is_dist) {
       fn(split_mode, device);
       return;
@@ -104,7 +104,7 @@ auto MakeParamsForTest() {
 
   auto push = [&](std::string name, auto fn) {
     for (bool is_federated : {false, true}) {
-      for (DataSplitMode m : {DataSplitMode::kRow}) {
+      for (int m : {0}) {
         for (auto d : {DeviceOrd::CPU(), DeviceOrd::CUDA(0)}) {
           if (!is_federated && !UseNCCL() && d.IsCUDA()) {
             // Federated doesn't use nccl.
@@ -181,7 +181,7 @@ INSTANTIATE_TEST_SUITE_P(
       if (info.param.is_fed) {
         result += "Federated_";
       }
-      if (info.param.split == DataSplitMode::kRow) {
+      if (info.param.split == 0) {
         result += "RowSplit";
       } else {
         result += "ColSplit";
@@ -205,7 +205,7 @@ TEST(Metric, ExpectileLoadConfig) {
 
   xgboost::HostDeviceVector<float> preds;
   preds.HostVector() = {0.1f, 0.9f};
-  auto result = GetMetricEval(loaded.get(), preds, {0.0f, 1.0f}, {}, {}, DataSplitMode::kRow);
+  auto result = GetMetricEval(loaded.get(), preds, {0.0f, 1.0f}, {}, {}, 0);
   // alpha=0.8, diffs {0.1, -0.1} => losses {0.2*0.01, 0.8*0.01} -> mean 0.005.
   EXPECT_NEAR(result, 0.005f, 1e-6f);
 }

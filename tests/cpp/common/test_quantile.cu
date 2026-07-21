@@ -228,7 +228,7 @@ void DoMGPURowSplitProperty(quantile_test::ContainerCase const& c) {
   std::iota(ridxs.begin(), ridxs.end(), static_cast<std::int32_t>(row_begin));
   auto m =
       std::shared_ptr<DMatrix>{full_m->Slice(Span<std::int32_t const>{ridxs.data(), ridxs.size()})};
-  m->Info().data_split_mode = DataSplitMode::kRow;
+  m->Info().data_split_mode = 0;
 
   auto cuts = DeviceSketch(&ctx, m.get(), c.max_bin);
   collective::Finalize();

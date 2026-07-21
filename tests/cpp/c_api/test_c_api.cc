@@ -82,7 +82,7 @@ TEST(CAPI, XGDMatrixCreateFromCSR) {
   Json::Dump(data_arr, &sdata);
   Json config{Object{}};
   config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
-  config["data_split_mode"] = Integer{static_cast<int64_t>(DataSplitMode::kCol)};
+  config["data_split_mode"] = Integer{static_cast<int64_t>(1)};
   Json::Dump(config, &sconfig);
 
   DMatrixHandle handle;

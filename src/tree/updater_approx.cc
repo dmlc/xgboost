@@ -87,7 +87,7 @@ class GlobalApproxBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid, false);
+      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
       n_batches_++;
     }
 

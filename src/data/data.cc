@@ -793,7 +793,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
 }
 
 void MetaInfo::SynchronizeNumberOfColumns(Context const* ctx) {
-  this->data_split_mode = DataSplitMode::kRow;
+  this->data_split_mode = 0;
   auto rc = collective::Allreduce(ctx, linalg::MakeVec(&num_col_, 1), collective::Op::kMax);
   collective::SafeColl(rc);
 }
@@ -891,8 +891,8 @@ DMatrix::~DMatrix() {
 }
 
 namespace {
-void ValidateDataSplitMode(DataSplitMode data_split_mode) {
-  CHECK(data_split_mode == DataSplitMode::kRow)
+void ValidateDataSplitMode(int data_split_mode) {
+  CHECK_EQ(data_split_mode, 0)
       << "Column-wise data split has been removed. Please use row-wise data split instead.";
 }
 
@@ -919,7 +919,7 @@ DMatrix* TryLoadBinary(std::string fname, bool silent) {
 }
 }  // namespace
 
-DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode) {
+DMatrix* DMatrix::Load(const std::string& uri, bool silent, int data_split_mode) {
   ValidateDataSplitMode(data_split_mode);
   auto dlm_pos = uri.find('#');
   CHECK(dlm_pos == std::string::npos)
@@ -989,7 +989,7 @@ DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback, XGDMatrixC
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&,
-                         DataSplitMode data_split_mode) {
+                         int data_split_mode) {
   ValidateDataSplitMode(data_split_mode);
   return new data::SimpleDMatrix(adapter, missing, nthread);
 }
@@ -998,7 +998,7 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const st
 #define INSTANTIATION_CREATE(_AdapterT)                               \
   template DMatrix* DMatrix::Create<data::_AdapterT>(                 \
       data::_AdapterT * adapter, float missing, std::int32_t nthread, \
-      const std::string& cache_prefix, DataSplitMode data_split_mode);
+      const std::string& cache_prefix, int data_split_mode);
 
 INSTANTIATION_CREATE(DenseAdapter)
 INSTANTIATION_CREATE(ArrayAdapter)
@@ -1011,7 +1011,7 @@ INSTANTIATION_CREATE(ColumnarAdapter)
 
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
-    float missing, int nthread, std::string const& cache_prefix, DataSplitMode data_split_mode);
+    float missing, int nthread, std::string const& cache_prefix, int data_split_mode);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;

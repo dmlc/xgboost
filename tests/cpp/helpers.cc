@@ -178,8 +178,7 @@ xgboost::bst_float GetMetricEval(xgboost::Metric* metric,
                                  xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                                  std::vector<xgboost::bst_float> labels,
                                  std::vector<xgboost::bst_float> weights,
-                                 std::vector<xgboost::bst_uint> groups,
-                                 xgboost::DataSplitMode data_split_mode) {
+                                 std::vector<xgboost::bst_uint> groups, int data_split_mode) {
   return GetMultiMetricEval(
       metric, preds,
       xgboost::linalg::Tensor<float, 2>{
@@ -191,8 +190,7 @@ double GetMultiMetricEval(xgboost::Metric* metric,
                           xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                           xgboost::linalg::Tensor<float, 2> const& labels,
                           std::vector<xgboost::bst_float> weights,
-                          std::vector<xgboost::bst_uint> groups,
-                          xgboost::DataSplitMode data_split_mode) {
+                          std::vector<xgboost::bst_uint> groups, int data_split_mode) {
   std::shared_ptr<xgboost::DMatrix> p_fmat{xgboost::RandomDataGenerator{0, 0, 0}.GenerateDMatrix()};
   auto& info = p_fmat->Info();
   info.num_row_ = labels.Shape(0);
@@ -428,7 +426,7 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
 }  // namespace
 
 [[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(
-    bool with_label, DataSplitMode data_split_mode) const {
+    bool with_label, int data_split_mode) const {
   HostDeviceVector<float> data;
   HostDeviceVector<std::size_t> rptrs;
   HostDeviceVector<bst_feature_t> columns;

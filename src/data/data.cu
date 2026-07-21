@@ -234,19 +234,19 @@ void SliceMetaInfo(Context const* ctx, MetaInfo const& info, common::Span<bst_id
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix, DataSplitMode data_split_mode) {
+                         const std::string& cache_prefix, int data_split_mode) {
   CHECK_EQ(cache_prefix.size(), 0)
       << "Device memory construction is not currently supported with external "
          "memory.";
-  CHECK(data_split_mode == DataSplitMode::kRow)
+  CHECK_EQ(data_split_mode, 0)
       << "Column-wise data split has been removed. Please use row-wise data split instead.";
   return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 
 template DMatrix* DMatrix::Create<data::CudfAdapter>(data::CudfAdapter* adapter, float missing,
                                                      int nthread, const std::string& cache_prefix,
-                                                     DataSplitMode data_split_mode);
+                                                     int data_split_mode);
 template DMatrix* DMatrix::Create<data::CupyAdapter>(data::CupyAdapter* adapter, float missing,
                                                      int nthread, const std::string& cache_prefix,
-                                                     DataSplitMode data_split_mode);
+                                                     int data_split_mode);
 }  // namespace xgboost

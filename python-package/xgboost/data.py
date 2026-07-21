@@ -158,7 +158,6 @@ def _from_scipy_csr(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a CSR matrix."""
 
@@ -173,7 +172,6 @@ def _from_scipy_csr(
             make_jcargs(
                 missing=float(missing),
                 nthread=int(nthread),
-                data_split_mode=int(data_split_mode),
             ),
             ctypes.byref(handle),
         )
@@ -207,7 +205,6 @@ def _from_scipy_csc(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a CSC matrix."""
     handle = ctypes.c_void_p()
@@ -221,7 +218,6 @@ def _from_scipy_csc(
             make_jcargs(
                 missing=float(missing),
                 nthread=int(nthread),
-                data_split_mode=int(data_split_mode),
             ),
             ctypes.byref(handle),
         )
@@ -272,7 +268,6 @@ def _from_numpy_array(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a 2-D numpy matrix."""
     _check_data_shape(data)
@@ -284,7 +279,6 @@ def _from_numpy_array(
             make_jcargs(
                 missing=float(missing),
                 nthread=int(nthread),
-                data_split_mode=int(data_split_mode),
             ),
             ctypes.byref(handle),
         )
@@ -699,7 +693,6 @@ def _from_pandas_df(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[FeatureTypes, Categories]],
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     df, feature_names, feature_types = _transform_pandas_df(
         data, enable_categorical, feature_names, feature_types
@@ -709,9 +702,7 @@ def _from_pandas_df(
     _check_call(
         _LIB.XGDMatrixCreateFromColumnar(
             df.array_interface(),
-            make_jcargs(
-                nthread=nthread, missing=missing, data_split_mode=data_split_mode
-            ),
+            make_jcargs(nthread=nthread, missing=missing),
             ctypes.byref(handle),
         )
     )
@@ -849,7 +840,6 @@ def _from_arrow_table(  # pylint: disable=too-many-positional-arguments
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[FeatureTypes, Categories]],
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     df_t, feature_names, feature_types = _transform_arrow_table(
         data, enable_categorical, feature_names, feature_types
@@ -858,9 +848,7 @@ def _from_arrow_table(  # pylint: disable=too-many-positional-arguments
     _check_call(
         _LIB.XGDMatrixCreateFromColumnar(
             df_t.array_interface(),
-            make_jcargs(
-                nthread=n_threads, missing=missing, data_split_mode=data_split_mode
-            ),
+            make_jcargs(nthread=n_threads, missing=missing),
             ctypes.byref(handle),
         )
     )
@@ -967,7 +955,6 @@ def _from_polars_df(  # pylint: disable=too-many-positional-arguments
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[FeatureTypes, Categories]],
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     df_t, feature_names, feature_types = _transform_polars_df(
         data, enable_categorical, feature_names, feature_types
@@ -976,9 +963,7 @@ def _from_polars_df(  # pylint: disable=too-many-positional-arguments
     _check_call(
         _LIB.XGDMatrixCreateFromColumnar(
             df_t.array_interface(),
-            make_jcargs(
-                nthread=n_threads, missing=missing, data_split_mode=data_split_mode
-            ),
+            make_jcargs(nthread=n_threads, missing=missing),
             ctypes.byref(handle),
         )
     )
@@ -1236,12 +1221,11 @@ def _from_uri(
     missing: Optional[FloatCompatible],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
     data = os.fspath(os.path.expanduser(data))
-    config = make_jcargs(uri=str(data), data_split_mode=int(data_split_mode))
+    config = make_jcargs(uri=str(data))
     _check_call(_LIB.XGDMatrixCreateFromURI(config, ctypes.byref(handle)))
     return handle, feature_names, feature_types
 
@@ -1257,7 +1241,6 @@ def _from_list(
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     array = np.array(data)
     _check_data_shape(data)
@@ -1267,7 +1250,6 @@ def _from_list(
         nthread=n_threads,
         feature_names=feature_names,
         feature_types=feature_types,
-        data_split_mode=data_split_mode,
     )
 
 
@@ -1282,7 +1264,6 @@ def _from_tuple(
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     return _from_list(
         data=data,
@@ -1290,7 +1271,6 @@ def _from_tuple(
         n_threads=n_threads,
         feature_names=feature_names,
         feature_types=feature_types,
-        data_split_mode=data_split_mode,
     )
 
 
@@ -1324,7 +1304,6 @@ def dispatch_data_backend(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[FeatureTypes, Categories]],
     enable_categorical: bool = False,
-    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     """Dispatch data for DMatrix."""
 
@@ -1351,7 +1330,6 @@ def dispatch_data_backend(
             nthread=threads,
             feature_names=feature_names,
             feature_types=feature_types,
-            data_split_mode=data_split_mode,
         )
     if is_scipy_csc(data):
         assert check_cats(feature_types)
@@ -1361,7 +1339,6 @@ def dispatch_data_backend(
             nthread=threads,
             feature_names=feature_names,
             feature_types=feature_types,
-            data_split_mode=data_split_mode,
         )
     if is_scipy_coo(data):
         assert check_cats(feature_types)
@@ -1371,7 +1348,6 @@ def dispatch_data_backend(
             nthread=threads,
             feature_names=feature_names,
             feature_types=feature_types,
-            data_split_mode=data_split_mode,
         )
     if _is_np_array_like(data):
         assert check_cats(feature_types)
@@ -1381,11 +1357,10 @@ def dispatch_data_backend(
             nthread=threads,
             feature_names=feature_names,
             feature_types=feature_types,
-            data_split_mode=data_split_mode,
         )
     if _is_uri(data):
         assert check_cats(feature_types)
-        return _from_uri(data, missing, feature_names, feature_types, data_split_mode)
+        return _from_uri(data, missing, feature_names, feature_types)
     if _is_list(data):
         assert check_cats(feature_types)
         return _from_list(
@@ -1394,7 +1369,6 @@ def dispatch_data_backend(
             n_threads=threads,
             feature_names=feature_names,
             feature_types=feature_types,
-            data_split_mode=data_split_mode,
         )
     if _is_tuple(data):
         assert check_cats(feature_types)
@@ -1404,7 +1378,6 @@ def dispatch_data_backend(
             n_threads=threads,
             feature_names=feature_names,
             feature_types=feature_types,
-            data_split_mode=data_split_mode,
         )
     if _is_polars_series(data):
         pl = import_polars()
@@ -1418,7 +1391,6 @@ def dispatch_data_backend(
             n_threads=threads,
             feature_names=feature_names,
             feature_types=feature_types,
-            data_split_mode=data_split_mode,
         )
     if _is_arrow(data):
         return _from_arrow_table(
@@ -1428,7 +1400,6 @@ def dispatch_data_backend(
             n_threads=threads,
             feature_names=feature_names,
             feature_types=feature_types,
-            data_split_mode=data_split_mode,
         )
     if _is_cudf_pandas(data):
         data = data._fsproxy_fast  # pylint: disable=protected-access
@@ -1444,7 +1415,6 @@ def dispatch_data_backend(
             nthread=threads,
             feature_names=feature_names,
             feature_types=feature_types,
-            data_split_mode=data_split_mode,
         )
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _from_cudf_df(

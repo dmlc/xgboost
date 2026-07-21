@@ -32,7 +32,7 @@ TEST(Approx, Partitioner) {
   size_t n_samples = 1024, n_features = 1, base_rowid = 0;
   Context ctx;
   ctx.InitAllowUnknown(Args{});
-  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
+  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
   ASSERT_EQ(partitioner.base_rowid, base_rowid);
   ASSERT_EQ(partitioner.Size(), 1);
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
@@ -47,7 +47,7 @@ TEST(Approx, Partitioner) {
     {
       auto min_value = -std::numeric_limits<float>::infinity();
       RegTree tree;
-      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       GetSplit(&tree, min_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, tree.HostScView());
       ASSERT_EQ(partitioner.Size(), 3);
@@ -55,7 +55,7 @@ TEST(Approx, Partitioner) {
       ASSERT_EQ(partitioner[2].Size(), n_samples);
     }
     {
-      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, false};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       auto ptr = page.cut.Ptrs()[split_ind + 1];
       float split_value = page.cut.Values().at(ptr / 2);
       RegTree tree;

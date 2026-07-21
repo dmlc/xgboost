@@ -145,8 +145,7 @@ xgb.DMatrix <- function(
       )
     }
     data <- path.expand(data)
-    data_split_mode <- 0L
-    handle <- .Call(XGDMatrixCreateFromURI_R, data, as.integer(silent), data_split_mode)
+    handle <- .Call(XGDMatrixCreateFromURI_R, data, as.integer(silent))
   } else if (is.matrix(data)) {
     handle <- .Call(
       XGDMatrixCreateFromMat_R, data, missing, nthread

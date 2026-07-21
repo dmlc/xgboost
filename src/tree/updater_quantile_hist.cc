@@ -201,9 +201,9 @@ class MultiTargetHistBuilder {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
       if (page_idx < partitioner_.size()) {
-        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid, false);
+        partitioner_[page_idx].Reset(ctx_, page.Size(), page.base_rowid);
       } else {
-        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, false);
+        partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid);
       }
       page_idx++;
     }
@@ -474,9 +474,9 @@ class HistUpdater {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
       if (page_idx < partitioner_.size()) {
-        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid, false);
+        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid);
       } else {
-        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid, false);
+        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
       }
       page_idx++;
     }

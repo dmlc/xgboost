@@ -529,7 +529,7 @@ class OverflowTest : public ::testing::TestWithParam<bool> {
     hist_builder.Reset(&ctx, n_total_bins, tree.NumTargets(), batch, is_distributed, &hist_param);
 
     std::vector<CommonRowPartitioner> partitioners;
-    partitioners.emplace_back(&ctx, Xy->Info().num_row_, /*base_rowid=*/0, false);
+    partitioners.emplace_back(&ctx, Xy->Info().num_row_, /*base_rowid=*/0);
 
     auto gpair = GenerateRandomGradients(Xy->Info().num_row_, 0.0, 1.0);
 

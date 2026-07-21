@@ -35,8 +35,6 @@ enum class DataType : uint8_t { kFloat32 = 1, kDouble = 2, kUInt32 = 3, kUInt64 
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
-enum class DataSplitMode : int { kRow = 0, kCol = 1 };
-
 // Forward declaration of the container used by the meta info.
 class CatContainer;
 
@@ -78,7 +76,7 @@ class MetaInfo {
   /*! \brief label of each instance */
   linalg::Tensor<float, 2> labels;
   /*! \brief data split mode */
-  DataSplitMode data_split_mode{DataSplitMode::kRow};
+  int data_split_mode{0};
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
@@ -613,8 +611,7 @@ class DMatrix {
    *                        has been removed and is rejected.
    * @return The created DMatrix.
    */
-  static DMatrix* Load(const std::string& uri, bool silent = true,
-                       DataSplitMode data_split_mode = DataSplitMode::kRow);
+  static DMatrix* Load(const std::string& uri, bool silent = true, int data_split_mode = 0);
 
   /**
    * @brief Creates a new DMatrix from an external data adapter.
@@ -631,8 +628,7 @@ class DMatrix {
    */
   template <typename AdapterT>
   static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix = "",
-                         DataSplitMode data_split_mode = DataSplitMode::kRow);
+                         const std::string& cache_prefix = "", int data_split_mode = 0);
 
   /**
    * @brief Create a new Quantile based DMatrix used for histogram based algorithm.
@@ -775,8 +771,6 @@ inline BatchSet<ExtSparsePage> DMatrix::GetBatches(Context const* ctx, BatchPara
   return GetExtBatches(ctx, param);
 }
 }  // namespace xgboost
-
-DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
 
 namespace dmlc {
 DMLC_DECLARE_TRAITS(is_pod, xgboost::Entry, true);

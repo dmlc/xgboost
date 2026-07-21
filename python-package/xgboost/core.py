@@ -829,7 +829,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
-            data_split_mode=data_split_mode,
         )
         assert handle is not None
         self.handle = handle
@@ -1214,16 +1213,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         """
         ret = c_bst_ulong()
         _check_call(_LIB.XGDMatrixNumNonMissing(self.handle, ctypes.byref(ret)))
-        return ret.value
-
-    def data_split_mode(self) -> int:
-        """Get the data split mode of the DMatrix.
-
-        .. versionadded:: 2.1.0
-
-        """
-        ret = c_bst_ulong()
-        _check_call(_LIB.XGDMatrixDataSplitMode(self.handle, ctypes.byref(ret)))
         return ret.value
 
     def slice(

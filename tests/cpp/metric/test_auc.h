@@ -8,7 +8,7 @@
 #include "../helpers.h"
 
 namespace xgboost::metric {
-inline void VerifyBinaryAUC(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyBinaryAUC(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   Metric* metric = uni_ptr.get();
@@ -51,7 +51,7 @@ inline void VerifyBinaryAUC(DataSplitMode data_split_mode, DeviceOrd device) {
               0.5, 1e-10);
 }
 
-inline void VerifyMultiClassAUC(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyMultiClassAUC(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   auto metric = uni_ptr.get();
@@ -112,8 +112,7 @@ inline void VerifyMultiClassAUC(DataSplitMode data_split_mode, DeviceOrd device)
   ASSERT_GT(auc, 0.714);
 }
 
-inline void VerifyMultiLabelAUCImpl(char const* name, DataSplitMode data_split_mode,
-                                    DeviceOrd device) {
+inline void VerifyMultiLabelAUCImpl(char const* name, int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> metric{Metric::Create(name, &ctx)};
 
@@ -188,11 +187,11 @@ inline void VerifyMultiLabelAUCImpl(char const* name, DataSplitMode data_split_m
   }
 }
 
-inline void VerifyMultiLabelAUC(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyMultiLabelAUC(int data_split_mode, DeviceOrd device) {
   VerifyMultiLabelAUCImpl("auc", data_split_mode, device);
 }
 
-inline void VerifyMultiLabelPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyMultiLabelPRAUC(int data_split_mode, DeviceOrd device) {
   VerifyMultiLabelAUCImpl("aucpr", data_split_mode, device);
 }
 
@@ -201,7 +200,7 @@ inline void VerifyMultiLabelAUCEmptyWorker(char const* name, DeviceOrd device) {
   std::unique_ptr<Metric> metric{Metric::Create(name, &ctx)};
   auto p_fmat = EmptyDMatrix();
   auto& info = p_fmat->Info();
-  info.data_split_mode = DataSplitMode::kRow;
+  info.data_split_mode = 0;
   HostDeviceVector<float> predts;
 
   if (collective::GetRank() == 0) {
@@ -221,7 +220,7 @@ inline void VerifyMultiLabelAUCEmptyWorker(char const* name, DeviceOrd device) {
   EXPECT_NEAR(metric->Evaluate(predts, p_fmat), 1.0, 1e-10);
 }
 
-inline void VerifyRankingAUC(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyRankingAUC(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> metric{Metric::Create("auc", &ctx)};
 
@@ -255,7 +254,7 @@ inline void VerifyRankingAUC(DataSplitMode data_split_mode, DeviceOrd device) {
               0.769841f, 1e-6);
 }
 
-inline void VerifyPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyPRAUC(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
   xgboost::Metric* metric = xgboost::Metric::Create("aucpr", &ctx);
@@ -292,7 +291,7 @@ inline void VerifyPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
   delete metric;
 }
 
-inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyMultiClassPRAUC(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
@@ -316,7 +315,7 @@ inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode, DeviceOrd devic
   ASSERT_GT(auc, 0.699);
 }
 
-inline void VerifyRankingPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyRankingPRAUC(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};

@@ -45,7 +45,7 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
   }
 }
 
-inline void VerifyRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyRMSE(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("rmse", &ctx);
   metric->Configure({});
@@ -55,7 +55,7 @@ inline void VerifyRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
       GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
       0.6403f, 0.001f);
   auto expected = 2.8284f;
-  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+  if (collective::IsDistributed() && data_split_mode == 0) {
     expected = sqrt(8.0f * collective::GetWorldSize());
   }
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
@@ -69,7 +69,7 @@ inline void VerifyRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
   CheckDeterministicMetricElementWise(StringView{"rmse"}, device.ordinal);
 }
 
-inline void VerifyRMSLE(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyRMSLE(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("rmsle", &ctx);
   metric->Configure({});
@@ -79,7 +79,7 @@ inline void VerifyRMSLE(DataSplitMode data_split_mode, DeviceOrd device) {
                             {}, {}, data_split_mode),
               0.4063f, 1e-4);
   auto expected = 0.6212f;
-  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+  if (collective::IsDistributed() && data_split_mode == 0) {
     expected = sqrt(0.3859f * collective::GetWorldSize());
   }
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f}, {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
@@ -93,7 +93,7 @@ inline void VerifyRMSLE(DataSplitMode data_split_mode, DeviceOrd device) {
   CheckDeterministicMetricElementWise(StringView{"rmsle"}, device.ordinal);
 }
 
-inline void VerifyMAE(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyMAE(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("mae", &ctx);
   metric->Configure({});
@@ -103,7 +103,7 @@ inline void VerifyMAE(DataSplitMode data_split_mode, DeviceOrd device) {
       GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode), 0.5f,
       0.001f);
   auto expected = 8.0f;
-  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+  if (collective::IsDistributed() && data_split_mode == 0) {
     expected *= collective::GetWorldSize();
   }
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
@@ -117,7 +117,7 @@ inline void VerifyMAE(DataSplitMode data_split_mode, DeviceOrd device) {
   CheckDeterministicMetricElementWise(StringView{"mae"}, device.ordinal);
 }
 
-inline void VerifyMAPE(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyMAPE(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("mape", &ctx);
   metric->Configure({});
@@ -127,7 +127,7 @@ inline void VerifyMAPE(DataSplitMode data_split_mode, DeviceOrd device) {
       GetMetricEval(metric, {50, 400, 500, 4000}, {100, 200, 500, 1000}, {}, {}, data_split_mode),
       1.125f, 0.001f);
   auto expected = -26.5f;
-  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+  if (collective::IsDistributed() && data_split_mode == 0) {
     expected *= collective::GetWorldSize();
   }
   EXPECT_NEAR(GetMetricEval(metric, {50, 400, 500, 4000}, {100, 200, 500, 1000}, {-1, 1, 9, -9}, {},
@@ -141,7 +141,7 @@ inline void VerifyMAPE(DataSplitMode data_split_mode, DeviceOrd device) {
   CheckDeterministicMetricElementWise(StringView{"mape"}, device.ordinal);
 }
 
-inline void VerifyMPHE(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyMPHE(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<xgboost::Metric> metric{xgboost::Metric::Create("mphe", &ctx)};
   metric->Configure({});
@@ -151,7 +151,7 @@ inline void VerifyMPHE(DataSplitMode data_split_mode, DeviceOrd device) {
       GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
       0.1751f, 1e-4);
   auto expected = 3.40375f;
-  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+  if (collective::IsDistributed() && data_split_mode == 0) {
     expected *= collective::GetWorldSize();
   }
   EXPECT_NEAR(GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9},
@@ -169,7 +169,7 @@ inline void VerifyMPHE(DataSplitMode data_split_mode, DeviceOrd device) {
               0.0461686f, 1e-4);
 }
 
-inline void VerifyLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyLogLoss(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("logloss", &ctx);
   metric->Configure({});
@@ -182,7 +182,7 @@ inline void VerifyLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
       GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
       1.2039f, 0.001f);
   auto expected = 21.9722f;
-  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+  if (collective::IsDistributed() && data_split_mode == 0) {
     expected *= collective::GetWorldSize();
   }
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
@@ -196,7 +196,7 @@ inline void VerifyLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
   CheckDeterministicMetricElementWise(StringView{"logloss"}, device.ordinal);
 }
 
-inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyError(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("error", &ctx);
   metric->Configure({});
@@ -206,7 +206,7 @@ inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
       GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode), 0.5f,
       0.001f);
   auto expected = 10.0f;
-  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+  if (collective::IsDistributed() && data_split_mode == 0) {
     expected *= collective::GetWorldSize();
   }
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
@@ -234,7 +234,7 @@ inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
       GetMetricEval(metric, {-0.1f, -0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
       0.25f, 0.001f);
   expected = 9.0f;
-  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+  if (collective::IsDistributed() && data_split_mode == 0) {
     expected *= collective::GetWorldSize();
   }
   EXPECT_NEAR(GetMetricEval(metric, {-0.1f, -0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
@@ -248,7 +248,7 @@ inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
   CheckDeterministicMetricElementWise(StringView{"error@0.5"}, device.ordinal);
 }
 
-inline void VerifyPoissonNegLogLik(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyPoissonNegLogLik(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("poisson-nloglik", &ctx);
   metric->Configure({});
@@ -261,7 +261,7 @@ inline void VerifyPoissonNegLogLik(DataSplitMode data_split_mode, DeviceOrd devi
       GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
       1.1019f, 0.001f);
   auto expected = 13.3750f;
-  if (collective::IsDistributed() && data_split_mode == DataSplitMode::kRow) {
+  if (collective::IsDistributed() && data_split_mode == 0) {
     expected *= collective::GetWorldSize();
   }
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {-1, 1, 9, -9}, {},
@@ -275,7 +275,7 @@ inline void VerifyPoissonNegLogLik(DataSplitMode data_split_mode, DeviceOrd devi
   CheckDeterministicMetricElementWise(StringView{"poisson-nloglik"}, device.ordinal);
 }
 
-inline void VerifyMultiRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyMultiRMSE(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   size_t n_samples = 32, n_targets = 8;
   linalg::Tensor<float, 2> y{{n_samples, n_targets}, ctx.Device()};
@@ -297,7 +297,7 @@ inline void VerifyMultiRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
   ASSERT_FLOAT_EQ(ret, loss_w);
 }
 
-inline void VerifyQuantile(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyQuantile(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> metric{Metric::Create("quantile", &ctx)};
 
@@ -343,7 +343,7 @@ inline void VerifyQuantile(DataSplitMode data_split_mode, DeviceOrd device) {
               0.0001f);
 }
 
-inline void VerifyExpectile(DataSplitMode data_split_mode, DeviceOrd device) {
+inline void VerifyExpectile(int data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> metric{Metric::Create("expectile", &ctx)};
 
