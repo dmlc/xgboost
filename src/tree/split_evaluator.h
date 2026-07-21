@@ -86,7 +86,7 @@ class TreeEvaluator {
     bool has_constraint;
 
     template <typename GradientSumT, split_impl::EnableScaGrad<GradientSumT> = 0>
-    XGBOOST_DEVICE float CalcSplitGain(const ParamT& param, bst_node_t nidx, bst_feature_t fidx,
+    XGBOOST_DEVICE float CalcSplitGain(ParamT const& param, bst_node_t nidx, bst_feature_t fidx,
                                        GradientSumT const& left, GradientSumT const& right) const {
       constexpr float kNegInf = -std::numeric_limits<float>::infinity();
       auto left_hess = left.GetHess();
@@ -114,14 +114,11 @@ class TreeEvaluator {
 
     template <typename LeftGradientSumT, typename RightGradientSumT,
               split_impl::EnableVecGrad<LeftGradientSumT, RightGradientSumT> = 0>
-    XGBOOST_DEVICE double CalcSplitGain(const ParamT& param, [[maybe_unused]] bst_node_t nidx,
+    XGBOOST_DEVICE double CalcSplitGain(ParamT const& param, [[maybe_unused]] bst_node_t nidx,
                                         [[maybe_unused]] bst_feature_t fidx,
                                         LeftGradientSumT const& left,
                                         RightGradientSumT const& right) const {
       auto n_targets = left.Size();
-      SPAN_CHECK(n_targets != 0);
-      SPAN_CHECK(n_targets == right.Size());
-
       double left_hess{0.0};
       double right_hess{0.0};
       double gain{0.0};
@@ -163,7 +160,6 @@ class TreeEvaluator {
     template <typename GradientSumT, split_impl::EnableVecGrad<GradientSumT> = 0>
     XGBOOST_DEVICE void CalcWeight(bst_node_t nidx, ParamT const& param, GradientSumT const& stats,
                                    linalg::VectorView<float> out) const {
-      SPAN_CHECK(stats.Size() == out.Size());
       for (std::size_t t = 0; t < stats.Size(); ++t) {
         out(t) = this->CalcWeight(nidx, param, stats(t));
       }
@@ -179,7 +175,6 @@ class TreeEvaluator {
     template <typename GradientSumT, split_impl::EnableVecGrad<GradientSumT> = 0>
     XGBOOST_DEVICE void CalcWeightCat(ParamT const& param, GradientSumT const& stats,
                                       linalg::VectorView<float> out) const {
-      SPAN_CHECK(stats.Size() == out.Size());
       for (std::size_t t = 0; t < stats.Size(); ++t) {
         out(t) = this->CalcWeightCat(param, stats(t));
       }
@@ -198,7 +193,6 @@ class TreeEvaluator {
     template <typename GradientSumT, typename WeightT, split_impl::EnableVecGrad<GradientSumT> = 0>
     XGBOOST_DEVICE double CalcGainGivenWeight(ParamT const& p, GradientSumT const& stats,
                                               WeightT const& weight) const {
-      SPAN_CHECK(stats.Size() == weight.Size());
       double gain{0.0};
       for (std::size_t t = 0; t < stats.Size(); ++t) {
         auto const stats_t = stats(t);
@@ -209,18 +203,18 @@ class TreeEvaluator {
 
     // Gain
     template <typename GradientSumT, split_impl::EnableScaGrad<GradientSumT> = 0>
-    XGBOOST_DEVICE float CalcGain(bst_node_t nid, ParamT const& p,
+    XGBOOST_DEVICE float CalcGain(bst_node_t nidx, ParamT const& p,
                                   GradientSumT const& stats) const {
-      return this->CalcGainGivenWeight(p, stats, this->CalcWeight(nid, p, stats));
+      return this->CalcGainGivenWeight(p, stats, this->CalcWeight(nidx, p, stats));
     }
 
     template <typename GradientSumT, split_impl::EnableVecGrad<GradientSumT> = 0>
-    XGBOOST_DEVICE double CalcGain(bst_node_t nid, ParamT const& p,
+    XGBOOST_DEVICE double CalcGain(bst_node_t nidx, ParamT const& p,
                                    GradientSumT const& stats) const {
       double gain{0.0};
       for (std::size_t t = 0, n_targets = stats.Size(); t < n_targets; ++t) {
         auto const stats_t = stats(t);
-        auto weight = this->CalcWeight(nid, p, stats_t);
+        auto weight = this->CalcWeight(nidx, p, stats_t);
         gain += tree::CalcGainGivenWeight(p, stats_t.GetGrad(), stats_t.GetHess(), weight);
       }
       return gain;
