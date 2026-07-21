@@ -130,8 +130,8 @@ def run_parent_gain(device: Device, multi_strategy: str) -> None:
 
 def run_monotone_constraints(
     device: Device,
-    tree_method: str = "hist",
-    grow_policy: str = "depthwise",
+    tree_method: str,
+    grow_policy: str,
     multi_strategy: str = "one_output_per_tree",
 ) -> None:
     """Check for a positive (``f0``) and negative (``f1``) constraint."""
@@ -180,9 +180,7 @@ def _assert_monotone(
 
 
 def run_multi_output_monotone(
-    device: Device,
-    grow_policy: str = "depthwise",
-    multi_strategy: str = "multi_output_tree",
+    device: Device, grow_policy: str, multi_strategy: str
 ) -> None:
     """Monotonicity check for deep trees with mixed feature constraints.
 
