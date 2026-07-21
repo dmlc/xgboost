@@ -327,10 +327,8 @@ class MultiTargetHistMaker {
       std::transform(h_right_leaf.cbegin(), h_right_leaf.cend(), h_right_leaf.begin(),
                      [=](float w) { return w * eta; });
       // Get loss_chg from the split, and sum hessians for parent and children
-      float loss_chg = candidate.split.loss_chg;
-      float left_sum = static_cast<float>(candidate.left_sum);
-      float right_sum = static_cast<float>(candidate.right_sum);
-      float sum_hess = left_sum + right_sum;
+      auto loss_chg = candidate.split.loss_chg;
+      double sum_hess = candidate.left_sum + candidate.right_sum;
       bool default_left = candidate.split.dir == kLeftDir;
       if (candidate.split.is_cat) {
         auto fidx = candidate.split.findex;
@@ -341,13 +339,13 @@ class MultiTargetHistMaker {
         cat_bits.resize(n_words);
         p_tree->ExpandCategorical(candidate.nidx, fidx, cat_bits, default_left,
                                   linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_leaf),
-                                  linalg::MakeVec(h_right_leaf), loss_chg, sum_hess, left_sum,
-                                  right_sum);
+                                  linalg::MakeVec(h_right_leaf), loss_chg, sum_hess,
+                                  candidate.left_sum, candidate.right_sum);
       } else {
         p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                            default_left, linalg::MakeVec(h_base_weight),
                            linalg::MakeVec(h_left_leaf), linalg::MakeVec(h_right_leaf), loss_chg,
-                           sum_hess, left_sum, right_sum);
+                           sum_hess, candidate.left_sum, candidate.right_sum);
       }
     }
 
@@ -359,8 +357,7 @@ class MultiTargetHistMaker {
     }
 
     dh::device_vector<MultiExpandEntry> candidates{h_candidates};
-    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree,
-                                    dh::ToSpan(candidates), n_targets);
+    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, dh::ToSpan(candidates), n_targets);
   }
   /**
    * @brief Calculate the leaf weight based on the node sum for each leaf.

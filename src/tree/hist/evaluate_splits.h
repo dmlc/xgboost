@@ -842,12 +842,12 @@ class HistMultiEvaluator {
     // Compute the loss_chg and sum hessians for parent and children
     float loss_chg = candidate.split.loss_chg;
     // Sum hessians across all targets for each child
-    float left_sum_hess = 0.0f, right_sum_hess = 0.0f;
+    double left_sum_hess = 0.0, right_sum_hess = 0.0;
     for (std::size_t t = 0; t < candidate.split.left_sum.size(); ++t) {
       left_sum_hess += candidate.split.left_sum[t].GetHess();
       right_sum_hess += candidate.split.right_sum[t].GetHess();
     }
-    float sum_hess = left_sum_hess + right_sum_hess;
+    double sum_hess = left_sum_hess + right_sum_hess;
 
     if (candidate.split.is_cat) {
       p_tree->ExpandCategorical(candidate.nid, candidate.split.SplitIndex(),
