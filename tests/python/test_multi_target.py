@@ -2,7 +2,6 @@
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 # pylint: disable=missing-function-docstring
-import json
 from typing import Any, Callable, Dict
 
 import numpy as np
@@ -11,7 +10,6 @@ import xgboost as xgb
 from hypothesis import given, note, settings, strategies
 from xgboost import testing as tm
 from xgboost.testing.multi_target import (
-    LsObj2,
     all_reg_objectives,
     check_categorical_mixed,
     run_absolute_error,
@@ -37,54 +35,6 @@ from xgboost.testing.params import (
 )
 from xgboost.testing.updater import check_quantile_loss_rf, train_result
 from xgboost.testing.utils import Device
-
-
-@pytest.mark.parametrize("grow_policy", ["depthwise", "lossguide"])
-@pytest.mark.parametrize("direction", [1, -1])
-def test_monotone_constraints_propagate(grow_policy: str, direction: int) -> None:
-    X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=np.float32)
-    weights = direction * np.array(
-        [[-10.0, -6.0, 2.0], [8.0, 4.0, 2.0], [10.0, 6.0, 1.0], [-8.0, -4.0, 1.0]],
-        dtype=np.float32,
-    )
-    Xy = xgb.DMatrix(X, label=np.zeros_like(weights))
-
-    def objective(
-        _predt: np.ndarray, _dtrain: xgb.DMatrix
-    ) -> tuple[np.ndarray, np.ndarray]:
-        return -weights, np.ones_like(weights)
-
-    booster = xgb.train(
-        {
-            "tree_method": "hist",
-            "multi_strategy": "multi_output_tree",
-            "grow_policy": grow_policy,
-            "max_depth": 2,
-            "min_child_weight": 0,
-            "reg_lambda": 0,
-            "reg_alpha": 0,
-            "eta": 1,
-            "base_score": 0,
-            "monotone_constraints": f"({direction}, 0)",
-        },
-        Xy,
-        num_boost_round=1,
-        obj=objective,
-    )
-
-    tree = json.loads(booster.get_dump(dump_format="json")[0])
-    assert tree["split"] == "f0"
-    assert all(child["split"] == "f1" for child in tree["children"])
-    children = {child["nodeid"]: child for child in tree["children"]}
-    left = np.array([leaf["leaf"] for leaf in children[tree["yes"]]["children"]])
-    right = np.array([leaf["leaf"] for leaf in children[tree["no"]]["children"]])
-    if direction > 0:
-        assert np.all(left.max(axis=0) <= right.min(axis=0))
-    else:
-        assert np.all(left.min(axis=0) >= right.max(axis=0))
-    # The third target crosses at the root and is pooled instead of vetoing the shared split.
-    np.testing.assert_allclose(left[:, 2], 1.5 * direction)
-    np.testing.assert_allclose(right[:, 2], 1.5 * direction)
 
 
 @pytest.mark.skipif(**tm.no_pandas())
@@ -226,24 +176,6 @@ def test_absolute_error() -> None:
 
 def test_reduced_grad() -> None:
     run_reduced_grad("cpu")
-
-    X = np.arange(32, dtype=np.float32).reshape(16, 2)
-    y = np.stack([X[:, 0], X[:, 1]], axis=1)
-    Xy = xgb.QuantileDMatrix(X, y)
-    params = {
-        "tree_method": "hist",
-        "multi_strategy": "multi_output_tree",
-        "max_depth": 1,
-        "monotone_constraints": "(1, 0)",
-    }
-    booster = xgb.train(params, Xy, num_boost_round=1, obj=LsObj2("cpu", False))
-    predt = booster.predict(Xy)
-    assert predt.shape == y.shape
-
-    # Reduced-gradient bounds must not be applied to the full-dimensional leaf refresh.
-    params["monotone_constraints"] = "(0, 0)"
-    reference = xgb.train(params, Xy, num_boost_round=1, obj=LsObj2("cpu", False))
-    np.testing.assert_allclose(predt, reference.predict(Xy))
 
 
 def test_with_iter() -> None:

@@ -703,7 +703,7 @@ class HistMultiEvaluator {
       auto parent_sum = stats_.Slice(entry->nid, linalg::All());
       auto base_weight = linalg::Zeros<float>(ctx_, parent_sum.Shape());
       auto h_bw = base_weight.HostView();
-      evaluator.CalcWeight(entry->nid, *param_, parent_sum, h_bw);
+      evaluator.CalcWeightCat(*param_, parent_sum, h_bw);
 
       std::vector<common::ConstGHistRow> node_hist;
       for (auto t_hist : hist) {
@@ -755,8 +755,8 @@ class HistMultiEvaluator {
             auto f_hist = node_hist[t_idx].subspan(cut_ptr[fidx], n_bins);
             h_grads(t_idx) = f_hist[bin_idx];
           }
-          evaluator.CalcWeight(entry->nid, *param_, h_grads,
-                               linalg::MakeVec(child_w.data(), child_w.size()));
+          evaluator.CalcWeightCat(*param_, h_grads,
+                                  linalg::MakeVec(child_w.data(), child_w.size()));
           double sc = .0;
           for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
             sc += h_bw(t_idx) * child_w[t_idx];

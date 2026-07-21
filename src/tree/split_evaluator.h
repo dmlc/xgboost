@@ -364,15 +364,16 @@ class TreeEvaluator {
         .Eval(&lower_bounds_, &upper_bounds_, &monotone_);
   }
 
+  template <bool CompiledWithCuda = WITH_CUDA()>
   void AddSplit(bst_node_t nodeid, bst_node_t leftid, bst_node_t rightid, bst_feature_t f,
                 linalg::VectorView<float const> left_weight,
                 linalg::VectorView<float const> right_weight) {
     if (!has_constraint_) {
       return;
     }
-    CHECK(device_.IsCPU());
-    auto n_targets = left_weight.Size();
-    CHECK_EQ(right_weight.Size(), n_targets);
+    CHECK_EQ(left_weight.Size(), n_targets_);
+    CHECK_EQ(right_weight.Size(), n_targets_);
+    auto n_targets = n_targets_;
 
     auto max_nidx = std::max(leftid, rightid);
     this->EnsureBounds(max_nidx, n_targets);

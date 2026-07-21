@@ -218,7 +218,7 @@ class MultiTargetHistMaker {
      * Evaluator
      */
     this->evaluator_.Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(), this->feature_types_,
-                           this->param_);
+                           this->param_, gpair_all->Shape(1));
 
     /**
      * Initialize the gradient matrix
@@ -357,7 +357,9 @@ class MultiTargetHistMaker {
     }
 
     dh::device_vector<MultiExpandEntry> candidates{h_candidates};
-    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, dh::ToSpan(candidates), n_targets);
+    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree,
+                                    common::Span<MultiExpandEntry const>{h_candidates},
+                                    dh::ToSpan(candidates), n_targets);
   }
   /**
    * @brief Calculate the leaf weight based on the node sum for each leaf.
@@ -413,8 +415,8 @@ class MultiTargetHistMaker {
     auto param = GPUTrainingParam{this->param_};
     auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
     dh::device_vector<bst_node_t> d_leaves{leaves_idx};
-    // Use full value gradient for leaf values.
-    LeafWeight(this->ctx_, param, this->evaluator_.GetEvaluator(), dh::ToSpan(d_leaves),
+    // Reduced split-coordinate bounds do not apply to the full value gradient.
+    LeafWeight(this->ctx_, param, this->evaluator_.GetEvaluator(false), dh::ToSpan(d_leaves),
                this->value_quantizer_->DeviceSpan(), out_sum.View(this->ctx_->Device()),
                out_weight.View(this->ctx_->Device()));
 
@@ -678,8 +680,6 @@ class MultiTargetHistMaker {
   void UpdateTree(GradientContainer* gpair, DMatrix* p_fmat, ObjInfo const* task, RegTree* p_tree,
                   HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
-
-    NoMonotoneConstraints(&param_, "vector leaf");
 
     auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {

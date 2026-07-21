@@ -103,10 +103,11 @@ class MultiHistEvaluator {
       : tree_evaluator_{param, n_features, device} {}
 
   void Reset(Context const *ctx, common::Span<std::uint32_t const> feature_segments,
-             common::Span<FeatureType const> feature_types, TrainParam const &param);
+             common::Span<FeatureType const> feature_types, TrainParam const &param,
+             bst_target_t n_targets);
 
-  [[nodiscard]] auto GetEvaluator() const {
-    return tree_evaluator_.GetEvaluator<GPUTrainingParam>();
+  [[nodiscard]] auto GetEvaluator(bool use_constraint = true) const {
+    return tree_evaluator_.GetEvaluator<GPUTrainingParam>(use_constraint);
   }
 
   /**
@@ -177,6 +178,7 @@ class MultiHistEvaluator {
 
   // Update the tree evaluator state and track child gradient sums.
   void ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
+                      common::Span<MultiExpandEntry const> h_candidates,
                       common::Span<MultiExpandEntry const> d_candidates, bst_target_t n_targets);
 };
 }  // namespace xgboost::tree::cuda_impl

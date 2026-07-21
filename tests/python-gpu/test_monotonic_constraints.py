@@ -67,5 +67,6 @@ def test_gpu_hist_lossguide() -> None:
     is_correctly_constrained(model)
 
 
-def test_parent_gain() -> None:
-    run_parent_gain("cuda")
+@pytest.mark.parametrize("multi_strategy", ["one_output_per_tree", "multi_output_tree"])
+def test_parent_gain(multi_strategy: str) -> None:
+    run_parent_gain("cuda", multi_strategy)

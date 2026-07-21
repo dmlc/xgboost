@@ -116,6 +116,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
     auto shared = this->shared_inputs;
     shared.one_pass = one_pass;
     MultiHistEvaluator evaluator{param, 1, ctx.Device()};
+    evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param, shared.Targets());
     auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
     ASSERT_NEAR(candidate.split.loss_chg, 3.04239, 1e-5);
 
@@ -144,6 +145,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
   auto shared = this->shared_inputs;
   shared.param = GPUTrainingParam{param};
   MultiHistEvaluator evaluator{param, 1, ctx.Device()};
+  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param, shared.Targets());
   auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
   ASSERT_NEAR(candidate.split.loss_chg, 2.55177, 1e-5);
 }
@@ -159,7 +161,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
   auto shared = this->MakeCategoricalInputs(param);
 
   MultiHistEvaluator evaluator{param, 1, ctx.Device()};
-  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param);
+  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param, shared.Targets());
   auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(candidate.split.is_cat);
@@ -209,7 +211,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   auto shared = this->MakeCategoricalInputs(param);
 
   MultiHistEvaluator evaluator{param, 1, ctx.Device()};
-  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param);
+  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param, shared.Targets());
   auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(candidate.split.is_cat);
@@ -246,7 +248,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   shared.param = GPUTrainingParam{no_split_param};
 
   MultiHistEvaluator no_split_evaluator{no_split_param, 1, ctx.Device()};
-  no_split_evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, no_split_param);
+  no_split_evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, no_split_param,
+                           shared.Targets());
   auto no_split = no_split_evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(no_split.split.child_sum.empty());

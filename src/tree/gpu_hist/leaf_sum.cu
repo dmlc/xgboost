@@ -107,12 +107,13 @@ void LeafWeight(Context const* ctx, GPUTrainingParam const& param,
                 linalg::MatrixView<float> out_weights) {
   CHECK(grad_sum.Contiguous());
   CHECK_EQ(nidx.size(), grad_sum.Shape(0));
+  CHECK_EQ(roundings.size(), grad_sum.Shape(1));
   CHECK_EQ(out_weights.Shape(0), grad_sum.Shape(0));
   CHECK_EQ(out_weights.Shape(1), grad_sum.Shape(1));
   dh::LaunchN(grad_sum.Size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
     auto [nidx_in_set, t] = linalg::UnravelIndex(i, grad_sum.Shape());
     auto g = roundings[t].ToFloatingPoint(grad_sum(nidx_in_set, t));
-    auto weight = evaluator.CalcWeight(nidx[nidx_in_set], param, g);
+    auto weight = evaluator.CalcWeight(nidx[nidx_in_set], t, param, g);
     out_weights(nidx_in_set, t) = weight * param.learning_rate;
   });
 }

@@ -35,73 +35,73 @@ TEST(TreeEvaluator, CalcVectorGainWithMaxDeltaStep) {
   EXPECT_DOUBLE_EQ(all_zero.GetEvaluator().CalcGain(0, param, h_stats), 6.75);
 }
 
-TEST(TreeEvaluator, CalcMonotoneVectorSplitWeights) {
-  TrainParam param;
-  param.Init(Args{{"min_child_weight", "0"},
-                  {"reg_alpha", "0"},
-                  {"reg_lambda", "0"},
-                  {"monotone_constraints", "(1)"}});
-
-  linalg::Vector<GradientPairPrecise> left({2}, DeviceOrd::CPU());
-  linalg::Vector<GradientPairPrecise> right({2}, DeviceOrd::CPU());
-  auto h_left = left.HostView();
-  auto h_right = right.HostView();
-  // Crossing for an increasing constraint: 2 > 1.
-  h_left(0) = {-2.0, 1.0};
-  h_right(0) = {-1.0, 1.0};
-  // Already ordered: -1 < 1.
-  h_left(1) = {1.0, 1.0};
-  h_right(1) = {-1.0, 1.0};
-
-  TreeEvaluator tree_evaluator{param, 1, DeviceOrd::CPU(), 2};
-  auto evaluator = tree_evaluator.GetEvaluator();
-  linalg::Vector<float> left_weight({2}, DeviceOrd::CPU());
-  linalg::Vector<float> right_weight({2}, DeviceOrd::CPU());
-  evaluator.CalcSplitWeights(param, 0, 0, h_left, h_right, left_weight.HostView(),
-                             right_weight.HostView());
-
-  auto h_left_weight = left_weight.HostView();
-  auto h_right_weight = right_weight.HostView();
-  EXPECT_FLOAT_EQ(h_left_weight(0), 1.5f);
-  EXPECT_FLOAT_EQ(h_right_weight(0), 1.5f);
-  EXPECT_FLOAT_EQ(h_left_weight(1), -1.0f);
-  EXPECT_FLOAT_EQ(h_right_weight(1), 1.0f);
-  EXPECT_DOUBLE_EQ(evaluator.CalcSplitGain(param, 0, 0, h_left, h_right), 6.5);
-
-  // A crossing pair retains two copies of each regularizer.
-  param.reg_alpha = 0.5f;
-  param.reg_lambda = 1.0f;
-  auto [l_w, r_w] = evaluator.CalcSplitWeights(param, 0, 0, 0, h_left(0), h_right(0));
-  EXPECT_FLOAT_EQ(l_w, 0.5f);
-  EXPECT_FLOAT_EQ(r_w, 0.5f);
-  // max_delta_step applies once to the common weight.
-  param.max_delta_step = 0.4f;
-  std::tie(l_w, r_w) = evaluator.CalcSplitWeights(param, 0, 0, 0, h_left(0), h_right(0));
-  EXPECT_FLOAT_EQ(l_w, 0.4f);
-  EXPECT_FLOAT_EQ(r_w, 0.4f);
-}
-
 TEST(TreeEvaluator, PropagateVectorBounds) {
-  TrainParam param;
-  param.Init(Args{{"reg_lambda", "0"}, {"monotone_constraints", "(1, 0)"}});
+  for (auto monotone_direction : {1, -1}) {
+    SCOPED_TRACE(monotone_direction);
+    TrainParam param;
+    auto constraint = monotone_direction > 0 ? "(1, 0)" : "(-1, 0)";
+    param.Init(Args{{"min_child_weight", "0"},
+                    {"reg_alpha", "0"},
+                    {"reg_lambda", "0"},
+                    {"monotone_constraints", constraint}});
 
-  TreeEvaluator tree_evaluator{param, 2, DeviceOrd::CPU(), 2};
-  linalg::Vector<float> left_weight({2}, DeviceOrd::CPU());
-  linalg::Vector<float> right_weight({2}, DeviceOrd::CPU());
-  left_weight.HostView()(0) = 2.0f;
-  left_weight.HostView()(1) = -4.0f;
-  right_weight.HostView()(0) = 4.0f;
-  right_weight.HostView()(1) = -2.0f;
-  tree_evaluator.AddSplit(0, 1, 2, 0, left_weight.HostView(), right_weight.HostView());
+    // Unconstrained updates for the four (f0, f1) groups. Negating them tests decreasing f0.
+    constexpr float kUpdate[4][2]{
+        {-4.0f, 2.0f},  // f0=0, f1=0
+        {2.0f, 2.0f},   // f0=0, f1=1
+        {4.0f, 1.0f},   // f0=1, f1=0
+        {-2.0f, 1.0f},  // f0=1, f1=1
+    };
+    linalg::Matrix<GradientPairPrecise> leaf_stats({4, 2}, DeviceOrd::CPU());
+    auto h_leaf_stats = leaf_stats.HostView();
+    for (std::size_t row = 0; row < 4; ++row) {
+      for (bst_target_t target = 0; target < 2; ++target) {
+        h_leaf_stats(row, target) = {-monotone_direction * kUpdate[row][target], 1.0};
+      }
+    }
 
-  // An unconstrained descendant split must inherit the target-specific intervals.
-  tree_evaluator.AddSplit(1, 3, 4, 1, left_weight.HostView(), left_weight.HostView());
-  auto evaluator = tree_evaluator.GetEvaluator();
+    // The two f0 groups have mean updates (-1, 2) and (1, 1). The second target
+    // crosses, so its two weights are both projected to 1.5.
+    linalg::Matrix<GradientPairPrecise> root_stats({2, 2}, DeviceOrd::CPU());
+    auto h_root_stats = root_stats.HostView();
+    for (bst_target_t target = 0; target < 2; ++target) {
+      h_root_stats(0, target) = h_leaf_stats(0, target) + h_leaf_stats(1, target);
+      h_root_stats(1, target) = h_leaf_stats(2, target) + h_leaf_stats(3, target);
+    }
 
-  EXPECT_FLOAT_EQ(evaluator.CalcWeight(4, 0, param, GradientPairPrecise{-10.0, 1.0}), 3.0f);
-  EXPECT_FLOAT_EQ(evaluator.CalcWeight(4, 1, param, GradientPairPrecise{-1.0, 1.0}), -3.0f);
-  EXPECT_FLOAT_EQ(evaluator.CalcWeight(2, 0, param, GradientPairPrecise{1.0, 1.0}), 3.0f);
-  EXPECT_FLOAT_EQ(evaluator.CalcWeight(2, 1, param, GradientPairPrecise{10.0, 1.0}), -3.0f);
+    TreeEvaluator tree_evaluator{param, 2, DeviceOrd::CPU(), 2};
+    auto evaluator = tree_evaluator.GetEvaluator();
+    linalg::Matrix<float> root_weight({2, 2}, DeviceOrd::CPU());
+    evaluator.CalcSplitWeights(
+        param, 0, 0, root_stats.Slice(0, linalg::All()), root_stats.Slice(1, linalg::All()),
+        root_weight.Slice(0, linalg::All()), root_weight.Slice(1, linalg::All()));
+    auto h_root_weight = root_weight.HostView();
+    EXPECT_FLOAT_EQ(h_root_weight(0, 0), monotone_direction * -1.0f);
+    EXPECT_FLOAT_EQ(h_root_weight(0, 1), monotone_direction * 1.5f);
+    EXPECT_FLOAT_EQ(h_root_weight(1, 0), monotone_direction * 1.0f);
+    EXPECT_FLOAT_EQ(h_root_weight(1, 1), monotone_direction * 1.5f);
+
+    tree_evaluator.AddSplit(0, 1, 2, 0, root_weight.Slice(0, linalg::All()),
+                            root_weight.Slice(1, linalg::All()));
+    evaluator = tree_evaluator.GetEvaluator();
+
+    // f1 has no constraint, but each split inherits the target-specific bounds from f0.
+    linalg::Matrix<float> leaf_weight({4, 2}, DeviceOrd::CPU());
+    evaluator.CalcSplitWeights(
+        param, 1, 1, leaf_stats.Slice(0, linalg::All()), leaf_stats.Slice(1, linalg::All()),
+        leaf_weight.Slice(0, linalg::All()), leaf_weight.Slice(1, linalg::All()));
+    evaluator.CalcSplitWeights(
+        param, 2, 1, leaf_stats.Slice(2, linalg::All()), leaf_stats.Slice(3, linalg::All()),
+        leaf_weight.Slice(2, linalg::All()), leaf_weight.Slice(3, linalg::All()));
+
+    constexpr float kExpected[4][2]{{-4.0f, 1.5f}, {0.0f, 1.5f}, {4.0f, 1.5f}, {0.0f, 1.5f}};
+    auto h_leaf_weight = leaf_weight.HostView();
+    for (std::size_t row = 0; row < 4; ++row) {
+      for (bst_target_t target = 0; target < 2; ++target) {
+        EXPECT_FLOAT_EQ(h_leaf_weight(row, target), monotone_direction * kExpected[row][target]);
+      }
+    }
+  }
 }
 
 TEST(TreeEvaluator, ConstrainedVectorGainWithZeroHessianTarget) {
