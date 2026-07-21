@@ -6,8 +6,8 @@
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
 
 #include <algorithm>  // for copy_if, max, transform
-#include <memory>  // for unique_ptr
-#include <vector>  // for vector
+#include <memory>     // for unique_ptr
+#include <vector>     // for vector
 
 #include "../collective/aggregator.h"          // for GlobalSum
 #include "../common/categorical.h"             // for CatBitField
@@ -292,8 +292,14 @@ class MultiTargetHistMaker {
     auto weights = this->evaluator_.GetNodeWeights(n_targets);
     // Root's sum_hess is the sum of left and right child hessians
     float root_sum_hess = static_cast<float>(entry.left_sum + entry.right_sum);
-    p_tree->SetRoot(linalg::MakeVec(this->ctx_->Device(), weights.Base(RegTree::kRoot)),
-                    root_sum_hess);
+    auto root_weight = linalg::Empty<float>(this->ctx_, n_targets);
+    auto d_root_weight = root_weight.View(this->ctx_->Device());
+    auto base_weight = weights.Base(RegTree::kRoot);
+    auto eta = this->param_.learning_rate;
+    dh::LaunchN(
+        n_targets, this->ctx_->CUDACtx()->Stream(),
+        [=] XGBOOST_DEVICE(std::size_t t) mutable { d_root_weight(t) = base_weight[t] * eta; });
+    p_tree->SetRoot(d_root_weight, root_sum_hess);
 
     return entry;
   }
@@ -306,16 +312,23 @@ class MultiTargetHistMaker {
 
     // Get weights by node ID from the evaluator's buffer.
     //
-    // TODO(jiamingy): Avoid device to host copies.
+    // TODO(jiamingy):
+    // - Avoid device to host copies.
+    // - Apply expand in batches
     for (auto const& candidate : h_candidates) {
       std::vector<float> h_base_weight, h_left_weight, h_right_weight;
       this->evaluator_.CopyNodeWeightsToHost(candidate.nidx, n_targets, &h_base_weight,
                                              &h_left_weight, &h_right_weight);
+      auto h_left_leaf = h_left_weight;
+      auto h_right_leaf = h_right_weight;
+      auto eta = this->param_.learning_rate;
+      std::transform(h_left_leaf.cbegin(), h_left_leaf.cend(), h_left_leaf.begin(),
+                     [=](float w) { return w * eta; });
+      std::transform(h_right_leaf.cbegin(), h_right_leaf.cend(), h_right_leaf.begin(),
+                     [=](float w) { return w * eta; });
       // Get loss_chg from the split, and sum hessians for parent and children
-      float loss_chg = candidate.split.loss_chg;
-      float left_sum = static_cast<float>(candidate.left_sum);
-      float right_sum = static_cast<float>(candidate.right_sum);
-      float sum_hess = left_sum + right_sum;
+      auto loss_chg = candidate.split.loss_chg;
+      double sum_hess = candidate.left_sum + candidate.right_sum;
       bool default_left = candidate.split.dir == kLeftDir;
       if (candidate.split.is_cat) {
         auto fidx = candidate.split.findex;
@@ -325,14 +338,14 @@ class MultiTargetHistMaker {
         CHECK_LE(n_words, cat_bits.size());
         cat_bits.resize(n_words);
         p_tree->ExpandCategorical(candidate.nidx, fidx, cat_bits, default_left,
-                                  linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_weight),
-                                  linalg::MakeVec(h_right_weight), loss_chg, sum_hess, left_sum,
-                                  right_sum);
+                                  linalg::MakeVec(h_base_weight), linalg::MakeVec(h_left_leaf),
+                                  linalg::MakeVec(h_right_leaf), loss_chg, sum_hess,
+                                  candidate.left_sum, candidate.right_sum);
       } else {
         p_tree->ExpandNode(candidate.nidx, candidate.split.findex, candidate.split.fvalue,
                            default_left, linalg::MakeVec(h_base_weight),
-                           linalg::MakeVec(h_left_weight), linalg::MakeVec(h_right_weight),
-                           loss_chg, sum_hess, left_sum, right_sum);
+                           linalg::MakeVec(h_left_leaf), linalg::MakeVec(h_right_leaf), loss_chg,
+                           sum_hess, candidate.left_sum, candidate.right_sum);
       }
     }
 
@@ -399,9 +412,11 @@ class MultiTargetHistMaker {
 
     auto param = GPUTrainingParam{this->param_};
     auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
+    dh::device_vector<bst_node_t> d_leaves{leaves_idx};
     // Use full value gradient for leaf values.
-    LeafWeight(this->ctx_, param, this->value_quantizer_->DeviceSpan(),
-               out_sum.View(this->ctx_->Device()), out_weight.View(this->ctx_->Device()));
+    LeafWeight(this->ctx_, param, this->evaluator_.GetEvaluator(), dh::ToSpan(d_leaves),
+               this->value_quantizer_->DeviceSpan(), out_sum.View(this->ctx_->Device()),
+               out_weight.View(this->ctx_->Device()));
 
     p_tree->SetLeaves(leaves_idx, out_weight.Data()->ConstHostSpan());
   }
@@ -734,6 +749,7 @@ class MultiTargetHistMaker {
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         DftMtHistShmemBytes(ctx_->Ordinal()))},
+        evaluator_{param_, cuts_->NumFeatures(), ctx_->Device()},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param_, cuts_->NumFeatures())} {}
