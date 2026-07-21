@@ -69,9 +69,7 @@ y = (
 training_dset = DMatrix(x, label=y)
 
 
-def run_parent_gain(
-    device: Device, multi_strategy: str = "one_output_per_tree"
-) -> None:
+def run_parent_gain(device: Device, multi_strategy: str) -> None:
     """Test that parent gain uses the node's inherited monotonic bounds."""
     X = np.array(
         [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]],
