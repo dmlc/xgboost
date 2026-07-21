@@ -164,8 +164,8 @@ class TreeEvaluator {
     template <
         typename GradientSumT,
         std::enable_if_t<split_evaluator_detail::IsVectorGradientSum<GradientSumT>::value, int> = 0>
-    void CalcWeight(bst_node_t nidx, ParamT const& param, GradientSumT const& stats,
-                    linalg::VectorView<float> out) const {
+    XGBOOST_DEVICE void CalcWeight(bst_node_t nidx, ParamT const& param, GradientSumT const& stats,
+                                   linalg::VectorView<float> out) const {
       SPAN_CHECK(stats.Size() == out.Size());
       for (std::size_t t = 0; t < stats.Size(); ++t) {
         out(t) = this->CalcWeight(nidx, param, stats(t));

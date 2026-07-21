@@ -295,35 +295,6 @@ XGBOOST_DEVICE float CalcWeight(const TrainingParams &p, GpairT sum_grad) {
   return CalcWeight(p, sum_grad.GetGrad(), sum_grad.GetHess());
 }
 
-/**
- * @brief multi-target weight, calculated with learning rate.
- */
-inline void CalcWeight(TrainParam const &p, linalg::VectorView<GradientPairPrecise const> grad_sum,
-                       float eta, linalg::VectorView<float> out_w) {
-  for (bst_target_t t = 0, n_targets = out_w.Size(); t < n_targets; ++t) {
-    out_w(t) = CalcWeight(p, grad_sum(t).GetGrad(), grad_sum(t).GetHess()) * eta;
-  }
-}
-
-/**
- * @brief multi-target weight
- */
-inline void CalcWeight(TrainParam const &p, linalg::VectorView<GradientPairPrecise const> grad_sum,
-                       linalg::VectorView<float> out_w) {
-  return CalcWeight(p, grad_sum, 1.0f, out_w);
-}
-
-inline double CalcGainGivenWeight(TrainParam const &p,
-                                  linalg::VectorView<GradientPairPrecise const> sum_grad,
-                                  linalg::VectorView<float const> weight) {
-  double gain{0};
-  for (bst_target_t t = 0, n_targets = weight.Size(); t < n_targets; ++t) {
-    auto const &stats = sum_grad(t);
-    gain += CalcGainGivenWeight(p, stats.GetGrad(), stats.GetHess(), weight(t));
-  }
-  return gain;
-}
-
 /*! \brief core statistics used for tree construction */
 struct XGBOOST_ALIGNAS(16) GradStats {
   using GradType = double;
