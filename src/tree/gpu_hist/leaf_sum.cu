@@ -100,14 +100,20 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
 }
 
 void LeafWeight(Context const* ctx, GPUTrainingParam const& param,
+                TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                common::Span<bst_node_t const> nidx,
                 common::Span<GradientQuantiser const> roundings,
                 linalg::MatrixView<GradientPairInt64 const> grad_sum,
                 linalg::MatrixView<float> out_weights) {
   CHECK(grad_sum.Contiguous());
+  CHECK_EQ(nidx.size(), grad_sum.Shape(0));
+  CHECK_EQ(out_weights.Shape(0), grad_sum.Shape(0));
+  CHECK_EQ(out_weights.Shape(1), grad_sum.Shape(1));
   dh::LaunchN(grad_sum.Size(), ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t i) mutable {
     auto [nidx_in_set, t] = linalg::UnravelIndex(i, grad_sum.Shape());
     auto g = roundings[t].ToFloatingPoint(grad_sum(nidx_in_set, t));
-    out_weights(nidx_in_set, t) = CalcWeight(param, g.GetGrad(), g.GetHess()) * param.learning_rate;
+    auto weight = evaluator.CalcWeight(nidx[nidx_in_set], param, g);
+    out_weights(nidx_in_set, t) = weight * param.learning_rate;
   });
 }
 }  // namespace xgboost::tree::cuda_impl
