@@ -96,6 +96,8 @@ Some other examples:
 Vector Leaf
 ===========
 
+.. versionadded:: 3.4.0
+
 For vector leaves, XGBoost applies the same constraint independently to every output. If
 a target's child weights violate the required order, their constrained optimum is the
 common weight
