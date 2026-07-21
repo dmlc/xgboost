@@ -3,7 +3,6 @@
 
 import ctypes
 import os
-from enum import IntEnum, unique
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -124,15 +123,3 @@ _F = TypeVar("_F", bound=Callable[..., Any])
 
 _ScoreList = Union[List[float], List[Tuple[float, float]]]
 EvalsLog: TypeAlias = Dict[str, Dict[str, _ScoreList]]
-
-
-@unique
-class DataSplitMode(IntEnum):
-    """Deprecated data split mode for DMatrix.
-
-    Only ``ROW`` is supported. ``COL`` is kept for compatibility and is rejected
-    during DMatrix construction.
-    """
-
-    ROW = 0
-    COL = 1

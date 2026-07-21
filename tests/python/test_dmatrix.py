@@ -10,8 +10,7 @@ import xgboost as xgb
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
 from xgboost import testing as tm
-from xgboost.core import DataSplitMode
-from xgboost.testing.data import np_dtypes, run_base_margin_info
+from xgboost.testing.data import IteratorForTest, np_dtypes, run_base_margin_info
 from xgboost.testing.utils import predictor_equal
 
 dpath = "demo/data/"
@@ -399,10 +398,8 @@ class TestDMatrix:
 class TestDMatrixColumnSplitRemoved:
     def test_numpy(self) -> None:
         data = np.random.randn(5, 5)
-        with pytest.raises(
-            xgb.core.XGBoostError, match="Column-wise data split has been removed"
-        ):
-            xgb.DMatrix(data, data_split_mode=DataSplitMode.COL)
+        with pytest.raises(ValueError, match="Column-wise data split has been removed"):
+            xgb.DMatrix(data, data_split_mode=1)
 
     def test_uri(self, tmp_path: Path) -> None:
         filename = tmp_path / "test_data.csv"
@@ -411,7 +408,17 @@ class TestDMatrixColumnSplitRemoved:
             writer = csv.writer(file)
             writer.writerows(data)
 
-        with pytest.raises(
-            xgb.core.XGBoostError, match="Column-wise data split has been removed"
-        ):
-            xgb.DMatrix(f"{filename}?format=csv", data_split_mode=DataSplitMode.COL)
+        with pytest.raises(ValueError, match="Column-wise data split has been removed"):
+            xgb.DMatrix(f"{filename}?format=csv", data_split_mode=1)
+
+    def test_quantile_dmatrix(self) -> None:
+        data = np.random.randn(5, 5)
+        with pytest.raises(ValueError, match="Column-wise data split has been removed"):
+            xgb.QuantileDMatrix(data, data_split_mode=1)
+
+    def test_iterator(self) -> None:
+        X = [np.random.randn(5, 5)]
+        y = [np.random.randn(5)]
+        it = IteratorForTest(X, y, None, cache=None)
+        with pytest.raises(ValueError, match="Column-wise data split has been removed"):
+            xgb.DMatrix(it, data_split_mode=1)

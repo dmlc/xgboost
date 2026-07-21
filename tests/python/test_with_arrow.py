@@ -5,7 +5,6 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.compat import is_dataframe
-from xgboost.core import DataSplitMode
 
 pytestmark = pytest.mark.skipif(
     tm.no_arrow()["condition"] or tm.no_pandas()["condition"],

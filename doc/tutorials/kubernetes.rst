@@ -751,8 +751,7 @@ Data Partitioning
 =================
 
 By default, each worker in a distributed XGBoost job holds a different subset of
-**rows** (horizontal partitioning). This is controlled by the ``data_split_mode``
-parameter (default: ``DataSplitMode.ROW``). In this mode, each worker loads its
+**rows** (horizontal partitioning). Only row-wise data split is supported. In this mode, each worker loads its
 own shard of the data:
 
 .. code-block:: python

@@ -67,7 +67,6 @@ from ._typing import (
     CNumericPtr,
     CStrPtr,
     CTypeT,
-    DataSplitMode,
     DataType,
     FeatureInfo,
     FeatureNames,
@@ -152,6 +151,21 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
     if kwargs.get("booster", None) == "gblinear":
         raise NotImplementedError(
             f"booster `{kwargs['booster']}` is not supported for distributed training."
+        )
+
+
+def _validate_data_split_mode(data_split_mode: int) -> None:
+    try:
+        mode = int(data_split_mode)
+    except (TypeError, ValueError) as e:
+        raise ValueError(
+            "Only row-wise data split is supported. "
+            "Column-wise data split has been removed."
+        ) from e
+    if mode != 0:
+        raise ValueError(
+            "Column-wise data split has been removed. "
+            "Please use row-wise data split instead."
         )
 
 
@@ -677,7 +691,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = True,
-        data_split_mode: DataSplitMode = DataSplitMode.ROW,
+        data_split_mode: int = 0,
     ) -> None:
         """Parameters
         ----------
@@ -798,6 +812,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             # Used for constructing DMatrix slice.
             self.handle = data
             return
+
+        _validate_data_split_mode(data_split_mode)
 
         from .data import dispatch_data_backend
 
@@ -1200,7 +1216,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         _check_call(_LIB.XGDMatrixNumNonMissing(self.handle, ctypes.byref(ret)))
         return ret.value
 
-    def data_split_mode(self) -> DataSplitMode:
+    def data_split_mode(self) -> int:
         """Get the data split mode of the DMatrix.
 
         .. versionadded:: 2.1.0
@@ -1208,7 +1224,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         """
         ret = c_bst_ulong()
         _check_call(_LIB.XGDMatrixDataSplitMode(self.handle, ctypes.byref(ret)))
-        return DataSplitMode(ret.value)
+        return ret.value
 
     def slice(
         self, rindex: Union[List[int], np.ndarray], allow_groups: bool = False
@@ -1509,7 +1525,7 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = True,
         max_quantile_batches: Optional[int] = None,
-        data_split_mode: DataSplitMode = DataSplitMode.ROW,
+        data_split_mode: int = 0,
     ) -> None:
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan
@@ -1519,6 +1535,8 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         if isinstance(data, ctypes.c_void_p):
             self.handle = data
             return
+
+        _validate_data_split_mode(data_split_mode)
 
         if qid is not None and group is not None:
             raise ValueError(

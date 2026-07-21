@@ -46,7 +46,6 @@ from ._data_utils import (
 )
 from ._typing import (
     CupyT,
-    DataSplitMode,
     DataType,
     FeatureNames,
     FeatureTypes,
@@ -159,7 +158,7 @@ def _from_scipy_csr(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a CSR matrix."""
 
@@ -208,7 +207,7 @@ def _from_scipy_csc(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a CSC matrix."""
     handle = ctypes.c_void_p()
@@ -273,7 +272,7 @@ def _from_numpy_array(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     """Initialize data from a 2-D numpy matrix."""
     _check_data_shape(data)
@@ -700,7 +699,7 @@ def _from_pandas_df(
     nthread: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[FeatureTypes, Categories]],
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     df, feature_names, feature_types = _transform_pandas_df(
         data, enable_categorical, feature_names, feature_types
@@ -850,7 +849,7 @@ def _from_arrow_table(  # pylint: disable=too-many-positional-arguments
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[FeatureTypes, Categories]],
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     df_t, feature_names, feature_types = _transform_arrow_table(
         data, enable_categorical, feature_names, feature_types
@@ -968,7 +967,7 @@ def _from_polars_df(  # pylint: disable=too-many-positional-arguments
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[FeatureTypes, Categories]],
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     df_t, feature_names, feature_types = _transform_polars_df(
         data, enable_categorical, feature_names, feature_types
@@ -1237,7 +1236,7 @@ def _from_uri(
     missing: Optional[FloatCompatible],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
@@ -1258,7 +1257,7 @@ def _from_list(
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     array = np.array(data)
     _check_data_shape(data)
@@ -1283,7 +1282,7 @@ def _from_tuple(
     n_threads: int,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     return _from_list(
         data=data,
@@ -1325,7 +1324,7 @@ def dispatch_data_backend(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[FeatureTypes, Categories]],
     enable_categorical: bool = False,
-    data_split_mode: DataSplitMode = DataSplitMode.ROW,
+    data_split_mode: int = 0,
 ) -> DispatchedDataBackendReturnType:
     """Dispatch data for DMatrix."""
 
