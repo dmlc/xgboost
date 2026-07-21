@@ -61,8 +61,8 @@ void TestPartitionBasedSplit::SetUp() {
                                                    GradientPairPrecise parent_sum) {
     int32_t best_thresh = -1;
     float best_score{-std::numeric_limits<float>::infinity()};
-    TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), DeviceOrd::CPU()};
-    auto tree_evaluator = evaluator.GetEvaluator<TrainParam>();
+    TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), DeviceOrd::CPU(), 1u};
+    auto tree_evaluator = evaluator.GetEvaluator();
     GradientPairPrecise left_sum;
     auto parent_gain = tree_evaluator.CalcGain(0, param_, GradStats{total_gpair_});
     for (size_t i = 0; i < hist.size() - 1; ++i) {

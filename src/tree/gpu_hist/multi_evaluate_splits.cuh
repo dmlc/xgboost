@@ -2,6 +2,7 @@
  * Copyright 2025-2026, XGBoost contributors
  */
 #pragma once
+#include <memory>  // for unique_ptr
 
 #include "../../common/device_vector.cuh"  // for device_vector
 #include "evaluate_splits.cuh"             // for MultiEvaluateSplitSharedInputs
@@ -68,7 +69,7 @@ class MultiHistEvaluator {
   };
 
  private:
-  TreeEvaluator tree_evaluator_;
+  std::unique_ptr<TreeEvaluator> tree_evaluator_{nullptr};
   // Persistent buffer for node weights, indexed by node id.
   dh::DeviceUVector<float> node_weights_;
   // Buffer for histogram scans.
@@ -99,15 +100,12 @@ class MultiHistEvaluator {
   }
 
  public:
-  MultiHistEvaluator(TrainParam const &param, bst_feature_t n_features, DeviceOrd device)
-      : tree_evaluator_{param, n_features, device} {}
-
   void Reset(Context const *ctx, common::Span<std::uint32_t const> feature_segments,
              common::Span<FeatureType const> feature_types, TrainParam const &param,
              bst_target_t n_targets);
 
-  [[nodiscard]] auto GetEvaluator(bool use_constraint = true) const {
-    return tree_evaluator_.GetEvaluator<GPUTrainingParam>(use_constraint);
+  [[nodiscard]] auto GetEvaluator(bool use_constraint) const {
+    return tree_evaluator_->GetEvaluator<GPUTrainingParam>(use_constraint);
   }
 
   /**

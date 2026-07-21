@@ -11,9 +11,10 @@
 #include <cuda/ptx>                  // for get_sreg_laneid
 #include <cuda/std/functional>       // for identity
 #include <cuda/std/tuple>            // for get, make_tuple, tuple
-#include <limits>
-#include <type_traits>  // for is_trivially_copyable_v
-#include <vector>       // for vector
+#include <limits>                    // for numeric_limits
+#include <memory>                    // for make_unique
+#include <type_traits>               // for is_trivially_copyable_v
+#include <vector>                    // for vector
 
 #include "../../common/cuda_context.cuh"
 #include "../tree_view.h"             // for MultiTargetTreeView
@@ -447,7 +448,8 @@ void MultiHistEvaluator::Reset(Context const *ctx,
   CHECK_GT(feature_segments.size(), 0);
   CHECK_GT(n_targets, 0);
   auto n_features = static_cast<bst_feature_t>(feature_segments.size() - 1);
-  this->tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device(), n_targets};
+  this->tree_evaluator_ =
+      std::make_unique<TreeEvaluator>(param, n_features, ctx->Device(), n_targets);
   this->need_sort_histogram_ = false;
   if (feature_types.empty()) {
     return;
@@ -548,7 +550,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                                         bst_node_t max_nidx,
                                         common::Span<MultiExpandEntry> out_splits) {
   auto n_targets = shared_inputs.Targets();
-  auto evaluator = this->GetEvaluator();
+  auto evaluator = this->GetEvaluator(true);
   CHECK_GT(n_targets, 0);
   CHECK_EQ(n_targets, evaluator.n_targets);
   CHECK_EQ(n_targets, shared_inputs.roundings.size());
@@ -752,7 +754,7 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
                                         bst_target_t n_targets) {
   CHECK_EQ(h_candidates.size(), d_candidates.size());
   CHECK(!h_candidates.empty());
-  CHECK_EQ(n_targets, this->GetEvaluator().n_targets);
+  CHECK_EQ(n_targets, this->GetEvaluator(true).n_targets);
 
   auto h_tree = p_tree->HostMtView();
   auto weights = this->GetNodeWeights(n_targets);
@@ -761,9 +763,9 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
     auto right = h_tree.RightChild(candidate.nidx);
     common::Span<float const> left_weight = weights.Left(candidate.nidx);
     common::Span<float const> right_weight = weights.Right(candidate.nidx);
-    this->tree_evaluator_.AddSplit(candidate.nidx, left, right, candidate.split.findex,
-                                   linalg::MakeVec(ctx->Device(), left_weight),
-                                   linalg::MakeVec(ctx->Device(), right_weight));
+    this->tree_evaluator_->AddSplit(candidate.nidx, left, right, candidate.split.findex,
+                                    linalg::MakeVec(ctx->Device(), left_weight),
+                                    linalg::MakeVec(ctx->Device(), right_weight));
   }
 
   // Assign the node sums here, for the next evaluate split call.

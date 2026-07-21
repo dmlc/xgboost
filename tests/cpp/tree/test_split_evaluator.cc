@@ -20,7 +20,7 @@ TEST(TreeEvaluator, CalcVectorGainWithMaxDeltaStep) {
 
   linalg::Vector<float> weight({2}, xgboost::DeviceOrd::CPU());
   auto h_weight = weight.HostView();
-  TreeEvaluator tree_evaluator{param, 1, DeviceOrd::CPU()};
+  TreeEvaluator tree_evaluator{param, 1, DeviceOrd::CPU(), 1u};
   auto evaluator = tree_evaluator.GetEvaluator();
   evaluator.CalcWeight(0, param, h_stats, h_weight);
   ASSERT_FLOAT_EQ(h_weight(0), -0.5f);
@@ -31,7 +31,7 @@ TEST(TreeEvaluator, CalcVectorGainWithMaxDeltaStep) {
   EXPECT_DOUBLE_EQ(evaluator.CalcGain(0, param, h_stats), 6.75);
 
   param.monotone_constraints = {0};
-  TreeEvaluator all_zero{param, 1, DeviceOrd::CPU()};
+  TreeEvaluator all_zero{param, 1, DeviceOrd::CPU(), 1u};
   EXPECT_DOUBLE_EQ(all_zero.GetEvaluator().CalcGain(0, param, h_stats), 6.75);
 }
 

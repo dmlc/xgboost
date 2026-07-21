@@ -62,7 +62,7 @@ class TreeEvaluator {
 
  public:
   TreeEvaluator(TrainParam const& p, bst_feature_t n_features, DeviceOrd device,
-                bst_target_t n_targets = 1)
+                bst_target_t n_targets)
       : device_{device}, n_targets_{n_targets} {
     CHECK_GT(n_targets, 0);
     if (device.IsCUDA()) {

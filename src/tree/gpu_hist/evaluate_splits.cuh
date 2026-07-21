@@ -147,7 +147,7 @@ class GPUHistEvaluator {
 
  public:
   GPUHistEvaluator(TrainParam const &param, bst_feature_t n_features, DeviceOrd device)
-      : tree_evaluator_{param, n_features, device}, param_{param} {}
+      : tree_evaluator_{param, n_features, device, 1u}, param_{param} {}
   /**
    * \brief Reset the evaluator, should be called before any use.
    */

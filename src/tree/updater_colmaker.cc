@@ -164,7 +164,7 @@ class ColMaker : public TreeUpdater {
           colmaker_train_param_{colmaker_train_param},
           ctx_{ctx},
           column_sampler_{std::move(column_sampler)},
-          tree_evaluator_(param_, column_densities.size(), DeviceOrd::CPU()),
+          tree_evaluator_(param_, column_densities.size(), DeviceOrd::CPU(), 1u),
           interaction_constraints_{std::move(_interaction_constraints)},
           column_densities_(column_densities) {}
     // update one tree, growing
