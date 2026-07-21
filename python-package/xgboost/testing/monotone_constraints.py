@@ -183,8 +183,6 @@ def run_multi_output_monotone(
     device: Device,
     grow_policy: str = "depthwise",
     multi_strategy: str = "multi_output_tree",
-    max_depth: int = 6,
-    seed: int = 1994,
 ) -> None:
     """Monotonicity check for deep trees with mixed feature constraints.
 
@@ -193,7 +191,7 @@ def run_multi_output_monotone(
 
     """
     constraints = (1, -1, 0, 0, 0)
-    rng = np.random.RandomState(seed)
+    rng = np.random.RandomState(2026)
     n_samples, n_features, n_targets = 2048, len(constraints), 3
     features = rng.rand(n_samples, n_features).astype(np.float32)
     labels = np.empty((n_samples, n_targets), dtype=np.float32)
@@ -211,11 +209,11 @@ def run_multi_output_monotone(
         "grow_policy": grow_policy,
         "multi_strategy": multi_strategy,
         "monotone_constraints": constraints,
-        "max_depth": max_depth,
+        "max_depth": 6,
         "eta": 0.3,
         "reg_lambda": 1.0,
         "reg_alpha": 0.1,
         "min_child_weight": 0.0,
     }
     booster = train(params, DMatrix(features, label=labels), num_boost_round=40)
-    _assert_monotone(booster, constraints, seed=seed + 1)
+    _assert_monotone(booster, constraints, seed=2026 + 1)
