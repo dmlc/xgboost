@@ -69,15 +69,24 @@ y = (
 training_dset = DMatrix(x, label=y)
 
 
-def run_parent_gain(device: Device) -> None:
+def run_parent_gain(
+    device: Device, multi_strategy: str = "one_output_per_tree"
+) -> None:
     """Test that parent gain uses the node's inherited monotonic bounds."""
     X = np.array(
         [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]],
         dtype=np.float32,
     )
-    gradients = np.array([3.0, -2.75, -0.125, 0.875], dtype=np.float32)
-    hessians = np.array([1.0, 0.5, 0.25, 0.25], dtype=np.float32)
-    dtrain = DMatrix(X, label=np.zeros(X.shape[0], dtype=np.float32))
+    grad = np.array([3.0, -2.75, -0.125, 0.875], dtype=np.float32)
+    hess = np.array([1.0, 0.5, 0.25, 0.25], dtype=np.float32)
+    expected_gain = 0.25
+    if multi_strategy == "multi_output_tree":
+        gradients = np.stack([grad, 2.0 * grad], axis=1)
+        hessians = np.stack([hess, hess], axis=1)
+        expected_gain += 1.0
+    else:
+        gradients, hessians = grad, hess
+    dtrain = DMatrix(X, label=np.zeros_like(gradients))
 
     def objective(
         _predt: np.ndarray, _dtrain: DMatrix
@@ -95,10 +104,11 @@ def run_parent_gain(device: Device) -> None:
         "eta": 1,
         "base_score": 0,
         "device": device,
+        "multi_strategy": multi_strategy,
     }
     model = train(params, dtrain, num_boost_round=1, obj=objective)
     trees = json.loads(model.get_dump(dump_format="json", with_stats=True)[0])
 
     constrained_parent = trees["children"][1]["children"][1]
     assert constrained_parent["split"] == "f2"
-    assert constrained_parent["gain"] == pytest.approx(0.25)
+    assert constrained_parent["gain"] == pytest.approx(expected_gain)

@@ -89,7 +89,7 @@ class TestMonotoneConstraints:
             "monotone_constraints": {"feature_0": 1, "feature_1": -1},
         }
 
-        if format == list:
+        if format is list:
             params = list(params.items())
 
         with pytest.raises(ValueError):
@@ -138,5 +138,6 @@ class TestMonotoneConstraints:
         assert accuracy_score(dtest.get_label(), pred_dtest) < 0.1
 
 
-def test_parent_gain() -> None:
-    run_parent_gain("cpu")
+@pytest.mark.parametrize("multi_strategy", ["one_output_per_tree", "multi_output_tree"])
+def test_parent_gain(multi_strategy: str) -> None:
+    run_parent_gain("cpu", multi_strategy)
