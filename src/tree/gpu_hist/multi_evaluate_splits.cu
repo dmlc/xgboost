@@ -188,33 +188,24 @@ __global__ __launch_bounds__(kBlockThreads) void ScanHistogramKernel(
 
 namespace {
 struct QuantizedGradientSum {
-  common::Span<GradientPairInt64 const> values;
+  GradientPairInt64 const *values;
   common::Span<GradientQuantiser const> roundings;
 
-  [[nodiscard]] XGBOOST_DEVICE std::size_t Size() const {
-    SPAN_CHECK(values.size() == roundings.size());
-    return values.size();
-  }
+  [[nodiscard]] XGBOOST_DEVICE std::size_t Size() const { return roundings.size(); }
   [[nodiscard]] XGBOOST_DEVICE GradientPairPrecise operator()(std::size_t t) const {
-    SPAN_CHECK(t < this->Size());
     return roundings[t].ToFloatingPoint(values[t]);
   }
 };
 
 struct QuantizedGradientDifference {
-  common::Span<GradientPairInt64 const> parent;
-  common::Span<GradientPairInt64 const> child;
+  GradientPairInt64 const *parent;
+  GradientPairInt64 const *child;
   common::Span<GradientQuantiser const> roundings;
 
-  [[nodiscard]] XGBOOST_DEVICE std::size_t Size() const {
-    SPAN_CHECK(parent.size() == child.size());
-    SPAN_CHECK(parent.size() == roundings.size());
-    return parent.size();
-  }
+  [[nodiscard]] XGBOOST_DEVICE std::size_t Size() const { return roundings.size(); }
   [[nodiscard]] XGBOOST_DEVICE GradientPairPrecise operator()(std::size_t t) const {
-    SPAN_CHECK(t < this->Size());
-    auto parent_t = roundings[t].ToFloatingPoint(parent[t]);
-    auto child_t = roundings[t].ToFloatingPoint(child[t]);
+    auto parent_t = roundings.data()[t].ToFloatingPoint(parent[t]);
+    auto child_t = roundings.data()[t].ToFloatingPoint(child[t]);
     return parent_t - child_t;
   }
 };
@@ -239,8 +230,9 @@ struct EvaluateSplitAgent {
       bst_feature_t fidx, TreeEvaluator::SplitEvaluator<GPUTrainingParam> const &evaluator) {
     auto offset = bin_idx * n_targets;
     auto child_values = child_scan.subspan(offset, n_targets);
-    QuantizedGradientSum child{child_values, shared.roundings};
-    QuantizedGradientDifference sibling{node.parent_sum, child_values, shared.roundings};
+    QuantizedGradientSum child{child_values.data(), shared.roundings};
+    QuantizedGradientDifference sibling{node.parent_sum.data(), child_values.data(),
+                                        shared.roundings};
     if constexpr (d_dir == kRightDir) {
       return evaluator.CalcSplitGain(shared.param, node.nidx, fidx, child, sibling);
     } else {
@@ -670,7 +662,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     bst_node_t nidx = input.nidx;
     auto base_weight = d_weights.Base(nidx);
     auto roundings = shared_inputs.roundings;
-    QuantizedGradientSum parent_sum{input.parent_sum, roundings};
+    QuantizedGradientSum parent_sum{input.parent_sum.data(), roundings};
     double parent_gain = evaluator.CalcGain(nidx, shared_inputs.param, parent_sum);
     double parent_hess = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
