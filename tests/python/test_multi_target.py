@@ -195,8 +195,9 @@ def test_grow_policy(grow_policy: str) -> None:
     run_grow_policy("cpu", grow_policy)
 
 
-def test_mixed_strategy() -> None:
-    run_mixed_strategy("cpu")
+@pytest.mark.parametrize("use_dart", [False, True], ids=["gbtree", "dart"])
+def test_mixed_strategy(use_dart: bool) -> None:
+    run_mixed_strategy("cpu", use_dart)
 
 
 def test_feature_importance_strategy_compare() -> None:

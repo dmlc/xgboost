@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2025, XGBoost contributors
+ * Copyright 2019-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -250,7 +250,7 @@ TEST(GBTree, ChooseTreeMethod) {
           {{std::nullopt, "cuda"}, "grow_gpu_hist"},
           {{std::nullopt, "cuda:0"}, "grow_gpu_hist"},
           {{std::nullopt, std::nullopt}, "grow_quantile_histmaker"},
-      };
+  };
 
   auto run_test = [&](auto fn) {
     for (auto const& kv : expectation) {
@@ -647,8 +647,7 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
 TEST(GBTree, Slice) { TestModelSlice("gbtree"); }
 
 TEST(Dart, Slice) {
-  Json model, sliced_model;
-  std::tie(model, sliced_model) = TestModelSlice("dart");
+  auto [model, sliced_model] = TestModelSlice("dart");
   auto const& weights =
       get<Array const>(model["learner"]["gradient_booster"]["model"]["weight_drop"]);
   auto const& trees = get<Array const>(model["learner"]["gradient_booster"]["model"]["trees"]);
