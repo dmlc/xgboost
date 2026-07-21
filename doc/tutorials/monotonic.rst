@@ -108,8 +108,7 @@ common weight
              {H_{l,t}+H_{r,t}+2\lambda}
     \right).
 
-Here :math:`\operatorname{clip}` applies the inherited bounds; ``max_delta_step`` is
-applied as usual.
+Here :math:`\operatorname{clip}` applies the inherited bounds.
 
 .. note::
 
