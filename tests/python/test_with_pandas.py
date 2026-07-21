@@ -28,21 +28,15 @@ def test_type_check() -> None:
 
 
 class TestPandas:
-    def test_pandas(self, data_split_mode=0):
-        world_size = xgb.collective.get_world_size()
+    def test_pandas(self) -> None:
         df = pd.DataFrame([[1, 2.0, True], [2, 3.0, False]], columns=["a", "b", "c"])
         assert is_dataframe(df)
         assert is_dataframe(df.a)
-        dm = xgb.DMatrix(df, label=pd.Series([1, 2]), data_split_mode=data_split_mode)
+        dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
         assert dm.num_row() == 2
-        if data_split_mode == 0:
-            assert dm.feature_names == ["a", "b", "c"]
-            assert dm.feature_types == ["int", "float", "i"]
-            assert dm.num_col() == 3
-        else:
-            assert dm.feature_names == ["a", "b", "c"]
-            assert dm.feature_types == ["int", "float", "i"] * world_size
-            assert dm.num_col() == 3 * world_size
+        assert dm.feature_names == ["a", "b", "c"]
+        assert dm.feature_types == ["int", "float", "i"]
+        assert dm.num_col() == 3
         np.testing.assert_array_equal(dm.get_label(), np.array([1, 2]))
 
         # overwrite feature_names and feature_types
@@ -51,48 +45,32 @@ class TestPandas:
             label=pd.Series([1, 2]),
             feature_names=["x", "y", "z"],
             feature_types=["q", "q", "q"],
-            data_split_mode=data_split_mode,
         )
         assert dm.num_row() == 2
-        if data_split_mode == 0:
-            assert dm.feature_names == ["x", "y", "z"]
-            assert dm.feature_types == ["q", "q", "q"]
-            assert dm.num_col() == 3
-        else:
-            assert dm.feature_names == ["x", "y", "z"]
-            assert dm.feature_types == ["q", "q", "q"] * world_size
-            assert dm.num_col() == 3 * world_size
+        assert dm.feature_names == ["x", "y", "z"]
+        assert dm.feature_types == ["q", "q", "q"]
+        assert dm.num_col() == 3
 
         # incorrect dtypes
         df = pd.DataFrame([[1, 2.0, "x"], [2, 3.0, "y"]], columns=["a", "b", "c"])
         with pytest.raises(ValueError):
-            xgb.DMatrix(df, data_split_mode=data_split_mode)
+            xgb.DMatrix(df)
 
         # numeric columns
         df = pd.DataFrame([[1, 2.0, True], [2, 3.0, False]])
-        dm = xgb.DMatrix(df, label=pd.Series([1, 2]), data_split_mode=data_split_mode)
+        dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
         assert dm.num_row() == 2
-        if data_split_mode == 0:
-            assert dm.feature_names == ["0", "1", "2"]
-            assert dm.feature_types == ["int", "float", "i"]
-            assert dm.num_col() == 3
-        else:
-            assert dm.feature_names == ["0", "1", "2"]
-            assert dm.feature_types == ["int", "float", "i"] * world_size
-            assert dm.num_col() == 3 * world_size
+        assert dm.feature_names == ["0", "1", "2"]
+        assert dm.feature_types == ["int", "float", "i"]
+        assert dm.num_col() == 3
         np.testing.assert_array_equal(dm.get_label(), np.array([1, 2]))
 
         df = pd.DataFrame([[1, 2.0, 1], [2, 3.0, 1]], columns=[4, 5, 6])
-        dm = xgb.DMatrix(df, label=pd.Series([1, 2]), data_split_mode=data_split_mode)
+        dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
         assert dm.num_row() == 2
-        if data_split_mode == 0:
-            assert dm.feature_names == ["4", "5", "6"]
-            assert dm.feature_types == ["int", "float", "int"]
-            assert dm.num_col() == 3
-        else:
-            assert dm.feature_names == ["4", "5", "6"]
-            assert dm.feature_types == ["int", "float", "int"] * world_size
-            assert dm.num_col() == 3 * world_size
+        assert dm.feature_names == ["4", "5", "6"]
+        assert dm.feature_types == ["int", "float", "int"]
+        assert dm.num_col() == 3
 
         df = pd.DataFrame({"A": ["X", "Y", "Z"], "B": [1, 2, 3]})
         dummies = pd.get_dummies(df)
@@ -105,43 +83,27 @@ class TestPandas:
             [[1.0, 1.0, 0.0, 0.0], [2.0, 0.0, 1.0, 0.0], [3.0, 0.0, 0.0, 1.0]]
         ).T
         np.testing.assert_array_equal(result.columns, exp)
-        dm = xgb.DMatrix(dummies, data_split_mode=data_split_mode)
+        dm = xgb.DMatrix(dummies)
         assert dm.num_row() == 3
-        if data_split_mode == 0:
-            assert dm.feature_names == ["B", "A_X", "A_Y", "A_Z"]
-            if int(pd.__version__[0]) >= 2:
-                assert dm.feature_types == ["int", "i", "i", "i"]
-            else:
-                assert dm.feature_types == ["int", "int", "int", "int"]
-            assert dm.num_col() == 4
+        assert dm.feature_names == ["B", "A_X", "A_Y", "A_Z"]
+        if int(pd.__version__[0]) >= 2:
+            assert dm.feature_types == ["int", "i", "i", "i"]
         else:
-            assert dm.feature_names == ["B", "A_X", "A_Y", "A_Z"]
-            if int(pd.__version__[0]) >= 2:
-                assert dm.feature_types == ["int", "i", "i", "i"] * world_size
-            else:
-                assert dm.feature_types == ["int", "int", "int", "int"] * world_size
-            assert dm.num_col() == 4 * world_size
+            assert dm.feature_types == ["int", "int", "int", "int"]
+        assert dm.num_col() == 4
 
         df = pd.DataFrame({"A=1": [1, 2, 3], "A=2": [4, 5, 6]})
-        dm = xgb.DMatrix(df, data_split_mode=data_split_mode)
+        dm = xgb.DMatrix(df)
         assert dm.num_row() == 3
-        if data_split_mode == 0:
-            assert dm.feature_names == ["A=1", "A=2"]
-            assert dm.feature_types == ["int", "int"]
-            assert dm.num_col() == 2
-        else:
-            assert dm.feature_names == ["A=1", "A=2"]
-            assert dm.feature_types == ["int", "int"] * world_size
-            assert dm.num_col() == 2 * world_size
+        assert dm.feature_names == ["A=1", "A=2"]
+        assert dm.feature_types == ["int", "int"]
+        assert dm.num_col() == 2
 
         df_int = pd.DataFrame([[1, 1.1], [2, 2.2]], columns=[9, 10])
-        dm_int = xgb.DMatrix(df_int, data_split_mode=data_split_mode)
+        dm_int = xgb.DMatrix(df_int)
         df_range = pd.DataFrame([[1, 1.1], [2, 2.2]], columns=range(9, 11, 1))
-        dm_range = xgb.DMatrix(df_range, data_split_mode=data_split_mode)
-        if data_split_mode == 0:
-            assert dm_int.feature_names == ["9", "10"]  # assert not "9 "
-        else:
-            assert dm_int.feature_names == ["9", "10"]
+        dm_range = xgb.DMatrix(df_range)
+        assert dm_int.feature_names == ["9", "10"]  # assert not "9 "
         assert dm_int.feature_names == dm_range.feature_names
 
         # test MultiIndex as columns
@@ -158,39 +120,22 @@ class TestPandas:
                 )
             ),
         )
-        dm = xgb.DMatrix(df, data_split_mode=data_split_mode)
+        dm = xgb.DMatrix(df)
         assert dm.num_row() == 2
-        if data_split_mode == 0:
-            assert dm.feature_names == ["a 1", "a 2", "a 3", "b 1", "b 2", "b 3"]
-            assert dm.feature_types == ["int", "int", "int", "int", "int", "int"]
-            assert dm.num_col() == 6
-        else:
-            assert dm.feature_names == ["a 1", "a 2", "a 3", "b 1", "b 2", "b 3"]
-            assert (
-                dm.feature_types
-                == ["int", "int", "int", "int", "int", "int"] * world_size
-            )
-            assert dm.num_col() == 6 * world_size
+        assert dm.feature_names == ["a 1", "a 2", "a 3", "b 1", "b 2", "b 3"]
+        assert dm.feature_types == ["int", "int", "int", "int", "int", "int"]
+        assert dm.num_col() == 6
 
         # test Index as columns
         df = pd.DataFrame([[1, 1.1], [2, 2.2]], columns=pd.Index([1, 2]))
-        Xy = xgb.DMatrix(df, data_split_mode=data_split_mode)
-        if data_split_mode == 0:
-            np.testing.assert_equal(np.array(Xy.feature_names), np.array(["1", "2"]))
-        else:
-            np.testing.assert_equal(
-                np.array(Xy.feature_names),
-                np.array(["1", "2"]),
-            )
+        Xy = xgb.DMatrix(df)
+        np.testing.assert_equal(np.array(Xy.feature_names), np.array(["1", "2"]))
 
         # test pandas series
         data_series = pd.Series([1, 2, 3, 4, 5])
-        dm = xgb.DMatrix(data_series, data_split_mode=data_split_mode)
+        dm = xgb.DMatrix(data_series)
         assert dm.num_row() == 5
-        if data_split_mode == 0:
-            assert dm.num_col() == 1
-        else:
-            assert dm.num_col() == 1 * world_size
+        assert dm.num_col() == 1
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_multi_target(self) -> None:
@@ -218,15 +163,14 @@ class TestPandas:
 
         assert m.feature_types == sliced.feature_types
 
-    def test_pandas_categorical(self, data_split_mode=0):
-        world_size = xgb.collective.get_world_size()
+    def test_pandas_categorical(self) -> None:
         rng = np.random.RandomState(1994)
         rows = 100
         X = rng.randint(3, 7, size=rows)
         X = pd.Series(X, dtype="category")
         X = pd.DataFrame({"f0": X})
         y = rng.randn(rows)
-        m = xgb.DMatrix(X, y, data_split_mode=data_split_mode)
+        m = xgb.DMatrix(X, y)
         assert m.feature_types[0] == "c"
 
         X_0 = ["f", "o", "o"]
@@ -249,12 +193,9 @@ class TestPandas:
         X = X["f0"]
         y = y[: X.shape[0]]
 
-        Xy = xgb.DMatrix(X, y, data_split_mode=data_split_mode)
+        Xy = xgb.DMatrix(X, y)
         assert Xy.num_row() == 3
-        if data_split_mode == 0:
-            assert Xy.num_col() == 1
-        else:
-            assert Xy.num_col() == 1 * world_size
+        assert Xy.num_col() == 1
 
     def test_pandas_sparse(self):
         import pandas as pd
@@ -278,8 +219,7 @@ class TestPandas:
             predt_dense = booster.predict(xgb.DMatrix(X.sparse.to_dense()))
         np.testing.assert_allclose(predt_sparse, predt_dense)
 
-    def test_pandas_label(self, data_split_mode: int = 0) -> None:
-        world_size = xgb.collective.get_world_size()
+    def test_pandas_label(self) -> None:
         # label must be a single column
         df = pd.DataFrame({"A": ["X", "Y", "Z"], "B": [1, 2, 3]})
         with pytest.raises(ValueError):
@@ -296,17 +236,11 @@ class TestPandas:
             np.stack(result.columns, axis=1),
             np.array([[1.0], [2.0], [3.0]], dtype=float),
         )
-        dm = xgb.DMatrix(
-            np.random.randn(3, 2), label=df, data_split_mode=data_split_mode
-        )
+        dm = xgb.DMatrix(np.random.randn(3, 2), label=df)
         assert dm.num_row() == 3
-        if data_split_mode == 0:
-            assert dm.num_col() == 2
-        else:
-            assert dm.num_col() == 2 * world_size
+        assert dm.num_col() == 2
 
-    def test_pandas_weight(self, data_split_mode=0):
-        world_size = xgb.collective.get_world_size()
+    def test_pandas_weight(self) -> None:
         kRows = 32
         kCols = 8
 
@@ -314,13 +248,10 @@ class TestPandas:
         y = np.random.randn(kRows)
         w = np.random.uniform(size=kRows).astype(np.float32)
         w_pd = pd.DataFrame(w)
-        data = xgb.DMatrix(X, y, weight=w_pd, data_split_mode=data_split_mode)
+        data = xgb.DMatrix(X, y, weight=w_pd)
 
         assert data.num_row() == kRows
-        if data_split_mode == 0:
-            assert data.num_col() == kCols
-        else:
-            assert data.num_col() == kCols * world_size
+        assert data.num_col() == kCols
         np.testing.assert_array_equal(data.get_weight(), w)
 
     def test_base_margin(self):
