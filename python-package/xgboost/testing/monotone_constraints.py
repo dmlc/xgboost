@@ -76,10 +76,12 @@ y = (
 training_dset = DMatrix(x, label=y)
 
 # Multi-output labels sharing the same ``(f0: increasing, f1: decreasing)`` structure as
-# ``y``. Each column is a positive-scale affine transform of ``y`` plus independent
-# noise, so every target must be increasing in ``f0`` and decreasing in ``f1`` while
-# still differing enough to exercise shared vector-leaf splits.
-_mt_noise = np.random.normal(loc=0.0, scale=0.01, size=(NUMBER_OF_DPOINTS, 2))
+# ``y``. Each column is a positive-scale affine transform of ``y``, so every target must
+# be increasing in ``f0`` and decreasing in ``f1`` while still differing enough to
+# exercise shared vector-leaf splits.
+_mt_noise = np.random.default_rng(2026).normal(
+    loc=0.0, scale=0.01, size=(NUMBER_OF_DPOINTS, 2)
+)
 y_mt = np.column_stack(
     [y, 2.0 * y + _mt_noise[:, 0], 0.5 * y + _mt_noise[:, 1]]
 ).astype(np.float32)
