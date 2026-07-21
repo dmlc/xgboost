@@ -46,12 +46,12 @@ struct ColMakerTrainParam : XGBoostParameter<ColMakerTrainParam> {
   }
 
   /*! \brief whether need forward small to big search: default right */
-  inline bool NeedForwardSearch(float col_density, bool indicator) const {
+  bool NeedForwardSearch(float col_density, bool indicator) const {
     return default_direction == 2 ||
            (default_direction == 0 && (col_density < opt_dense_col) && !indicator);
   }
   /*! \brief whether need backward big to small search: default left */
-  inline bool NeedBackwardSearch() const { return default_direction != 2; }
+  bool NeedBackwardSearch() const { return default_direction != 2; }
 };
 
 DMLC_REGISTER_PARAMETER(ColMakerTrainParam);
@@ -168,10 +168,11 @@ class ColMaker : public TreeUpdater {
           interaction_constraints_{std::move(_interaction_constraints)},
           column_densities_(column_densities) {}
     // update one tree, growing
-    virtual void Update(const std::vector<GradientPair> &gpair, DMatrix *p_fmat, RegTree *p_tree) {
-      std::vector<int> newnodes;
+    void Update(std::vector<GradientPair> const &gpair, DMatrix *p_fmat, RegTree *p_tree) {
       this->InitData(gpair, *p_fmat);
-      this->InitNewNode(qexpand_, gpair, *p_fmat, *p_tree);
+      this->InitRoot(gpair, *p_fmat, *p_tree);
+
+      std::vector<int> newnodes;
       // We can check max_leaves too, but might break some grid searching pipelines.
       CHECK_GT(param_.max_depth, 0) << "exact tree method doesn't support unlimited depth.";
       for (int depth = 0; depth < param_.max_depth; ++depth) {
@@ -209,7 +210,7 @@ class ColMaker : public TreeUpdater {
 
    protected:
     // initialize temp data structure
-    inline void InitData(const std::vector<GradientPair> &gpair, const DMatrix &fmat) {
+    void InitData(const std::vector<GradientPair> &gpair, const DMatrix &fmat) {
       {
         // setup position
         position_.resize(gpair.size());
@@ -252,17 +253,12 @@ class ColMaker : public TreeUpdater {
         // expand query
         qexpand_.reserve(256);
         qexpand_.clear();
-        qexpand_.push_back(0);
+        qexpand_.push_back(RegTree::kRoot);
       }
     }
-    /*!
-     * \brief initialize the base_weight, root_gain,
-     *  and NodeEntry for all the new nodes in qexpand
-     */
-    void InitNewNode(const std::vector<int> &qexpand, const std::vector<GradientPair> &gpair,
-                     const DMatrix &fmat, RegTree const &tree) {
+    void InitNodeStats(const std::vector<int> &nodes, const std::vector<GradientPair> &gpair,
+                       const DMatrix &fmat, RegTree const &tree) {
       auto n_nodes = tree.NumNodes();
-      auto sc_tree = tree.HostScView();
       {
         // setup statistics space for each tree node
         for (auto &i : stemp_) {
@@ -278,7 +274,7 @@ class ColMaker : public TreeUpdater {
         stemp_[tid][position_[ridx]].stats.Add(gpair[ridx]);
       });
       // sum the per thread statistics together
-      for (int nid : qexpand) {
+      for (int nid : nodes) {
         GradStats stats;
         for (auto &s : stemp_) {
           stats.Add(s[nid].stats);
@@ -286,7 +282,33 @@ class ColMaker : public TreeUpdater {
         // update node statistics
         snode_[nid].stats = stats;
       }
+    }
 
+    void InitRoot(std::vector<GradientPair> const &gpair, const DMatrix &fmat,
+                  RegTree const &tree) {
+      CHECK_EQ(qexpand_.size(), 1);
+      CHECK_EQ(qexpand_.front(), RegTree::kRoot);
+
+      this->InitNodeStats(qexpand_, gpair, fmat, tree);
+
+      auto evaluator = tree_evaluator_.GetEvaluator();
+      auto &root = snode_[RegTree::kRoot];
+      root.weight = static_cast<float>(evaluator.CalcWeight(RegTree::kRoot, param_, root.stats));
+      root.root_gain = static_cast<float>(evaluator.CalcGain(RegTree::kRoot, param_, root.stats));
+    }
+
+    /**
+     * @brief Initialize the base_weight, root_gain, and NodeEntry for all the new non-root nodes.
+     */
+    void InitNewNode(const std::vector<int> &qexpand, const std::vector<GradientPair> &gpair,
+                     const DMatrix &fmat, RegTree const &tree) {
+      for (auto nidx : qexpand) {
+        CHECK_NE(nidx, RegTree::kRoot);
+      }
+
+      this->InitNodeStats(qexpand, gpair, fmat, tree);
+
+      auto sc_tree = tree.HostScView();
       auto evaluator = tree_evaluator_.GetEvaluator();
       // calculating the weights
       for (bst_node_t nidx : qexpand) {
@@ -311,11 +333,9 @@ class ColMaker : public TreeUpdater {
     }
 
     // update enumeration solution
-    inline void UpdateEnumeration(
-        int nid, GradientPair gstats, bst_float fvalue, int d_step, bst_uint fid,
-        GradStats &c,                    // NOLINT
-        std::vector<ThreadEntry> &temp,  // NOLINT(*)
-        TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
+    void UpdateEnumeration(int nid, GradientPair gstats, bst_float fvalue, int d_step, bst_uint fid,
+                           GradStats &c, std::vector<ThreadEntry> &temp,  // NOLINT
+                           TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
       // get the statistics of nid
       ThreadEntry &e = temp[nid];
       // test if first hit, this is fine, because we set 0 during init
@@ -513,9 +533,9 @@ class ColMaker : public TreeUpdater {
         }
       });
     }
-    // customization part
+
     // synchronize the best solution of each node
-    virtual void SyncBestSolution(const std::vector<int> &qexpand) {
+    void SyncBestSolution(const std::vector<int> &qexpand) {
       for (int nid : qexpand) {
         NodeEntry &e = snode_[nid];
         CHECK(this->ctx_);
@@ -524,8 +544,8 @@ class ColMaker : public TreeUpdater {
         }
       }
     }
-    virtual void SetNonDefaultPosition(const std::vector<int> &qexpand, DMatrix *p_fmat,
-                                       const RegTree &tree) {
+    void SetNonDefaultPosition(const std::vector<int> &qexpand, DMatrix *p_fmat,
+                               const RegTree &tree) {
       // step 1, classify the non-default data into right places
       auto sc_tree = tree.HostScView();
       std::vector<unsigned> fsplits;

@@ -8,7 +8,6 @@
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t
 #include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
-#include <ostream>    // for operator<<, basic_ostream, char_traits
 #include <utility>    // for move
 #include <vector>     // for vector
 
@@ -372,11 +371,15 @@ class MultiTargetHistBuilder {
     linalg::Matrix<float> weights = linalg::Empty<float>(ctx_, n_leaves, n_targets);
     auto h_weights = weights.HostView();
     auto eta = this->param_->learning_rate;
+    auto evaluator = this->evaluator_->Evaluator();
 
     common::ParallelFor(n_leaves, n_threads, [&](auto leaf_idx) {
       auto grad_sum = h_leaf_sums.Slice(leaf_idx, linalg::All());
       auto weight = h_weights.Slice(leaf_idx, linalg::All());
-      CalcWeight(*param_, grad_sum, eta, weight);
+      evaluator.CalcWeight(leaves_idx[leaf_idx], *param_, grad_sum, weight);
+      for (bst_target_t t = 0; t < n_targets; ++t) {
+        weight(t) *= eta;
+      }
     });
 
     // Set leaf weights
@@ -624,9 +627,7 @@ class QuantileHistMaker : public TreeUpdater {
               const std::vector<RegTree *> &trees) override {
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
-      if (!param->monotone_constraints.empty()) {
-        LOG(FATAL) << "Monotonic constraint" << MTNotImplemented();
-      }
+      NoMonotoneConstraints(param, "vector leaf");
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(ctx_, param, &hist_param_,
                                                                    column_sampler_, &monitor_);

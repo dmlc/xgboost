@@ -122,7 +122,6 @@ void UpdateTreeLeaf(Context const* ctx, std::vector<bst_node_t> const& position,
 
   CHECK(!position.empty());
   std::vector<float> quantiles(n_leaves * n_alphas, 0.0f);
-  std::vector<bst_node_t> n_valids(n_leaves, 0);
 
   auto h_quantiles = linalg::MakeTensorView(ctx, common::Span{quantiles}, n_leaves, n_alphas);
   CHECK_LE(nptr.back(), info.num_row_);

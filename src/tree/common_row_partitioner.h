@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023, XGBoost contributors
+ * Copyright 2021-2026, XGBoost contributors
  * \file common_row_partitioner.h
  * \brief Common partitioner logic for hist and approx methods.
  */
@@ -204,11 +204,11 @@ class CommonRowPartitioner {
   auto& operator[](bst_node_t nidx) { return row_set_collection_[nidx]; }
   auto const& operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
 
+  // The row indices supplied to the `invalidp` callback are global.
   void LeafPartition(Context const* ctx, ScalarTreeView const& tree, common::Span<float const> hess,
                      common::Span<bst_node_t> out_position) const {
-    partition_builder_.LeafPartition(
-        ctx, tree, this->Partitions(), out_position,
-        [&](size_t idx) -> bool { return hess[idx - this->base_rowid] - .0f == .0f; });
+    partition_builder_.LeafPartition(ctx, tree, this->Partitions(), out_position,
+                                     [&](size_t idx) -> bool { return hess[idx] - .0f == .0f; });
   }
 
   template <typename TreeView>
@@ -218,16 +218,15 @@ class CommonRowPartitioner {
     if (gpair.Shape(1) > 1) {
       partition_builder_.LeafPartition(
           ctx, tree, this->Partitions(), out_position, [&](std::size_t idx) -> bool {
-            auto sample = gpair.Slice(idx - this->base_rowid, linalg::All());
+            auto sample = gpair.Slice(idx, linalg::All());
             return std::all_of(linalg::cbegin(sample), linalg::cend(sample),
                                [](GradientPair const& g) { return g.GetHess() - .0f == .0f; });
           });
     } else {
       auto s = gpair.Slice(linalg::All(), 0);
-      partition_builder_.LeafPartition(ctx, tree, this->Partitions(), out_position,
-                                       [&](std::size_t idx) -> bool {
-                                         return s(idx - this->base_rowid).GetHess() - .0f == .0f;
-                                       });
+      partition_builder_.LeafPartition(
+          ctx, tree, this->Partitions(), out_position,
+          [&](std::size_t idx) -> bool { return s(idx).GetHess() - .0f == .0f; });
     }
   }
 

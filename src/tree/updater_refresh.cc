@@ -37,6 +37,8 @@ class TreeRefresher : public TreeUpdater {
     if (trees.size() == 0) {
       return;
     }
+    NoMonotoneConstraints(param, "`refresh` updater");
+
     auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     const std::vector<GradientPair> &gpair_h = gpair->Data()->ConstHostVector();
@@ -90,7 +92,7 @@ class TreeRefresher : public TreeUpdater {
     // x2 for gradient and hessian.
     auto rc = collective::Allreduce(
         ctx_, linalg::MakeVec(&sum_grad.data()->sum_grad, sum_grad.size() * 2),
-        collective::Op::kMax);
+        collective::Op::kSum);
     collective::SafeColl(rc);
     bst_node_t offset = 0;
     for (auto tree : trees) {

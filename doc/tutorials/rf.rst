@@ -69,6 +69,17 @@ A random forest model can then be trained as follows::
 Standalone Random Forest With Scikit-Learn-Like API
 ***************************************************
 
+.. deprecated:: 3.4.0
+
+  ``XGBRFClassifier``, ``XGBRFRegressor``, and their Dask counterparts are deprecated and
+  will be removed in a future release. They are thin wrappers over the boosting interface
+  rather than a conventional random forest implementation, and they do not support
+  features like early stopping. Use the native API described above (set
+  ``num_parallel_tree`` with ``num_boost_round=1``), pass ``num_parallel_tree`` along with
+  ``n_estimators=1`` to :py:class:`~xgboost.XGBClassifier` or
+  :py:class:`~xgboost.XGBRegressor`, or use a dedicated implementation such as
+  :py:class:`sklearn.ensemble.RandomForestClassifier`.
+
 ``XGBRFClassifier`` and ``XGBRFRegressor`` are SKL-like classes that provide random forest
 functionality. They are basically versions of ``XGBClassifier`` and ``XGBRegressor`` that
 train random forest instead of gradient boosting, and have default values and meaning of

@@ -68,6 +68,7 @@ class MultiHistEvaluator {
   };
 
  private:
+  TreeEvaluator tree_evaluator_;
   // Persistent buffer for node weights, indexed by node id.
   dh::DeviceUVector<float> node_weights_;
   // Buffer for histogram scans.
@@ -98,8 +99,15 @@ class MultiHistEvaluator {
   }
 
  public:
+  MultiHistEvaluator(TrainParam const &param, bst_feature_t n_features, DeviceOrd device)
+      : tree_evaluator_{param, n_features, device} {}
+
   void Reset(Context const *ctx, common::Span<std::uint32_t const> feature_segments,
              common::Span<FeatureType const> feature_types, TrainParam const &param);
+
+  [[nodiscard]] auto GetEvaluator() const {
+    return tree_evaluator_.GetEvaluator<GPUTrainingParam>();
+  }
 
   /**
    * @brief Run evaluation for the root node.
@@ -167,7 +175,7 @@ class MultiHistEvaluator {
     dh::CopyDeviceSpanToVector(right_weight, weights.Right(nidx));
   }
 
-  // Track the child gradient sum.
+  // Update the tree evaluator state and track child gradient sums.
   void ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
                       common::Span<MultiExpandEntry const> d_candidates, bst_target_t n_targets);
 };

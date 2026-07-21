@@ -5,6 +5,7 @@
 
 #include <vector>  // for vector
 
+#include "../split_evaluator.h"       // for TreeEvaluator
 #include "../updater_gpu_common.cuh"  // for GPUTrainingParam
 #include "quantiser.cuh"              // for GradientQuantiser
 #include "row_partitioner.cuh"        // for RowIndexT, LeafInfo
@@ -31,6 +32,8 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
  *   shape(out_weights) == (n_leaves, n_targets)
  */
 void LeafWeight(Context const* ctx, GPUTrainingParam const& param,
+                TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                common::Span<bst_node_t const> nidx,
                 common::Span<GradientQuantiser const> roundings,
                 linalg::MatrixView<GradientPairInt64 const> grad_sum,
                 linalg::MatrixView<float> out_weights);

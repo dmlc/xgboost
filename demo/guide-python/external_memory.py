@@ -1,3 +1,4 @@
+# pylint: disable=duplicate-code
 """
 Experimental support for external memory
 ========================================
@@ -22,7 +23,6 @@ required:
 If `device` is `cuda`, following are also needed:
 
 - cupy
-- rmm
 - cuda-python
 
 .. seealso::
@@ -184,15 +184,13 @@ def main(work_dir: str, cli_args: argparse.Namespace) -> None:
 
 
 def setup_async_pool() -> None:
-    """Setup CUDA async pool. As an alternative, the RMM plugin can be used as well. See
-    the `setup_rmm`. This is the same as using the `CudaAsyncMemoryResource` from RMM,
-    but without the RMM dependency.
+    """Set up the CUDA async pool for GPU-based external memory training.
 
     .. versionadded:: 3.2.0
 
     """
     import cuda.bindings.runtime as cudart
-    import cupy as cp  # pylint: disable=import-outside-toplevel
+    import cupy as cp
     from cuda.bindings import driver
     from cupy.cuda import MemoryAsyncPool
 
@@ -212,54 +210,14 @@ def setup_async_pool() -> None:
     cp.cuda.set_allocator(MemoryAsyncPool().malloc)
 
 
-def setup_rmm() -> None:
-    """Setup RMM for GPU-based external memory training.
-
-    It's important to use RMM with `CudaAsyncMemoryResource` or `ArenaMemoryResource`
-    for GPU-based external memory to improve performance. If XGBoost is not built with
-    RMM support, a warning is raised when constructing the `DMatrix`.
-
-    """
-
-    import rmm
-    from rmm.allocators.cupy import rmm_cupy_allocator
-    from rmm.mr import ArenaMemoryResource
-
-    if not xgboost.build_info()["USE_RMM"]:
-        return
-
-    import cupy as cp  # pylint: disable=import-outside-toplevel
-
-    total = device_mem_total()
-
-    mr: rmm.mr.DeviceMemoryResource = rmm.mr.CudaMemoryResource()
-    mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))
-
-    rmm.mr.set_current_device_resource(mr)
-    # Set the allocator for cupy as well.
-    cp.cuda.set_allocator(rmm_cupy_allocator)
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
-    parser.add_argument(
-        "--memory_pool",
-        choices=["rmm", "cuda"],
-        default="rmm",
-        help="Use a memory pool for asynchronous memory allocation in XGBoost.",
-    )
     args = parser.parse_args()
     if args.device == "cuda":
-        if args.memory_pool == "rmm":
-            setup_rmm()
-        elif args.memory_pool == "cuda":
-            setup_async_pool()
-        # Make sure XGBoost is using RMM for all allocations.
-        with xgboost.config_context(
-            use_rmm=args.memory_pool == "rmm",
-            use_cuda_async_pool=args.memory_pool == "cuda",
-        ):
+        setup_async_pool()
+        # Make sure XGBoost is using the CUDA async pool for all allocations.
+        with xgboost.config_context(use_cuda_async_pool=True):
             with tempfile.TemporaryDirectory() as tmpdir:
                 main(tmpdir, args)
     else:

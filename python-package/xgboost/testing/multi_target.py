@@ -97,6 +97,7 @@ def run_multiclass(device: Device, learning_rate: Optional[float]) -> None:
     clf = XGBClassifier(
         debug_synchronize=True,
         multi_strategy="multi_output_tree",
+        min_child_weight=0.0,
         callbacks=[ResetStrategy()],
         n_estimators=10,
         device=device,
@@ -118,6 +119,7 @@ def run_multilabel(device: Device, learning_rate: Optional[float]) -> None:
     clf = XGBClassifier(
         debug_synchronize=True,
         multi_strategy="multi_output_tree",
+        min_child_weight=0.0,
         callbacks=[ResetStrategy()],
         n_estimators=10,
         device=device,
@@ -422,6 +424,35 @@ def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
     )
     assert_allclose(device, booster_0.inplace_predict(X), booster_2.inplace_predict(X))
 
+    # Distinct target scales make a wrong-row mask diverge loudly.
+    ys_adaptive = [y_i * nda.asarray([1.0, 20.0, 100.0]) for y_i in ys]
+    adaptive_params = {
+        "device": device,
+        "multi_strategy": "multi_output_tree",
+        "objective": "reg:absoluteerror",
+        "subsample": 0.5,
+        "seed": 2026,
+        "debug_synchronize": True,
+    }
+    it = IteratorForTest(
+        Xs,
+        ys_adaptive,
+        None,
+        cache="cache",
+        on_host=True,
+        min_cache_page_bytes=0,  # disables page concatenation
+    )
+    Xy = ExtMemQuantileDMatrix(it, cache_host_ratio=1.0 if device == "cuda" else None)
+    booster_ext = train(adaptive_params, Xy, num_boost_round=n_rounds)
+
+    it = IteratorForTest(Xs, ys_adaptive, None, cache=None)
+    Xy = QuantileDMatrix(it)
+    booster_in = train(adaptive_params, Xy, num_boost_round=n_rounds)
+
+    assert_allclose(
+        device, booster_ext.inplace_predict(X), booster_in.inplace_predict(X)
+    )
+
 
 def run_eta(device: Device) -> None:
     """Test for learning rate."""
@@ -518,6 +549,7 @@ def run_column_sampling(device: Device) -> None:
         importance_type="weight",
         device=device,
         colsample_bynode=0.2,
+        min_child_weight=0.0,
     )
     clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
     fi = clf.feature_importances_

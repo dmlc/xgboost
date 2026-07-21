@@ -238,7 +238,7 @@ class GBTree : public GradientBooster {
     auto total_n_trees = model_.trees.size();
     auto add_score = [&](auto fn) {
       for (auto idx : trees) {
-        CHECK_LE(idx, total_n_trees) << "Invalid tree index.";
+        CHECK_LT(idx, total_n_trees) << "Invalid tree index.";
         auto const& tree = *model_.trees[idx];
         tree::WalkTree(tree, [&](auto const& tree, bst_node_t nidx) {
           if (!tree.IsLeaf(nidx)) {

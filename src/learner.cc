@@ -1208,11 +1208,14 @@ class LearnerImpl : public LearnerIO {
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
+      this->ValidateDMatrix(data.get(), false);
       gbm_->PredictContribution(data.get(), out_preds, layer_begin, layer_end, approx_contribs);
     } else if (pred_interactions) {
+      this->ValidateDMatrix(data.get(), false);
       gbm_->PredictInteractionContributions(data.get(), out_preds, layer_begin, layer_end,
                                             approx_contribs);
     } else if (pred_leaf) {
+      this->ValidateDMatrix(data.get(), false);
       gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end, strict_shape);
     } else {
       auto predt = prediction_container_.Cache(data, ctx_.Device());

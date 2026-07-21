@@ -10,10 +10,12 @@
 #ifndef R_NO_REMAP
 #define R_NO_REMAP
 #endif
+// clang-format off
 #include <R.h>
-#include <R_ext/Altrep.h>
 #include <Rinternals.h>
+#include <R_ext/Altrep.h>
 #include <Rmath.h>
+// clang-format on
 #include <xgboost/c_api.h>
 
 /*!
@@ -161,7 +163,6 @@ XGB_DLL SEXP XGDMatrixNumRow_R(SEXP handle);
 XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 
 /*!
-<<<<<<< HEAD
  * \brief create a ProxyDMatrix and get an R externalptr object for it
  */
 XGB_DLL SEXP XGProxyDMatrixCreate_R();
