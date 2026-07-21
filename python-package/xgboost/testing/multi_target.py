@@ -294,7 +294,7 @@ class LsObj2(LsObj0):
         return sgrad, shess
 
 
-def run_reduced_grad(device: Device) -> None:
+def run_reduced_grad(device: Device) -> None:  # pylint: disable=too-many-locals
     """Basic test for using reduced gradient for tree splits."""
     X, y = make_regression(
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
