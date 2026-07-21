@@ -193,7 +193,7 @@ struct QuantizedGradientSum {
 
   [[nodiscard]] XGBOOST_DEVICE std::size_t Size() const { return roundings.size(); }
   [[nodiscard]] XGBOOST_DEVICE GradientPairPrecise operator()(std::size_t t) const {
-    return roundings[t].ToFloatingPoint(values[t]);
+    return roundings.data()[t].ToFloatingPoint(values[t]);
   }
 };
 
