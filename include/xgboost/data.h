@@ -75,8 +75,6 @@ class MetaInfo {
   uint64_t num_nonzero_{0};  // NOLINT
   /*! \brief label of each instance */
   linalg::Tensor<float, 2> labels;
-  /*! \brief data split mode */
-  int data_split_mode{0};
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
@@ -607,11 +605,9 @@ class DMatrix {
    *
    * @param uri The URI of input.
    * @param silent Whether print information during loading.
-   * @param data_split_mode Deprecated. Only row-wise split is supported; column-wise split
-   *                        has been removed and is rejected.
    * @return The created DMatrix.
    */
-  static DMatrix* Load(const std::string& uri, bool silent = true, int data_split_mode = 0);
+  static DMatrix* Load(const std::string& uri, bool silent = true);
 
   /**
    * @brief Creates a new DMatrix from an external data adapter.
@@ -621,14 +617,12 @@ class DMatrix {
    * @param           missing         Values to count as missing.
    * @param           nthread         Number of threads for construction.
    * @param           cache_prefix    (Optional) The cache prefix for external memory.
-   * @param           data_split_mode Deprecated. Only row-wise split is supported;
-   *                                     column-wise split has been removed and is rejected.
    *
    * @return  a Created DMatrix.
    */
   template <typename AdapterT>
   static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix = "", int data_split_mode = 0);
+                         const std::string& cache_prefix = "");
 
   /**
    * @brief Create a new Quantile based DMatrix used for histogram based algorithm.
@@ -691,14 +685,6 @@ class DMatrix {
 
   virtual DMatrix* Slice(common::Span<int32_t const> ridxs) = 0;
 
-  /**
-   * @brief Slice a DMatrix by columns.
-   *
-   * @param num_slices Total number of slices
-   * @param slice_id Index of the current slice
-   * @return DMatrix containing the slice of columns
-   */
-  virtual DMatrix* SliceCol(int num_slices, int slice_id) = 0;
   /**
    * @brief Accessor for the string representation of the categories.
    */

@@ -109,10 +109,6 @@ class DMatrixProxy : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix is not supported for Proxy DMatrix.";
     return nullptr;
   }
-  DMatrix* SliceCol(int, int) override {
-    LOG(FATAL) << "Slicing DMatrix columns is not supported for Proxy DMatrix.";
-    return nullptr;
-  }
   BatchSet<SparsePage> GetRowBatches() override { return NoBatch<SparsePage>(); }
   BatchSet<CSCPage> GetColumnBatches(Context const*) override { return NoBatch<CSCPage>(); }
   BatchSet<SortedCSCPage> GetSortedColumnBatches(Context const*) override {

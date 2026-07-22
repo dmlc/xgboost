@@ -26,11 +26,10 @@
 
 namespace xgboost::metric {
 namespace {
-using Verifier = std::function<void(int, DeviceOrd)>;
+using Verifier = std::function<void(DeviceOrd)>;
 struct Param {
   bool is_dist;      // is distributed
   bool is_fed;       // is federated learning
-  int split;         // how to split data
   Verifier v;        // test function
   std::string name;  // metric name
   DeviceOrd device;  // device to run
@@ -39,9 +38,9 @@ struct Param {
 class TestDistributedMetric : public ::testing::TestWithParam<Param> {
  protected:
   template <typename Fn>
-  void Run(bool is_dist, bool is_fed, int split_mode, Fn fn, DeviceOrd device) {
+  void Run(bool is_dist, bool is_fed, Fn fn, DeviceOrd device) {
     if (!is_dist) {
-      fn(split_mode, device);
+      fn(device);
       return;
     }
 
@@ -54,9 +53,9 @@ class TestDistributedMetric : public ::testing::TestWithParam<Param> {
     auto fn1 = [&]() {
       auto r = collective::GetRank();
       if (device.IsCPU()) {
-        fn(split_mode, DeviceOrd::CPU());
+        fn(DeviceOrd::CPU());
       } else {
-        fn(split_mode, DeviceOrd::CUDA(r));
+        fn(DeviceOrd::CUDA(r));
       }
     };
     if (is_fed) {
@@ -72,7 +71,7 @@ class TestDistributedMetric : public ::testing::TestWithParam<Param> {
 
 TEST_P(TestDistributedMetric, BinaryAUCRowSplit) {
   auto p = GetParam();
-  this->Run(p.is_dist, p.is_fed, p.split, p.v, p.device);
+  this->Run(p.is_dist, p.is_fed, p.v, p.device);
 }
 
 constexpr bool UseNCCL() {
@@ -104,28 +103,26 @@ auto MakeParamsForTest() {
 
   auto push = [&](std::string name, auto fn) {
     for (bool is_federated : {false, true}) {
-      for (int m : {0}) {
-        for (auto d : {DeviceOrd::CPU(), DeviceOrd::CUDA(0)}) {
-          if (!is_federated && !UseNCCL() && d.IsCUDA()) {
-            // Federated doesn't use nccl.
-            continue;
-          }
-          if (!UseCUDA() && d.IsCUDA()) {
-            // skip CUDA tests
-            continue;
-          }
-          if (!UseFederated() && is_federated) {
-            // skip GRPC tests
-            continue;
-          }
+      for (auto d : {DeviceOrd::CPU(), DeviceOrd::CUDA(0)}) {
+        if (!is_federated && !UseNCCL() && d.IsCUDA()) {
+          // Federated doesn't use nccl.
+          continue;
+        }
+        if (!UseCUDA() && d.IsCUDA()) {
+          // skip CUDA tests
+          continue;
+        }
+        if (!UseFederated() && is_federated) {
+          // skip GRPC tests
+          continue;
+        }
 
-          auto p = Param{true, is_federated, m, fn, name, d};
+        auto p = Param{true, is_federated, fn, name, d};
+        cases.push_back(p);
+        if (!is_federated) {
+          // Add a local test.
+          p.is_dist = false;
           cases.push_back(p);
-          if (!is_federated) {
-            // Add a local test.
-            p.is_dist = false;
-            cases.push_back(p);
-          }
         }
       }
     }
@@ -181,12 +178,6 @@ INSTANTIATE_TEST_SUITE_P(
       if (info.param.is_fed) {
         result += "Federated_";
       }
-      if (info.param.split == 0) {
-        result += "RowSplit";
-      } else {
-        result += "ColSplit";
-      }
-      result += "_";
       result += info.param.device.IsCPU() ? "CPU" : "MGPU";
       result += "_";
       result += info.param.name;
@@ -205,7 +196,7 @@ TEST(Metric, ExpectileLoadConfig) {
 
   xgboost::HostDeviceVector<float> preds;
   preds.HostVector() = {0.1f, 0.9f};
-  auto result = GetMetricEval(loaded.get(), preds, {0.0f, 1.0f}, {}, {}, 0);
+  auto result = GetMetricEval(loaded.get(), preds, {0.0f, 1.0f}, {}, {});
   // alpha=0.8, diffs {0.1, -0.1} => losses {0.2*0.01, 0.8*0.01} -> mean 0.005.
   EXPECT_NEAR(result, 0.005f, 1e-6f);
 }

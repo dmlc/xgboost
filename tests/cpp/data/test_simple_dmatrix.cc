@@ -33,7 +33,6 @@ TEST(SimpleDMatrix, MetaInfo) {
   EXPECT_EQ(dmat->Info().num_col_, 5);
   EXPECT_EQ(dmat->Info().num_nonzero_, 6);
   EXPECT_EQ(dmat->Info().labels.Size(), dmat->Info().num_row_);
-  EXPECT_EQ(dmat->Info().data_split_mode, 0);
 
   delete dmat;
 }
@@ -327,72 +326,6 @@ TEST(SimpleDMatrix, Slice) {
         DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), n_threads, "")};
     std::unique_ptr<DMatrix> slice{p_fmat->Slice(ridxs)};
     ASSERT_LE(slice->Ctx()->Threads(), n_threads);
-  }
-}
-
-TEST(SimpleDMatrix, SliceCol) {
-  size_t constexpr kRows{16};
-  size_t constexpr kCols{8};
-  size_t constexpr kClasses{3};
-  auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-  auto &weights = p_m->Info().weights_.HostVector();
-  weights.resize(kRows);
-  std::iota(weights.begin(), weights.end(), 0.0f);
-
-  auto &lower = p_m->Info().labels_lower_bound_.HostVector();
-  auto &upper = p_m->Info().labels_upper_bound_.HostVector();
-  lower.resize(kRows);
-  upper.resize(kRows);
-
-  std::iota(lower.begin(), lower.end(), 0.0f);
-  std::iota(upper.begin(), upper.end(), 1.0f);
-
-  auto &margin = p_m->Info().base_margin_;
-  margin = decltype(p_m->Info().base_margin_){{kRows, kClasses}, DeviceOrd::CPU()};
-
-  auto constexpr kSlices{2};
-  auto constexpr kSliceSize{4};
-  for (auto slice = 0; slice < kSlices; slice++) {
-    std::unique_ptr<DMatrix> out{p_m->SliceCol(kSlices, slice)};
-    ASSERT_EQ(out->Info().labels.Size(), kRows);
-    ASSERT_EQ(out->Info().labels_lower_bound_.Size(), kRows);
-    ASSERT_EQ(out->Info().labels_upper_bound_.Size(), kRows);
-    ASSERT_EQ(out->Info().base_margin_.Size(), kRows * kClasses);
-
-    for (auto const &in_batch : p_m->GetBatches<SparsePage>()) {
-      auto in_page = in_batch.GetView();
-      for (auto const &out_batch : out->GetBatches<SparsePage>()) {
-        auto out_page = out_batch.GetView();
-        for (size_t i = 0; i < kRows; ++i) {
-          auto out_inst = out_page[i];
-          auto in_inst = in_page[i];
-          ASSERT_EQ(out_inst.size() * 2, in_inst.size()) << i;
-          for (size_t j = 0; j < kSliceSize; ++j) {
-            auto const slice_start = kSliceSize * slice;
-            ASSERT_EQ(in_inst[slice_start + j].fvalue, out_inst[j].fvalue);
-            ASSERT_EQ(in_inst[slice_start + j].index, out_inst[j].index);
-          }
-
-          ASSERT_EQ(p_m->Info().labels_lower_bound_.HostVector().at(i),
-                    out->Info().labels_lower_bound_.HostVector().at(i));
-          ASSERT_EQ(p_m->Info().labels_upper_bound_.HostVector().at(i),
-                    out->Info().labels_upper_bound_.HostVector().at(i));
-          ASSERT_EQ(p_m->Info().weights_.HostVector().at(i),
-                    out->Info().weights_.HostVector().at(i));
-
-          auto out_margin = out->Info().base_margin_.View(DeviceOrd::CPU());
-          auto in_margin = margin.View(DeviceOrd::CPU());
-          for (size_t j = 0; j < kClasses; ++j) {
-            ASSERT_EQ(out_margin(i, j), in_margin(i, j));
-          }
-        }
-      }
-    }
-
-    ASSERT_EQ(out->Info().num_col_, out->Info().num_col_);
-    ASSERT_EQ(out->Info().num_row_, kRows);
-    ASSERT_EQ(out->Info().num_nonzero_, kRows * kSliceSize);  // dense
-    ASSERT_EQ(out->Info().data_split_mode, 0);
   }
 }
 

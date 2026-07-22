@@ -105,14 +105,13 @@ xgboost::bst_float GetMetricEval(
     xgboost::Metric* metric, xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
     std::vector<xgboost::bst_float> labels,
     std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float>(),
-    std::vector<xgboost::bst_uint> groups = std::vector<xgboost::bst_uint>(),
-    int data_split_Mode = 0);
+    std::vector<xgboost::bst_uint> groups = std::vector<xgboost::bst_uint>());
 
 double GetMultiMetricEval(xgboost::Metric* metric,
                           xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                           xgboost::linalg::Tensor<float, 2> const& labels,
                           std::vector<xgboost::bst_float> weights = {},
-                          std::vector<xgboost::bst_uint> groups = {}, int data_split_Mode = 0);
+                          std::vector<xgboost::bst_uint> groups = {});
 
 namespace xgboost {
 [[nodiscard]] std::vector<float> GetBaseScore(Json const& config);
@@ -340,8 +339,7 @@ class RandomDataGenerator {
   void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<std::size_t>* row_ptr,
                    HostDeviceVector<bst_feature_t>* columns) const;
 
-  [[nodiscard]] std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false,
-                                                         int data_split_mode = 0) const;
+  [[nodiscard]] std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false) const;
 
   [[nodiscard]] std::shared_ptr<DMatrix> GenerateSparsePageDMatrix(std::string prefix,
                                                                    bool with_label) const;

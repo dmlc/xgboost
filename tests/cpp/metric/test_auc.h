@@ -8,20 +8,20 @@
 #include "../helpers.h"
 
 namespace xgboost::metric {
-inline void VerifyBinaryAUC(int data_split_mode, DeviceOrd device) {
+inline void VerifyBinaryAUC(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   Metric* metric = uni_ptr.get();
   ASSERT_STREQ(metric->Name(), "auc");
 
   // Binary
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1.0f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {1, 0}, {}, {}, data_split_mode), 0.0f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric, {0, 0}, {0, 1}, {}, {}, data_split_mode), 0.5f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric, {1, 1}, {0, 1}, {}, {}, data_split_mode), 0.5f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric, {0, 0}, {1, 0}, {}, {}, data_split_mode), 0.5f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric, {1, 1}, {1, 0}, {}, {}, data_split_mode), 0.5f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric, {1, 0, 0}, {0, 0, 1}, {}, {}, data_split_mode), 0.25f, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}), 1.0f, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {1, 0}, {}, {}), 0.0f, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 0}, {0, 1}, {}, {}), 0.5f, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {1, 1}, {0, 1}, {}, {}), 0.5f, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 0}, {1, 0}, {}, {}), 0.5f, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {1, 1}, {1, 0}, {}, {}), 0.5f, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {1, 0, 0}, {0, 0, 1}, {}, {}), 0.25f, 1e-10);
 
   // Invalid dataset
   auto p_fmat = EmptyDMatrix();
@@ -33,25 +33,23 @@ inline void VerifyBinaryAUC(int data_split_mode, DeviceOrd device) {
   auc = metric->Evaluate(HostDeviceVector<float>{}, p_fmat);
   ASSERT_TRUE(std::isnan(auc));
 
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1, 0, 1}, {0, 1, 0, 1}, {}, {}, data_split_mode), 1.0f,
-              1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1, 0, 1}, {0, 1, 0, 1}, {}, {}), 1.0f, 1e-10);
 
   // AUC with instance weights
-  EXPECT_NEAR(GetMetricEval(metric, {0.9f, 0.1f, 0.4f, 0.3f}, {0, 0, 1, 1},
-                            {1.0f, 3.0f, 2.0f, 4.0f}, {}, data_split_mode),
-              0.75f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.9f, 0.1f, 0.4f, 0.3f}, {0, 0, 1, 1}, {1.0f, 3.0f, 2.0f, 4.0f}, {}),
+      0.75f, 0.001f);
 
   // regression test case
   ASSERT_NEAR(GetMetricEval(metric, {0.79523796, 0.5201713,  0.79523796, 0.24273258, 0.53452194,
                                      0.53452194, 0.24273258, 0.5201713,  0.79523796, 0.53452194,
                                      0.24273258, 0.53452194, 0.79523796, 0.5201713,  0.24273258,
                                      0.5201713,  0.5201713,  0.53452194, 0.5201713,  0.53452194},
-                            {0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0}, {}, {},
-                            data_split_mode),
+                            {0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0}, {}, {}),
               0.5, 1e-10);
 }
 
-inline void VerifyMultiClassAUC(int data_split_mode, DeviceOrd device) {
+inline void VerifyMultiClassAUC(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   auto metric = uni_ptr.get();
@@ -64,7 +62,7 @@ inline void VerifyMultiClassAUC(int data_split_mode, DeviceOrd device) {
                                 0.0f, 1.0f, 0.0f,  // p_1
                                 0.0f, 0.0f, 1.0f   // p_2
                             },
-                            {0, 1, 2}, {}, {}, data_split_mode),
+                            {0, 1, 2}, {}, {}),
               1.0f, 1e-10);
 
   EXPECT_NEAR(GetMetricEval(metric,
@@ -73,7 +71,7 @@ inline void VerifyMultiClassAUC(int data_split_mode, DeviceOrd device) {
                                 0.0f, 1.0f, 0.0f,  // p_1
                                 0.0f, 0.0f, 1.0f   // p_2
                             },
-                            {0, 1, 2}, {1.0f, 1.0f, 1.0f}, {}, data_split_mode),
+                            {0, 1, 2}, {1.0f, 1.0f, 1.0f}, {}),
               1.0f, 1e-10);
 
   EXPECT_NEAR(GetMetricEval(metric,
@@ -82,7 +80,7 @@ inline void VerifyMultiClassAUC(int data_split_mode, DeviceOrd device) {
                                 0.0f, 1.0f, 0.0f,  // p_1
                                 0.0f, 0.0f, 1.0f   // p_2
                             },
-                            {2, 1, 0}, {}, {}, data_split_mode),
+                            {2, 1, 0}, {}, {}),
               0.5f, 1e-10);
 
   EXPECT_NEAR(GetMetricEval(metric,
@@ -91,7 +89,7 @@ inline void VerifyMultiClassAUC(int data_split_mode, DeviceOrd device) {
                                 0.0f, 1.0f, 0.0f,  // p_1
                                 0.0f, 0.0f, 1.0f   // p_2
                             },
-                            {2, 0, 1}, {}, {}, data_split_mode),
+                            {2, 0, 1}, {}, {}),
               0.25f, 1e-10);
 
   // invalid dataset
@@ -101,18 +99,18 @@ inline void VerifyMultiClassAUC(int data_split_mode, DeviceOrd device) {
                                 0.0f, 1.0f, 0.0f,  // p_1
                                 0.0f, 0.0f, 1.0f   // p_2
                             },
-                            {0, 1, 1}, {}, {}, data_split_mode);  // no class 2.
+                            {0, 1, 1}, {}, {});  // no class 2.
   EXPECT_TRUE(std::isnan(auc)) << auc;
 
   HostDeviceVector<float> predts{
       0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
   };
   std::vector<float> labels{1.0f, 0.0f, 2.0f, 1.0f};
-  auc = GetMetricEval(metric, predts, labels, {1.0f, 2.0f, 3.0f, 4.0f}, {}, data_split_mode);
+  auc = GetMetricEval(metric, predts, labels, {1.0f, 2.0f, 3.0f, 4.0f}, {});
   ASSERT_GT(auc, 0.714);
 }
 
-inline void VerifyMultiLabelAUCImpl(char const* name, int data_split_mode, DeviceOrd device) {
+inline void VerifyMultiLabelAUCImpl(char const* name, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> metric{Metric::Create(name, &ctx)};
 
@@ -131,76 +129,65 @@ inline void VerifyMultiLabelAUCImpl(char const* name, int data_split_mode, Devic
   HostDeviceVector<float> p0{0.1f, 0.8f, 0.4f, 0.9f};
   HostDeviceVector<float> p1{0.9f, 0.8f, 0.7f, 0.1f};
 
-  auto expected0 = GetMetricEval(metric.get(), p0, y0, {}, {}, data_split_mode);
-  auto expected1 = GetMetricEval(metric.get(), p1, y1, {}, {}, data_split_mode);
+  auto expected0 = GetMetricEval(metric.get(), p0, y0, {}, {});
+  auto expected1 = GetMetricEval(metric.get(), p1, y1, {}, {});
 
   // Reuse a binary cache with the same flattened size as the multi-label input. The
   // multi-output call still needs to initialize its transpose buffer.
-  EXPECT_NEAR(
-      GetMetricEval(metric.get(), {0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f},
-                    {0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f}, {}, {}, data_split_mode),
-      1.0, 1e-10);
-  auto actual = GetMultiMetricEval(metric.get(), predts, labels, {}, {}, data_split_mode);
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f},
+                            {0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f}, {}, {}),
+              1.0, 1e-10);
+  auto actual = GetMultiMetricEval(metric.get(), predts, labels, {}, {});
   EXPECT_NEAR(actual, (expected0 + expected1) / 2.0, 1e-6);
 
   // Row weights apply within each target without changing the macro averaging.
   std::vector<float> weights{1.0f, 3.0f, 2.0f, 4.0f};
-  expected0 = GetMetricEval(metric.get(), p0, y0, weights, {}, data_split_mode);
-  expected1 = GetMetricEval(metric.get(), p1, y1, weights, {}, data_split_mode);
-  actual = GetMultiMetricEval(metric.get(), predts, labels, weights, {}, data_split_mode);
+  expected0 = GetMetricEval(metric.get(), p0, y0, weights, {});
+  expected1 = GetMetricEval(metric.get(), p1, y1, weights, {});
+  actual = GetMultiMetricEval(metric.get(), predts, labels, weights, {});
   EXPECT_NEAR(actual, (expected0 + expected1) / 2.0, 1e-6);
 
   // Perfect predictions produce a perfect aggregate score.
   HostDeviceVector<float> perfect(labels.Size());
   perfect.Copy(*labels.Data());
-  EXPECT_NEAR(GetMultiMetricEval(metric.get(), perfect, labels, {}, {}, data_split_mode), 1.0,
-              1e-10);
+  EXPECT_NEAR(GetMultiMetricEval(metric.get(), perfect, labels, {}, {}), 1.0, 1e-10);
 
   // A target containing only one class makes the aggregate score invalid.
   linalg::Tensor<float, 2> all_positive{{4, 2}, DeviceOrd::CPU()};
   all_positive.Data()->HostVector() = {
       0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
   };
-  EXPECT_TRUE(
-      std::isnan(GetMultiMetricEval(metric.get(), predts, all_positive, {}, {}, data_split_mode)));
+  EXPECT_TRUE(std::isnan(GetMultiMetricEval(metric.get(), predts, all_positive, {}, {})));
   linalg::Tensor<float, 2> all_negative{{4, 2}, DeviceOrd::CPU()};
   all_negative.Data()->HostVector() = {
       0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
   };
-  EXPECT_TRUE(
-      std::isnan(GetMultiMetricEval(metric.get(), predts, all_negative, {}, {}, data_split_mode)));
+  EXPECT_TRUE(std::isnan(GetMultiMetricEval(metric.get(), predts, all_negative, {}, {})));
 
   // Both labels are present, but zero weights remove all effective positives for target 0.
-  EXPECT_TRUE(std::isnan(GetMultiMetricEval(metric.get(), predts, labels, {1.0f, 1.0f, 0.0f, 0.0f},
-                                            {}, data_split_mode)));
+  EXPECT_TRUE(
+      std::isnan(GetMultiMetricEval(metric.get(), predts, labels, {1.0f, 1.0f, 0.0f, 0.0f}, {})));
 
   // Multi-output ranking is unsupported for matrix labels and widened predictions.
-  ASSERT_THROW(GetMultiMetricEval(metric.get(), predts, labels, {}, {0, 4}, data_split_mode),
-               dmlc::Error);
-  ASSERT_THROW(GetMetricEval(metric.get(), predts, y0, {}, {0, 4}, data_split_mode), dmlc::Error);
+  ASSERT_THROW(GetMultiMetricEval(metric.get(), predts, labels, {}, {0, 4}), dmlc::Error);
+  ASSERT_THROW(GetMetricEval(metric.get(), predts, y0, {}, {0, 4}), dmlc::Error);
 
   // Invalid size of prediction
   for (auto n_samples : {16, 7}) {
     HostDeviceVector<float> malformed(n_samples, 0.5f);
-    ASSERT_THROW(GetMultiMetricEval(metric.get(), malformed, labels, {}, {}, data_split_mode),
-                 dmlc::Error);
+    ASSERT_THROW(GetMultiMetricEval(metric.get(), malformed, labels, {}, {}), dmlc::Error);
   }
 }
 
-inline void VerifyMultiLabelAUC(int data_split_mode, DeviceOrd device) {
-  VerifyMultiLabelAUCImpl("auc", data_split_mode, device);
-}
+inline void VerifyMultiLabelAUC(DeviceOrd device) { VerifyMultiLabelAUCImpl("auc", device); }
 
-inline void VerifyMultiLabelPRAUC(int data_split_mode, DeviceOrd device) {
-  VerifyMultiLabelAUCImpl("aucpr", data_split_mode, device);
-}
+inline void VerifyMultiLabelPRAUC(DeviceOrd device) { VerifyMultiLabelAUCImpl("aucpr", device); }
 
 inline void VerifyMultiLabelAUCEmptyWorker(char const* name, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> metric{Metric::Create(name, &ctx)};
   auto p_fmat = EmptyDMatrix();
   auto& info = p_fmat->Info();
-  info.data_split_mode = 0;
   HostDeviceVector<float> predts;
 
   if (collective::GetRank() == 0) {
@@ -220,27 +207,26 @@ inline void VerifyMultiLabelAUCEmptyWorker(char const* name, DeviceOrd device) {
   EXPECT_NEAR(metric->Evaluate(predts, p_fmat), 1.0, 1e-10);
 }
 
-inline void VerifyRankingAUC(int data_split_mode, DeviceOrd device) {
+inline void VerifyRankingAUC(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<Metric> metric{Metric::Create("auc", &ctx)};
 
   // single group
   EXPECT_NEAR(GetMetricEval(metric.get(), {0.7f, 0.2f, 0.3f, 0.6f}, {1.0f, 0.8f, 0.4f, 0.2f},
-                            /*weights=*/{}, {0, 4}, data_split_mode),
+                            /*weights=*/{}, {0, 4}),
               0.5f, 1e-10);
 
   // multi group
   EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 2, 0, 1, 2}, {0, 1, 2, 0, 1, 2}, /*weights=*/{},
-                            {0, 3, 6}, data_split_mode),
+                            {0, 3, 6}),
               1.0f, 1e-10);
 
   EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1, 2, 0, 1, 2}, {0, 1, 2, 0, 1, 2},
-                            /*weights=*/{1.0f, 2.0f}, {0, 3, 6}, data_split_mode),
+                            /*weights=*/{1.0f, 2.0f}, {0, 3, 6}),
               1.0f, 1e-10);
 
   // AUC metric for grouped datasets - exception scenarios
-  ASSERT_TRUE(std::isnan(
-      GetMetricEval(metric.get(), {0, 1, 2}, {0, 0, 0}, {}, {0, 2, 3}, data_split_mode)));
+  ASSERT_TRUE(std::isnan(GetMetricEval(metric.get(), {0, 1, 2}, {0, 0, 0}, {}, {0, 2, 3})));
 
   // regression case
   HostDeviceVector<float> predt{
@@ -250,29 +236,26 @@ inline void VerifyRankingAUC(int data_split_mode, DeviceOrd device) {
   std::vector<float> labels{1., 0., 0., 1., 2., 1., 0., 0., 0., 0., 0., 0., 1., 0., 1., 0.};
 
   EXPECT_NEAR(GetMetricEval(metric.get(), std::move(predt), labels,
-                            /*weights=*/{}, groups, data_split_mode),
+                            /*weights=*/{}, groups),
               0.769841f, 1e-6);
 }
 
-inline void VerifyPRAUC(int data_split_mode, DeviceOrd device) {
+inline void VerifyPRAUC(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
   xgboost::Metric* metric = xgboost::Metric::Create("aucpr", &ctx);
   ASSERT_STREQ(metric->Name(), "aucpr");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 0, 1, 1}, {0, 0, 1, 1}, {}, {}, data_split_mode), 1, 1e-10);
-  EXPECT_NEAR(
-      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode), 0.5f,
-      0.001f);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 0, 1, 1}, {0, 0, 1, 1}, {}, {}), 1, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}), 0.5f, 0.001f);
   EXPECT_NEAR(GetMetricEval(metric, {0.4f, 0.2f, 0.9f, 0.1f, 0.2f, 0.4f, 0.1f, 0.1f, 0.2f, 0.1f},
-                            {0, 0, 0, 0, 0, 1, 0, 0, 1, 1}, {}, {}, data_split_mode),
+                            {0, 0, 0, 0, 0, 1, 0, 0, 1, 1}, {}, {}),
               0.2908445f, 0.001f);
   EXPECT_NEAR(
       GetMetricEval(metric, {0.87f, 0.31f, 0.40f, 0.42f, 0.25f, 0.66f, 0.95f, 0.09f, 0.10f, 0.97f,
                              0.76f, 0.69f, 0.15f, 0.20f, 0.30f, 0.14f, 0.07f, 0.58f, 0.61f, 0.08f},
-                    {0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1}, {}, {},
-                    data_split_mode),
+                    {0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1}, {}, {}),
       0.2769199f, 0.001f);
-  auto auc = GetMetricEval(metric, {0, 1}, {}, {}, {}, data_split_mode);
+  auto auc = GetMetricEval(metric, {0, 1}, {}, {}, {});
   ASSERT_TRUE(std::isnan(auc));
 
   // AUCPR with instance weights
@@ -281,17 +264,16 @@ inline void VerifyPRAUC(int data_split_mode, DeviceOrd device) {
                              0.43f, 0.59f, 0.87f, 0.007f},
                             {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0},
                             {1, 2, 7, 4, 5, 2.2f, 3.2f, 5, 6, 1, 2, 1.1f, 3.2f, 4.5f},  // weights
-                            {}, data_split_mode),
+                            {}),
               0.694435f, 0.001f);
 
   // Both groups contain only pos or neg samples.
-  auc = GetMetricEval(metric, {0, 0.1f, 0.3f, 0.5f, 0.7f}, {1, 1, 0, 0, 0}, {}, {0, 2, 5},
-                      data_split_mode);
+  auc = GetMetricEval(metric, {0, 0.1f, 0.3f, 0.5f, 0.7f}, {1, 1, 0, 0, 0}, {}, {0, 2, 5});
   ASSERT_TRUE(std::isnan(auc));
   delete metric;
 }
 
-inline void VerifyMultiClassPRAUC(int data_split_mode, DeviceOrd device) {
+inline void VerifyMultiClassPRAUC(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
@@ -301,21 +283,21 @@ inline void VerifyMultiClassPRAUC(int data_split_mode, DeviceOrd device) {
   HostDeviceVector<float> predts{
       0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
   };
-  auc = GetMetricEval(metric.get(), predts, labels, {}, {}, data_split_mode);
+  auc = GetMetricEval(metric.get(), predts, labels, {}, {});
   EXPECT_EQ(auc, 1.0f);
 
-  auc = GetMetricEval(metric.get(), predts, labels, {1.0f, 1.0f, 1.0f}, {}, data_split_mode);
+  auc = GetMetricEval(metric.get(), predts, labels, {1.0f, 1.0f, 1.0f}, {});
   EXPECT_EQ(auc, 1.0f);
 
   predts.HostVector() = {
       0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
   };
   labels = {1.0f, 0.0f, 2.0f, 1.0f};
-  auc = GetMetricEval(metric.get(), predts, labels, {1.0f, 2.0f, 3.0f, 4.0f}, {}, data_split_mode);
+  auc = GetMetricEval(metric.get(), predts, labels, {1.0f, 2.0f, 3.0f, 4.0f}, {});
   ASSERT_GT(auc, 0.699);
 }
 
-inline void VerifyRankingPRAUC(int data_split_mode, DeviceOrd device) {
+inline void VerifyRankingPRAUC(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
@@ -324,21 +306,19 @@ inline void VerifyRankingPRAUC(int data_split_mode, DeviceOrd device) {
   std::vector<uint32_t> groups{0, 2, 6};
 
   float auc = 0;
-  auc = GetMetricEval(metric.get(), {1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f}, labels, {}, groups,
-                      data_split_mode);
+  auc = GetMetricEval(metric.get(), {1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f}, labels, {}, groups);
   EXPECT_EQ(auc, 1.0f);
 
-  auc = GetMetricEval(metric.get(), {1.0f, 0.5f, 0.8f, 0.3f, 0.2f, 1.0f}, labels, {}, groups,
-                      data_split_mode);
+  auc = GetMetricEval(metric.get(), {1.0f, 0.5f, 0.8f, 0.3f, 0.2f, 1.0f}, labels, {}, groups);
   EXPECT_EQ(auc, 1.0f);
 
   auc = GetMetricEval(metric.get(), {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
-                      {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f}, {}, groups, data_split_mode);
+                      {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f}, {}, groups);
   ASSERT_TRUE(std::isnan(auc));
 
   // Incorrect label
   ASSERT_THROW(GetMetricEval(metric.get(), {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
-                             {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3.0f}, {}, groups, data_split_mode),
+                             {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3.0f}, {}, groups),
                dmlc::Error);
 
   // AUCPR with groups and no weights
@@ -347,8 +327,7 @@ inline void VerifyRankingPRAUC(int data_split_mode, DeviceOrd device) {
                     {0.87f, 0.31f, 0.40f, 0.42f, 0.25f, 0.66f, 0.95f, 0.09f, 0.10f, 0.97f,
                      0.76f, 0.69f, 0.15f, 0.20f, 0.30f, 0.14f, 0.07f, 0.58f, 0.61f, 0.08f},
                     {0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1}, {},  // weights
-                    {0, 2, 5, 9, 14, 20},                                              // group info
-                    data_split_mode),
+                    {0, 2, 5, 9, 14, 20}),                                             // group info
       0.556021f, 0.001f);
 }
 }  // namespace xgboost::metric

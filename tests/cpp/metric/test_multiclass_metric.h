@@ -48,44 +48,40 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
   }
 }
 
-inline void TestMultiClassError(int data_split_mode, DeviceOrd device) {
+inline void TestMultiClassError(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("merror", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "merror");
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}, {}, {}, data_split_mode));
-  EXPECT_NEAR(
-      GetMetricEval(metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}, {}, {}, data_split_mode), 0,
-      1e-10);
+  EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}, {}, {}));
+  EXPECT_NEAR(GetMetricEval(metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}, {}, {}), 0, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
-                            {0, 1, 2}, {}, {}, data_split_mode),
+                            {0, 1, 2}, {}, {}),
               0.666f, 0.001f);
   delete metric;
 }
 
-inline void VerifyMultiClassError(int data_split_mode, DeviceOrd device) {
-  TestMultiClassError(data_split_mode, device);
+inline void VerifyMultiClassError(DeviceOrd device) {
+  TestMultiClassError(device);
   CheckDeterministicMetricMultiClass(StringView{"merror"}, device.ordinal);
 }
 
-inline void TestMultiClassLogLoss(int data_split_mode, DeviceOrd device) {
+inline void TestMultiClassLogLoss(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("mlogloss", &ctx);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mlogloss");
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}, {}, {}, data_split_mode));
-  EXPECT_NEAR(
-      GetMetricEval(metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}, {}, {}, data_split_mode), 0,
-      1e-10);
+  EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}, {}, {}));
+  EXPECT_NEAR(GetMetricEval(metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}, {}, {}), 0, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
-                            {0, 1, 2}, {}, {}, data_split_mode),
+                            {0, 1, 2}, {}, {}),
               2.302f, 0.001f);
 
   delete metric;
 }
 
-inline void VerifyMultiClassLogLoss(int data_split_mode, DeviceOrd device) {
-  TestMultiClassLogLoss(data_split_mode, device);
+inline void VerifyMultiClassLogLoss(DeviceOrd device) {
+  TestMultiClassLogLoss(device);
   CheckDeterministicMetricMultiClass(StringView{"mlogloss"}, device.ordinal);
 }
 

@@ -47,7 +47,7 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
   }
 }
 
-inline void VerifyAFTNegLogLik(int data_split_mode, DeviceOrd device) {
+inline void VerifyAFTNegLogLik(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
   /**
@@ -61,7 +61,6 @@ inline void VerifyAFTNegLogLik(int data_split_mode, DeviceOrd device) {
   info.labels_upper_bound_.HostVector() = {100.0f, 20.0f,
                                            std::numeric_limits<bst_float>::infinity(), 200.0f};
   info.weights_.HostVector() = std::vector<bst_float>();
-  info.data_split_mode = data_split_mode;
   HostDeviceVector<bst_float> preds(4, std::log(64));
 
   struct TestCase {
@@ -77,7 +76,7 @@ inline void VerifyAFTNegLogLik(int data_split_mode, DeviceOrd device) {
   }
 }
 
-inline void VerifyIntervalRegressionAccuracy(int data_split_mode, DeviceOrd device) {
+inline void VerifyIntervalRegressionAccuracy(DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
   auto p_fmat = EmptyDMatrix();
@@ -86,7 +85,6 @@ inline void VerifyIntervalRegressionAccuracy(int data_split_mode, DeviceOrd devi
   info.labels_lower_bound_.HostVector() = {20.0f, 0.0f, 60.0f, 16.0f};
   info.labels_upper_bound_.HostVector() = {80.0f, 20.0f, 80.0f, 200.0f};
   info.weights_.HostVector() = std::vector<bst_float>();
-  info.data_split_mode = data_split_mode;
   HostDeviceVector<bst_float> preds(4, std::log(60.0f));
 
   std::unique_ptr<Metric> metric(Metric::Create("interval-regression-accuracy", &ctx));

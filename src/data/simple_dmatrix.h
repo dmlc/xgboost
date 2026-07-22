@@ -33,7 +33,6 @@ class SimpleDMatrix : public DMatrix {
   Context const* Ctx() const override { return &fmat_ctx_; }
 
   DMatrix* Slice(common::Span<int32_t const> ridxs) override;
-  DMatrix* SliceCol(int num_slices, int slice_id) override;
 
   /*! \brief magic number used to identify SimpleDMatrix binary files */
   static const int kMagic = 0xffffab01;

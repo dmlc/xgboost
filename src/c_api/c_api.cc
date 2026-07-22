@@ -53,6 +53,13 @@
 
 using namespace xgboost;  // NOLINT(*);
 
+namespace {
+void ValidateCAPIDataSplitMode(std::int64_t data_split_mode) {
+  CHECK_EQ(data_split_mode, 0)
+      << "Column-wise data split has been removed. Please use row-wise data split instead.";
+}
+}  // namespace
+
 XGB_DLL void XGBoostVersion(int *major, int *minor, int *patch) {
   if (major) {
     *major = XGBOOST_VER_MAJOR;
@@ -274,7 +281,8 @@ XGB_DLL int XGDMatrixCreateFromURI(const char *config, DMatrixHandle *out) {
   auto silent = static_cast<bool>(OptionalArg<Integer, int64_t>(jconfig, "silent", 1));
   auto data_split_mode = OptionalArg<Integer, int64_t>(jconfig, "data_split_mode", 0);
 
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(uri, silent, data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(uri, silent));
   API_END();
 }
 
@@ -492,8 +500,8 @@ XGB_DLL int XGDMatrixCreateFromColumnar(char const *data, char const *c_json_con
   auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
 
   data::ColumnarAdapter adapter{data};
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
 
   API_END();
 }
@@ -512,8 +520,8 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr, char const *indices, char
   auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", 0);
   auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
@@ -528,8 +536,8 @@ XGB_DLL int XGDMatrixCreateFromDense(char const *data, char const *c_json_config
   auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", 0);
   auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
@@ -548,8 +556,8 @@ XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char
   auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
   auto data_split_mode = OptionalArg<Integer, int64_t>(config, "data_split_mode", 0);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
+  ValidateCAPIDataSplitMode(data_split_mode);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
 
   API_END();
 }
@@ -905,9 +913,8 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out) {
 }
 
 XGB_DLL int XGDMatrixDataSplitMode(DMatrixHandle handle, bst_ulong *out) {
-  return GetDMatrixIntegralInfo(handle, out, [](DMatrix const *p_fmat) {
-    return static_cast<bst_ulong>(p_fmat->Info().data_split_mode);
-  });
+  return GetDMatrixIntegralInfo(handle, out,
+                                [](DMatrix const *) { return static_cast<bst_ulong>(0); });
 }
 
 XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,

@@ -24,7 +24,6 @@ void TestFitStump(Context const *ctx, int split = 0) {
   }
   linalg::Vector<float> out;
   MetaInfo info;
-  info.data_split_mode = split;
   FitStump(ctx, info, gpair, kTargets, &out);
   auto h_out = out.HostView();
   for (auto it = linalg::cbegin(h_out); it != linalg::cend(h_out); ++it) {

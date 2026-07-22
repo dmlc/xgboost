@@ -793,7 +793,6 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
 }
 
 void MetaInfo::SynchronizeNumberOfColumns(Context const* ctx) {
-  this->data_split_mode = 0;
   auto rc = collective::Allreduce(ctx, linalg::MakeVec(&num_col_, 1), collective::Op::kMax);
   collective::SafeColl(rc);
 }
@@ -891,11 +890,6 @@ DMatrix::~DMatrix() {
 }
 
 namespace {
-void ValidateDataSplitMode(int data_split_mode) {
-  CHECK_EQ(data_split_mode, 0)
-      << "Column-wise data split has been removed. Please use row-wise data split instead.";
-}
-
 DMatrix* TryLoadBinary(std::string fname, bool silent) {
   std::int32_t magic;
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
@@ -919,8 +913,7 @@ DMatrix* TryLoadBinary(std::string fname, bool silent) {
 }
 }  // namespace
 
-DMatrix* DMatrix::Load(const std::string& uri, bool silent, int data_split_mode) {
-  ValidateDataSplitMode(data_split_mode);
+DMatrix* DMatrix::Load(const std::string& uri, bool silent) {
   auto dlm_pos = uri.find('#');
   CHECK(dlm_pos == std::string::npos)
       << "External memory training with text input has been removed.";
@@ -942,8 +935,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, int data_split_mode)
   std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
       dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
   data::FileAdapter adapter(parser.get());
-  return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), "",
-                         data_split_mode);
+  return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads());
 }
 
 template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
@@ -988,17 +980,15 @@ DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback, XGDMatrixC
     XGDMatrixCallbackNext*, bst_bin_t, ExtMemConfig const&);
 
 template <typename AdapterT>
-DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&,
-                         int data_split_mode) {
-  ValidateDataSplitMode(data_split_mode);
+DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&) {
   return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 
 // Instantiate the factory function for various adapters
-#define INSTANTIATION_CREATE(_AdapterT)                               \
-  template DMatrix* DMatrix::Create<data::_AdapterT>(                 \
-      data::_AdapterT * adapter, float missing, std::int32_t nthread, \
-      const std::string& cache_prefix, int data_split_mode);
+#define INSTANTIATION_CREATE(_AdapterT)                                                        \
+  template DMatrix* DMatrix::Create<data::_AdapterT>(data::_AdapterT * adapter, float missing, \
+                                                     std::int32_t nthread,                     \
+                                                     const std::string& cache_prefix);
 
 INSTANTIATION_CREATE(DenseAdapter)
 INSTANTIATION_CREATE(ArrayAdapter)
@@ -1011,7 +1001,7 @@ INSTANTIATION_CREATE(ColumnarAdapter)
 
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
-    float missing, int nthread, std::string const& cache_prefix, int data_split_mode);
+    float missing, int nthread, std::string const& cache_prefix);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;
