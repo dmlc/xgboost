@@ -13,19 +13,12 @@ from .utils import Device
 
 
 def is_increasing(v: np.ndarray) -> bool:
-    """Whether ``v`` is nondecreasing along the sweep axis.
-
-    ``v`` can be a 1-D vector (scalar leaf) or a 2-D ``(grid, targets)`` matrix (vector
-    leaf).  For a matrix every output column must be nondecreasing.
-    """
+    """Whether ``v`` is nondecreasing along the sweep axis."""
     return np.count_nonzero(np.diff(v, axis=0) < 0.0) == 0
 
 
 def is_decreasing(v: np.ndarray) -> bool:
-    """Whether ``v`` is nonincreasing along the sweep axis.
-
-    See :py:func:`is_increasing` for the handling of vector-leaf prediction matrices.
-    """
+    """Whether ``v`` is nonincreasing along the sweep axis."""
     return np.count_nonzero(np.diff(v, axis=0) > 0.0) == 0
 
 

@@ -247,6 +247,14 @@ XGBOOST_DEVICE T0 CalcGainGivenWeight(TrainingParams const &p, T0 sum_grad, T0 s
            (static_cast<T0>(2.0) * p.reg_alpha * std::abs(w)));
 }
 
+template <typename TrainingParams, typename T>
+XGBOOST_DEVICE T ThresholdDeltaStep(TrainingParams const &p, T dw) {
+  if (p.max_delta_step != 0.0f && ::fabs(dw) > p.max_delta_step) {
+    dw = ::copysign(p.max_delta_step, dw);
+  }
+  return dw;
+}
+
 // calculate weight given the statistics
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(TrainingParams const &p,
@@ -255,10 +263,7 @@ XGBOOST_DEVICE std::enable_if_t<std::is_floating_point_v<T>, T> CalcWeight(Train
     return 0.0;
   }
   T dw = -ThresholdL1(sum_grad, p.reg_alpha) / (sum_hess + p.reg_lambda);
-  if (p.max_delta_step != 0.0f && ::fabs(dw) > p.max_delta_step) {
-    dw = ::copysign(p.max_delta_step, dw);
-  }
-  return dw;
+  return ThresholdDeltaStep(p, dw);
 }
 
 // calculate the cost of loss function

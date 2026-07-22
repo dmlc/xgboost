@@ -116,9 +116,7 @@ class TreeEvaluator {
       }
     }
 
-    // If the independent bounded optima violate the required order, the constrained minimum is
-    // on wleft = wright. Minimize both child objectives there by adding their gradients/Hessians,
-    // counting L1/L2 penalties twice, and clamping the shared solution to the inherited bounds.
+    // See the sphinx document about monotone constraint for how this works.
     template <typename LeftGradientSumT, typename RightGradientSumT,
               split_impl::EnableScaGrad<LeftGradientSumT, RightGradientSumT> = 0>
     [[nodiscard]] XGBOOST_DEVICE std::tuple<float, float> CalcSplitWeights(
@@ -144,10 +142,7 @@ class TreeEvaluator {
         auto sum_grad = left.GetGrad() + right.GetGrad();
         auto dw =
             -ThresholdL1(sum_grad, 2.0f * param.reg_alpha) / (sum_hess + 2.0f * param.reg_lambda);
-        if (param.max_delta_step != 0.0f && ::fabs(dw) > param.max_delta_step) {
-          dw = ::copysign(param.max_delta_step, dw);
-        }
-        pooled = dw;
+        pooled = ThresholdDeltaStep(param, dw);
       }
       pooled = this->ApplyBounds(nidx, target, pooled);
       return {pooled, pooled};
