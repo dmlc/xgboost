@@ -32,6 +32,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.parseJson
 import org.scalatest.funsuite.AnyFunSuite
 
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.spark.Utils.TRAIN_NAME
 
@@ -161,6 +162,59 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     classifier.setMissing(Float.NaN)
     val rdd1 = classifier.toXGBLabeledPoint(input, columnIndexes)
     rdd1.collect()
+  }
+
+  test("asXGB keeps SparseVector indices and values as parallel arrays") {
+    import Utils.MLVectorToXGBLabeledPoint
+
+    val sparse = Vectors.sparse(5, Array(1, 3), Array(2.2, 4.4)).asInstanceOf[SparseVector]
+    val point = sparse.asXGB
+
+    assert(point.size() === 5)
+    assert(point.indices() === Array(1, 3))
+    assert(point.values() === Array(2.2f, 4.4f))
+    assert(point.indices().length === point.values().length)
+
+    val dense = Vectors.dense(1.0, 0.0, 3.0).asInstanceOf[DenseVector]
+    val densePoint = dense.asXGB
+    assert(densePoint.indices() == null)
+    assert(densePoint.values() === Array(1.0f, 0.0f, 3.0f))
+  }
+
+  test("transform matches native per-row predict for sparse feature vectors") {
+    val rng = new java.util.Random(42)
+    val size = 8
+    val rows = (0 until 40).map { i =>
+      val active = (0 until size).filter(_ => rng.nextBoolean())
+      val idx = if (active.isEmpty) Array(0) else active.toArray
+      val vals = idx.map(_ => rng.nextDouble())
+      (i.toDouble % 3, Vectors.sparse(size, idx, vals).asInstanceOf[SparseVector])
+    }
+    val df = ss.createDataFrame(sc.parallelize(rows)).toDF("label", "features")
+
+    val model = new XGBoostRegressor()
+      .setNumRound(5)
+      .setNumWorkers(1)
+      .setMissing(Float.NaN)
+      .fit(df)
+
+    val transformed = model.transform(df).select("features", "prediction").collect()
+
+    transformed.foreach { row =>
+      val features = row.getAs[SparseVector](0)
+      val batch = row.getDouble(1).toFloat
+      val dm = new DMatrix(Iterator(new XGBLabeledPoint(
+        0.0f, features.size, features.indices, features.values.map(_.toFloat))),
+        null, Float.NaN)
+      try {
+        val native = model.nativeBooster.predict(dm)(0)(0)
+        assert(math.abs(batch - native) < 1e-5,
+          s"batch transform diverged from native per-row predict for $features: " +
+            s"$batch vs $native")
+      } finally {
+        dm.delete()
+      }
+    }
   }
 
   test("missing value for dense vector no need to set missing explicitly") {
