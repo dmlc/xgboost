@@ -133,15 +133,13 @@ if __name__ == "__main__":
     # Train with builtin RMSE objective
     # - One model per output.
     rmse_model("one_output_per_tree", axs[0, 0])
-    # - One model for all outputs, this is still working in progress, many features are
-    # missing.
+    # - One model for all outputs, this is still experimental.
     rmse_model("multi_output_tree", axs[0, 1])
 
     # Train with custom objective.
     # - One model per output.
     custom_rmse_model("one_output_per_tree", axs[1, 0])
-    # - One model for all outputs, this is still working in progress, many features are
-    # missing.
+    # - One model for all outputs, this is still experimental.
     custom_rmse_model("multi_output_tree", axs[1, 1])
     if args.plot == 1:
         plt.show()

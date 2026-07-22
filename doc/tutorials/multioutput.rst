@@ -59,10 +59,6 @@ Training with Vector Leaf
 
 .. versionadded:: 2.0.0
 
-.. note::
-
-   This is still working-in-progress, and most features are missing.
-
 XGBoost can optionally build multi-output trees with the size of leaf equals to the number
 of targets when the tree method `hist` is used. The behavior can be controlled by the
 ``multi_strategy`` training parameter, which can take the value `one_output_per_tree` (the
@@ -85,8 +81,8 @@ Using Reduced Gradient (Sketch Boost)
 
 .. note::
 
-   This is still working-in-progress, and most features are missing. It is documented here
-   for early testers to provide feedback. Related interface might change without notice.
+   This is experimental. It is documented here for early testers to provide feedback. Related
+   interface might change without notice.
 
 When the number of targets is large, training a gradient boosting tree model using the
 full gradient matrix becomes challenging. The training procedure may run out of memory for
