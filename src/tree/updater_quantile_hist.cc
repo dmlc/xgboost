@@ -377,8 +377,7 @@ class MultiTargetHistBuilder {
     linalg::Matrix<float> weights = linalg::Empty<float>(ctx_, n_leaves, n_targets);
     auto h_weights = weights.HostView();
     auto eta = this->param_->learning_rate;
-    // Reduced split-gradient bounds don't map to the full value-gradient coordinates.
-    auto evaluator = this->evaluator_->Evaluator(false);
+    auto evaluator = this->evaluator_->Evaluator();
 
     common::ParallelFor(n_leaves, n_threads, [&](auto leaf_idx) {
       auto grad_sum = h_leaf_sums.Slice(leaf_idx, linalg::All());

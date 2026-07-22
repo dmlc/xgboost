@@ -904,9 +904,7 @@ class HistMultiEvaluator {
                           param_->colsample_bylevel, param_->colsample_bytree);
   }
 
-  [[nodiscard]] auto Evaluator(bool use_constraint = true) const {
-    return tree_evaluator_.GetEvaluator(use_constraint);
-  }
+  [[nodiscard]] auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
 };
 
 /**

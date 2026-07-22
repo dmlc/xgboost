@@ -104,8 +104,8 @@ class MultiHistEvaluator {
              common::Span<FeatureType const> feature_types, TrainParam const &param,
              bst_target_t n_targets);
 
-  [[nodiscard]] auto GetEvaluator(bool use_constraint) const {
-    return tree_evaluator_->GetEvaluator<GPUTrainingParam>(use_constraint);
+  [[nodiscard]] auto GetEvaluator() const {
+    return tree_evaluator_->GetEvaluator<EvalParam>();
   }
 
   /**

@@ -181,7 +181,7 @@ class MultiTargetHistMaker {
 
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {
     common::Span<GradientQuantiser const> d_roundings = this->split_quantizer_->DeviceSpan();
-    GPUTrainingParam d_param{this->param_};
+    EvalParam d_param{this->param_};
     std::size_t cat_storage_size = 0;
     if (this->cuts_->HasCategorical()) {
       cat_storage_size =
@@ -412,11 +412,10 @@ class MultiTargetHistMaker {
                                               d_out_sum.Size() * 2, ctx_->Device()));
     collective::SafeColl(rc);
 
-    auto param = GPUTrainingParam{this->param_};
+    auto param = EvalParam{this->param_};
     auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
     dh::device_vector<bst_node_t> d_leaves{leaves_idx};
-    // Reduced split-coordinate bounds do not apply to the full value gradient.
-    LeafWeight(this->ctx_, param, this->evaluator_.GetEvaluator(false), dh::ToSpan(d_leaves),
+    LeafWeight(this->ctx_, param, this->evaluator_.GetEvaluator(), dh::ToSpan(d_leaves),
                this->value_quantizer_->DeviceSpan(), out_sum.View(this->ctx_->Device()),
                out_weight.View(this->ctx_->Device()));
 

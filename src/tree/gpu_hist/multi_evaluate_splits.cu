@@ -218,15 +218,17 @@ struct EvaluateSplitAgent {
 
   typename MaxReduceT::TempStorage *temp_storage;
   bst_feature_t fidx;
-  TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator;
+  TreeEvaluator::SplitEvaluator<EvalParam> evaluator;
 
   // Calculate the split gain for one bin. `child_scan` has the bin-major layout
   // [bins][targets] and stores the non-missing child sum.
   template <DefaultDirection d_dir>
-  static __device__ double ComputeGain(
-      MultiEvaluateSplitInputs const &node, MultiEvaluateSplitSharedInputs const &shared,
-      common::Span<GradientPairInt64 const> child_scan, bst_bin_t bin_idx, bst_target_t n_targets,
-      bst_feature_t fidx, TreeEvaluator::SplitEvaluator<GPUTrainingParam> const &evaluator) {
+  static __device__ double ComputeGain(MultiEvaluateSplitInputs const &node,
+                                       MultiEvaluateSplitSharedInputs const &shared,
+                                       common::Span<GradientPairInt64 const> child_scan,
+                                       bst_bin_t bin_idx, bst_target_t n_targets,
+                                       bst_feature_t fidx,
+                                       TreeEvaluator::SplitEvaluator<EvalParam> const &evaluator) {
     auto offset = bin_idx * n_targets;
     auto child_values = child_scan.subspan(offset, n_targets);
     QuantizedGradientSum child{child_values.data(), shared.roundings};
@@ -385,7 +387,7 @@ template <std::int32_t kBlockThreads>
 __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
     common::Span<common::Span<GradientPairInt64>> bin_scans,
-    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+    TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
     common::Span<MultiSplitCandidate> out_candidates) {
   static_assert(kBlockThreads % dh::WarpThreads() == 0);
 
@@ -484,7 +486,7 @@ namespace {
 // Sort histogram based on projected score, see CPU implementation for details.
 void SortHistogram(Context const *ctx, MultiEvaluateSplitSharedInputs const &shared_inputs,
                    common::Span<MultiEvaluateSplitInputs const> d_inputs,
-                   TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                   TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
                    dh::device_vector<std::size_t> *p_sorted_idx) {
   auto &sorted_idx = *p_sorted_idx;
   auto n_nodes = d_inputs.size();
@@ -550,7 +552,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
                                         bst_node_t max_nidx,
                                         common::Span<MultiExpandEntry> out_splits) {
   auto n_targets = shared_inputs.Targets();
-  auto evaluator = this->GetEvaluator(true);
+  auto evaluator = this->GetEvaluator();
   CHECK_GT(n_targets, 0);
   CHECK_EQ(n_targets, evaluator.n_targets);
   CHECK_EQ(n_targets, shared_inputs.roundings.size());
@@ -754,7 +756,7 @@ void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tre
                                         bst_target_t n_targets) {
   CHECK_EQ(h_candidates.size(), d_candidates.size());
   CHECK(!h_candidates.empty());
-  CHECK_EQ(n_targets, this->GetEvaluator(true).n_targets);
+  CHECK_EQ(n_targets, this->GetEvaluator().n_targets);
 
   auto h_tree = p_tree->HostMtView();
   auto weights = this->GetNodeWeights(n_targets);

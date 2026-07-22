@@ -338,24 +338,21 @@ def run_reduced_grad(device: Device) -> None:  # pylint: disable=too-many-locals
     with pytest.raises(AssertionError):
         run_test(LsObj2(device, True))
 
-    X_small = np.arange(32, dtype=np.float32).reshape(16, 2)
-    y_small = np.stack([X_small[:, 0], X_small[:, 1]], axis=1)
-    dtrain = QuantileDMatrix(X_small, y_small)
-    params = {
-        "device": device,
-        "tree_method": "hist",
-        "multi_strategy": "multi_output_tree",
-        "max_depth": 1,  # root-only to test leaf weights
-        "monotone_constraints": "(1, 0)",
-    }
-    booster = train(params, dtrain, num_boost_round=1, obj=LsObj2(device, False))
-    predt = booster.predict(dtrain)
-    assert predt.shape == y_small.shape
-
-    # Reduced-coordinate bounds must not constrain the full-dimensional leaf refresh.
-    params["monotone_constraints"] = "(0, 0)"
-    reference = train(params, dtrain, num_boost_round=1, obj=LsObj2(device, False))
-    np.testing.assert_allclose(predt, reference.predict(dtrain))
+    with pytest.raises(
+        ValueError,
+        match="Monotonic constraints are not supported with reduced gradients",
+    ):
+        train(
+            {
+                "device": device,
+                "tree_method": "hist",
+                "multi_strategy": "multi_output_tree",
+                "monotone_constraints": (1,),
+            },
+            Xy,
+            num_boost_round=1,
+            obj=LsObj2(device, False),
+        )
 
 
 def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals

@@ -41,6 +41,33 @@ template <typename... T>
 using EnableScaGrad = std::enable_if_t<!(split_impl::IsVectorGradientSum<T>::value || ...), int>;
 }  // namespace split_impl
 
+struct EvalParam {
+  // minimum amount of hessian(weight) allowed in a child
+  float min_child_weight;
+  // L2 regularization factor
+  float reg_lambda;
+  // L1 regularization factor
+  float reg_alpha;
+  // maximum delta update we can add in weight estimation
+  // this parameter can be used to stabilize update
+  // default=0 means no constraint on weight delta
+  float max_delta_step;
+  float learning_rate;
+  std::uint32_t max_cat_to_onehot;
+  bst_bin_t max_cat_threshold;
+
+  EvalParam() = default;
+
+  XGBOOST_DEVICE explicit EvalParam(const TrainParam& param)
+      : min_child_weight(param.min_child_weight),
+        reg_lambda(param.reg_lambda),
+        reg_alpha(param.reg_alpha),
+        max_delta_step(param.max_delta_step),
+        learning_rate{param.learning_rate},
+        max_cat_to_onehot{param.max_cat_to_onehot},
+        max_cat_threshold{param.max_cat_threshold} {}
+};
+
 class TreeEvaluator {
   HostDeviceVector<float> lower_bounds_;
   HostDeviceVector<float> upper_bounds_;
@@ -119,6 +146,22 @@ class TreeEvaluator {
     // See the sphinx document about monotone constraint for how this works.
     template <typename LeftGradientSumT, typename RightGradientSumT,
               split_impl::EnableScaGrad<LeftGradientSumT, RightGradientSumT> = 0>
+    [[nodiscard]] XGBOOST_DEVICE auto CalcPooledWeight(ParamT const& param, bst_node_t nidx,
+                                                       bst_target_t target,
+                                                       LeftGradientSumT const& left,
+                                                       RightGradientSumT const& right) const {
+      // The common value still represents two leaves, each with its own regularization penalty.
+      EvalParam p;
+      p.reg_alpha = 2.0f * param.reg_alpha;
+      p.reg_lambda = 2.0f * param.reg_lambda;
+      p.max_delta_step = param.max_delta_step;
+      auto pooled_weight = ::xgboost::tree::CalcWeight(p, left.GetGrad() + right.GetGrad(),
+                                                       left.GetHess() + right.GetHess());
+      return this->ApplyBounds(nidx, target, pooled_weight);
+    }
+
+    template <typename LeftGradientSumT, typename RightGradientSumT,
+              split_impl::EnableScaGrad<LeftGradientSumT, RightGradientSumT> = 0>
     [[nodiscard]] XGBOOST_DEVICE std::tuple<float, float> CalcSplitWeights(
         ParamT const& param, bst_node_t nidx, bst_feature_t fidx, bst_target_t target,
         LeftGradientSumT const& left, RightGradientSumT const& right) const {
@@ -136,15 +179,7 @@ class TreeEvaluator {
         return {wleft, wright};
       }
 
-      auto sum_hess = left.GetHess() + right.GetHess();
-      float pooled{0.0f};
-      if (sum_hess > 0.0) {
-        auto sum_grad = left.GetGrad() + right.GetGrad();
-        auto dw =
-            -ThresholdL1(sum_grad, 2.0f * param.reg_alpha) / (sum_hess + 2.0f * param.reg_lambda);
-        pooled = ThresholdDeltaStep(param, dw);
-      }
-      pooled = this->ApplyBounds(nidx, target, pooled);
+      auto pooled = this->CalcPooledWeight(param, nidx, target, left, right);
       return {pooled, pooled};
     }
 
@@ -310,16 +345,16 @@ class TreeEvaluator {
  public:
   /* Get a view to the evaluator that can be passed down to device. */
   template <typename ParamT = TrainParam>
-  auto GetEvaluator(bool use_constraint = true) const {
-    auto has_constraint = has_constraint_ && use_constraint;
+  auto GetEvaluator() const {
     if (device_.IsCUDA()) {
       auto constraints = monotone_.ConstDevicePointer();
       return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDevicePointer(),
-                                    upper_bounds_.ConstDevicePointer(), has_constraint, n_targets_};
+                                    upper_bounds_.ConstDevicePointer(), has_constraint_,
+                                    n_targets_};
     } else {
       auto constraints = monotone_.ConstHostPointer();
       return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstHostPointer(),
-                                    upper_bounds_.ConstHostPointer(), has_constraint, n_targets_};
+                                    upper_bounds_.ConstHostPointer(), has_constraint_, n_targets_};
     }
   }
 

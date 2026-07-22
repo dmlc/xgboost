@@ -35,6 +35,39 @@ TEST(TreeEvaluator, CalcVectorGainWithMaxDeltaStep) {
   EXPECT_DOUBLE_EQ(all_zero.GetEvaluator().CalcGain(0, param, h_stats), 6.75);
 }
 
+TEST(TreeEvaluator, PooledWeightUsesTwoLeafRegularization) {
+  TrainParam param;
+  param.Init(Args{{"min_child_weight", "0"},
+                  {"reg_alpha", "0.25"},
+                  {"reg_lambda", "1"},
+                  {"monotone_constraints", "(1)"}});
+
+  linalg::Vector<GradientPairPrecise> left({1}, DeviceOrd::CPU());
+  linalg::Vector<GradientPairPrecise> right({1}, DeviceOrd::CPU());
+  auto h_left = left.HostView();
+  auto h_right = right.HostView();
+  h_left(0) = {-2.0, 1.0};
+  h_right(0) = {-1.0, 1.0};
+
+  TreeEvaluator tree_evaluator{param, 1, DeviceOrd::CPU(), 1};
+  auto evaluator = tree_evaluator.GetEvaluator();
+  auto pooled = evaluator.CalcPooledWeight(param, 0, 0, h_left(0), h_right(0));
+  EXPECT_FLOAT_EQ(pooled, 0.625f);
+
+  // Combining two equal-valued leaves is an ordinary one-leaf calculation with both
+  // regularization penalties doubled.
+  auto pooled_param = param;
+  pooled_param.reg_alpha *= 2.0f;
+  pooled_param.reg_lambda *= 2.0f;
+  auto sum = h_left(0) + h_right(0);
+  EXPECT_FLOAT_EQ(pooled, CalcWeight(pooled_param, sum));
+
+  auto gain = evaluator.CalcGainGivenWeight(param, h_left(0), pooled) +
+              evaluator.CalcGainGivenWeight(param, h_right(0), pooled);
+  EXPECT_DOUBLE_EQ(gain, CalcGain(pooled_param, sum));
+  EXPECT_DOUBLE_EQ(evaluator.CalcSplitGain(param, 0, 0, h_left, h_right), gain);
+}
+
 TEST(TreeEvaluator, PropagateVectorBounds) {
   for (auto monotone_direction : {1, -1}) {
     SCOPED_TRACE(monotone_direction);

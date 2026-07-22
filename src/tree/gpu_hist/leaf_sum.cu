@@ -1,5 +1,5 @@
 /**
- * Copyright 2025, XGBoost contributors
+ * Copyright 2025-2026, XGBoost contributors
  */
 #include <thrust/scan.h>     // for inclusive_scan
 #include <thrust/version.h>  // for THRUST_MAJOR_VERSION
@@ -9,7 +9,7 @@
 #include <cub/device/device_segmented_reduce.cuh>  // for DeviceSegmentedReduce
 #include <vector>                                  // for vector
 
-#include "../updater_gpu_common.cuh"  // for GPUTrainingParam
+#include "../split_evaluator.h"  // for GPUTrainingParam
 #include "leaf_sum.cuh"
 #include "quantiser.cuh"        // for GradientQuantiser
 #include "row_partitioner.cuh"  // for RowIndexT, LeafInfo
@@ -99,8 +99,8 @@ void LeafGradSum(Context const* ctx, std::vector<LeafInfo> const& h_leaves,
   }
 }
 
-void LeafWeight(Context const* ctx, GPUTrainingParam const& param,
-                TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+void LeafWeight(Context const* ctx, EvalParam const& param,
+                TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
                 common::Span<bst_node_t const> nidx,
                 common::Span<GradientQuantiser const> roundings,
                 linalg::MatrixView<GradientPairInt64 const> grad_sum,

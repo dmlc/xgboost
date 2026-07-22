@@ -69,8 +69,7 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
 
 common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
     Context const *ctx, common::Span<const EvaluateSplitInputs> d_inputs,
-    EvaluateSplitSharedInputs shared_inputs,
-    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
+    EvaluateSplitSharedInputs shared_inputs, TreeEvaluator::SplitEvaluator<EvalParam> evaluator) {
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   dh::Iota(sorted_idx, ctx->CUDACtx()->Stream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
