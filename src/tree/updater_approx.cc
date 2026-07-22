@@ -177,6 +177,7 @@ class GlobalApproxBuilder {
 
   void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,
                   RegTree *p_tree, HostDeviceVector<bst_node_t> *p_out_position) {
+    CHECK(!p_tree->IsMultiTarget()) << "approx" << MTNotImplemented();
     p_last_tree_ = p_tree;
     this->InitData(p_fmat, p_tree, hess);
 

@@ -117,6 +117,7 @@ class ColMaker : public TreeUpdater {
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     for (auto tree : trees) {
       CHECK(ctx_);
+      CHECK(!tree->IsMultiTarget()) << "exact" << MTNotImplemented();
       Builder builder(*param, colmaker_param_, interaction_constraints_, ctx_, column_densities_,
                       column_sampler_);
       builder.Update(gpair->Data()->ConstHostVector(), dmat, tree);
