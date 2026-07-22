@@ -294,7 +294,7 @@ class LsObj2(LsObj0):
         return sgrad, shess
 
 
-def run_reduced_grad(device: Device) -> None:
+def run_reduced_grad(device: Device) -> None:  # pylint: disable=too-many-locals
     """Basic test for using reduced gradient for tree splits."""
     X, y = make_regression(
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
@@ -337,6 +337,22 @@ def run_reduced_grad(device: Device) -> None:
     run_test(LsObj2(device, False))
     with pytest.raises(AssertionError):
         run_test(LsObj2(device, True))
+
+    with pytest.raises(
+        ValueError,
+        match="Monotonic constraints are not supported with reduced gradients",
+    ):
+        train(
+            {
+                "device": device,
+                "tree_method": "hist",
+                "multi_strategy": "multi_output_tree",
+                "monotone_constraints": (1,),
+            },
+            Xy,
+            num_boost_round=1,
+            obj=LsObj2(device, False),
+        )
 
 
 def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals
@@ -578,23 +594,26 @@ def run_grow_policy(device: Device, grow_policy: str) -> None:
     assert non_increasing(evals_result["train"]["rmse"])
 
 
-def run_mixed_strategy(device: Device) -> None:
+def run_mixed_strategy(device: Device, use_dart: bool) -> None:
     """Test mixed multi_strategy with ResetStrategy callback."""
     X, y = make_classification(
         n_samples=1024, n_informative=8, n_classes=3, random_state=1994
     )
     Xy = DMatrix(data=X, label=y)
 
+    params: Dict[str, Any] = {
+        "num_parallel_tree": 4,
+        "num_class": 3,
+        "objective": "multi:softprob",
+        "multi_strategy": "multi_output_tree",
+        "device": device,
+        "debug_synchronize": True,
+        "base_score": 0,
+    }
+    if use_dart:
+        params.update({"rate_drop": 0.5, "one_drop": True})
     booster = train(
-        {
-            "num_parallel_tree": 4,
-            "num_class": 3,
-            "objective": "multi:softprob",
-            "multi_strategy": "multi_output_tree",
-            "device": device,
-            "debug_synchronize": True,
-            "base_score": 0,
-        },
+        params,
         num_boost_round=16,
         dtrain=Xy,
         callbacks=[ResetStrategy()],

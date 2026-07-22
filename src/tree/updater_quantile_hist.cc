@@ -213,7 +213,8 @@ class MultiTargetHistBuilder {
     histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
                               collective::IsDistributed(), hist_param_);
 
-    evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
+    evaluator_ =
+        std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, n_targets, col_sampler_);
     p_last_tree_ = p_tree;
     monitor_->Stop(__func__);
   }
@@ -627,7 +628,6 @@ class QuantileHistMaker : public TreeUpdater {
               const std::vector<RegTree *> &trees) override {
     if (trees.front()->IsMultiTarget()) {
       CHECK(hist_param_.GetInitialised());
-      NoMonotoneConstraints(param, "vector leaf");
       if (!p_mtimpl_) {
         this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(ctx_, param, &hist_param_,
                                                                    column_sampler_, &monitor_);

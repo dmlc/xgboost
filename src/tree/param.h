@@ -7,7 +7,7 @@
 #ifndef XGBOOST_TREE_PARAM_H_
 #define XGBOOST_TREE_PARAM_H_
 
-#include <algorithm>
+#include <algorithm>  // for copy, any_of
 #include <cmath>
 #include <cstring>
 #include <string>
@@ -205,15 +205,12 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
     CHECK_GT(n_nodes, 0);
     return n_nodes;
   }
-};
 
-inline void NoMonotoneConstraints(TrainParam const *param, StringView name) {
-  if (!param->monotone_constraints.empty() &&
-      std::any_of(param->monotone_constraints.cbegin(), param->monotone_constraints.cend(),
-                  [](auto v) { return v != 0; })) {
-    LOG(FATAL) << "Monotonic constraint is not supported by the " << name << ".";
+  [[nodiscard]] bool HasMonotone() const {
+    return std::any_of(this->monotone_constraints.cbegin(), this->monotone_constraints.cend(),
+                       [](auto v) { return v != 0; });
   }
-}
+};
 
 /**
  * @brief Whether both children satisfy the Hessian requirement for a split.
@@ -225,8 +222,6 @@ XGBOOST_DEVICE bool IsValidSplit(TrainingParams const &p, T left_hess, T right_h
   return left_hess > 0.0 && right_hess > 0.0 && left_hess >= p.min_child_weight &&
          right_hess >= p.min_child_weight;
 }
-
-/*! \brief Loss functions */
 
 /**
  * @brief Function for L1 cost

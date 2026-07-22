@@ -43,7 +43,7 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     shared.feature_values = dh::ToSpan(cat_values).data();
     shared.feature_types = dh::ToSpan(cat_feature);
     shared.cat_storage_size = common::CatBitField::ComputeStorageSize(cat_values.size());
-    shared.param = GPUTrainingParam{param};
+    shared.param = EvalParam{param};
     return shared;
   }
 
@@ -89,7 +89,7 @@ class GpuMultiHistEvaluatorBasicTest : public ::testing::Test {
     shared_inputs.max_active_feature = 1;
 
     auto param = this->MakeParam();
-    shared_inputs.param = GPUTrainingParam{param};
+    shared_inputs.param = EvalParam{param};
   }
 };
 
@@ -115,7 +115,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
   for (auto one_pass : {OnePass::kNone, OnePass::kForward, OnePass::kBackward}) {
     auto shared = this->shared_inputs;
     shared.one_pass = one_pass;
-    MultiHistEvaluator evaluator{param, 1, ctx.Device()};
+    MultiHistEvaluator evaluator;
+    evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param, shared.Targets());
     auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
     ASSERT_NEAR(candidate.split.loss_chg, 3.04239, 1e-5);
 
@@ -142,8 +143,9 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, Root) {
 
   param = this->MakeParam(Args{{"reg_alpha", "0.1"}, {"max_delta_step", "1.45"}});
   auto shared = this->shared_inputs;
-  shared.param = GPUTrainingParam{param};
-  MultiHistEvaluator evaluator{param, 1, ctx.Device()};
+  shared.param = EvalParam{param};
+  MultiHistEvaluator evaluator;
+  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param, shared.Targets());
   auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
   ASSERT_NEAR(candidate.split.loss_chg, 2.55177, 1e-5);
 }
@@ -158,8 +160,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalOneHot) {
   auto param = this->MakeParam(Args{{"max_cat_to_onehot", "100"}});
   auto shared = this->MakeCategoricalInputs(param);
 
-  MultiHistEvaluator evaluator{param, 1, ctx.Device()};
-  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param);
+  MultiHistEvaluator evaluator;
+  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param, shared.Targets());
   auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(candidate.split.is_cat);
@@ -208,8 +210,8 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   auto param = this->MakeParam(Args{{"max_cat_to_onehot", "1"}});
   auto shared = this->MakeCategoricalInputs(param);
 
-  MultiHistEvaluator evaluator{param, 1, ctx.Device()};
-  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param);
+  MultiHistEvaluator evaluator;
+  evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, param, shared.Targets());
   auto candidate = evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(candidate.split.is_cat);
@@ -243,10 +245,11 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   // must still retain its base weight and Hessian.
   auto no_split_param =
       this->MakeParam(Args{{"max_cat_to_onehot", "1"}, {"max_cat_threshold", "1"}});
-  shared.param = GPUTrainingParam{no_split_param};
+  shared.param = EvalParam{no_split_param};
 
-  MultiHistEvaluator no_split_evaluator{no_split_param, 1, ctx.Device()};
-  no_split_evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, no_split_param);
+  MultiHistEvaluator no_split_evaluator;
+  no_split_evaluator.Reset(&ctx, shared.feature_segments, shared.feature_types, no_split_param,
+                           shared.Targets());
   auto no_split = no_split_evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(no_split.split.child_sum.empty());
