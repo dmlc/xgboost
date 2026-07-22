@@ -97,7 +97,6 @@ OBJECTS= \
     $(PKGROOT)/src/tree/updater_prune.o \
     $(PKGROOT)/src/tree/updater_quantile_hist.o \
     $(PKGROOT)/src/tree/updater_refresh.o \
-    $(PKGROOT)/src/tree/updater_sync.o \
     $(PKGROOT)/src/tree/hist/hist_param.o \
     $(PKGROOT)/src/tree/hist/histogram.o \
     $(PKGROOT)/src/tree/hist/sampler.o \
