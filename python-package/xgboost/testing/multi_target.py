@@ -578,23 +578,26 @@ def run_grow_policy(device: Device, grow_policy: str) -> None:
     assert non_increasing(evals_result["train"]["rmse"])
 
 
-def run_mixed_strategy(device: Device) -> None:
+def run_mixed_strategy(device: Device, use_dart: bool) -> None:
     """Test mixed multi_strategy with ResetStrategy callback."""
     X, y = make_classification(
         n_samples=1024, n_informative=8, n_classes=3, random_state=1994
     )
     Xy = DMatrix(data=X, label=y)
 
+    params: Dict[str, Any] = {
+        "num_parallel_tree": 4,
+        "num_class": 3,
+        "objective": "multi:softprob",
+        "multi_strategy": "multi_output_tree",
+        "device": device,
+        "debug_synchronize": True,
+        "base_score": 0,
+    }
+    if use_dart:
+        params.update({"rate_drop": 0.5, "one_drop": True})
     booster = train(
-        {
-            "num_parallel_tree": 4,
-            "num_class": 3,
-            "objective": "multi:softprob",
-            "multi_strategy": "multi_output_tree",
-            "device": device,
-            "debug_synchronize": True,
-            "base_score": 0,
-        },
+        params,
         num_boost_round=16,
         dtrain=Xy,
         callbacks=[ResetStrategy()],

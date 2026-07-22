@@ -81,6 +81,7 @@ bool UpdatersMatched(std::vector<std::string> updater_seq,
                       return name == up->Name();
                     });
 }
+
 }  // namespace
 
 void GBTree::Configure(Args const& cfg) {
@@ -365,7 +366,6 @@ void GBTree::BoostNewTrees(GradientContainer* gpair, DMatrix* p_fmat, int bst_gr
     if (!gpair->HasValueGrad()) {
       CHECK_EQ(gpair->gpair.Size(), n_out) << msg;
     }
-    CHECK(!dparam_.HasDropout()) << "dart" << MTNotImplemented();
   }
 
   out_position->resize(new_trees.size());
@@ -572,9 +572,10 @@ std::vector<float> GBTree::DropTrees(bool is_training) {
   return dropped_weights;
 }
 
-std::size_t GBTree::NormalizeTrees(size_t size_new_trees) {
+[[nodiscard]] std::size_t GBTree::NormalizeTrees(std::size_t size_new_trees) {
   CHECK(tree_param_.GetInitialised());
-  float lr = 1.0 * tree_param_.learning_rate / size_new_trees;
+  // Parallel trees each use eta / num_parallel_tree, so the complete layer uses eta.
+  auto lr = tree_param_.learning_rate;
   size_t num_drop = idx_drop_.size();
   if (num_drop == 0) {
     for (size_t i = 0; i < size_new_trees; ++i) {
