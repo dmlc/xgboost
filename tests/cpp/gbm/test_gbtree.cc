@@ -250,7 +250,7 @@ TEST(GBTree, ChooseTreeMethod) {
           {{std::nullopt, "cuda"}, "grow_gpu_hist"},
           {{std::nullopt, "cuda:0"}, "grow_gpu_hist"},
           {{std::nullopt, std::nullopt}, "grow_quantile_histmaker"},
-  };
+      };
 
   auto run_test = [&](auto fn) {
     for (auto const& kv : expectation) {
