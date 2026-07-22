@@ -22,14 +22,14 @@ from typing import Dict, List, Optional, Tuple
 
 import matplotlib
 import numpy as np
-from matplotlib import pyplot as plt
-
 import xgboost as xgb
+from matplotlib import pyplot as plt
 
 
 def plot_predt(
     y: np.ndarray, y_predt: np.ndarray, name: str, ax: matplotlib.axes.Axes
 ) -> None:
+    """Plot the prediction from the model."""
     s = 25
     ax.scatter(y[:, 0], y[:, 1], c="navy", s=s, edgecolor="black", label=name)
     ax.scatter(y_predt[:, 0], y_predt[:, 1], c="cornflowerblue", s=s, edgecolor="black")
@@ -76,6 +76,7 @@ def custom_rmse_model(strategy: str, ax: Optional[matplotlib.axes.Axes]) -> None
 
     def hessian(predt: np.ndarray, dtrain: xgb.DMatrix) -> np.ndarray:
         """Compute the hessian for squared error."""
+        assert dtrain.num_row() == predt.shape[0]
         return np.ones(predt.shape)
 
     def squared_log(
