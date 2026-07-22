@@ -114,8 +114,7 @@ Here :math:`\operatorname{clip}` applies the inherited bounds.
 
 .. note::
 
-    With reduced gradients, the constraint applies only to the split-gradient coordinates
-    and does not guarantee monotonicity of the full-dimensional leaves.
+    Reduced gradient doesn't support monotone constraint.
 
 *******************
 Using feature names
