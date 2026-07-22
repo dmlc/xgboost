@@ -461,7 +461,7 @@ class HistEvaluator {
       : ctx_{ctx},
         param_{param},
         column_sampler_{std::move(sampler)},
-        tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU()},
+        tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU(), 1u},
         is_col_split_{info.IsColumnSplit()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights, param_->colsample_bynode,
@@ -703,7 +703,7 @@ class HistMultiEvaluator {
       auto parent_sum = stats_.Slice(entry->nid, linalg::All());
       auto base_weight = linalg::Zeros<float>(ctx_, parent_sum.Shape());
       auto h_bw = base_weight.HostView();
-      evaluator.CalcWeight(entry->nid, *param_, parent_sum, h_bw);
+      evaluator.CalcWeightCat(*param_, parent_sum, h_bw);
 
       std::vector<common::ConstGHistRow> node_hist;
       for (auto t_hist : hist) {
@@ -755,8 +755,8 @@ class HistMultiEvaluator {
             auto f_hist = node_hist[t_idx].subspan(cut_ptr[fidx], n_bins);
             h_grads(t_idx) = f_hist[bin_idx];
           }
-          evaluator.CalcWeight(entry->nid, *param_, h_grads,
-                               linalg::MakeVec(child_w.data(), child_w.size()));
+          evaluator.CalcWeightCat(*param_, h_grads,
+                                  linalg::MakeVec(child_w.data(), child_w.size()));
           double sc = .0;
           for (decltype(n_targets) t_idx = 0; t_idx < n_targets; ++t_idx) {
             sc += h_bw(t_idx) * child_w[t_idx];
@@ -822,12 +822,12 @@ class HistMultiEvaluator {
     auto left_weight = weight.Slice(1, linalg::All());
     auto left_sum =
         linalg::MakeVec(candidate.split.left_sum.data(), candidate.split.left_sum.size());
-    evaluator.CalcWeight(candidate.nid, *param_, left_sum, left_weight);
 
     auto right_weight = weight.Slice(2, linalg::All());
     auto right_sum =
         linalg::MakeVec(candidate.split.right_sum.data(), candidate.split.right_sum.size());
-    evaluator.CalcWeight(candidate.nid, *param_, right_sum, right_weight);
+    evaluator.CalcSplitWeights(*param_, candidate.nid, candidate.split.SplitIndex(), left_sum,
+                               right_sum, left_weight, right_weight);
 
     auto leaf_weight = linalg::Empty<float>(ctx_, 2, n_split_targets);
     auto left_leaf_weight = leaf_weight.Slice(0, linalg::All());
@@ -867,6 +867,8 @@ class HistMultiEvaluator {
     auto right_child = mt_tree.RightChild(candidate.nid);
     CHECK_GT(right_child, candidate.nid);
 
+    tree_evaluator_.AddSplit(candidate.nid, left_child, right_child, candidate.split.SplitIndex(),
+                             left_weight, right_weight);
     evaluator = tree_evaluator_.GetEvaluator();
     interaction_constraints_.Split(candidate.nid, candidate.split.SplitIndex(), left_child,
                                    right_child);
@@ -889,9 +891,11 @@ class HistMultiEvaluator {
   }
 
   explicit HistMultiEvaluator(Context const *ctx, MetaInfo const &info, TrainParam const *param,
+                              bst_target_t n_targets,
                               std::shared_ptr<common::ColumnSampler> sampler)
       : param_{param},
-        tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU()},
+        tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU(),
+                        n_targets},
         column_sampler_{std::move(sampler)},
         ctx_{ctx},
         is_col_split_{info.IsColumnSplit()} {

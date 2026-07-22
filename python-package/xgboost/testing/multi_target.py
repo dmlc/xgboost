@@ -294,7 +294,7 @@ class LsObj2(LsObj0):
         return sgrad, shess
 
 
-def run_reduced_grad(device: Device) -> None:
+def run_reduced_grad(device: Device) -> None:  # pylint: disable=too-many-locals
     """Basic test for using reduced gradient for tree splits."""
     X, y = make_regression(
         n_samples=1024, n_features=16, random_state=1994, n_targets=5
@@ -337,6 +337,22 @@ def run_reduced_grad(device: Device) -> None:
     run_test(LsObj2(device, False))
     with pytest.raises(AssertionError):
         run_test(LsObj2(device, True))
+
+    with pytest.raises(
+        ValueError,
+        match="Monotonic constraints are not supported with reduced gradients",
+    ):
+        train(
+            {
+                "device": device,
+                "tree_method": "hist",
+                "multi_strategy": "multi_output_tree",
+                "monotone_constraints": (1,),
+            },
+            Xy,
+            num_boost_round=1,
+            obj=LsObj2(device, False),
+        )
 
 
 def run_with_iter(device: Device) -> None:  # pylint: disable=too-many-locals

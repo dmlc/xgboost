@@ -37,7 +37,8 @@ class TreeRefresher : public TreeUpdater {
     if (trees.size() == 0) {
       return;
     }
-    NoMonotoneConstraints(param, "`refresh` updater");
+    CHECK(!param->HasMonotone())
+        << "Monotonic constraint is not supported by the `refresh` updater.";
 
     auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();

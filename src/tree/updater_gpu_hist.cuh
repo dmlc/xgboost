@@ -181,7 +181,7 @@ class MultiTargetHistMaker {
 
   auto MakeSharedInputs(bst_feature_t max_active_feature) const {
     common::Span<GradientQuantiser const> d_roundings = this->split_quantizer_->DeviceSpan();
-    GPUTrainingParam d_param{this->param_};
+    EvalParam d_param{this->param_};
     std::size_t cat_storage_size = 0;
     if (this->cuts_->HasCategorical()) {
       cat_storage_size =
@@ -218,7 +218,7 @@ class MultiTargetHistMaker {
      * Evaluator
      */
     this->evaluator_.Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(), this->feature_types_,
-                           this->param_);
+                           this->param_, gpair_all->Shape(1));
 
     /**
      * Initialize the gradient matrix
@@ -357,7 +357,9 @@ class MultiTargetHistMaker {
     }
 
     dh::device_vector<MultiExpandEntry> candidates{h_candidates};
-    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree, dh::ToSpan(candidates), n_targets);
+    this->evaluator_.ApplyTreeSplit(this->ctx_, p_tree,
+                                    common::Span<MultiExpandEntry const>{h_candidates},
+                                    dh::ToSpan(candidates), n_targets);
   }
   /**
    * @brief Calculate the leaf weight based on the node sum for each leaf.
@@ -410,10 +412,9 @@ class MultiTargetHistMaker {
                                               d_out_sum.Size() * 2, ctx_->Device()));
     collective::SafeColl(rc);
 
-    auto param = GPUTrainingParam{this->param_};
+    auto param = EvalParam{this->param_};
     auto out_weight = linalg::Empty<float>(this->ctx_, n_leaves, p_tree->NumTargets());
     dh::device_vector<bst_node_t> d_leaves{leaves_idx};
-    // Use full value gradient for leaf values.
     LeafWeight(this->ctx_, param, this->evaluator_.GetEvaluator(), dh::ToSpan(d_leaves),
                this->value_quantizer_->DeviceSpan(), out_sum.View(this->ctx_->Device()),
                out_weight.View(this->ctx_->Device()));
@@ -679,8 +680,6 @@ class MultiTargetHistMaker {
                   HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
 
-    NoMonotoneConstraints(&param_, "vector leaf");
-
     auto* split_grad = gpair->Grad();
     if (gpair->HasValueGrad()) {
       this->value_gpair_ = linalg::Matrix<GradientPair>{gpair->value_gpair.Shape(), ctx_->Device()};
@@ -749,7 +748,6 @@ class MultiTargetHistMaker {
         cuts_{std::move(cuts)},
         feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
                                                         DftMtHistShmemBytes(ctx_->Ordinal()))},
-        evaluator_{param_, cuts_->NumFeatures(), ctx_->Device()},
         column_sampler_{std::move(column_sampler)},
         interaction_constraints_{
             std::make_unique<FeatureInteractionConstraintDevice>(param_, cuts_->NumFeatures())} {}

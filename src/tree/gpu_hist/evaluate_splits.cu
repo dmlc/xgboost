@@ -14,11 +14,13 @@
 
 namespace xgboost::tree {
 // With constraints
-XGBOOST_DEVICE float LossChangeMissing(
-    const GradientPairInt64 &scan, const GradientPairInt64 &missing,
-    const GradientPairInt64 &parent_sum, const GPUTrainingParam &param, bst_node_t nidx,
-    bst_feature_t fidx, TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-    bool &missing_left_out, const GradientQuantiser &quantiser) {  // NOLINT
+XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
+                                       const GradientPairInt64 &missing,
+                                       const GradientPairInt64 &parent_sum, const EvalParam &param,
+                                       bst_node_t nidx, bst_feature_t fidx,
+                                       TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
+                                       bool &missing_left_out,  // NOLINT
+                                       GradientQuantiser const &quantiser) {
   const auto left_sum = scan + missing;
   float missing_left_gain =
       evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(left_sum),
@@ -60,15 +62,15 @@ class EvaluateSplitAgent {
   const GradientQuantiser &rounding;
   const GradientPairInt64 parent_sum;
   const GradientPairInt64 missing;
-  const GPUTrainingParam &param;
-  const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator;
+  const EvalParam &param;
+  const TreeEvaluator::SplitEvaluator<EvalParam> &evaluator;
   SumCallbackOp<GradientPairInt64> prefix_op;
   static float constexpr kNullGain = -std::numeric_limits<bst_float>::infinity();
 
   __device__ EvaluateSplitAgent(TempStorage *temp_storage, int fidx,
                                 const EvaluateSplitInputs &inputs,
                                 const EvaluateSplitSharedInputs &shared_inputs,
-                                const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator)
+                                const TreeEvaluator::SplitEvaluator<EvalParam> &evaluator)
       : fidx(fidx),
         nidx(inputs.nidx),
         gidx_begin(__ldg(shared_inputs.feature_segments.data() + fidx)),
@@ -205,8 +207,7 @@ class EvaluateSplitAgent {
    */
   __device__ __forceinline__ void Partition(DeviceSplitCandidate *best_split,
                                             common::Span<bst_feature_t> sorted_idx,
-                                            std::size_t node_offset,
-                                            GPUTrainingParam const &param) {
+                                            std::size_t node_offset, EvalParam const &param) {
     bst_bin_t n_bins_feature = gidx_end - gidx_begin;
     auto n_bins = std::min(param.max_cat_threshold, n_bins_feature);
 
@@ -251,7 +252,7 @@ template <int kBlockThreads>
 __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     bst_feature_t max_active_features, common::Span<const EvaluateSplitInputs> d_inputs,
     const EvaluateSplitSharedInputs shared_inputs, common::Span<bst_feature_t> sorted_idx,
-    const TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+    const TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
     common::Span<DeviceSplitCandidate> out_candidates) {
   // Aligned && shared storage for best_split
   __shared__ cub::Uninitialized<DeviceSplitCandidate> uninitialized_split;
@@ -343,11 +344,11 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
   });
 }
 
-void GPUHistEvaluator::LaunchEvaluateSplits(
-    Context const *ctx, bst_feature_t max_active_features,
-    common::Span<const EvaluateSplitInputs> d_inputs, EvaluateSplitSharedInputs shared_inputs,
-    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-    common::Span<DeviceSplitCandidate> out_splits) {
+void GPUHistEvaluator::LaunchEvaluateSplits(Context const *ctx, bst_feature_t max_active_features,
+                                            common::Span<const EvaluateSplitInputs> d_inputs,
+                                            EvaluateSplitSharedInputs shared_inputs,
+                                            TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
+                                            common::Span<DeviceSplitCandidate> out_splits) {
   if (need_sort_histogram_) {
     this->SortHistogram(ctx, d_inputs, shared_inputs, evaluator);
   }
@@ -398,7 +399,7 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
                                       common::Span<const EvaluateSplitInputs> d_inputs,
                                       EvaluateSplitSharedInputs shared_inputs,
                                       common::Span<GPUExpandEntry> out_entries) {
-  auto evaluator = this->tree_evaluator_.template GetEvaluator<GPUTrainingParam>();
+  auto evaluator = this->tree_evaluator_.template GetEvaluator<EvalParam>();
 
   dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(d_inputs.size());
   auto out_splits = dh::ToSpan(splits_out_storage);

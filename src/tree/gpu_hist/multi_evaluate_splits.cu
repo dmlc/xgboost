@@ -11,9 +11,10 @@
 #include <cuda/ptx>                  // for get_sreg_laneid
 #include <cuda/std/functional>       // for identity
 #include <cuda/std/tuple>            // for get, make_tuple, tuple
-#include <limits>
-#include <type_traits>  // for is_trivially_copyable_v
-#include <vector>       // for vector
+#include <limits>                    // for numeric_limits
+#include <memory>                    // for make_unique
+#include <type_traits>               // for is_trivially_copyable_v
+#include <vector>                    // for vector
 
 #include "../../common/cuda_context.cuh"
 #include "../tree_view.h"             // for MultiTargetTreeView
@@ -204,9 +205,7 @@ struct QuantizedGradientDifference {
 
   [[nodiscard]] XGBOOST_DEVICE std::size_t Size() const { return roundings.size(); }
   [[nodiscard]] XGBOOST_DEVICE GradientPairPrecise operator()(std::size_t t) const {
-    auto parent_t = roundings.data()[t].ToFloatingPoint(parent[t]);
-    auto child_t = roundings.data()[t].ToFloatingPoint(child[t]);
-    return parent_t - child_t;
+    return roundings.data()[t].ToFloatingPoint(parent[t] - child[t]);
   }
 };
 
@@ -219,15 +218,17 @@ struct EvaluateSplitAgent {
 
   typename MaxReduceT::TempStorage *temp_storage;
   bst_feature_t fidx;
-  TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator;
+  TreeEvaluator::SplitEvaluator<EvalParam> evaluator;
 
   // Calculate the split gain for one bin. `child_scan` has the bin-major layout
   // [bins][targets] and stores the non-missing child sum.
   template <DefaultDirection d_dir>
-  static __device__ double ComputeGain(
-      MultiEvaluateSplitInputs const &node, MultiEvaluateSplitSharedInputs const &shared,
-      common::Span<GradientPairInt64 const> child_scan, bst_bin_t bin_idx, bst_target_t n_targets,
-      bst_feature_t fidx, TreeEvaluator::SplitEvaluator<GPUTrainingParam> const &evaluator) {
+  static __device__ double ComputeGain(MultiEvaluateSplitInputs const &node,
+                                       MultiEvaluateSplitSharedInputs const &shared,
+                                       common::Span<GradientPairInt64 const> child_scan,
+                                       bst_bin_t bin_idx, bst_target_t n_targets,
+                                       bst_feature_t fidx,
+                                       TreeEvaluator::SplitEvaluator<EvalParam> const &evaluator) {
     auto offset = bin_idx * n_targets;
     auto child_values = child_scan.subspan(offset, n_targets);
     QuantizedGradientSum child{child_values.data(), shared.roundings};
@@ -386,7 +387,7 @@ template <std::int32_t kBlockThreads>
 __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
     common::Span<MultiEvaluateSplitInputs const> nodes, MultiEvaluateSplitSharedInputs shared,
     common::Span<common::Span<GradientPairInt64>> bin_scans,
-    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+    TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
     common::Span<MultiSplitCandidate> out_candidates) {
   static_assert(kBlockThreads % dh::WarpThreads() == 0);
 
@@ -445,10 +446,12 @@ __global__ __launch_bounds__(kBlockThreads) void EvaluateSplitsKernel(
 void MultiHistEvaluator::Reset(Context const *ctx,
                                common::Span<std::uint32_t const> feature_segments,
                                common::Span<FeatureType const> feature_types,
-                               TrainParam const &param) {
+                               TrainParam const &param, bst_target_t n_targets) {
   CHECK_GT(feature_segments.size(), 0);
+  CHECK_GT(n_targets, 0);
   auto n_features = static_cast<bst_feature_t>(feature_segments.size() - 1);
-  this->tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device()};
+  this->tree_evaluator_ =
+      std::make_unique<TreeEvaluator>(param, n_features, ctx->Device(), n_targets);
   this->need_sort_histogram_ = false;
   if (feature_types.empty()) {
     return;
@@ -483,7 +486,7 @@ namespace {
 // Sort histogram based on projected score, see CPU implementation for details.
 void SortHistogram(Context const *ctx, MultiEvaluateSplitSharedInputs const &shared_inputs,
                    common::Span<MultiEvaluateSplitInputs const> d_inputs,
-                   TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                   TreeEvaluator::SplitEvaluator<EvalParam> evaluator,
                    dh::device_vector<std::size_t> *p_sorted_idx) {
   auto &sorted_idx = *p_sorted_idx;
   auto n_nodes = d_inputs.size();
@@ -522,7 +525,7 @@ void SortHistogram(Context const *ctx, MultiEvaluateSplitSharedInputs const &sha
           auto child_sum = quantizer.ToFloatingPoint(target_hist[bin_idx]);
           auto parent_sum = quantizer.ToFloatingPoint(node.parent_sum[t]);
           auto child_weight = evaluator.CalcWeightCat(shared_inputs.param, child_sum);
-          auto parent_weight = evaluator.CalcWeight(node.nidx, shared_inputs.param, parent_sum);
+          auto parent_weight = evaluator.CalcWeightCat(shared_inputs.param, parent_sum);
           sc += child_weight * parent_weight;
         }
         return cuda::std::make_tuple(nidx_in_set, fidx, sc);
@@ -551,6 +554,8 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
   auto n_targets = shared_inputs.Targets();
   auto evaluator = this->GetEvaluator();
   CHECK_GT(n_targets, 0);
+  CHECK_EQ(n_targets, evaluator.n_targets);
+  CHECK_EQ(n_targets, shared_inputs.roundings.size());
   CHECK_GE(shared_inputs.n_total_bins_per_tar, 1);
   auto n_features = shared_inputs.max_active_feature;
   CHECK_GE(n_features, 1);
@@ -667,7 +672,7 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     double parent_hess = 0;
     for (bst_target_t t = 0; t < n_targets; ++t) {
       auto g = roundings[t].ToFloatingPoint(input.parent_sum[t]);
-      base_weight[t] = evaluator.CalcWeight(nidx, shared_inputs.param, g);
+      base_weight[t] = evaluator.CalcWeight(nidx, t, shared_inputs.param, g);
       parent_hess += g.GetHess();
     }
 
@@ -711,30 +716,28 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
     // The child_sum span in best_split points to scan_buffer_ which gets reused,
     // so we store it persistently indexed by node id.
     auto split_sum_dest = GetNodeSumImpl(d_split_sums, nidx, n_targets);
+    QuantizedGradientSum child{split_sum.data(), roundings};
+    QuantizedGradientDifference sibling{input.parent_sum.data(), split_sum.data(), roundings};
 
     double left_hess = 0, right_hess = 0;  // Sum of child hessians across all targets
 
     for (bst_target_t t = 0; t < n_targets; ++t) {
-      auto quantizer = roundings[t];
-      auto sibling_sum = input.parent_sum[t] - split_sum[t];
-
       split_sum_dest[t] = split_sum[t];
 
-      // Left/right weights
       GradientPairPrecise lg, rg;
       if (best_split.dir == kRightDir) {
         // forward pass, split_sum is the left sum
-        lg = quantizer.ToFloatingPoint(split_sum[t]);
-        left_weight[t] = evaluator.CalcWeight(nidx, shared_inputs.param, lg);
-        rg = quantizer.ToFloatingPoint(sibling_sum);
-        right_weight[t] = evaluator.CalcWeight(nidx, shared_inputs.param, rg);
+        lg = child(t);
+        rg = sibling(t);
       } else {
         // backward pass, split_sum is the right sum
-        rg = quantizer.ToFloatingPoint(split_sum[t]);
-        right_weight[t] = evaluator.CalcWeight(nidx, shared_inputs.param, rg);
-        lg = quantizer.ToFloatingPoint(sibling_sum);
-        left_weight[t] = evaluator.CalcWeight(nidx, shared_inputs.param, lg);
+        lg = sibling(t);
+        rg = child(t);
       }
+      auto [lw, rw] =
+          evaluator.CalcSplitWeights(shared_inputs.param, nidx, best_split.findex, t, lg, rg);
+      left_weight[t] = lw;
+      right_weight[t] = rw;
 
       left_hess += lg.GetHess();
       right_hess += rg.GetHess();
@@ -748,8 +751,25 @@ void MultiHistEvaluator::EvaluateSplits(Context const *ctx,
 }
 
 void MultiHistEvaluator::ApplyTreeSplit(Context const *ctx, RegTree const *p_tree,
+                                        common::Span<MultiExpandEntry const> h_candidates,
                                         common::Span<MultiExpandEntry const> d_candidates,
                                         bst_target_t n_targets) {
+  CHECK_EQ(h_candidates.size(), d_candidates.size());
+  CHECK(!h_candidates.empty());
+  CHECK_EQ(n_targets, this->GetEvaluator().n_targets);
+
+  auto h_tree = p_tree->HostMtView();
+  auto weights = this->GetNodeWeights(n_targets);
+  for (auto const &candidate : h_candidates) {
+    auto left = h_tree.LeftChild(candidate.nidx);
+    auto right = h_tree.RightChild(candidate.nidx);
+    common::Span<float const> left_weight = weights.Left(candidate.nidx);
+    common::Span<float const> right_weight = weights.Right(candidate.nidx);
+    this->tree_evaluator_->AddSplit(candidate.nidx, left, right, candidate.split.findex,
+                                    linalg::MakeVec(ctx->Device(), left_weight),
+                                    linalg::MakeVec(ctx->Device(), right_weight));
+  }
+
   // Assign the node sums here, for the next evaluate split call.
   auto mt_tree = MultiTargetTreeView{ctx->Device(), false, p_tree};
   auto max_in_it = dh::MakeIndexTransformIter([=] __device__(std::size_t i) -> bst_node_t {
