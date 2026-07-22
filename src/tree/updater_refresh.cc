@@ -12,6 +12,7 @@
 #include "../predictor/predict_fn.h"
 #include "../tree/tree_view.h"  // for ScalarTreeView
 #include "./param.h"
+#include "sample_position.h"
 #include "xgboost/gradient.h"  // for GradientContainer
 #include "xgboost/json.h"
 #include "xgboost/tree_updater.h"
@@ -30,9 +31,10 @@ class TreeRefresher : public TreeUpdater {
 
   [[nodiscard]] char const *Name() const override { return "refresh"; }
   [[nodiscard]] bool CanModifyTree() const override { return true; }
+  [[nodiscard]] bool HasNodePosition() const override { return true; }
   // Update the tree, do pruning
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *p_fmat,
-              common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     if (trees.size() == 0) {
       return;
@@ -61,7 +63,15 @@ class TreeRefresher : public TreeUpdater {
       fvec_temp[tid].Init(trees.front()->NumFeatures());
     });
 
+    CHECK_EQ(out_position.size(), trees.size());
     const MetaInfo &info = p_fmat->Info();
+    std::vector<std::vector<bst_node_t> *> h_position(trees.size());
+    for (std::size_t i = 0; i < trees.size(); ++i) {
+      auto &position = out_position[i].HostVector();
+      position.resize(info.num_row_);
+      h_position[i] = &position;
+    }
+
     // start accumulating statistics
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();
@@ -72,9 +82,12 @@ class TreeRefresher : public TreeUpdater {
         const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
         RegTree::FVec &feats = fvec_temp[tid];
         feats.Fill(inst);
-        int offset = 0;
-        for (auto tree : trees) {
-          AddStats(*tree, feats, gpair_h, info, ridx, dmlc::BeginPtr(stemp[tid]) + offset);
+        bst_node_t offset = 0;
+        for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+          auto tree = trees[tree_idx];
+          auto leaf =
+              AddStats(*tree, feats, gpair_h, info, ridx, dmlc::BeginPtr(stemp[tid]) + offset);
+          (*h_position[tree_idx])[ridx] = SamplePosition::Encode(leaf, true);
           offset += tree->NumNodes();
         }
         feats.Drop();
@@ -103,11 +116,11 @@ class TreeRefresher : public TreeUpdater {
   }
 
  private:
-  inline static void AddStats(const RegTree &tree, const RegTree::FVec &feat,
-                              const std::vector<GradientPair> &gpair, const MetaInfo &,
-                              const bst_uint ridx, GradStats *gstats) {
+  inline static bst_node_t AddStats(const RegTree &tree, const RegTree::FVec &feat,
+                                    const std::vector<GradientPair> &gpair, const MetaInfo &,
+                                    const bst_uint ridx, GradStats *gstats) {
     // start from groups that belongs to current data
-    auto pid = 0;
+    auto pid = RegTree::kRoot;
     gstats[pid].Add(gpair[ridx]);
     // traverse tree
     auto sc_tree = tree.HostScView();
@@ -117,6 +130,7 @@ class TreeRefresher : public TreeUpdater {
                                                feat.IsMissing(split_index), sc_tree.cats);
       gstats[pid].Add(gpair[ridx]);
     }
+    return pid;
   }
   void Refresh(TrainParam const *param, const GradStats *gstats, int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;

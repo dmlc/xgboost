@@ -73,6 +73,7 @@ class ColMaker : public TreeUpdater {
   }
 
   char const *Name() const override { return "grow_colmaker"; }
+  [[nodiscard]] bool HasNodePosition() const override { return true; }
 
   void LazyGetColumnDensity(DMatrix *dmat) {
     // Finds densities if we don't already have them
@@ -93,7 +94,7 @@ class ColMaker : public TreeUpdater {
   }
 
   void Update(TrainParam const *param, GradientContainer *in_gpair, DMatrix *dmat,
-              common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     if (collective::IsDistributed()) {
       LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "
@@ -115,12 +116,12 @@ class ColMaker : public TreeUpdater {
     // build tree
     auto gpair = in_gpair->FullGradOnly();
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
-    for (auto tree : trees) {
+    for (std::size_t i = 0; i < trees.size(); ++i) {
       CHECK(ctx_);
       CHECK(!tree->IsMultiTarget()) << "exact" << MTNotImplemented();
       Builder builder(*param, colmaker_param_, interaction_constraints_, ctx_, column_densities_,
                       column_sampler_);
-      builder.Update(gpair->Data()->ConstHostVector(), dmat, tree);
+      builder.Update(gpair->Data()->ConstHostVector(), dmat, trees[i], &out_position[i]);
     }
   }
 
@@ -169,7 +170,8 @@ class ColMaker : public TreeUpdater {
           interaction_constraints_{std::move(_interaction_constraints)},
           column_densities_(column_densities) {}
     // update one tree, growing
-    void Update(std::vector<GradientPair> const &gpair, DMatrix *p_fmat, RegTree *p_tree) {
+    void Update(std::vector<GradientPair> const &gpair, DMatrix *p_fmat, RegTree *p_tree,
+                HostDeviceVector<bst_node_t> *p_out_position) {
       this->InitData(gpair, *p_fmat);
       this->InitRoot(gpair, *p_fmat, *p_tree);
 
@@ -207,6 +209,10 @@ class ColMaker : public TreeUpdater {
         stat.base_weight = snode_[nid].weight;
         stat.sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
       }
+      CHECK(p_out_position);
+      auto &h_position = p_out_position->HostVector();
+      h_position.resize(position_.size());
+      std::copy(position_.cbegin(), position_.cend(), h_position.begin());
     }
 
    protected:
