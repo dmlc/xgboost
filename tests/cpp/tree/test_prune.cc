@@ -50,7 +50,13 @@ TEST(Updater, Prune) {
 
   std::vector<HostDeviceVector<bst_node_t>> position(trees.size());
   auto run_prune = [&] {
-    position.front().HostVector().clear();
+    auto& h_position = position.front().HostVector();
+    h_position.resize(p_dmat->Info().num_row_);
+    auto nidx = RegTree::kRoot;
+    while (!tree[nidx].IsLeaf()) {
+      nidx = tree[nidx].LeftChild();
+    }
+    std::fill(h_position.begin(), h_position.end(), nidx);
     pruner->Update(&param, &gpair, p_dmat.get(), position, trees);
   };
 
