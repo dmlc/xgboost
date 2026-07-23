@@ -227,8 +227,7 @@ class MultiTargetHistMaker {
     auto in_gpair = gpair_all->View(ctx_->Device());
     CHECK(in_gpair.CContiguous());
 
-    this->split_quantizer_ =
-        std::make_unique<GradientQuantiserGroup>(this->ctx_, in_gpair, p_fmat->Info());
+    this->split_quantizer_ = std::make_unique<GradientQuantiserGroup>(this->ctx_, in_gpair);
     CalcQuantizedGpairs(this->ctx_, in_gpair, this->split_quantizer_->DeviceSpan(),
                         &this->split_gpair_);
 
@@ -236,8 +235,8 @@ class MultiTargetHistMaker {
     this->sampler_.Sample(this->ctx_, this->split_gpair_.View(this->ctx_->Device()),
                           this->split_quantizer_->DeviceSpan());
     if (!this->value_gpair_.Empty()) {
-      this->value_quantizer_ = std::make_unique<GradientQuantiserGroup>(
-          this->ctx_, value_gpair_.View(ctx_->Device()), p_fmat->Info());
+      this->value_quantizer_ =
+          std::make_unique<GradientQuantiserGroup>(this->ctx_, value_gpair_.View(ctx_->Device()));
       this->sampler_.ApplySampling(this->ctx_, &this->value_gpair_);
     }
 
@@ -278,7 +277,7 @@ class MultiTargetHistMaker {
       this->BuildHist(page, k, RegTree::kRoot);
       ++k;
     }
-    this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), RegTree::kRoot, 1);
+    this->histogram_.AllReduceHist(ctx_, RegTree::kRoot, 1);
 
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
@@ -369,7 +368,7 @@ class MultiTargetHistMaker {
    * split gradient. This function replaces those weights with new weights calculated from
    * value gradient.
    */
-  void ExpandTreeLeaf(DMatrix* p_fmat, RegTree* p_tree) const {
+  void ExpandTreeLeaf(RegTree* p_tree) const {
     CHECK(!this->value_gpair_.Empty());
     CHECK(this->value_quantizer_);
     CHECK_EQ(this->value_gpair_.Shape(1), p_tree->NumTargets());
@@ -495,7 +494,7 @@ class MultiTargetHistMaker {
     xgboost_NVTX_FN_RANGE();
 
     if (!build_nidx.empty()) {
-      this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), build_nidx.front(), build_nidx.size());
+      this->histogram_.AllReduceHist(ctx_, build_nidx.front(), build_nidx.size());
     }
 
     // Perform subtraction for sibling nodes
@@ -511,7 +510,7 @@ class MultiTargetHistMaker {
       ++k;
     }
     for (auto nidx : need_build) {
-      this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), nidx, 1);
+      this->histogram_.AllReduceHist(ctx_, nidx, 1);
     }
   }
 
@@ -691,7 +690,7 @@ class MultiTargetHistMaker {
     this->GrowTree(split_grad, p_fmat, task, p_tree, p_out_position);
 
     if (gpair->HasValueGrad()) {
-      this->ExpandTreeLeaf(p_fmat, p_tree);
+      this->ExpandTreeLeaf(p_tree);
     } else {
       p_tree->GetMultiTargetTree()->SetLeaves();
     }

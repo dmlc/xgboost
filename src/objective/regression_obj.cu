@@ -513,7 +513,7 @@ class ExpectileRegression : public FitIntercept {
                                 gpair_view(i, j) = GradientPair{grad, hess};
                               });
 
-    tree::FitStump(ctx_, info, gpair, n_targets, base_score);
+    tree::FitStump(ctx_, gpair, n_targets, base_score);
 
     auto out = base_score->HostView();
     for (std::size_t j = 0; j < n_targets; ++j) {

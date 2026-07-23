@@ -6,7 +6,7 @@
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
-#include "../collective/test_worker.h"  // for BaseMGPUTest
+#include "../collective/test_worker.h"  // for TestDistributedGlobal, TestFederatedGlobal
 #include "../helpers.h"
 #include "test_quantile.h"
 
@@ -185,8 +185,6 @@ void AssertSameSketchOnAllWorkers(HostSketchView const& sketch) {
 }  // namespace
 
 namespace common {
-class MGPUQuantileTest : public collective::BaseMGPUTest {};
-
 namespace {
 void DoGPUContainerProperty(quantile_test::ContainerCase const& c) {
   auto ctx = MakeCUDACtx(0);
@@ -258,9 +256,16 @@ void TestSameOnAllWorkers() {
 }
 }  // anonymous namespace
 
-TEST_F(MGPUQuantileTest, SameOnAllWorkers) {
-  this->DoTest([] { TestSameOnAllWorkers(); }, true);
-  this->DoTest([] { TestSameOnAllWorkers(); }, false);
+TEST(GPUQuantile, SameOnAllWorkers) {
+#if defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
+  auto n_gpus = curt::AllVisibleGPUs();
+#endif  // defined(XGBOOST_USE_FEDERATED) || defined(XGBOOST_USE_NCCL)
+#if defined(XGBOOST_USE_FEDERATED)
+  collective::TestFederatedGlobal(n_gpus, [] { TestSameOnAllWorkers(); });
+#endif  // defined(XGBOOST_USE_FEDERATED)
+#if defined(XGBOOST_USE_NCCL)
+  collective::TestDistributedGlobal(n_gpus, [] { TestSameOnAllWorkers(); });
+#endif  // defined(XGBOOST_USE_NCCL)
 }
 
 TEST(GPUQuantile, Push) {

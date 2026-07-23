@@ -176,7 +176,7 @@ struct GPUHistMakerDevice {
     auto const& info = p_fmat->Info();
 
     this->quantiser = std::make_unique<GradientQuantiserGroup>(
-        ctx_, linalg::MakeVec(this->ctx_->Device(), dh_gpair->ConstDeviceSpan()), p_fmat->Info());
+        ctx_, linalg::MakeVec(this->ctx_->Device(), dh_gpair->ConstDeviceSpan()));
     auto gpair =
         linalg::MakeTensorView(this->ctx_, dh_gpair->ConstDeviceSpan(), dh_gpair->Size(), 1);
     CalcQuantizedGpairs(this->ctx_, gpair, this->quantiser->DeviceSpan(), &this->d_gpair);
@@ -304,7 +304,7 @@ struct GPUHistMakerDevice {
 
     // Reduce all in one go
     // This gives much better latency in a distributed setting when processing a large batch
-    this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), build_nidx.at(0), build_nidx.size());
+    this->histogram_.AllReduceHist(ctx_, build_nidx.at(0), build_nidx.size());
     // Perform subtraction for sibiling nodes
     auto need_build = this->histogram_.SubtractHist(ctx_, candidates, build_nidx, subtraction_nidx);
     if (need_build.empty()) {
@@ -321,7 +321,7 @@ struct GPUHistMakerDevice {
       ++k;
     }
     for (auto nidx : need_build) {
-      this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), nidx, 1);
+      this->histogram_.AllReduceHist(ctx_, nidx, 1);
     }
     this->monitor.Stop(__func__);
   }
@@ -598,7 +598,7 @@ struct GPUHistMakerDevice {
       this->BuildHist(page, k, kRootNIdx);
       ++k;
     }
-    this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), kRootNIdx, 1);
+    this->histogram_.AllReduceHist(ctx_, kRootNIdx, 1);
 
     // Remember root stats
     auto root_sum = (*this->quantiser)[0].ToFloatingPoint(root_sum_quantised);

@@ -5,7 +5,6 @@
 #include <thrust/host_vector.h>
 
 #include "../../../../src/tree/gpu_hist/evaluate_splits.cuh"
-#include "../../collective/test_worker.h"  // for BaseMGPUTest
 #include "../../helpers.h"
 #include "../test_evaluate_splits.h"  // TestPartitionBasedSplit
 
@@ -21,7 +20,7 @@ auto ZeroParam() {
 GradientQuantiser DummyRoundingFactor(Context const* ctx) {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
-  GradientQuantiserGroup group{ctx, linalg::MakeVec(ctx->Device(), dh::ToSpan(gpair)), MetaInfo()};
+  GradientQuantiserGroup group{ctx, linalg::MakeVec(ctx->Device(), dh::ToSpan(gpair))};
   return group[0];
 }
 }  // anonymous namespace
@@ -500,7 +499,4 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   auto split = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-2);
 }
-
-class MGPUHistTest : public collective::BaseMGPUTest {};
-
 }  // namespace xgboost::tree

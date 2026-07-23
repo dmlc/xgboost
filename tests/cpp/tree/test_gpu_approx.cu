@@ -1,16 +1,14 @@
 /**
- * Copyright 2024-2025, XGBoost contributors
+ * Copyright 2024-2026, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/gradient.h>      // for GradientContainer
-#include <xgboost/json.h>          // for Json
 #include <xgboost/task.h>          // for ObjInfo
 #include <xgboost/tree_model.h>    // for RegTree
 #include <xgboost/tree_updater.h>  // for TreeUpdater
 
-#include "../../../src/tree/param.h"    // for TrainParam
-#include "../collective/test_worker.h"  // for BaseMGPUTest
-#include "../helpers.h"                 // for GenerateRandomGradients
+#include "../../../src/tree/param.h"  // for TrainParam
+#include "../helpers.h"               // for GenerateRandomGradients
 
 namespace xgboost::tree {
 namespace {
@@ -30,6 +28,16 @@ RegTree GetApproxTree(Context const* ctx, DMatrix* dmat) {
                        {&tree});
   return tree;
 }
+}  // anonymous namespace
 
-}  // namespace
+TEST(GpuApprox, Basic) {
+  constexpr bst_idx_t kRows = 32;
+  constexpr bst_feature_t kCols = 16;
+
+  auto ctx = MakeCUDACtx(0);
+  auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+  auto tree = GetApproxTree(&ctx, dmat.get());
+
+  ASSERT_EQ(tree.NumNodes(), 7);
+}
 }  // namespace xgboost::tree

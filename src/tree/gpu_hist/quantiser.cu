@@ -84,8 +84,7 @@ GradientQuantiser BuildQuantiserFromPair(Pair const& p, std::size_t total_rows) 
 }  // anonymous namespace
 
 GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
-                                               linalg::MatrixView<GradientPair const> gpair,
-                                               MetaInfo const& info) {
+                                               linalg::MatrixView<GradientPair const> gpair) {
   auto n_targets = gpair.Shape(1);
   CHECK_GE(n_targets, 1);
 
@@ -121,10 +120,9 @@ GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
 }
 
 GradientQuantiserGroup::GradientQuantiserGroup(Context const* ctx,
-                                               linalg::VectorView<GradientPair const> gpair,
-                                               MetaInfo const& info)
+                                               linalg::VectorView<GradientPair const> gpair)
     : GradientQuantiserGroup(
-          ctx, linalg::MakeTensorView(ctx, gpair.Values(), gpair.Size(), bst_target_t{1}), info) {}
+          ctx, linalg::MakeTensorView(ctx, gpair.Values(), gpair.Size(), bst_target_t{1})) {}
 
 void CalcQuantizedGpairs(Context const* ctx, linalg::MatrixView<GradientPair const> gpairs,
                          common::Span<GradientQuantiser const> roundings,
