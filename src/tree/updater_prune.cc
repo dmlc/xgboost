@@ -120,7 +120,6 @@ class TreePruner : public TreeUpdater {
     }
   }
 
- private:
   common::Monitor pruner_monitor_;
 };
 
