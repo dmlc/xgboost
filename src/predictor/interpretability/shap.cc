@@ -458,7 +458,7 @@ QuadratureTreeShapModelData MakeQuadratureTreeShapModelData(
     auto weight = tree_weights == nullptr ? 1.0f : (*tree_weights)[i];
     if (model.trees[i]->IsMultiTarget()) {
       auto const n_targets = model.trees[i]->GetMultiTargetTree()->NumTargets();
-      CHECK_EQ(n_targets, n_targets);
+      CHECK_EQ(n_targets, model.learner_model_param->NumTreeTargets());
       for (bst_target_t target_idx = 0; target_idx < n_targets; ++target_idx) {
         auto entry_idx = out.entries.size();
         out.entries.push_back(
