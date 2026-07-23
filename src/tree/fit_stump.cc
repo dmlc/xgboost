@@ -47,8 +47,8 @@ void SumGradients(Context const* ctx, linalg::MatrixView<GradientPair const> gpa
   }
 }
 
-void FitStump(Context const* ctx, MetaInfo const& info,
-              linalg::MatrixView<GradientPair const> gpair, linalg::VectorView<float> out) {
+void FitStump(Context const* ctx, MetaInfo const&, linalg::MatrixView<GradientPair const> gpair,
+              linalg::VectorView<float> out) {
   auto n_targets = out.Size();
   CHECK_EQ(n_targets, gpair.Shape(1));
   auto sum = linalg::Empty<GradientPairPrecise>(ctx, n_targets);
@@ -58,7 +58,7 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   auto as_double = linalg::MakeTensorView(
       ctx, common::Span{reinterpret_cast<double*>(h_sum.Values().data()), h_sum.Size() * 2},
       h_sum.Size() * 2);
-  auto rc = collective::GlobalSum(ctx, info, as_double);
+  auto rc = collective::GlobalSum(ctx, as_double);
   collective::SafeColl(rc);
 
   for (std::size_t i = 0; i < h_sum.Size(); ++i) {

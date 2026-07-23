@@ -751,8 +751,7 @@ Data Partitioning
 =================
 
 By default, each worker in a distributed XGBoost job holds a different subset of
-**rows** (horizontal partitioning). This is controlled by the ``data_split_mode``
-parameter (default: ``DataSplitMode.ROW``). In this mode, each worker loads its
+**rows** (horizontal partitioning). Only row-wise data split is supported. In this mode, each worker loads its
 own shard of the data:
 
 .. code-block:: python
@@ -763,9 +762,8 @@ own shard of the data:
        X_shard, y_shard = load_data_shard(rank)
        dtrain = xgb.QuantileDMatrix(X_shard, label=y_shard)
 
-Column-wise splitting (``DataSplitMode.COL``) is also supported, where each worker
-holds a different subset of features. This is typically used for vertical federated
-learning scenarios and is not the common distributed training pattern.
+Column-wise splitting has been removed; distributed training uses row-wise partitioning.
+
 
 Rank-Specific Logic
 ===================

@@ -11,6 +11,7 @@
 #include <cstdint>  // for int32_t
 #include <vector>   // for vector
 
+#include "../collective/aggregator.h"
 #include "../common/common.h"
 #include "../common/expectile_loss_utils.h"  // for ExpectileLossParam
 #include "../common/linalg_op.h"             // for ElementWiseKernel
@@ -400,10 +401,7 @@ class ExpectileRegression : public FitIntercept {
   [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
     auto const& alpha = param_.expectile_alpha.Get();
     CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
-    if (info.ShouldHaveLabels()) {
-      CHECK_EQ(info.labels.Shape(1), 1)
-          << "Multi-target is not yet supported by the expectile loss.";
-    }
+    CHECK_EQ(info.labels.Shape(1), 1) << "Multi-target is not yet supported by the expectile loss.";
     CHECK(!alpha.empty());
     auto n_y = std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
     return alpha_.Size() * n_y;
@@ -485,10 +483,9 @@ class ExpectileRegression : public FitIntercept {
 
     linalg::Vector<float> label_mean;
     if (info.weights_.Empty()) {
-      common::SampleMean(ctx_, info.IsColumnSplit(), info.labels, &label_mean);
+      common::SampleMean(ctx_, info.labels, &label_mean);
     } else {
-      common::WeightedSampleMean(ctx_, info.IsColumnSplit(), info.labels, info.weights_,
-                                 &label_mean);
+      common::WeightedSampleMean(ctx_, info.labels, info.weights_, &label_mean);
     }
     CHECK_EQ(label_mean.Size(), 1);
 
@@ -908,7 +905,7 @@ class MeanAbsoluteError : public ObjFunction {
     auto intercept = base_score->View(this->ctx_->Device());
     // weighted avg
     linalg::VecScaMul(this->ctx_, intercept, sum_weight);
-    auto rc = collective::GlobalSum(ctx_, info, intercept, &sum_weight);
+    auto rc = collective::GlobalSum(ctx_, intercept, &sum_weight);
     collective::SafeColl(rc);
 
     if (common::CloseTo(sum_weight, 0.0)) {

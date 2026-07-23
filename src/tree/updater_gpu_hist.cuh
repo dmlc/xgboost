@@ -10,6 +10,7 @@
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"          // for GlobalSum
+#include "../collective/communicator-inl.h"    // for IsDistributed
 #include "../common/categorical.h"             // for CatBitField
 #include "../common/device_helpers.cuh"        // for MakeTransformIterator
 #include "../common/nvtx_utils.h"              // for xgboost_NVTX_FN_RANGE
@@ -263,8 +264,8 @@ class MultiTargetHistMaker {
     auto d_root_sum = this->evaluator_.GetNodeSum(RegTree::kRoot, n_targets);
     CalcRootSum(this->ctx_, d_gpair, d_root_sum);
     using ReduceT = typename GradientPairInt64::ValueT;
-    auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
-                                    linalg::MakeVec(reinterpret_cast<ReduceT*>(d_root_sum.data()),
+    auto rc =
+        collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<ReduceT*>(d_root_sum.data()),
                                                     d_root_sum.size() * 2, ctx_->Device()));
     collective::SafeColl(rc);
 
@@ -406,10 +407,9 @@ class MultiTargetHistMaker {
       ++batch_idx;
     }
     using ReduceT = typename GradientPairInt64::ValueT;
-    auto rc =
-        collective::GlobalSum(ctx_, p_fmat->Info(),
-                              linalg::MakeVec(reinterpret_cast<ReduceT*>(d_out_sum.Values().data()),
-                                              d_out_sum.Size() * 2, ctx_->Device()));
+    auto rc = collective::GlobalSum(
+        ctx_, linalg::MakeVec(reinterpret_cast<ReduceT*>(d_out_sum.Values().data()),
+                              d_out_sum.Size() * 2, ctx_->Device()));
     collective::SafeColl(rc);
 
     auto param = EvalParam{this->param_};

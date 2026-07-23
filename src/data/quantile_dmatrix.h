@@ -41,10 +41,6 @@ class QuantileDMatrix : public DMatrix {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;
   }
-  DMatrix *SliceCol(std::int32_t, std::int32_t) final {
-    LOG(FATAL) << "Slicing DMatrix columns is not supported for external memory.";
-    return nullptr;
-  }
 
   [[nodiscard]] bool SparsePageExists() const final { return false; }
 

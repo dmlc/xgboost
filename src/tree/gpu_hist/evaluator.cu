@@ -18,7 +18,7 @@
 namespace xgboost::tree {
 void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cuts,
                              common::Span<FeatureType const> ft, bst_feature_t n_features,
-                             TrainParam const &param, bool is_column_split) {
+                             TrainParam const &param) {
   param_ = param;
   tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device(), 1u};
   has_categoricals_ = cuts.HasCategorical();
@@ -63,7 +63,6 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
                         return fidx;
                       });
   }
-  is_column_split_ = is_column_split;
   device_ = ctx->Device();
 }
 

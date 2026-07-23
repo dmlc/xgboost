@@ -235,35 +235,5 @@ RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
   return tree;
 }
 
-void VerifyHistColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& expected_tree) {
-  Context ctx(MakeCUDACtx(GPUIDX));
-
-  auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  std::unique_ptr<DMatrix> sliced{Xy->SliceCol(world_size, rank)};
-
-  RegTree tree = GetHistTree(&ctx, sliced.get());
-
-  Json json{Object{}};
-  tree.SaveModel(&json);
-  Json expected_json{Object{}};
-  expected_tree.SaveModel(&expected_json);
-  ASSERT_EQ(json, expected_json);
-}
-}  // anonymous namespace
-
-class MGPUHistTest : public collective::BaseMGPUTest {};
-
-TEST_F(MGPUHistTest, HistColumnSplit) {
-  auto constexpr kRows = 32;
-  auto constexpr kCols = 16;
-
-  Context ctx(MakeCUDACtx(0));
-  auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-  RegTree expected_tree = GetHistTree(&ctx, dmat.get());
-
-  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, true);
-  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, false);
-}
+}  // namespace
 }  // namespace xgboost::tree

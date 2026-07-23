@@ -351,26 +351,6 @@ void TestPredictionDeviceAccess() {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
-void TestPredictionWithLesserFeaturesColumnSplit(bool use_gpu) {
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-
-  std::size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
-  auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).Seed(rank).GenerateDMatrix(true);
-  Context ctx;
-  if (use_gpu) {
-    ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : rank);
-  }
-  auto learner = LearnerForTest(&ctx, m_train, kIters);
-  auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
-  auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
-
-  std::shared_ptr<DMatrix> sliced_test{m_test->SliceCol(world_size, rank)};
-  std::shared_ptr<DMatrix> sliced_invalid{m_invalid->SliceCol(world_size, rank)};
-
-  VerifyPredictionWithLesserFeatures(learner.get(), kRows, sliced_test, sliced_invalid);
-}
-
 void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind, bst_cat_t split_cat,
                         float left_weight, float right_weight) {
   PredictionCacheEntry out_predictions;
@@ -388,7 +368,7 @@ void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind, bst_cat_t s
   model->CommitModelGroup(std::move(trees), 0);
 }
 
-void TestCategoricalPrediction(bool use_gpu, bool is_column_split) {
+void TestCategoricalPrediction(bool use_gpu) {
   Context ctx;
   if (use_gpu) {
     ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
@@ -413,9 +393,6 @@ void TestCategoricalPrediction(bool use_gpu, bool is_column_split) {
 
   std::vector<FeatureType> types(10, FeatureType::kCategorical);
   m->Info().feature_types.HostVector() = types;
-  if (is_column_split) {
-    m = std::shared_ptr<DMatrix>{m->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-  }
 
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
@@ -426,16 +403,13 @@ void TestCategoricalPrediction(bool use_gpu, bool is_column_split) {
 
   row[split_ind] = split_cat + 1;
   m = GetDMatrixFromData(row, 1, kCols);
-  if (is_column_split) {
-    m = std::shared_ptr<DMatrix>{m->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-  }
   out_predictions.version = 0;
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0], left_weight + score);
 }
 
-void TestCategoricalPredictLeaf(Context const *ctx, bool is_column_split) {
+void TestCategoricalPredictLeaf(Context const *ctx) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
@@ -454,9 +428,6 @@ void TestCategoricalPredictLeaf(Context const *ctx, bool is_column_split) {
   std::vector<float> row(kCols);
   row[split_ind] = split_cat;
   auto m = GetDMatrixFromData(row, 1, kCols);
-  if (is_column_split) {
-    m = std::shared_ptr<DMatrix>{m->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-  }
 
   predictor->PredictLeaf(m.get(), &out_predictions.predictions, model);
   CHECK_EQ(out_predictions.predictions.Size(), 1);
@@ -465,9 +436,6 @@ void TestCategoricalPredictLeaf(Context const *ctx, bool is_column_split) {
 
   row[split_ind] = split_cat + 1;
   m = GetDMatrixFromData(row, 1, kCols);
-  if (is_column_split) {
-    m = std::shared_ptr<DMatrix>{m->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-  }
   out_predictions.version = 0;
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictLeaf(m.get(), &out_predictions.predictions, model);
@@ -510,125 +478,6 @@ void TestIterationRange(Context const *ctx) {
     ASSERT_EQ(h_sliced, h_range);
   }
 }
-
-namespace {
-void VerifyIterationRangeColumnSplit(bool use_gpu, Json const &ranged_model,
-                                     Json const &sliced_model, std::size_t rows, std::size_t cols,
-                                     std::size_t classes,
-                                     std::vector<float> const &expected_margin_ranged,
-                                     std::vector<float> const &expected_margin_sliced,
-                                     std::vector<float> const &expected_leaf_ranged,
-                                     std::vector<float> const &expected_leaf_sliced) {
-  auto const world_size = collective::GetWorldSize();
-  auto const rank = collective::GetRank();
-  Context ctx;
-  if (use_gpu) {
-    ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : rank);
-  }
-  collective::GetWorkerLocalThreads(world_size, &ctx);
-
-  auto dmat = RandomDataGenerator(rows, cols, 0).Classes(classes).GenerateDMatrix(true);
-  std::shared_ptr<DMatrix> Xy{dmat->SliceCol(world_size, rank)};
-
-  std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-  auto args = Args{{"device", ctx.DeviceName()}, {"nthread", std::to_string(ctx.Threads())}};
-  learner->SetParams(args);
-  learner->LoadModel(ranged_model);
-
-  std::unique_ptr<Learner> sliced{Learner::Create({Xy})};
-  sliced->SetParams(args);
-  sliced->LoadModel(sliced_model);
-
-  HostDeviceVector<float> out_predt_sliced;
-  HostDeviceVector<float> out_predt_ranged;
-
-  // margin
-  {
-    sliced->Predict(Xy, true, &out_predt_sliced, 0, 0, false, false, false, false, false);
-    learner->Predict(Xy, true, &out_predt_ranged, 0, 3, false, false, false, false, false);
-    auto const &h_sliced = out_predt_sliced.HostVector();
-    auto const &h_ranged = out_predt_ranged.HostVector();
-    EXPECT_EQ(h_sliced.size(), expected_margin_sliced.size());
-    for (std::size_t i = 0; i < expected_margin_sliced.size(); ++i) {
-      ASSERT_FLOAT_EQ(h_sliced[i], expected_margin_sliced[i]) << "rank " << rank << ", i " << i;
-    }
-    EXPECT_EQ(h_ranged.size(), expected_margin_ranged.size());
-    for (std::size_t i = 0; i < expected_margin_ranged.size(); ++i) {
-      ASSERT_FLOAT_EQ(h_ranged[i], expected_margin_ranged[i]) << "rank " << rank << ", i " << i;
-    }
-  }
-
-  // Leaf
-  {
-    sliced->Predict(Xy, false, &out_predt_sliced, 0, 0, false, true, false, false, false);
-    learner->Predict(Xy, false, &out_predt_ranged, 0, 3, false, true, false, false, false);
-    auto const &h_sliced = out_predt_sliced.HostVector();
-    auto const &h_ranged = out_predt_ranged.HostVector();
-    EXPECT_EQ(h_sliced.size(), expected_leaf_sliced.size());
-    for (std::size_t i = 0; i < expected_leaf_sliced.size(); ++i) {
-      ASSERT_FLOAT_EQ(h_sliced[i], expected_leaf_sliced[i]) << "rank " << rank << ", i " << i;
-    }
-    EXPECT_EQ(h_ranged.size(), expected_leaf_ranged.size());
-    for (std::size_t i = 0; i < expected_leaf_ranged.size(); ++i) {
-      ASSERT_FLOAT_EQ(h_ranged[i], expected_leaf_ranged[i]) << "rank " << rank << ", i " << i;
-    }
-  }
-}
-}  // anonymous namespace
-
-void TestIterationRangeColumnSplit(int world_size, bool use_gpu) {
-  std::size_t constexpr kRows = 1000, kCols = 20, kClasses = 4, kForest = 3, kIters = 10;
-  auto dmat = RandomDataGenerator(kRows, kCols, 0).Classes(kClasses).GenerateDMatrix(true);
-  Context ctx;
-  if (use_gpu) {
-    ctx = MakeCUDACtx(0);
-  }
-  auto learner = LearnerForTest(&ctx, dmat, kIters, kForest);
-
-  bool bound = false;
-  std::unique_ptr<Learner> sliced{learner->Slice(0, 3, 1, &bound)};
-  ASSERT_FALSE(bound);
-
-  // margin
-  HostDeviceVector<float> margin_predt_sliced;
-  HostDeviceVector<float> margin_predt_ranged;
-  sliced->Predict(dmat, true, &margin_predt_sliced, 0, 0, false, false, false, false, false);
-  learner->Predict(dmat, true, &margin_predt_ranged, 0, 3, false, false, false, false, false);
-  auto const &margin_sliced = margin_predt_sliced.HostVector();
-  auto const &margin_ranged = margin_predt_ranged.HostVector();
-
-  // Leaf
-  HostDeviceVector<float> leaf_predt_sliced;
-  HostDeviceVector<float> leaf_predt_ranged;
-  sliced->Predict(dmat, false, &leaf_predt_sliced, 0, 0, false, true, false, false, false);
-  learner->Predict(dmat, false, &leaf_predt_ranged, 0, 3, false, true, false, false, false);
-  auto const &leaf_sliced = leaf_predt_sliced.HostVector();
-  auto const &leaf_ranged = leaf_predt_ranged.HostVector();
-
-  Json ranged_model{Object{}};
-  learner->SaveModel(&ranged_model);
-  Json sliced_model{Object{}};
-  sliced->SaveModel(&sliced_model);
-
-#if !defined(XGBOOST_USE_NCCL)
-  if (use_gpu) {
-    GTEST_SKIP_("Not compiled with NCCL");
-    return;
-  }
-#endif  // defined(XGBOOST_USE_NCCL)
-  collective::TestDistributedGlobal(world_size, [&] {
-    VerifyIterationRangeColumnSplit(use_gpu, ranged_model, sliced_model, kRows, kCols, kClasses,
-                                    margin_ranged, margin_sliced, leaf_ranged, leaf_sliced);
-  });
-
-#if defined(XGBOOST_USE_FEDERATED)
-  collective::TestFederatedGlobal(world_size, [&] {
-    VerifyIterationRangeColumnSplit(use_gpu, ranged_model, sliced_model, kRows, kCols, kClasses,
-                                    margin_ranged, margin_sliced, leaf_ranged, leaf_sliced);
-  });
-#endif  // defined(XGBOOST_USE_FEDERATED)
-}
-
 void TestSparsePrediction(Context const *ctx, float sparsity) {
   size_t constexpr kRows = 512, kCols = 128, kIters = 4;
   auto Xy = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix(true);
@@ -685,71 +534,6 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
     }
   }
 }
-
-namespace {
-void VerifySparsePredictionColumnSplit(bool use_gpu, Json const &model, std::size_t rows,
-                                       std::size_t cols, float sparsity,
-                                       std::vector<float> const &expected_predt) {
-  Context ctx;
-  if (use_gpu) {
-    ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
-  }
-  auto Xy = RandomDataGenerator(rows, cols, sparsity).GenerateDMatrix(true);
-  std::shared_ptr<DMatrix> sliced{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-  HostDeviceVector<float> sparse_predt;
-
-  std::unique_ptr<Learner> learner{Learner::Create({sliced})};
-  learner->SetParam("device", ctx.DeviceName());
-  learner->LoadModel(model);
-  learner->Predict(sliced, false, &sparse_predt, 0, 0);
-
-  auto const &predt = sparse_predt.HostVector();
-  ASSERT_EQ(predt.size(), expected_predt.size());
-  for (size_t i = 0; i < predt.size(); ++i) {
-    ASSERT_FLOAT_EQ(predt[i], expected_predt[i]);
-  }
-}
-}  // anonymous namespace
-
-void TestSparsePredictionColumnSplit(int world_size, bool use_gpu, float sparsity) {
-  Context ctx;
-  if (use_gpu) {
-    ctx = MakeCUDACtx(0);
-  }
-  size_t constexpr kRows = 512, kCols = 128, kIters = 4;
-  auto Xy = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix(true);
-  auto learner = LearnerForTest(&ctx, Xy, kIters);
-
-  HostDeviceVector<float> sparse_predt;
-
-  Json model{Object{}};
-  learner->SaveModel(&model);
-
-  learner.reset(Learner::Create({Xy}));
-  learner->LoadModel(model);
-
-  learner->SetParam("device", ctx.DeviceName());
-  learner->Predict(Xy, false, &sparse_predt, 0, 0);
-
-#if !defined(XGBOOST_USE_NCCL)
-  if (use_gpu) {
-    GTEST_SKIP_("Not compiled with NCCL.");
-    return;
-  }
-#endif  // defined(XGBOOST_USE_CUDA)
-  collective::TestDistributedGlobal(world_size, [&] {
-    VerifySparsePredictionColumnSplit(use_gpu, model, kRows, kCols, sparsity,
-                                      sparse_predt.HostVector());
-  });
-
-#if defined(XGBOOST_USE_FEDERATED)
-  collective::TestFederatedGlobal(world_size, [&] {
-    VerifySparsePredictionColumnSplit(use_gpu, model, kRows, kCols, sparsity,
-                                      sparse_predt.HostVector());
-  });
-#endif  // defined(XGBOOST_USE_FEDERATED)
-}
-
 void TestVectorLeafPrediction(Context const *ctx) {
   std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
 

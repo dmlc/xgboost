@@ -59,7 +59,7 @@ TEST_F(TestCategoricalSplitWithMissing, GPUHistEvaluator) {
 
   GPUHistEvaluator evaluator{param_, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
 
-  evaluator.Reset(&ctx, cuts_, dh::ToSpan(feature_types), feature_set.size(), param_, false);
+  evaluator.Reset(&ctx, cuts_, dh::ToSpan(feature_types), feature_set.size(), param_);
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
 
   ASSERT_EQ(result.thresh, 1);
@@ -99,7 +99,7 @@ TEST(GpuHist, PartitionBasic) {
   };
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
-  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, false);
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
 
   {
     // -1.0s go right
@@ -209,7 +209,7 @@ TEST(GpuHist, PartitionTwoFeatures) {
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
-  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, false);
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
 
   {
     auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-6.0, 3.0});
@@ -267,7 +267,7 @@ TEST(GpuHist, PartitionTwoNodes) {
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
-  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, false);
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
 
   {
     auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{-6.0, 3.0});
@@ -322,7 +322,7 @@ void TestEvaluateSingleSplit(bool is_categorical) {
                                           false};
 
   GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
-  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, false);
+  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam);
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 1);
@@ -478,7 +478,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   cuts_.cut_ptrs_.SetDevice(ctx.Device());
   cuts_.cut_values_.SetDevice(ctx.Device());
 
-  evaluator.Reset(&ctx, cuts_, dh::ToSpan(ft), info_.num_col_, param_, false);
+  evaluator.Reset(&ctx, cuts_, dh::ToSpan(ft), info_.num_col_, param_);
 
   // Convert the sample histogram to fixed point
   auto quantiser = DummyRoundingFactor(&ctx);
@@ -503,68 +503,4 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
 
 class MGPUHistTest : public collective::BaseMGPUTest {};
 
-namespace {
-void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
-  auto ctx = MakeCUDACtx(GPUIDX);
-  auto rank = collective::GetRank();
-  auto quantiser = DummyRoundingFactor(&ctx);
-  auto parent_sum = quantiser.ToFixedPoint(GradientPairPrecise{0.0, 1.0});
-  TrainParam tparam = ZeroParam();
-  EvalParam param{tparam};
-
-  common::HistogramCuts cuts{rank == 0 ? MakeCutsForTest({1.0, 2.0}, {0, 2, 2}, ctx.Device())
-                                       : MakeCutsForTest({11.0, 12.0}, {0, 0, 2}, ctx.Device())};
-  thrust::device_vector<bst_feature_t> feature_set = std::vector<bst_feature_t>{0, 1};
-
-  // Setup gradients so that second feature gets higher gain
-  auto feature_histogram = rank == 0 ? ConvertToInteger(&ctx, {{-0.5, 0.5}, {0.5, 0.5}})
-                                     : ConvertToInteger(&ctx, {{-1.0, 0.5}, {1.0, 0.5}});
-
-  dh::device_vector<FeatureType> feature_types(feature_set.size(), FeatureType::kCategorical);
-  common::Span<FeatureType> d_feature_types;
-  if (is_categorical) {
-    auto max_cat = *std::max_element(cuts.cut_values_.HostVector().begin(),
-                                     cuts.cut_values_.HostVector().end());
-    cuts.SetCategorical(true, max_cat);
-    d_feature_types = dh::ToSpan(feature_types);
-  }
-
-  EvaluateSplitInputs input{1, 0, parent_sum, dh::ToSpan(feature_set),
-                            dh::ToSpan(feature_histogram)};
-  EvaluateSplitSharedInputs shared_inputs{param,
-                                          quantiser,
-                                          d_feature_types,
-                                          cuts.cut_ptrs_.ConstDeviceSpan(),
-                                          cuts.cut_values_.ConstDeviceSpan(),
-                                          false};
-
-  GPUHistEvaluator evaluator{tparam, static_cast<bst_feature_t>(feature_set.size()), ctx.Device()};
-  evaluator.Reset(&ctx, cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, true);
-  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(&ctx, input, shared_inputs).split;
-
-  EXPECT_EQ(result.findex, 1);
-  if (is_categorical) {
-    ASSERT_TRUE(std::isnan(result.fvalue));
-  } else {
-    EXPECT_EQ(result.fvalue, 11.0);
-  }
-  EXPECT_EQ(result.left_sum + result.right_sum, parent_sum);
-}
-}  // anonymous namespace
-
-TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleSplit) {
-  if (curt::AllVisibleGPUs() > 1) {
-    // We can't emulate multiple GPUs with NCCL.
-    this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(false); }, false, true);
-  }
-  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(false); }, true, true);
-}
-
-TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleCategoricalSplit) {
-  if (curt::AllVisibleGPUs() > 1) {
-    // We can't emulate multiple GPUs with NCCL.
-    this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(true); }, false, true);
-  }
-  this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(true); }, true, true);
-}
 }  // namespace xgboost::tree

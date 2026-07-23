@@ -3,7 +3,7 @@
  */
 #include "init_estimation.h"
 
-#include <memory>                        // unique_ptr
+#include <memory>  // unique_ptr
 
 #include "../common/stats.h"             // Mean
 #include "../tree/fit_stump.h"           // FitStump
@@ -42,10 +42,9 @@ void FitInterceptGlmLike::InitEstimation(MetaInfo const& info,
     CheckInitInputs(info);
   }
   if (info.weights_.Empty()) {
-    common::SampleMean(this->ctx_, info.IsColumnSplit(), info.labels, base_score);
+    common::SampleMean(this->ctx_, info.labels, base_score);
   } else {
-    common::WeightedSampleMean(this->ctx_, info.IsColumnSplit(), info.labels, info.weights_,
-                               base_score);
+    common::WeightedSampleMean(this->ctx_, info.labels, info.weights_, base_score);
   }
   CHECK_GE(base_score->Size(), 1);
 }

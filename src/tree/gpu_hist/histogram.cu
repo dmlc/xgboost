@@ -601,9 +601,8 @@ void DeviceHistogramBuilder::AllReduceHist(Context const* ctx, MetaInfo const& i
   auto d_node_hist = hist_.GetNodeHistogram(nidx);
   using ReduceT = typename std::remove_pointer<decltype(d_node_hist.data())>::type::ValueT;
   auto rc = collective::GlobalSum(
-      ctx, info,
-      linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist.data()),
-                      d_node_hist.size() * 2 * num_histograms, ctx->Device()));
+      ctx, linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist.data()),
+                           d_node_hist.size() * 2 * num_histograms, ctx->Device()));
   SafeColl(rc);
   this->monitor_.Stop(__func__);
 }
