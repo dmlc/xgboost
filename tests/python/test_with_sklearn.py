@@ -11,7 +11,7 @@ import pytest
 import xgboost as xgb
 from sklearn.utils.estimator_checks import parametrize_with_checks
 from xgboost import testing as tm
-from xgboost.testing.data import get_california_housing
+from xgboost.testing.data import get_california_housing, make_ltr
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
 from xgboost.testing.updater import get_basescore
@@ -190,7 +190,7 @@ def test_ranking_categorical() -> None:
 def test_ranking_metric() -> None:
     from sklearn.metrics import roc_auc_score
 
-    X, y, qid, w = tm.make_ltr(512, 4, 3, 1)
+    X, y, qid, w = make_ltr(512, 4, 3, 1)
     # use auc for test as ndcg_score in sklearn works only on label gain instead of exp
     # gain.
     # note that the auc in sklearn is different from the one in XGBoost. The one in

@@ -320,29 +320,6 @@ class TestDataset:
         return self.name
 
 
-def make_ltr(
-    n_samples: int,
-    n_features: int,
-    n_query_groups: int,
-    max_rel: int,
-    sort_qid: bool = True,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Make a dataset for testing LTR."""
-    rng = np.random.default_rng(1994)
-    X = rng.normal(0, 1.0, size=n_samples * n_features).reshape(n_samples, n_features)
-    y = np.sum(X, axis=1)
-    y -= y.min()
-    y = np.round(y / y.max() * max_rel).astype(np.int32)
-
-    qid = rng.integers(0, n_query_groups, size=n_samples, dtype=np.int32)
-    w = rng.normal(0, 1.0, size=n_query_groups)
-    w -= np.min(w)
-    w /= np.max(w)
-    if sort_qid:
-        qid = np.sort(qid)
-    return X, y, qid, w
-
-
 def _cat_sampled_from() -> strategies.SearchStrategy:
     @strategies.composite
     def _make_cat(draw: Callable) -> Tuple[int, int, int, float]:
