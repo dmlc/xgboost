@@ -13,8 +13,7 @@
 #include <utility>          // for move
 #include <vector>           // for vector
 
-#include "../../src/collective/comm.h"  // for Op
-#include "../collective/aggregator.h"
+#include "../collective/aggregator.h"        // for GlobalSum
 #include "../collective/communicator-inl.h"  // for IsDistributed
 #include "../common/categorical.h"           // for KCatBitField
 #include "../common/cuda_context.cuh"        // for CUDAContext
@@ -169,7 +168,7 @@ struct GPUHistMakerDevice {
   ~GPUHistMakerDevice() = default;
 
   // Reset values for each update iteration
-  [[nodiscard]] DMatrix* Reset(HostDeviceVector<GradientPair> const* dh_gpair, DMatrix* p_fmat) {
+  void Reset(HostDeviceVector<GradientPair> const* dh_gpair, DMatrix* p_fmat) {
     this->monitor.Start(__func__);
     curt::SetDevice(ctx_->Ordinal());
 
@@ -208,7 +207,6 @@ struct GPUHistMakerDevice {
     this->histogram_.Reset(ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
                            cuts_->TotalBins(), false);
     this->monitor.Stop(__func__);
-    return p_fmat;
   }
 
   GPUExpandEntry EvaluateRootSplit(DMatrix const* p_fmat, GradientPairInt64 root_sum) {
@@ -618,7 +616,7 @@ struct GPUHistMakerDevice {
                   HostDeviceVector<bst_node_t>* p_out_position) {
     Driver<GPUExpandEntry> driver{param, cuda_impl::kMaxNodeBatchSize};
 
-    p_fmat = this->Reset(gpair_all, p_fmat);
+    this->Reset(gpair_all, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
 
     // The set of leaves that can be expanded asynchronously

@@ -7,8 +7,8 @@
 
 #include <algorithm>  // for copy_if, max, transform
 #include <memory>     // for unique_ptr
+#include <utility>    // for pair
 #include <vector>     // for vector
-#include <utility>  // for pair
 
 #include "../collective/aggregator.h"          // for GlobalSum
 #include "../collective/communicator-inl.h"    // for IsDistributed
