@@ -32,7 +32,7 @@ void FitIntercept::InitEstimation(MetaInfo const& info, linalg::Vector<float>* b
   new_obj->GetGradient(dummy_predt, info, 0, &gpair);
 
   bst_target_t n_targets = this->Targets(info);
-  tree::FitStump(this->ctx_, info, gpair, n_targets, base_score);
+  tree::FitStump(this->ctx_, gpair, n_targets, base_score);
   this->PredTransform(base_score->Data());
 }
 

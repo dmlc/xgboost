@@ -9,7 +9,6 @@
 #include "../../common/device_vector.cuh"   // for device_vector, DeviceUVector
 #include "xgboost/base.h"                   // for GradientPairPrecise, GradientPairInt64
 #include "xgboost/context.h"                // for Context
-#include "xgboost/data.h"                   // for MetaInfo
 #include "xgboost/linalg.h"                 // for VectorView, MatrixView
 
 namespace xgboost::tree {
@@ -99,11 +98,9 @@ class GradientQuantiserGroup {
 
  public:
   /** @brief Construct from a gradient matrix (n_samples x n_targets). */
-  GradientQuantiserGroup(Context const* ctx, linalg::MatrixView<GradientPair const> gpair,
-                         MetaInfo const& info);
+  GradientQuantiserGroup(Context const* ctx, linalg::MatrixView<GradientPair const> gpair);
   /** @brief Convenience constructor from a vector (single-target). */
-  GradientQuantiserGroup(Context const* ctx, linalg::VectorView<GradientPair const> gpair,
-                         MetaInfo const& info);
+  GradientQuantiserGroup(Context const* ctx, linalg::VectorView<GradientPair const> gpair);
 
   [[nodiscard]] common::Span<GradientQuantiser const> DeviceSpan() const {
     return dh::ToSpan(this->d_quantizers_);

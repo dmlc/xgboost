@@ -12,7 +12,7 @@
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree_model.h"
-#include "../collective/test_worker.h"  // for TestDistributedGlobal, BaseMGPUTest
+#include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_predictor.h"
 #include "test_shap.h"

@@ -15,8 +15,7 @@
 #include <string>  // for string
 #include <vector>  // for vector
 
-#include "../../../src/tree/param.h"    // for TrainParam
-#include "../collective/test_worker.h"  // for BaseMGPUTest
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
 
 namespace xgboost::tree {
@@ -217,23 +216,4 @@ TEST(GpuHist, MaxDepth) {
 
   ASSERT_THROW({ learner->UpdateOneIter(0, p_mat); }, dmlc::Error);
 }
-
-namespace {
-RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
-  ObjInfo task{ObjInfo::kRegression};
-  std::unique_ptr<TreeUpdater> hist_maker{TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
-  hist_maker->Configure(Args{});
-
-  TrainParam param;
-  param.UpdateAllowUnknown(Args{});
-  auto gpair = GenerateRandomGradients(ctx, dmat->Info().num_row_, 1);
-
-  std::vector<HostDeviceVector<bst_node_t>> position(1);
-  RegTree tree;
-  hist_maker->Update(&param, &gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
-                     {&tree});
-  return tree;
-}
-
-}  // namespace
 }  // namespace xgboost::tree

@@ -595,8 +595,8 @@ void DeviceHistogramBuilder::BuildHistogram(
       matrix);
 }
 
-void DeviceHistogramBuilder::AllReduceHist(Context const* ctx, MetaInfo const& info,
-                                           bst_node_t nidx, std::size_t num_histograms) {
+void DeviceHistogramBuilder::AllReduceHist(Context const* ctx, bst_node_t nidx,
+                                           std::size_t num_histograms) {
   this->monitor_.Start(__func__);
   auto d_node_hist = hist_.GetNodeHistogram(nidx);
   using ReduceT = typename std::remove_pointer<decltype(d_node_hist.data())>::type::ValueT;

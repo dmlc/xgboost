@@ -64,68 +64,6 @@ struct GPUExpandEntry {
     os << "right_sum: " << e.split.right_sum << "\n";
     return os;
   }
-
-  void Save(Json* p_out) const {
-    auto& out = *p_out;
-
-    out["nid"] = Integer{this->nidx};
-    out["depth"] = Integer{this->depth};
-    // GPU specific
-    out["base_weight"] = this->base_weight;
-    out["left_weight"] = this->left_weight;
-    out["right_weight"] = this->right_weight;
-
-    /**
-     * Handle split
-     */
-    out["split"] = Object{};
-    auto& split = out["split"];
-    split["loss_chg"] = this->split.loss_chg;
-    split["sindex"] = Integer{this->split.findex};
-    split["split_value"] = this->split.fvalue;
-
-    // cat
-    split["thresh"] = Integer{this->split.thresh};
-    split["is_cat"] = Boolean{this->split.is_cat};
-    /**
-     * Gradients
-     */
-    auto save = [&](std::string const& name, GradientPairInt64 const& sum) {
-      out[name] = I64Array{2};
-      auto& array = get<I64Array>(out[name]);
-      array[0] = sum.GetQuantisedGrad();
-      array[1] = sum.GetQuantisedHess();
-    };
-    save("left_sum", this->split.left_sum);
-    save("right_sum", this->split.right_sum);
-  }
-
-  void Load(Json const& in) {
-    this->nidx = get<Integer const>(in["nid"]);
-    this->depth = get<Integer const>(in["depth"]);
-    // GPU specific
-    this->base_weight = get<Number const>(in["base_weight"]);
-    this->left_weight = get<Number const>(in["left_weight"]);
-    this->right_weight = get<Number const>(in["right_weight"]);
-
-    /**
-     * Handle split
-     */
-    auto const& split = in["split"];
-    this->split.loss_chg = get<Number const>(split["loss_chg"]);
-    this->split.findex = get<Integer const>(split["sindex"]);
-    this->split.fvalue = get<Number const>(split["split_value"]);
-    // cat
-    this->split.thresh = get<Integer const>(split["thresh"]);
-    this->split.is_cat = get<Boolean const>(split["is_cat"]);
-    /**
-     * Gradients
-     */
-    auto const& left_sum = get<I64Array const>(in["left_sum"]);
-    this->split.left_sum = GradientPairInt64{left_sum[0], left_sum[1]};
-    auto const& right_sum = get<I64Array const>(in["right_sum"]);
-    this->split.right_sum = GradientPairInt64{right_sum[0], right_sum[1]};
-  }
 };
 
 namespace cuda_impl {
