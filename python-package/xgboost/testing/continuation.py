@@ -1,6 +1,7 @@
 """Tests for training continuation."""
 
 import json
+import pickle
 from typing import Any, Dict, TypeVar, cast
 
 import numpy as np
@@ -144,6 +145,13 @@ def run_training_continuation_determinism(
     pred_single = bst_single.predict(dtrain)
     pred_cont = bst_continued.predict(dtrain)
     np.testing.assert_allclose(pred_single, pred_cont)
+
+    bst_continued = xgb.train(
+        params,
+        dtrain,
+        num_boost_round=total_rounds - split_at,
+        xgb_model=pickle.loads(pickle.dumps(bst_first)),
+    )
 
 
 def make_determinism_strategy(tree_methods: list[str]) -> "strategies.SearchStrategy":
