@@ -168,7 +168,7 @@ struct GPUHistMakerDevice {
   ~GPUHistMakerDevice() = default;
 
   // Reset values for each update iteration
-  [[nodiscard]] void Reset(HostDeviceVector<GradientPair> const* dh_gpair, DMatrix* p_fmat) {
+  void Reset(HostDeviceVector<GradientPair> const* dh_gpair, DMatrix* p_fmat) {
     this->monitor.Start(__func__);
     curt::SetDevice(ctx_->Ordinal());
 
