@@ -4,19 +4,16 @@
 #ifndef XGBOOST_TREE_HIST_EXPAND_ENTRY_H_
 #define XGBOOST_TREE_HIST_EXPAND_ENTRY_H_
 
-#include <algorithm>  // for all_of
-#include <ostream>    // for ostream
-#include <string>     // for string
-#include <utility>    // for move
-#include <vector>     // for vector
+#include <ostream>  // for ostream
+#include <utility>  // for move
+#include <vector>   // for vector
 
-#include "../param.h"      // for SplitEntry, SplitEntryContainer, TrainParam
+#include "../param.h"      // for SplitEntry, SplitEntryContainer
 #include "xgboost/base.h"  // for GradientPairPrecise, bst_node_t
-#include "xgboost/json.h"  // for Json
 
 namespace xgboost::tree {
 /**
- * \brief Structure for storing tree split candidate.
+ * @brief Structure for storing tree split candidate.
  */
 template <typename Impl>
 struct ExpandEntryImpl {
@@ -27,10 +24,6 @@ struct ExpandEntryImpl {
     return static_cast<Impl const*>(this)->split.loss_chg;
   }
   [[nodiscard]] bst_node_t GetNodeId() const { return nid; }
-
-  [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t num_leaves) const {
-    return static_cast<Impl const*>(this)->IsValidImpl(param, num_leaves);
-  }
 };
 
 struct CPUExpandEntry : public ExpandEntryImpl<CPUExpandEntry> {
@@ -40,23 +33,6 @@ struct CPUExpandEntry : public ExpandEntryImpl<CPUExpandEntry> {
   CPUExpandEntry(bst_node_t nidx, bst_node_t depth, SplitEntry split)
       : ExpandEntryImpl{nidx, depth}, split(std::move(split)) {}
   CPUExpandEntry(bst_node_t nidx, bst_node_t depth) : ExpandEntryImpl{nidx, depth} {}
-
-  [[nodiscard]] bool IsValidImpl(TrainParam const& param, bst_node_t num_leaves) const {
-    if (split.loss_chg <= kRtEps) return false;
-    if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
-      return false;
-    }
-    if (split.loss_chg < param.min_split_loss) {
-      return false;
-    }
-    if (param.max_depth > 0 && depth == param.max_depth) {
-      return false;
-    }
-    if (param.max_leaves > 0 && num_leaves == param.max_leaves) {
-      return false;
-    }
-    return true;
-  }
 
   friend std::ostream& operator<<(std::ostream& os, CPUExpandEntry const& e) {
     os << "ExpandEntry:\n";
@@ -73,27 +49,6 @@ struct MultiExpandEntry : public ExpandEntryImpl<MultiExpandEntry> {
 
   MultiExpandEntry() = default;
   MultiExpandEntry(bst_node_t nidx, bst_node_t depth) : ExpandEntryImpl{nidx, depth} {}
-
-  [[nodiscard]] bool IsValidImpl(TrainParam const& param, bst_node_t num_leaves) const {
-    if (split.loss_chg <= kRtEps) return false;
-    auto is_zero = [](auto const& sum) {
-      return std::all_of(sum.cbegin(), sum.cend(),
-                         [&](auto const& g) { return g.GetHess() - .0 == .0; });
-    };
-    if (is_zero(split.left_sum) || is_zero(split.right_sum)) {
-      return false;
-    }
-    if (split.loss_chg < param.min_split_loss) {
-      return false;
-    }
-    if (param.max_depth > 0 && depth == param.max_depth) {
-      return false;
-    }
-    if (param.max_leaves > 0 && num_leaves == param.max_leaves) {
-      return false;
-    }
-    return true;
-  }
 
   friend std::ostream& operator<<(std::ostream& os, MultiExpandEntry const& e) {
     os << "ExpandEntry: \n";

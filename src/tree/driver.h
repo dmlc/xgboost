@@ -25,6 +25,25 @@ inline bool LossGuide(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
   }
 }
 
+template <typename ExpandEntryT>
+[[nodiscard]] bool IsValidExpandEntry(ExpandEntryT const& entry, TrainParam const& param,
+                                      bst_node_t num_leaves) {
+  auto loss_chg = entry.GetLossChange();
+  if (loss_chg <= kRtEps) {
+    return false;
+  }
+  if (loss_chg < param.min_split_loss) {
+    return false;
+  }
+  if (param.max_depth > 0 && entry.depth == param.max_depth) {
+    return false;
+  }
+  if (param.max_leaves > 0 && num_leaves == param.max_leaves) {
+    return false;
+  }
+  return true;
+}
+
 // Drives execution of tree building on device
 template <typename ExpandEntryT>
 class Driver {
@@ -42,7 +61,7 @@ class Driver {
   void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
       const ExpandEntryT& e = *it;
-      if (e.split.loss_chg > kRtEps) {
+      if (e.GetLossChange() > kRtEps) {
         queue_.push(e);
       }
     }
@@ -74,7 +93,7 @@ class Driver {
       ExpandEntryT e = queue_.top();
       queue_.pop();
 
-      if (e.IsValid(param_, num_leaves_)) {
+      if (IsValidExpandEntry(e, param_, num_leaves_)) {
         num_leaves_++;
         return {e};
       } else {
@@ -87,7 +106,7 @@ class Driver {
     int level = e.depth;
     while (e.depth == level && !queue_.empty() && result.size() < max_node_batch_size_) {
       queue_.pop();
-      if (e.IsValid(param_, num_leaves_)) {
+      if (IsValidExpandEntry(e, param_, num_leaves_)) {
         num_leaves_++;
         result.emplace_back(e);
       }

@@ -5,6 +5,7 @@
 
 #include <cmath>  // for isnan
 
+#include "../../../../src/tree/driver.h"
 #include "../../../../src/tree/gpu_hist/evaluate_splits.cuh"
 #include "../../../../src/tree/gpu_hist/multi_evaluate_splits.cuh"
 #include "../../helpers.h"
@@ -253,7 +254,7 @@ TEST_F(GpuMultiHistEvaluatorBasicTest, CategoricalPartition) {
   auto no_split = no_split_evaluator.EvaluateSingleSplit(&ctx, input, shared);
 
   ASSERT_TRUE(no_split.split.child_sum.empty());
-  ASSERT_FALSE(no_split.IsValid(no_split_param, 100));
+  ASSERT_FALSE(IsValidExpandEntry(no_split, no_split_param, 100));
   AssertDeviceVecEq(no_split.base_weight, std::vector<float>{2.25f, 1.75f});
   ASSERT_EQ(no_split.left_sum, 8.0);
   ASSERT_EQ(no_split.right_sum, 0.0);

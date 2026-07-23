@@ -7,7 +7,6 @@
 #include <limits>   // for numeric_limits
 #include <utility>  // for move
 
-#include "../param.h"                 // for TrainParam
 #include "../updater_gpu_common.cuh"  // for DeviceSplitCandidate
 #include "xgboost/base.h"             // for bst_node_t
 
@@ -30,24 +29,6 @@ struct GPUExpandEntry {
         base_weight{base},
         left_weight{left},
         right_weight{right} {}
-  [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t num_leaves) const {
-    if (split.loss_chg <= kRtEps) {
-      return false;
-    }
-    if (split.left_sum.GetQuantisedHess() == 0 || split.right_sum.GetQuantisedHess() == 0) {
-      return false;
-    }
-    if (split.loss_chg < param.min_split_loss) {
-      return false;
-    }
-    if (param.max_depth > 0 && depth == param.max_depth) {
-      return false;
-    }
-    if (param.max_leaves > 0 && num_leaves == param.max_leaves) {
-      return false;
-    }
-    return true;
-  }
 
   [[nodiscard]] float GetLossChange() const { return split.loss_chg; }
 
@@ -84,27 +65,6 @@ struct MultiExpandEntry {
   [[nodiscard]] bst_node_t GetNodeId() const { return nidx; }
 
   [[nodiscard]] bst_node_t GetDepth() const { return depth; }
-
-  [[nodiscard]] bool IsValid(TrainParam const& param, bst_node_t n_leaves) const {
-    // The split evaluator handles the zero Hessian case. It returns an expand entry with
-    // -inf loss_chg if the Hessian is invalid.
-    if (split.loss_chg <= kRtEps) {
-      return false;
-    }
-    if (base_weight.empty()) {
-      return false;
-    }
-    if (split.loss_chg < param.min_split_loss) {
-      return false;
-    }
-    if (param.max_depth > 0 && depth == param.max_depth) {
-      return false;
-    }
-    if (param.max_leaves > 0 && n_leaves == param.max_leaves) {
-      return false;
-    }
-    return true;
-  }
 
   /**
    * @brief Update hessian statistics.

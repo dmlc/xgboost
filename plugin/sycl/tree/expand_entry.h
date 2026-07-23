@@ -31,15 +31,6 @@ struct ExpandEntry : public xgboost::tree::ExpandEntryImpl<ExpandEntry> {
   bst_node_t GetSiblingId(::xgboost::tree::ScalarTreeView const& tree, size_t parent_id) const {
     return tree.IsLeftChild(nid) ? tree.RightChild(parent_id) : tree.LeftChild(parent_id);
   }
-
-  bool IsValidImpl(xgboost::tree::TrainParam const &param, int32_t num_leaves) const {
-    if (split.loss_chg <= kRtEps) return false;
-    if (split.loss_chg < param.min_split_loss) return false;
-    if (param.max_depth > 0 && depth == param.max_depth) return false;
-    if (param.max_leaves > 0 && num_leaves == param.max_leaves) return false;
-
-    return true;
-  }
 };
 
 }  // namespace tree
