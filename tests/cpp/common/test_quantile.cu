@@ -6,7 +6,7 @@
 #include "../../../src/collective/allreduce.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
-#include "../collective/test_worker.h"  // for TestDistributedGlobal
+#include "../collective/test_worker.h"  // for TestDistributedGlobal, TestFederatedGlobal
 #include "../helpers.h"
 #include "test_quantile.h"
 
