@@ -1,8 +1,7 @@
 /**
- * Copyright 2023-2024, XGBoost contributors
+ * Copyright 2023-2026, XGBoost contributors
  */
-#ifndef XGBOOST_OBJECTIVE_LAMBDARANK_OBJ_CUH_
-#define XGBOOST_OBJECTIVE_LAMBDARANK_OBJ_CUH_
+#pragma once
 
 #include <thrust/binary_search.h>                    // for lower_bound, upper_bound
 #include <thrust/functional.h>                       // for greater
@@ -26,18 +25,18 @@
 
 namespace xgboost::obj::cuda_impl {
 /**
- * \brief Find number of elements left to the label bucket
+ * @brief Find number of elements left to the label bucket
  */
 template <typename It, typename T = typename std::iterator_traits<It>::value_type>
 XGBOOST_DEVICE __forceinline__ std::size_t CountNumItemsToTheLeftOf(It items, std::size_t n, T v) {
-  return thrust::lower_bound(thrust::seq, items, items + n, v, thrust::greater<T>{}) - items;
+  return thrust::lower_bound(thrust::seq, items, items + n, v, cuda::std::greater{}) - items;
 }
 /**
- * \brief Find number of elements right to the label bucket
+ * @brief Find number of elements right to the label bucket
  */
 template <typename It, typename T = typename std::iterator_traits<It>::value_type>
 XGBOOST_DEVICE __forceinline__ std::size_t CountNumItemsToTheRightOf(It items, std::size_t n, T v) {
-  return n - (thrust::upper_bound(thrust::seq, items, items + n, v, thrust::greater<T>{}) - items);
+  return n - (thrust::upper_bound(thrust::seq, items, items + n, v, cuda::std::greater{}) - items);
 }
 /**
  * \brief Sort labels according to rank list for making pairs.
@@ -166,4 +165,3 @@ struct MakePairsOp {
   }
 };
 }  // namespace xgboost::obj::cuda_impl
-#endif  // XGBOOST_OBJECTIVE_LAMBDARANK_OBJ_CUH_
