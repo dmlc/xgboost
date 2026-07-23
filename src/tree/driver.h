@@ -1,23 +1,25 @@
-/*!
- * Copyright 2021 by XGBoost Contributors
+/**
+ * Copyright 2021-2026, XGBoost Contributors
  */
-#ifndef XGBOOST_TREE_DRIVER_H_
-#define XGBOOST_TREE_DRIVER_H_
+#pragma once
+
 #include <xgboost/span.h>
-#include <queue>
-#include <vector>
-#include "./param.h"
 
-namespace xgboost {
-namespace tree {
+#include <cstddef>     // for size_t
+#include <functional>  // for function
+#include <queue>       // for priority_queue
+#include <vector>      // for vector
 
+#include "./param.h"  // for TrainParam
+
+namespace xgboost::tree {
 template <typename ExpandEntryT>
-inline bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
   return lhs.GetNodeId() > rhs.GetNodeId();  // favor small depth
 }
 
 template <typename ExpandEntryT>
-inline bool LossGuide(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
+bool LossGuide(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
   if (lhs.GetLossChange() == rhs.GetLossChange()) {
     return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
   } else {
@@ -47,9 +49,8 @@ template <typename ExpandEntryT>
 // Drives execution of tree building on device
 template <typename ExpandEntryT>
 class Driver {
-  using ExpandQueue =
-      std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
-                          std::function<bool(ExpandEntryT, ExpandEntryT)>>;
+  using ExpandQueue = std::priority_queue<ExpandEntryT, std::vector<ExpandEntryT>,
+                                          std::function<bool(ExpandEntryT, ExpandEntryT)>>;
 
  public:
   explicit Driver(TrainParam param, std::size_t max_node_batch_size = 256)
@@ -66,14 +67,12 @@ class Driver {
       }
     }
   }
-  void Push(const std::vector<ExpandEntryT> &entries) {
+  void Push(const std::vector<ExpandEntryT>& entries) {
     this->Push(entries.begin(), entries.end());
   }
   void Push(ExpandEntryT const& e) { queue_.push(e); }
 
-  bool IsEmpty() {
-    return queue_.empty();
-  }
+  bool IsEmpty() { return queue_.empty(); }
 
   // Can a child of this entry still be expanded?
   // can be used to avoid extra work
@@ -124,7 +123,4 @@ class Driver {
   std::size_t max_node_batch_size_;
   ExpandQueue queue_;
 };
-}  // namespace tree
-}  // namespace xgboost
-
-#endif  // XGBOOST_TREE_DRIVER_H_
+}  // namespace xgboost::tree

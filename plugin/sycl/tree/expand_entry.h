@@ -16,7 +16,7 @@ namespace sycl {
 namespace tree {
 /* tree growing policies */
 struct ExpandEntry : public xgboost::tree::ExpandEntryImpl<ExpandEntry> {
-  static constexpr bst_node_t kRootNid  = 0;
+  static constexpr bst_node_t kRootNid = 0;
 
   xgboost::tree::SplitEntry split;
 
