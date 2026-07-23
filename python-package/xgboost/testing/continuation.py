@@ -152,6 +152,8 @@ def run_training_continuation_determinism(
         num_boost_round=total_rounds - split_at,
         xgb_model=pickle.loads(pickle.dumps(bst_first)),
     )
+    pred_cont = bst_continued.predict(dtrain)
+    np.testing.assert_allclose(pred_single, pred_cont, rtol=1e-4)
 
 
 def make_determinism_strategy(tree_methods: list[str]) -> "strategies.SearchStrategy":
