@@ -104,8 +104,8 @@ class TreePruner : public TreeUpdater {
       for (std::size_t i = 0; i < batch.Size(); ++i) {
         feats.Fill(page[i]);
         h_position[batch.base_rowid + i] = has_categorical
-                                              ? this->LeafPosition<true>(*p_tree, feats)
-                                              : this->LeafPosition<false>(*p_tree, feats);
+                                               ? this->LeafPosition<true>(*p_tree, feats)
+                                               : this->LeafPosition<false>(*p_tree, feats);
         feats.Drop();
       }
     }
